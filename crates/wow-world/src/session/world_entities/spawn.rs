@@ -6,7 +6,7 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::session) fn despawn_represented_linked_trap_by_guid_like_cpp(
+    pub(crate) fn despawn_represented_linked_trap_by_guid_like_cpp(
         &mut self,
         trap_guid: ObjectGuid,
     ) {
@@ -25,7 +25,7 @@ impl WorldSession {
         }
         self.core.client_visible_guids_like_cpp.remove(&trap_guid);
         self.loot.remove_cached_loot_for_owner_like_cpp(trap_guid);
-        self.send_represented_gameobject_delete_packets_like_cpp(trap_guid);
+        wow_world_entities::send_represented_gameobject_delete_packets_like_cpp(self, trap_guid);
     }
 }
 

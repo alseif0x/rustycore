@@ -34,7 +34,6 @@ mod trade_handler_contexts;
 mod travel_handler_contexts;
 mod vehicle_handler_contexts;
 pub(crate) use combat::CR_ARMOR_PENETRATION_LIKE_CPP;
-pub(crate) use combat::PlayerAttackStartLikeCppResult;
 mod account_data_handler_contexts;
 mod effect_learning;
 mod instance_handler_contexts;
@@ -150,6 +149,7 @@ pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePet
 mod battleground_adapter;
 #[cfg(test)]
 pub(crate) use battleground_adapter::RepresentedBattlefieldListLikeCpp;
+#[cfg(test)]
 pub(crate) use battleground_adapter::RepresentedBattlegroundQueueTypeIdLikeCpp;
 #[cfg(test)]
 pub(crate) use battleground_adapter::RepresentedBattlemasterHelloLikeCpp;
@@ -196,6 +196,7 @@ use connection_identity::PacketSpoofPendingBanLikeCpp;
 use connection_identity::PacketSpoofPendingBanTargetLikeCpp;
 pub use connection_identity::SessionState;
 pub(crate) use connection_identity::{ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, AccountDataLikeCpp};
+#[cfg(test)]
 pub(crate) use connection_identity::{ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp};
 use connection_identity::{trinity_sprintf_like_cpp, unix_now};
 mod construction;
@@ -248,14 +249,15 @@ pub(crate) use faction_reactions::RepresentedFactionReactionInputLikeCpp;
 pub(crate) use faction_reactions::RepresentedGetReactionInputLikeCpp;
 pub(crate) use faction_reactions::ReputationGainSourceLikeCpp;
 mod gameobject_interaction;
-pub(crate) use gameobject_interaction::BattlegroundFlagDropClickTarget;
-pub(crate) use gameobject_interaction::RepresentedBattlegroundObjectUseRejection;
 pub(crate) use gameobject_interaction::RepresentedCapturePointStateLikeCpp;
-#[cfg(test)]
-pub(crate) use gameobject_interaction::RepresentedGameObjectCriteriaEvent;
 pub(crate) use gameobject_interaction::RepresentedGameObjectUseEffect;
 pub(crate) use gameobject_interaction::RepresentedGameObjectUseState;
 pub(crate) use gameobject_interaction::RepresentedNewFlagStateRequest;
+#[cfg(test)]
+pub(crate) use gameobject_interaction::{
+    BattlegroundFlagDropClickTarget, RepresentedBattlegroundObjectUseRejection,
+    RepresentedGameObjectCriteriaEvent,
+};
 mod guild_inventory_contracts;
 pub(crate) use guild_inventory_contracts::RepresentedBankItemMoveLikeCpp;
 #[cfg(test)]
@@ -813,7 +815,6 @@ pub(crate) use wow_world_application::spell_click_values::MAX_GAMEOBJECT_SLOT_LI
 #[cfg(test)]
 pub(crate) use wow_world_application::spell_click_values::SPELL_CAST_SOURCE_NORMAL_LIKE_CPP;
 pub(crate) use wow_world_core::session::MAX_SPECIALIZATIONS_LIKE_CPP;
-const PLAYER_FLAGS_UBER_LIKE_CPP: u32 = 0x0008_0000;
 const PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP: u32 = 0x0000_0001;
 pub(crate) use wow_world_core::session::PLAYER_FLAGS_RESTING_LIKE_CPP;
 pub(crate) use wow_world_core::session::{
@@ -912,14 +913,12 @@ const TRANSFER_ABORT_MAP_NOT_ALLOWED_LIKE_CPP: u32 = 16;
 const CLASS_DEATH_KNIGHT_LIKE_CPP: u8 = 6;
 const DEATH_KNIGHT_START_MAP_LIKE_CPP: u16 = 609;
 const DEATH_KNIGHT_ESCAPE_SPELL_LIKE_CPP: i32 = 50977;
-const BATTLEGROUND_WS_LIKE_CPP: u32 = 2;
 // C++ `SpellCastSource::Normal` is encoded in the six-bit Cast GUID subtype.
 // The capture contract validates this field rather than treating it as a runtime counter, so keep the canonical numeric value here.
 pub(crate) const CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP: u32 = 0x08000;
 
 /// C++ `CAST_FLAG_PENDING` (`Spells/Spell.h:78`); `SendSpellStart` and `SendSpellGo` set it for a triggered cast that is not `m_fromClient`.
 pub(crate) const CAST_FLAG_PENDING_LIKE_CPP: u32 = 0x0000_0001;
-const BATTLEGROUND_EY_LIKE_CPP: u32 = 7;
 
 pub(crate) use wow_entities::PlayerFavoriteAppearanceStateLikeCpp as FavoriteAppearanceStateLikeCpp;
 
@@ -932,7 +931,6 @@ pub(crate) const BATTLE_PET_BREED_QUALITY_RARE_LIKE_CPP: u8 = 3;
 pub(crate) const BATTLE_PET_SPELL_VISUAL_UNCAGE_PET_LIKE_CPP: u32 = 222;
 pub(crate) const MAX_BATTLE_PET_LEVEL_LIKE_CPP: u16 = 25;
 
-pub(crate) const SKILL_FISHING_LIKE_CPP: u16 = 356;
 pub(crate) const SKILL_RIDING_LIKE_CPP: u16 = 762;
 pub use wow_world_core::session::{LIQUID_MAP_IN_WATER_LIKE_CPP, LIQUID_MAP_UNDER_WATER_LIKE_CPP};
 const DAMAGE_FIRE_LIKE_CPP: u8 = 5;
@@ -977,7 +975,6 @@ pub use wow_entities::{RepresentedAuraEffectAmountLikeCpp, RepresentedAuraEffect
 pub(crate) use wow_world_core::session::AFLAG_NOCASTER_LIKE_CPP;
 
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP: u32 = 0x0000_0800;
-pub(crate) const SPELL_AURA_INTERRUPT_FLAG_ANIM_LIKE_CPP: u32 = 0x0000_0020;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP: u32 = 0x0000_0008;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP: u32 = 0x0000_0010;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_MOVING_OR_TURNING_LIKE_CPP: u32 =

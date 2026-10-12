@@ -3584,6 +3584,7 @@ name = "wow-world-entities"
 version = "0.1.0"
 dependencies = [
  "num-traits",
+ "rand",
  "tracing",
  "wow-ai",
  "wow-conditions",
@@ -3697,6 +3698,7 @@ dependencies = [
  "wow-chat",
  "wow-constants",
  "wow-core",
+ "wow-data",
  "wow-entities",
  "wow-handler",
  "wow-packet",

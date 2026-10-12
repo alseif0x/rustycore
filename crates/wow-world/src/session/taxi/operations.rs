@@ -191,29 +191,7 @@ impl WorldSession {
             _ => false,
         }
     }
-    pub(crate) fn represented_player_reject_battleground_object_vehicle_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        player_guid: ObjectGuid,
-    ) -> bool {
-        if crate::session::hub_ref(self)
-            .player_vehicle_seat_state_like_cpp()
-            .and_then(|(flags, _)| flags)
-            .is_none()
-        {
-            return false;
-        }
 
-        self.world_entities
-            .record_represented_gameobject_use_effect_like_cpp(
-                RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
-                    gameobject_guid,
-                    player_guid,
-                    reason: RepresentedBattlegroundObjectUseRejection::Vehicle,
-                },
-            );
-        true
-    }
     pub(crate) fn set_player_transport_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
         crate::session::hub_mut(self).set_player_transport_guid_like_cpp(guid)
     }

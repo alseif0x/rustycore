@@ -14,6 +14,9 @@
 //!
 //! Reference: C++ `Handlers/ChatHandler.cpp`, `Entities/Player/Player.cpp`,
 //! and `Server/Packets/ChatPackets.cpp`.
+//!
+//! Every handler body now lives in `wow-world-social`; this module is mounted
+//! only for the test build and keeps the scenario entry points.
 
 use tracing::debug;
 
@@ -35,38 +38,25 @@ use wow_packet::{ClientPacket, ServerPacket};
 use wow_social::group::GroupInfo;
 
 use crate::session::{
-    ChatFloodThrottleIndexLikeCpp, ChatPolicyCatalogsLikeCpp, PlayerAwayModeLikeCpp,
-    SPELL_AURA_INTERRUPT_FLAG_ANIM_LIKE_CPP, WorldSession, player_team_for_race_cpp,
+    ChatFloodThrottleIndexLikeCpp, ChatPolicyCatalogsLikeCpp, PlayerAwayModeLikeCpp, WorldSession,
+    player_team_for_race_cpp,
 };
 
-/// Chat constants consumed by the moved handlers and their scenario module.
+/// Chat constants and emote ids consumed by the chat scenario module; the
+/// text-emote body moved to `wow_world_social::text_emote` (#1363 slice 4a).
 pub(crate) use wow_world_social::{
+    ANIM_MOUNT_SPECIAL_LIKE_CPP, EMOTE_STATE_DANCE_LIKE_CPP, EMOTE_STATE_SIT_LIKE_CPP,
     GM_SILENCE_AURA_LIKE_CPP, LANG_ADDON_LIKE_CPP, LANG_ADDON_LOGGED_LIKE_CPP,
     LANG_UNIVERSAL_LIKE_CPP, secs_to_full_time_string_like_cpp,
 };
 
-/// Emote ids and states used only by the emote handlers that remain here.
-pub(crate) const EMOTE_ONESHOT_NONE_LIKE_CPP: i32 = 0;
-pub(crate) const EMOTE_STATE_DANCE_LIKE_CPP: i32 = 10;
-pub(crate) const EMOTE_STATE_SLEEP_LIKE_CPP: i32 = 12;
-pub(crate) const EMOTE_STATE_SIT_LIKE_CPP: i32 = 13;
-pub(crate) const EMOTE_STATE_KNEEL_LIKE_CPP: i32 = 68;
-pub(crate) const EMOTE_STATE_READ_LIKE_CPP: i32 = 483;
-pub(crate) const ANIM_MOUNT_SPECIAL_LIKE_CPP: i32 = 94;
-pub(crate) const ANIM_MOUNT_SELF_SPECIAL_LIKE_CPP: i32 = 636;
-
-mod ops_1;
 mod ops_2;
-#[allow(unused_imports)]
-pub use ops_1::*;
 #[allow(unused_imports)]
 pub use ops_2::*;
 
 /// Test-only entry points for the moved chat handlers.
-#[cfg(test)]
 mod test_shims;
 
-#[cfg(test)]
 #[path = "../../unit_tests/handlers/chat/tests/mod.rs"]
 mod tests;
 

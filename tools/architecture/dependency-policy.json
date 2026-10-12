@@ -245,6 +245,7 @@
       "wow-chat",
       "wow-constants",
       "wow-core",
+      "wow-data",
       "wow-entities",
       "wow-handler",
       "wow-packet",
@@ -609,6 +610,7 @@
       "wow-world-entities": {
         "normal": [
           "num-traits",
+          "rand",
           "tracing"
         ],
         "build": []

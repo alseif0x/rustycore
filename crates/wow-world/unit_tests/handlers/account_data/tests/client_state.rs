@@ -416,14 +416,17 @@ async fn next_cinematic_camera_advances_active_camera_like_cpp() {
             camera: [11, 22, 0, 33, 0, 0, 0, 0],
         }]),
     ));
-    assert!(session.use_represented_gameobject_camera_like_cpp(
-        ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 8),
-        ObjectGuid::create_player(1, 99),
-        wow_entities::CameraUseSource {
-            cinematic_id: 444,
-            event_id: 0,
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_camera_like_cpp(
+            &mut session,
+            ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 8),
+            ObjectGuid::create_player(1, 99),
+            wow_entities::CameraUseSource {
+                cinematic_id: 444,
+                event_id: 0,
+            },
+        )
+    );
     let _ = send_rx.try_recv().expect("TriggerCinematic sent");
     assert_eq!(session.represented_cinematic_like_cpp(), Some(444));
     assert_eq!(session.represented_cinematic_camera_index_like_cpp(), -1);

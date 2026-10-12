@@ -30,7 +30,7 @@ impl DungeonFindingHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSe
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_df_get_system_info_with_catalog_like_cpp(
+            wow_world_social::handle_df_get_system_info_with_catalog_like_cpp(
                 self,
                 catalogs.lfg_dungeons.as_ref(),
                 pkt,

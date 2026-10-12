@@ -39,46 +39,7 @@ impl WorldSession {
                 );
             });
     }
-    pub(in crate::session) fn apply_target_visibility_context_for_current_player_like_cpp(
-        &self,
-        target_unit: &mut wow_entities::Unit,
-        seer_unit: &mut wow_entities::Unit,
-        moved_unit_guid: Option<ObjectGuid>,
-        current_group_guid: Option<u64>,
-    ) {
-        target_unit.set_object_id_visibility_conditions_met_like_cpp(
-            self.catalogs.object_id_visibility_conditions_met_like_cpp(
-                target_unit.world(),
-                seer_unit.world(),
-            ),
-        );
 
-        let target_guid = target_unit.world().object().guid();
-        if moved_unit_guid == Some(target_guid) {
-            seer_unit.set_seer_can_always_see_target_like_cpp(true);
-        }
-
-        let private_owner = target_unit.private_object_owner_like_cpp();
-        if !private_owner.is_empty() {
-            seer_unit.set_seer_group_visible_for_private_owner_like_cpp(
-                self.current_player_is_in_group_guid_like_cpp(current_group_guid, private_owner),
-            );
-        }
-
-        let owner_group_visible = target_unit
-            .subsystems()
-            .control
-            .charmer_or_owner_guid()
-            .is_some_and(|owner_guid| {
-                let (s, h) = crate::session::split_social_ref(self);
-                s.current_player_is_group_visible_for_owner_like_cpp(
-                    h,
-                    current_group_guid,
-                    owner_guid,
-                )
-            });
-        target_unit.set_target_owner_group_visible_for_seer_like_cpp(owner_group_visible);
-    }
     pub(crate) fn visible_other_players_from_registry_like_cpp(
         &self,
         map_id: u16,

@@ -8,7 +8,7 @@ use super::*;
 
 impl crate::session::WorldSession {
     #[cfg(test)]
-    pub(in crate::session) fn canonical_player_pvp_flags_like_cpp(
+    pub(crate) fn canonical_player_pvp_flags_like_cpp(
         &self,
         guid: ObjectGuid,
     ) -> Option<UnitPvpFlags> {

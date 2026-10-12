@@ -14,7 +14,8 @@ fn gameobject_post_use_spell_records_missing_spell_like_cpp() {
     session.set_spell_store(std::sync::Arc::new(wow_data::SpellStore::new()));
 
     assert!(
-        !session.apply_represented_gameobject_post_use_spell_like_cpp(
+        !wow_world_entities::apply_represented_gameobject_post_use_spell_like_cpp(
+            &mut session,
             gameobject_guid,
             player_guid,
             194097,
@@ -62,7 +63,11 @@ fn gameobject_use_fishing_node_activates_ready_bobber_like_cpp() {
         .owner_guid = Some(player_guid);
 
     assert!(
-        session.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid,)
+        wow_world_entities::use_represented_gameobject_fishing_node_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+        )
     );
     assert_eq!(
         session
@@ -101,7 +106,11 @@ fn gameobject_use_fishing_node_records_skill_roll_and_loot_type_like_cpp() {
     }
 
     assert!(
-        session.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid,)
+        wow_world_entities::use_represented_gameobject_fishing_node_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+        )
     );
     assert!(
         session
@@ -207,7 +216,13 @@ fn gameobject_use_fishing_node_resolves_area_and_skill_from_session_state_like_c
         state.fishing_roll = Some(30);
     }
 
-    assert!(session.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid));
+    assert!(
+        wow_world_entities::use_represented_gameobject_fishing_node_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid
+        )
+    );
 
     assert!(
         session
@@ -298,7 +313,13 @@ fn gameobject_use_fishing_node_resolves_profession_child_skill_like_cpp() {
         state.fishing_roll = Some(30);
     }
 
-    assert!(session.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid));
+    assert!(
+        wow_world_entities::use_represented_gameobject_fishing_node_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid
+        )
+    );
 
     assert!(
         session
@@ -342,7 +363,13 @@ fn gameobject_use_fishing_node_success_clears_canonical_spell_id_like_cpp() {
         state.fishing_roll = Some(100);
     }
 
-    assert!(session.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid));
+    assert!(
+        wow_world_entities::use_represented_gameobject_fishing_node_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid
+        )
+    );
 
     let guard = canonical.lock().unwrap();
     let game_object = guard
@@ -382,7 +409,13 @@ fn gameobject_use_fishing_node_junk_keeps_canonical_spell_id_like_cpp() {
         state.fishing_roll = Some(100);
     }
 
-    assert!(session.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid));
+    assert!(
+        wow_world_entities::use_represented_gameobject_fishing_node_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid
+        )
+    );
 
     let guard = canonical.lock().unwrap();
     let game_object = guard
@@ -406,7 +439,11 @@ fn gameobject_use_fishing_node_wrong_owner_keeps_canonical_spell_id_like_cpp() {
     canonical.lock().unwrap().create_world_map(571, 0);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.core.current_map_id = 571;
-    session.record_represented_gameobject_owner_guid_like_cpp(gameobject_guid, owner_guid);
+    wow_world_entities::record_represented_gameobject_owner_guid_like_cpp(
+        &mut session,
+        gameobject_guid,
+        owner_guid,
+    );
     session.record_represented_gameobject_runtime_state_like_cpp(
         571,
         gameobject_guid,
@@ -417,7 +454,11 @@ fn gameobject_use_fishing_node_wrong_owner_keeps_canonical_spell_id_like_cpp() {
     session.record_represented_gameobject_spell_id_like_cpp(gameobject_guid, 3456);
 
     assert!(
-        !session.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid)
+        !wow_world_entities::use_represented_gameobject_fishing_node_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid
+        )
     );
 
     let guard = canonical.lock().unwrap();
@@ -450,7 +491,11 @@ fn gameobject_use_fishing_node_delegates_to_known_fishing_hole_like_cpp() {
     }
 
     assert!(
-        session.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid,)
+        wow_world_entities::use_represented_gameobject_fishing_node_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+        )
     );
     assert!(
         session
@@ -519,7 +564,11 @@ fn gameobject_use_fishing_node_finds_nearest_represented_fishing_hole_like_cpp()
     }
 
     assert!(
-        session.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid,)
+        wow_world_entities::use_represented_gameobject_fishing_node_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+        )
     );
     assert!(
         session
@@ -579,7 +628,11 @@ fn gameobject_use_fishing_node_requires_fishing_hole_radius_like_cpp() {
     }
 
     assert!(
-        session.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid,)
+        wow_world_entities::use_represented_gameobject_fishing_node_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+        )
     );
     assert!(
         !session
@@ -615,7 +668,11 @@ fn gameobject_use_fishing_node_rejects_known_wrong_owner_like_cpp() {
         .owner_guid = Some(owner_guid);
 
     assert!(
-        !session.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid,)
+        !wow_world_entities::use_represented_gameobject_fishing_node_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+        )
     );
     assert_eq!(
         session
@@ -640,7 +697,11 @@ fn gameobject_use_fishing_node_not_ready_sends_not_hooked_like_cpp() {
         .loot_state = Some(wow_entities::LootState::Activated);
 
     assert!(
-        session.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid,)
+        wow_world_entities::use_represented_gameobject_fishing_node_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+        )
     );
     assert_eq!(
         session

@@ -19,11 +19,14 @@ mod group_owner;
 mod guild;
 mod guild_handlers;
 mod handlers;
+mod lfg_lock_info;
 mod requests;
 mod social_contacts_handlers;
+mod social_host;
 mod state;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod test_support;
+mod text_emote;
 mod trade;
 
 pub use arena_team_handlers::{
@@ -66,12 +69,24 @@ pub use handlers::{
     InspectHandlerCxLikeCpp, SocialInspectHandlerHostLikeCpp,
     register_social_inspect_handlers_like_cpp,
 };
+pub use lfg_lock_info::{
+    LFG_LOCKSTATUS_MISSING_ACHIEVEMENT_LIKE_CPP, LFG_LOCKSTATUS_MISSING_ITEM_LIKE_CPP,
+    LFG_LOCKSTATUS_QUEST_NOT_COMPLETED_LIKE_CPP, can_reward_lfg_quest_like_cpp,
+    handle_df_get_system_info_with_catalog_like_cpp, lfg_is_disabled_map_type_for_player_like_cpp,
+    lfg_lock_status_like_cpp, lfg_player_lock_info_like_cpp,
+    populate_lfg_player_dungeon_reward_like_cpp,
+};
 pub use social_contacts_handlers::normalize_player_name_like_cpp;
 pub use social_contacts_handlers::{
     SocialContactsHandlerCxLikeCpp, SocialContactsHandlerHostLikeCpp,
     register_social_contacts_handlers_like_cpp,
 };
+pub use social_host::SocialSessionHostLikeCpp;
 pub use state::SessionSocialLimits;
+pub use text_emote::{
+    ANIM_MOUNT_SPECIAL_LIKE_CPP, EMOTE_STATE_DANCE_LIKE_CPP, EMOTE_STATE_SIT_LIKE_CPP,
+    handle_text_emote_with_catalogs_like_cpp,
+};
 
 pub const GROUP_XP_DISTANCE_LIKE_CPP: f32 = 74.0;
 pub const PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP: u32 = 0x0800_0000;

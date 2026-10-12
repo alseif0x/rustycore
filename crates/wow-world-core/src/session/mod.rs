@@ -282,9 +282,11 @@ pub mod pets;
 pub mod time_synchronization;
 pub use time_synchronization::{TimeSynchronizationStateLikeCpp, game_time_ms_like_cpp};
 
+mod host;
 pub mod mailbox;
 pub mod state;
 pub use catalogs::InventoryValuationCatalogViewLikeCpp;
+pub use host::SessionHubHostLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use state::BattlegroundState;
 pub use state::SessionWorldConfig;

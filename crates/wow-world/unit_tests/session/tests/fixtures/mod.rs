@@ -59,6 +59,11 @@ pub(super) use spell_catalog_fixtures::*;
 pub(super) use summon_fixtures::*;
 pub(super) use visibility_fixtures::*;
 pub(super) use wow_world_creature::canonical_creatures::*;
+// Moved to their owners by #1363 slice 4a; the scenarios keep the bare names.
+pub(super) use wow_data::battlemaster_list::{BATTLEGROUND_EY_LIKE_CPP, BATTLEGROUND_WS_LIKE_CPP};
+pub(super) use wow_world_entities::{
+    PLAYER_FLAGS_UBER_LIKE_CPP, PlayerAttackStartLikeCppResult, SKILL_FISHING_LIKE_CPP,
+};
 // #1363 slice 0: the session-free builders of these modules live in the dev-only
 // `wow-world-test-support` crate; the scenario modules keep reaching them here.
 pub(super) use wow_world_test_support::creature_ai::{

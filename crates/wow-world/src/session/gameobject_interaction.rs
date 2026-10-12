@@ -5,9 +5,11 @@
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
 #[cfg(test)]
-pub(crate) use wow_world_entities::RepresentedGameObjectCriteriaEvent;
 pub(crate) use wow_world_entities::{
     BattlegroundFlagDropClickTarget, RepresentedBattlegroundObjectUseRejection,
+    RepresentedGameObjectCriteriaEvent,
+};
+pub(crate) use wow_world_entities::{
     RepresentedCapturePointStateLikeCpp, RepresentedGameObjectUseEffect,
     RepresentedGameObjectUseState, RepresentedNewFlagStateRequest,
 };

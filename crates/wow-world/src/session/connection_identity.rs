@@ -13,6 +13,7 @@ pub(in crate::session) use wow_world_core::session::PacketSpoofPendingBanLikeCpp
 pub(in crate::session) use wow_world_core::session::PacketSpoofPendingBanTargetLikeCpp;
 pub use wow_world_core::session::SessionState;
 
+#[cfg(test)]
 pub(crate) use wow_world_social::{ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp};
 
 pub(crate) use wow_world_lifecycle::{

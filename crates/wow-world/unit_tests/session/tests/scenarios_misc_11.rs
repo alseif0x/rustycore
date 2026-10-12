@@ -60,8 +60,11 @@ fn battleground_object_use_guard_matches_cpp_faction_and_player_state() {
         ]),
     ));
     assert!(
-        !session
-            .represented_player_can_use_battleground_object_like_cpp(gameobject_guid, player_guid,)
+        !wow_world_entities::represented_player_can_use_battleground_object_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+        )
     );
     assert_eq!(
         session
@@ -86,8 +89,11 @@ fn battleground_object_use_guard_matches_cpp_faction_and_player_state() {
         .player_unit_flags_like_cpp
         .insert(UnitFlags::IMMUNE);
     assert!(
-        !session
-            .represented_player_can_use_battleground_object_like_cpp(gameobject_guid, player_guid,)
+        !wow_world_entities::represented_player_can_use_battleground_object_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+        )
     );
     assert_eq!(
         session
@@ -112,8 +118,11 @@ fn battleground_object_use_guard_matches_cpp_faction_and_player_state() {
         .remove(UnitFlags::IMMUNE);
     session.apply_aura(50_327, player_guid, 30_000, 0).unwrap();
     assert!(
-        !session
-            .represented_player_can_use_battleground_object_like_cpp(gameobject_guid, player_guid,)
+        !wow_world_entities::represented_player_can_use_battleground_object_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+        )
     );
     assert_eq!(
         session
@@ -135,8 +144,11 @@ fn battleground_object_use_guard_matches_cpp_faction_and_player_state() {
         .clear_represented_gameobject_use_effects_for_test_like_cpp();
     session.set_player_alive_like_cpp(false);
     assert!(
-        !session
-            .represented_player_can_use_battleground_object_like_cpp(gameobject_guid, player_guid,)
+        !wow_world_entities::represented_player_can_use_battleground_object_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+        )
     );
     assert_eq!(
         session
@@ -647,12 +659,15 @@ async fn process_pending_ticks_goober_autoclose_then_cleanup_like_cpp_update() {
     };
 
     session.set_state(SessionState::LoggedIn);
-    assert!(session.use_represented_gameobject_goober_state_like_cpp(
-        gameobject_guid,
-        player_guid,
-        777,
-        source,
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_goober_state_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            777,
+            source,
+        )
+    );
     {
         let state = session
             .world_entities

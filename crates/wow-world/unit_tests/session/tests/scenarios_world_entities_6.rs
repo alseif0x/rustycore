@@ -497,7 +497,11 @@ fn gameobject_interaction_resolves_canonical_map_object_like_cpp() {
         .unwrap();
 
     assert_eq!(
-        session.represented_gameobject_can_interact_with_like_cpp(gameobject_guid, 5.0),
+        wow_world_entities::represented_gameobject_can_interact_with_like_cpp(
+            &session,
+            gameobject_guid,
+            5.0
+        ),
         Some(RepresentedGameObjectAccessLikeCpp {
             entry: 777,
             position: Position::new(14.9, 0.0, 0.0, 0.0),
@@ -506,7 +510,11 @@ fn gameobject_interaction_resolves_canonical_map_object_like_cpp() {
 
     session.set_player_position_like_cpp(Position::new(20.1, 0.0, 0.0, 0.0));
     assert_eq!(
-        session.represented_gameobject_can_interact_with_like_cpp(gameobject_guid, 5.0),
+        wow_world_entities::represented_gameobject_can_interact_with_like_cpp(
+            &session,
+            gameobject_guid,
+            5.0
+        ),
         None
     );
 }

@@ -32,7 +32,7 @@ impl GameObjectHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSessio
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_game_obj_use_with_catalogs_like_cpp(
+            wow_world_entities::handle_game_obj_use_with_catalogs_like_cpp(
                 self,
                 catalogs.object_mgr.as_ref(),
                 catalogs.id_generators.item.as_ref(),

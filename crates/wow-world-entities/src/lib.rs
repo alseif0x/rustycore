@@ -27,11 +27,19 @@ mod gameobject_overrides;
 mod gameobject_query;
 mod gameobject_state;
 mod gameobject_use;
+mod gameobject_use_dispatch;
+mod gameobject_use_kinds;
+mod gameobject_use_preamble;
+mod gameobject_use_pvp;
+mod gameobject_use_scripted;
+mod gameobject_use_support;
 mod gameobject_use_types;
 mod pending_runtime;
+mod player_attack;
 mod spawn;
 mod spell_click;
 mod state;
+mod world_entities_host;
 
 pub use aggro::{
     creature_threat_value_on_map_like_cpp, mirror_creature_threat_from_attacker_on_map_like_cpp,
@@ -63,4 +71,54 @@ pub use gameobject_interaction::{
     represented_gameobject_display_box_contains_like_cpp,
     represented_gameobject_interaction_distance_like_cpp,
 };
+pub use gameobject_use_dispatch::{
+    handle_game_obj_use_with_catalogs_like_cpp,
+    represented_gameobject_gossip_can_interact_with_like_cpp,
+    represented_gameobject_icon_allows_interaction_like_cpp,
+};
+pub use gameobject_use_kinds::{
+    use_represented_gameobject_barber_chair_like_cpp, use_represented_gameobject_camera_like_cpp,
+    use_represented_gameobject_chair_like_cpp, use_represented_gameobject_spellcaster_like_cpp,
+    use_represented_gameobject_ui_link_like_cpp,
+};
+pub use gameobject_use_preamble::{
+    apply_represented_gameobject_goober_just_deactivated_like_cpp,
+    apply_represented_gameobject_player_use_preamble_like_cpp,
+    apply_represented_gameobject_post_use_spell_like_cpp,
+    apply_represented_gameobject_post_use_spell_like_cpp_internal,
+    represented_gameobject_can_interact_with_like_cpp,
+    represented_gameobject_use_allowed_by_mover_like_cpp,
+};
+pub use gameobject_use_pvp::{
+    use_represented_gameobject_capture_point_like_cpp,
+    use_represented_gameobject_flagdrop_like_cpp, use_represented_gameobject_flagstand_like_cpp,
+    use_represented_gameobject_new_flag_drop_like_cpp,
+    use_represented_gameobject_new_flag_like_cpp,
+};
+pub use gameobject_use_scripted::{
+    SKILL_FISHING_LIKE_CPP, use_represented_gameobject_fishing_node_like_cpp,
+    use_represented_gameobject_goober_preamble_with_generator_like_cpp,
+    use_represented_gameobject_goober_state_like_cpp,
+    use_represented_gameobject_meeting_stone_like_cpp, use_represented_gameobject_ritual_like_cpp,
+};
+pub use gameobject_use_support::{
+    apply_represented_new_flag_state_command_like_cpp,
+    record_represented_capture_point_update_like_cpp,
+    record_represented_gameobject_owner_guid_like_cpp,
+    remove_represented_stealth_or_invisibility_auras_by_type_like_cpp,
+    represented_fishing_base_skill_level_like_cpp,
+    represented_gameobject_is_friendly_to_player_like_cpp,
+    represented_player_battleground_type_id_or_reject_like_cpp,
+    represented_player_can_use_battleground_object_like_cpp,
+    represented_player_reject_battleground_object_vehicle_like_cpp,
+    send_represented_gameobject_delete_packets_like_cpp,
+    send_represented_gameobject_despawn_to_visible_set_like_cpp,
+    use_represented_gameobject_item_forge_like_cpp,
+};
+pub use player_attack::{
+    PLAYER_FLAGS_UBER_LIKE_CPP, PlayerAttackStartLikeCppResult,
+    handle_apply_player_melee_result_like_cpp_command_like_cpp, handle_attack_swing,
+    start_player_attack_like_cpp,
+};
 pub use state::WorldEntitiesState;
+pub use world_entities_host::WorldEntitiesHostLikeCpp;

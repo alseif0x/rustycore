@@ -919,7 +919,7 @@ fn player_attack_rejects_typed_player_victim_without_pvp_snapshot_like_cpp() {
         .insert_map_object_record(wow_entities::MapObjectRecord::new_player(victim_player).unwrap())
         .unwrap();
 
-    session.start_player_attack_like_cpp(victim);
+    wow_world_entities::start_player_attack_like_cpp(&mut session, victim);
     {
         let guard = canonical.lock().unwrap();
         let map = guard.find_map(571, 0).unwrap().map();

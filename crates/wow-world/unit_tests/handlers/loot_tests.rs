@@ -31,8 +31,7 @@ use super::{
     mark_loot_allowed_for_player_like_cpp, mark_loot_item_looted_for_player_like_cpp,
     prepare_represented_shared_loot_generation_like_cpp,
     queue_creature_loot_release_command_reliably_like_cpp,
-    represented_gameobject_display_box_contains_like_cpp,
-    represented_gameobject_interaction_distance_like_cpp, represented_loot_object_guid_like_cpp,
+    represented_gameobject_display_box_contains_like_cpp, represented_loot_object_guid_like_cpp,
     represented_loot_response_items_like_cpp, start_loot_roll_packet_like_cpp,
     stored_item_money_zero_without_source_outcome_like_cpp,
 };
@@ -122,6 +121,7 @@ use wow_persistence::{
     StoredItemMoneyPersistenceRequestLikeCpp,
 };
 use wow_world_application::direct_item_count_after_loot_release_like_cpp;
+use wow_world_entities::represented_gameobject_interaction_distance_like_cpp;
 use wow_world_lifecycle::loot_template_rules::ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP;
 #[path = "loot_tests/canonical_world.rs"]
 mod canonical_world;

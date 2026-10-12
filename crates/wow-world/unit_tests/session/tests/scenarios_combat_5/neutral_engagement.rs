@@ -228,7 +228,7 @@ async fn attack_swing_engages_and_creature_reacts_with_ai_reaction_then_attack_s
 
     let mut pkt = WorldPacket::new_empty();
     pkt.write_packed_guid(&creature_guid);
-    session.handle_attack_swing(pkt).await;
+    wow_world_entities::handle_attack_swing(&mut session, pkt).await;
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![ServerOpcodes::AttackStart]

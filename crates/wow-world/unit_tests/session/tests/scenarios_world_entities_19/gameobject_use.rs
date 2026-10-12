@@ -41,7 +41,8 @@ fn gameobject_goober_just_deactivated_consumable_stays_not_ready_like_cpp() {
         .insert(linked_trap_guid);
 
     assert!(
-        session.apply_represented_gameobject_goober_just_deactivated_like_cpp(
+        wow_world_entities::apply_represented_gameobject_goober_just_deactivated_like_cpp(
+            &mut session,
             gameobject_guid,
             wow_entities::GooberUseSource {
                 consumable: true,

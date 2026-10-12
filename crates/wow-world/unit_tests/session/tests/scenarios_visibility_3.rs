@@ -45,7 +45,7 @@ fn player_attack_uses_canonical_invisibility_detection_like_cpp() {
         .unwrap();
 
     assert_eq!(
-        session.start_player_attack_like_cpp(victim),
+        wow_world_entities::start_player_attack_like_cpp(&mut session, victim),
         PlayerAttackStartLikeCppResult::Rejected
     );
     assert_eq!(session.fixtures.combat.combat_target, None);
@@ -57,7 +57,7 @@ fn player_attack_uses_canonical_invisibility_detection_like_cpp() {
         .unwrap();
 
     assert_eq!(
-        session.start_player_attack_like_cpp(victim),
+        wow_world_entities::start_player_attack_like_cpp(&mut session, victim),
         PlayerAttackStartLikeCppResult::Accepted {
             send_attack_start: true
         }
@@ -135,7 +135,7 @@ fn player_attack_uses_canonical_farsight_can_always_see_like_cpp() {
         .unwrap();
 
     assert_eq!(
-        session.start_player_attack_like_cpp(victim),
+        wow_world_entities::start_player_attack_like_cpp(&mut session, victim),
         PlayerAttackStartLikeCppResult::Rejected
     );
 
@@ -145,7 +145,7 @@ fn player_attack_uses_canonical_farsight_can_always_see_like_cpp() {
         })
         .unwrap();
     assert_eq!(
-        session.start_player_attack_like_cpp(victim),
+        wow_world_entities::start_player_attack_like_cpp(&mut session, victim),
         PlayerAttackStartLikeCppResult::Accepted {
             send_attack_start: true
         }
@@ -223,7 +223,7 @@ fn player_attack_uses_owner_group_visibility_like_cpp() {
         .unwrap();
 
     assert_eq!(
-        session.start_player_attack_like_cpp(victim),
+        wow_world_entities::start_player_attack_like_cpp(&mut session, victim),
         PlayerAttackStartLikeCppResult::Rejected
     );
 
@@ -235,7 +235,7 @@ fn player_attack_uses_owner_group_visibility_like_cpp() {
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
     assert_eq!(
-        session.start_player_attack_like_cpp(victim),
+        wow_world_entities::start_player_attack_like_cpp(&mut session, victim),
         PlayerAttackStartLikeCppResult::Accepted {
             send_attack_start: true
         }
@@ -316,7 +316,7 @@ fn player_attack_uses_private_object_group_visibility_like_cpp() {
         })
         .unwrap();
     assert_eq!(
-        session.start_player_attack_like_cpp(victim),
+        wow_world_entities::start_player_attack_like_cpp(&mut session, victim),
         PlayerAttackStartLikeCppResult::Rejected
     );
 
@@ -324,7 +324,7 @@ fn player_attack_uses_private_object_group_visibility_like_cpp() {
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
     assert_eq!(
-        session.start_player_attack_like_cpp(victim),
+        wow_world_entities::start_player_attack_like_cpp(&mut session, victim),
         PlayerAttackStartLikeCppResult::Accepted {
             send_attack_start: true
         }
@@ -426,14 +426,14 @@ fn player_attack_waits_for_active_mover_visibility_flag_like_cpp() {
 
     session.set_active_player_local_flags_like_cpp(0);
     assert_eq!(
-        session.start_player_attack_like_cpp(victim),
+        wow_world_entities::start_player_attack_like_cpp(&mut session, victim),
         PlayerAttackStartLikeCppResult::Rejected
     );
     assert_eq!(session.fixtures.combat.combat_target, None);
 
     session.apply_move_init_active_mover_complete_like_cpp(0);
     assert_eq!(
-        session.start_player_attack_like_cpp(victim),
+        wow_world_entities::start_player_attack_like_cpp(&mut session, victim),
         PlayerAttackStartLikeCppResult::Accepted {
             send_attack_start: true
         }
@@ -516,7 +516,7 @@ fn player_attack_rejects_object_id_visibility_conditions_like_cpp() {
         .unwrap();
 
     assert_eq!(
-        session.start_player_attack_like_cpp(victim),
+        wow_world_entities::start_player_attack_like_cpp(&mut session, victim),
         PlayerAttackStartLikeCppResult::Rejected
     );
     assert_eq!(session.fixtures.combat.combat_target, None);

@@ -350,7 +350,7 @@ fn player_attack_tracks_world_creature_attacker_set_like_cpp() {
         .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), victim, 40);
 
-    session.start_player_attack_like_cpp(victim);
+    wow_world_entities::start_player_attack_like_cpp(&mut session, victim);
     {
         let guard = manager.lock().unwrap();
         let creature = guard.find_creature(0, 0, victim).unwrap();
@@ -440,7 +440,7 @@ fn player_attack_tracks_typed_creature_victim_attacker_set_like_cpp() {
         -1,
     );
 
-    session.start_player_attack_like_cpp(victim);
+    wow_world_entities::start_player_attack_like_cpp(&mut session, victim);
     {
         let guard = canonical.lock().unwrap();
         let creature = guard
@@ -541,7 +541,7 @@ fn player_attack_dead_typed_creature_is_rejected_like_cpp() {
         })
         .unwrap();
 
-    session.start_player_attack_like_cpp(victim);
+    wow_world_entities::start_player_attack_like_cpp(&mut session, victim);
 
     let guard = canonical.lock().unwrap();
     let map = guard.find_map(571, 0).unwrap().map();
@@ -619,7 +619,7 @@ fn player_attack_unseen_phase_creature_is_rejected_like_cpp() {
         })
         .unwrap();
 
-    session.start_player_attack_like_cpp(victim);
+    wow_world_entities::start_player_attack_like_cpp(&mut session, victim);
 
     let guard = canonical.lock().unwrap();
     let map = guard.find_map(571, 0).unwrap().map();

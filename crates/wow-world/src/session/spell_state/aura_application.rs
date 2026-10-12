@@ -475,28 +475,6 @@ impl WorldSession {
             );
         }
     }
-    pub(in crate::session) fn remove_represented_stealth_or_invisibility_auras_by_type_like_cpp(
-        &mut self,
-    ) -> Option<usize> {
-        let visible_auras =
-            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()?;
-        let slots: Vec<u8> = visible_auras
-            .iter()
-            .filter_map(|(slot, aura)| {
-                matches!(
-                    aura.represented_effect,
-                    Some(RepresentedAuraEffectLikeCpp::Stealth)
-                        | Some(RepresentedAuraEffectLikeCpp::Invisibility)
-                )
-                .then_some(*slot)
-            })
-            .collect();
-        let removed = slots.len();
-        for slot in slots {
-            let _ = self.remove_aura(slot);
-        }
-        Some(removed)
-    }
 }
 
 #[cfg(test)]

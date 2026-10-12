@@ -176,7 +176,7 @@ fn lfg_lock_status_applies_access_requirement_order_like_cpp() {
         },
     );
     assert_eq!(
-        session.lfg_lock_status_like_cpp(&dungeon, 80, 2),
+        wow_world_social::lfg_lock_status_like_cpp(&session, &dungeon, 80, 2),
         Some(LFG_LOCKSTATUS_MISSING_ACHIEVEMENT_LIKE_CPP)
     );
 
@@ -201,7 +201,7 @@ fn lfg_lock_status_applies_access_requirement_order_like_cpp() {
         },
     );
     assert_eq!(
-        session.lfg_lock_status_like_cpp(&dungeon, 80, 2),
+        wow_world_social::lfg_lock_status_like_cpp(&session, &dungeon, 80, 2),
         Some(LFG_LOCKSTATUS_QUEST_NOT_COMPLETED_LIKE_CPP)
     );
 
@@ -224,7 +224,7 @@ fn lfg_lock_status_applies_access_requirement_order_like_cpp() {
         },
     );
     assert_eq!(
-        session.lfg_lock_status_like_cpp(&dungeon, 80, 2),
+        wow_world_social::lfg_lock_status_like_cpp(&session, &dungeon, 80, 2),
         Some(LFG_LOCKSTATUS_MISSING_ITEM_LIKE_CPP)
     );
 }
@@ -249,7 +249,8 @@ fn lfg_reward_uses_other_quest_when_df_first_quest_on_cooldown_like_cpp() {
 
     let mut info =
         wow_packet::packets::misc::LfgPlayerDungeonInfo::random_dungeon_like_cpp(100_663_552);
-    session.populate_lfg_player_dungeon_reward_like_cpp(
+    wow_world_social::populate_lfg_player_dungeon_reward_like_cpp(
+        &session,
         &mut info,
         &wow_data::LfgDungeonRewardLikeCpp {
             max_level: 80,
@@ -282,7 +283,8 @@ fn lfg_reward_uses_first_df_quest_when_not_on_cooldown_like_cpp() {
 
     let mut info =
         wow_packet::packets::misc::LfgPlayerDungeonInfo::random_dungeon_like_cpp(100_663_558);
-    session.populate_lfg_player_dungeon_reward_like_cpp(
+    wow_world_social::populate_lfg_player_dungeon_reward_like_cpp(
+        &session,
         &mut info,
         &wow_data::LfgDungeonRewardLikeCpp {
             max_level: 80,
