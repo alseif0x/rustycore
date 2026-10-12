@@ -6,12 +6,17 @@
 //! directly or through [`crate::canonical_creatures`]. Scenarios that build a
 //! session stay in `wow-world`.
 
+use std::sync::Arc;
+use std::time::Duration;
+
 use crate::canonical_creatures::*;
 use crate::*;
+use wow_constants::TypeId;
+use wow_world_entities::creature_spell_admission::creature_spell_target_accepts_npc_attack_like_cpp;
 use wow_world_test_support::canonical_creatures::*;
 use wow_world_test_support::creature_ai::*;
+use wow_world_test_support::lifecycle::*;
 use wow_world_test_support::map_objects::*;
-use wow_world_test_support::spell_catalog::*;
 
 #[path = "scenarios/f6_8d2_admitted_execution.rs"]
 mod f6_8d2_admitted_execution;

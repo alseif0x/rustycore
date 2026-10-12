@@ -27,6 +27,12 @@ wow-ai = { workspace = true }
 [dev-dependencies]
 # #1363 slice 3b: the session-free fixtures of the runtime scenario tests.
 wow-world-test-support = { workspace = true }
+# Test-only accessors those fixtures and scenarios call.
+wow-world-core = { workspace = true, features = ["test-fixtures"] }
+wow-world-entities = { workspace = true, features = ["test-fixtures"] }
+wow-world-spell = { workspace = true, features = ["test-fixtures"] }
+# The navmesh obstacle fixtures of the movement scenarios.
+wow-recastdetour = { workspace = true, features = ["test-fixtures"] }
 
 [lints]
 workspace = true

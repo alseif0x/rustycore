@@ -1,7 +1,8 @@
-//! Session scenarios exercising the represented world entities responsibility.
+//! Creature runtime scenarios of the represented world entities responsibility.
 //!
-//! Split out of session_tests.rs under #626; assertions and registrations
-//! are unchanged and the shared fixtures stay in the parent module.
+//! #1363 slice 3b moved these session-free tests verbatim out of the `wow-world`
+//! session scenario module `scenarios_world_entities_21`; the tests there that
+//! build a `WorldSession` stay in `wow-world`.
 
 use super::*;
 
@@ -107,7 +108,7 @@ fn creature_aggro_tick_once_uses_template_required_expansion_cap_like_cpp() {
         addon: None,
     });
     let mut world_creature = creature;
-    crate::creature_projection::install_creature_runtime_like_cpp(
+    wow_world_core::creature_projection::install_creature_runtime_like_cpp(
         &mut world_creature,
         &test_creature_create_data(creature_guid, 9001, 100),
     );

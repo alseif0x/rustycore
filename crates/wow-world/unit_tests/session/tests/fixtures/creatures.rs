@@ -29,59 +29,6 @@ pub(in crate::session::tests) fn canonical_player_transfer_test_map_store_like_c
     ]))
 }
 
-pub(in crate::session::tests) fn test_creature_create_data(
-    guid: ObjectGuid,
-    entry: u32,
-    hp: u32,
-) -> wow_packet::packets::update::CreatureCreateData {
-    wow_packet::packets::update::CreatureCreateData {
-        guid,
-        entry,
-        display_id: 100,
-        native_display_id: 100,
-        display_scale: 1.0,
-        native_x_display_scale: 1.0,
-        bounding_radius: 0.389,
-        combat_reach: 1.5,
-        health: hp as i64,
-        max_health: hp as i64,
-        level: 2,
-        faction_template: 14,
-        npc_flags: 0,
-        unit_flags: 0,
-        unit_flags2: 0,
-        unit_flags3: 0,
-        aura_state: 0x00D0_0000,
-        damage_school: wow_constants::spell::SpellSchools::Normal as u8,
-        scale: 1.0,
-        unit_class: 1,
-        display_power: 1,
-        power: [0; 10],
-        max_power: [0; 10],
-        base_mana: 0,
-        virtual_items: [(0, 0, 0); 3],
-        base_attack_time: 2000,
-        ranged_attack_time: 0,
-        movement_flags: 0,
-        vehicle_id: 0,
-        play_hover_anim: false,
-        hover_height: 1.0,
-        mount_display_id: 0,
-        stand_state: 0,
-        vis_flags: 0,
-        anim_tier: 0,
-        emote_state: 0,
-        sheathe_state: wow_constants::unit::SheathState::Melee as u8,
-        pvp_flags: 0,
-        current_area_id: 0,
-        speed_walk_rate: 1.0,
-        speed_run_rate: 1.14286,
-        ai_anim_kit_id: 0,
-        movement_anim_kit_id: 0,
-        melee_anim_kit_id: 0,
-    }
-}
-
 /// F6-7 R7a: a session that owns a canonical map manager also owns the canonical
 /// map instance at its runtime map key, so a creature registration and an
 /// owner mutation can be admitted against the canonical incarnation. Fixtures
