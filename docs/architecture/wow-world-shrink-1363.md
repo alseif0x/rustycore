@@ -607,3 +607,89 @@ the warn text above, emitted when a loot-condition catalog load fails.
   - Moved: the three loot forwarders (to `handlers/loot/claims.rs`) and
     `complete_represented_quest_after_objective_with_generator_like_cpp` (to
     `session/quest/objective_drain.rs`).
+
+## Slice 3a result (creature runtime → `wow-world-creature`)
+
+Branch `1363-s3-creature-crate`, base `d725325b7` (slice 2 merged). Move-only (R2):
+bodies are unchanged; only paths, imports, visibility and the rustfmt reflow those
+path changes cause differ. C++ anchors are unchanged, so no C++ re-audit applies.
+
+### What moved
+
+- `crates/wow-world/src/session/creature_runtime/**` (26 files) →
+  `crates/wow-world-creature/src/**`, with the old `mod.rs` as `lib.rs`. The two
+  slice-1 `test_only.rs` accessor files moved to `crates/wow-world-creature/unit_tests/`.
+  They are gated `cfg(any(test, feature = "test-fixtures"))`, and `wow-world` enables
+  the feature only through its dev-dependency.
+- `session/player_melee_application.rs`, the player melee phase that only this runtime
+  runs, moved with it. Four creature-only melee values went into the same file:
+  `RepresentedMeleeSwingLikeCpp`, `RepresentedArmorMitigationLikeCpp`,
+  `RepresentedMeleeDamageBonusLikeCpp` and `legacy_attack_power_multiplier_like_cpp`.
+  The three melee range constants moved to `lib.rs`. `PlayerAttackStartLikeCppResult`
+  is produced only by `WorldSession` attack start, so it stays in `wow-world` (`session/combat/melee.rs`).
+- Two shared items moved down to `wow-world-spell` because both `wow-world` and the
+  runtime call them. Neither crate can depend on the other, and a host trait over a pure
+  function would be new code with no benefit:
+  - `write_absorbed_shield_amount_like_cpp` → `aura_effects.rs`.
+  - `SPELL_CAST_SOURCE_NORMAL_LIKE_CPP` and `represented_spell_cast_guid_for_map_like_cpp`
+    → `spell_cast_adapter.rs`. `wow-world-application::spell_click_values` re-exports
+    them, so the runtime does not depend on the application crate.
+
+### Coupling
+
+- The runtime makes no `WorldSession` call, so **no host trait was needed**: 0 host-trait lines.
+- `wow-world-creature` depends on `wow-ai`, `wow-constants`, `wow-core`, `wow-data`,
+  `wow-entities`, `wow-map`, `wow-movement`, `wow-packet`, `wow-persistence`,
+  `wow-world-core`, `wow-world-entities` and `wow-world-spell`. It has no external crates,
+  and it has no edge to `wow-world` or `wow-world-application`.
+- `wow-world` re-exports the executor and player-melee entries by name from
+  `session/mod.rs`, so `world-server` keeps its `wow_world::session::…` paths unchanged.
+- Names that only the unit tests still reach are re-exported under `cfg(test)`. These
+  are the single-phase entries, the phase store, the swing helpers, the
+  `session_rules` names and the three thin `wow-world-entities` re-export modules.
+
+### Policy and accounting
+
+- `dependency-policy.json`:
+  - `wow-world-creature` is in the `application` category with the other `wow-world-*`
+    crates.
+  - It is a restricted package with exactly the 12 dependencies above, and external
+    `normal`/`build` are both empty.
+  - The new fixture `forbidden-creature-to-wow-world.json` proves that a `wow-world` edge
+    is rejected.
+- `net-move-policy.json`: `crates/wow-world-creature/src/` is a destination root, so
+  the moved code is charged. Result: S = 10161, G = 10291 (G − S = 130, 1.3 %),
+  allowance 11630.1, 0 duplicate bodies, PASS.
+- Ceilings are tightened and none is raised:
+  - Physical: `session/mod.rs` 1007 → 1002.
+  - Hotspot `session/mod.rs`: production 55790 → 45584, test 144768 → 144750,
+    total 200558 → 190334.
+  - Every new-crate file is under the 1,000-line review limit, so no new physical entry
+    is needed. The largest is `creature_aggro_tick.rs` at 953 lines.
+- `session-ownership-policy.json` is unchanged: `print-baseline` is identical, because
+  the runtime has no `WorldSession` impl items or registry/bridge rows.
+- Lines:
+  - `crates/wow-world/src`: −10264 / +103 (net −10161).
+  - `crates/wow-world-creature/src`: +10249. Of these, `lib.rs` is 181, including about
+    108 lines of import prelude and named re-exports.
+  - `wow-world-spell`: +63 (the moved shared items).
+  - `wow-world-application`: −21.
+- Warnings:
+  - `wow-world` `dead_code` stays 0 in the production lib, the lib with `test-fixtures`
+    and the lib test build.
+  - `wow-world` production `unused_imports` 166 → 165.
+  - `unused_variables` 13 → 3. The 10 that moved are the pre-existing
+    `creature_movement_tick.rs` pathfinding locals, and they are the new crate's only
+    warnings.
+- Tests: no `#[test]`/`#[ignore]` attribute is added or removed, so the test identities
+  are unchanged. The runtime regressions all live in `wow-world`'s scenario suite
+  (`session/tests/**`) and use its fixtures; they stay there in 3a.
+
+### Left for 3b
+
+- Move the session-free runtime regressions into `wow-world-creature`. About 22 of the
+  83 tests in the 16 scenario files that drive the runtime do not name a session, for
+  example `scenarios_world_entities_19/f6_8d2_admitted_execution.rs`. The canonical
+  fixtures they use (`shared_canonical_map_manager`, `add_canonical_test_creature_on_map`,
+  …) move to `wow-world-test-support` first.
+- After that move, drop the `cfg(test)` re-exports that become unused.
