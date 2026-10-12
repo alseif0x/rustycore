@@ -159,15 +159,16 @@ fn quest_status_like_cpp(session: &WorldSession) -> Option<u8> {
 }
 
 /// Loot `coins` through the registered consumer and return the final copper,
-/// quest status and the published server opcodes.
-async fn loot_money_outcome_like_cpp(
+/// quest status, the published server opcodes and their raw packets.
+async fn loot_money_packets_like_cpp(
     coins: u32,
     creature_visible: bool,
-) -> (Option<u64>, Option<u8>, Vec<ServerOpcodes>) {
+) -> (Option<u64>, Option<u8>, Vec<ServerOpcodes>, Vec<Vec<u8>>) {
     let (mut session, send_rx) = loot_money_quest_session_like_cpp(coins, creature_visible);
     let _ = drain_server_packet_bytes(&send_rx);
     dispatch_registered_loot_money_like_cpp(&mut session).await;
-    let opcodes = drain_server_packet_bytes(&send_rx)
+    let packets = drain_server_packet_bytes(&send_rx);
+    let opcodes = packets
         .iter()
         .filter_map(|bytes| wow_packet::WorldPacket::from_bytes(bytes).server_opcode())
         .collect();
@@ -175,7 +176,46 @@ async fn loot_money_outcome_like_cpp(
         session.resolved_player_money_like_cpp(),
         quest_status_like_cpp(&session),
         opcodes,
+        packets,
     )
+}
+
+async fn loot_money_outcome_like_cpp(
+    coins: u32,
+    creature_visible: bool,
+) -> (Option<u64>, Option<u8>, Vec<ServerOpcodes>) {
+    let (money, status, opcodes, _) = loot_money_packets_like_cpp(coins, creature_visible).await;
+    (money, status, opcodes)
+}
+
+/// #1359: the refresh publishes the creature's viewer-filtered NpcFlags. The
+/// spell-click row's condition (aura 999999) fails, so C++
+/// `Unit::BuildValuesUpdate`'s `ViewerDependentValue<NpcFlagsTag>` clears
+/// `UNIT_NPC_FLAG_SPELLCLICK` for this viewer: the values update carries the
+/// two NpcFlags words, both zero.
+#[tokio::test]
+async fn loot_money_completion_refresh_publishes_the_filtered_npc_flags_like_cpp() {
+    let (_, _, _, packets) = loot_money_packets_like_cpp(10, true).await;
+    let (_, _, _, control_packets) = loot_money_packets_like_cpp(10, false).await;
+
+    let mut update = wow_packet::packets::update::UnitDataValuesDeltaUpdate::default();
+    update.changed_object_type_mask = 1 << TYPEID_UNIT;
+    update.unit_data_mask[113 / 32] |= 1 << (113 % 32);
+    update.unit_data_mask[114 / 32] |= 1 << (114 % 32);
+    update.npc_flags = [0, 0];
+    let expected = wow_packet::packets::update::UpdateObject::unit_values_update(
+        test_creature_guid(132),
+        571,
+        update,
+    )
+    .to_bytes();
+
+    assert_eq!(
+        packets.iter().filter(|bytes| **bytes == expected).count(),
+        1,
+        "the visible creature receives exactly one filtered NpcFlags update"
+    );
+    assert!(!control_packets.contains(&expected));
 }
 
 #[tokio::test]
