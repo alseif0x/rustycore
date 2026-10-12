@@ -157,8 +157,8 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             CLIENT_STATE_REGISTRAR.package,
             CLIENT_STATE_REGISTRAR.module,
-            "crates/wow-world-application/src/client_state.rs",
-            include_str!("../../../../../crates/wow-world-application/src/client_state.rs"),
+            "crates/wow-world-lifecycle/src/client_state.rs",
+            include_str!("../../../../../crates/wow-world-lifecycle/src/client_state.rs"),
         ),
         mount(
             CALENDAR_REGISTRAR.package,
@@ -351,10 +351,8 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             DATA_SERVICE_REGISTRAR.package,
             DATA_SERVICE_REGISTRAR.module,
-            "crates/wow-world-application/src/data_service_handlers.rs",
-            include_str!(
-                "../../../../../crates/wow-world-application/src/data_service_handlers.rs"
-            ),
+            "crates/wow-world-lifecycle/src/data_service_handlers.rs",
+            include_str!("../../../../../crates/wow-world-lifecycle/src/data_service_handlers.rs"),
         ),
         mount(
             BATTLENET_REGISTRAR.package,

@@ -1360,7 +1360,7 @@ fn client_state_currency_flags_family_is_migrated_off_the_legacy_inventory() {
     assert_migrated_family_like_cpp(
         "client-state currency flags",
         |builder| {
-            wow_world_application::register_client_state_handlers_like_cpp::<
+            wow_world_lifecycle::register_client_state_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >(builder)
@@ -1626,7 +1626,7 @@ fn duplicated_migrated_remaining_family_registrations_are_rejected_without_repla
         ),
         (
             "client-state",
-            wow_world_application::register_client_state_handlers_like_cpp::<
+            wow_world_lifecycle::register_client_state_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >,

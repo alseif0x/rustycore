@@ -2,7 +2,9 @@
 
 mod battlenet_handlers;
 mod character_administration;
+mod client_state;
 mod collection_contracts;
+mod data_service_handlers;
 mod durable_item_loot;
 mod finalization;
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -11,6 +13,7 @@ pub mod handlers;
 mod money_persistence;
 mod persistence_capabilities;
 mod pet_load;
+mod player_save;
 mod rename_callbacks;
 mod save_contracts;
 mod state;
@@ -19,9 +22,25 @@ mod value_contracts;
 pub use battlenet_handlers::{
     BattlenetHandlerCxLikeCpp, BattlenetHandlerHostLikeCpp, register_battlenet_handlers_like_cpp,
 };
+pub use client_state::{
+    ClientStateHandlerCxLikeCpp, ClientStateHandlerHostLikeCpp,
+    register_client_state_handlers_like_cpp,
+};
+pub use data_service_handlers::{
+    DataServiceHandlerCxLikeCpp, DataServiceHandlerHostLikeCpp,
+    register_data_service_handlers_like_cpp,
+};
 pub use handlers::{
     AccountDataHandlerCxLikeCpp, AccountDataHandlerHostLikeCpp,
     register_account_data_handlers_like_cpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use player_save::{OwnerlessPlayerSaveCaptureLikeCpp, OwnerlessPlayerSaveReceiptLikeCpp};
+pub use player_save::{
+    PlayerSaveDiagnosticsLikeCpp, PlayerSaveHostLikeCpp, PlayerSaveParticipantsLikeCpp,
+    PlayerSavePersistenceResultLikeCpp, apply_player_save_acknowledgement_like_cpp,
+    capture_player_save_request_like_cpp, persist_player_save_request_like_cpp,
+    save_canonical_player_like_cpp, save_current_player_to_db_with_generator_like_cpp,
 };
 pub mod login_transport;
 pub mod loot_delivery_contracts;

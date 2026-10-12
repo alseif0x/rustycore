@@ -258,7 +258,7 @@ const CLIENT_STATE_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContra
 
 pub(crate) const CLIENT_STATE_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationClientState",
-    package: "wow-world-application",
+    package: "wow-world-lifecycle",
     module: "crate::client_state",
     registrar: "register_client_state_handlers_like_cpp",
     host_trait: "ClientStateHandlerHostLikeCpp",
@@ -384,7 +384,7 @@ const DATA_SERVICE_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContra
 
 pub(crate) const DATA_SERVICE_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationDataService",
-    package: "wow-world-application",
+    package: "wow-world-lifecycle",
     module: "crate::data_service_handlers",
     registrar: "register_data_service_handlers_like_cpp",
     host_trait: "DataServiceHandlerHostLikeCpp",

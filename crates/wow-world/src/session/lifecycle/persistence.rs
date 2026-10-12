@@ -7,7 +7,7 @@
 //! The complete save coordinator — autosave timer, transfer gate, money fences,
 //! durable-work completion drain, capture, one-transaction persist,
 //! incarnation-bound acknowledgement, unlock and objective drain — is owned by
-//! `wow-world-application::player_save` (#1263 F4 remate). This adapter only
+//! `wow-world-lifecycle::player_save` (#1263 F4 remate). This adapter only
 //! selects the session participants it lends and supplies the session
 //! publication/registry seams; it holds no stage order of its own.
 //!
@@ -22,7 +22,7 @@ mod deferred;
 mod fixture_tests;
 pub use deferred::PlayerSaveOutcomeLikeCpp;
 // The ownerless fixture oracle is World-test evidence only: production captures
-// through the application coordinator's canonical owner.
+// through the lifecycle coordinator's canonical owner.
 #[cfg(test)]
 mod prepared;
 
@@ -68,7 +68,7 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) async fn save_current_player_to_db_like_cpp(&mut self) -> PlayerSaveOutcomeLikeCpp {
         let generators = self.id_generators_for_test_like_cpp();
-        wow_world_application::save_current_player_to_db_with_generator_like_cpp(
+        wow_world_lifecycle::save_current_player_to_db_with_generator_like_cpp(
             self,
             generators.item.as_ref(),
         )
@@ -79,21 +79,21 @@ impl WorldSession {
 /// The World shell's capabilities for the moved full-save coordinator.
 ///
 /// Every method below is a step the coordinator cannot reach from the
-/// application crate: the session's selected owners, its durable Item-loot
+/// lifecycle crate: the session's selected owners, its durable Item-loot
 /// publication, its represented objective drain, its registry publication and
 /// the legacy ownerless fixture oracle. The coordinator keeps the order; these
 /// only lend the existing operation at the exact point C++ reaches it.
-impl wow_world_application::PlayerSaveHostLikeCpp for WorldSession {
+impl wow_world_lifecycle::PlayerSaveHostLikeCpp for WorldSession {
     fn player_save_participants_like_cpp(
         &mut self,
-    ) -> wow_world_application::PlayerSaveParticipantsLikeCpp<'_> {
+    ) -> wow_world_lifecycle::PlayerSaveParticipantsLikeCpp<'_> {
         let talent_store = self.catalogs.talent_store().map(AsRef::as_ref);
         let spell_store = self
             .catalogs
             .spell_catalogs
             .spell_store()
             .map(AsRef::as_ref);
-        wow_world_application::PlayerSaveParticipantsLikeCpp {
+        wow_world_lifecycle::PlayerSaveParticipantsLikeCpp {
             lifecycle: &mut self.lifecycle,
             operation: self
                 .core
@@ -144,8 +144,8 @@ impl wow_world_application::PlayerSaveHostLikeCpp for WorldSession {
 
     fn player_save_diagnostics_like_cpp(
         &self,
-    ) -> wow_world_application::PlayerSaveDiagnosticsLikeCpp {
-        wow_world_application::PlayerSaveDiagnosticsLikeCpp {
+    ) -> wow_world_lifecycle::PlayerSaveDiagnosticsLikeCpp {
+        wow_world_lifecycle::PlayerSaveDiagnosticsLikeCpp {
             account_id: self.core.account_id,
             player_guid: self.player_guid(),
             has_session_position: crate::session::hub_ref(self)
@@ -159,7 +159,7 @@ impl wow_world_application::PlayerSaveHostLikeCpp for WorldSession {
     fn capture_ownerless_player_save_like_cpp(
         &mut self,
         now_unix_secs: i64,
-    ) -> Option<wow_world_application::OwnerlessPlayerSaveCaptureLikeCpp> {
+    ) -> Option<wow_world_lifecycle::OwnerlessPlayerSaveCaptureLikeCpp> {
         if self.core.player_handle_like_cpp.is_some() {
             return None;
         }
@@ -171,10 +171,10 @@ impl wow_world_application::PlayerSaveHostLikeCpp for WorldSession {
         else {
             return None;
         };
-        Some(wow_world_application::OwnerlessPlayerSaveCaptureLikeCpp {
+        Some(wow_world_lifecycle::OwnerlessPlayerSaveCaptureLikeCpp {
             guid: prepared_save.header.guid,
             request: prepared_save.request,
-            receipt: wow_world_application::OwnerlessPlayerSaveReceiptLikeCpp {
+            receipt: wow_world_lifecycle::OwnerlessPlayerSaveReceiptLikeCpp {
                 expected,
                 tutorials,
             },
@@ -184,7 +184,7 @@ impl wow_world_application::PlayerSaveHostLikeCpp for WorldSession {
     #[cfg(test)]
     fn acknowledge_ownerless_player_save_like_cpp(
         &mut self,
-        receipt: wow_world_application::OwnerlessPlayerSaveReceiptLikeCpp,
+        receipt: wow_world_lifecycle::OwnerlessPlayerSaveReceiptLikeCpp,
         committed: &PlayerCharacterCommittedGroupsLikeCpp,
     ) {
         let groups = prepared::committed_groups_like_cpp(&receipt.expected, committed);

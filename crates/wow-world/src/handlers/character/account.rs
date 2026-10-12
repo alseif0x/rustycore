@@ -84,7 +84,7 @@ impl WorldSession {
     /// Borrows C++ `sDB2Manager.GetHotfixData()`; Session owns no catalog.
     /// C++ `Handlers/HotfixHandler.cpp:77-135`.
     /// Test-only entry point for the hotfix handler owned by
-    /// `wow-world-application` (#1263 F5).
+    /// `wow-world-lifecycle` (#1263 F5; #1363 slice A3).
     #[cfg(test)]
     pub(crate) async fn handle_hotfix_request(
         &mut self,
@@ -95,7 +95,7 @@ impl WorldSession {
             .tact_key_store_for_test_like_cpp()
             .cloned()
             .unwrap_or_else(|| Arc::new(wow_data::TactKeyStore::from_entries([])));
-        wow_world_application::DataServiceHandlerCxLikeCpp::new(
+        wow_world_lifecycle::DataServiceHandlerCxLikeCpp::new(
             crate::session::hub_mut(self),
             cache,
             tact_keys.as_ref(),

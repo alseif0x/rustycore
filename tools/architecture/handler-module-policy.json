@@ -165,14 +165,14 @@
     },
     {
       "capability": "handler_registration",
-      "package": "wow-world-application",
+      "package": "wow-world-lifecycle",
       "module": "crate::data_service_handlers",
       "allow_descendants": false,
       "tracking_issue": 1263
     },
     {
       "capability": "handler_registration",
-      "package": "wow-world-application",
+      "package": "wow-world-lifecycle",
       "module": "crate::client_state",
       "allow_descendants": false,
       "tracking_issue": 1263

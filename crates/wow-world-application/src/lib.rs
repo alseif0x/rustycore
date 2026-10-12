@@ -22,9 +22,7 @@ mod character_handler_families;
 mod character_handlers;
 pub mod character_login_support;
 mod character_query_handlers;
-mod client_state;
 mod collections_handlers;
-mod data_service_handlers;
 mod loot_handlers;
 mod loot_release;
 mod npc_handlers;
@@ -33,7 +31,6 @@ pub use npc_handlers::{
 };
 mod player_conditions;
 mod player_handlers;
-mod player_save;
 mod profession;
 mod quest;
 mod quest_handlers;
@@ -105,17 +102,9 @@ pub use character_query_handlers::{
     CharacterQueryHandlerCxLikeCpp, CharacterQueryHandlerHostLikeCpp,
     register_character_query_handlers_like_cpp,
 };
-pub use client_state::{
-    ClientStateHandlerCxLikeCpp, ClientStateHandlerHostLikeCpp,
-    register_client_state_handlers_like_cpp,
-};
 pub use collections_handlers::{
     CollectionsHandlerCxLikeCpp, CollectionsHandlerHostLikeCpp,
     register_collections_handlers_like_cpp,
-};
-pub use data_service_handlers::{
-    DataServiceHandlerCxLikeCpp, DataServiceHandlerHostLikeCpp,
-    register_data_service_handlers_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use equipment_set_use::EquipmentSetUseFixtureRefsLikeCpp;
@@ -136,14 +125,6 @@ pub use player_conditions::{
     PlayerConditionProjectionCxLikeCpp, PlayerConditionProjectionInputsLikeCpp,
     RepresentedPlayerConditionContextLikeCpp, meets_player_condition_id_like_cpp,
     player_condition_projection_cx_like_cpp,
-};
-#[cfg(any(test, feature = "test-fixtures"))]
-pub use player_save::{OwnerlessPlayerSaveCaptureLikeCpp, OwnerlessPlayerSaveReceiptLikeCpp};
-pub use player_save::{
-    PlayerSaveDiagnosticsLikeCpp, PlayerSaveHostLikeCpp, PlayerSaveParticipantsLikeCpp,
-    PlayerSavePersistenceResultLikeCpp, apply_player_save_acknowledgement_like_cpp,
-    capture_player_save_request_like_cpp, persist_player_save_request_like_cpp,
-    save_canonical_player_like_cpp, save_current_player_to_db_with_generator_like_cpp,
 };
 pub use profession::{
     DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP, MAX_PRIMARY_TRADE_SKILLS_CONFIG_LIKE_CPP,
