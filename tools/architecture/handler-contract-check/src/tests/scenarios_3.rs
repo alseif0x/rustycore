@@ -605,7 +605,7 @@ fn source_guard_rejects_repeating_or_multi_arm_registration_macros() {
 }
 
 const REAL_MOVEMENT_TAIL_SOURCE: &str = include_str!(
-    "../../../../../crates/wow-world-application/src/movement_handlers/tail_registrations.rs"
+    "../../../../../crates/wow-world-entities/src/movement_handlers/tail_registrations.rs"
 );
 
 #[test]
@@ -634,9 +634,9 @@ fn movement_tail_macros_are_owned_by_the_tail_and_counted_once() {
 fn movement_tail_contract_accounts_for_one_direct_entry_and_the_trainer_tail_for_two() {
     let tail = crate::registrations::analyze_contract_source(
         crate::registrations::MOVEMENT_TAIL_REGISTRAR,
-        "wow-world-application",
+        "wow-world-entities",
         crate::registrations::MOVEMENT_TAIL_OWNER_MODULE,
-        Path::new("crates/wow-world-application/src/movement_handlers/tail_registrations.rs"),
+        Path::new("crates/wow-world-entities/src/movement_handlers/tail_registrations.rs"),
         REAL_MOVEMENT_TAIL_SOURCE,
     )
     .expect("the real movement tail registrar matches its finite contract");
@@ -668,9 +668,9 @@ fn movement_tail_registrar_rejects_a_direct_and_macro_opcode_collision() {
     );
     let error = crate::registrations::analyze_contract_source(
         crate::registrations::MOVEMENT_TAIL_REGISTRAR,
-        "wow-world-application",
+        "wow-world-entities",
         crate::registrations::MOVEMENT_TAIL_OWNER_MODULE,
-        Path::new("crates/wow-world-application/src/movement_handlers/tail_registrations.rs"),
+        Path::new("crates/wow-world-entities/src/movement_handlers/tail_registrations.rs"),
         &mutated,
     )
     .expect_err("a direct/macro opcode collision must be rejected");

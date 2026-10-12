@@ -4,4 +4,4 @@
 //! Spell click values: re-exported from `wow-world-application` after the
 //! #1263 F5 move.
 
-pub(crate) use wow_world_application::spell_click_values::*;
+pub(crate) use wow_world_entities::spell_click_values::*;

@@ -113,7 +113,6 @@
       "wow-data",
       "wow-entities",
       "wow-handler",
-      "wow-instances",
       "wow-loot",
       "wow-map",
       "wow-packet",
@@ -184,6 +183,7 @@
       "wow-core",
       "wow-data",
       "wow-entities",
+      "wow-handler",
       "wow-loot",
       "wow-map",
       "wow-movement",
@@ -198,11 +198,15 @@
       "wow-core",
       "wow-data",
       "wow-entities",
+      "wow-handler",
       "wow-instances",
       "wow-map",
       "wow-packet",
+      "wow-persistence",
       "wow-social",
-      "wow-world-core"
+      "wow-world-core",
+      "wow-world-lifecycle",
+      "wow-world-social"
     ],
     "wow-world-inventory": [
       "wow-constants",
@@ -654,7 +658,9 @@
         "build": []
       },
       "wow-world-instances": {
-        "normal": [],
+        "normal": [
+          "tracing"
+        ],
         "build": []
       },
       "wow-world-spell": {

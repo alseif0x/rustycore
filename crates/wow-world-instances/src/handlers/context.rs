@@ -4,12 +4,12 @@
 
 //! Borrowed participants for the three existing instance-handler families.
 
+use crate::InstanceState;
 use wow_data::{DifficultyStore, MapDifficultyStore, MapStore};
 use wow_world_core::session::{
     GroupDifficultyAccessLikeCpp, InstanceLockManagerAccessLikeCpp, InstancePlayerAccessLikeCpp,
     PacketPublicationAccessLikeCpp, PlayerGroupOwnerAccessLikeCpp,
 };
-use wow_world_instances::InstanceState;
 use wow_world_lifecycle::SessionLifecycleState;
 use wow_world_social::SessionSocialLimits;
 

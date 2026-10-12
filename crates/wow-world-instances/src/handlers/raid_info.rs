@@ -4,7 +4,7 @@
 
 use wow_packet::packets::instance::{InstanceInfo, InstanceLockInfo};
 
-use crate::instances::InstanceRaidInfoHandlerCxLikeCpp;
+use crate::handlers::InstanceRaidInfoHandlerCxLikeCpp;
 
 pub async fn handle_request_raid_info_like_cpp(
     cx: &mut InstanceRaidInfoHandlerCxLikeCpp<'_>,

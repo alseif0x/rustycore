@@ -6,9 +6,6 @@
 //! Session-independent: moved out of `wow-world` under #1263 F5.
 
 use wow_core::{ObjectGuid, Position};
-pub use wow_world_spell::spell_cast_adapter::{
-    SPELL_CAST_SOURCE_NORMAL_LIKE_CPP, represented_spell_cast_guid_for_map_like_cpp,
-};
 
 /// C++ `MAX_GAMEOBJECT_SLOT`.
 pub const MAX_GAMEOBJECT_SLOT_LIKE_CPP: usize = 4;
@@ -37,7 +34,12 @@ pub use wow_world_core::session::RepresentedGameObjectAccessLikeCpp;
 
 pub use wow_world_core::session::RepresentedCreatureAccessLikeCpp;
 
-pub use crate::RepresentedCanSeeSpellClickOutcomeLikeCpp;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RepresentedCanSeeSpellClickOutcomeLikeCpp {
+    Visible,
+    Hidden,
+    ExactContextUnrepresented,
+}
 
 pub const NPC_CLICK_CAST_CASTER_CLICKER_LIKE_CPP: u8 = 0x01;
 pub const NPC_CLICK_CAST_TARGET_CLICKER_LIKE_CPP: u8 = 0x02;
@@ -102,7 +104,7 @@ pub enum RepresentedSpellClickClickeeCasterOutcomeLikeCpp {
     Failed,
 }
 
-pub use wow_world_entities::RepresentedSpellClickCreatureSnapshotLikeCpp;
+pub use crate::RepresentedSpellClickCreatureSnapshotLikeCpp;
 
 pub fn represented_spell_click_school_damage_amount_like_cpp(
     spell_info: &wow_data::SpellInfo,

@@ -2,6 +2,7 @@
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
+use crate::{InstanceState, RepresentedPendingBind};
 use tracing::{info, warn};
 use wow_core::ObjectGuid;
 use wow_data::{MapDifficultyStore, MapStore};
@@ -16,10 +17,9 @@ use wow_persistence::InstanceLockPersistenceOutcomeLikeCpp;
 use wow_world_core::session::{
     InstanceLockManagerAccessLikeCpp, InstancePlayerAccessLikeCpp, PacketPublicationAccessLikeCpp,
 };
-use wow_world_instances::{InstanceState, RepresentedPendingBind};
 use wow_world_lifecycle::SessionLifecycleState;
 
-use crate::instances::InstanceLockOperationsHandlerCxLikeCpp;
+use crate::handlers::InstanceLockOperationsHandlerCxLikeCpp;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InstanceResetMethodLikeCpp {

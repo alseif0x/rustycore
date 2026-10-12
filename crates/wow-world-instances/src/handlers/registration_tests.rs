@@ -3,7 +3,7 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 use super::register_instance_handlers_like_cpp;
-use crate::instances::{
+use crate::handlers::{
     InstanceDifficultyHandlerCxLikeCpp, InstanceLockOperationsHandlerCxLikeCpp,
     InstanceRaidInfoHandlerCxLikeCpp, InstancesHandlerHostLikeCpp,
 };

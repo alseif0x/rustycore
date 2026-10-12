@@ -32,14 +32,8 @@ mod dungeon_finding_handlers;
 mod gameobject_handlers;
 mod group_handlers;
 mod guild_bank_handlers;
-mod instances;
 mod loot_handlers;
 mod loot_release;
-mod movement_handlers;
-pub use movement_handlers::register_movement_tail_handlers_like_cpp;
-pub use movement_handlers::{
-    MovementHandlerCxLikeCpp, MovementHandlerHostLikeCpp, register_movement_handlers_like_cpp,
-};
 mod npc_handlers;
 pub use npc_handlers::{
     NpcHandlerCxLikeCpp, NpcHandlerHostLikeCpp, register_npc_handlers_like_cpp,
@@ -54,13 +48,10 @@ mod quest_query_handlers;
 mod registry_sync;
 mod reputation;
 mod spell_acquisition;
-pub mod spell_click_values;
 mod spell_handlers;
 mod talent_handlers;
 mod trade_handlers;
 mod travel_handlers;
-mod vehicle_handlers;
-mod vehicle_session;
 pub mod vendor;
 pub use loot_release::{
     LootReleaseCxLikeCpp, direct_item_count_after_loot_release_like_cpp,
@@ -164,16 +155,6 @@ pub use group_handlers::{
 pub use guild_bank_handlers::{
     GuildBankHandlerCxLikeCpp, GuildBankHandlerHostLikeCpp, register_guild_bank_handlers_like_cpp,
 };
-pub use instances::{
-    InstanceDifficultyHandlerCxLikeCpp, InstanceLockOperationsHandlerCxLikeCpp,
-    InstanceLockResponseOutcomeLikeCpp, InstanceRaidInfoHandlerCxLikeCpp,
-    InstanceResetMethodLikeCpp, InstancesHandlerHostLikeCpp,
-    handle_instance_lock_response_like_cpp, handle_request_raid_info_like_cpp,
-    handle_reset_instances_like_cpp, handle_set_difficulty_id_like_cpp,
-    handle_set_dungeon_difficulty_like_cpp, handle_set_raid_difficulty_like_cpp,
-    handle_set_saved_instance_extend_like_cpp, handle_toggle_difficulty_like_cpp,
-    register_instance_handlers_like_cpp, reset_represented_instances_like_cpp,
-};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use inventory_swap::InventoryEquipFixtureRefsLikeCpp;
 pub use inventory_valuation::{
@@ -211,10 +192,9 @@ pub use quest::add_currency_quest_reward_like_cpp;
 pub use quest::represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp;
 pub use quest::{
     MAX_QUEST_LOG_SIZE_LIKE_CPP, QuestObjectiveProgressCx, QuestRewardCommitCx, QuestRewardCx,
-    RepresentedCanSeeSpellClickOutcomeLikeCpp, RepresentedPendingQuestSharingLikeCpp,
-    RepresentedPushQuestToPartyOutcomeLikeCpp, RepresentedPushQuestToPartyOutcomeReasonLikeCpp,
-    RepresentedQuestCompleteStatusUpdateLikeCpp, RepresentedQuestConfirmAcceptLikeCpp,
-    RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp,
+    RepresentedPendingQuestSharingLikeCpp, RepresentedPushQuestToPartyOutcomeLikeCpp,
+    RepresentedPushQuestToPartyOutcomeReasonLikeCpp, RepresentedQuestCompleteStatusUpdateLikeCpp,
+    RepresentedQuestConfirmAcceptLikeCpp, RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp,
     RepresentedQuestObjectiveProgressEventLikeCpp, RepresentedQuestPushResultResponseLikeCpp,
     RepresentedQuestRewardReputationSourceLikeCpp, SessionQuestState,
     begin_exclusive_player_money_persistence_like_cpp, find_quest_slot_like_cpp,
@@ -344,19 +324,4 @@ pub use trainer_purchase::{
 };
 pub use travel_handlers::{
     TravelHandlerCxLikeCpp, TravelHandlerHostLikeCpp, register_travel_handlers_like_cpp,
-};
-pub use vehicle_handlers::{
-    VehicleHandlerAction, eject_passenger_action_like_cpp,
-    move_change_vehicle_seats_action_like_cpp, move_dismiss_vehicle_action_like_cpp,
-    request_adjacent_vehicle_seat_action_like_cpp, request_vehicle_exit_action_like_cpp,
-    request_vehicle_switch_seat_action_like_cpp, ride_vehicle_interact_action_like_cpp,
-};
-pub use vehicle_handlers::{
-    VehicleHandlerCxLikeCpp, VehicleHandlerHostLikeCpp, register_vehicle_handlers_like_cpp,
-};
-pub use vehicle_session::{
-    VehicleSessionHostLikeCpp, handle_move_change_vehicle_seats, handle_move_dismiss_vehicle,
-    handle_request_vehicle_switch_seat, handle_ride_vehicle_interact,
-    represented_move_change_vehicle_seats_like_cpp, represented_move_dismiss_vehicle_like_cpp,
-    represented_request_vehicle_switch_seat_like_cpp, represented_ride_vehicle_interact_like_cpp,
 };

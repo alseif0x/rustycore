@@ -122,7 +122,7 @@ fn direct_inventory_registrar_accepts_current_source_and_counts_entries() {
 #[test]
 fn direct_instances_registrar_accepts_exact_seven_entry_source() {
     const SOURCE: &str =
-        include_str!("../../../../../crates/wow-world-application/src/instances/registration.rs");
+        include_str!("../../../../../crates/wow-world-instances/src/handlers/registration.rs");
     let report = analyze_owner_source_with_contracts(
         INSTANCES_REGISTRAR.package,
         INSTANCES_REGISTRAR.module,

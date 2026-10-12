@@ -66,7 +66,8 @@ pub(crate) use local_inventory::{
 /// macros are retired from the grammar.
 ///
 /// The #1263 F5 tail relocated the three remaining statement macros into the
-/// `wow-world-application` movement tail registrar and changed their expansion
+/// `wow-world-application` movement tail registrar (in `wow-world-entities` since
+/// #1363 slice A1) and changed their expansion
 /// from the legacy `inventory::submit!` wrapper to exactly one
 /// `$builder.register(PacketHandlerEntry { .. })?`. They are discovered
 /// *structurally* (one unconditional arm with the matcher

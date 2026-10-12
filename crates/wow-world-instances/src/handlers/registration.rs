@@ -9,11 +9,11 @@ use wow_handler::{
 };
 use wow_packet::WorldPacket;
 
-use crate::instances::difficulty::{
+use crate::handlers::difficulty::{
     handle_set_difficulty_id_like_cpp, handle_set_dungeon_difficulty_like_cpp,
     handle_set_raid_difficulty_like_cpp, handle_toggle_difficulty_like_cpp,
 };
-use crate::instances::{
+use crate::handlers::{
     InstancesHandlerHostLikeCpp, handle_instance_lock_response_like_cpp,
     handle_request_raid_info_like_cpp, handle_reset_instances_like_cpp,
 };
