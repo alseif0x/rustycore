@@ -1557,3 +1557,139 @@ section was added after the run (documentation-only delta).
 ### Next
 
 A3 per the PR sequence, re-measured on the A2 merge.
+
+## A3 result (travel, combat, corpse, gameobject → entities; dungeon finding → instances; client state, data service, player save → lifecycle; npc → interaction)
+
+Branch `1363-sA3-application-split`, base `b02845b3f` (A2 merged). Move-only
+(R2): every moved body is byte-identical; only `use` lines, self-crate
+prefixes (`wow_world_entities::` / `wow_world_lifecycle::` → `crate::`, with
+rustfmt grouping the `crate::` imports) and crate-root re-exports change.
+Opcode registration and dispatch order and every processing flag are
+unchanged (`handler_composition.rs` calls the same registrars in the same
+order, through their new crate paths).
+
+### Re-measure and pre-check
+
+- **Base.** `wow-world-application/src` is 42,374 lines in 153 files on
+  `b02845b3f`, as A2 reported. The nine A3 modules total 3,499 file lines
+  (travel 391, combat 161, corpse 156, gameobject 261, dungeon finding 222,
+  client state 1,375, data service 245, player save 481, npc 207), so A3 is
+  one PR (below the ~6k split threshold).
+- **Leaves.** None of the nine names another application module
+  (`crate::` / `super::` scan finds nothing; nothing else in application
+  names them; `trainer_purchase/buy_spell.rs` only declares a same-named host
+  method). Their `wow_world_*` uses are: travel → core, lifecycle; combat →
+  core; corpse → none; gameobject → core, entities, interaction; dungeon
+  finding → core; client state → core; data service → core; player save →
+  core, lifecycle; npc → core. So dungeon finding, client state, data service,
+  player save and npc add **no** `wow-world-*` edge (confirming *Plan fixes*);
+  only entities gains lifecycle (travel) and interaction (gameobject).
+- **Closure check before moving.** A transitive-closure script over the
+  `wow-world*` packages of `Cargo.lock` (and, separately, `cargo metadata`
+  normal+build dependencies), run with the two planned edges simulated
+  (`--add wow-world-entities->wow-world-lifecycle`,
+  `--add wow-world-entities->wow-world-interaction`), found no package that
+  reaches itself, no domain crate that reaches `wow-world-application` or
+  `wow-world`, and no path from inventory, spell, entities or loot to social or
+  instances. The same check on the head `Cargo.lock` and head metadata gives
+  the same result. Head closures: entities → core, interaction, lifecycle,
+  visibility; interaction → core; lifecycle → core, visibility; instances →
+  core, entities, interaction, inventory, lifecycle, loot, social, spell,
+  visibility; social → core, entities, interaction, inventory, lifecycle,
+  spell, visibility. (The script is kept outside the repository, in the
+  operator's work directory; see *Next*.)
+
+### What moved
+
+- **To `wow-world-entities`** (969 file lines): `travel_handlers.rs` (391),
+  `combat_handlers.rs` (161), `gameobject_handlers.rs` (261) and the corpse
+  registrar as **`corpse_registrations.rs`** (156). Entities already owns the
+  four corpse bodies as `corpse_handlers` (slice 4b), so the registrar module
+  takes a different name; the exact `ApplicationCorpse` root facade becomes
+  `pub use corpse_registrations::{CorpseHandlerHostLikeCpp,
+  register_corpse_handlers_like_cpp};`.
+- **To `wow-world-instances`** (222): `dungeon_finding_handlers.rs`.
+- **To `wow-world-lifecycle`** (2,101 + 1): `client_state.rs` (1,375),
+  `data_service_handlers.rs` (245) and `player_save.rs` (481; its three
+  `wow_world_lifecycle` imports become one `crate::` import in its own group,
+  one blank line more).
+- **To `wow-world-interaction`** (207): `npc_handlers.rs`.
+- **Callers.** `wow-world` (`handler_composition.rs`, the travel, combat,
+  gameobject, dungeon-finding, client-state and data-service context
+  adapters, `npc_host.rs`, the corpse host, the save adapters in
+  `session/lifecycle/{persistence,finalization}.rs`,
+  `session/lifecycle/persistence/deferred.rs`, `session/persistence/save.rs`,
+  `handlers/trainer/host.rs`, the character account/query data-service shims,
+  five test shims, `unit_tests/handler_contract{,_deferred}_tests.rs` and
+  `save_interleaving.rs`) name the new crate paths, and their module comments
+  name the new owner crate. The entities `corpse_handlers.rs` and
+  `player_attack.rs` comments name the registrar module instead of
+  "application".
+- **Checker.** The handler-contract checker's registrar packages and source
+  mounts, and `handler-module-policy.json`, follow the nine moved registrars
+  (`ApplicationTravel`, `ApplicationCombat`, `ApplicationGameObject`,
+  `ApplicationCorpse` → entities, the corpse module/facade child renamed to
+  `corpse_registrations`; `ApplicationDungeonFinding` → instances;
+  `ApplicationClientState`, `ApplicationDataService` → lifecycle;
+  `ApplicationNpc` → interaction). The composer test mounts the interaction
+  crate root (for the NPC facade) and the corpse facade mutation case now
+  targets the entities root. Owner labels are unchanged (rename is the A2
+  follow-up).
+
+### Accounting
+
+- **`wow-world-application/src`: 42,374 → 38,833 lines (−3,541), 153 → 144
+  files.** 3,499 lines leave as files; `lib.rs` loses 42 net (−44 +2: the
+  corpse-facade comment now names only the talent facade).
+- **Destinations.** `wow-world-entities/src` 12,808 → 13,793 (+985: 969 moved,
+  16 `lib.rs`). `wow-world-instances/src` 5,348 → 5,575 (+227: 222, 5).
+  `wow-world-lifecycle/src` 9,286 → 11,407 (+2,121: 2,101 moved, +1 import
+  grouping, 19 `lib.rs`). `wow-world-interaction/src` 571 → 782 (+211: 207,
+  4).
+- **`crates/wow-world`**: +73 −74 (paths and comments; rustfmt folds one
+  `let … else` head in `save_interleaving.rs`). `net_move.py check`: shrink 0,
+  growth charged 3 (moved files are accounted as moves between internal
+  crates), 0 duplicate bodies; exit 0.
+- **Policy (`dependency-policy.json`).** `wow-world-entities` +=
+  `wow-world-interaction`, `wow-world-lifecycle`. `wow-world-interaction` +=
+  `wow-constants`, `wow-handler` and external `tracing` (exactly what the
+  moved NPC body names). Instances and lifecycle need nothing new.
+  `wow-world-application` keeps every dependency (each is still named by a
+  remaining module). No destination's `test-fixtures` feature changes: the
+  only moved `cfg(any(test, feature = "test-fixtures"))` blocks
+  (`gameobject_handlers`, `player_save`) name items of their own new crate or
+  of `wow-persistence`, and `cargo tree -p world-server -e normal,build`
+  enables no `test-fixtures` feature.
+- **`session-ownership-policy.json`** is reprinted with `print-baseline`; the
+  delta is the `PlayerSaveHostLikeCpp` trait path and the player-save types in
+  its method signatures (14 occurrences: `wow_world_application` →
+  `wow_world_lifecycle`) and the resulting sort order. With those paths
+  masked the old and new policies are equal as multisets (4,525 entries).
+- **Ceilings.** None raised. The Session logical owner is tightened to the
+  live values: production 42,629 unchanged, test 142,050 → 142,049, total
+  184,679 → 184,678. Every physical row is unchanged.
+- **Warnings.** `wow-world` `dead_code` is 0 in the production lib, the lib
+  with `test-fixtures` and the lib test build; `unused_imports` stays 152 and
+  161 in the first two (255 in the test build), and no changed wow-world line
+  warns. The only warning in a moved file is the unused `ServerPacket` import
+  of `dungeon_finding_handlers.rs`, the same unchanged line that warned in
+  application (an unused-import lint does not depend on the crate).
+- **Tests.** The test-name multiset is unchanged: none of the nine modules
+  contains a test, no `#[test]` or `#[ignore]` line is added or removed, and
+  application stays at 58 library tests.
+
+### Validation
+
+`final --architecture --timings` runs on the committed head that includes
+this section; its manifest path, dirty flag and duration are in the PR body
+(this section is not edited after that run, so the PR head is the validated
+SHA).
+
+### Next
+
+- A4 (support layer → inventory) per the PR sequence; re-measure application
+  on the A3 merge (38,833 expected).
+- The closure script used here (Cargo.lock and `cargo metadata` modes, planned
+  edges simulated with `--add`, the three rules above) should become a
+  tracked `tools/architecture/` check with a self-test, so each later slice
+  runs the same command.
