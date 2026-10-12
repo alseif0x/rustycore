@@ -693,3 +693,170 @@ path changes cause differ. C++ anchors are unchanged, so no C++ re-audit applies
   fixtures they use (`shared_canonical_map_manager`, `add_canonical_test_creature_on_map`,
   …) move to `wow-world-test-support` first.
 - After that move, drop the `cfg(test)` re-exports that become unused.
+
+## Slice 3b result (session-free runtime scenarios → `wow-world-creature`)
+
+Branch `1363-s3b-creature-tests`, base `78dd5696d` (slice 3a merged). Move-only (R2):
+test and fixture bodies are unchanged except for the path rewrites listed below; no
+assertion, `#[test]` or `#[ignore]` attribute is added, removed or changed.
+
+### Survey
+
+Every test in the `wow-world` session scenario files that drives the runtime was
+classified by its body plus the transitive closure of its file-local helpers. A test
+qualifies if neither builds or names a `WorldSession` (`make_session`,
+`register_test_creature`, a session-building fixture). 238 runtime tests were
+surveyed and 35 qualified. 27 moved:
+
+| From `wow-world` `session/tests/` | Moved | Stayed |
+|---|---:|---:|
+| `scenarios_world_entities_19/f6_8d2_admitted_execution.rs` (whole file) | 3 | 0 |
+| `scenarios_world_entities_31.rs` (whole file) | 9 | 0 |
+| `scenarios_world_entities_30.rs` | 9 | 2 |
+| `scenarios_world_entities_29.rs` | 2 | 11 |
+| `scenarios_world_entities_24.rs` | 2 | 9 |
+| `scenarios_world_entities_21.rs` | 1 | 12 |
+| `scenarios_world_entities_27.rs` | 1 | 8 |
+
+Eight qualifying tests stayed in `wow-world`:
+
+- Three in `scenarios_world_entities_24.rs` (`creature_spell_runtime_*`, `creature_spell_disable_row_*`).
+  They call `creature_spell_bound_hook_tick_fixture_like_cpp`, which builds a session.
+- Three in `r1b_incarnation_boundaries.rs` and two in `r1b_incarnation_lifecycle.rs`.
+  They share file-local helpers (`canonical_creature_like_cpp`, `corpse_loot_like_cpp`,
+  `admission_candidate_like_cpp`, `candidate_loot_like_cpp`) with session tests in the
+  same file. Moving them would mean copying those helpers or widening them into a
+  shared fixture, which is not a move.
+
+The moved tests live in `crates/wow-world-creature/unit_tests/scenarios/`, keep their
+original file names, and are mounted `cfg(test)` from `unit_tests/scenarios.rs`.
+
+### Fixtures
+
+- **Single-phase drivers.** These are the session-free part of
+  `session/tests/fixtures/canonical_creatures.rs`: the selection, the five creature phase
+  drivers, the player melee driver and `step_creature_movement_like_cpp`.
+  - They moved to `crates/wow-world-creature/unit_tests/canonical_creatures.rs`, mounted
+    as `pub mod canonical_creatures` under `cfg(any(test, feature = "test-fixtures"))`.
+  - `wow-world` reaches them through its fixture prelude.
+  - They do not go to `wow-world-test-support`. They name runtime types
+    (`AdmittedCreatureExecutionMapLikeCpp`, `PlayerMeleePhaseStateLikeCpp`). If
+    test-support depended on `wow-world-creature`, the runtime's own tests would link a
+    second copy of the crate through the dev-dependency, and those types would not
+    unify.
+  - `run_session_player_melee_phase_for_test_like_cpp` needs a session, so it stays in
+    `wow-world`.
+- **Moved to `wow-world-test-support`** (verbatim, `pub(in crate::session::tests)` → `pub`):
+  - `creature_ai`: `aggro_hostile_config_like_cpp`,
+    `creature_ai_spell_test_config_like_cpp` and `faction_template_entry`.
+  - The new `lifecycle` module: `CreatureMeleeLosTestEnvironment` and its environment
+    impl, `melee_los_test_world_object`, `lifecycle_test_map_store_like_cpp` and
+    `make_test_world_creature`.
+  - `map_objects`: `test_creature_create_data`.
+  - `wow-world` imports these back by name. The test-support dependency list is
+    unchanged, because every new fixture uses crates it already depends on.
+- **Path rewrites.** Each one resolves to the same item:
+  - In the drivers, `crate::session::<entry>` → `crate::<entry>`, plus the rustfmt reflow
+    this causes in one call.
+  - In `make_test_world_creature`, `crate::creature_projection` →
+    `wow_world_core::creature_projection`.
+  - The moved scenario bodies keep `crate::creature_projection` / `creature_respawn` /
+    `creature_movement` / `pathfinder` / `terrain` byte-for-byte. `wow-world-creature`'s
+    `lib.rs` has gated `use wow_world_core::{…}` aliases for those five modules, the same
+    root re-exports that `wow-world` has.
+- **`wow-world-creature` dev-dependencies.** These are not policed by the dependency
+  policy (`dev` edges are ignored):
+  - `wow-world-test-support`;
+  - `wow-recastdetour` with `test-fixtures`, for the navmesh obstacle scenarios;
+  - `wow-world-core`, `wow-world-entities` and `wow-world-spell` with `test-fixtures`.
+    `wow-world-spell` is needed so its test-fixtures signatures unify with
+    `wow-world-entities`'.
+
+### Cleanup and follow-ups from the 3a review
+
+- Dropped from `session/mod.rs`, because only the moved drivers and tests used them:
+  - the `cfg(test)` imports of the phase entries, the phase store and
+    `is_creature_melee_los_clear_like_cpp`. `creature_ai_can_attack_decision_like_cpp`
+    and `creature_melee_spell_miss_threshold_3_3_5_like_cpp` are still used and stay;
+  - the `cfg(test)` `creature_spell_admission` re-export module (file deleted).
+- `wow-world`'s `test-fixtures` feature now also enables `wow-world-creature/test-fixtures`.
+- `forbidden-creature-to-wow-world.json` now reads "…may not depend on wow-world; it
+  makes no WorldSession call". The old text claimed the crate inverts through host
+  traits, which is not true.
+- The 10 pre-existing `unused_variables` in `creature_movement_tick.rs` are left as they
+  are (separate change).
+
+### Policy and accounting
+
+- Tests:
+  - The workspace `#[test]`/`#[tokio::test]` count is 10215 before and after, and the
+    sorted set of test function names is identical. `#[ignore]` is 5 before and after.
+  - `wow-world` 3785 → 3758, `wow-world-creature` 0 → 27, and the 27 pass.
+- Lines (`git diff --no-renames`):
+  - `crates/wow-world/src`: +3 / −20.
+  - `crates/wow-world/unit_tests`: +14 / −2565.
+  - `crates/wow-world-creature/unit_tests`: +2393.
+  - `crates/wow-world-creature/src/lib.rs`: +14.
+  - `crates/wow-world-test-support/src`: +273 / −2.
+  - `net_move.py check`: S = 17, G = 285 (the moved fixtures, now charged under the
+    test-support destination root, plus the `lib.rs` mounts), allowance 978.9,
+    0 duplicate bodies, PASS.
+- Ceilings are tightened and none is raised:
+  - Physical: `session/mod.rs` 1002 → 992; `unit_tests/session_tests.rs` 389 → 387.
+  - Hotspot `session/mod.rs`: production 45584 → 45578, test 144750 → 142188, total
+    190334 → 187766.
+  - Every new file is under the 1,000-line review limit. The largest is
+    `scenarios/scenarios_world_entities_30.rs` at 621 lines.
+- `dependency-policy.json` is unchanged.
+- Warnings:
+  - `wow-world` `dead_code` stays 0. The changes are `cfg(test)`-only, and the lib
+    test build reports no `wow-world` dead code.
+  - No new `wow-world` warning in the lib test build. The two new unused-import
+    warnings this move would have caused are removed with the imports.
+  - `wow-world-creature` keeps exactly its 10 pre-existing warnings in the production,
+    `test-fixtures` and test builds.
+
+### Left for later
+
+- Move the eight qualifying tests that stayed: the five `r1b_*` tests once their shared
+  helpers have one home, and the three `creature_spell_runtime_*` tests once a
+  session-free variant of the bound-hook fixture exists. Either is a small design step,
+  not a move.
+
+## Phase 1 summary (slices 0–3b)
+
+All figures use the hotspot classifier (`hotspot_line_counts`) over the tracked
+`crates/wow-world/src/**/*.rs`. It treats top-level `cfg(test)` and
+`cfg(any(test, feature = "test-fixtures"))` items as test lines and everything else as
+production. It is stricter than the issue's "compiled into production" estimate,
+because nested test-only code still counts as production.
+
+| Revision | Files | Physical | Production | Test |
+|---|---:|---:|---:|---:|
+| `d7e2fa2d5` (phase 1 base) | 552 | 107,370 | 104,326 | 3,044 |
+| `43cd093f7` (slice 1 merged) | 543 | 102,133 | 98,700 | 3,433 |
+| `d725325b7` (slice 2 merged) | 543 | 101,660 | 98,227 | 3,433 |
+| `78dd5696d` (slice 3a merged) | 516 | 91,499 | 88,004 | 3,495 |
+| slice 3b head | 515 | 91,482 | 87,998 | 3,484 |
+
+- **Out of wow-world in phase 1:** 15,888 physical lines and 16,328 production lines.
+  - Slice 0 changed only visibility.
+  - Slice 1: dead and test-only code (−5,237 physical).
+  - Slice 2: duplicates retired onto owners (−473).
+  - Slice 3a: creature runtime (−10,161).
+  - Slice 3b: −17 in `src`, plus 27 tests and their fixtures out of the test tree.
+  - The issue planned about 14k for slices 0–3; 3a alone came in at 10.2k.
+- **Where it went.**
+  - `wow-world-creature` holds 10,226 production lines and 27 tests.
+  - `wow-world-test-support` holds 2,266 dev-only lines.
+  - Destination growth stayed within budget in every slice. In 3a it was 1.3 % above
+    the shrink.
+- **Current wow-world production:** 87,998 lines by the classifier. That is about 77k by
+  the issue's compiled measure: its ~93.5k baseline minus the 16.3k that left.
+- **Phase 2 starts with slice 4a/b, the leaf handler bodies** (void storage, spell,
+  entities, travel, movement, LFG, social; about 6.5k). These are the lowest-risk
+  remaining moves and need host traits only at small call surfaces.
+  - The plan is then loot (5a/b) and quest (6a/b).
+  - Before 4a, reassess the plan's per-slice estimates against 3a's actual 10.2k. Keep
+    the ≤15 % new-code budget per slice, and split `wow-world-application` by domain
+    before it absorbs the handler bodies.

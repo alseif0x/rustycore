@@ -272,8 +272,6 @@ mod scenarios_world_entities_29;
 mod scenarios_world_entities_3;
 #[path = "session/tests/scenarios_world_entities_30.rs"]
 mod scenarios_world_entities_30;
-#[path = "session/tests/scenarios_world_entities_31.rs"]
-mod scenarios_world_entities_31;
 #[path = "session/tests/scenarios_world_entities_32.rs"]
 mod scenarios_world_entities_32;
 #[path = "session/tests/scenarios_world_entities_33.rs"]

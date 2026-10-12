@@ -224,27 +224,6 @@ pub(in crate::session::tests) fn set_canonical_player_farsight_object_on_map_lik
         .set_farsight_object_like_cpp(farsight_object);
 }
 
-pub(in crate::session::tests) fn faction_template_entry(
-    id: u32,
-    faction: u16,
-    faction_group: u8,
-    friend_group: u8,
-    enemy: u16,
-) -> wow_data::progression_rewards::FactionTemplateEntry {
-    let mut enemies = [0; 8];
-    enemies[0] = enemy;
-    wow_data::progression_rewards::FactionTemplateEntry {
-        id,
-        faction,
-        flags: 0,
-        faction_group,
-        friend_group,
-        enemy_group: 0,
-        enemies,
-        friend: [0; 8],
-    }
-}
-
 pub(in crate::session::tests) fn represented_get_reaction_input_like_cpp()
 -> RepresentedGetReactionInputLikeCpp {
     RepresentedGetReactionInputLikeCpp {

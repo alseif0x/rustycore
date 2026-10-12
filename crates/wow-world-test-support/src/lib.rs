@@ -8,6 +8,7 @@
 
 pub mod canonical_creatures;
 pub mod creature_ai;
+pub mod lifecycle;
 pub mod map_objects;
 pub mod packets;
 pub mod spell_catalog;

@@ -1,7 +1,7 @@
-//! Session scenarios exercising the represented world entities responsibility.
+//! Creature runtime scenarios of the represented world entities responsibility.
 //!
-//! Split out of session_tests.rs under #626; assertions and registrations
-//! are unchanged and the shared fixtures stay in the parent module.
+//! #1363 slice 3b moved this whole module verbatim out of the `wow-world`
+//! session scenario suite; none of its tests builds a `WorldSession`.
 
 use super::*;
 

@@ -12,6 +12,7 @@ license.workspace = true
 test-fixtures = [
     "wow-session/test-support",
     "wow-world-core/test-fixtures",
+    "wow-world-creature/test-fixtures",
     "wow-world-entities/test-fixtures",
     "wow-world-interaction/test-fixtures",
     "wow-world-instances/test-fixtures",
