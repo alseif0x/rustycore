@@ -12,11 +12,13 @@ use std::time::{Duration, Instant};
 use rand::seq::SliceRandom;
 use wow_core::{ObjectGuid, Position};
 
-use crate::gameobject_use_preamble::apply_represented_gameobject_post_use_spell_like_cpp;
-use crate::gameobject_use_support::record_represented_gameobject_owner_guid_like_cpp;
-use crate::gameobject_use_support::represented_fishing_base_skill_level_like_cpp;
 use crate::world_entities_host::WorldEntitiesHostLikeCpp;
-use crate::{RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect};
+use crate::{
+    RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
+    apply_represented_gameobject_post_use_spell_like_cpp,
+    record_represented_gameobject_owner_guid_like_cpp,
+    represented_fishing_base_skill_level_like_cpp,
+};
 
 pub fn use_represented_gameobject_ritual_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,

@@ -3698,6 +3698,7 @@ dependencies = [
  "wow-chat",
  "wow-constants",
  "wow-core",
+ "wow-data",
  "wow-entities",
  "wow-handler",
  "wow-packet",

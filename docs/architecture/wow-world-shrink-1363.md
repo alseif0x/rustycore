@@ -860,3 +860,79 @@ because nested test-only code still counts as production.
   - Before 4a, reassess the plan's per-slice estimates against 3a's actual 10.2k. Keep
     the ≤15 % new-code budget per slice, and split `wow-world-application` by domain
     before it absorbs the handler bodies.
+
+## Slice 4 plan (leaf handler bodies, phase 2)
+
+Measured on `fba425ad1` (phase 1 merged) before anything moved, because the
+slice-2 estimate was five times too high. The scan is lexical (the
+`wow_world_coupling` blanking and the hotspot classifier), run over every
+`crates/wow-world/src/handlers/<family>` directory except the character, loot
+and quest families (slices 5, 6 and 8).
+
+- **Classifier production**: what the hotspot classifier counts. It includes
+  nested `cfg(test)` shims, so it overstates what can move.
+- **Body**: lines of the family's inherent `WorldSession` methods that are not
+  `cfg(test)`, `test_shims.rs` or `test_only.rs`.
+- **Calls**: distinct `WorldSession` methods those bodies call outside the
+  family. This is the host surface if only the family moves.
+- **With helpers**: the family plus every `WorldSession` method whose only
+  production callers are inside that set (taken transitively), and the host
+  surface of that larger set. A body can only move together with such
+  single-caller helpers or call them through the host.
+
+| Family | Classifier production | Body | Calls | With helpers: lines / surface |
+|---|---:|---:|---:|---:|
+| void_storage | 1,641 | 1,377 | 47 | 1,429 / 45 |
+| spell | 1,393 | 1,069 | 29 | 1,409 / 35 |
+| entities (gameobject use, corpse) | 1,030 | 758 | 39 | 2,508 / 36 |
+| movement (+ `movement_host.rs`) | 1,017 | 629 | 16 | 1,299 / 22 |
+| travel | 777 | 667 | 31 | 771 / 31 |
+| chat | 511 | 136 | 2 | 135 / 2 |
+| group | 463 | 118 | 14 | 121 / 13 |
+| dungeon_finding | 412 | 330 | 9 | 380 / 7 |
+| collections | 373 | 266 | 15 | 276 / 15 |
+| battlegrounds | 314 | 43 | 2 | 183 / 2 |
+| trainer | 280 | 37 | 1 | 399 / 4 |
+| combat | 266 | 210 | 6 | 505 / 9 |
+| talent | 231 | 98 | 7 | 368 / 21 |
+| social, vehicle, pets, economy, account_data, guild, calendar, support, battlenet, progression, instances | 803 | 353 | ≤ 4 each | ≤ 261 each |
+
+Findings:
+
+- **About 6.5k lines can move, as the issue estimated.** The bodies are 6.1k
+  lines, and the single-caller helpers add about 3k, mostly the gameobject-use
+  operations in `session/world_entities/gameobject_use*.rs`. The classifier
+  figure is higher because about 1.4k of it is nested test shims, which stay.
+- **Many small families are already shells.** F5 moved their bodies to
+  `wow-world-social` and `wow-world-application` behind handler-level host
+  traits (`*HandlerHostLikeCpp`). What is left is the registrar adapter plus
+  `cfg(test)` entry points, for example guild, calendar, support, battlenet and
+  economy.
+- **Cost of a host method.** One trait line block (about 4 lines after rustfmt)
+  plus one adapter entry. A forwarding macro brings the adapter entry down to 1–3
+  lines (see 4a). At about 6 lines per method, a family stays under the 15 %
+  budget only if it moves at least 40 lines per host method.
+- **Two things block a move.**
+  - A body that uses a `wow-world`-only or `wow-world-application`-only type
+    (`QuestObjectiveOperationLikeCpp`, `RepresentedPreparedQuestMenuItemLikeCpp`,
+    `RepresentedPlayerConditionContextLikeCpp`, `AppTrainerListCx`) cannot go
+    to a domain crate. It stays behind the host instead.
+  - A `#[cfg(test)]` block inside a body changes meaning when the body moves,
+    because `cfg(test)` is then the domain crate's own test build, not
+    `wow-world`'s. Such a body either stays with the host, or its test-only step
+    becomes a host hook whose adapter keeps the `cfg(test)` block.
+
+**4a** takes the lowest surface per line: entities (gameobject use, corpse and
+their single-caller helpers), combat (player attack start and melee delivery),
+the text emote, and the LFG lock info. That is about 3.5k lines with 44 host
+methods.
+
+**4b** takes the rest, in this order:
+1. Movement (1.3k / 22).
+2. Vehicle, trainer and talent. Trainer goes to `wow-world-application`
+   because its contexts (`AppTrainerListCx`) live there.
+3. Battlegrounds. Its two `cfg(test)` fixture pushes become host hooks.
+4. Collections and group.
+5. Travel, spell and void storage. These have the largest surface (31–45).
+   They mostly call inventory, loot and lifecycle operations that slices 5 and
+   8 will move, so if the 15 % budget does not hold they wait for those slices.

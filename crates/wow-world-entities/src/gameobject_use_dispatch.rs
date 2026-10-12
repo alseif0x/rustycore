@@ -27,27 +27,24 @@ use wow_world_core::session::{
     ItemValuationCatalogsLikeCpp, ObjectMgrCatalogsLikeCpp, RepresentedGameObjectAccessLikeCpp,
 };
 
-use crate::gameobject_use_kinds::use_represented_gameobject_barber_chair_like_cpp;
-use crate::gameobject_use_kinds::use_represented_gameobject_camera_like_cpp;
-use crate::gameobject_use_kinds::use_represented_gameobject_chair_like_cpp;
-use crate::gameobject_use_kinds::use_represented_gameobject_spellcaster_like_cpp;
-use crate::gameobject_use_kinds::use_represented_gameobject_ui_link_like_cpp;
-use crate::gameobject_use_preamble::apply_represented_gameobject_player_use_preamble_like_cpp;
-use crate::gameobject_use_preamble::represented_gameobject_can_interact_with_like_cpp;
-use crate::gameobject_use_preamble::represented_gameobject_use_allowed_by_mover_like_cpp;
-use crate::gameobject_use_pvp::use_represented_gameobject_capture_point_like_cpp;
-use crate::gameobject_use_pvp::use_represented_gameobject_flagdrop_like_cpp;
-use crate::gameobject_use_pvp::use_represented_gameobject_flagstand_like_cpp;
-use crate::gameobject_use_pvp::use_represented_gameobject_new_flag_drop_like_cpp;
-use crate::gameobject_use_pvp::use_represented_gameobject_new_flag_like_cpp;
-use crate::gameobject_use_scripted::use_represented_gameobject_fishing_node_like_cpp;
-use crate::gameobject_use_scripted::use_represented_gameobject_goober_preamble_with_generator_like_cpp;
-use crate::gameobject_use_scripted::use_represented_gameobject_goober_state_like_cpp;
-use crate::gameobject_use_scripted::use_represented_gameobject_meeting_stone_like_cpp;
-use crate::gameobject_use_scripted::use_represented_gameobject_ritual_like_cpp;
-use crate::gameobject_use_support::use_represented_gameobject_item_forge_like_cpp;
 use crate::world_entities_host::WorldEntitiesHostLikeCpp;
-use crate::{RepresentedGameObjectUseEffect, represented_gameobject_interaction_distance_like_cpp};
+use crate::{
+    RepresentedGameObjectUseEffect, apply_represented_gameobject_player_use_preamble_like_cpp,
+    represented_gameobject_can_interact_with_like_cpp,
+    represented_gameobject_interaction_distance_like_cpp,
+    represented_gameobject_use_allowed_by_mover_like_cpp,
+    use_represented_gameobject_barber_chair_like_cpp, use_represented_gameobject_camera_like_cpp,
+    use_represented_gameobject_capture_point_like_cpp, use_represented_gameobject_chair_like_cpp,
+    use_represented_gameobject_fishing_node_like_cpp, use_represented_gameobject_flagdrop_like_cpp,
+    use_represented_gameobject_flagstand_like_cpp,
+    use_represented_gameobject_goober_preamble_with_generator_like_cpp,
+    use_represented_gameobject_goober_state_like_cpp,
+    use_represented_gameobject_item_forge_like_cpp,
+    use_represented_gameobject_meeting_stone_like_cpp,
+    use_represented_gameobject_new_flag_drop_like_cpp,
+    use_represented_gameobject_new_flag_like_cpp, use_represented_gameobject_ritual_like_cpp,
+    use_represented_gameobject_spellcaster_like_cpp, use_represented_gameobject_ui_link_like_cpp,
+};
 
 /// CMSG_GAME_OBJ_USE — player interacts with a world game object.
 /// C++ ref: `GameObject::Use` dispatches by `GameObjectTemplate::type`.

@@ -13,21 +13,20 @@ use wow_core::ObjectGuid;
 use wow_data::battlemaster_list::{BATTLEGROUND_EY_LIKE_CPP, BATTLEGROUND_WS_LIKE_CPP};
 use wow_world_core::session::player_team_for_race_cpp;
 
-use crate::gameobject_use_preamble::apply_represented_gameobject_post_use_spell_like_cpp;
-use crate::gameobject_use_preamble::apply_represented_gameobject_post_use_spell_like_cpp_internal;
-use crate::gameobject_use_support::apply_represented_new_flag_state_command_like_cpp;
-use crate::gameobject_use_support::record_represented_capture_point_update_like_cpp;
-use crate::gameobject_use_support::remove_represented_stealth_or_invisibility_auras_by_type_like_cpp;
-use crate::gameobject_use_support::represented_gameobject_is_friendly_to_player_like_cpp;
-use crate::gameobject_use_support::represented_player_battleground_type_id_or_reject_like_cpp;
-use crate::gameobject_use_support::represented_player_can_use_battleground_object_like_cpp;
-use crate::gameobject_use_support::represented_player_reject_battleground_object_vehicle_like_cpp;
-use crate::gameobject_use_support::send_represented_gameobject_delete_packets_like_cpp;
 use crate::world_entities_host::WorldEntitiesHostLikeCpp;
 use crate::{
     BattlegroundFlagDropClickTarget, RepresentedCapturePointStateLikeCpp,
     RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
-    RepresentedNewFlagStateRequest,
+    RepresentedNewFlagStateRequest, apply_represented_gameobject_post_use_spell_like_cpp,
+    apply_represented_gameobject_post_use_spell_like_cpp_internal,
+    apply_represented_new_flag_state_command_like_cpp,
+    record_represented_capture_point_update_like_cpp,
+    remove_represented_stealth_or_invisibility_auras_by_type_like_cpp,
+    represented_gameobject_is_friendly_to_player_like_cpp,
+    represented_player_battleground_type_id_or_reject_like_cpp,
+    represented_player_can_use_battleground_object_like_cpp,
+    represented_player_reject_battleground_object_vehicle_like_cpp,
+    send_represented_gameobject_delete_packets_like_cpp,
 };
 
 pub fn use_represented_gameobject_capture_point_like_cpp<H: WorldEntitiesHostLikeCpp>(

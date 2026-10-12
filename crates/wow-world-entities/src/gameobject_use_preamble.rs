@@ -10,12 +10,11 @@ use wow_constants::unit::UnitFlags;
 use wow_core::ObjectGuid;
 use wow_world_core::session::RepresentedGameObjectAccessLikeCpp;
 
-use crate::gameobject_use_support::apply_represented_new_flag_state_command_like_cpp;
-use crate::gameobject_use_support::send_represented_gameobject_despawn_to_visible_set_like_cpp;
 use crate::world_entities_host::WorldEntitiesHostLikeCpp;
 use crate::{
     RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
-    RepresentedNewFlagStateRequest,
+    RepresentedNewFlagStateRequest, apply_represented_new_flag_state_command_like_cpp,
+    send_represented_gameobject_despawn_to_visible_set_like_cpp,
 };
 
 pub fn represented_gameobject_can_interact_with_like_cpp<H: WorldEntitiesHostLikeCpp>(

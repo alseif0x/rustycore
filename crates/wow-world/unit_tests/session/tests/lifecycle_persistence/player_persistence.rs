@@ -48,7 +48,9 @@ fn uncage_item_state_seam_no_longer_names_statement_or_driver_errors() {
         .split_once("pub(crate) async fn uncage_item_state_like_cpp")
         .expect("uncage state helper starts");
     let (helper, _) = helper_and_tail
-        .split_once("fn use_represented_gameobject_item_forge_like_cpp")
+        // #1363 slice 4a moved the next item operation (the item forge use) to
+        // `wow_world_entities`; the helper now ends the impl block.
+        .split_once("\n}\n")
         .expect("uncage state helper ends before the next item operation");
 
     assert!(helper.contains("load_uncage_item_state_like_cpp"));
