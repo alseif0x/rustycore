@@ -1991,6 +1991,14 @@ this section; its manifest path, dirty flag and duration are in the PR body
 (this section is not edited after that run, so the PR head is the validated
 SHA).
 
+Recorded after the merge (#1377 review follow-up): the green `final` on the
+merged head `81a8fa27a` took **639.8 s** (warm) with
+`VALIDATION_V2_TIMEOUT_SECONDS=1800`. The first, cold run hit the default
+900 s per-step timeout on `cargo check --workspace --all-targets --jobs 1`
+(no compile error; an edge change forces the workspace re-plan). The 1800 s
+override is the documented per-command setting (CI uses 3600) and skips no
+check; slices that change crate edges use it for their local `final`.
+
 ### Next
 
 - A6 (`wow-world-quest`): re-run the quest-cluster scan on the A5 merge
@@ -2004,3 +2012,63 @@ SHA).
 - Slice 8 (character login load and handlers → `wow-world-character`)
   needs its own closure check; the tracked check now rejects any edge
   from a domain crate or `wow-world-core` back to character.
+
+## A6 result (quest cluster → new `wow-world-quest`)
+
+Branch `1363-sA6-quest-crate`, base `b21a2db1a` (A5 merged).
+
+### Re-measure and pre-check
+
+- **Base.** `wow-world-application/src` is 30,330 lines in 112 files on
+  `b21a2db1a`, as A5 reported. The cluster (`quest/` 37 files,
+  `quest_handlers`, `quest_query_handlers{,/complete_quest}`,
+  `player_conditions{,/inputs}`, `inventory_valuation{,/direct_storage}`)
+  plus `registry_sync` is 14,269 file lines in 47 files; the trainer
+  admission proof (`TrainerAdmissionProofLikeCpp` and
+  `trainer_condition_admission_proof_like_cpp`, `trainer_purchase/offer.rs`)
+  is 22 more.
+- **Scan** (lexical, as in the plan: `crate::…` paths, brace groups, names
+  re-exported from `lib.rs`, and `super::…` in direct children of the crate
+  root). Out of the cluster + `registry_sync`, the only edge is
+  `player_conditions` → `trainer_purchase` for the admission proof (the enum
+  and the function, nothing else). The cluster names nothing in
+  `aura_removal`, the rest of `trainer_purchase`, `inventory_swap`,
+  `inventory_move_planning`, the talent/spell/player handlers,
+  `character_account_handlers`, `loot_*`, `inventory_scaling` or
+  `equipment_set_use`. Inside: `quest` → `player_conditions`,
+  `registry_sync`; `player_conditions` → `inventory_valuation`, `quest`;
+  `inventory_valuation` → `player_conditions`; `registry_sync` → `quest`
+  (`SessionQuestState`); `quest_handlers` → `quest`,
+  `quest_query_handlers`; `quest_query_handlers` → `quest`. Every other
+  `super::super::…` path stays inside `quest/`.
+- **The admission proof moves down** with the cluster (it has no
+  dependency: a `Copy` enum and a three-branch function), so the cluster has
+  no edge back into application.
+- **Who names the cluster in application** (all application → quest, which
+  is allowed): `aura_removal` (conditions, quest state, hydration),
+  `trainer_purchase` (conditions, quest state, objective event, sync,
+  admission proof), `loot_release` (conditions, quest eligibility, sync,
+  gameobject flags), `inventory_swap` and `inventory_move_planning`
+  (conditions, valuation, sync), `spell_handlers` and `player_handlers`
+  (quest state), `inventory_scaling` and `equipment_set_use` (sync,
+  hydration).
+- **`inventory_scaling` and `equipment_set_use` stay in application.**
+  `registry_sync` goes with the cluster (its fixture hydration names
+  `SessionQuestState`). The two consumers are inventory operations (item
+  scaling, equipment-set use), not quest logic, so following `registry_sync`
+  into the quest crate would put them in the wrong domain, and
+  `equipment_set_use` is a handler registrar (more checker churn for no
+  ownership gain). They name `wow_world_quest::…` for the sync context; the
+  path to `wow-world-inventory` stays the one in A4 *Next*: make the fixture
+  hydration quest-agnostic (behaviour-neutral, separate change), then move
+  `registry_sync` and both consumers to inventory.
+- **Closure check before moving**, every planned edge simulated (`--add`
+  quest → core, entities, instances, inventory, lifecycle, loot, social,
+  spell; application → quest; `wow-world` → quest), lock and metadata
+  modes: PASS. The check now also enforces the plan's *nothing below
+  depends on the quest crate* rule: only `wow-world-application`,
+  `wow-world` and the planned `wow-world-loot-ops` may reach
+  `wow-world-quest` (new self-test case: a direct and a transitive
+  violation; 9 cases). A negative simulation (`--add
+  wow-world-spell->wow-world-quest`) reports the cycle and the spell →
+  social/instances violation.

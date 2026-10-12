@@ -111,6 +111,23 @@ class ClosureTests(unittest.TestCase):
                          ["wow-world-lifecycle reaches ['wow-world-character']",
                           "wow-world-social reaches ['wow-world-character']"])
 
+    def test_only_the_top_and_loot_ops_may_reach_the_quest_crate(self):
+        edges = {"wow-world-core": set(), "wow-world-inventory": {"wow-world-core"},
+                 "wow-world-quest": {"wow-world-inventory"},
+                 "wow-world-loot-ops": {"wow-world-quest"},
+                 "wow-world-application": {"wow-world-quest", "wow-world-loot-ops"},
+                 "wow-world": {"wow-world-application", "wow-world-quest"}}
+        self.assertEqual(closure.violations(edges), [])
+        closure.add_edges(edges, ["wow-world-character->wow-world-quest"])
+        self.assertEqual(closure.violations(edges),
+                         ["wow-world-character reaches ['wow-world-quest']"])
+        edges = {"wow-world-quest": set(), "wow-world-loot": set(),
+                 "wow-world-instances": {"wow-world-loot"}}
+        closure.add_edges(edges, ["wow-world-loot->wow-world-quest"])
+        self.assertEqual(closure.violations(edges),
+                         ["wow-world-instances reaches ['wow-world-quest']",
+                          "wow-world-loot reaches ['wow-world-quest']"])
+
     def test_malformed_planned_edge_is_an_error(self):
         with self.assertRaises(ValueError):
             closure.add_edges({}, ["wow-world-inventory"])
