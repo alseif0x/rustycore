@@ -161,7 +161,7 @@ pub fn compose_packet_handlers_like_cpp()
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;
-    wow_world_application::register_npc_handlers_like_cpp::<
+    wow_world_interaction::register_npc_handlers_like_cpp::<
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;

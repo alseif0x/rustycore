@@ -256,7 +256,7 @@
     },
     {
       "capability": "handler_registration",
-      "package": "wow-world-application",
+      "package": "wow-world-interaction",
       "module": "crate::npc_handlers",
       "allow_descendants": false,
       "tracking_issue": 1263

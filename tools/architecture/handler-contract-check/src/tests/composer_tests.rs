@@ -271,8 +271,8 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             NPC_REGISTRAR.package,
             NPC_REGISTRAR.module,
-            "crates/wow-world-application/src/npc_handlers.rs",
-            include_str!("../../../../../crates/wow-world-application/src/npc_handlers.rs"),
+            "crates/wow-world-interaction/src/npc_handlers.rs",
+            include_str!("../../../../../crates/wow-world-interaction/src/npc_handlers.rs"),
         ),
         mount(
             VEHICLE_REGISTRAR.package,
@@ -401,6 +401,12 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             SUPPORT_REGISTRAR.module,
             "crates/wow-world-lifecycle/src/support.rs",
             include_str!("../../../../../crates/wow-world-lifecycle/src/support.rs"),
+        ),
+        mount(
+            NPC_REGISTRAR.package,
+            "crate",
+            "crates/wow-world-interaction/src/lib.rs",
+            include_str!("../../../../../crates/wow-world-interaction/src/lib.rs"),
         ),
         mount(
             "wow-world",

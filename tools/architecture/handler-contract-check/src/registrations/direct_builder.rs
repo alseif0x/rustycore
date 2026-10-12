@@ -1014,7 +1014,7 @@ pub(crate) const CORPSE_REGISTRAR: DirectRegistrarContract = DirectRegistrarCont
 
 pub(crate) const NPC_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationNpc",
-    package: "wow-world-application",
+    package: "wow-world-interaction",
     module: "crate::npc_handlers",
     registrar: "register_npc_handlers_like_cpp",
     host_trait: "NpcHandlerHostLikeCpp",

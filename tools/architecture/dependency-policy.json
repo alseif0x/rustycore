@@ -169,8 +169,10 @@
       "wow-world-spell"
     ],
     "wow-world-interaction": [
+      "wow-constants",
       "wow-core",
       "wow-entities",
+      "wow-handler",
       "wow-packet",
       "wow-world-core"
     ],
@@ -660,7 +662,9 @@
         "build": []
       },
       "wow-world-interaction": {
-        "normal": [],
+        "normal": [
+          "tracing"
+        ],
         "build": []
       },
       "wow-world-instances": {
