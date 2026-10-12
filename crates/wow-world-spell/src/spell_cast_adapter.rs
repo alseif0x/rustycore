@@ -1,3 +1,5 @@
+use wow_core::ObjectGuid;
+use wow_core::guid::HighGuid;
 use wow_entities::{SpellCastLocationLikeCpp, SpellCastTargetsLikeCpp, SpellCastVisualLikeCpp};
 use wow_packet::packets::spell::{SpellCastVisual, SpellTargetData, TargetLocation};
 
@@ -112,4 +114,28 @@ mod tests {
             assert_eq!(after.data().len(), 4);
         }
     }
+}
+
+/// C++ `SPELL_CAST_SOURCE_NORMAL` encoded in a Cast GUID subtype.
+pub const SPELL_CAST_SOURCE_NORMAL_LIKE_CPP: u8 = 3;
+
+// C++ `ObjectGuid::Create<HighGuid::Cast>` passes realm id 0 to
+// `CreateWorldObject`, then `ObjectGuidFactory.cpp:GetRealmIdForObjectGuid(0)`
+// substitutes `realm.Id.Realm`. Rust passes that already-resolved local realm
+// explicitly; using the caster realm preserves the same visible GUID bits.
+pub fn represented_spell_cast_guid_for_map_like_cpp(
+    realm_id: u16,
+    map_id: u16,
+    spell_id: i32,
+    counter: i64,
+) -> ObjectGuid {
+    ObjectGuid::create_world_object(
+        HighGuid::Cast,
+        SPELL_CAST_SOURCE_NORMAL_LIKE_CPP,
+        realm_id,
+        map_id,
+        0,
+        u32::try_from(spell_id).unwrap_or_default(),
+        counter,
+    )
 }

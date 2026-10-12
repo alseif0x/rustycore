@@ -3,7 +3,7 @@
 use wow_core::ObjectGuid;
 
 #[derive(Clone, Copy, Debug)]
-pub(in crate::session) struct CreatureDamageThreatPlanLikeCpp {
+pub(crate) struct CreatureDamageThreatPlanLikeCpp {
     suppress: bool,
     no_initial_threat: bool,
     multiplier: f32,
@@ -91,7 +91,7 @@ pub(super) fn plan_creature_damage_threat_like_cpp(
             let Some(spell_store) = spell_store else {
                 return 1.0;
             };
-            crate::session_rules::creature_aura_effects_like_cpp(
+            wow_world_spell::aura_effects::creature_aura_effects_like_cpp(
                 &attacker.unit().subsystems().auras.applied_auras,
                 spell_store,
                 difficulty_id,

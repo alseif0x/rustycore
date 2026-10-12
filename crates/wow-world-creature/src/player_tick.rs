@@ -14,7 +14,7 @@ use super::*;
 /// #1263 F6-8D3a-1. Returns the pending swings and each map's
 /// difficulty (the victim's applied-aura mechanics are read at the map's own
 /// difficulty, exactly as the session reads its target's).
-pub(in crate::session) fn collect_player_melee_swings_on_manager_like_cpp(
+pub(crate) fn collect_player_melee_swings_on_manager_like_cpp(
     manager: &mut wow_map::MapManager,
     attackers: &[PlayerMeleeAttackerSnapshotLikeCpp],
     diff_ms: u32,
@@ -70,7 +70,7 @@ pub(in crate::session) fn collect_player_melee_swings_on_manager_like_cpp(
         if has_combat != attacker.in_combat_mirror {
             outcome.in_combat_reconciles += 1;
             outcome.commands.push(
-                crate::session::mailbox::ApplyPlayerMeleeResultLikeCppCommand {
+                wow_world_core::session::mailbox::ApplyPlayerMeleeResultLikeCppCommand {
                     attacker_guid: attacker.player_guid,
                     map_id: attacker.map_id,
                     instance_id: attacker.instance_id,
@@ -104,7 +104,7 @@ pub(in crate::session) fn collect_player_melee_swings_on_manager_like_cpp(
 /// C++ anchor: `Player::Update` → `DoMeleeAttackIfReady` →
 /// `AttackerStateUpdate`; the swing timer is consumed after the range and
 /// facing checks.
-pub(in crate::session) fn execute_player_melee_swing_on_manager_like_cpp(
+pub(crate) fn execute_player_melee_swing_on_manager_like_cpp(
     canonical_manager: &mut wow_map::MapManager,
     victims: &mut CanonicalPlayerMeleeCreatureVictimsLikeCpp,
     swing: &PendingPlayerSwingLikeCpp,
@@ -153,7 +153,7 @@ pub(in crate::session) fn execute_player_melee_swing_on_manager_like_cpp(
     // C++ `Unit::MeleeDamageBonusTaken` reads the victim's applied auras.
     let mut creature_applied_auras = Vec::new();
     let mut victim_outcome_facts =
-        crate::session_rules::RepresentedMeleeVictimFactsLikeCpp::default();
+        wow_world_spell::melee_rules::RepresentedMeleeVictimFactsLikeCpp::default();
     let victim_runtime = match victims.read_creature_victim_like_cpp(
         map,
         attacker.map_id,
@@ -252,7 +252,7 @@ pub(in crate::session) fn execute_player_melee_swing_on_manager_like_cpp(
             // its live CR_ARMOR_PENETRATION rating bonus, over the creature
             // victim's `GetArmor()`.
             let target_resistance_normal_aura =
-                crate::session_rules::player_aura_effects_by_spell_aura_type_like_cpp(
+                wow_world_spell::aura_effects::player_aura_effects_by_spell_aura_type_like_cpp(
                     auras,
                     spell_store,
                     wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE,
@@ -262,7 +262,7 @@ pub(in crate::session) fn execute_player_melee_swing_on_manager_like_cpp(
                 .map(|(_, amount)| amount)
                 .sum::<i32>();
             let ignore_target_resist_normal_pct =
-                crate::session_rules::player_aura_effects_by_spell_aura_type_like_cpp(
+                wow_world_spell::aura_effects::player_aura_effects_by_spell_aura_type_like_cpp(
                     auras,
                     spell_store,
                     wow_data::spell::aura_types::SPELL_AURA_MOD_IGNORE_TARGET_RESIST,
@@ -271,7 +271,7 @@ pub(in crate::session) fn execute_player_melee_swing_on_manager_like_cpp(
                 .filter(|(misc_value, _)| misc_value & 0x01 != 0)
                 .map(|(_, amount)| amount as f32)
                 .sum::<f32>();
-            let armor_mitigation = crate::session::combat::RepresentedArmorMitigationLikeCpp {
+            let armor_mitigation = wow_world_spell::melee_rules::RepresentedArmorMitigationLikeCpp {
                 attacker_level: attacker_player.level_like_cpp(),
                 victim_level,
                 victim_armor,
@@ -285,22 +285,22 @@ pub(in crate::session) fn execute_player_melee_swing_on_manager_like_cpp(
                 bypass_armor_pct_by_caster: 0.0,
             };
             let bonus = std::array::from_fn(|index| {
-                let (flat, pct) = crate::session_rules::melee_damage_bonus_done_like_cpp(
+                let (flat, pct) = wow_world_spell::melee_damage::melee_damage_bonus_done_like_cpp(
                     auras,
                     spell_store,
                     victim_creature_type_mask,
                     victim_aura_state_mask,
                     victim_mechanic_mask,
                     false,
-                    crate::session::legacy_attack_power_multiplier_like_cpp(
+                    wow_world_spell::melee_rules::legacy_attack_power_multiplier_like_cpp(
                         base_attack_speed[index],
                     ),
                 );
-                crate::session::RepresentedMeleeDamageBonusLikeCpp { flat, pct }
+                wow_world_spell::melee_rules::RepresentedMeleeDamageBonusLikeCpp { flat, pct }
             });
             let stats = attacker_player.effective_combat_stats_like_cpp();
             let aura_sum = |aura_type: i32| -> f32 {
-                crate::session_rules::player_aura_effects_by_spell_aura_type_like_cpp(
+                wow_world_spell::aura_effects::player_aura_effects_by_spell_aura_type_like_cpp(
                     auras,
                     spell_store,
                     aura_type,
@@ -310,7 +310,7 @@ pub(in crate::session) fn execute_player_melee_swing_on_manager_like_cpp(
                 .sum()
             };
             let attacker_outcome_facts =
-                crate::session_rules::RepresentedMeleeAttackerFactsLikeCpp {
+                wow_world_spell::melee_rules::RepresentedMeleeAttackerFactsLikeCpp {
                     level: attacker_player.level_like_cpp(),
                     // C++ excludes player-controlled attackers from the
                     // crushing band (`Unit.cpp:2364-2369`).
@@ -319,7 +319,7 @@ pub(in crate::session) fn execute_player_melee_swing_on_manager_like_cpp(
                     dual_wielding: attacker_player.has_offhand_weapon_for_attack_like_cpp()
                         && !attacker_player.is_in_feral_form_like_cpp(),
                     crit_damage_multiplier:
-                        crate::session_rules::player_aura_effects_by_spell_aura_type_like_cpp(
+                        wow_world_spell::aura_effects::player_aura_effects_by_spell_aura_type_like_cpp(
                             auras,
                             spell_store,
                             wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_DAMAGE_BONUS,
@@ -330,7 +330,7 @@ pub(in crate::session) fn execute_player_melee_swing_on_manager_like_cpp(
                             total * (1.0 + amount as f32 / 100.0)
                         }),
                     ignores_dual_wield_hit_penalty:
-                        !crate::session_rules::player_aura_effects_by_spell_aura_type_like_cpp(
+                        !wow_world_spell::aura_effects::player_aura_effects_by_spell_aura_type_like_cpp(
                             auras,
                             spell_store,
                             wow_data::spell::aura_types::SPELL_AURA_IGNORE_DUAL_WIELD_HIT_PENALTY,
@@ -350,7 +350,7 @@ pub(in crate::session) fn execute_player_melee_swing_on_manager_like_cpp(
                     ],
                     // `GetUnitDodgeChance`'s attacker-side reductions.
                     dodge_reduction_pct:
-                        crate::session_rules::player_aura_effects_by_spell_aura_type_like_cpp(
+                        wow_world_spell::aura_effects::player_aura_effects_by_spell_aura_type_like_cpp(
                             auras,
                             spell_store,
                             wow_data::spell::aura_types::SPELL_AURA_MOD_COMBAT_RESULT_CHANCE,
@@ -365,14 +365,14 @@ pub(in crate::session) fn execute_player_melee_swing_on_manager_like_cpp(
                 bonus,
                 armor_mitigation,
                 (attacker_outcome_facts, victim_outcome_facts),
-                crate::session_rules::melee_damage_taken_flat_pct_like_cpp(
-                    &crate::session_rules::creature_aura_effects_like_cpp(
+                wow_world_spell::melee_rules::melee_damage_taken_flat_pct_like_cpp(
+                    &wow_world_spell::aura_effects::creature_aura_effects_like_cpp(
                         &creature_applied_auras,
                         spell_store,
                         map_difficulty_id,
                         config.difficulty_store.as_deref(),
                     ),
-                    &crate::session_rules::player_aura_effects_by_spell_aura_type_like_cpp(
+                    &wow_world_spell::aura_effects::player_aura_effects_by_spell_aura_type_like_cpp(
                         auras,
                         spell_store,
                         wow_data::spell::aura_types::SPELL_AURA_MOD_IGNORE_TARGET_RESIST,
@@ -383,10 +383,10 @@ pub(in crate::session) fn execute_player_melee_swing_on_manager_like_cpp(
             )
         }
         _ => (
-            [crate::session::RepresentedMeleeDamageBonusLikeCpp::NONE; 2],
-            crate::session::combat::RepresentedArmorMitigationLikeCpp::NONE,
+            [wow_world_spell::melee_rules::RepresentedMeleeDamageBonusLikeCpp::NONE; 2],
+            wow_world_spell::melee_rules::RepresentedArmorMitigationLikeCpp::NONE,
             Default::default(),
-            crate::session_rules::RepresentedMeleeDamageTakenLikeCpp::NONE,
+            wow_world_spell::melee_rules::RepresentedMeleeDamageTakenLikeCpp::NONE,
         ),
     };
     let Some(player) = map.get_typed_player_mut(attacker.player_guid) else {
@@ -408,7 +408,7 @@ pub(in crate::session) fn execute_player_melee_swing_on_manager_like_cpp(
         return;
     };
 
-    let mut command = crate::session::mailbox::ApplyPlayerMeleeResultLikeCppCommand {
+    let mut command = wow_world_core::session::mailbox::ApplyPlayerMeleeResultLikeCppCommand {
         attacker_guid: attacker.player_guid,
         map_id: attacker.map_id,
         instance_id: attacker.instance_id,
@@ -455,7 +455,7 @@ pub(in crate::session) fn execute_player_melee_swing_on_manager_like_cpp(
                     .get(index)
                     .copied()
                     .unwrap_or((0, 0, 0, *damage));
-                crate::session::mailbox::PlayerMeleeSwingLikeCpp {
+                wow_world_core::session::mailbox::PlayerMeleeSwingLikeCpp {
                     damage: *damage,
                     original_damage,
                     over_damage: *over_damage,
@@ -470,7 +470,7 @@ pub(in crate::session) fn execute_player_melee_swing_on_manager_like_cpp(
         if hit.died {
             outcome.creature_kills += 1;
             command.killed_creature =
-                Some(crate::session::mailbox::PlayerMeleeCreatureKillLikeCpp {
+                Some(wow_world_core::session::mailbox::PlayerMeleeCreatureKillLikeCpp {
                     creature_guid: swing.victim_guid,
                     creature_entry: hit.entry,
                     creature_level: hit.level,
@@ -508,7 +508,7 @@ pub(in crate::session) fn execute_player_melee_swing_on_manager_like_cpp(
                             swing.original_damage,
                         )
                     });
-                crate::session::mailbox::PlayerMeleeSwingLikeCpp {
+                wow_world_core::session::mailbox::PlayerMeleeSwingLikeCpp {
                     damage,
                     original_damage,
                     over_damage,

@@ -5,7 +5,7 @@
 use super::*;
 use wow_data::reputation::ReputationRankLikeCpp;
 
-pub(in crate::session) fn creature_update_threat_victim_like_cpp(
+pub(crate) fn creature_update_threat_victim_like_cpp(
     creature: &mut wow_entities::Creature,
     candidates: &[&CreatureAggroCandidateLikeCpp],
     config: &CreatureAggroConfigLikeCpp,

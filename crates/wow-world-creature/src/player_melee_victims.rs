@@ -15,14 +15,14 @@
 use super::*;
 
 /// What one creature-victim read resolved.
-pub(in crate::session) enum CreatureVictimReadLikeCpp<R> {
+pub(crate) enum CreatureVictimReadLikeCpp<R> {
     /// The victim is not a creature of this map; the caller tries a player.
     NotACreature,
     Read(R),
 }
 
 /// What one creature-victim swing application resolved.
-pub(in crate::session) enum CreatureVictimApplyLikeCpp {
+pub(crate) enum CreatureVictimApplyLikeCpp {
     Missing,
     NotApplied,
     Hit(PlayerMeleeCreatureHitLikeCpp),
@@ -31,10 +31,10 @@ pub(in crate::session) enum CreatureVictimApplyLikeCpp {
 /// The admitted canonical executor's creature victims: the canonical
 /// incarnation itself, on the map the executor holds locked. The swing writes
 /// it once; there is no representation to mirror.
-pub(in crate::session) struct CanonicalPlayerMeleeCreatureVictimsLikeCpp;
+pub(crate) struct CanonicalPlayerMeleeCreatureVictimsLikeCpp;
 
 impl CanonicalPlayerMeleeCreatureVictimsLikeCpp {
-    pub(in crate::session) fn read_creature_victim_like_cpp<R>(
+    pub(crate) fn read_creature_victim_like_cpp<R>(
         &mut self,
         map: &wow_map::ManagedMapInnerLikeCpp,
         _map_id: u16,
@@ -49,7 +49,7 @@ impl CanonicalPlayerMeleeCreatureVictimsLikeCpp {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(in crate::session) fn apply_to_creature_victim_like_cpp(
+    pub(crate) fn apply_to_creature_victim_like_cpp(
         &mut self,
         map: &mut wow_map::ManagedMapInnerLikeCpp,
         _map_id: u16,
@@ -57,7 +57,7 @@ impl CanonicalPlayerMeleeCreatureVictimsLikeCpp {
         victim_guid: ObjectGuid,
         player_guid: ObjectGuid,
         tap_group_guids: &[ObjectGuid],
-        damages: &[crate::session::combat::RepresentedMeleeSwingLikeCpp],
+        damages: &[wow_world_spell::melee_rules::RepresentedMeleeSwingLikeCpp],
     ) -> CreatureVictimApplyLikeCpp {
         match map.with_creature_mut_like_cpp(victim_guid, |creature| {
             apply_player_melee_to_creature_like_cpp(
@@ -74,7 +74,7 @@ impl CanonicalPlayerMeleeCreatureVictimsLikeCpp {
     }
 
     /// The swing no longer needs any creature victim (a player victim).
-    pub(in crate::session) fn release_creature_victims_like_cpp(&mut self) {}
+    pub(crate) fn release_creature_victims_like_cpp(&mut self) {}
 
     /// Whether the victim's own map publishes the VALUES the swing changed.
     ///
@@ -83,27 +83,27 @@ impl CanonicalPlayerMeleeCreatureVictimsLikeCpp {
     /// once at the end of the map update (`Map.cpp:1929-1948`). The canonical
     /// victim is exactly that map record, so the melee result must not carry a
     /// second copy to the attacker's client.
-    pub(in crate::session) fn victim_values_published_by_map_like_cpp(&self) -> bool {
+    pub(crate) fn victim_values_published_by_map_like_cpp(&self) -> bool {
         true
     }
 }
 
 /// The creature-victim terms one player swing reads before it is resolved.
-pub(in crate::session) struct PlayerMeleeCreatureVictimFactsLikeCpp {
-    pub(in crate::session) aura_state_mask: u32,
-    pub(in crate::session) mechanic_mask: u64,
-    pub(in crate::session) armor: i32,
-    pub(in crate::session) level: u8,
-    pub(in crate::session) applied_auras: Vec<wow_entities::AppliedAuraRef>,
-    pub(in crate::session) outcome_facts: crate::session_rules::RepresentedMeleeVictimFactsLikeCpp,
-    pub(in crate::session) creature_type_mask: u32,
-    pub(in crate::session) position: Position,
-    pub(in crate::session) combat_reach: f32,
-    pub(in crate::session) bounding_radius: f32,
+pub(crate) struct PlayerMeleeCreatureVictimFactsLikeCpp {
+    pub(crate) aura_state_mask: u32,
+    pub(crate) mechanic_mask: u64,
+    pub(crate) armor: i32,
+    pub(crate) level: u8,
+    pub(crate) applied_auras: Vec<wow_entities::AppliedAuraRef>,
+    pub(crate) outcome_facts: wow_world_spell::melee_rules::RepresentedMeleeVictimFactsLikeCpp,
+    pub(crate) creature_type_mask: u32,
+    pub(crate) position: Position,
+    pub(crate) combat_reach: f32,
+    pub(crate) bounding_radius: f32,
 }
 
 /// Read one creature victim for a player swing. `None` for a dead victim.
-pub(in crate::session) fn player_melee_creature_victim_facts_like_cpp(
+pub(crate) fn player_melee_creature_victim_facts_like_cpp(
     creature: &wow_entities::Creature,
     config: &CreatureAggroConfigLikeCpp,
     map_difficulty_id: u8,
@@ -125,7 +125,7 @@ pub(in crate::session) fn player_melee_creature_victim_facts_like_cpp(
     // C++ `Unit::HasAuraWithMechanic` for the victim template, from the
     // same receiver-free rule the session target path uses.
     let victim_mechanic_mask = config.spell_store.as_deref().map_or(0, |spell_store| {
-        crate::session_rules::applied_aura_mechanic_mask_like_cpp(
+        wow_world_spell::aura_effects::applied_aura_mechanic_mask_like_cpp(
             &creature.unit().subsystems().auras.applied_auras,
             spell_store,
             map_difficulty_id,
@@ -139,7 +139,7 @@ pub(in crate::session) fn player_melee_creature_victim_facts_like_cpp(
     // (`Unit::GetUnitDodgeChance` and friends, `Unit.cpp:2313-2378`).
     let victim_aura_sum = |aura_type: i32| -> f32 {
         config.spell_store.as_deref().map_or(0.0, |spell_store| {
-            crate::session_rules::creature_aura_effects_like_cpp(
+            wow_world_spell::aura_effects::creature_aura_effects_like_cpp(
                 &creature_applied_auras,
                 spell_store,
                 map_difficulty_id,
@@ -151,7 +151,7 @@ pub(in crate::session) fn player_melee_creature_victim_facts_like_cpp(
             .sum()
         })
     };
-    let victim_outcome_facts = crate::session_rules::RepresentedMeleeVictimFactsLikeCpp {
+    let victim_outcome_facts = wow_world_spell::melee_rules::RepresentedMeleeVictimFactsLikeCpp {
         level: victim_level,
         is_creature: true,
         is_player: false,
@@ -183,7 +183,7 @@ pub(in crate::session) fn player_melee_creature_victim_facts_like_cpp(
                 } else {
                     100.0 * creature.current_hp() as f32 / creature.max_hp() as f32
                 };
-                crate::session_rules::creature_aura_effects_like_cpp(
+                wow_world_spell::aura_effects::creature_aura_effects_like_cpp(
                     &creature_applied_auras,
                     spell_store,
                     map_difficulty_id,
@@ -201,7 +201,7 @@ pub(in crate::session) fn player_melee_creature_victim_facts_like_cpp(
             },
         ),
         crit_chance_for_caster_pct: config.spell_store.as_deref().map_or(0.0, |spell_store| {
-            crate::session_rules::creature_aura_effects_like_cpp(
+            wow_world_spell::aura_effects::creature_aura_effects_like_cpp(
                 &creature_applied_auras,
                 spell_store,
                 map_difficulty_id,

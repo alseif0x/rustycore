@@ -25,7 +25,7 @@ fn with_command_caster_mut_like_cpp<R>(
 
 /// The cast validation and append body on a locked canonical manager, with the
 /// caster's engagement, timers and RNG on its canonical incarnation.
-pub(in crate::session) fn validate_and_append_creature_spell_cast_on_manager_like_cpp(
+pub(crate) fn validate_and_append_creature_spell_cast_on_manager_like_cpp(
     manager: &mut wow_map::MapManager,
     casters: &mut CanonicalCreatureSpellCastersLikeCpp,
     command: &CreatureSpellCastPlanLikeCpp,

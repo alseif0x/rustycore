@@ -120,11 +120,11 @@ pub struct IsolatedCreatureExecutionOutcomeLikeCpp {
     /// The deferred publication of the transition. It is returned to the
     /// caller and never delivered while the map guard is held: this engine has
     /// no publication consumer, so the returned batch *is* the deferral.
-    pub deferred_publication: Vec<crate::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand>,
+    pub deferred_publication: Vec<wow_world_core::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand>,
 }
 
 impl IsolatedCreatureExecutionOutcomeLikeCpp {
-    pub(in crate::session) fn refused_like_cpp(
+    pub(crate) fn refused_like_cpp(
         admission: CreatureExecutionAdmissionLikeCpp,
         owner: CreatureExecutionOwnerLikeCpp,
     ) -> Self {
@@ -333,5 +333,5 @@ impl AdmittedCreatureExecutionLikeCpp {
 }
 
 #[cfg(test)]
-#[path = "../../../../unit_tests/session/creature_runtime/admitted_creature_execution/admission/test_only.rs"]
+#[path = "../../unit_tests/admitted_creature_execution/admission/test_only.rs"]
 mod test_only;

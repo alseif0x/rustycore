@@ -21,11 +21,11 @@ use secondary_targets::{
 /// every logged-in session a writer of shared creature combat state; extracting
 /// it is what lets the global loop become its sole owner. Damage arithmetic,
 /// tap assignment, threat, the death branch and the swing record are unchanged.
-pub(in crate::session) fn apply_player_melee_to_creature_like_cpp(
+pub(crate) fn apply_player_melee_to_creature_like_cpp(
     creature: &mut wow_entities::Creature,
     player_guid: ObjectGuid,
     tap_group_guids: &[ObjectGuid],
-    canonical_swings: Option<&[crate::session::combat::RepresentedMeleeSwingLikeCpp]>,
+    canonical_swings: Option<&[wow_world_spell::melee_rules::RepresentedMeleeSwingLikeCpp]>,
 ) -> Option<PlayerMeleeCreatureHitLikeCpp> {
     if !creature.is_alive() {
         return None;
@@ -34,7 +34,7 @@ pub(in crate::session) fn apply_player_melee_to_creature_like_cpp(
     // the swing engages the creature (threat 0) without choosing its victim;
     // the aggro tick's `UpdateVictim` then publishes the reaction (#1344).
     creature.engage_with_target_like_cpp(player_guid);
-    let damages: Vec<crate::session::combat::RepresentedMeleeSwingLikeCpp> = match canonical_swings
+    let damages: Vec<wow_world_spell::melee_rules::RepresentedMeleeSwingLikeCpp> = match canonical_swings
     {
         Some(swings) => swings.to_vec(),
         None => {
@@ -42,7 +42,7 @@ pub(in crate::session) fn apply_player_melee_to_creature_like_cpp(
                 return None;
             }
             vec![
-                crate::session::combat::RepresentedMeleeSwingLikeCpp::hit_like_cpp(
+                wow_world_spell::melee_rules::RepresentedMeleeSwingLikeCpp::hit_like_cpp(
                     creature.roll_damage()?.max(1),
                 ),
             ]
@@ -116,7 +116,7 @@ pub(in crate::session) fn apply_player_melee_to_creature_like_cpp(
     })
 }
 /// What one creature melee apply resolved on its canonical victim.
-pub(in crate::session) enum CreatureMeleeApplyResultLikeCpp {
+pub(crate) enum CreatureMeleeApplyResultLikeCpp {
     Ready,
     Hit {
         victim_health_after: u64,
@@ -158,7 +158,7 @@ struct MeleeSwingStateLikeCpp {
     pub(super) hit_info: u32,
     pub(super) victim_state: u8,
     pub(super) original_damage: u32,
-    pub(super) avoided_outcome: Option<crate::session_rules::RepresentedMeleeOutcomeLikeCpp>,
+    pub(super) avoided_outcome: Option<wow_world_spell::melee_rules::RepresentedMeleeOutcomeLikeCpp>,
     // The creature-victim branch publishes through the compatibility
     // bridge, so it carries its own presentation and avoid flag.
     pub(super) creature_victim_presentation: Option<(u32, u8, i32)>,
@@ -171,7 +171,7 @@ struct MeleeSwingStateLikeCpp {
     pub(super) absorbed_damage: u32,
     pub(super) mana_spent: u32,
     pub(super) absorb_consumptions:
-        Vec<crate::session::mailbox::CreatureMeleeAbsorbConsumptionLikeCpp>,
+        Vec<wow_world_core::session::mailbox::CreatureMeleeAbsorbConsumptionLikeCpp>,
     pub(super) creature_victim_absorb_events: Vec<RuntimeEvent>,
 }
 
@@ -408,7 +408,7 @@ pub(super) fn execute_creature_melee_swing_on_manager_like_cpp(
     canonical_manager: &mut wow_map::MapManager,
     attackers: &mut CanonicalCreatureMeleeAttackersLikeCpp,
     mut swing: PendingCreatureSwingLikeCpp,
-    config: &crate::session::CreatureAggroConfigLikeCpp,
+    config: &wow_world_core::session::CreatureAggroConfigLikeCpp,
     outcome: &mut CreatureMeleeTickOutcomeLikeCpp,
 ) {
     use wow_entities::CurrentSpellSlot;
@@ -657,7 +657,7 @@ pub(super) fn execute_creature_melee_swing_on_manager_like_cpp(
             })
             .unwrap_or_default();
         outcome.commands.push(
-            crate::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand {
+            wow_world_core::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand {
                 attacker_guid: swing.attacker_guid,
                 victim_guid: swing.victim_guid,
                 map_id: swing.map_id,
@@ -731,7 +731,7 @@ pub(super) fn execute_creature_melee_swing_on_manager_like_cpp(
     outcome.canonical_hits += 1;
     if swing.victim_guid.is_player() {
         outcome.commands.push(
-            crate::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand {
+            wow_world_core::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand {
                 attacker_guid: swing.attacker_guid,
                 victim_guid: swing.victim_guid,
                 map_id: swing.map_id,

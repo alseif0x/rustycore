@@ -20,7 +20,7 @@ use super::*;
 
 /// The admitted selection of one canonical tick, resolved on the canonical
 /// manager the executor holds locked.
-pub(in crate::session) struct AdmittedCanonicalCreatureStoreLikeCpp<'a> {
+pub(crate) struct AdmittedCanonicalCreatureStoreLikeCpp<'a> {
     manager: &'a mut wow_map::MapManager,
     /// `(residence, creatures)` in admission order.
     selection: Vec<((u16, u32), Vec<ObjectGuid>)>,
@@ -35,7 +35,7 @@ impl<'a> AdmittedCanonicalCreatureStoreLikeCpp<'a> {
     /// selected objects, as C++ `Map::Update` runs every active map —
     /// the lifecycle phase drains a map's respawn queue after its last creature
     /// despawned.
-    pub(in crate::session) fn new_like_cpp(
+    pub(crate) fn new_like_cpp(
         manager: &'a mut wow_map::MapManager,
         maps: &[AdmittedCreatureExecutionMapLikeCpp],
         objects: &[AdmittedCreatureExecutionObjectLikeCpp],
@@ -69,13 +69,13 @@ impl<'a> AdmittedCanonicalCreatureStoreLikeCpp<'a> {
     }
 
     /// The canonical manager, read-only.
-    pub(in crate::session) fn manager_like_cpp(&self) -> &wow_map::MapManager {
+    pub(crate) fn manager_like_cpp(&self) -> &wow_map::MapManager {
         self.manager
     }
 
     /// The canonical manager itself, for the map-owned operations a phase runs
     /// beside its creatures (victims, commands).
-    pub(in crate::session) fn manager_mut_like_cpp(&mut self) -> &mut wow_map::MapManager {
+    pub(crate) fn manager_mut_like_cpp(&mut self) -> &mut wow_map::MapManager {
         self.manager
     }
 
@@ -87,11 +87,11 @@ impl<'a> AdmittedCanonicalCreatureStoreLikeCpp<'a> {
 }
 
 impl AdmittedCanonicalCreatureStoreLikeCpp<'_> {
-    pub(in crate::session) fn phase_map_keys_like_cpp(&self) -> Vec<(u16, u32)> {
+    pub(crate) fn phase_map_keys_like_cpp(&self) -> Vec<(u16, u32)> {
         self.selection.iter().map(|(key, _)| *key).collect()
     }
 
-    pub(in crate::session) fn phase_creature_guids_like_cpp(
+    pub(crate) fn phase_creature_guids_like_cpp(
         &self,
         map_id: u16,
         instance_id: u32,
@@ -103,7 +103,7 @@ impl AdmittedCanonicalCreatureStoreLikeCpp<'_> {
             .unwrap_or_default()
     }
 
-    pub(in crate::session) fn phase_creature_like_cpp(
+    pub(crate) fn phase_creature_like_cpp(
         &self,
         map_id: u16,
         instance_id: u32,
@@ -118,7 +118,7 @@ impl AdmittedCanonicalCreatureStoreLikeCpp<'_> {
             .get_typed_creature(guid)
     }
 
-    pub(in crate::session) fn phase_creature_mut_like_cpp(
+    pub(crate) fn phase_creature_mut_like_cpp(
         &mut self,
         map_id: u16,
         instance_id: u32,
@@ -133,17 +133,17 @@ impl AdmittedCanonicalCreatureStoreLikeCpp<'_> {
             .get_typed_creature_mut(guid)
     }
 
-    pub(in crate::session) fn phase_creature_movement_like_cpp(
+    pub(crate) fn phase_creature_movement_like_cpp(
         &mut self,
         map_id: u16,
         instance_id: u32,
         guid: ObjectGuid,
-    ) -> Option<crate::creature_movement::CreatureMovementLikeCpp<'_>> {
+    ) -> Option<wow_world_core::creature_movement::CreatureMovementLikeCpp<'_>> {
         self.phase_creature_mut_like_cpp(map_id, instance_id, guid)
-            .map(crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp)
+            .map(wow_world_core::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp)
     }
 
-    pub(in crate::session) fn phase_map_creature_like_cpp(
+    pub(crate) fn phase_map_creature_like_cpp(
         &self,
         map_id: u16,
         instance_id: u32,
@@ -158,7 +158,7 @@ impl AdmittedCanonicalCreatureStoreLikeCpp<'_> {
     /// C++ `CreatureAI::TriggerAlert` → `MotionMaster::MoveDistract(5s, angle)`
     /// (`CreatureAI.cpp:141-160`, `MotionMaster.cpp:1096-1104`): whether the
     /// distract generator started.
-    pub(in crate::session) fn phase_begin_alert_distract_like_cpp(
+    pub(crate) fn phase_begin_alert_distract_like_cpp(
         &mut self,
         map_id: u16,
         instance_id: u32,

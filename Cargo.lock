@@ -3559,6 +3559,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "wow-world-creature"
+version = "0.1.0"
+dependencies = [
+ "rand",
+ "tracing",
+ "wow-ai",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-map",
+ "wow-movement",
+ "wow-packet",
+ "wow-persistence",
+ "wow-world-core",
+ "wow-world-entities",
+ "wow-world-spell",
+]
+
+[[package]]
 name = "wow-world-entities"
 version = "0.1.0"
 dependencies = [

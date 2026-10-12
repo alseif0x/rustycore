@@ -19,7 +19,7 @@ pub(super) fn player_victim_damage_like_cpp(
     canonical_manager: &mut wow_map::MapManager,
     attacker: &CreatureMeleeAttackerFactsLikeCpp,
     swing: &PendingCreatureSwingLikeCpp,
-    config: &crate::session::CreatureAggroConfigLikeCpp,
+    config: &wow_world_core::session::CreatureAggroConfigLikeCpp,
     damage: u32,
     swing_state: &mut MeleeSwingStateLikeCpp,
 ) -> u32 {
@@ -37,7 +37,7 @@ pub(super) fn player_victim_damage_like_cpp(
             // carries `CREATURE_FLAG_EXTRA_NO_CRIT`, its expertise is
             // `MOD_EXPERTISE / 4` and it holds no offhand swing in this
             // bridge, so the dual-wield penalty never applies.
-            let attacker_effects = crate::session_rules::creature_aura_effects_like_cpp(
+            let attacker_effects = wow_world_spell::aura_effects::creature_aura_effects_like_cpp(
                 &attacker.applied_auras,
                 spell_store,
                 map_difficulty_id,
@@ -86,7 +86,7 @@ pub(super) fn player_victim_damage_like_cpp(
             };
             let expertise_reduction_pct =
                 aura_sum(wow_data::spell::aura_types::SPELL_AURA_MOD_EXPERTISE) / 4.0;
-            let attacker_facts = crate::session_rules::RepresentedMeleeAttackerFactsLikeCpp {
+            let attacker_facts = wow_world_spell::melee_rules::RepresentedMeleeAttackerFactsLikeCpp {
                 level: attacker.level,
                 is_controlled_by_player: attacker.is_charmed_owned_by_player_or_player,
                 no_crushing_blows: wow_constants::CreatureFlagsExtra::from_bits_truncate(
@@ -134,7 +134,7 @@ pub(super) fn player_victim_damage_like_cpp(
                 .map(|player| {
                     let auras = player.unit().subsystems().auras.runtime_applications_like_cpp();
                     let aura_sum = |aura_type: i32| -> f32 {
-                        crate::session_rules::player_aura_effects_by_spell_aura_type_like_cpp(
+                        wow_world_spell::aura_effects::player_aura_effects_by_spell_aura_type_like_cpp(
                             auras, spell_store, aura_type,
                         )
                         .into_iter()
@@ -172,13 +172,13 @@ pub(super) fn player_victim_damage_like_cpp(
                             player.unit().is_alive(),
                         );
                     let victim_mechanic_mask =
-                        crate::session_rules::aura_application_mechanic_mask_like_cpp(
+                        wow_world_spell::aura_effects::aura_application_mechanic_mask_like_cpp(
                             auras,
                             spell_store,
                             config.difficulty_store.as_deref(),
                         );
                     let victim_effects =
-                        crate::session_rules::player_aura_effects_all_like_cpp(
+                        wow_world_spell::aura_effects::player_aura_effects_all_like_cpp(
                             auras, spell_store,
                         )
                         .into_iter()
@@ -194,19 +194,19 @@ pub(super) fn player_victim_damage_like_cpp(
                         .map(|effect| effect.amount)
                         .sum::<i32>();
                     let creature_attacker_damage_bonus =
-                        crate::session_rules::melee_damage_bonus_done_from_effects_like_cpp(
+                        wow_world_spell::melee_damage::melee_damage_bonus_done_from_effects_like_cpp(
                             &attacker_effects,
                             victim_attack_power_bonus,
                             victim_creature_type_mask,
                             victim_aura_state_mask,
                             victim_mechanic_mask,
                             false,
-                            crate::session::legacy_attack_power_multiplier_like_cpp(
+                            wow_world_spell::melee_rules::legacy_attack_power_multiplier_like_cpp(
                                 attacker.base_attack_speed[0],
                             ),
                         );
                 let player_block_percent =
-                    crate::session_rules::player_block_percent_like_cpp(
+                    wow_world_spell::melee_rules::player_block_percent_like_cpp(
                         stats.shield_block,
                         config.expected_stat_store.as_ref().map_or(
                             // C++'s empty-store `EvaluateExpectedStat`
@@ -221,7 +221,7 @@ pub(super) fn player_victim_damage_like_cpp(
                         ),
                     );
                     let victim_position = player.unit().world().position();
-                    let facts = crate::session_rules::RepresentedMeleeVictimFactsLikeCpp {
+                    let facts = wow_world_spell::melee_rules::RepresentedMeleeVictimFactsLikeCpp {
                         level: player.level_like_cpp(),
                         is_player: true,
                         // `CalculatePct`/`pct` division: the published
@@ -241,7 +241,7 @@ pub(super) fn player_victim_damage_like_cpp(
                             wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_SPELL_AND_WEAPON_CRIT_CHANCE,
                         ),
                         crit_chance_vs_target_health_pct:
-                            crate::session_rules::player_aura_effects_full_by_spell_aura_type_like_cpp(
+                            wow_world_spell::aura_effects::player_aura_effects_full_by_spell_aura_type_like_cpp(
                                 auras,
                                 spell_store,
                                 wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_CHANCE_VERSUS_TARGET_HEALTH,
@@ -252,7 +252,7 @@ pub(super) fn player_victim_damage_like_cpp(
                             .map(|effect| effect.amount as f32)
                             .sum(),
                         crit_chance_for_caster_pct:
-                            crate::session_rules::player_aura_effects_full_by_spell_aura_type_like_cpp(
+                            wow_world_spell::aura_effects::player_aura_effects_full_by_spell_aura_type_like_cpp(
                                 auras,
                                 spell_store,
                                 wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_CHANCE_FOR_CASTER,
@@ -279,7 +279,7 @@ pub(super) fn player_victim_damage_like_cpp(
                         ]
                         .into_iter()
                         .any(|aura_type| {
-                            crate::session_rules::player_aura_effects_full_by_spell_aura_type_like_cpp(
+                            wow_world_spell::aura_effects::player_aura_effects_full_by_spell_aura_type_like_cpp(
                                 auras,
                                 spell_store,
                                 aura_type,
@@ -294,7 +294,7 @@ pub(super) fn player_victim_damage_like_cpp(
                     // `SPELL_AURA_BYPASS_ARMOR_FOR_CASTER` sum for
                     // effects this attacker cast.
                     let bypass_armor_pct_by_caster =
-                        crate::session_rules::player_aura_effects_full_by_spell_aura_type_like_cpp(
+                        wow_world_spell::aura_effects::player_aura_effects_full_by_spell_aura_type_like_cpp(
                             auras,
                             spell_store,
                             wow_data::spell::aura_types::SPELL_AURA_BYPASS_ARMOR_FOR_CASTER,
@@ -309,7 +309,7 @@ pub(super) fn player_victim_damage_like_cpp(
                     // projection is unfiltered and re-shaped into the
                     // shared creature-aura form.
                     let taken_effects =
-                        crate::session_rules::player_aura_effects_all_like_cpp(
+                        wow_world_spell::aura_effects::player_aura_effects_all_like_cpp(
                             auras, spell_store,
                         )
                         .into_iter()
@@ -337,20 +337,20 @@ pub(super) fn player_victim_damage_like_cpp(
                     // `MeleeDamageBonusTaken` and
                     // `CalcArmorReducedDamage` before the outcome switch
                     // (`Unit.cpp:1326-1343`), in that order.
-                    let taken = crate::session_rules::melee_damage_taken_flat_pct_like_cpp(
+                    let taken = wow_world_spell::melee_rules::melee_damage_taken_flat_pct_like_cpp(
                         &victim_taken_effects,
                         &attacker_ignore_resist,
                         swing.attacker_guid,
                         // C++ `SPELL_SCHOOL_MASK_NORMAL` (0x01).
                         0x01,
                     );
-                    let after_done = crate::session_rules::melee_damage_bonus_done_apply_like_cpp(
+                    let after_done = wow_world_spell::melee_damage::melee_damage_bonus_done_apply_like_cpp(
                         damage,
                         creature_attacker_damage_bonus,
                     );
                     let after_taken =
-                        crate::session_rules::melee_damage_taken_apply_like_cpp(taken, after_done);
-                    let mitigated = crate::session_rules::armor_reduced_damage_like_cpp(
+                        wow_world_spell::melee_rules::melee_damage_taken_apply_like_cpp(taken, after_done);
+                    let mitigated = wow_world_spell::melee_damage::armor_reduced_damage_like_cpp(
                         after_taken,
                         attacker_facts.level,
                         victim_facts.level,
@@ -362,13 +362,13 @@ pub(super) fn player_victim_damage_like_cpp(
                         attacker_ignore_target_resist_normal_pct,
                         bypass_armor_pct_by_caster,
                     );
-                    let inputs = crate::session_rules::melee_outcome_inputs_like_cpp(
+                    let inputs = wow_world_spell::melee_rules::melee_outcome_inputs_like_cpp(
                         &attacker_facts,
                         &victim_facts,
                     );
-                    let rolled = crate::session_rules::rolled_melee_outcome_like_cpp(&inputs[0]);
+                    let rolled = wow_world_spell::melee_rules::rolled_melee_outcome_like_cpp(&inputs[0]);
                     let (damage, _blocked, original) =
-                        crate::session_rules::melee_outcome_damage_like_cpp(
+                        wow_world_spell::melee_rules::melee_outcome_damage_like_cpp(
                             rolled,
                             mitigated,
                             attacker_facts.level,
@@ -377,18 +377,18 @@ pub(super) fn player_victim_damage_like_cpp(
                             player_block_percent,
                         );
                     let (info, state) =
-                        crate::session_rules::melee_outcome_presentation_like_cpp(rolled, false);
+                        wow_world_spell::melee_rules::melee_outcome_presentation_like_cpp(rolled, false);
                     swing_state.hit_info = info;
                     swing_state.victim_state = state;
                     swing_state.original_damage = original;
                     swing_state.outcome_represented = true;
                     if matches!(
                         rolled,
-                        crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Immune
-                            | crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Evade
-                            | crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Miss
-                            | crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Dodge
-                            | crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Parry
+                        wow_world_spell::melee_rules::RepresentedMeleeOutcomeLikeCpp::Immune
+                            | wow_world_spell::melee_rules::RepresentedMeleeOutcomeLikeCpp::Evade
+                            | wow_world_spell::melee_rules::RepresentedMeleeOutcomeLikeCpp::Miss
+                            | wow_world_spell::melee_rules::RepresentedMeleeOutcomeLikeCpp::Dodge
+                            | wow_world_spell::melee_rules::RepresentedMeleeOutcomeLikeCpp::Parry
                     ) {
                         swing_state.avoided_outcome = Some(rolled);
                     }
@@ -408,7 +408,7 @@ pub(super) fn player_victim_damage_like_cpp(
                         spell_store,
                         map_difficulty_id,
                         config.difficulty_store.as_deref(),
-                        crate::session_rules::represented_melee_ignore_absorb_like_cpp(
+                        wow_world_spell::melee_rules::represented_melee_ignore_absorb_like_cpp(
                             &attacker_effects,
                             0x01,
                         ),

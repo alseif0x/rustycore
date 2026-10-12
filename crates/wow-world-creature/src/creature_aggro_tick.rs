@@ -6,7 +6,7 @@
 use super::*;
 use wow_data::reputation::ReputationRankLikeCpp;
 
-pub(in crate::session) fn creature_aggro_candidate_is_targetable_for_attack_like_cpp(
+pub(crate) fn creature_aggro_candidate_is_targetable_for_attack_like_cpp(
     candidate: &CreatureAggroCandidateLikeCpp,
 ) -> bool {
     let player_flags = UnitFlags::from_bits_truncate(candidate.player_unit_flags);
@@ -79,7 +79,7 @@ fn creature_aggro_creature_unit_snapshot_like_cpp(
     let _ = unit.add_to_world_like_cpp();
     unit
 }
-pub(in crate::session) fn creature_aggro_candidate_visibility_decision_like_cpp(
+pub(crate) fn creature_aggro_candidate_visibility_decision_like_cpp(
     creature: &wow_entities::Creature,
     map_id: u16,
     instance_id: u32,
@@ -98,7 +98,7 @@ pub(in crate::session) fn creature_aggro_candidate_visibility_decision_like_cpp(
         CreatureAggroVisibilityDecisionLikeCpp::Rejected
     }
 }
-pub(in crate::session) fn creature_aggro_candidate_has_stealth_aura_like_cpp(
+pub(crate) fn creature_aggro_candidate_has_stealth_aura_like_cpp(
     candidate: &CreatureAggroCandidateLikeCpp,
 ) -> bool {
     creature_aggro_candidate_unit_snapshot_like_cpp(candidate).has_stealth_aura_like_cpp()
@@ -148,7 +148,7 @@ fn creature_aggro_candidate_has_forced_reputation_rank_like_cpp(
         })
 }
 /// C++ `Creature::IsHostileTo(player)`: `GetReactionTo(player) <= REP_HOSTILE`.
-pub(in crate::session) fn creature_aggro_candidate_is_hostile_to_creature_like_cpp(
+pub(crate) fn creature_aggro_candidate_is_hostile_to_creature_like_cpp(
     creature: &wow_entities::Creature,
     candidate: &CreatureAggroCandidateLikeCpp,
     config: &CreatureAggroConfigLikeCpp,
@@ -159,7 +159,7 @@ pub(in crate::session) fn creature_aggro_candidate_is_hostile_to_creature_like_c
 /// C++ `WorldObject::GetFactionReactionTo(creatureTemplate, player)`, the
 /// branch `WorldObject::GetReactionTo` takes for a creature looking at a
 /// player. `None` keeps the unrepresented forced-reputation case explicit.
-pub(in crate::session) fn creature_reaction_to_candidate_like_cpp(
+pub(crate) fn creature_reaction_to_candidate_like_cpp(
     creature: &wow_entities::Creature,
     candidate: &CreatureAggroCandidateLikeCpp,
     config: &CreatureAggroConfigLikeCpp,
@@ -236,7 +236,7 @@ pub(in crate::session) fn creature_reaction_to_candidate_like_cpp(
     }
     Some(ReputationRankLikeCpp::Neutral)
 }
-pub(in crate::session) fn creature_aggro_candidate_is_accessible_for_creature_like_cpp(
+pub(crate) fn creature_aggro_candidate_is_accessible_for_creature_like_cpp(
     creature: &wow_entities::Creature,
     candidate: &CreatureAggroCandidateLikeCpp,
 ) -> bool {
@@ -259,9 +259,9 @@ pub(in crate::session) fn creature_aggro_candidate_is_accessible_for_creature_li
 /// C++ anchors are the per-creature `Creature::Update` → `CreatureAI::UpdateAI`
 /// steps: taunt expiry, `AssistDelayEvent`, `UpdateVictim` (switch or
 /// `EnterEvadeMode`), `CallAssistance` and `MoveInLineOfSight`.
-pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
+pub(crate) fn run_creature_aggro_phase_on_store_like_cpp(
     store: &mut AdmittedCanonicalCreatureStoreLikeCpp<'_>,
-    terrain: Option<&crate::terrain::LiveTerrainHeights>,
+    terrain: Option<&wow_world_core::terrain::LiveTerrainHeights>,
     candidates: &[CreatureAggroCandidateLikeCpp],
     config: &CreatureAggroConfigLikeCpp,
 ) -> CreatureAggroTickOutcomeLikeCpp {
@@ -361,7 +361,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
             };
             let expired_taunt_slots = creature.expire_taunt_auras_if_due_like_cpp();
             if !expired_taunt_slots.is_empty() {
-                use crate::runtime_plan::{RecipientRule, RuntimeEvent};
+                use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent};
                 use wow_packet::ServerPacket;
 
                 outcome.plan.events.push(RuntimeEvent {
@@ -454,7 +454,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                             .add_threat(victim_guid, 0.0);
                         outcome.assistance_starts += 1;
                         outcome.aggro_starts += 1;
-                        use crate::runtime_plan::{RecipientRule, RuntimeEvent};
+                        use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent};
                         use wow_packet::ServerPacket;
 
                         outcome.plan.events.push(RuntimeEvent {
@@ -474,7 +474,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                             .to_bytes(),
                         });
                         outcome.commands.push(
-                            crate::session::mailbox::CreatureAttackStartLikeCppCommand {
+                            wow_world_core::session::mailbox::CreatureAttackStartLikeCppCommand {
                                 attacker_guid: assistant_guid,
                                 victim_guid,
                                 previous_victim_guid: None,
@@ -500,7 +500,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                 CreatureThreatUpdateLikeCpp::Switched { previous_victim } => {
                     outcome.victim_switches += 1;
                     if let Some(victim_guid) = creature.ai_ownership().combat_target {
-                        use crate::runtime_plan::{RecipientRule, RuntimeEvent};
+                        use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent};
                         use wow_packet::ServerPacket;
                         let recipients = RecipientRule::NearbyVisibleDurable {
                             source_guid: guid,
@@ -532,7 +532,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                             .to_bytes(),
                         });
                         outcome.commands.push(
-                            crate::session::mailbox::CreatureAttackStartLikeCppCommand {
+                            wow_world_core::session::mailbox::CreatureAttackStartLikeCppCommand {
                                 attacker_guid: guid,
                                 victim_guid,
                                 previous_victim_guid: (!previous_victim.is_empty())
@@ -549,7 +549,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                     participant_guids,
                     removed_taunt_slots,
                 } => {
-                    use crate::runtime_plan::{RecipientRule, RuntimeEvent};
+                    use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent};
                     use wow_packet::ServerPacket;
 
                     if let Some(previous_victim) = previous_victim {
@@ -575,7 +575,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                     }
                     for participant_guid in participant_guids {
                         outcome.stop_commands.push(
-                            crate::session::mailbox::CreatureAttackStopLikeCppCommand {
+                            wow_world_core::session::mailbox::CreatureAttackStopLikeCppCommand {
                                 attacker_guid: guid,
                                 victim_guid: participant_guid,
                                 map_id,
@@ -682,7 +682,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                                     reaction: wow_constants::creature::AiReaction::Alert,
                                 }
                                 .to_bytes();
-                                use crate::runtime_plan::{RecipientRule, RuntimeEvent};
+                                use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent};
 
                                 outcome.alert_triggers += 1;
                                 outcome.plan.events.push(RuntimeEvent {
@@ -805,7 +805,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                         == Some(wow_movement::MovementGeneratorType::Chase)
                         && let Some(stop) = creature.stop_move_spline_like_cpp()
                     {
-                        use crate::runtime_plan::{RecipientRule, RuntimeEvent};
+                        use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent};
 
                         outcome.movement_interrupts += 1;
                         outcome.plan.events.push(RuntimeEvent {
@@ -827,7 +827,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                         });
                     }
                     outcome.aggro_starts += 1;
-                    use crate::runtime_plan::{RecipientRule, RuntimeEvent};
+                    use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent};
                     outcome.plan.events.push(RuntimeEvent {
                         source_guid: guid,
                         recipients: RecipientRule::NearbyVisibleDurable {
@@ -845,7 +845,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                         .to_bytes(),
                     });
                     outcome.commands.push(
-                        crate::session::mailbox::CreatureAttackStartLikeCppCommand {
+                        wow_world_core::session::mailbox::CreatureAttackStartLikeCppCommand {
                             attacker_guid: guid,
                             victim_guid: candidate.player_guid,
                             previous_victim_guid: None,

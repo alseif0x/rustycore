@@ -4,7 +4,7 @@
 //! executor over the canonical map (#1263 F6-8D3a-2, F6-8E).
 
 use super::*;
-use crate::creature_movement::CreatureMovementQueriesLikeCpp as _;
+use wow_world_core::creature_movement::CreatureMovementQueriesLikeCpp as _;
 
 /// The creature movement step — `Unit::Update(p_time)`'s clock,
 /// `UpdateSplineMovement` and `MotionMaster::Update` with the home, random,
@@ -14,13 +14,13 @@ use crate::creature_movement::CreatureMovementQueriesLikeCpp as _;
 /// This is a pure function of `creature`, `guid`, and the two mmap resources;
 /// it does NOT touch any `WorldSession` state.
 #[allow(clippy::too_many_arguments)]
-pub(in crate::session) fn step_creature_movement_on_view_like_cpp(
-    creature: &mut crate::creature_movement::CreatureMovementLikeCpp<'_>,
+pub(crate) fn step_creature_movement_on_view_like_cpp(
+    creature: &mut wow_world_core::creature_movement::CreatureMovementLikeCpp<'_>,
     guid: wow_core::ObjectGuid,
     mmap_config: &MMapRuntimeConfigLikeCpp,
-    mmap_pathfinder: Option<&crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp>,
-    terrain: Option<&crate::terrain::LiveTerrainHeights>,
-    chase_target: Option<crate::creature_movement::ChaseTargetSnapshotLikeCpp>,
+    mmap_pathfinder: Option<&wow_world_core::pathfinder::WorldMMapPathfinderWorkerLikeCpp>,
+    terrain: Option<&wow_world_core::terrain::LiveTerrainHeights>,
+    chase_target: Option<wow_world_core::creature_movement::ChaseTargetSnapshotLikeCpp>,
     diff_ms: u32,
 ) -> Option<Vec<u8>> {
     use wow_packet::ServerPacket;
@@ -82,8 +82,8 @@ pub(in crate::session) fn step_creature_movement_on_view_like_cpp(
         );
 
         return match outcome {
-            crate::creature_movement::ChaseTickOutcomeLikeCpp::Idle => None,
-            crate::creature_movement::ChaseTickOutcomeLikeCpp::Stopped(stop) => Some(
+            wow_world_core::creature_movement::ChaseTickOutcomeLikeCpp::Idle => None,
+            wow_world_core::creature_movement::ChaseTickOutcomeLikeCpp::Stopped(stop) => Some(
                 MonsterMoveStop {
                     mover_guid: guid,
                     current_pos: stop.position,
@@ -91,7 +91,7 @@ pub(in crate::session) fn step_creature_movement_on_view_like_cpp(
                 }
                 .to_bytes(),
             ),
-            crate::creature_movement::ChaseTickOutcomeLikeCpp::Launched(from, move_spline) => {
+            wow_world_core::creature_movement::ChaseTickOutcomeLikeCpp::Launched(from, move_spline) => {
                 let packet_spline = MovementMonsterSpline::from_move_spline(&move_spline);
                 let pkt = MonsterMove {
                     mover_guid: guid,
@@ -308,8 +308,8 @@ pub(in crate::session) fn step_creature_movement_on_view_like_cpp(
             );
 
             match outcome {
-                crate::creature_movement::ChaseTickOutcomeLikeCpp::Idle => {}
-                crate::creature_movement::ChaseTickOutcomeLikeCpp::Stopped(stop) => {
+                wow_world_core::creature_movement::ChaseTickOutcomeLikeCpp::Idle => {}
+                wow_world_core::creature_movement::ChaseTickOutcomeLikeCpp::Stopped(stop) => {
                     return Some(
                         MonsterMoveStop {
                             mover_guid: guid,
@@ -319,7 +319,7 @@ pub(in crate::session) fn step_creature_movement_on_view_like_cpp(
                         .to_bytes(),
                     );
                 }
-                crate::creature_movement::ChaseTickOutcomeLikeCpp::Launched(from, move_spline) => {
+                wow_world_core::creature_movement::ChaseTickOutcomeLikeCpp::Launched(from, move_spline) => {
                     let packet_spline = MovementMonsterSpline::from_move_spline(&move_spline);
                     let pkt = MonsterMove {
                         mover_guid: guid,
@@ -351,19 +351,19 @@ pub(in crate::session) fn step_creature_movement_on_view_like_cpp(
 /// has no object accessor, so the victim's facts are snapshotted first:
 /// players come from the caller's snapshot, creature victims from the store's
 /// map. Both lookups are immutable and finish before the mutable borrow.
-pub(in crate::session) fn run_creature_movement_phase_on_store_like_cpp(
+pub(crate) fn run_creature_movement_phase_on_store_like_cpp(
     store: &mut AdmittedCanonicalCreatureStoreLikeCpp<'_>,
-    terrain: Option<&crate::terrain::LiveTerrainHeights>,
+    terrain: Option<&wow_world_core::terrain::LiveTerrainHeights>,
     mmap_config: &MMapRuntimeConfigLikeCpp,
-    mmap_pathfinder: Option<&crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp>,
+    mmap_pathfinder: Option<&wow_world_core::pathfinder::WorldMMapPathfinderWorkerLikeCpp>,
     chase_targets: &HashMap<
         (u16, u32, ObjectGuid),
-        crate::creature_movement::ChaseTargetSnapshotLikeCpp,
+        wow_world_core::creature_movement::ChaseTargetSnapshotLikeCpp,
     >,
     diff_ms: u32,
     outcome: &mut CreatureMovementTickOutcomeLikeCpp,
 ) {
-    use crate::runtime_plan::{RecipientRule, RuntimeEvent};
+    use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent};
     use wow_packet::ServerPacket;
 
     let map_keys = store.phase_map_keys_like_cpp();
@@ -381,7 +381,7 @@ pub(in crate::session) fn run_creature_movement_phase_on_store_like_cpp(
                             store
                                 .phase_map_creature_like_cpp(map_id, instance_id, target_guid)
                                 .map(|target| {
-                                    crate::creature_movement::ChaseTargetSnapshotLikeCpp {
+                                    wow_world_core::creature_movement::ChaseTargetSnapshotLikeCpp {
                                         guid: target_guid,
                                         position: target.position(),
                                         combat_reach: target.unit().data().combat_reach.max(0.0),
@@ -453,10 +453,10 @@ pub(in crate::session) fn run_creature_movement_phase_on_store_like_cpp(
     }
 }
 #[cfg(test)]
-pub(in crate::session) fn creature_melee_spell_miss_threshold_3_3_5_like_cpp() -> u32 {
+pub(crate) fn creature_melee_spell_miss_threshold_3_3_5_like_cpp() -> u32 {
     wow_world_entities::creature_spell_publication::creature_melee_spell_miss_threshold_3_3_5_like_cpp()
 }
-pub(in crate::session) fn is_creature_melee_los_clear_like_cpp(
+pub(crate) fn is_creature_melee_los_clear_like_cpp(
     attacker: &wow_entities::WorldObject,
     victim: &wow_entities::WorldObject,
     environment: &impl wow_entities::WorldObjectEnvironment,
@@ -467,7 +467,7 @@ pub(in crate::session) fn is_creature_melee_los_clear_like_cpp(
         wow_entities::LineOfSightOptions::default(),
     )
 }
-pub(in crate::session) fn apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
+pub(crate) fn apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
     canonical_map_manager: &mut wow_map::MapManager,
     map_id: u32,
     instance_id: u32,
@@ -580,7 +580,7 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_player_on_map
         events: Vec::new(),
     }
 }
-pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
+pub(crate) fn apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
     canonical_map_manager: &mut wow_map::MapManager,
     map_id: u32,
     instance_id: u32,
@@ -697,7 +697,7 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
     };
     let killed = victim.apply_ai_damage_before_death_state_at_game_time_like_cpp(
         applied_damage,
-        u64::from(crate::session::game_time_ms_like_cpp()),
+        u64::from(wow_world_core::session::game_time_ms_like_cpp()),
         wow_entities::game_time_secs_like_cpp(),
     );
     if killed {

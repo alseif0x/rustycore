@@ -17,7 +17,7 @@
 /// transitions accepted by the canonical owner.
 pub fn apply_creature_attack_start_commands_on_manager_like_cpp(
     manager: &mut wow_map::MapManager,
-    commands: &[crate::session::mailbox::CreatureAttackStartLikeCppCommand],
+    commands: &[wow_world_core::session::mailbox::CreatureAttackStartLikeCppCommand],
 ) -> Vec<wow_map::MapCommandOutcomeLikeCpp> {
     commands
         .iter()
@@ -42,7 +42,7 @@ pub fn apply_creature_attack_start_commands_on_manager_like_cpp(
 /// take the same map-owned path; the session command is delivery-only.
 pub fn apply_creature_attack_stop_commands_on_manager_like_cpp(
     manager: &mut wow_map::MapManager,
-    commands: &[crate::session::mailbox::CreatureAttackStopLikeCppCommand],
+    commands: &[wow_world_core::session::mailbox::CreatureAttackStopLikeCppCommand],
 ) -> Vec<wow_map::MapCommandOutcomeLikeCpp> {
     commands
         .iter()
@@ -81,15 +81,15 @@ pub fn committed_creature_combat_commands_like_cpp<T: Clone>(
 /// command bridge runs. Exact `(source, packet)` signatures couple those two
 /// products until the legacy producer itself emits `MapCommandLikeCpp`.
 pub fn retain_committed_creature_combat_events_like_cpp(
-    plan: &mut crate::runtime_plan::RuntimePlan,
-    start_commands: &[crate::session::mailbox::CreatureAttackStartLikeCppCommand],
+    plan: &mut wow_world_core::runtime_plan::RuntimePlan,
+    start_commands: &[wow_world_core::session::mailbox::CreatureAttackStartLikeCppCommand],
     start_outcomes: &[wow_map::MapCommandOutcomeLikeCpp],
-    stop_commands: &[crate::session::mailbox::CreatureAttackStopLikeCppCommand],
+    stop_commands: &[wow_world_core::session::mailbox::CreatureAttackStopLikeCppCommand],
     stop_outcomes: &[wow_map::MapCommandOutcomeLikeCpp],
 ) {
     use wow_packet::ServerPacket as _;
 
-    let start_signature = |command: &crate::session::mailbox::CreatureAttackStartLikeCppCommand| {
+    let start_signature = |command: &wow_world_core::session::mailbox::CreatureAttackStartLikeCppCommand| {
         (
             command.attacker_guid,
             wow_packet::packets::combat::AttackStart {
@@ -99,7 +99,7 @@ pub fn retain_committed_creature_combat_events_like_cpp(
             .to_bytes(),
         )
     };
-    let stop_signature = |command: &crate::session::mailbox::CreatureAttackStopLikeCppCommand| {
+    let stop_signature = |command: &wow_world_core::session::mailbox::CreatureAttackStopLikeCppCommand| {
         (
             command.attacker_guid,
             wow_packet::packets::combat::SAttackStop {
@@ -113,7 +113,7 @@ pub fn retain_committed_creature_combat_events_like_cpp(
     // The hostile `SMSG_AI_REACTION` that precedes a creature's own attack
     // start (C++ `Unit::Attack`) commits or drops together with it (#1344).
     let reaction_signature =
-        |command: &crate::session::mailbox::CreatureAttackStartLikeCppCommand| {
+        |command: &wow_world_core::session::mailbox::CreatureAttackStartLikeCppCommand| {
             (
                 command.attacker_guid,
                 wow_packet::packets::combat::AIReaction {

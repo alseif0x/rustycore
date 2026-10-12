@@ -39,7 +39,7 @@ pub(super) fn apply_melee_absorb_to_canonical_player_like_cpp(
     u32,
     u32,
     u32,
-    Vec<crate::session::mailbox::CreatureMeleeAbsorbConsumptionLikeCpp>,
+    Vec<wow_world_core::session::mailbox::CreatureMeleeAbsorbConsumptionLikeCpp>,
 )> {
     let managed = canonical_manager.find_map_mut(map_id, instance_id)?;
     let player = managed.map_mut().get_typed_player_mut(victim_guid)?;
@@ -49,14 +49,14 @@ pub(super) fn apply_melee_absorb_to_canonical_player_like_cpp(
         .auras
         .runtime_applications_like_cpp()
         .clone();
-    let shields = crate::session_rules::player_absorb_shields_like_cpp(
+    let shields = wow_world_spell::aura_effects::player_absorb_shields_like_cpp(
         &auras,
         spell_store,
         difficulty_id,
         difficulty_store,
         school_mask,
     );
-    let absorb = crate::session_rules::represented_melee_absorb_like_cpp(
+    let absorb = wow_world_spell::melee_rules::represented_melee_absorb_like_cpp(
         &shields,
         damage,
         ignore_absorb_pct,
@@ -65,7 +65,7 @@ pub(super) fn apply_melee_absorb_to_canonical_player_like_cpp(
     for consumption in &absorb.consumed {
         write_absorbed_shield_amount_like_cpp(player, consumption);
         consumptions.push(
-            crate::session::mailbox::CreatureMeleeAbsorbConsumptionLikeCpp {
+            wow_world_core::session::mailbox::CreatureMeleeAbsorbConsumptionLikeCpp {
                 slot: consumption.slot,
                 consumed: consumption.consumed,
                 removed: consumption.removed,
@@ -75,7 +75,7 @@ pub(super) fn apply_melee_absorb_to_canonical_player_like_cpp(
 
     // C++ runs the mana-shield loop after the school-absorb loop
     // (`Unit.cpp:1886-1930`) over the damage the school shields left.
-    let mana_shields = crate::session_rules::player_mana_shields_like_cpp(
+    let mana_shields = wow_world_spell::aura_effects::player_mana_shields_like_cpp(
         &auras,
         spell_store,
         difficulty_id,
@@ -86,7 +86,7 @@ pub(super) fn apply_melee_absorb_to_canonical_player_like_cpp(
         .unit()
         .get_power(wow_constants::PowerType::Mana)
         .max(0);
-    let mana_absorb = crate::session_rules::represented_melee_mana_absorb_like_cpp(
+    let mana_absorb = wow_world_spell::melee_rules::represented_melee_mana_absorb_like_cpp(
         &mana_shields,
         absorb.damage,
         mana_before as u32,
@@ -104,7 +104,7 @@ pub(super) fn apply_melee_absorb_to_canonical_player_like_cpp(
     for consumption in &mana_absorb.consumed {
         write_absorbed_shield_amount_like_cpp(
             player,
-            &crate::session_rules::RepresentedAbsorbConsumptionLikeCpp {
+            &wow_world_spell::melee_rules::RepresentedAbsorbConsumptionLikeCpp {
                 slot: consumption.slot,
                 effect_index: consumption.effect_index,
                 consumed: consumption.consumed,
@@ -113,7 +113,7 @@ pub(super) fn apply_melee_absorb_to_canonical_player_like_cpp(
             },
         );
         consumptions.push(
-            crate::session::mailbox::CreatureMeleeAbsorbConsumptionLikeCpp {
+            wow_world_core::session::mailbox::CreatureMeleeAbsorbConsumptionLikeCpp {
                 slot: consumption.slot,
                 consumed: consumption.consumed,
                 removed: consumption.removed,
@@ -131,9 +131,9 @@ pub(super) fn apply_melee_absorb_to_canonical_player_like_cpp(
 /// Commit one spent shield's `AuraEffect` remainder on the canonical player.
 fn write_absorbed_shield_amount_like_cpp(
     player: &mut wow_entities::Player,
-    consumption: &crate::session_rules::RepresentedAbsorbConsumptionLikeCpp,
+    consumption: &wow_world_spell::melee_rules::RepresentedAbsorbConsumptionLikeCpp,
 ) {
-    crate::session::combat::write_absorbed_shield_amount_like_cpp(
+    wow_world_spell::aura_effects::write_absorbed_shield_amount_like_cpp(
         player,
         consumption.slot,
         consumption.effect_index,
@@ -166,14 +166,14 @@ pub(super) fn apply_melee_absorb_to_canonical_creature_like_cpp(
 
     let managed = canonical_manager.find_map_mut(u32::from(map_id), instance_id)?;
     let victim = managed.map_mut().get_typed_creature_mut(victim_guid)?;
-    let shields = crate::session_rules::creature_absorb_shields_like_cpp(
+    let shields = wow_world_spell::aura_effects::creature_absorb_shields_like_cpp(
         &victim.unit().subsystems().auras,
         spell_store,
         difficulty_id,
         difficulty_store,
         school_mask,
     );
-    let absorb = crate::session_rules::represented_melee_absorb_like_cpp(
+    let absorb = wow_world_spell::melee_rules::represented_melee_absorb_like_cpp(
         &shields,
         damage,
         ignore_absorb_pct,

@@ -35,7 +35,6 @@ mod travel_handler_contexts;
 mod vehicle_handler_contexts;
 pub(crate) use combat::CR_ARMOR_PENETRATION_LIKE_CPP;
 mod account_data_handler_contexts;
-mod creature_runtime;
 mod effect_learning;
 mod instance_handler_contexts;
 mod instances;
@@ -44,17 +43,16 @@ mod reputation_handler_contexts;
 mod social_contacts_handler_contexts;
 mod social_handler_contexts;
 mod support_handler_contexts;
-use creature_runtime::*;
 // #1263 F6-8D3a-1: the aggro commit of the admitted canonical executor;
 // world-server calls the same body.
-pub use creature_runtime::{
+pub use wow_world_creature::{
     apply_creature_attack_start_commands_on_manager_like_cpp,
     apply_creature_attack_stop_commands_on_manager_like_cpp,
     committed_creature_combat_commands_like_cpp, retain_committed_creature_combat_events_like_cpp,
 };
 // #1263 F6-8D2/D3b-1: the admitted creature executor; the world-server
 // canonical map loop calls it.
-pub use creature_runtime::{
+pub use wow_world_creature::{
     AdmittedCreatureCombatPhaseInputsLikeCpp, AdmittedCreatureCombatPhasesOutcomeLikeCpp,
     AdmittedCreatureExecutionLikeCpp, AdmittedCreatureExecutionMapLikeCpp,
     AdmittedCreatureExecutionObjectLikeCpp, CreatureExecutionAdmissionLikeCpp,
@@ -408,21 +406,20 @@ pub(crate) use player_condition_values::RepresentedPlayerConditionContextLikeCpp
 mod player_load_values;
 use player_load_values::{gender_from_u8, unix_secs_to_ms_like_cpp};
 use player_load_values::{player_team_id_for_race_cpp, represented_pet_aura_slot_like_cpp};
-mod player_melee_application;
-use player_melee_application::PLAYER_MELEE_COMBAT_REF_REVALIDATE_INTERVAL_MS;
-use player_melee_application::PendingPlayerSwingLikeCpp;
-pub(crate) use player_melee_application::PlayerAttackStartLikeCppResult;
-pub use player_melee_application::PlayerMeleeAttackerSnapshotLikeCpp;
-pub(crate) use player_melee_application::PlayerMeleeCreatureHitLikeCpp;
-pub use player_melee_application::PlayerMeleePhaseStateLikeCpp;
-pub use player_melee_application::PlayerMeleeTickOutcomeLikeCpp;
-pub(in crate::session) use player_melee_application::RepresentedMeleeDamageBonusLikeCpp;
-use player_melee_application::apply_player_melee_to_canonical_player_like_cpp;
-use player_melee_application::is_unit_facing_target_for_melee_like_cpp;
-use player_melee_application::is_within_melee_range_like_cpp;
-use player_melee_application::is_within_target_boundary_radius_like_cpp;
-pub(in crate::session) use player_melee_application::legacy_attack_power_multiplier_like_cpp;
-pub(in crate::session) use player_melee_application::take_canonical_player_attack_swings_like_cpp;
+use wow_world_creature::PLAYER_MELEE_COMBAT_REF_REVALIDATE_INTERVAL_MS;
+use wow_world_creature::PendingPlayerSwingLikeCpp;
+pub(crate) use wow_world_creature::PlayerAttackStartLikeCppResult;
+pub use wow_world_creature::PlayerMeleeAttackerSnapshotLikeCpp;
+pub(crate) use wow_world_creature::PlayerMeleeCreatureHitLikeCpp;
+pub use wow_world_creature::PlayerMeleePhaseStateLikeCpp;
+pub use wow_world_creature::PlayerMeleeTickOutcomeLikeCpp;
+pub(in crate::session) use wow_world_spell::melee_rules::RepresentedMeleeDamageBonusLikeCpp;
+use wow_world_creature::apply_player_melee_to_canonical_player_like_cpp;
+use wow_world_creature::is_unit_facing_target_for_melee_like_cpp;
+use wow_world_creature::is_within_melee_range_like_cpp;
+use wow_world_creature::is_within_target_boundary_radius_like_cpp;
+pub(in crate::session) use wow_world_spell::melee_rules::legacy_attack_power_multiplier_like_cpp;
+pub(in crate::session) use wow_world_creature::take_canonical_player_attack_swings_like_cpp;
 mod player_presentation;
 use player_presentation::RepresentedMountSpellCheckOutcomeLikeCpp;
 mod player_registry_binding;
@@ -896,9 +893,6 @@ pub(crate) const TELE_TO_SPELL_LIKE_CPP: TeleportToOptionsLikeCpp = 0x10;
 pub(crate) const TELE_TO_TRANSPORT_TELEPORT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x20;
 #[allow(dead_code)]
 pub(crate) const TELE_REVIVE_AT_TELEPORT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x40;
-const ATTACK_DISPLAY_DELAY_LIKE_CPP_MS: u32 = 200;
-const MIN_MELEE_REACH_LIKE_CPP: f32 = 2.0;
-const NOMINAL_MELEE_RANGE_LIKE_CPP: f32 = 5.0;
 #[cfg(test)]
 const SUMMON_PROPERTIES_ONLY_VISIBLE_TO_SUMMONER_LIKE_CPP: u32 = 0x0000_0010;
 #[cfg(test)]

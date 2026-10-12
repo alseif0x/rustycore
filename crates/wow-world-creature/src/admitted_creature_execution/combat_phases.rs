@@ -35,13 +35,13 @@ pub struct AdmittedCreatureCombatPhaseInputsLikeCpp<'a> {
     pub aggro_candidates: &'a [CreatureAggroCandidateLikeCpp],
     /// The map environment seam the family-assistance LOS check and the
     /// movement generators' height normalization read.
-    pub terrain: Option<&'a crate::terrain::LiveTerrainHeights>,
+    pub terrain: Option<&'a wow_world_core::terrain::LiveTerrainHeights>,
     /// The movement phase's pathfinding seam.
     pub mmap_config: &'a MMapRuntimeConfigLikeCpp,
-    pub mmap_pathfinder: Option<&'a crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp>,
+    pub mmap_pathfinder: Option<&'a wow_world_core::pathfinder::WorldMMapPathfinderWorkerLikeCpp>,
     /// The player chase victims snapshotted from the registry.
     pub chase_targets:
-        &'a HashMap<(u16, u32, ObjectGuid), crate::creature_movement::ChaseTargetSnapshotLikeCpp>,
+        &'a HashMap<(u16, u32, ObjectGuid), wow_world_core::creature_movement::ChaseTargetSnapshotLikeCpp>,
     pub config: &'a CreatureAggroConfigLikeCpp,
     /// The lifecycle phase's map catalog (which maps persist respawn times) and
     /// the tick deadline its respawn queue drains against.
@@ -66,8 +66,8 @@ pub struct AdmittedCreatureCombatPhasesOutcomeLikeCpp {
     /// The aggro phase outcome. Its plan is already reduced to the committed
     /// combat events.
     pub aggro: CreatureAggroTickOutcomeLikeCpp,
-    pub aggro_committed_starts: Vec<crate::session::mailbox::CreatureAttackStartLikeCppCommand>,
-    pub aggro_committed_stops: Vec<crate::session::mailbox::CreatureAttackStopLikeCppCommand>,
+    pub aggro_committed_starts: Vec<wow_world_core::session::mailbox::CreatureAttackStartLikeCppCommand>,
+    pub aggro_committed_stops: Vec<wow_world_core::session::mailbox::CreatureAttackStopLikeCppCommand>,
     /// Whether the spell phase ran (F6-8D3a-1b). Its outcome carries the
     /// START/GO plan.
     pub spell_phase_executed: bool,
@@ -222,7 +222,7 @@ pub fn run_admitted_creature_combat_phases_on_locked_manager_like_cpp(
 
 /// Phase 0, player melee (`Player::Update` → `DoMeleeAttackIfReady`), before
 /// the creatures' own update.
-pub(in crate::session) fn run_player_melee_phase_on_manager_like_cpp(
+pub(crate) fn run_player_melee_phase_on_manager_like_cpp(
     manager: &mut wow_map::MapManager,
     attackers: &[PlayerMeleeAttackerSnapshotLikeCpp],
     diff_ms: u32,
@@ -257,11 +257,11 @@ pub(in crate::session) fn run_player_melee_phase_on_manager_like_cpp(
 /// `DoRespawn`, after player melee (so a creature a player just killed is
 /// already dead) and before movement. A despawned corpse leaves `selection`
 /// and a respawn joins it.
-pub(in crate::session) fn run_creature_lifecycle_phase_on_manager_like_cpp(
+pub(crate) fn run_creature_lifecycle_phase_on_manager_like_cpp(
     manager: &mut wow_map::MapManager,
     maps: &[AdmittedCreatureExecutionMapLikeCpp],
     selection: &mut Vec<AdmittedCreatureExecutionObjectLikeCpp>,
-    terrain: Option<&crate::terrain::LiveTerrainHeights>,
+    terrain: Option<&wow_world_core::terrain::LiveTerrainHeights>,
     map_store: &wow_data::MapStore,
     now: Instant,
     outcome: &mut CreatureLifecycleTickOutcomeLikeCpp,
@@ -316,16 +316,16 @@ pub(in crate::session) fn run_creature_lifecycle_phase_on_manager_like_cpp(
 /// incarnation in place. Each frame is therefore already applied and is
 /// published as is.
 #[allow(clippy::too_many_arguments)]
-pub(in crate::session) fn run_creature_movement_phase_on_manager_like_cpp(
+pub(crate) fn run_creature_movement_phase_on_manager_like_cpp(
     manager: &mut wow_map::MapManager,
     maps: &[AdmittedCreatureExecutionMapLikeCpp],
     selection: &[AdmittedCreatureExecutionObjectLikeCpp],
-    terrain: Option<&crate::terrain::LiveTerrainHeights>,
+    terrain: Option<&wow_world_core::terrain::LiveTerrainHeights>,
     mmap_config: &MMapRuntimeConfigLikeCpp,
-    mmap_pathfinder: Option<&crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp>,
+    mmap_pathfinder: Option<&wow_world_core::pathfinder::WorldMMapPathfinderWorkerLikeCpp>,
     chase_targets: &HashMap<
         (u16, u32, ObjectGuid),
-        crate::creature_movement::ChaseTargetSnapshotLikeCpp,
+        wow_world_core::creature_movement::ChaseTargetSnapshotLikeCpp,
     >,
     diff_ms: u32,
     outcome: &mut CreatureMovementTickOutcomeLikeCpp,
@@ -369,22 +369,22 @@ pub(in crate::session) fn run_creature_movement_phase_on_manager_like_cpp(
 }
 
 /// The aggro phase's outcome with its committed start/stop commands.
-pub(in crate::session) struct CreatureAggroPhaseOutcomeLikeCpp {
-    pub(in crate::session) outcome: CreatureAggroTickOutcomeLikeCpp,
-    pub(in crate::session) committed_starts:
-        Vec<crate::session::mailbox::CreatureAttackStartLikeCppCommand>,
-    pub(in crate::session) committed_stops:
-        Vec<crate::session::mailbox::CreatureAttackStopLikeCppCommand>,
+pub(crate) struct CreatureAggroPhaseOutcomeLikeCpp {
+    pub(crate) outcome: CreatureAggroTickOutcomeLikeCpp,
+    pub(crate) committed_starts:
+        Vec<wow_world_core::session::mailbox::CreatureAttackStartLikeCppCommand>,
+    pub(crate) committed_stops:
+        Vec<wow_world_core::session::mailbox::CreatureAttackStopLikeCppCommand>,
 }
 
 /// Aggro: `UpdateVictim`, assistance, `MoveInLineOfSight`, then the canonical
 /// commit of every start/stop and the reduction of the plan to the committed
 /// events.
-pub(in crate::session) fn run_creature_aggro_phase_on_manager_like_cpp(
+pub(crate) fn run_creature_aggro_phase_on_manager_like_cpp(
     manager: &mut wow_map::MapManager,
     maps: &[AdmittedCreatureExecutionMapLikeCpp],
     selection: &[AdmittedCreatureExecutionObjectLikeCpp],
-    terrain: Option<&crate::terrain::LiveTerrainHeights>,
+    terrain: Option<&wow_world_core::terrain::LiveTerrainHeights>,
     candidates: &[CreatureAggroCandidateLikeCpp],
     config: &CreatureAggroConfigLikeCpp,
 ) -> CreatureAggroPhaseOutcomeLikeCpp {
@@ -418,7 +418,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_manager_like_cpp(
 /// (`CombatAI.cpp:91-107, 217-223`), before melee. Selection over the admitted
 /// store, then the deferred `DoCast` / `ScheduleEvent` drain on the canonical
 /// manager still held here. Without a spell store the phase selects nothing.
-pub(in crate::session) fn run_creature_spell_phase_on_manager_like_cpp(
+pub(crate) fn run_creature_spell_phase_on_manager_like_cpp(
     manager: &mut wow_map::MapManager,
     maps: &[AdmittedCreatureExecutionMapLikeCpp],
     selection: &[AdmittedCreatureExecutionObjectLikeCpp],
@@ -449,7 +449,7 @@ pub(in crate::session) fn run_creature_spell_phase_on_manager_like_cpp(
 }
 
 /// Creature melee (`DoMeleeAttackIfReady`) with the real attack table.
-pub(in crate::session) fn run_creature_melee_phase_on_manager_like_cpp(
+pub(crate) fn run_creature_melee_phase_on_manager_like_cpp(
     manager: &mut wow_map::MapManager,
     maps: &[AdmittedCreatureExecutionMapLikeCpp],
     selection: &[AdmittedCreatureExecutionObjectLikeCpp],
@@ -473,5 +473,5 @@ pub(in crate::session) fn run_creature_melee_phase_on_manager_like_cpp(
 }
 
 #[cfg(test)]
-#[path = "../../../../unit_tests/session/creature_runtime/admitted_creature_execution/combat_phases/test_only.rs"]
+#[path = "../../unit_tests/admitted_creature_execution/combat_phases/test_only.rs"]
 mod test_only;

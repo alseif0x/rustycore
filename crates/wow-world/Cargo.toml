@@ -60,6 +60,7 @@ wow-social = { workspace = true }
 wow-spell-acquisition = { workspace = true }
 wow-world-application = { workspace = true }
 wow-world-core = { workspace = true }
+wow-world-creature = { workspace = true }
 wow-world-entities = { workspace = true }
 wow-world-interaction = { workspace = true }
 wow-world-instances = { workspace = true }

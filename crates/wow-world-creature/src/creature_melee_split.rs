@@ -1,7 +1,7 @@
 //! Secondary-target side of creature white-swing split damage.
 
-use crate::entity_update_bridge::unit_values_update_to_update_object;
-use crate::runtime_plan::{RecipientRule, RuntimeEvent};
+use wow_world_core::entity_update_bridge::unit_values_update_to_update_object;
+use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent};
 use wow_core::ObjectGuid;
 use wow_packet::ServerPacket;
 
@@ -52,7 +52,7 @@ pub(super) fn apply_melee_split_damage_like_cpp(
             .get_typed_player(victim_guid)
             .map(|victim| {
                 let auras = &victim.unit().subsystems().auras;
-                crate::session_rules::player_aura_effects_full_by_spell_aura_type_like_cpp(
+                wow_world_spell::aura_effects::player_aura_effects_full_by_spell_aura_type_like_cpp(
                     auras.runtime_applications_like_cpp(),
                     spell_store,
                     wow_data::spell::aura_types::SPELL_AURA_SPLIT_DAMAGE_PCT,
@@ -77,7 +77,7 @@ pub(super) fn apply_melee_split_damage_like_cpp(
             .map()
             .with_creature_like_cpp(victim_guid, |victim| {
                 let auras = &victim.unit().subsystems().auras;
-                crate::session_rules::creature_aura_effects_like_cpp(
+                wow_world_spell::aura_effects::creature_aura_effects_like_cpp(
                     &auras.applied_auras,
                     spell_store,
                     difficulty_id,
@@ -206,7 +206,7 @@ pub(super) fn apply_secondary_split_damage_like_cpp(
                 (caster.unit().world().object().is_in_world() && caster.unit().is_alive()).then(
                     || {
                         (
-                            crate::session_rules::player_aura_effects_all_like_cpp(
+                            wow_world_spell::aura_effects::player_aura_effects_all_like_cpp(
                                 caster
                                     .unit()
                                     .subsystems()
@@ -230,7 +230,7 @@ pub(super) fn apply_secondary_split_damage_like_cpp(
             .with_creature_like_cpp(caster_guid, |caster| {
                 (caster.unit().world().object().is_in_world() && caster.is_alive()).then(|| {
                     (
-                        crate::session_rules::creature_aura_effects_like_cpp(
+                        wow_world_spell::aura_effects::creature_aura_effects_like_cpp(
                             &caster.unit().subsystems().auras.applied_auras,
                             spell_store,
                             difficulty_id,
@@ -332,7 +332,7 @@ pub(super) fn apply_secondary_split_damage_like_cpp(
         if secondary_damage > 0 {
             let killed = caster.apply_ai_damage_before_death_state_at_game_time_like_cpp(
                 applied_damage,
-                u64::from(crate::session::game_time_ms_like_cpp()),
+                u64::from(wow_world_core::session::game_time_ms_like_cpp()),
                 wow_entities::game_time_secs_like_cpp(),
             );
             if killed {

@@ -6,7 +6,7 @@
 use super::*;
 use wow_core::{position_is_in_dist_strict_2d_like_cpp, position_is_in_dist_strict_3d_like_cpp};
 
-pub(in crate::session) fn creature_snapshot_is_hostile_to_creature_like_cpp(
+pub(crate) fn creature_snapshot_is_hostile_to_creature_like_cpp(
     creature: &wow_entities::Creature,
     target: &CreatureAggroOwnerSnapshotLikeCpp,
     config: &CreatureAggroConfigLikeCpp,
@@ -16,7 +16,7 @@ pub(in crate::session) fn creature_snapshot_is_hostile_to_creature_like_cpp(
 }
 /// C++ `WorldObject::GetFactionReactionTo` common faction branch for a
 /// represented unit snapshot.
-pub(in crate::session) fn creature_reaction_to_snapshot_like_cpp(
+pub(crate) fn creature_reaction_to_snapshot_like_cpp(
     creature: &wow_entities::Creature,
     target: &CreatureAggroOwnerSnapshotLikeCpp,
     config: &CreatureAggroConfigLikeCpp,
@@ -41,7 +41,7 @@ pub(in crate::session) fn creature_reaction_to_snapshot_like_cpp(
         ReputationRankLikeCpp::Neutral
     })
 }
-pub(in crate::session) fn creature_ai_selection_decision_like_cpp(
+pub(crate) fn creature_ai_selection_decision_like_cpp(
     creature: &wow_entities::Creature,
     config: &CreatureAggroConfigLikeCpp,
 ) -> CreatureAiSelectionDecisionLikeCpp {
@@ -83,7 +83,7 @@ pub(in crate::session) fn creature_ai_selection_decision_like_cpp(
 
     CreatureAiSelectionDecisionLikeCpp::Selected(select_creature_ai_like_cpp(&input))
 }
-pub(in crate::session) fn creature_ai_can_attack_decision_like_cpp(
+pub(crate) fn creature_ai_can_attack_decision_like_cpp(
     ai_kind: &CreatureAiKindLikeCpp,
     creature: &wow_entities::Creature,
     candidate: &CreatureAggroCandidateLikeCpp,
@@ -128,7 +128,7 @@ pub(in crate::session) fn creature_ai_can_attack_decision_like_cpp(
         CreatureAiCanAttackDecisionLikeCpp::Rejected
     }
 }
-pub(in crate::session) fn creature_can_attack_leash_decision_like_cpp(
+pub(crate) fn creature_can_attack_leash_decision_like_cpp(
     creature: &wow_entities::Creature,
     candidate: &CreatureAggroCandidateLikeCpp,
     config: &CreatureAggroConfigLikeCpp,
@@ -207,7 +207,7 @@ pub(in crate::session) fn creature_can_attack_leash_decision_like_cpp(
         CreatureCanAttackLeashDecisionLikeCpp::HomeRangeRejected
     }
 }
-pub(in crate::session) fn creature_can_attack_snapshot_leash_decision_like_cpp(
+pub(crate) fn creature_can_attack_snapshot_leash_decision_like_cpp(
     creature: &wow_entities::Creature,
     target: &CreatureAggroOwnerSnapshotLikeCpp,
     config: &CreatureAggroConfigLikeCpp,
@@ -274,7 +274,7 @@ pub(in crate::session) fn creature_can_attack_snapshot_leash_decision_like_cpp(
 /// an alive, non-engaged, non-controlled aggressive creature. Returns the
 /// `MoveDistract` facing; the caller runs the distract movement on its store
 /// and then sends `SMSG_AI_REACTION` (alert) to the visible set.
-pub(in crate::session) fn creature_alert_orientation_like_cpp(
+pub(crate) fn creature_alert_orientation_like_cpp(
     creature: &wow_entities::Creature,
     candidate: &CreatureAggroCandidateLikeCpp,
     config: &CreatureAggroConfigLikeCpp,

@@ -94,7 +94,7 @@ struct AdmittedCreatureExecutionArmLikeCpp {
     due_casts: usize,
     swing_damage: u64,
     effects_consumed: usize,
-    publication: Vec<crate::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand>,
+    publication: Vec<wow_world_core::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand>,
 }
 
 /// The single-creature execution of one admitted transition.
@@ -159,7 +159,7 @@ fn execute_admitted_creature_transition_like_cpp(
     arm.swing_damage = u64::from(damage);
     arm.effects_consumed += 1;
     arm.publication.push(
-        crate::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand {
+        wow_world_core::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand {
             attacker_guid: guid,
             victim_guid,
             map_id: object.map_id.clamp(0, u32::from(u16::MAX)) as u16,

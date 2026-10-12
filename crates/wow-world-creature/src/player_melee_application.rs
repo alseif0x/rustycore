@@ -4,7 +4,8 @@
 //! Player melee application: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::combat;
+use wow_world_spell::melee_rules as combat;
+use wow_world_spell::melee_rules::RepresentedMeleeDamageBonusLikeCpp;
 use super::{ATTACK_DISPLAY_DELAY_LIKE_CPP_MS, HashMap, MIN_MELEE_REACH_LIKE_CPP};
 use super::{NOMINAL_MELEE_RANGE_LIKE_CPP, ObjectGuid, Position, UnitState, WeaponAttackType};
 
@@ -20,7 +21,7 @@ pub(crate) enum PlayerAttackStartLikeCppResult {
 /// closure over `&mut Player`, and the global legacy loop reaches the same
 /// player through the canonical map rather than through a session. Behaviour,
 /// argument order and C++ anchors are unchanged.
-pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
+pub(crate) fn take_canonical_player_attack_swings_like_cpp(
     player: &mut wow_entities::Player,
     diff_ms: u32,
     in_melee_range: bool,
@@ -29,10 +30,10 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
     melee_damage_bonus: [RepresentedMeleeDamageBonusLikeCpp; 2],
     armor_mitigation: combat::RepresentedArmorMitigationLikeCpp,
     outcome_facts: (
-        crate::session_rules::RepresentedMeleeAttackerFactsLikeCpp,
-        crate::session_rules::RepresentedMeleeVictimFactsLikeCpp,
+        wow_world_spell::melee_rules::RepresentedMeleeAttackerFactsLikeCpp,
+        wow_world_spell::melee_rules::RepresentedMeleeVictimFactsLikeCpp,
     ),
-    damage_taken: crate::session_rules::RepresentedMeleeDamageTakenLikeCpp,
+    damage_taken: wow_world_spell::melee_rules::RepresentedMeleeDamageTakenLikeCpp,
 ) -> Option<(
     Vec<combat::RepresentedMeleeSwingLikeCpp>,
     Option<Option<u8>>,
@@ -168,7 +169,7 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
 /// `&mut Player`, and whoever owns the tick resolves the same transition. The
 /// arithmetic — `max(1)` per swing, saturating health, `-1` unless the swing
 /// overkills — is unchanged.
-pub(in crate::session) fn apply_player_melee_to_canonical_player_like_cpp(
+pub(crate) fn apply_player_melee_to_canonical_player_like_cpp(
     victim: &mut wow_entities::Player,
     swings: &[combat::RepresentedMeleeSwingLikeCpp],
 ) -> Option<(Vec<(u32, i32)>, u8)> {
@@ -223,30 +224,30 @@ pub(crate) struct PlayerMeleeCreatureHitLikeCpp {
 /// (`Unit.cpp:1326-1334`) rolls `CalculateDamage`, passes it through
 /// `MeleeDamageBonusDone` and applies `CalcArmorReducedDamage`.
 #[allow(clippy::too_many_arguments)]
-pub(in crate::session) fn represented_white_swing_damage_like_cpp(
+pub(crate) fn represented_white_swing_damage_like_cpp(
     min_damage: f32,
     max_damage: f32,
     autoattack_damage_multiplier: f32,
     melee_damage_bonus: RepresentedMeleeDamageBonusLikeCpp,
     armor_mitigation: combat::RepresentedArmorMitigationLikeCpp,
     outcome_facts: (
-        crate::session_rules::RepresentedMeleeAttackerFactsLikeCpp,
-        crate::session_rules::RepresentedMeleeVictimFactsLikeCpp,
+        wow_world_spell::melee_rules::RepresentedMeleeAttackerFactsLikeCpp,
+        wow_world_spell::melee_rules::RepresentedMeleeVictimFactsLikeCpp,
     ),
-    damage_taken: crate::session_rules::RepresentedMeleeDamageTakenLikeCpp,
+    damage_taken: wow_world_spell::melee_rules::RepresentedMeleeDamageTakenLikeCpp,
     offhand: bool,
 ) -> combat::RepresentedMeleeSwingLikeCpp {
-    let rolled = crate::session_rules::white_swing_roll_like_cpp(min_damage, max_damage) as f32;
+    let rolled = wow_world_spell::melee_damage::white_swing_roll_like_cpp(min_damage, max_damage) as f32;
     let damage = (rolled + melee_damage_bonus.flat as f32)
         * melee_damage_bonus.pct
         * autoattack_damage_multiplier;
     // C++ `CalculateMeleeDamage` runs `MeleeDamageBonusTaken` between the done
     // bonus and the armour reduction (`Unit.cpp:1326-1341`).
-    let damage = crate::session_rules::melee_damage_taken_apply_like_cpp(
+    let damage = wow_world_spell::melee_rules::melee_damage_taken_apply_like_cpp(
         damage_taken,
         damage.max(1.0).round() as u32,
     );
-    let damage = crate::session_rules::armor_reduced_damage_like_cpp(
+    let damage = wow_world_spell::melee_damage::armor_reduced_damage_like_cpp(
         damage,
         armor_mitigation.attacker_level,
         armor_mitigation.victim_level,
@@ -261,19 +262,19 @@ pub(in crate::session) fn represented_white_swing_damage_like_cpp(
     // C++ rolls the attack table after mitigation and before the outcome
     // switch (`Unit.cpp:1341-1343`).
     let outcome_inputs =
-        crate::session_rules::melee_outcome_inputs_like_cpp(&outcome_facts.0, &outcome_facts.1);
+        wow_world_spell::melee_rules::melee_outcome_inputs_like_cpp(&outcome_facts.0, &outcome_facts.1);
     let outcome =
-        crate::session_rules::rolled_melee_outcome_like_cpp(&outcome_inputs[usize::from(offhand)]);
-    let (damage, blocked, original_damage) = crate::session_rules::melee_outcome_damage_like_cpp(
+        wow_world_spell::melee_rules::rolled_melee_outcome_like_cpp(&outcome_inputs[usize::from(offhand)]);
+    let (damage, blocked, original_damage) = wow_world_spell::melee_rules::melee_outcome_damage_like_cpp(
         outcome,
         damage,
         armor_mitigation.attacker_level,
         armor_mitigation.victim_level,
         outcome_facts.0.crit_damage_multiplier,
-        crate::session_rules::CREATURE_BLOCK_PERCENT_LIKE_CPP,
+        wow_world_spell::melee_rules::CREATURE_BLOCK_PERCENT_LIKE_CPP,
     );
     let (hit_info, victim_state) =
-        crate::session_rules::melee_outcome_presentation_like_cpp(outcome, offhand);
+        wow_world_spell::melee_rules::melee_outcome_presentation_like_cpp(outcome, offhand);
     combat::RepresentedMeleeSwingLikeCpp {
         damage,
         original_damage,
@@ -283,32 +284,7 @@ pub(in crate::session) fn represented_white_swing_damage_like_cpp(
     }
 }
 
-/// C++ `Unit::GetAPMultiplier(attType, normalized = false)` clamped by
-/// `Player::CalculateMinMaxDamage`: the equipped delay in seconds, or the
-/// two-second unarmed default, never below the 0.25 floor.
-pub(in crate::session) fn legacy_attack_power_multiplier_like_cpp(
-    base_attack_speed_ms: u32,
-) -> f32 {
-    if base_attack_speed_ms > 0 {
-        (base_attack_speed_ms as f32 / 1000.0).max(0.25)
-    } else {
-        2.0
-    }
-}
-
-/// C++ `Unit::MeleeDamageBonusDone`'s `(DoneFlatBenefit, DoneTotalMod)` pair the
-/// swing owner computes for one attack type.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(in crate::session) struct RepresentedMeleeDamageBonusLikeCpp {
-    pub flat: i32,
-    pub pct: f32,
-}
-
-impl RepresentedMeleeDamageBonusLikeCpp {
-    pub(in crate::session) const NONE: Self = Self { flat: 0, pct: 1.0 };
-}
-
-pub(in crate::session) fn is_within_melee_range_like_cpp(
+pub(crate) fn is_within_melee_range_like_cpp(
     attacker_position: Position,
     attacker_combat_reach: f32,
     target_position: Position,
@@ -319,7 +295,7 @@ pub(in crate::session) fn is_within_melee_range_like_cpp(
     attacker_position.distance(&target_position) <= melee_range
 }
 
-pub(in crate::session) fn is_within_target_boundary_radius_like_cpp(
+pub(crate) fn is_within_target_boundary_radius_like_cpp(
     attacker_position: Position,
     attacker_combat_reach: f32,
     target_position: Position,
@@ -332,7 +308,7 @@ pub(in crate::session) fn is_within_target_boundary_radius_like_cpp(
     attacker_position.distance(&target_position) < boundary_radius
 }
 
-pub(in crate::session) fn is_unit_facing_target_for_melee_like_cpp(
+pub(crate) fn is_unit_facing_target_for_melee_like_cpp(
     unit_position: Position,
     target_position: Position,
 ) -> bool {
@@ -358,13 +334,13 @@ pub(in crate::session) fn is_unit_facing_target_for_melee_like_cpp(
 /// interval, so calling it per tick would promote an O(combat units) map-wide
 /// sweep from 10 Hz to 100 Hz. #28 preserves the cadence instead of the call
 /// site.
-pub(in crate::session) const PLAYER_MELEE_COMBAT_REF_REVALIDATE_INTERVAL_MS: u32 = 100;
+pub(crate) const PLAYER_MELEE_COMBAT_REF_REVALIDATE_INTERVAL_MS: u32 = 100;
 
 /// Accumulated time per map key, so the sweep above keeps its cadence across
 /// ticks. Owned by the loop task, not by any map guard.
 #[derive(Debug, Default)]
 pub struct PlayerMeleePhaseStateLikeCpp {
-    pub(in crate::session) revalidate_accumulated_ms: HashMap<(u16, u32), u32>,
+    pub(crate) revalidate_accumulated_ms: HashMap<(u16, u32), u32>,
 }
 
 /// One attacker the tick owner will resolve this frame.
@@ -373,7 +349,7 @@ pub struct PlayerMeleePhaseStateLikeCpp {
 /// never needs a session to know who is swinging.
 #[derive(Clone, Debug)]
 pub struct PlayerMeleeAttackerSnapshotLikeCpp {
-    pub registration: crate::session::directory::PlayerRegistration,
+    pub registration: wow_world_core::session::directory::PlayerRegistration,
     pub player_guid: ObjectGuid,
     pub map_id: u16,
     pub instance_id: u32,
@@ -386,9 +362,9 @@ pub struct PlayerMeleeAttackerSnapshotLikeCpp {
 /// One resolved victim, carried between the collect and execute phases with no
 /// guard held.
 #[derive(Clone, Debug)]
-pub(in crate::session) struct PendingPlayerSwingLikeCpp {
-    pub(in crate::session) attacker: PlayerMeleeAttackerSnapshotLikeCpp,
-    pub(in crate::session) victim_guid: ObjectGuid,
+pub(crate) struct PendingPlayerSwingLikeCpp {
+    pub(crate) attacker: PlayerMeleeAttackerSnapshotLikeCpp,
+    pub(crate) victim_guid: ObjectGuid,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -405,5 +381,5 @@ pub struct PlayerMeleeTickOutcomeLikeCpp {
     pub victim_not_alive: usize,
     pub attacker_unavailable: usize,
     pub in_combat_reconciles: usize,
-    pub commands: Vec<crate::session::mailbox::ApplyPlayerMeleeResultLikeCppCommand>,
+    pub commands: Vec<wow_world_core::session::mailbox::ApplyPlayerMeleeResultLikeCppCommand>,
 }
