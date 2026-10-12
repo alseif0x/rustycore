@@ -1345,8 +1345,8 @@ order, through their new crate paths).
 ### Accounting
 
 - **`wow-world-application/src`: 51,225 → 47,743 lines (−3,482), 170 → 158
-  files.** 3,442 lines leave as files; `lib.rs` loses 35 net export lines and
-  `quest/` 5 (the enum and its re-exports).
+  files.** 3,440 lines leave as files; `lib.rs` loses 35 net export lines and
+  `quest/` 7 (the enum and its re-exports).
 - **Destinations.** `wow-world-entities/src` 10,588 → 12,808 (+2,220: 2,197
   moved, 23 `lib.rs` mounts/exports). `wow-world-instances/src` 1,268 → 2,524
   (+1,256: 1,245 moved, 11 `lib.rs` lines).
@@ -1360,9 +1360,9 @@ order, through their new crate paths).
   instance bodies already named; none of them depends on instances, so no
   cycle. `wow-world-application` −= `wow-instances` (only `instances/` used
   it). Neither domain crate depends on `wow-world-application` or `wow-world`.
-  `session-ownership-policy.json` is reprinted; the delta is the
-  `VehicleSessionHostLikeCpp` trait path (now `wow_world_entities`) and its
-  sort position.
+  `session-ownership-policy.json` is reprinted; the delta is only the
+  `vehicle_session` package/source path and the `VehicleSessionHostLikeCpp`
+  trait path (now `wow_world_entities`), with the resulting sort order.
 - **Ceilings.** None raised. Hotspot `session/mod.rs` tightened to the live
   values: production 42,633 → 42,629, total 184,683 → 184,679 (test unchanged).
   Physical `session/mod.rs` stays at 977.
