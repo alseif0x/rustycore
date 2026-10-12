@@ -106,7 +106,7 @@ impl WorldSession {
         state.set_player_bank_bag_slot_count_like_cpp(&mut hub, count)
     }
     pub(crate) fn represented_can_use_current_bank_like_cpp(&self) -> bool {
-        wow_world_application::can_use_current_bank_with_access_like_cpp(
+        wow_world_inventory::can_use_current_bank_with_access_like_cpp(
             &self.interaction,
             &crate::session::hub_ref(self).trainer_npc_interaction_access_like_cpp(),
             &self.core.owned_inventory_access_like_cpp(),

@@ -67,11 +67,6 @@ pub use inventory_swap::{
     item_dynamic_flags_changed_like_cpp, item_spell_charges_db_string,
     item_storage_mutable_persistence_like_cpp, plan_inventory_storage_move_like_cpp,
 };
-mod bank;
-pub use bank::{
-    BankHandlerHostLikeCpp, BankSlotFlagApplicationCxLikeCpp,
-    can_use_current_bank_with_access_like_cpp, register_bank_handlers_like_cpp,
-};
 mod aura_removal;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use aura_removal::AuraApplicationFixtureRefsLikeCpp;

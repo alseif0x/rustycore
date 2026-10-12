@@ -6,6 +6,7 @@
 mod appearance;
 mod auction_contracts;
 mod bank;
+mod bank_handlers;
 mod buyback;
 mod catalog;
 mod contracts;
@@ -53,6 +54,11 @@ pub mod loaded_item_support;
 pub use auction_contracts::{
     RepresentedAuctionPlaceBidLikeCpp, RepresentedAuctionRemoveItemLikeCpp,
     RepresentedAuctionReplicateRequestLikeCpp, RepresentedAuctionSellItemLikeCpp,
+};
+// The exact bank owner facade the handler-contract checker requires.
+pub use bank_handlers::{
+    BankHandlerHostLikeCpp, BankSlotFlagApplicationCxLikeCpp,
+    can_use_current_bank_with_access_like_cpp, register_bank_handlers_like_cpp,
 };
 pub use contracts::{
     AccountItemAppearanceSavePlanLikeCpp, AccountTransmogIllusionSavePlanLikeCpp,

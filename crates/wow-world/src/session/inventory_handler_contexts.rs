@@ -8,11 +8,11 @@ use wow_world_inventory::{
 
 use super::{SessionHandlerCatalogsLikeCpp, WorldSession};
 
-impl wow_world_application::BankHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
+impl wow_world_inventory::BankHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
     fn bank_slot_flag_handler_cx_like_cpp<'a>(
         &'a mut self,
         _catalogs: &'a SessionHandlerCatalogsLikeCpp,
-    ) -> wow_world_application::BankSlotFlagApplicationCxLikeCpp<'a> {
+    ) -> wow_world_inventory::BankSlotFlagApplicationCxLikeCpp<'a> {
         self.build_bank_slot_flag_handler_cx_like_cpp()
     }
 }
@@ -35,7 +35,7 @@ impl WorldSession {
     }
     pub(crate) fn build_bank_slot_flag_handler_cx_like_cpp(
         &mut self,
-    ) -> wow_world_application::BankSlotFlagApplicationCxLikeCpp<'_> {
+    ) -> wow_world_inventory::BankSlotFlagApplicationCxLikeCpp<'_> {
         let npc = self
             .core
             .npc_interaction_access_with_selected_refs_like_cpp(
@@ -58,7 +58,7 @@ impl WorldSession {
                     &self.fixtures.vehicles.taxi_mounted_like_cpp,
                 ),
             );
-        wow_world_application::BankSlotFlagApplicationCxLikeCpp::new(
+        wow_world_inventory::BankSlotFlagApplicationCxLikeCpp::new(
             &mut self.inventory,
             &self.interaction,
             npc,

@@ -114,7 +114,7 @@ async fn registered_item_text_query_does_not_read_fixture_item_after_same_guid_o
 #[test]
 fn bank_domain_registration_exact_set_preserves_slot_flag_metadata() {
     let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
-    wow_world_application::register_bank_handlers_like_cpp(&mut builder).unwrap();
+    wow_world_inventory::register_bank_handlers_like_cpp(&mut builder).unwrap();
     let registry = builder.build();
     assert_eq!(registry.len(), 1);
     let entry = registry.get(ClientOpcodes::ChangeBankBagSlotFlag).unwrap();
@@ -134,7 +134,7 @@ async fn registered_bank_slot_flag_preserves_self_admission_and_rejects_invalid_
 {
     let (mut session, send_rx, _canonical) = make_bank_slot_session(8);
     let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
-    wow_world_application::register_bank_handlers_like_cpp(&mut builder).unwrap();
+    wow_world_inventory::register_bank_handlers_like_cpp(&mut builder).unwrap();
     let registry = builder.build();
     let entry = *registry.get(ClientOpcodes::ChangeBankBagSlotFlag).unwrap();
     let catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
@@ -196,7 +196,7 @@ async fn registered_bank_slot_flag_rejects_stale_owner_without_fixture_fallback(
         .expect("replacement owner");
     assert_ne!(stale, replacement_handle);
     let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
-    wow_world_application::register_bank_handlers_like_cpp(&mut builder).unwrap();
+    wow_world_inventory::register_bank_handlers_like_cpp(&mut builder).unwrap();
     let registry = builder.build();
     let entry = *registry.get(ClientOpcodes::ChangeBankBagSlotFlag).unwrap();
     let catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();

@@ -3,6 +3,7 @@
 
 //! Bank flag admission, mutation and complete Player VALUES publication.
 
+use crate::InventoryState;
 use wow_constants::ClientOpcodes;
 use wow_handler::{
     DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry, PacketProcessing,
@@ -13,7 +14,6 @@ use wow_world_core::session::{
     NpcInteractionAccessLikeCpp, OwnedInventoryAccessLikeCpp, PacketPublicationAccessLikeCpp,
 };
 use wow_world_interaction::InteractionState;
-use wow_world_inventory::InventoryState;
 
 pub fn can_use_current_bank_with_access_like_cpp(
     interaction: &InteractionState,
