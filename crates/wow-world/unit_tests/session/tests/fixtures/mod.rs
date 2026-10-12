@@ -40,6 +40,9 @@ mod summon_fixtures;
 mod visibility_fixtures;
 
 pub(super) use crate::canonical_creature_fixtures::*;
+// #1363 slice 3b: the session-free single-phase drivers moved next to the
+// runtime they drive.
+pub(super) use wow_world_creature::canonical_creatures::*;
 pub(super) use canonical_creature_fixtures::*;
 pub(super) use creature_ai_fixtures::*;
 pub(super) use creature_fixtures::*;

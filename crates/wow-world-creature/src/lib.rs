@@ -179,3 +179,11 @@ pub use creature_movement_tick::{
 pub use creature_phase_store::AdmittedCanonicalCreatureStoreLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use creature_tick::creature_ai_can_attack_decision_like_cpp;
+// #1363 slice 3b: the canonical single-phase drivers that the runtime's own
+// scenario tests and the `wow-world` session tests share.
+#[cfg(any(test, feature = "test-fixtures"))]
+#[path = "../unit_tests/canonical_creatures.rs"]
+pub mod canonical_creatures;
+#[cfg(test)]
+#[path = "../unit_tests/scenarios.rs"]
+mod scenarios;

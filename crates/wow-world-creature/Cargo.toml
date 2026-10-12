@@ -24,5 +24,9 @@ wow-world-entities = { workspace = true }
 wow-world-spell = { workspace = true }
 wow-ai = { workspace = true }
 
+[dev-dependencies]
+# #1363 slice 3b: the session-free fixtures of the runtime scenario tests.
+wow-world-test-support = { workspace = true }
+
 [lints]
 workspace = true

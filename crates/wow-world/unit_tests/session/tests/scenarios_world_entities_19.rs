@@ -13,9 +13,6 @@ mod creature_movement_tick;
 // #1263 F6-8D1: the ported phase operations run on canonical ownership.
 #[path = "scenarios_world_entities_19/f6_8d1_canonical_execution.rs"]
 mod f6_8d1_canonical_execution;
-// #1263 F6-8D2: the admitted tick drives the canonical engine exactly once.
-#[path = "scenarios_world_entities_19/f6_8d2_admitted_execution.rs"]
-mod f6_8d2_admitted_execution;
 // #1263 F6-8E: the recorded legacy-bridge expectations of the F6-8D3a tests.
 #[path = "scenarios_world_entities_19/f6_8d3a_recorded_expectations.rs"]
 mod f6_8d3a_recorded_expectations;
