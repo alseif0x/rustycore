@@ -234,7 +234,6 @@ impl WorldSession {
                     prepare_represented_shared_loot_generation_like_cpp(loot, allowed_looters);
                 }
                 if self
-                    .loot_release_cx_like_cpp()
                     .sync_represented_gameobject_loot_to_canonical_like_cpp(
                         gameobject_guid,
                         player_guid,

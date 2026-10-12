@@ -46,6 +46,39 @@ impl WorldSession {
             .represented_owned_loot_authority_outcome_like_cpp(owner_guid)
     }
 
+    /// Owned by the App release context
+    /// (`wow-world-application/src/loot_release/authority.rs`); the shell only
+    /// lends the borrowed participants.
+    pub(super) fn prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        scope_player: ObjectGuid,
+    ) -> OwnedLootAuthorityLookupOutcomeLikeCpp {
+        self.loot_release_cx_like_cpp()
+            .prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
+                owner_guid,
+                scope_player,
+            )
+    }
+
+    pub(super) fn sync_represented_gameobject_loot_to_canonical_like_cpp(
+        &mut self,
+        gameobject_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+    ) -> Option<()> {
+        self.loot_release_cx_like_cpp()
+            .sync_represented_gameobject_loot_to_canonical_like_cpp(gameobject_guid, player_guid)
+    }
+
+    pub(super) fn sync_represented_creature_loot_to_canonical_like_cpp(
+        &mut self,
+        creature_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+    ) -> Option<()> {
+        self.loot_release_cx_like_cpp()
+            .sync_represented_creature_loot_to_canonical_like_cpp(creature_guid, player_guid)
+    }
+
     pub(super) fn refresh_owned_loot_summary_like_cpp(&mut self, owner_guid: ObjectGuid) {
         self.core
             .loot_release_owner_access_like_cpp()

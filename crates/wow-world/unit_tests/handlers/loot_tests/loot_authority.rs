@@ -93,7 +93,6 @@ pub(super) fn install_cached_test_creature_loot_authority_like_cpp(
         rebuild_represented_personal_loot_counts_preserving_consumed_like_cpp(loot);
     }
     session
-        .loot_release_cx_like_cpp()
         .sync_represented_creature_loot_to_canonical_like_cpp(owner_guid, scope_player)
         .expect("the kill-time loot fixture must install into its creature authority");
 }
@@ -136,7 +135,6 @@ pub(super) fn two_sessions_with_authoritative_creature_loot_like_cpp(
         .loot
         .insert_cached_loot_for_owner_like_cpp(owner_guid, loot);
     first
-        .loot_release_cx_like_cpp()
         .sync_represented_creature_loot_to_canonical_like_cpp(owner_guid, first_guid)
         .unwrap();
 

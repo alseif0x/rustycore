@@ -212,6 +212,24 @@ impl WorldSession {
         .await;
     }
 
+    /// C++ `Player::CompleteQuest` after an objective update, including the
+    /// tracking-event auto-reward; owned by the App quest-objective owner.
+    pub(crate) async fn complete_represented_quest_after_objective_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        quest: &wow_data::quest::QuestTemplate,
+        ignored_objective_id: u32,
+    ) -> bool {
+        self.quest_objective_operation_like_cpp(
+            item_guid_generator,
+            QuestObjectiveOperationLikeCpp::Complete {
+                quest,
+                ignored_objective_id,
+            },
+        )
+        .await
+    }
+
     /// Run one App quest-objective operation; only `Complete` reports a result.
     pub(crate) async fn quest_objective_operation_like_cpp(
         &mut self,

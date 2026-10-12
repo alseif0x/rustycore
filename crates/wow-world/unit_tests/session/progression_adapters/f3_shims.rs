@@ -89,7 +89,7 @@ impl WorldSession {
         // C++ QUEST_OBJECTIVE_PLAYERKILLS with ObjectID 0.
         self.quest_objective_operation_like_cpp(
             item_guid_generator,
-            crate::session::QuestObjectiveOperationLikeCpp::StoringValue {
+            crate::session::quest::QuestObjectiveOperationLikeCpp::StoringValue {
                 objective_type: QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP,
                 object_id: 0,
                 add_count: 1,
@@ -106,7 +106,7 @@ impl WorldSession {
         // C++ QUEST_OBJECTIVE_CRITERIA_TREE.
         self.quest_objective_operation_like_cpp(
             item_guid_generator,
-            crate::session::QuestObjectiveOperationLikeCpp::StoringFlag {
+            crate::session::quest::QuestObjectiveOperationLikeCpp::StoringFlag {
                 objective_type: 14,
                 object_id: criteria_tree_id as i32,
                 add_count: 1,

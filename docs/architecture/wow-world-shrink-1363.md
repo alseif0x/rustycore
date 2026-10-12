@@ -512,3 +512,98 @@ dependents' tests link) and `lib --profile test`.
   uncharged test trees). The hotspot ledger's production and total ceilings fall;
   its test ceilings rise by exactly the reclassified bodies (session +2,860,
   character +227, loot +50, quest +26), recorded as reviewed reclassification.
+
+## Slice 2 result (duplicates of an owner body)
+
+Branch `1363-s2-duplicates`, base `43cd093f7` (slice 1 merged). C++ reference
+`woltk-trinity-legacy` at `a5f8da2e`. Includes #1359.
+
+### How the inventory was built
+
+Every `fn` body in `crates/*/src` was extracted with brace matching (comments and
+string contents blanked) and normalised by removing whitespace. A `wow-world` body was a
+candidate when (a) its normalised text hashed equal to a body in another crate, (b) a
+body with the same name elsewhere scored ≥ 0.6 on a character diff, or (c) its
+6-token shingle set, with `self`/`hub`/`host`/`session` folded together, had a
+Jaccard index ≥ 0.3 with an owner body (≥ 15 lines). Each candidate was then diffed by
+hand. Most matches with the same name are adapters that only build the owner's
+borrowed context, or wrappers whose body is one call. They are glue, not
+duplicates, and are not listed. Only real second copies of an owner body are listed.
+
+### Retired onto the owner
+
+| `wow-world` copy (base) | Owner | Bodies | Parity evidence |
+|---|---|---|---|
+| `session/quest/objectives.rs` `update_represented_storing_value_quest_objective_progress_like_cpp` (161 lines) | `wow-world-application/src/quest/objectives.rs` `QuestObjectiveProgressCx::update_storing_value_quest_objective_progress_like_cpp` (now `pub`) | differ only in access path | The App body is the shell body ported onto the App owner by #1358. It runs the same filter, the same packets in the same order, `represented_can_complete_quest_after_objective_like_cpp`, completion, save and registry sync. Count updates go through `update_objective_count_like_cpp`, the same clamp and early return as the shell closure. Already live for currency/reputation since #1358. C++ `Player::UpdateQuestObjectiveProgress` `Player.cpp:16181`. |
+| `unit_tests/session/quest/objectives/f3_shims.rs` `update_represented_storing_flag_quest_objective_progress_like_cpp` (test tree, 113 lines) | `…::update_storing_flag_quest_objective_progress_like_cpp` (now `pub`) | differ only in access path | same argument as above, through `update_storing_flag_like_cpp` |
+| `handlers/quest/state.rs` `complete_represented_quest_like_cpp` + body of `complete_represented_quest_after_objective_with_generator_like_cpp`, and `session/quest/state.rs` `complete_represented_quest_status_like_cpp` (~95 lines) | `QuestObjectiveProgressCx::complete_represented_quest_after_objective_like_cpp` + `quest::completion::complete_represented_quest_status_like_cpp` | differ only in access path | Same eligibility check, INCOMPLETE→COMPLETE transition, evidence record with the same flags, `UpdateVisibleGameobjectsOrSpellClicks`, registry sync. The tracking-event reward calls the same `QuestRewardCx::reward_quest_with_generator_like_cpp` with the same arguments (item 0, ITEM, ITEM, CURRENCY), then the evidence mark and the recursive drain. C++ `Player::CompleteQuest` `Player.cpp:14496`. |
+| `session/social_requests.rs` `party_member_power_kind_from_u8_like_cpp` (30) | `wow_world_core::session::power_type_from_u8_like_cpp` | identical | byte-identical match arms |
+| `handlers/void_storage.rs` `void_withdrawal_initial_item_flags_like_cpp` (15) | `wow_world_application::vendor::vendor_stored_new_item_flags_like_cpp` | identical | byte-identical |
+| `session/quest_dialog.rs` and `handlers/quest/mod.rs` `quest_giver_creature_id_from_source_like_cpp` (9 + 3) | `wow_world_application::quest_giver_creature_id_from_source_like_cpp` | identical | byte-identical |
+| `handlers/loot/mod.rs` `ItemTemplateAddonLootMetadataLikeCpp` (+ its two flag consts), `player_class_mask_like_cpp`, `roll_chance_with_rate_like_cpp`, `referenced_loot_max_count_like_cpp` (~33) | `wow_world_lifecycle::loot_template_rules` | identical | byte-identical; `handlers/spell` already used these owners |
+| `handlers/loot/sources/gameobject_authority.rs` / `sources/creature.rs` / `claims.rs` sync and prepare bodies (`sync_represented_{gameobject,creature}_loot_to_canonical_like_cpp`, `prepare_owned_loot_authority_for_active_request_outcome_like_cpp`, 133 lines) | `wow-world-application/src/loot_release/authority.rs` (`LootReleaseCxLikeCpp`, now `pub`) | differ only in the fixture gate | The shell gate `represented_local_loot_fixture_allowed_like_cpp()` is `cfg!(test)`, and `loot_release_cx_like_cpp` passes `consumer_test = cfg!(test)`. The helpers the bodies call (`represented_loot_authority_pools_like_cpp`, `reconcile_represented_loot_cache_like_cpp`, the authority lookup, the summary refresh) were already one-call forwarders into the same App context. The shell keeps three one-call forwarders so its callers and tests are unchanged. |
+| `handlers/loot/sources/creature_conditions.rs` `load_represented_creature_loot_condition_rows_for_id_like_cpp` + `…_reference_rows_for_id_like_cpp` (76) | `SessionLifecycleState::load_loot_template_condition_rows_like_cpp` / `…_reference_rows_for_id_like_cpp` | differ only in log text | Same port call, row mapping, self-reference filter and normalisation. Only the warn message on a failed load changes ("failed to load represented creature loot conditions" → "failed to load loot template condition rows"). |
+| `session/inventory_handler_contexts.rs` `bank_interaction_access_like_cpp` (25) | `HubRef::trainer_npc_interaction_access_like_cpp` (wow-world-core) | identical | same selected catalogs and fixture references |
+| `session/world_entities/gameobject_state.rs` `represented_gameobject_go_state_for_viewer_like_cpp` (16) | `wow_world_application::represented_gameobject_go_state_for_viewer_like_cpp` (now `pub`) | identical apart from the viewer GUID parameter | the caller passes `self.player_guid()` |
+
+One World adapter remains: `session/quest/objective_drain.rs`
+`quest_objective_operation_like_cpp(QuestObjectiveOperationLikeCpp::{Drain, StoringValue,
+StoringFlag (cfg(test)), Complete})`. It builds the `QuestRewardCx` and
+`QuestObjectiveProgressCx` borrows once. Each operation runs only the App owner.
+
+**Behaviour.** No packet, write or order changes. The only observable difference is
+the warn text above, emitted when a loot-condition catalog load fails.
+
+### Duplicates kept (follow-ups)
+
+| `wow-world` body | Owner candidate | Why not retired here |
+|---|---|---|
+| `handlers/quest/source_items.rs` `store_quest_source_item_with_generator_like_cpp` (387) | App `quest/reward/item_storage.rs` `store_quest_reward_item_like_cpp` | Not the same operation. The source-item store (quest accept) commits `QuestItemGrant` immediately and runs the bound-objective preflight. The reward store defers the rows to the reward plan's closing `SaveToDB` (`Player.cpp:14867`). A merge needs a commit-timing contract per caller. |
+| `spell_acquisition/adapter.rs` `spell_acquisition_snapshot_like_cpp` (169) + `spell_state/spell.rs` `complete_represented_{player_spell_rows,spell_trait_definition_ids,override_spells}_like_cpp` + `profession.rs` `plan_primary_profession_capacity_like_cpp` | App `trainer_purchase/projection.rs` / `controller.rs` (`TrainerOfferCxLikeCpp`) | Same snapshot logic over different inputs. The shell takes `lifecycle` / future player-condition resolutions for effect learning. The App hardcodes the trainer case and reads fixtures through its own skill accessors. Unify by giving the App builder those parameters and constructing its context from the World adapter. |
+| `handlers/loot/fanout.rs` `represented_notify_loot_list_like_cpp` (51) | App `loot_release/mod.rs:298` | The **owner looks wrong**. C++ `Loot::NotifyLootList` (`Loot.cpp:637`) sends to every allowed looter. The shell does too: itself directly, others through the registry. The App copy sends the direct packet only when `player_guid == owner_guid`, and `send_loot_list_to_other_allowed_looters_like_cpp` skips the loot *owner* instead of the current player. Fix the App copy against C++ first, then retire the shell copy. |
+| `handlers/loot/mod.rs` `player_team_for_race_cpp_representable` (race list incl. 26/27/28/31/35/36/70) | `wow_world_lifecycle::loot_template_rules::player_team_for_race_cpp_representable` (2/5/6/8/9/10 only) | The bodies differ, and `handlers/spell` (item loot) already uses the lifecycle copy. One of the two is wrong for allied/neutral races. Decide against C++ `Player::TeamForRace` / `ChrRaces` before merging. |
+| `handlers/dungeon_finding/mod.rs` `lfg_is_disabled_map_type_for_player_like_cpp` (38) | `wow-world-instances` `is_disabled_map_type_for_player_like_cpp` | The LFG copy passes the dungeon difficulty (`player_map_difficulty: Some(..)`) and the instances copy passes `None`. C++ `LFGMgr.cpp:1754` → `DisableMgr::IsDisabledFor(DISABLE_TYPE_MAP, …, player)`. Add a difficulty parameter to the owner, then retire. |
+| `handlers/loot/requests/context.rs` / `generation.rs` / `handlers/spell/ops_2.rs` current-player quest-item checks (`has_incomplete_quest_objective_for_object_id`, `has_incomplete_quest_item_drop_for_item`, `player_quest_objective_progress`, ~240 lines in 6 copies) | wow-world-core `session/loot/{context,generation}.rs` `remote_*` over `RepresentedLootPlayerContext` | Same logic, but the current player reads `direct_inventory_item_count_like_cpp` (`None` → false). The remote form reads the snapshot count (missing → 0). Parity on unreadable inventory is unclear. C++ `Player::HasQuestForItem` `Player.cpp:16343`. |
+| `session/quest/rewards.rs` `quest_xp_reward_like_cpp` (25) | App `quest/reward/xp.rs:206` | The App reads the player level only when the quest level is 0. Likely equivalent, but routing needs a full `QuestRewardCx`. |
+
+### #1359
+
+- Shell storing-value/flag copies and the `handlers/quest/state.rs` completion copy
+  are retired onto the App owner (table above). Every caller listed in #1359 now reaches
+  the owner: `creature_kill.rs`, `world_entities/gameobject.rs`, and the
+  `progression_adapters` / `world_entities/creature` shims that slice 1 moved into the
+  test tree.
+- Tests:
+  - New focal drain `s2_quest_objective_owner_drain.rs`: recorded reputation and
+    currency events apply in order, store partial credit and publish the credits in
+    that order, with no completion.
+  - Tracking-event evidence assertion in
+    `reputation_min_tracking_event_objective_auto_rewards_like_cpp`: one completion
+    record, marked auto-rewarded by the App owner.
+  - Filtered NpcFlags content in the #1358 LootMoney regression: the refresh update
+    carries both NpcFlags words zeroed. The spell-click condition fails, so C++
+    `ViewerDependentValue<NpcFlagsTag>` (`ViewerDependentValues.h:291`) clears
+    `UNIT_NPC_FLAG_SPELLCLICK`.
+- **Not done:** narrowing `QuestRewardPlayerAccessLikeCpp::core_ref_like_cpp` (and the
+  `loot_release.rs:91` precedent) to a role-specific accessor. It was optional for this
+  slice and is left on #1359.
+
+### Accounting
+
+- `crates/wow-world/src`: −649 / +176 lines (net −473); `unit_tests` −156 / +144.
+- Destinations: `wow-world-application` +9 / −7 (net +2: three `pub` widenings and one
+  re-export). That is far inside the 15 % budget. `net_move.py check`: S = 490, G = 2, PASS.
+- Hotspot ledger: production and total ceilings tightened on `session/mod.rs`,
+  `handlers/loot/mod.rs` and `handlers/quest/mod.rs`, with test ceilings unchanged.
+  The new tests fit in the test lines freed by the retired flag shim. Physical ceilings
+  tightened: `session/mod.rs` 1009 → 1007, `unit_tests/handlers/loot_tests.rs` 927 → 925.
+  No ceiling is raised.
+- `wow-world` `dead_code`: 0 in the production lib, the lib with `test-fixtures` and
+  the lib test build. Production `unused_imports` 167 → 166.
+- `session-ownership-policy.json` is reprinted (`print-baseline`).
+  - Retired: 9 impl items (the copies above) and the shell storing-value body's two
+    direct-registry rows.
+  - Added: the adapter `quest_objective_operation_like_cpp`.
+  - Moved: the three loot forwarders (to `handlers/loot/claims.rs`) and
+    `complete_represented_quest_after_objective_with_generator_like_cpp` (to
+    `session/quest/objective_drain.rs`).

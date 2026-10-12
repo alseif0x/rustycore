@@ -165,8 +165,6 @@ const LOOT_ROLL_TIMEOUT_MS_LIKE_CPP: u32 = 60_000;
 const ROLL_ALL_TYPE_NO_DISENCHANT_LIKE_CPP: u8 = 0x07;
 const LOOT_MODE_DEFAULT_LIKE_CPP: u16 = 0x01;
 const LOOT_MODE_JUNK_FISH_LIKE_CPP: u16 = 0x8000;
-#[cfg(test)]
-use wow_world_lifecycle::loot_template_rules::ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP;
 use wow_world_lifecycle::loot_template_rules::{
     ItemTemplateAddonLootMetadataLikeCpp, player_class_mask_like_cpp,
     referenced_loot_max_count_like_cpp, roll_chance_with_rate_like_cpp,

@@ -102,7 +102,6 @@ impl WorldSession {
         )
         .await;
         if self
-            .loot_release_cx_like_cpp()
             .sync_represented_creature_loot_to_canonical_like_cpp(
                 creature_guid,
                 loot_scope_player_guid,
@@ -177,7 +176,6 @@ impl WorldSession {
                     );
                 }
                 if self
-                    .loot_release_cx_like_cpp()
                     .sync_represented_creature_loot_to_canonical_like_cpp(
                         creature_guid,
                         loot_owner_guid,

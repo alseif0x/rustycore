@@ -58,6 +58,14 @@ async fn reputation_min_tracking_event_objective_auto_rewards_like_cpp() {
     session.reputation_changed_like_cpp(faction_id, 100).await;
 
     assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
+    // #1359: the App owner marked this completion as tracking-event rewarded.
+    let updates = session
+        .quest_state
+        .represented_quest_complete_status_updates_like_cpp();
+    assert_eq!(updates.len(), 1);
+    assert!(
+        updates[0].quest_id == quest_id && !updates[0].tracking_event_auto_reward_unrepresented
+    );
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![

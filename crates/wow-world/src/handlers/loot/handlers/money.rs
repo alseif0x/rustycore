@@ -73,7 +73,6 @@ impl WorldSession {
 
         for (loot_guid, loot_obj, money) in &money_by_loot {
             let owned_authority = self
-                .loot_release_cx_like_cpp()
                 .prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
                     *loot_guid,
                     player_guid,

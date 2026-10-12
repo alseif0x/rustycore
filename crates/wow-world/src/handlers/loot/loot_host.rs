@@ -207,11 +207,11 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         owner_guid: ObjectGuid,
         scope_player: ObjectGuid,
     ) -> OwnedLootAuthorityLookupOutcomeLikeCpp {
-        self.loot_release_cx_like_cpp()
-            .prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
-                owner_guid,
-                scope_player,
-            )
+        WorldSession::prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
+            self,
+            owner_guid,
+            scope_player,
+        )
     }
 
     fn master_loot_reconcile_loot_cache_like_cpp(

@@ -857,7 +857,7 @@ async fn quest_confirm_accept_tracking_event_source_item_objective_auto_rewards_
     let quest_id = 7119;
     let source_item_id = 9204;
     let mut quest = quest_template_with_source_item(quest_id, source_item_id, 1, 0);
-    quest.flags |= QUEST_FLAGS_SHARABLE_LIKE_CPP | QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP;
+    quest.flags |= QUEST_FLAGS_SHARABLE_LIKE_CPP | 0x0000_0400; // C++ QUEST_FLAGS_TRACKING_EVENT.
     quest.objectives.push(QuestObjective {
         id: quest_id * 10,
         quest_id,

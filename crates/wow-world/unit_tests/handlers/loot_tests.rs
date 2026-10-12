@@ -12,16 +12,15 @@ use super::{
     CreatureLootReleaseCommandQueueOutcomeLikeCpp, GAMEOBJECT_TYPE_AREADAMAGE,
     GAMEOBJECT_TYPE_BINDER, GAMEOBJECT_TYPE_CHAIR, GAMEOBJECT_TYPE_DOOR,
     GAMEOBJECT_TYPE_GUILD_BANK, GAMEOBJECT_TYPE_QUESTGIVER, INVENTORY_SLOT_BAG_0,
-    INVENTORY_SLOT_ITEM_START, ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP,
-    ItemTemplateAddonLootMetadataLikeCpp, LOCK_KEY_SKILL_LIKE_CPP, LOCK_KEY_SPELL_LIKE_CPP,
-    LOOT_METHOD_ROUND_ROBIN_LIKE_CPP, LOOT_MODE_DEFAULT_LIKE_CPP, LOOT_MODE_JUNK_FISH_LIKE_CPP,
-    LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP, LOOT_SLOT_TYPE_ROLL_ONGOING_LIKE_CPP,
-    LootItemClaimCommitContextLikeCpp, LootStoreRandomProperties,
-    ROLL_ALL_TYPE_NO_DISENCHANT_LIKE_CPP, ROLL_FLAG_TYPE_NEED_LIKE_CPP, ROLL_VOTE_GREED_LIKE_CPP,
-    ROLL_VOTE_NEED_LIKE_CPP, ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP, ROLL_VOTE_NOT_VALID_LIKE_CPP,
-    ROLL_VOTE_PASS_LIKE_CPP, RepresentedLootPlayerContext, SPELL_EFFECT_OPEN_LOCK_LIKE_CPP,
-    StoredItemMoneyPersistenceOutcomeLikeCpp, StoredItemMoneyReconciliationLikeCpp,
-    SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    INVENTORY_SLOT_ITEM_START, ItemTemplateAddonLootMetadataLikeCpp, LOCK_KEY_SKILL_LIKE_CPP,
+    LOCK_KEY_SPELL_LIKE_CPP, LOOT_METHOD_ROUND_ROBIN_LIKE_CPP, LOOT_MODE_DEFAULT_LIKE_CPP,
+    LOOT_MODE_JUNK_FISH_LIKE_CPP, LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP,
+    LOOT_SLOT_TYPE_ROLL_ONGOING_LIKE_CPP, LootItemClaimCommitContextLikeCpp,
+    LootStoreRandomProperties, ROLL_ALL_TYPE_NO_DISENCHANT_LIKE_CPP, ROLL_FLAG_TYPE_NEED_LIKE_CPP,
+    ROLL_VOTE_GREED_LIKE_CPP, ROLL_VOTE_NEED_LIKE_CPP, ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP,
+    ROLL_VOTE_NOT_VALID_LIKE_CPP, ROLL_VOTE_PASS_LIKE_CPP, RepresentedLootPlayerContext,
+    SPELL_EFFECT_OPEN_LOCK_LIKE_CPP, StoredItemMoneyPersistenceOutcomeLikeCpp,
+    StoredItemMoneyReconciliationLikeCpp, SyncChestGameobjectStateAndRefreshLikeCppCommand,
     SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
     SyncGooberGameobjectStateAndRefreshLikeCppCommand,
     assign_represented_personal_loot_items_like_cpp,
@@ -123,6 +122,7 @@ use wow_persistence::{
     StoredItemMoneyPersistenceRequestLikeCpp,
 };
 use wow_world_application::direct_item_count_after_loot_release_like_cpp;
+use wow_world_lifecycle::loot_template_rules::ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP;
 #[path = "loot_tests/canonical_world.rs"]
 mod canonical_world;
 use canonical_world::{

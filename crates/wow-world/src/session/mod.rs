@@ -87,7 +87,6 @@ mod player_items;
 mod progression;
 mod publication;
 mod quest;
-pub(crate) use quest::QuestObjectiveOperationLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest::quest_reward_fixture_refs_like_cpp;
 pub mod registry;
@@ -470,13 +469,12 @@ pub(crate) use quest_dialog::ResetSeasonalQuestStatusOutcomeLikeCpp;
 pub(crate) use quest_dialog::ResetSeasonalQuestStatusReasonLikeCpp;
 pub(crate) use quest_dialog::SeasonalQuestStatusDbRowLikeCpp;
 use quest_dialog::active_state_from_db_like_cpp;
-use quest_dialog::react_state_from_db_like_cpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest_dialog::{
     RepresentedForceDeselectLikeCpp, RepresentedQuestRewardTitleLikeCpp,
 };
+use quest_dialog::{quest_giver_creature_id_from_source_like_cpp, react_state_from_db_like_cpp};
 use quest_dialog::{quest_has_represented_item_objective_like_cpp, quest_rewards_block_like_cpp};
-use wow_world_application::quest_giver_creature_id_from_source_like_cpp;
 mod quest_interaction;
 mod raid_profile_values;
 use raid_profile_values::player_cuf_profile_from_packet_like_cpp;
@@ -813,8 +811,6 @@ const QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP: u8 = 6;
 const QUEST_OBJECTIVE_MAX_REPUTATION_LIKE_CPP: u8 = 7;
 const QUEST_OBJECTIVE_MONEY_LIKE_CPP: u8 = 8;
 #[cfg(test)]
-const QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP: u8 = 9;
-#[cfg(test)]
 const QUEST_OBJECTIVE_HAVE_CURRENCY_LIKE_CPP: u8 = 16;
 #[cfg(test)]
 const QUEST_OBJECTIVE_OBTAIN_CURRENCY_LIKE_CPP: u8 = 17;
@@ -822,7 +818,6 @@ const QUEST_OBJECTIVE_OBTAIN_CURRENCY_LIKE_CPP: u8 = 17;
 const QUEST_OBJECTIVE_INCREASE_REPUTATION_LIKE_CPP: u8 = 18;
 #[cfg(test)]
 const DEFAULT_VISIBILITY_DISTANCE_YARDS_LIKE_CPP: u32 = 100;
-pub(crate) use wow_constants::quest::QUEST_OBJECTIVE_FLAG_KILL_PLAYERS_SAME_FACTION_LIKE_CPP;
 const QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP: u32 = 0x1;
 const QUEST_FLAGS_PLAYER_CAST_ACCEPT_LIKE_CPP: u32 = 0x0010_0000;
 const QUEST_FLAGS_EX_RECAST_ACCEPT_SPELL_ON_LOGIN_LIKE_CPP: u32 = 0x0000_1000;

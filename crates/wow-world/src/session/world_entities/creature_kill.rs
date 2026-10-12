@@ -259,7 +259,7 @@ impl WorldSession {
         // C++ QUEST_OBJECTIVE_MONSTER.
         self.quest_objective_operation_like_cpp(
             item_guid_generator,
-            crate::session::QuestObjectiveOperationLikeCpp::StoringValue {
+            crate::session::quest::QuestObjectiveOperationLikeCpp::StoringValue {
                 objective_type: 0,
                 object_id: creature_entry as i32,
                 add_count: 1,

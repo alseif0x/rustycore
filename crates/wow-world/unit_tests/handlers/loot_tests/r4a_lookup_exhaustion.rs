@@ -291,7 +291,6 @@ fn found_loot_authority_still_opens_and_records_the_view_like_cpp() {
     session.loot.set_active_loot_guid(owner_guid);
 
     let outcome = session
-        .loot_release_cx_like_cpp()
         .prepare_owned_loot_authority_for_active_request_outcome_like_cpp(owner_guid, player_guid);
     assert!(
         matches!(outcome, OwnedLootAuthorityLookupOutcomeLikeCpp::Found(_)),

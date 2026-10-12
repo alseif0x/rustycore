@@ -72,21 +72,20 @@ impl WorldSession {
         // attempt is rejected before any fallback, cache disposal or release,
         // so it publishes no packet and leaves the session loot view exactly
         // as it was; a genuinely absent authority keeps the path below.
-        let authority = match self
-            .loot_release_cx_like_cpp()
-            .prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
+        let authority =
+            match self.prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
                 owner_guid,
                 player_guid,
             ) {
-            OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable => return,
-            OwnedLootAuthorityLookupOutcomeLikeCpp::Absent => None,
-            OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => Some(authority),
-        }
-        .filter(|authority| {
-            authority
-                .snapshot_for_player_like_cpp(player_guid)
-                .is_some()
-        });
+                OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable => return,
+                OwnedLootAuthorityLookupOutcomeLikeCpp::Absent => None,
+                OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => Some(authority),
+            }
+            .filter(|authority| {
+                authority
+                    .snapshot_for_player_like_cpp(player_guid)
+                    .is_some()
+            });
         let authoritative_open = if let Some(authority) = authority.as_ref() {
             match authority.try_open_view_with_snapshot_like_cpp(
                 player_guid,

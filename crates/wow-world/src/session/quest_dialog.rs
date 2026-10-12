@@ -41,6 +41,7 @@ pub(in crate::session) fn represented_quest_menu_item_log_rows_like_cpp(
         .collect()
 }
 
+pub(in crate::session) use wow_world_application::quest_giver_creature_id_from_source_like_cpp;
 pub(in crate::session) use wow_world_core::session::react_state_from_db_like_cpp;
 
 pub(in crate::session) const fn active_state_from_db_like_cpp(value: u8) -> ActiveState {
