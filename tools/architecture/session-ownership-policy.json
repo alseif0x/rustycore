@@ -1601,12 +1601,6 @@
         },
         {
           "module": "crate::session",
-          "trait_path": "wow_world_application :: PlayerSaveHostLikeCpp",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::session",
           "trait_path": "wow_world_core :: session :: SessionHubHostLikeCpp",
           "cfg": [],
           "source_class": "production"
@@ -1614,6 +1608,12 @@
         {
           "module": "crate::session",
           "trait_path": "wow_world_entities :: VehicleSessionHostLikeCpp",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_lifecycle :: PlayerSaveHostLikeCpp",
           "cfg": [],
           "source_class": "production"
         },
@@ -44468,127 +44468,6 @@
         },
         {
           "module": "crate::session",
-          "trait_path": "wow_world_application :: PlayerSaveHostLikeCpp",
-          "kind": "method",
-          "name": "acknowledge_ownerless_player_save_like_cpp",
-          "visibility": "private",
-          "signature": "fn acknowledge_ownerless_player_save_like_cpp (& mut self , receipt : wow_world_application :: OwnerlessPlayerSaveReceiptLikeCpp , committed : & PlayerCharacterCommittedGroupsLikeCpp ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "wow_world_application :: PlayerSaveHostLikeCpp",
-          "kind": "method",
-          "name": "apply_pending_durable_item_loot_completions_for_player_save_like_cpp",
-          "visibility": "private",
-          "signature": "fn apply_pending_durable_item_loot_completions_for_player_save_like_cpp < 'a > (& 'a mut self , item_guid_generator : & 'a wow_core :: ObjectGuidGenerator ,) -> impl Future < Output = () > + Send",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "wow_world_application :: PlayerSaveHostLikeCpp",
-          "kind": "method",
-          "name": "capture_ownerless_player_save_like_cpp",
-          "visibility": "private",
-          "signature": "fn capture_ownerless_player_save_like_cpp (& mut self , now_unix_secs : i64 ,) -> Option < wow_world_application :: OwnerlessPlayerSaveCaptureLikeCpp >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "wow_world_application :: PlayerSaveHostLikeCpp",
-          "kind": "method",
-          "name": "drain_represented_quest_objective_progress_for_player_save_like_cpp",
-          "visibility": "private",
-          "signature": "fn drain_represented_quest_objective_progress_for_player_save_like_cpp < 'a > (& 'a mut self , item_guid_generator : & 'a wow_core :: ObjectGuidGenerator ,) -> impl Future < Output = () > + Send",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "wow_world_application :: PlayerSaveHostLikeCpp",
-          "kind": "method",
-          "name": "player_save_diagnostics_like_cpp",
-          "visibility": "private",
-          "signature": "fn player_save_diagnostics_like_cpp (& self ,) -> wow_world_application :: PlayerSaveDiagnosticsLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "wow_world_application :: PlayerSaveHostLikeCpp",
-          "kind": "method",
-          "name": "player_save_participants_like_cpp",
-          "visibility": "private",
-          "signature": "fn player_save_participants_like_cpp (& mut self ,) -> wow_world_application :: PlayerSaveParticipantsLikeCpp < '_ >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "wow_world_application :: PlayerSaveHostLikeCpp",
-          "kind": "method",
-          "name": "quarantine_player_save_like_cpp",
-          "visibility": "private",
-          "signature": "fn quarantine_player_save_like_cpp (& mut self , reason : & str)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "wow_world_application :: PlayerSaveHostLikeCpp",
-          "kind": "method",
-          "name": "reconcile_durable_loot_money_before_player_save_like_cpp",
-          "visibility": "private",
-          "signature": "fn reconcile_durable_loot_money_before_player_save_like_cpp (& mut self ,) -> impl Future < Output = bool > + Send",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "wow_world_application :: PlayerSaveHostLikeCpp",
-          "kind": "method",
-          "name": "sync_player_save_registry_state_like_cpp",
-          "visibility": "private",
-          "signature": "fn sync_player_save_registry_state_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
           "trait_path": "wow_world_core :: session :: SessionHubHostLikeCpp",
           "kind": "method",
           "name": "hub_mut",
@@ -44648,6 +44527,127 @@
           "name": "represented_player_is_same_raid_with_like_cpp",
           "visibility": "private",
           "signature": "fn represented_player_is_same_raid_with_like_cpp (& self , player_guid : wow_core :: ObjectGuid , owner_guid : wow_core :: ObjectGuid ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_lifecycle :: PlayerSaveHostLikeCpp",
+          "kind": "method",
+          "name": "acknowledge_ownerless_player_save_like_cpp",
+          "visibility": "private",
+          "signature": "fn acknowledge_ownerless_player_save_like_cpp (& mut self , receipt : wow_world_lifecycle :: OwnerlessPlayerSaveReceiptLikeCpp , committed : & PlayerCharacterCommittedGroupsLikeCpp ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_lifecycle :: PlayerSaveHostLikeCpp",
+          "kind": "method",
+          "name": "apply_pending_durable_item_loot_completions_for_player_save_like_cpp",
+          "visibility": "private",
+          "signature": "fn apply_pending_durable_item_loot_completions_for_player_save_like_cpp < 'a > (& 'a mut self , item_guid_generator : & 'a wow_core :: ObjectGuidGenerator ,) -> impl Future < Output = () > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_lifecycle :: PlayerSaveHostLikeCpp",
+          "kind": "method",
+          "name": "capture_ownerless_player_save_like_cpp",
+          "visibility": "private",
+          "signature": "fn capture_ownerless_player_save_like_cpp (& mut self , now_unix_secs : i64 ,) -> Option < wow_world_lifecycle :: OwnerlessPlayerSaveCaptureLikeCpp >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_lifecycle :: PlayerSaveHostLikeCpp",
+          "kind": "method",
+          "name": "drain_represented_quest_objective_progress_for_player_save_like_cpp",
+          "visibility": "private",
+          "signature": "fn drain_represented_quest_objective_progress_for_player_save_like_cpp < 'a > (& 'a mut self , item_guid_generator : & 'a wow_core :: ObjectGuidGenerator ,) -> impl Future < Output = () > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_lifecycle :: PlayerSaveHostLikeCpp",
+          "kind": "method",
+          "name": "player_save_diagnostics_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_save_diagnostics_like_cpp (& self ,) -> wow_world_lifecycle :: PlayerSaveDiagnosticsLikeCpp",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_lifecycle :: PlayerSaveHostLikeCpp",
+          "kind": "method",
+          "name": "player_save_participants_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_save_participants_like_cpp (& mut self ,) -> wow_world_lifecycle :: PlayerSaveParticipantsLikeCpp < '_ >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_lifecycle :: PlayerSaveHostLikeCpp",
+          "kind": "method",
+          "name": "quarantine_player_save_like_cpp",
+          "visibility": "private",
+          "signature": "fn quarantine_player_save_like_cpp (& mut self , reason : & str)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_lifecycle :: PlayerSaveHostLikeCpp",
+          "kind": "method",
+          "name": "reconcile_durable_loot_money_before_player_save_like_cpp",
+          "visibility": "private",
+          "signature": "fn reconcile_durable_loot_money_before_player_save_like_cpp (& mut self ,) -> impl Future < Output = bool > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_lifecycle :: PlayerSaveHostLikeCpp",
+          "kind": "method",
+          "name": "sync_player_save_registry_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn sync_player_save_registry_state_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
           "guards": [
