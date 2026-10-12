@@ -14,24 +14,33 @@
 //!
 //! Reference: C++ `WorldSession::HandleMovementOpcode`.
 
-use tracing::{info, trace, warn};
+use tracing::trace;
+#[cfg(test)]
+use tracing::{info, warn};
+#[cfg(test)]
 use wow_packet::ClientPacket;
 
 use wow_constants::ClientOpcodes;
+#[cfg(test)]
 use wow_constants::movement::MovementFlag;
+#[cfg(test)]
 use wow_constants::unit::UnitStandStateType;
 
+use crate::session::WorldSession;
+#[cfg(test)]
 use crate::session::{
     AreaTriggerCatalogsLikeCpp, MovementTransportMembershipLikeCpp, ProgressionCatalogsLikeCpp,
     SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP,
     SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP, SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP,
-    WorldSession,
 };
+#[cfg(test)]
 use crate::terrain::zone_and_area_for_position_like_cpp;
+#[cfg(test)]
 use wow_packet::ServerPacket;
+use wow_packet::packets::movement::MovementSpeedAck;
+#[cfg(test)]
 use wow_packet::packets::movement::{
     ClientPlayerMovement, MoveSplineDone, MoveUpdate, MovementAckMessage, MovementInfo,
-    MovementSpeedAck,
 };
 
 mod ops_1;

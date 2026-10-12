@@ -24,7 +24,7 @@ impl WorldSession {
             return false;
         }
 
-        self.sanitize_movement_info_represented_like_cpp(status);
+        wow_world_entities::sanitize_movement_info_represented_like_cpp(self, status);
         crate::session::hub_mut(self).set_player_movement_time_like_cpp(status.time);
         crate::session::hub_mut(self).set_player_movement_flags_like_cpp(status.flags);
         crate::session::hub_mut(self).set_player_position_like_cpp(status.position);
@@ -104,7 +104,7 @@ impl WorldSession {
             return false;
         }
 
-        self.sanitize_movement_info_represented_like_cpp(status);
+        wow_world_entities::sanitize_movement_info_represented_like_cpp(self, status);
         if status.guid != vehicle_base_guid {
             return false;
         }
@@ -139,52 +139,7 @@ impl WorldSession {
         true
     }
 
-    pub(crate) fn sanitize_movement_info_flags_represented_like_cpp(
-        &self,
-        movement_info: &mut wow_packet::packets::movement::MovementInfo,
-    ) -> MovementFlag {
-        self.sanitize_movement_info_represented_like_cpp(movement_info)
-            .removed_flags
-    }
 
-    pub(crate) fn sanitize_movement_info_represented_like_cpp(
-        &self,
-        movement_info: &mut wow_packet::packets::movement::MovementInfo,
-    ) -> wow_anticheat::ValidationResult {
-        wow_anticheat::validate_movement_info(
-            movement_info,
-            &wow_anticheat::PlayerState {
-                // Fixed-position is an authorization proof. An unresolved
-                // Player must not preserve a client-supplied ROOT flag.
-                mover_fixed_position_vehicle: crate::session::hub_ref(self)
-                    .resolved_mover_fixed_position_vehicle_like_cpp()
-                    == Some(true),
-                // An unresolved/stale Player may not authorize client-only
-                // movement flags. Treat the proof as absent for sanitization,
-                // without claiming that the canonical aura set is empty.
-                has_hover_aura: self.resolved_has_represented_aura_effect_like_cpp(
-                    RepresentedAuraEffectLikeCpp::Hover,
-                ) == Some(true),
-                has_water_walk_aura: self.resolved_has_represented_aura_effect_like_cpp(
-                    RepresentedAuraEffectLikeCpp::WaterWalk,
-                ) == Some(true),
-                has_ghost_aura: self.resolved_has_represented_aura_effect_like_cpp(
-                    RepresentedAuraEffectLikeCpp::Ghost,
-                ) == Some(true),
-                has_feather_fall_aura: self.resolved_has_represented_aura_effect_like_cpp(
-                    RepresentedAuraEffectLikeCpp::FeatherFall,
-                ) == Some(true),
-                has_fly_aura: self.resolved_has_represented_aura_effect_like_cpp(
-                    RepresentedAuraEffectLikeCpp::Fly,
-                ) == Some(true),
-                has_mounted_flight_speed_aura: self.resolved_has_represented_aura_effect_like_cpp(
-                    RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
-                ) == Some(true),
-                is_player_security: crate::session::hub_ref(self).player_is_game_master_like_cpp()
-                    != Some(true),
-            },
-        )
-    }
 
     pub(crate) fn remove_represented_at_login_flag_like_cpp(
         &mut self,

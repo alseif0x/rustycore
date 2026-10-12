@@ -335,14 +335,16 @@ pub(crate) use movement_protocol::RepresentedAreaZoneCriteriaLikeCpp;
 pub(crate) use movement_protocol::RepresentedTaxiFlightNodeLikeCpp;
 #[cfg(test)]
 pub(crate) use movement_protocol::TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP;
-pub(crate) use movement_protocol::{MoveSplineDoneTaxiActionLikeCpp, MovementAckEventLikeCpp};
+pub(crate) use movement_protocol::MoveSplineDoneTaxiActionLikeCpp;
+#[cfg(test)]
+pub(crate) use movement_protocol::MovementAckEventLikeCpp;
 #[cfg(test)]
 pub(crate) use movement_protocol::{MoveSplineDoneTaxiEventLikeCpp, MoveTeleportAckEventLikeCpp};
-pub(crate) use movement_protocol::{MoveTeleportAckActionLikeCpp, MovementSpeedAckActionLikeCpp};
+pub(crate) use movement_protocol::MoveTeleportAckActionLikeCpp;
+#[cfg(test)]
+pub(crate) use movement_protocol::{MovementSpeedAckActionLikeCpp, MovementSpeedAckEventLikeCpp};
 pub(crate) use movement_protocol::{MovementFallDamageEvent, MovementUnderMapDamageEvent};
-pub(crate) use movement_protocol::{
-    MovementSpeedAckEventLikeCpp, UnitMoveTypeLikeCpp, movement_speed_ack_move_type_like_cpp,
-};
+pub(crate) use movement_protocol::UnitMoveTypeLikeCpp;
 mod npc_interaction;
 mod persistence_capabilities;
 pub use persistence_capabilities::CatalogPersistenceCapabilitiesLikeCpp;
@@ -606,6 +608,7 @@ use wow_constants::creature::CreatureTypeFlags;
 #[cfg(test)]
 use wow_constants::item::ItemBonusType;
 use wow_constants::item::{CurrencyTypes, EnchantmentSlot, ItemFieldFlags2};
+#[cfg(test)]
 use wow_constants::movement::MovementFlag;
 use wow_constants::shared::DifficultyFlags;
 #[cfg(test)]
@@ -934,7 +937,7 @@ pub(crate) const MAX_BATTLE_PET_LEVEL_LIKE_CPP: u16 = 25;
 pub(crate) const SKILL_RIDING_LIKE_CPP: u16 = 762;
 pub use wow_world_core::session::{LIQUID_MAP_IN_WATER_LIKE_CPP, LIQUID_MAP_UNDER_WATER_LIKE_CPP};
 const DAMAGE_FIRE_LIKE_CPP: u8 = 5;
-use wow_world_core::session::{DAMAGE_FALL_LIKE_CPP, DAMAGE_FALL_TO_VOID_LIKE_CPP};
+use wow_world_core::session::DAMAGE_FALL_TO_VOID_LIKE_CPP;
 const SPELL_SHAPESHIFT_FORM_FLAG_STANCE_LIKE_CPP: i32 = 0x0000_0001;
 const CREATURE_MODEL_DATA_FLAG_CAN_MOUNT_WHILE_TRANSFORMED_AS_THIS_LIKE_CPP: u32 = 0x0000_0080;
 const CHR_RACES_FLAG_CAN_MOUNT_LIKE_CPP: i32 = 0x0000_0004;
@@ -976,11 +979,12 @@ pub(crate) use wow_world_core::session::AFLAG_NOCASTER_LIKE_CPP;
 
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP: u32 = 0x0000_0800;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP: u32 = 0x0000_0008;
-pub(crate) const SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP: u32 = 0x0000_0010;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_MOVING_OR_TURNING_LIKE_CPP: u32 =
     SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP | SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP;
-pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP: u32 = 0x0200_0000;
-pub(crate) const SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP: u32 = 0x0000_0020;
+pub(crate) use wow_world_entities::{
+    SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP, SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP,
+    SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP,
+};
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP: u32 = 0x0000_4000;
 pub(crate) use wow_world_core::session::PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP;
 
