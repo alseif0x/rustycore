@@ -1541,6 +1541,19 @@ battleground go to instances, not social.
   contains a test, so application stays at 58 library tests and no `#[test]`
   or `#[ignore]` is added or removed. The checker suite passes (453).
 
+### Validation
+
+`VALIDATION_V2_CARGO_JOBS=1 ./tools/validation-v2 final --base origin/3.4.3
+--architecture --timings` on the clean head `99610896d` (manifest
+`target/validation-v2/manifests/20261012T205553.455633Z-67897-final.json`,
+`dirty: false`): **passed, 1,015.9 s**. That is **over the 600 s budget**: the
+workspace `cargo check --all-targets` took 495.0 s and the four-crate library
+tests 237.4 s with one job, because the new social and instances edges
+invalidate every dependent of those two crates (application, wow-world,
+creature, world-server and their test targets). Tests: wow-world 3,686 passed
++ 1 ignored, application 58, instances 1, social 0, checker 453. Only this
+section was added after the run (documentation-only delta).
+
 ### Next
 
 A3 per the PR sequence, re-measured on the A2 merge.
