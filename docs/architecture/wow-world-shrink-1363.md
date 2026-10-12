@@ -1309,3 +1309,75 @@ After A7 the application is ~11k lines of orchestration.
   `wow-world-character`; inventory moves and vendor → `wow-world-inventory`;
   visibility, gossip and transports → `wow-world-visibility`,
   `wow-world-interaction` and `wow-world-entities`. Needs A4 and A5.
+
+## A1 result (vehicle, spell-click values, movement registrars, instances)
+
+Branch `1363-sA1-application-split`, base `465f3791a` (4b merged). Move-only
+(R2): every moved body is byte-identical; only `use` paths, `crate::` prefixes
+and crate-root re-exports change. Opcode registration and dispatch order are
+unchanged (`handler_composition.rs` calls the same registrars in the same
+order, through their new crate paths).
+
+### What moved
+
+- **To `wow-world-entities`** (2,197 file lines):
+  `movement_handlers.rs` (940) with `movement_handlers/tail_registrations.rs`
+  (236), `vehicle_handlers.rs` (529), `vehicle_session.rs` (357) and
+  `spell_click_values.rs` (135). The five-line
+  `RepresentedCanSeeSpellClickOutcomeLikeCpp` enum moves from
+  `quest/visibility.rs` into `spell_click_values.rs`, as the plan says; the
+  quest cluster now imports it from entities. The two
+  `wow_world_spell::spell_cast_adapter` re-exports that
+  `spell_click_values` carried are dropped there (entities does not depend on
+  `wow-world-spell`); their two `wow-world` users import them from
+  `wow_world_spell` directly.
+- **To `wow-world-instances`** (1,245 file lines): `instances/**` becomes
+  `crate::handlers` (`context`, `difficulty`, `lock_operations`, `raid_info`,
+  `registration`, and the registration test, which needs no `WorldSession`).
+- **Callers.** `wow-world` (`handler_composition.rs`, the movement and vehicle
+  host adapters, `session/instance_handler_contexts.rs`, `session/mod.rs`,
+  `session/spell_click_values.rs` and three unit-test shims) name the new crate
+  paths. The handler-contract checker's registrar package/module constants and
+  source mounts, and `handler-module-policy.json`, follow the four moved
+  registrars (`ApplicationInstances`, `ApplicationVehicle`,
+  `ApplicationMovement`, `ApplicationMovementTail`).
+
+### Accounting
+
+- **`wow-world-application/src`: 51,225 → 47,743 lines (−3,482), 170 → 158
+  files.** 3,442 lines leave as files; `lib.rs` loses 35 net export lines and
+  `quest/` 5 (the enum and its re-exports).
+- **Destinations.** `wow-world-entities/src` 10,588 → 12,808 (+2,220: 2,197
+  moved, 23 `lib.rs` mounts/exports). `wow-world-instances/src` 1,268 → 2,524
+  (+1,256: 1,245 moved, 11 `lib.rs` lines).
+- **`crates/wow-world/src`**: +35 −39 (rustfmt folds two vehicle match arms
+  onto one line each). `net_move.py check`: growth −6 within the 965.2
+  allowance, 0 duplicate bodies; destination roots unchanged (13).
+- **Policy (`dependency-policy.json`).** `wow-world-entities` += `wow-handler`
+  (the registrars build `PacketHandlerEntry`s). `wow-world-instances` +=
+  `wow-handler`, `wow-persistence`, `wow-world-lifecycle`,
+  `wow-world-social` and external `tracing`: exactly the crates the moved
+  instance bodies already named; none of them depends on instances, so no
+  cycle. `wow-world-application` −= `wow-instances` (only `instances/` used
+  it). Neither domain crate depends on `wow-world-application` or `wow-world`.
+  `session-ownership-policy.json` is reprinted; the delta is the
+  `VehicleSessionHostLikeCpp` trait path (now `wow_world_entities`) and its
+  sort position.
+- **Ceilings.** None raised. Hotspot `session/mod.rs` tightened to the live
+  values: production 42,633 → 42,629, total 184,683 → 184,679 (test unchanged).
+  Physical `session/mod.rs` stays at 977.
+- **Warnings.** `wow-world` `dead_code` is 0 in the production lib, the lib
+  with `test-fixtures` and the lib test build; `unused_imports` stays 152 and
+  161 in the first two, and no changed line in any build warns. The two
+  warnings inside the moved files (`tail_registrations.rs` `ClientPacket`,
+  `spell_click_values.rs` `ObjectGuid`/`Position`) are the same lines that
+  warned in `wow-world-application`.
+- **Tests.** The test-name multiset is unchanged: the one moved test
+  (`registrar_adds_entries_without_constructing_host_and_rejects_duplicate`)
+  runs in `wow-world-instances` (application 59 → 58, instances 0 → 1). No
+  `#[test]` or `#[ignore]` is added or removed elsewhere.
+
+### Next
+
+A2 (social registrars) per the PR sequence above. Re-measure application
+before it; the plan's line figures are from `465f3791a`.
