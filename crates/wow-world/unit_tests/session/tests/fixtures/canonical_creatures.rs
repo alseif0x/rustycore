@@ -59,7 +59,9 @@ pub(in crate::session::tests) fn run_session_player_melee_phase_for_test_like_cp
         session.set_state(SessionState::LoggedIn);
     }
     for command in outcome.commands.clone() {
-        session.handle_apply_player_melee_result_like_cpp_command_like_cpp(command);
+        wow_world_entities::handle_apply_player_melee_result_like_cpp_command_like_cpp(
+            session, command,
+        );
     }
     outcome
 }

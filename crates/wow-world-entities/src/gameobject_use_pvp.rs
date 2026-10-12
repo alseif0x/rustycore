@@ -13,7 +13,6 @@ use wow_core::ObjectGuid;
 use wow_data::battlemaster_list::{BATTLEGROUND_EY_LIKE_CPP, BATTLEGROUND_WS_LIKE_CPP};
 use wow_world_core::session::player_team_for_race_cpp;
 
-use crate::gameobject_use_host::GameObjectUseHostLikeCpp;
 use crate::gameobject_use_preamble::apply_represented_gameobject_post_use_spell_like_cpp;
 use crate::gameobject_use_preamble::apply_represented_gameobject_post_use_spell_like_cpp_internal;
 use crate::gameobject_use_support::apply_represented_new_flag_state_command_like_cpp;
@@ -24,13 +23,14 @@ use crate::gameobject_use_support::represented_player_battleground_type_id_or_re
 use crate::gameobject_use_support::represented_player_can_use_battleground_object_like_cpp;
 use crate::gameobject_use_support::represented_player_reject_battleground_object_vehicle_like_cpp;
 use crate::gameobject_use_support::send_represented_gameobject_delete_packets_like_cpp;
+use crate::world_entities_host::WorldEntitiesHostLikeCpp;
 use crate::{
     BattlegroundFlagDropClickTarget, RepresentedCapturePointStateLikeCpp,
     RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
     RepresentedNewFlagStateRequest,
 };
 
-pub fn use_represented_gameobject_capture_point_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn use_represented_gameobject_capture_point_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     gameobject_guid: ObjectGuid,
     player_guid: ObjectGuid,
@@ -176,7 +176,7 @@ pub fn use_represented_gameobject_capture_point_like_cpp<H: GameObjectUseHostLik
     true
 }
 
-pub fn use_represented_gameobject_flagstand_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn use_represented_gameobject_flagstand_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     gameobject_guid: ObjectGuid,
     player_guid: ObjectGuid,
@@ -227,7 +227,7 @@ pub fn use_represented_gameobject_flagstand_like_cpp<H: GameObjectUseHostLikeCpp
     true
 }
 
-pub fn use_represented_gameobject_flagdrop_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn use_represented_gameobject_flagdrop_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     gameobject_guid: ObjectGuid,
     player_guid: ObjectGuid,
@@ -304,7 +304,7 @@ pub fn use_represented_gameobject_flagdrop_like_cpp<H: GameObjectUseHostLikeCpp>
     true
 }
 
-pub fn use_represented_gameobject_new_flag_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn use_represented_gameobject_new_flag_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     gameobject_guid: ObjectGuid,
     player_guid: ObjectGuid,
@@ -362,7 +362,7 @@ pub fn use_represented_gameobject_new_flag_like_cpp<H: GameObjectUseHostLikeCpp>
     true
 }
 
-pub fn use_represented_gameobject_new_flag_drop_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn use_represented_gameobject_new_flag_drop_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     gameobject_guid: ObjectGuid,
     player_guid: ObjectGuid,

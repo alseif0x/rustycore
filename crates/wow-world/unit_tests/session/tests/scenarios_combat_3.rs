@@ -254,7 +254,7 @@ fn player_attack_does_not_create_combat_ref_when_can_begin_combat_fails_like_cpp
         })
         .unwrap();
 
-    session.start_player_attack_like_cpp(victim);
+    wow_world_entities::start_player_attack_like_cpp(&mut session, victim);
 
     let guard = canonical.lock().unwrap();
     let map = guard.find_map(571, 0).unwrap().map();
@@ -327,7 +327,7 @@ fn combat_tick_revalidates_and_purges_invalid_combat_refs_like_cpp() {
         0,
         -1,
     );
-    session.start_player_attack_like_cpp(victim);
+    wow_world_entities::start_player_attack_like_cpp(&mut session, victim);
     {
         let guard = canonical.lock().unwrap();
         let map = guard.find_map(571, 0).unwrap().map();

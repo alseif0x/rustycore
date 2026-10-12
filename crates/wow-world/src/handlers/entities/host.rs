@@ -8,16 +8,17 @@
 
 use std::future::Future;
 
+use wow_constants::unit::UnitPvpFlags;
 use wow_core::{ObjectGuid, Position};
 use wow_entities::{
     GameObjectLootSource, GatheringNodeUseSource, PhaseShift, PlayerResurrectionRequestLikeCpp,
 };
 use wow_world_core::session::{HubMut, HubRef, ItemValuationCatalogsLikeCpp};
-use wow_world_entities::{GameObjectUseHostLikeCpp, WorldEntitiesState};
+use wow_world_entities::{WorldEntitiesHostLikeCpp, WorldEntitiesState};
 
 use crate::session::WorldSession;
 
-impl GameObjectUseHostLikeCpp for WorldSession {
+impl WorldEntitiesHostLikeCpp for WorldSession {
     fn world_entities(&self) -> &WorldEntitiesState {
         &self.world_entities
     }
@@ -71,7 +72,47 @@ impl GameObjectUseHostLikeCpp for WorldSession {
             .record_represented_gameobject_template_quest_source_like_cpp(guid, template);
     }
 
+    fn canonical_player_duel_in_progress_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        opponent: ObjectGuid,
+    ) -> Option<bool> {
+        let (s, h) = crate::session::split_social_ref(self);
+        s.canonical_player_duel_in_progress_like_cpp(h, guid, opponent)
+    }
+
+    fn current_player_is_group_visible_for_owner_like_cpp(
+        &self,
+        current_group_guid: Option<u64>,
+        owner_guid: ObjectGuid,
+    ) -> bool {
+        let (s, h) = crate::session::split_social_ref(self);
+        s.current_player_is_group_visible_for_owner_like_cpp(h, current_group_guid, owner_guid)
+    }
+
+    fn attacker_pvp_flags_test_fallback_like_cpp(
+        &self,
+        player_guid: Option<ObjectGuid>,
+    ) -> Option<UnitPvpFlags> {
+        #[cfg(test)]
+        if self.core.player_handle_like_cpp.is_none() {
+            return player_guid.and_then(|guid| self.canonical_player_pvp_flags_like_cpp(guid));
+        }
+        let _ = player_guid;
+        None
+    }
+
     crate::session::forward_to_world_session_like_cpp! {
+        fn represented_unit_values_update_to_update_object_like_cpp(
+            &self, unit_guid: ObjectGuid, map_id: u16, values_update: &wow_entities::UnitValuesUpdate
+        ) -> Option<wow_packet::packets::update::UpdateObject>;
+        fn represented_player_phase_shift_like_cpp(&self) -> Option<PhaseShift>;
+        fn ensure_canonical_world_map_for_current_player_like_cpp(
+            &mut self
+        ) -> Option<wow_map::CreateMapDecision>;
+        fn current_player_is_in_group_guid_like_cpp(
+            &self, current_group_guid: Option<u64>, group_owner: ObjectGuid
+        ) -> bool;
         fn can_see_phase_shift_like_cpp(&self, other: &PhaseShift) -> bool;
         fn clear_represented_resurrection_request_like_cpp(&mut self) -> bool;
         fn despawn_represented_linked_trap_by_guid_like_cpp(&mut self, trap_guid: ObjectGuid);

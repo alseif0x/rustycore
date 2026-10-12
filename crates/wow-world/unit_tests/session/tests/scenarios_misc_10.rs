@@ -85,7 +85,7 @@ fn player_attack_from_vehicle_seat_requires_can_attack_flag_like_cpp() {
     ));
 
     assert!(session.set_player_vehicle_seat_state_like_cpp(Some(0), None));
-    session.start_player_attack_like_cpp(blocked_victim);
+    wow_world_entities::start_player_attack_like_cpp(&mut session, blocked_victim);
 
     {
         let guard = canonical.lock().unwrap();
@@ -111,7 +111,7 @@ fn player_attack_from_vehicle_seat_requires_can_attack_flag_like_cpp() {
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK),
         None,
     ));
-    session.start_player_attack_like_cpp(allowed_victim);
+    wow_world_entities::start_player_attack_like_cpp(&mut session, allowed_victim);
 
     let guard = canonical.lock().unwrap();
     let player_entity = guard

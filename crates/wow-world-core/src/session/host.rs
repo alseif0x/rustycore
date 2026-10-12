@@ -4,7 +4,8 @@
 //! operations it still needs in its own `*HostLikeCpp` trait, with this trait
 //! as supertrait, and the World session implements both. The provided methods
 //! forward exactly as the session's inherent methods of the same name do
-//! (`self.core.player_guid()`, `self.core.send_packet(..)`, `self.core.state`).
+//! (`self.core.player_guid()`, `self.core.send_packet(..)`,
+//! `self.core.send_raw_packet(..)`, `self.core.state`).
 
 use wow_core::ObjectGuid;
 
@@ -25,6 +26,9 @@ pub trait SessionHubHostLikeCpp {
     }
     fn send_packet<P: wow_packet::ServerPacket>(&self, pkt: &P) -> bool {
         self.core().send_packet(pkt)
+    }
+    fn send_raw_packet(&self, data: &[u8]) {
+        self.core().send_raw_packet(data)
     }
     fn state(&self) -> SessionState {
         self.core().state

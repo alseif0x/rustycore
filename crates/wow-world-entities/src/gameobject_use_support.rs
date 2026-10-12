@@ -13,11 +13,11 @@ use wow_constants::unit::UnitFlags;
 use wow_core::ObjectGuid;
 use wow_entities::RepresentedAuraEffectLikeCpp;
 
-use crate::gameobject_use_host::GameObjectUseHostLikeCpp;
+use crate::world_entities_host::WorldEntitiesHostLikeCpp;
 use crate::{RepresentedBattlegroundObjectUseRejection, RepresentedGameObjectUseEffect};
 use crate::{RepresentedCapturePointStateLikeCpp, RepresentedNewFlagStateRequest};
 
-pub fn represented_player_can_use_battleground_object_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn represented_player_can_use_battleground_object_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     gameobject_guid: ObjectGuid,
     player_guid: ObjectGuid,
@@ -97,7 +97,7 @@ pub fn represented_player_can_use_battleground_object_like_cpp<H: GameObjectUseH
     true
 }
 
-pub fn represented_player_battleground_type_id_or_reject_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn represented_player_battleground_type_id_or_reject_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     gameobject_guid: ObjectGuid,
     player_guid: ObjectGuid,
@@ -121,7 +121,7 @@ pub fn represented_player_battleground_type_id_or_reject_like_cpp<H: GameObjectU
 }
 
 pub fn represented_player_reject_battleground_object_vehicle_like_cpp<
-    H: GameObjectUseHostLikeCpp,
+    H: WorldEntitiesHostLikeCpp,
 >(
     host: &mut H,
     gameobject_guid: ObjectGuid,
@@ -147,7 +147,7 @@ pub fn represented_player_reject_battleground_object_vehicle_like_cpp<
     true
 }
 
-pub fn use_represented_gameobject_item_forge_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn use_represented_gameobject_item_forge_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     gameobject_guid: ObjectGuid,
     player_guid: ObjectGuid,
@@ -166,7 +166,7 @@ pub fn use_represented_gameobject_item_forge_like_cpp<H: GameObjectUseHostLikeCp
     true
 }
 
-pub fn represented_fishing_base_skill_level_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn represented_fishing_base_skill_level_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &H,
     gameobject_guid: ObjectGuid,
 ) -> Option<i32> {
@@ -180,7 +180,7 @@ pub fn represented_fishing_base_skill_level_like_cpp<H: GameObjectUseHostLikeCpp
 }
 
 pub fn remove_represented_stealth_or_invisibility_auras_by_type_like_cpp<
-    H: GameObjectUseHostLikeCpp,
+    H: WorldEntitiesHostLikeCpp,
 >(
     host: &mut H,
 ) -> Option<usize> {
@@ -203,7 +203,7 @@ pub fn remove_represented_stealth_or_invisibility_auras_by_type_like_cpp<
     Some(removed)
 }
 
-pub fn record_represented_capture_point_update_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn record_represented_capture_point_update_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     gameobject_guid: ObjectGuid,
     source: wow_entities::CapturePointUseSource,
@@ -241,7 +241,7 @@ pub fn record_represented_capture_point_update_like_cpp<H: GameObjectUseHostLike
         );
 }
 
-pub fn apply_represented_new_flag_state_command_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn apply_represented_new_flag_state_command_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     gameobject_guid: ObjectGuid,
     player_guid: Option<ObjectGuid>,
@@ -292,7 +292,7 @@ pub fn apply_represented_new_flag_state_command_like_cpp<H: GameObjectUseHostLik
 }
 
 #[allow(dead_code)]
-pub fn record_represented_gameobject_owner_guid_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn record_represented_gameobject_owner_guid_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     guid: ObjectGuid,
     owner_guid: ObjectGuid,
@@ -301,7 +301,7 @@ pub fn record_represented_gameobject_owner_guid_like_cpp<H: GameObjectUseHostLik
     state.record_represented_gameobject_owner_guid_like_cpp(&mut hub, guid, owner_guid)
 }
 
-pub fn represented_gameobject_is_friendly_to_player_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn represented_gameobject_is_friendly_to_player_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &H,
     gameobject_guid: ObjectGuid,
 ) -> Option<bool> {
@@ -309,7 +309,7 @@ pub fn represented_gameobject_is_friendly_to_player_like_cpp<H: GameObjectUseHos
     state.represented_gameobject_is_friendly_to_player_like_cpp(hub, gameobject_guid)
 }
 
-pub fn send_represented_gameobject_despawn_to_visible_set_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn send_represented_gameobject_despawn_to_visible_set_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     gameobject_guid: ObjectGuid,
 ) {
@@ -323,7 +323,7 @@ pub fn send_represented_gameobject_despawn_to_visible_set_like_cpp<H: GameObject
         .queue_visible_gameobject_packet_for_same_map_like_cpp(gameobject_guid, packet.to_bytes());
 }
 
-pub fn send_represented_gameobject_delete_packets_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn send_represented_gameobject_delete_packets_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     gameobject_guid: ObjectGuid,
 ) {

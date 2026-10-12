@@ -69,7 +69,7 @@ fn player_attack_creature_reputation_without_at_war_is_rejected_like_cpp() {
         .unwrap();
     register_test_creature(&mut session, manager, victim, 40);
 
-    session.start_player_attack_like_cpp(victim);
+    wow_world_entities::start_player_attack_like_cpp(&mut session, victim);
 
     let guard = canonical.lock().unwrap();
     let map = guard.find_map(0, 0).unwrap().map();
@@ -151,7 +151,7 @@ fn player_attack_creature_reputation_at_war_is_accepted_like_cpp() {
         .unwrap();
     register_test_creature(&mut session, manager, victim, 40);
 
-    session.start_player_attack_like_cpp(victim);
+    wow_world_entities::start_player_attack_like_cpp(&mut session, victim);
 
     let guard = canonical.lock().unwrap();
     let map = guard.find_map(0, 0).unwrap().map();
@@ -229,7 +229,7 @@ fn player_attack_creature_reputation_uses_faction_template_store_like_cpp() {
         .unwrap();
     register_test_creature(&mut session, manager, victim, 40);
 
-    session.start_player_attack_like_cpp(victim);
+    wow_world_entities::start_player_attack_like_cpp(&mut session, victim);
 
     let guard = canonical.lock().unwrap();
     let map = guard.find_map(0, 0).unwrap().map();
@@ -306,7 +306,7 @@ fn player_attack_creature_non_reputation_faction_does_not_require_at_war_like_cp
     let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
     register_test_creature(&mut session, manager, victim, 40);
 
-    session.start_player_attack_like_cpp(victim);
+    wow_world_entities::start_player_attack_like_cpp(&mut session, victim);
 
     let guard = canonical.lock().unwrap();
     let map = guard.find_map(0, 0).unwrap().map();
@@ -386,7 +386,7 @@ fn player_attack_evading_typed_creature_is_rejected_like_cpp() {
         })
         .unwrap();
 
-    session.start_player_attack_like_cpp(victim);
+    wow_world_entities::start_player_attack_like_cpp(&mut session, victim);
 
     let guard = canonical.lock().unwrap();
     let map = guard.find_map(571, 0).unwrap().map();

@@ -69,7 +69,7 @@ fn player_attack_accepts_typed_player_victim_with_pvp_flag_snapshot_like_cpp() {
         .insert_map_object_record(wow_entities::MapObjectRecord::new_player(victim_player).unwrap())
         .unwrap();
 
-    session.start_player_attack_like_cpp(victim);
+    wow_world_entities::start_player_attack_like_cpp(&mut session, victim);
     {
         let guard = canonical.lock().unwrap();
         let map = guard.find_map(571, 0).unwrap().map();
@@ -185,13 +185,13 @@ fn player_attack_can_always_see_unit_being_moved_like_cpp() {
         .unwrap();
 
     assert_eq!(
-        session.start_player_attack_like_cpp(controlled),
+        wow_world_entities::start_player_attack_like_cpp(&mut session, controlled),
         PlayerAttackStartLikeCppResult::Rejected
     );
 
     session.set_player_moved_unit_guid_like_cpp(controlled);
     assert_eq!(
-        session.start_player_attack_like_cpp(controlled),
+        wow_world_entities::start_player_attack_like_cpp(&mut session, controlled),
         PlayerAttackStartLikeCppResult::Accepted {
             send_attack_start: true
         }

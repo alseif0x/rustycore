@@ -620,7 +620,7 @@ fn player_attack_uses_stalked_aura_as_always_detectable_like_cpp() {
         .unwrap();
 
     assert_eq!(
-        session.start_player_attack_like_cpp(victim),
+        wow_world_entities::start_player_attack_like_cpp(&mut session, victim),
         PlayerAttackStartLikeCppResult::Rejected
     );
 
@@ -637,7 +637,7 @@ fn player_attack_uses_stalked_aura_as_always_detectable_like_cpp() {
         })
         .unwrap();
     assert_eq!(
-        session.start_player_attack_like_cpp(victim),
+        wow_world_entities::start_player_attack_like_cpp(&mut session, victim),
         PlayerAttackStartLikeCppResult::Accepted {
             send_attack_start: true
         }

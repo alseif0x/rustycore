@@ -810,14 +810,14 @@ fn player_attack_rejects_player_loading_visibility_like_cpp() {
 
     victim_session.set_player_loading(Some(victim));
     assert_eq!(
-        attacker_session.start_player_attack_like_cpp(victim),
+        wow_world_entities::start_player_attack_like_cpp(&mut attacker_session, victim),
         PlayerAttackStartLikeCppResult::Rejected
     );
     assert_eq!(attacker_session.fixtures.combat.combat_target, None);
 
     victim_session.set_player_loading(None);
     assert_eq!(
-        attacker_session.start_player_attack_like_cpp(victim),
+        wow_world_entities::start_player_attack_like_cpp(&mut attacker_session, victim),
         PlayerAttackStartLikeCppResult::Accepted {
             send_attack_start: true
         }

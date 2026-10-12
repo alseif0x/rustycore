@@ -328,7 +328,7 @@ fn player_attack_uses_private_summon_group_owner_like_cpp() {
     assert!(session.set_canonical_creature_private_object_owner_like_cpp(summon, private_owner));
 
     assert_eq!(
-        session.start_player_attack_like_cpp(summon),
+        wow_world_entities::start_player_attack_like_cpp(&mut session, summon),
         PlayerAttackStartLikeCppResult::Rejected
     );
 
@@ -340,7 +340,7 @@ fn player_attack_uses_private_summon_group_owner_like_cpp() {
         private_owner
     );
     assert_eq!(
-        session.start_player_attack_like_cpp(summon),
+        wow_world_entities::start_player_attack_like_cpp(&mut session, summon),
         PlayerAttackStartLikeCppResult::Accepted {
             send_attack_start: true
         }
@@ -526,7 +526,7 @@ fn player_attack_accepts_in_progress_duel_before_sanctuary_like_cpp() {
         .insert_map_object_record(wow_entities::MapObjectRecord::new_player(victim_player).unwrap())
         .unwrap();
 
-    session.start_player_attack_like_cpp(victim);
+    wow_world_entities::start_player_attack_like_cpp(&mut session, victim);
     {
         let guard = canonical.lock().unwrap();
         let map = guard.find_map(571, 0).unwrap().map();

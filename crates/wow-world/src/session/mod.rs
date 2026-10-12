@@ -34,6 +34,7 @@ mod trade_handler_contexts;
 mod travel_handler_contexts;
 mod vehicle_handler_contexts;
 pub(crate) use combat::CR_ARMOR_PENETRATION_LIKE_CPP;
+#[cfg(test)]
 pub(crate) use combat::PlayerAttackStartLikeCppResult;
 mod account_data_handler_contexts;
 mod effect_learning;
@@ -818,7 +819,8 @@ pub(crate) use wow_world_application::spell_click_values::MAX_GAMEOBJECT_SLOT_LI
 #[cfg(test)]
 pub(crate) use wow_world_application::spell_click_values::SPELL_CAST_SOURCE_NORMAL_LIKE_CPP;
 pub(crate) use wow_world_core::session::MAX_SPECIALIZATIONS_LIKE_CPP;
-const PLAYER_FLAGS_UBER_LIKE_CPP: u32 = 0x0008_0000;
+#[cfg(test)]
+use wow_world_entities::PLAYER_FLAGS_UBER_LIKE_CPP;
 const PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP: u32 = 0x0000_0001;
 pub(crate) use wow_world_core::session::PLAYER_FLAGS_RESTING_LIKE_CPP;
 pub(crate) use wow_world_core::session::{

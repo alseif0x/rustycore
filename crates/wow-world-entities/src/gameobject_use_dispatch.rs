@@ -27,7 +27,6 @@ use wow_world_core::session::{
     ItemValuationCatalogsLikeCpp, ObjectMgrCatalogsLikeCpp, RepresentedGameObjectAccessLikeCpp,
 };
 
-use crate::gameobject_use_host::GameObjectUseHostLikeCpp;
 use crate::gameobject_use_kinds::use_represented_gameobject_barber_chair_like_cpp;
 use crate::gameobject_use_kinds::use_represented_gameobject_camera_like_cpp;
 use crate::gameobject_use_kinds::use_represented_gameobject_chair_like_cpp;
@@ -47,11 +46,12 @@ use crate::gameobject_use_scripted::use_represented_gameobject_goober_state_like
 use crate::gameobject_use_scripted::use_represented_gameobject_meeting_stone_like_cpp;
 use crate::gameobject_use_scripted::use_represented_gameobject_ritual_like_cpp;
 use crate::gameobject_use_support::use_represented_gameobject_item_forge_like_cpp;
+use crate::world_entities_host::WorldEntitiesHostLikeCpp;
 use crate::{RepresentedGameObjectUseEffect, represented_gameobject_interaction_distance_like_cpp};
 
 /// CMSG_GAME_OBJ_USE — player interacts with a world game object.
 /// C++ ref: `GameObject::Use` dispatches by `GameObjectTemplate::type`.
-pub async fn handle_game_obj_use_with_catalogs_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub async fn handle_game_obj_use_with_catalogs_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     catalogs: &ObjectMgrCatalogsLikeCpp,
     item_guid_generator: &wow_core::ObjectGuidGenerator,
@@ -495,7 +495,7 @@ pub async fn handle_game_obj_use_with_catalogs_like_cpp<H: GameObjectUseHostLike
 /// CMSG_GAME_OBJ_REPORT_USE — client reports a game object use event.
 /// C++ ref: `WorldSession::HandleGameobjectReportUse`.
 
-pub fn represented_gameobject_gossip_can_interact_with_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn represented_gameobject_gossip_can_interact_with_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &H,
     gameobject_guid: ObjectGuid,
 ) -> Option<RepresentedGameObjectAccessLikeCpp> {

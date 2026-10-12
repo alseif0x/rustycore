@@ -10,15 +10,15 @@ use wow_constants::unit::UnitFlags;
 use wow_core::ObjectGuid;
 use wow_world_core::session::RepresentedGameObjectAccessLikeCpp;
 
-use crate::gameobject_use_host::GameObjectUseHostLikeCpp;
 use crate::gameobject_use_support::apply_represented_new_flag_state_command_like_cpp;
 use crate::gameobject_use_support::send_represented_gameobject_despawn_to_visible_set_like_cpp;
+use crate::world_entities_host::WorldEntitiesHostLikeCpp;
 use crate::{
     RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
     RepresentedNewFlagStateRequest,
 };
 
-pub fn represented_gameobject_can_interact_with_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn represented_gameobject_can_interact_with_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &H,
     guid: ObjectGuid,
     interaction_distance: f32,
@@ -27,7 +27,7 @@ pub fn represented_gameobject_can_interact_with_like_cpp<H: GameObjectUseHostLik
     state.represented_gameobject_can_interact_with_like_cpp(hub, guid, interaction_distance)
 }
 
-pub fn represented_gameobject_use_allowed_by_mover_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn represented_gameobject_use_allowed_by_mover_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &H,
     gameobject_usable_mounted: bool,
 ) -> bool {
@@ -35,7 +35,7 @@ pub fn represented_gameobject_use_allowed_by_mover_like_cpp<H: GameObjectUseHost
     state.represented_gameobject_use_allowed_by_mover_like_cpp(hub, gameobject_usable_mounted)
 }
 
-pub fn apply_represented_gameobject_player_use_preamble_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn apply_represented_gameobject_player_use_preamble_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     gameobject_guid: ObjectGuid,
     player_guid: ObjectGuid,
@@ -95,7 +95,7 @@ pub fn apply_represented_gameobject_player_use_preamble_like_cpp<H: GameObjectUs
     !handled
 }
 
-pub fn apply_represented_gameobject_post_use_spell_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn apply_represented_gameobject_post_use_spell_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     gameobject_guid: ObjectGuid,
     player_guid: ObjectGuid,
@@ -121,7 +121,7 @@ pub fn apply_represented_gameobject_post_use_spell_like_cpp<H: GameObjectUseHost
 }
 
 pub fn apply_represented_gameobject_post_use_spell_like_cpp_internal<
-    H: GameObjectUseHostLikeCpp,
+    H: WorldEntitiesHostLikeCpp,
 >(
     host: &mut H,
     gameobject_guid: ObjectGuid,
@@ -206,7 +206,7 @@ pub fn apply_represented_gameobject_post_use_spell_like_cpp_internal<
 
 #[allow(dead_code)]
 pub fn apply_represented_gameobject_goober_just_deactivated_like_cpp<
-    H: GameObjectUseHostLikeCpp,
+    H: WorldEntitiesHostLikeCpp,
 >(
     host: &mut H,
     gameobject_guid: ObjectGuid,

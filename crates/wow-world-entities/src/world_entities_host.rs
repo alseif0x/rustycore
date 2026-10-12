@@ -14,6 +14,7 @@
 
 use std::future::Future;
 
+use wow_constants::unit::UnitPvpFlags;
 use wow_core::{ObjectGuid, Position};
 use wow_entities::{
     GameObjectLootSource, GatheringNodeUseSource, PhaseShift, PlayerResurrectionRequestLikeCpp,
@@ -24,7 +25,7 @@ use wow_world_core::session::{
 
 use crate::WorldEntitiesState;
 
-pub trait GameObjectUseHostLikeCpp: SessionHubHostLikeCpp {
+pub trait WorldEntitiesHostLikeCpp: SessionHubHostLikeCpp {
     fn world_entities(&self) -> &WorldEntitiesState;
     fn world_entities_mut(&mut self) -> &mut WorldEntitiesState;
     fn split_world_entities_ref(&self) -> (&WorldEntitiesState, HubRef<'_>);
@@ -126,4 +127,33 @@ pub trait GameObjectUseHostLikeCpp: SessionHubHostLikeCpp {
         guid: ObjectGuid,
         template: &wow_entities::GameObjectTemplateData,
     );
+    fn represented_unit_values_update_to_update_object_like_cpp(
+        &self,
+        unit_guid: ObjectGuid,
+        map_id: u16,
+        values_update: &wow_entities::UnitValuesUpdate,
+    ) -> Option<wow_packet::packets::update::UpdateObject>;
+    fn represented_player_phase_shift_like_cpp(&self) -> Option<PhaseShift>;
+    fn ensure_canonical_world_map_for_current_player_like_cpp(
+        &mut self,
+    ) -> Option<wow_map::CreateMapDecision>;
+    fn current_player_is_in_group_guid_like_cpp(
+        &self,
+        current_group_guid: Option<u64>,
+        group_owner: ObjectGuid,
+    ) -> bool;
+    fn canonical_player_duel_in_progress_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        opponent: ObjectGuid,
+    ) -> Option<bool>;
+    fn current_player_is_group_visible_for_owner_like_cpp(
+        &self,
+        current_group_guid: Option<u64>,
+        owner_guid: ObjectGuid,
+    ) -> bool;
+    fn attacker_pvp_flags_test_fallback_like_cpp(
+        &self,
+        player_guid: Option<ObjectGuid>,
+    ) -> Option<UnitPvpFlags>;
 }

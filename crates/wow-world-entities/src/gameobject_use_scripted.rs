@@ -12,13 +12,13 @@ use std::time::{Duration, Instant};
 use rand::seq::SliceRandom;
 use wow_core::{ObjectGuid, Position};
 
-use crate::gameobject_use_host::GameObjectUseHostLikeCpp;
 use crate::gameobject_use_preamble::apply_represented_gameobject_post_use_spell_like_cpp;
 use crate::gameobject_use_support::record_represented_gameobject_owner_guid_like_cpp;
 use crate::gameobject_use_support::represented_fishing_base_skill_level_like_cpp;
+use crate::world_entities_host::WorldEntitiesHostLikeCpp;
 use crate::{RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect};
 
-pub fn use_represented_gameobject_ritual_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn use_represented_gameobject_ritual_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     gameobject_guid: ObjectGuid,
     player_guid: ObjectGuid,
@@ -200,7 +200,7 @@ pub fn use_represented_gameobject_ritual_like_cpp<H: GameObjectUseHostLikeCpp>(
     true
 }
 
-pub fn use_represented_gameobject_meeting_stone_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn use_represented_gameobject_meeting_stone_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     gameobject_guid: ObjectGuid,
     player_guid: ObjectGuid,
@@ -297,7 +297,7 @@ pub fn use_represented_gameobject_meeting_stone_like_cpp<H: GameObjectUseHostLik
     true
 }
 
-pub fn use_represented_gameobject_fishing_node_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn use_represented_gameobject_fishing_node_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     gameobject_guid: ObjectGuid,
     player_guid: ObjectGuid,
@@ -463,7 +463,7 @@ pub fn use_represented_gameobject_fishing_node_like_cpp<H: GameObjectUseHostLike
 }
 
 pub async fn use_represented_gameobject_goober_preamble_with_generator_like_cpp<
-    H: GameObjectUseHostLikeCpp,
+    H: WorldEntitiesHostLikeCpp,
 >(
     host: &mut H,
     item_guid_generator: &wow_core::ObjectGuidGenerator,
@@ -584,7 +584,7 @@ pub async fn use_represented_gameobject_goober_preamble_with_generator_like_cpp<
     true
 }
 
-pub fn use_represented_gameobject_goober_state_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn use_represented_gameobject_goober_state_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     gameobject_guid: ObjectGuid,
     player_guid: ObjectGuid,

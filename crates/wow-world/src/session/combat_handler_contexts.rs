@@ -25,6 +25,6 @@ impl CombatHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
     }
 
     fn handle_attack_swing<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { WorldSession::handle_attack_swing(self, pkt).await })
+        Box::pin(async move { wow_world_entities::handle_attack_swing(self, pkt).await })
     }
 }

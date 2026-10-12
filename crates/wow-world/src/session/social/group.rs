@@ -6,7 +6,7 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::session) fn current_player_is_in_group_guid_like_cpp(
+    pub(crate) fn current_player_is_in_group_guid_like_cpp(
         &self,
         current_group_guid: Option<u64>,
         group_owner: ObjectGuid,

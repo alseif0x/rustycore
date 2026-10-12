@@ -108,7 +108,7 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
         0,
         -1,
     );
-    session.start_player_attack_like_cpp(selected_guid);
+    wow_world_entities::start_player_attack_like_cpp(&mut session, selected_guid);
     session
         .mutate_world_creature(selected_guid, |creature| {
             creature.enter_combat(player_guid);

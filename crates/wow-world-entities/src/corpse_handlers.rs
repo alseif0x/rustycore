@@ -16,11 +16,11 @@ use wow_packet::packets::misc::{
     ReclaimCorpse, RepopRequest, RequestCemeteryListResponse, ResurrectResponse,
 };
 
-use crate::gameobject_use_host::GameObjectUseHostLikeCpp;
+use crate::world_entities_host::WorldEntitiesHostLikeCpp;
 
 /// CMSG_REQUEST_CEMETERY_LIST — client asks for graveyards in zone.
 /// C++ ref: `WorldSession::HandleRequestCemeteryList`.
-pub async fn handle_request_cemetery_list_with_catalog_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub async fn handle_request_cemetery_list_with_catalog_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     graveyard_store: &wow_data::GraveyardStore,
     _pkt: wow_packet::WorldPacket,
@@ -98,7 +98,7 @@ pub async fn handle_request_cemetery_list_with_catalog_like_cpp<H: GameObjectUse
 /// CMSG_RESURRECT_RESPONSE — answer to a pending resurrection request.
 /// C++ ref: `WorldSession::HandleResurrectResponse`.
 
-pub async fn handle_resurrect_response<H: GameObjectUseHostLikeCpp>(
+pub async fn handle_resurrect_response<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     mut pkt: wow_packet::WorldPacket,
 ) {
@@ -144,7 +144,7 @@ pub async fn handle_resurrect_response<H: GameObjectUseHostLikeCpp>(
 /// CMSG_REPOP_REQUEST — release spirit.
 /// C++ ref: `WorldSession::HandleRepopRequest`.
 
-pub async fn handle_repop_request<H: GameObjectUseHostLikeCpp>(
+pub async fn handle_repop_request<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     mut pkt: wow_packet::WorldPacket,
 ) {
@@ -178,7 +178,7 @@ pub async fn handle_repop_request<H: GameObjectUseHostLikeCpp>(
 /// CMSG_RECLAIM_CORPSE — resurrect at corpse.
 /// C++ ref: `WorldSession::HandleReclaimCorpse`.
 
-pub async fn handle_reclaim_corpse<H: GameObjectUseHostLikeCpp>(
+pub async fn handle_reclaim_corpse<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     mut pkt: wow_packet::WorldPacket,
 ) {

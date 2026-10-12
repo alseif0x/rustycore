@@ -29,7 +29,6 @@ mod gameobject_query;
 mod gameobject_state;
 mod gameobject_use;
 mod gameobject_use_dispatch;
-mod gameobject_use_host;
 mod gameobject_use_kinds;
 mod gameobject_use_preamble;
 mod gameobject_use_pvp;
@@ -37,9 +36,11 @@ mod gameobject_use_scripted;
 mod gameobject_use_support;
 mod gameobject_use_types;
 mod pending_runtime;
+mod player_attack;
 mod spawn;
 mod spell_click;
 mod state;
+mod world_entities_host;
 
 pub use aggro::{
     creature_threat_value_on_map_like_cpp, mirror_creature_threat_from_attacker_on_map_like_cpp,
@@ -80,7 +81,6 @@ pub use gameobject_use_dispatch::{
     represented_gameobject_gossip_can_interact_with_like_cpp,
     represented_gameobject_icon_allows_interaction_like_cpp,
 };
-pub use gameobject_use_host::GameObjectUseHostLikeCpp;
 pub use gameobject_use_kinds::{
     use_represented_gameobject_barber_chair_like_cpp, use_represented_gameobject_camera_like_cpp,
     use_represented_gameobject_chair_like_cpp, use_represented_gameobject_spellcaster_like_cpp,
@@ -120,4 +120,10 @@ pub use gameobject_use_support::{
     send_represented_gameobject_despawn_to_visible_set_like_cpp,
     use_represented_gameobject_item_forge_like_cpp,
 };
+pub use player_attack::{
+    PLAYER_FLAGS_UBER_LIKE_CPP, PlayerAttackStartLikeCppResult,
+    handle_apply_player_melee_result_like_cpp_command_like_cpp, handle_attack_swing,
+    start_player_attack_like_cpp,
+};
 pub use state::WorldEntitiesState;
+pub use world_entities_host::WorldEntitiesHostLikeCpp;

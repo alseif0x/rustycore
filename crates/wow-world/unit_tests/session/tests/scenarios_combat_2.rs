@@ -868,7 +868,7 @@ fn player_attack_start_stop_updates_canonical_unit_combat_state_like_cpp() {
         0,
     ));
 
-    session.start_player_attack_like_cpp(victim);
+    wow_world_entities::start_player_attack_like_cpp(&mut session, victim);
     {
         let guard = canonical.lock().unwrap();
         let player_entity = guard

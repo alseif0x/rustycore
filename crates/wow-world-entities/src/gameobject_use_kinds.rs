@@ -8,11 +8,11 @@
 
 use wow_core::{ObjectGuid, Position};
 
-use crate::gameobject_use_host::GameObjectUseHostLikeCpp;
 use crate::gameobject_use_preamble::apply_represented_gameobject_post_use_spell_like_cpp;
+use crate::world_entities_host::WorldEntitiesHostLikeCpp;
 use crate::{RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect};
 
-pub fn use_represented_gameobject_chair_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn use_represented_gameobject_chair_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     gameobject_guid: ObjectGuid,
     player_guid: ObjectGuid,
@@ -97,7 +97,7 @@ pub fn use_represented_gameobject_chair_like_cpp<H: GameObjectUseHostLikeCpp>(
     true
 }
 
-pub fn use_represented_gameobject_barber_chair_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn use_represented_gameobject_barber_chair_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     gameobject_guid: ObjectGuid,
     player_guid: ObjectGuid,
@@ -128,7 +128,7 @@ pub fn use_represented_gameobject_barber_chair_like_cpp<H: GameObjectUseHostLike
     true
 }
 
-pub fn use_represented_gameobject_ui_link_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn use_represented_gameobject_ui_link_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     gameobject_guid: ObjectGuid,
     player_guid: ObjectGuid,
@@ -143,7 +143,7 @@ pub fn use_represented_gameobject_ui_link_like_cpp<H: GameObjectUseHostLikeCpp>(
     )
 }
 
-pub fn use_represented_gameobject_spellcaster_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn use_represented_gameobject_spellcaster_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     gameobject_guid: ObjectGuid,
     player_guid: ObjectGuid,
@@ -214,7 +214,7 @@ pub fn use_represented_gameobject_spellcaster_like_cpp<H: GameObjectUseHostLikeC
     true
 }
 
-pub fn use_represented_gameobject_camera_like_cpp<H: GameObjectUseHostLikeCpp>(
+pub fn use_represented_gameobject_camera_like_cpp<H: WorldEntitiesHostLikeCpp>(
     host: &mut H,
     gameobject_guid: ObjectGuid,
     player_guid: ObjectGuid,

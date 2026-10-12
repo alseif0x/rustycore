@@ -662,7 +662,7 @@ fn player_attack_game_master_typed_player_is_rejected_like_cpp() {
         .insert_map_object_record(wow_entities::MapObjectRecord::new_player(victim_player).unwrap())
         .unwrap();
 
-    session.start_player_attack_like_cpp(victim);
+    wow_world_entities::start_player_attack_like_cpp(&mut session, victim);
 
     let guard = canonical.lock().unwrap();
     let map = guard.find_map(571, 0).unwrap().map();
@@ -711,7 +711,7 @@ fn mounted_player_attack_is_rejected_like_cpp() {
     ));
     session.set_player_mounted_like_cpp(true);
 
-    session.start_player_attack_like_cpp(victim);
+    wow_world_entities::start_player_attack_like_cpp(&mut session, victim);
 
     let guard = canonical.lock().unwrap();
     let player_entity = guard
@@ -762,7 +762,7 @@ fn player_attack_rejects_canonical_uber_player_flag_like_cpp() {
         })
         .unwrap();
 
-    session.start_player_attack_like_cpp(victim);
+    wow_world_entities::start_player_attack_like_cpp(&mut session, victim);
 
     let guard = canonical.lock().unwrap();
     let player_entity = guard
@@ -817,7 +817,7 @@ async fn handle_attack_swing_invalid_vehicle_seat_sends_stop_without_start_like_
 
     let mut pkt = WorldPacket::new_empty();
     pkt.write_packed_guid(&victim);
-    session.handle_attack_swing(pkt).await;
+    wow_world_entities::handle_attack_swing(&mut session, pkt).await;
 
     let sent = send_rx.try_recv().unwrap();
     let opcode = u16::from_le_bytes([sent[0], sent[1]]);
@@ -878,7 +878,7 @@ async fn handle_attack_swing_same_target_no_change_sends_no_stop_or_duplicate_st
 
     let mut pkt = WorldPacket::new_empty();
     pkt.write_packed_guid(&victim);
-    session.handle_attack_swing(pkt).await;
+    wow_world_entities::handle_attack_swing(&mut session, pkt).await;
 
     let sent = send_rx.try_recv().unwrap();
     let opcode = u16::from_le_bytes([sent[0], sent[1]]);
@@ -887,7 +887,7 @@ async fn handle_attack_swing_same_target_no_change_sends_no_stop_or_duplicate_st
 
     let mut pkt = WorldPacket::new_empty();
     pkt.write_packed_guid(&victim);
-    session.handle_attack_swing(pkt).await;
+    wow_world_entities::handle_attack_swing(&mut session, pkt).await;
 
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert_eq!(
