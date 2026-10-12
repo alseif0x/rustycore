@@ -4,14 +4,6 @@
 
 //! Application-level operations shared by World adapters.
 
-mod battle_pet_handlers;
-pub use battle_pet_handlers::{
-    BattlePetHandlerCxLikeCpp, BattlePetHandlerHostLikeCpp, register_battle_pet_handlers_like_cpp,
-};
-pub use battle_pet_handlers::{
-    has_represented_battle_pet_journal_lock_like_cpp, represented_battle_pet_journal_like_cpp,
-    represented_battle_pet_like_cpp, send_battle_pet_journal_lock_status_like_cpp,
-};
 mod character_account_handlers;
 pub mod character_creation;
 pub mod character_enumeration;
@@ -22,7 +14,6 @@ mod character_handler_families;
 mod character_handlers;
 pub mod character_login_support;
 mod character_query_handlers;
-mod collections_handlers;
 mod loot_handlers;
 mod loot_release;
 mod player_conditions;
@@ -90,10 +81,6 @@ pub use character_query_handlers::realm_query_response_like_cpp;
 pub use character_query_handlers::{
     CharacterQueryHandlerCxLikeCpp, CharacterQueryHandlerHostLikeCpp,
     register_character_query_handlers_like_cpp,
-};
-pub use collections_handlers::{
-    CollectionsHandlerCxLikeCpp, CollectionsHandlerHostLikeCpp,
-    register_collections_handlers_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use equipment_set_use::EquipmentSetUseFixtureRefsLikeCpp;

@@ -18,6 +18,7 @@
 //! inventory and represented-spell paths) as registrations here while their
 //! bodies stay in the shell.
 
+use crate::InventoryState;
 use tracing::{debug, warn};
 use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
@@ -34,7 +35,6 @@ use wow_packet::packets::misc::{
 use wow_packet::{ClientPacket, ServerPacket, WorldPacket};
 use wow_world_core::session::HubMut;
 use wow_world_core::session::mailbox::{SendIfVisibleLikeCppCommand, SessionCommand};
-use wow_world_inventory::InventoryState;
 
 /// Borrowed inputs of one collection handler invocation.
 pub struct CollectionsHandlerCxLikeCpp<'a> {

@@ -238,7 +238,7 @@ impl crate::session::PetsCx<'_> {
     /// Thin World wrapper over the application owner's shared helper (#1263 F5);
     /// the login path (`handlers/character/world_entry.rs`) still calls it.
     pub(crate) async fn send_battle_pet_journal_lock_status_like_cpp(&mut self) {
-        wow_world_application::send_battle_pet_journal_lock_status_like_cpp(
+        wow_world_inventory::send_battle_pet_journal_lock_status_like_cpp(
             &mut self.hub,
             self.lifecycle,
             cfg!(test),
@@ -350,7 +350,7 @@ impl crate::session::PetsCxRef<'_> {
     /// the battle-pet spell-effect admission path
     /// (`session/spell_effects/checks.rs`) still calls it.
     pub(crate) fn has_represented_battle_pet_journal_lock_like_cpp(&self) -> bool {
-        wow_world_application::has_represented_battle_pet_journal_lock_like_cpp(
+        wow_world_inventory::has_represented_battle_pet_journal_lock_like_cpp(
             self.hub,
             self.lifecycle,
             cfg!(test),

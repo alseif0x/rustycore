@@ -4,7 +4,7 @@
 
 //! World-side construction of the battle-pet handler context (#1263 F5).
 //!
-//! The application crate owns the eight C++ `BattlePetHandler.cpp` handlers and
+//! The inventory crate owns the eight C++ `BattlePetHandler.cpp` handlers and
 //! their context; the session only lends its lifecycle state and hub, so no
 //! session reference crosses into the handler.
 //!
@@ -14,7 +14,7 @@
 
 use wow_handler::HandlerFuture;
 use wow_packet::WorldPacket;
-use wow_world_application::{BattlePetHandlerCxLikeCpp, BattlePetHandlerHostLikeCpp};
+use wow_world_inventory::{BattlePetHandlerCxLikeCpp, BattlePetHandlerHostLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 

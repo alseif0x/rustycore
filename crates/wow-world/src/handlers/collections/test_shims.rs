@@ -3,10 +3,10 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! Test-only entry points for the mount/toy collection handlers moved to
-//! `wow-world-application` (#1263 F5).
+//! `wow-world-inventory` (#1263 F5; #1363 A4).
 
 use wow_packet::WorldPacket;
-use wow_world_application::CollectionsHandlerCxLikeCpp;
+use wow_world_inventory::CollectionsHandlerCxLikeCpp;
 
 use crate::session::WorldSession;
 

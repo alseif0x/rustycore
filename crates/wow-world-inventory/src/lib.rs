@@ -7,8 +7,10 @@ mod appearance;
 mod auction_contracts;
 mod bank;
 mod bank_handlers;
+mod battle_pet_handlers;
 mod buyback;
 mod catalog;
+mod collections_handlers;
 mod contracts;
 mod currency;
 mod durability;
@@ -60,6 +62,17 @@ pub use auction_contracts::{
 pub use bank_handlers::{
     BankHandlerHostLikeCpp, BankSlotFlagApplicationCxLikeCpp,
     can_use_current_bank_with_access_like_cpp, register_bank_handlers_like_cpp,
+};
+pub use battle_pet_handlers::{
+    BattlePetHandlerCxLikeCpp, BattlePetHandlerHostLikeCpp, register_battle_pet_handlers_like_cpp,
+};
+pub use battle_pet_handlers::{
+    has_represented_battle_pet_journal_lock_like_cpp, represented_battle_pet_journal_like_cpp,
+    represented_battle_pet_like_cpp, send_battle_pet_journal_lock_status_like_cpp,
+};
+pub use collections_handlers::{
+    CollectionsHandlerCxLikeCpp, CollectionsHandlerHostLikeCpp,
+    register_collections_handlers_like_cpp,
 };
 pub use contracts::{
     AccountItemAppearanceSavePlanLikeCpp, AccountTransmogIllusionSavePlanLikeCpp,

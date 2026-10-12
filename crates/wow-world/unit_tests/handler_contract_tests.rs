@@ -1480,7 +1480,7 @@ fn dismiss_critter_family_is_migrated_off_the_legacy_inventory() {
     assert_migrated_family_like_cpp(
         "dismiss critter",
         |builder| {
-            wow_world_application::register_battle_pet_handlers_like_cpp::<
+            wow_world_inventory::register_battle_pet_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >(builder)
@@ -1538,7 +1538,7 @@ fn toy_collection_family_is_migrated_off_the_legacy_inventory() {
     assert_migrated_family_like_cpp(
         "toy collection",
         |builder| {
-            wow_world_application::register_collections_handlers_like_cpp::<
+            wow_world_inventory::register_collections_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >(builder)
@@ -1671,7 +1671,7 @@ fn duplicated_migrated_remaining_family_registrations_are_rejected_without_repla
         ),
         (
             "battle-pet",
-            wow_world_application::register_battle_pet_handlers_like_cpp::<
+            wow_world_inventory::register_battle_pet_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >,
@@ -1689,7 +1689,7 @@ fn duplicated_migrated_remaining_family_registrations_are_rejected_without_repla
         ),
         (
             "collections",
-            wow_world_application::register_collections_handlers_like_cpp::<
+            wow_world_inventory::register_collections_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >,
