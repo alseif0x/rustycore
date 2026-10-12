@@ -3563,8 +3563,6 @@ dependencies = [
 name = "wow-world-creature"
 version = "0.1.0"
 dependencies = [
- "rand",
- "tracing",
  "wow-ai",
  "wow-constants",
  "wow-core",
