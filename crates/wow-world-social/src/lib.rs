@@ -5,6 +5,7 @@
 //! Social ownership for the world-session application boundary.
 
 mod arena_team_handlers;
+mod battlemaster_skirmish;
 mod calendar_handlers;
 mod catalogs;
 mod chat;
@@ -31,6 +32,9 @@ mod trade;
 
 pub use arena_team_handlers::{
     ArenaTeamHandlerCxLikeCpp, ArenaTeamHandlerHostLikeCpp, register_arena_team_handlers_like_cpp,
+};
+pub use battlemaster_skirmish::{
+    handle_accept_wargame_invite, handle_battlemaster_join_skirmish_with_catalog_like_cpp,
 };
 pub use calendar_handlers::{
     CalendarHandlerCxLikeCpp, CalendarHandlerHostLikeCpp, register_calendar_handlers_like_cpp,

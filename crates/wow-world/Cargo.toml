@@ -83,6 +83,7 @@ wow-world-instances = { workspace = true, features = ["test-fixtures"] }
 wow-world-inventory = { workspace = true, features = ["test-fixtures"] }
 wow-world-lifecycle = { workspace = true, features = ["test-fixtures"] }
 wow-world-loot = { workspace = true, features = ["test-fixtures"] }
+wow-world-social = { workspace = true, features = ["test-fixtures"] }
 wow-world-spell = { workspace = true, features = ["test-fixtures"] }
 wow-world-visibility = { workspace = true, features = ["test-fixtures"] }
 wow-session = { workspace = true, features = ["test-support"] }

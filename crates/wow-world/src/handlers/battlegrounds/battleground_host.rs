@@ -8,7 +8,8 @@
 //! lends its hub, so no session reference crosses into the handler.
 //!
 //! `#1263 F5 remaining families`: the host also lends `CMSG_BATTLEMASTER_JOIN_SKIRMISH`
-//! and `CMSG_ACCEPT_WARGAME_INVITE`, whose bodies stay in the World shell.
+//! and `CMSG_ACCEPT_WARGAME_INVITE`, whose bodies moved to `wow_world_social`
+//! in #1363 slice 4b.
 
 use wow_handler::HandlerFuture;
 use wow_packet::WorldPacket;
@@ -41,7 +42,7 @@ impl BattlegroundHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSess
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_battlemaster_join_skirmish_with_catalog_like_cpp(
+            wow_world_social::handle_battlemaster_join_skirmish_with_catalog_like_cpp(
                 self,
                 Self::battlemaster_lists_like_cpp(catalogs),
                 pkt,
@@ -51,6 +52,6 @@ impl BattlegroundHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSess
     }
 
     fn handle_accept_wargame_invite<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { WorldSession::handle_accept_wargame_invite(self, pkt).await })
+        Box::pin(async move { wow_world_social::handle_accept_wargame_invite(self, pkt).await })
     }
 }
