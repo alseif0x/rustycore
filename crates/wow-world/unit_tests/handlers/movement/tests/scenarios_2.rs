@@ -5,6 +5,10 @@
 use super::*;
 #[allow(unused_imports)]
 use crate::canonical_creature_fixtures::*;
+use wow_world_entities::{
+    apply_move_set_vehicle_rec_id_ack_like_cpp, record_validated_movement_ack_like_cpp,
+    sanitize_movement_info_flags_represented_like_cpp, sanitize_movement_info_represented_like_cpp,
+};
 
 #[test]
 fn validate_movement_info_strips_each_cpp_incompatible_pair() {
@@ -21,7 +25,7 @@ fn validate_movement_info_strips_each_cpp_incompatible_pair() {
             ..MovementInfo::default()
         };
 
-        let removed = session.sanitize_movement_info_flags_represented_like_cpp(&mut info);
+        let removed = sanitize_movement_info_flags_represented_like_cpp(&session, &mut info);
 
         assert!(removed.contains(left | right), "{left:?} | {right:?}");
         assert!(info.flags.is_empty(), "{left:?} | {right:?}");
@@ -36,7 +40,7 @@ fn validate_movement_info_reports_rule_evidence_from_anticheat_core() {
         ..MovementInfo::default()
     };
 
-    let result = session.sanitize_movement_info_represented_like_cpp(&mut info);
+    let result = sanitize_movement_info_represented_like_cpp(&session, &mut info);
 
     assert_eq!(info.flags, MovementFlag::empty());
     assert!(result.removed_flags.contains(MovementFlag::HOVER));
@@ -58,7 +62,7 @@ fn validate_movement_info_root_order_matches_cpp_without_fixed_vehicle() {
         ..MovementInfo::default()
     };
 
-    let removed = session.sanitize_movement_info_flags_represented_like_cpp(&mut info);
+    let removed = sanitize_movement_info_flags_represented_like_cpp(&session, &mut info);
 
     assert!(removed.contains(MovementFlag::ROOT));
     assert!(!removed.contains(MovementFlag::FORWARD));
@@ -74,7 +78,7 @@ fn validate_movement_info_keeps_root_for_fixed_position_vehicle_like_cpp() {
         flags: MovementFlag::ROOT,
         ..MovementInfo::default()
     };
-    let removed = session.sanitize_movement_info_flags_represented_like_cpp(&mut rooted);
+    let removed = sanitize_movement_info_flags_represented_like_cpp(&session, &mut rooted);
     assert!(removed.is_empty());
     assert_eq!(rooted.flags, MovementFlag::ROOT);
 
@@ -82,7 +86,7 @@ fn validate_movement_info_keeps_root_for_fixed_position_vehicle_like_cpp() {
         flags: MovementFlag::ROOT | MovementFlag::FORWARD,
         ..MovementInfo::default()
     };
-    let removed = session.sanitize_movement_info_flags_represented_like_cpp(&mut rooted_moving);
+    let removed = sanitize_movement_info_flags_represented_like_cpp(&session, &mut rooted_moving);
     assert!(removed.contains(MovementFlag::FORWARD));
     assert!(!removed.contains(MovementFlag::ROOT));
     assert_eq!(rooted_moving.flags, MovementFlag::ROOT);
@@ -119,7 +123,7 @@ fn validate_movement_info_keeps_represented_allowed_aura_flags() {
         ..MovementInfo::default()
     };
 
-    let removed = session.sanitize_movement_info_flags_represented_like_cpp(&mut info);
+    let removed = sanitize_movement_info_flags_represented_like_cpp(&session, &mut info);
     assert!(removed.is_empty());
     assert!(info.flags.contains(MovementFlag::HOVER));
     assert!(info.flags.contains(MovementFlag::WATER_WALK));
@@ -144,7 +148,7 @@ fn validate_movement_info_keeps_water_walk_for_ghost_like_cpp() {
         ..MovementInfo::default()
     };
 
-    let removed = session.sanitize_movement_info_flags_represented_like_cpp(&mut info);
+    let removed = sanitize_movement_info_flags_represented_like_cpp(&session, &mut info);
 
     assert!(removed.is_empty());
     assert!(info.flags.contains(MovementFlag::WATER_WALK));
@@ -159,7 +163,7 @@ fn validate_movement_info_keeps_fly_for_gm_like_cpp() {
         ..MovementInfo::default()
     };
 
-    let removed = session.sanitize_movement_info_flags_represented_like_cpp(&mut info);
+    let removed = sanitize_movement_info_flags_represented_like_cpp(&session, &mut info);
 
     assert!(removed.is_empty());
     assert!(
@@ -180,7 +184,7 @@ fn validate_movement_info_keeps_fly_for_mounted_flight_speed_aura_like_cpp() {
         ..MovementInfo::default()
     };
 
-    let removed = session.sanitize_movement_info_flags_represented_like_cpp(&mut info);
+    let removed = sanitize_movement_info_flags_represented_like_cpp(&session, &mut info);
 
     assert!(removed.is_empty());
     assert!(
@@ -969,7 +973,8 @@ fn movement_ack_validation_sanitizes_status_flags_like_cpp() {
         ack_index: 12,
     };
 
-    assert!(session.record_validated_movement_ack_like_cpp(
+    assert!(record_validated_movement_ack_like_cpp(
+        &mut session,
         ClientOpcodes::MoveHoverAck,
         &mut ack,
         None
@@ -991,7 +996,7 @@ fn move_set_vehicle_rec_ack_only_sanitizes_status_like_cpp() {
         ack_index: 77,
     };
 
-    session.apply_move_set_vehicle_rec_id_ack_like_cpp(&mut ack);
+    apply_move_set_vehicle_rec_id_ack_like_cpp(&mut session, &mut ack);
 
     assert!(
         ack.status.flags.is_empty(),

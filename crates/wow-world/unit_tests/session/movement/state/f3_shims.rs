@@ -43,7 +43,7 @@ impl crate::session::WorldSession {
         &self,
         player_guid: ObjectGuid,
         requested_transport_guid: Option<ObjectGuid>,
-    ) -> MovementTransportMembershipLikeCpp {
+    ) -> wow_world_core::session::MovementTransportMembershipLikeCpp {
         crate::session::hub_ref(self)
             .reconcile_player_transport_membership_like_cpp(player_guid, requested_transport_guid)
     }

@@ -8,8 +8,9 @@
 //! lends its hub and runs the deferred registry-state publication.
 //!
 //! `#1263 F5 remaining families`: the adapter also lends the four seat-change,
-//! dismiss and ride-interact bodies that stayed in the World shell while they
-//! need its movement sanitization and spell-click planning helpers.
+//! dismiss and ride-interact bodies, which moved to
+//! `wow_world_application::vehicle_session` in #1363 slice 4b; the
+//! spell-click plan and raid check they still need are lent below.
 
 use wow_handler::HandlerFuture;
 use wow_packet::ClientPacket;
@@ -34,7 +35,9 @@ impl VehicleHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         Box::pin(async move {
             let mut pkt = pkt;
             match wow_packet::packets::vehicle::MoveDismissVehicle::read(&mut pkt) {
-                Ok(packet) => WorldSession::handle_move_dismiss_vehicle(self, packet).await,
+                Ok(packet) => {
+                    wow_world_application::handle_move_dismiss_vehicle(self, packet).await
+                }
                 Err(e) => tracing::warn!("Failed to read MoveDismissVehicle: {e}"),
             }
         })
@@ -47,7 +50,9 @@ impl VehicleHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         Box::pin(async move {
             let mut pkt = pkt;
             match wow_packet::packets::vehicle::MoveChangeVehicleSeats::read(&mut pkt) {
-                Ok(packet) => WorldSession::handle_move_change_vehicle_seats(self, packet).await,
+                Ok(packet) => {
+                    wow_world_application::handle_move_change_vehicle_seats(self, packet).await
+                }
                 Err(e) => tracing::warn!("Failed to read MoveChangeVehicleSeats: {e}"),
             }
         })
@@ -60,7 +65,9 @@ impl VehicleHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         Box::pin(async move {
             let mut pkt = pkt;
             match wow_packet::packets::vehicle::RequestVehicleSwitchSeat::read(&mut pkt) {
-                Ok(packet) => WorldSession::handle_request_vehicle_switch_seat(self, packet).await,
+                Ok(packet) => {
+                    wow_world_application::handle_request_vehicle_switch_seat(self, packet).await
+                }
                 Err(e) => tracing::warn!("Failed to read RequestVehicleSwitchSeat: {e}"),
             }
         })
@@ -70,9 +77,33 @@ impl VehicleHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         Box::pin(async move {
             let mut pkt = pkt;
             match wow_packet::packets::vehicle::RideVehicleInteract::read(&mut pkt) {
-                Ok(packet) => WorldSession::handle_ride_vehicle_interact(self, packet).await,
+                Ok(packet) => {
+                    wow_world_application::handle_ride_vehicle_interact(self, packet).await
+                }
                 Err(e) => tracing::warn!("Failed to read RideVehicleInteract: {e}"),
             }
         })
+    }
+}
+
+impl wow_world_application::VehicleSessionHostLikeCpp for WorldSession {
+    fn represented_handle_spell_click_plan_with_seat_like_cpp(
+        &self,
+        creature_guid: wow_core::ObjectGuid,
+        seat_id: Option<i8>,
+    ) -> wow_world_application::spell_click_values::RepresentedSpellClickPlanLikeCpp {
+        WorldSession::represented_handle_spell_click_plan_with_seat_like_cpp(
+            self,
+            creature_guid,
+            seat_id,
+        )
+    }
+
+    fn represented_player_is_same_raid_with_like_cpp(
+        &self,
+        player_guid: wow_core::ObjectGuid,
+        owner_guid: wow_core::ObjectGuid,
+    ) -> bool {
+        WorldSession::represented_player_is_same_raid_with_like_cpp(self, player_guid, owner_guid)
     }
 }

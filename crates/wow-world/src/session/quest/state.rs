@@ -276,16 +276,6 @@ impl WorldSession {
         self.player_resurrection_state_snapshot_like_cpp()
             .and_then(|state| state.request)
     }
-    pub(crate) fn request_jump_proc_like_cpp(&mut self) {
-        #[cfg(test)]
-        {
-            self.fixtures.movement.movement_jump_proc_requests_like_cpp = self
-                .fixtures
-                .movement
-                .movement_jump_proc_requests_like_cpp
-                .saturating_add(1);
-        }
-    }
     #[cfg(test)]
     pub(crate) fn represented_duel_requests_like_cpp(&self) -> &[RepresentedDuelRequestedLikeCpp] {
         self.social.represented_duel_requests_for_test_like_cpp()
@@ -316,33 +306,6 @@ impl WorldSession {
             .fixtures
             .vehicles
             .represented_vehicle_enter_requests_like_cpp
-    }
-    pub(crate) fn represented_request_vehicle_switch_seat_like_cpp(
-        &mut self,
-        requested_vehicle: ObjectGuid,
-        seat_index: u8,
-    ) -> bool {
-        let Some(vehicle_base_guid) =
-            crate::session::hub_ref(self).represented_vehicle_base_guid_for_switch_like_cpp()
-        else {
-            return false;
-        };
-        let seat_id = seat_index as i8;
-        let requested_vehicle_exists_with_empty_seat = vehicle_base_guid != requested_vehicle
-            && self.represented_vehicle_seat_spell_click_plan_available_like_cpp(
-                requested_vehicle,
-                seat_id,
-            );
-        let action = crate::handlers::vehicle::request_vehicle_switch_seat_action_like_cpp(
-            true,
-            crate::session::hub_ref(self)
-                .represented_current_vehicle_seat_can_switch_from_like_cpp(),
-            vehicle_base_guid,
-            requested_vehicle,
-            seat_index,
-            requested_vehicle_exists_with_empty_seat,
-        );
-        self.record_represented_vehicle_seat_action_like_cpp(action)
     }
     #[cfg(test)]
     pub(crate) fn represented_activate_taxi_requests_like_cpp(

@@ -22,15 +22,15 @@ impl CorpseHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         &'a mut self,
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { self.handle_resurrect_response(pkt).await })
+        Box::pin(async move { wow_world_entities::handle_resurrect_response(self, pkt).await })
     }
 
     fn handle_repop_request_like_cpp<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { self.handle_repop_request(pkt).await })
+        Box::pin(async move { wow_world_entities::handle_repop_request(self, pkt).await })
     }
 
     fn handle_reclaim_corpse_like_cpp<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { self.handle_reclaim_corpse(pkt).await })
+        Box::pin(async move { wow_world_entities::handle_reclaim_corpse(self, pkt).await })
     }
 
     fn handle_request_cemetery_list_with_catalogs_like_cpp<'a>(
@@ -39,11 +39,58 @@ impl CorpseHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            self.handle_request_cemetery_list_with_catalog_like_cpp(
+            wow_world_entities::handle_request_cemetery_list_with_catalog_like_cpp(
+                self,
                 catalogs.graveyards.as_ref(),
                 pkt,
             )
             .await
         })
+    }
+}
+
+impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
+    fn graveyard_conditions_meet_like_cpp(
+        &mut self,
+        conditions_ref: &wow_data::ConditionsReference,
+    ) -> bool {
+        WorldSession::graveyard_conditions_meet_like_cpp(self, conditions_ref)
+    }
+
+    fn clear_represented_resurrection_request_like_cpp(&mut self) -> bool {
+        WorldSession::clear_represented_resurrection_request_like_cpp(self)
+    }
+
+    fn take_represented_resurrection_request_if_requested_by_like_cpp(
+        &mut self,
+        resurrecter: wow_core::ObjectGuid,
+    ) -> Option<wow_entities::PlayerResurrectionRequestLikeCpp> {
+        WorldSession::take_represented_resurrection_request_if_requested_by_like_cpp(
+            self,
+            resurrecter,
+        )
+    }
+
+    fn schedule_represented_resurrection_after_teleport_like_cpp(
+        &mut self,
+        request: wow_entities::PlayerResurrectionRequestLikeCpp,
+    ) -> bool {
+        WorldSession::schedule_represented_resurrection_after_teleport_like_cpp(self, request)
+    }
+
+    fn teleport_to(
+        &mut self,
+        new_map: u32,
+        new_pos: wow_core::Position,
+    ) -> impl std::future::Future<Output = ()> + Send {
+        WorldSession::teleport_to(self, new_map, new_pos)
+    }
+
+    fn pending_teleport_like_cpp(&self) -> Option<(u32, wow_core::Position)> {
+        WorldSession::pending_teleport_like_cpp(self)
+    }
+
+    fn set_player_ghost_flag_like_cpp(&mut self, ghost: bool) {
+        WorldSession::set_player_ghost_flag_like_cpp(self, ghost)
     }
 }

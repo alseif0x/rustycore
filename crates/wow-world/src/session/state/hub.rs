@@ -35,6 +35,12 @@ impl wow_world_core::session::SessionHubHostLikeCpp for WorldSession {
     fn hub_mut(&mut self) -> HubMut<'_> {
         hub_mut(self)
     }
+    #[cfg(test)]
+    fn test_fixtures_like_cpp(
+        &mut self,
+    ) -> Option<&mut wow_world_core::session::state::SessionFixtures> {
+        Some(&mut self.fixtures)
+    }
 }
 
 /// `&mut` group state plus the shared hub, borrowed from disjoint WorldSession fields.

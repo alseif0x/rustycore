@@ -5,48 +5,10 @@
 
 use super::*;
 
-pub(crate) use wow_world_core::session::MovementTransportMembershipLikeCpp;
-
 #[path = "state/spline_progression.rs"]
 mod spline_progression;
 
 impl WorldSession {
-    pub(crate) fn represented_move_dismiss_vehicle_like_cpp(
-        &mut self,
-        status: &mut wow_packet::packets::movement::MovementInfo,
-    ) -> bool {
-        let vehicle_guid = self.core.represented_player_charmed_guid_like_cpp();
-        if vehicle_guid.is_empty()
-            || crate::session::hub_ref(self)
-                .player_vehicle_seat_state_like_cpp()
-                .is_none()
-        {
-            return false;
-        }
-
-        self.sanitize_movement_info_represented_like_cpp(status);
-        crate::session::hub_mut(self).set_player_movement_time_like_cpp(status.time);
-        crate::session::hub_mut(self).set_player_movement_flags_like_cpp(status.flags);
-        crate::session::hub_mut(self).set_player_position_like_cpp(status.position);
-        crate::session::hub_ref(self).update_registry_position();
-        #[cfg(test)]
-        self.fixtures
-            .movement
-            .represented_vehicle_dismiss_movements_like_cpp
-            .push(RepresentedVehicleDismissMovementLikeCpp {
-                vehicle_guid,
-                sanitized_flags: status.flags,
-                position: status.position,
-                time: status.time,
-            });
-
-        if !crate::session::hub_mut(self).set_player_vehicle_seat_state_like_cpp(None, None) {
-            return false;
-        }
-        self.sync_player_registry_state_like_cpp();
-        true
-    }
-
     pub(crate) fn remove_represented_rest_flag_like_cpp(&mut self, rest_flag: u32) -> bool {
         self.remove_player_rest_flag_like_cpp(rest_flag)
     }
@@ -85,105 +47,6 @@ impl WorldSession {
 
     pub(crate) fn set_player_moved_unit_guid_like_cpp(&mut self, guid: ObjectGuid) {
         crate::session::hub_mut(self).set_player_moved_unit_guid_like_cpp(guid)
-    }
-
-    pub(crate) fn represented_move_change_vehicle_seats_like_cpp(
-        &mut self,
-        status: &mut wow_packet::packets::movement::MovementInfo,
-        dst_vehicle: ObjectGuid,
-        dst_seat_index: u8,
-    ) -> bool {
-        let Some(vehicle_base_guid) =
-            crate::session::hub_ref(self).represented_vehicle_base_guid_for_switch_like_cpp()
-        else {
-            return false;
-        };
-        if !crate::session::hub_ref(self)
-            .represented_current_vehicle_seat_can_switch_from_like_cpp()
-        {
-            return false;
-        }
-
-        self.sanitize_movement_info_represented_like_cpp(status);
-        if status.guid != vehicle_base_guid {
-            return false;
-        }
-
-        let dst_seat_id = dst_seat_index as i8;
-        let dst_vehicle_exists_with_empty_seat = !dst_vehicle.is_empty()
-            && self.represented_vehicle_seat_spell_click_plan_available_like_cpp(
-                dst_vehicle,
-                dst_seat_id,
-            );
-        let action = crate::handlers::vehicle::move_change_vehicle_seats_action_like_cpp(
-            true,
-            true,
-            vehicle_base_guid,
-            status.guid,
-            dst_vehicle,
-            dst_seat_index,
-            dst_vehicle_exists_with_empty_seat,
-        );
-
-        #[cfg(test)]
-        self.fixtures
-            .movement
-            .represented_vehicle_base_movements_like_cpp
-            .push(RepresentedVehicleBaseMovementLikeCpp {
-                vehicle_guid: vehicle_base_guid,
-                sanitized_flags: status.flags,
-                position: status.position,
-                time: status.time,
-            });
-        let _ = self.record_represented_vehicle_seat_action_like_cpp(action);
-        true
-    }
-
-    pub(crate) fn sanitize_movement_info_flags_represented_like_cpp(
-        &self,
-        movement_info: &mut wow_packet::packets::movement::MovementInfo,
-    ) -> MovementFlag {
-        self.sanitize_movement_info_represented_like_cpp(movement_info)
-            .removed_flags
-    }
-
-    pub(crate) fn sanitize_movement_info_represented_like_cpp(
-        &self,
-        movement_info: &mut wow_packet::packets::movement::MovementInfo,
-    ) -> wow_anticheat::ValidationResult {
-        wow_anticheat::validate_movement_info(
-            movement_info,
-            &wow_anticheat::PlayerState {
-                // Fixed-position is an authorization proof. An unresolved
-                // Player must not preserve a client-supplied ROOT flag.
-                mover_fixed_position_vehicle: crate::session::hub_ref(self)
-                    .resolved_mover_fixed_position_vehicle_like_cpp()
-                    == Some(true),
-                // An unresolved/stale Player may not authorize client-only
-                // movement flags. Treat the proof as absent for sanitization,
-                // without claiming that the canonical aura set is empty.
-                has_hover_aura: self.resolved_has_represented_aura_effect_like_cpp(
-                    RepresentedAuraEffectLikeCpp::Hover,
-                ) == Some(true),
-                has_water_walk_aura: self.resolved_has_represented_aura_effect_like_cpp(
-                    RepresentedAuraEffectLikeCpp::WaterWalk,
-                ) == Some(true),
-                has_ghost_aura: self.resolved_has_represented_aura_effect_like_cpp(
-                    RepresentedAuraEffectLikeCpp::Ghost,
-                ) == Some(true),
-                has_feather_fall_aura: self.resolved_has_represented_aura_effect_like_cpp(
-                    RepresentedAuraEffectLikeCpp::FeatherFall,
-                ) == Some(true),
-                has_fly_aura: self.resolved_has_represented_aura_effect_like_cpp(
-                    RepresentedAuraEffectLikeCpp::Fly,
-                ) == Some(true),
-                has_mounted_flight_speed_aura: self.resolved_has_represented_aura_effect_like_cpp(
-                    RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
-                ) == Some(true),
-                is_player_security: crate::session::hub_ref(self).player_is_game_master_like_cpp()
-                    != Some(true),
-            },
-        )
     }
 
     pub(crate) fn remove_represented_at_login_flag_like_cpp(

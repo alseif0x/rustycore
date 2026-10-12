@@ -386,14 +386,4 @@ impl WorldSession {
         )
         .await
     }
-    pub(in crate::session) fn represented_vehicle_seat_spell_click_plan_available_like_cpp(
-        &self,
-        vehicle_guid: ObjectGuid,
-        seat_id: i8,
-    ) -> bool {
-        !self
-            .represented_handle_spell_click_plan_with_seat_like_cpp(vehicle_guid, Some(seat_id))
-            .casts
-            .is_empty()
-    }
 }

@@ -130,7 +130,6 @@ impl WorldSession {
         )
         .await;
     }
-
     pub(in crate::session) fn tick_represented_gameobject_update_like_cpp(&mut self) {
         let now = Instant::now();
         let current_player_guid = self.player_guid();

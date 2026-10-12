@@ -35,7 +35,7 @@ impl MovementHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession 
         // registered thunk reached the C++ body's dependency point.
         #[cfg(test)]
         crate::handlers::movement::record_move_set_vehicle_rec_id_ack_handler_call_for_test();
-        WorldSession::apply_move_set_vehicle_rec_id_ack_like_cpp(self, ack);
+        wow_world_entities::apply_move_set_vehicle_rec_id_ack_like_cpp(self, ack);
     }
 
     fn record_validated_movement_ack_like_cpp(
@@ -44,7 +44,7 @@ impl MovementHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession 
         ack: &mut MovementAck,
         speed: Option<f32>,
     ) -> bool {
-        WorldSession::record_validated_movement_ack_like_cpp(self, opcode, ack, speed)
+        wow_world_entities::record_validated_movement_ack_like_cpp(self, opcode, ack, speed)
     }
 
     fn apply_knock_back_ack_like_cpp(
@@ -52,7 +52,7 @@ impl MovementHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession 
         opcode: ClientOpcodes,
         ack: &mut MovementAck,
     ) -> bool {
-        WorldSession::apply_knock_back_ack_like_cpp(self, opcode, ack)
+        wow_world_entities::apply_knock_back_ack_like_cpp(self, opcode, ack)
     }
 
     fn record_apply_movement_force_ack_like_cpp(
@@ -60,7 +60,7 @@ impl MovementHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession 
         ack: &mut MovementAck,
         force: &MovementForce,
     ) -> bool {
-        WorldSession::record_apply_movement_force_ack_like_cpp(self, ack, force)
+        wow_world_entities::record_apply_movement_force_ack_like_cpp(self, ack, force)
     }
 
     fn record_remove_movement_force_ack_like_cpp(
@@ -68,7 +68,7 @@ impl MovementHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession 
         ack: &mut MovementAck,
         force_id: ObjectGuid,
     ) -> bool {
-        WorldSession::record_remove_movement_force_ack_like_cpp(self, ack, force_id)
+        wow_world_entities::record_remove_movement_force_ack_like_cpp(self, ack, force_id)
     }
 
     fn handle_movement_force_mod_magnitude_ack_like_cpp(
@@ -77,7 +77,9 @@ impl MovementHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession 
         ack: &mut MovementAck,
         speed: f32,
     ) -> bool {
-        WorldSession::handle_movement_force_mod_magnitude_ack_like_cpp(self, opcode, ack, speed)
+        wow_world_entities::handle_movement_force_mod_magnitude_ack_like_cpp(
+            self, opcode, ack, speed,
+        )
     }
 
     fn apply_move_init_active_mover_complete_like_cpp(&mut self, ticks: u32) {
@@ -99,7 +101,7 @@ impl MovementHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession 
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_movement_with_catalogs_like_cpp(
+            wow_world_entities::handle_movement_with_catalogs_like_cpp(
                 self,
                 catalogs.area_triggers.as_ref(),
                 catalogs.creature_spawns.as_ref(),
@@ -116,7 +118,9 @@ impl MovementHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession 
         opcode: ClientOpcodes,
         ack: MovementAckMessage,
     ) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { WorldSession::handle_movement_ack_message(self, opcode, ack).await })
+        Box::pin(
+            async move { wow_world_entities::handle_movement_ack_message(self, opcode, ack).await },
+        )
     }
 
     fn handle_movement_speed_ack_like_cpp<'a>(
@@ -131,6 +135,6 @@ impl MovementHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession 
         &'a mut self,
         done: MoveSplineDone,
     ) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { WorldSession::handle_move_spline_done(self, done).await })
+        Box::pin(async move { wow_world_entities::handle_move_spline_done(self, done).await })
     }
 }

@@ -119,7 +119,7 @@ pub fn apply_represented_gameobject_post_use_spell_like_cpp<H: WorldEntitiesHost
     )
 }
 
-pub fn apply_represented_gameobject_post_use_spell_like_cpp_internal<
+pub(crate) fn apply_represented_gameobject_post_use_spell_like_cpp_internal<
     H: WorldEntitiesHostLikeCpp,
 >(
     host: &mut H,

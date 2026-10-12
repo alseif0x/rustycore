@@ -6,38 +6,19 @@
 
 use super::WorldSession;
 
-pub(crate) use wow_world_core::session::movement_protocol::MovementAckEventLikeCpp;
-
-pub(crate) use wow_world_core::session::movement_protocol::MoveSplineDoneTaxiActionLikeCpp;
-
 #[cfg(test)]
-pub(crate) use wow_world_core::session::movement_protocol::RepresentedTaxiFlightNodeLikeCpp;
-
-#[cfg(test)]
-pub(crate) use wow_world_core::session::movement_protocol::MoveSplineDoneTaxiEventLikeCpp;
-
-pub(crate) use wow_world_core::session::movement_protocol::MoveTeleportAckActionLikeCpp;
-
-#[cfg(test)]
-pub(crate) use wow_world_core::session::movement_protocol::MoveTeleportAckEventLikeCpp;
+pub(crate) use wow_world_core::session::movement_protocol::{
+    MoveSplineDoneTaxiActionLikeCpp, MoveSplineDoneTaxiEventLikeCpp, MoveTeleportAckEventLikeCpp,
+    MovementAckEventLikeCpp, MovementFallDamageEvent, MovementSpeedAckActionLikeCpp,
+    MovementSpeedAckEventLikeCpp, MovementUnderMapDamageEvent, RepresentedTaxiFlightNodeLikeCpp,
+    TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP,
+};
+pub(crate) use wow_world_core::session::movement_protocol::{
+    MoveTeleportAckActionLikeCpp, UnitMoveTypeLikeCpp,
+};
 
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use wow_world_instances::RepresentedAreaZoneCriteriaLikeCpp;
-
-pub(crate) use wow_world_core::session::movement_protocol::MovementSpeedAckActionLikeCpp;
-
-pub(crate) use wow_world_core::session::movement_protocol::UnitMoveTypeLikeCpp;
-
-pub(crate) use wow_world_core::session::movement_protocol::MovementSpeedAckEventLikeCpp;
-
-#[cfg(test)]
-pub(crate) use wow_world_core::session::movement_protocol::TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP;
-
-pub(crate) use wow_world_core::session::movement_protocol::movement_speed_ack_move_type_like_cpp;
-
-pub(crate) use wow_world_core::session::movement_protocol::{
-    MovementFallDamageEvent, MovementUnderMapDamageEvent,
-};
 
 impl WorldSession {}
 

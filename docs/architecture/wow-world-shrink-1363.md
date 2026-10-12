@@ -964,7 +964,8 @@ Packets, their order and persistence are unchanged.
   - The use preamble and the post-use spell (`gameobject_use_preamble.rs`).
   - The PvP, scripted and per-type gameobject uses (`gameobject_use_pvp.rs`,
     `gameobject_use_scripted.rs`, `gameobject_use_kinds.rs`).
-  - Their single-caller helpers (`gameobject_use_support.rs`): the battleground
+  - Their helpers (`gameobject_use_support.rs`; most had only these callers,
+    and a few are still also called from `wow-world` as free functions): the battleground
     object gates, the item forge, the fishing skill base, stealth removal, the
     new-flag and capture-point records, the owner record, the friendliness check
     and the delete/despawn publication.
@@ -1062,3 +1063,147 @@ Packets, their order and persistence are unchanged.
   One source-scan regression,
   `uncage_item_state_seam_no_longer_names_statement_or_driver_errors`, used the
   moved item-forge method as its end delimiter. It now ends at the impl block.
+  (4b replaces that with the helper's own impl-level closing brace.)
+
+## Slice 4b result (movement, vehicle, corpse, arena skirmish)
+
+Branch `1363-s4b-leaf-handlers`, base `4fe68ef71` (4a merged). Move-only (R2),
+with the same mechanical rewrites as 4a. Packets, their order, persistence,
+registrations and processing flags are unchanged. One new rewrite: a former
+`#[cfg(test)]` fixture step inside a moved body becomes
+
+```rust
+#[cfg(any(test, feature = "test-fixtures"))]
+if let Some(fixtures) = host.test_fixtures_like_cpp() { /* same step */ }
+```
+
+`SessionHubHostLikeCpp::test_fixtures_like_cpp` is a provided method that returns
+`None`; only the World session overrides it, and only under its own `cfg(test)`,
+to return its fixtures. The step therefore runs exactly when it ran before, in
+the World test build, and in no other build. That one shared accessor replaces
+the per-step hooks 4a needed, so a body with fixture steps no longer costs a host
+method per step.
+
+### What moved
+
+- **To `wow-world-entities` (about 1.6k body lines).**
+  - `movement_opcodes.rs`: `CMSG_MOVE_*` (`HandleMovementOpcode`), the
+    movement side effects, `CMSG_MOVE_SPLINE_DONE` and the plain movement ACK.
+    The three aura-interrupt flags they use moved with them; `wow-world`
+    re-exports the one it still needs.
+  - `movement_acks.rs`: the validated, force, knockback, speed and
+    force-magnitude ACKs, `Player::ValidateMovementInfo` sanitisation,
+    `Player::HandleFall`, the under-map step, the jump-proc request and the
+    spline/taxi completion with its event record.
+  - `corpse_handlers.rs`: `CMSG_REQUEST_CEMETERY_LIST`, `CMSG_RESURRECT_RESPONSE`,
+    `CMSG_REPOP_REQUEST` and `CMSG_RECLAIM_CORPSE`. The graveyard condition check
+    stays in `wow-world` behind the host because it needs the World
+    player-condition context.
+- **To `wow-world-social` (about 0.2k).** `battlemaster_skirmish.rs`:
+  `CMSG_BATTLEMASTER_JOIN_SKIRMISH` and `CMSG_ACCEPT_WARGAME_INVITE`, beside the
+  arena-team family F5 already moved there.
+- **To `wow-world-application` (about 0.3k), justified.** `vehicle_session.rs`:
+  the four seat, dismiss and ride-interact bodies. Their branch decisions
+  (`VehicleHandlerAction` and the `*_action_like_cpp` functions) and the
+  spell-click plan (`RepresentedSpellClickPlanLikeCpp`) are application types,
+  and the vehicle registrar and its context already live there. Slice A can move
+  the whole vehicle module to a domain crate in one step.
+- **To `wow-world-core` (24 lines).** `PlayerGridLoadOutcomeLikeCpp` and
+  `PlayerGridLoadResolverLikeCpp`, which the movement body reads; `wow-world`
+  re-exports them at the old path.
+
+### Host surface
+
+- **`PlayerMovementHostLikeCpp`** (entities, 11 methods plus an associated
+  type for the World area-trigger catalogs, whose script dispatcher takes the
+  session): aura queries and interrupts, zone, exploration, visibility and
+  area-trigger updates, durability loss, alive state, registry sync and the
+  taxi node map ids.
+- **`CorpseHostLikeCpp: PlayerMovementHostLikeCpp`** (entities, 7): the
+  graveyard check, the three resurrection-request operations (their
+  `cfg!(test)` return logic stays in `wow-world`), teleport, pending teleport
+  and the ghost flag.
+- **`VehicleSessionHostLikeCpp: PlayerMovementHostLikeCpp`** (application, 2):
+  the spell-click plan and the same-raid check.
+- **`SocialSessionHostLikeCpp`** gains `resolved_group_guid_like_cpp`.
+- **`SessionHubHostLikeCpp`** gains `test_fixtures_like_cpp`.
+- **Recursion check.** Several moved names equal registrar trait methods
+  (`handle_accept_wargame_invite`, the vehicle `handle_*` entries, the movement
+  ACK operations). Every such adapter now calls the destination path
+  (`wow_world_social::…`, `wow_world_application::…`, `wow_world_entities::…`),
+  never `WorldSession::name`, so no forward can resolve to its own trait method.
+  Every host forward still has an inherent method of the same name.
+- **Tests.** The movement, corpse and battleground scenarios outside the session
+  hotspot call the moved functions by name (`use wow_world_entities::{…}`). The
+  session-hotspot scenarios keep method syntax through `cfg(test)` shims in
+  `handlers/vehicle/test_shims.rs` and `handlers/movement/test_shims.rs`, so the
+  session hotspot's test lines do not grow.
+
+### Accounting
+
+- **`crates/wow-world/src`.** `git diff --numstat`: −2,243 / +362 (net −1,881).
+  The classifier goes from 88,305 physical, 84,815 production and 3,490 test lines
+  in 513 files to 86,424, 82,922 and 3,502 in 514 files. Production is −1,893.
+- **Destinations** (moved body lines / host lines).
+  - `wow-world-entities/src` +1,859 −3: about 1,610 moved, 78 trait lines.
+  - `wow-world-social/src` +244 −4: about 200 moved, 1 trait line.
+  - `wow-world-application/src` +364: about 280 moved, 12 trait lines.
+  - `wow-world-core/src` +32: 24 moved type lines, 8 accessor lines.
+  - The rest is file headers, `lib.rs` mounts and exports, and rustfmt reflow.
+- **`wow-world-application`: 50,861 → 51,225 lines (+364).** Only the vehicle
+  bodies, for the reason above.
+- **Budget.** About 2,120 moved body lines against about 270 new host lines
+  (99 in traits and the accessor, 173 in the `wow-world` adapters
+  `session/movement/host.rs`, `handlers/entities/corpse/host.rs`,
+  `session/vehicle_handler_contexts.rs`, `session/chat_handler_contexts.rs` and
+  `session/state/hub.rs`): 12.8 %. `net_move.py check`: growth 2,492 within
+  the 2,936 allowance, 0 duplicate bodies.
+- **Policy.**
+  - `dependency-policy.json`: `wow-world-entities` may depend on `wow-anticheat`
+    (`ValidateMovementInfo`; a two-dependency domain crate).
+  - `wow-world` dev-dependencies enable `wow-world-social/test-fixtures`, so the
+    moved fixture steps compile in the World test build.
+  - `session-ownership-policy.json` is reprinted with `print-baseline`; the delta
+    is exactly the moved items and the new adapters and shims.
+- **Ceilings.** None raised; tightened:
+  - physical `session/mod.rs` 989 → 977, `handlers/movement.rs` 340 → 44;
+  - hotspot `session/mod.rs`: production 43,785 → 42,633, total 185,835 →
+    184,683, test unchanged at 142,050.
+- **Warnings.** `wow-world` `dead_code` stays 0 in the production lib, the lib
+  with `test-fixtures` and the lib test build. `unused_imports` falls 154 → 152,
+  163 → 161 and 324 → 321. The destination crates keep exactly their
+  pre-existing warnings.
+- **Tests.** No `#[test]` or `#[ignore]` added or removed; every changed
+  assertion is the same check through the free function.
+- **4a review follow-ups.** `EMOTE_ONESHOT_NONE_LIKE_CPP` is defined once
+  (`chat_handlers.rs`); the stray blank line in
+  `session/world_entities/gameobject.rs` is gone; the uncage source scan ends at
+  the helper's own closing brace; the post-use spell `_internal` helper is
+  crate-private and no longer re-exported.
+
+### Deferred to 4c
+
+Each of these would push the slice over the 15 % budget on its own, or has no
+movable body yet:
+
+- **Talent** (~210 movable lines, 12+ host methods). The reset commit and
+  publication carry `cfg(test)` persistence-bypass logic on lifecycle state, and
+  the learn path calls six spell-book operations. It is cheaper after slice 8
+  (character/lifecycle).
+- **Trainer** (nothing to move). The handlers are three-line forwards; the
+  remaining code is the `AppTrainerListCx` field-borrow builder, which needs
+  the session's disjoint fields. It belongs to slice A's context work.
+- **Collections** (~300 lines, 11 inventory and spell-cast host methods) and
+  **group** (~130 lines, 9 host methods including the social split and the
+  application difficulty context).
+- **Travel, spell, void storage** (surfaces 23–38). Their bodies call the quest,
+  inventory and loot operations that slices 5, 6 and 8 move; after those, most
+  of that surface becomes free calls.
+
+### Sizes for slice A
+
+- `wow-world` production (classifier): **82,922** lines (86,424 physical, 514
+  files).
+- `wow-world-application`: **51,225** physical lines (49,716 production, 170
+  files). The vehicle module (`vehicle_handlers.rs` 529 + `vehicle_session.rs`
+  357) is one obvious unit for the split.

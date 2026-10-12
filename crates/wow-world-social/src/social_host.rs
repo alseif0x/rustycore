@@ -2,8 +2,8 @@
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! The World operations the moved text-emote and LFG lock-info bodies still
-//! call (#1363 slice 4a). Each method is the same-named `WorldSession`
+//! The World operations the moved text-emote, LFG lock-info (#1363 slice 4a),
+//! arena-skirmish and wargame-invite (slice 4b) bodies still call. Each method is the same-named `WorldSession`
 //! operation, called at the exact point the body called it before the move;
 //! auras, instance locks, quest rewards and the represented inventory stay
 //! with the host.
@@ -20,4 +20,5 @@ pub trait SocialSessionHostLikeCpp: SessionHubHostLikeCpp {
     fn quest_xp_reward_like_cpp(&self, quest: &wow_data::quest::QuestTemplate) -> u32;
     fn represented_average_item_level_like_cpp(&self) -> Option<f32>;
     fn represented_has_item_count_like_cpp(&self, item_entry: u32, count: u32) -> bool;
+    fn resolved_group_guid_like_cpp(&self) -> Option<u64>;
 }

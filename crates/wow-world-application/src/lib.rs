@@ -60,6 +60,7 @@ mod talent_handlers;
 mod trade_handlers;
 mod travel_handlers;
 mod vehicle_handlers;
+mod vehicle_session;
 pub mod vendor;
 pub use loot_release::{
     LootReleaseCxLikeCpp, direct_item_count_after_loot_release_like_cpp,
@@ -352,4 +353,10 @@ pub use vehicle_handlers::{
 };
 pub use vehicle_handlers::{
     VehicleHandlerCxLikeCpp, VehicleHandlerHostLikeCpp, register_vehicle_handlers_like_cpp,
+};
+pub use vehicle_session::{
+    VehicleSessionHostLikeCpp, handle_move_change_vehicle_seats, handle_move_dismiss_vehicle,
+    handle_request_vehicle_switch_seat, handle_ride_vehicle_interact,
+    represented_move_change_vehicle_seats_like_cpp, represented_move_dismiss_vehicle_like_cpp,
+    represented_request_vehicle_switch_seat_like_cpp, represented_ride_vehicle_interact_like_cpp,
 };

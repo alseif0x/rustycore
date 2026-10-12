@@ -148,3 +148,21 @@ impl WorldSession {
         .await;
     }
 }
+
+/// #1363 slice 4b moved these bodies to `wow_world_entities`; the session and
+/// quest hotspot scenarios keep their method syntax through these shims.
+impl WorldSession {
+    pub(crate) fn handle_fall_like_cpp(
+        &mut self,
+        movement_info: &wow_packet::packets::movement::MovementInfo,
+    ) -> Option<crate::session::MovementFallDamageEvent> {
+        wow_world_entities::handle_fall_like_cpp(self, movement_info)
+    }
+
+    pub(crate) fn handle_under_map_like_cpp(
+        &mut self,
+        movement_info: &wow_packet::packets::movement::MovementInfo,
+    ) -> Option<crate::session::MovementUnderMapDamageEvent> {
+        wow_world_entities::handle_under_map_like_cpp(self, movement_info)
+    }
+}

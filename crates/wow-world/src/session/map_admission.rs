@@ -4,13 +4,14 @@
 //! Map admission: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
+use super::TRANSFER_ABORT_DIFFICULTY_LIKE_CPP;
 use super::trinity_sprintf_like_cpp;
-use super::{Arc, Position, TRANSFER_ABORT_DIFFICULTY_LIKE_CPP};
 use super::{TRANSFER_ABORT_ERROR_LIKE_CPP, Team, WorldSession};
 use super::{is_player_meeting_condition_like_cpp, player_team_for_race_cpp};
 
 pub use wow_world_core::session::map_admission::{
-    MMapRuntimeConfigLikeCpp, WaypointPathResolverLikeCpp,
+    MMapRuntimeConfigLikeCpp, PlayerGridLoadOutcomeLikeCpp, PlayerGridLoadResolverLikeCpp,
+    WaypointPathResolverLikeCpp,
 };
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -24,30 +25,6 @@ pub(crate) struct CreateMapSideEffectApplySummaryLikeCpp {
     pub skipped_instance_lock_instance_id_updates: u32,
     pub pending_battleground_entry_teleports: u32,
 }
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct PlayerGridLoadOutcomeLikeCpp {
-    pub map_unavailable: bool,
-    pub map_created: bool,
-    pub grid_loaded_now: bool,
-    pub metadata_entries: usize,
-    pub skipped_already_loaded: usize,
-    pub skipped_should_not_spawn: usize,
-    pub skipped_difficulty_mismatch: usize,
-    pub stale_index_entries: usize,
-    pub creature_records_added: usize,
-    pub gameobject_records_added: usize,
-    pub area_trigger_records_added: usize,
-    pub pre_add_records_added: usize,
-    pub add_to_map_errors: usize,
-    pub load_record_missing: usize,
-    pub creature_load_record_missing: usize,
-    pub gameobject_load_record_missing: usize,
-    pub area_trigger_load_record_missing: usize,
-}
-
-pub type PlayerGridLoadResolverLikeCpp =
-    Arc<dyn Fn(u16, Option<u32>, Position) -> PlayerGridLoadOutcomeLikeCpp + Send + Sync>;
 
 pub(in crate::session) fn create_map_decision_difficulty_id_like_cpp(
     decision: &wow_map::CreateMapDecision,

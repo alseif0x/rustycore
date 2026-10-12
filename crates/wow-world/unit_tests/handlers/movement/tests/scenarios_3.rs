@@ -23,7 +23,7 @@ fn transport_membership_reconciles_map_owner_on_attach_switch_and_detach_like_cp
 
     assert_eq!(
         session.reconcile_player_transport_membership_like_cpp(player_guid, Some(first_transport),),
-        crate::session::MovementTransportMembershipLikeCpp::Attached(first_transport)
+        wow_world_core::session::MovementTransportMembershipLikeCpp::Attached(first_transport)
     );
     {
         let manager = canonical.lock().unwrap();
@@ -39,7 +39,7 @@ fn transport_membership_reconciles_map_owner_on_attach_switch_and_detach_like_cp
     assert_eq!(
         session
             .reconcile_player_transport_membership_like_cpp(player_guid, Some(second_transport),),
-        crate::session::MovementTransportMembershipLikeCpp::Attached(second_transport)
+        wow_world_core::session::MovementTransportMembershipLikeCpp::Attached(second_transport)
     );
     let manager = canonical.lock().unwrap();
     let map = manager.find_map(571, 0).unwrap().map();
@@ -59,7 +59,7 @@ fn transport_membership_reconciles_map_owner_on_attach_switch_and_detach_like_cp
 
     assert_eq!(
         session.reconcile_player_transport_membership_like_cpp(player_guid, None),
-        crate::session::MovementTransportMembershipLikeCpp::Detached
+        wow_world_core::session::MovementTransportMembershipLikeCpp::Detached
     );
     let manager = canonical.lock().unwrap();
     let map = manager.find_map(571, 0).unwrap().map();
@@ -84,7 +84,7 @@ fn transport_membership_resets_when_requested_transport_is_not_canonical_like_cp
     assert_eq!(
         session
             .reconcile_player_transport_membership_like_cpp(player_guid, Some(missing_transport),),
-        crate::session::MovementTransportMembershipLikeCpp::Detached
+        wow_world_core::session::MovementTransportMembershipLikeCpp::Detached
     );
     assert_eq!(
         crate::session::hub_ref(&session).player_transport_guid_like_cpp(),

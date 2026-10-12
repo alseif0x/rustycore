@@ -3587,6 +3587,7 @@ dependencies = [
  "rand",
  "tracing",
  "wow-ai",
+ "wow-anticheat",
  "wow-conditions",
  "wow-constants",
  "wow-core",

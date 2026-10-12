@@ -5,6 +5,7 @@
 use super::*;
 mod fall;
 mod far_transfer;
+mod host;
 mod movement_publication;
 mod movement_validation;
 mod speed;

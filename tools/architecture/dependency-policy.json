@@ -178,6 +178,7 @@
     ],
     "wow-world-entities": [
       "wow-ai",
+      "wow-anticheat",
       "wow-conditions",
       "wow-constants",
       "wow-core",

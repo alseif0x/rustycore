@@ -11,15 +11,11 @@
 //! - `WorldSession::HandleRequestVehicleExit`
 //!
 //! `#1263 F5 remaining families`: all eight registrations now live in the
-//! `ApplicationVehicle` area registrar (`wow-world-application`); the bodies
-//! stay here.
+//! `ApplicationVehicle` area registrar (`wow-world-application`). #1363 slice
+//! 4b moved the four remaining bodies to `wow_world_application::vehicle_session`.
 
+#[cfg(test)]
 use wow_core::ObjectGuid;
-use wow_packet::packets::vehicle::{
-    MoveChangeVehicleSeats, MoveDismissVehicle, RequestVehicleSwitchSeat, RideVehicleInteract,
-};
-
-use crate::session::WorldSession;
 
 pub use wow_world_application::{
     VehicleHandlerAction, eject_passenger_action_like_cpp,
@@ -30,42 +26,6 @@ pub use wow_world_application::{
 
 #[cfg(test)]
 mod test_shims;
-
-impl WorldSession {
-    /// C++ `HandleMoveDismissVehicle`.
-    ///
-    /// Full `Player::ExitVehicle` requires live charm/passenger ownership. Until that runtime
-    /// exists, this handler mirrors the C++ early-return shape through represented charm state,
-    /// then copies the validated movement status before represented exit cleanup.
-    pub(crate) async fn handle_move_dismiss_vehicle(&mut self, mut packet: MoveDismissVehicle) {
-        self.represented_move_dismiss_vehicle_like_cpp(&mut packet.status);
-    }
-
-    /// C++ `HandleMoveChangeVehicleSeats`.
-    pub(crate) async fn handle_move_change_vehicle_seats(
-        &mut self,
-        mut packet: MoveChangeVehicleSeats,
-    ) {
-        self.represented_move_change_vehicle_seats_like_cpp(
-            &mut packet.status,
-            packet.dst_vehicle,
-            packet.dst_seat_index,
-        );
-    }
-
-    /// C++ `HandleRequestVehicleSwitchSeat`.
-    pub(crate) async fn handle_request_vehicle_switch_seat(
-        &mut self,
-        packet: RequestVehicleSwitchSeat,
-    ) {
-        self.represented_request_vehicle_switch_seat_like_cpp(packet.vehicle, packet.seat_index);
-    }
-
-    /// C++ `HandleRideVehicleInteract`.
-    pub(crate) async fn handle_ride_vehicle_interact(&mut self, packet: RideVehicleInteract) {
-        self.represented_ride_vehicle_interact_like_cpp(packet.vehicle);
-    }
-}
 
 #[cfg(test)]
 mod tests {

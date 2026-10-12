@@ -81,4 +81,8 @@ impl SocialSessionHostLikeCpp for WorldSession {
     fn represented_has_item_count_like_cpp(&self, item_entry: u32, count: u32) -> bool {
         WorldSession::represented_has_item_count_like_cpp(self, item_entry, count)
     }
+
+    fn resolved_group_guid_like_cpp(&self) -> Option<u64> {
+        WorldSession::resolved_group_guid_like_cpp(self)
+    }
 }

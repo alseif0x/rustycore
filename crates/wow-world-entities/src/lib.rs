@@ -3,6 +3,7 @@
 mod aggro;
 mod catalogs;
 mod contracts;
+mod corpse_handlers;
 mod creature;
 pub mod creature_aggro_contracts;
 mod creature_aura_tracking;
@@ -34,6 +35,9 @@ mod gameobject_use_pvp;
 mod gameobject_use_scripted;
 mod gameobject_use_support;
 mod gameobject_use_types;
+mod movement_acks;
+mod movement_host;
+mod movement_opcodes;
 mod pending_runtime;
 mod player_attack;
 mod spawn;
@@ -51,6 +55,10 @@ pub use contracts::{
     CreatureCreateStatsLikeCpp, MaterializedCreatureSpawnLikeCpp, PendingCreatureKillRewardLikeCpp,
     PendingCreatureSpawn, RepresentedCreatureAuraLikeCpp,
     RepresentedSpellClickCreatureSnapshotLikeCpp,
+};
+pub use corpse_handlers::{
+    CorpseHostLikeCpp, handle_reclaim_corpse, handle_repop_request,
+    handle_request_cemetery_list_with_catalog_like_cpp, handle_resurrect_response,
 };
 pub use creature::creature_message_to_set_target_allows_like_cpp;
 pub use creature_publication::represented_creature_aura_info_like_cpp;
@@ -85,7 +93,6 @@ pub use gameobject_use_preamble::{
     apply_represented_gameobject_goober_just_deactivated_like_cpp,
     apply_represented_gameobject_player_use_preamble_like_cpp,
     apply_represented_gameobject_post_use_spell_like_cpp,
-    apply_represented_gameobject_post_use_spell_like_cpp_internal,
     represented_gameobject_can_interact_with_like_cpp,
     represented_gameobject_use_allowed_by_mover_like_cpp,
 };
@@ -114,6 +121,21 @@ pub use gameobject_use_support::{
     send_represented_gameobject_delete_packets_like_cpp,
     send_represented_gameobject_despawn_to_visible_set_like_cpp,
     use_represented_gameobject_item_forge_like_cpp,
+};
+pub use movement_acks::{
+    apply_knock_back_ack_like_cpp, apply_move_set_vehicle_rec_id_ack_like_cpp,
+    handle_fall_like_cpp, handle_force_speed_change_ack_like_cpp,
+    handle_move_spline_done_taxi_like_cpp, handle_movement_force_mod_magnitude_ack_like_cpp,
+    handle_under_map_like_cpp, record_apply_movement_force_ack_like_cpp,
+    record_remove_movement_force_ack_like_cpp, record_validated_movement_ack_like_cpp,
+    sanitize_movement_info_flags_represented_like_cpp, sanitize_movement_info_represented_like_cpp,
+};
+pub use movement_host::PlayerMovementHostLikeCpp;
+pub use movement_opcodes::{
+    SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP,
+    SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP, SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP,
+    apply_movement_side_effects_like_cpp, handle_move_spline_done, handle_movement_ack_message,
+    handle_movement_info_with_catalogs_like_cpp, handle_movement_with_catalogs_like_cpp,
 };
 pub use player_attack::{
     PLAYER_FLAGS_UBER_LIKE_CPP, PlayerAttackStartLikeCppResult,

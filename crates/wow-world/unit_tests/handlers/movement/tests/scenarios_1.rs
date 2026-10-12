@@ -3,6 +3,13 @@
 //! Moved out of the movement.rs root under #654; every test is unchanged.
 
 use super::*;
+use wow_world_entities::{
+    apply_knock_back_ack_like_cpp, apply_movement_side_effects_like_cpp,
+    handle_force_speed_change_ack_like_cpp, handle_move_spline_done_taxi_like_cpp,
+    handle_movement_force_mod_magnitude_ack_like_cpp, handle_movement_info_with_catalogs_like_cpp,
+    record_apply_movement_force_ack_like_cpp, record_remove_movement_force_ack_like_cpp,
+    sanitize_movement_info_flags_represented_like_cpp,
+};
 
 #[test]
 fn movement_landing_and_jump_remove_cpp_interruptible_auras() {
@@ -21,7 +28,8 @@ fn movement_landing_and_jump_remove_cpp_interruptible_auras() {
         .visible_auras
         .insert(3, visible_aura(3, 0, 0));
 
-    session.apply_movement_side_effects_like_cpp(
+    apply_movement_side_effects_like_cpp(
+        &mut session,
         Some(ClientOpcodes::MoveFallLand),
         &MovementInfo::default(),
     );
@@ -29,7 +37,8 @@ fn movement_landing_and_jump_remove_cpp_interruptible_auras() {
     assert!(session.fixtures.auras.visible_auras.contains_key(&2));
     assert!(session.fixtures.auras.visible_auras.contains_key(&3));
 
-    session.apply_movement_side_effects_like_cpp(
+    apply_movement_side_effects_like_cpp(
+        &mut session,
         Some(ClientOpcodes::MoveJump),
         &MovementInfo::default(),
     );
@@ -45,7 +54,7 @@ fn movement_stands_sitting_player_and_records_flying_pet_unsummon() {
     let mut info = MovementInfo::default();
     info.flags = MovementFlag::FORWARD;
 
-    session.apply_movement_side_effects_like_cpp(Some(ClientOpcodes::MoveSetFly), &info);
+    apply_movement_side_effects_like_cpp(&mut session, Some(ClientOpcodes::MoveSetFly), &info);
 
     assert_eq!(
         session.player_stand_state_like_cpp(),
@@ -67,7 +76,7 @@ fn movement_clears_player_emote_state_like_cpp() {
 
     let mut info = MovementInfo::default();
     info.flags = MovementFlag::FORWARD;
-    session.apply_movement_side_effects_like_cpp(Some(ClientOpcodes::MoveHeartbeat), &info);
+    apply_movement_side_effects_like_cpp(&mut session, Some(ClientOpcodes::MoveHeartbeat), &info);
 
     assert_eq!(session.player_emote_state_like_cpp(), 0);
     assert_eq!(
@@ -76,7 +85,7 @@ fn movement_clears_player_emote_state_like_cpp() {
         "C++ MovementHandler clears UnitData::EmoteState on accepted player movement"
     );
 
-    session.apply_movement_side_effects_like_cpp(Some(ClientOpcodes::MoveHeartbeat), &info);
+    apply_movement_side_effects_like_cpp(&mut session, Some(ClientOpcodes::MoveHeartbeat), &info);
     assert_eq!(
         drain_server_opcodes(&send_rx),
         Vec::<ServerOpcodes>::new(),
@@ -316,16 +325,16 @@ async fn player_movement_loads_active_grid_before_visibility_like_cpp() {
         position: same_grid_position,
         ..MovementInfo::default()
     };
-    session
-        .handle_movement_info_with_catalogs_like_cpp(
-            &area_triggers,
-            &creature_spawns,
-            &progression,
-            &player_grid_loader,
-            Some(ClientOpcodes::MoveHeartbeat),
-            same_grid,
-        )
-        .await;
+    handle_movement_info_with_catalogs_like_cpp(
+        &mut session,
+        &area_triggers,
+        &creature_spawns,
+        &progression,
+        &player_grid_loader,
+        Some(ClientOpcodes::MoveHeartbeat),
+        same_grid,
+    )
+    .await;
     assert_eq!(
         calls.load(Ordering::SeqCst),
         0,
@@ -338,16 +347,16 @@ async fn player_movement_loads_active_grid_before_visibility_like_cpp() {
         position: new_grid_position,
         ..MovementInfo::default()
     };
-    session
-        .handle_movement_info_with_catalogs_like_cpp(
-            &area_triggers,
-            &creature_spawns,
-            &progression,
-            &player_grid_loader,
-            Some(ClientOpcodes::MoveHeartbeat),
-            new_grid,
-        )
-        .await;
+    handle_movement_info_with_catalogs_like_cpp(
+        &mut session,
+        &area_triggers,
+        &creature_spawns,
+        &progression,
+        &player_grid_loader,
+        Some(ClientOpcodes::MoveHeartbeat),
+        new_grid,
+    )
+    .await;
 
     assert_eq!(calls.load(Ordering::SeqCst), 1);
     assert_eq!(
@@ -366,7 +375,7 @@ fn movement_fall_land_applies_cpp_base_fall_damage_and_updates_fall_info() {
     info.position.z = 100.0;
     info.jump.fall_time = 1_500;
 
-    session.apply_movement_side_effects_like_cpp(Some(ClientOpcodes::MoveFallLand), &info);
+    apply_movement_side_effects_like_cpp(&mut session, Some(ClientOpcodes::MoveFallLand), &info);
 
     let events = session.fall_damage_events_like_cpp();
     assert_eq!(events.len(), 1);
@@ -387,7 +396,11 @@ fn movement_fall_land_applies_cpp_base_fall_damage_and_updates_fall_info() {
     let mut harmless = MovementInfo::default();
     harmless.position.z = 99.0;
     harmless.jump.fall_time = 1_600;
-    session.apply_movement_side_effects_like_cpp(Some(ClientOpcodes::MoveFallLand), &harmless);
+    apply_movement_side_effects_like_cpp(
+        &mut session,
+        Some(ClientOpcodes::MoveFallLand),
+        &harmless,
+    );
     assert_eq!(session.fall_damage_events_like_cpp().len(), 1);
 }
 
@@ -401,7 +414,7 @@ fn movement_fall_land_lethal_damage_sends_player_values_update_like_cpp() {
     info.position.z = 100.0;
     info.jump.fall_time = 1_500;
 
-    session.apply_movement_side_effects_like_cpp(Some(ClientOpcodes::MoveFallLand), &info);
+    apply_movement_side_effects_like_cpp(&mut session, Some(ClientOpcodes::MoveFallLand), &info);
 
     let events = session.fall_damage_events_like_cpp();
     assert_eq!(events.len(), 1);
@@ -438,7 +451,7 @@ fn movement_fall_damage_applies_cpp_aura_modifiers_and_guards() {
     info.position.z = 100.0;
     info.jump.fall_time = 1_500;
 
-    session.apply_movement_side_effects_like_cpp(Some(ClientOpcodes::MoveFallLand), &info);
+    apply_movement_side_effects_like_cpp(&mut session, Some(ClientOpcodes::MoveFallLand), &info);
 
     let events = session.fall_damage_events_like_cpp();
     assert_eq!(events.len(), 1);
@@ -453,35 +466,39 @@ fn movement_fall_damage_applies_cpp_aura_modifiers_and_guards() {
         6,
         fall_aura(6, RepresentedAuraEffectLikeCpp::FeatherFall, 0, 1.0),
     );
-    guarded.apply_movement_side_effects_like_cpp(Some(ClientOpcodes::MoveFallLand), &info);
+    apply_movement_side_effects_like_cpp(&mut guarded, Some(ClientOpcodes::MoveFallLand), &info);
     assert!(guarded.fall_damage_events_like_cpp().is_empty());
 
     let mut god = make_session();
     god.set_player_health_like_cpp(1_000, 1_000);
     god.set_fall_information_like_cpp(1_200, 150.0);
     god.set_player_cheat_god_like_cpp(true);
-    god.apply_movement_side_effects_like_cpp(Some(ClientOpcodes::MoveFallLand), &info);
+    apply_movement_side_effects_like_cpp(&mut god, Some(ClientOpcodes::MoveFallLand), &info);
     assert!(god.fall_damage_events_like_cpp().is_empty());
 
     let mut gm = make_session();
     gm.set_player_health_like_cpp(1_000, 1_000);
     gm.set_fall_information_like_cpp(1_200, 150.0);
     gm.set_player_game_master_like_cpp(true);
-    gm.apply_movement_side_effects_like_cpp(Some(ClientOpcodes::MoveFallLand), &info);
+    apply_movement_side_effects_like_cpp(&mut gm, Some(ClientOpcodes::MoveFallLand), &info);
     assert!(gm.fall_damage_events_like_cpp().is_empty());
 
     let mut immune = make_session();
     immune.set_player_health_like_cpp(1_000, 1_000);
     immune.set_fall_information_like_cpp(1_200, 150.0);
     immune.set_player_normal_damage_immune_like_cpp(true);
-    immune.apply_movement_side_effects_like_cpp(Some(ClientOpcodes::MoveFallLand), &info);
+    apply_movement_side_effects_like_cpp(&mut immune, Some(ClientOpcodes::MoveFallLand), &info);
     assert!(immune.fall_damage_events_like_cpp().is_empty());
 
     let mut environmental = make_session();
     environmental.set_player_health_like_cpp(1_000, 1_000);
     environmental.set_fall_information_like_cpp(1_200, 150.0);
     environmental.set_player_environmental_damage_immune_like_cpp(true);
-    environmental.apply_movement_side_effects_like_cpp(Some(ClientOpcodes::MoveFallLand), &info);
+    apply_movement_side_effects_like_cpp(
+        &mut environmental,
+        Some(ClientOpcodes::MoveFallLand),
+        &info,
+    );
     assert_eq!(environmental.fall_damage_events_like_cpp()[0].damage, 657);
     assert_eq!(
         environmental.fall_damage_events_like_cpp()[0].final_damage,
@@ -498,7 +515,7 @@ fn movement_under_map_applies_cpp_void_damage_and_flag() {
     let mut info = MovementInfo::default();
     info.position.z = -501.0;
 
-    session.apply_movement_side_effects_like_cpp(Some(ClientOpcodes::MoveHeartbeat), &info);
+    apply_movement_side_effects_like_cpp(&mut session, Some(ClientOpcodes::MoveHeartbeat), &info);
 
     assert_eq!(session.under_map_damage_events_like_cpp().len(), 1);
     assert_eq!(
@@ -519,7 +536,7 @@ fn movement_under_map_applies_cpp_void_damage_and_flag() {
     assert_eq!(opcode, ServerOpcodes::UpdateObject as u16);
 
     info.position.z = -499.0;
-    session.apply_movement_side_effects_like_cpp(Some(ClientOpcodes::MoveHeartbeat), &info);
+    apply_movement_side_effects_like_cpp(&mut session, Some(ClientOpcodes::MoveHeartbeat), &info);
     assert!(!session.player_out_of_bounds_like_cpp());
 }
 
@@ -563,7 +580,11 @@ fn movement_ack_helpers_validate_and_apply_cpp_side_effects() {
         ack_index: 7,
     };
 
-    assert!(session.apply_knock_back_ack_like_cpp(ClientOpcodes::MoveKnockBackAck, &mut ack));
+    assert!(apply_knock_back_ack_like_cpp(
+        &mut session,
+        ClientOpcodes::MoveKnockBackAck,
+        &mut ack
+    ));
     assert_eq!(session.player_position_like_cpp(), Some(status.position));
     assert_eq!(session.movement_ack_events_like_cpp().len(), 1);
     assert!(session.movement_ack_events_like_cpp()[0].accepted);
@@ -619,7 +640,11 @@ fn movement_force_ack_helpers_record_cpp_adjusted_time_and_force_id() {
         force_type: wow_packet::packets::movement::MovementForceType::Gravity,
     };
 
-    assert!(session.record_apply_movement_force_ack_like_cpp(&mut ack, &force));
+    assert!(record_apply_movement_force_ack_like_cpp(
+        &mut session,
+        &mut ack,
+        &force
+    ));
     assert_eq!(session.movement_ack_events_like_cpp().len(), 1);
     assert_eq!(
         session.movement_ack_events_like_cpp()[0].opcode,
@@ -639,7 +664,11 @@ fn movement_force_ack_helpers_record_cpp_adjusted_time_and_force_id() {
             .is_some()
     );
 
-    assert!(session.record_remove_movement_force_ack_like_cpp(&mut ack, force_guid));
+    assert!(record_remove_movement_force_ack_like_cpp(
+        &mut session,
+        &mut ack,
+        force_guid
+    ));
     assert_eq!(
         session.movement_ack_events_like_cpp()[1].opcode,
         ClientOpcodes::MoveRemoveMovementForceAck
@@ -667,7 +696,8 @@ fn movement_speed_ack_matches_cpp_counters_and_anticheat() {
 
     session.set_player_movement_speed_rate_like_cpp(UnitMoveTypeLikeCpp::Run, 1.0);
     session.set_forced_speed_changes_like_cpp(UnitMoveTypeLikeCpp::Run, 2);
-    assert!(session.handle_force_speed_change_ack_like_cpp(
+    assert!(handle_force_speed_change_ack_like_cpp(
+        &mut session,
         ClientOpcodes::MoveForceRunSpeedChangeAck,
         &mut ack,
         1.0,
@@ -677,7 +707,8 @@ fn movement_speed_ack_matches_cpp_counters_and_anticheat() {
     assert_eq!(first.remaining_forced_changes, Some(1));
     assert!(!session.is_disconnecting());
 
-    assert!(session.handle_force_speed_change_ack_like_cpp(
+    assert!(handle_force_speed_change_ack_like_cpp(
+        &mut session,
         ClientOpcodes::MoveForceRunSpeedChangeAck,
         &mut ack,
         6.0,
@@ -688,7 +719,8 @@ fn movement_speed_ack_matches_cpp_counters_and_anticheat() {
     assert!(!session.is_disconnecting());
 
     session.set_player_on_transport_like_cpp(true);
-    assert!(session.handle_force_speed_change_ack_like_cpp(
+    assert!(handle_force_speed_change_ack_like_cpp(
+        &mut session,
         ClientOpcodes::MoveForceRunSpeedChangeAck,
         &mut ack,
         8.0,
@@ -698,7 +730,8 @@ fn movement_speed_ack_matches_cpp_counters_and_anticheat() {
     assert!(!session.is_disconnecting());
 
     session.set_player_on_transport_like_cpp(false);
-    assert!(!session.handle_force_speed_change_ack_like_cpp(
+    assert!(!handle_force_speed_change_ack_like_cpp(
+        &mut session,
         ClientOpcodes::MoveForceRunSpeedChangeAck,
         &mut ack,
         8.0,
@@ -759,7 +792,8 @@ fn movement_force_magnitude_ack_matches_cpp_counter_validation() {
         ack_index: 11,
     };
 
-    assert!(session.handle_movement_force_mod_magnitude_ack_like_cpp(
+    assert!(handle_movement_force_mod_magnitude_ack_like_cpp(
+        &mut session,
         ClientOpcodes::MoveSetModMovementForceMagnitudeAck,
         &mut ack,
         1.25,
@@ -769,7 +803,8 @@ fn movement_force_magnitude_ack_matches_cpp_counter_validation() {
     assert_eq!(accepted.remaining_forced_changes, Some(0));
 
     session.set_movement_force_mod_magnitude_changes_like_cpp(1);
-    assert!(!session.handle_movement_force_mod_magnitude_ack_like_cpp(
+    assert!(!handle_movement_force_mod_magnitude_ack_like_cpp(
+        &mut session,
         ClientOpcodes::MoveSetModMovementForceMagnitudeAck,
         &mut ack,
         1.5,
@@ -800,7 +835,7 @@ fn move_spline_done_taxi_final_cleanup_matches_cpp_represented_side_effects() {
         ..MovementInfo::default()
     };
 
-    let action = session.handle_move_spline_done_taxi_like_cpp(&mut status, 55);
+    let action = handle_move_spline_done_taxi_like_cpp(&mut session, &mut status, 55);
     assert_eq!(action, MoveSplineDoneTaxiActionLikeCpp::FinalCleanup);
     assert!(session.taxi_destinations_like_cpp().is_empty());
     assert!(!session.taxi_mounted_like_cpp());
@@ -841,7 +876,7 @@ fn move_spline_done_taxi_far_teleport_matches_cpp_represented_branch() {
         ..MovementInfo::default()
     };
 
-    let action = session.handle_move_spline_done_taxi_like_cpp(&mut status, 56);
+    let action = handle_move_spline_done_taxi_like_cpp(&mut session, &mut status, 56);
     assert_eq!(action, MoveSplineDoneTaxiActionLikeCpp::TeleportRequested);
     assert_eq!(session.core.player_map_id_like_cpp(), 1);
     assert_eq!(
@@ -942,7 +977,7 @@ fn validate_movement_info_sanitizes_representable_cpp_flag_violations() {
         ..MovementInfo::default()
     };
 
-    let removed = session.sanitize_movement_info_flags_represented_like_cpp(&mut info);
+    let removed = sanitize_movement_info_flags_represented_like_cpp(&session, &mut info);
     assert!(removed.contains(MovementFlag::FORWARD | MovementFlag::BACKWARD));
     assert!(removed.contains(MovementFlag::LEFT | MovementFlag::RIGHT));
     assert!(removed.contains(MovementFlag::ASCENDING | MovementFlag::DESCENDING));

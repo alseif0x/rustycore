@@ -68,7 +68,8 @@ impl WorldSession {
         // after validating the `SpellInfo` and before the spell cast request
         // continues.
         if let Some(move_update) = req.move_update.clone() {
-            self.handle_movement_info_with_catalogs_like_cpp(
+            wow_world_entities::handle_movement_info_with_catalogs_like_cpp(
+                self,
                 area_trigger_catalogs,
                 creature_spawn_catalogs,
                 progression,

@@ -13,12 +13,12 @@ use wow_core::ObjectGuid;
 use wow_data::battlemaster_list::{BATTLEGROUND_EY_LIKE_CPP, BATTLEGROUND_WS_LIKE_CPP};
 use wow_world_core::session::player_team_for_race_cpp;
 
+use crate::gameobject_use_preamble::apply_represented_gameobject_post_use_spell_like_cpp_internal;
 use crate::world_entities_host::WorldEntitiesHostLikeCpp;
 use crate::{
     BattlegroundFlagDropClickTarget, RepresentedCapturePointStateLikeCpp,
     RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
     RepresentedNewFlagStateRequest, apply_represented_gameobject_post_use_spell_like_cpp,
-    apply_represented_gameobject_post_use_spell_like_cpp_internal,
     apply_represented_new_flag_state_command_like_cpp,
     record_represented_capture_point_update_like_cpp,
     remove_represented_stealth_or_invisibility_auras_by_type_like_cpp,

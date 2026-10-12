@@ -15,10 +15,11 @@ use wow_packet::packets::chat::{CTextEmote, EmoteMessage, STextEmote};
 use wow_packet::{ClientPacket, ServerPacket};
 use wow_world_core::session::ChatPolicyCatalogsLikeCpp;
 
+use crate::chat_handlers::EMOTE_ONESHOT_NONE_LIKE_CPP;
 use crate::social_host::SocialSessionHostLikeCpp;
 
-/// Emote ids and states used by the text-emote handler.
-pub const EMOTE_ONESHOT_NONE_LIKE_CPP: i32 = 0;
+/// Emote ids and states used by the text-emote handler (`EMOTE_ONESHOT_NONE`
+/// is shared with the chat handlers).
 pub const EMOTE_STATE_DANCE_LIKE_CPP: i32 = 10;
 pub const EMOTE_STATE_SLEEP_LIKE_CPP: i32 = 12;
 pub const EMOTE_STATE_SIT_LIKE_CPP: i32 = 13;
