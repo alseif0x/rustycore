@@ -1,18 +1,16 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! World-side adapter for the gameobject-use and corpse bodies that moved to
-//! `wow_world_entities` (#1363 slice 4a). Each method delegates to the
-//! same-named session operation; the loot queue and quest-source hooks repeat
-//! the exact split the moved body used before the move.
+//! World-side adapter for the gameobject-use and player-attack bodies that
+//! moved to `wow_world_entities` (#1363 slice 4a). Each method delegates to the
+//! same-named session operation; the loot-queue, quest-source, duel and group
+//! hooks repeat the exact split the moved body used before the move.
 
 use std::future::Future;
 
 use wow_constants::unit::UnitPvpFlags;
 use wow_core::{ObjectGuid, Position};
-use wow_entities::{
-    GameObjectLootSource, GatheringNodeUseSource, PhaseShift, PlayerResurrectionRequestLikeCpp,
-};
+use wow_entities::{GameObjectLootSource, GatheringNodeUseSource, PhaseShift};
 use wow_world_core::session::{HubMut, HubRef, ItemValuationCatalogsLikeCpp};
 use wow_world_entities::{WorldEntitiesHostLikeCpp, WorldEntitiesState};
 
@@ -50,17 +48,6 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
     ) -> usize {
         crate::session::cx_loot_ref(self)
             .queue_goober_gameobject_state_refresh_for_same_map_like_cpp(gameobject_guid)
-    }
-
-    fn count_represented_repop_at_graveyard_for_test_like_cpp(&mut self) {
-        #[cfg(test)]
-        {
-            self.fixtures.combat.represented_repop_at_graveyard_count = self
-                .fixtures
-                .combat
-                .represented_repop_at_graveyard_count
-                .saturating_add(1);
-        }
     }
 
     fn record_represented_gameobject_template_quest_source_like_cpp(
@@ -142,19 +129,8 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
         WorldSession::can_see_phase_shift_like_cpp(self, other)
     }
 
-    fn clear_represented_resurrection_request_like_cpp(&mut self) -> bool {
-        WorldSession::clear_represented_resurrection_request_like_cpp(self)
-    }
-
     fn despawn_represented_linked_trap_by_guid_like_cpp(&mut self, trap_guid: ObjectGuid) {
         WorldSession::despawn_represented_linked_trap_by_guid_like_cpp(self, trap_guid)
-    }
-
-    fn graveyard_conditions_meet_like_cpp(
-        &mut self,
-        conditions_ref: &wow_data::ConditionsReference,
-    ) -> bool {
-        WorldSession::graveyard_conditions_meet_like_cpp(self, conditions_ref)
     }
 
     fn kill_credit_gameobject_with_generator_like_cpp(
@@ -237,10 +213,6 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
         )
     }
 
-    fn pending_teleport_like_cpp(&self) -> Option<(u32, Position)> {
-        WorldSession::pending_teleport_like_cpp(self)
-    }
-
     fn remove_aura(&mut self, slot: u8) -> Result<(), &'static str> {
         WorldSession::remove_aura(self, slot)
     }
@@ -283,41 +255,8 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
         WorldSession::resolved_group_guid_like_cpp(self)
     }
 
-    fn schedule_represented_resurrection_after_teleport_like_cpp(
-        &mut self,
-        request: PlayerResurrectionRequestLikeCpp,
-    ) -> bool {
-        WorldSession::schedule_represented_resurrection_after_teleport_like_cpp(self, request)
-    }
-
     fn send_represented_cinematic_start_like_cpp(&mut self, cinematic_id: u32) {
         WorldSession::send_represented_cinematic_start_like_cpp(self, cinematic_id)
-    }
-
-    fn set_player_alive_like_cpp(&mut self, alive: bool) {
-        WorldSession::set_player_alive_like_cpp(self, alive)
-    }
-
-    fn set_player_ghost_flag_like_cpp(&mut self, ghost: bool) {
-        WorldSession::set_player_ghost_flag_like_cpp(self, ghost)
-    }
-
-    fn take_represented_resurrection_request_if_requested_by_like_cpp(
-        &mut self,
-        resurrecter: ObjectGuid,
-    ) -> Option<PlayerResurrectionRequestLikeCpp> {
-        WorldSession::take_represented_resurrection_request_if_requested_by_like_cpp(
-            self,
-            resurrecter,
-        )
-    }
-
-    fn teleport_to(
-        &mut self,
-        new_map: u32,
-        new_pos: wow_core::Position,
-    ) -> impl Future<Output = ()> + Send {
-        WorldSession::teleport_to(self, new_map, new_pos)
     }
 
     fn use_represented_gameobject_questgiver_like_cpp(

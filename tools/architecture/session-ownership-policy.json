@@ -7051,8 +7051,35 @@
           "trait_path": null,
           "kind": "method",
           "name": "graveyard_conditions_meet_like_cpp",
-          "visibility": "pub (crate)",
+          "visibility": "private",
           "signature": "fn graveyard_conditions_meet_like_cpp (& mut self , conditions_ref : & wow_data :: ConditionsReference ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::corpse",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_reclaim_corpse",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_reclaim_corpse (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::corpse",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_repop_request",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_repop_request (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -7071,6 +7098,34 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::corpse",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_request_cemetery_list_with_catalog_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_request_cemetery_list_with_catalog_like_cpp (& mut self , graveyard_store : & wow_data :: GraveyardStore , _pkt : wow_packet :: WorldPacket ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::corpse",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_resurrect_response",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_resurrect_response (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [],
+          "source_class": "production",
           "guards": [
             "external_impl",
             "visible"
@@ -7305,34 +7360,6 @@
           "module": "crate::handlers::entities::host",
           "trait_path": "WorldEntitiesHostLikeCpp",
           "kind": "method",
-          "name": "clear_represented_resurrection_request_like_cpp",
-          "visibility": "private",
-          "signature": "fn clear_represented_resurrection_request_like_cpp (& mut self) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::entities::host",
-          "trait_path": "WorldEntitiesHostLikeCpp",
-          "kind": "method",
-          "name": "count_represented_repop_at_graveyard_for_test_like_cpp",
-          "visibility": "private",
-          "signature": "fn count_represented_repop_at_graveyard_for_test_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::entities::host",
-          "trait_path": "WorldEntitiesHostLikeCpp",
-          "kind": "method",
           "name": "current_player_is_group_visible_for_owner_like_cpp",
           "visibility": "private",
           "signature": "fn current_player_is_group_visible_for_owner_like_cpp (& self , current_group_guid : Option < u64 > , owner_guid : ObjectGuid ,) -> bool",
@@ -7378,20 +7405,6 @@
           "name": "ensure_canonical_world_map_for_current_player_like_cpp",
           "visibility": "private",
           "signature": "fn ensure_canonical_world_map_for_current_player_like_cpp (& mut self ,) -> Option < wow_map :: CreateMapDecision >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::entities::host",
-          "trait_path": "WorldEntitiesHostLikeCpp",
-          "kind": "method",
-          "name": "graveyard_conditions_meet_like_cpp",
-          "visibility": "private",
-          "signature": "fn graveyard_conditions_meet_like_cpp (& mut self , conditions_ref : & wow_data :: ConditionsReference ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -7462,20 +7475,6 @@
           "name": "open_represented_gathering_node_with_catalogs_like_cpp",
           "visibility": "private",
           "signature": "fn open_represented_gathering_node_with_catalogs_like_cpp (& mut self , item_valuation : & ItemValuationCatalogsLikeCpp , gameobject_guid : ObjectGuid , gameobject_entry : u32 , source : GatheringNodeUseSource ,) -> impl Future < Output = () > + Send",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::entities::host",
-          "trait_path": "WorldEntitiesHostLikeCpp",
-          "kind": "method",
-          "name": "pending_teleport_like_cpp",
-          "visibility": "private",
-          "signature": "fn pending_teleport_like_cpp (& self) -> Option < (u32 , Position) >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -7655,20 +7654,6 @@
           "module": "crate::handlers::entities::host",
           "trait_path": "WorldEntitiesHostLikeCpp",
           "kind": "method",
-          "name": "schedule_represented_resurrection_after_teleport_like_cpp",
-          "visibility": "private",
-          "signature": "fn schedule_represented_resurrection_after_teleport_like_cpp (& mut self , request : PlayerResurrectionRequestLikeCpp ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::entities::host",
-          "trait_path": "WorldEntitiesHostLikeCpp",
-          "kind": "method",
           "name": "send_represented_cinematic_start_like_cpp",
           "visibility": "private",
           "signature": "fn send_represented_cinematic_start_like_cpp (& mut self , cinematic_id : u32)",
@@ -7676,36 +7661,6 @@
           "source_class": "production",
           "guards": [
             "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::entities::host",
-          "trait_path": "WorldEntitiesHostLikeCpp",
-          "kind": "method",
-          "name": "set_player_alive_like_cpp",
-          "visibility": "private",
-          "signature": "fn set_player_alive_like_cpp (& mut self , alive : bool)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "setter",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::entities::host",
-          "trait_path": "WorldEntitiesHostLikeCpp",
-          "kind": "method",
-          "name": "set_player_ghost_flag_like_cpp",
-          "visibility": "private",
-          "signature": "fn set_player_ghost_flag_like_cpp (& mut self , ghost : bool)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "setter",
             "trait_impl"
           ]
         },
@@ -7730,34 +7685,6 @@
           "name": "split_world_entities_ref",
           "visibility": "private",
           "signature": "fn split_world_entities_ref (& self) -> (& WorldEntitiesState , HubRef < '_ >)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::entities::host",
-          "trait_path": "WorldEntitiesHostLikeCpp",
-          "kind": "method",
-          "name": "take_represented_resurrection_request_if_requested_by_like_cpp",
-          "visibility": "private",
-          "signature": "fn take_represented_resurrection_request_if_requested_by_like_cpp (& mut self , resurrecter : ObjectGuid ,) -> Option < PlayerResurrectionRequestLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::entities::host",
-          "trait_path": "WorldEntitiesHostLikeCpp",
-          "kind": "method",
-          "name": "teleport_to",
-          "visibility": "private",
-          "signature": "fn teleport_to (& mut self , new_map : u32 , new_pos : wow_core :: Position ,) -> impl Future < Output = () > + Send",
           "cfg": [],
           "source_class": "production",
           "guards": [

@@ -922,13 +922,20 @@ Findings:
     `wow-world`'s. Such a body either stays with the host, or its test-only step
     becomes a host hook whose adapter keeps the `cfg(test)` block.
 
-**4a** takes the lowest surface per line: entities (gameobject use, corpse and
-their single-caller helpers), combat (player attack start and melee delivery),
-the text emote, and the LFG lock info. That is about 3.5k lines with 44 host
-methods.
+**4a** takes the lowest surface per line. It covers:
+- gameobject use with its single-caller helpers;
+- combat: the player attack start and the melee delivery;
+- the text emote;
+- the LFG lock info.
+
+That is about 3.5k lines with 38 domain host methods (see the 4a result). The
+corpse handlers were planned for 4a and taken out again. They needed 9 host
+methods (teleport, vitals, the resurrection request and a test hook) for about
+200 lines, which would have put 4a over the 15 % budget.
 
 **4b** takes the rest, in this order:
-1. Movement (1.3k / 22).
+1. Movement (1.3k / 22), and the corpse handlers if movement's teleport and
+   vitals surface also covers what corpse needs.
 2. Vehicle, trainer and talent. Trainer goes to `wow-world-application`
    because its contexts (`AppTrainerListCx`) live there.
 3. Battlegrounds. Its two `cfg(test)` fixture pushes become host hooks.
@@ -936,3 +943,122 @@ methods.
 5. Travel, spell and void storage. These have the largest surface (31–45).
    They mostly call inventory, loot and lifecycle operations that slices 5 and
    8 will move, so if the 15 % budget does not hold they wait for those slices.
+
+## Slice 4a result (gameobject use, player attack, text emote, LFG lock info)
+
+Branch `1363-s4a-leaf-handlers`, base `fba425ad1` (phase 1 merged). The move is
+move-only (R2): bodies are unchanged apart from the rewrites the inversion
+needs, so no C++ re-audit applies. Those rewrites are:
+- `self.` becomes `host.`;
+- `self.<field>` becomes `host.<field>()` or `host.<field>_mut()`;
+- `crate::session::hub_*(self)` and `split_*(self)` become host calls;
+- a call to another moved method becomes a free call;
+- crate-local paths become the destination's paths.
+
+Packets, their order and persistence are unchanged.
+
+### What moved
+
+- **To `wow-world-entities` (3.0k body lines).**
+  - `CMSG_GAME_OBJ_USE` and the gossip interaction check (`gameobject_use_dispatch.rs`).
+  - The use preamble and the post-use spell (`gameobject_use_preamble.rs`).
+  - The PvP, scripted and per-type gameobject uses (`gameobject_use_pvp.rs`,
+    `gameobject_use_scripted.rs`, `gameobject_use_kinds.rs`).
+  - Their single-caller helpers (`gameobject_use_support.rs`): the battleground
+    object gates, the item forge, the fishing skill base, stealth removal, the
+    new-flag and capture-point records, the owner record, the friendliness check
+    and the delete/despawn publication.
+  - The player attack start, the melee-result delivery and the target-visibility
+    context (`player_attack.rs`).
+  - The constants and the result enum only these bodies used:
+    `SKILL_FISHING_LIKE_CPP`, `PLAYER_FLAGS_UBER_LIKE_CPP` and
+    `PlayerAttackStartLikeCppResult`. The battleground ids now come from
+    `wow_data::battlemaster_list`, where the same values were already defined.
+- **To `wow-world-social` (0.5k body lines).**
+  - `CMSG_SEND_TEXT_EMOTE` (`text_emote.rs`).
+  - `CMSG_DF_GET_SYSTEM_INFO` with the LFG lock and reward info
+    (`lfg_lock_info.rs`).
+- **`wow-world-application` is unchanged:** 50,861 lines in `src`, +0 / −0. No
+  body needed an application-only type.
+- **Registrations do not move.** The F5 registrars and their handler-level
+  host traits stay. Their `wow-world` adapters now call the moved body,
+  `wow_world_entities::…(self, …)` or `wow_world_social::…(self, …)`, where they
+  used to call the inherent method.
+
+### Host surface
+
+- **`wow_world_core::session::SessionHubHostLikeCpp`** (new, 36 lines). This is
+  the shared base for every slice-4 host. It has two required methods, `hub_ref`
+  and `hub_mut`, and provides `core`, `core_mut`, `player_guid`, `send_packet`,
+  `send_raw_packet` and `state`. Each provided method forwards exactly as the
+  session's inherent method of the same name does.
+- **`WorldEntitiesHostLikeCpp`** (30 methods):
+  - the world-entity state accessors and splits;
+  - two loot-queue hooks and the quest-source record;
+  - loot opening, quest menus, kill credit, auras and mounted-aura removal;
+  - the group, duel and phase reads, the map selection and the unit VALUES
+    update;
+  - one cfg(test) fallback hook.
+- **`SocialSessionHostLikeCpp`** (8 methods): the aura interrupt, the instance
+  lock, the achievement and item reads, the quest snapshot, and the quest money
+  and XP rewards.
+- **Adapters are written out in full.** A forwarding macro would have saved
+  about 150 lines, but the session-ownership grammar rejects macros inside
+  `impl … for WorldSession`. The adapters are `handlers/entities/host.rs` (277
+  lines), the `SocialSessionHostLikeCpp` impl in
+  `session/chat_handler_contexts.rs`, and the base impl in `session/state/hub.rs`.
+- **`cfg(test)` code stays in `wow-world`.** Moving a body would make `cfg(test)`
+  mean the destination crate's own test build. So:
+  - the attacker-pvp-flags fallback became a host hook whose adapter keeps the
+    `cfg(test)` block;
+  - the resurrection-request helpers, the mounted-aura removal and the
+    quest-objective, quest-menu and graveyard-condition helpers stay in
+    `wow-world` behind the host, because they hold `cfg(test)` fixture code or
+    `wow-world`-only types.
+- **One Arc clone.** The meeting-stone body read the disjoint `catalogs` field
+  while mutating world-entity state. It now clones the content-tuning store Arc
+  first. Values and order are unchanged.
+
+### Accounting
+
+- **`crates/wow-world/src`.** `git diff --numstat`: −3,646 / +469 (net −3,177).
+  The classifier goes from 91,482 physical, 87,998 production and 3,484 test
+  lines in 515 files to 88,305, 84,815 and 3,490 in 513 files. Production is
+  −3,183.
+- **Destinations.**
+  - `wow-world-entities/src` +3,387: about 3,020 moved body lines, 178 lines of file
+    headers, 58 lines of `lib.rs` mounts and exports and the 136-line host trait.
+  - `wow-world-social/src` +590: about 510 moved, 40 header, 15 `lib.rs` and the
+    23-line host trait.
+  - `wow-world-core/src` +38: the base trait.
+- **Budget.** New host code (the three traits plus the adapters) is about 514
+  lines against 3,536 moved body lines, 14.5 %.
+  - `net_move.py check`: S = 3,177, G = 4,015, PASS, 0 duplicate bodies.
+  - G − S also counts the destination headers and export lists, and the rustfmt
+    reflow of `host.x_mut()` chains and generic signatures.
+- **Policy.**
+  - `dependency-policy.json`: `wow-world-social` may depend on `wow-data` (the
+    emote and LFG stores), and `wow-world-entities` may use the external `rand`
+    crate (the ritual target pick). `wow-world`, `-core` and `-application`
+    already had it.
+  - `session-ownership-policy.json` is reprinted with `print-baseline`.
+- **Ceilings.** All are tightened and none is raised:
+  - physical `handlers/chat.rs` 77 → 63 (the module is now mounted only for
+    the test build);
+  - physical `session/mod.rs` 992 → 989;
+  - hotspot `session/mod.rs`: production 45,578 → 43,785, test 142,188 →
+    142,050, total 187,766 → 185,835.
+  - The character and loot hotspot owners are unchanged. Their call sites keep
+    method syntax through three cfg(test) shims in `handlers/entities/gameobject.rs`.
+- **Warnings.**
+  - `wow-world` `dead_code` stays 0 in the production lib, the lib with
+    `test-fixtures` and the lib test build.
+  - `unused_imports` falls: 165 → 154, 174 → 163 and 335 → 324.
+  - `wow-world-entities`, `-social` and `-core` keep exactly their pre-existing
+    warnings.
+- **Tests.** No `#[test]` or `#[ignore]` is added or removed; the workspace
+  test-name multiset is identical before and after. The scenario tests stay in
+  `wow-world`, and their call sites become `wow_world_entities::f(&mut session, …)`.
+  One source-scan regression,
+  `uncage_item_state_seam_no_longer_names_statement_or_driver_errors`, used the
+  moved item-forge method as its end delimiter. It now ends at the impl block.
