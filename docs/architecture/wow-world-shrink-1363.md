@@ -1997,8 +1997,10 @@ SHA).
   (expected application ~30.3k). `registry_sync` goes with the cluster;
   re-plan `inventory_scaling` and `equipment_set_use` there (see A4
   *Next*). Trainer purchase now reaches spell acquisition and profession
-  in `wow-world-spell`, so a later trainer split needs no application
-  module beyond `aura_removal` and the quest state.
+  in `wow-world-spell`; its remaining application imports are
+  `SessionQuestState`, `PlayerConditionProjectionCxLikeCpp` (quest
+  cluster) and `PlayerAuraApplicationCxLikeCpp` (`aura_removal`), which
+  is what a later trainer split has to re-measure after A6.
 - Slice 8 (character login load and handlers → `wow-world-character`)
   needs its own closure check; the tracked check now rejects any edge
   from a domain crate or `wow-world-core` back to character.
