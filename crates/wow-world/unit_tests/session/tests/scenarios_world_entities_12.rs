@@ -574,18 +574,28 @@ fn gameobject_use_mover_guard_matches_cpp_remote_control_branch() {
     let controlled_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 123, 4);
 
     session.set_player_guid(Some(player_guid));
-    assert!(session.represented_gameobject_use_allowed_by_mover_like_cpp(false));
+    assert!(
+        wow_world_entities::represented_gameobject_use_allowed_by_mover_like_cpp(&session, false)
+    );
 
     session.set_player_moved_unit_guid_like_cpp(controlled_guid);
-    assert!(!session.represented_gameobject_use_allowed_by_mover_like_cpp(false));
-    assert!(session.represented_gameobject_use_allowed_by_mover_like_cpp(true));
+    assert!(
+        !wow_world_entities::represented_gameobject_use_allowed_by_mover_like_cpp(&session, false)
+    );
+    assert!(
+        wow_world_entities::represented_gameobject_use_allowed_by_mover_like_cpp(&session, true)
+    );
 
     session.set_player_mounted_like_cpp(true);
-    assert!(session.represented_gameobject_use_allowed_by_mover_like_cpp(false));
+    assert!(
+        wow_world_entities::represented_gameobject_use_allowed_by_mover_like_cpp(&session, false)
+    );
 
     session.set_player_mounted_like_cpp(false);
     session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp = Some(0);
-    assert!(session.represented_gameobject_use_allowed_by_mover_like_cpp(false));
+    assert!(
+        wow_world_entities::represented_gameobject_use_allowed_by_mover_like_cpp(&session, false)
+    );
 }
 #[test]
 fn creature_aggro_radius_uses_faction_template_neutral_to_all_like_cpp() {
@@ -633,7 +643,8 @@ fn gameobject_use_preamble_matches_cpp_player_branch() {
     session.set_player_guid(Some(player_guid));
     session.set_player_mounted_like_cpp(true);
     assert!(
-        session.apply_represented_gameobject_player_use_preamble_like_cpp(
+        wow_world_entities::apply_represented_gameobject_player_use_preamble_like_cpp(
+            &mut session,
             gameobject_guid,
             player_guid,
             false,
@@ -677,7 +688,8 @@ fn gameobject_use_preamble_matches_cpp_player_branch() {
         .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .gossip_hello_ai_returns_true = true;
     assert!(
-        !session.apply_represented_gameobject_player_use_preamble_like_cpp(
+        !wow_world_entities::apply_represented_gameobject_player_use_preamble_like_cpp(
+            &mut session,
             gameobject_guid,
             player_guid,
             true,
@@ -715,7 +727,8 @@ fn gameobject_use_preamble_rejects_damage_immune_player_like_cpp() {
         .player_unit_flags_like_cpp
         .insert(UnitFlags::IMMUNE);
     assert!(
-        !session.apply_represented_gameobject_player_use_preamble_like_cpp(
+        !wow_world_entities::apply_represented_gameobject_player_use_preamble_like_cpp(
+            &mut session,
             gameobject_guid,
             player_guid,
             false,

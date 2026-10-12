@@ -22,15 +22,15 @@ impl CorpseHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         &'a mut self,
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { self.handle_resurrect_response(pkt).await })
+        Box::pin(async move { wow_world_entities::handle_resurrect_response(self, pkt).await })
     }
 
     fn handle_repop_request_like_cpp<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { self.handle_repop_request(pkt).await })
+        Box::pin(async move { wow_world_entities::handle_repop_request(self, pkt).await })
     }
 
     fn handle_reclaim_corpse_like_cpp<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { self.handle_reclaim_corpse(pkt).await })
+        Box::pin(async move { wow_world_entities::handle_reclaim_corpse(self, pkt).await })
     }
 
     fn handle_request_cemetery_list_with_catalogs_like_cpp<'a>(
@@ -39,7 +39,8 @@ impl CorpseHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            self.handle_request_cemetery_list_with_catalog_like_cpp(
+            wow_world_entities::handle_request_cemetery_list_with_catalog_like_cpp(
+                self,
                 catalogs.graveyards.as_ref(),
                 pkt,
             )

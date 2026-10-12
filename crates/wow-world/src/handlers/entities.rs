@@ -11,15 +11,11 @@
 //! actually consume.
 
 mod corpse;
+#[cfg(test)]
 mod gameobject;
+mod host;
 #[cfg(test)]
 mod player;
-
-fn represented_gameobject_icon_allows_interaction_like_cpp(icon_name: &str) -> bool {
-    // C++ `Player::GetGameObjectIfCanInteractWith` rejects exactly this
-    // template sentinel before applying the distance check.
-    icon_name != "Point"
-}
 
 #[cfg(test)]
 use wow_constants::ItemExtendedCostFlags;

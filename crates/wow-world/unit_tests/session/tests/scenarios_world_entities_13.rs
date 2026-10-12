@@ -58,18 +58,21 @@ fn gameobject_use_chair_picks_nearest_free_slot_like_cpp() {
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 17);
 
-    assert!(session.use_represented_gameobject_chair_like_cpp(
-        gameobject_guid,
-        player_guid,
-        Position::new(0.0, 1.8, 0.0, 0.0),
-        Position::ZERO,
-        2.0,
-        wow_entities::ChairUseSource {
-            chair_slots: 3,
-            chair_height: 2,
-            triggered_event_id: 55,
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_chair_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            Position::new(0.0, 1.8, 0.0, 0.0),
+            Position::ZERO,
+            2.0,
+            wow_entities::ChairUseSource {
+                chair_slots: 3,
+                chair_height: 2,
+                triggered_event_id: 55,
+            },
+        )
+    );
 
     assert_eq!(
         session
@@ -140,18 +143,21 @@ fn gameobject_use_chair_rejects_when_all_represented_slots_are_occupied() {
         .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .chair_slots = vec![Some(other_guid)];
 
-    assert!(!session.use_represented_gameobject_chair_like_cpp(
-        gameobject_guid,
-        player_guid,
-        Position::ZERO,
-        Position::ZERO,
-        1.0,
-        wow_entities::ChairUseSource {
-            chair_slots: 1,
-            chair_height: 0,
-            triggered_event_id: 0,
-        },
-    ));
+    assert!(
+        !wow_world_entities::use_represented_gameobject_chair_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            Position::ZERO,
+            Position::ZERO,
+            1.0,
+            wow_entities::ChairUseSource {
+                chair_slots: 1,
+                chair_height: 0,
+                triggered_event_id: 0,
+            },
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -170,16 +176,19 @@ fn gameobject_use_barber_chair_records_ui_teleport_and_stand_state_like_cpp() {
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 22);
     let gameobject_position = Position::new(1.0, 2.0, 3.0, 4.0);
 
-    assert!(session.use_represented_gameobject_barber_chair_like_cpp(
-        gameobject_guid,
-        player_guid,
-        gameobject_position,
-        wow_entities::BarberChairUseSource {
-            chair_height: 2,
-            sit_anim_kit: 55,
-            customization_scope: 7,
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_barber_chair_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            gameobject_position,
+            wow_entities::BarberChairUseSource {
+                chair_height: 2,
+                sit_anim_kit: 55,
+                customization_scope: 7,
+            },
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -214,11 +223,14 @@ fn gameobject_use_ui_link_records_interaction_type_like_cpp() {
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 23);
 
-    assert!(session.use_represented_gameobject_ui_link_like_cpp(
-        gameobject_guid,
-        player_guid,
-        wow_entities::UiLinkUseSource { ui_link_type: 2 },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_ui_link_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            wow_entities::UiLinkUseSource { ui_link_type: 2 },
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -240,11 +252,14 @@ fn gameobject_use_ui_link_records_interaction_type_like_cpp() {
     session
         .world_entities
         .clear_represented_gameobject_use_effects_for_test_like_cpp();
-    assert!(session.use_represented_gameobject_ui_link_like_cpp(
-        gameobject_guid,
-        player_guid,
-        wow_entities::UiLinkUseSource { ui_link_type: 99 },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_ui_link_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            wow_entities::UiLinkUseSource { ui_link_type: 99 },
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -264,14 +279,17 @@ fn gameobject_use_item_forge_records_condition_checked_noop_like_cpp() {
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 24);
 
-    assert!(session.use_represented_gameobject_item_forge_like_cpp(
-        gameobject_guid,
-        player_guid,
-        wow_entities::ItemForgeUseSource {
-            condition_id: 77,
-            forge_type: 4,
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_item_forge_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            wow_entities::ItemForgeUseSource {
+                condition_id: 77,
+                forge_type: 4,
+            },
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -296,17 +314,20 @@ fn gameobject_use_capture_point_records_assault_hook_like_cpp() {
         .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .position = Some(Position::new(12.5, 34.25, 56.0, 1.0));
 
-    assert!(session.use_represented_gameobject_capture_point_like_cpp(
-        gameobject_guid,
-        player_guid,
-        wow_entities::CapturePointUseSource {
-            capture_time_ms: 60_000,
-            world_state_id: 123,
-            contested_event_horde: 456,
-            contested_event_alliance: 789,
-            ..Default::default()
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_capture_point_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            wow_entities::CapturePointUseSource {
+                capture_time_ms: 60_000,
+                world_state_id: 123,
+                contested_event_horde: 456,
+                contested_event_alliance: 789,
+                ..Default::default()
+            },
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -365,17 +386,20 @@ fn gameobject_use_capture_point_requires_battleground_like_cpp() {
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 42);
 
-    assert!(!session.use_represented_gameobject_capture_point_like_cpp(
-        gameobject_guid,
-        player_guid,
-        wow_entities::CapturePointUseSource {
-            capture_time_ms: 60_000,
-            world_state_id: 123,
-            contested_event_horde: 456,
-            contested_event_alliance: 789,
-            ..Default::default()
-        },
-    ));
+    assert!(
+        !wow_world_entities::use_represented_gameobject_capture_point_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            wow_entities::CapturePointUseSource {
+                capture_time_ms: 60_000,
+                world_state_id: 123,
+                contested_event_horde: 456,
+                contested_event_alliance: 789,
+                ..Default::default()
+            },
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -398,17 +422,20 @@ fn gameobject_use_capture_point_ai_can_handle_before_battleground_like_cpp() {
         .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .capture_point_assault_ai_returns_true = true;
 
-    assert!(session.use_represented_gameobject_capture_point_like_cpp(
-        gameobject_guid,
-        player_guid,
-        wow_entities::CapturePointUseSource {
-            capture_time_ms: 60_000,
-            world_state_id: 123,
-            contested_event_horde: 456,
-            contested_event_alliance: 789,
-            ..Default::default()
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_capture_point_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            wow_entities::CapturePointUseSource {
+                capture_time_ms: 60_000,
+                world_state_id: 123,
+                contested_event_horde: 456,
+                contested_event_alliance: 789,
+                ..Default::default()
+            },
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -433,17 +460,20 @@ fn gameobject_use_capture_point_respects_team_state_gate_like_cpp() {
         .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .capture_point_state = Some(RepresentedCapturePointStateLikeCpp::AllianceCaptured);
 
-    assert!(!session.use_represented_gameobject_capture_point_like_cpp(
-        gameobject_guid,
-        player_guid,
-        wow_entities::CapturePointUseSource {
-            capture_time_ms: 60_000,
-            world_state_id: 123,
-            contested_event_horde: 456,
-            contested_event_alliance: 789,
-            ..Default::default()
-        },
-    ));
+    assert!(
+        !wow_world_entities::use_represented_gameobject_capture_point_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            wow_entities::CapturePointUseSource {
+                capture_time_ms: 60_000,
+                world_state_id: 123,
+                contested_event_horde: 456,
+                contested_event_alliance: 789,
+                ..Default::default()
+            },
+        )
+    );
     assert!(
         session
             .world_entities
@@ -452,17 +482,20 @@ fn gameobject_use_capture_point_respects_team_state_gate_like_cpp() {
     );
 
     session.fixtures.identity.player_race = 2;
-    assert!(session.use_represented_gameobject_capture_point_like_cpp(
-        gameobject_guid,
-        player_guid,
-        wow_entities::CapturePointUseSource {
-            capture_time_ms: 60_000,
-            world_state_id: 123,
-            contested_event_horde: 456,
-            contested_event_alliance: 789,
-            ..Default::default()
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_capture_point_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            wow_entities::CapturePointUseSource {
+                capture_time_ms: 60_000,
+                world_state_id: 123,
+                contested_event_horde: 456,
+                contested_event_alliance: 789,
+                ..Default::default()
+            },
+        )
+    );
 }
 #[test]
 fn gameobject_use_flagstand_records_battleground_click_hook_like_cpp() {
@@ -472,15 +505,18 @@ fn gameobject_use_flagstand_records_battleground_click_hook_like_cpp() {
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 26);
     session.set_player_battleground_type_id_like_cpp(BATTLEGROUND_WS_LIKE_CPP);
 
-    assert!(session.use_represented_gameobject_flagstand_like_cpp(
-        gameobject_guid,
-        player_guid,
-        wow_entities::FlagStandUseSource {
-            pickup_spell_id: 11,
-            return_aura_id: 33,
-            return_spell_id: 44,
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_flagstand_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            wow_entities::FlagStandUseSource {
+                pickup_spell_id: 11,
+                return_aura_id: 33,
+                return_spell_id: 44,
+            },
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -509,15 +545,18 @@ fn gameobject_use_flagstand_rejects_vehicle_before_bg_click_like_cpp() {
     session.set_player_battleground_type_id_like_cpp(BATTLEGROUND_WS_LIKE_CPP);
     session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp = Some(0);
 
-    assert!(!session.use_represented_gameobject_flagstand_like_cpp(
-        gameobject_guid,
-        player_guid,
-        wow_entities::FlagStandUseSource {
-            pickup_spell_id: 11,
-            return_aura_id: 33,
-            return_spell_id: 44,
-        },
-    ));
+    assert!(
+        !wow_world_entities::use_represented_gameobject_flagstand_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            wow_entities::FlagStandUseSource {
+                pickup_spell_id: 11,
+                return_aura_id: 33,
+                return_spell_id: 44,
+            },
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -538,15 +577,18 @@ fn gameobject_use_flagstand_rejects_missing_battleground_like_cpp() {
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 42);
 
-    assert!(!session.use_represented_gameobject_flagstand_like_cpp(
-        gameobject_guid,
-        player_guid,
-        wow_entities::FlagStandUseSource {
-            pickup_spell_id: 11,
-            return_aura_id: 33,
-            return_spell_id: 44,
-        },
-    ));
+    assert!(
+        !wow_world_entities::use_represented_gameobject_flagstand_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            wow_entities::FlagStandUseSource {
+                pickup_spell_id: 11,
+                return_aura_id: 33,
+                return_spell_id: 44,
+            },
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -587,15 +629,18 @@ fn gameobject_use_flagstand_removes_stealth_and_invisibility_auras_like_cpp() {
         .represented_effect = Some(RepresentedAuraEffectLikeCpp::Invisibility);
     while send_rx.try_recv().is_ok() {}
 
-    assert!(session.use_represented_gameobject_flagstand_like_cpp(
-        gameobject_guid,
-        player_guid,
-        wow_entities::FlagStandUseSource {
-            pickup_spell_id: 11,
-            return_aura_id: 33,
-            return_spell_id: 44,
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_flagstand_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            wow_entities::FlagStandUseSource {
+                pickup_spell_id: 11,
+                return_aura_id: 33,
+                return_spell_id: 44,
+            },
+        )
+    );
 
     assert!(
         session
@@ -621,16 +666,19 @@ fn gameobject_use_flagdrop_triggers_event_and_delete_like_cpp() {
     session.set_player_battleground_type_id_like_cpp(BATTLEGROUND_WS_LIKE_CPP);
     let map_id = session.core.player_map_id_like_cpp();
 
-    assert!(session.use_represented_gameobject_flagdrop_like_cpp(
-        gameobject_guid,
-        player_guid,
-        179785,
-        wow_entities::FlagDropUseSource {
-            event_id: 22,
-            pickup_spell_id: 33,
-            expire_duration_ms: 44,
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_flagdrop_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            179785,
+            wow_entities::FlagDropUseSource {
+                event_id: 22,
+                pickup_spell_id: 33,
+                expire_duration_ms: 44,
+            },
+        )
+    );
     let mut expected = (ServerOpcodes::GameObjectDespawn as u16)
         .to_le_bytes()
         .to_vec();
@@ -676,16 +724,19 @@ fn gameobject_use_flagdrop_requires_matching_battleground_type_for_click_like_cp
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 43);
     session.set_player_battleground_type_id_like_cpp(BATTLEGROUND_EY_LIKE_CPP);
 
-    assert!(session.use_represented_gameobject_flagdrop_like_cpp(
-        gameobject_guid,
-        player_guid,
-        179785,
-        wow_entities::FlagDropUseSource {
-            event_id: 22,
-            pickup_spell_id: 33,
-            expire_duration_ms: 44,
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_flagdrop_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            179785,
+            wow_entities::FlagDropUseSource {
+                event_id: 22,
+                pickup_spell_id: 33,
+                expire_duration_ms: 44,
+            },
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -720,16 +771,19 @@ fn gameobject_use_flagdrop_rejects_missing_battleground_before_delete_like_cpp()
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 44);
 
-    assert!(!session.use_represented_gameobject_flagdrop_like_cpp(
-        gameobject_guid,
-        player_guid,
-        179785,
-        wow_entities::FlagDropUseSource {
-            event_id: 22,
-            pickup_spell_id: 33,
-            expire_duration_ms: 44,
-        },
-    ));
+    assert!(
+        !wow_world_entities::use_represented_gameobject_flagdrop_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            179785,
+            wow_entities::FlagDropUseSource {
+                event_id: 22,
+                pickup_spell_id: 33,
+                expire_duration_ms: 44,
+            },
+        )
+    );
     assert!(send_rx.try_recv().is_err());
     assert_eq!(
         session
@@ -753,16 +807,19 @@ fn gameobject_use_flagdrop_rejects_vehicle_before_delete_like_cpp() {
     session.set_player_battleground_type_id_like_cpp(BATTLEGROUND_WS_LIKE_CPP);
     session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp = Some(0);
 
-    assert!(!session.use_represented_gameobject_flagdrop_like_cpp(
-        gameobject_guid,
-        player_guid,
-        179785,
-        wow_entities::FlagDropUseSource {
-            event_id: 22,
-            pickup_spell_id: 33,
-            expire_duration_ms: 44,
-        },
-    ));
+    assert!(
+        !wow_world_entities::use_represented_gameobject_flagdrop_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            179785,
+            wow_entities::FlagDropUseSource {
+                event_id: 22,
+                pickup_spell_id: 33,
+                expire_duration_ms: 44,
+            },
+        )
+    );
     assert!(send_rx.try_recv().is_err());
     assert_eq!(
         session
@@ -785,16 +842,19 @@ fn gameobject_use_flagdrop_unknown_entry_keeps_delete_without_bg_click_like_cpp(
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 27);
     session.set_player_battleground_type_id_like_cpp(BATTLEGROUND_WS_LIKE_CPP);
 
-    assert!(session.use_represented_gameobject_flagdrop_like_cpp(
-        gameobject_guid,
-        player_guid,
-        1,
-        wow_entities::FlagDropUseSource {
-            event_id: 0,
-            pickup_spell_id: 33,
-            expire_duration_ms: 44,
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_flagdrop_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            1,
+            wow_entities::FlagDropUseSource {
+                event_id: 0,
+                pickup_spell_id: 33,
+                expire_duration_ms: 44,
+            },
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -824,20 +884,23 @@ fn gameobject_use_new_flag_records_pickup_request_like_cpp() {
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 36);
 
-    assert!(session.use_represented_gameobject_new_flag_like_cpp(
-        gameobject_guid,
-        player_guid,
-        179_830,
-        wow_entities::NewFlagUseSource {
-            pickup_spell_id: 11,
-            expire_duration_ms: 22,
-            respawn_time_ms: 33,
-            flag_drop_entry: 44,
-            exclusive_category: -55,
-            world_state_id: 66,
-            return_on_defender_interact: true,
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_new_flag_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            179_830,
+            wow_entities::NewFlagUseSource {
+                pickup_spell_id: 11,
+                expire_duration_ms: 22,
+                respawn_time_ms: 33,
+                flag_drop_entry: 44,
+                exclusive_category: -55,
+                world_state_id: 66,
+                return_on_defender_interact: true,
+            },
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -902,20 +965,23 @@ fn gameobject_use_new_flag_rejects_non_in_base_state_like_cpp() {
         .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .new_flag_state = Some(RepresentedNewFlagStateRequest::Taken);
 
-    assert!(!session.use_represented_gameobject_new_flag_like_cpp(
-        gameobject_guid,
-        player_guid,
-        179_830,
-        wow_entities::NewFlagUseSource {
-            pickup_spell_id: 11,
-            expire_duration_ms: 22,
-            respawn_time_ms: 33,
-            flag_drop_entry: 44,
-            exclusive_category: -55,
-            world_state_id: 66,
-            return_on_defender_interact: true,
-        },
-    ));
+    assert!(
+        !wow_world_entities::use_represented_gameobject_new_flag_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            179_830,
+            wow_entities::NewFlagUseSource {
+                pickup_spell_id: 11,
+                expire_duration_ms: 22,
+                respawn_time_ms: 33,
+                flag_drop_entry: 44,
+                exclusive_category: -55,
+                world_state_id: 66,
+                return_on_defender_interact: true,
+            },
+        )
+    );
     assert!(
         session
             .world_entities

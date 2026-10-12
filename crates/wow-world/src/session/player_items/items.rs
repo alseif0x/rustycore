@@ -177,24 +177,6 @@ impl WorldSession {
         })
         .await
     }
-    pub(crate) fn use_represented_gameobject_item_forge_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        player_guid: ObjectGuid,
-        source: wow_entities::ItemForgeUseSource,
-    ) -> bool {
-        self.world_entities
-            .record_represented_gameobject_use_effect_like_cpp(
-                RepresentedGameObjectUseEffect::ItemForgeUsed {
-                    gameobject_guid,
-                    player_guid,
-                    condition_id: source.condition_id,
-                    forge_type: source.forge_type,
-                },
-            );
-
-        true
-    }
 }
 
 #[cfg(test)]

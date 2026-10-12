@@ -248,7 +248,9 @@ pub(crate) use faction_reactions::RepresentedFactionReactionInputLikeCpp;
 pub(crate) use faction_reactions::RepresentedGetReactionInputLikeCpp;
 pub(crate) use faction_reactions::ReputationGainSourceLikeCpp;
 mod gameobject_interaction;
+#[cfg(test)]
 pub(crate) use gameobject_interaction::BattlegroundFlagDropClickTarget;
+#[cfg(test)]
 pub(crate) use gameobject_interaction::RepresentedBattlegroundObjectUseRejection;
 pub(crate) use gameobject_interaction::RepresentedCapturePointStateLikeCpp;
 #[cfg(test)]
@@ -912,16 +914,18 @@ const TRANSFER_ABORT_MAP_NOT_ALLOWED_LIKE_CPP: u32 = 16;
 const CLASS_DEATH_KNIGHT_LIKE_CPP: u8 = 6;
 const DEATH_KNIGHT_START_MAP_LIKE_CPP: u16 = 609;
 const DEATH_KNIGHT_ESCAPE_SPELL_LIKE_CPP: i32 = 50977;
-const BATTLEGROUND_WS_LIKE_CPP: u32 = 2;
 // C++ `SpellCastSource::Normal` is encoded in the six-bit Cast GUID subtype.
 // The capture contract validates this field rather than treating it as a runtime counter, so keep the canonical numeric value here.
 pub(crate) const CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP: u32 = 0x08000;
 
 /// C++ `CAST_FLAG_PENDING` (`Spells/Spell.h:78`); `SendSpellStart` and `SendSpellGo` set it for a triggered cast that is not `m_fromClient`.
 pub(crate) const CAST_FLAG_PENDING_LIKE_CPP: u32 = 0x0000_0001;
-const BATTLEGROUND_EY_LIKE_CPP: u32 = 7;
 
+#[cfg(test)]
+use wow_data::battlemaster_list::{BATTLEGROUND_EY_LIKE_CPP, BATTLEGROUND_WS_LIKE_CPP};
 pub(crate) use wow_entities::PlayerFavoriteAppearanceStateLikeCpp as FavoriteAppearanceStateLikeCpp;
+#[cfg(test)]
+use wow_world_entities::SKILL_FISHING_LIKE_CPP;
 
 #[cfg(test)]
 pub(crate) use wow_world_core::session::battle_pet_adapter::BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP;
@@ -932,7 +936,6 @@ pub(crate) const BATTLE_PET_BREED_QUALITY_RARE_LIKE_CPP: u8 = 3;
 pub(crate) const BATTLE_PET_SPELL_VISUAL_UNCAGE_PET_LIKE_CPP: u32 = 222;
 pub(crate) const MAX_BATTLE_PET_LEVEL_LIKE_CPP: u16 = 25;
 
-pub(crate) const SKILL_FISHING_LIKE_CPP: u16 = 356;
 pub(crate) const SKILL_RIDING_LIKE_CPP: u16 = 762;
 pub use wow_world_core::session::{LIQUID_MAP_IN_WATER_LIKE_CPP, LIQUID_MAP_UNDER_WATER_LIKE_CPP};
 const DAMAGE_FIRE_LIKE_CPP: u8 = 5;

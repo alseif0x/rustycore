@@ -27,6 +27,16 @@ pub(crate) fn hub_mut(s: &mut WorldSession) -> HubMut<'_> {
     }
 }
 
+/// The hub that moved handler bodies borrow (#1363 slice 4).
+impl wow_world_core::session::SessionHubHostLikeCpp for WorldSession {
+    fn hub_ref(&self) -> HubRef<'_> {
+        hub_ref(self)
+    }
+    fn hub_mut(&mut self) -> HubMut<'_> {
+        hub_mut(self)
+    }
+}
+
 /// `&mut` group state plus the shared hub, borrowed from disjoint WorldSession fields.
 pub(crate) fn split_interaction(s: &mut WorldSession) -> (&mut InteractionState, HubRef<'_>) {
     (

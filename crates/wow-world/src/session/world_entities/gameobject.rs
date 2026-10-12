@@ -130,7 +130,7 @@ impl WorldSession {
         )
         .await;
     }
-    pub(in crate::session) fn represented_gameobject_is_friendly_to_player_like_cpp(
+    pub(crate) fn represented_gameobject_is_friendly_to_player_like_cpp(
         &self,
         gameobject_guid: ObjectGuid,
     ) -> Option<bool> {
@@ -692,7 +692,9 @@ impl WorldSession {
             }
         }
         for (guid, source) in just_deactivated_goobers {
-            self.apply_represented_gameobject_goober_just_deactivated_like_cpp(guid, source);
+            wow_world_entities::apply_represented_gameobject_goober_just_deactivated_like_cpp(
+                self, guid, source,
+            );
             if !source.consumable {
                 let _ = crate::session::cx_loot_ref(self)
                     .queue_goober_gameobject_state_refresh_for_same_map_like_cpp(guid);

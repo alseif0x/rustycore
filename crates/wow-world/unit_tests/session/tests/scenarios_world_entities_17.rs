@@ -13,16 +13,19 @@ async fn gameobject_use_spellcaster_casts_and_ticks_charges_like_cpp() {
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 20);
 
     session.set_state(SessionState::LoggedIn);
-    assert!(session.use_represented_gameobject_spellcaster_like_cpp(
-        gameobject_guid,
-        player_guid,
-        777,
-        wow_entities::SpellcasterUseSource {
-            spell_id: 3456,
-            charges: 1,
-            party_only: false,
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_spellcaster_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            777,
+            wow_entities::SpellcasterUseSource {
+                spell_id: 3456,
+                charges: 1,
+                party_only: false,
+            },
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -112,16 +115,19 @@ fn gameobject_use_spellcaster_party_only_fails_without_owner_context_like_cpp_gu
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 21);
 
-    assert!(!session.use_represented_gameobject_spellcaster_like_cpp(
-        gameobject_guid,
-        player_guid,
-        777,
-        wow_entities::SpellcasterUseSource {
-            spell_id: 3456,
-            charges: 1,
-            party_only: true,
-        },
-    ));
+    assert!(
+        !wow_world_entities::use_represented_gameobject_spellcaster_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            777,
+            wow_entities::SpellcasterUseSource {
+                spell_id: 3456,
+                charges: 1,
+                party_only: true,
+            },
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -151,12 +157,15 @@ fn gameobject_use_spellcaster_party_only_requires_owner_raid_like_cpp() {
         .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .owner_guid = Some(owner_guid);
 
-    assert!(!session.use_represented_gameobject_spellcaster_like_cpp(
-        gameobject_guid,
-        player_guid,
-        777,
-        source,
-    ));
+    assert!(
+        !wow_world_entities::use_represented_gameobject_spellcaster_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            777,
+            source,
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -182,12 +191,15 @@ fn gameobject_use_spellcaster_party_only_requires_owner_raid_like_cpp() {
         .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
-    assert!(session.use_represented_gameobject_spellcaster_like_cpp(
-        gameobject_guid,
-        player_guid,
-        777,
-        source,
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_spellcaster_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            777,
+            source,
+        )
+    );
     assert!(
         session
             .world_entities
@@ -238,12 +250,15 @@ fn gameobject_use_spellcaster_party_only_accepts_canonical_created_by_like_cpp()
             .set_created_by(owner_guid);
     }
 
-    assert!(!session.use_represented_gameobject_spellcaster_like_cpp(
-        gameobject_guid,
-        player_guid,
-        777,
-        source,
-    ));
+    assert!(
+        !wow_world_entities::use_represented_gameobject_spellcaster_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            777,
+            source,
+        )
+    );
     session
         .world_entities
         .clear_represented_gameobject_use_effects_for_test_like_cpp();
@@ -258,12 +273,15 @@ fn gameobject_use_spellcaster_party_only_accepts_canonical_created_by_like_cpp()
         .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
-    assert!(session.use_represented_gameobject_spellcaster_like_cpp(
-        gameobject_guid,
-        player_guid,
-        777,
-        source,
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_spellcaster_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            777,
+            source,
+        )
+    );
     assert!(
         session
             .world_entities
@@ -324,14 +342,17 @@ fn gameobject_use_camera_records_cinematic_and_event_like_cpp() {
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 8);
 
-    assert!(session.use_represented_gameobject_camera_like_cpp(
-        gameobject_guid,
-        player_guid,
-        wow_entities::CameraUseSource {
-            cinematic_id: 444,
-            event_id: 55,
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_camera_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            wow_entities::CameraUseSource {
+                cinematic_id: 444,
+                event_id: 55,
+            },
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -364,14 +385,17 @@ fn gameobject_use_camera_records_cinematic_and_event_like_cpp() {
             camera: [0; 8],
         }]),
     ));
-    assert!(session.use_represented_gameobject_camera_like_cpp(
-        gameobject_guid,
-        player_guid,
-        wow_entities::CameraUseSource {
-            cinematic_id: 444,
-            event_id: 0,
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_camera_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            wow_entities::CameraUseSource {
+                cinematic_id: 444,
+                event_id: 0,
+            },
+        )
+    );
     assert_eq!(session.represented_cinematic_like_cpp(), Some(444));
     let mut expected = (ServerOpcodes::TriggerCinematic as u16)
         .to_le_bytes()
@@ -383,14 +407,17 @@ fn gameobject_use_camera_records_cinematic_and_event_like_cpp() {
     session
         .world_entities
         .clear_represented_gameobject_use_effects_for_test_like_cpp();
-    assert!(session.use_represented_gameobject_camera_like_cpp(
-        gameobject_guid,
-        player_guid,
-        wow_entities::CameraUseSource {
-            cinematic_id: 0,
-            event_id: 0,
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_camera_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            wow_entities::CameraUseSource {
+                cinematic_id: 0,
+                event_id: 0,
+            },
+        )
+    );
     assert!(
         session
             .world_entities
@@ -755,17 +782,20 @@ fn gameobject_use_goober_state_branch_matches_cpp_global_use() {
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 12);
 
-    assert!(session.use_represented_gameobject_goober_state_like_cpp(
-        gameobject_guid,
-        player_guid,
-        777,
-        wow_entities::GooberUseSource {
-            auto_close_ms: 3_000,
-            spell_id: 7777,
-            player_cast: true,
-            ..Default::default()
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_goober_state_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            777,
+            wow_entities::GooberUseSource {
+                auto_close_ms: 3_000,
+                spell_id: 7777,
+                player_cast: true,
+                ..Default::default()
+            },
+        )
+    );
 
     let state = session
         .world_entities
@@ -835,17 +865,20 @@ fn gameobject_use_goober_state_branch_matches_cpp_custom_anim_and_go_cast() {
     session.set_player_registry(player_registry);
     session.record_represented_gameobject_anim_progress_like_cpp(gameobject_guid, 123);
 
-    assert!(session.use_represented_gameobject_goober_state_like_cpp(
-        gameobject_guid,
-        player_guid,
-        777,
-        wow_entities::GooberUseSource {
-            custom_anim: 2,
-            spell_id: 8888,
-            player_cast: false,
-            ..Default::default()
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_goober_state_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            777,
+            wow_entities::GooberUseSource {
+                custom_anim: 2,
+                spell_id: 8888,
+                player_cast: false,
+                ..Default::default()
+            },
+        )
+    );
 
     let state = session
         .world_entities

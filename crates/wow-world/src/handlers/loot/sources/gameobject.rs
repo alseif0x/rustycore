@@ -653,7 +653,8 @@ impl WorldSession {
         }
 
         if is_first_represented_use && source.spell_id != 0 {
-            self.apply_represented_gameobject_post_use_spell_like_cpp(
+            wow_world_entities::apply_represented_gameobject_post_use_spell_like_cpp(
+                self,
                 gameobject_guid,
                 player_guid,
                 gameobject_entry,

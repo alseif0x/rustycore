@@ -27,7 +27,7 @@ impl WorldSession {
             .get(&group_guid)
             .is_some_and(|group| group.is_raid_group() && group.members.contains(&player_guid))
     }
-    pub(in crate::session) fn represented_player_is_same_raid_with_like_cpp(
+    pub(crate) fn represented_player_is_same_raid_with_like_cpp(
         &self,
         player_guid: ObjectGuid,
         owner_guid: ObjectGuid,
@@ -343,7 +343,7 @@ impl WorldSession {
     pub(crate) fn group_registry(&self) -> Option<&Arc<GroupRegistry>> {
         self.core.group_registry()
     }
-    pub(in crate::session) fn represented_player_at_group_reward_distance_like_cpp(
+    pub(crate) fn represented_player_at_group_reward_distance_like_cpp(
         &self,
         player_guid: ObjectGuid,
         reward_map_id: u16,

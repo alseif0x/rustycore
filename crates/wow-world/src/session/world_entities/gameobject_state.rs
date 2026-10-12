@@ -19,7 +19,7 @@ impl WorldSession {
             &mut hub, map_id, guid, entry, position, go_type,
         )
     }
-    pub(in crate::session) fn send_represented_gameobject_despawn_to_visible_set_like_cpp(
+    pub(crate) fn send_represented_gameobject_despawn_to_visible_set_like_cpp(
         &mut self,
         gameobject_guid: ObjectGuid,
     ) {
@@ -38,7 +38,7 @@ impl WorldSession {
             )
         };
     }
-    pub(in crate::session) fn send_represented_gameobject_delete_packets_like_cpp(
+    pub(crate) fn send_represented_gameobject_delete_packets_like_cpp(
         &mut self,
         gameobject_guid: ObjectGuid,
     ) {

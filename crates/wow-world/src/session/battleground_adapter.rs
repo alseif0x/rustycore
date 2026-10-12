@@ -4,12 +4,11 @@
 //! Battleground adapter: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
+use super::RepresentedCapturePointStateLikeCpp;
 #[cfg(test)]
 use super::RepresentedWargameInviteAcceptanceLikeCpp;
 use super::{BattlemasterListStore, DISABLE_TYPE_BATTLEGROUND, Duration, Instant, ObjectGuid};
-use super::{RepresentedBattlegroundObjectUseRejection, RepresentedCapturePointStateLikeCpp};
-use super::{RepresentedGameObjectUseEffect, RepresentedNewFlagStateRequest};
-use super::{UnitFlags, WorldSession};
+use super::{RepresentedGameObjectUseEffect, RepresentedNewFlagStateRequest, WorldSession};
 
 pub(crate) use wow_world_core::session::RepresentedBattlegroundQueueTypeIdLikeCpp;
 #[cfg(test)]
@@ -176,110 +175,7 @@ impl WorldSession {
             });
     }
 
-    pub(crate) fn represented_player_can_use_battleground_object_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        player_guid: ObjectGuid,
-    ) -> bool {
-        let gameobject_faction = self
-            .world_entities
-            .represented_gameobject_use_state_like_cpp(gameobject_guid)
-            .and_then(|state| state.faction_template);
-        if let (Some(player_faction), Some(gameobject_faction), Some(store)) = (
-            crate::session::hub_ref(self).player_faction_template_id_like_cpp(),
-            gameobject_faction,
-            self.catalogs.factions.template_store.as_ref(),
-        ) && let (Some(player_entry), Some(gameobject_entry)) =
-            (store.get(player_faction), store.get(gameobject_faction))
-            && !player_entry.is_friendly_to_like_cpp(gameobject_entry)
-        {
-            self.world_entities
-                .record_represented_gameobject_use_effect_like_cpp(
-                    RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
-                        gameobject_guid,
-                        player_guid,
-                        reason: RepresentedBattlegroundObjectUseRejection::UnfriendlyFaction,
-                    },
-                );
-            return false;
-        }
-
-        let Some((player_unit_flags, _, _)) =
-            crate::session::hub_ref(self).player_unit_presentation_snapshot_like_cpp()
-        else {
-            return false;
-        };
-        if player_unit_flags.contains(UnitFlags::IMMUNE) {
-            self.world_entities
-                .record_represented_gameobject_use_effect_like_cpp(
-                    RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
-                        gameobject_guid,
-                        player_guid,
-                        reason: RepresentedBattlegroundObjectUseRejection::DamageImmune,
-                    },
-                );
-            return false;
-        }
-
-        let Some(has_recently_dropped_flag_debuff) =
-            crate::session::hub_ref(self).has_recently_dropped_flag_debuff_like_cpp()
-        else {
-            return false;
-        };
-        if has_recently_dropped_flag_debuff {
-            self.world_entities
-                .record_represented_gameobject_use_effect_like_cpp(
-                    RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
-                        gameobject_guid,
-                        player_guid,
-                        reason: RepresentedBattlegroundObjectUseRejection::RecentlyDroppedFlag,
-                    },
-                );
-            return false;
-        }
-
-        let Some(player_is_alive) =
-            crate::session::hub_ref(self).resolved_player_is_alive_like_cpp()
-        else {
-            return false;
-        };
-        if !player_is_alive {
-            self.world_entities
-                .record_represented_gameobject_use_effect_like_cpp(
-                    RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
-                        gameobject_guid,
-                        player_guid,
-                        reason: RepresentedBattlegroundObjectUseRejection::Dead,
-                    },
-                );
-            return false;
-        }
-
-        true
-    }
-
-    pub(in crate::session) fn represented_player_battleground_type_id_or_reject_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        player_guid: ObjectGuid,
-    ) -> Option<u32> {
-        let state = crate::session::hub_ref(self).player_battleground_state_snapshot_like_cpp()?;
-        if let Some(bg_type_id) = state.battleground_type_id_like_cpp() {
-            return Some(bg_type_id);
-        }
-
-        self.world_entities
-            .record_represented_gameobject_use_effect_like_cpp(
-                RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
-                    gameobject_guid,
-                    player_guid,
-                    reason: RepresentedBattlegroundObjectUseRejection::NotInBattleground,
-                },
-            );
-        None
-    }
-
-    pub(in crate::session) fn record_represented_capture_point_update_like_cpp(
+    pub(crate) fn record_represented_capture_point_update_like_cpp(
         &mut self,
         gameobject_guid: ObjectGuid,
         source: wow_entities::CapturePointUseSource,

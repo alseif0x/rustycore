@@ -5,7 +5,7 @@
 
 use super::*;
 
-use crate::handlers::entities::represented_gameobject_icon_allows_interaction_like_cpp;
+use wow_world_entities::represented_gameobject_icon_allows_interaction_like_cpp;
 
 fn game_obj_use_test_session_like_cpp(
     template: Option<wow_data::GameObjectQueryTemplateLikeCpp>,
@@ -94,12 +94,17 @@ async fn game_obj_use_loaded_template_dispatches_door_without_concrete_db_like_c
             max_money: 0,
         }));
     assert!(
-        session
-            .represented_gameobject_can_interact_with_like_cpp(gameobject_guid, 5.0)
-            .is_some(),
+        wow_world_entities::represented_gameobject_can_interact_with_like_cpp(
+            &session,
+            gameobject_guid,
+            5.0
+        )
+        .is_some(),
         "fixture must place Player and gameobject together on the canonical map"
     );
-    assert!(session.represented_gameobject_use_allowed_by_mover_like_cpp(false));
+    assert!(
+        wow_world_entities::represented_gameobject_use_allowed_by_mover_like_cpp(&session, false)
+    );
 
     session
         .handle_game_obj_use(game_obj_use_packet_like_cpp(gameobject_guid))

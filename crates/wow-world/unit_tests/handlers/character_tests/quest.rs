@@ -199,16 +199,19 @@ async fn alter_appearance_on_represented_barber_chair_records_request_like_cpp()
 
     session.set_player_guid(Some(player_guid));
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
-    assert!(session.use_represented_gameobject_barber_chair_like_cpp(
-        gameobject_guid,
-        player_guid,
-        chair_position,
-        wow_entities::BarberChairUseSource {
-            chair_height: 2,
-            sit_anim_kit: 0,
-            customization_scope: 7,
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_barber_chair_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            chair_position,
+            wow_entities::BarberChairUseSource {
+                chair_height: 2,
+                sit_anim_kit: 0,
+                customization_scope: 7,
+            },
+        )
+    );
     let _enable_barber_shop = send_rx.try_recv().unwrap();
 
     session

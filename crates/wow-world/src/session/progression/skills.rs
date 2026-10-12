@@ -80,18 +80,6 @@ impl WorldSession {
             BTreeSet::new(),
         );
     }
-    pub(in crate::session) fn represented_fishing_base_skill_level_like_cpp(
-        &self,
-        gameobject_guid: ObjectGuid,
-    ) -> Option<i32> {
-        let area_id = self
-            .world_entities
-            .represented_gameobject_use_state_like_cpp(gameobject_guid)
-            .and_then(|state| state.area_id)?;
-        let area_store = self.catalogs.area_table_store()?;
-        let fishing_store = self.catalogs.fishing_base_skill_store()?;
-        Some(fishing_store.base_skill_level_like_cpp(area_store, area_id))
-    }
 }
 
 #[cfg(test)]

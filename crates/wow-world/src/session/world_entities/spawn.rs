@@ -6,7 +6,7 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::session) fn despawn_represented_linked_trap_by_guid_like_cpp(
+    pub(crate) fn despawn_represented_linked_trap_by_guid_like_cpp(
         &mut self,
         trap_guid: ObjectGuid,
     ) {

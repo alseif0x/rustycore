@@ -13,15 +13,18 @@ fn gameobject_use_goober_multi_interact_matches_cpp_per_player_branch() {
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 14);
     session.set_player_guid(Some(player_guid));
 
-    assert!(session.use_represented_gameobject_goober_state_like_cpp(
-        gameobject_guid,
-        player_guid,
-        777,
-        wow_entities::GooberUseSource {
-            allow_multi_interact: true,
-            ..Default::default()
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_goober_state_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            777,
+            wow_entities::GooberUseSource {
+                allow_multi_interact: true,
+                ..Default::default()
+            },
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -62,16 +65,19 @@ fn gameobject_use_goober_multi_interact_matches_cpp_per_player_branch() {
         .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    assert!(session.use_represented_gameobject_goober_state_like_cpp(
-        gameobject_guid,
-        player_guid,
-        777,
-        wow_entities::GooberUseSource {
-            allow_multi_interact: true,
-            consumable: true,
-            ..Default::default()
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_goober_state_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            777,
+            wow_entities::GooberUseSource {
+                allow_multi_interact: true,
+                consumable: true,
+                ..Default::default()
+            },
+        )
+    );
     let state = session
         .world_entities
         .represented_gameobject_use_state_like_cpp(gameobject_guid)
@@ -748,7 +754,8 @@ fn gameobject_goober_just_deactivated_resets_and_clears_like_cpp() {
     }
 
     assert!(
-        session.apply_represented_gameobject_goober_just_deactivated_like_cpp(
+        wow_world_entities::apply_represented_gameobject_goober_just_deactivated_like_cpp(
+            &mut session,
             gameobject_guid,
             wow_entities::GooberUseSource {
                 lock_id: 12,

@@ -25,13 +25,16 @@ fn gameobject_use_new_flag_drop_records_owner_state_and_delete_like_cpp() {
         owner_state.new_flag_entry = Some(179_830);
     }
 
-    assert!(session.use_represented_gameobject_new_flag_drop_like_cpp(
-        gameobject_guid,
-        player_guid,
-        wow_entities::NewFlagDropUseSource {
-            spawn_vignette_id: 222,
-        }
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_new_flag_drop_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            wow_entities::NewFlagDropUseSource {
+                spawn_vignette_id: 222,
+            }
+        )
+    );
     let mut expected = (ServerOpcodes::GameObjectDespawn as u16)
         .to_le_bytes()
         .to_vec();
@@ -116,13 +119,16 @@ fn gameobject_use_new_flag_drop_returns_owner_flag_on_defender_interact_like_cpp
         owner_state.new_flag_entry = Some(179_830);
     }
 
-    assert!(session.use_represented_gameobject_new_flag_drop_like_cpp(
-        gameobject_guid,
-        player_guid,
-        wow_entities::NewFlagDropUseSource {
-            spawn_vignette_id: 222,
-        }
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_new_flag_drop_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            wow_entities::NewFlagDropUseSource {
+                spawn_vignette_id: 222,
+            }
+        )
+    );
     assert!(
         session
             .world_entities
@@ -165,13 +171,16 @@ fn gameobject_use_new_flag_drop_deletes_without_taken_when_owner_cast_fails_like
         owner_state.new_flag_entry = Some(179_830);
     }
 
-    assert!(session.use_represented_gameobject_new_flag_drop_like_cpp(
-        gameobject_guid,
-        player_guid,
-        wow_entities::NewFlagDropUseSource {
-            spawn_vignette_id: 222,
-        }
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_new_flag_drop_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            wow_entities::NewFlagDropUseSource {
+                spawn_vignette_id: 222,
+            }
+        )
+    );
     assert!(
         session
             .world_entities
@@ -219,13 +228,16 @@ fn gameobject_use_new_flag_drop_without_owner_still_deletes_like_cpp() {
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 37);
 
-    assert!(session.use_represented_gameobject_new_flag_drop_like_cpp(
-        gameobject_guid,
-        player_guid,
-        wow_entities::NewFlagDropUseSource {
-            spawn_vignette_id: 222,
-        }
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_new_flag_drop_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            wow_entities::NewFlagDropUseSource {
+                spawn_vignette_id: 222,
+            }
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -298,21 +310,24 @@ fn gameobject_use_ritual_waits_until_required_unique_casters_like_cpp() {
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 18);
 
-    assert!(!session.use_represented_gameobject_ritual_like_cpp(
-        gameobject_guid,
-        player_guid,
-        wow_entities::RitualUseSource {
-            casters_required: 2,
-            spell_id: 100,
-            anim_spell_id: 200,
-            persistent: false,
-            caster_target_spell_id: 0,
-            caster_target_spell_targets: 0,
-            casters_grouped: true,
-            no_target_check: true,
-            allow_unfriendly_cross_faction_party: false,
-        },
-    ));
+    assert!(
+        !wow_world_entities::use_represented_gameobject_ritual_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            wow_entities::RitualUseSource {
+                casters_required: 2,
+                spell_id: 100,
+                anim_spell_id: 200,
+                persistent: false,
+                caster_target_spell_id: 0,
+                caster_target_spell_targets: 0,
+                casters_grouped: true,
+                no_target_check: true,
+                allow_unfriendly_cross_faction_party: false,
+            },
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -355,11 +370,14 @@ fn gameobject_use_ritual_validates_summoned_owner_like_cpp() {
         .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .owner_guid = Some(owner_guid);
 
-    assert!(!session.use_represented_gameobject_ritual_like_cpp(
-        gameobject_guid,
-        owner_guid,
-        source,
-    ));
+    assert!(
+        !wow_world_entities::use_represented_gameobject_ritual_like_cpp(
+            &mut session,
+            gameobject_guid,
+            owner_guid,
+            source,
+        )
+    );
     assert!(
         session
             .world_entities
@@ -375,11 +393,14 @@ fn gameobject_use_ritual_validates_summoned_owner_like_cpp() {
             .is_empty()
     );
 
-    assert!(!session.use_represented_gameobject_ritual_like_cpp(
-        gameobject_guid,
-        player_guid,
-        source,
-    ));
+    assert!(
+        !wow_world_entities::use_represented_gameobject_ritual_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            source,
+        )
+    );
     assert!(
         session
             .world_entities
@@ -401,11 +422,14 @@ fn gameobject_use_ritual_validates_summoned_owner_like_cpp() {
         .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .owner_current_channeled_spell_active = Some(false);
 
-    assert!(!session.use_represented_gameobject_ritual_like_cpp(
-        gameobject_guid,
-        player_guid,
-        source,
-    ));
+    assert!(
+        !wow_world_entities::use_represented_gameobject_ritual_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            source,
+        )
+    );
     assert!(
         session
             .world_entities
@@ -418,11 +442,14 @@ fn gameobject_use_ritual_validates_summoned_owner_like_cpp() {
         .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .owner_current_channeled_spell_active = Some(true);
 
-    assert!(!session.use_represented_gameobject_ritual_like_cpp(
-        gameobject_guid,
-        player_guid,
-        source,
-    ));
+    assert!(
+        !wow_world_entities::use_represented_gameobject_ritual_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            source,
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -463,21 +490,24 @@ fn gameobject_use_ritual_completes_and_deactivates_like_cpp() {
         .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
-    assert!(session.use_represented_gameobject_ritual_like_cpp(
-        gameobject_guid,
-        player_guid,
-        wow_entities::RitualUseSource {
-            casters_required: 2,
-            spell_id: 62330,
-            anim_spell_id: 0,
-            persistent: false,
-            caster_target_spell_id: 333,
-            caster_target_spell_targets: 1,
-            casters_grouped: true,
-            no_target_check: true,
-            allow_unfriendly_cross_faction_party: false,
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_ritual_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            wow_entities::RitualUseSource {
+                casters_required: 2,
+                spell_id: 62330,
+                anim_spell_id: 0,
+                persistent: false,
+                caster_target_spell_id: 333,
+                caster_target_spell_targets: 1,
+                casters_grouped: true,
+                no_target_check: true,
+                allow_unfriendly_cross_faction_party: false,
+            },
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -562,21 +592,24 @@ fn gameobject_use_ritual_casts_caster_target_spell_at_random_unique_users_like_c
     );
     session.set_player_registry(player_registry);
 
-    assert!(session.use_represented_gameobject_ritual_like_cpp(
-        gameobject_guid,
-        player_guid,
-        wow_entities::RitualUseSource {
-            casters_required: 2,
-            spell_id: 100,
-            anim_spell_id: 0,
-            persistent: false,
-            caster_target_spell_id: 333,
-            caster_target_spell_targets: 4,
-            casters_grouped: true,
-            no_target_check: true,
-            allow_unfriendly_cross_faction_party: false,
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_ritual_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            wow_entities::RitualUseSource {
+                casters_required: 2,
+                spell_id: 100,
+                anim_spell_id: 0,
+                persistent: false,
+                caster_target_spell_id: 333,
+                caster_target_spell_targets: 4,
+                casters_grouped: true,
+                no_target_check: true,
+                allow_unfriendly_cross_faction_party: false,
+            },
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -663,21 +696,24 @@ fn gameobject_use_persistent_summoned_ritual_keeps_gameobject_owner_like_cpp() {
         .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
-    assert!(session.use_represented_gameobject_ritual_like_cpp(
-        gameobject_guid,
-        player_guid,
-        wow_entities::RitualUseSource {
-            casters_required: 2,
-            spell_id: 100,
-            anim_spell_id: 0,
-            persistent: true,
-            caster_target_spell_id: 0,
-            caster_target_spell_targets: 0,
-            casters_grouped: true,
-            no_target_check: true,
-            allow_unfriendly_cross_faction_party: false,
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_ritual_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            wow_entities::RitualUseSource {
+                casters_required: 2,
+                spell_id: 100,
+                anim_spell_id: 0,
+                persistent: true,
+                caster_target_spell_id: 0,
+                caster_target_spell_targets: 0,
+                casters_grouped: true,
+                no_target_check: true,
+                allow_unfriendly_cross_faction_party: false,
+            },
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -746,16 +782,19 @@ fn gameobject_use_meeting_stone_maps_spell_by_entry_like_cpp() {
     player_registry.register_or_replace(target_guid, target_info, Default::default());
     session.set_player_registry(player_registry);
 
-    assert!(session.use_represented_gameobject_meeting_stone_like_cpp(
-        gameobject_guid,
-        player_guid,
-        194097,
-        wow_entities::MeetingStoneUseSource {
-            area_id: 456,
-            prevent_unfriendly_outside_instances: true,
-            content_tuning_id: 0,
-        },
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_meeting_stone_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            194097,
+            wow_entities::MeetingStoneUseSource {
+                area_id: 456,
+                prevent_unfriendly_outside_instances: true,
+                content_tuning_id: 0,
+            },
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -804,12 +843,15 @@ fn gameobject_use_meeting_stone_requires_selected_raid_target_like_cpp() {
         content_tuning_id: 0,
     };
 
-    assert!(!session.use_represented_gameobject_meeting_stone_like_cpp(
-        gameobject_guid,
-        player_guid,
-        194097,
-        source,
-    ));
+    assert!(
+        !wow_world_entities::use_represented_gameobject_meeting_stone_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            194097,
+            source,
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -825,12 +867,15 @@ fn gameobject_use_meeting_stone_requires_selected_raid_target_like_cpp() {
         .clear_represented_gameobject_use_effects_for_test_like_cpp();
     crate::session::hub_mut(&mut session).set_selection_guid_like_cpp(Some(player_guid));
 
-    assert!(!session.use_represented_gameobject_meeting_stone_like_cpp(
-        gameobject_guid,
-        player_guid,
-        194097,
-        source,
-    ));
+    assert!(
+        !wow_world_entities::use_represented_gameobject_meeting_stone_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            194097,
+            source,
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -846,12 +891,15 @@ fn gameobject_use_meeting_stone_requires_selected_raid_target_like_cpp() {
         .clear_represented_gameobject_use_effects_for_test_like_cpp();
     crate::session::hub_mut(&mut session).set_selection_guid_like_cpp(Some(target_guid));
 
-    assert!(!session.use_represented_gameobject_meeting_stone_like_cpp(
-        gameobject_guid,
-        player_guid,
-        194097,
-        source,
-    ));
+    assert!(
+        !wow_world_entities::use_represented_gameobject_meeting_stone_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            194097,
+            source,
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -906,12 +954,15 @@ fn gameobject_use_meeting_stone_checks_content_tuning_levels_like_cpp() {
         content_tuning_id: 55,
     };
 
-    assert!(!session.use_represented_gameobject_meeting_stone_like_cpp(
-        gameobject_guid,
-        player_guid,
-        194097,
-        source,
-    ));
+    assert!(
+        !wow_world_entities::use_represented_gameobject_meeting_stone_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            194097,
+            source,
+        )
+    );
     assert_eq!(
         session
             .world_entities
@@ -930,10 +981,13 @@ fn gameobject_use_meeting_stone_checks_content_tuning_levels_like_cpp() {
         .world_entities
         .clear_represented_gameobject_use_effects_for_test_like_cpp();
     session.set_player_level_like_cpp(20);
-    assert!(session.use_represented_gameobject_meeting_stone_like_cpp(
-        gameobject_guid,
-        player_guid,
-        194097,
-        source,
-    ));
+    assert!(
+        wow_world_entities::use_represented_gameobject_meeting_stone_like_cpp(
+            &mut session,
+            gameobject_guid,
+            player_guid,
+            194097,
+            source,
+        )
+    );
 }
