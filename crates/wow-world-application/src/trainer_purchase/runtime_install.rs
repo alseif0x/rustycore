@@ -7,10 +7,6 @@ use std::collections::BTreeMap;
 use std::collections::{BTreeSet, HashMap};
 
 use super::AppTrainerCx;
-use crate::spell_acquisition::{
-    PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp as ApplyError,
-    PlayerSpellAcquisitionRuntimeLikeCpp,
-};
 use wow_core::ObjectGuid;
 use wow_packet::packets::trainer::{
     LearnedSpellEntry, LearnedSpells, SupercededSpells, UnlearnedSpells,
@@ -27,6 +23,10 @@ use wow_world_core::session::{
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_world_spell::represented_player_spell_runtime_like_cpp;
+use wow_world_spell::{
+    PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp as ApplyError,
+    PlayerSpellAcquisitionRuntimeLikeCpp,
+};
 use wow_world_spell::{
     RepresentedPlayerSpellLikeCpp, RepresentedPlayerSpellStateLikeCpp, SessionSpellState,
     canonical_player_spell_record_like_cpp,

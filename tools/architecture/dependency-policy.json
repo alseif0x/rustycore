@@ -107,7 +107,6 @@
     ],
     "wow-world-application": [
       "wow-conditions",
-      "wow-config",
       "wow-constants",
       "wow-core",
       "wow-data",
@@ -270,14 +269,17 @@
     ],
     "wow-world-spell": [
       "wow-combat",
+      "wow-config",
       "wow-constants",
       "wow-core",
       "wow-data",
       "wow-entities",
       "wow-map",
       "wow-packet",
+      "wow-persistence",
       "wow-spell-acquisition",
-      "wow-world-core"
+      "wow-world-core",
+      "wow-world-lifecycle"
     ],
     "wow-world-visibility": [
       "wow-core",
@@ -603,7 +605,6 @@
       },
       "wow-world-application": {
         "normal": [
-          "rand",
           "tracing"
         ],
         "build": []
@@ -679,6 +680,7 @@
       "wow-world-spell": {
         "normal": [
           "num-traits",
+          "rand",
           "tracing"
         ],
         "build": []

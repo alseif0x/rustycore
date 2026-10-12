@@ -42,7 +42,7 @@ mod tests {
             new_professions: new_professions
                 .into_iter()
                 .map(
-                    |skill_id| crate::profession::PlannedPrimaryProfessionLikeCpp {
+                    |skill_id| wow_world_spell::PlannedPrimaryProfessionLikeCpp {
                         skill_id,
                         equipment_slot: None,
                     },

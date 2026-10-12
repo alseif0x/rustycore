@@ -211,10 +211,10 @@ impl TrainerOfferCxLikeCpp<'_> {
         &self,
         requested_skill_ids: impl IntoIterator<Item = u32>,
     ) -> Result<
-        crate::PrimaryProfessionCapacityPlanLikeCpp,
-        crate::PrimaryProfessionCapacityPlanErrorLikeCpp,
+        wow_world_spell::PrimaryProfessionCapacityPlanLikeCpp,
+        wow_world_spell::PrimaryProfessionCapacityPlanErrorLikeCpp,
     > {
-        use crate::PrimaryProfessionCapacityPlanErrorLikeCpp as Error;
+        use wow_world_spell::PrimaryProfessionCapacityPlanErrorLikeCpp as Error;
         let Some(skill_lines) = self.catalogs.skill_lines else {
             return Err(Error::MissingSkillLineStore);
         };
@@ -237,20 +237,23 @@ impl TrainerOfferCxLikeCpp<'_> {
         else {
             return Err(Error::MissingPlayerSkillSnapshot);
         };
-        let current_skills =
-            skill_records
-                .values()
-                .map(|skill| crate::PlayerSkillProfessionSnapshotLikeCpp {
-                    skill_id: u32::from(skill.skill_id),
-                    value: skill.value,
-                    profession_slot: skill.profession_slot,
-                });
-        let analysis = crate::analyze_primary_professions_like_cpp(
+        let current_skills = skill_records.values().map(|skill| {
+            wow_world_spell::PlayerSkillProfessionSnapshotLikeCpp {
+                skill_id: u32::from(skill.skill_id),
+                value: skill.value,
+                profession_slot: skill.profession_slot,
+            }
+        });
+        let analysis = wow_world_spell::analyze_primary_professions_like_cpp(
             *self.max_primary_trade_skills,
             skill_lines,
             current_skills,
         )?;
-        crate::plan_primary_professions_like_cpp(&analysis, skill_lines, requested_skill_ids)
+        wow_world_spell::plan_primary_professions_like_cpp(
+            &analysis,
+            skill_lines,
+            requested_skill_ids,
+        )
     }
 
     /// Snapshot acquisition inputs only after this row has survived every

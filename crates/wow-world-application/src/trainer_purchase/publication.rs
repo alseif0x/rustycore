@@ -5,13 +5,13 @@
 use super::{
     TrainerAcquisitionPublicationLikeCpp, TrainerAcquisitionRuntimeLikeCpp, context::AppTrainerCx,
 };
-use crate::spell_acquisition::{
-    PreparedPlayerSpellAcquisitionLikeCpp,
-    commit_exclusive_player_money_and_spell_acquisition_like_cpp,
-};
 use wow_packet::ServerPacket;
 use wow_packet::packets::spell::PlaySpellVisualKit;
 use wow_world_lifecycle::ExclusivePlayerMoneyPersistenceLikeCpp;
+use wow_world_spell::{
+    PreparedPlayerSpellAcquisitionLikeCpp,
+    commit_exclusive_player_money_and_spell_acquisition_like_cpp,
+};
 
 impl TrainerAcquisitionRuntimeLikeCpp for AppTrainerCx<'_> {
     type MoneyExclusion = ExclusivePlayerMoneyPersistenceLikeCpp;
