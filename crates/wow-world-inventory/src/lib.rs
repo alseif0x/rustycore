@@ -33,6 +33,7 @@ mod quest_reward;
 mod scaling;
 mod state;
 mod stats;
+mod stats_application;
 mod storage;
 mod storage_bags;
 mod storage_slots;
@@ -99,6 +100,10 @@ pub use quest_reward::{
     item_push_result_from_send_new_item_plan, make_inventory_item_object_like_cpp,
 };
 pub use stats::CR_HIT_MELEE_LIKE_CPP;
+pub use stats_application::{
+    CharacterStatsApplicationCxLikeCpp, level_up_stat_deltas_like_cpp, max_health_u32_like_cpp,
+    primary_max_power_for_class_like_cpp, stats_application_cx_from_hub_like_cpp,
+};
 pub use storage::{CR_ARMOR_PENETRATION_LIKE_CPP, DirectInventoryStorageOverlayLikeCpp};
 pub use turnins::ExtendedCostItemTurninChange;
 // The exact void-storage owner facade the handler-contract checker requires

@@ -64,7 +64,7 @@ pub fn default_health_mana(class: u8) -> (u32, u32) {
 }
 
 pub fn max_health_u32_like_cpp(max_health: i64) -> u32 {
-    crate::max_health_u32_like_cpp(max_health)
+    wow_world_inventory::max_health_u32_like_cpp(max_health)
 }
 
 pub fn restored_saved_health_like_cpp(saved_health: Option<u32>, max_health: i64) -> i64 {

@@ -64,7 +64,7 @@ impl<'access, 'player> QuestXpStatsUpdateCx<'access, 'player> {
         let player_stats = self
             .player
             .stats_access_like_cpp(self.catalogs, self.config);
-        let mut application = crate::CharacterStatsApplicationCxLikeCpp::new(
+        let mut application = wow_world_inventory::CharacterStatsApplicationCxLikeCpp::new(
             player_stats,
             self.inventory,
             publication,

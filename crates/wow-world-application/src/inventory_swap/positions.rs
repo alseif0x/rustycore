@@ -85,7 +85,7 @@ impl<'a> InventoryPositionPublicationCxLikeCpp<'a> {
 
     fn send_stat_update(&mut self) {
         let player = self.stats_player.reborrow_like_cpp();
-        let _ = crate::stats::CharacterStatsApplicationCxLikeCpp::new(
+        let _ = wow_world_inventory::CharacterStatsApplicationCxLikeCpp::new(
             player,
             self.inventory,
             self.publication.reborrow_like_cpp(),

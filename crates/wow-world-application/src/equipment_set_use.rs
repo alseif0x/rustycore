@@ -6,7 +6,6 @@ use std::sync::Arc;
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::PlayerRegistryHydrationContext;
 use crate::PlayerRegistrySyncContext;
-use crate::stats::CharacterStatsApplicationCxLikeCpp;
 use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
 use wow_data::progression_rewards::{ScalingStatDistributionStore, ScalingStatValuesStore};
@@ -29,6 +28,7 @@ use wow_world_core::session::{
     OwnedItemModifiersAccessLikeCpp, OwnedItemSetAccessLikeCpp, PacketPublicationAccessLikeCpp,
     SessionCatalogs, SessionWorldConfig,
 };
+use wow_world_inventory::CharacterStatsApplicationCxLikeCpp;
 use wow_world_inventory::{InventoryState, represented_player_stat_changes_like_cpp};
 use wow_world_loot::LootState;
 

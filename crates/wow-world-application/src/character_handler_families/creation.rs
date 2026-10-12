@@ -193,7 +193,7 @@ impl CharacterHandlerCxLikeCpp<'_> {
         level: u8,
         gear: &RepresentedPlayerGearStatsLikeCpp,
     ) -> Option<PlayerStatSystemProjectionLikeCpp> {
-        crate::stats::stats_application_cx_from_hub_like_cpp(
+        wow_world_inventory::stats_application_cx_from_hub_like_cpp(
             self.hub.reborrow_like_cpp(),
             self.inventory,
         )

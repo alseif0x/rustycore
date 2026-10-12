@@ -37,7 +37,7 @@ impl AuraRemovalCxLikeCpp<'_> {
                 #[cfg(any(test, feature = "test-fixtures"))]
                 &*self.shapeshift_form,
             );
-            let mut stats = crate::CharacterStatsApplicationCxLikeCpp::new(
+            let mut stats = wow_world_inventory::CharacterStatsApplicationCxLikeCpp::new(
                 player,
                 &*self.inventory,
                 self.player.packet_publication_like_cpp(),

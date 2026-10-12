@@ -51,8 +51,12 @@ impl QuestRewardCx<'_> {
             let player = self
                 .player
                 .stats_access_like_cpp(self.catalogs, self.config);
-            crate::CharacterStatsApplicationCxLikeCpp::new(player, self.inventory, publication)
-                .send_stat_update_like_cpp();
+            wow_world_inventory::CharacterStatsApplicationCxLikeCpp::new(
+                player,
+                self.inventory,
+                publication,
+            )
+            .send_stat_update_like_cpp();
         }
     }
 

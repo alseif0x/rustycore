@@ -49,7 +49,6 @@ pub use player_handlers::{
 mod equipment_set_use;
 mod inventory_scaling;
 mod inventory_valuation;
-mod stats;
 mod trainer_handlers;
 mod trainer_purchase;
 pub use inventory_scaling::InventoryScalingApplicationCxLikeCpp;
@@ -227,10 +226,6 @@ pub use spell_handlers::{
 pub use spell_handlers::{
     cancel_pending_spell_cast_request_like_cpp, interrupt_player_cast_like_cpp,
     mutate_cast_execution_like_cpp, remove_represented_cancelable_auras_by_effect_like_cpp,
-};
-pub use stats::{
-    CharacterStatsApplicationCxLikeCpp, level_up_stat_deltas_like_cpp, max_health_u32_like_cpp,
-    primary_max_power_for_class_like_cpp, stats_application_cx_from_hub_like_cpp,
 };
 pub use trainer_handlers::{TrainerHandlerHostLikeCpp, register_trainer_handlers_like_cpp};
 #[cfg(any(test, feature = "test-fixtures"))]
