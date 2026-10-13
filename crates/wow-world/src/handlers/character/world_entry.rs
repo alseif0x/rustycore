@@ -3,219 +3,27 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Login, world entry, logout and the client-state handshake.
+//! Login, world entry, logout and the client-state handshake. The world
+//! entry, logout, login packet bursts, login loaders and login recovery moved
+//! to `wow-world-character` (#1363 slice 8d); the continue-login coordinator
+//! stays here.
 
 use super::*;
+// The moved login loaders and world-entry operations the coordinator calls;
+// `login` reaches them through `use super::*`.
+use wow_world_character::{
+    LoginAdmissionDataLikeCpp, LoginSpellRowsLikeCpp, abort_partial_login_sequence_like_cpp,
+    apply_default_skills_for_login_like_cpp, delete_invalid_character_homebind_like_cpp,
+    finalize_player_spell_map_for_login_like_cpp, load_action_buttons_for_login_like_cpp,
+    load_character_auras_for_login_like_cpp, load_character_currencies_for_login_like_cpp,
+    load_character_favorite_spells_for_login_like_cpp, load_character_glyphs_for_login_like_cpp,
+    load_character_reputation_for_login_like_cpp, load_character_skill_rows_for_login_like_cpp,
+    load_character_spell_rows_for_login_like_cpp, load_character_talents_for_login_like_cpp,
+    load_cuf_profiles_for_login_like_cpp, load_group_membership_for_login_like_cpp,
+    load_inventory_for_login_like_cpp, load_login_admission_data_like_cpp,
+    player_login_combat_stats_like_cpp, repair_character_homebind_like_cpp,
+    restore_persisted_transport_for_login_like_cpp, retry_login_at_homebind_like_cpp,
+    seed_login_location_zone_area_like_cpp, send_login_sequence,
+};
 
-mod initial_packets;
 mod login;
-mod login_recovery;
-
-pub(super) fn is_represented_bag_slot(slot: u8) -> bool {
-    (INVENTORY_SLOT_BAG_START..INVENTORY_SLOT_BAG_END).contains(&slot)
-        || (BANK_SLOT_BAG_START..BANK_SLOT_BAG_END).contains(&slot)
-        || (REAGENT_BAG_SLOT_START..REAGENT_BAG_SLOT_END).contains(&slot)
-}
-
-impl WorldSession {
-    /// Fallback: skip ConnectTo and trigger direct login on the realm socket.
-    ///
-    /// Used when no session manager is configured or all ConnectTo retries fail.
-    /// Sets a flag so that `process_pending` will call `handle_continue_player_login`.
-    pub(super) fn fallback_direct_login(&mut self) {
-        // player_loading is already set — create a dummy oneshot that fires immediately
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        let link = wow_network::session_mgr::InstanceLink {
-            send_tx: self.send_tx().clone(),
-            send_write_fence_like_cpp: None,
-            pkt_rx: None, // None = keep using realm socket's packet_rx
-        };
-        let _ = tx.send(link);
-        self.set_instance_link_rx(Some(rx));
-        info!(
-            "Fallback: direct login scheduled for account {}",
-            self.core.account_id
-        );
-    }
-
-    /// Handle CMSG_SERVER_TIME_OFFSET_REQUEST — respond with current realm time.
-    /// Handle CMSG_TIME_SYNC_RESPONSE — client's response to our TimeSyncRequest.
-    ///
-    /// We acknowledge the response to keep the client's time sync state healthy.
-    /// The periodic timer in `update()` handles sending the next request.
-    /// Handle CMSG_LOGOUT_REQUEST — player wants to log out.
-    ///
-    /// C++ MiscHandler.cpp:238 validates combat/falling/duel and selects instant
-    /// or timed logout. Rust's existing instant-only admission remains incomplete;
-    /// the persistence completion below does not implement those missing rules.
-    pub async fn handle_logout_request_with_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        req: LogoutRequest,
-    ) {
-        if self.state() == crate::session::SessionState::Disconnecting {
-            return;
-        }
-        info!(
-            "LogoutRequest (idle={}) from account {}",
-            req.idle_logout, self.core.account_id
-        );
-
-        if !self.loot.active_loot_guid_like_cpp().is_empty() {
-            self.send_packet(&LootReleaseAll);
-        }
-
-        // Always allow instant logout for now (no combat/duel checks)
-        self.send_packet(&LogoutResponse::instant_ok());
-
-        let report = self
-            .finalize_session_with_generator_like_cpp(
-                crate::FinalizationMode::CharacterSelection,
-                item_guid_generator,
-            )
-            .await;
-        if report.disposition != crate::FinalizationDisposition::Complete {
-            return;
-        }
-
-        info!("Player logged out for account {}", self.core.account_id);
-    }
-
-    #[cfg(test)]
-    pub(crate) async fn handle_logout_request(&mut self, req: LogoutRequest) {
-        let generators = self.id_generators_for_test_like_cpp();
-        self.handle_logout_request_with_generator_like_cpp(generators.item.as_ref(), req)
-            .await;
-    }
-
-    /// Handle CMSG_LOGOUT_CANCEL — player cancels a pending logout.
-    /// Build the self CreateObject combat snapshot after C++ login has loaded
-    /// persisted auras and applied all equipped-item modifiers.
-    pub(super) fn player_login_combat_stats_like_cpp(
-        &mut self,
-        race: u8,
-        class: u8,
-        level: u8,
-        saved_health: Option<u32>,
-        saved_power0: i32,
-    ) -> Option<(PlayerCombatStats, i32, i32)> {
-        self.stats_application_cx_like_cpp()
-            .player_login_combat_stats_like_cpp(race, class, level, saved_health, saved_power0)
-    }
-
-    /// C++ `WorldSession::HandlePlayerLogin` packet prelude through
-    /// `BattlePetMgr::SendJournalLockStatus`.
-    pub(super) async fn send_handle_player_login_packets_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        feature_policy: &SupportFeaturePolicyLikeCpp,
-        guid: ObjectGuid,
-        position: &Position,
-        map_id: i32,
-        account_mounts: &[AccountMount],
-        motd: &str,
-    ) -> bool {
-        // C++ `Player::LoadFromDB -> CollectionMgr::LoadMounts -> AddMount`
-        // publishes one partial update for every usable account mount before
-        // `HandlePlayerLogin` begins its explicit packet burst.
-        for mount in account_mounts {
-            self.send_packet(&AccountMountUpdate::partial(vec![*mount]));
-        }
-        // `LoadFromDB` may already have published proficiency/aura packets on
-        // the instance writer even when this account has no partial mounts.
-        // Drain that complete prefix before starting the realm-routed login
-        // burst so the two physical sockets retain C++ call order.
-        if !self
-            .core
-            .wait_for_instance_send_before_realm_send_like_cpp()
-            .await
-        {
-            return false;
-        }
-
-        // C++ resends both account-scoped datasets here even though they were
-        // already sent by `InitializeSessionCallback` on the glue screen.
-        self.send_packet_realm(
-            &self
-                .lifecycle
-                .account_data_times_like_cpp(ObjectGuid::EMPTY, GLOBAL_CACHE_MASK_LIKE_CPP),
-        );
-        self.send_packet_realm(&self.lifecycle.tutorial_flags_packet_like_cpp());
-
-        let Some(dungeon_difficulty) = self.represented_dungeon_difficulty_packet_like_cpp() else {
-            return false;
-        };
-        self.send_packet_realm(&dungeon_difficulty);
-        if !self
-            .core
-            .wait_for_realm_send_before_instance_update_like_cpp()
-            .await
-        {
-            return false;
-        }
-        self.send_packet(&LoginVerifyWorld {
-            map_id,
-            position: *position,
-            reason: 0,
-        });
-        if !self
-            .core
-            .wait_for_instance_send_before_realm_send_like_cpp()
-            .await
-        {
-            return false;
-        }
-        self.send_packet_realm(
-            &self
-                .lifecycle
-                .account_data_times_like_cpp(guid, ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP),
-        );
-        self.send_packet_realm(
-            &self
-                .core
-                .feature_system_status_with_policy_like_cpp(feature_policy),
-        );
-
-        for motd_line in motd_lines_like_cpp(motd) {
-            self.send_packet_realm(&ChatServerMessage {
-                message_id: 3,
-                string_param: motd_line,
-            });
-        }
-
-        self.send_packet_realm(&SetTimeZoneInformation::utc());
-
-        // Issue #161: converge interrupted battle-pet trainer purchases
-        // before the journal lock and before the client can interact; any
-        // recovery publication lands inside this login burst. The recovery
-        // writes instance-socket packets between Realm-socket neighbours, so
-        // it is bracketed by the same cross-socket ordering fences the rest
-        // of the burst already uses.
-        if !self
-            .core
-            .wait_for_realm_send_before_instance_update_like_cpp()
-            .await
-        {
-            return false;
-        }
-        wow_world_inventory::recover_battle_pet_trainer_purchases_with_generator_like_cpp(
-            self,
-            item_guid_generator,
-        )
-        .await;
-        if !self
-            .core
-            .wait_for_instance_send_before_realm_send_like_cpp()
-            .await
-        {
-            return false;
-        }
-
-        // C++ sends the journal lock before
-        // `Player::SendInitialPacketsBeforeAddToMap`.
-        self.send_battle_pet_journal_lock_status_like_cpp().await;
-        self.core
-            .wait_for_realm_send_before_instance_update_like_cpp()
-            .await
-    }
-}

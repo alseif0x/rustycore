@@ -19,14 +19,12 @@ mod character_handler_host;
 mod character_handler_shims;
 mod condition_objects;
 mod creation_support;
-mod entry_zone;
 // Test-only: its production readers moved to `wow-world-character` (#1263 F5, #1363 A5).
 #[cfg(test)]
 mod enumeration_support;
 mod gossip;
-mod item_load_support;
 mod items;
-mod lifecycle;
+mod login_host;
 mod login_support;
 mod login_transport_support;
 mod query;
@@ -58,31 +56,30 @@ use wow_constants::unit::NPCFlags1;
 #[cfg(test)]
 use wow_constants::unit::{UNIT_FLAGS2_ALLOWED_LIKE_CPP, UNIT_FLAGS3_ALLOWED_LIKE_CPP, UnitFlags};
 use wow_constants::{
-    ConditionSourceType, InventoryResult, InventoryType, ItemContext, ItemFieldFlags,
-    ItemUpdateState, PowerType, TypeId, TypeMask, UnitStandStateType,
+    ConditionSourceType, InventoryResult, ItemContext, TypeId, TypeMask, UnitStandStateType,
 };
-// Test-only: its production readers moved to `wow-world-inventory` (#1363 slice 8b).
+// Test-only: their production readers moved to `wow-world-inventory` (#1363 slice 8b)
+// and `wow-world-character` (#1363 slice 8d).
 #[cfg(test)]
-use wow_constants::ItemVendorType;
+use wow_constants::{InventoryType, ItemFieldFlags, ItemVendorType, PowerType};
 // Test-only: its production readers were the character/account registrations that
 // moved to `wow-world-application` under #1263 F5; the character scenarios still
 // reach these three names through `super::*`.
 #[cfg(test)]
 use wow_constants::ClientOpcodes;
-use wow_core::guid::HighGuid;
 use wow_core::{ObjectGuid, Position};
 use wow_crypto::rsa_sign::rsa_sign_connect_to;
 #[cfg(test)]
-use wow_data::PlayerCreatePositionLikeCpp;
+use wow_data::{PlayerCreateInfoLikeCpp, PlayerCreatePositionLikeCpp};
 // Test-only: its production caller moved to `wow-world-character` (#1263 F5, #1363 A5).
 #[cfg(test)]
 use wow_data::PlayerStatSystemProjectionLikeCpp;
 use wow_data::{
     ConditionEntriesByTypeStore, ConditionId, CurrencyTypesStore, HotfixRecordStatus,
     ItemExtendedCostStore, PlayerConditionContextLikeCpp, PlayerConditionStore,
-    PlayerCreateInfoLikeCpp, PlayerSpellBonusInputLikeCpp, PlayerStatSystemInputLikeCpp,
-    TaxiPathNodeEntry, TaxiPathNodeStore, calculate_player_stat_system_like_cpp,
-    hotfix_locale_mask, is_player_meeting_condition_like_cpp,
+    PlayerSpellBonusInputLikeCpp, PlayerStatSystemInputLikeCpp,
+    calculate_player_stat_system_like_cpp, hotfix_locale_mask,
+    is_player_meeting_condition_like_cpp,
 };
 pub(crate) use wow_world_inventory::ExtendedCostItemTurninChange;
 // Test-only types whose production users moved to `wow-world-inventory`.
@@ -96,19 +93,21 @@ pub(crate) use wow_entities::SocketedGem;
 #[cfg(test)]
 use wow_entities::MovementGeneratorType;
 use wow_entities::{
-    BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, GAMEOBJECT_TYPE_QUESTGIVER, INVENTORY_DEFAULT_SIZE,
-    INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START,
-    SendNewItemPlan, WorldObject,
+    GAMEOBJECT_TYPE_QUESTGIVER, INVENTORY_DEFAULT_SIZE, SendNewItemPlan, WorldObject,
 };
-// Test-only: their production readers moved to `wow-world-inventory` (#1363 slice 8b).
+// Test-only: their production readers moved to `wow-world-inventory` (#1363 slice 8b)
+// and `wow-world-character` (#1363 slice 8d).
 #[cfg(test)]
-use wow_entities::INVENTORY_SLOT_ITEM_START;
+use wow_entities::{INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START};
 // Test-only: the production registration source that used these two moved to the
 // application crate's character/account area registrar under #1263 F5.
 #[cfg(test)]
 use wow_handler::{PacketProcessing, SessionStatus};
 #[cfg(test)]
-pub(crate) use wow_world_lifecycle::login_transport::GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT_LIKE_CPP;
+pub(crate) use wow_world_lifecycle::login_transport::{
+    GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT_LIKE_CPP,
+    player_visibility_create_update_from_snapshot_like_cpp,
+};
 
 // The character/account packet registrations that used to reach
 // `crate::session::registry::PacketHandlerEntry` from here moved to the
@@ -117,33 +116,23 @@ pub(crate) use wow_world_lifecycle::login_transport::GAMEOBJECT_TYPE_MAP_OBJ_TRA
 use wow_packet::packets::auth::{
     ConnectTo, ConnectToAddress, ConnectToKey, ConnectToSerial, ResumeComms,
 };
-use wow_packet::packets::character::*;
-use wow_packet::packets::chat::ChatServerMessage;
-use wow_packet::packets::loot::LootReleaseAll;
 use wow_packet::packets::misc::*;
-use wow_packet::packets::movement::TransportInfo;
 use wow_packet::packets::quest::QuestGiverStatusMultiple;
 use wow_packet::packets::spell::{SpellCastVisual, SpellTargetData};
 use wow_packet::packets::update::*;
 // Explicit provenance for child modules that reach these names through `super::{}`:
 // a glob import leaves the ownership checker without a defining source.
+use wow_packet::WorldPacket;
 use wow_packet::packets::misc::BindPointUpdate;
-use wow_packet::packets::update::{PlayerCombatStats, UpdateBlock, UpdateObject};
-use wow_packet::{ClientPacket, WorldPacket};
-use wow_persistence::{
-    PlayerInitialWorldStateRowsLikeCpp, PlayerLoginTransportLoadOutcomeLikeCpp,
-    PlayerLoginTransportLoadRequestLikeCpp,
-};
+use wow_packet::packets::update::PlayerCombatStats;
 
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
 use crate::session::{
-    ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, CreatureSpawnCatalogsLikeCpp, GLOBAL_CACHE_MASK_LIKE_CPP,
-    PlayerBootstrapCatalogsLikeCpp, REST_STATE_NORMAL_LIKE_CPP, RepresentedBankItemMoveLikeCpp,
-    RepresentedGameObjectUseState, RepresentedHomebindLikeCpp,
+    CreatureSpawnCatalogsLikeCpp, PlayerBootstrapCatalogsLikeCpp, REST_STATE_NORMAL_LIKE_CPP,
+    RepresentedBankItemMoveLikeCpp, RepresentedGameObjectUseState, RepresentedHomebindLikeCpp,
     RepresentedQuestObjectiveProgressEventLikeCpp, RepresentedVoidStorageItemLikeCpp,
     SpellCastMetadata, SupportFeaturePolicyLikeCpp,
 };
-use crate::terrain::zone_and_area_for_position_like_cpp;
 // Test-only: its production caller moved to `wow-world-character` (#1263 F5, #1363 A5).
 #[cfg(test)]
 use crate::session::REST_STATE_RAF_LINKED_LIKE_CPP;
@@ -156,23 +145,30 @@ use creation_support::{default_health_mana, restored_saved_health_like_cpp};
 use creation_support::{default_character_power1_like_cpp, start_position, start_zone};
 #[cfg(test)]
 use enumeration_support::{enum_character_flags_like_cpp, enum_character_pet_data_like_cpp};
-use item_load_support::*;
 use login_support::*;
-pub(crate) use login_transport_support::player_visibility_create_update_from_snapshot_like_cpp;
-use login_transport_support::{
-    InitTransportsPlanLikeCpp, MapTransportCreateLikeCpp, PersistedTransportLoginLikeCpp,
-    TransportCreatePositionLikeCpp, compose_init_self_create_blocks_like_cpp,
-    map_transport_create_block_like_cpp, map_transport_create_from_load_row_like_cpp,
-    object_guid_from_db_binary_like_cpp, transport_position_for_login_like_cpp,
-    transport_route_contains_saved_map_like_cpp, validate_persisted_transport_login_like_cpp,
-};
+use login_transport_support::{MapTransportCreateLikeCpp, TransportCreatePositionLikeCpp};
 #[cfg(test)]
 use wow_entities::GAMEOBJECT_TYPE_GOOBER;
 use wow_progression::mgr::CharacterReputationRowLikeCpp;
 
+// Test-only: the scenarios reach these through `super::*`; their production
+// readers moved to `wow-world-character` (#1363 slice 8d).
+#[cfg(test)]
+use {
+    login_transport_support::{
+        compose_init_self_create_blocks_like_cpp, transport_route_contains_saved_map_like_cpp,
+        validate_persisted_transport_login_like_cpp,
+    },
+    wow_constants::character::RESPONSE_SUCCESS_LIKE_CPP,
+    wow_core::guid::HighGuid,
+    wow_packet::packets::{character::*, movement::TransportInfo},
+    wow_world_character::{motd_lines_like_cpp, void_storage_login_context_like_cpp},
+    wow_world_core::corpse_load::MapCorpseLoadOutcomeLikeCpp,
+    wow_world_inventory::loaded_item_support::*,
+};
+
 // ── Handler registration ────────────────────────────────────────────
 
-const DEFAULT_MOTD_LIKE_CPP: &str = "Welcome to a Trinity Core Server.";
 const DIRECT_VENDOR_MASK_LIKE_CPP: u32 = 0x80 | 0x100 | 0x200 | 0x400 | 0x800;
 const DIRECT_TRAINER_MASK_LIKE_CPP: u32 = 0x10 | 0x20 | 0x40;
 const DIRECT_FLIGHT_MASTER_LIKE_CPP: u32 = 0x2000;
@@ -198,25 +194,6 @@ const TRAINER_NPC_FLAGS_MASK_LIKE_CPP: u32 = 0x10 | 0x20 | 0x40;
 const GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP: i32 = -1;
 const GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP: u8 = 3;
 const GOSSIP_OPTION_TRAINER_TEXT_LIKE_CPP: &str = "I would like to train.";
-
-pub(crate) use wow_world_core::corpse_load::MapCorpseLoadOutcomeLikeCpp;
-
-fn motd_lines_like_cpp(motd: &str) -> Vec<String> {
-    // C++ `World::SetMotd` uses `boost::split` on `@` with token compression
-    // disabled, so empty and trailing lines remain part of the login burst.
-    motd.split('@').map(ToOwned::to_owned).collect()
-}
-
-fn void_storage_login_context_like_cpp(
-    random_properties_id: i32,
-    _selected_context_column: u8,
-) -> u8 {
-    // Audited 3.4.3 `Player::_LoadVoidStorage` constructs ItemContext from
-    // fields[5] even though CHAR_SEL_CHAR_VOID_STORAGE selects `context` as
-    // fields[7]. Keep that executable C++ behavior; the unused argument makes
-    // the query/implementation mismatch explicit instead of hiding column 7.
-    random_properties_id as u8
-}
 
 #[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -313,9 +290,6 @@ fn add_represented_trainer_gossip_option_if_missing_like_cpp(
     stored_options.push(represented_trainer_gossip_option_info_like_cpp());
     true
 }
-fn primary_power_type_for_class_like_cpp(class_id: u8) -> PowerType {
-    wow_world_core::session::primary_power_type_for_player_class_like_cpp(class_id)
-}
 
 fn primary_max_power_for_class_like_cpp(class_id: u8, max_mana: i64) -> i32 {
     wow_world_inventory::primary_max_power_for_class_like_cpp(class_id, max_mana)
@@ -336,7 +310,8 @@ fn loaded_inventory_slot_count_with_legacy_rust_compat(saved_slots: u8) -> u8 {
 #[cfg(test)]
 const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xDF2F_53CF;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
-pub(crate) use wow_constants::character::RESPONSE_SUCCESS_LIKE_CPP;
+// Test-only since #1363 slice 8d (the rename result uses the character crate's own).
+#[cfg(test)]
 const CHAR_CREATE_ERROR_LIKE_CPP: u8 = 25;
 pub(crate) use wow_constants::character::{
     AT_LOGIN_CHANGE_FACTION_LIKE_CPP, AT_LOGIN_CHANGE_RACE_LIKE_CPP, AT_LOGIN_FIRST_LIKE_CPP,
@@ -376,28 +351,6 @@ use crate::session::{InventoryItem, WorldSession};
 /// Reverse-map an equipment slot (0-18) to its InventoryType.
 ///
 /// Used as a fallback when Item.db2 store is not available.
-fn slot_to_inventory_type(slot: u8) -> Option<u8> {
-    match slot {
-        0 => Some(1),        // Head
-        1 => Some(2),        // Neck
-        2 => Some(3),        // Shoulders
-        3 => Some(4),        // Body (Shirt)
-        4 => Some(5),        // Chest
-        5 => Some(6),        // Waist
-        6 => Some(7),        // Legs
-        7 => Some(8),        // Feet
-        8 => Some(9),        // Wrists
-        9 => Some(10),       // Hands
-        10 | 11 => Some(11), // Finger (Ring)
-        12 | 13 => Some(12), // Trinket
-        14 => Some(16),      // Cloak
-        15 => Some(21),      // MainHand (WeaponMainHand)
-        16 => Some(22),      // OffHand (WeaponOffHand)
-        17 => Some(15),      // Ranged
-        18 => Some(19),      // Tabard
-        _ => None,
-    }
-}
 
 /// Parse a space-separated equipment cache string into VisualItemInfo array.
 ///

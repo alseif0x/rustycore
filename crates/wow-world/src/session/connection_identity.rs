@@ -17,8 +17,7 @@ pub use wow_world_core::session::SessionState;
 pub(crate) use wow_world_social::{ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp};
 
 pub(crate) use wow_world_lifecycle::{
-    ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, AccountDataLikeCpp, GLOBAL_CACHE_MASK_LIKE_CPP,
-    PER_CHARACTER_CACHE_MASK_LIKE_CPP,
+    AccountDataLikeCpp, GLOBAL_CACHE_MASK_LIKE_CPP, PER_CHARACTER_CACHE_MASK_LIKE_CPP,
 };
 
 pub(in crate::session) fn trinity_sprintf_like_cpp(format: &str, args: &[&str]) -> String {

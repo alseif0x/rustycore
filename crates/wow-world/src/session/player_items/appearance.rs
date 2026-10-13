@@ -331,10 +331,6 @@ impl WorldSession {
             favorite_appearances,
         )
     }
-    pub(crate) fn send_favorite_appearances_like_cpp(&self) {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.send_favorite_appearances_like_cpp(hub)
-    }
     pub(crate) fn load_represented_account_transmog_illusions_like_cpp(
         &mut self,
         known_illusion_blocks: impl IntoIterator<Item = (u32, u32)>,

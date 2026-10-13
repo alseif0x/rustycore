@@ -44,6 +44,8 @@ mod character_query_test_shims;
 #[cfg(test)]
 mod item_test_shims;
 #[cfg(test)]
+mod login_test_shims;
+#[cfg(test)]
 mod loot_test_shims;
 #[cfg(test)]
 mod player_test_shims;

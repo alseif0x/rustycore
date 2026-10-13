@@ -1,0 +1,301 @@
+// Copyright (c) 2026 alseif0x
+// RustyCore — WoW WotLK 3.4.3 server in Rust
+// Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! The World adapter of the character login host (#1363 slice 8d). Every
+//! method names the inherent `WorldSession` operation by path, so none
+//! resolves to its own trait method; a future is the session's own future,
+//! returned unchanged.
+
+use wow_data::TalentTabStore;
+use wow_entities::{PhaseShift, PlayerCurrency, PlayerEnchantTimeUpdate, PlayerItemTimeUpdate};
+use wow_world_core::session::{HubMut, HubRef, SessionState};
+use wow_world_lifecycle::{
+    FinalizationMode, FinalizationOutcome, FinalizationReport, SessionLifecycleState,
+};
+use wow_world_loot::LootState;
+use wow_world_spell::{
+    CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp, RepresentedPlayerSpellLikeCpp,
+    SessionSpellState,
+};
+use wow_world_visibility::VisibilityState;
+
+use super::*;
+
+impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
+    fn lifecycle_mut(&mut self) -> &mut SessionLifecycleState {
+        &mut self.lifecycle
+    }
+    fn split_lifecycle_ref(&self) -> (&SessionLifecycleState, HubRef<'_>) {
+        crate::session::split_lifecycle_ref(self)
+    }
+    fn split_spell_state_ref(&self) -> (&SessionSpellState, HubRef<'_>) {
+        crate::session::split_spell_state_ref(self)
+    }
+    fn visibility_mut(&mut self) -> &mut VisibilityState {
+        &mut self.visibility
+    }
+    fn split_visibility_mut(&mut self) -> (&mut VisibilityState, HubMut<'_>) {
+        crate::session::split_visibility_mut(self)
+    }
+    fn loot(&self) -> &LootState {
+        &self.loot
+    }
+    fn loot_mut(&mut self) -> &mut LootState {
+        &mut self.loot
+    }
+
+    fn account_mount_login_partial_rows_like_cpp(&self) -> Vec<AccountMount> {
+        WorldSession::account_mount_login_partial_rows_like_cpp(self)
+    }
+    fn apply_loaded_inventory_item_collection_hooks_like_cpp(&mut self, item: &wow_entities::Item) {
+        WorldSession::apply_loaded_inventory_item_collection_hooks_like_cpp(self, item)
+    }
+    fn cleanup_shared_runtime_state(&mut self) -> FinalizationOutcome {
+        WorldSession::cleanup_shared_runtime_state(self)
+    }
+    fn clear_player_currencies_like_cpp(&mut self) -> bool {
+        WorldSession::clear_player_currencies_like_cpp(self)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn ensure_login_player_controller_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        name: String,
+        position: wow_core::Position,
+        map_id: u16,
+        race: u8,
+        class: u8,
+        level: u8,
+        gender: u8,
+    ) -> bool {
+        WorldSession::ensure_login_player_controller_like_cpp(
+            self, guid, name, position, map_id, race, class, level, gender,
+        )
+    }
+    fn finalize_session_with_generator_like_cpp(
+        &mut self,
+        mode: FinalizationMode,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+    ) -> impl Future<Output = FinalizationReport> + Send {
+        WorldSession::finalize_session_with_generator_like_cpp(self, mode, item_guid_generator)
+    }
+    fn force_update_visibility_with_catalogs_like_cpp(
+        &mut self,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+    ) -> impl Future<Output = ()> + Send {
+        WorldSession::force_update_visibility_with_catalogs_like_cpp(self, creature_spawn_catalogs)
+    }
+    fn known_spells_like_cpp(&self) -> Vec<i32> {
+        WorldSession::known_spells_like_cpp(self)
+    }
+    fn load_active_player_trait_configs_like_cpp(
+        &mut self,
+        node_entries: &wow_data::trait_tree::TraitNodeEntryStore,
+        guid: ObjectGuid,
+    ) -> impl Future<Output = Vec<TraitConfigCreateData>> + Send {
+        WorldSession::load_active_player_trait_configs_like_cpp(self, node_entries, guid)
+    }
+    fn load_character_reputation_rows_like_cpp(
+        &mut self,
+        rows: impl IntoIterator<Item = CharacterReputationRowLikeCpp>,
+    ) -> bool {
+        WorldSession::load_character_reputation_rows_like_cpp(self, rows)
+    }
+    fn load_represented_character_auras_like_cpp(
+        &mut self,
+        aura_rows: impl IntoIterator<Item = CharacterAuraRowLikeCpp>,
+        effect_rows: impl IntoIterator<Item = CharacterAuraEffectRowLikeCpp>,
+        timediff_secs: u32,
+    ) -> usize {
+        WorldSession::load_represented_character_auras_like_cpp(
+            self,
+            aura_rows,
+            effect_rows,
+            timediff_secs,
+        )
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn load_represented_equipment_set_row_like_cpp(
+        &mut self,
+        guid: u64,
+        set_id: u32,
+        set_name: String,
+        set_icon: String,
+        ignore_mask: u32,
+        assigned_spec_index: i32,
+        pieces: [ObjectGuid; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+    ) -> bool {
+        WorldSession::load_represented_equipment_set_row_like_cpp(
+            self,
+            guid,
+            set_id,
+            set_name,
+            set_icon,
+            ignore_mask,
+            assigned_spec_index,
+            pieces,
+        )
+    }
+    fn load_represented_group_by_db_store_id_like_cpp(&mut self, db_store_id: u32) -> bool {
+        WorldSession::load_represented_group_by_db_store_id_like_cpp(self, db_store_id)
+    }
+    fn load_represented_talent_row_with_spell_side_effects_like_cpp(
+        &mut self,
+        talent_tabs: &TalentTabStore,
+        talent_id: u32,
+        rank: u8,
+        talent_group: u8,
+        known_spells: &mut Vec<i32>,
+        dependent_spells: &mut HashSet<i32>,
+    ) -> bool {
+        WorldSession::load_represented_talent_row_with_spell_side_effects_like_cpp(
+            self,
+            talent_tabs,
+            talent_id,
+            rank,
+            talent_group,
+            known_spells,
+            dependent_spells,
+        )
+    }
+    fn load_represented_void_storage_row_like_cpp(
+        &mut self,
+        slot: u8,
+        item: RepresentedVoidStorageItemLikeCpp,
+    ) -> bool {
+        WorldSession::load_represented_void_storage_row_like_cpp(self, slot, item)
+    }
+    fn mark_represented_spell_acquisition_snapshot_complete_like_cpp(&mut self) {
+        WorldSession::mark_represented_spell_acquisition_snapshot_complete_like_cpp(self)
+    }
+    fn mark_represented_talents_loaded_like_cpp(&mut self) {
+        WorldSession::mark_represented_talents_loaded_like_cpp(self)
+    }
+    fn notify_other_players_visibility_changed_like_cpp(&self) {
+        WorldSession::notify_other_players_visibility_changed_like_cpp(self)
+    }
+    fn player_currencies_like_cpp(&self) -> Option<HashMap<u32, PlayerCurrency>> {
+        WorldSession::player_currencies_like_cpp(self)
+    }
+    fn prepare_represented_void_storage_login_load_like_cpp(&mut self) -> bool {
+        WorldSession::prepare_represented_void_storage_login_load_like_cpp(self)
+    }
+    fn quest_log_create_entries_like_cpp(&self) -> Vec<(u32, u32, i64, [u16; 24])> {
+        WorldSession::quest_log_create_entries_like_cpp(self)
+    }
+    fn register_in_player_registry(&self) {
+        WorldSession::register_in_player_registry(self)
+    }
+    fn register_loaded_inventory_item_duration_refs_like_cpp(
+        &mut self,
+        loaded_item_guids: &[ObjectGuid],
+        loaded_equipped_item_guids: &[ObjectGuid],
+    ) -> (Vec<PlayerItemTimeUpdate>, Vec<PlayerEnchantTimeUpdate>) {
+        WorldSession::register_loaded_inventory_item_duration_refs_like_cpp(
+            self,
+            loaded_item_guids,
+            loaded_equipped_item_guids,
+        )
+    }
+    fn represented_dependent_known_spells_like_cpp(&self) -> HashSet<i32> {
+        WorldSession::represented_dependent_known_spells_like_cpp(self)
+    }
+    fn represented_dungeon_difficulty_packet_like_cpp(&self) -> Option<DungeonDifficultySet> {
+        WorldSession::represented_dungeon_difficulty_packet_like_cpp(self)
+    }
+    fn represented_homebind_like_cpp(&self) -> Option<RepresentedHomebindLikeCpp> {
+        WorldSession::represented_homebind_like_cpp(self)
+    }
+    fn reset_group_update_sequence_if_needed_like_cpp(&mut self) -> bool {
+        WorldSession::reset_group_update_sequence_if_needed_like_cpp(self)
+    }
+    fn reset_represented_talents_like_cpp(&mut self) {
+        WorldSession::reset_represented_talents_like_cpp(self)
+    }
+    fn resolved_player_flags_for_create_like_cpp(&self) -> Option<(u32, u32)> {
+        WorldSession::resolved_player_flags_for_create_like_cpp(self)
+    }
+    fn send_battle_pet_journal_lock_status_like_cpp(&mut self) -> impl Future<Output = ()> + Send {
+        WorldSession::send_battle_pet_journal_lock_status_like_cpp(self)
+    }
+    fn send_contact_list_like_cpp(&mut self, flags: u32) -> impl Future<Output = ()> + Send {
+        WorldSession::send_contact_list_like_cpp(self, flags)
+    }
+    fn send_login_stat_update_with_represented_item_bonuses_like_cpp(&mut self) {
+        WorldSession::send_login_stat_update_with_represented_item_bonuses_like_cpp(self)
+    }
+    fn set_complete_represented_player_spell_rows_like_cpp(
+        &mut self,
+        rows: impl IntoIterator<Item = RepresentedPlayerSpellLikeCpp>,
+    ) -> bool {
+        WorldSession::set_complete_represented_player_spell_rows_like_cpp(self, rows)
+    }
+    fn set_owned_player_group_like_cpp(&mut self, membership: Option<(u64, u8)>) -> bool {
+        WorldSession::set_owned_player_group_like_cpp(self, membership)
+    }
+    fn set_player_currencies_like_cpp(&mut self, currencies: HashMap<u32, PlayerCurrency>) -> bool {
+        WorldSession::set_player_currencies_like_cpp(self, currencies)
+    }
+    fn set_player_aura_authority_complete_like_cpp(&mut self, complete: bool) -> bool {
+        WorldSession::set_player_aura_authority_complete_like_cpp(self, complete)
+    }
+    fn set_player_guid(&mut self, guid: Option<ObjectGuid>) {
+        WorldSession::set_player_guid(self, guid)
+    }
+    fn set_player_moved_unit_guid_like_cpp(&mut self, guid: ObjectGuid) {
+        WorldSession::set_player_moved_unit_guid_like_cpp(self, guid)
+    }
+    fn set_player_transport_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
+        WorldSession::set_player_transport_guid_like_cpp(self, guid)
+    }
+    fn set_player_transport_position_like_cpp(&mut self, position: Option<Position>) {
+        WorldSession::set_player_transport_position_like_cpp(self, position)
+    }
+    fn set_player_zone_area_authority_complete_like_cpp(&mut self, complete: bool) {
+        WorldSession::set_player_zone_area_authority_complete_like_cpp(self, complete)
+    }
+    fn set_state(&mut self, state: SessionState) {
+        WorldSession::set_state(self, state)
+    }
+    fn should_send_init_transport_like_cpp(
+        &self,
+        transport_guid: ObjectGuid,
+        transport_phase_shift: &PhaseShift,
+    ) -> bool {
+        WorldSession::should_send_init_transport_like_cpp(
+            self,
+            transport_guid,
+            transport_phase_shift,
+        )
+    }
+    fn stats_application_cx_like_cpp(
+        &mut self,
+    ) -> wow_world_inventory::CharacterStatsApplicationCxLikeCpp<'_> {
+        WorldSession::stats_application_cx_like_cpp(self)
+    }
+    fn sync_current_player_session_visibility_detection_like_cpp(&mut self) {
+        WorldSession::sync_current_player_session_visibility_detection_like_cpp(self)
+    }
+    fn take_deferred_rest_flag_update_dirty_like_cpp(&mut self) -> bool {
+        WorldSession::take_deferred_rest_flag_update_dirty_like_cpp(self)
+    }
+    fn update_represented_item_level_area_based_scaling_with_publication_like_cpp(
+        &mut self,
+        publish: bool,
+    ) -> Option<bool> {
+        WorldSession::update_represented_item_level_area_based_scaling_with_publication_like_cpp(
+            self, publish,
+        )
+    }
+    fn update_zone_represented_without_rest_update_packet_like_cpp(
+        &mut self,
+        new_zone: u32,
+        new_area: u32,
+    ) -> bool {
+        WorldSession::update_zone_represented_without_rest_update_packet_like_cpp(
+            self, new_zone, new_area,
+        )
+    }
+}

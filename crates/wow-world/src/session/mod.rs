@@ -189,13 +189,12 @@ use collection_adapter::DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP;
 pub(crate) use collection_adapter::RepresentedTransmogCriteriaEvent;
 pub(crate) use collection_adapter::{AccountMountSaveRowLikeCpp, AccountToySaveRowLikeCpp};
 mod connection_identity;
-pub(crate) use connection_identity::GLOBAL_CACHE_MASK_LIKE_CPP;
 pub(crate) use connection_identity::PER_CHARACTER_CACHE_MASK_LIKE_CPP;
 #[cfg(test)]
 use connection_identity::PacketSpoofPendingBanLikeCpp;
 use connection_identity::PacketSpoofPendingBanTargetLikeCpp;
 pub use connection_identity::SessionState;
-pub(crate) use connection_identity::{ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, AccountDataLikeCpp};
+pub(crate) use connection_identity::{AccountDataLikeCpp, GLOBAL_CACHE_MASK_LIKE_CPP};
 #[cfg(test)]
 pub(crate) use connection_identity::{ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp};
 use connection_identity::{trinity_sprintf_like_cpp, unix_now};
@@ -351,17 +350,16 @@ use persistence_capabilities::empty_character_power_snapshot_like_cpp;
 #[cfg(test)]
 use persistence_capabilities::loaded_character_power_snapshot_like_cpp;
 mod pet_dismissal;
-mod pet_loading;
-pub(crate) use pet_loading::adjusted_represented_pet_aura_remain_time_like_cpp;
-pub(crate) use pet_loading::{CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp};
 #[cfg(test)]
 pub(crate) use wow_world_core::session::CharacterPetStableRowLikeCpp;
+pub(crate) use wow_world_lifecycle::adjusted_represented_pet_aura_remain_time_like_cpp;
 #[cfg(test)]
 pub(crate) use wow_world_lifecycle::{
     CharacterPetAuraEffectRowLikeCpp, CharacterPetAuraRowLikeCpp,
     CharacterPetDeclinedNamesRowLikeCpp, CharacterPetSpellChargeRowLikeCpp,
     CharacterPetSpellCooldownRowLikeCpp, CharacterPetSpellRowLikeCpp,
 };
+pub(crate) use wow_world_spell::{CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp};
 mod player_binding;
 use player_binding::PlayerIdentityBootstrapLikeCpp;
 pub(crate) use player_binding::SessionPlayerController;

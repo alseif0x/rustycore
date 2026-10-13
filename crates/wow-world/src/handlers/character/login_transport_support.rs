@@ -7,4 +7,3 @@
 //! `wow-world-lifecycle` after the #1263 F5 move.
 
 pub(crate) use wow_world_lifecycle::login_transport::*;
-pub(crate) use wow_world_visibility::InitTransportsPlanLikeCpp;

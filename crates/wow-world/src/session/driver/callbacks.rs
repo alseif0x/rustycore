@@ -29,7 +29,8 @@ impl WorldSession {
             let (guid, outcome) = self
                 .lifecycle
                 .character_rename_pending_result_at_like_cpp(index);
-            let delivery = self.enqueue_character_rename_like_cpp(guid, outcome);
+            let delivery =
+                wow_world_character::enqueue_character_rename_like_cpp(self, guid, outcome);
             self.lifecycle
                 .character_rename_enqueue_pending_delivery_like_cpp(delivery);
         }

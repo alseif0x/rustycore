@@ -6,10 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn mark_represented_equipment_sets_loaded_like_cpp(&mut self) {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.mark_represented_equipment_sets_loaded_like_cpp(&mut hub)
-    }
     pub(crate) fn load_represented_equipment_set_row_like_cpp(
         &mut self,
         guid: u64,
@@ -31,12 +27,6 @@ impl WorldSession {
             assigned_spec_index,
             pieces,
         )
-    }
-    pub(crate) fn represented_load_equipment_set_packet_like_cpp(
-        &self,
-    ) -> Option<wow_packet::packets::misc::LoadEquipmentSet> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.represented_load_equipment_set_packet_like_cpp(hub)
     }
     pub(crate) fn build_equipment_set_use_context_like_cpp(
         &mut self,

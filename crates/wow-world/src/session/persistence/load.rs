@@ -384,27 +384,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);
         state.set_loaded_player_powers_like_cpp(&mut hub, powers)
     }
-    pub(crate) fn load_represented_cuf_profile_like_cpp(
-        &mut self,
-        id: u8,
-        profile: wow_packet::packets::misc::CufProfile,
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.load_represented_cuf_profile_like_cpp(&mut hub, id, profile)
-    }
-    pub(crate) fn represented_load_cuf_profiles_packet_like_cpp(
-        &self,
-    ) -> Option<wow_packet::packets::misc::LoadCufProfiles> {
-        let (state, hub) = crate::session::split_lifecycle_ref(self);
-        state.represented_load_cuf_profiles_packet_like_cpp(hub)
-    }
-    pub(crate) fn set_loaded_player_customizations_like_cpp(
-        &mut self,
-        customizations: Vec<wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate>,
-    ) {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.set_loaded_player_customizations_like_cpp(&mut hub, customizations)
-    }
     /// C++ `Player::LoadFromDB` parses `knownTitles` as 32-bit words and
     /// validates `chosenTitle` against `Player::HasTitle` before setting it.
     pub(crate) fn load_represented_character_titles_like_cpp(

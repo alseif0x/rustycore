@@ -157,7 +157,7 @@ impl CharacterAccountHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for World
     }
 
     fn hearth_and_resurrect_like_cpp<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { WorldSession::handle_hearth_and_resurrect(self, pkt).await })
+        Box::pin(async move { wow_world_character::handle_hearth_and_resurrect(self, pkt).await })
     }
 
     fn repair_item_like_cpp<'a>(
@@ -307,7 +307,7 @@ impl CharacterAccountHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for World
         req: misc::LogoutRequest,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_logout_request_with_generator_like_cpp(
+            wow_world_character::handle_logout_request_with_generator_like_cpp(
                 self,
                 catalogs.id_generators.item.as_ref(),
                 req,

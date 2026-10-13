@@ -73,14 +73,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.item_drop_rate_like_cpp(hub, item_id)
     }
-    pub(crate) fn insert_buyback_item_like_cpp(
-        &mut self,
-        slot: u8,
-        item: InventoryItem,
-    ) -> Option<InventoryItem> {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.insert_buyback_item_like_cpp(&mut hub, slot, item)
-    }
     /// Remove a fully-looted runtime item after its DB rows were deleted.
     pub(crate) fn remove_fully_looted_runtime_item(
         &mut self,

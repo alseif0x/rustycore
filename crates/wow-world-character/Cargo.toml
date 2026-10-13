@@ -6,19 +6,33 @@ rust-version.workspace = true
 license.workspace = true
 publish = false
 
+[features]
+# The login-load entry points the World scenarios reach through their
+# `#![cfg(test)]` shim file (#1363 slice 8d).
+test-fixtures = []
+
 [dependencies]
+flume = { workspace = true }
+num-traits = { workspace = true }
+tokio = { workspace = true }
 tracing = { workspace = true }
+wow-config = { workspace = true }
 wow-constants = { workspace = true }
 wow-core = { workspace = true }
 wow-data = { workspace = true }
 wow-entities = { workspace = true }
 wow-handler = { workspace = true }
+wow-network = { workspace = true }
 wow-packet = { workspace = true }
 wow-persistence = { workspace = true }
+wow-progression = { workspace = true }
 wow-world-core = { workspace = true }
 wow-world-entities = { workspace = true }
 wow-world-inventory = { workspace = true }
 wow-world-lifecycle = { workspace = true }
+wow-world-loot = { workspace = true }
+wow-world-spell = { workspace = true }
+wow-world-visibility = { workspace = true }
 
 [lints]
 workspace = true

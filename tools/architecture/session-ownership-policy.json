@@ -276,12 +276,6 @@
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::character::entry_zone",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "module": "crate::handlers::character::gossip",
           "trait_path": null,
           "cfg": [],
@@ -328,14 +322,8 @@
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::character::items::login_load",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::character::lifecycle",
-          "trait_path": null,
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
           "cfg": [],
           "source_class": "production"
         },
@@ -352,12 +340,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "module": "crate::handlers::character::session_state",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "module": "crate::handlers::character::session_state::login_data",
@@ -412,115 +394,13 @@
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::character::world_entry",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::character::world_entry::initial_packets",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "module": "crate::handlers::character::world_entry::login",
           "trait_path": null,
           "cfg": [],
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::character::world_entry::login::action_buttons",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::admission",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::aura_loading",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::cuf_profiles",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::currency_loading",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::default_skills",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::glyph_loading",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::group_loading",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "module": "crate::handlers::character::world_entry::login::mail_loading",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::reputation_loading",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::skill_loading",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::spell_loading",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::spell_map_finalization",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::talent_loading",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::transport_restore",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login_recovery",
           "trait_path": null,
           "cfg": [],
           "source_class": "production"
@@ -727,6 +607,14 @@
         },
         {
           "module": "crate::handlers::item_test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
           "trait_path": null,
           "cfg": [
             "cfg (test)"
@@ -4000,20 +3888,6 @@
           ]
         },
         {
-          "module": "crate::handlers::character::entry_zone",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_post_add_zone_from_terrain_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_post_add_zone_from_terrain_like_cpp (& mut self , map_id : i32 , position : & Position ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::character::gossip",
           "trait_path": null,
           "kind": "method",
@@ -4558,101 +4432,783 @@
           ]
         },
         {
-          "module": "crate::handlers::character::items::login_load",
-          "trait_path": null,
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
           "kind": "method",
-          "name": "load_inventory_for_login_like_cpp",
-          "visibility": "pub (in crate :: handlers :: character)",
-          "signature": "async fn load_inventory_for_login_like_cpp (& mut self , player_lifecycle_port : & Arc < dyn wow_persistence :: PlayerLifecyclePortLikeCpp > , guid : ObjectGuid , realm_id : u16 ,) -> Option < LoginInventorySnapshotLikeCpp >",
+          "name": "account_mount_login_partial_rows_like_cpp",
+          "visibility": "private",
+          "signature": "fn account_mount_login_partial_rows_like_cpp (& self) -> Vec < AccountMount >",
           "cfg": [],
           "source_class": "production",
           "guards": [
             "external_impl",
-            "visible"
+            "trait_impl"
           ]
         },
         {
-          "module": "crate::handlers::character::lifecycle",
-          "trait_path": null,
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
           "kind": "method",
-          "name": "enqueue_character_rename_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn enqueue_character_rename_like_cpp (& self , guid : ObjectGuid , outcome : & crate :: character_administration :: RenameOutcome ,) -> flume :: r#async :: SendFut < 'static , Vec < u8 > >",
+          "name": "apply_loaded_inventory_item_collection_hooks_like_cpp",
+          "visibility": "private",
+          "signature": "fn apply_loaded_inventory_item_collection_hooks_like_cpp (& mut self , item : & wow_entities :: Item)",
           "cfg": [],
           "source_class": "production",
           "guards": [
             "external_impl",
-            "visible"
+            "trait_impl"
           ]
         },
         {
-          "module": "crate::handlers::character::lifecycle",
-          "trait_path": null,
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
           "kind": "method",
-          "name": "handle_hearth_and_resurrect",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_hearth_and_resurrect (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "name": "cleanup_shared_runtime_state",
+          "visibility": "private",
+          "signature": "fn cleanup_shared_runtime_state (& mut self) -> FinalizationOutcome",
           "cfg": [],
           "source_class": "production",
           "guards": [
             "external_impl",
-            "visible"
+            "trait_impl"
           ]
         },
         {
-          "module": "crate::handlers::character::lifecycle",
-          "trait_path": null,
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
           "kind": "method",
-          "name": "load_default_graveyard_homebind_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn load_default_graveyard_homebind_like_cpp (& self , race : u8 ,) -> Option < CharacterLoginLocationLikeCpp >",
+          "name": "clear_player_currencies_like_cpp",
+          "visibility": "private",
+          "signature": "fn clear_player_currencies_like_cpp (& mut self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
             "external_impl",
-            "visible"
+            "trait_impl"
           ]
         },
         {
-          "module": "crate::handlers::character::lifecycle",
-          "trait_path": null,
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
           "kind": "method",
-          "name": "load_map_corpse_data_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn load_map_corpse_data_like_cpp (& self , map_id : u16 , instance_id : u32 ,) -> MapCorpseLoadOutcomeLikeCpp",
+          "name": "ensure_login_player_controller_like_cpp",
+          "visibility": "private",
+          "signature": "fn ensure_login_player_controller_like_cpp (& mut self , guid : ObjectGuid , name : String , position : wow_core :: Position , map_id : u16 , race : u8 , class : u8 , level : u8 , gender : u8 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
             "external_impl",
-            "visible"
+            "trait_impl"
           ]
         },
         {
-          "module": "crate::handlers::character::lifecycle",
-          "trait_path": null,
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
           "kind": "method",
-          "name": "load_player_customizations_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn load_player_customizations_like_cpp (& self , guid : ObjectGuid ,) -> Vec < ChrCustomizationChoiceValuesUpdate >",
+          "name": "finalize_session_with_generator_like_cpp",
+          "visibility": "private",
+          "signature": "fn finalize_session_with_generator_like_cpp (& mut self , mode : FinalizationMode , item_guid_generator : & wow_core :: ObjectGuidGenerator ,) -> impl Future < Output = FinalizationReport > + Send",
           "cfg": [],
           "source_class": "production",
           "guards": [
             "external_impl",
-            "visible"
+            "trait_impl"
           ]
         },
         {
-          "module": "crate::handlers::character::lifecycle",
-          "trait_path": null,
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
           "kind": "method",
-          "name": "update_realm_characters",
-          "visibility": "pub (crate)",
-          "signature": "async fn update_realm_characters (& self)",
+          "name": "force_update_visibility_with_catalogs_like_cpp",
+          "visibility": "private",
+          "signature": "fn force_update_visibility_with_catalogs_like_cpp (& mut self , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp ,) -> impl Future < Output = () > + Send",
           "cfg": [],
           "source_class": "production",
           "guards": [
             "external_impl",
-            "visible"
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "known_spells_like_cpp",
+          "visibility": "private",
+          "signature": "fn known_spells_like_cpp (& self) -> Vec < i32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "lifecycle_mut",
+          "visibility": "private",
+          "signature": "fn lifecycle_mut (& mut self) -> & mut SessionLifecycleState",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "load_active_player_trait_configs_like_cpp",
+          "visibility": "private",
+          "signature": "fn load_active_player_trait_configs_like_cpp (& mut self , node_entries : & wow_data :: trait_tree :: TraitNodeEntryStore , guid : ObjectGuid ,) -> impl Future < Output = Vec < TraitConfigCreateData > > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "load_character_reputation_rows_like_cpp",
+          "visibility": "private",
+          "signature": "fn load_character_reputation_rows_like_cpp (& mut self , rows : impl IntoIterator < Item = CharacterReputationRowLikeCpp > ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "load_represented_character_auras_like_cpp",
+          "visibility": "private",
+          "signature": "fn load_represented_character_auras_like_cpp (& mut self , aura_rows : impl IntoIterator < Item = CharacterAuraRowLikeCpp > , effect_rows : impl IntoIterator < Item = CharacterAuraEffectRowLikeCpp > , timediff_secs : u32 ,) -> usize",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "load_represented_equipment_set_row_like_cpp",
+          "visibility": "private",
+          "signature": "fn load_represented_equipment_set_row_like_cpp (& mut self , guid : u64 , set_id : u32 , set_name : String , set_icon : String , ignore_mask : u32 , assigned_spec_index : i32 , pieces : [ObjectGuid ; wow_packet :: packets :: misc :: EQUIPMENT_SET_SLOTS_LIKE_CPP] ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "load_represented_group_by_db_store_id_like_cpp",
+          "visibility": "private",
+          "signature": "fn load_represented_group_by_db_store_id_like_cpp (& mut self , db_store_id : u32) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "load_represented_talent_row_with_spell_side_effects_like_cpp",
+          "visibility": "private",
+          "signature": "fn load_represented_talent_row_with_spell_side_effects_like_cpp (& mut self , talent_tabs : & TalentTabStore , talent_id : u32 , rank : u8 , talent_group : u8 , known_spells : & mut Vec < i32 > , dependent_spells : & mut HashSet < i32 > ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "load_represented_void_storage_row_like_cpp",
+          "visibility": "private",
+          "signature": "fn load_represented_void_storage_row_like_cpp (& mut self , slot : u8 , item : RepresentedVoidStorageItemLikeCpp ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "loot",
+          "visibility": "private",
+          "signature": "fn loot (& self) -> & LootState",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "loot_mut",
+          "visibility": "private",
+          "signature": "fn loot_mut (& mut self) -> & mut LootState",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "mark_represented_spell_acquisition_snapshot_complete_like_cpp",
+          "visibility": "private",
+          "signature": "fn mark_represented_spell_acquisition_snapshot_complete_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "mark_represented_talents_loaded_like_cpp",
+          "visibility": "private",
+          "signature": "fn mark_represented_talents_loaded_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "notify_other_players_visibility_changed_like_cpp",
+          "visibility": "private",
+          "signature": "fn notify_other_players_visibility_changed_like_cpp (& self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "player_currencies_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_currencies_like_cpp (& self) -> Option < HashMap < u32 , PlayerCurrency > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "prepare_represented_void_storage_login_load_like_cpp",
+          "visibility": "private",
+          "signature": "fn prepare_represented_void_storage_login_load_like_cpp (& mut self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "quest_log_create_entries_like_cpp",
+          "visibility": "private",
+          "signature": "fn quest_log_create_entries_like_cpp (& self) -> Vec < (u32 , u32 , i64 , [u16 ; 24]) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "register_in_player_registry",
+          "visibility": "private",
+          "signature": "fn register_in_player_registry (& self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "register_loaded_inventory_item_duration_refs_like_cpp",
+          "visibility": "private",
+          "signature": "fn register_loaded_inventory_item_duration_refs_like_cpp (& mut self , loaded_item_guids : & [ObjectGuid] , loaded_equipped_item_guids : & [ObjectGuid] ,) -> (Vec < PlayerItemTimeUpdate > , Vec < PlayerEnchantTimeUpdate >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "represented_dependent_known_spells_like_cpp",
+          "visibility": "private",
+          "signature": "fn represented_dependent_known_spells_like_cpp (& self) -> HashSet < i32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "represented_dungeon_difficulty_packet_like_cpp",
+          "visibility": "private",
+          "signature": "fn represented_dungeon_difficulty_packet_like_cpp (& self) -> Option < DungeonDifficultySet >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "represented_homebind_like_cpp",
+          "visibility": "private",
+          "signature": "fn represented_homebind_like_cpp (& self) -> Option < RepresentedHomebindLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "reset_group_update_sequence_if_needed_like_cpp",
+          "visibility": "private",
+          "signature": "fn reset_group_update_sequence_if_needed_like_cpp (& mut self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "reset_represented_talents_like_cpp",
+          "visibility": "private",
+          "signature": "fn reset_represented_talents_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "resolved_player_flags_for_create_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_player_flags_for_create_like_cpp (& self) -> Option < (u32 , u32) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "send_battle_pet_journal_lock_status_like_cpp",
+          "visibility": "private",
+          "signature": "fn send_battle_pet_journal_lock_status_like_cpp (& mut self) -> impl Future < Output = () > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "send_contact_list_like_cpp",
+          "visibility": "private",
+          "signature": "fn send_contact_list_like_cpp (& mut self , flags : u32) -> impl Future < Output = () > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "send_login_stat_update_with_represented_item_bonuses_like_cpp",
+          "visibility": "private",
+          "signature": "fn send_login_stat_update_with_represented_item_bonuses_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "set_complete_represented_player_spell_rows_like_cpp",
+          "visibility": "private",
+          "signature": "fn set_complete_represented_player_spell_rows_like_cpp (& mut self , rows : impl IntoIterator < Item = RepresentedPlayerSpellLikeCpp > ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "setter",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "set_owned_player_group_like_cpp",
+          "visibility": "private",
+          "signature": "fn set_owned_player_group_like_cpp (& mut self , membership : Option < (u64 , u8) >) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "setter",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "set_player_aura_authority_complete_like_cpp",
+          "visibility": "private",
+          "signature": "fn set_player_aura_authority_complete_like_cpp (& mut self , complete : bool) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "setter",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "set_player_currencies_like_cpp",
+          "visibility": "private",
+          "signature": "fn set_player_currencies_like_cpp (& mut self , currencies : HashMap < u32 , PlayerCurrency >) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "setter",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "set_player_guid",
+          "visibility": "private",
+          "signature": "fn set_player_guid (& mut self , guid : Option < ObjectGuid >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "setter",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "set_player_moved_unit_guid_like_cpp",
+          "visibility": "private",
+          "signature": "fn set_player_moved_unit_guid_like_cpp (& mut self , guid : ObjectGuid)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "setter",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "set_player_transport_guid_like_cpp",
+          "visibility": "private",
+          "signature": "fn set_player_transport_guid_like_cpp (& mut self , guid : Option < ObjectGuid >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "setter",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "set_player_transport_position_like_cpp",
+          "visibility": "private",
+          "signature": "fn set_player_transport_position_like_cpp (& mut self , position : Option < Position >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "setter",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "set_player_zone_area_authority_complete_like_cpp",
+          "visibility": "private",
+          "signature": "fn set_player_zone_area_authority_complete_like_cpp (& mut self , complete : bool)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "setter",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "set_state",
+          "visibility": "private",
+          "signature": "fn set_state (& mut self , state : SessionState)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "setter",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "should_send_init_transport_like_cpp",
+          "visibility": "private",
+          "signature": "fn should_send_init_transport_like_cpp (& self , transport_guid : ObjectGuid , transport_phase_shift : & PhaseShift ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "split_lifecycle_ref",
+          "visibility": "private",
+          "signature": "fn split_lifecycle_ref (& self) -> (& SessionLifecycleState , HubRef < '_ >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "split_spell_state_ref",
+          "visibility": "private",
+          "signature": "fn split_spell_state_ref (& self) -> (& SessionSpellState , HubRef < '_ >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "split_visibility_mut",
+          "visibility": "private",
+          "signature": "fn split_visibility_mut (& mut self) -> (& mut VisibilityState , HubMut < '_ >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "stats_application_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn stats_application_cx_like_cpp (& mut self ,) -> wow_world_inventory :: CharacterStatsApplicationCxLikeCpp < '_ >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "sync_current_player_session_visibility_detection_like_cpp",
+          "visibility": "private",
+          "signature": "fn sync_current_player_session_visibility_detection_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "take_deferred_rest_flag_update_dirty_like_cpp",
+          "visibility": "private",
+          "signature": "fn take_deferred_rest_flag_update_dirty_like_cpp (& mut self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "update_represented_item_level_area_based_scaling_with_publication_like_cpp",
+          "visibility": "private",
+          "signature": "fn update_represented_item_level_area_based_scaling_with_publication_like_cpp (& mut self , publish : bool ,) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "update_zone_represented_without_rest_update_packet_like_cpp",
+          "visibility": "private",
+          "signature": "fn update_zone_represented_without_rest_update_packet_like_cpp (& mut self , new_zone : u32 , new_area : u32 ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "visibility_mut",
+          "visibility": "private",
+          "signature": "fn visibility_mut (& mut self) -> & mut VisibilityState",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
           ]
         },
         {
@@ -4769,76 +5325,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::session_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "init_self_fellow_transport_passenger_blocks_like_cpp",
-          "visibility": "private",
-          "signature": "fn init_self_fellow_transport_passenger_blocks_like_cpp (& self , map_id : u16 , transport_guid : ObjectGuid ,) -> Vec < UpdateBlock >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::session_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "plan_init_transports_like_cpp",
-          "visibility": "private",
-          "signature": "async fn plan_init_transports_like_cpp (& mut self , map_id : u16 , persisted_transport : Option < PersistedTransportLoginLikeCpp > ,) -> Box < InitTransportsPlanLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::session_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "resolve_persisted_transport_login_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn resolve_persisted_transport_login_like_cpp (& self , guid_low : u64 , saved_map_id : u16 , offset : Position ,) -> Option < PersistedTransportLoginLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::session_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_initial_packets_after_add_to_map",
-          "visibility": "pub (crate)",
-          "signature": "async fn send_initial_packets_after_add_to_map (& mut self , guid : ObjectGuid , position : & Position , map_id : i32 , updateobject_trace_enabled : bool ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::session_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_login_sequence",
-          "visibility": "pub (super)",
-          "signature": "async fn send_login_sequence (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , trait_node_entries : & wow_data :: trait_tree :: TraitNodeEntryStore , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , feature_policy : & SupportFeaturePolicyLikeCpp , player_grid_loader : & crate :: session :: PlayerGridLoadResolverLikeCpp , guid : ObjectGuid , race : u8 , class : u8 , sex : u8 , level : u8 , display_id : u32 , position : & Position , map_id : i32 , zone_id : i32 , homebind : CharacterLoginLocationLikeCpp , persisted_transport_login : Option < PersistedTransportLoginLikeCpp > , visible_items : [(i32 , u16 , u16) ; 19] , inv_slots : [ObjectGuid ; 141] , item_creates : Vec < wow_packet :: packets :: update :: ItemCreateData > , combat : PlayerCombatStats , current_power0 : i32 , base_mana : i32 , known_spells : Vec < i32 > , favorite_spells : Vec < i32 > , spell_history_entries : Vec < SpellHistoryEntry > , spell_charge_entries : Vec < SpellChargeEntry > , action_buttons : [i64 ; 180] , skill_info : Vec < (u16 , u16 , u16 , u16 , u16 , i16 , u16) > , account_mounts : Vec < AccountMount > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "external_impl",
             "visible"
@@ -5639,462 +6125,12 @@
           ]
         },
         {
-          "module": "crate::handlers::character::world_entry",
-          "trait_path": null,
-          "kind": "method",
-          "name": "fallback_direct_login",
-          "visibility": "pub (super)",
-          "signature": "fn fallback_direct_login (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_logout_request",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_logout_request (& mut self , req : LogoutRequest)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_logout_request_with_generator_like_cpp",
-          "visibility": "pub",
-          "signature": "async fn handle_logout_request_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , req : LogoutRequest ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry",
-          "trait_path": null,
-          "kind": "method",
-          "name": "player_login_combat_stats_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn player_login_combat_stats_like_cpp (& mut self , race : u8 , class : u8 , level : u8 , saved_health : Option < u32 > , saved_power0 : i32 ,) -> Option < (PlayerCombatStats , i32 , i32) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_handle_player_login_packets_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn send_handle_player_login_packets_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , feature_policy : & SupportFeaturePolicyLikeCpp , guid : ObjectGuid , position : & Position , map_id : i32 , account_mounts : & [AccountMount] , motd : & str ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::initial_packets",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_initial_world_states_for_login_like_cpp",
-          "visibility": "private",
-          "signature": "async fn load_initial_world_states_for_login_like_cpp (& self , map_id : i32 , player_area_id : u32 ,) -> Vec < (i32 , i32) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::initial_packets",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_initial_packets_after_add_to_map_with_catalogs_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn send_initial_packets_after_add_to_map_with_catalogs_like_cpp (& mut self , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , guid : ObjectGuid , position : & Position , map_id : i32 , updateobject_trace_enabled : bool ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::initial_packets",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_initial_packets_before_add_to_map",
-          "visibility": "pub (in crate :: handlers :: character)",
-          "signature": "async fn send_initial_packets_before_add_to_map (& mut self , guid : ObjectGuid , _position : & Position , _map_id : i32 , _zone_id : i32 , homebind : CharacterLoginLocationLikeCpp , known_spells : Vec < i32 > , favorite_spells : Vec < i32 > , spell_history_entries : Vec < SpellHistoryEntry > , spell_charge_entries : Vec < SpellChargeEntry > , action_buttons : [i64 ; 180] , account_mounts : Vec < AccountMount > , updateobject_trace_enabled : bool ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::initial_packets",
-          "trait_path": null,
-          "kind": "method",
-          "name": "test_load_initial_world_states_for_login_like_cpp",
-          "visibility": "pub (in crate :: handlers :: character)",
-          "signature": "async fn test_load_initial_world_states_for_login_like_cpp (& self , map_id : i32 , player_area_id : u32 ,) -> Vec < (i32 , i32) >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::character::world_entry::login",
           "trait_path": null,
           "kind": "method",
           "name": "handle_continue_player_login_with_module_registry_like_cpp",
           "visibility": "pub",
           "signature": "async fn handle_continue_player_login_with_module_registry_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , modules : & wow_module_api :: ModuleRegistry , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , player_bootstrap : & PlayerBootstrapCatalogsLikeCpp , player_rest_rates : & crate :: session :: PlayerRestRatePolicyLikeCpp , progression : & crate :: session :: ProgressionCatalogsLikeCpp , feature_policy : & SupportFeaturePolicyLikeCpp , player_grid_loader : & crate :: session :: PlayerGridLoadResolverLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::action_buttons",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_action_buttons_for_login_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn load_action_buttons_for_login_like_cpp (& mut self , player_lifecycle_port : & Arc < dyn wow_persistence :: PlayerLifecyclePortLikeCpp > , guid : ObjectGuid ,) -> Option < [i64 ; 180] >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::admission",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_login_admission_data_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn load_login_admission_data_like_cpp (& mut self , player_lifecycle_port : & Arc < dyn wow_persistence :: PlayerLifecyclePortLikeCpp > , guid : ObjectGuid , saved_map_id : i32 ,) -> Option < LoginAdmissionDataLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::aura_loading",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_character_auras_for_login_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn load_character_auras_for_login_like_cpp (& mut self , player_lifecycle_port : & Arc < dyn wow_persistence :: PlayerLifecyclePortLikeCpp > , guid : ObjectGuid ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::cuf_profiles",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_cuf_profiles_for_login_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn load_cuf_profiles_for_login_like_cpp (& mut self , player_lifecycle_port : & Arc < dyn wow_persistence :: PlayerLifecyclePortLikeCpp > , guid : ObjectGuid ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::currency_loading",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_character_currencies_for_login_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn load_character_currencies_for_login_like_cpp (& mut self , player_lifecycle_port : & Arc < dyn wow_persistence :: PlayerLifecyclePortLikeCpp > , guid : ObjectGuid ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::default_skills",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_default_skills_for_login_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn apply_default_skills_for_login_like_cpp (& mut self , race : u8 , class : u8 , level : u8 , skill_records : & mut HashMap < u16 , crate :: session :: RepresentedPlayerSkillLikeCpp > , skill_info_by_id : & mut BTreeMap < u16 , wow_data :: SkillInfoEntry > ,) -> Option < Vec < wow_data :: SkillInfoEntry > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::glyph_loading",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_character_glyphs_for_login_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn load_character_glyphs_for_login_like_cpp (& mut self , player_lifecycle_port : & Arc < dyn wow_persistence :: PlayerLifecyclePortLikeCpp > , player_bootstrap : & PlayerBootstrapCatalogsLikeCpp , guid : ObjectGuid ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::group_loading",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_group_membership_for_login_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn load_group_membership_for_login_like_cpp (& mut self , player_lifecycle_port : & Arc < dyn wow_persistence :: PlayerLifecyclePortLikeCpp > , guid : ObjectGuid ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::reputation_loading",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_character_reputation_for_login_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn load_character_reputation_for_login_like_cpp (& mut self , player_lifecycle_port : & Arc < dyn wow_persistence :: PlayerLifecyclePortLikeCpp > , guid : ObjectGuid ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::skill_loading",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_character_skill_rows_for_login_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn load_character_skill_rows_for_login_like_cpp (& mut self , player_lifecycle_port : & Arc < dyn wow_persistence :: PlayerLifecyclePortLikeCpp > , guid : ObjectGuid ,) -> (HashMap < u16 , crate :: session :: RepresentedPlayerSkillLikeCpp > , bool ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::spell_loading",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_character_favorite_spells_for_login_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn load_character_favorite_spells_for_login_like_cpp (& mut self , player_lifecycle_port : & Arc < dyn wow_persistence :: PlayerLifecyclePortLikeCpp > , guid : ObjectGuid ,) -> (HashSet < i32 > , bool)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::spell_loading",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_character_spell_rows_for_login_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn load_character_spell_rows_for_login_like_cpp (& mut self , player_lifecycle_port : & Arc < dyn wow_persistence :: PlayerLifecyclePortLikeCpp > , guid : ObjectGuid ,) -> LoginSpellRowsLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::spell_map_finalization",
-          "trait_path": null,
-          "kind": "method",
-          "name": "finalize_player_spell_map_for_login_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn finalize_player_spell_map_for_login_like_cpp (& mut self , guid : ObjectGuid , loaded_player_spell_rows : Vec < crate :: session :: RepresentedPlayerSpellLikeCpp > , favorite_spell_rows : & HashSet < i32 > , skill_rewarded_dependent_spells : & HashSet < i32 > , skill_rewarded_removed_spells : & HashSet < i32 > , login_authority_complete : bool ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::talent_loading",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_character_talents_for_login_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn load_character_talents_for_login_like_cpp (& mut self , player_lifecycle_port : & Arc < dyn wow_persistence :: PlayerLifecyclePortLikeCpp > , player_bootstrap : & PlayerBootstrapCatalogsLikeCpp , guid : ObjectGuid , known_spells : & mut Vec < i32 > , skill_rewarded_dependent_spells : & mut HashSet < i32 > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login::transport_restore",
-          "trait_path": null,
-          "kind": "method",
-          "name": "restore_persisted_transport_for_login_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn restore_persisted_transport_for_login_like_cpp (& mut self , guid : ObjectGuid , saved_transport_guid_low : u64 , saved_map_id_for_transport : u16 , saved_transport_position : Position , saved_character_map_is_battleground : bool , login_homebind : CharacterLoginLocationLikeCpp , attached_controller : bool , map_id : & mut i32 , zone : & mut i32 , position : & mut Position ,) -> Option < PersistedTransportLoginLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login_recovery",
-          "trait_path": null,
-          "kind": "method",
-          "name": "abort_partial_login_sequence_like_cpp",
-          "visibility": "pub (in crate :: handlers :: character)",
-          "signature": "fn abort_partial_login_sequence_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login_recovery",
-          "trait_path": null,
-          "kind": "method",
-          "name": "continue_login_after_grid_load_like_cpp",
-          "visibility": "pub (in crate :: handlers :: character)",
-          "signature": "fn continue_login_after_grid_load_like_cpp (& mut self , guid : ObjectGuid , map_id : i32 , instance_id : u32 , outcome : Option < crate :: session :: PlayerGridLoadOutcomeLikeCpp > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login_recovery",
-          "trait_path": null,
-          "kind": "method",
-          "name": "delete_invalid_character_homebind_like_cpp",
-          "visibility": "pub (in crate :: handlers :: character)",
-          "signature": "async fn delete_invalid_character_homebind_like_cpp (& self , guid : ObjectGuid ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login_recovery",
-          "trait_path": null,
-          "kind": "method",
-          "name": "persist_repaired_character_homebind_like_cpp",
-          "visibility": "private",
-          "signature": "async fn persist_repaired_character_homebind_like_cpp (& self , guid : ObjectGuid , homebind : CharacterLoginLocationLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login_recovery",
-          "trait_path": null,
-          "kind": "method",
-          "name": "repair_character_homebind_like_cpp",
-          "visibility": "pub (in crate :: handlers :: character)",
-          "signature": "async fn repair_character_homebind_like_cpp (& self , guid : ObjectGuid , race : u8 , player_create_info : PlayerCreateInfoLikeCpp , create_mode : u8 , first_login : bool ,) -> Option < CharacterLoginLocationLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login_recovery",
-          "trait_path": null,
-          "kind": "method",
-          "name": "resolved_homebind_area_id_like_cpp",
-          "visibility": "pub (in crate :: handlers :: character)",
-          "signature": "fn resolved_homebind_area_id_like_cpp (& self , map_id : u32 , position : Position ,) -> u32",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login_recovery",
-          "trait_path": null,
-          "kind": "method",
-          "name": "retry_login_at_homebind_like_cpp",
-          "visibility": "pub (in crate :: handlers :: character)",
-          "signature": "fn retry_login_at_homebind_like_cpp (& mut self , map_id : & mut i32 , zone_id : & mut i32 , position : & mut Position , homebind : CharacterLoginLocationLikeCpp ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry::login_recovery",
-          "trait_path": null,
-          "kind": "method",
-          "name": "seed_login_location_zone_area_like_cpp",
-          "visibility": "pub (in crate :: handlers :: character)",
-          "signature": "fn seed_login_location_zone_area_like_cpp (& mut self , zone_id : & mut i32 , location : CharacterLoginLocationLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -9268,6 +9304,455 @@
           "name": "send_item_relocation_values_update_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn send_item_relocation_values_update_like_cpp (& self , item_guid : ObjectGuid , dynamic_flags2_changed : bool , cleared_enchantments : & [EnchantmentSlot] ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "abort_partial_login_sequence_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn abort_partial_login_sequence_like_cpp (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_post_add_zone_from_terrain_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_post_add_zone_from_terrain_like_cpp (& mut self , map_id : i32 , position : & Position ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "complete_player_equipment_inventory_authority_load_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn complete_player_equipment_inventory_authority_load_like_cpp (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "continue_login_after_grid_load_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn continue_login_after_grid_load_like_cpp (& mut self , guid : ObjectGuid , map_id : i32 , instance_id : u32 , outcome : Option < crate :: session :: PlayerGridLoadOutcomeLikeCpp > ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "delete_invalid_character_homebind_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn delete_invalid_character_homebind_like_cpp (& self , guid : ObjectGuid)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_hearth_and_resurrect",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_hearth_and_resurrect (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_logout_request",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_logout_request (& mut self , req : LogoutRequest)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "insert_buyback_item_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn insert_buyback_item_like_cpp (& mut self , slot : u8 , item : InventoryItem ,) -> Option < InventoryItem >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "load_default_graveyard_homebind_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn load_default_graveyard_homebind_like_cpp (& self , race : u8 ,) -> Option < CharacterLoginLocationLikeCpp >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "load_map_corpse_data_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn load_map_corpse_data_like_cpp (& self , map_id : u16 , instance_id : u32 ,) -> MapCorpseLoadOutcomeLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "load_player_customizations_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn load_player_customizations_like_cpp (& self , guid : ObjectGuid ,) -> Vec < ChrCustomizationChoiceValuesUpdate >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "load_represented_cuf_profile_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn load_represented_cuf_profile_like_cpp (& mut self , id : u8 , profile : wow_packet :: packets :: misc :: CufProfile ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "mark_represented_equipment_sets_loaded_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn mark_represented_equipment_sets_loaded_like_cpp (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "player_login_combat_stats_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn player_login_combat_stats_like_cpp (& mut self , race : u8 , class : u8 , level : u8 , saved_health : Option < u32 > , saved_power0 : i32 ,) -> Option < (PlayerCombatStats , i32 , i32) >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "repair_character_homebind_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn repair_character_homebind_like_cpp (& self , guid : ObjectGuid , race : u8 , player_create_info : PlayerCreateInfoLikeCpp , create_mode : u8 , first_login : bool ,) -> Option < CharacterLoginLocationLikeCpp >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_load_cuf_profiles_packet_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_load_cuf_profiles_packet_like_cpp (& self ,) -> Option < wow_packet :: packets :: misc :: LoadCufProfiles >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_load_equipment_set_packet_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_load_equipment_set_packet_like_cpp (& self ,) -> Option < wow_packet :: packets :: misc :: LoadEquipmentSet >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolve_persisted_transport_login_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn resolve_persisted_transport_login_like_cpp (& self , guid_low : u64 , saved_map_id : u16 , offset : Position ,) -> Option < PersistedTransportLoginLikeCpp >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "retry_login_at_homebind_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn retry_login_at_homebind_like_cpp (& mut self , map_id : & mut i32 , zone_id : & mut i32 , position : & mut Position , homebind : CharacterLoginLocationLikeCpp ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "send_account_heirlooms_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn send_account_heirlooms_like_cpp (& self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "send_favorite_appearances_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn send_favorite_appearances_like_cpp (& self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "send_handle_player_login_packets_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn send_handle_player_login_packets_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , feature_policy : & SupportFeaturePolicyLikeCpp , guid : ObjectGuid , position : & Position , map_id : i32 , account_mounts : & [AccountMount] , motd : & str ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "send_initial_packets_after_add_to_map",
+          "visibility": "pub (crate)",
+          "signature": "async fn send_initial_packets_after_add_to_map (& mut self , guid : ObjectGuid , position : & Position , map_id : i32 , updateobject_trace_enabled : bool ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "send_initial_packets_before_add_to_map",
+          "visibility": "pub (crate)",
+          "signature": "async fn send_initial_packets_before_add_to_map (& mut self , guid : ObjectGuid , _position : & Position , _map_id : i32 , _zone_id : i32 , homebind : CharacterLoginLocationLikeCpp , known_spells : Vec < i32 > , favorite_spells : Vec < i32 > , spell_history_entries : Vec < SpellHistoryEntry > , spell_charge_entries : Vec < SpellChargeEntry > , action_buttons : [i64 ; 180] , account_mounts : Vec < AccountMount > , updateobject_trace_enabled : bool ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "send_login_sequence",
+          "visibility": "pub (crate)",
+          "signature": "async fn send_login_sequence (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , trait_node_entries : & wow_data :: trait_tree :: TraitNodeEntryStore , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , feature_policy : & SupportFeaturePolicyLikeCpp , player_grid_loader : & crate :: session :: PlayerGridLoadResolverLikeCpp , guid : ObjectGuid , race : u8 , class : u8 , sex : u8 , level : u8 , display_id : u32 , position : & Position , map_id : i32 , zone_id : i32 , homebind : CharacterLoginLocationLikeCpp , persisted_transport_login : Option < PersistedTransportLoginLikeCpp > , visible_items : [(i32 , u16 , u16) ; 19] , inv_slots : [ObjectGuid ; 141] , item_creates : Vec < wow_packet :: packets :: update :: ItemCreateData > , combat : PlayerCombatStats , current_power0 : i32 , base_mana : i32 , known_spells : Vec < i32 > , favorite_spells : Vec < i32 > , spell_history_entries : Vec < SpellHistoryEntry > , spell_charge_entries : Vec < SpellChargeEntry > , action_buttons : [i64 ; 180] , skill_info : Vec < (u16 , u16 , u16 , u16 , u16 , i16 , u16) > , account_mounts : Vec < AccountMount > ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_loaded_player_customizations_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn set_loaded_player_customizations_like_cpp (& mut self , customizations : Vec < wow_packet :: packets :: update :: ChrCustomizationChoiceValuesUpdate > ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "test_load_initial_world_states_for_login_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn test_load_initial_world_states_for_login_like_cpp (& self , map_id : i32 , player_area_id : u32 ,) -> Vec < (i32 , i32) >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "update_realm_characters",
+          "visibility": "pub (crate)",
+          "signature": "async fn update_realm_characters (& self)",
           "cfg": [
             "cfg (test)"
           ],
@@ -20914,19 +21399,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "complete_player_equipment_inventory_authority_load_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn complete_player_equipment_inventory_authority_load_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "complete_player_quest_status_authority_load_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn complete_player_quest_status_authority_load_like_cpp (& mut self)",
@@ -23010,19 +23482,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "insert_buyback_item_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn insert_buyback_item_like_cpp (& mut self , slot : u8 , item : InventoryItem ,) -> Option < InventoryItem >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "insert_inventory_item_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn insert_inventory_item_like_cpp (& mut self , slot : u8 , item : InventoryItem ,) -> Option < InventoryItem >",
@@ -23765,32 +24224,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "item_random_properties_store",
-          "visibility": "pub (crate)",
-          "signature": "fn item_random_properties_store (& self) -> Option < & Arc < ItemRandomPropertiesStore > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "item_random_suffix_store",
-          "visibility": "pub (crate)",
-          "signature": "fn item_random_suffix_store (& self) -> Option < & Arc < ItemRandomSuffixStore > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "item_sell_price_like_cpp",
           "visibility": "pub",
           "signature": "fn item_sell_price_like_cpp (& self , item_id : u32 , quality : u32 , item_level : u32 ,) -> Option < u32 >",
@@ -24333,19 +24766,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "load_represented_cuf_profile_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn load_represented_cuf_profile_like_cpp (& mut self , id : u8 , profile : wow_packet :: packets :: misc :: CufProfile ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "load_represented_equipment_set_row_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn load_represented_equipment_set_row_like_cpp (& mut self , guid : u64 , set_id : u32 , set_name : String , set_icon : String , ignore_mask : u32 , assigned_spec_index : i32 , pieces : [ObjectGuid ; wow_packet :: packets :: misc :: EQUIPMENT_SET_SLOTS_LIKE_CPP] ,) -> bool",
@@ -24801,19 +25221,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "mark_represented_equipment_sets_loaded_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn mark_represented_equipment_sets_loaded_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "mark_represented_glyphs_loaded_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn mark_represented_glyphs_loaded_like_cpp (& mut self)",
@@ -24929,19 +25336,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "mmap_runtime_config_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn mmap_runtime_config_like_cpp (& self) -> & MMapRuntimeConfigLikeCpp",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -30930,32 +31324,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_load_cuf_profiles_packet_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_load_cuf_profiles_packet_like_cpp (& self ,) -> Option < wow_packet :: packets :: misc :: LoadCufProfiles >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_load_equipment_set_packet_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_load_equipment_set_packet_like_cpp (& self ,) -> Option < wow_packet :: packets :: misc :: LoadEquipmentSet >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_login_passive_spell_cast_gate_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn represented_login_passive_spell_cast_gate_like_cpp (& self , spell_id : i32 ,) -> bool",
@@ -34408,32 +34776,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "send_account_heirlooms_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn send_account_heirlooms_like_cpp (& self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_account_toys_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn send_account_toys_like_cpp (& self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "send_aura_update_applied",
           "visibility": "pub (in crate :: session)",
           "signature": "fn send_aura_update_applied (& self , spell_id : i32 , slot : u8 , caster : ObjectGuid , duration : u32 , flags : u32 , effect_mask : u32 ,)",
@@ -34530,19 +34872,6 @@
           "name": "send_equip_error",
           "visibility": "pub (crate)",
           "signature": "fn send_equip_error (& self , result : InventoryResult , item1 : Option < ObjectGuid > , item2 : Option < ObjectGuid > , required_level : u32 , limit_category : u32 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_favorite_appearances_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn send_favorite_appearances_like_cpp (& self)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -36955,20 +37284,6 @@
           "name": "set_live_terrain_like_cpp",
           "visibility": "pub",
           "signature": "fn set_live_terrain_like_cpp (& mut self , terrain : Arc < crate :: terrain :: LiveTerrainHeights >)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_loaded_player_customizations_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn set_loaded_player_customizations_like_cpp (& mut self , customizations : Vec < wow_packet :: packets :: update :: ChrCustomizationChoiceValuesUpdate > ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -56502,45 +56817,6 @@
         },
         {
           "package": "wow-world",
-          "module": "crate::handlers::character::session_state",
-          "source": "crates/wow-world/src/handlers/character/session_state.rs",
-          "enclosing": "impl WorldSession::init_self_fellow_transport_passenger_blocks_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::character::session_state",
-          "source": "crates/wow-world/src/handlers/character/session_state.rs",
-          "enclosing": "impl WorldSession::init_self_fellow_transport_passenger_blocks_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "player_guid",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "player_guid:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::character::session_state",
-          "source": "crates/wow-world/src/handlers/character/session_state.rs",
-          "enclosing": "impl WorldSession::init_self_fellow_transport_passenger_blocks_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
           "module": "crate::handlers::group",
           "source": "crates/wow-world/src/handlers/group.rs",
           "enclosing": "module",
@@ -58188,6 +58464,45 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "connected:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-character",
+          "module": "crate::login_session::login_sequence",
+          "source": "crates/wow-world-character/src/login_session/login_sequence.rs",
+          "enclosing": "fn init_self_fellow_transport_passenger_blocks_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-character",
+          "module": "crate::login_session::login_sequence",
+          "source": "crates/wow-world-character/src/login_session/login_sequence.rs",
+          "enclosing": "fn init_self_fellow_transport_passenger_blocks_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "player_guid",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "player_guid:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-character",
+          "module": "crate::login_session::login_sequence",
+          "source": "crates/wow-world-character/src/login_session/login_sequence.rs",
+          "enclosing": "fn init_self_fellow_transport_passenger_blocks_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
           "count": 1
         },
         {

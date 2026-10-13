@@ -61,7 +61,8 @@ impl WorldSession {
             return false;
         }
         if progress.phase == Phase::BeforeZone {
-            if !self.apply_post_add_zone_from_terrain_like_cpp(
+            if !wow_world_character::apply_post_add_zone_from_terrain_like_cpp(
+                self,
                 progress.map_id as i32,
                 &progress.position,
             ) || !self.advance_worldport_post_add_like_cpp(Phase::ZoneApplied)
