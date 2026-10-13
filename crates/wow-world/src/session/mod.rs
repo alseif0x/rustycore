@@ -530,8 +530,6 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use rand::Rng;
 #[cfg(test)]
-use rand::seq::SliceRandom;
-#[cfg(test)]
 use rand::{SeedableRng, rngs::StdRng};
 use tracing::{debug, info, warn};
 

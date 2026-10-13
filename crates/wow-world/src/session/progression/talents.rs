@@ -52,7 +52,3 @@ impl WorldSession {
         );
     }
 }
-
-#[cfg(test)]
-#[path = "../../../unit_tests/session/progression/talents/f3_shims.rs"]
-mod f3_shims;
