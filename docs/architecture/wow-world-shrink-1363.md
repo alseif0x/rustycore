@@ -3777,30 +3777,269 @@ and the represented cage handler.
 includes this section. Its manifest path, dirty flag and duration are in
 the PR body. This section is not edited after that run.
 
-## Slice 7 summary (7a–7b)
+## Slice 7c result (XP-percent aura → spell; played time → lifecycle; talents stay as a design step)
 
-- **`wow-world` production (classifier).** 75,503 → 70,440 (−5,063).
-  - 7a −3,038. Its 2,891 is base production code that left `wow-world`, and
-    147 is its test shim kept out of the count.
+Branch `1363-s7c-talents`, base `93ed21e5e` (7b merged). Move-only (R2), with
+the 7a rewrites:
+
+- `self.` becomes the destination state's `self.` or `hub.`;
+- a World wrapper over a `split_spell_state_{ref,mut}` becomes the same
+  `SessionSpellState` call with the hub;
+- `self.lifecycle.X()` becomes `self.X()` on `SessionLifecycleState`.
+
+The XP-percent aura's slot, fields, insert-before-publish order and
+`SMSG_AURA_UPDATE` are unchanged. So are the played-time arithmetic and
+saturation, the talent learn and reset order, the rest and XP math, the
+level-up order and resurrection. Packets and their order, #169 ordering,
+registrations and processing flags are unchanged too. No registrar moves.
+
+### Re-measure and the talent decision
+
+On `93ed21e5e` the 7c families (talents, skills, reputation, rest, XP, the
+battle-pet adapter, progression adapters, the combat and pet leftovers) held
+1,340 classifier lines. 326 of them were `#[cfg(test)]` methods nested in
+production impls. The production code that could move is small.
+
+- **Talents (171 lines) do not move.** 7b asked whether the talent
+  side-effect pair and the trait/override reset could move to spell with the
+  talent bodies. They can't without moving more:
+  - The pair calls `learn_known_spell_like_cpp`, `remove_known_spell_like_cpp`
+    (the recursive `Player::RemoveSpell` closure in
+    `session/spell_state/spellbook.rs`; the pair has 12 World call sites) and
+    `remove_auras_with_interrupt_flags_like_cpp`. All three are World
+    methods.
+  - `refresh_represented_talent_points_like_cpp` builds the
+    `wow_world_quest::QuestRewardCx`. Quest depends on spell, so spell cannot
+    call it.
+  - The trait/override reset and the auxiliary-authority invalidation could
+    move: they only use `SessionSpellState` and core. But they need a new
+    spell host for the split, and it saves nothing while the rest stays.
+
+  A spell host for talents would need nine methods: the spell-state split,
+  learn, remove, the aura interrupt removal, the points refresh, the at-login
+  read and removal, the loaded check and `trinity_string`. That is about 65
+  host lines for about 100 body lines, the surface 7b measured. Per the 7b
+  recommendation talents stay. **Design step:** move them after
+  `Player::LearnSpell`/`RemoveSpell` (the spellbook learn/remove closure) is
+  in `wow-world-spell`, which is slice 9 (spell effects) material. The
+  points refresh then stays a single host method, or moves to the
+  quest-reward side that owns `QuestRewardCx`. The host is then the at-login
+  flags, the loaded check, `trinity_string` and that refresh.
+- **Skills.** `replace_player_skill_records_like_cpp` is a hub forward and
+  `clear_player_skill_tombstones_like_cpp` is a canonical forward. Both have
+  only World callers, so moving them only moves the forwarding. The setters
+  are composition.
+- **Rest.** The flag accessors are canonical reads with `#[cfg(test)]`
+  fallbacks and 2–5 World callers each. They stay for the same reason.
+- **XP.** The context builder stays, like the loot-release builder (5c).
+- **Resurrection snapshot.** It is deferred. Its three production callers
+  are in `wow-world` (spell effects, quest state and teleport). Moving it
+  would need a `test_fixtures_ref_like_cpp` branch plus a spell-state test
+  accessor on a host, only to forward back. It moves with the first of those
+  callers.
+
+### What moved
+
+- **To `wow-world-spell/src/session/spell_state/battle_pet_aura.rs`** (77
+  lines):
+  - `apply_represented_battle_pet_xp_pct_aura_like_cpp`, now a
+    `SessionSpellState` method over `&mut HubMut`. Its slot, insert and
+    publication are the `SessionSpellState` methods the World wrappers
+    called, and `self.core` becomes `hub.core`.
+  - The pure `represented_aura_effect_amounts_like_cpp`.
+    `session/aura_effect_values.rs` re-exports it for the mount and
+    aura-modifier callers.
+  - The spell-effect caller takes `split_spell_state_mut` in place of the
+    method (+2 lines).
+  - The 7b note said this aura would wait for "the visible-aura publication
+    it calls". That publication is already on `SessionSpellState`, so nothing
+    more had to move first.
+- **To `wow-world-lifecycle/src/state/playtime.rs`** (+13):
+  `current_played_time_values_like_cpp` is a `SessionLifecycleState` method
+  beside the accessors it reads. The void-storage transfer and the
+  persistence fixture call it through `self.lifecycle`.
+- **Reclassified, not moved.** These `#[cfg(test)]` methods were nested in
+  production impls:
+  - `session/rest_progression.rs`: rest state, XP rest bonus, the online
+    update and tick, tavern revalidation and the create flags;
+  - `session/progression_adapters.rs`: kill credit, XP table and money;
+  - `session/progression/{skills,reputation}.rs`;
+  - `session/pets/pet.rs`: the petition reads and the tapper-pet kill hook;
+  - `session/combat/state.rs`.
+
+  They moved verbatim to the `#![cfg(test)]`
+  `handlers/progression_test_shims.rs` (315 lines). That file also holds the
+  XP-aura method entry point for the scenario.
+  - **Visibility.** The moved methods that were `pub(in crate::session)` are
+    now `pub(crate)`. So are the five production helpers they call:
+    - `with_owned_player_mut_for_rest_like_cpp`;
+    - `represented_recruit_a_friend_xp_rest_state_applies_like_cpp`;
+    - the online XP rest-bonus update and tick with policy;
+    - the tavern revalidation with catalog.
+
+    Two test-only helpers widen the same way:
+    `fixture_set_xp_rest_bonus_like_cpp` and
+    `replace_player_skill_runtime_exact_like_cpp`. This is the slice 1
+    precedent: a sibling test is a concrete consumer. No item leaves the
+    crate.
+- **Follow-ups closed:**
+  - #1384 follow-up 1: the `split_pets_mut` doc comment names
+    `split_lifecycle_mut`.
+  - #1383 follow-up 2: the two over-long loot-ops receiver calls in
+    `session_commands.rs` wrap their arguments.
+
+### Host surface
+
+- **No new host trait or adapter line.** The aura uses the existing
+  `split_spell_state_mut` state/hub pattern of `wow-world-spell`, and the
+  played-time values use only lifecycle state. Host share: 0 of 90 moved
+  lines (0 %).
+- **Recursion and borrows.** No trait method is added, so nothing can
+  recurse. The spell-effect caller holds the split only for the synchronous
+  call, as each of the three World wrappers did. No `.await` is crossed.
+- **Fixture steps.** None. Neither moved body had a `cfg(test)` branch.
+
+### Accounting
+
+- **`crates/wow-world/src`.** Classifier: 70,440 → **70,077 production
+  (−363)**. Physical: 75,136 → 75,090 (−46). Files: 505 → 506. Test: 4,696 →
+  5,013 (+317).
+  - **About 71 is production code that left `wow-world`:**
+    - the aura method and its imports (−44);
+    - the amounts function (−13);
+    - the played-time values (−16);
+    - the caller's split (+2).
+  - **About 295 is test code reclassified:**
+    - rest −144 (with the blank lines between the methods);
+    - progression adapters −53;
+    - skills −25;
+    - reputation −18;
+    - pets −48;
+    - combat state −7.
+
+    These were already test-only bodies. The classifier now counts them as
+    test instead of production.
+  - **+3 is other:**
+    - the `session_commands.rs` wraps (+4);
+    - one rustfmt fold after a widening (−2);
+    - the dropped rest import (−1);
+    - the rest doc note (+2).
+- **Destinations.**
+  - `wow-world-spell/src`: 8,964 → 9,043 physical (+79; production 8,700 →
+    8,779).
+  - `wow-world-lifecycle/src`: 12,423 → 12,436 (+13).
+- **`net_move.py check`.** PASS. S = 46, G = 92 ≤ 1,009.3, 0 duplicate
+  bodies.
+  - S is small because the reclassified bodies stay in `wow-world/src` as
+    the test shim file.
+- **Edges.** No `Cargo.toml` changes and no new `wow-world-*` edge, so there
+  is nothing to simulate with `--add`. `wow_world_closure.py check` passes in
+  lock and metadata mode (17 packages).
+- **`session-ownership-policy.json`** is reprinted with `print-baseline`. The
+  delta:
+  - 21 test entry points, now in `crate::handlers::progression_test_shims`:
+    the 20 reclassified methods and the XP-aura entry point;
+  - `current_played_time_values_like_cpp` and the production XP-aura method,
+    which leave the `WorldSession` impls;
+  - the seven visibility widenings.
+
+  The syntax-only check passes.
+- **Ceilings.** None raised. Tightened to live values:
+  - hotspot `session/mod.rs`: production 39,736 → 39,369, test 141,901
+    unchanged, total 181,637 → 181,270;
+  - new physical row `handlers/progression_test_shims.rs` at 315.
+- **Warnings.** The `wow-world` warning counts (`--message-format=short`
+  lines under `crates/wow-world/`) are lower than base in every build:
+  - production lib: 153 → 151;
+  - lib with `test-fixtures`: 161 → 159;
+  - lib plus lib-test: 297 → 296.
+
+  The removed warnings are base unused imports: the rest
+  `Arc`/`AreaTriggerDb2Store`/`PLAYER_FLAGS_RESTING_LIKE_CPP` import, and the
+  progression-adapters `catalogs` import, now `cfg(test)`. Every head warning
+  is a base warning.
+  - `wow-world` `dead_code` is 0 in all three builds.
+  - `wow-world-spell` and `wow-world-lifecycle` keep exactly their base
+    warnings.
+- **Tests.** No `#[test]` or `#[ignore]` is added or removed. The workspace
+  test-name multiset is identical (10,214 names, 5 ignores), and no
+  assertion changes.
+  - One fixture line changes its path to `self.lifecycle`.
+  - Focused `wow-world` runs pass:
+    - 157 tests matching xp_aura, battle_pet, played_time and void_storage;
+    - 473 matching rest, xp, tavern, skill, reputation, petition, tapper,
+      combat_stat, kill_credit, gold, progression, talent and login.
+- **`send_player_power_update_like_cpp`** (#1383 follow-up 3). No combat
+  leftover moved or gained a production caller. Its
+  `cfg(any(test, feature = "test-fixtures"))` export from entities stays the
+  narrowest one that serves the World shim.
+
+### Deferred, with reasons
+
+- **Talents.** Nine host methods for about 100 body lines. This is the
+  design step above.
+- **The resurrection snapshot, the skill and rest forwards and the flag
+  accessors.** Every caller is in `wow-world`, so moving them only moves the
+  forwarding.
+- **The XP context builder and the composition setters.** They stay by
+  design, like the loot builders and setters.
+- **The `#[cfg(test)]` statement branches inside production bodies.** These
+  are the death snapshot, the skill tombstones, the flag accessors and the
+  at-login flag removal. They need a fixture predicate each when their body
+  moves, not before.
+- **The battle-pet adapter's `#[cfg(test)]` hook overrides**
+  (`session/pets/host.rs`, 45 lines). They belong to the
+  `BattlePetSessionHostLikeCpp` impl block and stay with it.
+
+### Validation
+
+`final --architecture --timings` (`VALIDATION_V2_CARGO_JOBS=1`,
+`VALIDATION_V2_TIMEOUT_SECONDS=1800`) runs on the committed head that
+includes this section. Its manifest path, dirty flag and duration are in
+the PR body. This section is not edited after that run.
+
+## Slice 7 summary (7a–7c)
+
+- **`wow-world` production (classifier).** 75,503 → 70,077 (−5,426).
+  - 7a −3,038: 2,891 base production code left `wow-world`, and 147 is its
+    test shim kept out of the count.
   - 7b −2,025: about 1,065 moved and about 960 reclassified test code.
+  - 7c −363: about 71 moved, about 295 reclassified test code and +3 other.
+  - In all, about 4,027 lines of production code left `wow-world`, and about
+    1,402 lines of test code no longer count as production.
 - **Moved out of `wow-world`:**
   - combat, to entities;
   - the creature loot-release VALUES receiver, to loot-ops;
   - the #161 purchase saga and the durable battle-pet operations, uncage
     effect, journal helpers and `CMSG_DISMISS_CRITTER`, to inventory;
   - pet loading, mode state and resummon, to lifecycle;
-  - the reputation gain, to social.
+  - the reputation gain, to social;
+  - the battle-pet XP-percent aura, to spell;
+  - the played-time values, to lifecycle.
 - **Retired:** `LootCxRef` (7a) and `PetsCx`/`PetsCxRef` (7b).
 - **Host.**
   - 7a: 205 new host lines against about 3,140 moved (6.5 %).
   - 7b: 173 against 1,219 (14.2 %), or 5.4 % net of the 107 retired host
     lines.
-- **Ceilings.** None raised in either half. Three test-shim files are now
-  `#![cfg(test)]` and ratcheted: `player_test_shims.rs` (150),
-  `battle_pet_test_shims.rs` (603) and `loot_test_shims.rs` (441).
-- **Still in `wow-world` from the slice 7 families:**
-  - the composition setters;
-  - the talent, skill, rest and XP bodies (7c);
-  - the resurrection snapshot;
-  - the XP-percent aura;
-  - the represented battle-pet fixture bodies.
+  - 7c: 0 against 90.
+- **Ceilings.** None raised in any part. Four test-shim files are now
+  `#![cfg(test)]` and ratcheted:
+  - `player_test_shims.rs` (150);
+  - `battle_pet_test_shims.rs` (603);
+  - `loot_test_shims.rs` (441);
+  - `progression_test_shims.rs` (315).
+- **Still in `wow-world` from the slice 7 families**, each with its reason
+  above:
+  - the composition setters and the XP context builder (by design);
+  - the talent bodies (a design step after the spellbook learn/remove
+    closure moves);
+  - the skill, rest-flag and resurrection-snapshot forwards (World callers
+    only);
+  - the battle-pet adapter's test hook overrides and the represented
+    battle-pet fixture bodies (test code).
+- **Next.**
+  - Slice 6 (quest) needs the `wow-world-quest` split first.
+  - Slice 8 (character) is the next large production move with no
+    prerequisite.
+  - Slice 9 (spell effects) should take the spellbook learn/remove closure
+    first, which unblocks the talents.
