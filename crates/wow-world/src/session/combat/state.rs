@@ -20,13 +20,6 @@ impl WorldSession {
     pub fn set_ffa_pvp_realm_like_cpp(&mut self, is_ffa_pvp_realm: bool) {
         self.view.is_ffa_pvp_realm_like_cpp = is_ffa_pvp_realm;
     }
-    #[cfg(test)]
-    pub(crate) fn represented_combat_stat_recalculations_like_cpp(
-        &self,
-    ) -> &[RepresentedCombatStatRecalculationLikeCpp] {
-        self.inventory
-            .represented_combat_stat_recalculations_for_test_like_cpp()
-    }
 }
 
 #[cfg(test)]

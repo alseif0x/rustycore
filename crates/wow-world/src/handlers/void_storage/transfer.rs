@@ -551,7 +551,7 @@ impl WorldSession {
             })
             .collect();
 
-        let (total_played_time, _) = self.current_played_time_values_like_cpp();
+        let (total_played_time, _) = self.lifecycle.current_played_time_values_like_cpp();
         let mut planned_container_db_guids = HashMap::<u8, u64>::new();
         let mut withdrawals = Vec::with_capacity(planned_withdrawals.len());
         for withdrawal in &planned_withdrawals {

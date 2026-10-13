@@ -724,6 +724,13 @@
       "ceiling_lines": 603,
       "split": "cfg(test) represented (fixture-backed) BattlePetMgr bodies (cage, add, experience, quality, level, remove, rename, the owner-aura experience entry and the represented cage handler) that were #[cfg(test)] methods nested in the production battle-pet impls of session/pets/battle_pet{,_journal}.rs, session/battle_pet_adapter.rs and handlers/pets/mod.rs, plus one-call method entry points for the journal helpers moved to wow-world-inventory (battle_pet_session). The moved durable operations reach the represented bodies through the cfg(any(test, feature = \"test-fixtures\")) BattlePetSessionHostLikeCpp fixture hooks. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)] so the classifier counts it as test code and the session hotspot's test lines do not grow. 2026-10-13 #1363 slice 7b: ratcheted at the live value from creation. Retire it when the represented fixture bodies give way to the canonical account owner in the scenarios; no growth is permitted from here.",
       "review_checkpoint": "584:C4"
+    },
+    {
+      "path": "crates/wow-world/src/handlers/progression_test_shims.rs",
+      "observed_lines": 315,
+      "ceiling_lines": 315,
+      "split": "cfg(test) method entry points for the #1363 slice 7c progression families: the one-call entry point of the battle-pet XP-percent aura moved to wow-world-spell (SessionSpellState), and the #[cfg(test)] methods that were nested in the production impls of session/rest_progression.rs (rest state, XP rest bonus, tavern revalidation, create flags), session/progression_adapters.rs (kill credit, XP table, money), session/progression/{skills,reputation}.rs, session/pets/pet.rs (petition reads, tapper-pet kill hook) and session/combat/state.rs, moved verbatim. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)] so the classifier counts it as test code and the session hotspot's test lines do not grow. 2026-10-13 #1363 slice 7c: ratcheted at the live value from creation. Retire entries as the scenarios move to the owning crates or call the moved bodies directly; no growth is permitted from here.",
+      "review_checkpoint": "584:C4"
     }
   ],
   "exceptions": [],

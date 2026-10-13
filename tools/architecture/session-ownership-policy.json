@@ -974,6 +974,14 @@
           "source_class": "test_fixture"
         },
         {
+          "module": "crate::handlers::progression_test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::quest",
           "trait_path": null,
           "cfg": [],
@@ -12168,6 +12176,344 @@
           ]
         },
         {
+          "module": "crate::handlers::progression_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_offline_xp_rest_bonus_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_offline_xp_rest_bonus_like_cpp (& mut self , logout_time_secs : u64 , now_secs : u64 , was_logout_resting : bool ,) -> f32",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::progression_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_represented_battle_pet_xp_pct_aura_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_represented_battle_pet_xp_pct_aura_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid , effect : & wow_data :: SpellEffectInfo ,) -> Result < () , & 'static str >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::progression_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_represented_first_login_reputation_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_represented_first_login_reputation_like_cpp (& mut self) -> usize",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::progression_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "fixture_clear_player_skill_tombstones_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn fixture_clear_player_skill_tombstones_like_cpp (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::progression_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "kill_credit_criteria_tree_objective_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn kill_credit_criteria_tree_objective_like_cpp (& mut self , criteria_tree_id : u32 ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::progression_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "killed_player_credit_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn killed_player_credit_like_cpp (& mut self , victim_guid : wow_core :: ObjectGuid ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::progression_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "player_gold_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn player_gold_like_cpp (& self) -> u64",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::progression_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "record_represented_tapper_pet_killed_unit_hooks_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn record_represented_tapper_pet_killed_unit_hooks_like_cpp (& mut self , creature_guid : ObjectGuid ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::progression_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "refresh_next_level_xp",
+          "visibility": "pub (crate)",
+          "signature": "fn refresh_next_level_xp (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::progression_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "replace_player_rest_state_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn replace_player_rest_state_like_cpp (& mut self , state : wow_entities :: PlayerRestState ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::progression_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_combat_stat_recalculations_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_combat_stat_recalculations_like_cpp (& self ,) -> & [RepresentedCombatStatRecalculationLikeCpp]",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::progression_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_decline_petitions_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_decline_petitions_like_cpp (& self ,) -> & [RepresentedDeclinePetitionLikeCpp]",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::progression_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_player_flags_for_create_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_player_flags_for_create_like_cpp (& self) -> (u32 , u32)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::progression_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_query_petitions_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_query_petitions_like_cpp (& self ,) -> & [RepresentedQueryPetitionLikeCpp]",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::progression_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_sign_petitions_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_sign_petitions_like_cpp (& self) -> & [RepresentedSignPetitionLikeCpp]",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::progression_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "reputation_changed_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn reputation_changed_like_cpp (& mut self , faction_id : u32 , change : i32)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::progression_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "revalidate_represented_tavern_resting_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn revalidate_represented_tavern_resting_like_cpp (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::progression_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_player_xp_table",
+          "visibility": "pub (crate)",
+          "signature": "fn set_player_xp_table (& mut self , table : Arc < Vec < u32 > >)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::progression_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_represented_xp_rest_bonus_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn set_represented_xp_rest_bonus_like_cpp (& mut self , rest_bonus : f32) -> u8",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::progression_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "tick_represented_online_xp_rest_bonus_with_roll_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn tick_represented_online_xp_rest_bonus_with_roll_like_cpp (& mut self , now_secs : u64 , update_roll_passed : bool ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::progression_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "update_represented_online_xp_rest_bonus_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn update_represented_online_xp_rest_bonus_like_cpp (& mut self , now_secs : u64 ,) -> (f32 , u8)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
           "module": "crate::handlers::quest",
           "trait_path": null,
           "kind": "method",
@@ -17599,21 +17945,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_offline_xp_rest_bonus_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_offline_xp_rest_bonus_like_cpp (& mut self , logout_time_secs : u64 , now_secs : u64 , was_logout_resting : bool ,) -> f32",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "apply_offline_xp_rest_bonus_with_policy_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn apply_offline_xp_rest_bonus_with_policy_like_cpp (& mut self , policy : & PlayerRestRatePolicyLikeCpp , logout_time_secs : u64 , now_secs : u64 , was_logout_resting : bool ,) -> f32",
@@ -17772,19 +18103,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_represented_battle_pet_xp_pct_aura_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn apply_represented_battle_pet_xp_pct_aura_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid , effect : & wow_data :: SpellEffectInfo ,) -> Result < () , & 'static str >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "apply_represented_durability_loss_all_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn apply_represented_durability_loss_all_like_cpp (& mut self , percent : f64 , inventory : bool ,) -> usize",
@@ -17920,21 +18238,6 @@
           "signature": "fn apply_represented_first_login_flag_if_needed_like_cpp (& mut self) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_represented_first_login_reputation_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_represented_first_login_reputation_like_cpp (& mut self) -> usize",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -20414,19 +20717,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "current_played_time_values_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn current_played_time_values_like_cpp (& self) -> (u32 , u32)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "current_player_character_save_request_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn current_player_character_save_request_like_cpp (& mut self , snapshot : & PlayerSaveToDbSnapshotLikeCpp , now_unix_secs : i64 ,) -> Option < PlayerCharacterSaveRequestLikeCpp >",
@@ -21273,21 +21563,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "fixture_clear_player_skill_tombstones_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn fixture_clear_player_skill_tombstones_like_cpp (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "fixture_complete_trait_config_authority_load_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn fixture_complete_trait_config_authority_load_like_cpp (& mut self , configs : impl IntoIterator < Item = (i32 , i32 , i32 , i32) > , entries_empty : bool ,) -> bool",
@@ -21469,7 +21744,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "fixture_set_xp_rest_bonus_like_cpp",
-          "visibility": "pub (in crate :: session)",
+          "visibility": "pub (crate)",
           "signature": "fn fixture_set_xp_rest_bonus_like_cpp (& mut self , rest_bonus : f32) -> u8",
           "cfg": [
             "cfg (test)"
@@ -23164,21 +23439,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "kill_credit_criteria_tree_objective_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn kill_credit_criteria_tree_objective_like_cpp (& mut self , criteria_tree_id : u32 ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "kill_credit_criteria_tree_objective_with_generator_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn kill_credit_criteria_tree_objective_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , criteria_tree_id : u32 ,)",
@@ -23199,21 +23459,6 @@
           "signature": "async fn kill_credit_gameobject_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , gameobject_entry : u32 , gameobject_guid : wow_core :: ObjectGuid ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "killed_player_credit_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn killed_player_credit_like_cpp (& mut self , victim_guid : wow_core :: ObjectGuid ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -25535,21 +25780,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "player_gold_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn player_gold_like_cpp (& self) -> u64",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "player_gossip_option_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_gossip_option_like_cpp (& self , gossip_option_id : i32 ,) -> Option < GossipOptionInfo >",
@@ -27356,21 +27586,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "record_represented_tapper_pet_killed_unit_hooks_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn record_represented_tapper_pet_killed_unit_hooks_like_cpp (& mut self , creature_guid : ObjectGuid ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "record_represented_titan_grip_penalty_action_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn record_represented_titan_grip_penalty_action_like_cpp (& mut self)",
@@ -27484,21 +27699,6 @@
           "signature": "fn refresh_inventory_item_enchantment_duration_refs_like_cpp (& mut self , item_guid : ObjectGuid ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "refresh_next_level_xp",
-          "visibility": "pub (crate)",
-          "signature": "fn refresh_next_level_xp (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -28286,21 +28486,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "replace_player_rest_state_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn replace_player_rest_state_like_cpp (& mut self , state : wow_entities :: PlayerRestState ,) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "replace_player_skill_records_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn replace_player_skill_records_like_cpp (& mut self , skill_records : HashMap < u16 , RepresentedPlayerSkillLikeCpp > , loaded : bool , complete : bool ,) -> bool",
@@ -28315,7 +28500,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "replace_player_skill_runtime_exact_like_cpp",
-          "visibility": "pub (in crate :: session)",
+          "visibility": "pub (crate)",
           "signature": "fn replace_player_skill_runtime_exact_like_cpp (& mut self , skill_records : HashMap < u16 , RepresentedPlayerSkillLikeCpp > , loaded : bool , complete : bool , occupied_slots : Option < u16 > , tombstones : BTreeSet < u16 > ,) -> bool",
           "cfg": [
             "cfg (test)"
@@ -29304,21 +29489,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_combat_stat_recalculations_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_combat_stat_recalculations_like_cpp (& self ,) -> & [RepresentedCombatStatRecalculationLikeCpp]",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_complaint_system_status_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_complaint_system_status_like_cpp (& self) -> bool",
@@ -29468,21 +29638,6 @@
           "signature": "fn represented_db_caster_destination_target_data_like_cpp (& self , caster_guid : ObjectGuid , spell_info : & wow_data :: SpellInfo , effect : & wow_data :: SpellEffectInfo , target_data : & SpellTargetData ,) -> Option < SpellTargetData >",
           "cfg": [],
           "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_decline_petitions_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_decline_petitions_like_cpp (& self ,) -> & [RepresentedDeclinePetitionLikeCpp]",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -30835,21 +30990,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_player_flags_for_create_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_player_flags_for_create_like_cpp (& self) -> (u32 , u32)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_player_flags_for_rest_state_save_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn represented_player_flags_for_rest_state_save_like_cpp (& self) -> u32",
@@ -31084,21 +31224,6 @@
           "name": "represented_push_quest_to_party_outcomes_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_push_quest_to_party_outcomes_like_cpp (& self ,) -> & [RepresentedPushQuestToPartyOutcomeLikeCpp]",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_query_petitions_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_query_petitions_like_cpp (& self ,) -> & [RepresentedQueryPetitionLikeCpp]",
           "cfg": [
             "cfg (test)"
           ],
@@ -31357,8 +31482,8 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_recruit_a_friend_xp_rest_state_applies_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn represented_recruit_a_friend_xp_rest_state_applies_like_cpp (& self ,) -> bool",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_recruit_a_friend_xp_rest_state_applies_like_cpp (& self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -31475,21 +31600,6 @@
           "name": "represented_shapeshift_form_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_shapeshift_form_like_cpp (& self) -> Option < u32 >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_sign_petitions_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_sign_petitions_like_cpp (& self) -> & [RepresentedSignPetitionLikeCpp]",
           "cfg": [
             "cfg (test)"
           ],
@@ -32652,21 +32762,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "reputation_changed_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn reputation_changed_like_cpp (& mut self , faction_id : u32 , change : i32)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "reputation_mgr_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn reputation_mgr_like_cpp (& self) -> ReputationMgrRefLikeCpp < '_ >",
@@ -33564,23 +33659,8 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "revalidate_represented_tavern_resting_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn revalidate_represented_tavern_resting_like_cpp (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "revalidate_represented_tavern_resting_with_catalog_like_cpp",
-          "visibility": "pub (in crate :: session)",
+          "visibility": "pub (crate)",
           "signature": "fn revalidate_represented_tavern_resting_with_catalog_like_cpp (& mut self , area_trigger_db2_store : & AreaTriggerDb2Store ,)",
           "cfg": [],
           "source_class": "production",
@@ -38253,22 +38333,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "set_player_xp_table",
-          "visibility": "pub (crate)",
-          "signature": "fn set_player_xp_table (& mut self , table : Arc < Vec < u32 > >)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "set_player_zone_area_authority_complete_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn set_player_zone_area_authority_complete_like_cpp (& mut self , complete : bool)",
@@ -39391,22 +39455,6 @@
           "name": "set_represented_using_pvp_item_levels_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn set_represented_using_pvp_item_levels_like_cpp (& mut self , active : bool) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_represented_xp_rest_bonus_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn set_represented_xp_rest_bonus_like_cpp (& mut self , rest_bonus : f32 ,) -> u8",
           "cfg": [
             "cfg (test)"
           ],
@@ -41570,25 +41618,10 @@
           "trait_path": null,
           "kind": "method",
           "name": "tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp",
-          "visibility": "pub (in crate :: session)",
+          "visibility": "pub (crate)",
           "signature": "fn tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp (& mut self , policy : & PlayerRestRatePolicyLikeCpp , now_secs : u64 , update_roll_passed : bool ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "tick_represented_online_xp_rest_bonus_with_roll_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn tick_represented_online_xp_rest_bonus_with_roll_like_cpp (& mut self , now_secs : u64 , update_roll_passed : bool ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -41966,23 +41999,8 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "update_represented_online_xp_rest_bonus_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn update_represented_online_xp_rest_bonus_like_cpp (& mut self , now_secs : u64 ,) -> (f32 , u8)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "update_represented_online_xp_rest_bonus_with_policy_like_cpp",
-          "visibility": "pub (in crate :: session)",
+          "visibility": "pub (crate)",
           "signature": "fn update_represented_online_xp_rest_bonus_with_policy_like_cpp (& mut self , policy : & PlayerRestRatePolicyLikeCpp , now_secs : u64 ,) -> (f32 , u8)",
           "cfg": [],
           "source_class": "production",
@@ -42446,7 +42464,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "with_owned_player_mut_for_rest_like_cpp",
-          "visibility": "pub (in crate :: session)",
+          "visibility": "pub (crate)",
           "signature": "fn with_owned_player_mut_for_rest_like_cpp < R > (& self , f : impl FnOnce (& mut Player) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",

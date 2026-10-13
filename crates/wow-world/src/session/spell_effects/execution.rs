@@ -661,7 +661,9 @@ impl WorldSession {
                         effect,
                     )?;
                 } else if effect.is_battle_pet_xp_pct_aura_like_cpp() {
-                    self.apply_represented_battle_pet_xp_pct_aura_like_cpp(
+                    let (state, mut hub) = crate::session::split_spell_state_mut(self);
+                    state.apply_represented_battle_pet_xp_pct_aura_like_cpp(
+                        &mut hub,
                         spell_id,
                         player_guid,
                         effect,

@@ -3,143 +3,15 @@
 
 //! Rest progression: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
+//! The played-time values moved to `SessionLifecycleState` and the test-only
+//! rest entry points to `handlers/progression_test_shims.rs` (#1363 slice 7c).
 
 #[cfg(test)]
 use super::RepresentedAuraEffectLikeCpp;
 use super::WorldSession;
-use super::{Arc, AreaTriggerDb2Store, PLAYER_FLAGS_RESTING_LIKE_CPP};
 use super::{PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP, REST_FLAG_IN_TAVERN_LIKE_CPP};
 
 impl WorldSession {
-    #[cfg(test)]
-    pub(in crate::session) fn replace_player_rest_state_like_cpp(
-        &mut self,
-        state: wow_entities::PlayerRestState,
-    ) -> bool {
-        let canonical = self
-            .with_owned_player_mut_for_rest_like_cpp(|player| {
-                player.set_xp_rest_info_like_cpp(
-                    state.rest_bonus_like_cpp().clamp(0.0, u32::MAX as f32) as u32,
-                    state.rest_state_like_cpp(),
-                );
-                if state.is_location_initialized_like_cpp() {
-                    if state.is_resting_by_flag_like_cpp() {
-                        player.set_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
-                    } else {
-                        player.remove_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
-                    }
-                }
-                player.replace_rest_state_like_cpp(state.clone());
-            })
-            .is_some();
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            self.fixtures
-                .progression
-                .rest_mgr_test_fixture_like_cpp
-                .represented_rest_bonus_xp_like_cpp = state.rest_bonus_like_cpp();
-            self.fixtures
-                .progression
-                .rest_mgr_test_fixture_like_cpp
-                .represented_rest_state_xp_like_cpp = state.rest_state_like_cpp();
-            self.fixtures
-                .progression
-                .rest_mgr_test_fixture_like_cpp
-                .represented_rest_flag_mask_like_cpp = state.rest_flag_mask_like_cpp();
-            self.fixtures
-                .progression
-                .rest_mgr_test_fixture_like_cpp
-                .represented_rest_location_initialized_like_cpp =
-                state.is_location_initialized_like_cpp();
-            self.fixtures
-                .progression
-                .rest_mgr_test_fixture_like_cpp
-                .represented_defer_rest_flag_sync_like_cpp = state.defers_flag_sync_like_cpp();
-            self.fixtures
-                .progression
-                .rest_mgr_test_fixture_like_cpp
-                .represented_deferred_rest_flag_update_dirty_like_cpp =
-                state.deferred_flag_update_dirty_like_cpp();
-            self.fixtures
-                .progression
-                .rest_mgr_test_fixture_like_cpp
-                .represented_inn_area_trigger_id_like_cpp = state.inn_trigger_id_like_cpp();
-            self.fixtures
-                .progression
-                .rest_mgr_test_fixture_like_cpp
-                .represented_rest_time_secs_like_cpp = state.rest_time_secs_like_cpp();
-            return true;
-        }
-        canonical
-    }
-
-    #[cfg(test)]
-    pub(in crate::session) fn set_represented_xp_rest_bonus_like_cpp(
-        &mut self,
-        rest_bonus: f32,
-    ) -> u8 {
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return self.fixture_set_xp_rest_bonus_like_cpp(rest_bonus);
-        }
-        let at_max = crate::session::hub_ref(self).player_is_at_configured_max_level_like_cpp();
-        let raf = self.represented_recruit_a_friend_xp_rest_state_applies_like_cpp();
-        self.core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_xp_rest_bonus_like_cpp(rest_bonus, at_max, raf)
-            })
-            .unwrap_or(0)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn apply_offline_xp_rest_bonus_like_cpp(
-        &mut self,
-        logout_time_secs: u64,
-        now_secs: u64,
-        was_logout_resting: bool,
-    ) -> f32 {
-        let policy = self.player_rest_rate_policy_for_test_like_cpp();
-        self.apply_offline_xp_rest_bonus_with_policy_like_cpp(
-            &policy,
-            logout_time_secs,
-            now_secs,
-            was_logout_resting,
-        )
-    }
-
-    #[cfg(test)]
-    pub(in crate::session) fn update_represented_online_xp_rest_bonus_like_cpp(
-        &mut self,
-        now_secs: u64,
-    ) -> (f32, u8) {
-        let policy = self.player_rest_rate_policy_for_test_like_cpp();
-        self.update_represented_online_xp_rest_bonus_with_policy_like_cpp(&policy, now_secs)
-    }
-
-    #[cfg(test)]
-    pub(in crate::session) fn tick_represented_online_xp_rest_bonus_with_roll_like_cpp(
-        &mut self,
-        now_secs: u64,
-        update_roll_passed: bool,
-    ) {
-        let policy = self.player_rest_rate_policy_for_test_like_cpp();
-        self.tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp(
-            &policy,
-            now_secs,
-            update_roll_passed,
-        );
-    }
-
-    #[cfg(test)]
-    pub(in crate::session) fn revalidate_represented_tavern_resting_like_cpp(&mut self) {
-        let db2 = self
-            .catalogs
-            .area_trigger_db2_store
-            .clone()
-            .unwrap_or_else(|| Arc::new(AreaTriggerDb2Store::from_entries([])));
-        self.revalidate_represented_tavern_resting_with_catalog_like_cpp(db2.as_ref());
-    }
-
     pub(crate) fn represented_player_has_flag_like_cpp(&self, flag: u32) -> bool {
         let canonical = self.player_guid().and_then(|guid| {
             self.core
@@ -223,37 +95,6 @@ impl WorldSession {
             };
         let player_flags_ex = canonical_flags_ex?;
         Some((player_flags, player_flags_ex))
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_player_flags_for_create_like_cpp(&self) -> (u32, u32) {
-        self.resolved_player_flags_for_create_like_cpp()
-            .unwrap_or_else(|| {
-                (
-                    self.lifecycle
-                        .represented_loaded_player_flags_for_test_like_cpp()
-                        .unwrap_or(0),
-                    self.lifecycle
-                        .represented_loaded_player_flags_ex_for_test_like_cpp()
-                        .unwrap_or(0),
-                )
-            })
-    }
-
-    pub(crate) fn current_played_time_values_like_cpp(&self) -> (u32, u32) {
-        let session_secs: u32 = self
-            .lifecycle
-            .login_time_like_cpp()
-            .map(|time| time.elapsed().as_secs() as u32)
-            .unwrap_or(0);
-        (
-            self.lifecycle
-                .total_played_time_like_cpp()
-                .saturating_add(session_secs),
-            self.lifecycle
-                .level_played_time_like_cpp()
-                .saturating_add(session_secs),
-        )
     }
 
     pub(crate) fn take_deferred_rest_flag_update_dirty_like_cpp(&mut self) -> bool {

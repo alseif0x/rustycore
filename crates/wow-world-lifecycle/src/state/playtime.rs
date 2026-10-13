@@ -25,4 +25,17 @@ impl SessionLifecycleState {
     pub fn set_login_time_like_cpp(&mut self, login_time: Option<Instant>) {
         self.login_time = login_time;
     }
+
+    pub fn current_played_time_values_like_cpp(&self) -> (u32, u32) {
+        let session_secs: u32 = self
+            .login_time_like_cpp()
+            .map(|time| time.elapsed().as_secs() as u32)
+            .unwrap_or(0);
+        (
+            self.total_played_time_like_cpp()
+                .saturating_add(session_secs),
+            self.level_played_time_like_cpp()
+                .saturating_add(session_secs),
+        )
+    }
 }

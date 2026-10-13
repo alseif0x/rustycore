@@ -34,7 +34,7 @@ impl crate::session::WorldSession {
         )
     }
     #[cfg(test)]
-    pub(in crate::session) fn replace_player_skill_runtime_exact_like_cpp(
+    pub(crate) fn replace_player_skill_runtime_exact_like_cpp(
         &mut self,
         skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
         loaded: bool,

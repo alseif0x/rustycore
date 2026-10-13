@@ -449,7 +449,7 @@ impl WorldSession {
                 },
             )
             .collect();
-        let (total_time, level_time) = self.current_played_time_values_like_cpp();
+        let (total_time, level_time) = self.lifecycle.current_played_time_values_like_cpp();
         let played_time = PlayerPlayedTimeSaveLikeCpp {
             total_time,
             level_time,

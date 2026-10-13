@@ -125,13 +125,17 @@ impl WorldSession {
                 .await;
             }
             SessionCommand::SendCreatureLootReleaseValuesUpdateLikeCpp(command) => {
-                wow_world_loot_ops::handle_send_creature_loot_release_values_update_command_like_cpp(self, command);
+                wow_world_loot_ops::handle_send_creature_loot_release_values_update_command_like_cpp(
+                    self, command,
+                );
             }
             SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp => {
                 let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
             }
             SessionCommand::SyncGatheringNodeGameobjectStateAndRefreshLikeCpp(command) => {
-                wow_world_loot_ops::handle_sync_gathering_node_gameobject_state_and_refresh_like_cpp(self, command);
+                wow_world_loot_ops::handle_sync_gathering_node_gameobject_state_and_refresh_like_cpp(
+                    self, command,
+                );
             }
             SessionCommand::SyncChestGameobjectStateAndRefreshLikeCpp(command) => {
                 wow_world_loot_ops::handle_sync_chest_gameobject_state_and_refresh_like_cpp(
