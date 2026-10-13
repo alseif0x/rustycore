@@ -5,11 +5,14 @@
 //! Test-only method entry points for the player combat bodies moved to
 //! `wow_world_entities::combat_session` and the pet bodies moved to
 //! `wow_world_lifecycle::pet_session` (#1363 slice 7a); the pet row-loader
-//! entry points came from `unit_tests/session/pet_loading/f3_shims.rs`. Each forwards to the
-//! moved body with this session as its host, so the scenarios keep their method
-//! syntax and the session and character hotspots' test lines do not grow. The
-//! loot-money tracker read is here because its `LootCxRef` facade retired when
-//! the battle-pet purchase saga, its last production reader, moved.
+//! entry points came from `unit_tests/session/pet_loading/f3_shims.rs`. Each
+//! forwards to the moved body with this session as its host, so the scenarios
+//! keep their method syntax and the session and character hotspots' test lines
+//! do not grow. The loot-money tracker read is here because its `LootCxRef`
+//! facade retired when the battle-pet purchase saga, its last production
+//! reader, moved.
+
+#![cfg(test)]
 
 use std::sync::Arc;
 

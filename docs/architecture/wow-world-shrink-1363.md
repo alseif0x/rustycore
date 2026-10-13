@@ -3239,3 +3239,256 @@ found, and nothing was changed.
 `VALIDATION_V2_TIMEOUT_SECONDS=1800`) runs on the committed head that
 includes this section. Its manifest path, dirty flag and duration are in
 the PR body. This section is not edited after that run.
+
+## Slice 7 plan (combat, pets, battle pets, progression, rest, xp)
+
+Measured on `2d6504c7b` (5c merged) before anything moved, with the slice 5
+tools: the hotspot classifier for production lines, and the inherent
+`WorldSession` method scan for body lines, outside calls and session fields.
+
+- **`wow-world` production (classifier): 75,503** lines, 78,957 physical,
+  504 files.
+- The six families hold about 5.9k classifier lines. About 1.3k of that is
+  `#[cfg(test)]` methods nested in production impls. The classifier counts
+  them as production, but they are fixture paths, not movable bodies.
+
+| Family | Files | Production | Outside calls / fields |
+|---|---|---:|---|
+| Combat | `session/combat/*`, `handlers/combat*`, `combat_handler_contexts.rs`, `handlers/loot/combat_commands.rs`, the two receivers in `handlers/loot/handlers.rs` | 1,167 | 11 / core, view, catalogs, instances, fixtures, spell state |
+| Pets | `session/pets/{pet,summoning,persistence}.rs`, `session/pet_loading.rs`, `handlers/character/world_entry/login/pet_loading.rs`, `handlers/pets/*`, `spell_pet_catalogs.rs`, `pet_dismissal.rs` | 1,293 | 1 / the `PetsCx` split (lifecycle + hub), fixtures |
+| Battle pets | `battle_pet_purchase{,/*}.rs` (the #161 saga, 1,263), `session/pets/battle_pet{,_journal,_publication,_slots}.rs`, `session/battle_pet_adapter.rs` | 2,629 | saga: 11 plus 5 `PetsCx` helpers / core; durable ops: 9 / lifecycle, fixtures |
+| Progression | `session/progression/*`, `progression_adapters.rs`, `handlers/progression` | 509 | 11 (16 with single-caller helpers) / catalogs, config |
+| Rest | `session/rest_progression.rs` | 261 | 5 / lifecycle, fixtures |
+| XP | `session/xp_grants.rs` | 120 | 0 / 7 fields (the quest reward context builder) |
+
+Findings:
+
+- **Combat goes to entities.** The player melee result and the attack start
+  already live there (4a). The rest of combat needs only six host methods on
+  top of `WorldEntitiesHostLikeCpp` and `PlayerMovementHostLikeCpp`.
+  - The creature loot-release VALUES receiver is the receiving half of the
+    loot-release fanout. Its body calls only loot-ops functions, so it goes to
+    loot-ops with one host method (the pending-bind read). In entities it
+    would need two loot-ops forwards, and entities may not depend on
+    loot-ops.
+- **Pets go to lifecycle.** The pet load state and its row types already live
+  there. The `PetsCx` methods touch only the lifecycle state and the hub, so
+  the host needs only that split and the at-login flags.
+- **The battle-pet purchase saga goes to inventory**, beside the battle-pet
+  handlers that A4 moved there. It needs 13 host methods. Its offer record
+  (`PreparedBattlePetTrainerOfferLikeCpp`) moves down from application, which
+  re-exports it at the old path. The durable grant, level and uncage
+  operations are `&self` bodies with `cfg(test)`-only return branches, so they
+  cost a fixture predicate each.
+- **Progression, rest and XP have the highest surface per line.** They are
+  mostly composition setters (`set_*_store`), which stay in `wow-world` like
+  the loot composition setters, plus small fixture-heavy forwards.
+- **Closure.** No new `wow-world-*` edge is needed. Entities, inventory,
+  lifecycle and loot-ops already reach core and lifecycle, and loot-ops
+  already reaches entities. With no planned edge there is nothing to
+  simulate with `--add`; `wow_world_closure.py check` passed on the base
+  (lock) and passes on the head (lock and metadata).
+  Inventory gains only the external `rand` and `tokio` crates (the saga's
+  request key and retry backoff).
+
+**7a, lowest surface first (about 3k lines):**
+
+- combat, with the two receivers and the melee publication path;
+- the battle-pet purchase saga;
+- pet loading, mode state, the login pet loader and resummon.
+
+**7b (about 2.4k classifier lines, of which about 1k are nested `cfg(test)`
+methods):**
+
+- the battle-pet durable grant, level and uncage operations, the journal
+  helpers, the adapter and `CMSG_DISMISS_CRITTER`;
+- progression (reputation, skills, talents);
+- rest and xp;
+- the combat and pet leftovers (the resurrection snapshot and the setters).
+
+## Slice 7a result (combat → entities; battle-pet purchase saga → inventory; pet loading → lifecycle)
+
+Branch `1363-s7a-combat`, base `2d6504c7b` (5c merged). Move-only (R2), with
+the 4b/5a rewrites:
+
+- `self.` becomes `host.`;
+- a field becomes a host accessor;
+- `hub_ref`/`hub_mut` and a `split_*` become host calls;
+- a call to another moved function becomes a free call;
+- a `World` inherent method that is only `self.core.X(...)` (`send_packet_realm`,
+  `battlenet_account_id`, `kick`, `send_tx`) is reached as
+  `host.core[_mut]().X(...)`.
+
+Damage, threat, melee and regeneration math, the swing presentation order,
+the absorb log and shield removal order, the power and food-emote
+publication, the PvP and FFA flag transitions, the saga's charge, apply,
+publication, completion and compensation order, its retry and backoff, the
+pet row filters and resummon, persistence ordering (#169), registrations and
+processing flags are unchanged. No registrar moves.
+
+### What moved
+
+- **To `wow-world-entities/src/combat_session/`** (1,023 lines).
+  - `regeneration.rs`: `Player::RegenerateAll` with its health input, the
+    food/drink selector and visual.
+  - `pvp_state.rs`: the PvP flag expiry, `CombatStop`, the contested-PvP reset
+    and the realm FFA flag (login and tavern).
+  - `damage.rs`: the melee absorb publication and the `SMSG_POWER_UPDATE`
+    owner copy.
+  - `commands.rs`: the creature attack start and stop, the PvP combat expiry
+    and the creature melee-damage receivers.
+- **To `wow-world-loot-ops`** (`session_loot/handlers.rs`, +75): the creature
+  loot-release VALUES receiver.
+- **To `wow-world-inventory/src/battle_pet_purchase/`** (1,264 lines): the
+  #161 saga (its state, both ops modules and its doc) and
+  `PreparedBattlePetTrainerOfferLikeCpp`.
+- **To `wow-world-lifecycle/src/pet_session/`** (1,005 lines):
+  - `loading.rs`: the pet row loaders, the declined names, the pet mode state
+    and the aura remain-time helper;
+  - `login_loading.rs`: the login pet-state loader and the
+    `AT_LOGIN_RESET_PET_TALENTS` reset;
+  - `summoning.rs`: the temporary-unsummon resummon, with the three pure
+    helpers only it used.
+- **Each former `PetsCx` method** takes the same lifecycle/hub split from the
+  host at its first statement, where the World built the context, and keeps
+  the rest of its body.
+- **Fixture steps.** The former `#[cfg(test)]` steps use the 4b mechanism:
+  `#[cfg(any(test, feature = "test-fixtures"))] if host.test_fixtures_like_cpp()…`.
+  They are the PvP-expiry and contested-PvP fallbacks, the pet mode-state
+  fixture writes, and the resummon counters. In the resummon the predicate is
+  read before the split, because the split holds the host.
+- **Stays in `wow-world`:**
+  - the composition setters (`set_*_store`, `set_*_game_table(s)`,
+    `set_*pvp_realm_like_cpp`, the battle-pet attachment);
+  - the resurrection-state snapshot, which is `cfg(test)` fixture code;
+  - the `cfg(test)` saga wrappers (`battle_pet_purchase/ops_1.rs`);
+  - the f3 shim mounts;
+  - everything 7b moves.
+- **Retired.** `LootCxRef` (struct, builder and its last helper; #1382 review
+  follow-up). The saga was its last production reader.
+  `handlers/loot/combat_commands.rs`, `battle_pet_purchase/{ops_2,state}.rs`,
+  `handlers/character/world_entry/login/pet_loading.rs` and
+  `unit_tests/session/pet_loading/f3_shims.rs` are deleted.
+
+### Host surface
+
+- **`CombatSessionHostLikeCpp: WorldEntitiesHostLikeCpp + PlayerMovementHostLikeCpp`**
+  (entities, 6 methods, 13 lines): the visible-set fanout, the melee health
+  presentation, the death durability loss, the resting and polymorph reads and
+  the FFA realm flag. Adapter `session/combat/host.rs` (33 lines).
+- **`LootSessionHostLikeCpp`** gains `has_pending_bind_like_cpp` (+2 trait,
+  +3 adapter lines).
+- **`BattlePetPurchaseHostLikeCpp: SessionHubHostLikeCpp`** (inventory, 13
+  methods, 32 lines):
+  - the lifecycle accessor and split;
+  - the four journal reads and the lease;
+  - the purchase criteria;
+  - money read, staging and publication;
+  - the quest-objective drain, the dependent spell learn and the exclusive
+    money boundary.
+
+  Adapter `battle_pet_purchase/host.rs` (95 lines).
+- **`PetSessionHostLikeCpp: SessionHubHostLikeCpp`** (lifecycle, 2 methods):
+  the `PetsCx` split and the at-login flags. Adapter `session/pets/host.rs`
+  (22 lines).
+- **Recursion check.** Every adapter method names an inherent method by
+  path (`WorldSession::name(self, …)`), a `PetsCx`/`PetsCxRef` method, a
+  session split helper or a field. Each path-named method has an inherent
+  `WorldSession` method of that name, so none resolves to its own trait
+  method. rustc reports no `unconditional_recursion`.
+  No UFCS forward goes to a trait default.
+- **Borrows.** The journal-lease forward keeps the `PetsCxRef` borrow across
+  its await inside the returned future, as the body did. The drain and money
+  boundary forwards return the inherent futures unchanged.
+- **Budget.** 52 trait lines and 153 adapter lines (205) against about 3,140
+  moved lines: 6.5 %.
+- **Test shims.** `handlers/player_test_shims.rs` (150 lines) is
+  `#![cfg(test)]`, mounted from `handlers/mod.rs` outside the session and
+  character hotspots, with a physical ceiling at its live size. It holds:
+  - the regeneration, PvP-expiry, power-update and melee-damage method
+    shims;
+  - the two pet shims;
+  - the six pet row-loader shims that left the session hotspot;
+  - the loot-money tracker read that `LootCxRef` served.
+
+  Call sites that only change path are converted:
+  - the three `cx_pets(..).begin_…` test calls;
+  - the f3 shims of the declined names and the resummon;
+  - two source-scan scenarios, which now include the moved login loader file.
+
+### Accounting
+
+- **`crates/wow-world/src`.** −3,288 / +443. Classifier: 75,503 →
+  **72,467 production (−3,036)**, 78,957 → 76,112 physical, 504 files.
+  - Combat −881.
+  - The saga with `LootCxRef` −1,122.
+  - Pets −886.
+  - The test shim file counted as test −147.
+- **Destinations.**
+  - `wow-world-entities/src` 13,793 → 14,828 (+1,035).
+  - `wow-world-inventory/src` 13,668 → 14,942 (+1,274).
+  - `wow-world-lifecycle/src` 11,407 → 12,423 (+1,016).
+  - `wow-world-loot-ops/src` 13,063 → 13,138 (+75).
+- **`wow-world-application`: 11,523 → 11,516 (−7)**, the offer record
+  re-export.
+- **`net_move.py check`.** PASS, 0 duplicate bodies. The figures are in the
+  PR body.
+- **Edges.** No `wow-world-*` edge is added or removed. The closure check
+  passes in lock and metadata mode. `dependency-policy.json` allows `rand` and
+  `tokio` for `wow-world-inventory`.
+- **`session-ownership-policy.json`** is reprinted with `print-baseline`. The
+  delta is the moved impl items, the three new adapter trait impls, the test
+  shim impls and the retired `LootCxRef` items.
+- **Ceilings.** None raised. Tightened to live values:
+  - hotspot `session/mod.rs`: production 42,601 → 41,227, test 142,042 →
+    141,988, total 184,643 → 183,215;
+  - hotspot `handlers/loot/mod.rs`: production 1,643 → 1,386, total 20,572 →
+    20,315;
+  - hotspot `handlers/character/mod.rs`: production 15,088 → 14,790, total
+    30,796 → 30,498;
+  - physical `handlers/loot/handlers.rs` 171 → 13, `battle_pet_purchase.rs`
+    92 → 55;
+  - new physical row `handlers/player_test_shims.rs` at 150.
+- **Warnings.** The warning counts of the production lib, the lib with
+  `test-fixtures` and the lib plus lib-test build equal base: 331, 297 and
+  504. `wow-world` `dead_code` is 0 in all three, and every warning sits on an
+  import that warned at base.
+  - Two messages render differently. The split loot-persistence import now
+    prints its path, and the pet-loading import names one item instead of two.
+  - The destination crates keep exactly their pre-existing warnings.
+  - The imports only the scenarios still name become `cfg(test)`: the pet row
+    types, `UnitMoveTypeLikeCpp`, `ActiveState` and `PetType`.
+- **Tests.** No `#[test]` or `#[ignore]` is added or removed; the workspace
+  test-name multiset is identical (10,214 names, 5 ignores). No assertion
+  changes. The focused `wow-world` runs pass: 1,181 tests matching pet, battle
+  pet, trainer, money, persistence, loot, regeneration, PvP, melee, combat,
+  FFA, login, teleport and transfer.
+
+### 7b plan
+
+7b re-measures on its base. It moves:
+
+- the battle-pet durable grant, level and uncage operations, the journal
+  helpers and the battle-pet adapter, to inventory;
+- the reputation, skill and talent bodies, to social and spell by owner;
+- rest and xp, to lifecycle;
+- the combat and pet leftovers.
+
+Most of its lines are `&self` bodies with `cfg(test)` return branches. Each
+needs a host fixture predicate, as in 5b, or stays as a test shim.
+`CMSG_DISMISS_CRITTER` can go with the battle-pet handlers in inventory.
+
+### Follow-ups
+
+- `loot_test_shims.rs` is still counted as production by the classifier.
+  Marking it `#![cfg(test)]`, as `player_test_shims.rs` is, moves 441 lines
+  from the production figure to the test figure without changing code.
+- The `PetsCx`/`PetsCxRef` battle-pet helpers become free functions over the
+  pet host in 7b, which retires `PetsCx`.
+
+### Validation
+
+`final --architecture --timings` (`VALIDATION_V2_CARGO_JOBS=1`,
+`VALIDATION_V2_TIMEOUT_SECONDS=1800`) runs on the committed head that
+includes this section. Its manifest path, dirty flag and duration are in
+the PR body. This section is not edited after that run.
