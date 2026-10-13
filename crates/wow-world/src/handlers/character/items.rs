@@ -12,47 +12,10 @@ mod handlers;
 mod inventory_moves;
 pub(super) mod login_load;
 
-pub(crate) fn item_turnin_persistence_rows_like_cpp(
-    player_guid: ObjectGuid,
-    changes: &[ExtendedCostItemTurninChange],
-) -> Vec<wow_persistence::VendorItemTurninPersistenceLikeCpp> {
-    changes
-        .iter()
-        .map(|change| match *change {
-            ExtendedCostItemTurninChange::Update {
-                db_guid, new_count, ..
-            } => wow_persistence::VendorItemTurninPersistenceLikeCpp::Update {
-                item_guid: db_guid,
-                new_count,
-            },
-            ExtendedCostItemTurninChange::Delete { db_guid, .. } => {
-                wow_persistence::VendorItemTurninPersistenceLikeCpp::Delete {
-                    owner_guid: player_guid.counter() as u64,
-                    item_guid: db_guid,
-                }
-            }
-        })
-        .collect()
-}
-
 impl WorldSession {
     pub(crate) fn inventory_container_db_guid_like_cpp(&self, bag: u8) -> Option<u64> {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.inventory_container_db_guid_like_cpp(hub, bag)
-    }
-
-    pub(super) fn has_item_count_direct_inventory(&self, item_entry: u32, count: u32) -> bool {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.has_item_count_direct_inventory(hub, item_entry, count)
-    }
-
-    pub(crate) fn plan_destroy_item_count_direct_inventory(
-        &self,
-        item_entry: u32,
-        count: u32,
-    ) -> Option<Vec<ExtendedCostItemTurninChange>> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.plan_destroy_item_count_direct_inventory(hub, item_entry, count)
     }
 
     pub(crate) fn apply_item_turnin_changes(

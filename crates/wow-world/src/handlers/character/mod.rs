@@ -38,7 +38,6 @@ mod stats;
 mod stats_queries;
 mod stats_update;
 mod vendor;
-mod vendor_admission;
 mod visibility;
 mod world_entry;
 
@@ -59,10 +58,12 @@ use wow_constants::unit::NPCFlags1;
 #[cfg(test)]
 use wow_constants::unit::{UNIT_FLAGS2_ALLOWED_LIKE_CPP, UNIT_FLAGS3_ALLOWED_LIKE_CPP, UnitFlags};
 use wow_constants::{
-    ConditionSourceType, InventoryResult, InventoryType, ItemContext, ItemExtendedCostFlags,
-    ItemFieldFlags, ItemFlags, ItemModifier, ItemUpdateState, ItemVendorType, PowerType, TypeId,
-    TypeMask, UnitStandStateType,
+    ConditionSourceType, InventoryResult, InventoryType, ItemContext, ItemFieldFlags, ItemFlags,
+    ItemUpdateState, PowerType, TypeId, TypeMask, UnitStandStateType,
 };
+// Test-only: its production readers moved to `wow-world-inventory` (#1363 slice 8b).
+#[cfg(test)]
+use wow_constants::ItemVendorType;
 // Test-only: its production readers were the character/account registrations that
 // moved to `wow-world-application` under #1263 F5; the character scenarios still
 // reach these three names through `super::*`.
@@ -95,14 +96,15 @@ pub(crate) use wow_entities::SocketedGem;
 #[cfg(test)]
 use wow_entities::MovementGeneratorType;
 use wow_entities::{
-    BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START, GAMEOBJECT_TYPE_QUESTGIVER,
-    INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
-    INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_MONEY_AMOUNT, NULL_BAG, NULL_SLOT,
-    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText,
-    SendNewItemInstancePlan, SendNewItemModifier, SendNewItemPlan, SwapItemPreflightResult,
+    BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, GAMEOBJECT_TYPE_QUESTGIVER, INVENTORY_DEFAULT_SIZE,
+    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, NULL_BAG, NULL_SLOT,
+    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemPlan, SwapItemPreflightResult,
     WorldObject, is_bank_pos, is_child_equipment_pos, is_equipment_pos, is_inventory_pos,
     item_can_go_into_bag,
 };
+// Test-only: their production readers moved to `wow-world-inventory` (#1363 slice 8b).
+#[cfg(test)]
+use wow_entities::{INVENTORY_SLOT_ITEM_START, MAX_MONEY_AMOUNT};
 // Test-only: the production registration source that used these two moved to the
 // application crate's character/account area registrar under #1263 F5.
 #[cfg(test)]
@@ -110,7 +112,6 @@ use wow_handler::{PacketProcessing, SessionStatus};
 #[cfg(test)]
 pub(crate) use wow_world_lifecycle::login_transport::GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT_LIKE_CPP;
 
-use crate::session::hub_support::player_team_for_race_cpp;
 // The character/account packet registrations that used to reach
 // `crate::session::registry::PacketHandlerEntry` from here moved to the
 // application crate's explicit area registrar under #1263 F5, so this module no
@@ -130,7 +131,7 @@ use wow_packet::packets::update::*;
 // Explicit provenance for child modules that reach these names through `super::{}`:
 // a glob import leaves the ownership checker without a defining source.
 use wow_packet::packets::misc::BindPointUpdate;
-use wow_packet::packets::update::{ItemCreateData, PlayerCombatStats, UpdateBlock, UpdateObject};
+use wow_packet::packets::update::{PlayerCombatStats, UpdateBlock, UpdateObject};
 use wow_packet::{ClientPacket, WorldPacket};
 use wow_persistence::{
     PlayerInitialWorldStateRowsLikeCpp, PlayerLoginTransportLoadOutcomeLikeCpp,
@@ -449,19 +450,6 @@ use wow_world_application::{
     bind_inventory_item_for_destination_like_cpp, item_dynamic_flags_changed_like_cpp,
 };
 
-fn player_money_gain_like_cpp(current_money: u64, amount: u64) -> Option<u64> {
-    if amount == 0 {
-        return Some(current_money);
-    }
-
-    let max_gain = MAX_MONEY_AMOUNT.checked_sub(amount)?;
-    if current_money <= max_gain {
-        Some(current_money + amount)
-    } else {
-        None
-    }
-}
-
 // Test-only: the spawn-row helpers moved to `wow_world_entities::visibility_session`
 // with the visibility bodies (#1363 slice 8a); the creature scenarios still call them.
 #[cfg(test)]
@@ -498,20 +486,16 @@ fn destroy_item_count_action(current_count: u32, requested_count: u32) -> Destro
     DestroyItemCountAction::FullStack
 }
 
-use wow_world_application::{
-    item_spell_charges_db_string, item_storage_mutable_persistence_like_cpp,
+#[cfg(test)]
+use wow_world_application::item_spell_charges_db_string;
+use wow_world_application::item_storage_mutable_persistence_like_cpp;
+
+// Test-only: the vendor helpers moved to `wow_world_inventory::vendor_session`
+// with the vendor bodies (#1363 slice 8b); the character scenarios still call them.
+#[cfg(test)]
+use wow_world_inventory::{
+    item_is_currently_looted_like_cpp, item_is_not_empty_bag_like_cpp, player_money_gain_like_cpp,
 };
-
-fn item_is_currently_looted_like_cpp(item: &wow_entities::Item) -> bool {
-    item.loot_generated()
-}
-
-fn item_is_not_empty_bag_like_cpp(
-    inventory_type: Option<InventoryType>,
-    contains_items: bool,
-) -> bool {
-    matches!(inventory_type, Some(InventoryType::Bag)) && contains_items
-}
 
 #[cfg(test)]
 #[path = "../../../unit_tests/handlers/character_vendor_atomicity_tests.rs"]

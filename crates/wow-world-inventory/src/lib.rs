@@ -44,6 +44,7 @@ mod storage_bags;
 mod storage_slots;
 mod turnins;
 mod valuation;
+mod vendor_session;
 mod void_storage;
 mod void_storage_handlers;
 mod void_transfer;
@@ -141,6 +142,7 @@ pub use item_modifiers::{
 };
 pub use item_sets::ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP;
 pub use modifiers::{ItemModsCatalogsViewLikeCpp, represented_player_stat_changes_like_cpp};
+pub use persistence::item_spell_charges_db_string;
 pub use publication::item_storage_fields_values_update_like_cpp;
 pub use state::InventoryState;
 pub use storage_slots::is_represented_bag_slot;
@@ -159,6 +161,20 @@ pub use turnins::ExtendedCostItemTurninChange;
 // (#1263 F5 deferred families).
 pub use void_storage_handlers::{
     VoidStorageHandlerHostLikeCpp, register_void_storage_handlers_like_cpp,
+};
+// The vendor and bank character handlers (#1363 slice 8b).
+pub use vendor_session::{
+    PlayerConditionContextSourceLikeCpp, VendorSessionHostLikeCpp, handle_banker_activate,
+    handle_buy_back_item_with_generator_like_cpp,
+    handle_buy_bank_slot_with_prices_and_generator_like_cpp,
+    handle_buy_item_with_generator_like_cpp, handle_item_purchase_refund_with_generator_like_cpp,
+    handle_list_inventory, handle_repair_item_with_generator_like_cpp,
+    handle_sell_item_with_generator_like_cpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use vendor_session::{
+    item_is_currently_looted_like_cpp, item_is_not_empty_bag_like_cpp, player_money_gain_like_cpp,
+    update_vendor_item_current_count,
 };
 pub use void_transfer_contracts::{
     EffectiveVoidStorageRandomPropertiesLikeCpp, PlannedVoidDestroyedInventoryItemLikeCpp,

@@ -14,12 +14,6 @@ impl WorldSession {
         self.interaction
             .set_vendor_buy_item_test_override_like_cpp(item);
     }
-    #[cfg(test)]
-    pub(crate) fn vendor_buy_item_test_override_like_cpp(
-        &self,
-    ) -> Option<VendorBuyItemTestOverrideLikeCpp> {
-        self.interaction.vendor_buy_item_test_override_like_cpp()
-    }
     /// Bounded C++ `CollectionMgr::OnItemAdded`.
     pub(crate) fn on_item_added_to_collection_like_cpp(
         &mut self,
@@ -86,10 +80,6 @@ impl WorldSession {
     ) -> Option<InventoryItem> {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.insert_buyback_item_like_cpp(&mut hub, slot, item)
-    }
-    pub(crate) fn remove_buyback_item_like_cpp(&mut self, slot: u8) -> Option<InventoryItem> {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.remove_buyback_item_like_cpp(&mut hub, slot)
     }
     /// Remove a fully-looted runtime item after its DB rows were deleted.
     pub(crate) fn remove_fully_looted_runtime_item(

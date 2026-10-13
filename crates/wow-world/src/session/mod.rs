@@ -160,7 +160,6 @@ pub(crate) use battleground_adapter::RepresentedBattlemasterJoinArenaLikeCpp;
 pub(crate) use battleground_adapter::RepresentedBattlemasterJoinLikeCpp;
 #[cfg(test)]
 pub(crate) use battleground_adapter::RepresentedBattlemasterJoinSkirmishLikeCpp;
-mod buyback_adapter;
 mod catalog_capabilities;
 pub use catalog_capabilities::AreaTriggerCatalogsLikeCpp;
 pub use catalog_capabilities::GroupInvitePolicyLikeCpp;
@@ -605,10 +604,10 @@ use wow_constants::unit::{
 use wow_constants::{
     BuyResult, ClientOpcodes, InventoryResult, InventoryType, ItemClass, ItemContext, ItemFlags,
     ItemFlags2, ItemFlags3, ItemModifier, ItemQuality, ItemSpelltriggerType, ItemSubClassArmor,
-    ItemSubClassWeapon, SellResult, ServerOpcodes, SpellCastResult, TypeId, UnitState,
+    ItemSubClassWeapon, ServerOpcodes, SpellCastResult, TypeId, UnitState,
 };
 #[cfg(test)]
-use wow_constants::{item::ItemBonusType, movement::MovementFlag};
+use wow_constants::{SellResult, item::ItemBonusType, movement::MovementFlag};
 use wow_core::{
     EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator, Position,
     VoidStorageItemIdGeneratorLikeCpp, guid::HighGuid,
@@ -716,20 +715,19 @@ use wow_entities::{
     AccessorObjectKind, ApplyEnchantmentArgs, ApplyEnchantmentDurationAction,
     ApplyEnchantmentEffectAction, ApplyEnchantmentEffectRef, ApplyEnchantmentPlan,
     ApplyEnchantmentRandomSuffixRef, ApplyEnchantmentResult, BANK_SLOT_BAG_END,
-    BANK_SLOT_BAG_START, BUYBACK_SLOT_COUNT, BUYBACK_SLOT_START,
-    CreatureAddonLifecycleRecordLikeCpp, EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_HEAD,
-    EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_RANGED, GameObject,
-    INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
-    ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT, Item, ItemDataUpdate, ItemPosCount,
-    ItemStorageTemplate, ItemValuesUpdate, MAX_MONEY_AMOUNT, MAX_POWERS, MAX_POWERS_PER_CLASS,
-    NULL_BAG, NULL_SLOT, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PhaseShift, Player,
-    PlayerEnchantTimeUpdate, PlayerInteractionDataLikeCpp, PlayerInventoryRuntime,
-    PlayerItemTimeUpdate, PlayerPetLifecycleStateLikeCpp, PlayerQuestGameplayState,
-    PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp,
-    QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END,
-    REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemPlan,
-    SwapItemPreflightPlan, TYPEID_ITEM, UpdateMask, Vehicle, VisibleItemValues, WorldObject,
-    is_equipment_packed_pos, make_item_pos, parse_explored_zones_db_string_like_cpp,
+    BANK_SLOT_BAG_START, BUYBACK_SLOT_START, CreatureAddonLifecycleRecordLikeCpp,
+    EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND,
+    EQUIPMENT_SLOT_RANGED, GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0,
+    INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT,
+    Item, ItemDataUpdate, ItemPosCount, ItemStorageTemplate, ItemValuesUpdate, MAX_MONEY_AMOUNT,
+    MAX_POWERS, MAX_POWERS_PER_CLASS, NULL_BAG, NULL_SLOT, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP,
+    PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInteractionDataLikeCpp,
+    PlayerInventoryRuntime, PlayerItemTimeUpdate, PlayerPetLifecycleStateLikeCpp,
+    PlayerQuestGameplayState, PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp,
+    PlayerTeleportStateLikeCpp, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
+    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText,
+    SendNewItemPlan, SwapItemPreflightPlan, TYPEID_ITEM, UpdateMask, Vehicle, VisibleItemValues,
+    WorldObject, is_equipment_packed_pos, make_item_pos, parse_explored_zones_db_string_like_cpp,
 };
 #[cfg(test)]
 use wow_entities::{ActiveState, PetType, explored_zones_db_string_from_blocks_like_cpp};

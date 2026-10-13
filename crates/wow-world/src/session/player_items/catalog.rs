@@ -10,15 +10,9 @@ impl WorldSession {
     pub fn set_item_extended_cost_store(&mut self, store: Arc<ItemExtendedCostStore>) {
         self.catalogs.items.extended_cost_store = Some(store);
     }
-    pub(crate) fn item_extended_cost_store(&self) -> Option<&Arc<ItemExtendedCostStore>> {
-        self.catalogs.item_extended_cost_store()
-    }
     /// Set the item store for this session.
     pub fn set_item_store(&mut self, store: Arc<ItemStore>) {
         self.catalogs.items.store = Some(store);
-    }
-    pub(crate) fn item_store(&self) -> Option<&Arc<ItemStore>> {
-        self.catalogs.item_store()
     }
     /// Set the item search-name store for this session.
     pub fn set_item_search_name_store(&mut self, store: Arc<ItemSearchNameStore>) {

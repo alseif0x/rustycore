@@ -25,7 +25,7 @@ use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 
 impl CharacterAccountHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
     fn list_inventory_like_cpp<'a>(&'a mut self, hello: gossip::Hello) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { WorldSession::handle_list_inventory(self, hello).await })
+        Box::pin(async move { wow_world_inventory::handle_list_inventory(self, hello).await })
     }
 
     fn buy_item_like_cpp<'a>(
@@ -34,7 +34,7 @@ impl CharacterAccountHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for World
         buy: misc::BuyItem,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_buy_item_with_generator_like_cpp(
+            wow_world_inventory::handle_buy_item_with_generator_like_cpp(
                 self,
                 catalogs.id_generators.item.as_ref(),
                 buy,
@@ -49,7 +49,7 @@ impl CharacterAccountHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for World
         buyback: misc::BuyBackItem,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_buy_back_item_with_generator_like_cpp(
+            wow_world_inventory::handle_buy_back_item_with_generator_like_cpp(
                 self,
                 catalogs.id_generators.item.as_ref(),
                 buyback,
@@ -64,7 +64,7 @@ impl CharacterAccountHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for World
         sell: misc::SellItem,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_sell_item_with_generator_like_cpp(
+            wow_world_inventory::handle_sell_item_with_generator_like_cpp(
                 self,
                 catalogs.id_generators.item.as_ref(),
                 sell,
@@ -79,7 +79,7 @@ impl CharacterAccountHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for World
         refund: item::ItemPurchaseRefund,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_item_purchase_refund_with_generator_like_cpp(
+            wow_world_inventory::handle_item_purchase_refund_with_generator_like_cpp(
                 self,
                 catalogs.id_generators.item.as_ref(),
                 refund,
@@ -89,7 +89,7 @@ impl CharacterAccountHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for World
     }
 
     fn banker_activate_like_cpp<'a>(&'a mut self, hello: gossip::Hello) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { WorldSession::handle_banker_activate(self, hello).await })
+        Box::pin(async move { wow_world_inventory::handle_banker_activate(self, hello).await })
     }
 
     fn autobank_item_like_cpp<'a>(
@@ -130,7 +130,7 @@ impl CharacterAccountHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for World
         buy: misc::BuyBankSlot,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_buy_bank_slot_with_prices_and_generator_like_cpp(
+            wow_world_inventory::handle_buy_bank_slot_with_prices_and_generator_like_cpp(
                 self,
                 catalogs.bank_bag_slot_prices.as_ref(),
                 catalogs.id_generators.item.as_ref(),
@@ -166,7 +166,7 @@ impl CharacterAccountHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for World
         repair: misc::RepairItem,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_repair_item_with_generator_like_cpp(
+            wow_world_inventory::handle_repair_item_with_generator_like_cpp(
                 self,
                 catalogs.id_generators.item.as_ref(),
                 repair,

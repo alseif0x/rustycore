@@ -112,10 +112,6 @@ impl WorldSession {
             &self.core.owned_inventory_access_like_cpp(),
         )
     }
-    pub(crate) fn resolved_player_bank_bag_slot_count_like_cpp(&self) -> Option<u8> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.resolved_player_bank_bag_slot_count_like_cpp(hub)
-    }
 }
 
 #[cfg(test)]

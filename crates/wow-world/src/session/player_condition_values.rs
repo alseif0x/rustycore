@@ -31,7 +31,7 @@ impl WorldSession {
 }
 
 #[derive(Debug, Clone, Default)]
-pub(crate) struct RepresentedPlayerConditionContextLikeCpp {
+pub struct RepresentedPlayerConditionContextLikeCpp {
     projected: wow_world_quest::RepresentedPlayerConditionContextLikeCpp,
 }
 

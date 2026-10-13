@@ -5,6 +5,8 @@
 //! Test-only entry points for the character query handlers moved to
 //! `wow-world-character` (#1263 F5, #1363 A5).
 
+#![cfg(test)]
+
 use wow_packet::packets::query::{
     QueryCorpseLocationFromClient, QueryCorpseTransport, QueryCreature, QueryGameObject,
     QueryPageText, QueryPetName, QueryPlayerNames,

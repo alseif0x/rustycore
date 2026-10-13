@@ -77,13 +77,19 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         include_str!("../../../src/handlers/character/stats.rs"),
         include_str!("../../../src/handlers/character/stats_update.rs"),
         include_str!("../../../src/handlers/character/vendor.rs"),
-        include_str!("../../../src/handlers/character/vendor/list_inventory.rs"),
-        include_str!("../../../src/handlers/character/vendor/buy.rs"),
-        include_str!("../../../src/handlers/character/vendor/buyback.rs"),
         include_str!("../../../src/handlers/character/vendor/rules.rs"),
         include_str!("../../../../wow-world-inventory/unit_tests/vendor_rules.rs"),
-        include_str!("../../../src/handlers/character/vendor/sell.rs"),
-        include_str!("../../../src/handlers/character/vendor_admission.rs"),
+        // #1363 slice 8b: the vendor and bank bodies moved to wow-world-inventory
+        // (vendor_session), so the scan follows them there.
+        include_str!("../../../../wow-world-inventory/src/vendor_session/mod.rs"),
+        include_str!("../../../../wow-world-inventory/src/vendor_session/bank.rs"),
+        include_str!("../../../../wow-world-inventory/src/vendor_session/buy.rs"),
+        include_str!("../../../../wow-world-inventory/src/vendor_session/buyback.rs"),
+        include_str!("../../../../wow-world-inventory/src/vendor_session/catalog.rs"),
+        include_str!("../../../../wow-world-inventory/src/vendor_session/list_inventory.rs"),
+        include_str!("../../../../wow-world-inventory/src/vendor_session/refund.rs"),
+        include_str!("../../../../wow-world-inventory/src/vendor_session/repair.rs"),
+        include_str!("../../../../wow-world-inventory/src/vendor_session/sell.rs"),
         include_str!("../../../src/handlers/character/visibility.rs"),
         include_str!("../../../src/handlers/character/world_entry.rs"),
         include_str!("../../../src/handlers/character/world_entry/initial_packets.rs"),
@@ -136,54 +142,54 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
     assert_publication_segment(
         character,
         "bank-slot purchase",
-        "self.set_player_gold_like_cpp(new_money)",
+        "state.set_player_gold_like_cpp(&mut hub, new_money)",
         &[
-            "self.set_player_bank_bag_slot_count_like_cpp(new_count)",
-            "self.sync_player_registry_state_like_cpp();",
+            "state.set_player_bank_bag_slot_count_like_cpp(&mut hub, new_count)",
+            "host.sync_player_registry_state_like_cpp();",
         ],
     );
     assert_publication_segment(
         character,
         "vendor item purchase",
-        "self.stage_player_money_change_like_cpp",
+        "host.stage_player_money_change_like_cpp",
         &[
-            "self.apply_item_turnin_changes",
-            "self.set_player_currencies_like_cpp(planned_currencies)",
-            "self.insert_inventory_item_like_cpp",
-            "self.update_vendor_item_current_count",
+            "host.apply_item_turnin_changes",
+            "state.set_player_currencies_like_cpp(&mut hub, planned_currencies)",
+            "host.insert_inventory_item_like_cpp",
+            "update_vendor_item_current_count(",
         ],
     );
     assert_publication_segment(
         character,
         "vendor currency purchase",
-        "self.set_player_currencies_like_cpp(planned_currencies)",
-        &["self.apply_item_turnin_changes"],
+        "state.set_player_currencies_like_cpp(&mut hub, planned_currencies)",
+        &["host.apply_item_turnin_changes"],
     );
     assert_publication_segment(
         character,
         "vendor buyback purchase",
-        "self.stage_player_money_change_like_cpp",
+        "host.stage_player_money_change_like_cpp",
         &[
-            "self.remove_buyback_item_like_cpp",
-            "self.insert_inventory_item_like_cpp",
+            "state.remove_buyback_item_like_cpp",
+            "host.insert_inventory_item_like_cpp",
         ],
     );
     assert_publication_segment(
         character,
         "vendor item sale",
-        "self.stage_player_money_change_like_cpp",
+        "host.stage_player_money_change_like_cpp",
         &[
-            "self.set_buyback_slot_metadata_like_cpp",
-            "self.insert_buyback_item_like_cpp",
+            "state.set_buyback_slot_metadata_like_cpp",
+            "state.insert_buyback_item_like_cpp",
         ],
     );
     assert_publication_segment(
         character,
         "vendor item purchase refund",
-        "self.stage_player_money_change_like_cpp",
+        "host.stage_player_money_change_like_cpp",
         &[
-            "self.remove_inventory_item_like_cpp(refund_slot);",
-            "self.insert_inventory_item_like_cpp",
+            "state.remove_inventory_item_like_cpp(&mut hub, refund_slot)",
+            "host.insert_inventory_item_like_cpp",
         ],
     );
     assert_publication_segment(

@@ -169,14 +169,6 @@ impl WorldSession {
     ) {
         self.core.send_buy_error(result, creature_guid, item)
     }
-    pub(crate) fn send_sell_error(
-        &self,
-        result: SellResult,
-        creature_guid: Option<ObjectGuid>,
-        item_guid: ObjectGuid,
-    ) {
-        self.core.send_sell_error(result, creature_guid, item_guid)
-    }
 }
 
 #[cfg(test)]
