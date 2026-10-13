@@ -56,6 +56,7 @@ pub use self::reward::QuestXpGainFixtureRefsLikeCpp;
 pub use self::reward_commit::QuestRewardCommitCx;
 pub use self::reward_plan::QuestRewardDurablePlanLikeCpp;
 pub use self::session_state::contracts::{
+    QuestSourceItemBoundPersistencePlanLikeCpp, QuestSourceItemBoundPreflightLikeCpp,
     RepresentedPendingQuestSharingLikeCpp, RepresentedPushQuestToPartyOutcomeLikeCpp,
     RepresentedPushQuestToPartyOutcomeReasonLikeCpp, RepresentedQuestCompleteStatusUpdateLikeCpp,
     RepresentedQuestConfirmAcceptLikeCpp, RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp,

@@ -118,8 +118,11 @@ impl WorldSession {
                 FinalizationOutcome::Applied
             }
             LootSettlement => {
-                self.wait_for_active_loot_persistence_with_generator_like_cpp(item_guid_generator)
-                    .await;
+                wow_world_loot_ops::wait_for_active_loot_persistence_with_generator_like_cpp(
+                    self,
+                    item_guid_generator,
+                )
+                .await;
                 if let Some(guid) = self.player_guid() {
                     if self.loot.has_active_loot_views_like_cpp() {
                         self.do_loot_release_all_like_cpp(guid).await;

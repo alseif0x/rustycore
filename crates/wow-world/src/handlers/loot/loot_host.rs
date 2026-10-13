@@ -46,7 +46,7 @@ use std::future::Future;
 
 use wow_core::ObjectGuid;
 use wow_handler::HandlerFuture;
-use wow_loot::{LootClaimLease, LootEntry, OwnedLootAuthority};
+use wow_loot::{LootClaimLease, LootEntry};
 use wow_packet::WorldPacket;
 use wow_packet::packets::loot::{LootResponse, LootRoll};
 use wow_world_core::session::mailbox::ApplyLootMoneyResultLikeCpp;
@@ -126,7 +126,7 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         player_guid: ObjectGuid,
         ae_looting: bool,
     ) -> impl Future<Output = Option<LootResponse>> + Send + 'a {
-        WorldSession::represented_loot_response_for_owner_like_cpp(
+        wow_world_loot_ops::represented_loot_response_for_owner_like_cpp(
             self,
             owner_guid,
             player_guid,
@@ -148,7 +148,7 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         player_guid: ObjectGuid,
         response: LootResponse,
     ) {
-        WorldSession::represented_on_loot_opened_with_catalogs_like_cpp(
+        wow_world_loot_ops::represented_on_loot_opened_with_catalogs_like_cpp(
             self,
             item_valuation,
             owner_guid,
@@ -185,7 +185,7 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         roll: &'a LootRoll,
         player_guid: ObjectGuid,
     ) -> impl Future<Output = bool> + Send + 'a {
-        WorldSession::represented_player_vote_on_loot_roll_with_generator_like_cpp(
+        wow_world_loot_ops::represented_player_vote_on_loot_roll_with_generator_like_cpp(
             self,
             item_guid_generator,
             item_valuation,
@@ -260,7 +260,7 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         dungeon_encounter_id: u32,
         owner_guid: ObjectGuid,
     ) -> impl Future<Output = bool> + Send + 'a {
-        WorldSession::store_direct_loot_item_from_owner_with_generator_like_cpp(
+        wow_world_loot_ops::store_direct_loot_item_from_owner_with_generator_like_cpp(
             self,
             item_guid_generator,
             loot_entry,
@@ -308,7 +308,7 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         &'a mut self,
         item_guid_generator: &'a wow_core::ObjectGuidGenerator,
     ) -> impl Future<Output = ()> + Send + 'a {
-        WorldSession::apply_pending_durable_item_loot_completions_with_generator_like_cpp(
+        wow_world_loot_ops::apply_pending_durable_item_loot_completions_with_generator_like_cpp(
             self,
             item_guid_generator,
         )
@@ -327,7 +327,11 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
     }
 
     fn loot_item_notify_item_removed_like_cpp(&mut self, owner_guid: ObjectGuid, loot_list_id: u8) {
-        WorldSession::represented_notify_loot_item_removed_like_cpp(self, owner_guid, loot_list_id)
+        wow_world_loot_ops::represented_notify_loot_item_removed_like_cpp(
+            self,
+            owner_guid,
+            loot_list_id,
+        )
     }
 
     fn loot_money_lifecycle_ref_like_cpp(&self) -> &wow_world_lifecycle::SessionLifecycleState {

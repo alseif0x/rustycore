@@ -174,7 +174,8 @@ async fn open_represented_gameobject_personal_loot_like_cpp<H: LootSessionHostLi
         host.do_loot_release_all_like_cpp(player_guid).await;
     }
     host.loot_mut().set_active_loot_guid(gameobject_guid);
-    host.represented_on_loot_opened_with_catalogs_like_cpp(
+    represented_on_loot_opened_with_catalogs_like_cpp(
+        host,
         item_valuation,
         gameobject_guid,
         player_guid,
@@ -466,7 +467,8 @@ pub async fn generate_represented_gameobject_chest_loot_with_template_money_like
                 .copied()
                 .filter(|guid| {
                     guid.is_player()
-                        && host.represented_player_is_unlocked_for_dungeon_encounter_like_cpp(
+                        && represented_player_is_unlocked_for_dungeon_encounter_like_cpp(
+                            host,
                             *guid,
                             source.dungeon_encounter_id,
                         )
@@ -538,13 +540,13 @@ fn represented_gameobject_personal_encounter_tappers_like_cpp<H: LootSessionHost
         .loot()
         .represented_gameobject_tappers_like_cpp(gameobject_guid)
     else {
-        return host
-            .represented_player_unlocked_for_dungeon_encounter_like_cpp(
-                player_guid,
-                dungeon_encounter_id,
-            )
-            .into_iter()
-            .collect();
+        return represented_player_unlocked_for_dungeon_encounter_like_cpp(
+            host,
+            player_guid,
+            dungeon_encounter_id,
+        )
+        .into_iter()
+        .collect();
     };
     let mut represented_tappers = tappers
         .iter()
@@ -557,7 +559,8 @@ fn represented_gameobject_personal_encounter_tappers_like_cpp<H: LootSessionHost
         represented_tappers.push(player_guid);
     }
     represented_tappers.retain(|guid| {
-        host.represented_player_is_unlocked_for_dungeon_encounter_like_cpp(
+        represented_player_is_unlocked_for_dungeon_encounter_like_cpp(
+            host,
             *guid,
             dungeon_encounter_id,
         )
@@ -876,13 +879,13 @@ async fn autostore_represented_gameobject_chest_push_loot_like_cpp<H: LootSessio
 
     let mut all_stored = true;
     for entry in items {
-        if !host
-            .store_direct_loot_item_with_generator_like_cpp(
-                item_guid_generator,
-                &entry,
-                source.dungeon_encounter_id,
-            )
-            .await
+        if !store_direct_loot_item_with_generator_like_cpp(
+            host,
+            item_guid_generator,
+            &entry,
+            source.dungeon_encounter_id,
+        )
+        .await
         {
             all_stored = false;
         }

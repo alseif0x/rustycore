@@ -85,7 +85,8 @@ impl WorldSession {
         command: SendIfVisibleLikeCppCommand,
         realm_connection: bool,
     ) {
-        if !self.send_if_visible_like_cpp_gate_passes_like_cpp(
+        if !wow_world_loot_ops::send_if_visible_like_cpp_gate_passes_like_cpp(
+            self,
             command.queued_at,
             command.source_guid,
             command.map_id,

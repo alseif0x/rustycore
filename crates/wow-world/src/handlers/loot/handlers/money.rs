@@ -103,8 +103,9 @@ impl WorldSession {
                 continue;
             }
             if let Some(authority) = authority {
-                if !self.represented_active_loot_generation_matches_like_cpp(*loot_guid, &authority)
-                {
+                if !wow_world_loot_ops::represented_active_loot_generation_matches_like_cpp(
+                    self, *loot_guid, &authority,
+                ) {
                     debug!(
                         owner = ?loot_guid,
                         "delayed loot-money request does not belong to the active object generation"
@@ -476,7 +477,7 @@ impl WorldSession {
                 loot_obj: loot_guid,
                 owner: player_guid,
             });
-            self.destroy_fully_looted_direct_item(loot_guid).await;
+            wow_world_loot_ops::destroy_fully_looted_direct_item(self, loot_guid).await;
         }
 
         let _ = player_guid;

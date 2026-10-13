@@ -108,7 +108,8 @@ impl wow_world_lifecycle::PlayerSaveHostLikeCpp for WorldSession {
         async move {
             // The save keeps its money fence, so this publication must not drain
             // the money criteria; the post-unlock objective drain owns them.
-            self.apply_pending_durable_item_loot_completions_with_objective_drain_like_cpp(
+            wow_world_loot_ops::apply_pending_durable_item_loot_completions_with_objective_drain_like_cpp(
+                self,
                 item_guid_generator,
                 false,
             )

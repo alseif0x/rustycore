@@ -240,7 +240,8 @@ async fn ensure_represented_creature_loot_like_cpp<H: LootSessionHostLikeCpp>(
             .into_iter()
             .filter(|tapper| {
                 dungeon_encounter_id == 0
-                    || host.represented_player_is_unlocked_for_dungeon_encounter_like_cpp(
+                    || represented_player_is_unlocked_for_dungeon_encounter_like_cpp(
+                        host,
                         *tapper,
                         dungeon_encounter_id,
                     )

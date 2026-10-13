@@ -203,15 +203,15 @@ impl WorldSession {
             roll_type: command.roll_type,
         };
 
-        let _ = self
-            .represented_player_vote_on_loot_roll_with_pass_state_and_generator_like_cpp(
-                item_guid_generator,
-                item_valuation,
-                &roll,
-                command.voter_guid,
-                command.pass_on_group_loot,
-            )
-            .await;
+        let _ = wow_world_loot_ops::represented_player_vote_on_loot_roll_with_pass_state_and_generator_like_cpp(
+            self,
+            item_guid_generator,
+            item_valuation,
+            &roll,
+            command.voter_guid,
+            command.pass_on_group_loot,
+        )
+        .await;
     }
 
     pub(crate) async fn handle_represented_master_loot_give_command_with_generator_like_cpp(
@@ -257,7 +257,8 @@ impl WorldSession {
             )
             .await
         } else {
-            self.store_direct_loot_item_from_owner_with_generator_like_cpp(
+            wow_world_loot_ops::store_direct_loot_item_from_owner_with_generator_like_cpp(
+                self,
                 item_guid_generator,
                 &command.entry,
                 command.dungeon_encounter_id,
@@ -323,7 +324,8 @@ impl WorldSession {
         }
 
         let stored = if command.is_disenchant {
-            self.store_direct_disenchant_batch_with_generator_like_cpp(
+            wow_world_loot_ops::store_direct_disenchant_batch_with_generator_like_cpp(
+                self,
                 item_guid_generator,
                 &command.entries,
                 command.dungeon_encounter_id,
@@ -355,7 +357,8 @@ impl WorldSession {
             )
             .await
         } else {
-            self.store_direct_loot_item_from_owner_with_generator_like_cpp(
+            wow_world_loot_ops::store_direct_loot_item_from_owner_with_generator_like_cpp(
+                self,
                 item_guid_generator,
                 &command.entries[0],
                 command.dungeon_encounter_id,

@@ -155,19 +155,11 @@ enum QuestSourceItemStoreOutcomeLikeCpp {
     BoundObjectiveNoGrant,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct QuestSourceItemBoundPreflightLikeCpp {
-    pub(crate) no_grant: bool,
-    pub(crate) changed_quest_ids: Vec<u32>,
-}
-
-/// Durable snapshot of C++ `StoreNewItem`'s first, quest-bound
-/// `ItemAddedQuestCheck` pass. A single matching bound objective consumes the
-/// loot award as quest credit without materialising an inventory Item.
-#[derive(Debug, Clone)]
-pub(crate) struct QuestSourceItemBoundPersistencePlanLikeCpp {
-    pub(crate) statuses: Vec<PlayerQuestStatus>,
-}
+// The source-item bound-objective records are read by the loot item storage
+// moved to `wow-world-loot-ops` (#1363 slice 5b), so they live in the quest crate.
+pub(crate) use wow_world_quest::{
+    QuestSourceItemBoundPersistencePlanLikeCpp, QuestSourceItemBoundPreflightLikeCpp,
+};
 
 pub(crate) const QUEST_PUSH_REASON_BUSY_LIKE_CPP: u8 = 5;
 pub(crate) const QUEST_PUSH_REASON_DEAD_LIKE_CPP: u8 = 6;
