@@ -760,7 +760,7 @@ impl WorldSession {
             crate::session::hub_mut(self).update_player_pvp_like_cpp(false, true);
         }
 
-        crate::session::cx_pets(self).resummon_pet_temporary_unsummoned_like_cpp();
+        wow_world_lifecycle::resummon_pet_temporary_unsummoned_like_cpp(self);
         self.process_represented_delayed_resurrection_after_teleport_like_cpp();
         #[cfg(test)]
         {

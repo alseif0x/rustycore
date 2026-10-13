@@ -4,7 +4,7 @@
 //! Quest dialog: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{ActiveState, Arc, InventoryResult, ObjectGuid};
+use super::{Arc, InventoryResult, ObjectGuid};
 use super::{QUEST_MENU_ICON_AVAILABLE_LIKE_CPP, QUEST_MENU_ICON_COMPLETE_LIKE_CPP};
 use super::{QUEST_MENU_ICON_TURN_IN_LIKE_CPP, QuestListEntry};
 use super::{QuestRewardsBlock, RepresentedGameObjectUseEffect};
@@ -41,18 +41,7 @@ pub(in crate::session) fn represented_quest_menu_item_log_rows_like_cpp(
         .collect()
 }
 
-pub(in crate::session) use wow_world_core::session::react_state_from_db_like_cpp;
 pub(in crate::session) use wow_world_quest::quest_giver_creature_id_from_source_like_cpp;
-
-pub(in crate::session) const fn active_state_from_db_like_cpp(value: u8) -> ActiveState {
-    match value {
-        0x00 => ActiveState::Decide,
-        0x01 => ActiveState::Passive,
-        0x81 => ActiveState::Disabled,
-        0xC1 => ActiveState::Enabled,
-        _ => ActiveState::Disabled,
-    }
-}
 
 #[derive(Debug, Clone)]
 pub(in crate::session) struct RepresentedPreparedQuestMenuItemLikeCpp {

@@ -713,9 +713,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/player_test_shims.rs",
-      "observed_lines": 69,
-      "ceiling_lines": 69,
-      "split": "cfg(test) method-syntax entry points for the player combat bodies moved to wow-world-entities (#1363 slice 7a) and the loot-money tracker read whose LootCxRef facade retired when the battle-pet purchase saga moved, mounted from handlers/mod.rs outside the session and character hotspot trees, so the scenarios keep their method syntax without growing those hotspots' test lines. 2026-10-13 #1363 slice 7a: ratcheted at the live value from creation; each method is a one-call forward to the moved free function. Retire it by converting the scenario call sites to free-function calls in a slice that reviews those test ceilings; no growth is permitted from here.",
+      "observed_lines": 147,
+      "ceiling_lines": 147,
+      "split": "cfg(test) method-syntax entry points for the player combat bodies moved to wow-world-entities (#1363 slice 7a) the pet bodies moved to wow-world-lifecycle (pet_session), including the six pet row-loader entry points that left unit_tests/session/pet_loading/f3_shims.rs, and the loot-money tracker read whose LootCxRef facade retired when the battle-pet purchase saga moved, mounted from handlers/mod.rs outside the session and character hotspot trees, so the scenarios keep their method syntax without growing those hotspots' test lines. 2026-10-13 #1363 slice 7a: ratcheted at the live value from creation; each method is a one-call forward to the moved free function. Retire it by converting the scenario call sites to free-function calls in a slice that reviews those test ceilings; no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     }
   ],

@@ -4,7 +4,7 @@
 //! #1241 F3 test shims: WorldSession entry points kept only for unit_tests callers.
 
 #[allow(unused_imports)]
-use super::*;
+use crate::session::*;
 
 impl crate::session::WorldSession {
     pub(crate) fn load_represented_pet_declined_names_like_cpp(
@@ -12,7 +12,7 @@ impl crate::session::WorldSession {
         pet_number: u32,
         row: Option<CharacterPetDeclinedNamesRowLikeCpp>,
     ) -> bool {
-        crate::session::cx_pets(self).load_represented_pet_declined_names_like_cpp(pet_number, row)
+        wow_world_lifecycle::load_represented_pet_declined_names_like_cpp(self, pet_number, row)
     }
 }
 

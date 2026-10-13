@@ -136,11 +136,8 @@ use wow_persistence::{
 
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
 use crate::session::{
-    ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, CharacterPetAuraEffectRowLikeCpp,
-    CharacterPetAuraRowLikeCpp, CharacterPetDeclinedNamesRowLikeCpp,
-    CharacterPetSpellChargeRowLikeCpp, CharacterPetSpellCooldownRowLikeCpp,
-    CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp, CreatureSpawnCatalogsLikeCpp,
-    GLOBAL_CACHE_MASK_LIKE_CPP, PlayerBootstrapCatalogsLikeCpp, REST_STATE_NORMAL_LIKE_CPP,
+    ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, CreatureSpawnCatalogsLikeCpp, GLOBAL_CACHE_MASK_LIKE_CPP,
+    PlayerBootstrapCatalogsLikeCpp, REST_STATE_NORMAL_LIKE_CPP,
     RepresentedAutoUnequipOffhandLikeCpp, RepresentedBankItemMoveLikeCpp,
     RepresentedGameObjectUseState, RepresentedHomebindLikeCpp,
     RepresentedQuestObjectiveProgressEventLikeCpp, RepresentedVoidStorageItemLikeCpp,

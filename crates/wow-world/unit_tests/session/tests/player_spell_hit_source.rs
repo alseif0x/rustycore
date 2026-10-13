@@ -104,7 +104,7 @@ fn complete_empty_player_dynamic_spell_hit_aura_sources_like_cpp(session: &mut W
             (2, None, true),
         ])
     );
-    crate::session::cx_pets(session).begin_represented_character_pet_authority_load_like_cpp();
+    wow_world_lifecycle::begin_represented_character_pet_authority_load_like_cpp(session);
     assert_eq!(
         session.load_represented_pet_stable_rows_like_cpp(
             0,
