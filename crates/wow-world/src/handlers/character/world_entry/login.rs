@@ -12,8 +12,6 @@ use super::super::spell_rules::{
 use super::super::vendor::rules::{LoadedItemRefundDecision, loaded_item_refund_decision};
 use super::*;
 
-mod mail_loading;
-
 impl WorldSession {
     /// Continue the player login after the instance socket is connected.
     ///

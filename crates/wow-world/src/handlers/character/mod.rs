@@ -157,10 +157,8 @@ use {
     wow_core::guid::HighGuid,
     wow_packet::packets::update::*,
     wow_packet::packets::{character::*, movement::TransportInfo},
-    wow_world_character::{
-        GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP, GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP,
-        motd_lines_like_cpp, void_storage_login_context_like_cpp,
-    },
+    wow_world_character::GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP,
+    wow_world_character::{motd_lines_like_cpp, void_storage_login_context_like_cpp},
     wow_world_core::corpse_load::MapCorpseLoadOutcomeLikeCpp,
     wow_world_inventory::loaded_item_support::*,
 };

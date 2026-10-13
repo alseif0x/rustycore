@@ -753,7 +753,7 @@ async fn gossip_select_trainer_only_source_opens_resolved_trainer_without_close_
     assert_eq!(option.order_index, 0);
     assert_eq!(
         option.gossip_option_id,
-        GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP
+        wow_world_character::GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP
     );
     assert_eq!(option.option_npc, GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP);
     assert_eq!(

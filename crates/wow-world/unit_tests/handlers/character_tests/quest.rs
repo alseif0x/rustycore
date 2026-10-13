@@ -382,7 +382,7 @@ async fn quest_giver_hello_trainer_questgiver_sends_mixed_gossip_like_cpp() {
     );
     assert_eq!(
         session.interaction.gossip_options_for_test_like_cpp()[0].gossip_option_id,
-        GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP
+        wow_world_character::GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP
     );
     assert_eq!(
         session.interaction.gossip_options_for_test_like_cpp()[0].option_npc,
