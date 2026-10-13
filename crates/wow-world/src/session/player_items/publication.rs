@@ -205,29 +205,6 @@ impl WorldSession {
 
         delivered
     }
-    pub(crate) fn send_item_relocation_values_update_like_cpp(
-        &self,
-        item_guid: ObjectGuid,
-        dynamic_flags2_changed: bool,
-        cleared_enchantments: &[EnchantmentSlot],
-    ) {
-        self.inventory
-            .send_item_relocation_values_update_with_access_like_cpp(
-                &self.core.owned_inventory_access_like_cpp(),
-                &self.core.packet_publication_access_like_cpp(),
-                item_guid,
-                dynamic_flags2_changed,
-                cleared_enchantments,
-            )
-    }
-    pub(crate) fn send_item_dynamic_flags_values_update_like_cpp(&self, item_guid: ObjectGuid) {
-        self.inventory
-            .send_item_dynamic_flags_values_update_with_access_like_cpp(
-                &self.core.owned_inventory_access_like_cpp(),
-                &self.core.packet_publication_access_like_cpp(),
-                item_guid,
-            )
-    }
     pub(crate) fn send_repeatable_turn_in_request_items_like_cpp(
         &mut self,
         sender_guid: ObjectGuid,

@@ -94,14 +94,6 @@ impl WorldSession {
             item_object,
         )
     }
-    pub(crate) fn plan_inventory_swap_preflight_like_cpp(
-        &self,
-        src: u16,
-        dst: u16,
-    ) -> Option<SwapItemPreflightPlan> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.plan_inventory_swap_preflight_like_cpp(hub, src, dst)
-    }
     pub(crate) fn plan_store_new_direct_inventory_item(
         &self,
         entry_id: u32,

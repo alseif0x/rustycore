@@ -56,22 +56,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.get_inventory_item_by_pos(hub, bag, slot)
     }
-    pub(crate) fn is_valid_inventory_pos_like_cpp(
-        &self,
-        bag: u8,
-        slot: u8,
-        explicit_pos: bool,
-    ) -> bool {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.is_valid_inventory_pos_like_cpp(hub, bag, slot, explicit_pos)
-    }
-    pub(crate) fn represented_inventory_descendants_postorder_like_cpp(
-        &self,
-        container_guid: ObjectGuid,
-    ) -> Option<Vec<(u8, u8, InventoryItem)>> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.represented_inventory_descendants_postorder_like_cpp(hub, container_guid)
-    }
     pub(crate) fn set_player_inventory_slot_count_like_cpp(&mut self, count: u8) -> bool {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.set_player_inventory_slot_count_like_cpp(&mut hub, count)

@@ -102,10 +102,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.represented_has_item_count_like_cpp(hub, item_entry, count)
     }
-    pub(crate) fn direct_item_contains_items(&self, item_guid: ObjectGuid) -> bool {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.direct_item_contains_items(hub, item_guid)
-    }
     pub(crate) fn has_active_non_item_loot_views_like_cpp(&self) -> bool {
         self.loot.has_active_non_item_loot_views_like_cpp()
     }

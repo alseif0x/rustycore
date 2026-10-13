@@ -6,14 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_represented_auto_unequip_offhand_request_like_cpp(
-        &mut self,
-        request: RepresentedAutoUnequipOffhandLikeCpp,
-    ) {
-        self.inventory
-            .record_represented_auto_unequip_offhand_request_like_cpp(request)
-    }
     pub(in crate::session) fn represented_auto_unequip_offhand_if_need_like_cpp(
         &mut self,
         force: bool,
@@ -127,15 +119,16 @@ impl WorldSession {
         self.record_represented_avg_equipped_item_level_update_like_cpp();
 
         #[cfg(test)]
-        self.record_represented_auto_unequip_offhand_request_like_cpp(
-            RepresentedAutoUnequipOffhandLikeCpp {
-                item_guid: offhand_item.guid,
-                item_entry: offhand_item.entry_id,
-                reason,
-                stored_destination,
-                needs_mail_fallback,
-            },
-        );
+        self.inventory
+            .record_represented_auto_unequip_offhand_request_like_cpp(
+                RepresentedAutoUnequipOffhandLikeCpp {
+                    item_guid: offhand_item.guid,
+                    item_entry: offhand_item.entry_id,
+                    reason,
+                    stored_destination,
+                    needs_mail_fallback,
+                },
+            );
         true
     }
 }

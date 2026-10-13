@@ -98,7 +98,7 @@ impl CharacterAccountHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for World
         packet: misc::AutoBankItem,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_autobank_item_with_generator_like_cpp(
+            wow_world_inventory::handle_autobank_item_with_generator_like_cpp(
                 self,
                 catalogs.id_generators.item.as_ref(),
                 catalogs.creature_spawns.as_ref(),
@@ -114,7 +114,7 @@ impl CharacterAccountHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for World
         packet: misc::AutoStoreBankItem,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_autostore_bank_item_with_generator_like_cpp(
+            wow_world_inventory::handle_autostore_bank_item_with_generator_like_cpp(
                 self,
                 catalogs.id_generators.item.as_ref(),
                 catalogs.creature_spawns.as_ref(),
@@ -209,7 +209,7 @@ impl CharacterAccountHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for World
         swap: item::SwapInvItem,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_swap_inv_item_with_generator_like_cpp(
+            wow_world_inventory::handle_swap_inv_item_with_generator_like_cpp(
                 self,
                 catalogs.id_generators.item.as_ref(),
                 catalogs.creature_spawns.as_ref(),
@@ -225,7 +225,7 @@ impl CharacterAccountHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for World
         equip: item::AutoEquipItem,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_auto_equip_item_with_generator_like_cpp(
+            wow_world_inventory::handle_auto_equip_item_with_generator_like_cpp(
                 self,
                 catalogs.id_generators.item.as_ref(),
                 catalogs.creature_spawns.as_ref(),
@@ -241,7 +241,7 @@ impl CharacterAccountHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for World
         equip: item::AutoEquipItemSlot,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_auto_equip_item_slot_with_generator_like_cpp(
+            wow_world_inventory::handle_auto_equip_item_slot_with_generator_like_cpp(
                 self,
                 catalogs.id_generators.item.as_ref(),
                 catalogs.creature_spawns.as_ref(),
@@ -257,7 +257,7 @@ impl CharacterAccountHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for World
         swap: item::SwapItem,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_swap_item_with_generator_like_cpp(
+            wow_world_inventory::handle_swap_item_with_generator_like_cpp(
                 self,
                 catalogs.id_generators.item.as_ref(),
                 catalogs.creature_spawns.as_ref(),
@@ -273,7 +273,7 @@ impl CharacterAccountHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for World
         store: item::AutoStoreBagItem,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_auto_store_bag_item_with_generator_like_cpp(
+            wow_world_inventory::handle_auto_store_bag_item_with_generator_like_cpp(
                 self,
                 catalogs.id_generators.item.as_ref(),
                 catalogs.creature_spawns.as_ref(),
@@ -287,7 +287,7 @@ impl CharacterAccountHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for World
         &'a mut self,
         destroy: item::DestroyItemPkt,
     ) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { WorldSession::handle_destroy_item(self, destroy).await })
+        Box::pin(async move { wow_world_inventory::handle_destroy_item(self, destroy).await })
     }
 
     fn gossip_hello_like_cpp<'a>(&'a mut self, hello: gossip::Hello) -> HandlerFuture<'a, ()> {

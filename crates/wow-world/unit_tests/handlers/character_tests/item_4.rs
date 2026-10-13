@@ -743,25 +743,6 @@ fn vendor_item_current_count_updates_like_cpp() {
     );
 }
 #[test]
-fn destroy_item_count_action_matches_cpp_direct_item_branch() {
-    assert_eq!(
-        destroy_item_count_action(5, 0),
-        DestroyItemCountAction::FullStack
-    );
-    assert_eq!(
-        destroy_item_count_action(5, 5),
-        DestroyItemCountAction::FullStack
-    );
-    assert_eq!(
-        destroy_item_count_action(5, 7),
-        DestroyItemCountAction::FullStack
-    );
-    assert_eq!(
-        destroy_item_count_action(5, 2),
-        DestroyItemCountAction::PartialStack { new_count: 3 }
-    );
-}
-#[test]
 fn parse_equipment_cache_real_data() {
     // Real data from DB: first slot has inv_type=0, next few slots have gear
     let cache = "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 4 2470 0 0 0 20 33257 0 1 0";

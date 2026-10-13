@@ -61,34 +61,12 @@ use super::InventoryEquipFixtureRefsLikeCpp;
 mod execution;
 pub use execution::execute_inventory_storage_move_like_cpp;
 
-/// Which storage the move targets. Moved out of the character handler module
-/// with the operation it belongs to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InventoryStorageTargetLikeCpp {
-    Inventory,
-    Bank,
-}
-
-/// Which C++ quest checks `_StoreItem`/`_BankItem` run for this caller.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InventoryStorageQuestChecksLikeCpp {
-    None,
-    AutoBankItemRemoved,
-    AutoStoreBankItemAdded,
-}
-
-/// C++ `HandleAutoStoreBankItemOpcode` targets the opposite storage of the
-/// source position.
-pub fn autostore_bank_target_like_cpp(
-    source_bag: u8,
-    source_slot: u8,
-) -> InventoryStorageTargetLikeCpp {
-    if is_bank_pos(source_bag, source_slot) {
-        InventoryStorageTargetLikeCpp::Inventory
-    } else {
-        InventoryStorageTargetLikeCpp::Bank
-    }
-}
+// The StorageMove vocabulary moved down to `wow_world_inventory` with the item
+// handlers that name it (#1363 slice 8c); these re-exports keep its paths.
+pub use wow_world_inventory::{
+    InventoryStorageQuestChecksLikeCpp, InventoryStorageTargetLikeCpp,
+    autostore_bank_target_like_cpp,
+};
 
 /// The `(moving_to_bank, moving_from_bank)` pair the quest checks read.
 pub fn inventory_storage_move_quest_directions_like_cpp(

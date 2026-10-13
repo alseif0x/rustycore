@@ -41,7 +41,7 @@ mod vendor;
 mod visibility;
 mod world_entry;
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
 use rand::Rng;
@@ -58,7 +58,7 @@ use wow_constants::unit::NPCFlags1;
 #[cfg(test)]
 use wow_constants::unit::{UNIT_FLAGS2_ALLOWED_LIKE_CPP, UNIT_FLAGS3_ALLOWED_LIKE_CPP, UnitFlags};
 use wow_constants::{
-    ConditionSourceType, InventoryResult, InventoryType, ItemContext, ItemFieldFlags, ItemFlags,
+    ConditionSourceType, InventoryResult, InventoryType, ItemContext, ItemFieldFlags,
     ItemUpdateState, PowerType, TypeId, TypeMask, UnitStandStateType,
 };
 // Test-only: its production readers moved to `wow-world-inventory` (#1363 slice 8b).
@@ -97,10 +97,8 @@ pub(crate) use wow_entities::SocketedGem;
 use wow_entities::MovementGeneratorType;
 use wow_entities::{
     BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, GAMEOBJECT_TYPE_QUESTGIVER, INVENTORY_DEFAULT_SIZE,
-    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, NULL_BAG, NULL_SLOT,
-    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemPlan, SwapItemPreflightResult,
-    WorldObject, is_bank_pos, is_child_equipment_pos, is_equipment_pos, is_inventory_pos,
-    item_can_go_into_bag,
+    INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START,
+    SendNewItemPlan, WorldObject,
 };
 // Test-only: their production readers moved to `wow-world-inventory` (#1363 slice 8b).
 #[cfg(test)]
@@ -121,7 +119,6 @@ use wow_packet::packets::auth::{
 };
 use wow_packet::packets::character::*;
 use wow_packet::packets::chat::ChatServerMessage;
-use wow_packet::packets::item::*;
 use wow_packet::packets::loot::LootReleaseAll;
 use wow_packet::packets::misc::*;
 use wow_packet::packets::movement::TransportInfo;
@@ -141,8 +138,7 @@ use wow_persistence::{
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
 use crate::session::{
     ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, CreatureSpawnCatalogsLikeCpp, GLOBAL_CACHE_MASK_LIKE_CPP,
-    PlayerBootstrapCatalogsLikeCpp, REST_STATE_NORMAL_LIKE_CPP,
-    RepresentedAutoUnequipOffhandLikeCpp, RepresentedBankItemMoveLikeCpp,
+    PlayerBootstrapCatalogsLikeCpp, REST_STATE_NORMAL_LIKE_CPP, RepresentedBankItemMoveLikeCpp,
     RepresentedGameObjectUseState, RepresentedHomebindLikeCpp,
     RepresentedQuestObjectiveProgressEventLikeCpp, RepresentedVoidStorageItemLikeCpp,
     SpellCastMetadata, SupportFeaturePolicyLikeCpp,
@@ -234,7 +230,6 @@ use wow_world_application::InventorySwapTargetLikeCpp;
 // re-exports keep the handler tree's existing paths resolving unchanged.
 pub(crate) use wow_world_application::{
     InventoryStorageQuestChecksLikeCpp, InventoryStorageTargetLikeCpp,
-    autostore_bank_target_like_cpp,
 };
 // Test-only: the StorageMove free helpers moved to `wow-world-application`
 // (#1263 F4) and their production callers are that owner's own body.
@@ -243,36 +238,6 @@ pub(crate) use wow_world_application::{
     bank_store_destination_applies_obtain_spells_like_cpp,
     bank_store_item_added_quest_count_like_cpp, inventory_storage_move_quest_directions_like_cpp,
 };
-
-fn autostore_bank_quest_checks_like_cpp(
-    target: InventoryStorageTargetLikeCpp,
-) -> InventoryStorageQuestChecksLikeCpp {
-    if target == InventoryStorageTargetLikeCpp::Inventory {
-        InventoryStorageQuestChecksLikeCpp::AutoStoreBankItemAdded
-    } else {
-        // C++ HandleAutoStoreBankItemOpcode intentionally does not call
-        // ItemRemovedQuestCheck in its inventory-to-bank branch.
-        InventoryStorageQuestChecksLikeCpp::None
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct InventoryEquipChildPlanLikeCpp {
-    child_guid: ObjectGuid,
-    destination_slot: u8,
-    displaced_storage: Option<(u8, u8, InventoryStorageTargetLikeCpp)>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum InventorySwapStepLikeCpp {
-    Done,
-    ChildRedirect {
-        first_src: u16,
-        first_dst: u16,
-        second_src: u16,
-        second_dst: u16,
-    },
-}
 
 #[cfg(test)]
 fn plan_direct_inventory_swap_persistence_like_cpp(
@@ -446,10 +411,6 @@ fn parse_equipment_cache(cache: &str) -> [VisualItemInfo; 34] {
     wow_world_character::parse_equipment_cache(cache)
 }
 
-use wow_world_application::{
-    bind_inventory_item_for_destination_like_cpp, item_dynamic_flags_changed_like_cpp,
-};
-
 // Test-only: the spawn-row helpers moved to `wow_world_entities::visibility_session`
 // with the visibility bodies (#1363 slice 8a); the creature scenarios still call them.
 #[cfg(test)]
@@ -462,33 +423,23 @@ use wow_world_entities::{
     spawn_difficulties_contains_spawn_mode_like_cpp,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum DestroyItemCountAction {
-    FullStack,
-    PartialStack { new_count: u32 },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct DestroyQuestItemLikeCpp {
-    bag: u8,
-    slot: u8,
-    entry_id: u32,
-    count: u32,
-}
-
-fn destroy_item_count_action(current_count: u32, requested_count: u32) -> DestroyItemCountAction {
-    if requested_count != 0 && current_count > requested_count {
-        return DestroyItemCountAction::PartialStack {
-            new_count: current_count - requested_count,
-        };
-    }
-
-    DestroyItemCountAction::FullStack
-}
-
 #[cfg(test)]
 use wow_world_application::item_spell_charges_db_string;
-use wow_world_application::item_storage_mutable_persistence_like_cpp;
+
+// Test-only (#1363 slice 8c): the production readers of these names moved to
+// `wow-world-inventory` with the item handler bodies; the scenarios still use them.
+#[cfg(test)]
+use std::collections::BTreeSet;
+#[cfg(test)]
+use wow_entities::{INVENTORY_SLOT_BAG_0, NULL_BAG, NULL_SLOT, SwapItemPreflightResult};
+#[cfg(test)]
+use wow_packet::packets::item::*;
+#[cfg(test)]
+use wow_world_inventory::{
+    DestroyQuestItemLikeCpp, InventoryEquipChildPlanLikeCpp, autostore_bank_quest_checks_like_cpp,
+    autostore_bank_target_like_cpp, bind_inventory_item_for_destination_like_cpp,
+    item_dynamic_flags_changed_like_cpp, item_storage_mutable_persistence_like_cpp,
+};
 
 #[cfg(test)]
 #[path = "../../../unit_tests/handlers/character_vendor_atomicity_tests.rs"]

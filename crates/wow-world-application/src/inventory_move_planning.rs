@@ -7,13 +7,9 @@ use wow_world_quest::PlayerConditionProjectionCxLikeCpp;
 
 mod bank;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InventorySwapTargetLikeCpp {
-    Inventory,
-    Bank,
-    Equipment { dest: u16 },
-    None,
-}
+// Moved down to `wow_world_inventory` with the item handlers that name it
+// (#1363 slice 8c); this re-export keeps its path.
+pub use wow_world_inventory::InventorySwapTargetLikeCpp;
 
 /// Inert, read-only participants for complete inventory destination planning.
 pub struct InventoryMovePlanningCxLikeCpp<'cx, 'owner> {

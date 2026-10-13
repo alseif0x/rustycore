@@ -3,21 +3,17 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Inventory storage, equip/swap, destroy, durability and item modification.
+//! Item turn-in application. The item handler bodies moved to
+//! `wow_world_inventory::item_session` (#1363 slice 8c); `host` is their World
+//! adapter.
 
 use super::*;
-mod destruction;
 mod equipment_sets;
 mod handlers;
-mod inventory_moves;
+mod host;
 pub(super) mod login_load;
 
 impl WorldSession {
-    pub(crate) fn inventory_container_db_guid_like_cpp(&self, bag: u8) -> Option<u64> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.inventory_container_db_guid_like_cpp(hub, bag)
-    }
-
     pub(crate) fn apply_item_turnin_changes(
         &mut self,
         _player_guid: ObjectGuid,

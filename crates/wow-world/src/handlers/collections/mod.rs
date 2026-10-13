@@ -287,9 +287,15 @@ impl crate::session::WorldSession {
         }
 
         let destroyed_entry_id = item.entry_id;
-        if self
-            .destroy_inventory_full_stack_by_pos_like_cpp(bag, slot, item, runtime_item, "AddToy")
-            .await
+        if wow_world_inventory::destroy_inventory_full_stack_by_pos_like_cpp(
+            self,
+            bag,
+            slot,
+            item,
+            runtime_item,
+            "AddToy",
+        )
+        .await
         {
             if let Some(update) = crate::session::hub_mut(self)
                 .add_player_toy_dynamic_field_like_cpp(destroyed_entry_id)

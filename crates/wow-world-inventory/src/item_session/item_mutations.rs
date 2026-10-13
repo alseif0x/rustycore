@@ -1,0 +1,289 @@
+// Copyright (c) 2026 alseif0x
+// RustyCore — WoW WotLK 3.4.3 server in Rust
+// Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! The offhand auto-unequip and the stack merge.
+
+use tracing::warn;
+use wow_constants::InventoryResult;
+use wow_entities::{
+    INVENTORY_SLOT_BAG_0, NULL_BAG, NULL_SLOT, PlayerInventoryItem as InventoryItem,
+    is_equipment_pos,
+};
+use wow_packet::packets::update::UpdateObject;
+use wow_world_entities::CreatureSpawnCatalogsLikeCpp;
+
+use super::ItemSessionHostLikeCpp;
+use crate::{
+    InventoryStorageQuestChecksLikeCpp, InventoryStorageTargetLikeCpp,
+    RepresentedAutoUnequipOffhandLikeCpp, item_storage_mutable_persistence_like_cpp,
+};
+
+/// C++ `Player::AutoUnequipOffhandIfNeed` after an equipment move. The
+/// normal two-hand equip path has already proved `CanStoreItem`, so use the
+/// same persisted storage executor rather than the older runtime-only
+/// represented helper.
+pub(super) async fn execute_inventory_auto_unequip_offhand_if_need_like_cpp<
+    H: ItemSessionHostLikeCpp,
+>(
+    host: &mut H,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+) {
+    let Some(reason) = ({
+        let (s, h) = host.split_inventory_ref();
+        s.represented_auto_unequip_offhand_reason_like_cpp(h, false)
+    }) else {
+        return;
+    };
+    let Some(offhand) = ({
+        let (state, hub) = host.split_inventory_ref();
+        state.get_inventory_item_by_pos(
+            hub,
+            INVENTORY_SLOT_BAG_0,
+            wow_entities::EQUIPMENT_SLOT_OFFHAND,
+        )
+    }) else {
+        return;
+    };
+    let offhand_guid = offhand.guid;
+    let offhand_entry = offhand.entry_id;
+
+    host.execute_inventory_storage_move_like_cpp(
+        item_guid_generator,
+        creature_spawn_catalogs,
+        INVENTORY_SLOT_BAG_0,
+        wow_entities::EQUIPMENT_SLOT_OFFHAND,
+        NULL_BAG,
+        NULL_SLOT,
+        InventoryStorageTargetLikeCpp::Inventory,
+        InventoryStorageQuestChecksLikeCpp::None,
+        None,
+    )
+    .await;
+
+    if ({
+        let (state, hub) = host.split_inventory_ref();
+        state.get_inventory_item_by_pos(
+            hub,
+            INVENTORY_SLOT_BAG_0,
+            wow_entities::EQUIPMENT_SLOT_OFFHAND,
+        )
+    })
+    .is_some_and(|item| item.guid == offhand_guid)
+    {
+        return;
+    }
+    let stored_destination = ({
+        let (state, hub) = host.split_inventory_ref();
+        state.get_inventory_item_by_guid_like_cpp(hub, offhand_guid)
+    })
+    .map(|(bag, slot, _)| (bag, slot));
+    {
+        let (state, _) = host.split_inventory_mut();
+        state.record_represented_auto_unequip_offhand_request_like_cpp(
+            RepresentedAutoUnequipOffhandLikeCpp {
+                item_guid: offhand_guid,
+                item_entry: offhand_entry,
+                reason,
+                stored_destination,
+                needs_mail_fallback: false,
+            },
+        )
+    };
+}
+
+pub(super) async fn execute_inventory_stack_merge_like_cpp<H: ItemSessionHostLikeCpp>(
+    host: &mut H,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+    source_bag: u8,
+    source_slot: u8,
+    destination_bag: u8,
+    destination_slot: u8,
+    source: InventoryItem,
+    destination: InventoryItem,
+) {
+    let Some(player_guid) = host.player_guid() else {
+        return;
+    };
+    let Some(source_object) = ({
+        let (state, hub) = host.split_inventory_ref();
+        state.resolved_inventory_item_object_like_cpp(hub, source.guid)
+    }) else {
+        return;
+    };
+    let Some(destination_object) = ({
+        let (state, hub) = host.split_inventory_ref();
+        state.resolved_inventory_item_object_like_cpp(hub, destination.guid)
+    }) else {
+        return;
+    };
+    let max_stack = host
+        .hub_ref()
+        .catalogs
+        .item_storage_template(source.entry_id)
+        .map_or(1, |template| template.max_stack_size.max(1));
+    if destination_object.count() >= max_stack {
+        return;
+    }
+    let total = source_object
+        .count()
+        .saturating_add(destination_object.count());
+    let destination_count = total.min(max_stack);
+    let source_count = total.saturating_sub(destination_count);
+    let Some((source_enchantments, source_cleared)) = ({
+        let (state, hub) = host.split_inventory_ref();
+        state.inventory_remove_enchantment_persistence_like_cpp(
+            hub,
+            source.guid,
+            source_bag == INVENTORY_SLOT_BAG_0
+                && source_slot == wow_entities::EQUIPMENT_SLOT_MAINHAND,
+        )
+    }) else {
+        return;
+    };
+    let Some((destination_enchantments, _)) = ({
+        let (state, hub) = host.split_inventory_ref();
+        state.inventory_remove_enchantment_persistence_like_cpp(hub, destination.guid, false)
+    }) else {
+        return;
+    };
+    let source_mutable = item_storage_mutable_persistence_like_cpp(
+        source.db_guid,
+        &source_object,
+        source_count,
+        source_object.item_flags_bits(),
+        source_enchantments,
+        host.hub_ref()
+            .catalogs
+            .item_effect_count_like_cpp(source.entry_id),
+    );
+    let destination_mutable = item_storage_mutable_persistence_like_cpp(
+        destination.db_guid,
+        &destination_object,
+        destination_count,
+        destination_object.item_flags_bits(),
+        destination_enchantments,
+        host.hub_ref()
+            .catalogs
+            .item_effect_count_like_cpp(destination.entry_id),
+    );
+    let Some(inventory_port) = host
+        .lifecycle()
+        .player_inventory_persistence_port_like_cpp()
+    else {
+        host.core().send_equip_error(
+            InventoryResult::InternalBagError,
+            Some(source.guid),
+            Some(destination.guid),
+            0,
+            0,
+        );
+        return;
+    };
+    let source_persistence = if source_count > 0 {
+        wow_persistence::InventoryStackMergeSourcePersistenceLikeCpp::Retained(source_mutable)
+    } else {
+        wow_persistence::InventoryStackMergeSourcePersistenceLikeCpp::FullyMerged {
+            item_guid: source.db_guid,
+        }
+    };
+    let request = wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::StackMerge(
+        wow_persistence::InventoryStackMergePersistenceLikeCpp {
+            owner_guid: player_guid.counter() as u64,
+            destination_item: destination_mutable,
+            source: source_persistence,
+        },
+    );
+    let outcome = inventory_port
+        .persist_inventory_mutation_like_cpp(request)
+        .await;
+    if let wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+    | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } = outcome
+    {
+        warn!(
+            source_bag,
+            source_slot,
+            destination_bag,
+            destination_slot,
+            error = %reason,
+            "inventory stack merge transaction failed; runtime left unchanged"
+        );
+        host.core().send_equip_error(
+            InventoryResult::InternalBagError,
+            Some(source.guid),
+            Some(destination.guid),
+            0,
+            0,
+        );
+        return;
+    }
+
+    let _ = {
+        let (state, mut hub) = host.split_inventory_mut();
+        state.apply_inventory_item_object_updates_like_cpp(
+            &mut hub,
+            destination.guid,
+            &[wow_entities::ItemObjectUpdateLikeCpp::SetCount(
+                destination_count,
+            )],
+        )
+    };
+    host.send_packet(&UpdateObject::item_stack_count_update(
+        destination.guid,
+        host.core().player_map_id_like_cpp(),
+        destination_count,
+    ));
+    if source_count > 0 {
+        let mut updates = vec![wow_entities::ItemObjectUpdateLikeCpp::SetCount(
+            source_count,
+        )];
+        updates.extend(
+            source_cleared
+                .iter()
+                .copied()
+                .map(wow_entities::ItemObjectUpdateLikeCpp::ClearEnchantment),
+        );
+        let _ = {
+            let (state, mut hub) = host.split_inventory_mut();
+            state.apply_inventory_item_object_updates_like_cpp(&mut hub, source.guid, &updates)
+        };
+        host.send_packet(&UpdateObject::item_stack_count_update(
+            source.guid,
+            host.core().player_map_id_like_cpp(),
+            source_count,
+        ));
+    } else {
+        let removed_mods = host.apply_inventory_item_remove_side_effects_like_cpp(
+            source_bag,
+            source_slot,
+            source.guid,
+            &source_cleared,
+        );
+        let removed = host.apply_committed_inventory_item_removal_like_cpp(
+            source_bag,
+            source_slot,
+            source.guid,
+        );
+        debug_assert!(removed);
+        host.send_packet(&UpdateObject::destroy_objects(
+            vec![source.guid],
+            host.core().player_map_id_like_cpp(),
+        ));
+        host.publish_inventory_position_changes_like_cpp(&[(source_bag, source_slot)]);
+        if removed_mods {
+            host.send_represented_item_bonus_player_stat_update_like_cpp();
+        }
+    }
+    host.sync_player_registry_state_like_cpp();
+    if is_equipment_pos(destination_bag, destination_slot) {
+        execute_inventory_auto_unequip_offhand_if_need_like_cpp(
+            host,
+            item_guid_generator,
+            creature_spawn_catalogs,
+        )
+        .await;
+    }
+}
