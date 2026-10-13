@@ -4132,3 +4132,177 @@ check for the edges it actually adds.
   into an 8e.
 - **Stays:** the quest-giver status queries (quest types), the F5 adapters,
   the registrar composition and the shared `mod.rs` constants.
+
+## Slice 8a result (visibility → entities)
+
+Branch `1363-s8a-character`, base `518d8bd66` (7c merged). Move-only (R2),
+with the 4b/5a/7a/7c rewrites:
+
+- `self.` becomes `host.`, and a session field becomes a host accessor
+  (`lifecycle`, `visibility`/`visibility_mut`, the entities
+  `world_entities`/`world_entities_mut`);
+- `self.catalogs` becomes `host.hub_ref().catalogs`, and the one-line
+  World forwards `self.realm_id()`, `self.player_registry()` (both
+  `self.core.X()`) and `self.player_map_visibility_range_like_cpp()`
+  (`self.config.X()`) become `host.core().X()` / `host.hub_ref().config.X()`;
+- a World wrapper that is one `split_world_entities_{ref,mut}` plus one
+  `WorldEntitiesState` call (creature aggro radius, creature create stats,
+  the gameobject DB phase shift and runtime state records) becomes that same
+  split and call through the host, as in 7c. Each split is taken for exactly
+  that call, as the wrapper took it; no borrow spans another call or an
+  `.await`;
+- a call between moved functions becomes a free call.
+
+A token comparison of the seven moved functions against the base finds no
+other difference (plus rustfmt trailing commas). The create and out-of-range
+blocks and their order, the `m_clientGUIDs` publication transitions, the
+spawn-row reads and the SQL fallback timeouts, the gameobject record order,
+the fishing-hole and equipment RNG draws, the tracing events, #169 ordering,
+registrations and processing flags are unchanged. No registrar moves. No body
+had a `cfg(test)` branch, so no fixture predicate is needed.
+
+### What moved
+
+- **To `wow-world-entities/src/visibility_session/`:**
+  - `nearby.rs`: `send_nearby_creatures_with_catalogs_like_cpp`,
+    `send_nearby_gameobjects` and the viewer-dependent creature create block
+    (from `handlers/character/visibility/{creatures,gameobjects}.rs`);
+  - `update.rs`: `update_visibility_with_catalogs_like_cpp` (from
+    `visibility/creatures.rs`);
+  - `spawn.rs`: `materialize_creature_spawn_row_with_catalogs_like_cpp` and
+    `creature_addon_create_fields_like_cpp` (from `visibility.rs`), the
+    single-caller `creature_virtual_items_from_row_with_catalogs_like_cpp`
+    (from `items.rs`), and from `mod.rs` the spawn-row helpers (movement
+    generator type, wander distance, template speeds, spawn difficulties,
+    creature flags, 2D range, gameobject state, movement flags, hover
+    offset), the addon and equipment create-field types and the two
+    constants;
+  - `mod.rs`: the host trait and the exports.
+- The nine helpers the creature scenarios call are exported only under
+  `cfg(any(test, feature = "test-fixtures"))`; `handlers/character/mod.rs`
+  imports them `cfg(test)`, with the five imports only those scenarios still
+  read.
+- **The World callers** call the free functions: the driver's pending spawn,
+  the far-teleport refresh, the forced update and the movement host's
+  `update_visibility_with_catalogs_like_cpp` forward. The driver imports the
+  entities functions it calls, which shortens the PvP-flag call by the lines
+  the import costs (the session hotspot does not grow).
+- **Reclassified, not moved.** The four split wrappers above now have only
+  scenario callers. They moved verbatim from
+  `session/world_entities/{aggro,creature_query,gameobject_overrides,gameobject_state}.rs`
+  to the `#![cfg(test)]` `handlers/visibility_test_shims.rs` (122 lines),
+  with the three method entry points for the moved bodies
+  (`send_nearby_creatures`, `update_visibility`, `send_nearby_gameobjects`).
+  The `gameobject_overrides` f3 shim reaches its names through `super::super`,
+  because its parent is now only the mount.
+- **Retired:** the map visibility range wrapper and the
+  `CreatureCreateStatsLikeCpp` re-export (no other reader).
+
+### Host surface
+
+- **`VisibilitySessionHostLikeCpp: WorldEntitiesHostLikeCpp`** (entities, 15
+  methods, 62 lines): the lifecycle and visibility accessors (3), the quest
+  state's movement visibility refresh request, the viewer-dependent creature
+  NPC flags and gameobject dynamic flags, the far-sight sync, the visibility
+  source position, the world-creature query and the six canonical
+  visible-object queries (gameobjects, dynamic objects, area triggers, the
+  corpse/scene/conversation triple, transports, other players).
+- **Adapter** `handlers/character/visibility.rs` (144 lines, replacing the
+  292-line body file). Every method is a field access or names the inherent
+  method by path (`WorldSession::name(self, …)`); each such method exists as
+  an inherent `WorldSession` method, so none resolves to its own trait
+  method. No forward goes to a trait default.
+- The movement host's `update_visibility_with_catalogs_like_cpp` forward now
+  names the free function `wow_world_entities::update_visibility_with_catalogs_like_cpp`,
+  which is not a trait method, so it cannot recurse.
+- **Budget.** 206 host lines (62 trait + 144 adapter) against about 1,775
+  moved production lines: 11.6 %. With the whole
+  `visibility_session/mod.rs` (106 lines: docs, imports, exports and the
+  trait) it is 250 lines, 14.1 %.
+
+### Accounting
+
+- **`crates/wow-world/src`.** Classifier: 70,077 → **68,349 production
+  (−1,728)**. Physical: 75,090 → 73,484 (−1,606). Files: 506 → 505. Test:
+  5,013 → 5,135 (+122).
+  - **About 1,775 is production code that left `wow-world`:**
+    `visibility.rs` 292, `visibility/creatures.rs` 1,018,
+    `visibility/gameobjects.rs` 259, `items.rs` 61, and 145 of the 162
+    `mod.rs` lines.
+  - **+144 is the new adapter.**
+  - **About 92 is test code reclassified:** the four wrappers (75 lines with
+    their impl shells) and 17 `mod.rs` import lines that are now `cfg(test)`.
+  - **−5 is retired:** the map range wrapper (3), the re-export (2).
+- **Destinations.** `wow-world-entities/src`: 14,828 → 16,841 physical
+  (+2,013); production 14,663 → 16,658 (+1,995; the 18 test lines are the
+  `cfg`-gated exports).
+- **`wow-world-application`.** Unchanged.
+- **`net_move.py check`.** PASS. S = 1,606, G = 2,013 ≤ 2,647.3, 0 duplicate
+  bodies.
+- **Edges.** Entities gains `wow-world-visibility` (`VisibilityState`) and
+  the external `tokio` (the spawn-catalog query timeout);
+  `dependency-policy.json` allows both. The edge was simulated before the
+  move (*Slice 8 plan*) and `wow_world_closure.py check` passes on the head
+  in lock and metadata mode (17 packages); character is still reached only
+  by application and `wow-world`.
+- **`session-ownership-policy.json`** is reprinted with `print-baseline`.
+  The delta is the moved impl items, the adapter's 15 trait items, the test
+  shim items (three entry points and the four wrappers), the retired
+  wrapper, and the `player_registry` direct-registry row, which moved to
+  package `wow-world-entities` (`crate::visibility_session::update`). The
+  syntax-only check passes.
+- **Ceilings.** None raised. Tightened to live values:
+  - hotspot `handlers/character/mod.rs`: production 14,788 → 13,140, test
+    15,708 → 15,706, total 30,496 → 28,846;
+  - hotspot `session/mod.rs`: production 39,369 → 39,289, test 141,901
+    unchanged, total 181,270 → 181,190;
+  - physical `handlers/character/mod.rs` 670 → 522,
+    `handlers/character/items.rs` 142 → 81, `session/mod.rs` 973 → 972;
+  - new physical row `handlers/visibility_test_shims.rs` at 122.
+- **Warnings.** The `wow-world` warning sets (`--message-format=short`
+  lines under `crates/wow-world/`, compared without line numbers) equal base
+  in all three builds: production lib 151, lib with `test-fixtures` 159, lib
+  plus lib-test 296. `wow-world` `dead_code` is 0 in all three.
+  `wow-world-entities` keeps exactly its base warnings (9, 5, 5), and the new
+  module has none in the entities all-targets build.
+- **Tests.** No `#[test]` or `#[ignore]` is added or removed; the workspace
+  test-name multiset is identical (10,214 names, 5 ignores), and no assertion
+  changes. The only test-file edit is the f3 shim import path. A focused
+  `wow-world` run on the first move commit passed 612 tests matching
+  visibility, nearby, creature and gameobject.
+
+### 8b plan
+
+8b re-measures on its base. Vendor and bank (`vendor.rs`, `vendor/*`,
+`vendor_admission.rs`, `bank.rs`; 3,073 classifier lines, 70 outside calls on
+the 8a head) go to `wow-world-inventory`, beside the A4 vendor and bank
+handlers.
+
+- Many outside calls are inventory and money operations whose bodies are
+  already `InventoryState`/core methods behind one-line World wrappers
+  (`split_inventory_*`). 8b inlines those as the same split, which needs
+  `split_inventory_{ref,mut}` on the host, and then counts what remains.
+- The money path keeps its exclusive persistence boundary
+  (`begin_exclusive_player_money_persistence_like_cpp`, the awaited outcome)
+  and the quest-objective drain as host methods. Their futures are returned
+  unchanged, as in 7a.
+- If the host share stays above 15 %, repair and bank split off into 8c.
+- The planned inventory → entities edge is simulated again on the 8b base.
+
+### Follow-ups
+
+- `handlers/character/query/test_shims.rs` (77 lines) is mounted only under
+  `cfg(test)` but is not `#![cfg(test)]`, so the classifier counts it as
+  production. Marking it moves 77 lines to the test figure without code
+  change (as `loot_test_shims.rs` in 7b).
+- The moved log sites now use the `wow_world_entities::visibility_session`
+  tracing target (#1384 follow-up 2 applies here too).
+- `visibility_test_shims.rs` retires when the scenarios call the free
+  functions and the `WorldEntitiesState` methods directly.
+
+### Validation
+
+`final --architecture --timings` (`VALIDATION_V2_CARGO_JOBS=1`,
+`VALIDATION_V2_TIMEOUT_SECONDS=1800`) runs on the committed head that
+includes this section. Its manifest path, dirty flag and duration are in
+the PR body. This section is not edited after that run.
