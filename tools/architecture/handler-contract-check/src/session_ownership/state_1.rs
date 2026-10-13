@@ -70,6 +70,10 @@ pub(super) const WORLD_QUEST_PACKAGE_ROOT: &str = "crates/wow-world-quest";
 
 pub(super) const WORLD_QUEST_CRATE_ROOT: &str = "crates/wow-world-quest/src/lib.rs";
 
+pub(super) const WORLD_LOOT_OPS_PACKAGE_ROOT: &str = "crates/wow-world-loot-ops";
+
+pub(super) const WORLD_LOOT_OPS_CRATE_ROOT: &str = "crates/wow-world-loot-ops/src/lib.rs";
+
 pub(super) const WORLD_APPLICATION_PACKAGE_ROOT: &str = "crates/wow-world-application";
 
 pub(super) const WORLD_APPLICATION_CRATE_ROOT: &str = "crates/wow-world-application/src/lib.rs";
@@ -330,6 +334,9 @@ pub(super) enum PackageRole {
     /// valuation (#1363 A6); like the domain packages it never owns a Session
     /// contract.
     WorldQuest,
+    /// The loot handlers and loot-release operations above the quest crate
+    /// (#1363 A7); like the domain packages it never owns a Session contract.
+    WorldLootOps,
     /// The extracted application layer between `wow-world` and `wow-world-core`.
     ///
     /// It owns session-independent domain operations (`<X>CxLikeCpp`) and is the
@@ -366,6 +373,7 @@ impl PackageRole {
             Self::WorldLifecycle => "wow-world-lifecycle",
             Self::WorldCharacter => "wow-world-character",
             Self::WorldQuest => "wow-world-quest",
+            Self::WorldLootOps => "wow-world-loot-ops",
             Self::WorldApplication => "wow-world-application",
             Self::Server => "world-server",
             Self::Network => "wow-network",

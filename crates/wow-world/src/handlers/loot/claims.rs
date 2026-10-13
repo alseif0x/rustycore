@@ -47,7 +47,7 @@ impl WorldSession {
     }
 
     /// Owned by the App release context
-    /// (`wow-world-application/src/loot_release/authority.rs`); the shell only
+    /// (`wow-world-loot-ops/src/loot_release/authority.rs`); the shell only
     /// lends the borrowed participants.
     pub(super) fn prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
         &mut self,

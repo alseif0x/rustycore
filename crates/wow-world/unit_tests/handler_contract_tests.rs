@@ -1456,7 +1456,7 @@ fn loot_money_family_is_migrated_off_the_legacy_inventory() {
     assert_migrated_family_like_cpp(
         "loot money",
         |builder| {
-            wow_world_application::register_loot_handlers_like_cpp::<
+            wow_world_loot_ops::register_loot_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >(builder)
@@ -1662,7 +1662,7 @@ fn duplicated_migrated_remaining_family_registrations_are_rejected_without_repla
         ),
         (
             "loot",
-            wow_world_application::register_loot_handlers_like_cpp::<
+            wow_world_loot_ops::register_loot_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >,

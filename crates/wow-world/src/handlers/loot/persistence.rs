@@ -9,7 +9,7 @@ use super::*;
 // The moved `Loot::NotifyMoneyRemoved` publication is reached through the
 // application loot owner's host trait default method (#1263 F4); the call text
 // is unchanged.
-use wow_world_application::LootHandlerHostLikeCpp;
+use wow_world_loot_ops::LootHandlerHostLikeCpp;
 
 impl WorldSession {
     pub(super) fn prepare_durable_loot_item_fanout_like_cpp(

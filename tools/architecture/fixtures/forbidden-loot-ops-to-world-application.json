@@ -1,0 +1,6 @@
+{
+  "name": "the loot-ops crate may not depend on wow-world-application; the application orchestrates above it (#1363 A7)",
+  "source": "wow-world-loot-ops",
+  "target": "wow-world-application",
+  "expected": "forbidden"
+}

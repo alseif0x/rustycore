@@ -19,7 +19,7 @@ use crate::session::mailbox::{SessionCommand, WorldSessionShutdownFlushResultLik
 use crate::session::{SessionHandlerCatalogsLikeCpp, SessionState, WorldSession};
 // The `LootMoney` command receivers are default methods of the application loot
 // owner's host trait (#1263 F5); the arms below keep their original call text.
-use wow_world_application::LootHandlerHostLikeCpp;
+use wow_world_loot_ops::LootHandlerHostLikeCpp;
 
 impl WorldSession {
     /// Apply one committed command, in the order the mailbox presented it.

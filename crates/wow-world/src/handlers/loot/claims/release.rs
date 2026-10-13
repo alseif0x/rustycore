@@ -14,8 +14,8 @@ impl WorldSession {
     /// projections cannot alias.
     pub(in crate::handlers::loot) fn loot_release_cx_like_cpp(
         &mut self,
-    ) -> wow_world_application::LootReleaseCxLikeCpp<'_> {
-        wow_world_application::LootReleaseCxLikeCpp::new(
+    ) -> wow_world_loot_ops::LootReleaseCxLikeCpp<'_> {
+        wow_world_loot_ops::LootReleaseCxLikeCpp::new(
             self.core.loot_release_owner_access_like_cpp(),
             &mut self.loot,
             &mut self.world_entities,

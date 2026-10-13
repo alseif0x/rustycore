@@ -574,6 +574,7 @@ fn world_spell_and_interaction_roles_do_not_take_session_contract_ownership() {
         (PackageRole::WorldLifecycle, "wow-world-lifecycle"),
         (PackageRole::WorldCharacter, "wow-world-character"),
         (PackageRole::WorldQuest, "wow-world-quest"),
+        (PackageRole::WorldLootOps, "wow-world-loot-ops"),
     ] {
         let baseline = baseline_with_world_domain(
             role,
@@ -616,6 +617,7 @@ fn world_spell_and_interaction_cannot_define_or_impl_the_core_owner() {
         PackageRole::WorldLifecycle,
         PackageRole::WorldCharacter,
         PackageRole::WorldQuest,
+        PackageRole::WorldLootOps,
     ] {
         let error = baseline_with_world_domain(role, "pub struct SessionCore;")
             .expect_err("domain packages cannot define SessionCore");
@@ -646,6 +648,7 @@ fn world_session_remains_owned_by_world_across_all_extracted_packages() {
         PackageRole::WorldLifecycle,
         PackageRole::WorldCharacter,
         PackageRole::WorldQuest,
+        PackageRole::WorldLootOps,
     ] {
         let error = baseline_with_world_domain(role, "pub struct WorldSession;")
             .expect_err("an extracted package cannot define WorldSession");
@@ -748,6 +751,13 @@ fn world_spell_and_interaction_source_units_follow_their_real_root_mounts() {
         WORLD_QUEST_CRATE_ROOT,
     )
     .expect("the actual WorldQuest root and its declared modules are loadable");
+    let loot_ops = repository_units(
+        &repository_root,
+        PackageRole::WorldLootOps,
+        WORLD_LOOT_OPS_PACKAGE_ROOT,
+        WORLD_LOOT_OPS_CRATE_ROOT,
+    )
+    .expect("the actual WorldLootOps root and its declared modules are loadable");
 
     assert!(
         spell
@@ -890,5 +900,15 @@ fn world_spell_and_interaction_source_units_follow_their_real_root_mounts() {
         quest
             .iter()
             .any(|unit| unit.logical_module_path == "crate::quest::visibility::refresh")
+    );
+    assert!(
+        loot_ops
+            .iter()
+            .all(|unit| unit.role == PackageRole::WorldLootOps)
+    );
+    assert!(
+        loot_ops
+            .iter()
+            .any(|unit| unit.logical_module_path == "crate::loot_handlers::master_loot")
     );
 }

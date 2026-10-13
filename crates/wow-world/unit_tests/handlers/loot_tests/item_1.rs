@@ -7,7 +7,7 @@ use super::*;
 // The moved `LootMoney` operation bodies are reached through the application
 // loot owner's host trait default methods (#1263 F4); the call text is unchanged.
 use wow_loot::{LOOT_METHOD_GROUP_LIKE_CPP, LOOT_METHOD_MASTER_LIKE_CPP};
-use wow_world_application::LootHandlerHostLikeCpp;
+use wow_world_loot_ops::LootHandlerHostLikeCpp;
 
 #[test]
 fn stored_item_money_commit_unknown_requires_joint_balance_and_source_evidence_like_cpp() {
@@ -328,10 +328,8 @@ fn durable_item_fanout_uses_precommit_union_exact_commit_cut_like_cpp() {
     let during = ObjectGuid::create_player(1, 42);
     let after = ObjectGuid::create_player(1, 43);
 
-    let viewers = wow_world_application::durable_loot_item_fanout_viewers_like_cpp(
-        &[before],
-        &[before, during],
-    );
+    let viewers =
+        wow_world_loot_ops::durable_loot_item_fanout_viewers_like_cpp(&[before], &[before, during]);
 
     assert_eq!(viewers, HashSet::from([before, during]));
     assert!(
