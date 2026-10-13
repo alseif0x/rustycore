@@ -14,6 +14,7 @@
 
 use super::super::WorldSession;
 use crate::finalization::FinalizationOutcome;
+use wow_world_loot_ops::wait_for_active_loot_persistence_with_generator_like_cpp;
 
 impl WorldSession {
     pub fn cleanup_shared_runtime_state(&mut self) -> FinalizationOutcome {
@@ -49,11 +50,7 @@ impl WorldSession {
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
     ) -> FinalizationOutcome {
-        wow_world_loot_ops::wait_for_active_loot_persistence_with_generator_like_cpp(
-            self,
-            item_guid_generator,
-        )
-        .await;
+        wait_for_active_loot_persistence_with_generator_like_cpp(self, item_guid_generator).await;
         if let Some(player_guid) = self.player_guid()
             && self.loot.has_active_loot_views_like_cpp()
         {

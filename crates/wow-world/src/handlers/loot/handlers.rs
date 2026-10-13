@@ -14,13 +14,6 @@ use wow_packet::ClientPacket;
 
 mod money;
 
-// The inspected TrinityCore opcode table assigns the shared unresolved 0xBADD
-// placeholder to CMSG_CLEAR_RAID_MARKER (uint8 payload),
-// CMSG_SET_LOOT_SPECIALIZATION (uint32), CMSG_SET_SAVED_INSTANCE_EXTEND
-// (int32+uint32+bit), CMSG_CANCEL_MOD_SPEED_NO_CONTROL_AURAS (packed GUID) and
-// CMSG_CLIENT_PORT_GRAVEYARD (empty). Rust keeps one enum variant and splits by
-// payload length until the real opcode table is resolved, so this one
-// registration carries all five payload shapes.
 #[cfg(test)]
 mod test_shims;
 

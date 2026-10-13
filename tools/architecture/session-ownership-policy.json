@@ -820,12 +820,6 @@
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::loot::fanout",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "module": "crate::handlers::loot::fanout::f3_shims",
           "trait_path": null,
           "cfg": [
@@ -866,24 +860,12 @@
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::loot::persistence",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "module": "crate::handlers::loot::persistence::f3_shims",
           "trait_path": null,
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "module": "crate::handlers::loot::requests",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "module": "crate::handlers::loot::requests::f3_shims",
@@ -894,30 +876,12 @@
           "source_class": "test_fixture"
         },
         {
-          "module": "crate::handlers::loot::requests::item_storage",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::loot::requests::item_storage::disenchant",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "module": "crate::handlers::loot::requests::test_support",
           "trait_path": null,
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "module": "crate::handlers::loot::rolls",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "module": "crate::handlers::loot::session_loot_host",
@@ -8872,62 +8836,6 @@
           ]
         },
         {
-          "module": "crate::handlers::loot::fanout",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_notify_loot_item_removed_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn represented_notify_loot_item_removed_like_cpp (& mut self , owner_guid : ObjectGuid , loot_list_id : u8 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::fanout",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_notify_loot_list_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn represented_notify_loot_list_like_cpp (& self , owner_guid : ObjectGuid)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::fanout",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_if_visible_like_cpp_gate_passes_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn send_if_visible_like_cpp_gate_passes_like_cpp (& mut self , queued_at : Instant , source_guid : ObjectGuid , map_id : u16 , instance_id : u32 , representative_packet_bytes : & [u8] ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::fanout",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_loot_item_push_result",
-          "visibility": "pub (super)",
-          "signature": "fn send_loot_item_push_result (& self , player_guid : ObjectGuid , item_guid : ObjectGuid , loot_entry : & LootEntry , random_properties_id : i32 , random_properties_seed : i32 , slot : u8 , quantity : u32 , quantity_in_inventory : u32 , created : bool , dungeon_encounter_id : u32 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::loot::fanout::f3_shims",
           "trait_path": null,
           "kind": "method",
@@ -9663,121 +9571,6 @@
           ]
         },
         {
-          "module": "crate::handlers::loot::persistence",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_pending_durable_item_loot_completions_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn apply_pending_durable_item_loot_completions_like_cpp (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::persistence",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_pending_durable_item_loot_completions_with_generator_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn apply_pending_durable_item_loot_completions_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::persistence",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_pending_durable_item_loot_completions_with_objective_drain_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn apply_pending_durable_item_loot_completions_with_objective_drain_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , drain_money_objectives : bool ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::persistence",
-          "trait_path": null,
-          "kind": "method",
-          "name": "commit_represented_loot_item_claim_like_cpp",
-          "visibility": "private",
-          "signature": "fn commit_represented_loot_item_claim_like_cpp (& mut self , claim : & LootClaimLease , context : LootItemClaimCommitContextLikeCpp , fanout : Option < & DurableLootItemFanoutLikeCpp > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::persistence",
-          "trait_path": null,
-          "kind": "method",
-          "name": "prepare_durable_loot_item_fanout_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn prepare_durable_loot_item_fanout_like_cpp (& mut self , claim : & LootClaimLease , context : LootItemClaimCommitContextLikeCpp ,) -> Option < DurableLootItemFanoutLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::persistence",
-          "trait_path": null,
-          "kind": "method",
-          "name": "publish_persisted_loot_item_removal_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn publish_persisted_loot_item_removal_like_cpp (& mut self , claim : Option < & LootClaimLease > , context : Option < LootItemClaimCommitContextLikeCpp > , fanout : Option < & DurableLootItemFanoutLikeCpp > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::persistence",
-          "trait_path": null,
-          "kind": "method",
-          "name": "wait_for_active_loot_persistence_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn wait_for_active_loot_persistence_like_cpp (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::persistence",
-          "trait_path": null,
-          "kind": "method",
-          "name": "wait_for_active_loot_persistence_with_generator_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn wait_for_active_loot_persistence_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::loot::persistence::f3_shims",
           "trait_path": null,
           "kind": "method",
@@ -9794,90 +9587,6 @@
           ]
         },
         {
-          "module": "crate::handlers::loot::requests",
-          "trait_path": null,
-          "kind": "method",
-          "name": "close_stale_active_loot_view_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn close_stale_active_loot_view_like_cpp (& mut self , owner_guid : ObjectGuid , player_guid : ObjectGuid ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::requests",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_active_loot_generation_matches_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn represented_active_loot_generation_matches_like_cpp (& self , owner_guid : ObjectGuid , authority : & OwnedLootAuthority ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::requests",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_loot_response_for_owner_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn represented_loot_response_for_owner_like_cpp (& mut self , owner_guid : ObjectGuid , player_guid : ObjectGuid , ae_looting : bool ,) -> Option < LootResponse >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::requests",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_on_loot_opened_with_catalogs_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn represented_on_loot_opened_with_catalogs_like_cpp (& mut self , item_valuation : & ItemValuationCatalogsLikeCpp , owner_guid : ObjectGuid , player_guid : ObjectGuid , mut response : LootResponse ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::requests",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_player_is_unlocked_for_dungeon_encounter_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn represented_player_is_unlocked_for_dungeon_encounter_like_cpp (& self , player_guid : ObjectGuid , dungeon_encounter_id : u32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::requests",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_player_unlocked_for_dungeon_encounter_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn represented_player_unlocked_for_dungeon_encounter_like_cpp (& self , player_guid : ObjectGuid , dungeon_encounter_id : u32 ,) -> Option < ObjectGuid >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::loot::requests::f3_shims",
           "trait_path": null,
           "kind": "method",
@@ -9888,118 +9597,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::requests::item_storage",
-          "trait_path": null,
-          "kind": "method",
-          "name": "destroy_fully_looted_direct_item",
-          "visibility": "pub (in crate :: handlers :: loot)",
-          "signature": "async fn destroy_fully_looted_direct_item (& mut self , item_guid : ObjectGuid ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::requests::item_storage",
-          "trait_path": null,
-          "kind": "method",
-          "name": "store_direct_loot_item_from_owner_with_generator_like_cpp",
-          "visibility": "pub (in crate :: handlers :: loot)",
-          "signature": "async fn store_direct_loot_item_from_owner_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , loot_entry : & LootEntry , dungeon_encounter_id : u32 , owner_guid : ObjectGuid ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::requests::item_storage",
-          "trait_path": null,
-          "kind": "method",
-          "name": "store_direct_loot_item_with_generator_like_cpp",
-          "visibility": "pub (in crate :: handlers :: loot)",
-          "signature": "async fn store_direct_loot_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , loot_entry : & LootEntry , dungeon_encounter_id : u32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::requests::item_storage",
-          "trait_path": null,
-          "kind": "method",
-          "name": "store_direct_loot_item_with_source_and_generator_like_cpp",
-          "visibility": "pub (in crate :: handlers :: loot)",
-          "signature": "async fn store_direct_loot_item_with_source_and_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , loot_entry : & LootEntry , dungeon_encounter_id : u32 , stored_item_loot_source : Option < ObjectGuid > , claim : Option < & LootClaimLease > , claim_commit_context : Option < LootItemClaimCommitContextLikeCpp > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::requests::item_storage",
-          "trait_path": null,
-          "kind": "method",
-          "name": "stored_existing_item_dynamic_flags_like_cpp",
-          "visibility": "pub (in crate :: handlers :: loot)",
-          "signature": "fn stored_existing_item_dynamic_flags_like_cpp (& self , item_id : u32 , slot : u8 , existing : & Item ,) -> u32",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::requests::item_storage",
-          "trait_path": null,
-          "kind": "method",
-          "name": "stored_new_item_dynamic_flags_like_cpp",
-          "visibility": "pub (in crate :: handlers :: loot)",
-          "signature": "fn stored_new_item_dynamic_flags_like_cpp (& self , item_id : u32 , slot : u8 ,) -> u32",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::requests::item_storage::disenchant",
-          "trait_path": null,
-          "kind": "method",
-          "name": "store_direct_disenchant_batch_with_generator_like_cpp",
-          "visibility": "pub (in crate :: handlers :: loot)",
-          "signature": "async fn store_direct_disenchant_batch_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , loot_entries : & [LootEntry] , dungeon_encounter_id : u32 , claim : Option < & LootClaimLease > , claim_commit_context : Option < LootItemClaimCommitContextLikeCpp > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::requests::item_storage::disenchant",
-          "trait_path": null,
-          "kind": "method",
-          "name": "store_represented_disenchant_loot_winner_with_generator_like_cpp",
-          "visibility": "pub (in crate :: handlers :: loot)",
-          "signature": "async fn store_represented_disenchant_loot_winner_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , item_valuation : & ItemValuationCatalogsLikeCpp , owner_guid : ObjectGuid , loot_obj : ObjectGuid , loot_list_id : u8 , entry : & LootEntry , winner_guid : ObjectGuid , dungeon_encounter_id : u32 , claim : Option < & LootClaimLease > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "external_impl",
             "visible"
@@ -10054,167 +9651,59 @@
           ]
         },
         {
-          "module": "crate::handlers::loot::rolls",
-          "trait_path": null,
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
           "kind": "method",
-          "name": "cancel_represented_loot_roll_generation_mismatch_like_cpp",
+          "name": "apply_inventory_item_object_updates_like_cpp",
           "visibility": "private",
-          "signature": "fn cancel_represented_loot_roll_generation_mismatch_like_cpp (& mut self , key : (ObjectGuid , u8) , state : & RepresentedLootRollState ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::rolls",
-          "trait_path": null,
-          "kind": "method",
-          "name": "finish_represented_loot_roll_like_cpp",
-          "visibility": "private",
-          "signature": "async fn finish_represented_loot_roll_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , item_valuation : & ItemValuationCatalogsLikeCpp , loot_obj : ObjectGuid , loot_list_id : u8 , entry : & LootEntry , winner : Option < (ObjectGuid , RepresentedLootRollVote) > , finished_state : Option < & RepresentedLootRollState > ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::rolls",
-          "trait_path": null,
-          "kind": "method",
-          "name": "publish_represented_loot_roll_ownership_like_cpp",
-          "visibility": "private",
-          "signature": "fn publish_represented_loot_roll_ownership_like_cpp (& self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::rolls",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_current_loot_roll_authority_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_current_loot_roll_authority_like_cpp (& mut self , state : & RepresentedLootRollState ,) -> Option < OwnedLootAuthority >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::rolls",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_loot_roll_disenchant_skill_required_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_loot_roll_disenchant_skill_required_like_cpp (& self , item_valuation : & ItemValuationCatalogsLikeCpp , item_id : u32 ,) -> Option < u16 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::rolls",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_player_vote_on_loot_roll_with_generator_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn represented_player_vote_on_loot_roll_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , item_valuation : & ItemValuationCatalogsLikeCpp , roll : & LootRoll , player_guid : ObjectGuid ,) -> bool",
+          "signature": "fn apply_inventory_item_object_updates_like_cpp (& mut self , item_guid : ObjectGuid , updates : & [ItemObjectUpdateLikeCpp] ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
             "external_impl",
-            "visible"
+            "trait_impl"
           ]
         },
         {
-          "module": "crate::handlers::loot::rolls",
-          "trait_path": null,
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
           "kind": "method",
-          "name": "represented_player_vote_on_loot_roll_with_pass_state_and_generator_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn represented_player_vote_on_loot_roll_with_pass_state_and_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , item_valuation : & ItemValuationCatalogsLikeCpp , roll : & LootRoll , player_guid : ObjectGuid , pass_on_group_loot : bool ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::rolls",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_start_group_loot_rolls_on_first_open_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn represented_start_group_loot_rolls_on_first_open_like_cpp (& mut self , item_valuation : & ItemValuationCatalogsLikeCpp , owner_guid : ObjectGuid , player_guid : ObjectGuid ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::rolls",
-          "trait_path": null,
-          "kind": "method",
-          "name": "request_represented_remote_loot_roll_winner_store_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn request_represented_remote_loot_roll_winner_store_like_cpp (& self , target : ObjectGuid , owner_guid : ObjectGuid , loot_obj : ObjectGuid , loot_list_id : u8 , dungeon_encounter_id : u32 , entries : Vec < LootEntry > , is_disenchant : bool , claim : Option < LootClaimLease > ,) -> MasterLootGiveResult",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::rolls",
-          "trait_path": null,
-          "kind": "method",
-          "name": "store_represented_loot_roll_winner_item_like_cpp",
+          "name": "apply_quest_source_item_added_non_bound_objective_progress_with_generator_like_cpp",
           "visibility": "private",
-          "signature": "async fn store_represented_loot_roll_winner_item_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , item_valuation : & ItemValuationCatalogsLikeCpp , owner_guid : ObjectGuid , loot_obj : ObjectGuid , loot_list_id : u8 , entry : & LootEntry , winner_guid : ObjectGuid , winner_vote : RepresentedLootRollVote , claim : Option < LootClaimLease > ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::rolls",
-          "trait_path": null,
-          "kind": "method",
-          "name": "tick_represented_loot_rolls_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn tick_represented_loot_rolls_like_cpp (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::rolls",
-          "trait_path": null,
-          "kind": "method",
-          "name": "tick_represented_loot_rolls_with_generator_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn tick_represented_loot_rolls_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , item_valuation : & ItemValuationCatalogsLikeCpp ,)",
+          "signature": "fn apply_quest_source_item_added_non_bound_objective_progress_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , entry_id : u32 , quest_log_item_id : u32 , count : u32 ,) -> impl Future < Output = Vec < u32 > > + Send",
           "cfg": [],
           "source_class": "production",
           "guards": [
             "external_impl",
-            "visible"
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
+          "name": "apply_quest_source_item_bound_objective_preflight_with_generator_like_cpp",
+          "visibility": "private",
+          "signature": "fn apply_quest_source_item_bound_objective_preflight_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , entry_id : u32 , quest_log_item_id : u32 , count : u32 ,) -> impl Future < Output = Option < QuestSourceItemBoundPreflightLikeCpp > > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
+          "name": "begin_durable_item_loot_persistence_like_cpp",
+          "visibility": "private",
+          "signature": "fn begin_durable_item_loot_persistence_like_cpp (& self ,) -> DurableItemLootPersistenceGuardLikeCpp",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
           ]
         },
         {
@@ -10252,6 +9741,34 @@
           "name": "do_loot_release_all_like_cpp",
           "visibility": "private",
           "signature": "fn do_loot_release_all_like_cpp (& mut self , player_guid : ObjectGuid ,) -> impl Future < Output = () > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
+          "name": "do_loot_release_owner_like_cpp",
+          "visibility": "private",
+          "signature": "fn do_loot_release_owner_like_cpp (& mut self , owner_guid : ObjectGuid , player_guid : ObjectGuid ,) -> impl Future < Output = bool > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
+          "name": "drain_represented_quest_objective_progress_with_generator_like_cpp",
+          "visibility": "private",
+          "signature": "fn drain_represented_quest_objective_progress_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator ,) -> impl Future < Output = () > + Send",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -10305,6 +9822,34 @@
           "module": "crate::handlers::loot::session_loot_host",
           "trait_path": "LootSessionHostLikeCpp",
           "kind": "method",
+          "name": "insert_inventory_item_like_cpp",
+          "visibility": "private",
+          "signature": "fn insert_inventory_item_like_cpp (& mut self , slot : u8 , item : InventoryItem ,) -> Option < InventoryItem >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
+          "name": "insert_inventory_item_object",
+          "visibility": "private",
+          "signature": "fn insert_inventory_item_object (& mut self , item : Item) -> Option < Item >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
           "name": "inventory",
           "visibility": "private",
           "signature": "fn inventory (& self) -> & InventoryState",
@@ -10333,6 +9878,20 @@
           "module": "crate::handlers::loot::session_loot_host",
           "trait_path": "LootSessionHostLikeCpp",
           "kind": "method",
+          "name": "item_stats_store",
+          "visibility": "private",
+          "signature": "fn item_stats_store (& self) -> Option < & Arc < ItemStatsStore > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
           "name": "item_storage_template",
           "visibility": "private",
           "signature": "fn item_storage_template (& self , item_id : u32) -> Option < wow_entities :: ItemStorageTemplate >",
@@ -10350,6 +9909,48 @@
           "name": "item_template_addon_catalog_persistence_port_like_cpp",
           "visibility": "private",
           "signature": "fn item_template_addon_catalog_persistence_port_like_cpp (& self ,) -> Option < Arc < dyn wow_persistence :: ItemTemplateAddonCatalogPersistencePortLikeCpp > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
+          "name": "item_template_flags2",
+          "visibility": "private",
+          "signature": "fn item_template_flags2 (& self , item_id : u32) -> Option < u32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
+          "name": "item_template_inventory_type",
+          "visibility": "private",
+          "signature": "fn item_template_inventory_type (& self , item_id : u32) -> Option < u8 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
+          "name": "item_template_max_durability",
+          "visibility": "private",
+          "signature": "fn item_template_max_durability (& self , item_id : u32) -> u32",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -10473,6 +10074,20 @@
           "module": "crate::handlers::loot::session_loot_host",
           "trait_path": "LootSessionHostLikeCpp",
           "kind": "method",
+          "name": "make_inventory_item_object",
+          "visibility": "private",
+          "signature": "fn make_inventory_item_object (& self , item_guid : ObjectGuid , entry_id : u32 , owner_guid : ObjectGuid , count : u32 , durability : u32 , context : ItemContext , slot : u8 ,) -> Item",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
           "name": "mutate_canonical_gameobject_by_guid_like_cpp",
           "visibility": "private",
           "signature": "fn mutate_canonical_gameobject_by_guid_like_cpp < R > (& mut self , guid : ObjectGuid , f : impl FnOnce (& mut wow_entities :: GameObject) -> R ,) -> Option < R >",
@@ -10487,9 +10102,51 @@
           "module": "crate::handlers::loot::session_loot_host",
           "trait_path": "LootSessionHostLikeCpp",
           "kind": "method",
+          "name": "on_item_added_to_collection_like_cpp",
+          "visibility": "private",
+          "signature": "fn on_item_added_to_collection_like_cpp (& mut self , item : & Item) -> Vec < PlayerValuesUpdate >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
+          "name": "plan_quest_source_item_bound_objective_persistence_like_cpp",
+          "visibility": "private",
+          "signature": "fn plan_quest_source_item_bound_objective_persistence_like_cpp (& self , entry_id : u32 , quest_log_item_id : u32 , count : u32 ,) -> Option < QuestSourceItemBoundPersistencePlanLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
           "name": "plan_store_new_direct_inventory_item",
           "visibility": "private",
           "signature": "fn plan_store_new_direct_inventory_item (& self , entry_id : u32 , count : u32 ,) -> Option < (InventoryResult , Vec < ItemPosCount > , Option < u32 >) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
+          "name": "player_is_locked_to_dungeon_encounter_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_is_locked_to_dungeon_encounter_like_cpp (& self , player_guid : ObjectGuid , dungeon_encounter_id : u32 ,) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -10529,9 +10186,37 @@
           "module": "crate::handlers::loot::session_loot_host",
           "trait_path": "LootSessionHostLikeCpp",
           "kind": "method",
-          "name": "queue_chest_gameobject_state_refresh_for_same_map_like_cpp",
+          "name": "quest_state",
           "visibility": "private",
-          "signature": "fn queue_chest_gameobject_state_refresh_for_same_map_like_cpp (& self , gameobject_guid : ObjectGuid ,) -> usize",
+          "signature": "fn quest_state (& self) -> & SessionQuestState",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
+          "name": "quest_state_mut",
+          "visibility": "private",
+          "signature": "fn quest_state_mut (& mut self) -> & mut SessionQuestState",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
+          "name": "represented_can_receive_creature_message_to_set_by_guid_like_cpp",
+          "visibility": "private",
+          "signature": "fn represented_can_receive_creature_message_to_set_by_guid_like_cpp (& self , guid : ObjectGuid , map_id : u16 , instance_id : u32 , required_3d : bool ,) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -10585,9 +10270,9 @@
           "module": "crate::handlers::loot::session_loot_host",
           "trait_path": "LootSessionHostLikeCpp",
           "kind": "method",
-          "name": "represented_on_loot_opened_with_catalogs_like_cpp",
+          "name": "represented_notify_money_removed_like_cpp",
           "visibility": "private",
-          "signature": "fn represented_on_loot_opened_with_catalogs_like_cpp (& mut self , item_valuation : & ItemValuationCatalogsLikeCpp , owner_guid : ObjectGuid , player_guid : ObjectGuid , response : LootResponse ,)",
+          "signature": "fn represented_notify_money_removed_like_cpp (& mut self , owner_guid : ObjectGuid)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -10599,9 +10284,9 @@
           "module": "crate::handlers::loot::session_loot_host",
           "trait_path": "LootSessionHostLikeCpp",
           "kind": "method",
-          "name": "represented_player_is_unlocked_for_dungeon_encounter_like_cpp",
+          "name": "resolved_inventory_item_like_cpp",
           "visibility": "private",
-          "signature": "fn represented_player_is_unlocked_for_dungeon_encounter_like_cpp (& self , player_guid : ObjectGuid , dungeon_encounter_id : u32 ,) -> bool",
+          "signature": "fn resolved_inventory_item_like_cpp (& self , slot : u8) -> Option < InventoryItem >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -10613,9 +10298,122 @@
           "module": "crate::handlers::loot::session_loot_host",
           "trait_path": "LootSessionHostLikeCpp",
           "kind": "method",
-          "name": "represented_player_unlocked_for_dungeon_encounter_like_cpp",
+          "name": "resolved_inventory_item_object_like_cpp",
           "visibility": "private",
-          "signature": "fn represented_player_unlocked_for_dungeon_encounter_like_cpp (& self , player_guid : ObjectGuid , dungeon_encounter_id : u32 ,) -> Option < ObjectGuid >",
+          "signature": "fn resolved_inventory_item_object_like_cpp (& self , guid : ObjectGuid) -> Option < Item >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
+          "name": "resolved_inventory_items_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_inventory_items_like_cpp (& self) -> Option < HashMap < u8 , InventoryItem > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
+          "name": "resolved_pass_on_group_loot_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_pass_on_group_loot_like_cpp (& self) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
+          "name": "resolved_player_money_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_player_money_like_cpp (& self) -> Option < u64 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
+          "name": "save_changed_represented_quest_statuses_like_cpp",
+          "visibility": "private",
+          "signature": "fn save_changed_represented_quest_statuses_like_cpp (& self , quest_ids : & mut Vec < u32 > ,) -> impl Future < Output = () > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
+          "name": "send_player_values_update_from_entity_bridge",
+          "visibility": "private",
+          "signature": "fn send_player_values_update_from_entity_bridge (& self , inv_slot_changes : & [(u8 , ObjectGuid)] , visible_item_changes : & [(u8 , i32 , u16 , u16)] , virtual_item_changes : & [(u8 , i32 , u16 , u16)] , buyback_changes : & [(u8 , u32 , i64)] , coinage : Option < u64 > ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
+          "name": "session_command_tx",
+          "visibility": "private",
+          "signature": "fn session_command_tx (& self) -> flume :: Sender < SessionCommand >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
+          "name": "set_player_gold_like_cpp",
+          "visibility": "private",
+          "signature": "fn set_player_gold_like_cpp (& mut self , gold : u64) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "setter",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
+          "name": "split_inventory_ref",
+          "visibility": "private",
+          "signature": "fn split_inventory_ref (& self) -> (& InventoryState , HubRef < '_ >)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -10655,9 +10453,9 @@
           "module": "crate::handlers::loot::session_loot_host",
           "trait_path": "LootSessionHostLikeCpp",
           "kind": "method",
-          "name": "store_direct_loot_item_with_generator_like_cpp",
+          "name": "sync_player_registry_state_like_cpp",
           "visibility": "private",
-          "signature": "fn store_direct_loot_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , loot_entry : & LootEntry , dungeon_encounter_id : u32 ,) -> impl Future < Output = bool > + Send",
+          "signature": "fn sync_player_registry_state_like_cpp (& self)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -10669,9 +10467,9 @@
           "module": "crate::handlers::loot::session_loot_host",
           "trait_path": "LootSessionHostLikeCpp",
           "kind": "method",
-          "name": "store_direct_loot_item_with_source_and_generator_like_cpp",
+          "name": "take_durable_item_loot_completions_like_cpp",
           "visibility": "private",
-          "signature": "fn store_direct_loot_item_with_source_and_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , loot_entry : & LootEntry , dungeon_encounter_id : u32 , stored_item_loot_source : Option < ObjectGuid > , claim : Option < & LootClaimLease > , claim_commit_context : Option < LootItemClaimCommitContextLikeCpp > ,) -> impl Future < Output = bool > + Send",
+          "signature": "fn take_durable_item_loot_completions_like_cpp (& self) -> Vec < DurableItemLootCompletionLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -10686,6 +10484,20 @@
           "name": "update_visible_gameobjects_or_spell_clicks_like_cpp",
           "visibility": "private",
           "signature": "fn update_visible_gameobjects_or_spell_clicks_like_cpp (& self) -> usize",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
+          "name": "wait_for_durable_item_loot_persistence_like_cpp",
+          "visibility": "private",
+          "signature": "fn wait_for_durable_item_loot_persistence_like_cpp (& self) -> impl Future < Output = () > + Send",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -10884,6 +10696,38 @@
           "signature": "fn handle_send_visible_object_values_update_command_like_cpp (& mut self , command : crate :: session :: mailbox :: SendVisibleObjectValuesUpdateCommand ,)",
           "cfg": [],
           "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_pending_durable_item_loot_completions_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn apply_pending_durable_item_loot_completions_like_cpp (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "close_stale_active_loot_view_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn close_stale_active_loot_view_like_cpp (& mut self , owner_guid : ObjectGuid , player_guid : ObjectGuid ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -11117,6 +10961,22 @@
           "module": "crate::handlers::loot_test_shims",
           "trait_path": null,
           "kind": "method",
+          "name": "prepare_durable_loot_item_fanout_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn prepare_durable_loot_item_fanout_like_cpp (& mut self , claim : & LootClaimLease , context : LootItemClaimCommitContextLikeCpp ,) -> Option < DurableLootItemFanoutLikeCpp >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot_test_shims",
+          "trait_path": null,
+          "kind": "method",
           "name": "prepare_owned_loot_authority_for_active_request_outcome_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn prepare_owned_loot_authority_for_active_request_outcome_like_cpp (& mut self , owner_guid : ObjectGuid , scope_player : ObjectGuid ,) -> OwnedLootAuthorityLookupOutcomeLikeCpp",
@@ -11229,6 +11089,54 @@
           "module": "crate::handlers::loot_test_shims",
           "trait_path": null,
           "kind": "method",
+          "name": "represented_loot_response_for_owner_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn represented_loot_response_for_owner_like_cpp (& mut self , owner_guid : ObjectGuid , player_guid : ObjectGuid , ae_looting : bool ,) -> Option < LootResponse >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_notify_loot_item_removed_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_notify_loot_item_removed_like_cpp (& mut self , owner_guid : ObjectGuid , loot_list_id : u8 ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_on_loot_opened_with_catalogs_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_on_loot_opened_with_catalogs_like_cpp (& mut self , item_valuation : & ItemValuationCatalogsLikeCpp , owner_guid : ObjectGuid , player_guid : ObjectGuid , response : LootResponse ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot_test_shims",
+          "trait_path": null,
+          "kind": "method",
           "name": "represented_owned_loot_authority_outcome_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_owned_loot_authority_outcome_like_cpp (& mut self , owner_guid : ObjectGuid ,) -> OwnedLootAuthorityLookupOutcomeLikeCpp",
@@ -11245,9 +11153,121 @@
           "module": "crate::handlers::loot_test_shims",
           "trait_path": null,
           "kind": "method",
+          "name": "request_represented_remote_loot_roll_winner_store_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn request_represented_remote_loot_roll_winner_store_like_cpp (& self , target : ObjectGuid , owner_guid : ObjectGuid , loot_obj : ObjectGuid , loot_list_id : u8 , dungeon_encounter_id : u32 , entries : Vec < LootEntry > , is_disenchant : bool , claim : Option < wow_loot :: LootClaimLease > ,) -> wow_world_core :: session :: mailbox :: MasterLootGiveResult",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "send_loot_item_push_result",
+          "visibility": "pub (crate)",
+          "signature": "fn send_loot_item_push_result (& self , player_guid : ObjectGuid , item_guid : ObjectGuid , loot_entry : & LootEntry , random_properties_id : i32 , random_properties_seed : i32 , slot : u8 , quantity : u32 , quantity_in_inventory : u32 , created : bool , dungeon_encounter_id : u32 ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "store_direct_disenchant_batch_with_generator_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn store_direct_disenchant_batch_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , loot_entries : & [LootEntry] , dungeon_encounter_id : u32 , claim : Option < & LootClaimLease > , claim_commit_context : Option < LootItemClaimCommitContextLikeCpp > ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "store_direct_loot_item_with_generator_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn store_direct_loot_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , loot_entry : & LootEntry , dungeon_encounter_id : u32 ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "stored_existing_item_dynamic_flags_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn stored_existing_item_dynamic_flags_like_cpp (& self , item_id : u32 , slot : u8 , existing : & Item ,) -> u32",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "stored_new_item_dynamic_flags_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn stored_new_item_dynamic_flags_like_cpp (& self , item_id : u32 , slot : u8) -> u32",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot_test_shims",
+          "trait_path": null,
+          "kind": "method",
           "name": "sync_represented_creature_loot_to_canonical_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn sync_represented_creature_loot_to_canonical_like_cpp (& mut self , creature_guid : ObjectGuid , player_guid : ObjectGuid ,) -> Option < () >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "tick_represented_loot_rolls_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn tick_represented_loot_rolls_like_cpp (& mut self)",
           "cfg": [
             "cfg (test)"
           ],
@@ -11280,6 +11300,22 @@
           "name": "upsert_represented_personal_gameobject_loot_authority_if_observed_with_empty_policy_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn upsert_represented_personal_gameobject_loot_authority_if_observed_with_empty_policy_like_cpp (& mut self , gameobject_guid : ObjectGuid , player_guid : ObjectGuid , loot : CreatureLoot , replace : bool , discard_empty_pool : bool , observation : & RepresentedGameObjectLootInstallObservationLikeCpp ,) -> Option < () >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "wait_for_active_loot_persistence_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn wait_for_active_loot_persistence_like_cpp (& mut self)",
           "cfg": [
             "cfg (test)"
           ],
@@ -56361,84 +56397,6 @@
         },
         {
           "package": "wow-world",
-          "module": "crate::handlers::loot",
-          "source": "crates/wow-world/src/handlers/loot/mod.rs",
-          "enclosing": "fn connected_roll_looters_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "type_reference",
-          "symbol": "player_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "Option < & PlayerRegistry >",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::loot",
-          "source": "crates/wow-world/src/handlers/loot/mod.rs",
-          "enclosing": "fn connected_roll_looters_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::loot",
-          "source": "crates/wow-world/src/handlers/loot/mod.rs",
-          "enclosing": "fn represented_max_enchanting_skill_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "type_reference",
-          "symbol": "player_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "Option < & PlayerRegistry >",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::loot",
-          "source": "crates/wow-world/src/handlers/loot/mod.rs",
-          "enclosing": "module",
-          "registry": "PlayerRegistry",
-          "operation": "import_alias",
-          "symbol": "PlayerRegistry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "crate::session::directory::{PlayerRegistry,PrepareLootMoneyApplicationLikeCpp}",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::loot::fanout",
-          "source": "crates/wow-world/src/handlers/loot/fanout.rs",
-          "enclosing": "impl WorldSession::represented_notify_loot_list_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::loot::fanout",
-          "source": "crates/wow-world/src/handlers/loot/fanout.rs",
-          "enclosing": "impl WorldSession::represented_notify_loot_list_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
           "module": "crate::handlers::loot::handlers::money",
           "source": "crates/wow-world/src/handlers/loot/handlers/money.rs",
           "enclosing": "impl WorldSession::handle_loot_money_with_generator_like_cpp",
@@ -56475,136 +56433,6 @@
           "cfg": [],
           "fingerprint": "cloned()",
           "count": 2
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::loot::persistence",
-          "source": "crates/wow-world/src/handlers/loot/persistence.rs",
-          "enclosing": "impl WorldSession::prepare_durable_loot_item_fanout_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::loot::persistence",
-          "source": "crates/wow-world/src/handlers/loot/persistence.rs",
-          "enclosing": "impl WorldSession::prepare_durable_loot_item_fanout_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "cloned",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "cloned()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::loot::rolls",
-          "source": "crates/wow-world/src/handlers/loot/rolls.rs",
-          "enclosing": "impl WorldSession::publish_represented_loot_roll_ownership_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::loot::rolls",
-          "source": "crates/wow-world/src/handlers/loot/rolls.rs",
-          "enclosing": "impl WorldSession::publish_represented_loot_roll_ownership_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::loot::rolls",
-          "source": "crates/wow-world/src/handlers/loot/rolls.rs",
-          "enclosing": "impl WorldSession::represented_start_group_loot_rolls_on_first_open_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 2
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::loot::rolls",
-          "source": "crates/wow-world/src/handlers/loot/rolls.rs",
-          "enclosing": "impl WorldSession::represented_start_group_loot_rolls_on_first_open_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "player_registry",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "player_registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::loot::rolls",
-          "source": "crates/wow-world/src/handlers/loot/rolls.rs",
-          "enclosing": "impl WorldSession::represented_start_group_loot_rolls_on_first_open_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::loot::rolls",
-          "source": "crates/wow-world/src/handlers/loot/rolls.rs",
-          "enclosing": "impl WorldSession::represented_start_group_loot_rolls_on_first_open_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "cloned",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "cloned()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::loot::rolls",
-          "source": "crates/wow-world/src/handlers/loot/rolls.rs",
-          "enclosing": "impl WorldSession::represented_start_group_loot_rolls_on_first_open_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "argument_escape",
-          "symbol": "connected_roll_looters_like_cpp",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "player_registry . as_deref ()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::loot::rolls",
-          "source": "crates/wow-world/src/handlers/loot/rolls.rs",
-          "enclosing": "impl WorldSession::represented_start_group_loot_rolls_on_first_open_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "argument_escape",
-          "symbol": "represented_max_enchanting_skill_like_cpp",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "player_registry . as_deref ()",
-          "count": 1
         },
         {
           "package": "wow-world",
@@ -61038,6 +60866,58 @@
         },
         {
           "package": "wow-world-loot",
+          "module": "crate::roll_values",
+          "source": "crates/wow-world-loot/src/roll_values.rs",
+          "enclosing": "fn connected_roll_looters_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "Option < & PlayerRegistry >",
+          "count": 1
+        },
+        {
+          "package": "wow-world-loot",
+          "module": "crate::roll_values",
+          "source": "crates/wow-world-loot/src/roll_values.rs",
+          "enclosing": "fn connected_roll_looters_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-loot",
+          "module": "crate::roll_values",
+          "source": "crates/wow-world-loot/src/roll_values.rs",
+          "enclosing": "fn represented_max_enchanting_skill_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "Option < & PlayerRegistry >",
+          "count": 1
+        },
+        {
+          "package": "wow-world-loot",
+          "module": "crate::roll_values",
+          "source": "crates/wow-world-loot/src/roll_values.rs",
+          "enclosing": "module",
+          "registry": "PlayerRegistry",
+          "operation": "import_alias",
+          "symbol": "PlayerRegistry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "wow_world_core::session::directory::PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-loot",
           "module": "crate::state::authority",
           "source": "crates/wow-world-loot/src/state/authority.rs",
           "enclosing": "impl LootState::represented_master_loot_target_exists_like_cpp",
@@ -61571,6 +61451,32 @@
         },
         {
           "package": "wow-world-loot-ops",
+          "module": "crate::session_loot::fanout",
+          "source": "crates/wow-world-loot-ops/src/session_loot/fanout.rs",
+          "enclosing": "fn represented_notify_loot_list_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-loot-ops",
+          "module": "crate::session_loot::fanout",
+          "source": "crates/wow-world-loot-ops/src/session_loot/fanout.rs",
+          "enclosing": "fn represented_notify_loot_list_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-loot-ops",
           "module": "crate::session_loot::host",
           "source": "crates/wow-world-loot-ops/src/session_loot/host.rs",
           "enclosing": "module",
@@ -61593,6 +61499,32 @@
           "visibility": "",
           "cfg": [],
           "fingerprint": "wow_social::group::GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-loot-ops",
+          "module": "crate::session_loot::persistence",
+          "source": "crates/wow-world-loot-ops/src/session_loot/persistence.rs",
+          "enclosing": "fn prepare_durable_loot_item_fanout_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-loot-ops",
+          "module": "crate::session_loot::persistence",
+          "source": "crates/wow-world-loot-ops/src/session_loot/persistence.rs",
+          "enclosing": "fn prepare_durable_loot_item_fanout_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "cloned",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "cloned()",
           "count": 1
         },
         {
@@ -61749,6 +61681,110 @@
           "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-loot-ops",
+          "module": "crate::session_loot::rolls",
+          "source": "crates/wow-world-loot-ops/src/session_loot/rolls.rs",
+          "enclosing": "fn publish_represented_loot_roll_ownership_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-loot-ops",
+          "module": "crate::session_loot::rolls",
+          "source": "crates/wow-world-loot-ops/src/session_loot/rolls.rs",
+          "enclosing": "fn publish_represented_loot_roll_ownership_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-loot-ops",
+          "module": "crate::session_loot::rolls",
+          "source": "crates/wow-world-loot-ops/src/session_loot/rolls.rs",
+          "enclosing": "fn represented_start_group_loot_rolls_on_first_open_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 2
+        },
+        {
+          "package": "wow-world-loot-ops",
+          "module": "crate::session_loot::rolls",
+          "source": "crates/wow-world-loot-ops/src/session_loot/rolls.rs",
+          "enclosing": "fn represented_start_group_loot_rolls_on_first_open_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-loot-ops",
+          "module": "crate::session_loot::rolls",
+          "source": "crates/wow-world-loot-ops/src/session_loot/rolls.rs",
+          "enclosing": "fn represented_start_group_loot_rolls_on_first_open_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-loot-ops",
+          "module": "crate::session_loot::rolls",
+          "source": "crates/wow-world-loot-ops/src/session_loot/rolls.rs",
+          "enclosing": "fn represented_start_group_loot_rolls_on_first_open_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "cloned",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "cloned()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-loot-ops",
+          "module": "crate::session_loot::rolls",
+          "source": "crates/wow-world-loot-ops/src/session_loot/rolls.rs",
+          "enclosing": "fn represented_start_group_loot_rolls_on_first_open_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "connected_roll_looters_like_cpp",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry . as_deref ()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-loot-ops",
+          "module": "crate::session_loot::rolls",
+          "source": "crates/wow-world-loot-ops/src/session_loot/rolls.rs",
+          "enclosing": "fn represented_start_group_loot_rolls_on_first_open_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "represented_max_enchanting_skill_like_cpp",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry . as_deref ()",
           "count": 1
         },
         {

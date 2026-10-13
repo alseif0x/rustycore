@@ -719,7 +719,9 @@
       },
       "wow-world-loot-ops": {
         "normal": [
+          "flume",
           "rand",
+          "tokio",
           "tracing"
         ],
         "build": []
