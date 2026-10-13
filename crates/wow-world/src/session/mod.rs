@@ -220,7 +220,6 @@ pub(crate) use creature_kill_contracts::RepresentedCreatureKillEventLikeCpp;
 #[cfg(test)]
 mod creature_movement_adapter;
 mod creature_spawn_contracts;
-pub(crate) use creature_spawn_contracts::CreatureCreateStatsLikeCpp;
 pub use creature_spawn_contracts::PendingCreatureSpawn;
 mod creature_spell_metadata;
 use creature_spell_metadata::CreatureAiSpellTargetLikeCpp;

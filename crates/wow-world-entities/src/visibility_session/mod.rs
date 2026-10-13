@@ -15,14 +15,16 @@
 //! far-sight sync and the quest-state refresh request stay with the host.
 
 use wow_core::{ObjectGuid, Position};
+use wow_packet::packets::update::{
+    AreaTriggerCreateData, ConversationCreateData, CorpseCreateData, DynamicObjectCreateData,
+    GameObjectCreateData, SceneObjectCreateData,
+};
 use wow_world_core::session::directory::PlayerVisibilityCreateSnapshot;
 use wow_world_lifecycle::SessionLifecycleState;
 use wow_world_visibility::VisibilityState;
 
+use crate::RepresentedGameObjectUseState;
 use crate::world_entities_host::WorldEntitiesHostLikeCpp;
-use crate::{
-    CreatureCreateStatsLikeCpp, CreatureSpawnCatalogsLikeCpp, RepresentedGameObjectUseState,
-};
 
 mod nearby;
 mod spawn;
@@ -56,40 +58,6 @@ pub trait VisibilitySessionHostLikeCpp: WorldEntitiesHostLikeCpp {
         gameobject_entry: u32,
         state: &RepresentedGameObjectUseState,
     ) -> u32;
-    fn record_represented_gameobject_db_phase_shift_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        map_id: u16,
-        phase_use_flags: u8,
-        phase_id: u16,
-        phase_group_id: u32,
-        terrain_swap_map: i32,
-    );
-    fn record_represented_gameobject_runtime_state_like_cpp(
-        &mut self,
-        map_id: u16,
-        guid: ObjectGuid,
-        entry: u32,
-        position: Position,
-        go_type: u8,
-    );
-    fn creature_create_stats_with_catalogs_like_cpp(
-        &self,
-        catalogs: &CreatureSpawnCatalogsLikeCpp,
-        entry: u32,
-        level: u8,
-        unit_class: u8,
-        classification: u32,
-        regen_health: bool,
-        db_cur_health: u32,
-        db_cur_mana: u32,
-    ) -> CreatureCreateStatsLikeCpp;
-    fn creature_aggro_radius_for_faction_template_like_cpp(
-        &self,
-        faction_template_id: u32,
-        default_radius: f32,
-    ) -> f32;
-    fn player_map_visibility_range_like_cpp(&self, map_id: u16) -> f32;
     fn sync_represented_farsight_clear_from_canonical_like_cpp(&mut self) -> bool;
     fn represented_visibility_source_position_like_cpp(&self) -> Option<Position>;
     fn visible_world_creatures_from_map_like_cpp(
@@ -102,33 +70,33 @@ pub trait VisibilitySessionHostLikeCpp: WorldEntitiesHostLikeCpp {
         map_id: u16,
         position: &Position,
         visibility_radius: f32,
-    ) -> Option<Vec<wow_packet::packets::update::GameObjectCreateData>>;
+    ) -> Option<Vec<GameObjectCreateData>>;
     fn visible_dynamic_objects_from_canonical_map_like_cpp(
         &self,
         map_id: u16,
         position: &Position,
         visibility_radius: f32,
-    ) -> Option<Vec<wow_packet::packets::update::DynamicObjectCreateData>>;
+    ) -> Option<Vec<DynamicObjectCreateData>>;
     fn visible_area_triggers_from_canonical_map_like_cpp(
         &self,
         map_id: u16,
         position: &Position,
         visibility_radius: f32,
-    ) -> Option<Vec<wow_packet::packets::update::AreaTriggerCreateData>>;
+    ) -> Option<Vec<AreaTriggerCreateData>>;
     fn visible_misc_objects_from_canonical_map_like_cpp(
         &self,
         map_id: u16,
         position: &Position,
         visibility_radius: f32,
     ) -> Option<(
-        Vec<wow_packet::packets::update::CorpseCreateData>,
-        Vec<wow_packet::packets::update::SceneObjectCreateData>,
-        Vec<wow_packet::packets::update::ConversationCreateData>,
+        Vec<CorpseCreateData>,
+        Vec<SceneObjectCreateData>,
+        Vec<ConversationCreateData>,
     )>;
     fn visible_transports_from_canonical_map_like_cpp(
         &self,
         map_id: u16,
-    ) -> Option<Vec<wow_packet::packets::update::GameObjectCreateData>>;
+    ) -> Option<Vec<GameObjectCreateData>>;
     fn visible_other_players_from_registry_like_cpp(
         &self,
         map_id: u16,

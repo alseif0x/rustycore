@@ -6,18 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn creature_aggro_radius_for_faction_template_like_cpp(
-        &self,
-        faction_template_id: u32,
-        default_radius: f32,
-    ) -> f32 {
-        let (state, hub) = crate::session::split_world_entities_ref(self);
-        state.creature_aggro_radius_for_faction_template_like_cpp(
-            hub,
-            faction_template_id,
-            default_radius,
-        )
-    }
     #[cfg(test)]
     pub(in crate::session) fn canonical_creature_threat_value_like_cpp(
         &self,

@@ -161,9 +161,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_instances_ref(self);
         state.create_map_db2_entries_like_cpp(hub, map_id, difficulty_id)
     }
-    pub(crate) fn player_map_visibility_range_like_cpp(&self, map_id: u16) -> f32 {
-        self.config.player_map_visibility_range_like_cpp(map_id)
-    }
     pub fn set_vmap_indoor_check_like_cpp(&mut self, enabled: bool) {
         self.config.vmap_indoor_check_like_cpp = enabled;
     }

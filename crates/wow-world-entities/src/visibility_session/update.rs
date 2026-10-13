@@ -60,7 +60,10 @@ pub async fn update_visibility_with_catalogs_like_cpp<H: VisibilitySessionHostLi
     let map_id = host.core().player_map_id_like_cpp();
     let realm_id = host.core().realm_id();
 
-    let range = host.player_map_visibility_range_like_cpp(map_id);
+    let range = host
+        .hub_ref()
+        .config
+        .player_map_visibility_range_like_cpp(map_id);
     let x_min = pos.x - range;
     let x_max = pos.x + range;
     let y_min = pos.y - range;
@@ -671,14 +674,18 @@ pub async fn update_visibility_with_catalogs_like_cpp<H: VisibilitySessionHostLi
                 continue;
             }
             new_visible_gos.insert(guid);
-            host.record_represented_gameobject_db_phase_shift_like_cpp(
-                guid,
-                map_id,
-                phase_use_flags,
-                phase_id,
-                phase_group_id,
-                terrain_swap_map,
-            );
+            {
+                let (state, mut hub) = host.split_world_entities_mut();
+                state.record_represented_gameobject_db_phase_shift_like_cpp(
+                    &mut hub,
+                    guid,
+                    map_id,
+                    phase_use_flags,
+                    phase_id,
+                    phase_group_id,
+                    terrain_swap_map,
+                )
+            };
 
             if !host.core().client_visible_guids_like_cpp.contains(&guid) {
                 let go_pos = Position::new(pos_x, pos_y, pos_z, orientation);
@@ -712,17 +719,24 @@ pub async fn update_visibility_with_catalogs_like_cpp<H: VisibilitySessionHostLi
                 };
                 update_blocks.push(UpdateObject::create_gameobject_block(create_data));
                 created_gameobjects += 1;
-                host.record_represented_gameobject_runtime_state_like_cpp(
-                    map_id, guid, entry, go_pos, go_type,
-                );
+                {
+                    let (state, mut hub) = host.split_world_entities_mut();
+                    state.record_represented_gameobject_runtime_state_like_cpp(
+                        &mut hub, map_id, guid, entry, go_pos, go_type,
+                    )
+                };
             } else {
-                host.record_represented_gameobject_runtime_state_like_cpp(
-                    map_id,
-                    guid,
-                    entry,
-                    Position::new(pos_x, pos_y, pos_z, orientation),
-                    go_type,
-                );
+                {
+                    let (state, mut hub) = host.split_world_entities_mut();
+                    state.record_represented_gameobject_runtime_state_like_cpp(
+                        &mut hub,
+                        map_id,
+                        guid,
+                        entry,
+                        Position::new(pos_x, pos_y, pos_z, orientation),
+                        go_type,
+                    )
+                };
             }
             host.world_entities_mut()
                 .record_represented_gameobject_override_like_cpp(

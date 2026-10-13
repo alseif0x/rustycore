@@ -341,16 +341,20 @@ pub(super) fn materialize_creature_spawn_row_with_catalogs_like_cpp<
         return None;
     }
 
-    let creature_stats = host.creature_create_stats_with_catalogs_like_cpp(
-        catalogs,
-        entry,
-        min_level,
-        unit_class,
-        classification,
-        regen_health,
-        cur_health,
-        cur_mana,
-    );
+    let creature_stats = {
+        let (state, hub) = host.split_world_entities_ref();
+        state.creature_create_stats_with_catalogs_like_cpp(
+            hub,
+            catalogs,
+            entry,
+            min_level,
+            unit_class,
+            classification,
+            regen_health,
+            cur_health,
+            cur_mana,
+        )
+    };
     let addon = catalogs.addons.get_for_creature_like_cpp(spawn_guid, entry);
     let addon_fields = creature_addon_create_fields_like_cpp(addon.as_ref());
     let equipment_fields = creature_virtual_items_from_row_with_catalogs_like_cpp(
@@ -440,8 +444,10 @@ pub(super) fn materialize_creature_spawn_row_with_catalogs_like_cpp<
         melee_anim_kit_id: addon_fields.melee_anim_kit_id,
     };
 
-    let aggro_radius =
-        host.creature_aggro_radius_for_faction_template_like_cpp(faction.max(0) as u32, 15.0);
+    let aggro_radius = {
+        let (state, hub) = host.split_world_entities_ref();
+        state.creature_aggro_radius_for_faction_template_like_cpp(hub, faction.max(0) as u32, 15.0)
+    };
     let min_damage = (min_level as u32).saturating_sub(1) * 3 + 5;
     let max_damage = min_damage + min_damage / 2;
 

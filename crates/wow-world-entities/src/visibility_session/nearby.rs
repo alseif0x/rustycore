@@ -417,17 +417,24 @@ pub async fn send_nearby_gameobjects<H: VisibilitySessionHostLikeCpp>(
 
         blocks.push(UpdateObject::create_gameobject_block(create_data));
         go_guids.push(guid);
-        host.record_represented_gameobject_db_phase_shift_like_cpp(
-            guid,
-            map_id,
-            phase_use_flags,
-            phase_id,
-            phase_group_id,
-            terrain_swap_map,
-        );
-        host.record_represented_gameobject_runtime_state_like_cpp(
-            map_id, guid, entry, go_pos, go_type,
-        );
+        {
+            let (state, mut hub) = host.split_world_entities_mut();
+            state.record_represented_gameobject_db_phase_shift_like_cpp(
+                &mut hub,
+                guid,
+                map_id,
+                phase_use_flags,
+                phase_id,
+                phase_group_id,
+                terrain_swap_map,
+            )
+        };
+        {
+            let (state, mut hub) = host.split_world_entities_mut();
+            state.record_represented_gameobject_runtime_state_like_cpp(
+                &mut hub, map_id, guid, entry, go_pos, go_type,
+            )
+        };
         host.world_entities_mut()
             .record_represented_gameobject_override_like_cpp(
                 guid,
