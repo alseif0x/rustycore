@@ -5,7 +5,9 @@
 //! World adapters for the pet bodies moved to `wow_world_lifecycle::pet_session`
 //! (#1363 slice 7a) and the battle-pet bodies moved to
 //! `wow_world_inventory::battle_pet_session` (#1363 slice 7b). Every method is a
-//! pure forward to a session split, a field or the same-named inherent method.
+//! pure forward to a session split, a field or the same-named inherent method;
+//! the full-stack destroy forwards to the same-named free function its body
+//! moved to (`wow_world_inventory::item_session`, #1363 slice 8c).
 
 use std::future::Future;
 
@@ -51,7 +53,7 @@ impl wow_world_inventory::BattlePetSessionHostLikeCpp for WorldSession {
         expected_owner_db_guid: Option<u64>,
         context: &str,
     ) -> impl Future<Output = bool> + Send {
-        WorldSession::destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp(
+        wow_world_inventory::destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp(
             self,
             bag,
             slot,

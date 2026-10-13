@@ -9,6 +9,7 @@ publish = false
 [features]
 test-fixtures = [
     "wow-world-core/test-fixtures",
+    "wow-world-entities/test-fixtures",
     "wow-world-interaction/test-fixtures",
     "wow-world-lifecycle/test-fixtures",
 ]
@@ -28,6 +29,7 @@ wow-packet = { workspace = true }
 wow-progression = { workspace = true }
 wow-persistence = { workspace = true }
 wow-world-core = { workspace = true }
+wow-world-entities = { workspace = true }
 wow-world-interaction = { workspace = true }
 wow-world-lifecycle = { workspace = true }
 

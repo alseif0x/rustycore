@@ -62,12 +62,17 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         include_str!("../../../src/handlers/character/item_load_support.rs"),
         include_str!("../../../src/handlers/character/items.rs"),
         include_str!("../../../src/handlers/character/items/handlers.rs"),
-        include_str!("../../../src/handlers/character/items/destruction.rs"),
         include_str!("../../../src/handlers/character/items/equipment_sets.rs"),
-        include_str!("../../../src/handlers/character/items/inventory_moves.rs"),
-        include_str!("../../../src/handlers/character/items/inventory_moves/item_mutations.rs"),
-        include_str!("../../../src/handlers/character/items/inventory_moves/real_swap.rs"),
         include_str!("../../../src/handlers/character/items/login_load.rs"),
+        // #1363 slice 8c: the item handler, inventory move and autobank bodies
+        // moved to wow-world-inventory (item_session), so the scan follows them there.
+        include_str!("../../../../wow-world-inventory/src/item_session/mod.rs"),
+        include_str!("../../../../wow-world-inventory/src/item_session/bank.rs"),
+        include_str!("../../../../wow-world-inventory/src/item_session/destruction.rs"),
+        include_str!("../../../../wow-world-inventory/src/item_session/handlers.rs"),
+        include_str!("../../../../wow-world-inventory/src/item_session/item_mutations.rs"),
+        include_str!("../../../../wow-world-inventory/src/item_session/moves.rs"),
+        include_str!("../../../../wow-world-inventory/src/item_session/real_swap.rs"),
         include_str!("../../../src/handlers/character/lifecycle.rs"),
         include_str!("../../../src/handlers/character/query.rs"),
         include_str!("../../../src/handlers/character/session_state.rs"),
@@ -154,7 +159,7 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
             "host.apply_item_turnin_changes",
             "state.set_player_currencies_like_cpp(&mut hub, planned_currencies)",
             "host.insert_inventory_item_like_cpp",
-            "update_vendor_item_current_count(",
+            "update_vendor_item_current_count(\n            host,",
         ],
     );
     assert_publication_segment(

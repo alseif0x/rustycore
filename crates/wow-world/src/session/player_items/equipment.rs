@@ -13,26 +13,6 @@ impl WorldSession {
         self.player_aura_application_cx_like_cpp()
             .apply_initial_item_equip_auras_like_cpp(item_guid)
     }
-    pub(crate) fn can_unequip_inventory_item_at_like_cpp(
-        &self,
-        bag: u8,
-        slot: u8,
-        swap: bool,
-        source_item: Option<&Item>,
-        proto: Option<&ItemStorageTemplate>,
-        source_is_not_empty_bag: bool,
-    ) -> InventoryResult {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.can_unequip_inventory_item_at_like_cpp(
-            hub,
-            bag,
-            slot,
-            swap,
-            source_item,
-            proto,
-            source_is_not_empty_bag,
-        )
-    }
     pub(crate) fn send_equip_error(
         &self,
         result: InventoryResult,

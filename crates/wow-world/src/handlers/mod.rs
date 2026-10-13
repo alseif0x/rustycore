@@ -42,6 +42,8 @@ mod battle_pet_test_shims;
 #[cfg(test)]
 mod character_query_test_shims;
 #[cfg(test)]
+mod item_test_shims;
+#[cfg(test)]
 mod loot_test_shims;
 #[cfg(test)]
 mod player_test_shims;

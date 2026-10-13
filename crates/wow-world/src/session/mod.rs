@@ -143,7 +143,7 @@ pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePet
 pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetSaveInfoLikeCpp;
 #[cfg(test)]
 pub(crate) use wow_world_inventory::{
-    RepresentedBattlePetGrantExperienceOutcomeLikeCpp,
+    RepresentedAutoUnequipOffhandLikeCpp, RepresentedBattlePetGrantExperienceOutcomeLikeCpp,
     RepresentedBattlePetGrantLevelOutcomeLikeCpp, RepresentedBattlePetQualityOutcomeLikeCpp,
     RepresentedBattlePetXpSourceLikeCpp, apply_battle_pet_calculated_stats_like_cpp,
 };
@@ -274,7 +274,6 @@ pub(crate) use instance_bind_contracts::RepresentedPendingBind;
 mod inventory_request_contracts;
 pub(crate) use inventory_request_contracts::DirectInventoryStorageOverlayLikeCpp;
 pub(crate) use inventory_request_contracts::MAX_EQUIPMENT_SET_INDEX_LIKE_CPP;
-pub(crate) use inventory_request_contracts::RepresentedAutoUnequipOffhandLikeCpp;
 pub(crate) use inventory_request_contracts::RepresentedAutoUnequipOffhandReasonLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use inventory_request_contracts::VendorBuyItemTestOverrideLikeCpp;
@@ -726,8 +725,8 @@ use wow_entities::{
     PlayerQuestGameplayState, PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp,
     PlayerTeleportStateLikeCpp, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
     REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText,
-    SendNewItemPlan, SwapItemPreflightPlan, TYPEID_ITEM, UpdateMask, Vehicle, VisibleItemValues,
-    WorldObject, is_equipment_packed_pos, make_item_pos, parse_explored_zones_db_string_like_cpp,
+    SendNewItemPlan, TYPEID_ITEM, UpdateMask, Vehicle, VisibleItemValues, WorldObject,
+    is_equipment_packed_pos, make_item_pos, parse_explored_zones_db_string_like_cpp,
 };
 #[cfg(test)]
 use wow_entities::{ActiveState, PetType, explored_zones_db_string_from_blocks_like_cpp};

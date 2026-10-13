@@ -23,8 +23,10 @@ mod equipment_sets;
 mod equipment_slots;
 mod guild_inventory_contracts;
 mod handlers;
+mod inventory_move_contracts;
 mod inventory_request_contracts;
 mod item_modifiers;
+mod item_session;
 mod item_sets;
 mod items;
 mod limit_category;
@@ -129,6 +131,11 @@ pub use handlers::{
     InventoryHandlerHostLikeCpp, ItemTextQueryHandlerCxLikeCpp,
     register_inventory_handlers_like_cpp,
 };
+pub use inventory_move_contracts::{
+    InventoryStorageQuestChecksLikeCpp, InventoryStorageTargetLikeCpp, InventorySwapTargetLikeCpp,
+    autostore_bank_target_like_cpp, bind_inventory_item_for_destination_like_cpp,
+    item_dynamic_flags_changed_like_cpp, item_storage_mutable_persistence_like_cpp,
+};
 pub use inventory_request_contracts::{
     RepresentedAutoUnequipOffhandLikeCpp, RepresentedAutoUnequipOffhandReasonLikeCpp,
 };
@@ -172,6 +179,23 @@ pub use vendor_session::{
     handle_buy_item_with_generator_like_cpp, handle_item_purchase_refund_with_generator_like_cpp,
     handle_list_inventory, handle_repair_item_with_generator_like_cpp,
     handle_sell_item_with_generator_like_cpp,
+};
+// The item character handlers (#1363 slice 8c).
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use item_session::{
+    DestroyQuestItemLikeCpp, InventoryEquipChildPlanLikeCpp, autostore_bank_quest_checks_like_cpp,
+    plan_destroyed_inventory_quest_persistence_like_cpp, plan_inventory_child_redirect_like_cpp,
+    plan_inventory_equip_child_like_cpp, plan_inventory_real_swap_children_like_cpp,
+};
+pub use item_session::{
+    ItemSessionHostLikeCpp, destroy_inventory_full_stack_by_pos_like_cpp,
+    destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp,
+    handle_auto_equip_item_slot_with_generator_like_cpp,
+    handle_auto_equip_item_with_generator_like_cpp,
+    handle_auto_store_bag_item_with_generator_like_cpp,
+    handle_autobank_item_with_generator_like_cpp,
+    handle_autostore_bank_item_with_generator_like_cpp, handle_destroy_item,
+    handle_swap_inv_item_with_generator_like_cpp, handle_swap_item_with_generator_like_cpp,
 };
 pub use void_transfer_contracts::{
     EffectiveVoidStorageRandomPropertiesLikeCpp, PlannedVoidDestroyedInventoryItemLikeCpp,
