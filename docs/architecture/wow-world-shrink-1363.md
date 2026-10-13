@@ -4990,3 +4990,348 @@ evidence is claimed or needed for this delta. The closure runs and the
 classifier and architecture checks above are the evidence of the re-measure.
 No PR is opened for this section alone. It goes in with the 8d PR, or on its
 own if the reviewer prefers.
+
+## Slice 8d result (login load → character)
+
+Branch `1363-s8d-login-load`, base `ca23e294d` (8c merged; the 8c2 section
+above rides with this PR). Move-only (R2), with the 4b/5a/7a/7c/8a/8b/8c
+rewrites and nothing else:
+
+- `self` becomes `host` (an `&mut self` method becomes
+  `fn name<H: CharacterLoginHostLikeCpp>(host: &mut H, …)`, an `&self` one
+  takes `host: &H`), a call between moved functions becomes a free call, and a
+  session field becomes a host accessor (`lifecycle`/`lifecycle_mut`,
+  `visibility_mut`, `loot`/`loot_mut`, `world_entities_mut`), or
+  `host.core()`/`host.core_mut()` for `self.core`;
+- `crate::session::hub_ref(self)`/`hub_mut(self)` and
+  `crate::session::split_*(self)` become the same call through the host, and
+  `self.catalogs` becomes `host.hub_ref().catalogs`;
+- a one-line World forward becomes that same call: the core forwards (`kick`,
+  `send_tx`, `send_packet_realm`, `realm_id`, `player_registry`,
+  `battlenet_account_id`, `set_instance_link_rx`), the catalog forwards
+  (`currency_types_store`, `item_random_{properties,suffix}_store`,
+  `item_stats_store`, `item_storage_template`, `item_template_max_durability`)
+  and the config forward (`mmap_runtime_config_like_cpp`);
+- a World wrapper that was one `split_{lifecycle,inventory}_{ref,mut}` plus one
+  state call becomes that same split and call through the host (19 wrappers:
+  the account toy/heirloom rows and sends, the worldport post-add advance, the
+  equipment-inventory authority begin/complete, the inventory clear and object
+  insert, the buyback insert, the CUF profile load and packet, the
+  equipment-set loaded mark and packet, the void-storage loaded mark, the
+  resolved inventory item, the favorite appearances, the resting-flag update
+  and the loaded customizations). Each split is taken for exactly that call, as
+  the wrapper took it; none is held across another call or an `.await` that
+  the wrapper did not already hold it across, and none of them is async;
+- `crate::session::cx_inventory_ref(self).make_inventory_item_object(` becomes
+  `host.make_inventory_item_object(` (the vendor host's method is that exact
+  call);
+- paths: `crate::session::X`, `crate::FinalizationX` and
+  `crate::character_administration::X` become the same item by its defining
+  crate (`wow_world_core`, `wow_world_lifecycle`, …), and `crate::terrain`
+  becomes `wow_world_core::terrain` (the World module is that re-export).
+
+Two wrappers are deliberately **not** inlined, because the source scans name
+their call text: `set_player_currencies_like_cpp` and
+`player_currencies_like_cpp` (currency loading), and
+`load_character_reputation_rows_like_cpp` (reputation loading). They are host
+methods, so the scan markers keep their text except `self.` → `host.`.
+
+A token comparison of all 43 moved bodies against the mechanical rewrite of
+the base bodies (the same transform, applied by script) finds no other
+difference than: `core()` → `core_mut()` and `lifecycle()` →
+`lifecycle_mut()` where the call mutates (7 sites), the three wrappers kept as
+host methods (above), the `wow_world_lifecycle::` path of the rename failure
+type, rustfmt trailing commas and three single-expression closures whose
+braces rustfmt drops. No moved body had a `cfg(test)` branch; the three
+`#[cfg(test)]` entry points went to the shim file (below).
+
+### What moved
+
+To `wow-world-character/src/login_session/` (21 files, flat):
+
+- `world_entry.rs`: the direct-login fallback, the logout request, the login
+  combat-stats snapshot and the `HandlePlayerLogin` packet prelude (from
+  `world_entry.rs`), plus `motd_lines_like_cpp` from the character `mod.rs`;
+- `initial_packets.rs`: `SendInitialPacketsBeforeAddToMap`,
+  `SendInitialPacketsAfterAddToMap` and the initial world-state load;
+- `login_sequence.rs`: the persisted transport resolve, the init-transports
+  plan and fellow-passenger blocks and the login packet sequence (from
+  `session_state.rs`), plus `DEFAULT_MOTD_LIKE_CPP` and
+  `primary_power_type_for_class_like_cpp` from the character `mod.rs`;
+- `login_recovery.rs`: homebind area, invalid/repaired homebind persistence,
+  login zone seeding, homebind retry, partial-login abort and the grid-load
+  continuation;
+- `inventory_load.rs`: the login inventory, bag, void-storage, equipment-set
+  and transmog-outfit load (from `items/login_load.rs`), plus
+  `void_storage_login_context_like_cpp`, `slot_to_inventory_type` and the
+  bag-slot predicate it alone called;
+- `lifecycle.rs`, `entry_zone.rs`: the realm-characters refresh, the rename
+  enqueue, hearth-and-resurrect, the customization load, the default graveyard
+  homebind and the corpse load; the post-add terrain zone;
+- the 14 per-family loaders of `world_entry/login/` (admission, action buttons,
+  auras, CUF profiles, currencies, default skills, glyphs, group, reputation,
+  skills, spells and favorites, spell-map finalization, talents, transport
+  restore). `world_entry/login/mail_loading.rs` (an empty impl) stays.
+- `mod.rs`: the host trait, the mounts and the exports.
+
+Down to `wow-world-spell` (`aura_rows.rs`): the two character aura row types
+(`CharacterAuraRowLikeCpp`, `CharacterAuraEffectRowLikeCpp`) the aura loader
+builds, verbatim with `pub` added (`session/pet_loading.rs`, now empty, is
+deleted; `session/mod.rs` re-exports both at their old path).
+
+**Stays in `wow-world`:** the continue-login coordinator
+(`world_entry/login.rs`, `handle_continue_player_login_with_module_registry_like_cpp`),
+which calls the moved loaders in the same order; `world_entry.rs` is now its
+mount and imports the moved functions for it, and `session_state.rs` mounts
+`login_data.rs` (8e). Every other caller (account adapter, character handler
+host, session driver callbacks, transfer completion, travel) calls the free
+function with `self`.
+
+**Reclassified, not moved** (the `#![cfg(test)]`
+`handlers/login_test_shims.rs`, 386 lines, outside the character and session
+hotspot trees): the three `cfg(test)` entry points (`handle_logout_request`,
+`test_load_initial_world_states_for_login_like_cpp`,
+`send_initial_packets_after_add_to_map`, verbatim except that they name the
+free functions), 16 one-call method forwards for the moved functions the
+scenarios call (no scenario call site changes), and nine one-statement session
+wrappers whose only production callers were the moved bodies, verbatim from
+`session/{lifecycle_ops/operations,persistence/load,player_items/{appearance,equipment_sets,items,persistence_load}}.rs`.
+
+**Retired:** `send_account_toys_like_cpp`, `mmap_runtime_config_like_cpp`,
+`item_random_suffix_store`, `item_random_properties_store` (no other caller),
+and `handlers/character/item_load_support.rs` (a re-export only the moved load
+used).
+
+**Tests that followed their code.** The two inventory-load source scans
+(`continue_login_inventory_reads_cross_the_typed_lifecycle_port`,
+`continue_login_item_repairs_cross_the_typed_lifecycle_port`) read only the
+moved file; they moved verbatim from `character_tests/item_1.rs` to
+`wow-world-character/unit_tests/login_session_scans.rs`, only the
+`include_str!` path changing.
+
+### Host surface
+
+- **`CharacterLoginHostLikeCpp: VendorSessionHostLikeCpp + CorpseHostLikeCpp +
+  WorldEntitiesHostLikeCpp`** (character, 55 methods, 132 lines). The
+  supertraits lend the inventory splits, the lifecycle accessor and its mutable
+  split, the item object build, the insert, the player money, `teleport_to`,
+  the canonical-map ensure, the world-entities accessor and the hub
+  (`player_guid`, `send_packet`, `send_raw_packet`, `state`). New: 7 accessors
+  (`lifecycle_mut`, `split_lifecycle_ref`, `split_spell_state_ref`,
+  `visibility_mut`, `split_visibility_mut`, `loot`, `loot_mut`) and 48
+  operations. Five operations return a future
+  (`finalize_session_with_generator_like_cpp`,
+  `force_update_visibility_with_catalogs_like_cpp`,
+  `load_active_player_trait_configs_like_cpp`,
+  `send_battle_pet_journal_lock_status_like_cpp`, `send_contact_list_like_cpp`);
+  each is the inherent future returned unchanged, awaited at the same point.
+- **Adapter** `handlers/character/login_host.rs` (302 lines: 276 of impl, 25
+  of header and imports). Every operation names the inherent method by path
+  (`WorldSession::name(self, …)`); a script checked that each of the 48 names an
+  inherent method of an `impl WorldSession` block, so none resolves to its own
+  trait method and no forward reaches a trait default. The accessors are the
+  field or the existing `crate::session::split_*` function.
+- **Widening.** The moved functions are `pub(super)` inside `login_session`
+  unless a World caller needs them; the crate exports the trait, the two loader
+  row types, the inventory snapshot and the 30 functions World production
+  calls. Ten more (the eight functions only the scenarios call through the
+  shim, `motd_lines_like_cpp` and `void_storage_login_context_like_cpp`) are
+  exported only under `cfg(any(test, feature = "test-fixtures"))`; the crate
+  gains a `test-fixtures` feature that `wow-world`'s enables. The two aura row
+  types become `pub` in spell for the loader.
+- **Budget.** 434 host lines (132 trait + 302 adapter with its imports)
+  against about 3,646 moved production lines (World classifier): 11.9 %. With
+  the whole of `login_session/mod.rs` (266: docs, imports, mounts, exports and
+  the trait) and the adapter it is 568 lines, 15.6 %.
+
+### Await counts (per function, base vs head)
+
+Counted with a script over the function bodies (comments and literals
+blanked), base `origin/3.4.3` vs this head. Every moved function keeps its
+count and, by the token comparison above, the same awaited calls in the same
+order.
+
+| Function | Base | Head |
+|---|---:|---:|
+| `send_handle_player_login_packets_like_cpp` | 8 | 8 |
+| `load_inventory_for_login_like_cpp` | 7 | 7 |
+| `send_login_sequence` | 7 | 7 |
+| `send_initial_packets_before_add_to_map` | 5 | 5 |
+| `load_login_admission_data_like_cpp` | 3 | 3 |
+| `load_character_auras_for_login_like_cpp` | 2 | 2 |
+| `send_initial_packets_after_add_to_map_with_catalogs_like_cpp` | 2 | 2 |
+| `delete_invalid_character_homebind_like_cpp` | 1 | 1 |
+| `handle_hearth_and_resurrect` | 1 | 1 |
+| `handle_logout_request_with_generator_like_cpp` | 1 | 1 |
+| `load_action_buttons_for_login_like_cpp` | 1 | 1 |
+| `load_character_currencies_for_login_like_cpp` | 1 | 1 |
+| `load_character_favorite_spells_for_login_like_cpp` | 1 | 1 |
+| `load_character_glyphs_for_login_like_cpp` | 1 | 1 |
+| `load_character_reputation_for_login_like_cpp` | 1 | 1 |
+| `load_character_skill_rows_for_login_like_cpp` | 1 | 1 |
+| `load_character_spell_rows_for_login_like_cpp` | 1 | 1 |
+| `load_character_talents_for_login_like_cpp` | 1 | 1 |
+| `load_cuf_profiles_for_login_like_cpp` | 1 | 1 |
+| `load_group_membership_for_login_like_cpp` | 1 | 1 |
+| `load_initial_world_states_for_login_like_cpp` | 1 | 1 |
+| `load_map_corpse_data_like_cpp` | 1 | 1 |
+| `load_player_customizations_like_cpp` | 1 | 1 |
+| `persist_repaired_character_homebind_like_cpp` | 1 | 1 |
+| `plan_init_transports_like_cpp` | 1 | 1 |
+| `repair_character_homebind_like_cpp` | 1 | 1 |
+| `resolve_persisted_transport_login_like_cpp` | 1 | 1 |
+| `restore_persisted_transport_for_login_like_cpp` | 1 | 1 |
+| `update_realm_characters` | 1 | 1 |
+| 14 synchronous functions (abort, continue, retry, seed, homebind area, default skills, spell-map finalization, combat stats, fallback login, rename enqueue, post-add zone, default graveyard homebind, fellow passengers, bag-slot predicate) | 0 | 0 |
+| **Total moved** | **56** | **56** |
+| `cfg(test)` entry points (now in the shim): `handle_logout_request`, `test_load_initial_world_states_for_login_like_cpp`, `send_initial_packets_after_add_to_map` | 1 each | 1 each |
+| World coordinator `handle_continue_player_login_with_module_registry_like_cpp` | 32 | 32 |
+
+The World callers keep theirs too (`account/host.rs` 23, `travel.rs` 9,
+`character_handler_host.rs` 1, `transfer_completion.rs` 2, unchanged per
+file). No future that was awaited inline is spawned, boxed differently or
+reordered: the account adapter's hearth future is still
+`Box::pin(async move { … .await })` around the same body, and the logout
+integration test pins the same future it pinned before.
+
+### Login order
+
+The coordinator's call order and the packet order inside the moved bursts are
+the base text (above). The source-order scans still assert the same orders;
+their markers change only where the call text changed:
+
+- `character_tests/login.rs`: the coordinator bindings read
+  `let talent_rows_complete_like_cpp = load_character_talents_for_login_like_cpp(`,
+  `let Some(default_skill_entries) = apply_default_skills_for_login_like_cpp(`,
+  `let reputation_rows_complete_like_cpp =\n            load_character_reputation_for_login_like_cpp(self,`
+  and `let (mut skill_records, loaded_skill_records_like_cpp) =\n            load_character_skill_rows_for_login_like_cpp(self,`
+  instead of `… = self` (the binding and the call it receives, as before);
+  the moved-file markers read `host.` for `self.`, `rows_complete\n}` for the
+  dedented `rows_complete\n    }`, `resolve_persisted_transport_login_like_cpp(\n            host,`
+  and `seed_login_location_zone_area_like_cpp(host, zone, login_homebind)` for
+  the method-call forms, and the default-skill forwarder text is the
+  dedented `host.hub_mut()` form. Every order assertion is unchanged;
+- the scans' `include_str!` lists follow the moved files
+  (`login.rs`, `persistence.rs`, `group.rs`, `loot.rs`); `loot.rs` drops the
+  emptied World mounts and the deleted `item_load_support.rs` and, as #1388
+  follow-up 1, now includes `handlers/character/items/host.rs`;
+- `scenarios_login_1.rs` names `wow_world_lifecycle::ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP`
+  by path (the session re-export only the moved send read is gone); the
+  assertion is the same.
+
+### Re-measure and the split
+
+Re-measured on the base with the slice 8 scan: the planned 8d (login load
+without `login_data.rs`, plus lifecycle and the entry zone) is 4,576
+production lines with 146 outside methods (236 call sites). That is above the
+4.5k threshold, and its host does not fit: the coordinator `login.rs` alone is
+922 lines with 86 outside methods (it is the World composition of the login),
+and the whole set needs about 94 host methods after inlining, about 800 host
+lines, near 18 %. The natural boundary is the coordinator: everything it calls
+moves, and it stays as the World caller. Without it the set is 3,654 lines
+with 89 outside methods (155 call sites), of which 41 are lent or inline; the
+host is the 55 methods above, 11.9 %.
+
+### Edges and closure
+
+Character gains `wow-world-{loot,spell,visibility}` (the loot and visibility
+state fields and the spell-state split the moved bodies read), plus
+`wow-config`, `wow-network`, `wow-progression`, `flume`, `num-traits` and
+`tokio` (MOTD and arena-season config, the instance link, the reputation row,
+the rename send future, `ItemContext::from_u8` and the fallback oneshot);
+`dependency-policy.json` allows them. The three workspace edges were simulated
+on the base before anything moved (`wow_world_closure.py check --add`, lock
+and metadata: PASS, 17 packages), with three negative probes failing as they
+must (`character->quest`; `spell->character` and `loot->character`, cycles).
+On the head `wow_world_closure.py check` passes in both modes: character's
+direct set is core, entities, inventory, lifecycle, loot, spell, visibility;
+its closure adds only interaction; only `wow-world` reaches character.
+
+### Accounting
+
+- **`crates/wow-world/src`.** Classifier: 63,201 → **59,703 production
+  (−3,498)**. Physical: 68,829 → 65,737 (−3,092). Files: 498 → 479. Test:
+  5,628 → 6,034 (+406).
+  - **About 3,646 is production code that left `wow-world`:** the moved bodies
+    of the 22 files (3,616 classifier lines less the 33 of the three entry
+    points), the five helpers from the character `mod.rs` (42) and the two aura
+    row types (22, to spell).
+  - **+301 is the adapter** (`login_host.rs`).
+  - **About 84 is reclassified to test:** the three entry points (33) and the
+    nine wrappers (51) now in the shim file.
+  - **About 32 is retired:** the four wrappers (13), `item_load_support.rs`
+    (9) and the rest of `pet_loading.rs` (10).
+  - The rest is import and mount edits (the character `mod.rs` imports only
+    the scenarios read are `cfg(test)` groups, +18 test lines) and the
+    rewritten call sites (`login.rs` −11).
+  - The test figure grows by the shim file (386) and those `cfg(test)`
+    imports.
+- **Destinations.** `wow-world-character/src`: 3,088 → 7,315 physical
+  (+4,227; production 3,088 → 7,287); `unit_tests` gains the 51-line scan
+  file. `wow-world-spell/src`: 9,043 → 9,076 (+33, the row types). The
+  inlined splits and the explicit imports make the moved files longer than the
+  World ones.
+- **`net_move.py check`.** PASS: growth 4,202 ≤ 4,205.5, 0 duplicate bodies.
+- **`session-ownership-policy.json`** is reprinted with `print-baseline`
+  (the moved, retired and relocated items, the adapter's 55 trait items and
+  the shim items). The syntax-only check passes.
+- **Ceilings.** None raised. Tightened to live values:
+  - hotspot `handlers/character/mod.rs`: production 8,140 → 4,740, test
+    15,679 → 15,655, total 23,819 → 20,395;
+  - hotspot `session/mod.rs`: production 39,136 → 39,039, test 141,878
+    unchanged, total 181,014 → 180,917;
+  - physical `handlers/character/world_entry/login.rs` 922 → 897,
+    `world_entry.rs` 221 → 29, `session_state.rs` 807 → 15, `items.rs`
+    40 → 39, `mod.rs` 450 → 403, `session/mod.rs` 969 → 967;
+  - new physical row `handlers/login_test_shims.rs` at 386.
+- **Warnings.** The `wow-world` warning sets (`--message-format=short` lines
+  under `crates/wow-world/`, compared without line numbers) are the base sets
+  less one (the unused `Item` import of the deleted `pet_loading.rs`) in all
+  three builds: production lib 147 → 146, lib with `test-fixtures` 155 → 154,
+  lib plus lib-test 292 → 291. No warning is new. `wow-world` `dead_code` is
+  0 in all three. `wow-world-character` has no warning in any of them, and
+  `wow-world-spell` (8), `wow-world-inventory` (10, 7, 7) and
+  `wow-world-application` (6, 4, 4) keep exactly their base warnings.
+- **Tests.** No `#[test]` or `#[ignore]` is added or removed; the workspace
+  test-name multiset is identical (10,214 names, 5 ignores). Two tests moved
+  to character (above). No scenario call site changes; the four logout calls
+  of the `production_login_player_owner` integration test (built without
+  `cfg(test)`, so no shim reaches it) call the production free function with
+  `&mut session` instead of the removed method, same arguments and awaits.
+  Focused runs during the move (the final run covers the head): `wow-world`
+  lib, `wow-world-character` lib and `wow-world-spell` lib, all passing, and
+  `production_login_player_owner` 34 passed.
+
+### 8e plan
+
+`session_state/login_data.rs` (455 lines, 10 outside methods: the trait
+configs, the spell history and the skill-rewarded spell changes) and gossip
+(hello, menu, select, binder; about 800 lines with its trainer-gossip helpers).
+`login_data.rs` extends `CharacterLoginHostLikeCpp`; its three functions the
+coordinator and the login sequence call become free calls (one host method,
+`load_active_player_trait_configs_like_cpp`, retires). Gossip's 13 methods
+extend the same trait; re-measure decides whether gossip fits or waits for its
+trainer and gossip-store callees. The coordinator `login.rs` (897) stays: it is
+the World composition of the login (86 World operations), and moves only when
+its callees have owners.
+
+### Follow-ups
+
+- `login_test_shims.rs` (386) retires with the other shims when the scenarios
+  call the free functions and splits directly.
+- The moved log sites use the `wow_world_character::login_session` tracing
+  target (#1384 follow-up 2 applies here too).
+- #1388 follow-up 1 is done here (`items/host.rs` is in the publication scan).
+- A combined `cargo check -p wow-world-character -p wow-world-spell
+  --all-targets` without `wow-world` fails in `wow-world-inventory`: spell's
+  dev-dependencies turn on `wow-world-core/test-fixtures` while inventory is
+  built without its own. It is the existing feature-unification hazard of any
+  inventory dependent built beside spell (base has it for application);
+  `final` always builds them with `wow-world`, whose fixtures unify both.
+
+### Validation
+
+`final --architecture --timings` (`VALIDATION_V2_CARGO_JOBS=1`,
+`VALIDATION_V2_TIMEOUT_SECONDS=1800`) runs on the committed head that
+includes this section. Its manifest path, dirty flag and duration are in
+the PR body. This section is not edited after that run.
