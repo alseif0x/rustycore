@@ -40,7 +40,8 @@ impl WorldSession {
         &mut self,
         catalogs: &SessionHandlerCatalogsLikeCpp,
     ) {
-        self.apply_pending_durable_item_loot_completions_with_generator_like_cpp(
+        wow_world_loot_ops::apply_pending_durable_item_loot_completions_with_generator_like_cpp(
+            self,
             catalogs.id_generators.item.as_ref(),
         )
         .await;

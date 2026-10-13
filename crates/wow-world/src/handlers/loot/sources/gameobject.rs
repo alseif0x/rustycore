@@ -62,16 +62,3 @@ impl WorldSession {
         .await;
     }
 }
-
-impl crate::session::LootCxRef<'_> {
-    pub(crate) fn queue_chest_gameobject_state_refresh_for_same_map_like_cpp(
-        &self,
-        gameobject_guid: ObjectGuid,
-    ) -> usize {
-        wow_world_loot_ops::queue_chest_gameobject_state_refresh_for_same_map_like_cpp(
-            &self.hub.core.loot_release_access_like_cpp(),
-            self.world_entities,
-            gameobject_guid,
-        )
-    }
-}

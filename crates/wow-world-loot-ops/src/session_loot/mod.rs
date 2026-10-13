@@ -3,33 +3,41 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! World-session loot operations (#1363 slice 5a; moved from the World
-//! `handlers/loot` tree): loot sources (creature corpses, chests, gathering
-//! nodes, fishing), loot generation and condition admission, the request
-//! player context and quest gates, and the owned-loot claim, cache and
-//! authority facades.
+//! World-session loot operations (#1363 slices 5a and 5b; moved from the
+//! World `handlers/loot` tree): loot sources (creature corpses, chests,
+//! gathering nodes, fishing), loot generation and condition admission, the
+//! request player context and quest gates, the owned-loot claim, cache and
+//! authority facades, group rolls, the loot-window requests, item storage and
+//! disenchant, durable persistence and its workers, and the loot fanout.
 //!
 //! Each body takes the World session through [`LootSessionHostLikeCpp`]; the
-//! registrations, the loot-opened publication, release and item storage stay
-//! with the host.
+//! registrations, release and the money paths stay with the host.
 
 mod authority;
 mod claims;
+mod fanout;
 mod generation;
 mod host;
+mod persistence;
 mod random_properties;
 mod request_cache;
 mod request_context;
+mod requests;
+mod rolls;
 mod sources;
 
 pub use host::LootSessionHostLikeCpp;
 
 pub use authority::*;
 pub use claims::*;
+pub use fanout::*;
 pub use generation::*;
+pub use persistence::*;
 pub use random_properties::*;
 pub use request_cache::*;
 pub use request_context::*;
+pub use requests::*;
+pub use rolls::*;
 pub use sources::*;
 
 use std::collections::HashMap;
@@ -92,6 +100,52 @@ use wow_conditions::{
     QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_FAILED_LIKE_CPP, QUEST_STATUS_INCOMPLETE_LIKE_CPP,
     QUEST_STATUS_NONE_LIKE_CPP,
 };
+
+// #1363 slice 5b: the rolls, requests, item storage, persistence and fanout
+// bodies.
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
+use wow_constants::ItemFieldFlags;
+use wow_entities::{
+    INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_END,
+    INVENTORY_SLOT_ITEM_START, ItemPosCount, MAX_MONEY_AMOUNT,
+    PlayerInventoryItem as InventoryItem, make_item_pos,
+};
+use wow_loot::{
+    LOOT_METHOD_GROUP_LIKE_CPP, LOOT_METHOD_NEED_BEFORE_GREED_LIKE_CPP, LootClaimCommitError,
+    LootClaimError, LootClaimPayload, ROLL_VOTE_DISENCHANT_LIKE_CPP, ROLL_VOTE_GREED_LIKE_CPP,
+    ROLL_VOTE_NEED_LIKE_CPP, ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP, ROLL_VOTE_NOT_VALID_LIKE_CPP,
+    ROLL_VOTE_PASS_LIKE_CPP, RepresentedLootRollVote, loot_has_over_threshold_item_like_cpp,
+    loot_item_is_looted_for_player_like_cpp, mark_loot_item_looted_for_player_like_cpp,
+    represented_loot_roll_current_winner_like_cpp, represented_loot_roll_finish_winner_like_cpp,
+};
+use wow_packet::ServerPacket;
+use wow_packet::packets::loot::{
+    LootAllPassed, LootList, LootMoneyNotify, LootRoll, LootRollBroadcast, LootRollWon,
+};
+use wow_packet::packets::update::{ItemCreateData, ItemEnchantmentValuesUpdate, UpdateObject};
+use wow_persistence::PersistenceOutcomeLikeCpp;
+use wow_world_core::session::mailbox::{
+    KickLikeCppCommand, LootRollCommandIdentityLikeCpp, MasterLootGiveResult,
+};
+use wow_world_lifecycle::{
+    DurableItemLootCompletionLikeCpp, DurableItemLootPersistenceGuardLikeCpp,
+    DurableLootItemFanoutLikeCpp,
+};
+use wow_world_loot::storage_plans::{
+    PlannedDirectLootExistingStack, PlannedDisenchantExistingPush, PlannedDisenchantExistingStack,
+    PlannedDisenchantGrant, PlannedDisenchantNewPush, PlannedLootNewStack,
+};
+use wow_world_loot::{
+    LOOT_ROLL_TIMEOUT_MS_LIKE_CPP, LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP,
+    LOOT_SLOT_TYPE_LOCKED_LIKE_CPP, LOOT_SLOT_TYPE_ROLL_ONGOING_LIKE_CPP, RepresentedLootRollState,
+    connected_roll_looters_like_cpp, loot_item_context, loot_roll_broadcast_item_like_cpp,
+    loot_store_data_can_stack_with_item, represented_max_enchanting_skill_like_cpp,
+    start_loot_roll_packet_like_cpp,
+};
+use wow_world_quest::RepresentedQuestObjectiveProgressEventLikeCpp;
 
 pub const LOOT_MODE_DEFAULT_LIKE_CPP: u16 = 0x01;
 pub const LOOT_MODE_JUNK_FISH_LIKE_CPP: u16 = 0x8000;

@@ -265,7 +265,8 @@ impl WorldSession {
                     s.close_retired_active_loot_windows_like_cpp(&mut h, player_guid)
                 };
             }
-            self.tick_represented_loot_rolls_with_generator_like_cpp(
+            wow_world_loot_ops::tick_represented_loot_rolls_with_generator_like_cpp(
+                self,
                 catalogs.id_generators.item.as_ref(),
                 catalogs.item_valuation.as_ref(),
             )

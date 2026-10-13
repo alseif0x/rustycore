@@ -15,20 +15,29 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
 
-use wow_constants::InventoryResult;
+use wow_constants::{InventoryResult, ItemContext};
 use wow_core::ObjectGuid;
-use wow_entities::{ItemPosCount, ItemStorageTemplate, PlayerQuestGameplayState};
-use wow_loot::{LootClaimLease, LootEntry, LootStores};
-use wow_packet::packets::loot::LootResponse;
+use wow_data::ItemStatsStore;
+use wow_entities::{
+    Item, ItemObjectUpdateLikeCpp, ItemPosCount, ItemStorageTemplate,
+    PlayerInventoryItem as InventoryItem, PlayerQuestGameplayState, PlayerValuesUpdate,
+};
+use wow_loot::LootStores;
 use wow_social::group::GroupRegistry;
 use wow_world_core::session::directory::PlayerRegistry;
-use wow_world_core::session::{HubMut, HubRef, ItemValuationCatalogsLikeCpp};
+use wow_world_core::session::mailbox::SessionCommand;
+use wow_world_core::session::{HubMut, HubRef};
 use wow_world_core::session_policy::LootDropRatesLikeCpp;
 use wow_world_entities::WorldEntitiesHostLikeCpp;
 use wow_world_inventory::InventoryState;
-use wow_world_lifecycle::SessionLifecycleState;
+use wow_world_lifecycle::{
+    DurableItemLootCompletionLikeCpp, DurableItemLootPersistenceGuardLikeCpp, SessionLifecycleState,
+};
 use wow_world_loot::LootState;
-use wow_world_loot::storage_plans::LootItemClaimCommitContextLikeCpp;
+use wow_world_quest::{
+    QuestSourceItemBoundPersistencePlanLikeCpp, QuestSourceItemBoundPreflightLikeCpp,
+    SessionQuestState,
+};
 
 pub trait LootSessionHostLikeCpp: WorldEntitiesHostLikeCpp {
     fn loot(&self) -> &LootState;
@@ -76,10 +85,6 @@ pub trait LootSessionHostLikeCpp: WorldEntitiesHostLikeCpp {
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)>;
     fn player_quest_gameplay_snapshot_like_cpp(&self) -> Option<PlayerQuestGameplayState>;
     fn player_registry(&self) -> Option<&Arc<PlayerRegistry>>;
-    fn queue_chest_gameobject_state_refresh_for_same_map_like_cpp(
-        &self,
-        gameobject_guid: ObjectGuid,
-    ) -> usize;
     fn represented_inventory_item_counts_like_cpp(&self) -> Option<HashMap<u32, u32>>;
     fn represented_money_loot_with_rate_like_cpp(
         &mut self,
@@ -87,37 +92,105 @@ pub trait LootSessionHostLikeCpp: WorldEntitiesHostLikeCpp {
         max_amount: u32,
         rate: f32,
     ) -> u32;
-    fn represented_on_loot_opened_with_catalogs_like_cpp(
+    fn update_visible_gameobjects_or_spell_clicks_like_cpp(&self) -> usize;
+    // #1363 slice 5b: what the moved rolls, requests, item storage,
+    // persistence and fanout bodies call.
+    fn quest_state(&self) -> &SessionQuestState;
+    fn quest_state_mut(&mut self) -> &mut SessionQuestState;
+    fn split_inventory_ref(&self) -> (&InventoryState, HubRef<'_>);
+    fn apply_inventory_item_object_updates_like_cpp(
         &mut self,
-        item_valuation: &ItemValuationCatalogsLikeCpp,
+        item_guid: ObjectGuid,
+        updates: &[ItemObjectUpdateLikeCpp],
+    ) -> bool;
+    fn apply_quest_source_item_added_non_bound_objective_progress_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        entry_id: u32,
+        quest_log_item_id: u32,
+        count: u32,
+    ) -> impl Future<Output = Vec<u32>> + Send;
+    fn apply_quest_source_item_bound_objective_preflight_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        entry_id: u32,
+        quest_log_item_id: u32,
+        count: u32,
+    ) -> impl Future<Output = Option<QuestSourceItemBoundPreflightLikeCpp>> + Send;
+    fn begin_durable_item_loot_persistence_like_cpp(
+        &self,
+    ) -> DurableItemLootPersistenceGuardLikeCpp;
+    fn do_loot_release_owner_like_cpp(
+        &mut self,
         owner_guid: ObjectGuid,
         player_guid: ObjectGuid,
-        response: LootResponse,
-    );
-    fn represented_player_is_unlocked_for_dungeon_encounter_like_cpp(
+    ) -> impl Future<Output = bool> + Send;
+    fn drain_represented_quest_objective_progress_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+    ) -> impl Future<Output = ()> + Send;
+    fn insert_inventory_item_like_cpp(
+        &mut self,
+        slot: u8,
+        item: InventoryItem,
+    ) -> Option<InventoryItem>;
+    fn insert_inventory_item_object(&mut self, item: Item) -> Option<Item>;
+    fn item_stats_store(&self) -> Option<&Arc<ItemStatsStore>>;
+    fn item_template_flags2(&self, item_id: u32) -> Option<u32>;
+    fn item_template_inventory_type(&self, item_id: u32) -> Option<u8>;
+    fn item_template_max_durability(&self, item_id: u32) -> u32;
+    #[allow(clippy::too_many_arguments)]
+    fn make_inventory_item_object(
+        &self,
+        item_guid: ObjectGuid,
+        entry_id: u32,
+        owner_guid: ObjectGuid,
+        count: u32,
+        durability: u32,
+        context: ItemContext,
+        slot: u8,
+    ) -> Item;
+    fn on_item_added_to_collection_like_cpp(&mut self, item: &Item) -> Vec<PlayerValuesUpdate>;
+    fn plan_quest_source_item_bound_objective_persistence_like_cpp(
+        &self,
+        entry_id: u32,
+        quest_log_item_id: u32,
+        count: u32,
+    ) -> Option<QuestSourceItemBoundPersistencePlanLikeCpp>;
+    fn player_is_locked_to_dungeon_encounter_like_cpp(
         &self,
         player_guid: ObjectGuid,
         dungeon_encounter_id: u32,
+    ) -> Option<bool>;
+    fn represented_can_receive_creature_message_to_set_by_guid_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        map_id: u16,
+        instance_id: u32,
+        required_3d: bool,
+    ) -> Option<bool>;
+    /// C++ `Loot::NotifyMoneyRemoved`, the loot handler owner's default method.
+    fn represented_notify_money_removed_like_cpp(&mut self, owner_guid: ObjectGuid);
+    fn resolved_inventory_item_like_cpp(&self, slot: u8) -> Option<InventoryItem>;
+    fn resolved_inventory_item_object_like_cpp(&self, guid: ObjectGuid) -> Option<Item>;
+    fn resolved_inventory_items_like_cpp(&self) -> Option<HashMap<u8, InventoryItem>>;
+    fn resolved_pass_on_group_loot_like_cpp(&self) -> Option<bool>;
+    fn resolved_player_money_like_cpp(&self) -> Option<u64>;
+    fn save_changed_represented_quest_statuses_like_cpp(
+        &self,
+        quest_ids: &mut Vec<u32>,
+    ) -> impl Future<Output = ()> + Send;
+    fn send_player_values_update_from_entity_bridge(
+        &self,
+        inv_slot_changes: &[(u8, ObjectGuid)],
+        visible_item_changes: &[(u8, i32, u16, u16)],
+        virtual_item_changes: &[(u8, i32, u16, u16)],
+        buyback_changes: &[(u8, u32, i64)],
+        coinage: Option<u64>,
     ) -> bool;
-    fn represented_player_unlocked_for_dungeon_encounter_like_cpp(
-        &self,
-        player_guid: ObjectGuid,
-        dungeon_encounter_id: u32,
-    ) -> Option<ObjectGuid>;
-    fn store_direct_loot_item_with_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        loot_entry: &LootEntry,
-        dungeon_encounter_id: u32,
-    ) -> impl Future<Output = bool> + Send;
-    fn store_direct_loot_item_with_source_and_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        loot_entry: &LootEntry,
-        dungeon_encounter_id: u32,
-        stored_item_loot_source: Option<ObjectGuid>,
-        claim: Option<&LootClaimLease>,
-        claim_commit_context: Option<LootItemClaimCommitContextLikeCpp>,
-    ) -> impl Future<Output = bool> + Send;
-    fn update_visible_gameobjects_or_spell_clicks_like_cpp(&self) -> usize;
+    fn session_command_tx(&self) -> flume::Sender<SessionCommand>;
+    fn set_player_gold_like_cpp(&mut self, gold: u64) -> bool;
+    fn sync_player_registry_state_like_cpp(&self);
+    fn take_durable_item_loot_completions_like_cpp(&self) -> Vec<DurableItemLootCompletionLikeCpp>;
+    fn wait_for_durable_item_loot_persistence_like_cpp(&self) -> impl Future<Output = ()> + Send;
 }

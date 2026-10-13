@@ -11,21 +11,37 @@ use std::collections::HashMap;
 
 use wow_core::ObjectGuid;
 pub(crate) use wow_entities::GameObjectLootSource;
-use wow_loot::{LootConditionRowLikeCpp, LootEntry, OwnedLootAuthority};
+use wow_entities::Item;
+use wow_loot::LootConditionRowLikeCpp;
 pub(crate) use wow_packet::packets::loot::CreatureLoot;
+use wow_world_core::session::ItemValuationCatalogsLikeCpp;
 use wow_world_core::session::OwnedLootAuthorityLookupOutcomeLikeCpp;
+use wow_world_lifecycle::DurableLootItemFanoutLikeCpp;
 use wow_world_loot::RepresentedCreatureLootStateLikeCpp;
+use wow_world_loot::storage_plans::LootItemClaimCommitContextLikeCpp;
 
 use crate::session::WorldSession;
 
 // The loot unit tests name these through `super::*` of the World loot module.
+// #1363 slice 5b: the names the moved roll, request, storage, persistence and
+// fanout bodies no longer import in the World loot module.
 pub(crate) use rand::Rng;
+pub(crate) use wow_constants::ClientOpcodes;
 pub(crate) use wow_entities::GatheringNodeUseSource;
+pub(crate) use wow_entities::{INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START};
+pub(crate) use wow_loot::{
+    LOOT_METHOD_ROUND_ROBIN_LIKE_CPP, LootClaimLease, OwnedLootAuthority, ROLL_VOTE_GREED_LIKE_CPP,
+    ROLL_VOTE_NEED_LIKE_CPP, ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP, ROLL_VOTE_NOT_VALID_LIKE_CPP,
+    ROLL_VOTE_PASS_LIKE_CPP, creature_loot_is_allowed_to_player_like_cpp,
+    mark_loot_item_looted_for_player_like_cpp,
+};
 pub(crate) use wow_loot::{
     mark_loot_allowed_for_player_like_cpp, prepare_represented_shared_loot_generation_like_cpp,
     rebuild_represented_personal_loot_counts_like_cpp,
     rebuild_represented_personal_loot_counts_preserving_consumed_like_cpp,
 };
+pub(crate) use wow_packet::packets::loot::{LootEntry, LootResponse};
+pub(crate) use wow_persistence::StoredItemMoneyReconciliationLikeCpp;
 pub(crate) use wow_world_core::session::mailbox::{
     SyncChestGameobjectStateAndRefreshLikeCppCommand,
     SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
@@ -33,8 +49,14 @@ pub(crate) use wow_world_core::session::mailbox::{
 };
 pub(crate) use wow_world_core::session::state::hub_support::RepresentedLootPlayerContext;
 pub(crate) use wow_world_lifecycle::loot_template_rules::ItemTemplateAddonLootMetadataLikeCpp;
+pub(crate) use wow_world_loot::{
+    LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP, LOOT_SLOT_TYPE_ROLL_ONGOING_LIKE_CPP,
+    LootStoreRandomProperties, loot_type_for_client_like_cpp,
+    represented_loot_response_items_like_cpp,
+};
+pub(crate) use wow_world_loot::{loot_item_context, start_loot_roll_packet_like_cpp};
 pub(crate) use wow_world_loot_ops::{
-    LOOT_MODE_DEFAULT_LIKE_CPP, LOOT_MODE_JUNK_FISH_LIKE_CPP,
+    LOOT_MODE_DEFAULT_LIKE_CPP, LOOT_MODE_JUNK_FISH_LIKE_CPP, LootClaimPersistenceWorkerError,
     RepresentedGameObjectLootInstallObservationLikeCpp, disenchant_loot_template_frame_like_cpp,
     generated_creature_loot_item_to_entry_like_cpp,
     generated_shared_gameobject_loot_item_to_entry_like_cpp,
@@ -43,7 +65,8 @@ pub(crate) use wow_world_loot_ops::{
     represented_disenchant_loot_plain_row_can_roll_like_cpp,
     represented_disenchant_loot_reference_row_can_roll_like_cpp,
     represented_gameobject_loot_install_observation_like_cpp,
-    represented_loot_object_guid_like_cpp,
+    represented_loot_object_guid_like_cpp, spawn_loot_claim_persistence_worker_like_cpp,
+    spawn_loot_item_persistence_worker_like_cpp,
 };
 
 impl WorldSession {
@@ -350,5 +373,200 @@ impl WorldSession {
         wow_world_loot_ops::generate_loot_store_random_properties_with_rng_like_cpp(
             self, item_id, rng,
         )
+    }
+}
+
+// #1363 slice 5b: the rolls, requests, item storage, persistence and fanout
+// bodies moved to `wow_world_loot_ops`.
+impl WorldSession {
+    pub(crate) async fn tick_represented_loot_rolls_like_cpp(&mut self) {
+        let generators = self.id_generators_for_test_like_cpp();
+        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
+        wow_world_loot_ops::tick_represented_loot_rolls_with_generator_like_cpp(
+            self,
+            generators.item.as_ref(),
+            &item_valuation,
+        )
+        .await;
+    }
+
+    pub(crate) async fn apply_pending_durable_item_loot_completions_like_cpp(&mut self) {
+        let generators = self.id_generators_for_test_like_cpp();
+        wow_world_loot_ops::apply_pending_durable_item_loot_completions_with_generator_like_cpp(
+            self,
+            generators.item.as_ref(),
+        )
+        .await;
+    }
+
+    pub(crate) async fn wait_for_active_loot_persistence_like_cpp(&mut self) {
+        let generators = self.id_generators_for_test_like_cpp();
+        wow_world_loot_ops::wait_for_active_loot_persistence_with_generator_like_cpp(
+            self,
+            generators.item.as_ref(),
+        )
+        .await;
+    }
+
+    pub(crate) fn close_stale_active_loot_view_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+    ) {
+        wow_world_loot_ops::close_stale_active_loot_view_like_cpp(self, owner_guid, player_guid)
+    }
+
+    pub(crate) fn prepare_durable_loot_item_fanout_like_cpp(
+        &mut self,
+        claim: &LootClaimLease,
+        context: LootItemClaimCommitContextLikeCpp,
+    ) -> Option<DurableLootItemFanoutLikeCpp> {
+        wow_world_loot_ops::prepare_durable_loot_item_fanout_like_cpp(self, claim, context)
+    }
+
+    pub(crate) async fn represented_loot_response_for_owner_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+        ae_looting: bool,
+    ) -> Option<LootResponse> {
+        wow_world_loot_ops::represented_loot_response_for_owner_like_cpp(
+            self,
+            owner_guid,
+            player_guid,
+            ae_looting,
+        )
+        .await
+    }
+
+    pub(crate) fn represented_notify_loot_item_removed_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        loot_list_id: u8,
+    ) {
+        wow_world_loot_ops::represented_notify_loot_item_removed_like_cpp(
+            self,
+            owner_guid,
+            loot_list_id,
+        )
+    }
+
+    pub(crate) fn represented_on_loot_opened_with_catalogs_like_cpp(
+        &mut self,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
+        owner_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+        response: LootResponse,
+    ) {
+        wow_world_loot_ops::represented_on_loot_opened_with_catalogs_like_cpp(
+            self,
+            item_valuation,
+            owner_guid,
+            player_guid,
+            response,
+        )
+    }
+
+    pub(crate) fn send_loot_item_push_result(
+        &self,
+        player_guid: ObjectGuid,
+        item_guid: ObjectGuid,
+        loot_entry: &LootEntry,
+        random_properties_id: i32,
+        random_properties_seed: i32,
+        slot: u8,
+        quantity: u32,
+        quantity_in_inventory: u32,
+        created: bool,
+        dungeon_encounter_id: u32,
+    ) {
+        wow_world_loot_ops::send_loot_item_push_result(
+            self,
+            player_guid,
+            item_guid,
+            loot_entry,
+            random_properties_id,
+            random_properties_seed,
+            slot,
+            quantity,
+            quantity_in_inventory,
+            created,
+            dungeon_encounter_id,
+        )
+    }
+
+    pub(crate) async fn store_direct_disenchant_batch_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        loot_entries: &[LootEntry],
+        dungeon_encounter_id: u32,
+        claim: Option<&LootClaimLease>,
+        claim_commit_context: Option<LootItemClaimCommitContextLikeCpp>,
+    ) -> bool {
+        wow_world_loot_ops::store_direct_disenchant_batch_with_generator_like_cpp(
+            self,
+            item_guid_generator,
+            loot_entries,
+            dungeon_encounter_id,
+            claim,
+            claim_commit_context,
+        )
+        .await
+    }
+
+    pub(crate) async fn store_direct_loot_item_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        loot_entry: &LootEntry,
+        dungeon_encounter_id: u32,
+    ) -> bool {
+        wow_world_loot_ops::store_direct_loot_item_with_generator_like_cpp(
+            self,
+            item_guid_generator,
+            loot_entry,
+            dungeon_encounter_id,
+        )
+        .await
+    }
+
+    pub(crate) fn stored_existing_item_dynamic_flags_like_cpp(
+        &self,
+        item_id: u32,
+        slot: u8,
+        existing: &Item,
+    ) -> u32 {
+        wow_world_loot_ops::stored_existing_item_dynamic_flags_like_cpp(
+            self, item_id, slot, existing,
+        )
+    }
+
+    pub(crate) fn stored_new_item_dynamic_flags_like_cpp(&self, item_id: u32, slot: u8) -> u32 {
+        wow_world_loot_ops::stored_new_item_dynamic_flags_like_cpp(self, item_id, slot)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn request_represented_remote_loot_roll_winner_store_like_cpp(
+        &self,
+        target: ObjectGuid,
+        owner_guid: ObjectGuid,
+        loot_obj: ObjectGuid,
+        loot_list_id: u8,
+        dungeon_encounter_id: u32,
+        entries: Vec<LootEntry>,
+        is_disenchant: bool,
+        claim: Option<wow_loot::LootClaimLease>,
+    ) -> wow_world_core::session::mailbox::MasterLootGiveResult {
+        wow_world_loot_ops::request_represented_remote_loot_roll_winner_store_like_cpp(
+            self,
+            target,
+            owner_guid,
+            loot_obj,
+            loot_list_id,
+            dungeon_encounter_id,
+            entries,
+            is_disenchant,
+            claim,
+        )
+        .await
     }
 }

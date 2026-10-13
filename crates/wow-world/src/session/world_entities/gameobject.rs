@@ -570,8 +570,10 @@ impl WorldSession {
                 state.loot_state_unit_guid = wow_core::ObjectGuid::EMPTY;
             }
             self.loot.remove_cached_loot_for_owner_like_cpp(guid);
-            let _ = crate::session::cx_loot_ref(self)
-                .queue_chest_gameobject_state_refresh_for_same_map_like_cpp(guid);
+            let _ =
+                wow_world_loot_ops::queue_session_chest_gameobject_state_refresh_for_same_map_like_cpp(
+                    self, guid,
+                );
         }
         for guid in ready_bomb_trap_guids {
             if let Some(state) = self

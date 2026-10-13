@@ -99,7 +99,8 @@ pub async fn store_claimed_direct_loot_item_from_owner_with_generator_like_cpp<
     let Some(player_guid) = host.player_guid() else {
         return false;
     };
-    host.store_direct_loot_item_with_source_and_generator_like_cpp(
+    store_direct_loot_item_with_source_and_generator_like_cpp(
+        host,
         item_guid_generator,
         loot_entry,
         dungeon_encounter_id,

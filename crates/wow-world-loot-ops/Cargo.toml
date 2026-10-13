@@ -20,7 +20,9 @@ test-fixtures = [
 ]
 
 [dependencies]
+flume = { workspace = true }
 rand = { workspace = true }
+tokio = { workspace = true }
 tracing = { workspace = true }
 wow-conditions = { workspace = true }
 wow-constants = { workspace = true }

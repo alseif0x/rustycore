@@ -214,3 +214,19 @@ pub struct RepresentedQuestRewardReputationLikeCpp {
     pub calculate_reputation_gain_unrepresented: bool,
     pub modify_reputation_runtime_unrepresented: bool,
 }
+
+/// C++ `StoreNewItem`'s quest-bound `ItemAddedQuestCheck` preflight result
+/// (#1363 slice 5b; moved from the World `handlers/quest/mod.rs`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuestSourceItemBoundPreflightLikeCpp {
+    pub no_grant: bool,
+    pub changed_quest_ids: Vec<u32>,
+}
+
+/// Durable snapshot of C++ `StoreNewItem`'s first, quest-bound
+/// `ItemAddedQuestCheck` pass. A single matching bound objective consumes the
+/// loot award as quest credit without materialising an inventory Item.
+#[derive(Debug, Clone)]
+pub struct QuestSourceItemBoundPersistencePlanLikeCpp {
+    pub statuses: Vec<wow_entities::PlayerQuestStatusRecord>,
+}

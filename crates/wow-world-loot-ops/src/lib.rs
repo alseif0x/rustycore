@@ -10,7 +10,7 @@
 //! the registry sync); `wow-world-loot` stays the loot state owner.
 //!
 //! `session_loot` holds the World-session loot bodies moved out of
-//! `wow-world` behind [`LootSessionHostLikeCpp`] (#1363 slice 5a).
+//! `wow-world` behind [`LootSessionHostLikeCpp`] (#1363 slices 5a and 5b).
 
 mod loot_handlers;
 mod loot_release;
@@ -34,9 +34,20 @@ pub use session_loot::{
     represented_disenchant_loot_reference_row_can_roll_like_cpp,
     represented_loot_object_guid_like_cpp,
 };
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use session_loot::{
+    LootClaimPersistenceWorkerError, close_stale_active_loot_view_like_cpp,
+    prepare_durable_loot_item_fanout_like_cpp,
+    request_represented_remote_loot_roll_winner_store_like_cpp, send_loot_item_push_result,
+    spawn_loot_claim_persistence_worker_like_cpp, spawn_loot_item_persistence_worker_like_cpp,
+    store_direct_loot_item_with_generator_like_cpp, stored_existing_item_dynamic_flags_like_cpp,
+    stored_new_item_dynamic_flags_like_cpp,
+};
 pub use session_loot::{
     LootSessionHostLikeCpp, RepresentedGameObjectLootInstallObservationLikeCpp,
-    creature_loot_release_values_for_viewer_like_cpp,
+    apply_pending_durable_item_loot_completions_with_generator_like_cpp,
+    apply_pending_durable_item_loot_completions_with_objective_drain_like_cpp,
+    creature_loot_release_values_for_viewer_like_cpp, destroy_fully_looted_direct_item,
     ensure_represented_creature_kill_loot_like_cpp,
     evaluate_creature_loot_condition_for_player_like_cpp_representable,
     generate_loot_store_random_properties_with_rng_like_cpp,
@@ -59,19 +70,30 @@ pub use session_loot::{
     open_represented_gathering_node_with_catalogs_like_cpp,
     prepare_owned_loot_authority_for_active_request_outcome_like_cpp,
     queue_goober_gameobject_state_refresh_for_same_map_like_cpp,
+    queue_session_chest_gameobject_state_refresh_for_same_map_like_cpp,
     reconcile_represented_loot_cache_like_cpp,
     record_represented_gameobject_chest_release_metadata_like_cpp,
     refresh_owned_loot_summary_like_cpp, refresh_represented_loot_owner_canonical_summary_like_cpp,
+    represented_active_loot_generation_matches_like_cpp,
     represented_ae_loot_creature_targets_like_cpp, represented_creature_loot_state_like_cpp,
     represented_creature_position_for_loot_like_cpp,
     represented_gameobject_chest_group_state_like_cpp,
     represented_gameobject_loot_install_observation_like_cpp,
     represented_group_looters_at_reward_distance_like_cpp,
-    represented_loot_authority_pools_like_cpp, represented_master_loot_can_store_error_like_cpp,
-    represented_master_loot_candidate_list_like_cpp,
+    represented_loot_authority_pools_like_cpp, represented_loot_response_for_owner_like_cpp,
+    represented_master_loot_can_store_error_like_cpp,
+    represented_master_loot_candidate_list_like_cpp, represented_notify_loot_item_removed_like_cpp,
+    represented_on_loot_opened_with_catalogs_like_cpp,
     represented_owned_loot_authority_outcome_like_cpp,
+    represented_player_vote_on_loot_roll_with_generator_like_cpp,
+    represented_player_vote_on_loot_roll_with_pass_state_and_generator_like_cpp,
+    send_if_visible_like_cpp_gate_passes_like_cpp,
     store_claimed_direct_loot_item_from_owner_with_generator_like_cpp,
+    store_direct_disenchant_batch_with_generator_like_cpp,
+    store_direct_loot_item_from_owner_with_generator_like_cpp,
     sync_represented_creature_loot_to_canonical_like_cpp,
+    tick_represented_loot_rolls_with_generator_like_cpp,
     upsert_represented_personal_gameobject_loot_authority_if_observed_like_cpp,
     upsert_represented_personal_gameobject_loot_authority_if_observed_with_empty_policy_like_cpp,
+    wait_for_active_loot_persistence_with_generator_like_cpp,
 };

@@ -7,6 +7,7 @@ use crate::finalization::{
 use crate::session::{PlayerSaveOutcomeLikeCpp, SessionState, WorldSession};
 use wow_core::ObjectGuid;
 use wow_packet::packets::misc::LogoutComplete;
+use wow_world_loot_ops::wait_for_active_loot_persistence_with_generator_like_cpp;
 
 impl WorldSession {
     pub fn finalization_report_like_cpp(&self) -> Option<FinalizationReport> {
@@ -118,7 +119,7 @@ impl WorldSession {
                 FinalizationOutcome::Applied
             }
             LootSettlement => {
-                self.wait_for_active_loot_persistence_with_generator_like_cpp(item_guid_generator)
+                wait_for_active_loot_persistence_with_generator_like_cpp(self, item_guid_generator)
                     .await;
                 if let Some(guid) = self.player_guid() {
                     if self.loot.has_active_loot_views_like_cpp() {

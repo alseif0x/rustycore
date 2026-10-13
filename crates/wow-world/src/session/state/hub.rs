@@ -539,21 +539,15 @@ pub(crate) fn cx_lifecycle_ref(s: &WorldSession) -> LifecycleCxRef<'_> {
     }
 }
 
-/// Shared loot context for `&self` methods: the `loot` state, sibling states and hub members
-/// its moved fns read, borrowed from disjoint WorldSession fields.
+/// Shared loot context for `&self` methods: the sibling state its remaining
+/// World fn reads, borrowed from a disjoint WorldSession field.
 pub(crate) struct LootCxRef<'a> {
-    pub(crate) inventory: &'a InventoryState,
     pub(crate) lifecycle: &'a SessionLifecycleState,
-    pub(crate) world_entities: &'a WorldEntitiesState,
-    pub(crate) hub: HubRef<'a>,
 }
 
 pub(crate) fn cx_loot_ref(s: &WorldSession) -> LootCxRef<'_> {
     LootCxRef {
-        inventory: &s.inventory,
         lifecycle: &s.lifecycle,
-        world_entities: &s.world_entities,
-        hub: hub_ref(s),
     }
 }
 

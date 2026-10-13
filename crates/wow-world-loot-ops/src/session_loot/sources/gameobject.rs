@@ -250,7 +250,10 @@ pub async fn open_represented_gameobject_chest_with_template_money_like_cpp<
         player_guid,
     );
     if activated_now {
-        let _ = host.queue_chest_gameobject_state_refresh_for_same_map_like_cpp(gameobject_guid);
+        let _ = queue_session_chest_gameobject_state_refresh_for_same_map_like_cpp(
+            host,
+            gameobject_guid,
+        );
     }
     if !source.has_open_loot_like_cpp() {
         return;
@@ -342,7 +345,8 @@ pub async fn open_represented_gameobject_chest_with_template_money_like_cpp<
         host.do_loot_release_all_like_cpp(player_guid).await;
     }
     host.loot_mut().set_active_loot_guid(gameobject_guid);
-    host.represented_on_loot_opened_with_catalogs_like_cpp(
+    represented_on_loot_opened_with_catalogs_like_cpp(
+        host,
         item_valuation,
         gameobject_guid,
         player_guid,
@@ -508,7 +512,8 @@ pub async fn open_represented_fishing_node_loot_with_catalogs_like_cpp<
         host.do_loot_release_all_like_cpp(player_guid).await;
     }
     host.loot_mut().set_active_loot_guid(gameobject_guid);
-    host.represented_on_loot_opened_with_catalogs_like_cpp(
+    represented_on_loot_opened_with_catalogs_like_cpp(
+        host,
         item_valuation,
         gameobject_guid,
         player_guid,
@@ -820,4 +825,20 @@ fn queue_gathering_node_gameobject_state_refresh_for_same_map_like_cpp<
     }
 
     queued
+}
+
+/// The session facade over the loot-release chest refresh (#1363 slice 5b;
+/// moved from the World `LootCxRef` helper, renamed so it no longer collides
+/// with the loot-release free function exported at the crate root).
+pub fn queue_session_chest_gameobject_state_refresh_for_same_map_like_cpp<
+    H: LootSessionHostLikeCpp,
+>(
+    host: &H,
+    gameobject_guid: ObjectGuid,
+) -> usize {
+    crate::queue_chest_gameobject_state_refresh_for_same_map_like_cpp(
+        &host.hub_ref().core.loot_release_access_like_cpp(),
+        host.world_entities(),
+        gameobject_guid,
+    )
 }

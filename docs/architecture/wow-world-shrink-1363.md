@@ -2822,3 +2822,247 @@ publication and the registry sync.
 `VALIDATION_V2_TIMEOUT_SECONDS=1800`) runs on the committed head that
 includes this section. Its manifest path, dirty flag and duration are in
 the PR body. This section is not edited after that run.
+
+## Slice 5b result (loot rolls, requests, item storage, persistence and fanout → `wow-world-loot-ops`)
+
+Branch `1363-s5b-loot`, base `5d0a0b82f` (5a merged). Move-only (R2), with
+the 5a rewrites. Packets and their order, money and item mutation order,
+item creation and store order, roll RNG order, persistence and save
+ordering, kicks, registrations and processing flags are unchanged. No
+registrar moves.
+
+### Re-measure and split
+
+On `5d0a0b82f` the planned 5b scope is about 4,520 classifier production
+lines, just over the ~4.5k cap:
+
+| Group | Production |
+|---|---:|
+| `rolls.rs` | 900 |
+| `requests.rs`, `requests/item_storage{,/disenchant}.rs` | 1,865 |
+| `persistence.rs` | 364 |
+| `fanout.rs` | 237 |
+| `mod.rs` roll helpers and the two persistence workers | about 190 |
+| `money.rs`, `handlers/money.rs`, `handlers.rs` | 963 |
+
+The split follows a call boundary. The rolls, requests, item storage,
+persistence and fanout family calls nothing in the money files or the
+command-handler files. The money paths and the command handlers call into
+that family. So:
+
+- **5b** moves that family, about 3,560 lines.
+- **5c** moves the two money paths and the loot command receivers, about
+  960 lines.
+
+### What moved
+
+- **To `wow-world-loot-ops/src/session_loot/`** (module layout as in
+  `handlers/loot`). Forty-three functions moved:
+  - `rolls.rs`: votes, finish, winner storage, the remote winner request,
+    the first-open roll start, the tick, and the disenchant skill gate;
+  - `requests.rs`: the loot response, loot-opened publication, generation
+    match, the dungeon-unlock checks and the stale-view close;
+  - `requests/item_storage.rs` and `requests/item_storage/disenchant.rs`:
+    direct item storage, disenchant winner storage and the disenchant
+    batch. The `LootCxRef` storage-plan helper became a free function over
+    the host;
+  - `persistence.rs`: the durable fanout preparation, the claim commit, the
+    removal publication, the pending-completion replay and the
+    active-persistence wait. The claim and item persistence workers and
+    `LootClaimPersistenceWorkerError` moved from `mod.rs`. The worker that
+    was `cfg(test)` is now gated `cfg(any(test, feature = "test-fixtures"))`;
+  - `fanout.rs`: the visibility gate, the loot-list and item-removed
+    notifications and the item push result.
+
+  Functions the World still calls are `pub` and re-exported. The ones only
+  the World loot tests name are re-exported under
+  `cfg(any(test, feature = "test-fixtures"))`.
+- **To `wow-world-loot`** (`roll_values.rs`): the session-free roll values
+  `connected_roll_looters_like_cpp`,
+  `represented_max_enchanting_skill_like_cpp`,
+  `start_loot_roll_packet_like_cpp`, `loot_item_context` and
+  `LOOT_ROLL_TIMEOUT_MS_LIKE_CPP`. They need only `wow-world-core`,
+  `wow-packet`, `wow-constants` and `num-traits`, which the crate already
+  has.
+- **To `wow-world-quest`** (`session_state/contracts.rs`):
+  `QuestSourceItemBoundPreflightLikeCpp` and
+  `QuestSourceItemBoundPersistencePlanLikeCpp`. These are two plain records
+  the host signatures name. Their fields become `pub`, and the World quest
+  module re-exports them.
+- **Stays in `wow-world`:**
+  - the money paths and the loot command receivers (5c);
+  - the F5 adapters;
+  - the release context builder;
+  - `combat_commands.rs` and `visibility_commands.rs` (slices 7 and 11);
+  - the fixture predicate;
+  - the unit-test module mounts. `requests.rs`, `persistence.rs` and
+    `fanout.rs` are now shells that only mount their `unit_tests` modules.
+  - `rolls.rs`, `requests/item_storage{,/disenchant}.rs` and
+    `random_properties.rs` are deleted. The last of these had no reader
+    left.
+
+### Rewrites and fixture steps
+
+The rewrites are the 5a set:
+- `self.` becomes `host.`;
+- a field becomes a host accessor;
+- `split_*` becomes a host call;
+- a call to a moved function becomes a free call.
+
+The World inherent methods that are only `self.core.X(...)` (`kick`,
+`send_tx`, `send_equip_error`) are reached as `host.core[_mut]().X(...)`.
+The World `cfg(test)` wrappers `tick_represented_loot_rolls_like_cpp`,
+`apply_pending_durable_item_loot_completions_like_cpp` and
+`wait_for_active_loot_persistence_like_cpp` moved to
+`handlers/loot_test_shims.rs` and call the free functions.
+
+A normalised token comparison of all 43 moved functions against the base
+finds 38 identical. The other five differ only as follows:
+- **Fixture steps.** The two `#[cfg(test)]` store-grant steps in item
+  storage and the disenchant batch use the 4b mechanism:
+  `#[cfg(any(test, feature = "test-fixtures"))] if host.test_fixtures_like_cpp().is_some() && let Some(grants) = …`.
+- **Dungeon-encounter fallback.** It is a `&self` body, so its former
+  `#[cfg(test)]`/`#[cfg(not(test))]` pair reads the World `cfg!(test)`
+  through `host.represented_local_loot_fixture_allowed_like_cpp()`. The
+  production result is still the constant `false`.
+- **Loot-opened publication.** It reads the same fixture predicate through
+  the host.
+- **Storage-plan helper.** It reaches the catalogs through
+  `host.hub_ref()`.
+- **rustfmt.** It folds two single-expression closures in the store
+  bodies.
+
+The 5a sources and claims now call the moved storage, loot-opened and
+dungeon-unlock functions as free calls.
+
+### Host surface
+
+- **`LootSessionHostLikeCpp`**: 61 methods, 196 lines (5a: 32 methods,
+  123 lines).
+  - **Removed (6).** Five 5a methods whose bodies now live in loot-ops: the
+    loot-opened publication, the two dungeon-unlock checks and the two
+    direct stores. The sixth is the chest same-map refresh (#1380
+    follow-up 2). Its World `LootCxRef` facade became the loot-ops free
+    function `queue_session_chest_gameobject_state_refresh_for_same_map_like_cpp`,
+    so it no longer collides with the loot-release function at the crate
+    root.
+  - **Added (35).** The quest-state accessors and the inventory split.
+    Inventory insertion, lookup and publication. Collection, item-template
+    and stats-store reads. The four durable item-loot persistence
+    operations of the inventory context. The quest-objective preflight,
+    progress, drain, persistence plan and save. Gold read and write.
+    Pass-on-loot. The dungeon-lock query. The creature message-to-set
+    check. The owner release. `Loot::NotifyMoneyRemoved`. The command
+    sender, and the registry sync.
+- **Adapter** `handlers/loot/session_loot_host.rs`: 342 lines (5a: 206).
+  - Every method is a pure forward to the same-named inherent method or
+    field.
+  - The four durable item-loot operations and `make_inventory_item_object`
+    go through `cx_inventory_ref`, as the moved bodies did.
+  - `Loot::NotifyMoneyRemoved` goes through the loot handler owner's
+    default method by explicit UFCS.
+- **Recursion check.** A scan of the adapter finds that every same-named
+  `self.` forward has an inherent `WorldSession` method. No other forward
+  names a moved function. rustc reports no `unconditional_recursion`.
+- **Budget.** +73 trait lines and +136 adapter lines (209) against about
+  3,570 moved lines: 5.9 %. The whole 5a+5b host is 538 lines against
+  about 7,450 moved lines: 7.2 %.
+- **`LootCxRef`** keeps only `lifecycle`. Its `inventory`, `world_entities`
+  and `hub` lost their last readers.
+- **Test shims.** `handlers/loot_test_shims.rs` (outside the loot hotspot
+  tree) grows by 221 lines to 572. It gains:
+  - the three moved `cfg(test)` wrappers;
+  - eleven method-syntax entry points for the moved functions the loot
+    scenarios call;
+  - the test-only names the scenarios read through `super::*`.
+
+  No test call site changed.
+
+### Accounting
+
+- **`crates/wow-world/src`.** −3,767 / +496. Classifier: 79,633 →
+  **76,402 production (−3,231)**, 83,127 → 79,856 physical, 511 → 507
+  files.
+- **Destinations.**
+  - `wow-world-loot-ops/src` 8,600 → 12,244 (+3,644). The six moved files
+    are 3,462 lines; the rest is the trait, the prelude imports, the
+    exports, the chest facade and the 0xBADD note.
+  - `wow-world-loot/src` +111 (106 moved, 5 export lines).
+  - `wow-world-quest/src` +18.
+- **`wow-world-application`: 11,523 lines, unchanged.**
+- **`net_move.py check`.** S = 3,271, G = 3,773 ≤ 4,395.6, 0 duplicate
+  bodies, PASS.
+- **Edges.** No `wow-world-*` edge is added or removed. Loot-ops gains
+  external `tokio` and `flume` for the persistence workers;
+  `dependency-policy.json` allows both. The closure check passes in lock
+  and metadata mode. Loot reaches only core; only `wow-world` reaches
+  loot-ops.
+- **`session-ownership-policy.json`** is reprinted with `print-baseline`.
+  The delta is:
+  - the moved impl items;
+  - the direct-registry rows that moved to `wow-world-loot-ops`
+    (`session_loot::{rolls, persistence, fanout}`) and to `wow-world-loot`
+    (`roll_values`);
+  - the adapter's trait items;
+  - the test-shim impl.
+
+  The syntax-only check passes.
+- **Ceilings.** None raised. Tightened to live values:
+  - hotspot `handlers/loot/mod.rs`: production 5,854 → 2,413, test 18,969
+    → 18,929, total 24,823 → 21,342;
+  - physical `handlers/loot/requests.rs` 260 → 18, and
+    `handlers/loot/handlers.rs` 383 → 379. The calls name
+    `wow_world_loot_ops` and pass the session (+3 lines). The stale 0xBADD
+    placeholder note moved to the `CMSG_SET_LOOT_SPECIALIZATION`
+    registration it describes in loot-ops (−7 lines).
+  - The session hotspot is unchanged at its ceiling. Two lifecycle call
+    sites import the moved wait so it does not grow.
+- **Warnings.**
+  - `wow-world` `dead_code` is 0 in the production lib, the lib with
+    `test-fixtures` and the lib test build.
+  - `unused_imports` 151 → 143, 160 → 152 and 320 → 304. The World loot
+    module drops the imports only the moved bodies used, and the
+    test-only ones move to the shim file.
+  - No new warning in any package. Loot-ops keeps only its pre-existing
+    `unused_mut`.
+- **Tests.** No `#[test]` or `#[ignore]` is added or removed, and no test
+  file changed, so the test-name multiset is unchanged. The 346 wow-world
+  tests matching `loot` pass.
+
+### Remaining loot in `wow-world`
+
+- **Production.** `handlers/loot` is 2,413 lines:
+  - **5c:** `money.rs` 67, `handlers/money.rs` 515, `handlers.rs` 379;
+  - the F5 adapters `loot_host.rs` and `session_loot_host.rs`;
+  - the release context builder `claims/release.rs`;
+  - `combat_commands.rs` and `visibility_commands.rs` (slices 7 and 11);
+  - the `mod.rs` shell;
+  - the cfg(test) entry points.
+
+### 5c plan
+
+The two money paths (the durable payout, `CMSG_LOOT_MONEY` and the
+apply-loot-money receiver) and the loot command receivers (roll vote,
+master-loot give and roll-store-winner) move to `session_loot` behind the
+same trait.
+- That is about 960 lines.
+- The surface is the gold coordinator and persistence, the money recipients
+  and the loot-money persistence default methods, the stored-item money
+  persistence, and the creature-melee publication.
+- The creature melee-damage and loot-release-values receivers in
+  `handlers.rs` are not loot. They go with slice 7.
+
+### Follow-ups
+
+- The chest same-map refresh facade has a distinct name, so its host method
+  is gone (#1380 follow-up 2).
+- The test shim file stays: 572 lines, outside the loot hotspot. Converting
+  the loot scenarios to free-function calls would raise the loot test
+  ceiling, which this slice does not do (#1380 follow-up 1, deferred).
+
+### Validation
+
+`final --architecture --timings` (`VALIDATION_V2_CARGO_JOBS=1`,
+`VALIDATION_V2_TIMEOUT_SECONDS=1800`) runs on the committed head that
+includes this section. Its manifest path, dirty flag and duration are in
+the PR body. This section is not edited after that run.
