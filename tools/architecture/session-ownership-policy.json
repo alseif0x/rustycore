@@ -171,6 +171,14 @@
           "source_class": "test_fixture"
         },
         {
+          "module": "crate::handlers::battle_pet_test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::battlegrounds::battleground_host",
           "trait_path": "BattlegroundHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
@@ -928,12 +936,6 @@
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::pets",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "module": "crate::handlers::pets::battle_pet_host",
           "trait_path": "BattlePetHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
@@ -1529,6 +1531,12 @@
         },
         {
           "module": "crate::session",
+          "trait_path": "wow_world_inventory :: BattlePetSessionHostLikeCpp",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
           "trait_path": "wow_world_lifecycle :: PetSessionHostLikeCpp",
           "cfg": [],
           "source_class": "production"
@@ -1577,62 +1585,6 @@
           "module": "crate::battle_pet_purchase::host",
           "trait_path": "BattlePetPurchaseHostLikeCpp",
           "kind": "method",
-          "name": "battle_pet_account_owner_lease_like_cpp",
-          "visibility": "private",
-          "signature": "fn battle_pet_account_owner_lease_like_cpp (& self ,) -> Option < (Arc < BattlePetAccountOwnerLikeCpp > , BattlePetLeaseIdLikeCpp) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::battle_pet_purchase::host",
-          "trait_path": "BattlePetPurchaseHostLikeCpp",
-          "kind": "method",
-          "name": "battle_pet_purchase_store_like_cpp",
-          "visibility": "private",
-          "signature": "fn battle_pet_purchase_store_like_cpp (& self ,) -> Option < Arc < dyn BattlePetPurchasePersistencePortLikeCpp > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::battle_pet_purchase::host",
-          "trait_path": "BattlePetPurchaseHostLikeCpp",
-          "kind": "method",
-          "name": "battle_pet_species_entry_like_cpp",
-          "visibility": "private",
-          "signature": "fn battle_pet_species_entry_like_cpp (& self , species : u32 ,) -> Option < wow_data :: BattlePetSpeciesEntry >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::battle_pet_purchase::host",
-          "trait_path": "BattlePetPurchaseHostLikeCpp",
-          "kind": "method",
-          "name": "battle_pet_try_acquire_journal_lease_like_cpp",
-          "visibility": "private",
-          "signature": "fn battle_pet_try_acquire_journal_lease_like_cpp (& self) -> impl Future < Output = bool > + Send",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::battle_pet_purchase::host",
-          "trait_path": "BattlePetPurchaseHostLikeCpp",
-          "kind": "method",
           "name": "begin_exclusive_player_money_persistence_like_cpp",
           "visibility": "private",
           "signature": "fn begin_exclusive_player_money_persistence_like_cpp (& mut self ,) -> impl Future < Output = Option < ExclusivePlayerMoneyPersistenceLikeCpp > > + Send",
@@ -1675,34 +1627,6 @@
           "module": "crate::battle_pet_purchase::host",
           "trait_path": "BattlePetPurchaseHostLikeCpp",
           "kind": "method",
-          "name": "lifecycle",
-          "visibility": "private",
-          "signature": "fn lifecycle (& self) -> & SessionLifecycleState",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::battle_pet_purchase::host",
-          "trait_path": "BattlePetPurchaseHostLikeCpp",
-          "kind": "method",
-          "name": "record_battle_pet_trainer_purchase_criteria_like_cpp",
-          "visibility": "private",
-          "signature": "fn record_battle_pet_trainer_purchase_criteria_like_cpp (& mut self , species : u32)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::battle_pet_purchase::host",
-          "trait_path": "BattlePetPurchaseHostLikeCpp",
-          "kind": "method",
           "name": "resolved_player_money_like_cpp",
           "visibility": "private",
           "signature": "fn resolved_player_money_like_cpp (& self) -> Option < u64 >",
@@ -1720,20 +1644,6 @@
           "name": "send_player_values_update_from_entity_bridge",
           "visibility": "private",
           "signature": "fn send_player_values_update_from_entity_bridge (& self , inv_slot_changes : & [(u8 , ObjectGuid)] , visible_item_changes : & [(u8 , i32 , u16 , u16)] , virtual_item_changes : & [(u8 , i32 , u16 , u16)] , buyback_changes : & [(u8 , u32 , i64)] , coinage : Option < u64 > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::battle_pet_purchase::host",
-          "trait_path": "BattlePetPurchaseHostLikeCpp",
-          "kind": "method",
-          "name": "split_lifecycle_mut",
-          "visibility": "private",
-          "signature": "fn split_lifecycle_mut (& mut self) -> (& mut SessionLifecycleState , HubMut < '_ >)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -2366,6 +2276,246 @@
           "name": "handle_update_account_data",
           "visibility": "pub (crate)",
           "signature": "async fn handle_update_account_data (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battle_pet_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "battle_pet_account_owner_lease_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn battle_pet_account_owner_lease_like_cpp (& self ,) -> Option < (std :: sync :: Arc < crate :: battle_pet_account :: BattlePetAccountOwnerLikeCpp > , crate :: battle_pet_account :: BattlePetLeaseIdLikeCpp ,) >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battle_pet_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "battle_pet_add_pet_represented_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn battle_pet_add_pet_represented_like_cpp (& mut self , species : u32 , display_id : u32 , breed : u16 , quality : u8 , level : u16 ,) -> Option < ObjectGuid >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battle_pet_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "battle_pet_cage_battle_pet_represented_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn battle_pet_cage_battle_pet_represented_like_cpp (& mut self , pet_guid : ObjectGuid , inventory_can_store : bool , item_stored : bool ,) -> RepresentedBattlePetCageOutcomeLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battle_pet_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "battle_pet_calculate_stats_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn battle_pet_calculate_stats_like_cpp (& self , breed : u16 , species : u32 , quality : u8 , level : u16 ,) -> Option < RepresentedBattlePetCalculatedStatsLikeCpp >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battle_pet_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "battle_pet_change_battle_pet_quality_represented_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn battle_pet_change_battle_pet_quality_represented_like_cpp (& mut self , pet_guid : ObjectGuid , quality : u8 ,) -> RepresentedBattlePetQualityOutcomeLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battle_pet_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "battle_pet_count_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn battle_pet_count_like_cpp (& self , species : u32 , owner_guid : Option < ObjectGuid > ,) -> u8",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battle_pet_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "battle_pet_grant_battle_pet_experience_represented_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn battle_pet_grant_battle_pet_experience_represented_like_cpp (& mut self , pet_guid : ObjectGuid , xp : u16 , xp_source : RepresentedBattlePetXpSourceLikeCpp , pet_battle_xp_multiplier : f32 ,) -> RepresentedBattlePetGrantExperienceOutcomeLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battle_pet_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "battle_pet_grant_battle_pet_experience_with_owner_auras_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn battle_pet_grant_battle_pet_experience_with_owner_auras_like_cpp (& mut self , pet_guid : ObjectGuid , xp : u16 , xp_source : RepresentedBattlePetXpSourceLikeCpp ,) -> RepresentedBattlePetGrantExperienceOutcomeLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battle_pet_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "battle_pet_grant_battle_pet_level_represented_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn battle_pet_grant_battle_pet_level_represented_like_cpp (& mut self , pet_guid : ObjectGuid , granted_levels : u16 ,) -> RepresentedBattlePetGrantLevelOutcomeLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battle_pet_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "battle_pet_has_max_pet_count_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn battle_pet_has_max_pet_count_like_cpp (& self , species : u32 , owner_guid : Option < ObjectGuid > ,) -> Option < bool >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battle_pet_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "battle_pet_max_pet_level_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn battle_pet_max_pet_level_like_cpp (& self) -> Option < u16 >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battle_pet_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "battle_pet_modify_name_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn battle_pet_modify_name_like_cpp (& mut self , pet_guid : ObjectGuid , name : String , declined_names : Option < wow_packet :: packets :: misc :: DeclinedNamesLikeCpp > , timestamp : i64 ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battle_pet_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "battle_pet_remove_pet_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn battle_pet_remove_pet_like_cpp (& mut self , pet_guid : ObjectGuid) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battle_pet_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "battle_pet_try_acquire_journal_lease_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn battle_pet_try_acquire_journal_lease_like_cpp (& self) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battle_pet_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_cage_battle_pet_represented_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_cage_battle_pet_represented_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [
             "cfg (test)"
           ],
@@ -11524,36 +11674,6 @@
           ]
         },
         {
-          "module": "crate::handlers::pets",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_cage_battle_pet_represented_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_cage_battle_pet_represented_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::pets",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_dismiss_critter",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_dismiss_critter (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::pets::battle_pet_host",
           "trait_path": "BattlePetHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
@@ -11568,26 +11688,12 @@
           ]
         },
         {
-          "module": "crate::handlers::pets::battle_pet_host",
-          "trait_path": "BattlePetHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
-          "kind": "method",
-          "name": "handle_dismiss_critter",
-          "visibility": "private",
-          "signature": "fn handle_dismiss_critter < 'a > (& 'a mut self , pkt : WorldPacket) -> HandlerFuture < 'a , () >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
           "module": "crate::handlers::pets::test_only",
           "trait_path": null,
           "kind": "method",
           "name": "handle_battle_pet_delete_pet_represented_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn handle_battle_pet_delete_pet_represented_like_cpp (& mut self , pkt : wow_packet :: WorldPacket ,)",
+          "signature": "async fn handle_battle_pet_delete_pet_represented_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [
             "cfg (test)"
           ],
@@ -11603,7 +11709,7 @@
           "kind": "method",
           "name": "handle_battle_pet_modify_name_represented_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn handle_battle_pet_modify_name_represented_like_cpp (& mut self , pkt : wow_packet :: WorldPacket ,)",
+          "signature": "async fn handle_battle_pet_modify_name_represented_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [
             "cfg (test)"
           ],
@@ -11716,6 +11822,22 @@
           "name": "handle_battle_pet_update_notify",
           "visibility": "pub (crate)",
           "signature": "async fn handle_battle_pet_update_notify (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::pets::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_dismiss_critter",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_dismiss_critter (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
           ],
@@ -16968,32 +17090,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_grant_battle_pet_experience_effect_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "async fn apply_grant_battle_pet_experience_effect_like_cpp (& mut self , metadata : SpellCastMetadata , xp : u16 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_grant_battle_pet_level_effect_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "async fn apply_grant_battle_pet_level_effect_like_cpp (& mut self , metadata : SpellCastMetadata , granted_levels : u16 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "apply_group_difficulty_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn apply_group_difficulty_like_cpp (& mut self , group_guid : u64 , difficulty_id : u32 , kind : wow_social :: group :: GroupDifficultyKindLikeCpp ,)",
@@ -17650,19 +17746,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_recruit_a_friend_reputation_bonus_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_recruit_a_friend_reputation_bonus_like_cpp (& self , source : ReputationGainSourceLikeCpp , mut percent : f32 ,) -> f32",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "apply_represented_active_talent_spell_side_effects_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn apply_represented_active_talent_spell_side_effects_like_cpp (& mut self , talent_id : u32 , previous_rank : Option < u8 > , rank : u8 , talent_group : u8 ,)",
@@ -18260,19 +18343,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_uncage_battle_pet_effect_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "async fn apply_uncage_battle_pet_effect_like_cpp (& mut self , spell_id : i32 , cast_id : ObjectGuid , metadata : SpellCastMetadata ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "apply_upgrade_heirloom_effect_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn apply_upgrade_heirloom_effect_like_cpp (& mut self , metadata : SpellCastMetadata ,)",
@@ -18385,79 +18455,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "battle_pet_account_owner_lease_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn battle_pet_account_owner_lease_like_cpp (& self ,) -> Option < (Arc < crate :: battle_pet_account :: BattlePetAccountOwnerLikeCpp > , crate :: battle_pet_account :: BattlePetLeaseIdLikeCpp ,) >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "battle_pet_add_pet_represented_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn battle_pet_add_pet_represented_like_cpp (& mut self , species : u32 , display_id : u32 , breed : u16 , quality : u8 , level : u16 ,) -> Option < ObjectGuid >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "battle_pet_cage_battle_pet_represented_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn battle_pet_cage_battle_pet_represented_like_cpp (& mut self , pet_guid : ObjectGuid , inventory_can_store : bool , item_stored : bool ,) -> RepresentedBattlePetCageOutcomeLikeCpp",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "battle_pet_calculate_stats_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn battle_pet_calculate_stats_like_cpp (& self , breed : u16 , species : u32 , quality : u8 , level : u16 ,) -> Option < RepresentedBattlePetCalculatedStatsLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "battle_pet_change_battle_pet_quality_represented_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn battle_pet_change_battle_pet_quality_represented_like_cpp (& mut self , pet_guid : ObjectGuid , quality : u8 ,) -> RepresentedBattlePetQualityOutcomeLikeCpp",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "battle_pet_clear_fanfare_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battle_pet_clear_fanfare_like_cpp (& mut self , pet_guid : ObjectGuid) -> bool",
@@ -18465,92 +18462,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "battle_pet_count_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn battle_pet_count_like_cpp (& self , species : u32 , owner_guid : Option < ObjectGuid > ,) -> u8",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "battle_pet_grant_battle_pet_experience_represented_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn battle_pet_grant_battle_pet_experience_represented_like_cpp (& mut self , pet_guid : ObjectGuid , xp : u16 , xp_source : RepresentedBattlePetXpSourceLikeCpp , pet_battle_xp_multiplier : f32 ,) -> RepresentedBattlePetGrantExperienceOutcomeLikeCpp",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "battle_pet_grant_battle_pet_experience_with_owner_auras_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn battle_pet_grant_battle_pet_experience_with_owner_auras_like_cpp (& mut self , pet_guid : ObjectGuid , xp : u16 , xp_source : RepresentedBattlePetXpSourceLikeCpp ,) -> RepresentedBattlePetGrantExperienceOutcomeLikeCpp",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "battle_pet_grant_battle_pet_level_represented_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn battle_pet_grant_battle_pet_level_represented_like_cpp (& mut self , pet_guid : ObjectGuid , granted_levels : u16 ,) -> RepresentedBattlePetGrantLevelOutcomeLikeCpp",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "battle_pet_grant_experience_durable_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn battle_pet_grant_experience_durable_like_cpp (& mut self , pet_guid : ObjectGuid , xp : u16 , xp_source : RepresentedBattlePetXpSourceLikeCpp , pet_battle_xp_multiplier : f32 ,) -> RepresentedBattlePetGrantExperienceOutcomeLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "battle_pet_grant_level_durable_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn battle_pet_grant_level_durable_like_cpp (& mut self , pet_guid : ObjectGuid , granted_levels : u16 ,) -> RepresentedBattlePetGrantLevelOutcomeLikeCpp",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -18574,9 +18485,9 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "battle_pet_modify_name_like_cpp",
+          "name": "battle_pet_modify_name_durable_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn battle_pet_modify_name_like_cpp (& mut self , pet_guid : ObjectGuid , name : String , declined_names : Option < wow_packet :: packets :: misc :: DeclinedNamesLikeCpp > , timestamp : i64 ,) -> bool",
+          "signature": "async fn battle_pet_modify_name_durable_like_cpp (& mut self , pet_guid : ObjectGuid , name : String , declined_names : Option < wow_packet :: packets :: misc :: DeclinedNamesLikeCpp > , timestamp : i64 ,) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -18589,9 +18500,9 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "battle_pet_remove_pet_like_cpp",
+          "name": "battle_pet_remove_pet_durable_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn battle_pet_remove_pet_like_cpp (& mut self , pet_guid : ObjectGuid) -> bool",
+          "signature": "async fn battle_pet_remove_pet_durable_like_cpp (& mut self , pet_guid : ObjectGuid ,) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -18664,19 +18575,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "battle_pet_species_has_flag_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn battle_pet_species_has_flag_like_cpp (& self , species : u32 , flag : i32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "battle_pet_summon_toggle_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battle_pet_summon_toggle_like_cpp (& mut self , pet_guid : ObjectGuid) -> bool",
@@ -18684,34 +18582,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "battle_pet_try_acquire_journal_lease_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn battle_pet_try_acquire_journal_lease_like_cpp (& self) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "battle_pet_try_add_pet_durable_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn battle_pet_try_add_pet_durable_like_cpp (& mut self , request_key : [u8 ; 16] , species : u32 , display_id : u32 , breed : u16 , quality : u8 , level : u16 ,) -> Result < ObjectGuid , BattlePetAddFailureLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -19180,19 +19050,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "calculate_kill_reputation_gain_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn calculate_kill_reputation_gain_like_cpp (& self , creature_level : u8 , rep : i32 , faction_id : u32 ,) -> i32",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "calculate_represented_mounted_aura_amount_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn calculate_represented_mounted_aura_amount_like_cpp (& self , spell_id : i32 , effect : & wow_data :: SpellEffectInfo ,) -> i32",
@@ -19209,8 +19066,10 @@
           "name": "calculate_reputation_gain_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn calculate_reputation_gain_like_cpp (& self , source : ReputationGainSourceLikeCpp , creature_or_quest_level : u32 , rep : i32 , faction_id : u32 , no_quest_bonus : bool ,) -> i32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -20749,19 +20608,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "destroy_uncaged_battle_pet_item_durable_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "async fn destroy_uncaged_battle_pet_item_durable_like_cpp (& mut self , source_item_guid : ObjectGuid ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "direct_item_contains_items",
           "visibility": "pub (crate)",
           "signature": "fn direct_item_contains_items (& self , item_guid : ObjectGuid) -> bool",
@@ -21844,17 +21690,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "gets_recruit_a_friend_reputation_bonus_like_cpp",
-          "visibility": "private",
-          "signature": "fn gets_recruit_a_friend_reputation_bonus_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "gets_recruit_a_friend_xp_bonus_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn gets_recruit_a_friend_xp_bonus_like_cpp (& self) -> bool",
@@ -22162,10 +21997,8 @@
           "name": "has_represented_battle_pet_journal_lock_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn has_represented_battle_pet_journal_lock_like_cpp (& self) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
+          "cfg": [],
+          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -29010,10 +28843,8 @@
           "name": "represented_battle_pet_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_battle_pet_like_cpp (& self , pet_guid : ObjectGuid ,) -> Option < RepresentedBattlePetDataLikeCpp >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
+          "cfg": [],
+          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -32836,19 +32667,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "reputation_gain_percent_before_reward_rate_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn reputation_gain_percent_before_reward_rate_like_cpp (& self , source : ReputationGainSourceLikeCpp , creature_or_quest_level : u32 , rep : i32 , faction_id : u32 , no_quest_bonus : bool ,) -> Option < f32 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "reputation_mgr_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn reputation_mgr_like_cpp (& self) -> ReputationMgrRefLikeCpp < '_ >",
@@ -34170,6 +33988,19 @@
           "name": "send_bag_slot_values_update_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn send_bag_slot_values_update_like_cpp (& self , bag_slot : u8 , changed_slot : u8)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "send_battle_pet_journal_lock_status_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn send_battle_pet_journal_lock_status_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -41795,7 +41626,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "total_represented_aura_multiplier_like_cpp",
-          "visibility": "pub (in crate :: session)",
+          "visibility": "pub (crate)",
           "signature": "fn total_represented_aura_multiplier_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp ,) -> f32",
           "cfg": [
             "cfg (test)"
@@ -41935,19 +41766,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "uncage_cast_item_still_matches_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn uncage_cast_item_still_matches_like_cpp (& self , cast_item_entry : u32 , modifiers : SpellCastBattlePetItemModifiersLikeCpp ,) -> Option < (u8 , u8 , InventoryItem) >",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -43856,6 +43674,19 @@
           "module": "crate::session",
           "trait_path": "SocialSessionHostLikeCpp",
           "kind": "method",
+          "name": "gets_recruit_a_friend_bonus_like_cpp",
+          "visibility": "private",
+          "signature": "fn gets_recruit_a_friend_bonus_like_cpp (& self , for_xp : bool) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "SocialSessionHostLikeCpp",
+          "kind": "method",
           "name": "lfg_has_active_instance_lock_like_cpp",
           "visibility": "private",
           "signature": "fn lfg_has_active_instance_lock_like_cpp (& self , map_id : u32 , difficulty_id : u8) -> bool",
@@ -43950,6 +43781,19 @@
           "name": "resolved_group_guid_like_cpp",
           "visibility": "private",
           "signature": "fn resolved_group_guid_like_cpp (& self) -> Option < u64 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "SocialSessionHostLikeCpp",
+          "kind": "method",
+          "name": "resolved_total_represented_aura_modifier_by_misc_value_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_total_represented_aura_modifier_by_misc_value_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp , misc_value : i32 ,) -> Option < i32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -44272,6 +44116,21 @@
         },
         {
           "module": "crate::session",
+          "trait_path": "wow_world_core :: session :: SessionHubHostLikeCpp",
+          "kind": "method",
+          "name": "test_fixtures_ref_like_cpp",
+          "visibility": "private",
+          "signature": "fn test_fixtures_ref_like_cpp (& self ,) -> Option < & wow_world_core :: session :: state :: SessionFixtures >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
           "trait_path": "wow_world_entities :: CombatSessionHostLikeCpp",
           "kind": "method",
           "name": "broadcast_player_packet_to_visible_set_realm_like_cpp",
@@ -44381,6 +44240,116 @@
           "name": "bank_slot_flag_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn bank_slot_flag_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> wow_world_inventory :: BankSlotFlagApplicationCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_inventory :: BattlePetSessionHostLikeCpp",
+          "kind": "method",
+          "name": "battle_pet_add_pet_fixture_like_cpp",
+          "visibility": "private",
+          "signature": "fn battle_pet_add_pet_fixture_like_cpp (& mut self , species : u32 , display_id : u32 , breed : u16 , quality : u8 , level : u16 ,) -> Option < Option < wow_core :: ObjectGuid > >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_inventory :: BattlePetSessionHostLikeCpp",
+          "kind": "method",
+          "name": "battle_pet_grant_experience_fixture_like_cpp",
+          "visibility": "private",
+          "signature": "fn battle_pet_grant_experience_fixture_like_cpp (& mut self , pet_guid : wow_core :: ObjectGuid , xp : u16 , xp_source : wow_world_inventory :: RepresentedBattlePetXpSourceLikeCpp , pet_battle_xp_multiplier : f32 ,) -> Option < wow_world_inventory :: RepresentedBattlePetGrantExperienceOutcomeLikeCpp >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_inventory :: BattlePetSessionHostLikeCpp",
+          "kind": "method",
+          "name": "battle_pet_grant_level_fixture_like_cpp",
+          "visibility": "private",
+          "signature": "fn battle_pet_grant_level_fixture_like_cpp (& mut self , pet_guid : wow_core :: ObjectGuid , granted_levels : u16 ,) -> Option < wow_world_inventory :: RepresentedBattlePetGrantLevelOutcomeLikeCpp >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_inventory :: BattlePetSessionHostLikeCpp",
+          "kind": "method",
+          "name": "destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp",
+          "visibility": "private",
+          "signature": "fn destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp (& mut self , bag : u8 , slot : u8 , item : InventoryItem , runtime_item : Option < Item > , expected_owner_db_guid : Option < u64 > , context : & str ,) -> impl Future < Output = bool > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_inventory :: BattlePetSessionHostLikeCpp",
+          "kind": "method",
+          "name": "lifecycle",
+          "visibility": "private",
+          "signature": "fn lifecycle (& self) -> & SessionLifecycleState",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_inventory :: BattlePetSessionHostLikeCpp",
+          "kind": "method",
+          "name": "split_inventory_ref",
+          "visibility": "private",
+          "signature": "fn split_inventory_ref (& self) -> (& InventoryState , HubRef < '_ >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_inventory :: BattlePetSessionHostLikeCpp",
+          "kind": "method",
+          "name": "split_lifecycle_mut",
+          "visibility": "private",
+          "signature": "fn split_lifecycle_mut (& mut self) -> (& mut SessionLifecycleState , HubMut < '_ >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_inventory :: BattlePetSessionHostLikeCpp",
+          "kind": "method",
+          "name": "uncage_item_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn uncage_item_state_like_cpp (& self , player_db_guid : u64 , item_db_guid : u64 ,) -> impl Future < Output = wow_persistence :: PlayerUncageItemStateLoadOutcomeLikeCpp > + Send",
           "cfg": [],
           "source_class": "production",
           "guards": [
