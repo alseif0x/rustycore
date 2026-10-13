@@ -247,8 +247,8 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             QUEST_REGISTRAR.package,
             QUEST_REGISTRAR.module,
-            "crates/wow-world-application/src/quest_handlers.rs",
-            include_str!("../../../../../crates/wow-world-application/src/quest_handlers.rs"),
+            "crates/wow-world-quest/src/quest_handlers.rs",
+            include_str!("../../../../../crates/wow-world-quest/src/quest_handlers.rs"),
         ),
         mount(
             VOID_STORAGE_REGISTRAR.package,
@@ -327,8 +327,8 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             QUEST_QUERY_REGISTRAR.package,
             QUEST_QUERY_REGISTRAR.module,
-            "crates/wow-world-application/src/quest_query_handlers.rs",
-            include_str!("../../../../../crates/wow-world-application/src/quest_query_handlers.rs"),
+            "crates/wow-world-quest/src/quest_query_handlers.rs",
+            include_str!("../../../../../crates/wow-world-quest/src/quest_query_handlers.rs"),
         ),
         mount(
             GUILD_REGISTRAR.package,
@@ -413,6 +413,12 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             "crate",
             "crates/wow-world-character/src/lib.rs",
             include_str!("../../../../../crates/wow-world-character/src/lib.rs"),
+        ),
+        mount(
+            QUEST_REGISTRAR.package,
+            "crate",
+            "crates/wow-world-quest/src/lib.rs",
+            include_str!("../../../../../crates/wow-world-quest/src/lib.rs"),
         ),
         mount(
             "wow-world",
@@ -648,7 +654,7 @@ fn composition_guard_requires_the_migrated_trainer_and_tail_calls_and_facades() 
         "wow_world_application::register_trainer_handlers_like_cpp",
         "wow_world_entities::register_movement_tail_handlers_like_cpp",
         "wow_world_application::register_character_account_handlers_like_cpp",
-        "wow_world_application::register_quest_handlers_like_cpp",
+        "wow_world_quest::register_quest_handlers_like_cpp",
         "wow_world_inventory::register_void_storage_handlers_like_cpp",
         "wow_world_application::register_talent_handlers_like_cpp",
         "wow_world_entities::register_corpse_handlers_like_cpp",
@@ -679,8 +685,17 @@ fn composition_guard_requires_the_migrated_trainer_and_tail_calls_and_facades() 
     // The quest-giver family (#1263 F5 remaining families) must also keep its
     // exact root facade.
     let mut inexact_quest_facade = actual_mounts();
-    inexact_quest_facade[5].source = mutate_fixture(
-        &inexact_quest_facade[5].source,
+    let quest_root = inexact_quest_facade
+        .iter()
+        .position(|mount| {
+            mount.package == QUEST_REGISTRAR.package
+                && mount
+                    .source_path
+                    .ends_with("crates/wow-world-quest/src/lib.rs")
+        })
+        .expect("Quest root source mount exists");
+    inexact_quest_facade[quest_root].source = mutate_fixture(
+        &inexact_quest_facade[quest_root].source,
         "pub use quest_handlers::{QuestHandlerHostLikeCpp, register_quest_handlers_like_cpp};",
         "pub use quest_handlers::{QuestHandlerHostLikeCpp};",
     );

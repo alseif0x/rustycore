@@ -468,7 +468,7 @@ const QUEST_QUERY_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContrac
 
 pub(crate) const QUEST_QUERY_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationQuestQuery",
-    package: "wow-world-application",
+    package: "wow-world-quest",
     module: "crate::quest_query_handlers",
     registrar: "register_quest_query_handlers_like_cpp",
     host_trait: "QuestQueryHandlerHostLikeCpp",
@@ -926,7 +926,7 @@ const QUEST_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
 /// `id_generators.item`) at the registration site.
 pub(crate) const QUEST_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationQuest",
-    package: "wow-world-application",
+    package: "wow-world-quest",
     module: "crate::quest_handlers",
     registrar: "register_quest_handlers_like_cpp",
     host_trait: "QuestHandlerHostLikeCpp",

@@ -25,7 +25,7 @@ impl WorldSession {
             #[cfg(any(test, feature = "test-fixtures"))]
             fixtures.class,
         );
-        let mut operation = wow_world_application::QuestRewardCx::new(
+        let mut operation = wow_world_quest::QuestRewardCx::new(
             &mut self.inventory,
             &mut self.lifecycle,
             &mut self.quest_state,

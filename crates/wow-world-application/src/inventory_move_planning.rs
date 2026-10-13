@@ -1,9 +1,9 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-use crate::PlayerConditionProjectionCxLikeCpp;
 use wow_constants::InventoryResult;
 use wow_entities::{ItemPosCount, is_bank_pos, is_equipment_pos, is_inventory_pos};
+use wow_world_quest::PlayerConditionProjectionCxLikeCpp;
 
 mod bank;
 
@@ -173,7 +173,7 @@ impl<'cx, 'owner> InventoryMovePlanningCxLikeCpp<'cx, 'owner> {
             #[cfg(any(test, feature = "test-fixtures"))]
             self.conditions.in_combat,
         )?;
-        let outcome = crate::can_equip_inventory_item_like_cpp(
+        let outcome = wow_world_quest::can_equip_inventory_item_like_cpp(
             self.conditions,
             &inventory_item,
             &runtime_item,

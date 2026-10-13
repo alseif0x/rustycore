@@ -91,7 +91,7 @@ impl WorldSession {
                     continue;
                 };
                 let state_for_viewer =
-                    wow_world_application::represented_gameobject_go_state_for_viewer_like_cpp(
+                    wow_world_quest::represented_gameobject_go_state_for_viewer_like_cpp(
                         state,
                         self.player_guid(),
                         now,

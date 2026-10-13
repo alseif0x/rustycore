@@ -18,7 +18,7 @@ impl WorldSession {
         self.gets_recruit_a_friend_bonus_like_cpp(true)
     }
     pub(in crate::session) fn gets_recruit_a_friend_bonus_like_cpp(&self, for_xp: bool) -> bool {
-        wow_world_application::QuestRewardCx::gets_recruit_a_friend_bonus_like_cpp(
+        wow_world_quest::QuestRewardCx::gets_recruit_a_friend_bonus_like_cpp(
             self.core
                 .xp_gain_access_like_cpp(&self.catalogs, &self.config),
             &self.social,

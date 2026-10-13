@@ -15,12 +15,12 @@
 //! where the closure destructured it.
 //!
 //! C++ anchors are recorded once, with the registrar, in
-//! `wow_world_application::quest_handlers`.
+//! `wow_world_quest::quest_handlers`.
 
 use wow_handler::HandlerFuture;
 use wow_packet::WorldPacket;
 use wow_packet::packets::query::QuestPoiQuery;
-use wow_world_application::QuestHandlerHostLikeCpp;
+use wow_world_quest::QuestHandlerHostLikeCpp;
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 

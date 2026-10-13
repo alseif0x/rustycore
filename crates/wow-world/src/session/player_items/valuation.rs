@@ -69,7 +69,7 @@ impl WorldSession {
             #[cfg(any(test, feature = "test-fixtures"))]
             &self.fixtures.vehicles.player_transport_login_state_like_cpp,
             #[cfg(any(test, feature = "test-fixtures"))]
-            wow_world_application::PlayerRegistryHydrationContext::new(
+            wow_world_quest::PlayerRegistryHydrationContext::new(
                 self.core.player_registry_hydration_access_like_cpp(),
                 &self.spell_state,
                 &self.quest_state,

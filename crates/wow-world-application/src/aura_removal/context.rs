@@ -61,7 +61,7 @@ impl<'a> AuraApplicationFixtureRefsLikeCpp<'a> {
         form: &'a mut u32,
         class: &'a u8,
         level: &'a u8,
-        quests: &'a crate::SessionQuestState,
+        quests: &'a wow_world_quest::SessionQuestState,
         seat_flags: &'a Option<i32>,
         seat_id: &'a Option<u32>,
         transport: &'a Option<Box<wow_world_core::session::PlayerTransportLoginStateLikeCpp>>,
@@ -155,7 +155,8 @@ pub fn player_aura_application_cx_like_cpp<'a>(
     spell_state: &'a mut wow_world_spell::SessionSpellState,
     inventory: &'a mut wow_world_inventory::InventoryState,
     loot: &'a wow_world_loot::LootState,
-    #[cfg(any(test, feature = "test-fixtures"))] quest_state: &'a crate::SessionQuestState,
+    #[cfg(any(test, feature = "test-fixtures"))]
+    quest_state: &'a wow_world_quest::SessionQuestState,
     world_test_consumer: bool,
 ) -> AuraRemovalCxLikeCpp<'a> {
     let wow_world_core::session::HubMut {

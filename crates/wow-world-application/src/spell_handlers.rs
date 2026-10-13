@@ -121,7 +121,7 @@ pub fn remove_represented_cancelable_auras_by_effect_like_cpp(
     spell_state: &mut SessionSpellState,
     inventory: &mut InventoryState,
     loot: &LootState,
-    #[cfg(any(test, feature = "test-fixtures"))] quest_state: &crate::SessionQuestState,
+    #[cfg(any(test, feature = "test-fixtures"))] quest_state: &wow_world_quest::SessionQuestState,
     world_test_consumer: bool,
     represented_effect: RepresentedAuraEffectLikeCpp,
 ) -> usize {
@@ -174,7 +174,7 @@ pub struct SpellHandlerCxLikeCpp<'a> {
     inventory: &'a mut InventoryState,
     loot: &'a LootState,
     #[cfg(any(test, feature = "test-fixtures"))]
-    quest_state: &'a crate::SessionQuestState,
+    quest_state: &'a wow_world_quest::SessionQuestState,
     /// The host's World-test flag (World passes `cfg!(test)`).
     world_test_consumer: bool,
 }
@@ -185,7 +185,8 @@ impl<'a> SpellHandlerCxLikeCpp<'a> {
         spell_state: &'a mut SessionSpellState,
         inventory: &'a mut InventoryState,
         loot: &'a LootState,
-        #[cfg(any(test, feature = "test-fixtures"))] quest_state: &'a crate::SessionQuestState,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        quest_state: &'a wow_world_quest::SessionQuestState,
         world_test_consumer: bool,
     ) -> Self {
         Self {

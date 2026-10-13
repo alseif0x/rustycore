@@ -98,12 +98,13 @@ impl InventoryMovePlanningCxLikeCpp<'_, '_> {
             self.conditions
                 .item_limit_category_template_like_cpp(proto.item_limit_category)
         });
-        let can_use_result = crate::can_use_inventory_item_represented_with_loading_like_cpp(
-            self.conditions,
-            &inventory_item,
-            Some(&source_item),
-            true,
-        );
+        let can_use_result =
+            wow_world_quest::can_use_inventory_item_represented_with_loading_like_cpp(
+                self.conditions,
+                &inventory_item,
+                Some(&source_item),
+                true,
+            );
         let mut dest = Vec::new();
         let result = player.can_bank_item_like_cpp(
             &mut dest,

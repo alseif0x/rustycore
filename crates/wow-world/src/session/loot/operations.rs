@@ -45,7 +45,7 @@ impl WorldSession {
         );
         #[cfg(not(any(test, feature = "test-fixtures")))]
         let mut player = self.core.quest_reward_player_access_like_cpp();
-        wow_world_application::reconcile_durable_loot_money_before_save_like_cpp(
+        wow_world_quest::reconcile_durable_loot_money_before_save_like_cpp(
             &mut self.lifecycle,
             &mut self.inventory,
             &mut self.quest_state,

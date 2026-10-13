@@ -12126,7 +12126,7 @@
           "kind": "method",
           "name": "with_quest_eligibility_cx_like_cpp",
           "visibility": "private",
-          "signature": "fn with_quest_eligibility_cx_like_cpp < R > (& self , run : impl FnOnce (& wow_world_application :: QuestEligibilityCx < '_ >) -> R ,) -> R",
+          "signature": "fn with_quest_eligibility_cx_like_cpp < R > (& self , run : impl FnOnce (& wow_world_quest :: QuestEligibilityCx < '_ >) -> R ,) -> R",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -25701,7 +25701,7 @@
           "kind": "method",
           "name": "player_condition_projection_cx_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn player_condition_projection_cx_like_cpp (& self ,) -> wow_world_application :: PlayerConditionProjectionCxLikeCpp < '_ >",
+          "signature": "fn player_condition_projection_cx_like_cpp (& self ,) -> wow_world_quest :: PlayerConditionProjectionCxLikeCpp < '_ >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -27117,7 +27117,7 @@
           "kind": "method",
           "name": "quest_xp_gain_context_like_cpp",
           "visibility": "private",
-          "signature": "fn quest_xp_gain_context_like_cpp (& mut self ,) -> (wow_world_application :: QuestRewardCx < '_ > , wow_world_application :: QuestXpGainFixtureRefsLikeCpp < '_ > ,)",
+          "signature": "fn quest_xp_gain_context_like_cpp (& mut self ,) -> (wow_world_quest :: QuestRewardCx < '_ > , wow_world_quest :: QuestXpGainFixtureRefsLikeCpp < '_ > ,)",
           "cfg": [
             "cfg (any (test , feature = \"test-fixtures\"))"
           ],
@@ -27130,7 +27130,7 @@
           "kind": "method",
           "name": "quest_xp_gain_context_like_cpp",
           "visibility": "private",
-          "signature": "fn quest_xp_gain_context_like_cpp (& mut self) -> wow_world_application :: QuestRewardCx < '_ >",
+          "signature": "fn quest_xp_gain_context_like_cpp (& mut self) -> wow_world_quest :: QuestRewardCx < '_ >",
           "cfg": [
             "cfg (not (any (test , feature = \"test-fixtures\")))"
           ],
@@ -58713,58 +58713,6 @@
           "count": 1
         },
         {
-          "package": "wow-world-application",
-          "module": "crate::registry_sync",
-          "source": "crates/wow-world-application/src/registry_sync.rs",
-          "enclosing": "fn sync_player_registry_state_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "member",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "core . player_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world-application",
-          "module": "crate::registry_sync",
-          "source": "crates/wow-world-application/src/registry_sync.rs",
-          "enclosing": "fn sync_player_registry_state_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "guid",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "guid:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world-application",
-          "module": "crate::registry_sync",
-          "source": "crates/wow-world-application/src/registry_sync.rs",
-          "enclosing": "fn sync_player_registry_state_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world-application",
-          "module": "crate::registry_sync",
-          "source": "crates/wow-world-application/src/registry_sync.rs",
-          "enclosing": "fn sync_player_registry_state_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "argument_escape",
-          "symbol": "player_registry_control_binding_like_cpp",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
           "package": "wow-world-character",
           "module": "crate::character_query_handlers",
           "source": "crates/wow-world-character/src/character_query_handlers.rs",
@@ -61853,6 +61801,58 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-quest",
+          "module": "crate::registry_sync",
+          "source": "crates/wow-world-quest/src/registry_sync.rs",
+          "enclosing": "fn sync_player_registry_state_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "core . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-quest",
+          "module": "crate::registry_sync",
+          "source": "crates/wow-world-quest/src/registry_sync.rs",
+          "enclosing": "fn sync_player_registry_state_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "guid",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "guid:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-quest",
+          "module": "crate::registry_sync",
+          "source": "crates/wow-world-quest/src/registry_sync.rs",
+          "enclosing": "fn sync_player_registry_state_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-quest",
+          "module": "crate::registry_sync",
+          "source": "crates/wow-world-quest/src/registry_sync.rs",
+          "enclosing": "fn sync_player_registry_state_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "player_registry_control_binding_like_cpp",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
           "count": 1
         },
         {

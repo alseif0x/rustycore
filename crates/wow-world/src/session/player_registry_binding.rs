@@ -113,7 +113,7 @@ impl WorldSession {
     }
 
     pub(crate) fn sync_player_registry_state_like_cpp(&self) {
-        wow_world_application::sync_player_registry_state_like_cpp(
+        wow_world_quest::sync_player_registry_state_like_cpp(
             crate::session::hub_ref(self),
             &self.loot,
             #[cfg(any(test, feature = "test-fixtures"))]

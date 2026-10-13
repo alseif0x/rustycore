@@ -3,4 +3,4 @@
 
 //! World facade for Application-owned quest-dialog presentation.
 
-pub(crate) use wow_world_application::QuestDialogClassificationLikeCpp;
+pub(crate) use wow_world_quest::QuestDialogClassificationLikeCpp;

@@ -30,7 +30,7 @@ impl WorldSession {
             &self.fixtures.progression.reputation_state_like_cpp,
         );
         let conditions = self.player_condition_projection_cx_like_cpp();
-        wow_world_application::QuestEligibilityCx::new(
+        wow_world_quest::QuestEligibilityCx::new(
             player,
             &self.quest_state,
             &self.catalogs,
@@ -78,7 +78,7 @@ impl WorldSession {
     /// access, the quest state and the condition projection.
     fn with_quest_eligibility_cx_like_cpp<R>(
         &self,
-        run: impl FnOnce(&wow_world_application::QuestEligibilityCx<'_>) -> R,
+        run: impl FnOnce(&wow_world_quest::QuestEligibilityCx<'_>) -> R,
     ) -> R {
         let player = self.core.quest_eligibility_access_like_cpp(
             #[cfg(any(test, feature = "test-fixtures"))]
@@ -97,7 +97,7 @@ impl WorldSession {
             &self.fixtures.progression.reputation_state_like_cpp,
         );
         let conditions = self.player_condition_projection_cx_like_cpp();
-        run(&wow_world_application::QuestEligibilityCx::new(
+        run(&wow_world_quest::QuestEligibilityCx::new(
             player,
             &self.quest_state,
             &self.catalogs,
@@ -107,7 +107,7 @@ impl WorldSession {
     }
 
     pub(crate) fn is_quest_disabled_like_cpp(&self, quest_id: u32) -> bool {
-        wow_world_application::quest_is_disabled_like_cpp(crate::session::hub_ref(self), quest_id)
+        wow_world_quest::quest_is_disabled_like_cpp(crate::session::hub_ref(self), quest_id)
     }
 }
 

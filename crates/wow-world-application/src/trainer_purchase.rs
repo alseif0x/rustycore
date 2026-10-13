@@ -45,12 +45,11 @@ pub use controller::{
     trainer_spell_product_like_cpp,
 };
 pub use offer::{
-    PreparedBattlePetTrainerOfferLikeCpp, TrainerAdmissionProofLikeCpp,
-    TrainerBattlePetProofLikeCpp, TrainerHiddenReasonLikeCpp, TrainerKnownReasonLikeCpp,
-    TrainerOfferDecisionLikeCpp, TrainerOfferInputLikeCpp, TrainerOfferPreflightLikeCpp,
-    TrainerOfferProjectionLikeCpp, TrainerProductLikeCpp, TrainerUnavailableReasonLikeCpp,
-    decide_trainer_offer_like_cpp, finish_trainer_offer_after_projection_like_cpp,
-    prepare_trainer_offer_like_cpp, trainer_condition_admission_proof_like_cpp,
+    PreparedBattlePetTrainerOfferLikeCpp, TrainerBattlePetProofLikeCpp, TrainerHiddenReasonLikeCpp,
+    TrainerKnownReasonLikeCpp, TrainerOfferDecisionLikeCpp, TrainerOfferInputLikeCpp,
+    TrainerOfferPreflightLikeCpp, TrainerOfferProjectionLikeCpp, TrainerProductLikeCpp,
+    TrainerUnavailableReasonLikeCpp, decide_trainer_offer_like_cpp,
+    finish_trainer_offer_after_projection_like_cpp, prepare_trainer_offer_like_cpp,
     trainer_price_like_cpp,
 };
 pub use runtime_install::{

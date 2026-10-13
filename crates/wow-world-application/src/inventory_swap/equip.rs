@@ -48,7 +48,7 @@ pub struct InventoryEquipCxLikeCpp<'a> {
     #[cfg(any(test, feature = "test-fixtures"))]
     max_item_level: u32,
     #[cfg(any(test, feature = "test-fixtures"))]
-    registry_hydration: Option<crate::registry_sync::PlayerRegistryHydrationContext<'a>>,
+    registry_hydration: Option<wow_world_quest::PlayerRegistryHydrationContext<'a>>,
 }
 #[cfg(any(test, feature = "test-fixtures"))]
 pub struct InventoryEquipFixtureRefsLikeCpp<'a> {
@@ -103,7 +103,7 @@ impl<'a> InventoryEquipCxLikeCpp<'a> {
         #[cfg(any(test, feature = "test-fixtures"))] min_item_level: u32,
         #[cfg(any(test, feature = "test-fixtures"))] max_item_level: u32,
         #[cfg(any(test, feature = "test-fixtures"))] registry_hydration: Option<
-            crate::registry_sync::PlayerRegistryHydrationContext<'a>,
+            wow_world_quest::PlayerRegistryHydrationContext<'a>,
         >,
     ) -> Self {
         Self {
@@ -397,7 +397,7 @@ impl<'a> InventoryEquipCxLikeCpp<'a> {
         // vitals simultaneously.
         #[cfg(any(test, feature = "test-fixtures"))]
         let inputs = self.stats.registry_sync_inputs_like_cpp();
-        let sync = crate::registry_sync::PlayerRegistrySyncContext::new(
+        let sync = wow_world_quest::PlayerRegistrySyncContext::new(
             self.registry.reborrow_like_cpp(),
             control,
             self.loot,

@@ -59,7 +59,7 @@ impl WorldSession {
         quest_ids: &mut Vec<u32>,
     ) {
         let owner = self.core.quest_objective_access_like_cpp();
-        wow_world_application::save_changed_quest_statuses_like_cpp(
+        wow_world_quest::save_changed_quest_statuses_like_cpp(
             &owner,
             &self.quest_state,
             &self.catalogs,
@@ -114,7 +114,7 @@ impl WorldSession {
 
     pub(super) async fn save_quest_to_db(&self, quest_id: u32, status: u8) {
         let owner = self.core.quest_objective_access_like_cpp();
-        wow_world_application::save_quest_to_db_like_cpp(
+        wow_world_quest::save_quest_to_db_like_cpp(
             &owner,
             &self.quest_state,
             &self.catalogs,

@@ -132,7 +132,7 @@ impl WorldSession {
             #[cfg(any(test, feature = "test-fixtures"))]
             &self.fixtures.identity.player_class,
         );
-        wow_world_application::add_currency_quest_reward_like_cpp(
+        wow_world_quest::add_currency_quest_reward_like_cpp(
             &mut self.inventory,
             &player,
             self.catalogs.currency_types_store.as_deref(),

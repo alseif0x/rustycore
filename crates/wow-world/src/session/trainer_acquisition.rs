@@ -312,7 +312,7 @@ impl WorldSession {
         let role = self.core.trainer_interaction_role_access_like_cpp();
         let packets = self.core.packet_publication_access_like_cpp();
         let spell_access = self.core.owned_spell_acquisition_access_like_cpp();
-        let player_conditions = wow_world_application::PlayerConditionProjectionInputsLikeCpp::new(
+        let player_conditions = wow_world_quest::PlayerConditionProjectionInputsLikeCpp::new(
             self.core.aura_condition_access_builder_like_cpp(
                 #[cfg(any(test, feature = "test-fixtures"))]
                 &self.fixtures.identity.player_race,

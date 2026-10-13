@@ -11,7 +11,7 @@ use wow_world_lifecycle::SessionLifecycleState;
 use wow_world_loot::LootState;
 use wow_world_spell::SessionSpellState;
 
-use crate::SessionQuestState;
+use wow_world_quest::SessionQuestState;
 
 /// The catalog handles read by the admitted trainer acquisition operation.
 pub struct TrainerAcquisitionCatalogsLikeCpp<'a> {

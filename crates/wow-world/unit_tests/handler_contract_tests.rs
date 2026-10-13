@@ -1050,7 +1050,7 @@ fn quest_family_is_migrated_off_the_legacy_inventory() {
     assert_migrated_family_like_cpp(
         "quest",
         |builder| {
-            wow_world_application::register_quest_handlers_like_cpp::<
+            wow_world_quest::register_quest_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >(builder)
@@ -1236,12 +1236,12 @@ fn travel_family_is_migrated_off_the_legacy_inventory() {
 #[test]
 fn duplicated_migrated_quest_registration_is_rejected_without_replacement() {
     let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
-    wow_world_application::register_quest_handlers_like_cpp::<
+    wow_world_quest::register_quest_handlers_like_cpp::<
         crate::session::WorldSession,
         crate::session::SessionHandlerCatalogsLikeCpp,
     >(&mut builder)
     .expect("the first quest registration succeeds");
-    let error = wow_world_application::register_quest_handlers_like_cpp::<
+    let error = wow_world_quest::register_quest_handlers_like_cpp::<
         crate::session::WorldSession,
         crate::session::SessionHandlerCatalogsLikeCpp,
     >(&mut builder)

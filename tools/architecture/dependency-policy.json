@@ -39,6 +39,7 @@
       "wow-world-inventory",
       "wow-world-lifecycle",
       "wow-world-loot",
+      "wow-world-quest",
       "wow-world-social",
       "wow-world-spell",
       "wow-world-visibility"
@@ -107,7 +108,6 @@
       "wow-packet"
     ],
     "wow-world-application": [
-      "wow-conditions",
       "wow-constants",
       "wow-core",
       "wow-data",
@@ -117,8 +117,6 @@
       "wow-map",
       "wow-packet",
       "wow-persistence",
-      "wow-progression",
-      "wow-script",
       "wow-spell-acquisition",
       "wow-world-core",
       "wow-world-entities",
@@ -127,6 +125,7 @@
       "wow-world-inventory",
       "wow-world-lifecycle",
       "wow-world-loot",
+      "wow-world-quest",
       "wow-world-social",
       "wow-world-spell",
       "wow-world-visibility"
@@ -265,6 +264,27 @@
       "wow-map",
       "wow-packet",
       "wow-world-core"
+    ],
+    "wow-world-quest": [
+      "wow-conditions",
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-handler",
+      "wow-loot",
+      "wow-packet",
+      "wow-persistence",
+      "wow-progression",
+      "wow-script",
+      "wow-world-core",
+      "wow-world-entities",
+      "wow-world-instances",
+      "wow-world-inventory",
+      "wow-world-lifecycle",
+      "wow-world-loot",
+      "wow-world-social",
+      "wow-world-spell"
     ],
     "wow-world-social": [
       "wow-chat",
@@ -674,6 +694,12 @@
           "num-traits",
           "rand",
           "tokio"
+        ],
+        "build": []
+      },
+      "wow-world-quest": {
+        "normal": [
+          "tracing"
         ],
         "build": []
       },

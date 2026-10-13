@@ -13,12 +13,13 @@ fn repository_handler_contract_passes() {
     // The reviewed production-package set: the #1263 extraction added the
     // application, core and domain crates, and the report lists every package
     // whose source surface the guard checked. #1363 slices 3a/3b added
-    // wow-world-creature and wow-world-test-support, slice A5 wow-world-character.
+    // wow-world-creature and wow-world-test-support, slice A5 wow-world-character,
+    // slice A6 wow-world-quest.
     let owners = "world-modules, world-server, wow-handler, wow-world, wow-world-application, \
                   wow-world-character, wow-world-core, wow-world-creature, wow-world-entities, \
                   wow-world-instances, wow-world-interaction, wow-world-inventory, \
-                  wow-world-lifecycle, wow-world-loot, wow-world-social, wow-world-spell, \
-                  wow-world-test-support, wow-world-visibility)";
+                  wow-world-lifecycle, wow-world-loot, wow-world-quest, wow-world-social, \
+                  wow-world-spell, wow-world-test-support, wow-world-visibility)";
     assert!(report.ends_with(owners), "{report}");
 }
 

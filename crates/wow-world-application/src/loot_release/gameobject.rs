@@ -396,7 +396,7 @@ impl LootReleaseCxLikeCpp<'_> {
     ) -> u32 {
         let core = self.core_like_cpp();
         let conditions = self.represented_condition_projection_like_cpp(core);
-        let eligibility = crate::QuestEligibilityCx::new(
+        let eligibility = wow_world_quest::QuestEligibilityCx::new(
             core.quest_eligibility_access_like_cpp(
                 #[cfg(any(test, feature = "test-fixtures"))]
                 &self.fixtures.identity.player_race,
@@ -420,7 +420,7 @@ impl LootReleaseCxLikeCpp<'_> {
         );
         let owner = core.quest_objective_access_like_cpp();
         let inventory_access = core.owned_inventory_access_like_cpp();
-        crate::quest::represented_gameobject_dynamic_flags_for_player_like_cpp(
+        wow_world_quest::represented_gameobject_dynamic_flags_for_player_like_cpp(
             &owner,
             self.catalogs_like_cpp(),
             self.quest_state,
@@ -440,7 +440,7 @@ impl LootReleaseCxLikeCpp<'_> {
     fn represented_condition_projection_like_cpp<'b>(
         &'b self,
         core: &'b SessionCore,
-    ) -> crate::PlayerConditionProjectionCxLikeCpp<'b> {
+    ) -> wow_world_quest::PlayerConditionProjectionCxLikeCpp<'b> {
         #[cfg(any(test, feature = "test-fixtures"))]
         let player = core.player_condition_access_with_selected_fixture_refs_like_cpp(
             wow_world_core::session::PlayerConditionFixtureRefsLikeCpp::new(
@@ -487,7 +487,7 @@ impl LootReleaseCxLikeCpp<'_> {
         #[cfg(not(any(test, feature = "test-fixtures")))]
         let player = core.player_condition_access_with_selected_fixture_refs_like_cpp();
 
-        crate::PlayerConditionProjectionCxLikeCpp::new(
+        wow_world_quest::PlayerConditionProjectionCxLikeCpp::new(
             player,
             &*self.inventory,
             self.social,

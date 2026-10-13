@@ -80,7 +80,7 @@ impl TrainerAcquisitionRuntimeLikeCpp for AppTrainerCx<'_> {
         if before != after {
             self.quest_state
                 .enqueue_represented_quest_objective_progress_like_cpp(
-                    crate::RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
+                    wow_world_quest::RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
                         old_money: before,
                         new_money: after,
                     },

@@ -2,19 +2,17 @@
 //!
 //! The complete scans — skip gates, eligibility reads and the
 //! GameObject-before-spell-click publication order — are owned by
-//! `wow-world-application::quest::visibility::refresh` (#1263 F4). This adapter
-//! only lends the participants and the two packet projections the application
+//! `wow-world-quest::quest::visibility::refresh` (#1263 F4). This adapter
+//! only lends the participants and the two packet projections the quest
 //! crate cannot reach, and holds no scan order of its own.
 
 use super::*;
-use wow_world_application::{
+use wow_world_quest::{
     VisibilityRefreshCxLikeCpp, VisibilityRefreshHostLikeCpp,
     update_visible_gameobjects_or_spell_clicks_like_cpp,
 };
 #[cfg(test)]
-use wow_world_application::{
-    update_visible_gameobjects_like_cpp, update_visible_spell_clicks_like_cpp,
-};
+use wow_world_quest::{update_visible_gameobjects_like_cpp, update_visible_spell_clicks_like_cpp};
 
 impl WorldSession {
     /// The selected participants the moved scans borrow: visible identities and

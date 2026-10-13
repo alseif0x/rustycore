@@ -72,7 +72,7 @@ pub struct LootReleaseCxLikeCpp<'a> {
     consumer_test: bool,
     instances: &'a wow_world_instances::InstanceState,
     stats_inputs: wow_world_core::session::LootReleaseStatsInputsLikeCpp<'a>,
-    quest_state: &'a crate::SessionQuestState,
+    quest_state: &'a wow_world_quest::SessionQuestState,
     social: &'a wow_world_social::SessionSocialLimits,
     #[cfg(any(test, feature = "test-fixtures"))]
     spell_state: &'a wow_world_spell::SessionSpellState,
@@ -93,7 +93,7 @@ impl<'a> LootReleaseCxLikeCpp<'a> {
         consumer_test: bool,
         instances: &'a wow_world_instances::InstanceState,
         stats_inputs: wow_world_core::session::LootReleaseStatsInputsLikeCpp<'a>,
-        quest_state: &'a crate::SessionQuestState,
+        quest_state: &'a wow_world_quest::SessionQuestState,
         social: &'a wow_world_social::SessionSocialLimits,
         #[cfg(any(test, feature = "test-fixtures"))]
         spell_state: &'a wow_world_spell::SessionSpellState,

@@ -58,7 +58,7 @@ pub struct RepresentedPlayerConditionContextLikeCpp {
 /// read at the caller's original projection point.
 pub struct PlayerConditionProjectionCxLikeCpp<'a> {
     pub(crate) player: PlayerConditionAccessLikeCpp<'a>,
-    pub(crate) inventory: &'a InventoryState,
+    pub inventory: &'a InventoryState,
     pub(crate) social: &'a SessionSocialLimits,
     pub(crate) chr_specializations: Option<&'a ChrSpecializationStore>,
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -69,7 +69,7 @@ pub struct PlayerConditionProjectionCxLikeCpp<'a> {
     instances: &'a InstanceState,
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) battleground_fixture: &'a wow_world_core::session::BattlegroundState,
-    pub(crate) valuation_catalogs: InventoryValuationCatalogViewLikeCpp<'a>,
+    pub valuation_catalogs: InventoryValuationCatalogViewLikeCpp<'a>,
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) reputation_state: &'a wow_entities::PlayerReputationStateLikeCpp,
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -77,9 +77,9 @@ pub struct PlayerConditionProjectionCxLikeCpp<'a> {
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) player_skill_records_complete: &'a bool,
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) in_combat: &'a bool,
+    pub in_combat: &'a bool,
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) consumer_test: bool,
+    pub consumer_test: bool,
 }
 
 impl<'a> PlayerConditionProjectionCxLikeCpp<'a> {
@@ -129,11 +129,11 @@ impl<'a> PlayerConditionProjectionCxLikeCpp<'a> {
         }
     }
 
-    pub(crate) fn player_access_like_cpp(&self) -> &PlayerConditionAccessLikeCpp<'a> {
+    pub fn player_access_like_cpp(&self) -> &PlayerConditionAccessLikeCpp<'a> {
         &self.player
     }
 
-    pub(crate) fn complete_player_skill_records_like_cpp(
+    pub fn complete_player_skill_records_like_cpp(
         &self,
     ) -> Option<
         std::collections::HashMap<u16, wow_world_core::session::RepresentedPlayerSkillLikeCpp>,
@@ -274,7 +274,7 @@ impl<'a> PlayerConditionProjectionCxLikeCpp<'a> {
         Some(values)
     }
 
-    pub(crate) fn trainer_spell_condition_proof_like_cpp(
+    pub fn trainer_spell_condition_proof_like_cpp(
         &self,
         condition_store: Option<&ConditionEntriesByTypeStore>,
         player_condition_store: Option<&PlayerConditionStore>,

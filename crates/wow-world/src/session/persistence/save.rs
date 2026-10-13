@@ -72,7 +72,7 @@ impl WorldSession {
     pub(in crate::session) fn resolved_player_flags_for_rest_state_save_like_cpp(
         &self,
     ) -> Option<u32> {
-        wow_world_application::QuestRewardCx::resolved_player_flags_for_rest_state_save_from_access_like_cpp(
+        wow_world_quest::QuestRewardCx::resolved_player_flags_for_rest_state_save_from_access_like_cpp(
             &self
                 .core
                 .xp_gain_access_like_cpp(&self.catalogs, &self.config),

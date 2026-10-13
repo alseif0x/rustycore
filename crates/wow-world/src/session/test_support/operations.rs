@@ -233,7 +233,7 @@ impl WorldSession {
         let player = self
             .core
             .xp_gain_access_like_cpp(&self.catalogs, &self.config);
-        wow_world_application::QuestRewardCx::set_represented_xp_rest_bonus_from_selected_access_like_cpp(
+        wow_world_quest::QuestRewardCx::set_represented_xp_rest_bonus_from_selected_access_like_cpp(
             player,
             &self.social,
             &self.config,
@@ -333,7 +333,7 @@ impl WorldSession {
         let player = self
             .core
             .xp_gain_access_like_cpp(&self.catalogs, &self.config);
-        wow_world_application::QuestRewardCx::take_represented_xp_rest_bonus_for_fixture_from_selected_access_like_cpp(
+        wow_world_quest::QuestRewardCx::take_represented_xp_rest_bonus_for_fixture_from_selected_access_like_cpp(
             player,
             &self.social,
             &self.config,

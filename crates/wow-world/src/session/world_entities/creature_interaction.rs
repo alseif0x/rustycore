@@ -15,7 +15,7 @@ impl WorldSession {
             return npc_flags;
         }
 
-        wow_world_application::represented_viewer_dependent_creature_npc_flags_like_cpp(
+        wow_world_quest::represented_viewer_dependent_creature_npc_flags_like_cpp(
             npc_flags,
             self.represented_can_see_spell_click_on_creature_like_cpp(creature_guid),
         )
