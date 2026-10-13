@@ -107,8 +107,7 @@ impl WorldSession {
             destination.1,
             false,
         ) {
-            let homebind = self
-                .represented_homebind_like_cpp()
+            let homebind = wow_world_spell::represented_homebind_like_cpp(self)
                 .filter(|home| (home.map_id, home.position) != destination);
             if state.recovery != PlayerTransferRecovery::None || homebind.is_none() {
                 self.terminate_worldport_recovery_like_cpp();

@@ -1,50 +1,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::session) fn apply_effect_environmental_damage_like_cpp(
-        &mut self,
-        effect: &wow_data::SpellEffectInfo,
-        target_guid: ObjectGuid,
-    ) {
-        if effect.effect != wow_data::spell::spell_effect_types::SPELL_EFFECT_ENVIRONMENTAL_DAMAGE {
-            return;
-        }
-
-        let Some(player_guid) = self.player_guid() else {
-            return;
-        };
-        if target_guid != player_guid
-            || crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(true)
-        {
-            return;
-        }
-        if crate::session::hub_ref(self)
-            .resolved_player_damage_control_like_cpp()
-            .is_none_or(|state| state.environmental_damage_immune)
-        {
-            return;
-        }
-
-        let damage = u32::try_from(effect.effect_base_points.max(0)).unwrap_or(0);
-        let Some((original_health, health_after, _, _, _)) = crate::session::hub_mut(self)
-            .apply_owned_player_damage_like_cpp(damage, wow_constants::DeathState::JustDied)
-        else {
-            return;
-        };
-        self.sync_player_registry_state_like_cpp();
-        if health_after != original_health {
-            self.core
-                .send_player_health_update_like_cpp(player_guid, u64::from(health_after));
-        }
-        self.core.send_environmental_damage_log_like_cpp(
-            player_guid,
-            DAMAGE_FIRE_LIKE_CPP,
-            damage,
-            0,
-            0,
-        );
-    }
-
     /// C++ `Spell::EffectTaunt` / `SPELL_EFFECT_ATTACK_ME`.
     pub(in crate::session) fn apply_taunt_effect_like_cpp(
         &mut self,
@@ -188,44 +144,6 @@ impl WorldSession {
         }
 
         Ok(())
-    }
-
-    /// Helper: apply damage to target creature.
-    pub(in crate::session) async fn apply_damage_with_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        spell_id: Option<i32>,
-        target_guid: ObjectGuid,
-        damage_amount: u32,
-    ) -> Result<(), &'static str> {
-        let player_guid = self.player_guid().ok_or("No player GUID")?;
-        self.apply_damage_from_caster_like_cpp(
-            item_guid_generator,
-            spell_id,
-            player_guid,
-            target_guid,
-            damage_amount,
-            ObjectGuid::create_null(),
-            0,
-        )
-        .await
-    }
-
-    #[cfg(test)]
-    pub(in crate::session) async fn apply_damage(
-        &mut self,
-        spell_id: Option<i32>,
-        target_guid: ObjectGuid,
-        damage_amount: u32,
-    ) -> Result<(), &'static str> {
-        let generators = self.id_generators_for_test_like_cpp();
-        self.apply_damage_with_generator_like_cpp(
-            generators.item.as_ref(),
-            spell_id,
-            target_guid,
-            damage_amount,
-        )
-        .await
     }
 
     pub(in crate::session) async fn apply_damage_from_caster_like_cpp(

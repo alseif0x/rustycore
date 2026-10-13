@@ -1,12 +1,13 @@
 // Copyright (c) 2026 alseif0x
+// RustyCore — WoW WotLK 3.4.3 server in Rust
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Summon object contracts: private Session responsibility.
-//! Relocated under #1233; canonical state, phase order and public paths are unchanged.
+//! Summon object contracts (#1363 slice 9c), the whole of the World
+//! `session/summon_object_contracts.rs`.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
-pub(crate) enum ApplyEffectSummonObjectWildSessionStatusLikeCpp {
+pub enum ApplyEffectSummonObjectWildSessionStatusLikeCpp {
     InvalidTemplateEntry,
     MissingTemplateStore,
     MissingTemplate,
@@ -21,7 +22,7 @@ pub(crate) enum ApplyEffectSummonObjectWildSessionStatusLikeCpp {
 
 #[derive(Debug, Clone, PartialEq)]
 #[allow(dead_code)]
-pub(crate) struct ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
+pub struct ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
     pub status: ApplyEffectSummonObjectWildSessionStatusLikeCpp,
     pub template_entry: Option<u32>,
     pub duration_ms: Option<i32>,
@@ -32,7 +33,7 @@ pub(crate) struct ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
-pub(crate) enum ApplyEffectSummonObjectSlotSessionStatusLikeCpp {
+pub enum ApplyEffectSummonObjectSlotSessionStatusLikeCpp {
     InvalidSlot,
     InvalidTemplateEntry,
     MissingTemplateStore,
@@ -47,7 +48,7 @@ pub(crate) enum ApplyEffectSummonObjectSlotSessionStatusLikeCpp {
 
 #[derive(Debug, Clone, PartialEq)]
 #[allow(dead_code)]
-pub(crate) struct ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp {
+pub struct ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp {
     pub status: ApplyEffectSummonObjectSlotSessionStatusLikeCpp,
     pub slot: Option<usize>,
     pub template_entry: Option<u32>,

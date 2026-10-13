@@ -24,7 +24,8 @@ impl WorldSession {
                     .find(|(effect_index, _)| *effect_index == effect.effect_index)
                     .map(|(_, target_data)| target_data)
                     .unwrap_or(target_data);
-                if let Some(outcome) = self.apply_effect_add_farsight_like_cpp(
+                if let Some(outcome) = apply_effect_add_farsight_like_cpp(
+                    self,
                     spell_id,
                     effect,
                     effect_target_data,
@@ -47,9 +48,9 @@ impl WorldSession {
                 .find(|(effect_index, _)| *effect_index == effect.effect_index)
                 .map(|(_, target_data)| target_data)
                 .unwrap_or(target_data);
-            self.apply_effect_teleport_units_like_cpp(effect, target_guid, effect_target_data)
+            apply_effect_teleport_units_like_cpp(self, effect, target_guid, effect_target_data)
                 .await;
-            self.apply_effect_bind_like_cpp(effect, caster_guid, target_guid, effect_target_data)
+            apply_effect_bind_like_cpp(self, effect, caster_guid, target_guid, effect_target_data)
                 .await;
         }
 
@@ -60,13 +61,15 @@ impl WorldSession {
                 effect_base_points,
                 ..Default::default()
             };
-            self.apply_effect_teleport_units_like_cpp(
+            apply_effect_teleport_units_like_cpp(
+                self,
                 &primary_effect_like_cpp,
                 target_guid,
                 target_data,
             )
             .await;
-            self.apply_effect_bind_like_cpp(
+            apply_effect_bind_like_cpp(
+                self,
                 &primary_effect_like_cpp,
                 caster_guid,
                 target_guid,
@@ -91,7 +94,8 @@ impl WorldSession {
                 .find(|(effect_index, _)| *effect_index == effect.effect_index)
                 .map(|(_, target_data)| target_data)
                 .unwrap_or(target_data);
-            if let Some(outcome) = self.apply_effect_summon_object_wild_with_focus_like_cpp(
+            if let Some(outcome) = apply_effect_summon_object_wild_with_focus_like_cpp(
+                self,
                 spell_id,
                 effect,
                 effect_target_data,
@@ -107,7 +111,8 @@ impl WorldSession {
             }
 
             if spell_effect_is_represented_summon_object_slot_like_cpp(effect.effect) {
-                if let Some(outcome) = self.apply_effect_summon_object_slot_like_cpp(
+                if let Some(outcome) = apply_effect_summon_object_slot_like_cpp(
+                    self,
                     spell_id,
                     effect,
                     effect_target_data,

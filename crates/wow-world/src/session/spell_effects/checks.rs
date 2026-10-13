@@ -146,7 +146,7 @@ impl WorldSession {
                 ));
             }
 
-            if let Some(disallowed_source_id) = self.represented_disallowed_mount_form_like_cpp()? {
+            if let Some(disallowed_source_id) = represented_disallowed_mount_form_like_cpp(self)? {
                 self.send_packet(&MountResult {
                     result: MOUNT_RESULT_SHAPESHIFTED_LIKE_CPP,
                 });

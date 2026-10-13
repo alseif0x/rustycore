@@ -8,14 +8,9 @@
 //! The re-exports are named instead of globbed. The session-ownership checker
 //! resolves a relative path such as `crate::session_rules::applied_aura_mechanic_mask_like_cpp`
 //! through a named declaration, and a glob from another crate hides every name it
-//! supplies; the names below are exactly the ones this crate consumes. The second
+//! supplies; the names below are exactly the ones this crate consumes. Since
+//! #1363 slice 9c moved the spell-effect bodies to `wow-world-spell`, every
 //! block is consumed only by this crate's own tests.
-
-pub(crate) use wow_world_spell::aura_effects::{
-    applied_aura_mechanic_mask_like_cpp, aura_application_mechanic_mask_like_cpp,
-    player_heal_absorb_shields_like_cpp,
-};
-pub(crate) use wow_world_spell::melee_rules::represented_heal_absorb_like_cpp;
 
 #[cfg(test)]
 pub(crate) use wow_world_spell::aura_effects::{
@@ -24,7 +19,8 @@ pub(crate) use wow_world_spell::aura_effects::{
 };
 #[cfg(test)]
 pub(crate) use wow_world_spell::melee_rules::{
-    represented_absorb_priority_like_cpp, represented_melee_ignored_absorb_amount_like_cpp,
+    represented_absorb_priority_like_cpp, represented_heal_absorb_like_cpp,
+    represented_melee_ignored_absorb_amount_like_cpp,
 };
 // #1363 slice 3: the creature runtime moved to `wow-world-creature`; these
 // names are now consumed only by this crate's tests.

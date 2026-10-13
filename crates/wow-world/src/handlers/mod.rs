@@ -56,6 +56,8 @@ mod player_test_shims;
 #[cfg(test)]
 mod progression_test_shims;
 #[cfg(test)]
+mod spell_effect_test_shims;
+#[cfg(test)]
 mod spellbook_test_shims;
 #[cfg(test)]
 mod talent_test_shims;

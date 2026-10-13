@@ -29,7 +29,7 @@ impl WorldSession {
             return FinalizationOutcome::Unavailable;
         }
         self.unregister_from_player_registry();
-        self.notify_other_players_visibility_changed_like_cpp();
+        wow_world_spell::notify_other_players_visibility_changed_like_cpp(self);
         let outcome = {
             let (s, mut h) = crate::session::split_lifecycle_mut(self);
             s.unregister_canonical_player_from_map_like_cpp(&mut h)

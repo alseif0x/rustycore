@@ -96,12 +96,12 @@ impl WorldSession {
             if spell_info
                 .has_effect_like_cpp(wow_data::spell::spell_effect_types::SPELL_EFFECT_PARRY)
             {
-                let _ = self.apply_parry_effect_like_cpp();
+                let _ = wow_world_spell::apply_parry_effect_like_cpp(self);
             }
             if spell_info
                 .has_effect_like_cpp(wow_data::spell::spell_effect_types::SPELL_EFFECT_BLOCK)
             {
-                let _ = self.apply_block_effect_like_cpp();
+                let _ = wow_world_spell::apply_block_effect_like_cpp(self);
             }
         }
 

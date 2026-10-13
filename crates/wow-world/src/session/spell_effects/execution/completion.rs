@@ -14,7 +14,7 @@ impl WorldSession {
     ) -> Result<(), &'static str> {
         // C++ `Spell::FinishTargetProcessing` (`Spell.cpp:8493-8496`) publishes
         // the execute log once every effect of the cast has resolved.
-        self.send_spell_execute_log_like_cpp(spell_id, caster_guid);
+        send_spell_execute_log_like_cpp(self, spell_id, caster_guid);
 
         let mut threat_spell_info = spell_info.clone();
         let difficulty = self.core.current_map_difficulty_id_like_cpp();

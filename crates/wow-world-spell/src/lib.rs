@@ -3,6 +3,7 @@
 pub mod aura_effects;
 mod aura_rows;
 mod aura_session;
+mod effect_session;
 pub mod login_spell_rules;
 pub mod melee_damage;
 pub mod melee_rules;
@@ -38,6 +39,7 @@ pub use aura_session::{
 pub use aura_session::{
     SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP, represented_mount_aura_display_candidates_like_cpp,
 };
+pub use effect_session::*;
 pub use player_cast::PlayerCastPublicationPhaseLikeCpp;
 pub use profession::{
     DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP, MAX_PRIMARY_TRADE_SKILLS_CONFIG_LIKE_CPP,

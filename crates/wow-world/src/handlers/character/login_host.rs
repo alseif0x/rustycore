@@ -237,13 +237,13 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         WorldSession::next_represented_spell_cast_guid_like_cpp(self, spell_id)
     }
     fn notify_other_players_visibility_changed_like_cpp(&self) {
-        WorldSession::notify_other_players_visibility_changed_like_cpp(self)
+        wow_world_spell::notify_other_players_visibility_changed_like_cpp(self)
     }
     fn player_currencies_like_cpp(&self) -> Option<HashMap<u32, PlayerCurrency>> {
         WorldSession::player_currencies_like_cpp(self)
     }
     fn player_current_map_instanceable_like_cpp(&self) -> bool {
-        WorldSession::player_current_map_instanceable_like_cpp(self)
+        wow_world_spell::player_current_map_instanceable_like_cpp(self)
     }
     fn player_gossip_option_like_cpp(&self, gossip_option_id: i32) -> Option<GossipOptionInfo> {
         WorldSession::player_gossip_option_like_cpp(self, gossip_option_id)
@@ -287,7 +287,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         WorldSession::represented_dungeon_difficulty_packet_like_cpp(self)
     }
     fn represented_homebind_like_cpp(&self) -> Option<RepresentedHomebindLikeCpp> {
-        WorldSession::represented_homebind_like_cpp(self)
+        wow_world_spell::represented_homebind_like_cpp(self)
     }
     fn reset_group_update_sequence_if_needed_like_cpp(&mut self) -> bool {
         WorldSession::reset_group_update_sequence_if_needed_like_cpp(self)

@@ -55,10 +55,10 @@ impl LootSessionHostLikeCpp for WorldSession {
         represented_local_loot_fixture_allowed_like_cpp()
     }
     fn current_map_dungeon_state_like_cpp(&self) -> Option<bool> {
-        self.current_map_dungeon_state_like_cpp()
+        wow_world_spell::current_map_dungeon_state_like_cpp(self)
     }
     fn current_map_is_dungeon_like_cpp(&self) -> bool {
-        self.current_map_is_dungeon_like_cpp()
+        wow_world_spell::current_map_is_dungeon_like_cpp(self)
     }
     fn do_loot_release_all_like_cpp(
         &mut self,

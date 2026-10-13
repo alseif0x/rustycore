@@ -179,7 +179,13 @@ impl WorldSession {
             self.apply_represented_durability_points_loss_all_like_cpp(damage, slot < -1);
             // C++ logs `-1`/`-1` for the all-items branch
             // (`SpellEffects.cpp:4328`).
-            self.record_spell_execute_log_durability_damage_like_cpp(effect, target_guid, -1, -1);
+            wow_world_spell::record_spell_execute_log_durability_damage_like_cpp(
+                self,
+                effect,
+                target_guid,
+                -1,
+                -1,
+            );
             return;
         }
         let Ok(slot) = u8::try_from(slot) else {
@@ -196,7 +202,8 @@ impl WorldSession {
         {
             // C++ logs the item entry and the slot as `ItemID`/`Amount`
             // (`SpellEffects.cpp:4339`).
-            self.record_spell_execute_log_durability_damage_like_cpp(
+            wow_world_spell::record_spell_execute_log_durability_damage_like_cpp(
+                self,
                 effect,
                 target_guid,
                 i32::try_from(item_entry).unwrap_or(i32::MAX),
