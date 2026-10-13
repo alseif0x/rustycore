@@ -146,7 +146,7 @@ impl CharacterAccountHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for World
         hello: gossip::Hello,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_binder_activate_with_generator_like_cpp(
+            wow_world_character::handle_binder_activate_with_generator_like_cpp(
                 self,
                 catalogs.id_generators.item.as_ref(),
                 catalogs.creature_spawns.as_ref(),
@@ -291,14 +291,16 @@ impl CharacterAccountHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for World
     }
 
     fn gossip_hello_like_cpp<'a>(&'a mut self, hello: gossip::Hello) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { WorldSession::handle_gossip_hello(self, hello).await })
+        Box::pin(async move { wow_world_character::handle_gossip_hello(self, hello).await })
     }
 
     fn gossip_select_option_like_cpp<'a>(
         &'a mut self,
         select: gossip::GossipSelectOption,
     ) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { WorldSession::handle_gossip_select_option(self, select).await })
+        Box::pin(
+            async move { wow_world_character::handle_gossip_select_option(self, select).await },
+        )
     }
 
     fn logout_request_like_cpp<'a>(

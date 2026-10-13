@@ -7,7 +7,9 @@
 //! request, the ordered login packet bursts before and after map insertion,
 //! the login loaders, the inventory login load, the login recovery and
 //! transport restore, the character lifecycle helpers and the post-add entry
-//! zone.
+//! zone; with #1363 slice 8e, the login data loaders (skill-rewarded spell
+//! changes, spell history, trait configs). The gossip bodies extend the same
+//! host (`crate::gossip_session`).
 //!
 //! C++ `WorldSession::HandlePlayerLogin`, `Player::LoadFromDB`,
 //! `Player::SendInitialPacketsBeforeAddToMap`, `Map::AddPlayerToMap` and
@@ -18,8 +20,7 @@
 //! called it before the move, and a method returning a future returns the
 //! session's own future unchanged. The continue-login coordinator
 //! (`WorldSession::handle_continue_player_login_with_module_registry_like_cpp`)
-//! and the login data loaders (`session_state/login_data.rs`) stay in the
-//! World and call these functions.
+//! stays in the World and calls these functions.
 
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
@@ -27,12 +28,17 @@ use wow_core::{ObjectGuid, Position};
 use wow_data::TalentTabStore;
 use wow_entities::PlayerHomebindLikeCpp as RepresentedHomebindLikeCpp;
 use wow_entities::PlayerVoidStorageItemLikeCpp as RepresentedVoidStorageItemLikeCpp;
-use wow_entities::{PhaseShift, PlayerCurrency, PlayerEnchantTimeUpdate, PlayerItemTimeUpdate};
+use wow_entities::{
+    PhaseShift, PlayerCurrency, PlayerEnchantTimeUpdate, PlayerGossipOptionLikeCpp,
+    PlayerItemTimeUpdate, SpellCastMetadata,
+};
+use wow_packet::packets::gossip::{ClientGossipText, Hello};
 use wow_packet::packets::misc::{AccountMount, DungeonDifficultySet};
-use wow_packet::packets::update::TraitConfigCreateData;
+use wow_packet::packets::spell::{SpellCastVisual, SpellTargetData};
 use wow_progression::mgr::CharacterReputationRowLikeCpp;
 use wow_world_core::session::SessionState;
 use wow_world_entities::CreatureSpawnCatalogsLikeCpp;
+use wow_world_interaction::InteractionState;
 use wow_world_inventory::VendorSessionHostLikeCpp;
 use wow_world_lifecycle::{
     FinalizationMode, FinalizationOutcome, FinalizationReport, SessionLifecycleState,
@@ -59,6 +65,7 @@ mod group_loading;
 mod initial_packets;
 mod inventory_load;
 mod lifecycle;
+mod login_data;
 mod login_recovery;
 mod login_sequence;
 mod reputation_loading;
@@ -95,6 +102,13 @@ pub use lifecycle::{
     load_player_customizations_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
+pub use login_data::{
+    load_active_player_trait_configs_like_cpp, skill_rewarded_quest_fallback_allowed_like_cpp,
+};
+pub use login_data::{
+    load_character_spell_history_packets_like_cpp, skill_rewarded_spell_changes_for_login_like_cpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
 pub use login_recovery::continue_login_after_grid_load_like_cpp;
 pub use login_recovery::{
     abort_partial_login_sequence_like_cpp, delete_invalid_character_homebind_like_cpp,
@@ -126,15 +140,24 @@ pub trait CharacterLoginHostLikeCpp:
     fn lifecycle_mut(&mut self) -> &mut SessionLifecycleState;
     fn split_lifecycle_ref(&self) -> (&SessionLifecycleState, HubRef<'_>);
     fn split_spell_state_ref(&self) -> (&SessionSpellState, HubRef<'_>);
+    fn split_spell_state_mut(&mut self) -> (&mut SessionSpellState, HubMut<'_>);
     fn visibility_mut(&mut self) -> &mut VisibilityState;
     fn split_visibility_mut(&mut self) -> (&mut VisibilityState, HubMut<'_>);
+    fn split_interaction(&mut self) -> (&mut InteractionState, HubRef<'_>);
     fn loot(&self) -> &LootState;
     fn loot_mut(&mut self) -> &mut LootState;
 
     fn account_mount_login_partial_rows_like_cpp(&self) -> Vec<AccountMount>;
     fn apply_loaded_inventory_item_collection_hooks_like_cpp(&mut self, item: &wow_entities::Item);
     fn cleanup_shared_runtime_state(&mut self) -> FinalizationOutcome;
+    fn begin_represented_trait_config_authority_load_like_cpp(&mut self);
     fn clear_player_currencies_like_cpp(&mut self) -> bool;
+    fn clear_player_gossip_options_like_cpp(&mut self) -> bool;
+    fn complete_represented_trait_config_authority_load_like_cpp(
+        &mut self,
+        configs: impl IntoIterator<Item = (i32, i32, i32, i32)>,
+        entries_empty: bool,
+    ) -> bool;
     #[allow(clippy::too_many_arguments)]
     fn ensure_login_player_controller_like_cpp(
         &mut self,
@@ -147,6 +170,18 @@ pub trait CharacterLoginHostLikeCpp:
         level: u8,
         gender: u8,
     ) -> bool;
+    #[allow(clippy::too_many_arguments)]
+    fn execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+        spell_id: i32,
+        target_guid: ObjectGuid,
+        cast_id: ObjectGuid,
+        spell_visual: SpellCastVisual,
+        target_data: SpellTargetData,
+        metadata: SpellCastMetadata,
+    ) -> impl Future<Output = Result<(), &'static str>> + Send;
     fn finalize_session_with_generator_like_cpp(
         &mut self,
         mode: FinalizationMode,
@@ -156,12 +191,14 @@ pub trait CharacterLoginHostLikeCpp:
         &mut self,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
     ) -> impl Future<Output = ()> + Send;
-    fn known_spells_like_cpp(&self) -> Vec<i32>;
-    fn load_active_player_trait_configs_like_cpp(
+    fn handle_trainer_list(&mut self, hello: Hello) -> impl Future<Output = ()> + Send;
+    fn handle_trainer_list_for_gossip_option_like_cpp(
         &mut self,
-        node_entries: &wow_data::trait_tree::TraitNodeEntryStore,
-        guid: ObjectGuid,
-    ) -> impl Future<Output = Vec<TraitConfigCreateData>> + Send;
+        hello: Hello,
+        gossip_menu_id: u32,
+        gossip_option_id: u32,
+    ) -> impl Future<Output = ()> + Send;
+    fn known_spells_like_cpp(&self) -> Vec<i32>;
     fn load_character_reputation_rows_like_cpp(
         &mut self,
         rows: impl IntoIterator<Item = CharacterReputationRowLikeCpp>,
@@ -200,16 +237,31 @@ pub trait CharacterLoginHostLikeCpp:
     ) -> bool;
     fn mark_represented_spell_acquisition_snapshot_complete_like_cpp(&mut self);
     fn mark_represented_talents_loaded_like_cpp(&mut self);
+    fn next_represented_spell_cast_guid_like_cpp(&self, spell_id: i32) -> Option<ObjectGuid>;
     fn notify_other_players_visibility_changed_like_cpp(&self);
     fn player_currencies_like_cpp(&self) -> Option<HashMap<u32, PlayerCurrency>>;
+    fn player_current_map_instanceable_like_cpp(&self) -> bool;
+    fn player_gossip_option_like_cpp(
+        &self,
+        gossip_option_id: i32,
+    ) -> Option<PlayerGossipOptionLikeCpp>;
+    fn player_interaction_source_guid_like_cpp(&self) -> Option<ObjectGuid>;
     fn prepare_represented_void_storage_login_load_like_cpp(&mut self) -> bool;
     fn quest_log_create_entries_like_cpp(&self) -> Vec<(u32, u32, i64, [u16; 24])>;
     fn register_in_player_registry(&self);
+    fn replace_player_gossip_options_like_cpp(
+        &mut self,
+        options: Vec<PlayerGossipOptionLikeCpp>,
+    ) -> bool;
     fn register_loaded_inventory_item_duration_refs_like_cpp(
         &mut self,
         loaded_item_guids: &[ObjectGuid],
         loaded_equipped_item_guids: &[ObjectGuid],
     ) -> (Vec<PlayerItemTimeUpdate>, Vec<PlayerEnchantTimeUpdate>);
+    fn represented_creature_gossip_text_like_cpp(
+        &self,
+        creature_entry: u32,
+    ) -> Vec<ClientGossipText>;
     fn represented_dependent_known_spells_like_cpp(&self) -> HashSet<i32>;
     fn represented_dungeon_difficulty_packet_like_cpp(&self) -> Option<DungeonDifficultySet>;
     fn represented_homebind_like_cpp(&self) -> Option<RepresentedHomebindLikeCpp>;
@@ -226,6 +278,10 @@ pub trait CharacterLoginHostLikeCpp:
     fn set_owned_player_group_like_cpp(&mut self, membership: Option<(u64, u8)>) -> bool;
     fn set_player_currencies_like_cpp(&mut self, currencies: HashMap<u32, PlayerCurrency>) -> bool;
     fn set_player_aura_authority_complete_like_cpp(&mut self, complete: bool) -> bool;
+    fn set_complete_represented_spell_trait_definition_ids_like_cpp(
+        &mut self,
+        traits: impl IntoIterator<Item = (i32, i32)>,
+    ) -> bool;
     fn set_player_guid(&mut self, guid: Option<ObjectGuid>);
     fn set_player_moved_unit_guid_like_cpp(&mut self, guid: ObjectGuid);
     fn set_player_transport_guid_like_cpp(&mut self, guid: Option<ObjectGuid>);
@@ -246,6 +302,11 @@ pub trait CharacterLoginHostLikeCpp:
         &mut self,
         publish: bool,
     ) -> Option<bool>;
+    fn use_represented_creature_questgiver_like_cpp(
+        &mut self,
+        creature_guid: ObjectGuid,
+        creature_entry: u32,
+    ) -> bool;
     fn update_zone_represented_without_rest_update_packet_like_cpp(
         &mut self,
         new_zone: u32,

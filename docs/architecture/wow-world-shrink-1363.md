@@ -5042,7 +5042,16 @@ difference than: `core()` → `core_mut()` and `lifecycle()` →
 `lifecycle_mut()` where the call mutates (7 sites), the three wrappers kept as
 host methods (above), the `wow_world_lifecycle::` path of the rename failure
 type, rustfmt trailing commas and three single-expression closures whose
-braces rustfmt drops. No moved body had a `cfg(test)` branch; the three
+braces rustfmt drops.
+
+*Correction (8e, #1389 review follow-up 2).* The paragraph above lists what
+the token comparison found *beyond* the rewrite list; it is not the size of
+the rewrite. The rewrite inlined **33 one-line World wrappers** at their call
+sites, as listed above: the 7 core forwards, the 6 catalog forwards, the
+config forward and the 19 `split_*` + one-call wrappers (plus the
+`cx_inventory_ref` item-object path). The #1389 review checked each inlined
+wrapper against its base body and found them all exact (it counted about
+30). The `_mut` sites only make the borrows stricter. No moved body had a `cfg(test)` branch; the three
 `#[cfg(test)]` entry points went to the shim file (below).
 
 ### What moved
@@ -5320,13 +5329,22 @@ its callees have owners.
 - `login_test_shims.rs` (386) retires with the other shims when the scenarios
   call the free functions and splits directly.
 - The moved log sites use the `wow_world_character::login_session` tracing
-  target (#1384 follow-up 2 applies here too).
+  target (#1384 follow-up 2 applies here too). *Clarified in 8e (#1389
+  review follow-up 3):* this includes the `RUST_LOGIN` and `RUST_UPDATEOBJECT`
+  login markers of `initial_packets.rs` and `login_recovery.rs`. The message
+  text is unchanged, so a grep for the marker still finds them. A
+  target-based filter (for example `RUST_LOG=wow_world::handlers::character=debug`)
+  no longer selects them; it must name `wow_world_character::login_session`
+  (or `wow_world_character`).
 - #1388 follow-up 1 is done here (`items/host.rs` is in the publication scan).
 - A combined `cargo check -p wow-world-character -p wow-world-spell
   --all-targets` without `wow-world` fails in `wow-world-inventory`: spell's
   dev-dependencies turn on `wow-world-core/test-fixtures` while inventory is
   built without its own. It is the existing feature-unification hazard of any
-  inventory dependent built beside spell (base has it for application);
+  inventory dependent built beside spell (*corrected in 8e:* "base has it for
+  application" was wrong; `-p wow-world-application -p wow-world-spell
+  --all-targets` builds, because application's own dev-dependencies turn on
+  inventory's fixtures; fixed for character in 8e);
   `final` always builds them with `wow-world`, whose fixtures unify both.
 
 ### Validation
@@ -5335,3 +5353,383 @@ its callees have owners.
 `VALIDATION_V2_TIMEOUT_SECONDS=1800`) runs on the committed head that
 includes this section. Its manifest path, dirty flag and duration are in
 the PR body. This section is not edited after that run.
+
+## Slice 8e result (login data and gossip → character)
+
+Branch `1363-s8e-login-data-gossip`, base `39db00fef` (8d merged). Move-only
+(R2), with the 8d rewrites and nothing else. Both parts of the 8e plan moved:
+the re-measure puts gossip inside the budget (below), so nothing is deferred.
+
+- `self` becomes `host` (`fn name<H: CharacterLoginHostLikeCpp>(host: &mut H, …)`,
+  or `host: &H` for an `&self` method); a call between moved functions becomes
+  a free call; `self.core.X` becomes `host.core().X`, and `host.core_mut()` for
+  the one mutating call (`mutate_world_creature`); `self.lifecycle.X` becomes
+  `host.lifecycle().X`;
+- `crate::session::hub_ref(self)`/`hub_mut(self)` and
+  `crate::session::split_{spell_state_mut,interaction}(self)` become the same
+  call through the host, and `self.catalogs` becomes `host.hub_ref().catalogs`;
+- **nine one-line World wrappers are inlined** at their call sites, each as the
+  exact body of the wrapper:
+  - the four catalog forwards `skill_store`, `spell_store` (2 sites),
+    `condition_store` and `player_condition_store` become
+    `host.hub_ref().catalogs.X()`;
+  - the five `split_*` + one-call wrappers
+    `record_loaded_character_spell_cooldown_like_cpp`,
+    `mark_represented_character_spell_cooldowns_loaded_like_cpp`,
+    `record_loaded_character_spell_charge_like_cpp`,
+    `mark_represented_character_spell_charges_loaded_like_cpp` (one site each,
+    the spell-history load) and `set_player_interaction_source_like_cpp`
+    (three sites: the direct interaction, the DB menu build and the trainer
+    gossip menu) become the same split and state call in a scoped block. Each
+    split is taken for exactly that call, as the wrapper took it, none is held
+    across another call or an `.await`, and none of them is async. The
+    spell-history blocks have the same form as the two reset blocks already in
+    that body;
+- paths: `crate::session::GossipOptionInfo` becomes
+  `wow_entities::PlayerGossipOptionLikeCpp` (the type the World name
+  re-exports), and `super::super::spell_rules::X` becomes
+  `wow_world_spell::login_spell_rules::X` (the World module is that glob
+  re-export).
+
+`player_interaction_source_guid_like_cpp` is deliberately kept as a host
+method, not inlined. It is read inside an `if` condition and a log field, and
+inlining it would restructure that expression.
+
+A token comparison of the 17 moved functions against their base bodies (with
+`self` read as `host`) finds 4 identical. The other 13 differ only by the
+rewrites above, rustfmt trailing commas and one single-expression closure in
+`build_gossip_menu` whose braces rustfmt drops. No moved body had a
+`cfg(test)` branch. The `cfg(test)` binder entry point went to the shim file
+(below).
+
+### What moved
+
+To `wow-world-character`:
+
+- `login_session/login_data.rs`: `skill_rewarded_quest_fallback_allowed_like_cpp`,
+  `skill_rewarded_spell_changes_for_login_like_cpp`,
+  `load_character_spell_history_packets_like_cpp` and
+  `load_active_player_trait_configs_like_cpp` (C++ `Player::_LoadSkills`
+  reward changes, `SpellHistory::LoadFromDB`, `Player::_LoadTraits`), from
+  `handlers/character/session_state/login_data.rs`;
+- `gossip_session.rs`:
+  - from `handlers/character/gossip.rs`: the binder activation
+    (`HandleBinderActivateOpcode`/`SendBindPoint`), the direct NPC
+    interaction, the gossip hello (`HandleGossipHelloOpcode`), the two gossip
+    condition checks, the DB gossip menu build (`PrepareGossipMenu`/
+    `GetGossipTextId`) and the gossip select
+    (`HandleGossipSelectOptionOpcode`);
+  - from `handlers/character/vendor.rs`: the prepared trainer gossip menu
+    `send_represented_creature_trainer_gossip_menu_like_cpp`;
+  - from the character `mod.rs`: the direct-interaction and gossip-option
+    constants, `npc_has_direct_interaction_like_cpp` and the trainer gossip
+    option helpers.
+
+`login_sequence.rs` now calls the trait-config load as a free call, so the 8d
+host method `load_active_player_trait_configs_like_cpp` retires.
+
+**Stays in `wow-world`, calling the free functions with `self`:**
+
+- the continue-login coordinator: the skill-rewarded changes twice and the
+  spell history once;
+- the character/account handler adapter `account/host.rs`: binder, gossip
+  hello and gossip select. Its `Box::pin(async move { … .await })` futures are
+  unchanged;
+- the quest-giver hello `handlers/quest/handlers/queries.rs`: the DB menu and
+  the trainer menu.
+
+`session_state.rs` (the mount) and `gossip.rs` are deleted. `vendor.rs` is now
+only the `VendorSessionHostLikeCpp` adapter.
+
+**Reclassified, not moved.** These went to the `#![cfg(test)]`
+`handlers/login_data_gossip_test_shims.rs` (141 lines), outside the character
+and session hotspot trees:
+
+- the `cfg(test)` binder entry point (`handle_binder_activate`, verbatim
+  except that it names the free function);
+- seven one-call method forwards for the moved functions the scenarios call.
+  No scenario call site changes;
+- the five inlined wrappers above, verbatim from
+  `session/{spell_state/cooldown,spell_state/spell,npc_interaction}.rs`. The
+  scenarios still call them, and they have no production caller left.
+
+**Retired:**
+
+- `handlers/character/session_state.rs`: the mount, 15 lines;
+- the empty `handlers/character/world_entry/login/mail_loading.rs`. It was an
+  `impl WorldSession {}` that 8d left. Its mount in `login.rs` is gone, and so
+  are its two scan includes in `character_tests/{loot,persistence}.rs`. An
+  empty impl holds no marker those scans look for, so neither scan loses
+  anything it asserts;
+- the glob import of the emptied `session/spell_state/cooldown.rs`.
+
+**Tests.**
+
+- The publication scan's `include_str!` of `gossip.rs` follows the file to
+  `wow-world-character/src/gossip_session.rs`.
+- The scenarios name `wow_world_character::GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP`
+  by path (two sites). `GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP` is a `cfg(test)`
+  import of the character `mod.rs`. Both constants are exported only under
+  `cfg(any(test, feature = "test-fixtures"))`. The assertions are unchanged.
+
+### Host surface
+
+- **`CharacterLoginHostLikeCpp`** grows from 55 to 70 methods and from 132 to
+  179 lines:
+  - 2 new accessors: `split_spell_state_mut` and `split_interaction`;
+  - 14 new operations:
+    - the login data: trait-config authority begin and complete, and the
+      trait spell-definition ids;
+    - gossip: clear, replace and read the gossip options, the interaction
+      source GUID, the instanceable-map check, the cast GUID, the
+      nine-argument spell execution, the two trainer lists, the creature
+      gossip text and the quest-giver fallback;
+  - 1 retired: the trait-config load.
+
+  The supertraits lend the rest: the hub (`send_packet`, `player_guid`,
+  `core`), the vendor host (feign-death removal, the show-bank publication,
+  the condition creature object, the player-condition context and the free
+  `handle_list_inventory`) and the entities host (the player-condition id
+  check and the gameobject gossip check). Three new operations return a
+  future: the spell execution and the two trainer lists. Each is the inherent
+  future returned unchanged and awaited at the same point.
+- **Adapter** `handlers/character/login_host.rs` grows from 301 to 399 lines.
+  A script checked that all 61 `WorldSession::name(self, …)` forwards name a
+  method of an inherent `impl WorldSession` block. None resolves to its own
+  trait method, so there is no trait recursion.
+- **Widening.**
+  - The crate exports the five gossip entry points World production calls,
+    and two of the login data functions.
+  - Exported only under `cfg(any(test, feature = "test-fixtures"))`: the
+    other two login data functions (only the scenarios and the login sequence
+    call them) and the two gossip-option constants.
+  - The direct-interaction constants and the helpers stay private to
+    `gossip_session`.
+- **Budget.**
+
+  | Cut | Host lines | Moved production | Share |
+  |---|---:|---:|---:|
+  | 8e (trait +47, adapter +98) | 145 (151 with the trait's 6 import lines) | 1,308 | 11.1 % (11.5 %) |
+  | login data alone | 22 | 455 | 4.8 % |
+  | gossip alone | 123 (about 129 with imports) | 853 | 14.4 % (about 15.1 %) |
+  | character host after 8d + 8e (trait 179 + adapter 399) | 578 | 4,954 | 11.7 % |
+  | the same with the whole `login_session/mod.rs` (319) | 718 | 4,954 | 14.5 % |
+
+  By the 8c2/8d rule, gossip is decided against the combined share, which is
+  11.5 % for 8e and 11.7 % for the 8d + 8e character host. Even gossip alone is
+  at the 15 % line, not above it as in 8c2 (19.5 %). Two things made the
+  difference: the trait it extends already lends eight of its calls, and the
+  trainer gossip menu (with its helpers) moves with it instead of being a host
+  method. So gossip moved.
+
+### Await counts (per function, base vs head)
+
+Counted with the 8d script (comments and literals blanked).
+
+| Function | Base | Head |
+|---|---:|---:|
+| `build_gossip_menu` | 5 | 5 |
+| `handle_gossip_hello` | 2 | 2 |
+| `handle_gossip_select_option` | 2 | 2 |
+| `handle_npc_direct_interaction` | 2 | 2 |
+| `load_active_player_trait_configs_like_cpp` | 2 | 2 |
+| `load_character_spell_history_packets_like_cpp` | 2 | 2 |
+| `handle_binder_activate_with_generator_like_cpp` | 1 | 1 |
+| 10 synchronous functions (the two skill-rewarded functions, the two condition checks, the trainer gossip menu and its four helpers, `npc_has_direct_interaction_like_cpp`) | 0 | 0 |
+| **Total moved** | **16** | **16** |
+| `cfg(test)` `handle_binder_activate` (now in the shim) | 1 | 1 |
+| World coordinator `handle_continue_player_login_with_module_registry_like_cpp` | 32 | 32 |
+| `send_login_sequence` (the trait-config load is now a free call) | 7 | 7 |
+| `account/host.rs` `binder_activate_like_cpp`, `gossip_hello_like_cpp`, `gossip_select_option_like_cpp` | 1 each | 1 each |
+| `queries.rs` `handle_quest_giver_hello` | 1 | 1 |
+
+The awaited calls are the same, in the same order. No future is spawned,
+boxed differently or reordered.
+
+### Behaviour
+
+Every moved body is its base text after the rewrites above. In particular,
+these are unchanged:
+
+- the gossip menu contents and order: the menu id, the text-id selection
+  (last row whose conditions meet), the per-option condition filtering, the
+  localized option text, the auto-trainer option and the quest text;
+- the NPC interaction checks: the hello flags, the trainer fallback access,
+  the quest-giver recheck and the select source revalidation against the
+  creature or the gameobject;
+- the feign-death removal points;
+- the packets and their order: `GossipMessage`, the NPC interaction results,
+  `AuctionHelloResponse`, the bank show and the close gossip after the bind
+  cast;
+- the bind spell cast and its flags;
+- the login data load (#169): the spell-history reset, load, record and mark
+  order, and the trait-config entries, configs and authority completion.
+
+The opcode registrations, their processing and status flags are untouched
+(`wow-world-application` is not in the diff). The adapter only changes the
+path of the callee.
+
+### Edges and closure
+
+- Character gains `wow-world-interaction` (the `InteractionState` split, the
+  close gossip and the interaction source) and `wow-conditions` (the gossip
+  condition evaluation). `dependency-policy.json` allows both.
+- The interaction edge was simulated on the base before anything moved
+  (`wow_world_closure.py check --add`, lock and metadata: PASS, 17 packages).
+  Two negative probes fail as they must: `character->quest`, and
+  `interaction->character` (a cycle).
+- On the head the check passes in both modes. Character's direct set is core,
+  entities, interaction, inventory, lifecycle, loot, spell and visibility,
+  which is also its closure. Only `wow-world` reaches character.
+
+### Accounting
+
+- **`crates/wow-world/src`.** Classifier: 59,705 → **58,403 production
+  (−1,302)**. Physical: 65,739 → 64,582 (−1,157). Files: 479 → 476. Test:
+  6,034 → 6,179 (+145). Re-measured on `39db00fef`; the 8d section's 59,703
+  for the identical tree is 2 lines low.
+  - **1,308 is production code that left `wow-world`:**
+    - `login_data.rs` (455);
+    - `gossip.rs` less the binder entry point (736);
+    - the trainer gossip menu and its impl shell (39);
+    - the constants and helpers of the character `mod.rs` (78).
+  - **+98 is the adapter growth.**
+  - **58 is reclassified to test:** the binder entry point (11) and the five
+    wrappers (47).
+  - **30 is retired:**
+    - `session_state.rs` (15);
+    - `mail_loading.rs` (10) and its mount (2);
+    - the glob import and the empty impl of `cooldown.rs` (3).
+  - **The rest is import, mount and call-site edits (−4):**
+    - the character `mod.rs` imports only the scenarios read are `cfg(test)`;
+    - the call sites in `account/host.rs` (+2), `queries.rs` (+1) and
+      `login.rs` (+1, the `self,` argument lines);
+    - `world_entry.rs` (−2, its module doc condensed).
+  - The test figure grows by the shim file (141) and the `cfg(test)` imports.
+- **Destination.** `wow-world-character/src`: 7,257 → 8,708 physical
+  (+1,451); production 7,229 → 8,671. `gossip_session.rs` is 892 lines,
+  `login_data.rs` 488.
+- **`net_move.py check`.** PASS: growth 1,451 ≤ 2,175.9, 0 duplicate bodies.
+- **`session-ownership-policy.json`** is reprinted with `print-baseline`. The
+  delta is exactly:
+  - the moved, relocated and retired items;
+  - the adapter's 16 new trait items, less the retired one;
+  - the 15 shim items.
+
+  The syntax-only check passes.
+- **Ceilings.** None raised. Tightened to live values:
+  - hotspot `handlers/character/mod.rs`: production 4,740 → 3,487, test 15,655
+    unchanged, total 20,395 → 19,142. The test figure holds, because the two
+    retired scan includes offset the `cfg(test)` imports the scenarios still
+    read;
+  - hotspot `session/mod.rs`: production 39,039 → 38,989, test 141,878
+    unchanged, total 180,917 → 180,867;
+  - physical: `handlers/character/mod.rs` 403 → 323, `vendor.rs` 273 → 234,
+    `world_entry.rs` 29 → 27, `world_entry/login.rs` 897 → 896;
+  - the `session_state.rs` row is retired;
+  - new physical row `handlers/login_data_gossip_test_shims.rs` at 141.
+- **Warnings.** The `wow-world` warning sets are identical to the base in all
+  three builds: production lib 146, lib with `test-fixtures` 154, lib plus
+  lib-test 291. They are the `--message-format=short` lines under
+  `crates/wow-world/`, compared without line numbers, and both base and head
+  were built for this comparison.
+  - `wow-world` `dead_code` is 0 in all three builds.
+  - `wow-world-character` has no warning in any build.
+  - `wow-world-spell`, `wow-world-inventory`, `wow-world-application` and
+    `wow-world-interaction` keep exactly their base sets.
+- **Tests.**
+  - No `#[test]` or `#[ignore]` is added or removed. The workspace test-name
+    multiset is identical (10,214 names, 5 ignores).
+  - Focused runs during the move (the final run covers the head): the
+    `wow-world` lib passed 3,680 with 1 ignored; the `wow-world-character`
+    lib passed 2.
+- **Tracing.** The moved log sites now use the `wow_world_character::gossip_session`
+  and `wow_world_character::login_session::login_data` targets. Their message
+  text is unchanged. A target-based filter must name the new targets (see the
+  8d follow-up).
+
+### #1389 follow-ups
+
+1. **Done.** Character's `test-fixtures` now forwards to every
+   fixture-bearing `wow-world-*` dependency: core, entities, interaction,
+   inventory, lifecycle, loot, spell and visibility. Character's own tests
+   turn it on through a self dev-dependency, the pattern spell and inventory
+   use. The results:
+   - `cargo check -p wow-world-character -p wow-world-spell --all-targets`
+     builds;
+   - with only the inventory part removed, it fails again: 6 errors in
+     `wow-world-inventory`, which is the reported failure;
+   - `cargo check -p wow-world-character --all-targets` and
+     `cargo test -p wow-world-character` build too. The inventory dev-dependency
+     alone was not enough: it broke spell in that standalone test build,
+     which is why the feature forwards to all eight.
+   - Production is unaffected. `cargo tree -p world-server -e normal,features`
+     shows no `test-fixtures`.
+2. **Done.** The 8d wording is corrected in place, marked as an 8e correction:
+   33 one-line wrappers were inlined, all of them verified exact.
+3. **Done.** The tracing-target change, including `RUST_LOGIN` and
+   `RUST_UPDATEOBJECT`, is noted at the 8d follow-up.
+4. **Open.** Retiring `login_test_shims.rs` (386) remains open, and the new
+   `login_data_gossip_test_shims.rs` (141) joins it. Both retire when the
+   scenarios call the free functions and splits directly.
+
+### Validation
+
+`final --architecture --timings` (`VALIDATION_V2_CARGO_JOBS=1`,
+`VALIDATION_V2_TIMEOUT_SECONDS=1800`) runs on the committed head that
+includes this section. Its manifest path, dirty flag and duration are in the
+PR body. This section is not edited after that run.
+
+## Slice 8 summary (8a–8e)
+
+The character family (`handlers/character/**`) was 14,788 production lines on
+`518d8bd66`. Slice 8 moved its bodies to their owners:
+
+| Slice | Destination | `wow-world` production | Δ | Moved out | Adapter | Reclassified | Retired |
+|---|---|---|---:|---:|---:|---:|---:|
+| 8a visibility | entities | 70,077 → 68,349 | −1,728 | about 1,775 | +144 | about 92 | 5 |
+| 8b vendor and bank | inventory | 68,349 → 65,470 | −2,879 | 2,905 | +220 | 146 | 35 |
+| 8c item handlers and moves | inventory | 65,470 → 63,201 | −2,269 | about 2,380 | +256 | about 129 | 41 |
+| 8c2 | (deferred into 8d/8e) | — | 0 | — | — | — | — |
+| 8d login load | character (+ two row types to spell) | 63,201 → 59,703 | −3,498 | about 3,646 | +301 | about 84 | about 32 |
+| 8e login data and gossip | character | 59,705 → 58,403 | −1,302 | 1,308 | +98 | 58 | 30 |
+| **Total** | | **70,077 → 58,403** | **−11,674** | **about 12,014** | **+1,019** | **about 509** | **about 143** |
+
+The rest of the total is import, mount and call-site edits.
+
+- **Moved vs reclassified.** About 12,014 production lines left `wow-world`
+  as moved code. About 509 left the production figure without moving: they
+  are `cfg(test)` entry points and wrappers whose only production callers
+  moved, now in ratcheted `#![cfg(test)]` shim files. About 143 were retired.
+  The World adapters added back 1,019.
+- **Character hotspot.** Production went from 14,788 to 3,487 over the slice
+  (the hotspot ledger's figure for the `handlers/character/**` tree).
+- **What character code remains in `wow-world`, and why:**
+  - **the F5 adapters** of the moved bodies, about 1,490 lines:
+    `login_host.rs` 399, `account/host.rs` 320, `items/host.rs` 291,
+    `vendor.rs` 234, `visibility.rs` 144, `character_handler_host.rs` 106.
+    They are the World side of the host traits and go only when `WorldSession`
+    itself is split;
+  - **the continue-login coordinator** `world_entry/login.rs` (896). It is
+    the World composition of the login: 32 awaits over about 86 World
+    operations (#169 order). It moves when its callees have owners (8d plan);
+  - **the quest-giver status queries** `query.rs` (208). They name quest
+    types, and character may not reach quest;
+  - **the account collections** `account/collections.rs` (259: account-wide
+    collection loading and the login spell projection, still read by the
+    coordinator) and `account.rs` (106: enumeration support, account-session
+    operations such as `SMSG_CONNECT_TO`);
+  - **the shared `mod.rs`** (176 production): constants, re-exports and
+    `cfg(test)` scenario imports. Also about 100 lines of small modules:
+    `condition_objects.rs`, `stats*.rs`, the re-export files and the
+    `cfg(test)` shims.
+- **Host shares** (trait plus adapter over moved production; the figure in
+  parentheses adds each module's whole `mod.rs`): 8a 11.6 % (14.1 %), 8b
+  11.4 % (13.6 %), 8c 14.5 % (17.6 %), 8d 11.9 % (15.6 %), 8e 11.1 %
+  (11.5 % with the trait imports). The 8c2 cut was deferred instead of forced
+  above 15 %.
+- **Open after slice 8.**
+  - Retire the shim files (`login_test_shims.rs` 386,
+    `login_data_gossip_test_shims.rs` 141, and the item, vendor and query
+    shims) by converting the scenario call sites.
+  - Move the coordinator once its callees have owners.

@@ -13,6 +13,7 @@ use crate::login_session::initial_packets::send_initial_packets_before_add_to_ma
 use crate::login_session::lifecycle::{
     load_map_corpse_data_like_cpp, load_player_customizations_like_cpp,
 };
+use crate::login_session::login_data::load_active_player_trait_configs_like_cpp;
 use crate::login_session::login_recovery::continue_login_after_grid_load_like_cpp;
 use crate::login_session::world_entry::send_handle_player_login_packets_like_cpp;
 use crate::{
@@ -573,9 +574,8 @@ pub async fn send_login_sequence<H: CharacterLoginHostLikeCpp>(
         let account_transmog = host
             .hub_ref()
             .account_transmog_active_player_rows_like_cpp();
-        let trait_configs = host
-            .load_active_player_trait_configs_like_cpp(trait_node_entries, guid)
-            .await;
+        let trait_configs =
+            load_active_player_trait_configs_like_cpp(host, trait_node_entries, guid).await;
         let player_customizations = load_player_customizations_like_cpp(host, guid).await;
         {
             let (state, mut hub) = host.split_lifecycle_mut();

@@ -23,7 +23,6 @@ fn continue_login_has_no_concrete_persistence_after_remaining_writes_move() {
         include_str!("../../../../wow-world-character/src/login_session/default_skills.rs"),
         include_str!("../../../../wow-world-character/src/login_session/glyph_loading.rs"),
         include_str!("../../../../wow-world-character/src/login_session/group_loading.rs"),
-        include_str!("../../../src/handlers/character/world_entry/login/mail_loading.rs"),
         include_str!("../../../../wow-world-lifecycle/src/pet_session/login_loading.rs"),
         include_str!("../../../../wow-world-character/src/login_session/reputation_loading.rs"),
         include_str!("../../../../wow-world-character/src/login_session/skill_loading.rs"),

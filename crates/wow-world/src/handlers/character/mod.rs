@@ -22,13 +22,11 @@ mod creation_support;
 // Test-only: its production readers moved to `wow-world-character` (#1263 F5, #1363 A5).
 #[cfg(test)]
 mod enumeration_support;
-mod gossip;
 mod items;
 mod login_host;
 mod login_support;
 mod login_transport_support;
 mod query;
-mod session_state;
 mod spell_rules;
 mod stats;
 #[cfg(test)]
@@ -46,7 +44,7 @@ use rand::Rng;
 // Test-only: its production caller moved to `wow-world-character` (#1263 F5, #1363 A5).
 #[cfg(test)]
 pub(crate) use stats::RepresentedPlayerGearStatsLikeCpp;
-use tracing::{debug, info, trace, warn};
+use tracing::{info, trace, warn};
 // Test-only: their production readers moved to `wow-world-entities` (#1363 slice 8a).
 #[cfg(test)]
 use wow_constants::CreatureFlagsExtra;
@@ -55,9 +53,7 @@ use wow_constants::movement::MovementFlag;
 use wow_constants::unit::NPCFlags1;
 #[cfg(test)]
 use wow_constants::unit::{UNIT_FLAGS2_ALLOWED_LIKE_CPP, UNIT_FLAGS3_ALLOWED_LIKE_CPP, UnitFlags};
-use wow_constants::{
-    ConditionSourceType, InventoryResult, ItemContext, TypeId, TypeMask, UnitStandStateType,
-};
+use wow_constants::{InventoryResult, ItemContext, TypeId, TypeMask, UnitStandStateType};
 // Test-only: their production readers moved to `wow-world-inventory` (#1363 slice 8b)
 // and `wow-world-character` (#1363 slice 8d).
 #[cfg(test)]
@@ -75,9 +71,8 @@ use wow_data::{PlayerCreateInfoLikeCpp, PlayerCreatePositionLikeCpp};
 #[cfg(test)]
 use wow_data::PlayerStatSystemProjectionLikeCpp;
 use wow_data::{
-    ConditionEntriesByTypeStore, ConditionId, CurrencyTypesStore, HotfixRecordStatus,
-    ItemExtendedCostStore, PlayerConditionContextLikeCpp, PlayerConditionStore,
-    PlayerSpellBonusInputLikeCpp, PlayerStatSystemInputLikeCpp,
+    CurrencyTypesStore, HotfixRecordStatus, ItemExtendedCostStore, PlayerConditionContextLikeCpp,
+    PlayerConditionStore, PlayerSpellBonusInputLikeCpp, PlayerStatSystemInputLikeCpp,
     calculate_player_stat_system_like_cpp, hotfix_locale_mask,
     is_player_meeting_condition_like_cpp,
 };
@@ -119,7 +114,6 @@ use wow_packet::packets::auth::{
 use wow_packet::packets::misc::*;
 use wow_packet::packets::quest::QuestGiverStatusMultiple;
 use wow_packet::packets::spell::{SpellCastVisual, SpellTargetData};
-use wow_packet::packets::update::*;
 // Explicit provenance for child modules that reach these names through `super::{}`:
 // a glob import leaves the ownership checker without a defining source.
 use wow_packet::WorldPacket;
@@ -152,7 +146,7 @@ use wow_entities::GAMEOBJECT_TYPE_GOOBER;
 use wow_progression::mgr::CharacterReputationRowLikeCpp;
 
 // Test-only: the scenarios reach these through `super::*`; their production
-// readers moved to `wow-world-character` (#1363 slice 8d).
+// readers moved to `wow-world-character` (#1363 slices 8d and 8e).
 #[cfg(test)]
 use {
     login_transport_support::{
@@ -161,39 +155,15 @@ use {
     },
     wow_constants::character::RESPONSE_SUCCESS_LIKE_CPP,
     wow_core::guid::HighGuid,
+    wow_packet::packets::update::*,
     wow_packet::packets::{character::*, movement::TransportInfo},
+    wow_world_character::GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP,
     wow_world_character::{motd_lines_like_cpp, void_storage_login_context_like_cpp},
     wow_world_core::corpse_load::MapCorpseLoadOutcomeLikeCpp,
     wow_world_inventory::loaded_item_support::*,
 };
 
 // ── Handler registration ────────────────────────────────────────────
-
-const DIRECT_VENDOR_MASK_LIKE_CPP: u32 = 0x80 | 0x100 | 0x200 | 0x400 | 0x800;
-const DIRECT_TRAINER_MASK_LIKE_CPP: u32 = 0x10 | 0x20 | 0x40;
-const DIRECT_FLIGHT_MASTER_LIKE_CPP: u32 = 0x2000;
-const DIRECT_AUCTIONEER_LIKE_CPP: u32 = 0x200000;
-const DIRECT_BANKER_LIKE_CPP: u32 = 0x20000;
-const DIRECT_TABARD_DESIGNER_LIKE_CPP: u32 = 0x80000;
-const DIRECT_STABLE_MASTER_LIKE_CPP: u32 = 0x400000;
-const DIRECT_GUILD_BANKER_LIKE_CPP: u32 = 0x800000;
-const DIRECT_INTERACTION_MASK_LIKE_CPP: u32 = DIRECT_VENDOR_MASK_LIKE_CPP
-    | DIRECT_TRAINER_MASK_LIKE_CPP
-    | DIRECT_FLIGHT_MASTER_LIKE_CPP
-    | DIRECT_AUCTIONEER_LIKE_CPP
-    | DIRECT_BANKER_LIKE_CPP
-    | DIRECT_TABARD_DESIGNER_LIKE_CPP
-    | DIRECT_STABLE_MASTER_LIKE_CPP
-    | DIRECT_GUILD_BANKER_LIKE_CPP;
-
-fn npc_has_direct_interaction_like_cpp(npc_flags: u32) -> bool {
-    npc_flags & DIRECT_INTERACTION_MASK_LIKE_CPP != 0
-}
-const DEFAULT_GOSSIP_MESSAGE_LIKE_CPP: i32 = 0x00FF_FFFF;
-const TRAINER_NPC_FLAGS_MASK_LIKE_CPP: u32 = 0x10 | 0x20 | 0x40;
-const GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP: i32 = -1;
-const GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP: u8 = 3;
-const GOSSIP_OPTION_TRAINER_TEXT_LIKE_CPP: &str = "I would like to train.";
 
 #[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -237,58 +207,6 @@ fn plan_direct_inventory_swap_persistence_like_cpp(
         });
     }
     updates
-}
-
-fn creature_has_trainer_flag_like_cpp(npc_flags: u32) -> bool {
-    (npc_flags & TRAINER_NPC_FLAGS_MASK_LIKE_CPP) != 0
-}
-
-fn represented_trainer_gossip_option_like_cpp() -> wow_packet::packets::gossip::ClientGossipOption {
-    wow_packet::packets::gossip::ClientGossipOption {
-        gossip_option_id: GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP,
-        option_npc: GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP,
-        option_flags: 0,
-        option_cost: 0,
-        option_language: 0,
-        flags: 0,
-        order_index: 0,
-        status: 0,
-        text: GOSSIP_OPTION_TRAINER_TEXT_LIKE_CPP.to_string(),
-        confirm: String::new(),
-        spell_id: None,
-        override_icon_id: None,
-    }
-}
-
-fn represented_trainer_gossip_option_info_like_cpp() -> crate::session::GossipOptionInfo {
-    crate::session::GossipOptionInfo {
-        gossip_option_id: GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP,
-        menu_id: 0,
-        order_index: 0,
-        option_npc: GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP,
-        action_menu_id: 0,
-    }
-}
-
-fn add_represented_trainer_gossip_option_if_missing_like_cpp(
-    gossip_options: &mut Vec<wow_packet::packets::gossip::ClientGossipOption>,
-    stored_options: &mut Vec<crate::session::GossipOptionInfo>,
-    npc_flags: u32,
-) -> bool {
-    if !creature_has_trainer_flag_like_cpp(npc_flags) {
-        return false;
-    }
-
-    if gossip_options
-        .iter()
-        .any(|option| option.option_npc == GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP)
-    {
-        return false;
-    }
-
-    gossip_options.push(represented_trainer_gossip_option_like_cpp());
-    stored_options.push(represented_trainer_gossip_option_info_like_cpp());
-    true
 }
 
 fn primary_max_power_for_class_like_cpp(class_id: u8, max_mana: i64) -> i32 {
