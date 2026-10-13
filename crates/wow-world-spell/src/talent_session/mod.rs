@@ -20,8 +20,7 @@ mod talents;
 pub use handlers::*;
 pub use talents::*;
 
-/// The World session as the talents' host. The supertrait lends the
-/// spellbook host and, through it, the hub.
+/// The World session as the talents' host (supertrait: the spellbook host).
 pub trait TalentHostLikeCpp: SpellbookHostLikeCpp {
     /// The World talent-point refresh. It stays on the session because it
     /// builds `wow_world_quest::QuestRewardCx`, and quest depends on spell.

@@ -100,11 +100,16 @@ impl WorldSession {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.with_player_spell_runtime_like_cpp(hub, cfg!(test), query)
     }
-    /// Incarnation dispatch for one named spell-runtime transition.
+    /// Incarnation dispatch for one named spell-runtime transition (#754).
     ///
-    /// Scoped to this owner module: the transitions themselves are the named
-    /// operations on `PlayerSpellRuntimeState` and the session wrappers below,
-    /// so no other module writes the Player's spell state directly (#754).
+    /// The transitions themselves are the named operations on
+    /// `PlayerSpellRuntimeState`. In production the only callers are this
+    /// owner module (`session/spell_state`: the login spell application in
+    /// `spellbook.rs` and `effects.rs`) and its `SpellbookHostLikeCpp` adapter
+    /// (`spellbook_host.rs`), through which only the spellbook bodies in
+    /// `wow_world_spell::spellbook_session` reach it, so no other module writes
+    /// the Player's spell state directly. It is `pub(crate)` only for the
+    /// fixtures in the `#![cfg(test)]` `handlers/spellbook_test_shims.rs`.
     pub(crate) fn mutate_player_spell_runtime_like_cpp<R>(
         &mut self,
         f: impl FnOnce(&mut wow_entities::PlayerSpellRuntimeState) -> R,

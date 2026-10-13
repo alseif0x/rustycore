@@ -21,8 +21,7 @@ use wow_world_entities::spell_click_values::{
 
 use crate::AuraHostLikeCpp;
 
-/// The World session as the spell-click caster's host. The supertrait lends
-/// the aura host (the cast GUID) and, through it, the hub.
+/// The World session as the spell-click caster's host (supertrait: the aura host).
 pub trait SpellClickHostLikeCpp: AuraHostLikeCpp {
     fn sync_player_registry_state_like_cpp(&self);
     fn represented_unit_values_update_to_update_object_like_cpp(

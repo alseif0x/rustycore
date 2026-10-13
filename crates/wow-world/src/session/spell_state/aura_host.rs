@@ -79,7 +79,7 @@ impl wow_world_spell::AuraHostLikeCpp for WorldSession {
     }
     fn player_spell_runtime_snapshot_like_cpp(
         &self,
-    ) -> Option<wow_world_spell::RepresentedPlayerSpellRuntimeLikeCpp> {
+    ) -> Option<RepresentedPlayerSpellRuntimeLikeCpp> {
         WorldSession::player_spell_runtime_snapshot_like_cpp(self)
     }
 }
