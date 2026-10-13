@@ -327,14 +327,14 @@ pub(crate) use money_persistence_contracts::PlayerMoneyCommitCancellationFenceLi
 use money_persistence_contracts::RepresentedTalentResetStatePlanLikeCpp;
 use money_persistence_contracts::reconcile_absolute_player_money_commit_like_cpp;
 mod movement_protocol;
+pub(crate) use movement_protocol::MoveTeleportAckActionLikeCpp;
 #[cfg(test)]
 pub(crate) use movement_protocol::{
     MoveSplineDoneTaxiActionLikeCpp, MoveSplineDoneTaxiEventLikeCpp, MoveTeleportAckEventLikeCpp,
     MovementAckEventLikeCpp, MovementFallDamageEvent, MovementSpeedAckActionLikeCpp,
     MovementSpeedAckEventLikeCpp, MovementUnderMapDamageEvent, RepresentedAreaZoneCriteriaLikeCpp,
-    RepresentedTaxiFlightNodeLikeCpp, TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP,
+    RepresentedTaxiFlightNodeLikeCpp, TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP, UnitMoveTypeLikeCpp,
 };
-pub(crate) use movement_protocol::{MoveTeleportAckActionLikeCpp, UnitMoveTypeLikeCpp};
 mod npc_interaction;
 mod persistence_capabilities;
 pub use persistence_capabilities::CatalogPersistenceCapabilitiesLikeCpp;
@@ -353,13 +353,16 @@ use persistence_capabilities::empty_character_power_snapshot_like_cpp;
 use persistence_capabilities::loaded_character_power_snapshot_like_cpp;
 mod pet_dismissal;
 mod pet_loading;
-pub(crate) use pet_loading::CharacterAuraEffectRowLikeCpp;
-pub(crate) use pet_loading::CharacterPetDeclinedNamesRowLikeCpp;
-pub(crate) use pet_loading::CharacterPetSpellCooldownRowLikeCpp;
 pub(crate) use pet_loading::adjusted_represented_pet_aura_remain_time_like_cpp;
-pub(crate) use pet_loading::{CharacterAuraRowLikeCpp, CharacterPetAuraEffectRowLikeCpp};
-pub(crate) use pet_loading::{CharacterPetAuraRowLikeCpp, CharacterPetSpellChargeRowLikeCpp};
-pub(crate) use pet_loading::{CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp};
+pub(crate) use pet_loading::{CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp};
+#[cfg(test)]
+pub(crate) use wow_world_core::session::CharacterPetStableRowLikeCpp;
+#[cfg(test)]
+pub(crate) use wow_world_lifecycle::{
+    CharacterPetAuraEffectRowLikeCpp, CharacterPetAuraRowLikeCpp,
+    CharacterPetDeclinedNamesRowLikeCpp, CharacterPetSpellChargeRowLikeCpp,
+    CharacterPetSpellCooldownRowLikeCpp, CharacterPetSpellRowLikeCpp,
+};
 mod player_binding;
 use player_binding::PlayerIdentityBootstrapLikeCpp;
 pub(crate) use player_binding::SessionPlayerController;
@@ -369,8 +372,7 @@ mod player_condition_values;
 pub(crate) use player_condition_values::RepresentedItemLevelCapsLikeCpp;
 pub(crate) use player_condition_values::RepresentedPlayerConditionContextLikeCpp;
 mod player_load_values;
-use player_load_values::{gender_from_u8, unix_secs_to_ms_like_cpp};
-use player_load_values::{player_team_id_for_race_cpp, represented_pet_aura_slot_like_cpp};
+use player_load_values::{gender_from_u8, player_team_id_for_race_cpp};
 // #1363 slice 3: the player melee phase moved to `wow-world-creature`;
 // world-server and the unit tests keep these Session paths.
 pub use wow_world_creature::PlayerMeleeAttackerSnapshotLikeCpp;
@@ -429,12 +431,11 @@ pub(crate) use quest_dialog::RepresentedQuestRewardTalentPointsLikeCpp;
 pub(crate) use quest_dialog::ResetSeasonalQuestStatusOutcomeLikeCpp;
 pub(crate) use quest_dialog::ResetSeasonalQuestStatusReasonLikeCpp;
 pub(crate) use quest_dialog::SeasonalQuestStatusDbRowLikeCpp;
-use quest_dialog::active_state_from_db_like_cpp;
+use quest_dialog::quest_giver_creature_id_from_source_like_cpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest_dialog::{
     RepresentedForceDeselectLikeCpp, RepresentedQuestRewardTitleLikeCpp,
 };
-use quest_dialog::{quest_giver_creature_id_from_source_like_cpp, react_state_from_db_like_cpp};
 use quest_dialog::{quest_has_represented_item_objective_like_cpp, quest_rewards_block_like_cpp};
 mod quest_interaction;
 mod raid_profile_values;
@@ -492,9 +493,9 @@ pub(crate) use stand_state_adapter::RepresentedStandStateChangedLikeCpp;
 mod state;
 pub use state::WorldSession;
 pub(crate) use state::{
-    HubMut, InventoryCxRef, LifecycleCx, LifecycleCxRef, LootCxRef, PetsCx, PetsCxRef,
-    QuestStateCx, QuestStateCxRef, cx_inventory_ref, cx_lifecycle, cx_lifecycle_ref, cx_loot_ref,
-    cx_pets, cx_pets_ref, cx_quest_state, cx_quest_state_ref, hub_mut, hub_ref, hub_support,
+    HubMut, InventoryCxRef, LifecycleCx, LifecycleCxRef, PetsCx, PetsCxRef, QuestStateCx,
+    QuestStateCxRef, cx_inventory_ref, cx_lifecycle, cx_lifecycle_ref, cx_pets, cx_pets_ref,
+    cx_quest_state, cx_quest_state_ref, hub_mut, hub_ref, hub_support,
     split_battle_pet_handler_mut, split_battleground_mut, split_character_handler_mut,
     split_group_handler_states_mut, split_guild_bank_mut, split_instances_mut, split_instances_ref,
     split_interaction, split_interaction_ref, split_interaction_world_entities_mut,
@@ -544,9 +545,9 @@ use crate::entity_update_bridge::{
     dynamic_object_values_update_to_update_object, item_values_update_to_update_object,
     player_values_update_to_update_object, unit_values_update_to_packet,
 };
-use crate::loot_persistence::{
-    DurableLootMoneyCompletionLikeCpp, DurableLootMoneyPersistenceTrackerLikeCpp,
-};
+use crate::loot_persistence::DurableLootMoneyCompletionLikeCpp;
+#[cfg(test)]
+use crate::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp;
 use crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp;
 use crate::session::directory::{
     PlayerRegistry, PlayerSessionRegistrationLikeCpp, PlayerVisibilityCreateSnapshot,
@@ -715,10 +716,8 @@ use wow_entities::ApplyEnchantmentTemplateRef;
 use wow_entities::ItemLimitCategoryTemplate;
 #[cfg(test)]
 pub(crate) use wow_entities::PLAYER_SLOT_END;
-#[cfg(test)]
-use wow_entities::explored_zones_db_string_from_blocks_like_cpp;
 use wow_entities::{
-    AccessorObjectKind, ActiveState, ApplyEnchantmentArgs, ApplyEnchantmentDurationAction,
+    AccessorObjectKind, ApplyEnchantmentArgs, ApplyEnchantmentDurationAction,
     ApplyEnchantmentEffectAction, ApplyEnchantmentEffectRef, ApplyEnchantmentPlan,
     ApplyEnchantmentRandomSuffixRef, ApplyEnchantmentResult, BANK_SLOT_BAG_END,
     BANK_SLOT_BAG_START, BUYBACK_SLOT_COUNT, BUYBACK_SLOT_START,
@@ -727,16 +726,17 @@ use wow_entities::{
     INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
     ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT, Item, ItemDataUpdate, ItemPosCount,
     ItemStorageTemplate, ItemValuesUpdate, MAX_MONEY_AMOUNT, MAX_POWERS, MAX_POWERS_PER_CLASS,
-    NULL_BAG, NULL_SLOT, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, Pet, PetDeclinedNamesLikeCpp,
-    PetSpellState, PetSpellType, PetType, PhaseShift, Player, PlayerEnchantTimeUpdate,
-    PlayerInteractionDataLikeCpp, PlayerInventoryRuntime, PlayerItemTimeUpdate,
-    PlayerPetLifecycleStateLikeCpp, PlayerQuestGameplayState, PlayerResurrectionRequestLikeCpp,
-    PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp, QUESTS_COMPLETED_BITS_PER_BLOCK,
-    QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery,
-    SendNewItemDisplayText, SendNewItemPlan, SwapItemPreflightPlan, TYPEID_ITEM, UpdateMask,
-    Vehicle, VisibleItemValues, WorldObject, is_equipment_packed_pos, make_item_pos,
-    parse_explored_zones_db_string_like_cpp,
+    NULL_BAG, NULL_SLOT, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PhaseShift, Player,
+    PlayerEnchantTimeUpdate, PlayerInteractionDataLikeCpp, PlayerInventoryRuntime,
+    PlayerItemTimeUpdate, PlayerPetLifecycleStateLikeCpp, PlayerQuestGameplayState,
+    PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp,
+    QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END,
+    REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemPlan,
+    SwapItemPreflightPlan, TYPEID_ITEM, UpdateMask, Vehicle, VisibleItemValues, WorldObject,
+    is_equipment_packed_pos, make_item_pos, parse_explored_zones_db_string_like_cpp,
 };
+#[cfg(test)]
+use wow_entities::{ActiveState, PetType, explored_zones_db_string_from_blocks_like_cpp};
 #[cfg(test)]
 use wow_entities::{MovementGeneratorKind, PetAuraLikeCpp, PetSaveMode, PetStableInfo, ReactState};
 pub(crate) use wow_entities::{PlayerCurrency, PlayerCurrencyState};

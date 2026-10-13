@@ -24,7 +24,7 @@ fn continue_login_has_no_concrete_persistence_after_remaining_writes_move() {
         include_str!("../../../src/handlers/character/world_entry/login/glyph_loading.rs"),
         include_str!("../../../src/handlers/character/world_entry/login/group_loading.rs"),
         include_str!("../../../src/handlers/character/world_entry/login/mail_loading.rs"),
-        include_str!("../../../src/handlers/character/world_entry/login/pet_loading.rs"),
+        include_str!("../../../../wow-world-lifecycle/src/pet_session/login_loading.rs"),
         include_str!("../../../src/handlers/character/world_entry/login/reputation_loading.rs"),
         include_str!("../../../src/handlers/character/world_entry/login/skill_loading.rs"),
         include_str!("../../../src/handlers/character/world_entry/login/spell_loading.rs"),

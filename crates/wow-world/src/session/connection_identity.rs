@@ -122,7 +122,7 @@ impl WorldSession {
             state == SessionState::LoggedIn && self.core.state != SessionState::LoggedIn;
         self.core.state = state;
         if entered_world {
-            self.apply_represented_ffa_pvp_login_state_like_cpp();
+            wow_world_entities::apply_represented_ffa_pvp_login_state_like_cpp(self);
         }
     }
 

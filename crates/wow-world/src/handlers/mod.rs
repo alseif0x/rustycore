@@ -40,6 +40,8 @@ pub mod void_storage;
 #[cfg(test)]
 mod loot_test_shims;
 #[cfg(test)]
+mod player_test_shims;
+#[cfg(test)]
 mod test_shims;
 #[cfg(test)]
 #[path = "../../unit_tests/handlers/test_support/mod.rs"]

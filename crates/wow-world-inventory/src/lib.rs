@@ -8,6 +8,7 @@ mod auction_contracts;
 mod bank;
 mod bank_handlers;
 mod battle_pet_handlers;
+mod battle_pet_purchase;
 mod buyback;
 mod catalog;
 mod collections_handlers;
@@ -69,6 +70,15 @@ pub use battle_pet_handlers::{
 pub use battle_pet_handlers::{
     has_represented_battle_pet_journal_lock_like_cpp, represented_battle_pet_journal_like_cpp,
     represented_battle_pet_like_cpp, send_battle_pet_journal_lock_status_like_cpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use battle_pet_purchase::BATTLE_PET_PURCHASE_RECOVERY_BATCH_LIMIT_LIKE_CPP;
+pub use battle_pet_purchase::{
+    BattlePetPurchaseAdmissionFailureLikeCpp, BattlePetPurchaseExecutionLikeCpp,
+    BattlePetPurchaseHostLikeCpp, BattlePetPurchaseRecoveryLikeCpp,
+    PreparedBattlePetTrainerOfferLikeCpp,
+    execute_battle_pet_trainer_purchase_with_generator_like_cpp,
+    recover_battle_pet_trainer_purchases_with_generator_like_cpp,
 };
 pub use collections_handlers::{
     CollectionsHandlerCxLikeCpp, CollectionsHandlerHostLikeCpp,

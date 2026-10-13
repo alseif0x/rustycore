@@ -13,6 +13,7 @@ pub mod handlers;
 mod money_persistence;
 mod persistence_capabilities;
 mod pet_load;
+mod pet_session;
 mod player_save;
 mod rename_callbacks;
 mod save_contracts;
@@ -89,12 +90,22 @@ pub use value_contracts::{
 #[doc(hidden)]
 pub use save_contracts::PlayerSaveOutcomeLikeCpp;
 
-#[doc(hidden)]
 pub use pet_load::{
     CharacterPetAuraEffectRowLikeCpp, CharacterPetAuraRowLikeCpp,
     CharacterPetDeclinedNamesRowLikeCpp, CharacterPetSpellChargeRowLikeCpp,
     CharacterPetSpellCooldownRowLikeCpp, CharacterPetSpellRowLikeCpp,
     PetLoadQueryHolderRowsLikeCpp,
+};
+#[doc(hidden)]
+pub use pet_session::{
+    PetSessionHostLikeCpp, adjusted_represented_pet_aura_remain_time_like_cpp,
+    apply_represented_login_pet_talent_reset_like_cpp,
+    begin_represented_character_pet_authority_load_like_cpp,
+    load_represented_login_pet_state_like_cpp, load_represented_pet_aura_effect_rows_like_cpp,
+    load_represented_pet_aura_rows_like_cpp, load_represented_pet_aura_rows_with_timediff_like_cpp,
+    load_represented_pet_declined_names_like_cpp, load_represented_pet_spell_charge_rows_like_cpp,
+    load_represented_pet_spell_cooldown_rows_like_cpp, load_represented_pet_spell_rows_like_cpp,
+    resummon_pet_temporary_unsummoned_like_cpp, set_represented_pet_mode_state_with_spell_like_cpp,
 };
 
 #[doc(hidden)]

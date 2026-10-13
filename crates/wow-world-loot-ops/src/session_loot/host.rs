@@ -197,6 +197,8 @@ pub trait LootSessionHostLikeCpp: WorldEntitiesHostLikeCpp {
     fn session_command_tx(&self) -> flume::Sender<SessionCommand>;
     fn set_player_gold_like_cpp(&mut self, gold: u64) -> bool;
     fn sync_player_registry_state_like_cpp(&self);
+    /// The World `InstanceState::has_pending_bind_like_cpp` (#1363 slice 7a).
+    fn has_pending_bind_like_cpp(&self) -> bool;
     fn take_durable_item_loot_completions_like_cpp(&self) -> Vec<DurableItemLootCompletionLikeCpp>;
     fn wait_for_durable_item_loot_persistence_like_cpp(&self) -> impl Future<Output = ()> + Send;
     // #1363 slice 5c: what the moved money paths call. The first four are the

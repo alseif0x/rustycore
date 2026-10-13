@@ -60,6 +60,7 @@ pub use session_loot::{
     handle_represented_loot_roll_store_winner_command_with_generator_like_cpp,
     handle_represented_loot_roll_vote_command_with_generator_like_cpp,
     handle_represented_master_loot_give_command_with_generator_like_cpp,
+    handle_send_creature_loot_release_values_update_command_like_cpp,
     handle_sync_chest_gameobject_state_and_refresh_like_cpp,
     handle_sync_gathering_node_gameobject_state_and_refresh_like_cpp,
     handle_sync_goober_gameobject_state_and_refresh_like_cpp,

@@ -694,6 +694,8 @@
       "wow-world-inventory": {
         "normal": [
           "num-traits",
+          "rand",
+          "tokio",
           "tracing"
         ],
         "build": []

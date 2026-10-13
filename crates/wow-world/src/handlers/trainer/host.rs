@@ -113,7 +113,7 @@ impl TrainerBuySpellHostLikeCpp for WorldSession {
         offer: PreparedBattlePetTrainerOfferLikeCpp,
     ) -> impl Future<Output = ()> + Send {
         async move {
-            WorldSession::execute_battle_pet_trainer_purchase_with_generator_like_cpp(
+            wow_world_inventory::execute_battle_pet_trainer_purchase_with_generator_like_cpp(
                 self,
                 item_guid_generator,
                 battle_pet_selection_store,

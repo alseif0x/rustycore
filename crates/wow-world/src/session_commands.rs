@@ -41,7 +41,9 @@ impl WorldSession {
                     });
             }
             SessionCommand::ApplyCreatureMeleeDamageLikeCpp(command) => {
-                self.handle_apply_creature_melee_damage_like_cpp_command_like_cpp(command);
+                wow_world_entities::handle_apply_creature_melee_damage_like_cpp_command_like_cpp(
+                    self, command,
+                );
             }
             SessionCommand::ApplyPlayerMeleeResultLikeCpp(command) => {
                 wow_world_entities::handle_apply_player_melee_result_like_cpp_command_like_cpp(
@@ -49,13 +51,17 @@ impl WorldSession {
                 );
             }
             SessionCommand::CreatureAttackStartLikeCpp(command) => {
-                self.handle_creature_attack_start_like_cpp_command_like_cpp(command);
+                wow_world_entities::handle_creature_attack_start_like_cpp_command_like_cpp(
+                    self, command,
+                );
             }
             SessionCommand::CreatureAttackStopLikeCpp(command) => {
-                self.handle_creature_attack_stop_like_cpp_command_like_cpp(command);
+                wow_world_entities::handle_creature_attack_stop_like_cpp_command_like_cpp(
+                    self, command,
+                );
             }
             SessionCommand::ReconcilePvpCombatExpiryLikeCpp(command) => {
-                self.handle_reconcile_pvp_combat_expiry_like_cpp(command);
+                wow_world_entities::handle_reconcile_pvp_combat_expiry_like_cpp(self, command);
             }
             SessionCommand::ApplyLootMoneyLikeCpp(command) => {
                 self.handle_apply_loot_money_with_generator_like_cpp_command(
@@ -119,7 +125,7 @@ impl WorldSession {
                 .await;
             }
             SessionCommand::SendCreatureLootReleaseValuesUpdateLikeCpp(command) => {
-                self.handle_send_creature_loot_release_values_update_command_like_cpp(command);
+                wow_world_loot_ops::handle_send_creature_loot_release_values_update_command_like_cpp(self, command);
             }
             SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp => {
                 let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();

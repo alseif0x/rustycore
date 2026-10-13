@@ -1,21 +1,24 @@
-//! Battle-pet purchase state definitions, part 1 of 1.
-//!
-//! Separated from the battle_pet_purchase.rs root under #656. Behaviour is preserved.
+// Copyright (c) 2026 alseif0x
+// RustyCore — WoW WotLK 3.4.3 server in Rust
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! Battle-pet purchase state definitions (#1363 slice 7a; moved from the World
+//! `battle_pet_purchase/state.rs`). Behaviour is preserved.
 
 use super::*;
 
 /// Bounded login-recovery batch: at most this many unconverged commands are
 /// resumed per character login; the remainder converges on later logins.
-pub(crate) const BATTLE_PET_PURCHASE_RECOVERY_BATCH_LIMIT_LIKE_CPP: u32 = 8;
+pub const BATTLE_PET_PURCHASE_RECOVERY_BATCH_LIMIT_LIKE_CPP: u32 = 8;
 
 /// Bounded synchronous retry for retryable store transitions. The retry is
 /// always the identical transition against durable state, never a new
 /// purchase attempt, so replaying it cannot double-charge or double-grant.
-pub(crate) const BATTLE_PET_PURCHASE_MAX_ATTEMPTS_LIKE_CPP: u32 = 3;
+pub const BATTLE_PET_PURCHASE_MAX_ATTEMPTS_LIKE_CPP: u32 = 3;
 
 /// Bounded linear backoff base (ms) between retryable-transition attempts:
 /// 0, 25, 50 ms — well under one session tick budget in aggregate.
-pub(crate) const BATTLE_PET_PURCHASE_RETRY_BACKOFF_MS_LIKE_CPP: u64 = 25;
+pub const BATTLE_PET_PURCHASE_RETRY_BACKOFF_MS_LIKE_CPP: u64 = 25;
 
 pub(super) fn record_battle_pet_purchase_publication_trace_like_cpp(name: &'static str) {
     tracing::trace!(publication = name, "battle-pet persistence publication");
@@ -27,7 +30,7 @@ pub(super) fn record_battle_pet_purchase_publication_trace_like_cpp(name: &'stat
 /// case at all, so the wire stays silent while the typed result keeps the
 /// failure observable to tests, diagnostics and the caller.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum BattlePetPurchaseAdmissionFailureLikeCpp {
+pub enum BattlePetPurchaseAdmissionFailureLikeCpp {
     /// No #160 attachment/owner for this account: the journal cannot be
     /// durable, so the purchase fails closed.
     NoJournalAuthority,
@@ -45,7 +48,7 @@ pub(crate) enum BattlePetPurchaseAdmissionFailureLikeCpp {
 
 /// Terminal outcome of one live purchase execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum BattlePetPurchaseExecutionLikeCpp {
+pub enum BattlePetPurchaseExecutionLikeCpp {
     /// Pet durable, command `Completed`; `published` is true exactly when
     /// this execution sent the one `SMSG_BATTLE_PET_UPDATES` petAdded
     /// (an `Added` outcome). A replayed receipt completes silently.
@@ -80,7 +83,7 @@ pub(crate) enum BattlePetPurchaseExecutionLikeCpp {
 
 /// Login-recovery summary for diagnostics and tests.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct BattlePetPurchaseRecoveryLikeCpp {
+pub struct BattlePetPurchaseRecoveryLikeCpp {
     pub applied: u32,
     pub compensated: u32,
     pub deferred: u32,

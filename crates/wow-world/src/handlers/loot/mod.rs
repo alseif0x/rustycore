@@ -15,7 +15,6 @@ use wow_loot::ROLL_FLAG_TYPE_NEED_LIKE_CPP;
 
 mod authority;
 mod claims;
-mod combat_commands;
 mod fanout;
 mod handlers;
 mod loot_host;
@@ -28,11 +27,9 @@ mod visibility_commands;
 use std::sync::atomic::AtomicBool;
 
 use crate::session::mailbox::{
-    ApplyCreatureMeleeDamageLikeCppCommand, ApplyLootMoneyLikeCppCommand,
-    CreatureAttackStartLikeCppCommand, CreatureAttackStopLikeCppCommand,
-    ReconcilePvpCombatExpiryLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
-    SendAddonIfRegisteredLikeCppCommand, SendCreatureLootReleaseValuesUpdateLikeCppCommand,
-    SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand, SessionCommand,
+    ApplyLootMoneyLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
+    SendAddonIfRegisteredLikeCppCommand, SendCreatureSpellCastIfVisibleLikeCppCommand,
+    SendIfVisibleLikeCppCommand, SessionCommand,
 };
 use wow_constants::{InventoryResult, ItemContext};
 use wow_core::ObjectGuid;
@@ -45,11 +42,9 @@ use wow_entities::{
     GAMEOBJECT_TYPE_AREADAMAGE, GAMEOBJECT_TYPE_BINDER, GAMEOBJECT_TYPE_CHAIR,
     GAMEOBJECT_TYPE_DOOR, GAMEOBJECT_TYPE_GUILD_BANK, GAMEOBJECT_TYPE_QUESTGIVER,
 };
-use wow_world_core::session::OwnedLootAuthorityLookupOutcomeLikeCpp;
 #[cfg(test)]
 use wow_world_core::session::looted_corpse_decay_secs_like_cpp;
 
-use wow_packet::packets::update::UpdateObject;
 #[cfg(test)]
 use wow_persistence::{
     STORED_ITEM_MONEY_SOURCE_ROWS_EXPECTED_LIKE_CPP, StoredItemMoneyPersistenceOutcomeLikeCpp,

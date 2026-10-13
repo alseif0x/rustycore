@@ -389,7 +389,7 @@ fn beginning_character_pet_load_replaces_pet_query_holder_rows_like_cpp() {
             .pet_load_spells_are_empty_for_test_like_cpp()
     );
 
-    crate::session::cx_pets(&mut session).begin_represented_character_pet_authority_load_like_cpp();
+    wow_world_lifecycle::begin_represented_character_pet_authority_load_like_cpp(&mut session);
 
     assert!(
         session

@@ -52,11 +52,6 @@ impl crate::session::WorldSession {
     pub(crate) fn set_active_loot_guid(&mut self, guid: ObjectGuid) {
         self.loot.set_active_loot_guid(guid)
     }
-    pub(crate) fn durable_loot_money_persistence_tracker_like_cpp(
-        &self,
-    ) -> Arc<DurableLootMoneyPersistenceTrackerLikeCpp> {
-        crate::session::cx_loot_ref(self).durable_loot_money_persistence_tracker_like_cpp()
-    }
     pub(crate) fn is_active_loot_guid(&self, guid: ObjectGuid) -> bool {
         self.loot.is_active_loot_guid(guid)
     }

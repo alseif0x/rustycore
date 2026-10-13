@@ -193,8 +193,8 @@ impl WorldSession {
             }
 
             crate::session::hub_mut(self).set_selection_guid_like_cpp(None);
-            self.combat_stop_like_cpp();
-            self.reset_contested_pvp_like_cpp();
+            wow_world_entities::combat_stop_like_cpp(self);
+            wow_world_entities::reset_contested_pvp_like_cpp(self);
             self.maybe_leave_represented_battleground_on_far_teleport_like_cpp(new_map);
             crate::session::hub_mut(self).unsummon_represented_pet_temporary_if_any_like_cpp();
             let _ = crate::session::hub_ref(self)
@@ -372,7 +372,7 @@ impl WorldSession {
         }
 
         if options & TELE_TO_NOT_LEAVE_COMBAT_LIKE_CPP == 0 {
-            self.combat_stop_like_cpp();
+            wow_world_entities::combat_stop_like_cpp(self);
         }
 
         let map_id = u16::try_from(map_id).unwrap_or(self.core.player_map_id_like_cpp());
@@ -760,7 +760,7 @@ impl WorldSession {
             crate::session::hub_mut(self).update_player_pvp_like_cpp(false, true);
         }
 
-        crate::session::cx_pets(self).resummon_pet_temporary_unsummoned_like_cpp();
+        wow_world_lifecycle::resummon_pet_temporary_unsummoned_like_cpp(self);
         self.process_represented_delayed_resurrection_after_teleport_like_cpp();
         #[cfg(test)]
         {

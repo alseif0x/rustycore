@@ -4,7 +4,7 @@
 //! #1241 F3 test shims: WorldSession entry points kept only for unit_tests callers.
 
 #[allow(unused_imports)]
-use super::*;
+use crate::session::*;
 
 impl crate::session::WorldSession {
     pub(crate) fn set_represented_pet_stable_like_cpp(&mut self, stable: PetStable) {
@@ -20,7 +20,7 @@ impl crate::session::WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn resummon_pet_temporary_unsummoned_if_any_like_cpp(&mut self) {
-        crate::session::cx_pets(self).resummon_pet_temporary_unsummoned_if_any_like_cpp()
+        wow_world_lifecycle::resummon_pet_temporary_unsummoned_like_cpp(self)
     }
     pub(crate) fn load_represented_pet_stable_rows_like_cpp(
         &mut self,

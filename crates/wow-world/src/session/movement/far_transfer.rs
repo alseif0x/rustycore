@@ -30,8 +30,8 @@ impl WorldSession {
             options
         };
         crate::session::hub_mut(self).set_selection_guid_like_cpp(None);
-        self.combat_stop_like_cpp();
-        self.reset_contested_pvp_like_cpp();
+        wow_world_entities::combat_stop_like_cpp(self);
+        wow_world_entities::reset_contested_pvp_like_cpp(self);
         self.maybe_leave_represented_battleground_on_far_teleport_like_cpp(map_id);
         crate::session::hub_mut(self).unsummon_represented_pet_temporary_if_any_like_cpp();
         let _ =

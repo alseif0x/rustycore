@@ -21,7 +21,6 @@ mod default_skills;
 mod glyph_loading;
 mod group_loading;
 mod mail_loading;
-mod pet_loading;
 mod reputation_loading;
 mod skill_loading;
 mod spell_loading;
@@ -279,7 +278,8 @@ impl WorldSession {
             base_row.raid_difficulty.unwrap_or(0),
             base_row.legacy_raid_difficulty.unwrap_or(0),
         );
-        self.load_represented_login_pet_state_like_cpp(
+        wow_world_lifecycle::load_represented_login_pet_state_like_cpp(
+            self,
             &player_lifecycle_port,
             guid,
             base_row.summoned_pet_number.unwrap_or(0),

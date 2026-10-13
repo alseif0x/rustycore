@@ -62,15 +62,8 @@ pub enum TrainerUnavailableReasonLikeCpp {
     ProfessionCapacity(PrimaryProfessionCapacityPlanErrorLikeCpp),
 }
 
-/// C++ `Trainer::TeachSpell` reaches `BattlePetMgr::AddPet` for a confirmed
-/// species only when the trainer spell is not castable. The live purchase
-/// saga remains a separate operation after this pure offer decision.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PreparedBattlePetTrainerOfferLikeCpp {
-    pub source_spell_id: u32,
-    pub effective_price: u32,
-    pub species_id: u32,
-}
+/// Moved to `wow-world-inventory` with the purchase saga (#1363 slice 7a).
+pub use wow_world_inventory::PreparedBattlePetTrainerOfferLikeCpp;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TrainerOfferDecisionLikeCpp {

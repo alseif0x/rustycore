@@ -13,41 +13,13 @@ impl WorldSession {
         react_state: u8,
         command_state: u8,
     ) {
-        self.set_represented_pet_mode_state_with_spell_like_cpp(
+        wow_world_lifecycle::set_represented_pet_mode_state_with_spell_like_cpp(
+            self,
             pet_guid,
             react_state,
             command_state,
             0,
         );
-    }
-    pub(crate) fn apply_represented_login_pet_talent_reset_like_cpp(&mut self) -> bool {
-        const AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP: u16 = 0x010;
-
-        if !self
-            .resolved_represented_at_login_flags_like_cpp()
-            .is_some_and(|flags| (flags & AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP) != 0)
-        {
-            return false;
-        }
-
-        crate::session::hub_mut(self)
-            .invalidate_represented_character_pet_empty_authority_like_cpp();
-
-        if !crate::session::hub_mut(self).update_player_pet_lifecycle_state_like_cpp(|state| {
-            for pet in state.stable.active_pets.iter_mut().flatten() {
-                pet.specialization_id = 0;
-            }
-            for pet in state.stable.stabled_pets.iter_mut().flatten() {
-                pet.specialization_id = 0;
-            }
-            for pet in &mut state.stable.unslotted_pets {
-                pet.specialization_id = 0;
-            }
-        }) {
-            return false;
-        }
-        self.lifecycle.pet_load_clear_spells_like_cpp();
-        true
     }
     #[cfg(test)]
     pub(crate) fn represented_sign_petitions_like_cpp(&self) -> &[RepresentedSignPetitionLikeCpp] {
