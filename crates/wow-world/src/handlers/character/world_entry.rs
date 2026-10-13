@@ -198,8 +198,11 @@ impl WorldSession {
         {
             return false;
         }
-        self.recover_battle_pet_trainer_purchases_with_generator_like_cpp(item_guid_generator)
-            .await;
+        wow_world_inventory::recover_battle_pet_trainer_purchases_with_generator_like_cpp(
+            self,
+            item_guid_generator,
+        )
+        .await;
         if !self
             .core
             .wait_for_instance_send_before_realm_send_like_cpp()

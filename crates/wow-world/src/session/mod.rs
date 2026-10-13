@@ -492,9 +492,9 @@ pub(crate) use stand_state_adapter::RepresentedStandStateChangedLikeCpp;
 mod state;
 pub use state::WorldSession;
 pub(crate) use state::{
-    HubMut, InventoryCxRef, LifecycleCx, LifecycleCxRef, LootCxRef, PetsCx, PetsCxRef,
-    QuestStateCx, QuestStateCxRef, cx_inventory_ref, cx_lifecycle, cx_lifecycle_ref, cx_loot_ref,
-    cx_pets, cx_pets_ref, cx_quest_state, cx_quest_state_ref, hub_mut, hub_ref, hub_support,
+    HubMut, InventoryCxRef, LifecycleCx, LifecycleCxRef, PetsCx, PetsCxRef, QuestStateCx,
+    QuestStateCxRef, cx_inventory_ref, cx_lifecycle, cx_lifecycle_ref, cx_pets, cx_pets_ref,
+    cx_quest_state, cx_quest_state_ref, hub_mut, hub_ref, hub_support,
     split_battle_pet_handler_mut, split_battleground_mut, split_character_handler_mut,
     split_group_handler_states_mut, split_guild_bank_mut, split_instances_mut, split_instances_ref,
     split_interaction, split_interaction_ref, split_interaction_world_entities_mut,
@@ -544,9 +544,9 @@ use crate::entity_update_bridge::{
     dynamic_object_values_update_to_update_object, item_values_update_to_update_object,
     player_values_update_to_update_object, unit_values_update_to_packet,
 };
-use crate::loot_persistence::{
-    DurableLootMoneyCompletionLikeCpp, DurableLootMoneyPersistenceTrackerLikeCpp,
-};
+use crate::loot_persistence::DurableLootMoneyCompletionLikeCpp;
+#[cfg(test)]
+use crate::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp;
 use crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp;
 use crate::session::directory::{
     PlayerRegistry, PlayerSessionRegistrationLikeCpp, PlayerVisibilityCreateSnapshot,

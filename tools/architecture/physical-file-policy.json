@@ -434,8 +434,8 @@
     {
       "path": "crates/wow-world/src/battle_pet_purchase.rs",
       "observed_lines": 5206,
-      "ceiling_lines": 92,
-      "split": "Separate the battle-pet purchase saga, its status/store state and the executor fixtures. #656 decomposes the 5,206-line file into one state module, two ops modules dividing the `impl WorldSession` block by purchase phase, and two regression trees whose fixtures live in their own module, dropping it to 92 lines and tightening the ceiling to that figure. Item-for-item with the crate's 3,822 lib tests unchanged.",
+      "ceiling_lines": 55,
+      "split": "Separate the battle-pet purchase saga, its status/store state and the executor fixtures. #656 decomposes the 5,206-line file into one state module, two ops modules dividing the `impl WorldSession` block by purchase phase, and two regression trees whose fixtures live in their own module, dropping it to 92 lines and tightening the ceiling to that figure. Item-for-item with the crate's 3,822 lib tests unchanged. 2026-10-13 #1363 slice 7a: tightened 92 -> 55 to the live value: the purchase saga (state, both ops modules and its doc) moved verbatim to wow-world-inventory (battle_pet_purchase) behind BattlePetPurchaseHostLikeCpp; the root keeps the cfg(test) names the executor tests read through super::*, the adapter mount (host.rs) and the test-module mounts, and ops_1.rs keeps only the two cfg(test) wrappers.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -713,9 +713,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/player_test_shims.rs",
-      "observed_lines": 55,
-      "ceiling_lines": 55,
-      "split": "cfg(test) method-syntax entry points for the player combat bodies moved to wow-world-entities (#1363 slice 7a), mounted from handlers/mod.rs outside the session and character hotspot trees, so the scenarios keep their method syntax without growing those hotspots' test lines. 2026-10-13 #1363 slice 7a: ratcheted at the live value from creation; each method is a one-call forward to the moved free function. Retire it by converting the scenario call sites to free-function calls in a slice that reviews those test ceilings; no growth is permitted from here.",
+      "observed_lines": 69,
+      "ceiling_lines": 69,
+      "split": "cfg(test) method-syntax entry points for the player combat bodies moved to wow-world-entities (#1363 slice 7a) and the loot-money tracker read whose LootCxRef facade retired when the battle-pet purchase saga moved, mounted from handlers/mod.rs outside the session and character hotspot trees, so the scenarios keep their method syntax without growing those hotspots' test lines. 2026-10-13 #1363 slice 7a: ratcheted at the live value from creation; each method is a one-call forward to the moved free function. Retire it by converting the scenario call sites to free-function calls in a slice that reviews those test ceilings; no growth is permitted from here.",
       "review_checkpoint": "584:C4"
     }
   ],

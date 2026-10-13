@@ -3659,6 +3659,8 @@ name = "wow-world-inventory"
 version = "0.1.0"
 dependencies = [
  "num-traits",
+ "rand",
+ "tokio",
  "tracing",
  "wow-constants",
  "wow-core",

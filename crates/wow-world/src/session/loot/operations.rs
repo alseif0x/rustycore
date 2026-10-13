@@ -61,17 +61,6 @@ impl WorldSession {
     }
 }
 
-impl crate::session::LootCxRef<'_> {
-    pub(crate) fn durable_loot_money_persistence_tracker_like_cpp(
-        &self,
-    ) -> Arc<DurableLootMoneyPersistenceTrackerLikeCpp> {
-        Arc::clone(
-            self.lifecycle
-                .durable_loot_money_persistence_tracker_like_cpp(),
-        )
-    }
-}
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/loot/operations/f3_shims.rs"]
 mod f3_shims;
