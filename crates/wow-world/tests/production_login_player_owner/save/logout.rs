@@ -125,8 +125,13 @@ async fn exercise(outcome: PersistenceOutcomeLikeCpp, cancel: bool) {
     let request = wow_packet::packets::misc::LogoutRequest { idle_logout: false };
     if cancel {
         use std::future::Future;
-        let mut logout =
-            Box::pin(session.handle_logout_request_with_generator_like_cpp(&generator, request));
+        let mut logout = Box::pin(
+            wow_world_character::handle_logout_request_with_generator_like_cpp(
+                &mut session,
+                &generator,
+                request,
+            ),
+        );
         assert!(
             std::future::poll_fn(|cx| std::task::Poll::Ready(
                 logout.as_mut().poll(cx).is_pending()
@@ -137,9 +142,12 @@ async fn exercise(outcome: PersistenceOutcomeLikeCpp, cancel: bool) {
         drop(logout);
         session.kick("controlled explicit logout cancellation after save submission");
     } else {
-        session
-            .handle_logout_request_with_generator_like_cpp(&generator, request)
-            .await;
+        wow_world_character::handle_logout_request_with_generator_like_cpp(
+            &mut session,
+            &generator,
+            request,
+        )
+        .await;
     }
     let quarantined = cancel || !matches!(outcome, PersistenceOutcomeLikeCpp::Applied { .. });
     assert_eq!(
@@ -264,12 +272,12 @@ async fn production_explicit_logout_rejects_unavailable_source_save_without_reti
             .relocate(Position::new(f32::NAN, 0.0, 0.0, 0.0));
     }
     let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
-    session
-        .handle_logout_request_with_generator_like_cpp(
-            &generator,
-            wow_packet::packets::misc::LogoutRequest { idle_logout: false },
-        )
-        .await;
+    wow_world_character::handle_logout_request_with_generator_like_cpp(
+        &mut session,
+        &generator,
+        wow_packet::packets::misc::LogoutRequest { idle_logout: false },
+    )
+    .await;
     assert_eq!(session.state(), SessionState::Disconnecting);
     assert_eq!(session.player_guid(), Some(guid));
     assert!(probe.requests.lock().unwrap().is_empty());

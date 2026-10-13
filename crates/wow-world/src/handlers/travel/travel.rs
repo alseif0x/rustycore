@@ -182,7 +182,8 @@ impl crate::session::WorldSession {
 
         // SendInitialPacketsAfterAddToMap: post-add phase shift, InitWorldStates resolved for
         // the destination map, the PhasingHandler::OnMapChange phase shift, CUF profiles, auras.
-        self.send_initial_packets_after_add_to_map_with_catalogs_like_cpp(
+        wow_world_character::send_initial_packets_after_add_to_map_with_catalogs_like_cpp(
+            self,
             creature_spawn_catalogs,
             guid,
             &new_pos,

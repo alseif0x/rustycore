@@ -3524,18 +3524,27 @@ dependencies = [
 name = "wow-world-character"
 version = "0.1.0"
 dependencies = [
+ "flume",
+ "num-traits",
+ "tokio",
  "tracing",
+ "wow-config",
  "wow-constants",
  "wow-core",
  "wow-data",
  "wow-entities",
  "wow-handler",
+ "wow-network",
  "wow-packet",
  "wow-persistence",
+ "wow-progression",
  "wow-world-core",
  "wow-world-entities",
  "wow-world-inventory",
  "wow-world-lifecycle",
+ "wow-world-loot",
+ "wow-world-spell",
+ "wow-world-visibility",
 ]
 
 [[package]]

@@ -21,7 +21,7 @@ impl WorldSession {
                     "No session manager for ConnectTo flow (account {}), sending login directly",
                     self.core.account_id
                 );
-                self.fallback_direct_login();
+                wow_world_character::fallback_direct_login(self);
                 return;
             }
         };

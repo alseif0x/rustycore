@@ -58,15 +58,9 @@ impl WorldSession {
     pub fn set_item_random_suffix_store(&mut self, store: Arc<ItemRandomSuffixStore>) {
         self.catalogs.items.random_suffix_store = Some(store);
     }
-    pub(crate) fn item_random_suffix_store(&self) -> Option<&Arc<ItemRandomSuffixStore>> {
-        self.catalogs.item_random_suffix_store()
-    }
     /// Set the item random properties store for this session.
     pub fn set_item_random_properties_store(&mut self, store: Arc<ItemRandomPropertiesStore>) {
         self.catalogs.items.random_properties_store = Some(store);
-    }
-    pub(crate) fn item_random_properties_store(&self) -> Option<&Arc<ItemRandomPropertiesStore>> {
-        self.catalogs.item_random_properties_store()
     }
     /// Set the QuestPackageItem store used by C++ quest package reward selection.
     pub fn set_quest_package_item_store(&mut self, store: Arc<QuestPackageItemStore>) {

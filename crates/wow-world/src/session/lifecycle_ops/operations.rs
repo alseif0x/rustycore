@@ -16,10 +16,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_lifecycle_ref(self);
         state.account_heirloom_active_player_rows_like_cpp(hub)
     }
-    pub(crate) fn send_account_heirlooms_like_cpp(&self) {
-        let (state, hub) = crate::session::split_lifecycle_ref(self);
-        state.send_account_heirlooms_like_cpp(hub)
-    }
     pub(crate) fn add_account_heirloom_like_cpp(&mut self, item_id: u32, flags: u32) -> bool {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);
         state.add_account_heirloom_like_cpp(&mut hub, item_id, flags)
@@ -35,10 +31,6 @@ impl WorldSession {
     pub(crate) fn account_toy_active_player_rows_like_cpp(&self) -> Vec<i32> {
         let (state, hub) = crate::session::split_lifecycle_ref(self);
         state.account_toy_active_player_rows_like_cpp(hub)
-    }
-    pub(crate) fn send_account_toys_like_cpp(&self) {
-        let (state, hub) = crate::session::split_lifecycle_ref(self);
-        state.send_account_toys_like_cpp(hub)
     }
     pub(crate) fn has_account_toy_like_cpp(&self, item_id: u32) -> bool {
         let (state, hub) = crate::session::split_lifecycle_ref(self);

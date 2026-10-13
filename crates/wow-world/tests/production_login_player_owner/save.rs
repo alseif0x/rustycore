@@ -440,12 +440,12 @@ async fn pending_far_disconnect(outcome: DisconnectDestination, explicit_logout:
     if explicit_logout {
         // Direct production adapter call proves LogoutPlayer ordering, not that
         // the LoggedIn-only network registration admits a packet during Transfer.
-        session
-            .handle_logout_request_with_generator_like_cpp(
-                &generator,
-                wow_packet::packets::misc::LogoutRequest { idle_logout: false },
-            )
-            .await;
+        wow_world_character::handle_logout_request_with_generator_like_cpp(
+            &mut session,
+            &generator,
+            wow_packet::packets::misc::LogoutRequest { idle_logout: false },
+        )
+        .await;
         if outcome == DisconnectDestination::Rejected {
             assert_eq!(session.state(), SessionState::Disconnecting);
             assert_eq!(session.player_guid(), Some(guid));

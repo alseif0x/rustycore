@@ -16,21 +16,29 @@ use crate::handlers::character::vendor::rules::{
 fn continue_login_has_no_concrete_persistence_after_remaining_writes_move() {
     let handler = concat!(
         include_str!("../../../src/handlers/character/world_entry/login.rs"),
-        include_str!("../../../src/handlers/character/world_entry/login/action_buttons.rs"),
-        include_str!("../../../src/handlers/character/world_entry/login/aura_loading.rs"),
-        include_str!("../../../src/handlers/character/world_entry/login/cuf_profiles.rs"),
-        include_str!("../../../src/handlers/character/world_entry/login/currency_loading.rs"),
-        include_str!("../../../src/handlers/character/world_entry/login/default_skills.rs"),
-        include_str!("../../../src/handlers/character/world_entry/login/glyph_loading.rs"),
-        include_str!("../../../src/handlers/character/world_entry/login/group_loading.rs"),
+        include_str!("../../../../wow-world-character/src/login_session/loaders/action_buttons.rs"),
+        include_str!("../../../../wow-world-character/src/login_session/loaders/aura_loading.rs"),
+        include_str!("../../../../wow-world-character/src/login_session/loaders/cuf_profiles.rs"),
+        include_str!(
+            "../../../../wow-world-character/src/login_session/loaders/currency_loading.rs"
+        ),
+        include_str!("../../../../wow-world-character/src/login_session/loaders/default_skills.rs"),
+        include_str!("../../../../wow-world-character/src/login_session/loaders/glyph_loading.rs"),
+        include_str!("../../../../wow-world-character/src/login_session/loaders/group_loading.rs"),
         include_str!("../../../src/handlers/character/world_entry/login/mail_loading.rs"),
         include_str!("../../../../wow-world-lifecycle/src/pet_session/login_loading.rs"),
-        include_str!("../../../src/handlers/character/world_entry/login/reputation_loading.rs"),
-        include_str!("../../../src/handlers/character/world_entry/login/skill_loading.rs"),
-        include_str!("../../../src/handlers/character/world_entry/login/spell_loading.rs"),
-        include_str!("../../../src/handlers/character/world_entry/login/spell_map_finalization.rs"),
-        include_str!("../../../src/handlers/character/world_entry/login/talent_loading.rs"),
-        include_str!("../../../src/handlers/character/world_entry/login/transport_restore.rs"),
+        include_str!(
+            "../../../../wow-world-character/src/login_session/loaders/reputation_loading.rs"
+        ),
+        include_str!("../../../../wow-world-character/src/login_session/loaders/skill_loading.rs"),
+        include_str!("../../../../wow-world-character/src/login_session/loaders/spell_loading.rs"),
+        include_str!(
+            "../../../../wow-world-character/src/login_session/loaders/spell_map_finalization.rs"
+        ),
+        include_str!("../../../../wow-world-character/src/login_session/loaders/talent_loading.rs"),
+        include_str!(
+            "../../../../wow-world-character/src/login_session/loaders/transport_restore.rs"
+        ),
     );
 
     assert!(handler.contains("reset_login_pet_talents_like_cpp"));

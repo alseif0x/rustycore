@@ -45,7 +45,7 @@ impl CharacterHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession
 
     fn update_realm_characters_like_cpp(&mut self) -> HandlerFuture<'_, ()> {
         Box::pin(async move {
-            self.update_realm_characters().await;
+            wow_world_character::update_realm_characters(self).await;
         })
     }
 

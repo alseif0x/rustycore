@@ -19,14 +19,13 @@ mod character_handler_host;
 mod character_handler_shims;
 mod condition_objects;
 mod creation_support;
-mod entry_zone;
 // Test-only: its production readers moved to `wow-world-character` (#1263 F5, #1363 A5).
 #[cfg(test)]
 mod enumeration_support;
 mod gossip;
 mod item_load_support;
 mod items;
-mod lifecycle;
+mod login_host;
 mod login_support;
 mod login_transport_support;
 mod query;
@@ -172,7 +171,6 @@ use wow_progression::mgr::CharacterReputationRowLikeCpp;
 
 // ── Handler registration ────────────────────────────────────────────
 
-const DEFAULT_MOTD_LIKE_CPP: &str = "Welcome to a Trinity Core Server.";
 const DIRECT_VENDOR_MASK_LIKE_CPP: u32 = 0x80 | 0x100 | 0x200 | 0x400 | 0x800;
 const DIRECT_TRAINER_MASK_LIKE_CPP: u32 = 0x10 | 0x20 | 0x40;
 const DIRECT_FLIGHT_MASTER_LIKE_CPP: u32 = 0x2000;
@@ -200,23 +198,6 @@ const GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP: u8 = 3;
 const GOSSIP_OPTION_TRAINER_TEXT_LIKE_CPP: &str = "I would like to train.";
 
 pub(crate) use wow_world_core::corpse_load::MapCorpseLoadOutcomeLikeCpp;
-
-fn motd_lines_like_cpp(motd: &str) -> Vec<String> {
-    // C++ `World::SetMotd` uses `boost::split` on `@` with token compression
-    // disabled, so empty and trailing lines remain part of the login burst.
-    motd.split('@').map(ToOwned::to_owned).collect()
-}
-
-fn void_storage_login_context_like_cpp(
-    random_properties_id: i32,
-    _selected_context_column: u8,
-) -> u8 {
-    // Audited 3.4.3 `Player::_LoadVoidStorage` constructs ItemContext from
-    // fields[5] even though CHAR_SEL_CHAR_VOID_STORAGE selects `context` as
-    // fields[7]. Keep that executable C++ behavior; the unused argument makes
-    // the query/implementation mismatch explicit instead of hiding column 7.
-    random_properties_id as u8
-}
 
 #[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -313,9 +294,6 @@ fn add_represented_trainer_gossip_option_if_missing_like_cpp(
     stored_options.push(represented_trainer_gossip_option_info_like_cpp());
     true
 }
-fn primary_power_type_for_class_like_cpp(class_id: u8) -> PowerType {
-    wow_world_core::session::primary_power_type_for_player_class_like_cpp(class_id)
-}
 
 fn primary_max_power_for_class_like_cpp(class_id: u8, max_mana: i64) -> i32 {
     wow_world_inventory::primary_max_power_for_class_like_cpp(class_id, max_mana)
@@ -337,7 +315,11 @@ fn loaded_inventory_slot_count_with_legacy_rust_compat(saved_slots: u8) -> u8 {
 const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xDF2F_53CF;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
 pub(crate) use wow_constants::character::RESPONSE_SUCCESS_LIKE_CPP;
+// Test-only: its production reader (the rename result) moved to
+// `wow-world-character` (#1363 slice 8d), which uses its own identical constant.
+#[cfg(test)]
 const CHAR_CREATE_ERROR_LIKE_CPP: u8 = 25;
+// Test-only: their production readers moved to `wow-world-character` (#1363 slice 8d).
 pub(crate) use wow_constants::character::{
     AT_LOGIN_CHANGE_FACTION_LIKE_CPP, AT_LOGIN_CHANGE_RACE_LIKE_CPP, AT_LOGIN_FIRST_LIKE_CPP,
     AT_LOGIN_RENAME_LIKE_CPP, AT_LOGIN_RESURRECT_LIKE_CPP, CHAR_CUSTOMIZE_FLAG_CUSTOMIZE_LIKE_CPP,
@@ -346,6 +328,8 @@ pub(crate) use wow_constants::character::{
     CHARACTER_FLAG_RENAME_LIKE_CPP, CLASS_DEATH_KNIGHT_LIKE_CPP, CLASS_HUNTER_LIKE_CPP,
     CLASS_WARLOCK_LIKE_CPP, PLAYER_FLAGS_GHOST_LIKE_CPP,
 };
+#[cfg(test)]
+use wow_world_character::{motd_lines_like_cpp, void_storage_login_context_like_cpp};
 // Test-only: their production readers moved to `wow-world-character` (#1263 F5, #1363 A5).
 #[cfg(test)]
 pub(crate) use wow_constants::character::{
@@ -376,28 +360,6 @@ use crate::session::{InventoryItem, WorldSession};
 /// Reverse-map an equipment slot (0-18) to its InventoryType.
 ///
 /// Used as a fallback when Item.db2 store is not available.
-fn slot_to_inventory_type(slot: u8) -> Option<u8> {
-    match slot {
-        0 => Some(1),        // Head
-        1 => Some(2),        // Neck
-        2 => Some(3),        // Shoulders
-        3 => Some(4),        // Body (Shirt)
-        4 => Some(5),        // Chest
-        5 => Some(6),        // Waist
-        6 => Some(7),        // Legs
-        7 => Some(8),        // Feet
-        8 => Some(9),        // Wrists
-        9 => Some(10),       // Hands
-        10 | 11 => Some(11), // Finger (Ring)
-        12 | 13 => Some(12), // Trinket
-        14 => Some(16),      // Cloak
-        15 => Some(21),      // MainHand (WeaponMainHand)
-        16 => Some(22),      // OffHand (WeaponOffHand)
-        17 => Some(15),      // Ranged
-        18 => Some(19),      // Tabard
-        _ => None,
-    }
-}
 
 /// Parse a space-separated equipment cache string into VisualItemInfo array.
 ///

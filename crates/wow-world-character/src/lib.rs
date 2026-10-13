@@ -14,6 +14,7 @@ mod character_handler_families;
 mod character_handlers;
 pub mod character_login_support;
 mod character_query_handlers;
+mod login_session;
 
 // The exact `ApplicationCharacter` owner facade the handler-contract checker
 // requires: the three canonical exports as one use item. The remaining
@@ -32,3 +33,5 @@ pub use character_query_handlers::{
     CharacterQueryHandlerCxLikeCpp, CharacterQueryHandlerHostLikeCpp,
     register_character_query_handlers_like_cpp,
 };
+// The character login load (#1363 slice 8d).
+pub use login_session::*;

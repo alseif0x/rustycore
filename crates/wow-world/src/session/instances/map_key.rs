@@ -167,9 +167,6 @@ impl WorldSession {
     pub fn set_mmap_runtime_config_like_cpp(&mut self, config: MMapRuntimeConfigLikeCpp) {
         self.config.mmap_runtime_config_like_cpp = config;
     }
-    pub(crate) fn mmap_runtime_config_like_cpp(&self) -> &MMapRuntimeConfigLikeCpp {
-        self.config.mmap_runtime_config_like_cpp()
-    }
     pub fn set_map_store(&mut self, store: Arc<MapStore>) {
         self.core
             .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();

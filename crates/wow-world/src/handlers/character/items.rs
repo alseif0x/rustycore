@@ -11,7 +11,6 @@ use super::*;
 mod equipment_sets;
 mod handlers;
 mod host;
-pub(super) mod login_load;
 
 impl WorldSession {
     pub(crate) fn apply_item_turnin_changes(

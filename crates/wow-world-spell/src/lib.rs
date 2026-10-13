@@ -1,6 +1,7 @@
 //! World-session spell state and its application-owned operations.
 
 pub mod aura_effects;
+mod aura_rows;
 pub mod login_spell_rules;
 pub mod melee_damage;
 pub mod melee_rules;
@@ -15,6 +16,7 @@ mod state;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod test_support;
 
+pub use aura_rows::{CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp};
 pub use player_cast::PlayerCastPublicationPhaseLikeCpp;
 pub use profession::{
     DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP, MAX_PRIMARY_TRADE_SKILLS_CONFIG_LIKE_CPP,
