@@ -4578,3 +4578,283 @@ free functions.
 `VALIDATION_V2_TIMEOUT_SECONDS=1800`) runs on the committed head that
 includes this section. Its manifest path, dirty flag and duration are in
 the PR body. This section is not edited after that run.
+
+## Slice 8c result (item handlers and inventory moves → inventory)
+
+Branch `1363-s8c-items-gossip`, base `613948b05` (8b merged). Move-only (R2),
+with the 4b/5a/7a/7c/8a/8b rewrites:
+
+- `self.` becomes `host.`, and a session field becomes a host accessor
+  (`lifecycle`, `interaction`);
+- `self.catalogs` becomes `host.hub_ref().catalogs`,
+  `crate::session::hub_ref(self)` becomes `host.hub_ref()`, and the one-line
+  forwards `item_storage_template`, `item_template_flags` (catalogs) and
+  `send_equip_error`, `send_packet_realm` (core) become that same call;
+- a World wrapper that is one `split_inventory_{ref,mut}` plus one
+  `InventoryState` call becomes that same split and call through the host
+  (`get_inventory_item_by_pos`, `get_inventory_item_by_guid_like_cpp`, the
+  resolved item object(s), `direct_item_contains_items`,
+  `is_valid_inventory_pos_like_cpp`, `can_unequip_inventory_item_at_like_cpp`,
+  the swap preflight, the descendants walk, the non-bank count, the bag-slot
+  publication, the enchantment persistence, `inventory_container_db_guid_like_cpp`
+  and `apply_inventory_item_object_updates_like_cpp`). Each split is taken for
+  exactly that call, as the wrapper took it; no borrow spans another call or an
+  `.await`. Where a wrapper call was itself an argument of another wrapper
+  call (`direct_item_contains_items` inside `can_unequip…`, three sites), the
+  two shared splits nest, both pure reads;
+- four wrappers that were one call with session-field arguments become that
+  call with the same reads through the host: the item relocation and
+  dynamic-flag VALUES publications and the offhand request record (the
+  `InventoryState` call through the inventory split, the core accesses through
+  its hub), and the bank-use check (`can_use_current_bank_with_access_like_cpp`
+  with `host.interaction()`, the hub's NPC access and the core's inventory
+  access). The inline bag-object publication block of the real swap reads the
+  same fields through the inventory split;
+- the application storage move (`execute_inventory_storage_move_like_cpp`) and
+  the UFCS plan call (`InventoryStorageMoveHostLikeCpp::storage_move_plan_like_cpp`)
+  become host methods;
+- a call between moved functions becomes a free call.
+
+A token comparison of the 23 moved bodies against the base finds no other
+difference (plus rustfmt trailing commas and two single-expression closures
+whose braces rustfmt drops). Swap/split/destroy/equip/store order, the bag
+and slot validation, the child redirect overlay and its rollback, the
+equip-child plan, the stack merge and real swap persistence requests, the
+destroy graph and its quest-status rows, the uncage postcondition, every
+packet and publication step and its order, persistence ordering (#169),
+registrations and processing flags are unchanged. No registrar moves: the
+application character/account registrar keeps every entry, and its World
+adapter (`account/host.rs`) calls the moved free functions. No moved body had
+a `cfg(test)` branch.
+
+### What moved
+
+- **To `wow-world-inventory/src/item_session/`:**
+  - `handlers.rs`: the swap-inv-item, auto-equip, auto-equip-slot, swap-item and
+    auto-store-bag handlers (from `items/handlers.rs`);
+  - `destruction.rs`: `handle_destroy_item`, the destroy quest plan and the
+    full-stack destroy pair (from `items/destruction.rs`);
+  - `moves.rs`: the swap queue and step, the redirected-move validation, the
+    child redirect plan, the child auto-unequip, the equip-child plan and
+    execution and the equip-to-empty move (from `items/inventory_moves.rs`);
+  - `item_mutations.rs`, `real_swap.rs`: the offhand auto-unequip, the stack
+    merge, the real-swap child plan and the real swap (from
+    `items/inventory_moves/{item_mutations,real_swap}.rs`);
+  - `bank.rs`: the autobank and autostore-bank moves (from `bank.rs`; they no
+    longer name the application, whose storage move is a host method);
+  - `mod.rs`: the host trait, the exports, and from the character `mod.rs`
+    the destroy-count helper and its enum, the destroy quest-item and
+    equip-child plan types, the swap step and the autostore-bank quest-check
+    selector.
+- **Down from `wow-world-application`** (`inventory_move_contracts.rs`):
+  `InventoryStorageTargetLikeCpp`, `InventoryStorageQuestChecksLikeCpp`,
+  `autostore_bank_target_like_cpp`, `InventorySwapTargetLikeCpp` and the three
+  item helpers of `inventory_swap/equip_contracts.rs`, verbatim. The
+  application keeps every path as a re-export.
+- **Stays in `wow-world`:** the item turn-in application (`items.rs`), and
+  the swap-target validation, the raw equip and the position publication,
+  which run application participants; the last three moved verbatim from the
+  deleted `inventory_moves{,/item_mutations}.rs` to the adapter file
+  `items/host.rs`. The show-bank publication stays in `bank.rs` (gossip).
+- **Test that followed its helper.**
+  `destroy_item_count_action_matches_cpp_direct_item_branch` moved verbatim
+  from `character_tests/item_4.rs` to
+  `wow-world-inventory/unit_tests/item_session_helpers.rs`.
+- **Reclassified, not moved** (to the `#![cfg(test)]`
+  `handlers/item_test_shims.rs`, 249 lines, outside the character and session
+  hotspot trees): the seven `cfg(test)` packet entry points of
+  `items/handlers.rs` and `bank.rs`, verbatim except that they call the free
+  functions; five method entry points for moved functions the scenarios call
+  (`plan_destroyed_inventory_quest_persistence_like_cpp`,
+  `destroy_inventory_full_stack_by_pos_like_cpp`, the child redirect, equip
+  child and real-swap child plans); and six one-statement wrappers whose only
+  production callers were the moved bodies (`direct_item_contains_items`,
+  `plan_inventory_swap_preflight_like_cpp`,
+  `represented_inventory_descendants_postorder_like_cpp`, the relocation and
+  dynamic-flag publications, `represented_can_use_current_bank_like_cpp`),
+  verbatim from `session/player_items/{items,persistence,storage_slots,publication,bank}.rs`.
+  No scenario call site changes.
+- **Retired:** `can_unequip_inventory_item_at_like_cpp`,
+  `is_valid_inventory_pos_like_cpp` and `inventory_container_db_guid_like_cpp`
+  (no other caller), and `record_represented_auto_unequip_offhand_request_like_cpp`,
+  whose one remaining caller, a `cfg(test)` statement of
+  `player_items/offhand.rs`, now makes the same `self.inventory` call.
+
+### Host surface
+
+- **`ItemSessionHostLikeCpp: VendorSessionHostLikeCpp`** (inventory, 21
+  methods, 111 lines). It reuses the vendor, battle-pet purchase and session
+  hosts for the inventory splits, the interaction and lifecycle accessors, the
+  stat update, the registry sync, the player VALUES publication and the uncage
+  state load. New: the storage move and its plan, the swap-target validation,
+  the equip/store/bank planners, the raw equip, the committed relocation,
+  removal and swap, the remove/store side effects, the quest item removal and
+  its persistence plan, the position publication, the item-bonus stat update,
+  the bag active-loot query, the loot release and the two `cfg(test)`
+  observation records (titan grip, average item level). Their futures (storage
+  move, raw equip, loot release) are the inherent futures returned unchanged.
+- **Adapter** `handlers/character/items/host.rs` (230 lines of impl and 5 of
+  imports, beside the three kept World operations). Every method names the
+  inherent method by path (`WorldSession::name(self, …)`), the application
+  free function, or the application trait method by UFCS
+  (`<WorldSession as InventoryStorageMoveHostLikeCpp>::storage_move_plan_like_cpp`);
+  each such inherent method exists, so none resolves to its own trait method.
+  No forward goes to a trait default.
+- The battle-pet session host's
+  `destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp` now
+  forwards to the moved free function of the same name, which is not a trait
+  method, so it cannot recurse. The toy collection caller calls the moved
+  full-stack destroy as a free function.
+- **Widening.** The moved functions are `pub(super)` inside the module; the
+  exports are the trait and the ten handlers/destroy functions the account
+  adapter, the toy collection and the battle-pet adapter call. The two plan
+  types (now with `pub` fields), the autostore-bank selector and the four
+  plan functions the scenarios read are exported only under
+  `cfg(any(test, feature = "test-fixtures"))`.
+- **Budget.** 346 host lines (111 trait + 230 adapter + 5 imports) against
+  about 2,380 moved production lines: 14.5 %. With the whole
+  `item_session/mod.rs` apart from the moved types and helper and the test
+  mount (about 185 lines: docs, imports, mounts, exports and the trait) it is
+  about 420 lines, 17.6 %.
+
+### Re-measure and the split
+
+On the 8b head the items family was 2,382 classifier lines with 45 outside
+calls (as planned), the autobank/autostore pair 124 lines with one outside
+call, and gossip, the character lifecycle and the entry zone 1,039 lines with
+28 outside calls. 3.5k is below 4.5k, but the host budget decides the split:
+
+- part (a) alone is at 14.5 % only because four field wrappers became the
+  same call through the host;
+- gossip, lifecycle and the entry zone need about 19 host methods that no
+  existing trait lends: the spell execution with its nine arguments and the
+  cast GUID, the two trainer lists and the trainer gossip menu, the gossip
+  option store (clear, read, replace) and gossip text, the interaction source
+  read/write and the close-gossip publication (interaction splits), the
+  instanceable-map check, the homebind and teleport, the zone update and
+  zone-authority flag (instances), the quest-giver fallback and the corpse
+  load. That is about 280 host lines for about 1,000 moved, so (a)+(b) together
+  would be near 19 %.
+
+So 8c moves part (a) and part (b) is 8c2 (below).
+
+### Accounting
+
+- **`crates/wow-world/src`.** Classifier: 65,470 → **63,201 production
+  (−2,269)**. Physical: 70,833 → 68,829 (−2,004). Files: 500 → 498. Test:
+  5,363 → 5,628 (+265).
+  - **About 2,380 is production code that left `wow-world`** for inventory:
+    the 23 bodies (2,225 lines of item text), the moved types and helper of the
+    character `mod.rs` and the headers, imports and impl shells of the five
+    deleted files.
+  - **+256 is the adapter** (impl and imports of `items/host.rs`; its other 35
+    lines are the three World operations relocated verbatim from the deleted
+    files).
+  - **About 129 is reclassified to test:** the seven `cfg(test)` packet entry
+    points (80, counted as production by the classifier because they were
+    `cfg(test)` methods inside a production impl) and the six wrappers (49).
+  - **41 is retired:** the four wrappers.
+  - The rest is import and mount edits (the character `mod.rs` imports that
+    only the scenarios read are one `cfg(test)` group).
+  - The test figure grows by the shim file (249) and the `cfg(test)` imports
+    and mounts, less the moved helper test.
+- **Destinations.** `wow-world-inventory/src`: 19,597 → 22,616 physical
+  (+3,019); production 19,400 → 22,404 (+3,004; `item_session/` is 2,906
+  lines, the moved application contracts 89). Its `unit_tests` gains the
+  25-line helper test file. The inlined splits make the moved bodies longer
+  than the World bodies.
+- **`wow-world-application`.** 11,459 → 11,397 physical (−62): the moved
+  vocabulary and helpers became re-exports.
+- **`net_move.py check`.** PASS. Growth 2,957 ≤ 3,065.2, 0 duplicate bodies.
+- **Edges.** Inventory gains `wow-world-entities` (the creature spawn
+  catalogs the item bodies thread to the storage move); `dependency-policy.json`
+  allows it. The edge was simulated on this base before anything moved
+  (`wow_world_closure.py check --add`, lock and metadata: PASS, 17 packages,
+  together with the 8c2 edges `wow-world-character->{interaction,visibility,spell}`),
+  with two negative probes failing as they must (`inventory->application`, a
+  cycle; `character->quest`). Inventory's `test-fixtures` feature also
+  enables entities' fixtures. `wow_world_closure.py check` passes on the head
+  in lock and metadata mode (17 packages).
+- **`session-ownership-policy.json`** is reprinted with `print-baseline`.
+  The delta is the moved, retired and relocated impl items, the adapter's 21
+  trait items and the shim items. The syntax-only check passes.
+- **Ceilings.** None raised. Tightened to live values:
+  - hotspot `handlers/character/mod.rs`: production 10,329 → 8,140, test
+    15,679 unchanged, total 26,008 → 23,819;
+  - hotspot `session/mod.rs`: production 39,222 → 39,136, test 141,878
+    unchanged, total 181,100 → 181,014;
+  - physical `handlers/character/items.rs` 44 → 40,
+    `handlers/character/mod.rs` 499 → 450, `session/mod.rs` 970 → 969;
+  - new physical rows `handlers/item_test_shims.rs` at 249 and (#1387 review
+    follow-up 1) `wow-world-inventory/src/vendor_session/buy.rs` at 1,075.
+- **Warnings.** The `wow-world` warning sets (`--message-format=short`
+  lines under `crates/wow-world/`, compared without line numbers) are the base
+  sets less four `private_interfaces` warnings that named the moved plan and
+  step types, in all three builds: production lib 151 → 147, lib with
+  `test-fixtures` 159 → 155, lib plus lib-test 296 → 292. No warning is new.
+  `wow-world` `dead_code` is 0 in all three. `wow-world-inventory` (10, 7, 7)
+  and `wow-world-application` (6, 4, 4) keep exactly their base warnings, and
+  the new modules have none in the inventory and application all-targets
+  builds.
+- **Tests.** No `#[test]` or `#[ignore]` is added or removed; the workspace
+  test-name multiset is identical (10,214 names, 5 ignores). One test moved
+  verbatim to inventory (above); no scenario call site changes. The
+  publication-order scan
+  (`committed_money_callers_publish_all_runtime_state_before_reopening_admission`)
+  drops the five deleted World files and includes the seven `item_session`
+  files instead. Its vendor-purchase stock marker is tightened from
+  `update_vendor_item_current_count(` to the call with its host argument
+  (`update_vendor_item_current_count(\n            host,`), as strict as the
+  pre-8b `self.update_vendor_item_current_count` (#1387 follow-up 3); no
+  other marker changes. Focused runs during the move (before the entry
+  points moved to the shim file; the final run covers the head):
+  `wow-world-inventory` lib 27
+  passed; `wow-world` lib 578 passed matching item, inventory, swap, equip,
+  destroy, bank, autostore, autobank, committed_money, child, offhand and
+  stack.
+
+### 8c2 plan
+
+Gossip (hello, menu build, select, binder), the character lifecycle (realm
+characters, rename enqueue, hearth-and-resurrect, customizations, default
+graveyard homebind, map corpse load) and the entry zone (`gossip.rs`,
+`lifecycle.rs`, `entry_zone.rs`; 1,039 lines, 28 outside calls on the 8b head)
+go to character. Their host (about 19 methods, above) overlaps the 8d
+login-load host: teleport, zone update and zone-authority flag, homebind,
+interaction source and the corpse load are login operations too, and the
+lifecycle functions' only callers are the login loaders. So 8c2 re-measures
+on its base and either moves them alone if its host stays within 15 % (the
+character host extending `VendorSessionHostLikeCpp` for the feign-death
+removal, the condition creature object and context, the show-bank publication
+and the free `handle_list_inventory` calls, and the entities host for the
+gameobject gossip check), or rides with 8d, whose character host lends those
+operations anyway. The planned `wow-world-character->{interaction,visibility,spell}`
+edges were simulated with 8c (PASS); `character->quest` stays forbidden, so
+the quest-giver fallback and gossip text stay host methods.
+
+### 8d plan
+
+Unchanged: login load (world entry, initial packets, login loaders, login
+data, item login load, recovery, transport restore; 4,739 lines, 152 outside
+calls on the 8a head) to character, re-measured on its base; if it exceeds
+about 4.5k, `session_state/login_data.rs` splits off into an 8e.
+
+### Follow-ups
+
+- `item_test_shims.rs` (249) and `vendor_test_shims.rs` (137) retire when the
+  scenarios call the free functions, the splits and the core directly.
+- `buy.rs` (1,075, now with its own ratcheted row) is one function; splitting
+  it is a behaviour-preserving refactor outside the move-only rule.
+- The moved log sites now use the `wow_world_inventory::item_session`
+  tracing target (#1384 follow-up 2 applies here too).
+- The World `apply_item_turnin_changes`, the swap-target validation, the raw
+  equip and the position publication stay World operations behind the vendor
+  and item hosts; they move when their application participants can be built
+  from the host.
+
+### Validation
+
+`final --architecture --timings` (`VALIDATION_V2_CARGO_JOBS=1`,
+`VALIDATION_V2_TIMEOUT_SECONDS=1800`) runs on the committed head that
+includes this section. Its manifest path, dirty flag and duration are in
+the PR body. This section is not edited after that run.
