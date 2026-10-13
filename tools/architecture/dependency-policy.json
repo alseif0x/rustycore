@@ -39,6 +39,7 @@
       "wow-world-inventory",
       "wow-world-lifecycle",
       "wow-world-loot",
+      "wow-world-loot-ops",
       "wow-world-quest",
       "wow-world-social",
       "wow-world-spell",
@@ -113,8 +114,6 @@
       "wow-data",
       "wow-entities",
       "wow-handler",
-      "wow-loot",
-      "wow-map",
       "wow-packet",
       "wow-persistence",
       "wow-spell-acquisition",
@@ -126,7 +125,6 @@
       "wow-world-lifecycle",
       "wow-world-loot",
       "wow-world-quest",
-      "wow-world-social",
       "wow-world-spell",
       "wow-world-visibility"
     ],
@@ -264,6 +262,26 @@
       "wow-map",
       "wow-packet",
       "wow-world-core"
+    ],
+    "wow-world-loot-ops": [
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-handler",
+      "wow-loot",
+      "wow-map",
+      "wow-packet",
+      "wow-persistence",
+      "wow-world-core",
+      "wow-world-entities",
+      "wow-world-instances",
+      "wow-world-inventory",
+      "wow-world-lifecycle",
+      "wow-world-loot",
+      "wow-world-quest",
+      "wow-world-social",
+      "wow-world-spell"
     ],
     "wow-world-quest": [
       "wow-conditions",
@@ -694,6 +712,12 @@
           "num-traits",
           "rand",
           "tokio"
+        ],
+        "build": []
+      },
+      "wow-world-loot-ops": {
+        "normal": [
+          "tracing"
         ],
         "build": []
       },

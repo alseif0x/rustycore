@@ -3,12 +3,12 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! Test-only entry points for the loot handlers moved to
-//! `wow-world-application` (#1263 F5).
+//! `wow-world-loot-ops` (#1263 F5; #1363 A7).
 
 use wow_constants::ClientOpcodes;
 use wow_packet::WorldPacket;
 use wow_packet::packets::loot::{LootRoll, MasterLootItem, SetLootSpecialization};
-use wow_world_application::LootHandlerCxLikeCpp;
+use wow_world_loot_ops::LootHandlerCxLikeCpp;
 
 use crate::session::WorldSession;
 

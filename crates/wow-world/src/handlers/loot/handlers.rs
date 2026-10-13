@@ -6,7 +6,7 @@
 //! Loot packet entry points and their handler registrations.
 //!
 //! `#1263 F5 remaining families`: the `CMSG_LOOT_MONEY` registration moved to
-//! the `ApplicationLoot` area registrar in `wow-world-application`; the body
+//! the `ApplicationLoot` area registrar in `wow-world-loot-ops`; the body
 //! stays here.
 
 use super::*;

@@ -120,9 +120,9 @@ use wow_persistence::{
     StoredItemMoneyPersistenceAttemptLikeCpp, StoredItemMoneyPersistencePortLikeCpp,
     StoredItemMoneyPersistenceRequestLikeCpp,
 };
-use wow_world_application::direct_item_count_after_loot_release_like_cpp;
 use wow_world_entities::represented_gameobject_interaction_distance_like_cpp;
 use wow_world_lifecycle::loot_template_rules::ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP;
+use wow_world_loot_ops::direct_item_count_after_loot_release_like_cpp;
 #[path = "loot_tests/canonical_world.rs"]
 mod canonical_world;
 use canonical_world::{

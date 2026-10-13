@@ -207,8 +207,8 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             LOOT_REGISTRAR.package,
             LOOT_REGISTRAR.module,
-            "crates/wow-world-application/src/loot_handlers.rs",
-            include_str!("../../../../../crates/wow-world-application/src/loot_handlers.rs"),
+            "crates/wow-world-loot-ops/src/loot_handlers.rs",
+            include_str!("../../../../../crates/wow-world-loot-ops/src/loot_handlers.rs"),
         ),
         mount(
             BATTLE_PET_REGISTRAR.package,
@@ -419,6 +419,12 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             "crate",
             "crates/wow-world-quest/src/lib.rs",
             include_str!("../../../../../crates/wow-world-quest/src/lib.rs"),
+        ),
+        mount(
+            LOOT_REGISTRAR.package,
+            "crate",
+            "crates/wow-world-loot-ops/src/lib.rs",
+            include_str!("../../../../../crates/wow-world-loot-ops/src/lib.rs"),
         ),
         mount(
             "wow-world",

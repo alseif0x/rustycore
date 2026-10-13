@@ -3485,6 +3485,7 @@ dependencies = [
  "wow-world-inventory",
  "wow-world-lifecycle",
  "wow-world-loot",
+ "wow-world-loot-ops",
  "wow-world-quest",
  "wow-world-social",
  "wow-world-spell",
@@ -3503,8 +3504,6 @@ dependencies = [
  "wow-data",
  "wow-entities",
  "wow-handler",
- "wow-loot",
- "wow-map",
  "wow-packet",
  "wow-persistence",
  "wow-spell-acquisition",
@@ -3517,7 +3516,6 @@ dependencies = [
  "wow-world-lifecycle",
  "wow-world-loot",
  "wow-world-quest",
- "wow-world-social",
  "wow-world-spell",
  "wow-world-visibility",
 ]
@@ -3718,6 +3716,32 @@ dependencies = [
  "wow-map",
  "wow-packet",
  "wow-world-core",
+]
+
+[[package]]
+name = "wow-world-loot-ops"
+version = "0.1.0"
+dependencies = [
+ "tracing",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-handler",
+ "wow-loot",
+ "wow-map",
+ "wow-packet",
+ "wow-persistence",
+ "wow-world-core",
+ "wow-world-entities",
+ "wow-world-instances",
+ "wow-world-inventory",
+ "wow-world-lifecycle",
+ "wow-world-loot",
+ "wow-world-loot-ops",
+ "wow-world-quest",
+ "wow-world-social",
+ "wow-world-spell",
 ]
 
 [[package]]

@@ -8,17 +8,9 @@ mod character_account_handlers;
 pub use character_account_handlers::{
     CharacterAccountHandlerHostLikeCpp, register_character_account_handlers_like_cpp,
 };
-mod loot_handlers;
-mod loot_release;
 mod player_handlers;
 mod spell_handlers;
 mod talent_handlers;
-pub use loot_release::{
-    LootReleaseCxLikeCpp, direct_item_count_after_loot_release_like_cpp,
-    durable_loot_item_fanout_viewers_like_cpp,
-    queue_chest_gameobject_state_refresh_for_same_map_like_cpp,
-    represented_gameobject_can_autostore_loot_item_like_cpp,
-};
 pub use player_handlers::item_purchase_contents_from_extended_cost;
 pub use player_handlers::{
     PlayerHandlerCxLikeCpp, PlayerHandlerHostLikeCpp, register_player_handlers_like_cpp,
@@ -59,9 +51,6 @@ pub use equipment_set_use::{
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use inventory_swap::InventoryEquipFixtureRefsLikeCpp;
-pub use loot_handlers::{
-    LootHandlerCxLikeCpp, LootHandlerHostLikeCpp, register_loot_handlers_like_cpp,
-};
 // The exact `ApplicationTalent` owner facade the handler-contract checker
 // requires (#1263 F5 deferred families).
 pub use spell_handlers::{

@@ -4,7 +4,7 @@
 
 //! World-side construction of the loot handler contexts (#1263 F5).
 //!
-//! The application crate owns the handlers and their contexts; the host lives
+//! The loot-ops crate owns the handlers and their contexts; the host lives
 //! next to the loot handlers so the session aggregate only exposes what the
 //! release context already needs.
 //!
@@ -49,12 +49,12 @@ use wow_handler::HandlerFuture;
 use wow_loot::{LootClaimLease, LootEntry, OwnedLootAuthority};
 use wow_packet::WorldPacket;
 use wow_packet::packets::loot::{LootResponse, LootRoll};
-use wow_world_application::{LootHandlerCxLikeCpp, LootHandlerHostLikeCpp, LootReleaseCxLikeCpp};
 use wow_world_core::session::mailbox::ApplyLootMoneyResultLikeCpp;
 use wow_world_core::session::{
     HubRef, ItemValuationCatalogsLikeCpp, OwnedLootAuthorityLookupOutcomeLikeCpp,
 };
 use wow_world_loot::{LootState, RepresentedCreatureLootStateLikeCpp};
+use wow_world_loot_ops::{LootHandlerCxLikeCpp, LootHandlerHostLikeCpp, LootReleaseCxLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 

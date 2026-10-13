@@ -1,7 +1,7 @@
 use super::*;
 // The moved `LootMoney` command receiver is reached through the application loot
 // owner's host trait default method (#1263 F5); the call text is unchanged.
-use wow_world_application::LootHandlerHostLikeCpp;
+use wow_world_loot_ops::LootHandlerHostLikeCpp;
 
 impl WorldSession {
     /// CMSG_LOOT_MONEY — player takes money from the current loot view.

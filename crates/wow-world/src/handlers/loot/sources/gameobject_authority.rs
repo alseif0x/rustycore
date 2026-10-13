@@ -75,7 +75,7 @@ impl WorldSession {
         guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) -> bool {
-        wow_world_application::represented_gameobject_can_autostore_loot_item_like_cpp(
+        wow_world_loot_ops::represented_gameobject_can_autostore_loot_item_like_cpp(
             &self.loot,
             &self.world_entities,
             crate::session::hub_ref(self),

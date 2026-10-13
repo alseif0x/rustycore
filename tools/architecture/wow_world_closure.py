@@ -22,7 +22,9 @@ Rules (exit 1 on any violation):
   * wow-world-character sits high: only wow-world-application and wow-world
     may reach it (no domain crate below it, including wow-world-core);
   * wow-world-quest sits above the domain crates: only wow-world-application,
-    wow-world and the planned wow-world-loot-ops may reach it.
+    wow-world and wow-world-loot-ops may reach it;
+  * wow-world-loot-ops (loot operations above quest) sits high: only
+    wow-world-application and wow-world may reach it.
 """
 from __future__ import annotations
 
@@ -39,7 +41,8 @@ LOW = ("wow-world-inventory", "wow-world-spell", "wow-world-entities", "wow-worl
 HIGH = frozenset({"wow-world-social", "wow-world-instances"})
 CHARACTER = "wow-world-character"
 QUEST = "wow-world-quest"
-QUEST_USERS = TOP | {"wow-world-loot-ops"}
+LOOT_OPS = "wow-world-loot-ops"
+QUEST_USERS = TOP | {LOOT_OPS}
 
 Edges = dict[str, set[str]]
 
@@ -96,6 +99,8 @@ def violations(edges: Edges) -> list[str]:
             found.append(f"{name} reaches ['{CHARACTER}']")
         if name not in QUEST_USERS and name != QUEST and QUEST in reach:
             found.append(f"{name} reaches ['{QUEST}']")
+        if name not in TOP and name != LOOT_OPS and LOOT_OPS in reach:
+            found.append(f"{name} reaches ['{LOOT_OPS}']")
     return found
 
 

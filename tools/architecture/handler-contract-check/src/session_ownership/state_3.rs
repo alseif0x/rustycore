@@ -40,6 +40,7 @@ pub(super) fn collect_units(
                         | PackageRole::WorldLifecycle
                         | PackageRole::WorldCharacter
                         | PackageRole::WorldQuest
+                        | PackageRole::WorldLootOps
                         | PackageRole::WorldApplication
                         | PackageRole::Server
                 )
@@ -303,6 +304,12 @@ pub(super) fn collect_repository_baseline_with_persistence(
         PackageRole::WorldQuest,
         WORLD_QUEST_PACKAGE_ROOT,
         WORLD_QUEST_CRATE_ROOT,
+    )?);
+    units.extend(repository_units(
+        repository_root,
+        PackageRole::WorldLootOps,
+        WORLD_LOOT_OPS_PACKAGE_ROOT,
+        WORLD_LOOT_OPS_CRATE_ROOT,
     )?);
     units.extend(repository_units(
         repository_root,

@@ -16,7 +16,8 @@
     "crates/wow-world-test-support/src/",
     "crates/wow-world-creature/src/",
     "crates/wow-world-character/src/",
-    "crates/wow-world-quest/src/"
+    "crates/wow-world-quest/src/",
+    "crates/wow-world-loot-ops/src/"
   ],
   "reviewed_new_code": {
     "budget": 661,

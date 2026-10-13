@@ -657,7 +657,7 @@ const LOOT_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
 
 pub(crate) const LOOT_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationLoot",
-    package: "wow-world-application",
+    package: "wow-world-loot-ops",
     module: "crate::loot_handlers",
     registrar: "register_loot_handlers_like_cpp",
     host_trait: "LootHandlerHostLikeCpp",
