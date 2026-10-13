@@ -69,8 +69,8 @@ pub(crate) use visibility::VisibilityState;
 mod interaction;
 pub(crate) use interaction::InteractionState;
 
-pub(crate) use wow_world_application::SessionQuestState;
-pub(crate) use wow_world_application::{
+pub(crate) use wow_world_quest::SessionQuestState;
+pub(crate) use wow_world_quest::{
     RepresentedQuestCompleteStatusUpdateLikeCpp, RepresentedQuestObjectiveProgressEventLikeCpp,
 };
 pub(crate) use wow_world_social::SessionSocialLimits;

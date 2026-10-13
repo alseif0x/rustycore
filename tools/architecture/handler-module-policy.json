@@ -151,7 +151,7 @@
     },
     {
       "capability": "handler_registration",
-      "package": "wow-world-application",
+      "package": "wow-world-quest",
       "module": "crate::quest_query_handlers",
       "allow_descendants": false,
       "tracking_issue": 1263
@@ -291,7 +291,7 @@
     },
     {
       "capability": "handler_registration",
-      "package": "wow-world-application",
+      "package": "wow-world-quest",
       "module": "crate::quest_handlers",
       "allow_descendants": false,
       "tracking_issue": 1263

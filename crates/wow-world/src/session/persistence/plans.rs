@@ -44,7 +44,7 @@ impl WorldSession {
         );
         #[cfg(not(any(test, feature = "test-fixtures")))]
         let mut player = self.core.quest_reward_player_access_like_cpp();
-        wow_world_application::begin_exclusive_player_money_persistence_like_cpp(
+        wow_world_quest::begin_exclusive_player_money_persistence_like_cpp(
             &mut self.lifecycle,
             &mut self.inventory,
             &mut self.quest_state,
@@ -59,7 +59,7 @@ impl WorldSession {
     ///
     /// World-owned construction seam (#1263 F4): the coordinator itself lives
     /// beside the application money-fence operation
-    /// (`wow_world_application::mutate_and_persist_player_gold_exclusive_like_cpp`);
+    /// (`wow_world_quest::mutate_and_persist_player_gold_exclusive_like_cpp`);
     /// this method only builds the selected Player/Inventory/Lifecycle/Quest
     /// participants the repo already uses.
     pub(crate) async fn mutate_and_persist_player_gold_exclusive_like_cpp<F>(
@@ -76,7 +76,7 @@ impl WorldSession {
         );
         #[cfg(not(any(test, feature = "test-fixtures")))]
         let mut player = self.core.quest_reward_player_access_like_cpp();
-        wow_world_application::mutate_and_persist_player_gold_exclusive_like_cpp(
+        wow_world_quest::mutate_and_persist_player_gold_exclusive_like_cpp(
             &mut self.lifecycle,
             &mut self.inventory,
             &mut self.quest_state,

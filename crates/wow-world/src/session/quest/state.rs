@@ -10,7 +10,7 @@ impl WorldSession {
         &self,
     ) -> Option<PlayerQuestGameplayState> {
         let (state, hub) = crate::session::split_quest_state_ref(self);
-        wow_world_application::player_quest_gameplay_snapshot_like_cpp(hub, state)
+        wow_world_quest::player_quest_gameplay_snapshot_like_cpp(hub, state)
     }
 
     pub(crate) fn clear_represented_resurrection_request_like_cpp(&mut self) -> bool {
@@ -143,7 +143,7 @@ impl WorldSession {
         mutate: impl FnOnce(&mut PlayerQuestGameplayState) -> R,
     ) -> Option<R> {
         let (state, hub) = crate::session::split_quest_state_mut(self);
-        wow_world_application::mutate_player_quest_gameplay_like_cpp(hub, state, mutate)
+        wow_world_quest::mutate_player_quest_gameplay_like_cpp(hub, state, mutate)
     }
     pub(in crate::session) fn represented_quest_login_aura_sources_are_hit_inert_like_cpp(
         &self,
@@ -365,14 +365,14 @@ impl WorldSession {
     }
     pub(crate) fn clear_represented_pending_quest_sharing_like_cpp(&mut self) {
         let (state, hub) = crate::session::split_quest_state_mut(self);
-        wow_world_application::clear_represented_pending_quest_sharing_like_cpp(hub, state);
+        wow_world_quest::clear_represented_pending_quest_sharing_like_cpp(hub, state);
         self.sync_player_registry_state_like_cpp();
     }
     pub(crate) fn represented_pending_quest_sharing_like_cpp(
         &self,
     ) -> Option<RepresentedPendingQuestSharingLikeCpp> {
         let (state, hub) = crate::session::split_quest_state_ref(self);
-        wow_world_application::represented_pending_quest_sharing_like_cpp(hub, state)
+        wow_world_quest::represented_pending_quest_sharing_like_cpp(hub, state)
     }
 }
 

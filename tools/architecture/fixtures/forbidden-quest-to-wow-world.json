@@ -1,0 +1,6 @@
+{
+  "name": "the quest crate may not depend on wow-world; wow-world composes it (#1363 A6)",
+  "source": "wow-world-quest",
+  "target": "wow-world",
+  "expected": "forbidden"
+}

@@ -5,7 +5,7 @@ use super::AuraRemovalCxLikeCpp;
 
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(super) struct AuraScalingFixtureRefsLikeCpp<'a> {
-    pub(super) quests: &'a crate::SessionQuestState,
+    pub(super) quests: &'a wow_world_quest::SessionQuestState,
     pub(super) vehicle_seat_flags: &'a Option<i32>,
     pub(super) vehicle_seat_id: &'a Option<u32>,
     pub(super) transport:
@@ -39,7 +39,7 @@ impl AuraRemovalCxLikeCpp<'_> {
             #[cfg(any(test, feature = "test-fixtures"))]
             self.scaling_fixture.transport,
             #[cfg(any(test, feature = "test-fixtures"))]
-            crate::PlayerRegistryHydrationContext::new(
+            wow_world_quest::PlayerRegistryHydrationContext::new(
                 self.player.registry_hydration_access_like_cpp(),
                 &*self.spell,
                 self.scaling_fixture.quests,

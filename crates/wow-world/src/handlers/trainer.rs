@@ -35,10 +35,6 @@ use wow_data::SkillLineAbilityCoverageLikeCpp;
 use wow_packet::packets::spell::PlaySpellVisualKit;
 
 use crate::session::WorldSession;
-#[cfg(test)]
-use wow_world_application::TrainerAdmissionProofLikeCpp;
-#[cfg(test)]
-use wow_world_application::trainer_condition_admission_proof_like_cpp;
 use wow_world_application::{
     TrainerBattlePetProofLikeCpp, TrainerListOfferResultLikeCpp, TrainerOfferDecisionLikeCpp,
     TrainerOfferInputLikeCpp, TrainerOfferPreflightLikeCpp, TrainerUnavailableReasonLikeCpp,
@@ -46,6 +42,10 @@ use wow_world_application::{
     resolve_creature_trainer_like_cpp, trainer_list_required_npc_flags_like_cpp,
     trainer_price_like_cpp,
 };
+#[cfg(test)]
+use wow_world_quest::TrainerAdmissionProofLikeCpp;
+#[cfg(test)]
+use wow_world_quest::trainer_condition_admission_proof_like_cpp;
 
 // ── Handler registrations ─────────────────────────────────────────────────────
 

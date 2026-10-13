@@ -133,7 +133,7 @@ impl WorldSession {
             &self.fixtures.identity.player_class,
         );
         #[cfg(any(test, feature = "test-fixtures"))]
-        wow_world_application::QuestRewardCx::refresh_represented_talent_points_like_cpp(
+        wow_world_quest::QuestRewardCx::refresh_represented_talent_points_like_cpp(
             &mut player,
             catalogs,
             quest_state,
@@ -153,7 +153,7 @@ impl WorldSession {
         #[cfg(not(any(test, feature = "test-fixtures")))]
         let mut player = self.core.quest_reward_player_access_like_cpp();
         #[cfg(not(any(test, feature = "test-fixtures")))]
-        wow_world_application::QuestRewardCx::refresh_represented_talent_points_like_cpp(
+        wow_world_quest::QuestRewardCx::refresh_represented_talent_points_like_cpp(
             &mut player,
             catalogs,
             world_test_consumer,

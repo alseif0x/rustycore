@@ -25,6 +25,7 @@ members = [
     "crates/wow-world-inventory",
     "crates/wow-world-lifecycle",
     "crates/wow-world-loot",
+    "crates/wow-world-quest",
     "crates/wow-world-social",
     "crates/wow-world-spell",
     "crates/wow-world-visibility",
@@ -201,6 +202,7 @@ wow-module-api = { path = "crates/wow-module-api" }
 wow-social = { path = "crates/wow-social" }
 wow-world-social = { path = "crates/wow-world-social" }
 wow-world-loot = { path = "crates/wow-world-loot" }
+wow-world-quest = { path = "crates/wow-world-quest" }
 wow-loot = { path = "crates/wow-loot" }
 wow-instances = { path = "crates/wow-instances" }
 wow-anticheat = { path = "crates/wow-anticheat" }

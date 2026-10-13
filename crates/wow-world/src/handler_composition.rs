@@ -97,7 +97,7 @@ pub fn compose_packet_handlers_like_cpp()
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;
-    wow_world_application::register_quest_query_handlers_like_cpp::<
+    wow_world_quest::register_quest_query_handlers_like_cpp::<
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;
@@ -181,10 +181,9 @@ pub fn compose_packet_handlers_like_cpp()
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;
-    wow_world_application::register_quest_handlers_like_cpp::<
-        WorldSession,
-        SessionHandlerCatalogsLikeCpp,
-    >(&mut builder)?;
+    wow_world_quest::register_quest_handlers_like_cpp::<WorldSession, SessionHandlerCatalogsLikeCpp>(
+        &mut builder,
+    )?;
     wow_world_inventory::register_void_storage_handlers_like_cpp::<
         WorldSession,
         SessionHandlerCatalogsLikeCpp,

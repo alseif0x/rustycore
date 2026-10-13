@@ -159,7 +159,8 @@ A `final` run whose diff touches `Cargo.lock` or a `crates/wow-world*/Cargo.toml
 wow-world closure check (#1363 slice A): over the `wow-world*` packages of `Cargo.lock`, no
 package may reach itself, no domain crate may reach `wow-world-application` or `wow-world`, and
 inventory, spell, entities and loot may never reach social or instances; only `wow-world-application`
-and `wow-world` may reach `wow-world-character`. It reads only the lock file. Before moving code, simulate the planned edges with
+and `wow-world` may reach `wow-world-character`; only those two and the planned `wow-world-loot-ops`
+may reach `wow-world-quest`. It reads only the lock file. Before moving code, simulate the planned edges with
 `python3 tools/architecture/wow_world_closure.py check --add 'wow-world-inventory->wow-world-lifecycle'`
 (repeatable; quote the arrow); `--source metadata` reads `cargo metadata` normal/build edges
 instead. Changing the check plans its self-test `tools/architecture/test_wow_world_closure.py`.

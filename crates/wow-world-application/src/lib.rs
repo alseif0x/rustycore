@@ -10,12 +10,7 @@ pub use character_account_handlers::{
 };
 mod loot_handlers;
 mod loot_release;
-mod player_conditions;
 mod player_handlers;
-mod quest;
-mod quest_handlers;
-mod quest_query_handlers;
-mod registry_sync;
 mod spell_handlers;
 mod talent_handlers;
 pub use loot_release::{
@@ -30,7 +25,6 @@ pub use player_handlers::{
 };
 mod equipment_set_use;
 mod inventory_scaling;
-mod inventory_valuation;
 mod trainer_handlers;
 mod trainer_purchase;
 pub use inventory_scaling::InventoryScalingApplicationCxLikeCpp;
@@ -65,87 +59,11 @@ pub use equipment_set_use::{
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use inventory_swap::InventoryEquipFixtureRefsLikeCpp;
-pub use inventory_valuation::{
-    can_equip_inventory_item_like_cpp, can_equip_unique_item_like_cpp,
-    can_use_inventory_item_represented_with_loading_like_cpp,
-};
 pub use loot_handlers::{
     LootHandlerCxLikeCpp, LootHandlerHostLikeCpp, register_loot_handlers_like_cpp,
 };
-pub use player_conditions::{
-    PlayerConditionProjectionCxLikeCpp, PlayerConditionProjectionInputsLikeCpp,
-    RepresentedPlayerConditionContextLikeCpp, meets_player_condition_id_like_cpp,
-    player_condition_projection_cx_like_cpp,
-};
-pub use quest::QuestEligibilityCx;
-pub use quest::QuestRewardDurablePlanLikeCpp;
-pub use quest::add_currency_quest_reward_like_cpp;
-pub use quest::represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp;
-pub use quest::{
-    MAX_QUEST_LOG_SIZE_LIKE_CPP, QuestObjectiveProgressCx, QuestRewardCommitCx, QuestRewardCx,
-    RepresentedPendingQuestSharingLikeCpp, RepresentedPushQuestToPartyOutcomeLikeCpp,
-    RepresentedPushQuestToPartyOutcomeReasonLikeCpp, RepresentedQuestCompleteStatusUpdateLikeCpp,
-    RepresentedQuestConfirmAcceptLikeCpp, RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp,
-    RepresentedQuestObjectiveProgressEventLikeCpp, RepresentedQuestPushResultResponseLikeCpp,
-    RepresentedQuestRewardReputationSourceLikeCpp, SessionQuestState,
-    begin_exclusive_player_money_persistence_like_cpp, find_quest_slot_like_cpp,
-    get_quest_slot_quest_id_like_cpp, invalidate_player_quest_status_authority_like_cpp,
-    mutate_and_persist_player_gold_exclusive_like_cpp, plan_quest_status_save_like_cpp,
-    quest_log_create_entries_like_cpp, reconcile_durable_loot_money_before_save_like_cpp,
-    represented_can_see_spell_click_on_like_cpp,
-    represented_viewer_dependent_creature_npc_flags_like_cpp, save_changed_quest_statuses_like_cpp,
-    save_quest_to_db_like_cpp, send_represented_quest_log_slot_update_like_cpp,
-};
-pub use quest::{QuestDialogClassificationLikeCpp, RepresentedQuestGiverStatusSourceLikeCpp};
-#[cfg(any(test, feature = "test-fixtures"))]
-pub use quest::{
-    QuestObjectiveRegistryFixtureRefsLikeCpp, QuestRewardItemPlanningFixtureRefsLikeCpp,
-    QuestRewardReputationFixtureRefsLikeCpp, QuestXpGainFixtureRefsLikeCpp,
-    RepresentedQuestRewardMailLikeCpp, RepresentedQuestRewardReputationLikeCpp,
-    RepresentedQuestRewardSpellCastLikeCpp, RepresentedQuestRewardSpellKindLikeCpp,
-    RepresentedQuestRewardTalentPointsLikeCpp, RepresentedQuestRewardTitleLikeCpp,
-};
-pub use quest::{
-    RepresentedQuestCompleteDialogLikeCpp, represented_quest_complete_dialog_like_cpp,
-    represented_quest_has_item_objective_like_cpp, represented_quest_rewards_block_like_cpp,
-};
-pub use quest::{
-    VisibilityRefreshCxLikeCpp, VisibilityRefreshHostLikeCpp,
-    represented_gameobject_activate_to_quest_like_cpp,
-    represented_gameobject_dynamic_flags_for_player_like_cpp,
-    represented_gameobject_dynamic_flags_update_like_cpp,
-    represented_gameobject_go_state_for_viewer_like_cpp,
-    represented_gameobject_is_for_quests_like_cpp, represented_has_quest_for_gameobject_like_cpp,
-    represented_meets_player_condition_id_like_cpp, update_visible_gameobjects_like_cpp,
-    update_visible_gameobjects_or_spell_clicks_like_cpp, update_visible_spell_clicks_like_cpp,
-};
-pub use quest::{
-    clear_represented_pending_quest_sharing_like_cpp, mutate_player_quest_gameplay_like_cpp,
-    player_quest_gameplay_snapshot_like_cpp, represented_pending_quest_sharing_like_cpp,
-};
-pub use quest_query_handlers::QuestPushResultTailLikeCpp;
-pub use quest_query_handlers::represented_quest_completion_npc_response_like_cpp;
-pub use quest_query_handlers::{
-    QuestQueryHandlerCxLikeCpp, QuestQueryHandlerHostLikeCpp,
-    register_quest_query_handlers_like_cpp,
-};
-// The exact `ApplicationQuest` owner facade the handler-contract checker
-// requires: the two canonical exports as one use item (#1263 F5 remaining
-// families).
-pub use quest_handlers::{QuestHandlerHostLikeCpp, register_quest_handlers_like_cpp};
 // The exact `ApplicationTalent` owner facade the handler-contract checker
 // requires (#1263 F5 deferred families).
-pub use talent_handlers::{TalentHandlerHostLikeCpp, register_talent_handlers_like_cpp};
-// The moved quest-completion body and the two quest helpers it owns are exported
-// as a separate item so the owner's exact three-name facade above stays unchanged.
-pub use quest_query_handlers::{
-    QuestGiverCompleteQuestHostLikeCpp, handle_quest_giver_complete_quest_like_cpp,
-    quest_giver_creature_id_from_source_like_cpp, quest_is_disabled_like_cpp,
-};
-#[cfg(any(test, feature = "test-fixtures"))]
-pub use registry_sync::PlayerRegistryHydrationContext;
-pub use registry_sync::PlayerRegistrySyncContext;
-pub use registry_sync::sync_player_registry_state_like_cpp;
 pub use spell_handlers::{
     SpellHandlerCxLikeCpp, SpellHandlerHostLikeCpp, register_spell_handlers_like_cpp,
 };
@@ -153,6 +71,7 @@ pub use spell_handlers::{
     cancel_pending_spell_cast_request_like_cpp, interrupt_player_cast_like_cpp,
     mutate_cast_execution_like_cpp, remove_represented_cancelable_auras_by_effect_like_cpp,
 };
+pub use talent_handlers::{TalentHandlerHostLikeCpp, register_talent_handlers_like_cpp};
 pub use trainer_handlers::{TrainerHandlerHostLikeCpp, register_trainer_handlers_like_cpp};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use trainer_purchase::TrainerAcquisitionFixturesLikeCpp;
@@ -163,17 +82,17 @@ pub use trainer_purchase::{
     TRAINER_LIST_NPC_FLAGS_LIKE_CPP, TrainerAcquisitionCatalogsLikeCpp,
     TrainerAcquisitionCompletionLikeCpp, TrainerAcquisitionPublicationLikeCpp,
     TrainerAcquisitionResultLikeCpp, TrainerAcquisitionRuntimeLikeCpp,
-    TrainerAdmissionProofLikeCpp, TrainerBattlePetProofLikeCpp, TrainerBuyAdmissionLikeCpp,
-    TrainerBuySpellHostLikeCpp, TrainerHiddenReasonLikeCpp, TrainerKnownReasonLikeCpp,
-    TrainerListCatalogsLikeCpp, TrainerListOfferResultLikeCpp, TrainerOfferDecisionLikeCpp,
-    TrainerOfferInputLikeCpp, TrainerOfferPreflightLikeCpp, TrainerOfferProjectionLikeCpp,
-    TrainerProductLikeCpp, TrainerProjectionCatalogsLikeCpp, TrainerUnavailableReasonLikeCpp,
+    TrainerBattlePetProofLikeCpp, TrainerBuyAdmissionLikeCpp, TrainerBuySpellHostLikeCpp,
+    TrainerHiddenReasonLikeCpp, TrainerKnownReasonLikeCpp, TrainerListCatalogsLikeCpp,
+    TrainerListOfferResultLikeCpp, TrainerOfferDecisionLikeCpp, TrainerOfferInputLikeCpp,
+    TrainerOfferPreflightLikeCpp, TrainerOfferProjectionLikeCpp, TrainerProductLikeCpp,
+    TrainerProjectionCatalogsLikeCpp, TrainerUnavailableReasonLikeCpp,
     decide_trainer_offer_like_cpp, execute_trainer_acquisition_like_cpp,
     finish_trainer_offer_after_projection_like_cpp,
     handle_trainer_buy_spell_with_generator_like_cpp,
     install_player_spell_acquisition_runtime_snapshot_like_cpp,
     install_represented_spell_acquisition_runtime_like_cpp, prepare_trainer_offer_like_cpp,
     publish_spell_acquisition_action_like_cpp, resolve_creature_trainer_like_cpp,
-    trainer_condition_admission_proof_like_cpp, trainer_list_required_npc_flags_like_cpp,
-    trainer_price_like_cpp, trainer_spell_class_race_fit_like_cpp, trainer_spell_product_like_cpp,
+    trainer_list_required_npc_flags_like_cpp, trainer_price_like_cpp,
+    trainer_spell_class_race_fit_like_cpp, trainer_spell_product_like_cpp,
 };

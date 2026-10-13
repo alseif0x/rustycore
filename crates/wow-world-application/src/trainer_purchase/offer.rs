@@ -17,6 +17,7 @@ use wow_spell_acquisition::{
     SpellAcquisitionPlanLikeCpp, SpellAcquisitionRootLikeCpp,
 };
 use wow_world_core::session::RepresentedPlayerSkillLikeCpp;
+use wow_world_quest::TrainerAdmissionProofLikeCpp;
 use wow_world_spell::{
     PrimaryProfessionCapacityPlanErrorLikeCpp, PrimaryProfessionCapacityPlanLikeCpp,
 };
@@ -78,29 +79,6 @@ pub enum TrainerOfferDecisionLikeCpp {
     Unavailable(TrainerUnavailableReasonLikeCpp),
     Available(PreparedTrainerOfferLikeCpp),
     AvailableBattlePet(PreparedBattlePetTrainerOfferLikeCpp),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TrainerAdmissionProofLikeCpp {
-    Proven(bool),
-    Indeterminate,
-}
-
-/// Preserve the target evaluator's fail-closed result when a supported
-/// condition passed alongside an unsupported one.
-pub fn trainer_condition_admission_proof_like_cpp(
-    meets: bool,
-    saw_unsupported: bool,
-) -> TrainerAdmissionProofLikeCpp {
-    if meets {
-        // C++ ElseGroups are ORed. A supported passing group proves the
-        // result even when another, irrelevant group is not representable.
-        TrainerAdmissionProofLikeCpp::Proven(true)
-    } else if saw_unsupported {
-        TrainerAdmissionProofLikeCpp::Indeterminate
-    } else {
-        TrainerAdmissionProofLikeCpp::Proven(false)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -89,7 +89,7 @@ impl WorldSession {
                 ),
             );
         let condition_projection = self.player_condition_projection_cx_like_cpp();
-        wow_world_application::represented_can_see_spell_click_on_like_cpp(
+        wow_world_quest::represented_can_see_spell_click_on_like_cpp(
             &self.world_entities,
             &owner,
             &npc_access,

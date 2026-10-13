@@ -3485,6 +3485,7 @@ dependencies = [
  "wow-world-inventory",
  "wow-world-lifecycle",
  "wow-world-loot",
+ "wow-world-quest",
  "wow-world-social",
  "wow-world-spell",
  "wow-world-test-support",
@@ -3497,7 +3498,6 @@ version = "0.1.0"
 dependencies = [
  "tokio",
  "tracing",
- "wow-conditions",
  "wow-constants",
  "wow-core",
  "wow-data",
@@ -3507,8 +3507,6 @@ dependencies = [
  "wow-map",
  "wow-packet",
  "wow-persistence",
- "wow-progression",
- "wow-script",
  "wow-spell-acquisition",
  "wow-world-application",
  "wow-world-core",
@@ -3518,6 +3516,7 @@ dependencies = [
  "wow-world-inventory",
  "wow-world-lifecycle",
  "wow-world-loot",
+ "wow-world-quest",
  "wow-world-social",
  "wow-world-spell",
  "wow-world-visibility",
@@ -3719,6 +3718,33 @@ dependencies = [
  "wow-map",
  "wow-packet",
  "wow-world-core",
+]
+
+[[package]]
+name = "wow-world-quest"
+version = "0.1.0"
+dependencies = [
+ "tracing",
+ "wow-conditions",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-handler",
+ "wow-loot",
+ "wow-packet",
+ "wow-persistence",
+ "wow-progression",
+ "wow-script",
+ "wow-world-core",
+ "wow-world-entities",
+ "wow-world-instances",
+ "wow-world-inventory",
+ "wow-world-lifecycle",
+ "wow-world-loot",
+ "wow-world-quest",
+ "wow-world-social",
+ "wow-world-spell",
 ]
 
 [[package]]

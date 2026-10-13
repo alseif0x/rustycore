@@ -38,7 +38,7 @@ impl WorldSession {
             &self.fixtures.progression.reputation_state_like_cpp,
         );
         let conditions = self.player_condition_projection_cx_like_cpp();
-        let eligibility = wow_world_application::QuestEligibilityCx::new(
+        let eligibility = wow_world_quest::QuestEligibilityCx::new(
             player,
             &self.quest_state,
             &self.catalogs,
@@ -47,7 +47,7 @@ impl WorldSession {
         );
         let player_is_game_master =
             crate::session::hub_ref(self).player_is_game_master_like_cpp() == Some(true);
-        wow_world_application::represented_gameobject_dynamic_flags_for_player_like_cpp(
+        wow_world_quest::represented_gameobject_dynamic_flags_for_player_like_cpp(
             &owner,
             &self.catalogs,
             &self.quest_state,

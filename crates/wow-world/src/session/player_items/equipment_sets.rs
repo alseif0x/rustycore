@@ -80,7 +80,7 @@ impl WorldSession {
             self.catalogs.spell_catalogs.spell_shapeshift_form_store(),
         );
         #[cfg(test)]
-        let registry_hydration = Some(wow_world_application::PlayerRegistryHydrationContext::new(
+        let registry_hydration = Some(wow_world_quest::PlayerRegistryHydrationContext::new(
             self.core.player_registry_hydration_access_like_cpp(),
             &self.spell_state,
             &self.quest_state,

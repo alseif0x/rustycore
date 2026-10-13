@@ -15,8 +15,8 @@ impl WorldSession {
     fn quest_xp_gain_context_like_cpp(
         &mut self,
     ) -> (
-        wow_world_application::QuestRewardCx<'_>,
-        wow_world_application::QuestXpGainFixtureRefsLikeCpp<'_>,
+        wow_world_quest::QuestRewardCx<'_>,
+        wow_world_quest::QuestXpGainFixtureRefsLikeCpp<'_>,
     ) {
         let wow_world_core::session::state::SessionFixtures {
             identity,
@@ -60,7 +60,7 @@ impl WorldSession {
                 &auras.canonical_threat_aura_snapshots_like_cpp,
             ),
         );
-        let fixtures = wow_world_application::QuestXpGainFixtureRefsLikeCpp::new_like_cpp(
+        let fixtures = wow_world_quest::QuestXpGainFixtureRefsLikeCpp::new_like_cpp(
             core_fixtures,
             &mut progression.player_character_points_like_cpp,
             &progression.represented_gray_level_script_overrides_like_cpp,
@@ -72,7 +72,7 @@ impl WorldSession {
         let player = self
             .core
             .quest_reward_player_access_like_cpp(&identity.player_race, &identity.player_class);
-        let operation = wow_world_application::QuestRewardCx::new(
+        let operation = wow_world_quest::QuestRewardCx::new(
             &mut self.inventory,
             &mut self.lifecycle,
             &mut self.quest_state,
@@ -89,9 +89,9 @@ impl WorldSession {
     }
 
     #[cfg(not(any(test, feature = "test-fixtures")))]
-    fn quest_xp_gain_context_like_cpp(&mut self) -> wow_world_application::QuestRewardCx<'_> {
+    fn quest_xp_gain_context_like_cpp(&mut self) -> wow_world_quest::QuestRewardCx<'_> {
         let player = self.core.quest_reward_player_access_like_cpp();
-        wow_world_application::QuestRewardCx::new(
+        wow_world_quest::QuestRewardCx::new(
             &mut self.inventory,
             &mut self.lifecycle,
             &mut self.quest_state,

@@ -7,7 +7,7 @@
 //!
 //! `#1263 F5 remaining families`: the eleven registrations that lived at the end
 //! of this module moved unchanged to the application crate's explicit area
-//! registrar (`wow_world_application::register_quest_handlers_like_cpp`,
+//! registrar (`wow_world_quest::register_quest_handlers_like_cpp`,
 //! published by the crate-root facade and wired from
 //! `crate::handler_composition`). The [`host`] adapter lends that registrar the
 //! existing `WorldSession` operations and the catalog view the legacy closures

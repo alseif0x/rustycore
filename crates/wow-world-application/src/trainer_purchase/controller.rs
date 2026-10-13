@@ -2,6 +2,7 @@
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
+use super::TrainerOfferDecisionLikeCpp;
 use super::context::AppTrainerCx;
 use super::offer::{
     TrainerOfferInputLikeCpp, TrainerOfferPreflightLikeCpp, TrainerProductLikeCpp,
@@ -11,8 +12,6 @@ use super::{
     PreparedTrainerOfferLikeCpp, TrainerAcquisitionCompletionLikeCpp,
     TrainerAcquisitionPublicationLikeCpp, execute_trainer_acquisition_like_cpp,
 };
-use super::{TrainerAdmissionProofLikeCpp, TrainerOfferDecisionLikeCpp};
-use crate::PlayerConditionProjectionCxLikeCpp;
 use wow_constants::unit::NPCFlags1;
 use wow_core::ObjectGuid;
 use wow_core::ObjectGuidGenerator;
@@ -32,6 +31,8 @@ use wow_world_core::session::{
 };
 use wow_world_interaction::InteractionState;
 use wow_world_lifecycle::ExclusivePlayerMoneyPersistenceLikeCpp;
+use wow_world_quest::PlayerConditionProjectionCxLikeCpp;
+use wow_world_quest::TrainerAdmissionProofLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_world_spell::canonical_player_spell_runtime_like_cpp;
 use wow_world_spell::{
@@ -97,7 +98,7 @@ pub struct AppTrainerListCx<'a> {
     npc: wow_world_core::session::AuraNpcAccessBuilderLikeCpp<'a>,
     aura: crate::PlayerAuraApplicationCxLikeCpp<'a>,
     pub(super) spell_access: OwnedSpellAcquisitionAccessLikeCpp<'a>,
-    player_conditions: crate::PlayerConditionProjectionInputsLikeCpp<'a>,
+    player_conditions: wow_world_quest::PlayerConditionProjectionInputsLikeCpp<'a>,
     pub(super) catalogs: TrainerListCatalogsLikeCpp<'a>,
     account_id: u32,
     session_locale_name: &'a str,
@@ -216,7 +217,7 @@ impl<'a> AppTrainerListCx<'a> {
         npc: wow_world_core::session::AuraNpcAccessBuilderLikeCpp<'a>,
         spell_access: OwnedSpellAcquisitionAccessLikeCpp<'a>,
         aura: crate::PlayerAuraApplicationCxLikeCpp<'a>,
-        player_conditions: crate::PlayerConditionProjectionInputsLikeCpp<'a>,
+        player_conditions: wow_world_quest::PlayerConditionProjectionInputsLikeCpp<'a>,
         catalogs: TrainerListCatalogsLikeCpp<'a>,
         account_id: u32,
         session_locale_name: &'a str,

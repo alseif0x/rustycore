@@ -61,7 +61,7 @@ impl<'a> PlayerRegistrySyncContext<'a> {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fn sync_with_fixture_hydration_like_cpp(
+    pub fn sync_with_fixture_hydration_like_cpp(
         &self,
         hydration: &PlayerRegistryHydrationContext<'_>,
     ) {

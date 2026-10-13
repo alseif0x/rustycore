@@ -199,7 +199,7 @@ impl WorldSession {
         let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
             return 0;
         };
-        if !wow_world_application::QuestRewardCx::quest_xp_reward_allowed_like_cpp(quest, &quests) {
+        if !wow_world_quest::QuestRewardCx::quest_xp_reward_allowed_like_cpp(quest, &quests) {
             return 0;
         }
 
@@ -211,7 +211,7 @@ impl WorldSession {
         } else {
             0
         };
-        wow_world_application::QuestRewardCx::calculate_quest_xp_reward_like_cpp(
+        wow_world_quest::QuestRewardCx::calculate_quest_xp_reward_like_cpp(
             state,
             xp_store,
             player_level,

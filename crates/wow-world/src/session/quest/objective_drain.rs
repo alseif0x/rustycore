@@ -10,9 +10,9 @@ use super::*;
 /// fixtures once so the reward and the objective drain lend the same fields.
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) struct QuestRewardFixtureRefsLikeCpp<'a> {
-    pub(crate) xp: wow_world_application::QuestXpGainFixtureRefsLikeCpp<'a>,
-    pub(crate) planning: wow_world_application::QuestRewardItemPlanningFixtureRefsLikeCpp<'a>,
-    pub(crate) reputation: wow_world_application::QuestRewardReputationFixtureRefsLikeCpp<'a>,
+    pub(crate) xp: wow_world_quest::QuestXpGainFixtureRefsLikeCpp<'a>,
+    pub(crate) planning: wow_world_quest::QuestRewardItemPlanningFixtureRefsLikeCpp<'a>,
+    pub(crate) reputation: wow_world_quest::QuestRewardReputationFixtureRefsLikeCpp<'a>,
     pub(crate) teleport: &'a mut wow_world_core::session::state::TeleportState,
     pub(crate) transport:
         &'a Option<Box<wow_world_core::session::PlayerTransportLoginStateLikeCpp>>,
@@ -37,7 +37,7 @@ pub(crate) fn quest_reward_fixture_refs_like_cpp<'a>(
     spell_state: &'a wow_world_spell::SessionSpellState,
     instances: &'a wow_world_instances::InstanceState,
 ) -> QuestRewardFixtureRefsLikeCpp<'a> {
-    let xp = wow_world_application::QuestXpGainFixtureRefsLikeCpp::new_like_cpp(
+    let xp = wow_world_quest::QuestXpGainFixtureRefsLikeCpp::new_like_cpp(
         wow_world_core::session::CoreXPGainFixtureRefsLikeCpp::new_like_cpp(
             &mut fixtures.progression.player_xp,
             &mut fixtures.progression.player_next_level_xp,
@@ -89,7 +89,7 @@ pub(crate) fn quest_reward_fixture_refs_like_cpp<'a>(
             ),
         ),
     );
-    let planning = wow_world_application::QuestRewardItemPlanningFixtureRefsLikeCpp::new_like_cpp(
+    let planning = wow_world_quest::QuestRewardItemPlanningFixtureRefsLikeCpp::new_like_cpp(
         &fixtures.identity.player_race,
         &fixtures.identity.player_class,
         &fixtures.identity.player_gender,
@@ -132,7 +132,7 @@ pub(crate) fn quest_reward_fixture_refs_like_cpp<'a>(
             .player_skill_records_complete_like_cpp,
         &fixtures.combat.in_combat,
     );
-    let reputation = wow_world_application::QuestRewardReputationFixtureRefsLikeCpp::new_like_cpp(
+    let reputation = wow_world_quest::QuestRewardReputationFixtureRefsLikeCpp::new_like_cpp(
         &mut fixtures.progression.reputation_state_like_cpp,
         &fixtures
             .progression
@@ -168,7 +168,7 @@ pub(crate) fn quest_reward_fixture_refs_like_cpp<'a>(
 }
 
 /// One operation of the App quest-objective owner
-/// (`wow-world-application/src/quest/objectives.rs`): C++
+/// (`wow-world-quest/src/quest/objectives.rs`): C++
 /// `Player::UpdateQuestObjectiveProgress` and `Player::CompleteQuest`. The
 /// World shell only lends the selected owners; it keeps no copy of either body.
 pub(crate) enum QuestObjectiveOperationLikeCpp<'q> {
@@ -248,7 +248,7 @@ impl WorldSession {
             #[cfg(any(test, feature = "test-fixtures"))]
             fixtures.class,
         );
-        let mut reward = wow_world_application::QuestRewardCx::new(
+        let mut reward = wow_world_quest::QuestRewardCx::new(
             &mut self.inventory,
             &mut self.lifecycle,
             &mut self.quest_state,
@@ -262,7 +262,7 @@ impl WorldSession {
             self.catalogs.quests.xp_store.as_deref(),
             cfg!(test),
         );
-        let mut progress = wow_world_application::QuestObjectiveProgressCx::new(
+        let mut progress = wow_world_quest::QuestObjectiveProgressCx::new(
             &mut reward,
             &self.loot,
             &self.world_entities,
@@ -278,7 +278,7 @@ impl WorldSession {
             #[cfg(any(test, feature = "test-fixtures"))]
             fixtures.game_master,
             #[cfg(any(test, feature = "test-fixtures"))]
-            wow_world_application::QuestObjectiveRegistryFixtureRefsLikeCpp::new(
+            wow_world_quest::QuestObjectiveRegistryFixtureRefsLikeCpp::new(
                 fixtures.spell_state,
                 fixtures.position,
                 fixtures.faction_template,

@@ -34,7 +34,7 @@ use wow_constants::item::ItemFlags3;
 use wow_constants::unit::NPCFlags1;
 use wow_constants::{InventoryResult, ItemBondingType, ItemContext, ItemFieldFlags, ItemFlags2};
 // Test-only: its production readers were the eleven quest-giver registrations
-// that moved to the application crate's `quest_handlers` area registrar under
+// that moved to the quest crate's `quest_handlers` area registrar under
 // #1263 F5; the quest test shims and scenarios still reach it through
 // `super::*`.
 #[cfg(test)]
@@ -53,7 +53,7 @@ use wow_entities::{
     SendNewItemModifier, SendNewItemPlan, is_bag_pos,
 };
 // Test-only: the production readers of these two were the eleven quest-giver
-// registrations that moved to the application crate's `quest_handlers` area
+// registrations that moved to the quest crate's `quest_handlers` area
 // registrar under #1263 F5; the quest scenarios still reach them through
 // `super::*`.
 #[cfg(test)]
@@ -61,7 +61,7 @@ use wow_handler::{PacketProcessing, SessionStatus};
 
 // The quest-giver registrations that used to reach
 // `crate::session::registry::PacketHandlerEntry` from here moved to the
-// application crate's explicit area registrar under #1263 F5, so this module no
+// quest crate's explicit area registrar under #1263 F5, so this module no
 // longer needs the entry type in scope.
 use wow_packet::ServerPacket;
 use wow_packet::packets::misc::SetCurrency;
@@ -103,7 +103,7 @@ use wow_conditions::{
     QUEST_STATUS_NONE_LIKE_CPP, QUEST_STATUS_REWARDED_LIKE_CPP,
 };
 
-use wow_world_application::quest_giver_creature_id_from_source_like_cpp;
+use wow_world_quest::quest_giver_creature_id_from_source_like_cpp;
 
 pub(crate) const QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP: u32 = 0x0001_0000;
 #[cfg(test)]
@@ -209,7 +209,7 @@ fn represented_satisfy_quest_dependent_previous_quests_failed_like_cpp(
     quest: &wow_data::quest::QuestTemplate,
     receiver_rewarded_quests: &std::collections::HashSet<u32>,
 ) -> bool {
-    wow_world_application::QuestEligibilityCx::represented_satisfy_quest_dependent_previous_quests_failed_like_cpp(
+    wow_world_quest::QuestEligibilityCx::represented_satisfy_quest_dependent_previous_quests_failed_like_cpp(
         quest_store,
         quest,
         receiver_rewarded_quests,
@@ -220,7 +220,7 @@ fn represented_satisfy_quest_dependent_breadcrumb_quests_failed_like_cpp(
     quest: &wow_data::quest::QuestTemplate,
     receiver_active_quest_statuses: &std::collections::HashMap<u32, u8>,
 ) -> bool {
-    wow_world_application::QuestEligibilityCx::represented_satisfy_quest_dependent_breadcrumb_quests_failed_like_cpp(
+    wow_world_quest::QuestEligibilityCx::represented_satisfy_quest_dependent_breadcrumb_quests_failed_like_cpp(
         quest,
         receiver_active_quest_statuses,
     )
@@ -290,7 +290,7 @@ fn represented_can_take_quest_after_expansion_like_cpp(
     true
 }
 
-pub(crate) use wow_world_application::represented_quest_completion_npc_response_like_cpp;
+pub(crate) use wow_world_quest::represented_quest_completion_npc_response_like_cpp;
 
 fn build_quest_poi_store_like_cpp(
     point_rows: Vec<wow_persistence::QuestPoiPointLoadRowLikeCpp>,
@@ -349,8 +349,8 @@ fn build_quest_poi_store_like_cpp(
 
 // ── Handler registrations ────────────────────────────────────────────────────
 
-pub(crate) use wow_world_application::MAX_QUEST_LOG_SIZE_LIKE_CPP;
-pub(crate) use wow_world_application::RepresentedQuestGiverStatusSourceLikeCpp;
+pub(crate) use wow_world_quest::MAX_QUEST_LOG_SIZE_LIKE_CPP;
+pub(crate) use wow_world_quest::RepresentedQuestGiverStatusSourceLikeCpp;
 
 #[cfg(test)]
 #[path = "../../../unit_tests/handlers/quest_tests.rs"]

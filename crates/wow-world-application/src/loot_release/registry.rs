@@ -20,7 +20,7 @@ impl LootReleaseCxLikeCpp<'_> {
             #[cfg(any(test, feature = "test-fixtures"))]
             &self.fixtures.vehicles.player_transport_login_state_like_cpp,
         );
-        let sync = crate::PlayerRegistrySyncContext::new(
+        let sync = wow_world_quest::PlayerRegistrySyncContext::new(
             position,
             control,
             self.loot,
@@ -33,7 +33,7 @@ impl LootReleaseCxLikeCpp<'_> {
         );
         #[cfg(any(test, feature = "test-fixtures"))]
         if self.consumer_test {
-            sync.with_fixture_hydration(crate::PlayerRegistryHydrationContext::new(
+            sync.with_fixture_hydration(wow_world_quest::PlayerRegistryHydrationContext::new(
                 self.owner.registry_hydration_like_cpp(),
                 self.spell_state,
                 self.quest_state,

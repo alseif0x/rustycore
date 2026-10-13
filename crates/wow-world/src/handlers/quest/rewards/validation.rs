@@ -13,7 +13,7 @@ impl WorldSession {
         choice: QuestChoiceItemLikeCpp,
     ) -> bool {
         let hub = crate::session::hub_ref(self);
-        wow_world_application::QuestRewardCx::reward_choice_template_exists_like_cpp(
+        wow_world_quest::QuestRewardCx::reward_choice_template_exists_like_cpp(
             choice.loot_item_type,
             QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
             QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP,
@@ -28,7 +28,7 @@ impl WorldSession {
         quest_package_item: &QuestPackageItemEntry,
     ) -> bool {
         let hub = crate::session::hub_ref(self);
-        wow_world_application::QuestRewardCx::can_select_quest_package_item_like_cpp(
+        wow_world_quest::QuestRewardCx::can_select_quest_package_item_like_cpp(
             quest_package_item,
             hub.catalogs.item_store().map(Arc::as_ref),
             hub.catalogs.item_stats_store().map(Arc::as_ref),
@@ -42,7 +42,7 @@ impl WorldSession {
         choice: QuestChoiceItemLikeCpp,
     ) -> bool {
         let hub = crate::session::hub_ref(self);
-        wow_world_application::QuestRewardCx::quest_package_choice_matches_like_cpp(
+        wow_world_quest::QuestRewardCx::quest_package_choice_matches_like_cpp(
             quest.quest_package_id,
             choice.loot_item_type,
             QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,

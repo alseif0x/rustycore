@@ -4,7 +4,7 @@
 
 //! World-side construction of the quest query handler context (#1263 F5).
 //!
-//! The application crate owns the handlers and their context; the session only
+//! The quest crate owns the handlers and their context; the session only
 //! lends its hub and the read-only quest store.
 
 use std::sync::Arc;
@@ -12,10 +12,10 @@ use std::sync::Arc;
 use wow_core::ObjectGuid;
 use wow_data::quest::{QuestStore, QuestTemplate};
 use wow_entities::PlayerQuestGameplayState;
-use wow_world_application::{
+use wow_world_core::session::HubRef;
+use wow_world_quest::{
     QuestGiverCompleteQuestHostLikeCpp, QuestQueryHandlerCxLikeCpp, QuestQueryHandlerHostLikeCpp,
 };
-use wow_world_core::session::HubRef;
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 

@@ -12,7 +12,6 @@
 //! they call shell-owned seams (far sight visibility, live-intent stand state,
 //! title persistence, item purchase data).
 
-use crate::SessionQuestState;
 use tracing::info;
 use wow_constants::{ClientOpcodes, UnitStandStateType};
 use wow_core::{GameTime, ObjectGuid};
@@ -34,6 +33,7 @@ use wow_world_core::session::{
 use wow_world_instances::InstanceState;
 use wow_world_inventory::InventoryState;
 use wow_world_lifecycle::SessionLifecycleState;
+use wow_world_quest::SessionQuestState;
 use wow_world_visibility::VisibilityState;
 
 /// C++ `ItemExtendedCostEntry` refund projection for `SMSG_SET_ITEM_PURCHASE_DATA`.

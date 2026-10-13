@@ -3,11 +3,11 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! Test-only entry points for the quest query handlers moved to
-//! `wow-world-application` (#1263 F5).
+//! `wow-world-quest` (#1263 F5, #1363 A6).
 
 use wow_constants::ClientOpcodes;
 use wow_packet::WorldPacket;
-use wow_world_application::QuestQueryHandlerCxLikeCpp;
+use wow_world_quest::QuestQueryHandlerCxLikeCpp;
 
 use crate::session::WorldSession;
 
@@ -56,6 +56,6 @@ impl WorldSession {
     /// Delegates to the moved owner body with this session as its host; the
     /// shell-only capabilities it needs stay on the host implementation.
     pub(crate) async fn handle_quest_giver_complete_quest(&mut self, mut pkt: WorldPacket) {
-        wow_world_application::handle_quest_giver_complete_quest_like_cpp(self, pkt).await;
+        wow_world_quest::handle_quest_giver_complete_quest_like_cpp(self, pkt).await;
     }
 }

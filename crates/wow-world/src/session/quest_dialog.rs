@@ -13,13 +13,13 @@ use super::{WorldSession, info, quest};
 pub(in crate::session) fn quest_has_represented_item_objective_like_cpp(
     quest: &wow_data::quest::QuestTemplate,
 ) -> bool {
-    wow_world_application::represented_quest_has_item_objective_like_cpp(quest)
+    wow_world_quest::represented_quest_has_item_objective_like_cpp(quest)
 }
 
 pub(in crate::session) fn quest_rewards_block_like_cpp(
     quest: &wow_data::quest::QuestTemplate,
 ) -> QuestRewardsBlock {
-    wow_world_application::represented_quest_rewards_block_like_cpp(quest)
+    wow_world_quest::represented_quest_rewards_block_like_cpp(quest)
 }
 
 pub(in crate::session) fn represented_quest_menu_item_log_rows_like_cpp(
@@ -41,8 +41,8 @@ pub(in crate::session) fn represented_quest_menu_item_log_rows_like_cpp(
         .collect()
 }
 
-pub(in crate::session) use wow_world_application::quest_giver_creature_id_from_source_like_cpp;
 pub(in crate::session) use wow_world_core::session::react_state_from_db_like_cpp;
+pub(in crate::session) use wow_world_quest::quest_giver_creature_id_from_source_like_cpp;
 
 pub(in crate::session) const fn active_state_from_db_like_cpp(value: u8) -> ActiveState {
     match value {
@@ -92,16 +92,16 @@ pub(crate) struct SeasonalQuestStatusDbRowLikeCpp {
     pub completed_time: i64,
 }
 
-pub(crate) use wow_world_application::{
+pub(crate) use wow_world_instances::RepresentedAdventureMapStartQuestLikeCpp;
+pub(crate) use wow_world_quest::{
     RepresentedPendingQuestSharingLikeCpp, RepresentedPushQuestToPartyOutcomeLikeCpp,
     RepresentedPushQuestToPartyOutcomeReasonLikeCpp, RepresentedQuestCompleteStatusUpdateLikeCpp,
     RepresentedQuestConfirmAcceptLikeCpp, RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp,
     RepresentedQuestPushResultResponseLikeCpp,
 };
-pub(crate) use wow_world_instances::RepresentedAdventureMapStartQuestLikeCpp;
 
 #[cfg(any(test, feature = "test-fixtures"))]
-pub(crate) use wow_world_application::{
+pub(crate) use wow_world_quest::{
     RepresentedQuestRewardMailLikeCpp, RepresentedQuestRewardReputationLikeCpp,
     RepresentedQuestRewardSpellCastLikeCpp, RepresentedQuestRewardSpellKindLikeCpp,
     RepresentedQuestRewardTalentPointsLikeCpp, RepresentedQuestRewardTitleLikeCpp,
@@ -110,7 +110,7 @@ pub(crate) use wow_world_application::{
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use wow_world_social::RepresentedForceDeselectLikeCpp;
 
-pub(crate) use wow_world_application::RepresentedQuestRewardReputationSourceLikeCpp;
+pub(crate) use wow_world_quest::RepresentedQuestRewardReputationSourceLikeCpp;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) struct LoadSeasonalQuestStatusOutcomeLikeCpp {

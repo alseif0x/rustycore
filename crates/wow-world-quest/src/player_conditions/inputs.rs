@@ -69,7 +69,7 @@ impl<'a> PlayerConditionProjectionInputsLikeCpp<'a> {
         }
     }
 
-    pub(crate) fn reborrow_like_cpp<'b>(
+    pub fn reborrow_like_cpp<'b>(
         &'b self,
         stats: &'b wow_world_core::session::AuraStatsAccessBuilderLikeCpp<'_>,
         aura: &'b wow_world_core::session::PlayerAuraRemovalAccessLikeCpp<'_>,
