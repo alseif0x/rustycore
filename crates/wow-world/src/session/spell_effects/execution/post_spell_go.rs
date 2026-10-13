@@ -111,8 +111,7 @@ impl WorldSession {
             }
 
             if spell_effect_is_represented_summon_object_slot_like_cpp(effect.effect) {
-                if let Some(outcome) = apply_effect_summon_object_slot_like_cpp(
-                    self,
+                if let Some(outcome) = self.apply_effect_summon_object_slot_like_cpp(
                     spell_id,
                     effect,
                     effect_target_data,

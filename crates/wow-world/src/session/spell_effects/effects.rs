@@ -45,6 +45,24 @@ impl WorldSession {
         )
         .await
     }
+    pub(crate) fn set_represented_homebind_like_cpp(
+        &mut self,
+        homebind: RepresentedHomebindLikeCpp,
+    ) -> bool {
+        let canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| player.set_homebind_like_cpp(homebind))
+            .is_some();
+        if canonical {
+            return true;
+        }
+        #[cfg(test)]
+        if self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.teleport.represented_homebind_like_cpp = Some(homebind);
+            return true;
+        }
+        false
+    }
     pub(in crate::session) fn apply_learn_transmog_set_effect_like_cpp(
         &mut self,
         target_guid: ObjectGuid,

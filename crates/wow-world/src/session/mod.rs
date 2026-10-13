@@ -502,12 +502,10 @@ pub(crate) use state::{
 };
 #[cfg(test)]
 pub(crate) use state::{InventoryCx, cx_inventory};
+mod summon_object_contracts;
+pub(crate) use summon_object_contracts::ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp;
+pub(crate) use summon_object_contracts::ApplyEffectSummonObjectSlotSessionStatusLikeCpp;
 pub(crate) use wow_world_spell::RepresentedSpellFocusObjectLikeCpp;
-#[cfg(test)]
-pub(crate) use wow_world_spell::{
-    ApplyEffectSummonObjectSlotSessionStatusLikeCpp,
-    ApplyEffectSummonObjectWildSessionStatusLikeCpp, DAMAGE_FIRE_LIKE_CPP,
-};
 #[cfg(test)]
 mod support_features;
 mod taxi_contracts;
@@ -788,7 +786,6 @@ const DEFAULT_VISIBILITY_DISTANCE_YARDS_LIKE_CPP: u32 = 100;
 const QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP: u32 = 0x1;
 const QUEST_FLAGS_PLAYER_CAST_ACCEPT_LIKE_CPP: u32 = 0x0010_0000;
 const QUEST_FLAGS_EX_RECAST_ACCEPT_SPELL_ON_LOGIN_LIKE_CPP: u32 = 0x0000_1000;
-#[cfg(test)]
 pub(crate) use wow_world_entities::spell_click_values::MAX_GAMEOBJECT_SLOT_LIKE_CPP;
 #[cfg(test)]
 pub(crate) use wow_world_spell::spell_cast_adapter::SPELL_CAST_SOURCE_NORMAL_LIKE_CPP;

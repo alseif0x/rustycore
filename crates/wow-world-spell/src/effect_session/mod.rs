@@ -38,6 +38,7 @@ pub use player::*;
 pub use power::*;
 pub use pve_combat::*;
 pub use summon::*;
+#[cfg(any(test, feature = "test-fixtures"))]
 pub use summon_contracts::*;
 
 /// The World session as the spell effects' host (supertrait: the spell-click
@@ -69,7 +70,6 @@ pub trait SpellEffectHostLikeCpp: SpellClickHostLikeCpp {
     );
     /// The World spell damage to a creature with its kill cascade (loot, XP,
     /// reputation and quest credit), which stays on the session.
-    #[allow(clippy::too_many_arguments)]
     fn apply_damage_from_caster_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
@@ -89,5 +89,8 @@ pub trait SpellEffectHostLikeCpp: SpellClickHostLikeCpp {
     /// The World homebind persistence (the lifecycle port and its ordered
     /// worker), which stays on the session.
     fn persist_player_homebind_like_cpp(&mut self, homebind: RepresentedHomebindLikeCpp);
+    /// The World homebind write; its handle-less fixture branch stays on the
+    /// session with the login coordinator that also calls it.
+    fn set_represented_homebind_like_cpp(&mut self, homebind: RepresentedHomebindLikeCpp) -> bool;
     fn represented_visibility_source_combat_reach_like_cpp(&self) -> f32;
 }

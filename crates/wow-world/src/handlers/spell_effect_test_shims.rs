@@ -18,10 +18,7 @@ use crate::session::*;
 use std::sync::Arc;
 use wow_core::ObjectGuid;
 use wow_packet::packets::spell::SpellTargetData;
-use wow_world_spell::{
-    ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp,
-    ApplyEffectSummonObjectWildSessionOutcomeLikeCpp,
-};
+use wow_world_spell::ApplyEffectSummonObjectWildSessionOutcomeLikeCpp;
 
 impl WorldSession {
     pub(crate) async fn apply_damage(
@@ -43,12 +40,6 @@ impl WorldSession {
 }
 
 impl WorldSession {
-    pub(crate) fn set_represented_homebind_like_cpp(
-        &mut self,
-        homebind: RepresentedHomebindLikeCpp,
-    ) -> bool {
-        wow_world_spell::set_represented_homebind_like_cpp(self, homebind)
-    }
     pub(crate) async fn apply_heal(
         &mut self,
         spell_id: Option<i32>,
@@ -64,19 +55,6 @@ impl WorldSession {
         target_data: &SpellTargetData,
     ) -> Option<ApplyEffectSummonObjectWildSessionOutcomeLikeCpp> {
         wow_world_spell::apply_effect_summon_object_wild_like_cpp(
-            self,
-            spell_id,
-            effect,
-            target_data,
-        )
-    }
-    pub(crate) fn apply_effect_summon_object_slot_like_cpp(
-        &mut self,
-        spell_id: i32,
-        effect: &wow_data::SpellEffectInfo,
-        target_data: &SpellTargetData,
-    ) -> Option<ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp> {
-        wow_world_spell::apply_effect_summon_object_slot_like_cpp(
             self,
             spell_id,
             effect,

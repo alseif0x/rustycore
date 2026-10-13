@@ -14,7 +14,7 @@ pub fn set_homebind_like_cpp<H: SpellEffectHostLikeCpp>(
     binder_id: ObjectGuid,
     homebind: RepresentedHomebindLikeCpp,
 ) {
-    if !set_represented_homebind_like_cpp(host, homebind) {
+    if !host.set_represented_homebind_like_cpp(homebind) {
         return;
     }
     host.persist_player_homebind_like_cpp(homebind);
@@ -50,27 +50,6 @@ pub fn represented_homebind_like_cpp<H: SpellEffectHostLikeCpp>(
         return fixtures.teleport.represented_homebind_like_cpp;
     }
     None
-}
-
-pub fn set_represented_homebind_like_cpp<H: SpellEffectHostLikeCpp>(
-    host: &mut H,
-    homebind: RepresentedHomebindLikeCpp,
-) -> bool {
-    let canonical = host
-        .core()
-        .with_owned_player_mut_like_cpp(|player| player.set_homebind_like_cpp(homebind))
-        .is_some();
-    if canonical {
-        return true;
-    }
-    #[cfg(any(test, feature = "test-fixtures"))]
-    if host.core().player_handle_like_cpp.is_none()
-        && let Some(fixtures) = host.test_fixtures_like_cpp()
-    {
-        fixtures.teleport.represented_homebind_like_cpp = Some(homebind);
-        return true;
-    }
-    false
 }
 
 pub async fn apply_effect_bind_like_cpp<H: SpellEffectHostLikeCpp>(

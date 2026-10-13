@@ -89,6 +89,9 @@ impl wow_world_spell::SpellEffectHostLikeCpp for WorldSession {
     fn persist_player_homebind_like_cpp(&mut self, homebind: RepresentedHomebindLikeCpp) {
         WorldSession::persist_player_homebind_like_cpp(self, homebind)
     }
+    fn set_represented_homebind_like_cpp(&mut self, homebind: RepresentedHomebindLikeCpp) -> bool {
+        WorldSession::set_represented_homebind_like_cpp(self, homebind)
+    }
     fn represented_visibility_source_combat_reach_like_cpp(&self) -> f32 {
         WorldSession::represented_visibility_source_combat_reach_like_cpp(self)
     }

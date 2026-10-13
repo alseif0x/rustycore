@@ -499,7 +499,7 @@ fn summon_object_wild_session_resolver_uses_caster_close_point_when_dst_missing_
 
     assert_eq!(
         outcome.status,
-        ApplyEffectSummonObjectWildSessionStatusLikeCpp::MapResolved
+        wow_world_spell::ApplyEffectSummonObjectWildSessionStatusLikeCpp::MapResolved
     );
     assert!(!outcome.explicit_destination_used);
     assert!(outcome.close_point_fallback_represented);

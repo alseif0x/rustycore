@@ -238,16 +238,13 @@ impl WorldSession {
         // (`Player::SendInitialPacketsAfterAddToMap`). Seed from DB until
         // that post-add terrain pass runs.
         crate::session::hub_mut(self).set_player_zone_area_like_cpp(zone as u32, zone as u32);
-        if !wow_world_spell::set_represented_homebind_like_cpp(
-            self,
-            RepresentedHomebindLikeCpp {
-                map_id: login_homebind.map_id,
-                area_id: login_homebind
-                    .bind_area_id
-                    .expect("validated character homebind must have an area ID"),
-                position: login_homebind.position,
-            },
-        ) {
+        if !self.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+            map_id: login_homebind.map_id,
+            area_id: login_homebind
+                .bind_area_id
+                .expect("validated character homebind must have an area ID"),
+            position: login_homebind.position,
+        }) {
             self.kick("canonical Player homebind owner unavailable during login hydration");
             return;
         }
