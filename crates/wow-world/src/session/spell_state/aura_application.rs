@@ -24,46 +24,6 @@ impl WorldSession {
         )
     }
 
-    pub(in crate::session) fn remove_indoor_outdoor_auras_for_current_position_represented_like_cpp(
-        &mut self,
-    ) -> usize {
-        if !self.config.vmap_indoor_check_like_cpp {
-            return 0;
-        }
-
-        let Some(is_outdoors) = crate::session::hub_ref(self)
-            .player_world_local_state_like_cpp()
-            .and_then(|state| state.is_outdoors_like_cpp())
-        else {
-            return 0;
-        };
-
-        let attribute = if is_outdoors {
-            wow_data::spell::attributes::SPELL_ATTR0_ONLY_INDOORS
-        } else {
-            wow_data::spell::attributes::SPELL_ATTR0_ONLY_OUTDOORS
-        };
-        self.remove_represented_auras_with_attribute0_like_cpp(attribute)
-    }
-    pub(crate) fn remove_represented_auras_due_to_spell_like_cpp(
-        &mut self,
-        spell_id: i32,
-    ) -> usize {
-        let Some(visible_auras) =
-            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
-        else {
-            return 0;
-        };
-        let slots = visible_auras
-            .values()
-            .filter_map(|aura| (aura.spell_id == spell_id).then_some(aura.slot))
-            .collect::<Vec<_>>();
-        let removed = slots.len();
-        for slot in slots {
-            let _ = self.remove_aura(slot);
-        }
-        removed
-    }
     pub(in crate::session) fn apply_aura_with_effect_mask_like_cpp(
         &mut self,
         spell_id: i32,
@@ -272,43 +232,6 @@ impl WorldSession {
 
         applied
     }
-    pub(in crate::session) fn apply_represented_provide_spell_focus_aura_like_cpp(
-        &mut self,
-        spell_id: i32,
-        caster_guid: ObjectGuid,
-        effect: &wow_data::SpellEffectInfo,
-    ) -> Result<(), &'static str> {
-        let slot = self
-            .next_player_visible_aura_slot_like_cpp()
-            .ok_or("No free aura slots or missing Player aura owner")?;
-
-        let aura = AuraApplication {
-            spell_id,
-            difficulty_id: self.core.current_map_difficulty_id_like_cpp(),
-            caster_guid,
-            slot,
-            duration_total: 30_000,
-            duration_remaining: 30_000,
-            stack_count: 1,
-            aura_flags: 0x0000_0001,
-            effect_mask: 1u32 << effect.effect_index,
-            aura_interrupt_flags: 0,
-            aura_interrupt_flags2: 0,
-            represented_effect: Some(RepresentedAuraEffectLikeCpp::ProvideSpellFocus),
-            represented_amount: effect.effect_base_points,
-            represented_effect_amounts: represented_aura_effect_amounts_like_cpp(effect),
-            represented_misc_value: Some(effect.effect_misc_value_1),
-            represented_multiplier: 1.0,
-            applied_at: Instant::now(),
-        };
-
-        if !self.insert_player_visible_aura_like_cpp(aura) {
-            return Err("Missing Player aura owner");
-        }
-        self.send_aura_update_applied(spell_id, slot, caster_guid, 30_000, 0x0000_0001, 0x1);
-
-        Ok(())
-    }
     pub(in crate::session) fn apply_represented_aura_modifier_like_cpp(
         &mut self,
         spell_id: i32,
@@ -317,8 +240,7 @@ impl WorldSession {
         represented_effect: RepresentedAuraEffectLikeCpp,
         duration_ms: u32,
     ) -> Result<(), &'static str> {
-        let slot = self
-            .next_player_visible_aura_slot_like_cpp()
+        let slot = wow_world_spell::next_player_visible_aura_slot_like_cpp(self)
             .ok_or("No free aura slots or missing Player aura owner")?;
 
         let aura = AuraApplication {
@@ -341,10 +263,11 @@ impl WorldSession {
             applied_at: Instant::now(),
         };
 
-        if !self.insert_player_visible_aura_like_cpp(aura) {
+        if !wow_world_spell::insert_player_visible_aura_like_cpp(self, aura) {
             return Err("Missing Player aura owner");
         }
-        self.send_aura_update_applied(
+        wow_world_spell::send_aura_update_applied(
+            self,
             spell_id,
             slot,
             caster_guid,
@@ -359,121 +282,6 @@ impl WorldSession {
     pub(crate) fn remove_aura(&mut self, slot: u8) -> Result<(), &'static str> {
         self.player_aura_application_cx_like_cpp()
             .remove_aura_like_cpp(slot)
-    }
-    pub(crate) fn remove_represented_auras_with_attribute0_like_cpp(
-        &mut self,
-        attribute: u32,
-    ) -> usize {
-        let Some(spell_store) = self.catalogs.spell_catalogs.spell_store.as_ref() else {
-            return 0;
-        };
-        let Some(visible_auras) =
-            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
-        else {
-            return 0;
-        };
-
-        let slots: Vec<u8> = visible_auras
-            .values()
-            .filter_map(|aura| {
-                spell_store
-                    .has_attribute0_like_cpp(aura.spell_id, attribute)
-                    .then_some(aura.slot)
-            })
-            .collect();
-
-        let removed = slots.len();
-        for slot in slots {
-            let _ = self.remove_aura(slot);
-        }
-        removed
-    }
-    pub(crate) fn remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp(
-        &mut self,
-    ) -> usize {
-        let represented_removed = self.remove_auras_with_interrupt_flags_like_cpp(
-            SPELL_AURA_INTERRUPT_FLAG_MOVING_OR_TURNING_LIKE_CPP,
-            0,
-        );
-        let canonical_removed = self
-            .core
-            .mutate_canonical_player_like_cpp(|player| {
-                player
-                    .unit_mut()
-                    .subsystems_mut()
-                    .auras
-                    .remove_interruptible_auras(
-                        SPELL_AURA_INTERRUPT_FLAG_MOVING_OR_TURNING_LIKE_CPP,
-                        0,
-                    )
-                    .len()
-            })
-            .unwrap_or(0);
-
-        represented_removed + canonical_removed
-    }
-    pub(crate) fn remove_auras_with_interrupt_flags_like_cpp(
-        &mut self,
-        flags: u32,
-        flags2: u32,
-    ) -> usize {
-        let Some(visible_auras) =
-            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
-        else {
-            return 0;
-        };
-        let slots: Vec<u8> = visible_auras
-            .values()
-            .filter(|aura| {
-                (flags != 0 && aura.aura_interrupt_flags & flags != 0)
-                    || (flags2 != 0 && aura.aura_interrupt_flags2 & flags2 != 0)
-            })
-            .map(|aura| aura.slot)
-            .collect();
-
-        let removed = slots.len();
-        for slot in slots {
-            let _ = self.remove_aura(slot);
-        }
-        removed
-    }
-    /// Check all active auras for expiry and remove those whose duration has elapsed.
-    /// Called from the synchronous tick loop (~every 200ms via creature_tick).
-    pub(crate) fn tick_auras(&mut self) {
-        // C++ `Creature::Update` owns creature aura lifetimes; this session
-        // expires the creature auras it applied through the same wall-clock
-        // sweep it uses for its own auras.
-        self.tick_represented_creature_auras_like_cpp();
-        let Some(visible_auras) =
-            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
-        else {
-            return;
-        };
-        if visible_auras.is_empty() {
-            return;
-        }
-
-        // Collect expired slots (avoid borrow conflict)
-        let expired: Vec<u8> = visible_auras
-            .values()
-            .filter(|a| {
-                // Permanent auras (duration_total == 0) never expire
-                a.duration_total > 0
-                    && a.applied_at.elapsed().as_millis() as u32 >= a.duration_total
-            })
-            .map(|a| a.slot)
-            .collect();
-
-        for slot in expired {
-            let spell_id = visible_auras.get(&slot).map(|a| a.spell_id).unwrap_or(0);
-            let _ = self.remove_aura(slot);
-            debug!(
-                account = self.core.account_id,
-                slot = slot,
-                spell_id = spell_id,
-                "Aura expired"
-            );
-        }
     }
 }
 

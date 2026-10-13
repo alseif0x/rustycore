@@ -30,7 +30,7 @@ impl PlayerMovementHostLikeCpp for WorldSession {
     }
 
     fn remove_auras_with_interrupt_flags_like_cpp(&mut self, flags: u32, flags2: u32) -> usize {
-        WorldSession::remove_auras_with_interrupt_flags_like_cpp(self, flags, flags2)
+        wow_world_spell::remove_auras_with_interrupt_flags_like_cpp(self, flags, flags2)
     }
 
     fn update_zone_represented_like_cpp(&mut self, new_zone: u32, new_area: u32) -> bool {

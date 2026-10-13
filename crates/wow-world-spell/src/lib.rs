@@ -2,6 +2,7 @@
 
 pub mod aura_effects;
 mod aura_rows;
+mod aura_session;
 pub mod login_spell_rules;
 pub mod melee_damage;
 pub mod melee_rules;
@@ -19,6 +20,21 @@ mod talent_session;
 mod test_support;
 
 pub use aura_rows::{CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp};
+pub use aura_session::{
+    AuraHostLikeCpp, apply_represented_mounted_aura_like_cpp,
+    apply_represented_provide_spell_focus_aura_like_cpp, insert_player_visible_aura_like_cpp,
+    load_represented_character_auras_like_cpp, next_player_visible_aura_slot_like_cpp,
+    remove_auras_with_interrupt_flags_like_cpp,
+    remove_indoor_outdoor_auras_for_current_position_represented_like_cpp,
+    remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp,
+    remove_represented_auras_due_to_spell_like_cpp,
+    remove_represented_mounted_auras_by_type_like_cpp, represented_player_aura_state_mask_like_cpp,
+    represented_unit_aura_state_mask_like_cpp, send_aura_update_applied, tick_auras,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use aura_session::{
+    SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP, represented_mount_aura_display_candidates_like_cpp,
+};
 pub use player_cast::PlayerCastPublicationPhaseLikeCpp;
 pub use profession::{
     DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP, MAX_PRIMARY_TRADE_SKILLS_CONFIG_LIKE_CPP,

@@ -169,7 +169,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         effect_rows: impl IntoIterator<Item = CharacterAuraEffectRowLikeCpp>,
         timediff_secs: u32,
     ) -> usize {
-        WorldSession::load_represented_character_auras_like_cpp(
+        wow_world_spell::load_represented_character_auras_like_cpp(
             self,
             aura_rows,
             effect_rows,

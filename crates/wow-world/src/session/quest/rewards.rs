@@ -48,7 +48,10 @@ impl WorldSession {
                 let Ok(source_spell_id) = i32::try_from(quest.source_spell_id) else {
                     continue;
                 };
-                learned += self.remove_represented_auras_due_to_spell_like_cpp(source_spell_id);
+                learned += wow_world_spell::remove_represented_auras_due_to_spell_like_cpp(
+                    self,
+                    source_spell_id,
+                );
                 continue;
             }
             for spell_id in self.represented_quest_rewarded_spell_triggers_like_cpp(quest) {

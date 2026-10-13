@@ -38,6 +38,8 @@ pub mod vehicle;
 pub mod void_storage;
 
 #[cfg(test)]
+mod aura_test_shims;
+#[cfg(test)]
 mod battle_pet_test_shims;
 #[cfg(test)]
 mod character_query_test_shims;

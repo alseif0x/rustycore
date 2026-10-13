@@ -203,7 +203,10 @@ impl WorldSession {
             if options & TELE_TO_SPELL_LIKE_CPP == 0 {
                 let _ = self.interrupt_non_melee_spells_for_far_teleport_like_cpp();
             }
-            let _ = self.remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp();
+            let _ =
+                wow_world_spell::remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp(
+                    self,
+                );
         }
 
         info!(

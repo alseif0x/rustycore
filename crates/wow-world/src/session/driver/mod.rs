@@ -174,7 +174,7 @@ impl WorldSession {
             );
             // Aura expiry tick every 4 ticks (~200ms) — always, regardless of owner.
             if self.world_entities.creature_tick_like_cpp() % 4 == 0 {
-                self.tick_auras();
+                wow_world_spell::tick_auras(self);
             }
             self.lifecycle.update_player_save_timer_like_cpp(diff_ms);
             self.revalidate_represented_tavern_resting_with_catalog_like_cpp(

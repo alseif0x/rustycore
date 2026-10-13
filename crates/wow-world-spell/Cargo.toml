@@ -10,6 +10,7 @@ publish = false
 test-fixtures = [
     "wow-spell-acquisition/test-fixtures",
     "wow-world-core/test-fixtures",
+    "wow-world-entities/test-fixtures",
 ]
 
 [dependencies]
@@ -27,6 +28,7 @@ wow-map = { workspace = true }
 wow-persistence = { workspace = true }
 wow-spell-acquisition = { workspace = true }
 wow-world-core = { workspace = true }
+wow-world-entities = { workspace = true }
 wow-world-lifecycle = { workspace = true }
 
 [dev-dependencies]

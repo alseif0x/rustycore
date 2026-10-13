@@ -220,7 +220,7 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
     }
 
     fn remove_represented_mounted_auras_by_type_like_cpp(&mut self) -> bool {
-        WorldSession::remove_represented_mounted_auras_by_type_like_cpp(self)
+        wow_world_spell::remove_represented_mounted_auras_by_type_like_cpp(self)
     }
 
     fn represented_meets_player_condition_id_like_cpp(&self, player_condition_id: u32) -> bool {

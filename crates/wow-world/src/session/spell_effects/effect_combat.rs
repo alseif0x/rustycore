@@ -237,9 +237,7 @@ impl WorldSession {
         } else if spell_id == DRAIN_SOUL_LIKE_CPP {
             // C++ `HasAuraState(AURA_STATE_WOUNDED_20_PERCENT)` reads the caster.
             let wounded = 1_u32 << (wow_entities::AURA_STATE_WOUNDED_20_PERCENT - 1);
-            if self
-                .represented_player_aura_state_mask_like_cpp()
-                .unwrap_or(0)
+            if wow_world_spell::represented_player_aura_state_mask_like_cpp(self).unwrap_or(0)
                 & wounded
                 != 0
             {
@@ -326,7 +324,7 @@ impl WorldSession {
         &self,
         target_guid: ObjectGuid,
     ) -> u32 {
-        self.represented_unit_aura_state_mask_like_cpp(target_guid)
+        wow_world_spell::represented_unit_aura_state_mask_like_cpp(self, target_guid)
     }
 
     /// The represented target's current health percentage: the session player's

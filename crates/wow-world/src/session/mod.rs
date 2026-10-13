@@ -352,6 +352,7 @@ use persistence_capabilities::loaded_character_power_snapshot_like_cpp;
 mod pet_dismissal;
 #[cfg(test)]
 pub(crate) use wow_world_core::session::CharacterPetStableRowLikeCpp;
+#[cfg(test)]
 pub(crate) use wow_world_lifecycle::adjusted_represented_pet_aura_remain_time_like_cpp;
 #[cfg(test)]
 pub(crate) use wow_world_lifecycle::{
@@ -359,6 +360,7 @@ pub(crate) use wow_world_lifecycle::{
     CharacterPetDeclinedNamesRowLikeCpp, CharacterPetSpellChargeRowLikeCpp,
     CharacterPetSpellCooldownRowLikeCpp, CharacterPetSpellRowLikeCpp,
 };
+#[cfg(test)]
 pub(crate) use wow_world_spell::{CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp};
 mod player_binding;
 use player_binding::PlayerIdentityBootstrapLikeCpp;
@@ -526,7 +528,9 @@ use std::sync::{
 };
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use rand::{Rng, seq::SliceRandom};
+use rand::Rng;
+#[cfg(test)]
+use rand::seq::SliceRandom;
 #[cfg(test)]
 use rand::{SeedableRng, rngs::StdRng};
 use tracing::{debug, info, warn};
@@ -949,11 +953,11 @@ pub use wow_entities::{RepresentedAuraEffectAmountLikeCpp, RepresentedAuraEffect
 pub(crate) use wow_world_core::session::AFLAG_NOCASTER_LIKE_CPP;
 
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP: u32 = 0x0000_0800;
-pub(crate) const SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP: u32 = 0x0000_0008;
-pub(crate) const SPELL_AURA_INTERRUPT_FLAG_MOVING_OR_TURNING_LIKE_CPP: u32 =
-    SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP | SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP;
 pub(crate) use wow_world_core::session::PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP;
+#[cfg(test)]
 pub(crate) use wow_world_entities::SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP;
+#[cfg(test)]
+pub(crate) use wow_world_spell::SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP;
 
 #[cfg(test)]
 #[path = "../../unit_tests/session_tests.rs"]

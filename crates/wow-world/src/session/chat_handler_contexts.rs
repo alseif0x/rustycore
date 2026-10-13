@@ -51,7 +51,7 @@ impl ChatHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
 
 impl SocialSessionHostLikeCpp for WorldSession {
     fn remove_auras_with_interrupt_flags_like_cpp(&mut self, flags: u32, flags2: u32) -> usize {
-        WorldSession::remove_auras_with_interrupt_flags_like_cpp(self, flags, flags2)
+        wow_world_spell::remove_auras_with_interrupt_flags_like_cpp(self, flags, flags2)
     }
 
     fn access_requirement_leader_has_achievement_like_cpp(&self, achievement_id: u32) -> bool {
