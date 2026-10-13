@@ -6613,9 +6613,9 @@ still fail as they must.
   (11 shim items, 10 adapter trait items, the two impls) with those two rows
   under the free function. The syntax-only check passes.
 - **Ceilings.** None raised. Tightened to live values:
-  - hotspot `session/mod.rs`: production 36,898 → 34,310, test 141,777
+  - hotspot `session/mod.rs`: production 36,898 → 34,311, test 141,777
     (unchanged: the scenarios name the moved test names by path), total
-    178,675 → 176,087;
+    178,675 → 176,088;
   - physical `session/mod.rs` 962 → 955;
   - new physical row `handlers/spell_effect_test_shims.rs` at 125.
 - **Warnings.** The warning sets (`--message-format=short` lines, compared
