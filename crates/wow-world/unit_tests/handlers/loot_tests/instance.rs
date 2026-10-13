@@ -49,9 +49,9 @@ async fn cancelled_after_runtime_apply_retains_multiviewer_fanout_and_corpse_lif
         player_guid: first_guid,
         free_for_all: false,
     };
-    let fanout = first
-        .prepare_durable_loot_item_fanout_like_cpp(&claim, context)
-        .expect("pre-COMMIT fanout route");
+    let fanout =
+        wow_world_loot_ops::prepare_durable_loot_item_fanout_like_cpp(&mut first, &claim, context)
+            .expect("pre-COMMIT fanout route");
     assert_eq!(fanout.precommit_snapshot.loot.players_looting.len(), 2);
 
     let runtime_inventory_applied = Arc::new(AtomicBool::new(true));

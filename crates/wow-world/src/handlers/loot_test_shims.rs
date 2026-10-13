@@ -14,11 +14,11 @@ pub(crate) use wow_entities::GameObjectLootSource;
 use wow_entities::Item;
 use wow_loot::LootConditionRowLikeCpp;
 pub(crate) use wow_packet::packets::loot::CreatureLoot;
-use wow_world_core::session::ItemValuationCatalogsLikeCpp;
 use wow_world_core::session::OwnedLootAuthorityLookupOutcomeLikeCpp;
-use wow_world_lifecycle::DurableLootItemFanoutLikeCpp;
+use wow_world_core::session::mailbox::ApplyLootMoneyLikeCppCommand;
 use wow_world_loot::RepresentedCreatureLootStateLikeCpp;
-use wow_world_loot::storage_plans::LootItemClaimCommitContextLikeCpp;
+pub(crate) use wow_world_loot::storage_plans::LootItemClaimCommitContextLikeCpp;
+use wow_world_loot_ops::LootHandlerHostLikeCpp;
 
 use crate::session::WorldSession;
 
@@ -36,7 +36,8 @@ pub(crate) use wow_loot::{
     mark_loot_item_looted_for_player_like_cpp,
 };
 pub(crate) use wow_loot::{
-    mark_loot_allowed_for_player_like_cpp, prepare_represented_shared_loot_generation_like_cpp,
+    loot_is_looted_like_cpp, mark_loot_allowed_for_player_like_cpp,
+    prepare_represented_shared_loot_generation_like_cpp,
     rebuild_represented_personal_loot_counts_like_cpp,
     rebuild_represented_personal_loot_counts_preserving_consumed_like_cpp,
 };
@@ -48,6 +49,7 @@ pub(crate) use wow_world_core::session::mailbox::{
     SyncGooberGameobjectStateAndRefreshLikeCppCommand,
 };
 pub(crate) use wow_world_core::session::state::hub_support::RepresentedLootPlayerContext;
+pub(crate) use wow_world_lifecycle::loot_delivery_contracts::loot_money_durable_outcome_like_cpp;
 pub(crate) use wow_world_lifecycle::loot_template_rules::ItemTemplateAddonLootMetadataLikeCpp;
 pub(crate) use wow_world_loot::{
     LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP, LOOT_SLOT_TYPE_ROLL_ONGOING_LIKE_CPP,
@@ -70,24 +72,6 @@ pub(crate) use wow_world_loot_ops::{
 };
 
 impl WorldSession {
-    pub(crate) fn creature_loot_release_values_for_viewer_like_cpp(
-        &self,
-        creature_guid: ObjectGuid,
-        viewer_guid: ObjectGuid,
-        viewer_has_pending_bind: bool,
-        authority: Option<&OwnedLootAuthority>,
-        update: wow_packet::packets::update::UnitDataValuesDeltaUpdate,
-    ) -> wow_packet::packets::update::UnitDataValuesDeltaUpdate {
-        wow_world_loot_ops::creature_loot_release_values_for_viewer_like_cpp(
-            self,
-            creature_guid,
-            viewer_guid,
-            viewer_has_pending_bind,
-            authority,
-            update,
-        )
-    }
-
     pub(crate) async fn ensure_represented_creature_kill_loot_like_cpp(
         &mut self,
         creature_guid: ObjectGuid,
@@ -146,47 +130,8 @@ impl WorldSession {
         .await
     }
 
-    pub(crate) async fn generate_represented_gameobject_chest_loot_with_template_money_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        player_guid: ObjectGuid,
-        source: GameObjectLootSource,
-        allowed_looters: &[ObjectGuid],
-        template_money: (u32, u32),
-    ) -> Option<CreatureLoot> {
-        wow_world_loot_ops::generate_represented_gameobject_chest_loot_with_template_money_like_cpp(
-            self,
-            gameobject_guid,
-            player_guid,
-            source,
-            allowed_looters,
-            template_money,
-        )
-        .await
-    }
-
     pub(crate) fn has_incomplete_quest_objective_for_item_like_cpp(&self, item_id: u32) -> bool {
         wow_world_loot_ops::has_incomplete_quest_objective_for_item_like_cpp(self, item_id)
-    }
-
-    pub(crate) fn install_represented_creature_kill_loot_if_current_like_cpp(
-        &mut self,
-        creature_guid: ObjectGuid,
-        expected_authority: &OwnedLootAuthority,
-        expected_object_generation: u64,
-        expected_loot_lifecycle_revision: u64,
-        shared: Option<CreatureLoot>,
-        personal: HashMap<ObjectGuid, CreatureLoot>,
-    ) -> bool {
-        wow_world_loot_ops::install_represented_creature_kill_loot_if_current_like_cpp(
-            self,
-            creature_guid,
-            expected_authority,
-            expected_object_generation,
-            expected_loot_lifecycle_revision,
-            shared,
-            personal,
-        )
     }
 
     pub(crate) fn item_loot_quest_status_allows_for_player_like_cpp(
@@ -216,22 +161,6 @@ impl WorldSession {
             item_id,
             needs_quest,
             addon_metadata,
-        )
-    }
-
-    pub(crate) fn mark_represented_master_loot_item_removed_like_cpp(
-        &mut self,
-        owner_guid: ObjectGuid,
-        loot_obj: ObjectGuid,
-        loot_list_id: u8,
-        target: ObjectGuid,
-    ) {
-        wow_world_loot_ops::mark_represented_master_loot_item_removed_like_cpp(
-            self,
-            owner_guid,
-            loot_obj,
-            loot_list_id,
-            target,
         )
     }
 
@@ -342,29 +271,6 @@ impl WorldSession {
         )
     }
 
-    pub(crate) fn upsert_represented_personal_gameobject_loot_authority_if_observed_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        player_guid: ObjectGuid,
-        loot: CreatureLoot,
-        replace: bool,
-        observation: &RepresentedGameObjectLootInstallObservationLikeCpp,
-    ) -> Option<()> {
-        wow_world_loot_ops::upsert_represented_personal_gameobject_loot_authority_if_observed_like_cpp(self, gameobject_guid, player_guid, loot, replace, observation)
-    }
-
-    pub(crate) fn upsert_represented_personal_gameobject_loot_authority_if_observed_with_empty_policy_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        player_guid: ObjectGuid,
-        loot: CreatureLoot,
-        replace: bool,
-        discard_empty_pool: bool,
-        observation: &RepresentedGameObjectLootInstallObservationLikeCpp,
-    ) -> Option<()> {
-        wow_world_loot_ops::upsert_represented_personal_gameobject_loot_authority_if_observed_with_empty_policy_like_cpp(self, gameobject_guid, player_guid, loot, replace, discard_empty_pool, observation)
-    }
-
     pub(crate) fn generate_loot_store_random_properties_with_rng_like_cpp<R: rand::Rng + ?Sized>(
         &self,
         item_id: u32,
@@ -416,14 +322,6 @@ impl WorldSession {
         wow_world_loot_ops::close_stale_active_loot_view_like_cpp(self, owner_guid, player_guid)
     }
 
-    pub(crate) fn prepare_durable_loot_item_fanout_like_cpp(
-        &mut self,
-        claim: &LootClaimLease,
-        context: LootItemClaimCommitContextLikeCpp,
-    ) -> Option<DurableLootItemFanoutLikeCpp> {
-        wow_world_loot_ops::prepare_durable_loot_item_fanout_like_cpp(self, claim, context)
-    }
-
     pub(crate) async fn represented_loot_response_for_owner_like_cpp(
         &mut self,
         owner_guid: ObjectGuid,
@@ -437,34 +335,6 @@ impl WorldSession {
             ae_looting,
         )
         .await
-    }
-
-    pub(crate) fn represented_notify_loot_item_removed_like_cpp(
-        &mut self,
-        owner_guid: ObjectGuid,
-        loot_list_id: u8,
-    ) {
-        wow_world_loot_ops::represented_notify_loot_item_removed_like_cpp(
-            self,
-            owner_guid,
-            loot_list_id,
-        )
-    }
-
-    pub(crate) fn represented_on_loot_opened_with_catalogs_like_cpp(
-        &mut self,
-        item_valuation: &ItemValuationCatalogsLikeCpp,
-        owner_guid: ObjectGuid,
-        player_guid: ObjectGuid,
-        response: LootResponse,
-    ) {
-        wow_world_loot_ops::represented_on_loot_opened_with_catalogs_like_cpp(
-            self,
-            item_valuation,
-            owner_guid,
-            player_guid,
-            response,
-        )
     }
 
     pub(crate) fn send_loot_item_push_result(
@@ -493,40 +363,6 @@ impl WorldSession {
             created,
             dungeon_encounter_id,
         )
-    }
-
-    pub(crate) async fn store_direct_disenchant_batch_with_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        loot_entries: &[LootEntry],
-        dungeon_encounter_id: u32,
-        claim: Option<&LootClaimLease>,
-        claim_commit_context: Option<LootItemClaimCommitContextLikeCpp>,
-    ) -> bool {
-        wow_world_loot_ops::store_direct_disenchant_batch_with_generator_like_cpp(
-            self,
-            item_guid_generator,
-            loot_entries,
-            dungeon_encounter_id,
-            claim,
-            claim_commit_context,
-        )
-        .await
-    }
-
-    pub(crate) async fn store_direct_loot_item_with_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        loot_entry: &LootEntry,
-        dungeon_encounter_id: u32,
-    ) -> bool {
-        wow_world_loot_ops::store_direct_loot_item_with_generator_like_cpp(
-            self,
-            item_guid_generator,
-            loot_entry,
-            dungeon_encounter_id,
-        )
-        .await
     }
 
     pub(crate) fn stored_existing_item_dynamic_flags_like_cpp(
@@ -568,5 +404,38 @@ impl WorldSession {
             claim,
         )
         .await
+    }
+}
+
+// #1363 slice 5c: the two `CMSG_LOOT_MONEY`/apply-loot-money test entry points
+// that lived beside the moved `handlers/loot/handlers/money.rs` body.
+impl WorldSession {
+    /// Test entry point for `CMSG_LOOT_MONEY`. It dispatches through the
+    /// **production registration** (`PacketHandlerEntry` for
+    /// `ClientOpcodes::LootMoney`) instead of re-implementing the body, so every
+    /// caller exercises the registered consumer and the application-owned
+    /// operation dependencies it now reaches (#1263 F4).
+    pub(crate) async fn handle_loot_money(&mut self, pkt: wow_packet::WorldPacket) {
+        let mut catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
+        catalogs.id_generators = std::sync::Arc::new(self.id_generators_for_test_like_cpp());
+        let entry = crate::session::registry::registered_handler_entries_like_cpp()
+            .find(|entry| entry.opcode == ClientOpcodes::LootMoney)
+            .expect("registered loot money handler");
+        (entry.handler)(self, &catalogs, pkt).await;
+    }
+
+    /// Test-only receiver entry point. The receiver itself now lives in the
+    /// application loot owner; this shim only supplies the session generator
+    /// bundle the pre-move entry point built, and has three test callers.
+    pub(crate) async fn handle_apply_loot_money_like_cpp_command(
+        &mut self,
+        command: ApplyLootMoneyLikeCppCommand,
+    ) {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.handle_apply_loot_money_with_generator_like_cpp_command(
+            generators.item.as_ref(),
+            command,
+        )
+        .await;
     }
 }

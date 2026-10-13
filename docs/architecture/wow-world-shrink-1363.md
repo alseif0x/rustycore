@@ -3066,3 +3066,176 @@ same trait.
 `VALIDATION_V2_TIMEOUT_SECONDS=1800`) runs on the committed head that
 includes this section. Its manifest path, dirty flag and duration are in
 the PR body. This section is not edited after that run.
+
+## Slice 5c result (loot money paths and command receivers → `wow-world-loot-ops`)
+
+Branch `1363-s5c-loot`, base `20a836de5` (5b merged). Move-only (R2), with
+the 5a/5b rewrites. Gold mutation order, the money-removed notifications,
+the split and share math, the master-loot and roll-vote packet order, kicks,
+the persistence and save ordering (#169), registrations and processing
+flags are unchanged. No registrar moves.
+
+### Re-measure
+
+On `20a836de5` the 5c scope is 961 lines: `money.rs` 67,
+`handlers/money.rs` 516 (including two nested `cfg(test)` entry points the
+classifier counts as production) and `handlers.rs` 379, of which 205 are
+the three loot receivers and 172 are the two non-loot receivers.
+
+### What moved
+
+- **To `wow-world-loot-ops/src/session_loot/`** (module layout as in
+  `handlers/loot`). Five functions moved:
+  - `money.rs`: the durable loot-money payout
+    (`apply_durable_represented_loot_money_payout_like_cpp`);
+  - `handlers/money.rs`: the `CMSG_LOOT_MONEY` body (C++
+    `LootHandler.cpp:142` `HandleLootMoneyOpcode`), with its authority,
+    stored-item and legacy fixture paths;
+  - `handlers.rs`: the roll-vote, master-loot give and roll winner store
+    session-command receivers.
+
+  All five are `pub` and re-exported. The `CMSG_LOOT_MONEY` registration
+  stays in `loot_handlers`; the World `loot_host.rs` adapter forwards it,
+  and the durable payout, to the free functions. `session_commands.rs`
+  calls the three receivers as free functions.
+- **Stays in `wow-world`:**
+  - the creature loot-release VALUES and creature melee-damage receivers in
+    `handlers.rs`. They are not loot; they go with slice 7;
+  - the F5 adapters, the release context builder, the fixture predicate,
+    `combat_commands.rs` and `visibility_commands.rs`.
+- **Retired.** `handlers/loot/storage_plans.rs`, a re-export module whose
+  last reader moved. The scenarios now take `LootItemClaimCommitContextLikeCpp`
+  from the test shims. The `loot_money_durable_outcome_like_cpp`
+  re-export in `session/mod.rs` also lost its last production reader, and
+  the scenarios now name it through the test shims.
+
+### Rewrites
+
+The 5b set: `self.` becomes `host.`, a field becomes a host accessor, and a
+call to a moved function becomes a free call. One `LootCxRef` helper is
+inlined over the host: `cx_loot_ref(self).durable_loot_money_persistence_tracker_like_cpp()`
+becomes `Arc::clone(host.lifecycle().durable_loot_money_persistence_tracker_like_cpp())`,
+which is the helper's body. The World helper stays for its other callers.
+`crate::session::` paths to the lifecycle types name `wow_world_lifecycle`.
+
+A normalised token comparison of the moved bodies against the base,
+with these rewrites applied, finds no other difference beyond rustfmt
+trailing commas. There were no `cfg(test)` steps in the moved bodies. The
+two `cfg(test)` entry points (`handle_loot_money`,
+`handle_apply_loot_money_like_cpp_command`) dispatch through the
+registration and the default method, so they moved unchanged.
+
+### Host surface
+
+- **`LootSessionHostLikeCpp`**: 66 methods, 230 lines (5b: 61 methods,
+  196 lines). Five added:
+  - four forward by UFCS to the loot handler owner's default methods:
+    the apply-loot-money receiver, the money recipient selection, the
+    group loot-money persistence worker and the stored-item money
+    persistence;
+  - one forwards to the World exclusive gold coordinator
+    (`mutate_and_persist_player_gold_exclusive_like_cpp`).
+- **Adapter** `handlers/loot/session_loot_host.rs`: 389 lines (5b: 342).
+- **Recursion check.** The four UFCS forwards name
+  `<Self as LootHandlerHostLikeCpp<…>>::…`, whose default bodies call
+  `loot_handlers::money` and `wow_world_lifecycle` free functions. The gold
+  forward resolves to the inherent method. The moved `CMSG_LOOT_MONEY` body
+  awaits the apply receiver, whose default body reaches the moved payout
+  through `loot_money_apply_durable_payout_like_cpp`. Neither calls back
+  into the `CMSG_LOOT_MONEY` body.
+- **Budget.** +34 trait lines and +47 adapter lines (81) against 760 moved
+  lines: 10.7 %. The whole 5a–5c host is 619 lines against about 8,210
+  moved lines: 7.5 %.
+
+### `loot_test_shims.rs` ratchet (#1381 follow-up 1)
+
+- **Ceiling.** `crates/wow-world/src/handlers/loot_test_shims.rs` now has a
+  physical-file ceiling at its live size, 441 lines. It is mounted
+  `cfg(test)` outside the loot hotspot tree, so the hotspot cannot guard it.
+- **Growth from the move (+39).** The two `cfg(test)` money entry points
+  from the moved file, and the re-exports the World loot module no longer
+  imports (`loot_is_looted_like_cpp`, `LootItemClaimCommitContextLikeCpp`,
+  `loot_money_durable_outcome_like_cpp`).
+- **Retirement (−170).** Eleven single-caller method shims are retired. Their
+  scenario call sites now call `wow_world_loot_ops::…(&mut session, …)`.
+  Each conversion was measured on its own, and only the set that keeps the
+  loot test lines at 18,929 was kept. The retired shims are the creature
+  loot-release VALUES, the gameobject chest generation, the kill-loot
+  install, the durable fanout preparation, the item-removed notification,
+  the two personal-gameobject upserts, the master-loot removal, the
+  loot-opened publication and the two direct stores.
+- **Result.** 572 → 441 lines. The other converted call sites would each add
+  one to six test lines, so they stay for a reviewed test-ceiling change.
+
+### Accounting
+
+- **`crates/wow-world/src`.** −1,007 / +108. Classifier: 76,402 →
+  **75,503 production (−899)**, 79,856 → 78,957 physical, 507 → 504 files.
+- **Destinations.** `wow-world-loot-ops/src` 12,244 → 13,063 (+819). The
+  three moved files are 760 lines; the rest is the trait (+34), the
+  imports and the exports.
+- **`net_move.py check`.** S = 899, G = 819 ≤ 1,905.0, 0 duplicate bodies,
+  PASS.
+- **Edges.** None added or removed. The closure check passes in lock and
+  metadata mode.
+- **`session-ownership-policy.json`** is reprinted with `print-baseline`.
+  The delta is the moved impl items, the test-shim impl items and one
+  `test_only.rs` signature that now names the mailbox path of
+  `MasterLootGiveResult`. The syntax-only check passes.
+- **Ceilings.** None raised. Tightened to live values:
+  - hotspot `handlers/loot/mod.rs`: production 2,413 → 1,643, test 18,929
+    unchanged, total 21,342 → 20,572;
+  - hotspot `session/mod.rs`: production 42,602 → 42,601, total 184,644 →
+    184,643;
+  - physical `handlers/loot/handlers.rs` 379 → 171;
+  - new physical row `handlers/loot_test_shims.rs` at 441.
+- **Warnings.** The warning sets of the production lib, the lib with
+  `test-fixtures` and the lib plus lib-test build are identical to base:
+  171, 243 and 426 lines, `wow-world` `dead_code` 0 in all three.
+- **Tests.** No `#[test]`, `#[ignore]` or assertion is added, removed or
+  changed, so the test-name multiset is unchanged. The 393 wow-world tests
+  matching `loot` or `money` pass.
+
+### C++ comparison
+
+`HandleLootMoneyOpcode` (`LootHandler.cpp:142-214`) was read only to confirm
+that the move preserved the existing Rust behaviour. Its known divergences
+are already recorded as `#LegacyAudit.LOOT.3`
+(`docs/audits/cpp-parity-findings.md`): `MoneyMod` is always 0 because
+`SPELL_AURA_MOD_MONEY_GAIN` is not applied, and the
+`MoneyLootedFromCreatures` criteria is not updated. No new divergence was
+found, and nothing was changed.
+
+### Slice 5 summary (5a–5c)
+
+- **Out of `wow-world`.** 7,407 production lines: 5a −3,277, 5b −3,231 and
+  5c −899. Production fell from 79,633 + 3,277 = 82,910 to 75,503.
+  - The loot hotspot production fell from 9,464 to 1,643.
+  - `wow-world-loot-ops` grew from 4,449 to 13,063 lines.
+  - `wow-world-loot` gained the session-free response and roll values.
+- **Loot still in `wow-world`, and why.**
+  - The F5 adapters `loot_host.rs` (370) and `session_loot_host.rs` (389)
+    implement the host traits for `WorldSession`.
+  - The loot-release context builder `claims/release.rs` (60) needs every
+    disjoint session field.
+  - The fixture predicate is the World crate's `cfg!(test)`.
+  - The test-shim mounts in the module shells are `cfg(test)`, as are
+    `handlers/test_shims.rs` and the `sources` entry points.
+  - `loot_test_shims.rs` (441) holds the remaining method shims and
+    re-exports.
+- **Not loot, still in the tree.** `combat_commands.rs`,
+  `visibility_commands.rs` and the two receivers in `handlers.rs` go with
+  slices 7 and 11.
+
+### Follow-ups
+
+- Retire the rest of `loot_test_shims.rs` in a slice that reviews the loot
+  test ceiling, since each remaining conversion adds test lines.
+- Move the two non-loot receivers in `handlers.rs` with slice 7.
+
+### Validation
+
+`final --architecture --timings` (`VALIDATION_V2_CARGO_JOBS=1`,
+`VALIDATION_V2_TIMEOUT_SECONDS=1800`) runs on the committed head that
+includes this section. Its manifest path, dirty flag and duration are in
+the PR body. This section is not edited after that run.

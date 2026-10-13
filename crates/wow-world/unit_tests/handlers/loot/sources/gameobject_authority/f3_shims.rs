@@ -25,7 +25,7 @@ impl WorldSession {
     ) -> Option<()> {
         let observation =
             represented_gameobject_loot_install_observation_like_cpp(self, gameobject_guid)?;
-        self.upsert_represented_personal_gameobject_loot_authority_if_observed_like_cpp(
+        wow_world_loot_ops::upsert_represented_personal_gameobject_loot_authority_if_observed_like_cpp(self,
             gameobject_guid,
             player_guid,
             loot,

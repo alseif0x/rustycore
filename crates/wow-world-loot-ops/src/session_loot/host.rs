@@ -2,7 +2,7 @@
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! The World operations the moved loot-source bodies still call (#1363 slice 5a).
+//! The World operations the moved loot bodies still call (#1363 slices 5a-5c).
 //!
 //! C++ runs these bodies on the Player and its Map (`Loot::FillLoot`,
 //! `Unit::Kill`, `GameObject::Use`, `LootHandler.cpp`). Their Rust bodies now
@@ -14,6 +14,7 @@
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use wow_constants::{InventoryResult, ItemContext};
 use wow_core::ObjectGuid;
@@ -22,16 +23,21 @@ use wow_entities::{
     Item, ItemObjectUpdateLikeCpp, ItemPosCount, ItemStorageTemplate,
     PlayerInventoryItem as InventoryItem, PlayerQuestGameplayState, PlayerValuesUpdate,
 };
-use wow_loot::LootStores;
+use wow_loot::{LootClaimLease, LootStores};
 use wow_social::group::GroupRegistry;
 use wow_world_core::session::directory::PlayerRegistry;
-use wow_world_core::session::mailbox::SessionCommand;
+use wow_world_core::session::mailbox::{ApplyLootMoneyLikeCppCommand, SessionCommand};
 use wow_world_core::session::{HubMut, HubRef};
 use wow_world_core::session_policy::LootDropRatesLikeCpp;
 use wow_world_entities::WorldEntitiesHostLikeCpp;
 use wow_world_inventory::InventoryState;
+use wow_world_lifecycle::loot_delivery_contracts::{
+    LootMoneyDeliveryAddressLikeCpp, LootMoneyViewerFanoutLikeCpp,
+};
+use wow_world_lifecycle::loot_money_persistence::LootMoneyPersistenceWorkerHandleLikeCpp;
 use wow_world_lifecycle::{
-    DurableItemLootCompletionLikeCpp, DurableItemLootPersistenceGuardLikeCpp, SessionLifecycleState,
+    DurableItemLootCompletionLikeCpp, DurableItemLootPersistenceGuardLikeCpp,
+    LootMoneyPersistenceErrorLikeCpp, SessionLifecycleState,
 };
 use wow_world_loot::LootState;
 use wow_world_quest::{
@@ -193,4 +199,32 @@ pub trait LootSessionHostLikeCpp: WorldEntitiesHostLikeCpp {
     fn sync_player_registry_state_like_cpp(&self);
     fn take_durable_item_loot_completions_like_cpp(&self) -> Vec<DurableItemLootCompletionLikeCpp>;
     fn wait_for_durable_item_loot_persistence_like_cpp(&self) -> impl Future<Output = ()> + Send;
+    // #1363 slice 5c: what the moved money paths call. The first four are the
+    // loot handler owner's default methods (`LootHandlerHostLikeCpp`).
+    fn handle_apply_loot_money_with_generator_like_cpp_command<'a>(
+        &'a mut self,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+        command: ApplyLootMoneyLikeCppCommand,
+    ) -> impl Future<Output = ()> + Send + 'a;
+    fn represented_loot_money_recipients_like_cpp(&self, loot_guid: ObjectGuid) -> Vec<ObjectGuid>;
+    fn spawn_group_loot_money_persistence_like_cpp(
+        &self,
+        payouts: Vec<(ObjectGuid, u64)>,
+        claim: LootClaimLease,
+        deliveries: Vec<(LootMoneyDeliveryAddressLikeCpp, SessionCommand)>,
+        authority_committed: Arc<AtomicBool>,
+        viewer_fanout: LootMoneyViewerFanoutLikeCpp,
+    ) -> Result<LootMoneyPersistenceWorkerHandleLikeCpp, LootMoneyPersistenceErrorLikeCpp>;
+    #[allow(clippy::type_complexity)]
+    fn persist_and_consume_stored_item_money_like_cpp(
+        &self,
+        item_guid: ObjectGuid,
+        cached_notified_amount: u64,
+    ) -> impl Future<Output = Option<(Arc<AtomicBool>, Arc<AtomicBool>, u64, u64)>> + Send;
+    fn mutate_and_persist_player_gold_exclusive_like_cpp<F>(
+        &mut self,
+        mutation: F,
+    ) -> impl Future<Output = Option<(u64, u64)>> + Send
+    where
+        F: FnOnce(u64) -> u64 + Send;
 }

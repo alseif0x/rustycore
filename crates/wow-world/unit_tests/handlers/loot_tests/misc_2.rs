@@ -88,8 +88,7 @@ fn personal_fishing_hole_restock_accepts_second_lifecycle_and_rejects_old_observ
     stale_pool.allowed_looters = vec![second];
     stale_pool.items[0].allowed_looters = vec![second];
     assert!(
-        session
-            .upsert_represented_personal_gameobject_loot_authority_if_observed_like_cpp(
+        wow_world_loot_ops::upsert_represented_personal_gameobject_loot_authority_if_observed_like_cpp(&mut session,
                 owner_guid,
                 second,
                 stale_pool.clone(),

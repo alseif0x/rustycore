@@ -309,7 +309,6 @@ pub(crate) use loot_delivery_contracts::DurableLootItemFanoutLikeCpp;
 pub(crate) use loot_delivery_contracts::LootMoneyDeliveryAddressLikeCpp;
 pub(crate) use loot_delivery_contracts::LootMoneyViewerFanoutLikeCpp;
 pub(crate) use loot_delivery_contracts::RepresentedLootRollVote;
-pub(crate) use loot_delivery_contracts::loot_money_durable_outcome_like_cpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use wow_world_loot::RepresentedLootRollCriteriaEvent;
 pub(crate) use wow_world_loot::RepresentedLootRollState;

@@ -591,16 +591,15 @@ fn stale_kill_generator_cannot_install_after_creature_lifecycle_aba_like_cpp() {
         });
 
     assert!(
-        !fixture
-            .session
-            .install_represented_creature_kill_loot_if_current_like_cpp(
-                fixture.owner_guid,
-                &authority,
-                expected_generation,
-                expected_revision,
-                None,
-                HashMap::from([(fixture.first_tapper, stale_pool)]),
-            )
+        !wow_world_loot_ops::install_represented_creature_kill_loot_if_current_like_cpp(
+            &mut fixture.session,
+            fixture.owner_guid,
+            &authority,
+            expected_generation,
+            expected_revision,
+            None,
+            HashMap::from([(fixture.first_tapper, stale_pool)]),
+        )
     );
     assert!(authority.is_retired_like_cpp());
     assert!(

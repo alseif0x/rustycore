@@ -10,8 +10,6 @@
 //! dispatcher arm are unchanged; this module keeps the shared constants,
 //! helper types and free functions the features build on.
 
-use wow_loot::loot_is_looted_like_cpp;
-
 #[cfg(test)]
 use wow_loot::ROLL_FLAG_TYPE_NEED_LIKE_CPP;
 
@@ -21,34 +19,24 @@ mod combat_commands;
 mod fanout;
 mod handlers;
 mod loot_host;
-mod money;
 mod persistence;
 mod requests;
 mod session_loot_host;
 mod sources;
-mod storage_plans;
 mod visibility_commands;
 
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, AtomicU64, Ordering},
-};
+use std::sync::atomic::AtomicBool;
 
-use tracing::{debug, warn};
-
-use crate::session::directory::PrepareLootMoneyApplicationLikeCpp;
 use crate::session::mailbox::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyLootMoneyLikeCppCommand,
-    ApplyLootMoneyResultLikeCpp, CreatureAttackStartLikeCppCommand,
-    CreatureAttackStopLikeCppCommand, LootRollStoreWinnerCommand, LootRollVoteCommand,
-    MasterLootGiveCommand, MasterLootGiveResult, ReconcilePvpCombatExpiryLikeCppCommand,
-    RefreshVisibleWorldCreaturesLikeCppCommand, SendAddonIfRegisteredLikeCppCommand,
-    SendCreatureLootReleaseValuesUpdateLikeCppCommand,
+    CreatureAttackStartLikeCppCommand, CreatureAttackStopLikeCppCommand,
+    ReconcilePvpCombatExpiryLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
+    SendAddonIfRegisteredLikeCppCommand, SendCreatureLootReleaseValuesUpdateLikeCppCommand,
     SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand, SessionCommand,
 };
 use wow_constants::{InventoryResult, ItemContext};
 use wow_core::ObjectGuid;
-use wow_entities::{ItemPosCount, MAX_MONEY_AMOUNT};
+use wow_entities::ItemPosCount;
 
 // Test-only represented GameObject/decay constants; production paths read the
 // same values through their own imports.
@@ -61,11 +49,6 @@ use wow_world_core::session::OwnedLootAuthorityLookupOutcomeLikeCpp;
 #[cfg(test)]
 use wow_world_core::session::looted_corpse_decay_secs_like_cpp;
 
-use wow_loot::LootClaimPayload;
-use wow_packet::ServerPacket;
-use wow_packet::packets::loot::{
-    LOOT_ERROR_MASTER_OTHER_LIKE_CPP, LootMoney, LootMoneyNotify, LootRoll, SLootRelease,
-};
 use wow_packet::packets::update::UpdateObject;
 #[cfg(test)]
 use wow_persistence::{
@@ -76,10 +59,8 @@ use wow_persistence::{
 
 use crate::session::{
     DurableItemLootCompletionLikeCpp, DurableItemLootPersistenceGuardLikeCpp, InventoryItem,
-    ItemValuationCatalogsLikeCpp, LootMoneyDeliveryAddressLikeCpp, LootMoneyViewerFanoutLikeCpp,
-    RepresentedQuestObjectiveProgressEventLikeCpp, WorldSession,
+    LootMoneyDeliveryAddressLikeCpp, LootMoneyViewerFanoutLikeCpp, WorldSession,
 };
-use storage_plans::LootItemClaimCommitContextLikeCpp;
 #[cfg(test)]
 const ROLL_ALL_TYPE_NO_DISENCHANT_LIKE_CPP: u8 = 0x07;
 #[cfg(test)]

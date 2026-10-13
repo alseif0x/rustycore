@@ -45,6 +45,7 @@ pub use session_loot::{
 };
 pub use session_loot::{
     LootSessionHostLikeCpp, RepresentedGameObjectLootInstallObservationLikeCpp,
+    apply_durable_represented_loot_money_payout_like_cpp,
     apply_pending_durable_item_loot_completions_with_generator_like_cpp,
     apply_pending_durable_item_loot_completions_with_objective_drain_like_cpp,
     creature_loot_release_values_for_viewer_like_cpp, destroy_fully_looted_direct_item,
@@ -55,6 +56,10 @@ pub use session_loot::{
     generate_represented_creature_loot_like_cpp,
     generate_represented_disenchant_loot_template_entries_like_cpp,
     generate_represented_gameobject_chest_loot_with_template_money_like_cpp,
+    handle_loot_money_with_generator_like_cpp,
+    handle_represented_loot_roll_store_winner_command_with_generator_like_cpp,
+    handle_represented_loot_roll_vote_command_with_generator_like_cpp,
+    handle_represented_master_loot_give_command_with_generator_like_cpp,
     handle_sync_chest_gameobject_state_and_refresh_like_cpp,
     handle_sync_gathering_node_gameobject_state_and_refresh_like_cpp,
     handle_sync_goober_gameobject_state_and_refresh_like_cpp,
