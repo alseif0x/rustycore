@@ -2,10 +2,10 @@
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Test-only method entry points for the loot-source bodies moved to
-//! `wow_world_loot_ops` (#1363 slice 5a). Each forwards to the moved body with
-//! this session as its host, so the loot unit tests keep their method syntax
-//! and the loot hotspot's test lines do not grow.
+//! Test-only entry points for the loot bodies moved to `wow_world_loot_ops` (#1363 5a-5c);
+//! each forwards with this session as host, outside the loot hotspot's test lines.
+
+#![cfg(test)]
 
 use std::collections::HashMap;
 
