@@ -55,31 +55,6 @@ impl WorldSession {
             Player::clear_skill_tombstones_for_identity_change_like_cpp,
         );
     }
-    #[cfg(test)]
-    pub(in crate::session) fn fixture_clear_player_skill_tombstones_like_cpp(&mut self) {
-        let Some(records) = crate::session::hub_ref(self).resolved_player_skill_records_like_cpp()
-        else {
-            return;
-        };
-        let Some(loaded) = ({
-            let (s, h) = crate::session::split_lifecycle_ref(self);
-            s.resolved_player_skill_records_loaded_like_cpp(h)
-        }) else {
-            return;
-        };
-        let complete = crate::session::hub_ref(self)
-            .complete_player_skill_records_like_cpp()
-            .is_some();
-        let occupied =
-            crate::session::hub_ref(self).complete_player_skill_occupied_slots_like_cpp();
-        let _ = self.replace_player_skill_runtime_exact_like_cpp(
-            records,
-            loaded,
-            complete,
-            occupied,
-            BTreeSet::new(),
-        );
-    }
 }
 
 #[cfg(test)]

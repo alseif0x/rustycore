@@ -37,24 +37,6 @@ impl WorldSession {
     ) {
         self.catalogs.reputation_spillover_template_store = Some(store);
     }
-    #[cfg(test)]
-    pub(crate) fn apply_represented_first_login_reputation_like_cpp(&mut self) -> usize {
-        let player_bootstrap = self.player_bootstrap_catalogs_for_test_like_cpp();
-        crate::session::hub_mut(self)
-            .apply_represented_first_login_reputation_with_catalogs_like_cpp(&player_bootstrap)
-    }
-    #[cfg(test)]
-    pub(crate) async fn reputation_changed_like_cpp(&mut self, faction_id: u32, change: i32) {
-        self.quest_state
-            .enqueue_represented_quest_objective_progress_like_cpp(
-                RepresentedQuestObjectiveProgressEventLikeCpp::ReputationChanged {
-                    faction_id,
-                    change,
-                },
-            );
-        self.drain_represented_quest_objective_progress_like_cpp()
-            .await;
-    }
 }
 
 #[cfg(test)]

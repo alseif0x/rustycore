@@ -190,7 +190,7 @@ impl WorldSession {
         })
         .unwrap_or(0.0)
     }
-    pub(in crate::session) fn update_represented_online_xp_rest_bonus_with_policy_like_cpp(
+    pub(crate) fn update_represented_online_xp_rest_bonus_with_policy_like_cpp(
         &mut self,
         policy: &PlayerRestRatePolicyLikeCpp,
         now_secs: u64,
@@ -223,7 +223,7 @@ impl WorldSession {
             update_roll_passed,
         );
     }
-    pub(in crate::session) fn tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp(
+    pub(crate) fn tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp(
         &mut self,
         policy: &PlayerRestRatePolicyLikeCpp,
         now_secs: u64,
@@ -238,7 +238,7 @@ impl WorldSession {
             crate::session::hub_ref(self).send_represented_rest_info_update_like_cpp(nested_mask);
         }
     }
-    pub(in crate::session) fn revalidate_represented_tavern_resting_with_catalog_like_cpp(
+    pub(crate) fn revalidate_represented_tavern_resting_with_catalog_like_cpp(
         &mut self,
         area_trigger_db2_store: &AreaTriggerDb2Store,
     ) {

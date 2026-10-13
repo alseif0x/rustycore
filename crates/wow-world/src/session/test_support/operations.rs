@@ -223,7 +223,7 @@ impl WorldSession {
             .set_loot_money_persistence_test_result_like_cpp(None);
     }
     #[cfg(test)]
-    pub(in crate::session) fn fixture_set_xp_rest_bonus_like_cpp(&mut self, rest_bonus: f32) -> u8 {
+    pub(crate) fn fixture_set_xp_rest_bonus_like_cpp(&mut self, rest_bonus: f32) -> u8 {
         let wow_world_core::session::state::SessionFixtures {
             identity,
             progression,

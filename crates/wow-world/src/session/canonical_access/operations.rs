@@ -6,7 +6,7 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::session) fn with_owned_player_mut_for_rest_like_cpp<R>(
+    pub(crate) fn with_owned_player_mut_for_rest_like_cpp<R>(
         &self,
         f: impl FnOnce(&mut Player) -> R,
     ) -> Option<R> {
