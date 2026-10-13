@@ -13,24 +13,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.search_spell_focus_like_cpp(hub, focus_id)
     }
-    pub(crate) fn mark_represented_character_spell_charges_loaded_like_cpp(&mut self) {
-        let (state, mut hub) = crate::session::split_spell_state_mut(self);
-        state.mark_represented_character_spell_charges_loaded_like_cpp(&mut hub)
-    }
-    pub(crate) fn record_loaded_character_spell_charge_like_cpp(
-        &mut self,
-        category_id: u32,
-        recharge_start_unix_secs: i64,
-        recharge_end_unix_secs: i64,
-    ) {
-        let (state, mut hub) = crate::session::split_spell_state_mut(self);
-        state.record_loaded_character_spell_charge_like_cpp(
-            &mut hub,
-            category_id,
-            recharge_start_unix_secs,
-            recharge_end_unix_secs,
-        )
-    }
     /// Install the complete process-wide C++ script binding audit.
     ///
     /// Positive and negative `spell_script_names` rows remain separate: a

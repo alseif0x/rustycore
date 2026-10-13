@@ -8,14 +8,19 @@ publish = false
 
 [features]
 # The login-load entry points the World scenarios reach through their
-# `#![cfg(test)]` shim file (#1363 slice 8d).
-test-fixtures = []
+# `#![cfg(test)]` shim file (#1363 slice 8d). Inventory's fixtures follow this
+# feature, and the dev-dependency below turns them on for character's own test
+# build, so `cargo check -p wow-world-character -p wow-world-spell --all-targets`
+# (which unifies `wow-world-core/test-fixtures` through spell) also builds
+# inventory with its fixtures (#1389 review follow-up 1).
+test-fixtures = ["wow-world-inventory/test-fixtures"]
 
 [dependencies]
 flume = { workspace = true }
 num-traits = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+wow-conditions = { workspace = true }
 wow-config = { workspace = true }
 wow-constants = { workspace = true }
 wow-core = { workspace = true }
@@ -28,11 +33,15 @@ wow-persistence = { workspace = true }
 wow-progression = { workspace = true }
 wow-world-core = { workspace = true }
 wow-world-entities = { workspace = true }
+wow-world-interaction = { workspace = true }
 wow-world-inventory = { workspace = true }
 wow-world-lifecycle = { workspace = true }
 wow-world-loot = { workspace = true }
 wow-world-spell = { workspace = true }
 wow-world-visibility = { workspace = true }
+
+[dev-dependencies]
+wow-world-inventory = { workspace = true, features = ["test-fixtures"] }
 
 [lints]
 workspace = true

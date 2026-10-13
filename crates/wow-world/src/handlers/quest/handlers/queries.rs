@@ -86,9 +86,9 @@ impl WorldSession {
         };
 
         if (access.npc_flags & NPCFlags1::GOSSIP.bits()) != 0
-            && let Some(msg) = self
-                .build_gossip_menu(access.entry, access.npc_flags, guid)
-                .await
+            && let Some(msg) =
+                wow_world_character::build_gossip_menu(self, access.entry, access.npc_flags, guid)
+                    .await
         {
             debug!(
                 account = self.core.account_id,
@@ -99,7 +99,8 @@ impl WorldSession {
             return;
         }
 
-        if self.send_represented_creature_trainer_gossip_menu_like_cpp(
+        if wow_world_character::send_represented_creature_trainer_gossip_menu_like_cpp(
+            self,
             guid,
             access.entry,
             access.npc_flags,

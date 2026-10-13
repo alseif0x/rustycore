@@ -3,7 +3,8 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! The World adapter of the character login host (#1363 slice 8d). Every
+//! The World adapter of the character login host (#1363 slice 8d; the login
+//! data and gossip operations since slice 8e). Every
 //! method names the inherent `WorldSession` operation by path, so none
 //! resolves to its own trait method; a future is the session's own future,
 //! returned unchanged.
@@ -11,6 +12,9 @@
 use wow_data::TalentTabStore;
 use wow_entities::{PhaseShift, PlayerCurrency, PlayerEnchantTimeUpdate, PlayerItemTimeUpdate};
 use wow_world_core::session::{HubMut, HubRef, SessionState};
+use wow_world_interaction::InteractionState;
+
+use crate::session::GossipOptionInfo;
 use wow_world_lifecycle::{
     FinalizationMode, FinalizationOutcome, FinalizationReport, SessionLifecycleState,
 };
@@ -33,11 +37,17 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
     fn split_spell_state_ref(&self) -> (&SessionSpellState, HubRef<'_>) {
         crate::session::split_spell_state_ref(self)
     }
+    fn split_spell_state_mut(&mut self) -> (&mut SessionSpellState, HubMut<'_>) {
+        crate::session::split_spell_state_mut(self)
+    }
     fn visibility_mut(&mut self) -> &mut VisibilityState {
         &mut self.visibility
     }
     fn split_visibility_mut(&mut self) -> (&mut VisibilityState, HubMut<'_>) {
         crate::session::split_visibility_mut(self)
+    }
+    fn split_interaction(&mut self) -> (&mut InteractionState, HubRef<'_>) {
+        crate::session::split_interaction(self)
     }
     fn loot(&self) -> &LootState {
         &self.loot
@@ -55,8 +65,25 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
     fn cleanup_shared_runtime_state(&mut self) -> FinalizationOutcome {
         WorldSession::cleanup_shared_runtime_state(self)
     }
+    fn begin_represented_trait_config_authority_load_like_cpp(&mut self) {
+        WorldSession::begin_represented_trait_config_authority_load_like_cpp(self)
+    }
     fn clear_player_currencies_like_cpp(&mut self) -> bool {
         WorldSession::clear_player_currencies_like_cpp(self)
+    }
+    fn clear_player_gossip_options_like_cpp(&mut self) -> bool {
+        WorldSession::clear_player_gossip_options_like_cpp(self)
+    }
+    fn complete_represented_trait_config_authority_load_like_cpp(
+        &mut self,
+        configs: impl IntoIterator<Item = (i32, i32, i32, i32)>,
+        entries_empty: bool,
+    ) -> bool {
+        WorldSession::complete_represented_trait_config_authority_load_like_cpp(
+            self,
+            configs,
+            entries_empty,
+        )
     }
     #[allow(clippy::too_many_arguments)]
     fn ensure_login_player_controller_like_cpp(
@@ -74,6 +101,30 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
             self, guid, name, position, map_id, race, class, level, gender,
         )
     }
+    #[allow(clippy::too_many_arguments)]
+    fn execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+        spell_id: i32,
+        target_guid: ObjectGuid,
+        cast_id: ObjectGuid,
+        spell_visual: SpellCastVisual,
+        target_data: SpellTargetData,
+        metadata: SpellCastMetadata,
+    ) -> impl Future<Output = Result<(), &'static str>> + Send {
+        WorldSession::execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+            self,
+            item_guid_generator,
+            creature_spawn_catalogs,
+            spell_id,
+            target_guid,
+            cast_id,
+            spell_visual,
+            target_data,
+            metadata,
+        )
+    }
     fn finalize_session_with_generator_like_cpp(
         &mut self,
         mode: FinalizationMode,
@@ -87,15 +138,24 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
     ) -> impl Future<Output = ()> + Send {
         WorldSession::force_update_visibility_with_catalogs_like_cpp(self, creature_spawn_catalogs)
     }
+    fn handle_trainer_list(&mut self, hello: Hello) -> impl Future<Output = ()> + Send {
+        WorldSession::handle_trainer_list(self, hello)
+    }
+    fn handle_trainer_list_for_gossip_option_like_cpp(
+        &mut self,
+        hello: Hello,
+        gossip_menu_id: u32,
+        gossip_option_id: u32,
+    ) -> impl Future<Output = ()> + Send {
+        WorldSession::handle_trainer_list_for_gossip_option_like_cpp(
+            self,
+            hello,
+            gossip_menu_id,
+            gossip_option_id,
+        )
+    }
     fn known_spells_like_cpp(&self) -> Vec<i32> {
         WorldSession::known_spells_like_cpp(self)
-    }
-    fn load_active_player_trait_configs_like_cpp(
-        &mut self,
-        node_entries: &wow_data::trait_tree::TraitNodeEntryStore,
-        guid: ObjectGuid,
-    ) -> impl Future<Output = Vec<TraitConfigCreateData>> + Send {
-        WorldSession::load_active_player_trait_configs_like_cpp(self, node_entries, guid)
     }
     fn load_character_reputation_rows_like_cpp(
         &mut self,
@@ -173,11 +233,23 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
     fn mark_represented_talents_loaded_like_cpp(&mut self) {
         WorldSession::mark_represented_talents_loaded_like_cpp(self)
     }
+    fn next_represented_spell_cast_guid_like_cpp(&self, spell_id: i32) -> Option<ObjectGuid> {
+        WorldSession::next_represented_spell_cast_guid_like_cpp(self, spell_id)
+    }
     fn notify_other_players_visibility_changed_like_cpp(&self) {
         WorldSession::notify_other_players_visibility_changed_like_cpp(self)
     }
     fn player_currencies_like_cpp(&self) -> Option<HashMap<u32, PlayerCurrency>> {
         WorldSession::player_currencies_like_cpp(self)
+    }
+    fn player_current_map_instanceable_like_cpp(&self) -> bool {
+        WorldSession::player_current_map_instanceable_like_cpp(self)
+    }
+    fn player_gossip_option_like_cpp(&self, gossip_option_id: i32) -> Option<GossipOptionInfo> {
+        WorldSession::player_gossip_option_like_cpp(self, gossip_option_id)
+    }
+    fn player_interaction_source_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        WorldSession::player_interaction_source_guid_like_cpp(self)
     }
     fn prepare_represented_void_storage_login_load_like_cpp(&mut self) -> bool {
         WorldSession::prepare_represented_void_storage_login_load_like_cpp(self)
@@ -187,6 +259,9 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
     }
     fn register_in_player_registry(&self) {
         WorldSession::register_in_player_registry(self)
+    }
+    fn replace_player_gossip_options_like_cpp(&mut self, options: Vec<GossipOptionInfo>) -> bool {
+        WorldSession::replace_player_gossip_options_like_cpp(self, options)
     }
     fn register_loaded_inventory_item_duration_refs_like_cpp(
         &mut self,
@@ -198,6 +273,12 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
             loaded_item_guids,
             loaded_equipped_item_guids,
         )
+    }
+    fn represented_creature_gossip_text_like_cpp(
+        &self,
+        creature_entry: u32,
+    ) -> Vec<ClientGossipText> {
+        WorldSession::represented_creature_gossip_text_like_cpp(self, creature_entry)
     }
     fn represented_dependent_known_spells_like_cpp(&self) -> HashSet<i32> {
         WorldSession::represented_dependent_known_spells_like_cpp(self)
@@ -240,6 +321,12 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
     }
     fn set_player_aura_authority_complete_like_cpp(&mut self, complete: bool) -> bool {
         WorldSession::set_player_aura_authority_complete_like_cpp(self, complete)
+    }
+    fn set_complete_represented_spell_trait_definition_ids_like_cpp(
+        &mut self,
+        traits: impl IntoIterator<Item = (i32, i32)>,
+    ) -> bool {
+        WorldSession::set_complete_represented_spell_trait_definition_ids_like_cpp(self, traits)
     }
     fn set_player_guid(&mut self, guid: Option<ObjectGuid>) {
         WorldSession::set_player_guid(self, guid)
@@ -287,6 +374,17 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
     ) -> Option<bool> {
         WorldSession::update_represented_item_level_area_based_scaling_with_publication_like_cpp(
             self, publish,
+        )
+    }
+    fn use_represented_creature_questgiver_like_cpp(
+        &mut self,
+        creature_guid: ObjectGuid,
+        creature_entry: u32,
+    ) -> bool {
+        WorldSession::use_represented_creature_questgiver_like_cpp(
+            self,
+            creature_guid,
+            creature_entry,
         )
     }
     fn update_zone_represented_without_rest_update_packet_like_cpp(

@@ -448,7 +448,8 @@ impl WorldSession {
             return;
         }
         for entry in skill_info_by_id.values() {
-            let mut changes = self.skill_rewarded_spell_changes_for_login_like_cpp(
+            let mut changes = skill_rewarded_spell_changes_for_login_like_cpp(
+                self,
                 entry.skill_id,
                 entry.rank,
                 race,
@@ -630,7 +631,8 @@ impl WorldSession {
         };
 
         for entry in &default_skill_entries {
-            let changes = self.skill_rewarded_spell_changes_for_login_like_cpp(
+            let changes = skill_rewarded_spell_changes_for_login_like_cpp(
+                self,
                 entry.skill_id,
                 entry.rank,
                 race,
@@ -795,9 +797,8 @@ impl WorldSession {
         let login_known_spells = self.login_known_spells_after_account_collections_like_cpp();
         let login_favorite_spells =
             favorite_known_spells_for_send_like_cpp(&login_known_spells, &favorite_spell_rows);
-        let (spell_history_entries, spell_charge_entries) = self
-            .load_character_spell_history_packets_like_cpp(guid)
-            .await;
+        let (spell_history_entries, spell_charge_entries) =
+            load_character_spell_history_packets_like_cpp(self, guid).await;
         // Persist the login snapshot so the before-add init helper can re-send spell
         // history/charges on far teleport without a DB round trip. #NEXT.R8.ENTITIES.1229.
         self.spell_state

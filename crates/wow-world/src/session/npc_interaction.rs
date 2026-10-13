@@ -9,14 +9,6 @@ use super::{ObjectGuid, WorldSession};
 pub(crate) use wow_world_core::session::RepresentedCreatureAccessLikeCpp;
 
 impl WorldSession {
-    pub(crate) fn set_player_interaction_source_like_cpp(
-        &mut self,
-        source_guid: ObjectGuid,
-    ) -> bool {
-        let (state, hub) = crate::session::split_interaction(self);
-        state.set_player_interaction_source_like_cpp(hub, source_guid)
-    }
-
     pub(crate) fn player_interaction_source_guid_like_cpp(&self) -> Option<ObjectGuid> {
         let (state, hub) = crate::session::split_interaction_ref(self);
         state.player_interaction_source_guid_like_cpp(hub)

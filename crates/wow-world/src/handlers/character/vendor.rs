@@ -3,8 +3,9 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Trainer gossip menu, and the World adapter for the vendor and bank bodies
-//! moved to `wow_world_inventory::vendor_session` (#1363 slice 8b). Every
+//! The World adapter for the vendor and bank bodies moved to
+//! `wow_world_inventory::vendor_session` (#1363 slice 8b); the trainer gossip
+//! menu moved to `wow_world_character::gossip_session` (#1363 slice 8e). Every
 //! adapter method is a field access or a pure forward to the same-named
 //! inherent `WorldSession` method.
 
@@ -24,46 +25,6 @@ use wow_world_inventory::{
 use crate::session::{
     ExclusivePlayerMoneyPersistenceLikeCpp, HubMut, RepresentedPlayerConditionContextLikeCpp,
 };
-
-impl WorldSession {
-    pub(crate) fn send_represented_creature_trainer_gossip_menu_like_cpp(
-        &mut self,
-        npc_guid: ObjectGuid,
-        entry: u32,
-        npc_flags: u32,
-    ) -> bool {
-        let mut gossip_options = Vec::new();
-        let mut stored_options = Vec::new();
-        if !add_represented_trainer_gossip_option_if_missing_like_cpp(
-            &mut gossip_options,
-            &mut stored_options,
-            npc_flags,
-        ) {
-            return false;
-        }
-
-        let gossip_text = if npc_flags & NPCFlags1::QUEST_GIVER.bits() != 0 {
-            self.represented_creature_gossip_text_like_cpp(entry)
-        } else {
-            Vec::new()
-        };
-
-        if !self.replace_player_gossip_options_like_cpp(stored_options) {
-            return false;
-        }
-        self.set_player_interaction_source_like_cpp(npc_guid);
-        self.send_packet(&GossipMessage {
-            gossip_guid: npc_guid,
-            gossip_id: 0,
-            friendship_faction_id: 0,
-            text_id: Some(DEFAULT_GOSSIP_MESSAGE_LIKE_CPP),
-            broadcast_text_id: None,
-            gossip_options,
-            gossip_text,
-        });
-        true
-    }
-}
 
 impl PlayerConditionContextSourceLikeCpp<WorldSession>
     for RepresentedPlayerConditionContextLikeCpp

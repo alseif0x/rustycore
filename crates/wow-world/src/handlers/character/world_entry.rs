@@ -18,12 +18,13 @@ use wow_world_character::{
     load_character_auras_for_login_like_cpp, load_character_currencies_for_login_like_cpp,
     load_character_favorite_spells_for_login_like_cpp, load_character_glyphs_for_login_like_cpp,
     load_character_reputation_for_login_like_cpp, load_character_skill_rows_for_login_like_cpp,
-    load_character_spell_rows_for_login_like_cpp, load_character_talents_for_login_like_cpp,
-    load_cuf_profiles_for_login_like_cpp, load_group_membership_for_login_like_cpp,
-    load_inventory_for_login_like_cpp, load_login_admission_data_like_cpp,
-    player_login_combat_stats_like_cpp, repair_character_homebind_like_cpp,
-    restore_persisted_transport_for_login_like_cpp, retry_login_at_homebind_like_cpp,
-    seed_login_location_zone_area_like_cpp, send_login_sequence,
+    load_character_spell_history_packets_like_cpp, load_character_spell_rows_for_login_like_cpp,
+    load_character_talents_for_login_like_cpp, load_cuf_profiles_for_login_like_cpp,
+    load_group_membership_for_login_like_cpp, load_inventory_for_login_like_cpp,
+    load_login_admission_data_like_cpp, player_login_combat_stats_like_cpp,
+    repair_character_homebind_like_cpp, restore_persisted_transport_for_login_like_cpp,
+    retry_login_at_homebind_like_cpp, seed_login_location_zone_area_like_cpp, send_login_sequence,
+    skill_rewarded_spell_changes_for_login_like_cpp,
 };
 
 mod login;
