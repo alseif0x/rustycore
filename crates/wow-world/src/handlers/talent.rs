@@ -7,43 +7,31 @@
 //!
 //! `#1263 F5 deferred families`: the two registrations moved unchanged to
 //! `wow_world_application::register_talent_handlers_like_cpp`; `talent/host.rs`
-//! lends that registrar these operations, whose bodies moved to
-//! `wow_world_spell` (#1363 slice 9b).
+//! lends that registrar these operations. The CMSG_LEARN_TALENT body moved to
+//! `wow_world_spell` (#1363 slice 9b); the respec wipe stays here with the
+//! talent-reset commit and publication it awaits.
 
-#[cfg(test)]
 use tracing::warn;
 
 #[cfg(test)]
 use wow_constants::ClientOpcodes;
-#[cfg(test)]
 use wow_constants::unit::NPCFlags1;
 #[cfg(test)]
 use wow_handler::{PacketProcessing, SessionStatus};
 
 #[cfg(test)]
-use wow_packet::WorldPacket;
-#[cfg(test)]
-use wow_packet::packets::talent::{LearnTalents, SPEC_RESET_TALENTS_LIKE_CPP};
+use wow_packet::packets::talent::LearnTalents;
+use wow_packet::packets::talent::{ConfirmRespecWipe, SPEC_RESET_TALENTS_LIKE_CPP};
+use wow_packet::{ClientPacket, WorldPacket};
 
 #[cfg(test)]
-use crate::session::{
-    RepresentedConfirmRespecWipeLikeCpp, RepresentedTalentRespecVisualSpellCastLikeCpp,
-    WorldSession,
-};
-#[cfg(test)]
-use wow_world_spell::{AT_LOGIN_RESET_TALENTS_LIKE_CPP, UNTALENT_VISUAL_EFFECT_SPELL_ID_LIKE_CPP};
+use crate::session::RepresentedTalentRespecVisualSpellCastLikeCpp;
+use crate::session::{RepresentedConfirmRespecWipeLikeCpp, WorldSession};
 
 mod host;
-
-#[cfg(test)]
-const AT_LOGIN_RENAME_LIKE_CPP: u16 = 0x001;
-
-#[cfg(test)]
-const AT_LOGIN_RESET_SPELLS_LIKE_CPP: u16 = 0x002;
-
-#[cfg(test)]
-#[path = "../../unit_tests/handlers/talent/state/test_only.rs"]
-mod test_only;
+mod state;
+#[allow(unused_imports)]
+pub use state::*;
 
 #[cfg(test)]
 #[path = "../../unit_tests/handlers/talent/tests/mod.rs"]

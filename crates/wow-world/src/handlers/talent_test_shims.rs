@@ -5,31 +5,17 @@
 //! Test-only method entry points for the talent bodies moved to
 //! `wow_world_spell` (#1363 slice 9b).
 //!
-//! The first impl block holds the `#[cfg(test)]` method of
-//! `handlers/talent/state.rs`, verbatim: it was already test-only. The second
-//! holds the talents' #1241 F3 test entry points (from
+//! The first impl block holds the talents' #1241 F3 test entry points (from
 //! `unit_tests/session/progression/talents/f3_shims.rs`), verbatim except that
-//! `pub(in crate::session)` reads `pub(crate)`. The third holds one-call method
-//! forwards for the moved functions the scenarios and these fixtures call,
-//! with this session as the host, so no scenario call site changes.
+//! `pub(in crate::session)` reads `pub(crate)`. The second holds one-call
+//! method forwards for the moved functions the scenarios and these fixtures
+//! call, with this session as the host, so no scenario call site changes.
 
 #![cfg(test)]
 
 use crate::session::*;
 use wow_data::TalentTabStore;
 use wow_packet::WorldPacket;
-
-impl WorldSession {
-    pub(crate) async fn handle_confirm_respec_wipe(&mut self, packet: WorldPacket) {
-        let generators = self.id_generators_for_test_like_cpp();
-        self.handle_confirm_respec_wipe_with_generator_like_cpp(
-            generators.item.as_ref(),
-            false,
-            packet,
-        )
-        .await;
-    }
-}
 
 impl WorldSession {
     #[cfg(test)]
@@ -105,20 +91,6 @@ impl WorldSession {
         packet: WorldPacket,
     ) {
         wow_world_spell::handle_learn_talent(self, talent_tabs, packet).await
-    }
-    pub(crate) async fn handle_confirm_respec_wipe_with_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        no_reset_talent_cost: bool,
-        packet: WorldPacket,
-    ) {
-        wow_world_spell::handle_confirm_respec_wipe_with_generator_like_cpp(
-            self,
-            item_guid_generator,
-            no_reset_talent_cost,
-            packet,
-        )
-        .await
     }
     pub(crate) fn reset_represented_talents_like_cpp(&mut self) {
         wow_world_spell::reset_represented_talents_like_cpp(self)
