@@ -69,4 +69,7 @@ impl WorldSession {
     pub(crate) fn insert_player_visible_aura_like_cpp(&mut self, aura: AuraApplication) -> bool {
         wow_world_spell::insert_player_visible_aura_like_cpp(self, aura)
     }
+    pub(crate) fn represented_spell_area_autocast_source_is_empty_like_cpp(&self) -> bool {
+        wow_world_spell::represented_spell_area_autocast_source_is_empty_like_cpp(self)
+    }
 }

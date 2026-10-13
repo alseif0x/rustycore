@@ -22,11 +22,13 @@ mod application;
 mod aura_state;
 mod mount;
 mod publication;
+mod sources;
 
 pub use application::*;
 pub use aura_state::*;
 pub use mount::*;
 pub use publication::*;
+pub use sources::*;
 
 /// The World session as the auras' host. The supertrait lends the spellbook
 /// host and, through it, the hub.
@@ -62,4 +64,9 @@ pub trait AuraHostLikeCpp: SpellbookHostLikeCpp {
         represented_effect_amounts: &[RepresentedAuraEffectAmountLikeCpp],
     ) -> wow_entities::AuraThreatSnapshotLikeCpp;
     fn tick_represented_creature_auras_like_cpp(&mut self);
+    fn represented_spell_area_quest_status_like_cpp(&self, quest_id: u32) -> Option<u8>;
+    /// The World spell-map snapshot (it reads the World `cfg(test)` fixture).
+    fn player_spell_runtime_snapshot_like_cpp(
+        &self,
+    ) -> Option<crate::RepresentedPlayerSpellRuntimeLikeCpp>;
 }

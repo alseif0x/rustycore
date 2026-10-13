@@ -255,3 +255,21 @@ pub fn complete_represented_player_spell_rows_like_cpp<H: SpellbookHostLikeCpp>(
     })
     .flatten()
 }
+
+pub fn represented_cast_spell_info_like_cpp<H: SpellbookHostLikeCpp>(
+    host: &H,
+    spell_info: &wow_data::SpellInfo,
+) -> wow_data::SpellInfo {
+    let override_spells = crate::represented_override_spells_like_cpp(host);
+    if let Some(overrides) = override_spells.get(&spell_info.spell_id) {
+        if let Some(store) = host.hub_ref().catalogs.spell_store() {
+            for new_spell_id in overrides {
+                if let Some(new_info) = store.get(*new_spell_id) {
+                    return new_info.clone();
+                }
+            }
+        }
+    }
+
+    spell_info.clone()
+}

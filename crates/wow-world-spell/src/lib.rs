@@ -13,6 +13,7 @@ mod session;
 mod spell_acquisition;
 mod spell_acquisition_application;
 pub mod spell_cast_adapter;
+mod spell_click_session;
 mod spellbook_session;
 mod state;
 mod talent_session;
@@ -29,6 +30,8 @@ pub use aura_session::{
     remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp,
     remove_represented_auras_due_to_spell_like_cpp,
     remove_represented_mounted_auras_by_type_like_cpp, represented_player_aura_state_mask_like_cpp,
+    represented_spell_area_autocast_source_is_empty_like_cpp,
+    represented_trait_config_aura_source_is_empty_like_cpp,
     represented_unit_aura_state_mask_like_cpp, send_aura_update_applied, tick_auras,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -81,6 +84,9 @@ pub use spell_acquisition_application::{
     validate_prepared_player_spell_acquisition_runtime_like_cpp,
 };
 pub use spell_cast_adapter::present_visual;
+pub use spell_click_session::{
+    SpellClickHostLikeCpp, execute_represented_spell_click_clickee_caster_like_cpp,
+};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use spellbook_session::{
     SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP,
@@ -102,10 +108,11 @@ pub use spellbook_session::{
     learn_account_mount_spells_like_cpp, learn_dependent_known_spell_like_cpp,
     learn_known_spell_like_cpp, load_represented_talent_row_with_spell_side_effects_like_cpp,
     mark_represented_spell_acquisition_snapshot_complete_like_cpp, remove_known_spell_like_cpp,
-    remove_represented_override_spell_like_cpp, represented_dependent_known_spells_like_cpp,
-    represented_direct_learn_spell_triggers_like_cpp, represented_override_spells_like_cpp,
-    represented_spell_valid_for_learning_like_cpp, represented_talent_override_spell_pair_like_cpp,
-    represented_talent_spell_id_like_cpp, set_complete_represented_player_spell_rows_like_cpp,
+    remove_represented_override_spell_like_cpp, represented_cast_spell_info_like_cpp,
+    represented_dependent_known_spells_like_cpp, represented_direct_learn_spell_triggers_like_cpp,
+    represented_override_spells_like_cpp, represented_spell_valid_for_learning_like_cpp,
+    represented_talent_override_spell_pair_like_cpp, represented_talent_spell_id_like_cpp,
+    set_complete_represented_player_spell_rows_like_cpp,
     set_complete_represented_spell_trait_definition_ids_like_cpp,
     take_represented_trait_definition_id_like_cpp,
 };

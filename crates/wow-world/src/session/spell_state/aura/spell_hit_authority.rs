@@ -27,61 +27,6 @@ impl WorldSession {
         state.represented_active_glyph_aura_source_is_empty_like_cpp(hub)
     }
 
-    /// C++ `_LoadTraits` creates missing configs for specialization indexes
-    /// `0..MAX_SPECIALIZATIONS - 1`, and `CreateTraitConfig` can attach granted
-    /// entries. This narrow proof is therefore limited to a complete set of
-    /// persisted, active-for-spec combat configs whose global entry query was
-    /// empty. `ValidateConfig` accepts those empty configs, so C++ neither
-    /// replaces them with granted entries nor creates a missing config.
-    fn represented_trait_config_aura_source_is_empty_like_cpp(&self) -> bool {
-        let Some(runtime) = self.player_spell_runtime_snapshot_like_cpp() else {
-            return false;
-        };
-        if !runtime.trait_config_rows_complete
-            || !runtime.trait_entry_rows_complete
-            || !runtime.trait_entry_rows_empty
-        {
-            return false;
-        }
-
-        let Some(specializations) = self.catalogs.chr.specialization_store.as_ref() else {
-            return false;
-        };
-        let mut expected_specs = BTreeSet::new();
-        for index in 0..(MAX_SPECIALIZATIONS_LIKE_CPP - 1) {
-            let Some(spec) = u8::try_from(index).ok().and_then(|index| {
-                specializations.get_by_class_and_index_like_cpp(
-                    crate::session::hub_ref(self).player_class_like_cpp(),
-                    index,
-                )
-            }) else {
-                return false;
-            };
-            let Ok(spec_id) = i32::try_from(spec.id) else {
-                return false;
-            };
-            if !expected_specs.insert(spec_id) {
-                return false;
-            }
-        }
-
-        if runtime.trait_config_rows.len() != expected_specs.len() {
-            return false;
-        }
-        for config in runtime.trait_config_rows.values() {
-            let (config_type, specialization_id, combat_flags) = config.header;
-            const TRAIT_CONFIG_TYPE_COMBAT_LIKE_CPP: i32 = 1;
-            const TRAIT_COMBAT_CONFIG_ACTIVE_FOR_SPEC_LIKE_CPP: i32 = 0x1;
-            if config_type != TRAIT_CONFIG_TYPE_COMBAT_LIKE_CPP
-                || combat_flags & TRAIT_COMBAT_CONFIG_ACTIVE_FOR_SPEC_LIKE_CPP == 0
-                || !expected_specs.remove(&specialization_id)
-            {
-                return false;
-            }
-        }
-        expected_specs.is_empty()
-    }
-
     fn represented_add_player_to_map_aura_source_is_empty_like_cpp(&self) -> bool {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.represented_add_player_to_map_aura_source_is_empty_like_cpp(hub)
@@ -109,7 +54,7 @@ impl WorldSession {
             || wow_world_spell::complete_represented_player_spell_rows_like_cpp(self).is_none()
             || wow_world_spell::complete_represented_spell_trait_definition_ids_like_cpp(self)
                 .is_none_or(|traits| !traits.is_empty())
-            || !self.represented_trait_config_aura_source_is_empty_like_cpp()
+            || !wow_world_spell::represented_trait_config_aura_source_is_empty_like_cpp(self)
             || !self.represented_active_glyph_aura_source_is_empty_like_cpp()
             || !self.represented_battle_pet_login_spell_source_is_empty_like_cpp()
             || !self.represented_add_player_to_map_aura_source_is_empty_like_cpp()
@@ -119,7 +64,7 @@ impl WorldSession {
             || !crate::session::hub_ref(self)
                 .represented_character_pet_aura_source_is_empty_like_cpp()
             || !self.represented_quest_login_aura_sources_are_hit_inert_like_cpp(difficulty_id)
-            || !self.represented_spell_area_autocast_source_is_empty_like_cpp()
+            || !wow_world_spell::represented_spell_area_autocast_source_is_empty_like_cpp(self)
             || !self.represented_war_mode_update_zone_aura_source_is_empty_like_cpp()
             || !self.represented_update_area_pvp_rule_aura_source_is_empty_like_cpp()
             || !self.represented_update_zone_script_aura_source_is_hit_inert_like_cpp()
