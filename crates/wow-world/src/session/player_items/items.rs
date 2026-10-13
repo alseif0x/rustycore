@@ -149,14 +149,6 @@ impl WorldSession {
             .flatten()
             .and_then(|state| state.spell_cast_item_guid)
     }
-    pub(in crate::session) fn uncage_cast_item_still_matches_like_cpp(
-        &self,
-        cast_item_entry: u32,
-        modifiers: SpellCastBattlePetItemModifiersLikeCpp,
-    ) -> Option<(u8, u8, InventoryItem)> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.uncage_cast_item_still_matches_like_cpp(hub, cast_item_entry, modifiers)
-    }
     pub(crate) async fn uncage_item_state_like_cpp(
         &self,
         player_db_guid: u64,

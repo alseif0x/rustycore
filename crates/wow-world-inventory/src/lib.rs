@@ -9,6 +9,7 @@ mod bank;
 mod bank_handlers;
 mod battle_pet_handlers;
 mod battle_pet_purchase;
+mod battle_pet_session;
 mod buyback;
 mod catalog;
 mod collections_handlers;
@@ -79,6 +80,24 @@ pub use battle_pet_purchase::{
     PreparedBattlePetTrainerOfferLikeCpp,
     execute_battle_pet_trainer_purchase_with_generator_like_cpp,
     recover_battle_pet_trainer_purchases_with_generator_like_cpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use battle_pet_session::battle_pet_count_like_cpp;
+pub use battle_pet_session::{
+    BATTLE_PET_SPELL_VISUAL_UNCAGE_PET_LIKE_CPP, BattlePetSessionHostLikeCpp,
+    MAX_BATTLE_PET_LEVEL_LIKE_CPP, RepresentedBattlePetGrantExperienceOutcomeLikeCpp,
+    RepresentedBattlePetGrantLevelOutcomeLikeCpp, RepresentedBattlePetQualityOutcomeLikeCpp,
+    RepresentedBattlePetXpSourceLikeCpp, apply_battle_pet_calculated_stats_like_cpp,
+    apply_grant_battle_pet_experience_effect_like_cpp,
+    apply_grant_battle_pet_level_effect_like_cpp, apply_uncage_battle_pet_effect_like_cpp,
+    battle_pet_account_owner_lease_like_cpp, battle_pet_add_request_committed_like_cpp,
+    battle_pet_calculate_stats_like_cpp, battle_pet_grant_experience_durable_like_cpp,
+    battle_pet_grant_level_durable_like_cpp, battle_pet_has_max_pet_count_like_cpp,
+    battle_pet_max_pet_level_like_cpp, battle_pet_purchase_store_like_cpp,
+    battle_pet_species_entry_like_cpp, battle_pet_species_has_flag_like_cpp,
+    battle_pet_try_acquire_journal_lease_like_cpp, battle_pet_try_add_pet_durable_like_cpp,
+    battle_pet_xp_per_level_like_cpp, destroy_uncaged_battle_pet_item_durable_like_cpp,
+    record_battle_pet_trainer_purchase_criteria_like_cpp,
 };
 pub use collections_handlers::{
     CollectionsHandlerCxLikeCpp, CollectionsHandlerHostLikeCpp,

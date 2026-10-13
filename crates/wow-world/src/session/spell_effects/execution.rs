@@ -480,12 +480,15 @@ impl WorldSession {
                     self.apply_upgrade_heirloom_effect_like_cpp(metadata);
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_UNCAGE_BATTLEPET => {
-                    self.apply_uncage_battle_pet_effect_like_cpp(spell_id, cast_id, metadata)
-                        .await;
+                    wow_world_inventory::apply_uncage_battle_pet_effect_like_cpp(
+                        self, spell_id, cast_id, metadata,
+                    )
+                    .await;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_LEVEL =>
                 {
-                    self.apply_grant_battle_pet_level_effect_like_cpp(
+                    wow_world_inventory::apply_grant_battle_pet_level_effect_like_cpp(
+                        self,
                         metadata,
                         direct_effect_base_points as u16,
                     )
@@ -494,7 +497,8 @@ impl WorldSession {
                 x if x
                     == wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_EXPERIENCE =>
                 {
-                    self.apply_grant_battle_pet_experience_effect_like_cpp(
+                    wow_world_inventory::apply_grant_battle_pet_experience_effect_like_cpp(
+                        self,
                         metadata,
                         direct_effect_base_points as u16,
                     )

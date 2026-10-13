@@ -35,9 +35,7 @@ async fn battle_pet_grant_experience_pet_battle_uses_owner_xp_aura_like_cpp() {
             )
         },
     );
-    crate::session::cx_pets(&mut session)
-        .send_battle_pet_journal_lock_status_like_cpp()
-        .await;
+    session.send_battle_pet_journal_lock_status_like_cpp().await;
     let _ = drain_server_packet_bytes(&send_rx);
     session
         .apply_represented_battle_pet_xp_pct_aura_like_cpp(

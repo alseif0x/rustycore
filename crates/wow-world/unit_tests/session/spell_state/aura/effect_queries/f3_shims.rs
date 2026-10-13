@@ -25,7 +25,7 @@ impl crate::session::WorldSession {
         state.total_represented_aura_modifier_like_cpp(hub, effect)
     }
     #[cfg(test)]
-    pub(in crate::session) fn total_represented_aura_multiplier_like_cpp(
+    pub(crate) fn total_represented_aura_multiplier_like_cpp(
         &self,
         effect: RepresentedAuraEffectLikeCpp,
     ) -> f32 {

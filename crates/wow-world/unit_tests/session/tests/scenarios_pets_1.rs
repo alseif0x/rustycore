@@ -937,9 +937,7 @@ async fn battle_pet_cage_battle_pet_applies_cpp_gates_without_side_effects() {
         session.battle_pet_cage_battle_pet_represented_like_cpp(pet_guid, true, true),
         RepresentedBattlePetCageOutcomeLikeCpp::NoJournalLock
     );
-    crate::session::cx_pets(&mut session)
-        .send_battle_pet_journal_lock_status_like_cpp()
-        .await;
+    session.send_battle_pet_journal_lock_status_like_cpp().await;
     let _ = drain_server_packet_bytes(&send_rx);
 
     assert_eq!(

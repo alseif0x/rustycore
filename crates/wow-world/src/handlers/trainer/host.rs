@@ -127,8 +127,7 @@ impl TrainerBuySpellHostLikeCpp for WorldSession {
     }
 
     fn trainer_buy_battle_pet_capacity_capped_like_cpp(&self, species_id: u32) -> bool {
-        crate::session::cx_pets_ref(self)
-            .battle_pet_account_owner_lease_like_cpp()
+        wow_world_inventory::battle_pet_account_owner_lease_like_cpp(self)
             .map(|(owner, _)| owner.has_max_pet_count_like_cpp(species_id, self.player_guid()))
             .unwrap_or(true)
     }

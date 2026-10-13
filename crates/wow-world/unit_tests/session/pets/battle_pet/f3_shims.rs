@@ -100,32 +100,6 @@ impl crate::session::WorldSession {
             .pets
             .set_represented_battle_pet_query_companion_like_cpp(unit_guid, companion)
     }
-    #[cfg(test)]
-    pub(crate) fn battle_pet_remove_pet_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
-        crate::session::cx_pets(self).battle_pet_remove_pet_like_cpp(pet_guid)
-    }
-    #[cfg(test)]
-    pub(crate) fn battle_pet_count_like_cpp(
-        &self,
-        species: u32,
-        owner_guid: Option<ObjectGuid>,
-    ) -> u8 {
-        crate::session::cx_pets_ref(self).battle_pet_count_like_cpp(species, owner_guid)
-    }
-    pub(crate) fn represented_battle_pet_like_cpp(
-        &self,
-        pet_guid: ObjectGuid,
-    ) -> Option<RepresentedBattlePetDataLikeCpp> {
-        crate::session::cx_pets_ref(self).represented_battle_pet_like_cpp(pet_guid)
-    }
-    pub(crate) fn battle_pet_account_owner_lease_like_cpp(
-        &self,
-    ) -> Option<(
-        Arc<crate::battle_pet_account::BattlePetAccountOwnerLikeCpp>,
-        crate::battle_pet_account::BattlePetLeaseIdLikeCpp,
-    )> {
-        crate::session::cx_pets_ref(self).battle_pet_account_owner_lease_like_cpp()
-    }
     pub(crate) fn battle_pet_summon_toggle_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
         let (lifecycle, hub) = crate::session::split_battle_pet_handler_mut(self);
         wow_world_inventory::BattlePetHandlerCxLikeCpp::new(hub, lifecycle, cfg!(test))
@@ -139,7 +113,7 @@ impl crate::session::WorldSession {
     }
 }
 
-impl crate::session::PetsCx<'_> {
+impl crate::session::WorldSession {
     pub(crate) async fn battle_pet_remove_pet_durable_like_cpp(
         &mut self,
         pet_guid: ObjectGuid,
@@ -155,8 +129,7 @@ impl crate::session::PetsCx<'_> {
         match owner.try_remove_pet_like_cpp(lease, pet_guid).await {
             Ok(()) => true,
             Err(error) => {
-                self.hub
-                    .shared()
+                crate::session::hub_ref(self)
                     .log_battle_pet_mutation_failure_like_cpp("remove", pet_guid, &error);
                 false
             }

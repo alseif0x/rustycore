@@ -41,6 +41,12 @@ impl wow_world_core::session::SessionHubHostLikeCpp for WorldSession {
     ) -> Option<&mut wow_world_core::session::state::SessionFixtures> {
         Some(&mut self.fixtures)
     }
+    #[cfg(test)]
+    fn test_fixtures_ref_like_cpp(
+        &self,
+    ) -> Option<&wow_world_core::session::state::SessionFixtures> {
+        Some(&self.fixtures)
+    }
 }
 
 /// `&mut` group state plus the shared hub, borrowed from disjoint WorldSession fields.
@@ -535,52 +541,6 @@ pub(crate) struct LifecycleCxRef<'a> {
 pub(crate) fn cx_lifecycle_ref(s: &WorldSession) -> LifecycleCxRef<'_> {
     LifecycleCxRef {
         inventory: &s.inventory,
-        hub: hub_ref(s),
-    }
-}
-
-/// Capped group context (#1241 F3): the `pets` state, sibling states and hub members its
-/// moved fns read, borrowed from disjoint WorldSession fields.
-pub(crate) struct PetsCx<'a> {
-    pub(crate) lifecycle: &'a mut SessionLifecycleState,
-    pub(crate) hub: HubMut<'a>,
-}
-
-pub(crate) fn cx_pets(s: &mut WorldSession) -> PetsCx<'_> {
-    PetsCx {
-        lifecycle: &mut s.lifecycle,
-        hub: HubMut {
-            core: &mut s.core,
-            catalogs: &s.catalogs,
-            config: &s.config,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixtures: &mut s.fixtures,
-        },
-    }
-}
-
-impl PetsCx<'_> {
-    /// Reborrows this mutable context as its shared counterpart. Only the
-    /// test-gated represented battle-pet bodies still need it (#1263 F5 moved
-    /// the production callers onto the application owner).
-    #[cfg(test)]
-    pub(crate) fn shared(&self) -> PetsCxRef<'_> {
-        PetsCxRef {
-            lifecycle: &*self.lifecycle,
-            hub: self.hub.shared(),
-        }
-    }
-}
-
-/// Shared counterpart of `PetsCx` for `&self` methods.
-pub(crate) struct PetsCxRef<'a> {
-    pub(crate) lifecycle: &'a SessionLifecycleState,
-    pub(crate) hub: HubRef<'a>,
-}
-
-pub(crate) fn cx_pets_ref(s: &WorldSession) -> PetsCxRef<'_> {
-    PetsCxRef {
-        lifecycle: &s.lifecycle,
         hub: hub_ref(s),
     }
 }

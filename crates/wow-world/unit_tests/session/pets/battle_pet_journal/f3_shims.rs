@@ -4,7 +4,7 @@
 //! #1241 F3 test shims: WorldSession entry points kept only for unit_tests callers.
 
 #[allow(unused_imports)]
-use super::*;
+use crate::session::*;
 
 impl crate::session::WorldSession {
     #[cfg(test)]
@@ -37,24 +37,6 @@ impl crate::session::WorldSession {
             .pets
             .represented_battle_pet_active_level_criteria_like_cpp()
     }
-    #[cfg(test)]
-    pub(crate) fn battle_pet_modify_name_like_cpp(
-        &mut self,
-        pet_guid: ObjectGuid,
-        name: String,
-        declined_names: Option<wow_packet::packets::misc::DeclinedNamesLikeCpp>,
-        timestamp: i64,
-    ) -> bool {
-        crate::session::cx_pets(self).battle_pet_modify_name_like_cpp(
-            pet_guid,
-            name,
-            declined_names,
-            timestamp,
-        )
-    }
-    pub(crate) fn has_represented_battle_pet_journal_lock_like_cpp(&self) -> bool {
-        crate::session::cx_pets_ref(self).has_represented_battle_pet_journal_lock_like_cpp()
-    }
     pub(crate) fn represented_battle_pet_journal_like_cpp(
         &self,
     ) -> Option<wow_packet::packets::misc::BattlePetJournal> {
@@ -64,14 +46,9 @@ impl crate::session::WorldSession {
             cfg!(test),
         )
     }
-    pub(crate) async fn battle_pet_try_acquire_journal_lease_like_cpp(&self) -> bool {
-        crate::session::cx_pets_ref(self)
-            .battle_pet_try_acquire_journal_lease_like_cpp()
-            .await
-    }
 }
 
-impl crate::session::PetsCx<'_> {
+impl crate::session::WorldSession {
     pub(crate) async fn battle_pet_modify_name_durable_like_cpp(
         &mut self,
         pet_guid: ObjectGuid,
@@ -97,7 +74,7 @@ impl crate::session::PetsCx<'_> {
         {
             Ok(_) => true,
             Err(error) => {
-                self.hub.shared().log_battle_pet_mutation_failure_like_cpp(
+                crate::session::hub_ref(self).log_battle_pet_mutation_failure_like_cpp(
                     "modify name",
                     pet_guid,
                     &error,

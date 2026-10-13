@@ -125,11 +125,6 @@ use aura_effect_values::CanonicalThreatAuraSnapshotLikeCpp;
 use aura_effect_values::represented_aura_effect_amounts_like_cpp;
 use aura_effect_values::unit_owned_apply_aura_effect_mask_like_cpp;
 mod battle_pet_adapter;
-pub(crate) use battle_pet_adapter::RepresentedBattlePetGrantExperienceOutcomeLikeCpp;
-pub(crate) use battle_pet_adapter::RepresentedBattlePetGrantLevelOutcomeLikeCpp;
-pub(crate) use battle_pet_adapter::RepresentedBattlePetQualityOutcomeLikeCpp;
-pub(crate) use battle_pet_adapter::RepresentedBattlePetXpSourceLikeCpp;
-pub(crate) use battle_pet_adapter::apply_battle_pet_calculated_stats_like_cpp;
 #[cfg(test)]
 pub(crate) use battle_pet_adapter::{
     NEXT_REPRESENTED_BATTLE_PET_COUNTER_LIKE_CPP, RepresentedBattlePetCageOutcomeLikeCpp,
@@ -137,6 +132,7 @@ pub(crate) use battle_pet_adapter::{
 };
 #[cfg(test)]
 pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetCageItemLikeCpp;
+#[cfg(test)]
 pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetCalculatedStatsLikeCpp;
 pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetDataLikeCpp;
 #[cfg(test)]
@@ -145,6 +141,12 @@ pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePet
 pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetQueryCompanionLikeCpp;
 #[cfg(test)]
 pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetSaveInfoLikeCpp;
+#[cfg(test)]
+pub(crate) use wow_world_inventory::{
+    RepresentedBattlePetGrantExperienceOutcomeLikeCpp,
+    RepresentedBattlePetGrantLevelOutcomeLikeCpp, RepresentedBattlePetQualityOutcomeLikeCpp,
+    RepresentedBattlePetXpSourceLikeCpp, apply_battle_pet_calculated_stats_like_cpp,
+};
 mod battleground_adapter;
 #[cfg(test)]
 pub(crate) use battleground_adapter::RepresentedBattlefieldListLikeCpp;
@@ -493,18 +495,18 @@ pub(crate) use stand_state_adapter::RepresentedStandStateChangedLikeCpp;
 mod state;
 pub use state::WorldSession;
 pub(crate) use state::{
-    HubMut, InventoryCxRef, LifecycleCx, LifecycleCxRef, PetsCx, PetsCxRef, QuestStateCx,
-    QuestStateCxRef, cx_inventory_ref, cx_lifecycle, cx_lifecycle_ref, cx_pets, cx_pets_ref,
-    cx_quest_state, cx_quest_state_ref, hub_mut, hub_ref, hub_support,
-    split_battle_pet_handler_mut, split_battleground_mut, split_character_handler_mut,
-    split_group_handler_states_mut, split_guild_bank_mut, split_instances_mut, split_instances_ref,
-    split_interaction, split_interaction_ref, split_interaction_world_entities_mut,
-    split_inventory_lifecycle_shared_hub_mut, split_inventory_mut, split_inventory_ref,
-    split_lifecycle_mut, split_lifecycle_ref, split_loot_mut, split_loot_ref,
-    split_player_handler_states_mut, split_quest_state_lifecycle_mut, split_quest_state_mut,
-    split_quest_state_ref, split_social_mut, split_social_ref, split_spell_state_mut,
-    split_spell_state_ref, split_trade_mut, split_visibility_mut, split_visibility_ref,
-    split_world_entities_mut, split_world_entities_ref,
+    HubMut, InventoryCxRef, LifecycleCx, LifecycleCxRef, QuestStateCx, QuestStateCxRef,
+    cx_inventory_ref, cx_lifecycle, cx_lifecycle_ref, cx_quest_state, cx_quest_state_ref, hub_mut,
+    hub_ref, hub_support, split_battle_pet_handler_mut, split_battleground_mut,
+    split_character_handler_mut, split_group_handler_states_mut, split_guild_bank_mut,
+    split_instances_mut, split_instances_ref, split_interaction, split_interaction_ref,
+    split_interaction_world_entities_mut, split_inventory_lifecycle_shared_hub_mut,
+    split_inventory_mut, split_inventory_ref, split_lifecycle_mut, split_lifecycle_ref,
+    split_loot_mut, split_loot_ref, split_player_handler_states_mut,
+    split_quest_state_lifecycle_mut, split_quest_state_mut, split_quest_state_ref,
+    split_social_mut, split_social_ref, split_spell_state_mut, split_spell_state_ref,
+    split_trade_mut, split_visibility_mut, split_visibility_ref, split_world_entities_mut,
+    split_world_entities_ref,
 };
 #[cfg(test)]
 pub(crate) use state::{InventoryCx, cx_inventory};
@@ -537,10 +539,7 @@ use rand::{Rng, seq::SliceRandom};
 use rand::{SeedableRng, rngs::StdRng};
 use tracing::{debug, info, warn};
 
-use crate::battle_pet_account::{
-    BattlePetAccountAttachmentLikeCpp, BattlePetAddFailureLikeCpp, BattlePetAddOutcomeLikeCpp,
-    BattlePetAddRequestKeyLikeCpp, BattlePetAddRequestLikeCpp, BattlePetMutationFailureLikeCpp,
-};
+use crate::battle_pet_account::BattlePetAccountAttachmentLikeCpp;
 use crate::entity_update_bridge::{
     dynamic_object_values_update_to_update_object, item_values_update_to_update_object,
     player_values_update_to_update_object, unit_values_update_to_packet,
@@ -625,8 +624,6 @@ use wow_data::SpellProcEntryLikeCpp;
 use wow_data::SummonPropertiesEntry;
 #[cfg(test)]
 use wow_data::VehicleTemplateStoreLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
-use wow_data::calculate_battle_pet_stats_like_cpp;
 use wow_data::character_progression::{ChrClassesStore, ChrRacesStore, PowerTypeStore};
 use wow_data::trait_tree::TraitDefinitionStore;
 use wow_data::{
@@ -814,7 +811,6 @@ pub(crate) use wow_world_core::session::{
 #[cfg(test)]
 pub(crate) use wow_world_core::session::{
     BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP, PLAYER_FLAGS_AFK_LIKE_CPP, PLAYER_FLAGS_DND_LIKE_CPP,
-    battle_pet_adapter::DEFAULT_MAX_BATTLE_PETS_PER_SPECIES_LIKE_CPP,
 };
 const PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP: u32 = 0x0000_0800;
 pub(crate) use wow_world_core::session::PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP;
@@ -918,8 +914,9 @@ pub(crate) use wow_world_core::session::battle_pet_adapter::BATTLE_PET_FLAGS_CON
 pub(crate) const BATTLE_PET_CAGE_ITEM_ID_LIKE_CPP: u32 = 82_800;
 #[allow(dead_code)]
 pub(crate) const BATTLE_PET_BREED_QUALITY_RARE_LIKE_CPP: u8 = 3;
-pub(crate) const BATTLE_PET_SPELL_VISUAL_UNCAGE_PET_LIKE_CPP: u32 = 222;
-pub(crate) const MAX_BATTLE_PET_LEVEL_LIKE_CPP: u16 = 25;
+#[cfg(test)]
+pub(crate) use wow_world_inventory::BATTLE_PET_SPELL_VISUAL_UNCAGE_PET_LIKE_CPP;
+pub(crate) use wow_world_inventory::MAX_BATTLE_PET_LEVEL_LIKE_CPP;
 
 pub(crate) const SKILL_RIDING_LIKE_CPP: u16 = 762;
 pub use wow_world_core::session::{LIQUID_MAP_IN_WATER_LIKE_CPP, LIQUID_MAP_UNDER_WATER_LIKE_CPP};

@@ -33,7 +33,8 @@ impl WorldSession {
             return false;
         };
 
-        let reputation = self.calculate_reputation_gain_like_cpp(
+        let reputation = wow_world_social::calculate_reputation_gain_like_cpp(
+            self,
             ReputationGainSourceLikeCpp::Spell,
             0,
             damage,

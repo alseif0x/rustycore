@@ -376,21 +376,6 @@ impl WorldSession {
     }
 }
 
-impl crate::session::QuestStateCxRef<'_> {
-    pub(in crate::session) async fn battle_pet_add_request_committed_like_cpp(
-        &self,
-        request_key: BattlePetAddRequestKeyLikeCpp,
-    ) -> Result<bool, BattlePetAddFailureLikeCpp> {
-        let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() else {
-            return Ok(false);
-        };
-        attachment
-            .owner_like_cpp()
-            .add_request_committed_like_cpp(request_key)
-            .await
-    }
-}
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/quest/state/f3_shims.rs"]
 mod f3_shims;

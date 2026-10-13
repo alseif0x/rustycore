@@ -17,8 +17,8 @@
 //!
 //! `#1263 F5 remaining families` moved the `DismissCritter` **registration**
 //! here too (`PetHandler.cpp:41`, the companion-pet translation unit whose
-//! World-side module `handlers/pets/` is this owner's adapter); its represented
-//! body stays in the World shell and the host lends it.
+//! World-side module `handlers/pets/` is this owner's adapter); #1363 slice 7b
+//! moved its represented body into this context.
 //! `BattlePetUpdateDisplayNotify` is not registered anywhere: 3.4.3 leaves
 //! it `STATUS_UNHANDLED` / `Handle_NULL` (`Opcodes.cpp:243`), and the 2026-10-07
 //! #1263 F6 decision (D5) removed the empty registered body.
@@ -37,6 +37,7 @@ use wow_packet::packets::misc::{
     BattlePetJournalLockDenied, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
     BattlePetSummon, BattlePetUpdateNotify, QueryBattlePetName, QueryBattlePetNameResponse,
 };
+use wow_packet::packets::pet::DismissCritter;
 use wow_packet::{ClientPacket, WorldPacket};
 use wow_world_core::session::battle_pet_adapter::BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP;
 use wow_world_core::session::{
@@ -626,6 +627,29 @@ impl<'a> BattlePetHandlerCxLikeCpp<'a> {
         }
         true
     }
+
+    /// CMSG_DISMISS_CRITTER — represented companion dismissal (C++
+    /// `PetHandler.cpp:41` `WorldSession::HandleDismissCritter`; body moved
+    /// from the World `handlers/pets/mod.rs` under #1363 slice 7b).
+    ///
+    /// C++ reads a full `CritterGUID`, silently ignores missing/non-active
+    /// critters, and sends no direct response. Real `TempSummon::UnSummon` and
+    /// object update/despawn fanout remain part of the live companion runtime.
+    pub async fn handle_dismiss_critter(&mut self, mut pkt: WorldPacket) {
+        let request = match DismissCritter::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.hub.core.account_id,
+                    "DismissCritter parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.hub
+            .represented_dismiss_critter_like_cpp(request.critter_guid);
+    }
 }
 
 /// Builds a battle-pet handler context from a host's hub.
@@ -634,13 +658,6 @@ pub trait BattlePetHandlerHostLikeCpp<C> {
         &'a mut self,
         catalogs: &'a C,
     ) -> BattlePetHandlerCxLikeCpp<'a>;
-
-    /// C++ `PetHandler.cpp:41` `WorldSession::HandleDismissCritter`.
-    ///
-    /// `#1263 F5 remaining families`: the legacy registration closure did not
-    /// read the catalog view, so this entry point does not carry it. The
-    /// represented companion-dismissal body stays in the World session.
-    fn handle_dismiss_critter<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()>;
 }
 
 fn handle_battle_pet_request_journal_thunk<'a, S, C>(
@@ -780,17 +797,23 @@ where
 }
 
 /// `#1263 F5 remaining families`: the companion-dismissal entry that lived in
-/// the World shell's `handlers/pets/mod.rs`.
+/// the World shell's `handlers/pets/mod.rs`; its body joined this context in
+/// #1363 slice 7b.
 fn handle_dismiss_critter_thunk<'a, S, C>(
     session: &'a mut S,
-    _catalogs: &'a C,
+    catalogs: &'a C,
     pkt: WorldPacket,
 ) -> HandlerFuture<'a, ()>
 where
     S: BattlePetHandlerHostLikeCpp<C> + Send,
     C: Sync,
 {
-    Box::pin(async move { session.handle_dismiss_critter(pkt).await })
+    Box::pin(async move {
+        session
+            .battle_pet_handler_cx_like_cpp(catalogs)
+            .handle_dismiss_critter(pkt)
+            .await;
+    })
 }
 
 /// Registers the C++ `BattlePetHandler.cpp` family on the packet registry.

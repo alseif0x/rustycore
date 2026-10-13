@@ -15,7 +15,7 @@
 //! `wow_world_social`; `SocialSessionHostLikeCpp` lends them the session
 //! operations they still call.
 
-use wow_entities::PlayerQuestGameplayState;
+use wow_entities::{PlayerQuestGameplayState, RepresentedAuraEffectLikeCpp};
 use wow_handler::HandlerFuture;
 use wow_packet::WorldPacket;
 use wow_world_social::{ChatHandlerCxLikeCpp, ChatHandlerHostLikeCpp, SocialSessionHostLikeCpp};
@@ -84,5 +84,19 @@ impl SocialSessionHostLikeCpp for WorldSession {
 
     fn resolved_group_guid_like_cpp(&self) -> Option<u64> {
         WorldSession::resolved_group_guid_like_cpp(self)
+    }
+
+    fn resolved_total_represented_aura_modifier_by_misc_value_like_cpp(
+        &self,
+        effect: RepresentedAuraEffectLikeCpp,
+        misc_value: i32,
+    ) -> Option<i32> {
+        WorldSession::resolved_total_represented_aura_modifier_by_misc_value_like_cpp(
+            self, effect, misc_value,
+        )
+    }
+
+    fn gets_recruit_a_friend_bonus_like_cpp(&self, for_xp: bool) -> bool {
+        WorldSession::gets_recruit_a_friend_bonus_like_cpp(self, for_xp)
     }
 }

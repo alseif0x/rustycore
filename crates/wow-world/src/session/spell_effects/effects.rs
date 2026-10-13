@@ -127,39 +127,6 @@ impl WorldSession {
             self.send_packet(&packet);
         }
     }
-    /// C++ `Spell::EffectGrantBattlePetExperience`.
-    pub(in crate::session) async fn apply_grant_battle_pet_experience_effect_like_cpp(
-        &mut self,
-        metadata: SpellCastMetadata,
-        xp: u16,
-    ) {
-        let Some(pet_guid) = metadata.unit_target_battle_pet_companion_guid else {
-            return;
-        };
-
-        let _ = self
-            .battle_pet_grant_experience_durable_like_cpp(
-                pet_guid,
-                xp,
-                RepresentedBattlePetXpSourceLikeCpp::SpellEffect,
-                1.0,
-            )
-            .await;
-    }
-    /// C++ `Spell::EffectGrantBattlePetLevel`.
-    pub(in crate::session) async fn apply_grant_battle_pet_level_effect_like_cpp(
-        &mut self,
-        metadata: SpellCastMetadata,
-        granted_levels: u16,
-    ) {
-        let Some(pet_guid) = metadata.unit_target_battle_pet_companion_guid else {
-            return;
-        };
-
-        let _ = self
-            .battle_pet_grant_level_durable_like_cpp(pet_guid, granted_levels)
-            .await;
-    }
     pub(in crate::session) fn represented_disallowed_mount_form_like_cpp(
         &self,
     ) -> Option<Option<u32>> {

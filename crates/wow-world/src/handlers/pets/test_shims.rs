@@ -3,7 +3,8 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! Test-only entry points for the eight C++ `BattlePetHandler.cpp` handlers
-//! moved to `wow-world-application` (#1263 F5). Every entry point dispatches
+//! moved to `wow-world-application` (#1263 F5) and `CMSG_DISMISS_CRITTER`
+//! (#1363 slice 7b). Every entry point dispatches
 //! through the registered production thunk, so the release context built by
 //! [`super::battle_pet_host`] is exercised by each caller.
 
@@ -55,5 +56,9 @@ impl WorldSession {
 
     pub(crate) async fn handle_query_battle_pet_name(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::QueryBattlePetName, pkt).await;
+    }
+
+    pub(crate) async fn handle_dismiss_critter(&mut self, pkt: WorldPacket) {
+        dispatch_registered_like_cpp(self, ClientOpcodes::DismissCritter, pkt).await;
     }
 }
