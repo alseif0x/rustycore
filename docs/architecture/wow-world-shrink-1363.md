@@ -6092,3 +6092,286 @@ need it (simulated PASS above).
 `VALIDATION_V2_TIMEOUT_SECONDS=1800`) runs on the committed head that
 includes this section. Its manifest path, dirty flag and duration are in
 the PR body. This section is not edited after that run.
+
+## Slice 9b result (talents, auras, aura sources and the spell-click caster → spell)
+
+Branch `1363-s9b-talents`, base `0f421ba4a` (9a merged). Move-only (R2),
+with the 9a rewrites and nothing else:
+
+- `self` becomes `host` (`fn name<H: XHostLikeCpp>(host: &mut H, …)`, or
+  `host: &H`); a call between moved functions, or to a function already in
+  spell, becomes a free call (`wow_world_spell::f(self, …)` reads `f(host, …)`
+  or `crate::f(host, …)`); `self.core` becomes `host.core()`, or
+  `host.core_mut()` where the body mutates through the field (the mount
+  display RNG and the clickee creature damage); `self.catalogs` and
+  `self.config` become `host.hub_ref().catalogs` / `.config`;
+  `crate::session::{hub_ref,hub_mut,split_*}(self)` become the same call
+  through the host;
+- **one one-line World wrapper is inlined**, as its exact body:
+  `self.spell_store()` (base body `self.catalogs.spell_store()`) becomes
+  `host.hub_ref().catalogs.spell_store()` at its 4 sites (the aura load, the
+  capability speed auras, the clickee caster and the cast-spell-info read).
+  It is not async;
+- `crate::session::game_time_ms_like_cpp()` (a World re-export) names its
+  source, `wow_world_core::session::game_time_ms_like_cpp()`;
+- **fixture steps.** The four `#[cfg(test)]` blocks of the mounted-aura apply
+  and removal use the 4b accessor,
+  `#[cfg(any(test, feature = "test-fixtures"))] if let Some(fixtures) = host.test_fixtures_like_cpp()`.
+  The character aura load's `#[cfg(test)]`/`#[cfg(not(test))]` pair keeps
+  its production arm (`_canonical.then_some(())`) and gates the handle-less
+  fixture install on `host.test_fixtures_ref_like_cpp().is_some()`; inside
+  it the two-line test-only `mutate_player_aura_subsystem_like_cpp` wrapper
+  is written as its body (the spell-state split and the
+  `SessionSpellState` call). In a production build the predicate and its
+  branch are compiled out.
+
+A token comparison of the 34 moved functions against the same rewrite
+applied by script to their base bodies finds only these classes of
+difference: visibility, rustfmt trailing commas, the in-crate call paths,
+the fixture steps, `core_mut`, the game-time path and one multi-line
+`hub_mut(self)` the script did not fold.
+
+### Re-measure and the cut
+
+On `0f421ba4a` (classifier, `wow-world` production 57,424) the 9b families
+held: talents 405 lines, auras left 1,371, spell click 574, player cast
+1,149 (3,499). Moved as planned, the talent host alone is about 30 % of its
+body (7c measured the same), so the slice is cut by host cost, not size:
+
+- **Talents.** The learn, the active and login resets, the reset text, the
+  active-talent spell removal and `CMSG_LEARN_TALENT` move. **The respec wipe
+  (`CMSG_CONFIRM_RESPEC_WIPE`) stays** in `handlers/talent/state.rs`: it was
+  moved first and reverted in this branch, because its host surface (the
+  feign-death removal, the talent-reset commit and publication as async
+  host methods and an associated committed type, which also needed
+  `CommittedRepresentedTalentResetLikeCpp` widened) cost about 36 host lines
+  for 93 body lines.
+- **Auras.** Everything with a body moves (below). The split forwards over
+  `SessionSpellState`, the application-context wrappers (`remove_aura`,
+  `apply_aura_with_effect_mask*`, the feign-death removal), the 23-caller
+  `apply_represented_aura_modifier_like_cpp` (its call sites would push
+  `spell_effects/execution.rs` past 1,000 lines), the coordinator's login
+  passive auras and the spell-hit authority check stay.
+- **Spell click and cast.** The clickee caster with its creature school
+  damage, the spell-area autocast check and the cast-spell-info read move.
+  The click plan needs the player-condition context through an associated
+  type (the inventory pattern), the plan execution and the player cast need
+  the spell execution as async host methods, and `player_cast.rs` is the
+  `Runtime` adapter itself; they go with execution (9d).
+
+### What moved
+
+To `wow-world-spell/src/` (C++ `Player::LearnTalent`, the runtime half of
+`Player::ResetTalents`, `Unit::_AddAura`/`RemoveAura` bookkeeping,
+`Player::_LoadAuras`, `AuraEffect::HandleMount`, `SpellArea::IsFitToRequirements`,
+`Player::GetCastSpellInfo` and `Creature::HandleSpellClick` with the
+clickee as caster):
+
+- `talent_session/talents.rs`, from `session/progression/talents.rs` and
+  `session/movement/state.rs`: `reset_represented_talents_like_cpp`, the
+  active and login talent resets, the talent learn, the reset notification
+  text with `LANG_RESET_TALENTS{,_TEXT}_LIKE_CPP` (only it reads them) and
+  `remove_represented_active_talent_side_effects_like_cpp`;
+- `talent_session/handlers.rs`, from `handlers/talent/state.rs`:
+  `handle_learn_talent`;
+- `aura_session/aura_state.rs`, from `session/spell_state/aura.rs`: the
+  caster-less aura visual, the player and unit aura-state masks, the mounted
+  amount, the character aura load and the mount display candidates and
+  selection;
+- `aura_session/mount.rs`, the whole of `session/spell_state/mount_aura.rs`
+  (deleted): the mounted aura, its capability speed auras and the removal by
+  type;
+- `aura_session/application.rs`, from `aura_application.rs`: the
+  indoor/outdoor, attribute, spell and interrupt-flag removals, the
+  far-teleport moving/turning removal with
+  `SPELL_AURA_INTERRUPT_FLAG_MOVING{,_OR_TURNING}_LIKE_CPP` (only it reads
+  them), the spell-focus aura and the expiry tick;
+- `aura_session/publication.rs`, from `aura_publication.rs`: the visible-aura
+  insert, the next free slot and `send_aura_update_applied`;
+- `aura_session/sources.rs`, from `spell_state/cast.rs` and
+  `aura/spell_hit_authority.rs`: the spell-area autocast check and source
+  and the trait-config aura source;
+- `spellbook_session/runtime.rs` gains `represented_cast_spell_info_like_cpp`
+  (the override read) from `spell_state/cast.rs`;
+- `spell_click_session/mod.rs`, from `spell_state/cast.rs` and
+  `world_entities/spell_click.rs`: the clickee caster and the creature
+  school damage to the clicker and the clickee, with the host trait.
+
+Every World caller calls the free function with `self` (27 sites in 20
+files, adapters included). **Recursion check.** Six trait impls forwarded a moved name by path
+(`login_host.rs`: the talent reset and the aura load; `entities/host.rs`:
+the mounted-aura removal; `spellbook_host.rs`: the spell and interrupt-flag
+aura removals; `movement/host.rs` and `chat_handler_contexts.rs`: the
+interrupt-flag removal). Each now names `wow_world_spell::…`. A grep of
+every moved name with method or `WorldSession::`/`Self::` path syntax over
+the production files (the `#![cfg(test)]` shims excluded) finds only those
+trait definitions; every host adapter forward was checked by script to name
+a method of an inherent `impl WorldSession` block; and the production lib
+build reports no `unconditional_recursion`.
+
+**Reclassified, not moved:**
+
+- the `#[cfg(test)]` mounted-aura test entry nested in the production impl
+  of `mount_aura.rs` (9 lines), verbatim, to the `#![cfg(test)]`
+  `handlers/aura_test_shims.rs`;
+- the talents' #1241 F3 test entry points, verbatim (`pub(in crate::session)`
+  reads `pub(crate)`) from `unit_tests/session/progression/talents/f3_shims.rs`
+  (deleted with its mount) to the `#![cfg(test)]`
+  `handlers/talent_test_shims.rs`. This is test code moving;
+- 11 one-call forwards to the moved functions the scenarios and fixtures
+  call (4 talent, 7 aura). No scenario call site changes.
+
+**Tests that changed their import only:** `persistence/load/f3_shims.rs`
+imports `TalentTabStore` (the session root no longer does) and
+`scenarios_world_entities_14.rs` imports `SliceRandom` (likewise). No
+assertion changes.
+
+### Host surface
+
+| Trait (spell) | Methods | Trait lines | Adapter | Adapter lines |
+|---|---:|---:|---|---:|
+| `TalentHostLikeCpp: SpellbookHostLikeCpp` | 5: the points refresh (it builds `QuestRewardCx`), the at-login flag read and removal, the talents-loaded check, `trinity_string` | 10 | `session/progression/talent_host.rs` | 23 |
+| `AuraHostLikeCpp: SpellbookHostLikeCpp` | 11: the entities split, `remove_aura`, the aura modifier, the mount capability selection and display condition, the collision height, the cast GUID, the threat snapshot, the creature aura tick, the spell-area quest status, the spell-map snapshot | 36 | `session/spell_state/aura_host.rs` | 85 |
+| `SpellClickHostLikeCpp: AuraHostLikeCpp` | 2: the registry sync, the unit VALUES update object | 10 | `session/spell_state/spell_click_host.rs` | 24 |
+
+- None is async. Each adapter operation names the inherent method by path
+  (script-checked). `SpellbookHostLikeCpp` is unchanged: its two aura
+  removals now forward to the moved free functions.
+- **Budget.** 188 host lines (traits 56 + adapters 132) against 1,265 moved
+  function lines: **14.9 %**.
+- **Widening.** In spell the crate exports the three traits and the 21
+  functions World production calls; three more (the moving interrupt flag,
+  the mount display candidates and the talent learn) only under
+  `cfg(any(test, feature = "test-fixtures"))`. No World item is widened.
+- **#1391 follow-up (a).** The #754 note on
+  `mutate_player_spell_runtime_like_cpp` now names its production writers
+  (`session/spell_state` and its `SpellbookHostLikeCpp` adapter, through
+  which only the spellbook bodies reach it) and why it is `pub(crate)` (the
+  cfg(test) spellbook shim). A `cfg_attr` cannot change visibility, and a
+  second gated definition would duplicate the body.
+
+### Await counts (per function, base vs head)
+
+Counted with the 8d script (comments and literals blanked) over every
+changed World file and the destination files.
+
+| Function | Base | Head |
+|---|---:|---:|
+| `execute_represented_spell_click_clickee_caster_like_cpp` (moved) | 2 | 2 |
+| `handle_learn_talent`, the two creature-damage bodies (moved, async) | 0 | 0 |
+| 30 other moved functions | sync | sync |
+| 41 async World functions in the changed files | 88 | 88 |
+| `handle_learn_talent` forward in `talent_test_shims.rs` (test only) | – | 1 |
+
+The talent adapter's two thunks keep one `.await` each, and the click-plan
+execution keeps its two (the clickee call is now a free call). No future is
+spawned, boxed or reordered, and no borrow is split differently across an
+await.
+
+### Behaviour
+
+Every moved body is its base text after the rewrites above. In particular:
+the talent learn order (loaded check, rank, validation, snapshot, row load,
+spell side effects, points refresh), the active reset (runtime take, spell
+and override removal per talent, refresh) and the login reset (flag test,
+script hook, flag removal with persist, pet removal, reset, talent data
+packet, `LANG_RESET_TALENTS` notification); the mounted-aura order
+(amount, display, template fallback, slot, presentation, aura insert,
+vehicle kit, vehicle rec ID, pet controls, collision height, capability
+speed auras, `SMSG_AURA_UPDATE`, mount unit update); the aura load's row
+filters, charge rule, slot and cast-GUID allocation and install; the removal
+and expiry orders; the autocast and trait-config source rules; the clickee
+`SMSG_SPELL_GO` and the damage branches. The respec wipe, its reset cost,
+the talent-reset transaction and its publication are untouched (#169). The
+opcode registrations, processing and status flags are untouched
+(`wow-world-application` is not in the diff). The moved log sites (the
+`LearnTalent` read warning, the aura expiry and the two spell-click damage
+debug lines) now use the `wow_world_spell::{talent_session,aura_session,spell_click_session}`
+tracing targets.
+
+### Edges and closure
+
+`wow-world-spell -> wow-world-entities` is added (the entities split and its
+state type, the spell-click plan values, the turning interrupt flag);
+spell's `test-fixtures` enables `wow-world-entities/test-fixtures`, and the
+dependency policy allows the edge. It was simulated on `b5fdc923b` (9a) and
+re-simulated here with `--add`, then checked as added: `wow_world_closure.py
+check` passes in lock and metadata mode (17 packages); spell's direct
+`wow-world` set is core, entities and lifecycle.
+
+### Accounting
+
+- **`crates/wow-world/src`.** Classifier: 57,424 → **56,283 production
+  (−1,141)**. Physical: 64,035 → 63,094 (−941). Files: 478 → 482. Test:
+  6,611 → 6,811 (+200).
+  - **About 1,290 is production code that left `wow-world`:** the 34
+    moved functions (1,265 lines at base), the five constant lines that
+    moved with them and about 20 lines of separators and the emptied
+    `mount_aura.rs` scaffolding.
+  - **12 is reclassified to test:** the mounted-aura `#[cfg(test)]` method
+    (9) and three session-root re-exports only the scenarios read, now
+    `cfg(test)`. The session root's −10 production is those 3, the five
+    moved constant lines and two imports only the moved bodies read.
+  - **+132 is the three adapters**, +2 their mounts.
+  - **+29 is call-site and comment edits** (execution +6, the #754 note +5,
+    talent host thunks +5, movement +5, others).
+  - The test figure grows by the two shim files (189) and their mounts
+    (+4) and the gated session-root lines with their attributes (+10), less
+    the deleted talents F3 shim mount (−3).
+- **Destination.** `wow-world-spell/src`: 10,013 → 11,600 physical
+  (+1,587; production 9,742 → 11,323, +1,581; test +6, the gated exports).
+  New: `aura_session/` 1,091 lines (`aura_state.rs` 365, `mount.rs` 245,
+  `application.rs` 211, `sources.rs` 165, `mod.rs` 68, `publication.rs` 37),
+  `talent_session/` 244 (`talents.rs` 164, `handlers.rs` 48, `mod.rs` 32),
+  `spell_click_session/mod.rs` 203; `spellbook_session/runtime.rs` +18,
+  `lib.rs` +35.
+- **`net_move.py check`.** PASS: growth 1,587 ≤ 1,949.1, 0 duplicate bodies.
+- **`session-ownership-policy.json`** is reprinted with `print-baseline`.
+  The delta is exactly: 45 items leave (32 moved session methods,
+  `handle_learn_talent` from `handlers::talent::state`, 12 test-fixture
+  items: the 11 talents F3 entry points and the mounted-aura test entry),
+  and 41 arrive (18 adapter trait items, 23 shim items). The syntax-only
+  check passes.
+- **Ceilings.** None raised. Tightened to live values:
+  - hotspot `session/mod.rs`: production 38,012 → 36,898, test 141,842 →
+    141,777, total 179,854 → 178,675. The test figure falls because the
+    talents F3 shim left the session tree;
+  - new physical rows `handlers/talent_test_shims.rs` at 114 and
+    `handlers/aura_test_shims.rs` at 75;
+  - physical `session/mod.rs` stays at its ceiling (962): the cfg(test)
+    re-exports are paid for by the moved constants and dropped imports.
+- **Warnings.** The `wow-world` warning sets (`--message-format=short` lines,
+  compared without line numbers against the base) are identical in all
+  three builds: production lib 146, lib with `test-fixtures` 154, all
+  targets 291, and every other crate in those builds keeps its base set.
+  `wow-world-spell --all-targets` keeps its base set too. `wow-world`
+  `dead_code` is 0 in all three.
+- **Tests.** No `#[test]` or `#[ignore]` is added or removed; the workspace
+  test-name multiset is identical (10,214 names, 5 ignores). Focused runs
+  during the move (the final run covers the head): the `wow-world` lib
+  passed 3,680 with 1 ignored, and the `wow-world-spell` tests passed 25.
+
+### 9c plan
+
+Re-measured on this head: spell effects without execution as planned
+(about 4.7k; threat waits for 9d if the re-measure exceeds 4.5k). The
+remaining 9b families join the execution part (9d), because each needs the
+spell execution as an async host method: the click plan and its execution
+(500 lines, plus the player-condition context through an associated type),
+the player cast (948, with the `Runtime` adapter), the respec wipe (with the
+talent-reset commit and publication) and `apply_represented_aura_modifier_like_cpp`
+(with the effect bodies that call it). The spell-hit aura authority check
+and the coordinator's login passive auras go with the coordinator.
+
+### Follow-ups
+
+- Retire the shim files, now including `talent_test_shims.rs` (114) and
+  `aura_test_shims.rs` (75), when the scenarios call the free functions.
+- The spell-map dispatch moves when its last World caller does (9a note).
+
+### Validation
+
+`final --architecture --timings` (`VALIDATION_V2_CARGO_JOBS=1`,
+`VALIDATION_V2_TIMEOUT_SECONDS=1800`) runs on the committed head that
+includes this section. Its manifest path, dirty flag and duration are in
+the PR body. This section is not edited after that run.
