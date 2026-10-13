@@ -329,13 +329,11 @@ use money_persistence_contracts::reconcile_absolute_player_money_commit_like_cpp
 mod movement_protocol;
 pub(crate) use movement_protocol::MoveTeleportAckActionLikeCpp;
 #[cfg(test)]
-pub(crate) use movement_protocol::UnitMoveTypeLikeCpp;
-#[cfg(test)]
 pub(crate) use movement_protocol::{
     MoveSplineDoneTaxiActionLikeCpp, MoveSplineDoneTaxiEventLikeCpp, MoveTeleportAckEventLikeCpp,
     MovementAckEventLikeCpp, MovementFallDamageEvent, MovementSpeedAckActionLikeCpp,
     MovementSpeedAckEventLikeCpp, MovementUnderMapDamageEvent, RepresentedAreaZoneCriteriaLikeCpp,
-    RepresentedTaxiFlightNodeLikeCpp, TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP,
+    RepresentedTaxiFlightNodeLikeCpp, TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP, UnitMoveTypeLikeCpp,
 };
 mod npc_interaction;
 mod persistence_capabilities;
@@ -355,9 +353,8 @@ use persistence_capabilities::empty_character_power_snapshot_like_cpp;
 use persistence_capabilities::loaded_character_power_snapshot_like_cpp;
 mod pet_dismissal;
 mod pet_loading;
-pub(crate) use pet_loading::CharacterAuraEffectRowLikeCpp;
-pub(crate) use pet_loading::CharacterAuraRowLikeCpp;
 pub(crate) use pet_loading::adjusted_represented_pet_aura_remain_time_like_cpp;
+pub(crate) use pet_loading::{CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp};
 #[cfg(test)]
 pub(crate) use wow_world_core::session::CharacterPetStableRowLikeCpp;
 #[cfg(test)]
@@ -375,8 +372,7 @@ mod player_condition_values;
 pub(crate) use player_condition_values::RepresentedItemLevelCapsLikeCpp;
 pub(crate) use player_condition_values::RepresentedPlayerConditionContextLikeCpp;
 mod player_load_values;
-use player_load_values::gender_from_u8;
-use player_load_values::player_team_id_for_race_cpp;
+use player_load_values::{gender_from_u8, player_team_id_for_race_cpp};
 // #1363 slice 3: the player melee phase moved to `wow-world-creature`;
 // world-server and the unit tests keep these Session paths.
 pub use wow_world_creature::PlayerMeleeAttackerSnapshotLikeCpp;

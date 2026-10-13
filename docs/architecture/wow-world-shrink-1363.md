@@ -3418,11 +3418,11 @@ processing flags are unchanged. No registrar moves.
 
 ### Accounting
 
-- **`crates/wow-world/src`.** −3,288 / +443. Classifier: 75,503 →
-  **72,467 production (−3,036)**, 78,957 → 76,112 physical, 504 files.
+- **`crates/wow-world/src`.** Classifier: 75,503 → **72,465 production
+  (−3,038)**, 78,957 → 76,108 physical, 504 files.
   - Combat −881.
   - The saga with `LootCxRef` −1,122.
-  - Pets −886.
+  - Pets and the import tidy −888.
   - The test shim file counted as test −147.
 - **Destinations.**
   - `wow-world-entities/src` 13,793 → 14,828 (+1,035).
@@ -3440,14 +3440,14 @@ processing flags are unchanged. No registrar moves.
   delta is the moved impl items, the three new adapter trait impls, the test
   shim impls and the retired `LootCxRef` items.
 - **Ceilings.** None raised. Tightened to live values:
-  - hotspot `session/mod.rs`: production 42,601 → 41,227, test 142,042 →
-    141,988, total 184,643 → 183,215;
+  - hotspot `session/mod.rs`: production 42,601 → 41,225, test 142,042 →
+    141,986, total 184,643 → 183,211;
   - hotspot `handlers/loot/mod.rs`: production 1,643 → 1,386, total 20,572 →
     20,315;
   - hotspot `handlers/character/mod.rs`: production 15,088 → 14,790, total
     30,796 → 30,498;
-  - physical `handlers/loot/handlers.rs` 171 → 13, `battle_pet_purchase.rs`
-    92 → 55;
+  - physical `session/mod.rs` 977 → 976, `handlers/loot/handlers.rs`
+    171 → 13, `battle_pet_purchase.rs` 92 → 55;
   - new physical row `handlers/player_test_shims.rs` at 150.
 - **Warnings.** The warning counts of the production lib, the lib with
   `test-fixtures` and the lib plus lib-test build equal base: 331, 297 and
