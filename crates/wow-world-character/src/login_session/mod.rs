@@ -21,38 +21,31 @@
 //! and the login data loaders (`session_state/login_data.rs`) stay in the
 //! World and call these functions.
 
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::future::Future;
-use wow_core::Position;
+use wow_core::{ObjectGuid, Position};
 use wow_data::TalentTabStore;
-use wow_entities::PhaseShift;
-use wow_entities::PlayerCurrency;
-use wow_entities::PlayerEnchantTimeUpdate;
 use wow_entities::PlayerHomebindLikeCpp as RepresentedHomebindLikeCpp;
-use wow_entities::PlayerItemTimeUpdate;
 use wow_entities::PlayerVoidStorageItemLikeCpp as RepresentedVoidStorageItemLikeCpp;
-use wow_packet::packets::misc::AccountMount;
-use wow_packet::packets::misc::DungeonDifficultySet;
+use wow_entities::{PhaseShift, PlayerCurrency, PlayerEnchantTimeUpdate, PlayerItemTimeUpdate};
+use wow_packet::packets::misc::{AccountMount, DungeonDifficultySet};
 use wow_packet::packets::update::TraitConfigCreateData;
 use wow_progression::mgr::CharacterReputationRowLikeCpp;
 use wow_world_core::session::SessionState;
 use wow_world_entities::CreatureSpawnCatalogsLikeCpp;
-use wow_world_lifecycle::FinalizationMode;
-use wow_world_lifecycle::FinalizationOutcome;
-use wow_world_lifecycle::FinalizationReport;
-use wow_world_spell::CharacterAuraEffectRowLikeCpp;
-use wow_world_spell::CharacterAuraRowLikeCpp;
-use wow_world_spell::RepresentedPlayerSpellLikeCpp;
+use wow_world_inventory::VendorSessionHostLikeCpp;
+use wow_world_lifecycle::{
+    FinalizationMode, FinalizationOutcome, FinalizationReport, SessionLifecycleState,
+};
+use wow_world_loot::LootState;
+use wow_world_spell::{
+    CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp, RepresentedPlayerSpellLikeCpp,
+    SessionSpellState,
+};
+use wow_world_visibility::VisibilityState;
 
-use wow_core::ObjectGuid;
 use wow_world_core::session::{HubMut, HubRef};
 use wow_world_entities::{CorpseHostLikeCpp, WorldEntitiesHostLikeCpp};
-use wow_world_inventory::VendorSessionHostLikeCpp;
-use wow_world_lifecycle::SessionLifecycleState;
-use wow_world_loot::LootState;
-use wow_world_spell::SessionSpellState;
-use wow_world_visibility::VisibilityState;
 
 mod action_buttons;
 mod admission;

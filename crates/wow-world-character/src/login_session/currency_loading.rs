@@ -7,11 +7,9 @@
 
 use crate::CharacterLoginHostLikeCpp;
 use std::sync::Arc;
-use tracing::info;
-use tracing::warn;
+use tracing::{info, warn};
 use wow_core::ObjectGuid;
-use wow_entities::PlayerCurrency;
-use wow_entities::PlayerCurrencyState;
+use wow_entities::{PlayerCurrency, PlayerCurrencyState};
 
 pub async fn load_character_currencies_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
     host: &mut H,

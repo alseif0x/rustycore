@@ -7,12 +7,11 @@
 
 use crate::CharacterLoginHostLikeCpp;
 use crate::character_handlers::CHAR_CREATE_ERROR_LIKE_CPP;
-use crate::character_login_support::CharacterLoginLocationLikeCpp;
-use crate::character_login_support::default_graveyard_safe_loc_ids_for_race_like_cpp;
+use crate::character_login_support::{
+    CharacterLoginLocationLikeCpp, default_graveyard_safe_loc_ids_for_race_like_cpp,
+};
 use std::sync::Arc;
-use tracing::debug;
-use tracing::info;
-use tracing::warn;
+use tracing::{debug, info, warn};
 use wow_constants::character::RESPONSE_SUCCESS_LIKE_CPP;
 use wow_core::ObjectGuid;
 use wow_packet::ClientPacket;

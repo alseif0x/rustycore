@@ -7,29 +7,23 @@
 
 use crate::CharacterLoginHostLikeCpp;
 use tracing::info;
-use wow_core::ObjectGuid;
-use wow_core::Position;
-use wow_entities::BANK_SLOT_BAG_END;
-use wow_entities::BANK_SLOT_BAG_START;
-use wow_entities::INVENTORY_SLOT_BAG_END;
-use wow_entities::INVENTORY_SLOT_BAG_START;
-use wow_entities::REAGENT_BAG_SLOT_END;
-use wow_entities::REAGENT_BAG_SLOT_START;
+use wow_core::{ObjectGuid, Position};
+use wow_entities::{
+    BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
+    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START,
+};
 use wow_packet::packets::character::LoginVerifyWorld;
 use wow_packet::packets::chat::ChatServerMessage;
 use wow_packet::packets::loot::LootReleaseAll;
-use wow_packet::packets::misc::AccountMount;
-use wow_packet::packets::misc::AccountMountUpdate;
-use wow_packet::packets::misc::LogoutRequest;
-use wow_packet::packets::misc::LogoutResponse;
-use wow_packet::packets::misc::SetTimeZoneInformation;
+use wow_packet::packets::misc::{
+    AccountMount, AccountMountUpdate, LogoutRequest, LogoutResponse, SetTimeZoneInformation,
+};
 use wow_packet::packets::update::PlayerCombatStats;
-use wow_world_core::session::SessionState;
-use wow_world_core::session::SupportFeaturePolicyLikeCpp;
-use wow_world_lifecycle::ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP;
-use wow_world_lifecycle::FinalizationDisposition;
-use wow_world_lifecycle::FinalizationMode;
-use wow_world_lifecycle::GLOBAL_CACHE_MASK_LIKE_CPP;
+use wow_world_core::session::{SessionState, SupportFeaturePolicyLikeCpp};
+use wow_world_lifecycle::{
+    ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, FinalizationDisposition, FinalizationMode,
+    GLOBAL_CACHE_MASK_LIKE_CPP,
+};
 
 pub(super) fn is_represented_bag_slot(slot: u8) -> bool {
     (INVENTORY_SLOT_BAG_START..INVENTORY_SLOT_BAG_END).contains(&slot)

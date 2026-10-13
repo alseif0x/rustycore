@@ -7,8 +7,7 @@
 
 use crate::CharacterLoginHostLikeCpp;
 use std::sync::Arc;
-use tracing::info;
-use tracing::warn;
+use tracing::{info, warn};
 use wow_core::ObjectGuid;
 use wow_progression::mgr::CharacterReputationRowLikeCpp;
 

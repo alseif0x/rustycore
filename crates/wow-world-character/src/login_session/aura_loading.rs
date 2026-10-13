@@ -7,12 +7,10 @@
 
 use crate::CharacterLoginHostLikeCpp;
 use std::sync::Arc;
-use tracing::info;
-use tracing::warn;
+use tracing::{info, warn};
 use wow_core::ObjectGuid;
 use wow_world_lifecycle::login_transport::object_guid_from_db_binary_like_cpp;
-use wow_world_spell::CharacterAuraEffectRowLikeCpp;
-use wow_world_spell::CharacterAuraRowLikeCpp;
+use wow_world_spell::{CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp};
 
 pub async fn load_character_auras_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
     host: &mut H,

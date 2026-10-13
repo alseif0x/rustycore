@@ -10,23 +10,18 @@ use crate::login_session::world_entry::is_represented_bag_slot;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::warn;
-use wow_constants::InventoryType;
-use wow_constants::ItemContext;
-use wow_constants::ItemFieldFlags;
-use wow_constants::ItemUpdateState;
+use wow_constants::{InventoryType, ItemContext, ItemFieldFlags, ItemUpdateState};
 use wow_core::ObjectGuid;
 use wow_entities::PlayerInventoryItem as InventoryItem;
 use wow_entities::PlayerVoidStorageItemLikeCpp as RepresentedVoidStorageItemLikeCpp;
-use wow_world_inventory::loaded_item_support::apply_loaded_item_instance_fields_like_cpp;
-use wow_world_inventory::loaded_item_support::apply_loaded_item_storage_mutable_fields_like_cpp;
-use wow_world_inventory::loaded_item_support::loaded_item_effective_enchantments_like_cpp;
-use wow_world_inventory::loaded_item_support::loaded_item_enchantments_like_cpp;
-use wow_world_inventory::loaded_item_support::loaded_item_random_properties_like_cpp;
-use wow_world_inventory::loaded_item_support::loaded_item_slot_applies_equipped_enchantments_like_cpp;
-use wow_world_inventory::loaded_item_support::loaded_socketed_gem_create_updates_like_cpp;
-use wow_world_inventory::loaded_item_support::loaded_socketed_gems_like_cpp;
-use wow_world_inventory::vendor::LoadedItemRefundDecision;
-use wow_world_inventory::vendor::loaded_item_refund_decision;
+use wow_world_inventory::loaded_item_support::{
+    apply_loaded_item_instance_fields_like_cpp, apply_loaded_item_storage_mutable_fields_like_cpp,
+    loaded_item_effective_enchantments_like_cpp, loaded_item_enchantments_like_cpp,
+    loaded_item_random_properties_like_cpp,
+    loaded_item_slot_applies_equipped_enchantments_like_cpp,
+    loaded_socketed_gem_create_updates_like_cpp, loaded_socketed_gems_like_cpp,
+};
+use wow_world_inventory::vendor::{LoadedItemRefundDecision, loaded_item_refund_decision};
 
 pub struct LoginInventorySnapshotLikeCpp {
     pub visible_items: [(i32, u16, u16); 19],

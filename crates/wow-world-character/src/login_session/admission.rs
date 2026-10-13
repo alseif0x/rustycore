@@ -6,12 +6,12 @@
 //! Load the login-time battleground, homebind, and guild admission rows.
 
 use crate::CharacterLoginHostLikeCpp;
-use crate::character_login_support::CharacterBattlegroundLoginDataLikeCpp;
-use crate::character_login_support::CharacterLoginLocationLikeCpp;
+use crate::character_login_support::{
+    CharacterBattlegroundLoginDataLikeCpp, CharacterLoginLocationLikeCpp,
+};
 use std::sync::Arc;
 use tracing::warn;
-use wow_core::ObjectGuid;
-use wow_core::Position;
+use wow_core::{ObjectGuid, Position};
 
 pub struct LoginAdmissionDataLikeCpp {
     pub saved_character_map_is_battleground: bool,

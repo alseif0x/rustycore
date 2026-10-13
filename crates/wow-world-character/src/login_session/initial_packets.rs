@@ -5,38 +5,22 @@
 
 //! Ordered login packet bursts before and after canonical map insertion.
 
-use crate::CharacterLoginHostLikeCpp;
-use crate::apply_post_add_zone_from_terrain_like_cpp;
-use crate::character_login_support::CharacterLoginLocationLikeCpp;
-use crate::character_login_support::LoginWorldStateTemplateLikeCpp;
-use crate::character_login_support::apply_pvp_season_world_states_like_cpp;
-use crate::character_login_support::build_initial_world_states_like_cpp;
-use crate::character_login_support::login_bind_point_update_like_cpp;
-use crate::character_login_support::parse_login_world_state_area_ids_like_cpp;
-use crate::character_login_support::parse_login_world_state_map_ids_like_cpp;
+use crate::character_login_support::{
+    CharacterLoginLocationLikeCpp, LoginWorldStateTemplateLikeCpp,
+    apply_pvp_season_world_states_like_cpp, build_initial_world_states_like_cpp,
+    login_bind_point_update_like_cpp, parse_login_world_state_area_ids_like_cpp,
+    parse_login_world_state_map_ids_like_cpp,
+};
+use crate::{CharacterLoginHostLikeCpp, apply_post_add_zone_from_terrain_like_cpp};
 use std::sync::Arc;
-use tracing::info;
-use tracing::warn;
-use wow_core::ObjectGuid;
-use wow_core::Position;
-use wow_packet::packets::misc::AccountMount;
-use wow_packet::packets::misc::AccountMountUpdate;
-use wow_packet::packets::misc::AllAchievementData;
-use wow_packet::packets::misc::InitWorldStates;
-use wow_packet::packets::misc::InitialSetup;
-use wow_packet::packets::misc::LoginSetTimeSpeed;
-use wow_packet::packets::misc::MoveSetActiveMover;
-use wow_packet::packets::misc::PhaseShiftChange;
-use wow_packet::packets::misc::SendKnownSpells;
-use wow_packet::packets::misc::SendSpellCharges;
-use wow_packet::packets::misc::SendSpellHistory;
-use wow_packet::packets::misc::SendUnlearnSpells;
-use wow_packet::packets::misc::SetSpellModifier;
-use wow_packet::packets::misc::SetupCurrency;
-use wow_packet::packets::misc::SpellChargeEntry;
-use wow_packet::packets::misc::SpellHistoryEntry;
-use wow_packet::packets::misc::UpdateActionButtons;
-use wow_packet::packets::misc::WorldServerInfo;
+use tracing::{info, warn};
+use wow_core::{ObjectGuid, Position};
+use wow_packet::packets::misc::{
+    AccountMount, AccountMountUpdate, AllAchievementData, InitWorldStates, InitialSetup,
+    LoginSetTimeSpeed, MoveSetActiveMover, PhaseShiftChange, SendKnownSpells, SendSpellCharges,
+    SendSpellHistory, SendUnlearnSpells, SetSpellModifier, SetupCurrency, SpellChargeEntry,
+    SpellHistoryEntry, UpdateActionButtons, WorldServerInfo,
+};
 use wow_persistence::PlayerInitialWorldStateRowsLikeCpp;
 use wow_world_entities::CreatureSpawnCatalogsLikeCpp;
 

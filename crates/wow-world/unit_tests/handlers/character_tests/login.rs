@@ -78,7 +78,7 @@ fn reputation_login_phase_returns_completion_for_first_login_reputation() {
         "rows_complete = true;",
         "missing Faction.db2 store",
         "PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason }",
-        "rows_complete\n    }",
+        "rows_complete\n}",
     ] {
         assert!(
             reputation_loading.contains(marker),
@@ -120,7 +120,7 @@ fn talent_login_phase_keeps_spell_side_effects_and_completion_result() {
         "mark_represented_talents_loaded_like_cpp",
         "rows_complete = true;",
         "PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason }",
-        "rows_complete\n    }",
+        "rows_complete\n}",
     ] {
         assert!(
             talent_loading.contains(marker),

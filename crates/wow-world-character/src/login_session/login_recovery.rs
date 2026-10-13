@@ -6,16 +6,15 @@
 //! Recovery helpers for persisted character locations and partial login.
 
 use crate::CharacterLoginHostLikeCpp;
-use crate::character_login_support::CharacterLoginLocationLikeCpp;
-use crate::character_login_support::first_login_creation_homebind_like_cpp;
-use crate::character_login_support::login_location_zone_area_like_cpp;
-use crate::character_login_support::usable_character_homebind_like_cpp;
-use crate::character_login_support::zone_and_area_from_area_id_like_cpp;
+use crate::character_login_support::{
+    CharacterLoginLocationLikeCpp, first_login_creation_homebind_like_cpp,
+    login_location_zone_area_like_cpp, usable_character_homebind_like_cpp,
+    zone_and_area_from_area_id_like_cpp,
+};
 use crate::login_session::lifecycle::load_default_graveyard_homebind_like_cpp;
 use std::sync::Arc;
 use tracing::warn;
-use wow_core::ObjectGuid;
-use wow_core::Position;
+use wow_core::{ObjectGuid, Position};
 use wow_data::PlayerCreateInfoLikeCpp;
 use wow_world_core::session::map_admission::PlayerGridLoadOutcomeLikeCpp;
 use wow_world_core::terrain::zone_and_area_for_position_like_cpp;

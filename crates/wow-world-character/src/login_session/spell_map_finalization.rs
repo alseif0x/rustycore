@@ -9,8 +9,7 @@ use crate::CharacterLoginHostLikeCpp;
 use std::collections::HashSet;
 use tracing::warn;
 use wow_core::ObjectGuid;
-use wow_world_spell::RepresentedPlayerSpellLikeCpp;
-use wow_world_spell::RepresentedPlayerSpellStateLikeCpp;
+use wow_world_spell::{RepresentedPlayerSpellLikeCpp, RepresentedPlayerSpellStateLikeCpp};
 
 /// `login_authority_complete` is the conjunction of every row family the
 /// PlayerSpellMap depends on; the map stays incomplete otherwise.

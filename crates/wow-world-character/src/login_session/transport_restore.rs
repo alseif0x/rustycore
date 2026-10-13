@@ -5,13 +5,11 @@
 
 //! Restore the persisted transport attachment during character login.
 
-use crate::CharacterLoginHostLikeCpp;
 use crate::character_login_support::CharacterLoginLocationLikeCpp;
 use crate::login_session::login_sequence::resolve_persisted_transport_login_like_cpp;
-use crate::seed_login_location_zone_area_like_cpp;
+use crate::{CharacterLoginHostLikeCpp, seed_login_location_zone_area_like_cpp};
 use tracing::warn;
-use wow_core::ObjectGuid;
-use wow_core::Position;
+use wow_core::{ObjectGuid, Position};
 use wow_world_lifecycle::login_transport::PersistedTransportLoginLikeCpp;
 
 pub async fn restore_persisted_transport_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(

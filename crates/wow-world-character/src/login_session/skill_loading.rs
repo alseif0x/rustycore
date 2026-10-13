@@ -8,11 +8,9 @@
 use crate::CharacterLoginHostLikeCpp;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::info;
-use tracing::warn;
+use tracing::{info, warn};
 use wow_core::ObjectGuid;
-use wow_world_core::session::RepresentedPlayerSkillLikeCpp;
-use wow_world_core::session::RepresentedPlayerSkillStateLikeCpp;
+use wow_world_core::session::{RepresentedPlayerSkillLikeCpp, RepresentedPlayerSkillStateLikeCpp};
 
 /// Returns the persisted skill rows and whether the query completed; the
 /// coordinator normalizes them and replaces the canonical owner only when

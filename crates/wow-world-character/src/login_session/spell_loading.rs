@@ -8,13 +8,12 @@
 use crate::CharacterLoginHostLikeCpp;
 use std::collections::HashSet;
 use std::sync::Arc;
-use tracing::info;
-use tracing::warn;
+use tracing::{info, warn};
 use wow_core::ObjectGuid;
-use wow_world_spell::RepresentedPlayerSpellLikeCpp;
-use wow_world_spell::RepresentedPlayerSpellStateLikeCpp;
-use wow_world_spell::login_spell_rules::active_known_spell_for_send_like_cpp;
-use wow_world_spell::login_spell_rules::loaded_spell_for_add_spell_side_effects_like_cpp;
+use wow_world_spell::login_spell_rules::{
+    active_known_spell_for_send_like_cpp, loaded_spell_for_add_spell_side_effects_like_cpp,
+};
+use wow_world_spell::{RepresentedPlayerSpellLikeCpp, RepresentedPlayerSpellStateLikeCpp};
 
 /// Persisted `character_spell` rows projected for the login coordinator.
 #[derive(Default)]

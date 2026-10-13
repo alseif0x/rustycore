@@ -3,52 +3,43 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Remaining per-session character state and its helpers.
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
+//! The persisted transport resolve and the login packet sequence
+//! (`HandlePlayerLogin` -> `SendInitialPacketsBeforeAddToMap` ->
+//! `Map::AddPlayerToMap` -> `SendInitialPacketsAfterAddToMap`), moved from
+//! `wow-world` `handlers/character/session_state.rs` (#1363 slice 8d).
 
-use crate::CharacterLoginHostLikeCpp;
 use crate::character_login_support::CharacterLoginLocationLikeCpp;
 use crate::login_session::initial_packets::send_initial_packets_before_add_to_map;
-use crate::login_session::lifecycle::load_map_corpse_data_like_cpp;
-use crate::login_session::lifecycle::load_player_customizations_like_cpp;
+use crate::login_session::lifecycle::{
+    load_map_corpse_data_like_cpp, load_player_customizations_like_cpp,
+};
 use crate::login_session::login_recovery::continue_login_after_grid_load_like_cpp;
 use crate::login_session::world_entry::send_handle_player_login_packets_like_cpp;
-use crate::send_initial_packets_after_add_to_map_with_catalogs_like_cpp;
+use crate::{
+    CharacterLoginHostLikeCpp, send_initial_packets_after_add_to_map_with_catalogs_like_cpp,
+};
 use std::collections::HashMap;
-use tracing::info;
-use tracing::warn;
+use tracing::{info, warn};
 use wow_constants::PowerType;
-use wow_core::ObjectGuid;
-use wow_core::Position;
 use wow_core::guid::HighGuid;
-use wow_data::TaxiPathNodeEntry;
-use wow_data::TaxiPathNodeStore;
-use wow_packet::packets::misc::AccountMount;
-use wow_packet::packets::misc::SpellChargeEntry;
-use wow_packet::packets::misc::SpellHistoryEntry;
+use wow_core::{ObjectGuid, Position};
+use wow_data::{TaxiPathNodeEntry, TaxiPathNodeStore};
+use wow_packet::packets::misc::{AccountMount, SpellChargeEntry, SpellHistoryEntry};
 use wow_packet::packets::movement::TransportInfo;
-use wow_packet::packets::update::PlayerCombatStats;
-use wow_packet::packets::update::UpdateBlock;
-use wow_packet::packets::update::UpdateObject;
-use wow_persistence::PlayerLoginTransportLoadOutcomeLikeCpp;
-use wow_persistence::PlayerLoginTransportLoadRequestLikeCpp;
-use wow_world_core::session::SessionState;
-use wow_world_core::session::SupportFeaturePolicyLikeCpp;
-use wow_world_core::session::game_time_ms_like_cpp;
+use wow_packet::packets::update::{PlayerCombatStats, UpdateBlock, UpdateObject};
+use wow_persistence::{
+    PlayerLoginTransportLoadOutcomeLikeCpp, PlayerLoginTransportLoadRequestLikeCpp,
+};
 use wow_world_core::session::map_admission::PlayerGridLoadResolverLikeCpp;
+use wow_world_core::session::{SessionState, SupportFeaturePolicyLikeCpp, game_time_ms_like_cpp};
 use wow_world_entities::CreatureSpawnCatalogsLikeCpp;
 use wow_world_inventory::primary_max_power_for_class_like_cpp;
-use wow_world_lifecycle::login_transport::PersistedTransportLoginLikeCpp;
-use wow_world_lifecycle::login_transport::compose_init_self_create_blocks_like_cpp;
-use wow_world_lifecycle::login_transport::map_transport_create_block_like_cpp;
-use wow_world_lifecycle::login_transport::map_transport_create_from_load_row_like_cpp;
-use wow_world_lifecycle::login_transport::player_visibility_create_update_from_snapshot_like_cpp;
-use wow_world_lifecycle::login_transport::transport_position_for_login_like_cpp;
-use wow_world_lifecycle::login_transport::transport_route_contains_saved_map_like_cpp;
-use wow_world_lifecycle::login_transport::validate_persisted_transport_login_like_cpp;
+use wow_world_lifecycle::login_transport::{
+    PersistedTransportLoginLikeCpp, compose_init_self_create_blocks_like_cpp,
+    map_transport_create_block_like_cpp, map_transport_create_from_load_row_like_cpp,
+    player_visibility_create_update_from_snapshot_like_cpp, transport_position_for_login_like_cpp,
+    transport_route_contains_saved_map_like_cpp, validate_persisted_transport_login_like_cpp,
+};
 use wow_world_visibility::InitTransportsPlanLikeCpp;
 
 /// Resolve C++ `Player::LoadFromDB`'s persisted transport passenger state

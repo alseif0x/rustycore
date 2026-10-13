@@ -6,8 +6,7 @@
 //! Apply the C++ `LearnDefaultSkills` pass to the loaded skill rows during login.
 
 use crate::CharacterLoginHostLikeCpp;
-use std::collections::BTreeMap;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use wow_world_core::session::RepresentedPlayerSkillLikeCpp;
 
 pub fn apply_default_skills_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
