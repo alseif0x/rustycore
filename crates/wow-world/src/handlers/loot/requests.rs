@@ -8,7 +8,6 @@
 use super::*;
 use wow_entities::ItemObjectUpdateLikeCpp;
 
-mod context;
 mod item_storage;
 #[cfg(test)]
 #[path = "../../../unit_tests/handlers/loot/requests/test_support.rs"]
@@ -21,14 +20,19 @@ impl WorldSession {
         player_guid: ObjectGuid,
         ae_looting: bool,
     ) -> Option<LootResponse> {
-        let creature = self.represented_creature_loot_state_like_cpp(owner_guid)?;
+        let creature =
+            wow_world_loot_ops::represented_creature_loot_state_like_cpp(self, owner_guid)?;
         if !creature.tappers.is_empty() && !creature.tappers.contains(&player_guid) {
             return None;
         }
         // `Player::isAllowedToLoot` reads `Creature::GetLootForPlayer`; the
         // client request is not a generation trigger. A retired/missing
         // authority therefore means there is no loot response.
-        if !self.reconcile_represented_loot_cache_like_cpp(owner_guid, player_guid) {
+        if !wow_world_loot_ops::reconcile_represented_loot_cache_like_cpp(
+            self,
+            owner_guid,
+            player_guid,
+        ) {
             self.loot.remove_cached_loot_for_owner_like_cpp(owner_guid);
             return None;
         }
@@ -73,7 +77,7 @@ impl WorldSession {
         // so it publishes no packet and leaves the session loot view exactly
         // as it was; a genuinely absent authority keeps the path below.
         let authority =
-            match self.prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
+            match wow_world_loot_ops::prepare_owned_loot_authority_for_active_request_outcome_like_cpp(self,
                 owner_guid,
                 player_guid,
             ) {
@@ -180,7 +184,11 @@ impl WorldSession {
             }
             LOOT_METHOD_MASTER_LIKE_CPP => {
                 if let Some(packet) =
-                    self.represented_master_loot_candidate_list_like_cpp(owner_guid, player_guid)
+                    wow_world_loot_ops::represented_master_loot_candidate_list_like_cpp(
+                        self,
+                        owner_guid,
+                        player_guid,
+                    )
                 {
                     self.send_packet(&packet);
                 }

@@ -267,10 +267,10 @@ pub(crate) use guild_inventory_contracts::{
     RepresentedGuildRepairBankWithdrawLikeCpp,
 };
 mod instance_bind_contracts;
+#[cfg(test)]
+pub(crate) use instance_bind_contracts::RepresentedGameObjectSpellCaster;
 pub(crate) use instance_bind_contracts::RepresentedHomebindLikeCpp;
-pub(crate) use instance_bind_contracts::{
-    RepresentedGameObjectSpellCaster, RepresentedPendingBind,
-};
+pub(crate) use instance_bind_contracts::RepresentedPendingBind;
 mod inventory_request_contracts;
 pub(crate) use inventory_request_contracts::DirectInventoryStorageOverlayLikeCpp;
 pub(crate) use inventory_request_contracts::MAX_EQUIPMENT_SET_INDEX_LIKE_CPP;
@@ -493,10 +493,10 @@ pub(crate) use stand_state_adapter::RepresentedStandStateChangedLikeCpp;
 mod state;
 pub use state::WorldSession;
 pub(crate) use state::{
-    HubMut, InventoryCxRef, LifecycleCx, LifecycleCxRef, LootCx, LootCxRef, PetsCx, PetsCxRef,
-    QuestStateCx, QuestStateCxRef, cx_inventory_ref, cx_lifecycle, cx_lifecycle_ref, cx_loot,
-    cx_loot_ref, cx_pets, cx_pets_ref, cx_quest_state, cx_quest_state_ref, hub_mut, hub_ref,
-    hub_support, split_battle_pet_handler_mut, split_battleground_mut, split_character_handler_mut,
+    HubMut, InventoryCxRef, LifecycleCx, LifecycleCxRef, LootCxRef, PetsCx, PetsCxRef,
+    QuestStateCx, QuestStateCxRef, cx_inventory_ref, cx_lifecycle, cx_lifecycle_ref, cx_loot_ref,
+    cx_pets, cx_pets_ref, cx_quest_state, cx_quest_state_ref, hub_mut, hub_ref, hub_support,
+    split_battle_pet_handler_mut, split_battleground_mut, split_character_handler_mut,
     split_group_handler_states_mut, split_guild_bank_mut, split_instances_mut, split_instances_ref,
     split_interaction, split_interaction_ref, split_interaction_world_entities_mut,
     split_inventory_lifecycle_shared_hub_mut, split_inventory_mut, split_inventory_ref,

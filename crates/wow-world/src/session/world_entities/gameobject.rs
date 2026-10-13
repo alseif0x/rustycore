@@ -690,8 +690,10 @@ impl WorldSession {
                 self, guid, source,
             );
             if !source.consumable {
-                let _ = crate::session::cx_loot_ref(self)
-                    .queue_goober_gameobject_state_refresh_for_same_map_like_cpp(guid);
+                let _ =
+                    wow_world_loot_ops::queue_goober_gameobject_state_refresh_for_same_map_like_cpp(
+                        self, guid,
+                    );
             }
         }
         for (

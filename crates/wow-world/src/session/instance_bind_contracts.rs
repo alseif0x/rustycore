@@ -4,6 +4,7 @@
 //! Instance bind contracts: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
+#[cfg(test)]
 pub(crate) use wow_world_entities::RepresentedGameObjectSpellCaster;
 
 pub(crate) use wow_world_instances::RepresentedPendingBind;

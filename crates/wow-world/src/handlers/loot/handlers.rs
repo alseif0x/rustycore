@@ -65,7 +65,10 @@ impl WorldSession {
         // Both non-found facts refuse the queued VALUES update, and neither
         // reconstructs an authority from the other store.
         let OwnedLootAuthorityLookupOutcomeLikeCpp::Found(current_authority) =
-            self.represented_owned_loot_authority_outcome_like_cpp(command.creature_guid)
+            wow_world_loot_ops::represented_owned_loot_authority_outcome_like_cpp(
+                self,
+                command.creature_guid,
+            )
         else {
             return;
         };
@@ -78,7 +81,8 @@ impl WorldSession {
         let Some(viewer_guid) = self.player_guid() else {
             return;
         };
-        let viewer_update = self.creature_loot_release_values_for_viewer_like_cpp(
+        let viewer_update = wow_world_loot_ops::creature_loot_release_values_for_viewer_like_cpp(
+            self,
             command.creature_guid,
             viewer_guid,
             self.instances.has_pending_bind_like_cpp(),
@@ -229,7 +233,8 @@ impl WorldSession {
             return;
         }
 
-        if let Some(error) = self.represented_master_loot_can_store_error_like_cpp(
+        if let Some(error) = wow_world_loot_ops::represented_master_loot_can_store_error_like_cpp(
+            self,
             player_guid,
             command.entry.item_id,
             command.entry.quantity,
@@ -241,7 +246,8 @@ impl WorldSession {
         }
 
         let stored = if let Some(claim) = command.claim.as_ref() {
-            self.store_claimed_direct_loot_item_from_owner_with_generator_like_cpp(
+            wow_world_loot_ops::store_claimed_direct_loot_item_from_owner_with_generator_like_cpp(
+                self,
                 item_guid_generator,
                 &command.entry,
                 command.dungeon_encounter_id,
@@ -303,7 +309,8 @@ impl WorldSession {
         }
 
         if let Some(error) = command.entries.iter().find_map(|entry| {
-            self.represented_master_loot_can_store_error_like_cpp(
+            wow_world_loot_ops::represented_master_loot_can_store_error_like_cpp(
+                self,
                 player_guid,
                 entry.item_id,
                 entry.quantity,
@@ -337,7 +344,8 @@ impl WorldSession {
             )
             .await
         } else if let Some(claim) = command.claim.as_ref() {
-            self.store_claimed_direct_loot_item_from_owner_with_generator_like_cpp(
+            wow_world_loot_ops::store_claimed_direct_loot_item_from_owner_with_generator_like_cpp(
+                self,
                 item_guid_generator,
                 &command.entries[0],
                 command.dungeon_encounter_id,

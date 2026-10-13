@@ -2447,11 +2447,13 @@ Existing crates grew from the slice A base:
    also holds four non-quest parts:
    - the player-condition projection (`player_conditions`);
    - `inventory_valuation`;
-   - `registry_sync`;
+   - `registry_sync`, which goes to `wow-world-inventory` (point 2 and
+     *`registry_sync` destination* below), not to the condition crate;
    - the trainer admission proof.
 
    Inventory, trainer, aura and equipment code all need these parts.
-   Move them into a lower crate (for example `wow-world-player-conditions`,
+   Move the condition projection, valuation and the admission proof into a
+   lower crate (for example `wow-world-player-conditions`,
    above inventory/spell/loot and below quest) before slice 6 or a trainer
    split. This is not a plain file move.
    `PlayerConditionProjectionCxLikeCpp` is extended by inherent impls in
@@ -2491,3 +2493,332 @@ Existing crates grew from the slice A base:
    warnings for `handler-contract-check` in validation-v2. Its four
    remaining warnings (unused imports and `analyze_owner_source`) should be
    cleaned first, in a separate change.
+
+### `registry_sync` destination (#1379 review follow-up 1)
+
+Recommendations 1 and 2 above used to name two homes for `registry_sync`:
+a new condition crate below quest, and `wow-world-inventory`. Settled on
+`1423cfbfa`: **`registry_sync` goes to `wow-world-inventory`**, with
+`inventory_scaling` and `equipment_set_use`, in two changes:
+
+1. Behaviour-neutral: make `PlayerRegistryHydrationContext` quest-agnostic.
+   Its only quest dependency is `&SessionQuestState` in fixture-gated code,
+   read once for `player_quest_gameplay_fixture_like_cpp()`, whose result
+   type is `wow_entities::PlayerQuestGameplayState`. A fixture-gated
+   provider (closure or one-method trait) replaces the reference; the read
+   still happens at the same step of the sequence.
+2. Move the three units. Inventory gains `wow-world-loot` (`LootState`,
+   normal) and `wow-world-spell` (`SessionSpellState`, used only by the
+   fixture-gated hydration). Neither reaches inventory, social or
+   instances on `1423cfbfa` (loot → core; spell → core, lifecycle), so
+   there is no cycle.
+
+Why inventory and not the condition crate:
+
+- `registry_sync` has nothing to do with player conditions. It is the
+  World-session registry publication: position, fixture hydration, loot
+  rolls, party type. Its non-quest inputs are core, loot and spell state.
+- Its consumers are inventory operations (`inventory_scaling`,
+  `equipment_set_use`, the inventory swap's equip step, item publication)
+  and loot release, trainer runtime install, aura removal and quest
+  completion. All of these sit at or above inventory and can reach it.
+- `equipment_set_use` then needs nothing above inventory. Its
+  `wow_world_*` uses on `1423cfbfa` are core, inventory, loot and the two
+  `registry_sync` types. `inventory_scaling` is the same plus its own
+  private `restored_health_like_cpp`. Neither names a condition,
+  valuation or quest type, so neither would need the condition crate.
+- In the condition crate, which sits above inventory, `registry_sync` would
+  pin every registry-publishing inventory operation above inventory. Those
+  operations could then never move to inventory.
+
+Constraint this adds: once inventory → loot exists, `wow-world-loot`
+(pure loot state) may never depend on inventory. Slice 5 keeps it that way
+(see *Slice 5 plan*).
+
+## Slice 5 plan (loot, phase 2)
+
+Measured on `1423cfbfa` (A7 merged) before anything moved. The phase 1 and
+slice A estimates were off, so these figures come from the code, with the
+same two lexical tools as slice 4: the hotspot classifier for production
+lines, and a scan of the inherent `WorldSession` methods (body lines, the
+`self.`/`session.` calls they make to methods defined elsewhere, and the
+session fields they touch).
+
+- **`wow-world` production (classifier): 82,910** lines, 86,410 physical,
+  514 files.
+- **The loot family** is `handlers/loot/**` (9,464 production, 27 files;
+  the loot hotspot owner) plus `session/loot/**` (81). It has 128 inherent
+  `WorldSession` methods with 7,457 body lines. Together they call 53
+  methods defined outside the family and touch 13 session fields. The
+  rest is the 554-line `mod.rs` (imports, constants, pure helpers and the
+  two persistence workers), the `LootCx`/`LootCxRef` helper impls and
+  the F5 adapter `loot_host.rs`.
+
+| Group | Production | Methods / body lines | Outside calls |
+|---|---:|---:|---:|
+| `sources.rs` + `sources/` (creature, conditions, gameobject, gameobject authority) | 2,858 | 37 / 2,356 | 13 |
+| `generation.rs` | 281 | 2 / 212 | 3 |
+| `requests/context.rs` | 358 | 11 / 322 | 9 |
+| `claims.rs`, `request_cache.rs`, `authority.rs`, `random_properties.rs` | 325 | 18 / 242 | 7 |
+| `rolls.rs` | 883 | 11 / 851 | 5 (+7 into the loot family) |
+| `requests.rs`, `requests/item_storage{,/disenchant}.rs` | 1,848 | 14 / 1,720 | 25 |
+| `persistence.rs`, `money.rs`, `handlers.rs`, `handlers/money.rs` | 1,399 | 13 / 1,175 | 17 |
+| `fanout.rs` | 237 | 4 / 222 | 6 |
+| `combat_commands.rs`, `visibility_commands.rs` | 293 | 8 / 261 | 8 |
+| `loot_host.rs`, `claims/release.rs`, `storage_plans.rs`, `mod.rs` | 982 | 3 / 43 | — |
+
+"Outside calls" counts methods defined outside the loot family. In the
+first four groups taken together the count is 29, because their calls
+into each other become free calls.
+
+### Destinations
+
+- **`wow-world-loot-ops` (operations above quest).** Every body that
+  needs the session goes here, behind a loot host trait in the F5
+  inverted pattern. That covers opening and generating loot from sources,
+  conditions and quest gates, rolls, item storage, persistence, money and
+  the loot command handlers. The trait's supertrait is
+  `WorldEntitiesHostLikeCpp`. It reuses the hub, the world-entity
+  accessors and splits, and `resolved_group_guid_like_cpp`, and adds only
+  what the bodies call.
+  - The `LootCx`/`LootCxRef` helper methods in moved files move as free
+    functions over the host: `self.<field>` becomes `host.<field>()`, as
+    in 4a.
+  - The two context structs and their builders stay in `wow-world`. Their
+    unit-test shims extend `LootCx` with inherent impls, so the type
+    cannot leave the crate.
+- **`wow-world-loot` (pure state, below quest).** It takes the session-free
+  value helpers that both sides still need: the loot-response item list
+  and the client loot type. They use only `wow_loot`/`wow_packet` types,
+  which the crate already depends on, so loot gains no edge. It still
+  reaches only core.
+  - Pure helpers that only moved bodies use stay private in loot-ops.
+  - The *registry_sync* constraint above holds: loot never depends on
+    inventory.
+- **Stays in `wow-world`:**
+  - the F5 handler adapters (`loot_host.rs`);
+  - the loot-release context builder (`claims/release.rs`, which needs
+    every disjoint session field);
+  - the `LootCx`/`LootCxRef` builders;
+  - the composition setters in `session/loot/operations.rs`;
+  - `represented_local_loot_fixture_allowed_like_cpp`. It is
+    `cfg!(test)` of the World crate, so moved bodies read it through a
+    host method whose adapter keeps it.
+  - `combat_commands.rs` and `visibility_commands.rs` are not loot. They
+    are creature attack start/stop, PvP combat expiry and visibility
+    refresh mailbox handlers, and they go with slices 7 and 11.
+
+### 5a / 5b split
+
+- **5a, lowest surface first.** The sources, generation, request context,
+  claims, request cache, authority and random-properties facade groups:
+  66 methods, 3,132 body lines, 29 outside calls, about 3.8k production
+  lines with their helpers.
+  - Their remaining calls are mostly accessors: the group registry, item
+    templates and drop rates, loot stores, quest snapshot, known spells,
+    the release context, the dungeon checks, the visible-gameobject
+    refresh and `give_xp`.
+  - The calls back into the rest of the loot family are the
+    loot-opened publication, release-all, the dungeon-unlock checks and
+    the direct item store.
+  - At about 6 lines per host method that is about 2.6 % of the
+    moved lines, well inside the 15 % budget.
+- **5b, the rest of the operations.** Rolls, requests, item storage and
+  disenchant, persistence, both money paths, the loot command handlers
+  and fanout: 42 methods, 3,968 body lines, about 4.6k production lines.
+  - Their surface is 54 outside methods: inventory insertion and
+    publication, quest-objective drain and persistence plans, gold
+    mutation, the kick, the creature melee publication and the registry
+    sync.
+  - That still fits the budget (about 8 %).
+  - Slice 6 (quest) turns the quest-objective part into free calls.
+    Doing 5b after 6 would make it cheaper, but it does not depend on
+    6.
+- **Closure.** 5a and 5b need no new `wow-world-*` edge. Loot-ops already
+  depends on core, entities, instances, inventory, lifecycle, loot, quest,
+  social and spell. The check is still simulated before each move.
+
+## Slice 5a result (loot sources, generation and claim facades → `wow-world-loot-ops`)
+
+Branch `1363-s5a-loot`, base `1423cfbfa` (A7 merged). Move-only (R2), with
+the 4a/4b rewrites. Packets, their order, persistence, registrations and
+processing flags are unchanged. No registrar moves.
+
+The rewrites are:
+- `self.` becomes `host.`;
+- a session field becomes a host accessor;
+- `hub_ref`/`split_loot_*` become host calls;
+- a call to another moved function becomes a free call;
+- a `LootCx`/`LootCxRef` helper method becomes a free function over the
+  host. `self.<field>` becomes `host.<field>()`, and the one place that
+  needed `&mut world_entities` together with the hub uses the
+  entities host's `split_world_entities_mut`.
+
+A token comparison of all 92 moved functions against the base finds no
+difference beyond these rewrites and rustfmt brace folding. The remaining
+differences are the fixture predicate, which is now a host call, and the
+three former `#[cfg(test)]` steps.
+
+Those three steps use the 4b mechanism:
+`#[cfg(any(test, feature = "test-fixtures"))] if host.test_fixtures_like_cpp().is_some() …`.
+They are the pristine-authority fixture bridge in the gameobject-chest and
+creature-loot installs, and the fixture loot GUID in
+`next_represented_loot_object_guid_like_cpp`.
+
+`represented_local_loot_fixture_allowed_like_cpp` is `cfg!(test)` of the
+World crate. It stays in `wow-world`, and the moved bodies read it through
+a host method, so production still sees the constant `false`.
+
+### What moved
+
+- **To `wow-world-loot-ops/src/session_loot/`** (module layout as in
+  `handlers/loot`). Ninety-two functions moved:
+  - `sources.rs` and `sources/{creature, creature_conditions, gameobject,
+    gameobject_authority}.rs`: the personal, chest, fishing and gathering
+    gameobject loot; creature kill loot and AE targets; condition
+    admission; and the gathering, chest and goober state-sync mailbox
+    handlers;
+  - `generation.rs` (disenchant templates, quest item drops);
+  - `request_context.rs` (from `requests/context.rs`: group looters,
+    dungeon trash looter, quest gates, loot player context);
+  - `claims.rs`, `request_cache.rs`, `authority.rs` and
+    `random_properties.rs` (the claim, cache, authority and
+    random-properties facades);
+  - the helpers only these bodies used, from the World `loot/mod.rs`: the
+    master-loot error map, team/faction/quest-mask helpers, the generated
+    loot-entry builders, the install observation, the disenchant frame
+    and its table, and the loot-mode and condition constants.
+
+  Functions the World still calls are `pub` and re-exported. The helpers
+  only the World loot tests name are re-exported under
+  `cfg(any(test, feature = "test-fixtures"))`.
+- **To `wow-world-loot`** (`response.rs`): the session-free
+  `SMSG_LOOT_RESPONSE` values that both sides need,
+  `loot_type_for_client_like_cpp` and
+  `represented_loot_response_items_like_cpp`. No new dependency is needed.
+- **Stays in `wow-world`:**
+  - the F5 adapter `loot_host.rs`;
+  - the loot-release context builder (`claims/release.rs`);
+  - `LootCxRef`;
+  - the chest same-map refresh facade. Its name collides with the
+    loot-release free function at the crate root, so it is reached through
+    a host method.
+  - the autostore facade, which `loot_host.rs` calls by UFCS;
+  - the fixture predicate;
+  - the cfg(test) entry points of `sources.rs` and `sources/gameobject.rs`;
+  - everything 5b moves.
+- **Retired.** `LootCx` (struct and builder). Its last readers moved; the
+  one unit-test shim that used it now sets the group-loot money port on
+  the lifecycle state directly. `LootCxRef.loot` is also retired; nothing
+  reads it any more.
+
+### Host surface
+
+- **`LootSessionHostLikeCpp: WorldEntitiesHostLikeCpp`** (loot-ops,
+  32 methods, 123 lines). It has six field accessors and splits (loot ref
+  and mut, the two loot splits, lifecycle, inventory), the fixture
+  predicate, and 25 operations: map dungeon checks, release-all, `give_xp`,
+  group and player registries, item templates and drop rates, the
+  item-addon port, known spells, loot rates and stores, the loot-release
+  context, the canonical gameobject mutation, store planning, the quest
+  snapshot, the chest refresh, item counts, money roll, loot-opened
+  publication, the two dungeon-unlock checks, the two direct item stores
+  and the visible-gameobject refresh.
+  - The supertrait supplies the hub, the world-entity accessors and
+    splits, and `resolved_group_guid_like_cpp`.
+- **Adapter** `handlers/loot/session_loot_host.rs` (206 lines). Every
+  method is a pure forward to the same-named inherent method or field.
+- **Recursion check.** No moved name is forwarded through a trait to
+  itself.
+  - The entities adapter's four `open_represented_*` forwards and its
+    goober refresh name `wow_world_loot_ops::…`.
+  - The `loot_host.rs` UFCS calls name `wow_world_loot_ops::…`.
+  - Every one of the 32 forwards resolves to an inherent method.
+- **Budget.** 329 host lines (trait + adapter) against about 3,880 moved
+  lines: 8.5 %.
+- **Test shims.** `handlers/loot_test_shims.rs` (354 lines, mounted
+  `cfg(test)` from `handlers/mod.rs`, outside the loot hotspot tree) holds
+  the 25 method-syntax entry points the loot scenarios call. It also holds
+  the test-only re-exports, which `handlers/loot/mod.rs` reaches with one
+  `cfg(test)` glob. No test call site changed. Three f3 shim bodies call
+  the moved functions; they are one line each.
+
+### Accounting
+
+- **`crates/wow-world/src`.** −4,034 / +751 (net −3,283). Classifier:
+  82,910 → **79,633 production (−3,277)**, 86,410 → 83,127 physical, 514
+  → 511 files. The +751 is the adapter (206), the test shims (354) and
+  the rewritten call sites and shells.
+- **Destinations.**
+  - `wow-world-loot-ops/src` 4,449 → 8,600 (+4,151): `session_loot/`
+    4,096, of which 123 are the trait and about 95 the prelude imports,
+    plus 55 lines of `lib.rs` exports.
+  - `wow-world-loot/src` +75: 73 moved lines and 2 export lines.
+- **`wow-world-application`: 11,523 lines, unchanged.**
+- **`net_move.py check`.** S = 3,283, G = 4,226 ≤ 4,408.1, 0 duplicate
+  bodies, PASS.
+- **Edges.** No `wow-world-*` edge is added or removed. Loot-ops gains
+  `wow-social` (`GroupRegistry` in the host signature), `wow-conditions`
+  (quest-status constants) and external `rand` (`Rng` for the random
+  properties); `dependency-policy.json` adds the three.
+  - Head closures are unchanged. Loot reaches only core; only `wow-world`
+    reaches loot-ops; quest is reached only by application, `wow-world`
+    and loot-ops.
+  - The closure check passes in lock and metadata mode, before and after.
+- **`session-ownership-policy.json`** is reprinted with `print-baseline`.
+  The delta is:
+  - the moved impl items;
+  - the 24 direct-registry rows that moved to package
+    `wow-world-loot-ops` (`crate::session_loot::…`);
+  - the adapter's trait impl;
+  - the cfg(test) shim impl.
+
+  The syntax-only check passes.
+- **Ceilings.** None raised. Tightened to live values:
+  - hotspot `handlers/loot/mod.rs`: production 9,464 → 5,854, test
+    18,983 → 18,969, total 28,447 → 24,823;
+  - hotspot `session/mod.rs`: production 42,629 → 42,602, test 142,047 →
+    142,042, total 184,676 → 184,644;
+  - physical `handlers/loot/sources.rs` 1,003 → 62,
+    `handlers/loot/handlers.rs` 996 → 383, `handlers/loot/requests.rs`
+    419 → 260.
+- **Warnings.**
+  - `wow-world` `dead_code` is 0 in the production lib, the lib with
+    `test-fixtures` and the lib test build.
+  - `unused_imports` 152 → 151, 161 → 160 and 321 → 320 (the stale
+    `HighGuid` import is dropped).
+  - Every other package's warning set is identical to base in all three
+    builds. Loot-ops keeps only its pre-existing `unused_mut`.
+- **Tests.** No `#[test]` or `#[ignore]` is added or removed, and the
+  test-name multiset is unchanged. The 346 wow-world tests matching `loot`
+  pass.
+
+### 5b plan
+
+Rolls, requests, item storage and disenchant, persistence, both money
+paths, the loot command handlers and fanout move to `session_loot` behind
+the same trait. That is about 4.6k production lines and 54 outside
+methods: inventory insertion and publication, quest-objective drain and
+persistence plans, gold mutation, the kick, the creature melee
+publication and the registry sync.
+
+- The persistence workers and the pure roll helpers (`connected_roll_looters`,
+  `start_loot_roll_packet`, `loot_item_context`) go with them.
+- `combat_commands.rs` and `visibility_commands.rs` are not loot; they go
+  to slices 7 and 11.
+- 5b re-measures on its base.
+
+### Follow-ups
+
+- The chest same-map refresh facade could take a distinct name, so the
+  host method can go.
+- The test shim file is large (354 lines). Converting the loot scenarios
+  to free-function calls would retire it, at the cost of loot test-line
+  growth, which needs a reviewed test ceiling.
+
+### Validation
+
+`final --architecture --timings` (`VALIDATION_V2_CARGO_JOBS=1`,
+`VALIDATION_V2_TIMEOUT_SECONDS=1800`) runs on the committed head that
+includes this section. Its manifest path, dirty flag and duration are in
+the PR body. This section is not edited after that run.

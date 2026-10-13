@@ -150,7 +150,10 @@ impl WorldSession {
         state: &RepresentedLootRollState,
     ) -> Option<OwnedLootAuthority> {
         let OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) =
-            self.represented_owned_loot_authority_outcome_like_cpp(state.owner_guid)
+            wow_world_loot_ops::represented_owned_loot_authority_outcome_like_cpp(
+                self,
+                state.owner_guid,
+            )
         else {
             return None;
         };
@@ -251,7 +254,11 @@ impl WorldSession {
             }
             None
         };
-        let _ = self.reconcile_represented_loot_cache_like_cpp(owner_guid, scope_player);
+        let _ = wow_world_loot_ops::reconcile_represented_loot_cache_like_cpp(
+            self,
+            owner_guid,
+            scope_player,
+        );
 
         if let Some(loot) = self.loot.cached_loot_for_owner_mut_like_cpp(owner_guid) {
             if let Some(loot_entry) = loot
@@ -390,7 +397,8 @@ impl WorldSession {
             {
                 if self.player_guid() == Some(winner_guid) {
                     if claim.is_none() {
-                        self.mark_represented_master_loot_item_removed_like_cpp(
+                        wow_world_loot_ops::mark_represented_master_loot_item_removed_like_cpp(
+                            self,
                             owner_guid,
                             loot_obj,
                             loot_list_id,
@@ -401,7 +409,8 @@ impl WorldSession {
                     // Object-owned claims are committed and fanned out by the
                     // remote target session.  The legacy cache-only fallback
                     // still has to be retired by the source session.
-                    self.mark_represented_master_loot_item_removed_like_cpp(
+                    wow_world_loot_ops::mark_represented_master_loot_item_removed_like_cpp(
+                        self,
                         owner_guid,
                         loot_obj,
                         loot_list_id,
@@ -439,7 +448,7 @@ impl WorldSession {
 
         if self.player_guid() == Some(winner_guid) {
             let stored = if let Some(claim) = claim.as_ref() {
-                self.store_claimed_direct_loot_item_from_owner_with_generator_like_cpp(
+                wow_world_loot_ops::store_claimed_direct_loot_item_from_owner_with_generator_like_cpp(self,
                     item_guid_generator,
                     &store_entry,
                     dungeon_encounter_id,
@@ -459,7 +468,8 @@ impl WorldSession {
             };
             if stored {
                 if claim.is_none() {
-                    self.mark_represented_master_loot_item_removed_like_cpp(
+                    wow_world_loot_ops::mark_represented_master_loot_item_removed_like_cpp(
+                        self,
                         owner_guid,
                         loot_obj,
                         loot_list_id,
@@ -485,7 +495,8 @@ impl WorldSession {
             .await
         {
             MasterLootGiveResult::Stored if !authoritative_claim => {
-                self.mark_represented_master_loot_item_removed_like_cpp(
+                wow_world_loot_ops::mark_represented_master_loot_item_removed_like_cpp(
+                    self,
                     owner_guid,
                     loot_obj,
                     loot_list_id,
@@ -549,7 +560,7 @@ impl WorldSession {
         player_guid: ObjectGuid,
     ) {
         let OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) =
-            self.represented_owned_loot_authority_outcome_like_cpp(owner_guid)
+            wow_world_loot_ops::represented_owned_loot_authority_outcome_like_cpp(self, owner_guid)
         else {
             return;
         };
@@ -733,7 +744,9 @@ impl WorldSession {
 
         if !unblocked_without_roll.is_empty()
             && let OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) =
-                self.represented_owned_loot_authority_outcome_like_cpp(owner_guid)
+                wow_world_loot_ops::represented_owned_loot_authority_outcome_like_cpp(
+                    self, owner_guid,
+                )
         {
             for loot_list_id in unblocked_without_roll {
                 let _ = authority.finish_item_roll_like_cpp(
@@ -744,7 +757,11 @@ impl WorldSession {
                     None,
                 );
             }
-            let _ = self.reconcile_represented_loot_cache_like_cpp(owner_guid, player_guid);
+            let _ = wow_world_loot_ops::reconcile_represented_loot_cache_like_cpp(
+                self,
+                owner_guid,
+                player_guid,
+            );
         }
 
         for roll in pending_rolls {

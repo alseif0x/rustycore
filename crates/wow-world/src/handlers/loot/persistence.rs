@@ -20,7 +20,10 @@ impl WorldSession {
         // Both non-found facts refuse the durable fanout: an unreadable
         // designated owner must not publish a claim it could not verify.
         let OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) =
-            self.represented_owned_loot_authority_outcome_like_cpp(context.owner_guid)
+            wow_world_loot_ops::represented_owned_loot_authority_outcome_like_cpp(
+                self,
+                context.owner_guid,
+            )
         else {
             return None;
         };
@@ -304,8 +307,12 @@ impl WorldSession {
                 // The detached worker already committed the authority. Refresh
                 // the packet cache so disconnect's DoLootReleaseAll observes
                 // the consumed claim rather than the pre-commit session copy.
-                self.refresh_owned_loot_summary_like_cpp(completion.owner_guid);
-                let _ = self.reconcile_represented_loot_cache_like_cpp(
+                wow_world_loot_ops::refresh_owned_loot_summary_like_cpp(
+                    self,
+                    completion.owner_guid,
+                );
+                let _ = wow_world_loot_ops::reconcile_represented_loot_cache_like_cpp(
+                    self,
                     completion.owner_guid,
                     completion.player_guid,
                 );

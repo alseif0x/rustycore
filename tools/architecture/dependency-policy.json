@@ -264,6 +264,7 @@
       "wow-world-core"
     ],
     "wow-world-loot-ops": [
+      "wow-conditions",
       "wow-constants",
       "wow-core",
       "wow-data",
@@ -273,6 +274,7 @@
       "wow-map",
       "wow-packet",
       "wow-persistence",
+      "wow-social",
       "wow-world-core",
       "wow-world-entities",
       "wow-world-instances",
@@ -717,6 +719,7 @@
       },
       "wow-world-loot-ops": {
         "normal": [
+          "rand",
           "tracing"
         ],
         "build": []

@@ -97,8 +97,10 @@ impl WorldSession {
             self.send_equip_error(store_result, None, None, 0, 0);
             return false;
         }
-        let quest_log_item_id = self
-            .load_creature_item_template_addon_loot_metadata_like_cpp(item_id)
+        let quest_log_item_id =
+            wow_world_loot_ops::load_creature_item_template_addon_loot_metadata_like_cpp(
+                self, item_id,
+            )
             .await
             .quest_log_item_id
             .try_into()
@@ -360,7 +362,9 @@ impl WorldSession {
         }
         let store_random_properties = {
             let mut rng = self.core.represented_runtime_subrng_like_cpp();
-            self.generate_loot_store_random_properties_with_rng_like_cpp(item_id, &mut rng)
+            wow_world_loot_ops::generate_loot_store_random_properties_with_rng_like_cpp(
+                self, item_id, &mut rng,
+            )
         };
 
         if store_dest.iter().any(|dest| {

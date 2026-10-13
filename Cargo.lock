@@ -3722,7 +3722,9 @@ dependencies = [
 name = "wow-world-loot-ops"
 version = "0.1.0"
 dependencies = [
+ "rand",
  "tracing",
+ "wow-conditions",
  "wow-constants",
  "wow-core",
  "wow-data",
@@ -3732,6 +3734,7 @@ dependencies = [
  "wow-map",
  "wow-packet",
  "wow-persistence",
+ "wow-social",
  "wow-world-core",
  "wow-world-entities",
  "wow-world-instances",

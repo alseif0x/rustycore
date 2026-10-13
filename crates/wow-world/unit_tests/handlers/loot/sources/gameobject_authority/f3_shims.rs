@@ -11,8 +11,7 @@ impl crate::session::WorldSession {
         &mut self,
         gameobject_guid: ObjectGuid,
     ) -> Option<RepresentedGameObjectLootInstallObservationLikeCpp> {
-        crate::session::cx_loot(self)
-            .represented_gameobject_loot_install_observation_like_cpp(gameobject_guid)
+        represented_gameobject_loot_install_observation_like_cpp(self, gameobject_guid)
     }
 }
 
@@ -24,8 +23,8 @@ impl WorldSession {
         loot: CreatureLoot,
         replace: bool,
     ) -> Option<()> {
-        let observation = crate::session::cx_loot(self)
-            .represented_gameobject_loot_install_observation_like_cpp(gameobject_guid)?;
+        let observation =
+            represented_gameobject_loot_install_observation_like_cpp(self, gameobject_guid)?;
         self.upsert_represented_personal_gameobject_loot_authority_if_observed_like_cpp(
             gameobject_guid,
             player_guid,

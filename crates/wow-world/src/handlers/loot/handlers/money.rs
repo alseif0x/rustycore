@@ -72,8 +72,7 @@ impl WorldSession {
         let mut legacy_money_processed = false;
 
         for (loot_guid, loot_obj, money) in &money_by_loot {
-            let owned_authority = self
-                .prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
+            let owned_authority = wow_world_loot_ops::prepare_owned_loot_authority_for_active_request_outcome_like_cpp(self,
                     *loot_guid,
                     player_guid,
                 );
@@ -112,7 +111,11 @@ impl WorldSession {
                     );
                     continue;
                 }
-                let _ = self.reconcile_represented_loot_cache_like_cpp(*loot_guid, player_guid);
+                let _ = wow_world_loot_ops::reconcile_represented_loot_cache_like_cpp(
+                    self,
+                    *loot_guid,
+                    player_guid,
+                );
                 self.loot
                     .ensure_represented_player_looting_like_cpp(*loot_guid, player_guid);
 
@@ -129,8 +132,11 @@ impl WorldSession {
                 {
                     Ok(claim) => claim,
                     Err(_) => {
-                        let _ =
-                            self.reconcile_represented_loot_cache_like_cpp(*loot_guid, player_guid);
+                        let _ = wow_world_loot_ops::reconcile_represented_loot_cache_like_cpp(
+                            self,
+                            *loot_guid,
+                            player_guid,
+                        );
                         continue;
                     }
                 };
@@ -229,7 +235,11 @@ impl WorldSession {
                 // original pool instead of silently changing the divisor.
                 if deliveries.len() != recipients.len() || deliveries.is_empty() {
                     claim.rollback_like_cpp();
-                    let _ = self.reconcile_represented_loot_cache_like_cpp(*loot_guid, player_guid);
+                    let _ = wow_world_loot_ops::reconcile_represented_loot_cache_like_cpp(
+                        self,
+                        *loot_guid,
+                        player_guid,
+                    );
                     continue;
                 }
 
@@ -269,8 +279,11 @@ impl WorldSession {
                             %error,
                             "atomic loot-money fanout could not start; pool remains available"
                         );
-                        let _ =
-                            self.reconcile_represented_loot_cache_like_cpp(*loot_guid, player_guid);
+                        let _ = wow_world_loot_ops::reconcile_represented_loot_cache_like_cpp(
+                            self,
+                            *loot_guid,
+                            player_guid,
+                        );
                         continue;
                     }
                 };
@@ -290,7 +303,11 @@ impl WorldSession {
                         %error,
                         "atomic loot-money fanout persistence failed; pool remains available"
                     );
-                    let _ = self.reconcile_represented_loot_cache_like_cpp(*loot_guid, player_guid);
+                    let _ = wow_world_loot_ops::reconcile_represented_loot_cache_like_cpp(
+                        self,
+                        *loot_guid,
+                        player_guid,
+                    );
                     continue;
                 }
                 if let Some(application) = local_application {

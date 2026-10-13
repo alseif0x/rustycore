@@ -20,7 +20,9 @@ test-fixtures = [
 ]
 
 [dependencies]
+rand = { workspace = true }
 tracing = { workspace = true }
+wow-conditions = { workspace = true }
 wow-constants = { workspace = true }
 wow-core = { workspace = true }
 wow-data = { workspace = true }
@@ -30,6 +32,7 @@ wow-loot = { workspace = true }
 wow-map = { workspace = true }
 wow-packet = { workspace = true }
 wow-persistence = { workspace = true }
+wow-social = { workspace = true }
 wow-world-core = { workspace = true }
 wow-world-entities = { workspace = true }
 wow-world-instances = { workspace = true }

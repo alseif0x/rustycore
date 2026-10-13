@@ -122,13 +122,17 @@ impl WorldSession {
                 let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
             }
             SessionCommand::SyncGatheringNodeGameobjectStateAndRefreshLikeCpp(command) => {
-                self.handle_sync_gathering_node_gameobject_state_and_refresh_like_cpp(command);
+                wow_world_loot_ops::handle_sync_gathering_node_gameobject_state_and_refresh_like_cpp(self, command);
             }
             SessionCommand::SyncChestGameobjectStateAndRefreshLikeCpp(command) => {
-                self.handle_sync_chest_gameobject_state_and_refresh_like_cpp(command);
+                wow_world_loot_ops::handle_sync_chest_gameobject_state_and_refresh_like_cpp(
+                    self, command,
+                );
             }
             SessionCommand::SyncGooberGameobjectStateAndRefreshLikeCpp(command) => {
-                self.handle_sync_goober_gameobject_state_and_refresh_like_cpp(command);
+                wow_world_loot_ops::handle_sync_goober_gameobject_state_and_refresh_like_cpp(
+                    self, command,
+                );
             }
             SessionCommand::SetQuestSharingInfoAndSendDetails(command) => {
                 self.handle_set_quest_sharing_info_and_send_details_command_like_cpp(command);
