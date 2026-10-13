@@ -56,6 +56,8 @@ mod progression_test_shims;
 #[cfg(test)]
 mod spellbook_test_shims;
 #[cfg(test)]
+mod talent_test_shims;
+#[cfg(test)]
 mod test_shims;
 #[cfg(test)]
 #[path = "../../unit_tests/handlers/test_support/mod.rs"]

@@ -173,7 +173,9 @@ impl WorldSession {
             Some(state_plan.active_group)
         );
         for (talent_id, rank) in &state_plan.active_talents {
-            self.remove_represented_active_talent_side_effects_like_cpp(*talent_id, *rank);
+            wow_world_spell::remove_represented_active_talent_side_effects_like_cpp(
+                self, *talent_id, *rank,
+            );
         }
         if !crate::session::hub_mut(self)
             .install_reset_talent_groups_like_cpp(state_plan.post_talents.clone())

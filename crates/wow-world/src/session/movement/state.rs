@@ -13,33 +13,6 @@ impl WorldSession {
         self.remove_player_rest_flag_like_cpp(rest_flag)
     }
 
-    pub(in crate::session) fn remove_represented_active_talent_side_effects_like_cpp(
-        &mut self,
-        talent_id: u32,
-        rank: u8,
-    ) {
-        if let Some(spell_id) =
-            wow_world_spell::represented_talent_spell_id_like_cpp(self, talent_id, rank)
-        {
-            wow_world_spell::remove_known_spell_like_cpp(self, spell_id);
-            for trigger_spell in
-                wow_world_spell::represented_direct_learn_spell_triggers_like_cpp(self, spell_id)
-            {
-                wow_world_spell::remove_known_spell_like_cpp(self, trigger_spell);
-            }
-        }
-
-        if let Some((overriden_spell_id, new_spell_id)) =
-            wow_world_spell::represented_talent_override_spell_pair_like_cpp(self, talent_id)
-        {
-            wow_world_spell::remove_represented_override_spell_like_cpp(
-                self,
-                overriden_spell_id,
-                new_spell_id,
-            );
-        }
-    }
-
     pub(crate) fn remove_represented_feign_death_if_needed_like_cpp(&mut self) -> bool {
         self.player_aura_application_cx_like_cpp()
             .remove_represented_feign_death_if_needed_like_cpp()

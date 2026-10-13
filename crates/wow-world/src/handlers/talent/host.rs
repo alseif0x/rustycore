@@ -7,8 +7,9 @@
 //! `CMSG_CONFIRM_RESPEC_WIPE` and `CMSG_LEARN_TALENT` left the legacy inventory
 //! path for `wow_world_application::register_talent_handlers_like_cpp`. This
 //! adapter lends that registrar the same `WorldSession` operations with the
-//! same catalog destructuring the legacy closures used; the talent-reset
-//! commit and its publication stay in those operations.
+//! same catalog destructuring the legacy closures used. The handler bodies
+//! live in `wow_world_spell` (#1363 slice 9b) with this session as their
+//! host; the talent-reset commit and its publication stay World host methods.
 
 use wow_handler::HandlerFuture;
 use wow_packet::WorldPacket;
@@ -23,7 +24,8 @@ impl TalentHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            self.handle_confirm_respec_wipe_with_generator_like_cpp(
+            wow_world_spell::handle_confirm_respec_wipe_with_generator_like_cpp(
+                self,
                 catalogs.id_generators.item.as_ref(),
                 catalogs.progression.no_reset_talent_cost,
                 pkt,
@@ -38,8 +40,12 @@ impl TalentHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            self.handle_learn_talent(catalogs.player_bootstrap.talent_tabs.as_ref(), pkt)
-                .await
+            wow_world_spell::handle_learn_talent(
+                self,
+                catalogs.player_bootstrap.talent_tabs.as_ref(),
+                pkt,
+            )
+            .await
         })
     }
 }

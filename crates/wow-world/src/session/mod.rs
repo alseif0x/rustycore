@@ -648,7 +648,7 @@ use wow_data::{
     SpellLinkedStoreLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp, SpellProcStoreLikeCpp,
     SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore,
     SpellStore, SpellTargetPositionStoreLikeCpp, SpellTargetRestrictionsStore,
-    SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp, TactKeyStore, TalentStore, TalentTabStore,
+    SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp, TactKeyStore, TalentStore,
     TavernAreaTriggerStoreLikeCpp, ToyStore, TrainerStoreLikeCpp, TransmogSetItemStore,
     TrinityStringStoreLikeCpp, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
     WorldSafeLocStore, is_player_meeting_condition_like_cpp,
@@ -834,9 +834,7 @@ use wow_world_core::session::PLAYER_FLAGS_IN_PVP_LIKE_CPP;
 const PLAYER_FLAGS_PVP_TIMER_LIKE_CPP: u32 = 0x0004_0000;
 use wow_world_core::session::SPELL_PVP_RULES_ENABLED_LIKE_CPP;
 const LANG_RESET_SPELLS_LIKE_CPP: u32 = 215;
-const LANG_RESET_TALENTS_LIKE_CPP: u32 = 216;
 const LANG_RESET_SPELLS_TEXT_LIKE_CPP: &str = "Your spells have been reset.";
-const LANG_RESET_TALENTS_TEXT_LIKE_CPP: &str = "Your talents have been reset.";
 #[cfg(test)]
 pub(crate) const TRADE_STATUS_PLAYER_BUSY_LIKE_CPP: u8 = 0;
 #[cfg(test)]

@@ -5,6 +5,7 @@
 
 #[allow(unused_imports)]
 use super::*;
+use wow_data::TalentTabStore;
 
 impl crate::session::WorldSession {
     pub(crate) fn load_represented_account_heirlooms_like_cpp(

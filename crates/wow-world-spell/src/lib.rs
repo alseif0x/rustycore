@@ -14,6 +14,7 @@ mod spell_acquisition_application;
 pub mod spell_cast_adapter;
 mod spellbook_session;
 mod state;
+mod talent_session;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod test_support;
 
@@ -93,5 +94,15 @@ pub use spellbook_session::{
     take_represented_trait_definition_id_like_cpp,
 };
 pub use state::SessionSpellState;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use talent_session::{
+    AT_LOGIN_RESET_TALENTS_LIKE_CPP, UNTALENT_VISUAL_EFFECT_SPELL_ID_LIKE_CPP,
+    learn_represented_talent_like_cpp,
+};
+pub use talent_session::{
+    TalentHostLikeCpp, apply_represented_login_talent_reset_if_needed_like_cpp,
+    handle_confirm_respec_wipe_with_generator_like_cpp, handle_learn_talent,
+    remove_represented_active_talent_side_effects_like_cpp, reset_represented_talents_like_cpp,
+};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use test_support::PlayerSpellAndTraitTestFixtureLikeCpp;
