@@ -2,7 +2,7 @@
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! The World operations the moved loot-source bodies still call (#1363 slice 5a).
+//! The World operations the moved loot bodies still call (#1363 slices 5a-5c).
 //!
 //! C++ runs these bodies on the Player and its Map (`Loot::FillLoot`,
 //! `Unit::Kill`, `GameObject::Use`, `LootHandler.cpp`). Their Rust bodies now
