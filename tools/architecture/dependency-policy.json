@@ -204,7 +204,8 @@
       "wow-recastdetour",
       "wow-world-core",
       "wow-world-interaction",
-      "wow-world-lifecycle"
+      "wow-world-lifecycle",
+      "wow-world-visibility"
     ],
     "wow-world-instances": [
       "wow-constants",
@@ -687,6 +688,7 @@
         "normal": [
           "num-traits",
           "rand",
+          "tokio",
           "tracing"
         ],
         "build": []

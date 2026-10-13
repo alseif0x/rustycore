@@ -39,6 +39,9 @@ use std::time::Instant;
 
 use tracing::{debug, info};
 use wow_packet::WorldPacket;
+use wow_world_entities::{
+    send_nearby_creatures_with_catalogs_like_cpp, send_nearby_gameobjects, update_pvp_flag_like_cpp,
+};
 
 use super::{ClientOpcodes, SessionHandlerCatalogsLikeCpp, SessionState, WorldSession};
 
@@ -154,10 +157,7 @@ impl WorldSession {
         if self.core.state == SessionState::LoggedIn {
             self.core
                 .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::SessionOwnedTicks);
-            wow_world_entities::update_pvp_flag_like_cpp(
-                self,
-                wow_entities::game_time_secs_like_cpp(),
-            );
+            update_pvp_flag_like_cpp(self, wow_entities::game_time_secs_like_cpp());
             let _ = crate::session::hub_mut(self).set_represented_can_delay_teleport_like_cpp(true);
             self.world_entities.advance_creature_tick_like_cpp();
             // C++ `Player::Update` runs `RegenerateAll()` after
@@ -313,15 +313,15 @@ impl WorldSession {
         self.core
             .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PendingCreatureSpawn);
         if let Some(spawn) = self.world_entities.take_pending_creature_spawn_like_cpp() {
-            self.send_nearby_creatures_with_catalogs_like_cpp(
+            send_nearby_creatures_with_catalogs_like_cpp(
+                self,
                 catalogs.creature_spawns.as_ref(),
                 spawn.map_id,
                 &spawn.position,
                 spawn.zone_id,
             )
             .await;
-            self.send_nearby_gameobjects(spawn.map_id, &spawn.position, spawn.zone_id)
-                .await;
+            send_nearby_gameobjects(self, spawn.map_id, &spawn.position, spawn.zone_id).await;
         }
 
         self.core

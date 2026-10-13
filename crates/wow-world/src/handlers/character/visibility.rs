@@ -3,290 +3,142 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Character visibility, nearby object creation and phase updates.
+//! World adapter for the visibility bodies moved to
+//! `wow_world_entities::visibility_session` (#1363 slice 8a). Every method is a
+//! pure forward to the same-named inherent `WorldSession` method or field.
+
+use wow_packet::packets::update::{
+    AreaTriggerCreateData, ConversationCreateData, CorpseCreateData, DynamicObjectCreateData,
+    GameObjectCreateData, SceneObjectCreateData,
+};
+use wow_world_core::session::directory::PlayerVisibilityCreateSnapshot;
+use wow_world_lifecycle::SessionLifecycleState;
+use wow_world_visibility::VisibilityState;
 
 use super::*;
 
-#[path = "visibility/creatures.rs"]
-mod creatures;
-#[path = "visibility/gameobjects.rs"]
-mod gameobjects;
-
-impl WorldSession {
-    pub(in crate::handlers::character) fn creature_addon_create_fields_like_cpp(
-        addon: Option<&CreatureAddonLifecycleRecordLikeCpp>,
-    ) -> CreatureAddonCreateFieldsLikeCpp {
-        let Some(addon) = addon else {
-            // C++ Creature::UpdateEntry calls SetSheath(SHEATH_STATE_MELEE)
-            // when no addon row exists; addon rows then own the exact value.
-            return CreatureAddonCreateFieldsLikeCpp {
-                stand_state: UnitStandStateType::Stand as u8,
-                sheathe_state: SheathState::Melee as u8,
-                ..CreatureAddonCreateFieldsLikeCpp::default()
-            };
-        };
-
-        CreatureAddonCreateFieldsLikeCpp {
-            has_addon: true,
-            mount_display_id: addon.mount_display_id as i32,
-            stand_state: addon.stand_state as u8,
-            vis_flags: addon.vis_flags,
-            anim_tier: addon.anim_tier,
-            sheathe_state: addon.sheath_state as u8,
-            pvp_flags: addon.pvp_flags.bits(),
-            emote_state: addon.emote as i32,
-            ai_anim_kit_id: addon.ai_anim_kit_id,
-            movement_anim_kit_id: addon.movement_anim_kit_id,
-            melee_anim_kit_id: addon.melee_anim_kit_id,
-        }
+impl wow_world_entities::VisibilitySessionHostLikeCpp for WorldSession {
+    fn lifecycle(&self) -> &SessionLifecycleState {
+        &self.lifecycle
     }
-
-    pub(super) fn materialize_creature_spawn_row_with_catalogs_like_cpp(
-        &mut self,
-        catalogs: &CreatureSpawnCatalogsLikeCpp,
-        map_id: u16,
-        row: &wow_persistence::CreatureVisibilityPersistenceRowLikeCpp,
-        viewer_position: &Position,
-        visibility_range: f32,
-    ) -> Option<MaterializedCreatureSpawnLikeCpp> {
-        // C++ ObjectMgr::LoadCreatures materializes CreatureData once, then
-        // Creature::LoadFromDB consumes that data for create/update fields.
-        // Rust still queries lazily by visibility; keep a single row reader so
-        // login and movement refresh cannot drift from each other.
-        let spawn_guid = row.spawn_guid;
-        let entry = row.entry;
-        let [pos_x, pos_y, pos_z, orientation] = row.position;
-        if !is_within_2d_visibility_range_like_cpp(viewer_position, pos_x, pos_y, visibility_range)
-        {
-            return None;
-        }
-        let spawn_difficulties = &row.spawn_difficulties;
-        if !spawn_difficulties_contains_spawn_mode_like_cpp(
-            spawn_difficulties,
-            self.core.current_map_difficulty_id_like_cpp(),
-        ) {
-            return None;
-        }
-
-        let cur_health = row.current_health;
-        let cur_mana = row.current_mana;
-        let model_id = row.model_id;
-        let min_level = row.min_level;
-        let faction = row.faction;
-        let template_npc_flags = row.template_npc_flags;
-        let [
-            template_unit_flags,
-            template_unit_flags2,
-            template_unit_flags3,
-        ] = row.template_unit_flags;
-        let speed_walk = normalize_creature_template_speed_walk_like_cpp(row.speed_walk);
-        let speed_run = normalize_creature_template_speed_run_like_cpp(row.speed_run);
-        let scale = row.scale;
-        let unit_class = row.unit_class;
-        let flags_extra = row.flags_extra;
-        let (npc_flags, unit_flags, unit_flags2, unit_flags3) = choose_creature_flags_like_cpp(
-            template_npc_flags,
-            template_unit_flags,
-            template_unit_flags2,
-            template_unit_flags3,
-            row.spawn_npc_flags_override,
-            row.spawn_unit_flags_override[0],
-            row.spawn_unit_flags_override[1],
-            row.spawn_unit_flags_override[2],
-            flags_extra,
-        );
-        let classification = row.classification;
-        let regen_health = row.regen_health;
-        let [base_attack_time, ranged_attack_time] = row.attack_time;
-        let template_display_id = row.template_display_id;
-        let template_display_scale = row.template_display_scale;
-        let loot_id = row.loot_id;
-        let skin_loot_id = row.skin_loot_id;
-        let [gold_min, gold_max] = row.gold;
-        let respawn_delay_secs = row.respawn_delay_secs;
-        let script_name = row.script_name.clone();
-        let string_id = row.string_id.clone();
-        let vehicle_id = row.vehicle_id;
-        let phase_use_flags = row.phase_use_flags;
-        let phase_id = row.phase_id;
-        let phase_group_id = row.phase_group_id;
-        let terrain_swap_map = row.terrain_swap_map;
-        let ground_movement_type = row.ground_movement_type;
-        let swim_allowed = row.swim_allowed;
-        let flight_movement_type = row.flight_movement_type;
-        let rooted = row.rooted;
-        let chase_movement_type =
-            normalize_creature_chase_movement_type_like_cpp(row.chase_movement_type);
-        let random_movement_type =
-            normalize_creature_random_movement_type_like_cpp(row.random_movement_type);
-        let interaction_pause_timer_ms = row.interaction_pause_timer_ms;
-        let wander_distance = row.wander_distance;
-        let default_movement_type = creature_movement_generator_type_from_db_like_cpp(
-            row.effective_movement_type,
-            wander_distance,
-        );
-        let wander_distance =
-            normalized_creature_wander_distance_like_cpp(default_movement_type, wander_distance);
-        let waypoint_path_id = row.waypoint_path_id;
-
-        let Some(display_selection) = self.catalogs.choose_creature_display_like_cpp(
-            entry,
-            model_id,
-            flags_extra,
-            template_display_id,
-            template_display_scale,
-        ) else {
-            return None;
-        };
-        let display_id = display_selection.display_id;
-        let Some(model_scalars) = self.catalogs.creature_create_model_scalars_like_cpp(
-            display_id,
-            scale,
-            display_selection.display_scale,
-        ) else {
-            warn!(
-                "Skipping creature entry={} spawn={} display={} because creature_model_info is missing, matching C++ CreateFromProto failure",
-                entry, spawn_guid, display_id
-            );
-            return None;
-        };
-
-        let (target_phase_shift, _) = self.catalogs.db_spawn_phase_shift_like_cpp(
-            map_id,
-            phase_use_flags,
-            phase_id,
-            phase_group_id,
-            terrain_swap_map,
-        );
-        if !self.can_see_phase_shift_like_cpp(&target_phase_shift) {
-            return None;
-        }
-
-        let creature_stats = self.creature_create_stats_with_catalogs_like_cpp(
-            catalogs,
-            entry,
-            min_level,
-            unit_class,
-            classification,
-            regen_health,
-            cur_health,
-            cur_mana,
-        );
-        let addon = catalogs.addons.get_for_creature_like_cpp(spawn_guid, entry);
-        let addon_fields = WorldSession::creature_addon_create_fields_like_cpp(addon.as_ref());
-        let equipment_fields = self.creature_virtual_items_from_row_with_catalogs_like_cpp(
-            catalogs,
-            entry,
-            row.equipment_id,
-        );
-
-        let guid = if vehicle_id != 0 {
-            ObjectGuid::create_vehicle_like_cpp(self.realm_id(), map_id, entry, spawn_guid as i64)
-        } else {
-            ObjectGuid::create_creature_like_cpp(self.realm_id(), map_id, entry, spawn_guid as i64)
-        };
-        let movement_flags = creature_create_movement_flags_like_cpp(ground_movement_type, rooted);
-        let position = creature_create_position_after_hover_offset_like_cpp(
-            Position::new(pos_x, pos_y, pos_z, orientation),
-            movement_flags,
-            model_scalars.hover_height,
-        );
-        let create_data = CreatureCreateData {
-            guid,
-            entry,
-            display_id,
-            native_display_id: display_id,
-            display_scale: model_scalars.display_scale,
-            native_x_display_scale: model_scalars.native_x_display_scale,
-            bounding_radius: model_scalars.bounding_radius,
-            combat_reach: model_scalars.combat_reach,
-            health: creature_stats.health,
-            max_health: creature_stats.max_health,
-            level: min_level,
-            faction_template: faction,
+    fn visibility(&self) -> &VisibilityState {
+        &self.visibility
+    }
+    fn visibility_mut(&mut self) -> &mut VisibilityState {
+        &mut self.visibility
+    }
+    fn consume_movement_visibility_refresh_request_like_cpp(&mut self) -> bool {
+        self.quest_state
+            .consume_movement_visibility_refresh_request_like_cpp()
+    }
+    fn represented_viewer_dependent_creature_npc_flags_like_cpp(
+        &self,
+        creature_guid: ObjectGuid,
+        npc_flags: u64,
+    ) -> u64 {
+        WorldSession::represented_viewer_dependent_creature_npc_flags_like_cpp(
+            self,
+            creature_guid,
             npc_flags,
-            unit_flags,
-            unit_flags2,
-            unit_flags3,
-            aura_state: wow_entities::Creature::health_aura_state_like_cpp(
-                creature_stats.health.max(0) as u64,
-                creature_stats.max_health.max(0) as u64,
-                creature_stats.health > 0,
-            ),
-            damage_school: wow_constants::spell::SpellSchools::Normal as u8,
-            scale,
-            unit_class,
-            display_power: creature_stats.power_type as u8,
-            power: {
-                let mut power = [0; 10];
-                power[0] = creature_stats.power;
-                power
-            },
-            max_power: {
-                let mut max_power = [0; 10];
-                max_power[0] = creature_stats.max_power;
-                max_power
-            },
-            base_mana: creature_stats.base_mana,
-            virtual_items: equipment_fields.virtual_items,
-            base_attack_time,
-            ranged_attack_time,
-            movement_flags,
-            vehicle_id,
-            play_hover_anim: false,
-            hover_height: model_scalars.hover_height,
-            mount_display_id: addon_fields.mount_display_id,
-            stand_state: addon_fields.stand_state,
-            vis_flags: addon_fields.vis_flags,
-            anim_tier: addon_fields.anim_tier,
-            emote_state: addon_fields.emote_state,
-            sheathe_state: addon_fields.sheathe_state,
-            pvp_flags: addon_fields.pvp_flags,
-            current_area_id: 0,
-            speed_walk_rate: speed_walk,
-            speed_run_rate: speed_run,
-            ai_anim_kit_id: addon_fields.ai_anim_kit_id,
-            movement_anim_kit_id: addon_fields.movement_anim_kit_id,
-            melee_anim_kit_id: addon_fields.melee_anim_kit_id,
-        };
-
-        let aggro_radius =
-            self.creature_aggro_radius_for_faction_template_like_cpp(faction.max(0) as u32, 15.0);
-        let min_damage = (min_level as u32).saturating_sub(1) * 3 + 5;
-        let max_damage = min_damage + min_damage / 2;
-
-        Some(MaterializedCreatureSpawnLikeCpp {
-            guid,
+        )
+    }
+    fn represented_gameobject_dynamic_flags_for_player_like_cpp(
+        &self,
+        gameobject_entry: u32,
+        state: &RepresentedGameObjectUseState,
+    ) -> u32 {
+        WorldSession::represented_gameobject_dynamic_flags_for_player_like_cpp(
+            self,
+            gameobject_entry,
+            state,
+        )
+    }
+    fn sync_represented_farsight_clear_from_canonical_like_cpp(&mut self) -> bool {
+        WorldSession::sync_represented_farsight_clear_from_canonical_like_cpp(self)
+    }
+    fn represented_visibility_source_position_like_cpp(&self) -> Option<Position> {
+        WorldSession::represented_visibility_source_position_like_cpp(self)
+    }
+    fn visible_world_creatures_from_map_like_cpp(
+        &self,
+        map_id: u16,
+        position: &Position,
+    ) -> Vec<wow_entities::Creature> {
+        WorldSession::visible_world_creatures_from_map_like_cpp(self, map_id, position)
+    }
+    fn visible_gameobjects_from_canonical_map_like_cpp(
+        &self,
+        map_id: u16,
+        position: &Position,
+        visibility_radius: f32,
+    ) -> Option<Vec<GameObjectCreateData>> {
+        WorldSession::visible_gameobjects_from_canonical_map_like_cpp(
+            self,
+            map_id,
             position,
-            create_data,
-            min_damage,
-            max_damage,
-            aggro_radius,
-            loot_id,
-            skin_loot_id,
-            gold_min,
-            gold_max,
-            respawn_delay_secs,
-            selected_equipment_id: equipment_fields.selected_equipment_id,
-            original_equipment_id: equipment_fields.original_equipment_id,
-            script_name,
-            string_id,
-            addon,
-            phase_use_flags,
-            phase_id,
-            phase_group_id,
-            terrain_swap_map,
-            flags_extra,
-            ground_movement_type,
-            swim_allowed,
-            flight_movement_type,
-            rooted,
-            chase_movement_type,
-            random_movement_type,
-            interaction_pause_timer_ms,
-            wander_distance,
-            default_movement_type,
-            waypoint_path_id,
-        })
+            visibility_radius,
+        )
+    }
+    fn visible_dynamic_objects_from_canonical_map_like_cpp(
+        &self,
+        map_id: u16,
+        position: &Position,
+        visibility_radius: f32,
+    ) -> Option<Vec<DynamicObjectCreateData>> {
+        WorldSession::visible_dynamic_objects_from_canonical_map_like_cpp(
+            self,
+            map_id,
+            position,
+            visibility_radius,
+        )
+    }
+    fn visible_area_triggers_from_canonical_map_like_cpp(
+        &self,
+        map_id: u16,
+        position: &Position,
+        visibility_radius: f32,
+    ) -> Option<Vec<AreaTriggerCreateData>> {
+        WorldSession::visible_area_triggers_from_canonical_map_like_cpp(
+            self,
+            map_id,
+            position,
+            visibility_radius,
+        )
+    }
+    fn visible_misc_objects_from_canonical_map_like_cpp(
+        &self,
+        map_id: u16,
+        position: &Position,
+        visibility_radius: f32,
+    ) -> Option<(
+        Vec<CorpseCreateData>,
+        Vec<SceneObjectCreateData>,
+        Vec<ConversationCreateData>,
+    )> {
+        WorldSession::visible_misc_objects_from_canonical_map_like_cpp(
+            self,
+            map_id,
+            position,
+            visibility_radius,
+        )
+    }
+    fn visible_transports_from_canonical_map_like_cpp(
+        &self,
+        map_id: u16,
+    ) -> Option<Vec<GameObjectCreateData>> {
+        WorldSession::visible_transports_from_canonical_map_like_cpp(self, map_id)
+    }
+    fn visible_other_players_from_registry_like_cpp(
+        &self,
+        map_id: u16,
+        position: &Position,
+        visibility_radius: f32,
+    ) -> Vec<(ObjectGuid, PlayerVisibilityCreateSnapshot)> {
+        WorldSession::visible_other_players_from_registry_like_cpp(
+            self,
+            map_id,
+            position,
+            visibility_radius,
+        )
     }
 }

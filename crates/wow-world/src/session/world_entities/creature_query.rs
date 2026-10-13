@@ -160,30 +160,6 @@ impl WorldSession {
     ) {
         self.catalogs.creatures.model_info_store = Some(store);
     }
-    pub(crate) fn creature_create_stats_with_catalogs_like_cpp(
-        &self,
-        catalogs: &CreatureSpawnCatalogsLikeCpp,
-        entry: u32,
-        level: u8,
-        unit_class: u8,
-        classification: u32,
-        regen_health: bool,
-        db_cur_health: u32,
-        db_cur_mana: u32,
-    ) -> CreatureCreateStatsLikeCpp {
-        let (state, hub) = crate::session::split_world_entities_ref(self);
-        state.creature_create_stats_with_catalogs_like_cpp(
-            hub,
-            catalogs,
-            entry,
-            level,
-            unit_class,
-            classification,
-            regen_health,
-            db_cur_health,
-            db_cur_mana,
-        )
-    }
     pub fn set_creature_model_data_store(&mut self, store: Arc<CreatureModelDataStore>) {
         self.catalogs.creatures.model_data_store = Some(store);
     }

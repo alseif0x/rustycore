@@ -50,15 +50,18 @@ use rand::Rng;
 #[cfg(test)]
 pub(crate) use stats::RepresentedPlayerGearStatsLikeCpp;
 use tracing::{debug, info, trace, warn};
+// Test-only: their production readers moved to `wow-world-entities` (#1363 slice 8a).
+#[cfg(test)]
+use wow_constants::CreatureFlagsExtra;
+#[cfg(test)]
 use wow_constants::movement::MovementFlag;
-use wow_constants::unit::{
-    NPCFlags1, SheathState, UNIT_FLAGS_ALLOWED_LIKE_CPP, UNIT_FLAGS2_ALLOWED_LIKE_CPP,
-    UNIT_FLAGS3_ALLOWED_LIKE_CPP, UnitFlags,
-};
+use wow_constants::unit::NPCFlags1;
+#[cfg(test)]
+use wow_constants::unit::{UNIT_FLAGS2_ALLOWED_LIKE_CPP, UNIT_FLAGS3_ALLOWED_LIKE_CPP, UnitFlags};
 use wow_constants::{
-    ConditionSourceType, CreatureFlagsExtra, InventoryResult, InventoryType, ItemContext,
-    ItemExtendedCostFlags, ItemFieldFlags, ItemFlags, ItemModifier, ItemUpdateState,
-    ItemVendorType, PowerType, TypeId, TypeMask, UnitStandStateType,
+    ConditionSourceType, InventoryResult, InventoryType, ItemContext, ItemExtendedCostFlags,
+    ItemFieldFlags, ItemFlags, ItemModifier, ItemUpdateState, ItemVendorType, PowerType, TypeId,
+    TypeMask, UnitStandStateType,
 };
 // Test-only: its production readers were the character/account registrations that
 // moved to `wow-world-application` under #1263 F5; the character scenarios still
@@ -88,17 +91,17 @@ pub(crate) use std::f32::consts::PI;
 pub(crate) use wow_constants::{EnchantmentSlot, ItemBondingType};
 #[cfg(test)]
 pub(crate) use wow_entities::SocketedGem;
+// Test-only: its production readers moved to `wow-world-entities` (#1363 slice 8a).
+#[cfg(test)]
+use wow_entities::MovementGeneratorType;
 use wow_entities::{
-    BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START,
-    CreatureAddonLifecycleRecordLikeCpp, GAMEOBJECT_TYPE_FISHING_HOLE, GAMEOBJECT_TYPE_QUESTGIVER,
-    GameObjectTemplateData, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
-    INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_MONEY_AMOUNT,
-    MovementGeneratorType, NULL_BAG, NULL_SLOT, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START,
-    SendNewItemDelivery, SendNewItemDisplayText, SendNewItemInstancePlan, SendNewItemModifier,
-    SendNewItemPlan, SwapItemPreflightResult, WorldObject, is_bank_pos, is_child_equipment_pos,
-    is_equipment_pos, is_inventory_pos, item_can_go_into_bag,
-    normalize_creature_chase_movement_type_like_cpp,
-    normalize_creature_random_movement_type_like_cpp,
+    BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START, GAMEOBJECT_TYPE_QUESTGIVER,
+    INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
+    INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_MONEY_AMOUNT, NULL_BAG, NULL_SLOT,
+    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText,
+    SendNewItemInstancePlan, SendNewItemModifier, SendNewItemPlan, SwapItemPreflightResult,
+    WorldObject, is_bank_pos, is_child_equipment_pos, is_equipment_pos, is_inventory_pos,
+    item_can_go_into_bag,
 };
 // Test-only: the production registration source that used these two moved to the
 // application crate's character/account area registrar under #1263 F5.
@@ -364,13 +367,9 @@ fn loaded_inventory_slot_count_with_legacy_rust_compat(saved_slots: u8) -> u8 {
     }
 }
 
-const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
 #[cfg(test)]
 const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xDF2F_53CF;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
-// C++ ObjectDefines.h: DEFAULT_VISIBILITY_DISTANCE = VISIBILITY_DISTANCE_NORMAL = 100 yards.
-// Wider values here make the SQL fallback load whole areas and can crash the 3.4.3 client.
-const DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP: f32 = wow_entities::VISIBILITY_RADIUS_LIKE_CPP;
 pub(crate) use wow_constants::character::RESPONSE_SUCCESS_LIKE_CPP;
 const CHAR_CREATE_ERROR_LIKE_CPP: u8 = 25;
 pub(crate) use wow_constants::character::{
@@ -398,108 +397,6 @@ pub(crate) use wow_constants::character::{
 #[cfg(test)]
 fn initial_character_rest_state_like_cpp(is_a_recruiter: bool, recruiter_id: u32) -> u8 {
     wow_world_character::initial_character_rest_state_like_cpp(is_a_recruiter, recruiter_id)
-}
-
-fn creature_movement_generator_type_from_db_like_cpp(
-    db_movement_type: u8,
-    wander_distance: f32,
-) -> MovementGeneratorType {
-    const RANDOM_MOTION_TYPE_LIKE_CPP: u8 = 1;
-    match db_movement_type {
-        WAYPOINT_MOTION_TYPE_LIKE_CPP => MovementGeneratorType::Waypoint,
-        RANDOM_MOTION_TYPE_LIKE_CPP if wander_distance > 0.0 => MovementGeneratorType::Random,
-        _ => MovementGeneratorType::Idle,
-    }
-}
-
-fn normalized_creature_wander_distance_like_cpp(
-    default_movement_type: MovementGeneratorType,
-    wander_distance: f32,
-) -> f32 {
-    let wander_distance = wander_distance.max(0.0);
-    if default_movement_type == MovementGeneratorType::Idle {
-        0.0
-    } else {
-        wander_distance
-    }
-}
-
-fn normalize_creature_template_speed_walk_like_cpp(speed_walk: f32) -> f32 {
-    if speed_walk == 0.0 { 1.0 } else { speed_walk }
-}
-
-fn normalize_creature_template_speed_run_like_cpp(speed_run: f32) -> f32 {
-    if speed_run == 0.0 { 1.14286 } else { speed_run }
-}
-
-fn spawn_difficulties_contains_spawn_mode_like_cpp(
-    spawn_difficulties: &str,
-    spawn_mode: u8,
-) -> bool {
-    // C++ ObjectMgr::ParseSpawnDifficulties parses comma-separated Difficulty
-    // values and maps invalid tokens to DIFFICULTY_NONE before the map/grid
-    // code filters by Map::GetSpawnMode().
-    spawn_difficulties
-        .split(',')
-        .filter(|token| !token.is_empty())
-        .map(|token| token.parse::<u8>().unwrap_or(0))
-        .any(|difficulty| difficulty == spawn_mode)
-}
-
-fn choose_creature_flags_like_cpp(
-    template_npc_flags: u64,
-    template_unit_flags: u32,
-    template_unit_flags2: u32,
-    template_unit_flags3: u32,
-    spawn_npc_flags: Option<u64>,
-    spawn_unit_flags: Option<u32>,
-    spawn_unit_flags2: Option<u32>,
-    spawn_unit_flags3: Option<u32>,
-    flags_extra: u32,
-) -> (u64, u32, u32, u32) {
-    // C++ ObjectMgr::ChooseCreatureFlags: spawn overrides are optional;
-    // missing values fall back to creature_template.
-    let npc_flags = spawn_npc_flags.unwrap_or(template_npc_flags);
-    let mut unit_flags =
-        spawn_unit_flags.unwrap_or(template_unit_flags) & UNIT_FLAGS_ALLOWED_LIKE_CPP;
-    let unit_flags2 =
-        spawn_unit_flags2.unwrap_or(template_unit_flags2) & UNIT_FLAGS2_ALLOWED_LIKE_CPP;
-    let unit_flags3 =
-        spawn_unit_flags3.unwrap_or(template_unit_flags3) & UNIT_FLAGS3_ALLOWED_LIKE_CPP;
-
-    // C++ Creature::UpdateEntry clears template combat state on create and
-    // only restores it when the creature is already in combat.
-    unit_flags &= !UnitFlags::IN_COMBAT.bits();
-
-    // C++ Creature::UpdateEntry calls SetUninteractible(true) for triggers
-    // after selecting DB flags.
-    if CreatureFlagsExtra::from_bits_truncate(flags_extra).contains(CreatureFlagsExtra::TRIGGER) {
-        unit_flags |= UnitFlags::UNINTERACTIBLE.bits();
-    }
-
-    (npc_flags, unit_flags, unit_flags2, unit_flags3)
-}
-
-fn is_within_2d_visibility_range_like_cpp(
-    viewer: &Position,
-    object_x: f32,
-    object_y: f32,
-    range: f32,
-) -> bool {
-    let dx = viewer.x - object_x;
-    let dy = viewer.y - object_y;
-    dx * dx + dy * dy <= range * range
-}
-
-fn represented_go_state_from_i8_like_cpp(state: i8) -> Option<wow_entities::GoState> {
-    match state {
-        0 => Some(wow_entities::GoState::Active),
-        1 => Some(wow_entities::GoState::Ready),
-        2 => Some(wow_entities::GoState::Destroyed),
-        24 => Some(wow_entities::GoState::TransportActive),
-        25 => Some(wow_entities::GoState::TransportStopped),
-        _ => None,
-    }
 }
 
 use wow_packet::packets::gossip::*;
@@ -565,59 +462,17 @@ fn player_money_gain_like_cpp(current_money: u64, amount: u64) -> Option<u64> {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(crate) struct CreatureAddonCreateFieldsLikeCpp {
-    has_addon: bool,
-    mount_display_id: i32,
-    stand_state: u8,
-    vis_flags: u8,
-    anim_tier: u8,
-    sheathe_state: u8,
-    pvp_flags: u8,
-    emote_state: i32,
-    ai_anim_kit_id: u16,
-    movement_anim_kit_id: u16,
-    melee_anim_kit_id: u16,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct CreatureEquipmentCreateFieldsLikeCpp {
-    selected_equipment_id: u8,
-    original_equipment_id: i8,
-    virtual_items: [(i32, u16, u16); 3],
-}
-
-pub(crate) use wow_world_entities::MaterializedCreatureSpawnLikeCpp;
-
-fn creature_create_movement_flags_like_cpp(ground_movement_type: u8, rooted: bool) -> u32 {
-    let mut flags = MovementFlag::empty();
-    if ground_movement_type == wow_constants::CreatureGroundMovementType::Hover as u8 {
-        // C++ Creature::LoadCreaturesAddon calls AddUnitMovementFlag(MOVEMENTFLAG_HOVER)
-        // when CanHover(), and CanHover() is true for ground movement type Hover.
-        flags.insert(MovementFlag::HOVER);
-    }
-    if rooted {
-        // C++ Creature::LoadTemplateRoot -> SetTemplateRooted -> SetControlled(... ROOT)
-        // ends in Unit::SetRooted, removing moving flags before adding MOVEMENTFLAG_ROOT.
-        flags.remove(MovementFlag::MASK_MOVING);
-        flags.insert(MovementFlag::ROOT);
-    }
-    flags.bits()
-}
-
-fn creature_create_position_after_hover_offset_like_cpp(
-    mut position: Position,
-    movement_flags: u32,
-    hover_height: f32,
-) -> Position {
-    // C++ `Creature::Create` calls `LoadCreaturesAddon()` and then
-    // `m_positionZ += GetHoverOffset()`. `GetHoverOffset()` is
-    // MOVEMENTFLAG_HOVER ? UnitData::HoverHeight : 0.
-    if MovementFlag::from_bits_retain(movement_flags).contains(MovementFlag::HOVER) {
-        position.z += hover_height;
-    }
-    position
-}
+// Test-only: the spawn-row helpers moved to `wow_world_entities::visibility_session`
+// with the visibility bodies (#1363 slice 8a); the creature scenarios still call them.
+#[cfg(test)]
+use wow_world_entities::{
+    WAYPOINT_MOTION_TYPE_LIKE_CPP, choose_creature_flags_like_cpp,
+    creature_create_movement_flags_like_cpp, creature_create_position_after_hover_offset_like_cpp,
+    creature_movement_generator_type_from_db_like_cpp,
+    normalize_creature_template_speed_run_like_cpp,
+    normalize_creature_template_speed_walk_like_cpp, normalized_creature_wander_distance_like_cpp,
+    spawn_difficulties_contains_spawn_mode_like_cpp,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DestroyItemCountAction {

@@ -163,15 +163,15 @@ impl crate::session::WorldSession {
         }
 
         // AddPlayerToMap-equivalent: refresh nearby world objects at the new position.
-        self.send_nearby_creatures_with_catalogs_like_cpp(
+        wow_world_entities::send_nearby_creatures_with_catalogs_like_cpp(
+            self,
             creature_spawn_catalogs,
             new_map as u16,
             &new_pos,
             0,
         )
         .await;
-        self.send_nearby_gameobjects(new_map as u16, &new_pos, 0)
-            .await;
+        wow_world_entities::send_nearby_gameobjects(self, new_map as u16, &new_pos, 0).await;
         info!(
             account = self.core.account_id,
             map = new_map,

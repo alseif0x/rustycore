@@ -6,20 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn record_represented_gameobject_runtime_state_like_cpp(
-        &mut self,
-        map_id: u16,
-        guid: ObjectGuid,
-        entry: u32,
-        position: wow_core::Position,
-        go_type: u8,
-    ) {
-        let (state, mut hub) = crate::session::split_world_entities_mut(self);
-        state.record_represented_gameobject_runtime_state_like_cpp(
-            &mut hub, map_id, guid, entry, position, go_type,
-        )
-    }
-
     pub(crate) fn send_represented_gameobject_visibility_on_destroy_from_last_update_like_cpp(
         &mut self,
     ) -> usize {

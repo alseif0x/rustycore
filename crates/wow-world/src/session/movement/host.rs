@@ -53,7 +53,7 @@ impl PlayerMovementHostLikeCpp for WorldSession {
         &mut self,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
     ) -> impl Future<Output = ()> + Send {
-        WorldSession::update_visibility_with_catalogs_like_cpp(self, creature_spawn_catalogs)
+        wow_world_entities::update_visibility_with_catalogs_like_cpp(self, creature_spawn_catalogs)
     }
 
     fn check_area_triggers_with_catalogs_like_cpp(

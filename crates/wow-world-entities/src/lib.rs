@@ -52,6 +52,7 @@ mod state;
 mod travel_handlers;
 mod vehicle_handlers;
 mod vehicle_session;
+mod visibility_session;
 mod world_entities_host;
 
 pub use aggro::{
@@ -193,5 +194,18 @@ pub use vehicle_session::{
     handle_request_vehicle_switch_seat, handle_ride_vehicle_interact,
     represented_move_change_vehicle_seats_like_cpp, represented_move_dismiss_vehicle_like_cpp,
     represented_request_vehicle_switch_seat_like_cpp, represented_ride_vehicle_interact_like_cpp,
+};
+pub use visibility_session::{
+    VisibilitySessionHostLikeCpp, send_nearby_creatures_with_catalogs_like_cpp,
+    send_nearby_gameobjects, update_visibility_with_catalogs_like_cpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use visibility_session::{
+    WAYPOINT_MOTION_TYPE_LIKE_CPP, choose_creature_flags_like_cpp,
+    creature_create_movement_flags_like_cpp, creature_create_position_after_hover_offset_like_cpp,
+    creature_movement_generator_type_from_db_like_cpp,
+    normalize_creature_template_speed_run_like_cpp,
+    normalize_creature_template_speed_walk_like_cpp, normalized_creature_wander_distance_like_cpp,
+    spawn_difficulties_contains_spawn_mode_like_cpp,
 };
 pub use world_entities_host::WorldEntitiesHostLikeCpp;
