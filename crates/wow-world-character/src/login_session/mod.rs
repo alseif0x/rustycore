@@ -21,11 +21,13 @@
 //! and the login data loaders (`session_state/login_data.rs`) stay in the
 //! World and call these functions.
 
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::future::Future;
 use wow_core::Position;
 use wow_data::TalentTabStore;
 use wow_entities::PhaseShift;
+use wow_entities::PlayerCurrency;
 use wow_entities::PlayerEnchantTimeUpdate;
 use wow_entities::PlayerHomebindLikeCpp as RepresentedHomebindLikeCpp;
 use wow_entities::PlayerItemTimeUpdate;

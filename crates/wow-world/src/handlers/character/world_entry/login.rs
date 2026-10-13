@@ -28,8 +28,6 @@ use wow_world_character::{
 
 mod mail_loading;
 
-use LoginAdmissionDataLikeCpp;
-
 impl WorldSession {
     /// Continue the player login after the instance socket is connected.
     ///

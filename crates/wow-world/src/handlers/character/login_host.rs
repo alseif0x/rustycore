@@ -9,7 +9,7 @@
 //! returned unchanged.
 
 use wow_data::TalentTabStore;
-use wow_entities::{PhaseShift, PlayerEnchantTimeUpdate, PlayerItemTimeUpdate};
+use wow_entities::{PhaseShift, PlayerCurrency, PlayerEnchantTimeUpdate, PlayerItemTimeUpdate};
 use wow_world_core::session::{HubMut, HubRef, SessionState};
 use wow_world_lifecycle::{
     FinalizationMode, FinalizationOutcome, FinalizationReport, SessionLifecycleState,
