@@ -157,8 +157,7 @@ impl crate::session::WorldSession {
         cast_resolutions: BTreeMap<u32, PlayerCastAcquisitionResolutionLikeCpp>,
     ) -> Result<PlayerSpellAcquisitionSnapshotLikeCpp, SpellAcquisitionSnapshotAdapterErrorLikeCpp>
     {
-        let spell_rows = self
-            .complete_represented_player_spell_rows_like_cpp()
+        let spell_rows = wow_world_spell::complete_represented_player_spell_rows_like_cpp(self)
             .ok_or(SpellAcquisitionSnapshotAdapterErrorLikeCpp::IncompleteSpellRows)?;
         let skill_rows = crate::session::hub_ref(self)
             .complete_player_skill_records_like_cpp()
@@ -166,12 +165,12 @@ impl crate::session::WorldSession {
         let occupied_skill_slots = crate::session::hub_ref(self)
             .complete_player_skill_occupied_slots_like_cpp()
             .ok_or(SpellAcquisitionSnapshotAdapterErrorLikeCpp::MissingSkillSlotOccupancy)?;
-        let traits = self
-            .complete_represented_spell_trait_definition_ids_like_cpp()
-            .ok_or(SpellAcquisitionSnapshotAdapterErrorLikeCpp::IncompleteTraitDefinitions)?;
-        let represented_overrides = self
-            .complete_represented_override_spells_like_cpp()
-            .ok_or(SpellAcquisitionSnapshotAdapterErrorLikeCpp::IncompleteOverrides)?;
+        let traits =
+            wow_world_spell::complete_represented_spell_trait_definition_ids_like_cpp(self)
+                .ok_or(SpellAcquisitionSnapshotAdapterErrorLikeCpp::IncompleteTraitDefinitions)?;
+        let represented_overrides =
+            wow_world_spell::complete_represented_override_spells_like_cpp(self)
+                .ok_or(SpellAcquisitionSnapshotAdapterErrorLikeCpp::IncompleteOverrides)?;
         let mut trait_spell_ids = traits.keys().copied().collect::<Vec<_>>();
         trait_spell_ids.sort_unstable();
         for spell_id in trait_spell_ids {

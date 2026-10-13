@@ -14,8 +14,7 @@ impl WorldSession {
         // `Player::SendKnownSpells` publishes only active rows. Prefer the
         // complete PlayerSpellMap when available so the internal mirror can
         // retain lower ranks without leaking them into the login packet.
-        let mut spells = self
-            .complete_represented_player_spell_rows_like_cpp()
+        let mut spells = wow_world_spell::complete_represented_player_spell_rows_like_cpp(self)
             .map(|rows| {
                 rows.values()
                     .filter(|spell| {
@@ -26,7 +25,7 @@ impl WorldSession {
                     .map(|spell| spell.spell_id)
                     .collect()
             })
-            .unwrap_or_else(|| self.known_spells_like_cpp().to_vec());
+            .unwrap_or_else(|| wow_world_spell::known_spells_like_cpp(self).to_vec());
         for mount in self.account_mount_rows_like_cpp() {
             if !spells.contains(&mount.spell_id) {
                 spells.push(mount.spell_id);

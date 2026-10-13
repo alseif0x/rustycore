@@ -50,7 +50,7 @@ impl BattlePetPurchaseHostLikeCpp for WorldSession {
         )
     }
     fn learn_dependent_known_spell_like_cpp(&mut self, spell_id: i32) {
-        WorldSession::learn_dependent_known_spell_like_cpp(self, spell_id)
+        wow_world_spell::learn_dependent_known_spell_like_cpp(self, spell_id)
     }
     fn begin_exclusive_player_money_persistence_like_cpp(
         &mut self,

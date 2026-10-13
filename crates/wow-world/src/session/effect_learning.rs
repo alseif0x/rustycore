@@ -21,7 +21,7 @@ impl EffectLearningRuntimeLikeCpp for WorldSession {
         if self.player_guid() != Some(target) || spell <= 0 {
             return false;
         }
-        if !self.represented_spell_valid_for_learning_like_cpp(spell) {
+        if !wow_world_spell::represented_spell_valid_for_learning_like_cpp(self, spell) {
             return false;
         }
         // Existing represented limit: account mount acquisition has a richer
@@ -80,7 +80,8 @@ impl EffectLearningRuntimeLikeCpp for WorldSession {
         source: &wow_entities::PlayerSpellRuntimeState,
     ) {
         let spell = row.spell_id;
-        if let Some(trait_id) = self.take_represented_trait_definition_id_like_cpp(spell)
+        if let Some(trait_id) =
+            wow_world_spell::take_represented_trait_definition_id_like_cpp(self, spell)
             && let Some(overridden) = u32::try_from(trait_id)
                 .ok()
                 .and_then(|id| {
@@ -91,13 +92,13 @@ impl EffectLearningRuntimeLikeCpp for WorldSession {
                 .map(|definition| definition.overrides_spell_id)
                 .filter(|id| *id > 0)
         {
-            self.remove_represented_override_spell_like_cpp(overridden, spell);
+            wow_world_spell::remove_represented_override_spell_like_cpp(self, overridden, spell);
         }
         let complete_rows = source
             .rows_complete_like_cpp()
             .then(|| source.rows_like_cpp().clone());
-        self.learn_known_spell_like_cpp(spell);
-        let _ = self.install_loaded_spell_row_like_cpp(spell, row, complete_rows);
+        wow_world_spell::learn_known_spell_like_cpp(self, spell);
+        let _ = wow_world_spell::install_loaded_spell_row_like_cpp(self, spell, row, complete_rows);
         self.sync_player_registry_state_like_cpp();
     }
 }

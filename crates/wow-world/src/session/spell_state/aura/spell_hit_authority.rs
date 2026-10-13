@@ -106,11 +106,8 @@ impl WorldSession {
             || crate::session::hub_ref(self)
                 .complete_player_skill_records_like_cpp()
                 .is_none()
-            || self
-                .complete_represented_player_spell_rows_like_cpp()
-                .is_none()
-            || self
-                .complete_represented_spell_trait_definition_ids_like_cpp()
+            || wow_world_spell::complete_represented_player_spell_rows_like_cpp(self).is_none()
+            || wow_world_spell::complete_represented_spell_trait_definition_ids_like_cpp(self)
                 .is_none_or(|traits| !traits.is_empty())
             || !self.represented_trait_config_aura_source_is_empty_like_cpp()
             || !self.represented_active_glyph_aura_source_is_empty_like_cpp()
@@ -146,7 +143,7 @@ impl WorldSession {
             return false;
         }
 
-        let known_spells = self.known_spells_like_cpp();
+        let known_spells = wow_world_spell::known_spells_like_cpp(self);
         if known_spells.is_empty() {
             return true;
         }

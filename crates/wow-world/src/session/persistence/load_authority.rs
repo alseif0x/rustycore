@@ -12,7 +12,7 @@ impl WorldSession {
         state.load_completed_achievements_like_cpp(&mut hub).await
     }
     pub(crate) fn begin_represented_trait_config_authority_load_like_cpp(&mut self) {
-        let _ = self.begin_represented_trait_config_load_like_cpp();
+        let _ = wow_world_spell::begin_represented_trait_config_load_like_cpp(self);
         self.core
             .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
     }
@@ -30,7 +30,11 @@ impl WorldSession {
         self.core
             .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         let configs = configs.into_iter().collect();
-        let result = self.complete_represented_trait_config_rows_like_cpp(configs, entries_empty);
+        let result = wow_world_spell::complete_represented_trait_config_rows_like_cpp(
+            self,
+            configs,
+            entries_empty,
+        );
         if result == Some(false) {
             // Invalid input has reset the source proof. Keep the previous
             // post-reset invalidation outside the exclusive Player access.

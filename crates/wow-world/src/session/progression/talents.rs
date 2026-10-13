@@ -21,8 +21,10 @@ impl WorldSession {
         // Login reconstructs a fresh C++ Player after this reset. Retaining the
         // previous character's runtime edges would affect GetCastSpellInfo, and
         // retaining per-spell traits could contaminate a coincident spell ID.
-        let _ = self.clear_represented_trait_and_override_state_like_cpp();
-        self.invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp();
+        let _ = wow_world_spell::clear_represented_trait_and_override_state_like_cpp(self);
+        wow_world_spell::invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp(
+            self,
+        );
     }
     pub(crate) fn reset_represented_active_talents_like_cpp(&mut self) -> bool {
         let Some(talent_group) =
@@ -112,7 +114,8 @@ impl WorldSession {
             talent_group,
         );
         if learned {
-            self.apply_represented_active_talent_spell_side_effects_like_cpp(
+            wow_world_spell::apply_represented_active_talent_spell_side_effects_like_cpp(
+                self,
                 talent_id,
                 previous_rank,
                 rank,

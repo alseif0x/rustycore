@@ -12,6 +12,7 @@ mod session;
 mod spell_acquisition;
 mod spell_acquisition_application;
 pub mod spell_cast_adapter;
+mod spellbook_session;
 mod state;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod test_support;
@@ -63,6 +64,7 @@ pub use spell_acquisition_application::{
     validate_prepared_player_spell_acquisition_runtime_like_cpp,
 };
 pub use spell_cast_adapter::present_visual;
+pub use spellbook_session::*;
 pub use state::SessionSpellState;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use test_support::PlayerSpellAndTraitTestFixtureLikeCpp;

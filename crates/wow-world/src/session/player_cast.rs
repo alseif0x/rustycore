@@ -65,7 +65,7 @@ impl Runtime for WorldSession {
     }
 
     fn known(&self, id: i32) -> bool {
-        self.known_spells_like_cpp().contains(&id)
+        wow_world_spell::known_spells_like_cpp(self).contains(&id)
             || self
                 .spell_store()
                 .is_some_and(|store| store.has_attribute8_like_cpp(id, 0x0400_0000))

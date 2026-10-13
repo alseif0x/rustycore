@@ -85,7 +85,7 @@ fn acquisition_install_matches_previous_validation_and_owner_state() {
                 let mut runtime = wow_entities::PlayerSpellRuntimeState::default();
                 runtime.insert_fallback_row_like_cpp(
                     99,
-                    canonical_player_spell_record_like_cpp(spell(
+                    wow_world_spell::canonical_player_spell_record_like_cpp(spell(
                         99,
                         RepresentedPlayerSpellStateLikeCpp::New,
                     )),

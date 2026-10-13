@@ -155,7 +155,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         )
     }
     fn known_spells_like_cpp(&self) -> Vec<i32> {
-        WorldSession::known_spells_like_cpp(self)
+        wow_world_spell::known_spells_like_cpp(self)
     }
     fn load_character_reputation_rows_like_cpp(
         &mut self,
@@ -210,7 +210,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         known_spells: &mut Vec<i32>,
         dependent_spells: &mut HashSet<i32>,
     ) -> bool {
-        WorldSession::load_represented_talent_row_with_spell_side_effects_like_cpp(
+        wow_world_spell::load_represented_talent_row_with_spell_side_effects_like_cpp(
             self,
             talent_tabs,
             talent_id,
@@ -228,7 +228,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         WorldSession::load_represented_void_storage_row_like_cpp(self, slot, item)
     }
     fn mark_represented_spell_acquisition_snapshot_complete_like_cpp(&mut self) {
-        WorldSession::mark_represented_spell_acquisition_snapshot_complete_like_cpp(self)
+        wow_world_spell::mark_represented_spell_acquisition_snapshot_complete_like_cpp(self)
     }
     fn mark_represented_talents_loaded_like_cpp(&mut self) {
         WorldSession::mark_represented_talents_loaded_like_cpp(self)
@@ -281,7 +281,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         WorldSession::represented_creature_gossip_text_like_cpp(self, creature_entry)
     }
     fn represented_dependent_known_spells_like_cpp(&self) -> HashSet<i32> {
-        WorldSession::represented_dependent_known_spells_like_cpp(self)
+        wow_world_spell::represented_dependent_known_spells_like_cpp(self)
     }
     fn represented_dungeon_difficulty_packet_like_cpp(&self) -> Option<DungeonDifficultySet> {
         WorldSession::represented_dungeon_difficulty_packet_like_cpp(self)
@@ -311,7 +311,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         &mut self,
         rows: impl IntoIterator<Item = RepresentedPlayerSpellLikeCpp>,
     ) -> bool {
-        WorldSession::set_complete_represented_player_spell_rows_like_cpp(self, rows)
+        wow_world_spell::set_complete_represented_player_spell_rows_like_cpp(self, rows)
     }
     fn set_owned_player_group_like_cpp(&mut self, membership: Option<(u64, u8)>) -> bool {
         WorldSession::set_owned_player_group_like_cpp(self, membership)
@@ -326,7 +326,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         &mut self,
         traits: impl IntoIterator<Item = (i32, i32)>,
     ) -> bool {
-        WorldSession::set_complete_represented_spell_trait_definition_ids_like_cpp(self, traits)
+        wow_world_spell::set_complete_represented_spell_trait_definition_ids_like_cpp(self, traits)
     }
     fn set_player_guid(&mut self, guid: Option<ObjectGuid>) {
         WorldSession::set_player_guid(self, guid)

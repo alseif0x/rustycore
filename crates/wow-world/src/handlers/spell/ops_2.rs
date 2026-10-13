@@ -232,7 +232,7 @@ impl WorldSession {
             ),
             25 => i32::try_from(condition.value1)
                 .ok()
-                .map(|spell_id| self.known_spells_like_cpp().contains(&spell_id)),
+                .map(|spell_id| wow_world_spell::known_spells_like_cpp(self).contains(&spell_id)),
             27 => condition_compare_values_like_cpp(
                 condition.value2,
                 u32::from(crate::session::hub_ref(self).player_level_like_cpp()),

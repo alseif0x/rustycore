@@ -23,8 +23,9 @@ use wow_packet::packets::update::CreatureCreateData;
 use crate::canonical_creature_fixtures::*;
 use crate::session::{
     AuraApplication, RepresentedAuraEffectLikeCpp, RepresentedTalentRespecCriteriaEventLikeCpp,
-    SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP, SessionPlayerController,
+    SessionPlayerController,
 };
+use wow_world_spell::SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP;
 
 fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded::<WorldPacket>(1);

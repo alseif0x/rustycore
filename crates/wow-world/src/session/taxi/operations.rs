@@ -50,10 +50,7 @@ impl WorldSession {
             return Vec::new();
         };
 
-        if !self
-            .known_spells_like_cpp()
-            .contains(&mount.source_spell_id)
-        {
+        if !wow_world_spell::known_spells_like_cpp(self).contains(&mount.source_spell_id) {
             return Vec::new();
         }
 
