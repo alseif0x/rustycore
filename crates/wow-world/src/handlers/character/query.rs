@@ -7,9 +7,6 @@
 
 use super::*;
 
-#[cfg(test)]
-mod test_shims;
-
 impl WorldSession {
     pub(super) fn collect_quest_giver_status_multiple_like_cpp(
         &self,

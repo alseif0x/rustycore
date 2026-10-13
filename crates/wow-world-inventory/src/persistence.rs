@@ -164,3 +164,12 @@ impl crate::InventoryState {
         }
     }
 }
+
+pub fn item_spell_charges_db_string(charges: &[i32], effect_count: usize) -> String {
+    let mut out = String::new();
+    for charge in charges.iter().take(effect_count) {
+        out.push_str(&charge.to_string());
+        out.push(' ');
+    }
+    out
+}

@@ -539,3 +539,55 @@ pub fn sell_item_amount_action(current_count: u32, requested_amount: i32) -> Sel
 #[cfg(test)]
 #[path = "../unit_tests/vendor_rules.rs"]
 mod tests;
+
+/// C++ `ItemExtendedCostEntry` refund projection for `SMSG_SET_ITEM_PURCHASE_DATA`.
+///
+/// C++ excludes a season-earned column from the refunded currencies once its
+/// `REQUIRE_SEASON_EARNED_n` flag is set; the item columns always mirror the
+/// extended-cost row.
+pub fn item_purchase_contents_from_extended_cost(
+    extended_cost: &wow_data::item::extended_cost::ItemExtendedCostEntry,
+    money: u64,
+) -> wow_packet::packets::item::ItemPurchaseContents {
+    use wow_constants::ItemExtendedCostFlags;
+    use wow_packet::packets::item::{ItemPurchaseRefundCurrency, ItemPurchaseRefundItem};
+
+    let mut contents = wow_packet::packets::item::ItemPurchaseContents {
+        money,
+        ..Default::default()
+    };
+
+    for i in 0..5 {
+        contents.items[i] = ItemPurchaseRefundItem {
+            item_id: extended_cost.item_id[i] as i32,
+            item_count: extended_cost.item_count[i] as i32,
+        };
+
+        let season_earned = match i {
+            0 => extended_cost
+                .flags
+                .contains(ItemExtendedCostFlags::REQUIRE_SEASON_EARNED_1),
+            1 => extended_cost
+                .flags
+                .contains(ItemExtendedCostFlags::REQUIRE_SEASON_EARNED_2),
+            2 => extended_cost
+                .flags
+                .contains(ItemExtendedCostFlags::REQUIRE_SEASON_EARNED_3),
+            3 => extended_cost
+                .flags
+                .contains(ItemExtendedCostFlags::REQUIRE_SEASON_EARNED_4),
+            4 => extended_cost
+                .flags
+                .contains(ItemExtendedCostFlags::REQUIRE_SEASON_EARNED_5),
+            _ => false,
+        };
+        if !season_earned {
+            contents.currencies[i] = ItemPurchaseRefundCurrency {
+                currency_id: extended_cost.currency_id[i] as i32,
+                currency_count: extended_cost.currency_count[i] as i32,
+            };
+        }
+    }
+
+    contents
+}

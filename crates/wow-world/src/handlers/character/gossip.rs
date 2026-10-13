@@ -144,7 +144,7 @@ impl WorldSession {
         }
 
         if npc_flags & DIRECT_VENDOR_MASK_LIKE_CPP != 0 {
-            self.handle_list_inventory(hello).await;
+            wow_world_inventory::handle_list_inventory(self, hello).await;
         } else if npc_flags & DIRECT_TRAINER_MASK_LIKE_CPP != 0 {
             self.handle_trainer_list(hello).await;
         } else if npc_flags & DIRECT_AUCTIONEER_LIKE_CPP != 0 {
@@ -696,7 +696,7 @@ impl WorldSession {
         match option_npc {
             1 => {
                 // Vendor
-                self.handle_list_inventory(hello).await;
+                wow_world_inventory::handle_list_inventory(self, hello).await;
             }
             2 => {
                 // Taxinode / Flight Master

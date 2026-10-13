@@ -19,6 +19,7 @@ mod player;
 
 #[cfg(test)]
 use wow_constants::ItemExtendedCostFlags;
+#[cfg(test)]
 pub(crate) use wow_world_application::item_purchase_contents_from_extended_cost;
 
 #[cfg(test)]

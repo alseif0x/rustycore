@@ -4090,7 +4090,12 @@ Findings:
 - **Gossip does not go to interaction.** It calls
   `represented_gameobject_gossip_can_interact_with_like_cpp` in entities,
   and entities depends on interaction. It goes to character after vendor and
-  bank, so its five calls into them become free calls.
+  bank. Of its calls into vendor, bank and trainer, only the vendor list
+  (`handle_list_inventory`, two call sites) now lives in a crate character
+  can reach (inventory, 8b). The show-bank publication and the trainer list
+  (`handle_trainer_list`, `handle_trainer_list_for_gossip_option_like_cpp`)
+  stay in `wow-world`, so those calls stay host methods in 8c. (Corrected in
+  8b, #1386 review follow-up 1.)
 - **Vendor and bank are the largest host surface** (70): money persistence
   and its exclusive transaction, the quest-objective drain, the item store
   and publication operations, currencies and buyback. 8b re-measures which
@@ -4299,6 +4304,273 @@ handlers.
   tracing target (#1384 follow-up 2 applies here too).
 - `visibility_test_shims.rs` retires when the scenarios call the free
   functions and the `WorldEntitiesState` methods directly.
+
+### Validation
+
+`final --architecture --timings` (`VALIDATION_V2_CARGO_JOBS=1`,
+`VALIDATION_V2_TIMEOUT_SECONDS=1800`) runs on the committed head that
+includes this section. Its manifest path, dirty flag and duration are in
+the PR body. This section is not edited after that run.
+
+## Slice 8b result (vendor and bank → inventory)
+
+Branch `1363-s8b-vendor-bank`, base `c5939436a` (8a merged). Move-only
+(R2), with the 4b/5a/7a/7c/8a rewrites:
+
+- `self.` becomes `host.`, and a session field becomes a host accessor
+  (`lifecycle`, `interaction`/`interaction_mut`; `self.loot.is_active_loot_guid`
+  is the host method `is_active_loot_guid`);
+- `self.catalogs`/`self.config` become `host.hub_ref().catalogs`/`.config`,
+  `crate::session::hub_ref(self)` becomes `host.hub_ref()`, and the one-line
+  World forwards to the catalogs (`condition_store`, `player_condition_store`,
+  `currency_types_store`, `item_extended_cost_store`, `item_stats_store`,
+  `item_store`, `item_storage_template`, `item_template_max_durability`,
+  `item_template_inventory_type`, `repair_cost_rate_like_cpp`) or to the core
+  (`kick`, `send_packet_realm`, `send_buy_error`, `send_sell_error`,
+  `send_equip_error`) become that same catalog/config/core call;
+- a World wrapper that is one `split_inventory_{ref,mut}` plus one
+  `InventoryState` call becomes that same split and call through the host
+  (`split_inventory_mut` is new on the host; `split_inventory_ref` is the
+  battle-pet session host's). Each split is taken for exactly that call, as
+  the wrapper took it; no borrow spans another call or an `.await`. The one
+  exception is `insert_inventory_item_like_cpp`: the refund passes
+  `self.item_template_inventory_type(..)` as an argument, which two-phase
+  borrowing allowed only against the method call, so it stays a host method
+  at all three call sites;
+- a call between moved functions becomes a free call.
+
+A token comparison of the ten moved bodies against the base finds no other
+difference (plus rustfmt trailing commas). The four pure helpers are
+token-identical. Two statements are not plain renames:
+
+- the bank-slot purchase's `quest_state` enqueue of
+  `RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged { old_money,
+  new_money }` is the host method
+  `enqueue_represented_quest_objective_money_changed_like_cpp(old_money,
+  new_money)`, because inventory cannot name the quest event type;
+- the two `#[cfg(test)]` steps (the vendor-slot buy override and the
+  bank-slot test commit result) use the host fixture accessor:
+  `#[cfg(any(test, feature = "test-fixtures"))] if host.test_fixtures_ref_like_cpp().is_some() …`.
+  They read the same `InteractionState` and `SessionLifecycleState` fixture
+  fields the retired World `cfg(test)` readers read.
+
+The buy/sell/buyback/refund/repair money order, the exclusive money
+persistence boundary and its awaited outcome, the item GUID allocation, the
+store plans and stack splitting, the buyback slot rotation, the bank slot
+price and count publication, the refund currency rollback, the quest
+objective drain, the instance/realm socket fences, the packets and their
+order, persistence ordering (#169), registrations and processing flags are
+unchanged. No registrar moves: the application character/account registrar
+keeps every entry, and its World adapter (`account/host.rs`) calls the moved
+free functions.
+
+### What moved
+
+- **To `wow-world-inventory/src/vendor_session/`:**
+  - `list_inventory.rs`: `handle_list_inventory`;
+  - `buy.rs`: `handle_buy_item_with_generator_like_cpp`;
+  - `catalog.rs`: the C++-slot catalog resolver
+    `resolve_vendor_buy_item_by_cpp_slot` (from `vendor.rs`), the stock update
+    `update_vendor_item_current_count` (from `vendor_admission.rs`) and the
+    single-caller `item_turnin_persistence_rows_like_cpp` (from `items.rs`);
+  - `sell.rs`, `buyback.rs`: the sale and buyback handlers;
+  - `refund.rs`, `repair.rs`: the purchase refund and the repair handler
+    (from `vendor.rs`);
+  - `bank.rs`: `handle_banker_activate` and
+    `handle_buy_bank_slot_with_prices_and_generator_like_cpp` (from `bank.rs`);
+  - `mod.rs`: the host traits, the exports, and from the character `mod.rs`
+    the money gain cap and the currently-looted and non-empty-bag guards, now
+    private to the module.
+- **Down from `wow-world-application`:** two pure helpers the bodies call,
+  `item_purchase_contents_from_extended_cost` (to `wow_world_inventory::vendor`)
+  and `item_spell_charges_db_string` (to inventory `persistence.rs`). The
+  application keeps both paths as re-exports.
+- **Tests that followed their helpers.** The three pure-helper tests
+  (`player_money_gain_like_cpp_enforces_max_money_amount`,
+  `item_currently_looted_guard_uses_runtime_loot_generated_state`,
+  `sell_non_empty_bag_guard_matches_cpp_is_not_empty_bag`) moved verbatim to
+  `wow-world-inventory/unit_tests/vendor_session_helpers.rs`.
+- **Stays in `wow-world`:** the autobank and autostore moves (they run the
+  application storage move, which inventory cannot reach), the show-bank
+  publication (gossip calls it) and the trainer gossip menu in `vendor.rs`
+  (gossip and the quest queries call it).
+- **Reclassified, not moved.** Seven one-statement wrappers whose only
+  production callers were the moved bodies moved verbatim to the
+  `#![cfg(test)]` `handlers/vendor_test_shims.rs` (137 lines): the two
+  inventory count/plan wrappers from `items.rs`, the two buyback wrappers from
+  `session/buyback_adapter.rs`, and the bank-slot count, item-object slot and
+  sell-error wrappers. The file also holds the method entry points the
+  scenarios call (`handle_buy_item`, `handle_repair_item` and
+  `handle_buy_bank_slot`, moved verbatim from the `cfg(test)` impls, plus
+  `handle_banker_activate` and `update_vendor_item_current_count`).
+- **Retired:** five wrappers with no other caller
+  (`resolved_current_buyback_slot_like_cpp`, `item_extended_cost_store`,
+  `item_store`, `repair_cost_rate_like_cpp`, `remove_buyback_item_like_cpp`),
+  which empties and deletes `session/buyback_adapter.rs`; the `cfg(test)`
+  readers `vendor_buy_item_test_override_like_cpp` and
+  `loot_money_persistence_test_result_for_worker_like_cpp` (its
+  `unit_tests/.../operations/test_only.rs` is deleted); the unused
+  `player_team_for_race_cpp` re-export in `session/state/hub_support.rs`.
+- **#1386 follow-up 4.** `handlers/character/query/test_shims.rs` is mounted
+  only under `cfg(test)` (verified: its single mount in `query.rs` is
+  `#[cfg(test)] mod test_shims;`). It moved verbatim outside the character
+  hotspot tree to `handlers/character_query_test_shims.rs`, mounted from
+  `handlers/mod.rs`, and is `#![cfg(test)]`. Marked in place, its 77 lines
+  would have left the hotspot's production figure but raised its test
+  figure above the ceiling; outside the tree they leave production and the
+  file gets its own physical ceiling.
+
+### Host surface
+
+- **`VendorSessionHostLikeCpp: BattlePetPurchaseHostLikeCpp`** (inventory, 27
+  methods and one associated type, 105 lines). It reuses the battle-pet
+  purchase and session hosts for the lifecycle accessor, `split_inventory_ref`,
+  the money read, staging and VALUES publication, the quest-objective drain
+  and the exclusive money boundary; their futures are returned unchanged.
+  New:
+  - the `interaction` accessors, `split_inventory_mut`, the active-loot query
+    and the quest-objective money-changed enqueue;
+  - the player-condition context (`type PlayerConditionContext`, viewed
+    through `PlayerConditionContextSourceLikeCpp`, 6 lines, because the World
+    projection type wraps a quest type) and the creature condition object;
+  - currencies (`has_currency`, `player_currency_quantity`, the refund and
+    vendor currency plans) and the store plans;
+  - item creation and publication (`make_inventory_item_object`,
+    `insert_inventory_item_like_cpp`, the collection hook, the turn-in
+    application, `send_new_item_plan`, `send_stat_update`, the registry sync);
+  - feign death, the show-bank publication, the quest-log item lookup, the
+    awaited money transaction outcome and the three repair operations.
+- **Adapter** `handlers/character/vendor.rs` (207 lines of impls and 13 of
+  imports, beside the trainer gossip menu). Every method is a field access or
+  names the inherent method by path (`WorldSession::name(self, …)`); each such
+  method exists as an inherent `WorldSession` method, so none resolves to its
+  own trait method, and rustc reports no `unconditional_recursion`. No
+  forward goes to a trait default. The futures (the money outcome, the
+  quest-log lookup and the three repairs) are the inherent futures returned
+  unchanged.
+- **Widening.** `RepresentedPlayerConditionContextLikeCpp` becomes `pub`
+  (from `pub(crate)`) because it is the adapter's associated type; it stays in
+  the private `session::player_condition_values` module and is re-exported
+  `pub(crate)`. The inventory exports are the two traits and the eight
+  handlers (consumers: the account adapter, gossip and the test shims), plus
+  `update_vendor_item_current_count` under
+  `cfg(any(test, feature = "test-fixtures"))`.
+- **Budget.** 331 host lines (111 trait + 220 adapter) against 2,905 moved
+  production lines: 11.4 %. With the whole `vendor_session/mod.rs` apart
+  from the moved helpers and the test mount (175 lines: docs, imports, mounts,
+  exports and the traits) it is 395 lines, 13.6 %. Below 15 %, so repair and
+  bank stay in 8b; no 8c split of them is needed.
+
+### Accounting
+
+- **`crates/wow-world/src`.** Classifier: 68,349 → **65,470 production
+  (−2,879)**. Physical: 73,484 → 70,833 (−2,651). Files: 505 → 500. Test:
+  5,135 → 5,363 (+228).
+  - **2,905 is production code that left `wow-world`** for inventory: the
+    ten bodies and four helpers (2,819 lines of item text) plus the headers,
+    imports and impl shells of the deleted files.
+  - **+220 is the new adapter.**
+  - **146 is reclassified to test:** `query/test_shims.rs` 77, the seven
+    wrappers 41 and the three `cfg(test)` method entry points 28.
+  - **35 is retired:** the five wrappers and the `buyback_adapter.rs` shell
+    (29) and the `cfg(test)` override reader (6).
+  - **13 is import and mount edits** (the character `mod.rs` imports that
+    only the scenarios read are `cfg(test)`, the moved mounts).
+  - The test figure grows by the two `#![cfg(test)]` shim files (137 + 84)
+    and the `cfg(test)` imports and mounts (+12), less the retired mounts (−5).
+- **Destinations.** `wow-world-inventory/src`: 16,091 → 19,596 physical
+  (+3,505); production 15,901 → 19,399 (+3,498; `vendor_session/` is 3,433
+  lines, the moved application helpers 61). Its `unit_tests` gains the
+  46-line helper test file. The inlined splits make the moved bodies longer
+  than the World bodies (each inline is a three- or four-line block).
+- **`wow-world-application`.** 11,516 → 11,459 physical (−57): the two
+  helpers became re-exports.
+- **`buy.rs` is 1,075 lines**, above the 1,000-line cohesion-review mark. It
+  holds one function, `Player::BuyItemFromVendorSlot`'s 1,050-line body,
+  which a move-only slice does not split; the catalog resolver, stock update
+  and turn-in rows are in `catalog.rs`.
+- **`net_move.py check`.** PASS. S = 2,651, G = 3,449 ≤ 3,744.6, 0 duplicate
+  bodies.
+- **Edges.** No `wow-world-*` edge is added. The planned
+  `wow-world-inventory->wow-world-entities` edge was simulated on this base
+  before anything moved (lock and metadata: PASS, 17 packages), with two
+  negative probes failing as they must (`inventory->application`, a cycle;
+  `inventory->quest`). The bodies did not need it: they reach entities state
+  only through host methods. Inventory gains the external `wow-conditions`
+  (the vendor item condition checks); `dependency-policy.json` allows it.
+  `wow_world_closure.py check` passes on the head in lock and metadata mode
+  (17 packages).
+- **`session-ownership-policy.json`** is reprinted with `print-baseline`.
+  The delta is the moved and retired impl items, the two adapter impls' items,
+  the shim items (the five entry points and the seven wrappers) and the query
+  shims' new module path. The syntax-only check passes.
+- **Ceilings.** None raised. Tightened to live values:
+  - hotspot `handlers/character/mod.rs`: production 13,140 → 10,329, test
+    15,706 → 15,679, total 28,846 → 26,008;
+  - hotspot `session/mod.rs`: production 39,289 → 39,222, test 141,901 →
+    141,878, total 181,190 → 181,100;
+  - physical `handlers/character/vendor.rs` 788 → 273,
+    `handlers/character/items.rs` 81 → 44, `handlers/character/mod.rs`
+    522 → 499, `session/mod.rs` 972 → 970;
+  - new physical rows `handlers/vendor_test_shims.rs` at 137 and
+    `handlers/character_query_test_shims.rs` at 84.
+- **Warnings.** The `wow-world` warning sets (`--message-format=short`
+  lines under `crates/wow-world/`, compared without line numbers) equal base
+  in all three builds: production lib 151, lib with `test-fixtures` 159, lib
+  plus lib-test 296. `wow-world` `dead_code` is 0 in all three.
+  `wow-world-inventory` (10, 7, 7) and `wow-world-application` (6, 4, 4) keep
+  exactly their base warnings, and the new module has none. Three import
+  lines changed only to keep the base messages: `SellResult` is a `cfg(test)`
+  import of `session/mod.rs`, `BUYBACK_SLOT_COUNT` left its import (the shims
+  import it directly), and the vendor-only names in the character `mod.rs`
+  imports are dropped or `cfg(test)`.
+- **Tests.** No `#[test]` or `#[ignore]` is added or removed; the workspace
+  test-name multiset is identical (10,214 names, 5 ignores). Three tests moved
+  verbatim to inventory (above). The publication-order scan
+  (`committed_money_callers_publish_all_runtime_state_before_reopening_admission`)
+  now includes the nine `vendor_session` files, and its required runtime
+  publications name the moved forms: `host.stage_player_money_change_like_cpp`,
+  `host.apply_item_turnin_changes`, `host.insert_inventory_item_like_cpp`,
+  `host.sync_player_registry_state_like_cpp();`,
+  `update_vendor_item_current_count(` and the inlined
+  `state.<operation>(&mut hub, …)` calls. Each still names the same runtime
+  publication, and the no-`.await` and money-guard-drop checks are unchanged,
+  so no assertion is weakened. Focused runs on the head:
+  `wow-world-inventory` lib 26 passed; `wow-world` lib 283 passed matching
+  vendor, bank, buy, sell, refund, repair, committed_money, money, currency
+  and query.
+
+### 8c plan
+
+8c re-measures on its base. On the 8b head:
+
+- the item handlers and inventory moves (`items.rs`,
+  `items/{handlers,destruction,equipment_sets}.rs`,
+  `items/inventory_moves*`) are 2,382 classifier lines with 45 outside calls,
+  to inventory. The `inventory_swap` users (`wow-world-application`) stay
+  behind host methods. The autobank and autostore moves left in `bank.rs`
+  (124 lines) are the same kind of caller and go with them, or stay with the
+  application storage move.
+- gossip, the character lifecycle and the entry zone (`gossip.rs`,
+  `lifecycle.rs`, `entry_zone.rs`) are 1,039 lines with 28 outside calls, to
+  character. Gossip's calls to the show-bank publication, the trainer list
+  and the trainer gossip menu (still in `vendor.rs`) stay host methods; its
+  two vendor-list calls can call `wow_world_inventory::handle_list_inventory`
+  only if the character host extends `VendorSessionHostLikeCpp`, otherwise
+  they are host methods too.
+- 8d (login load, 4,739 lines, 152 outside calls) is unchanged.
+
+### Follow-ups
+
+- `vendor_test_shims.rs` retires when the scenarios call the free functions,
+  the splits and the core directly.
+- The repair durability bodies (`session/player_items/{durability,bank}.rs`)
+  and the quest-log item lookup are still World methods behind the host; they
+  are the next inventory candidates.
+- `buy.rs` (1,075 lines) is one function; splitting it is a behaviour-preserving
+  refactor outside the move-only rule.
+- The moved log sites now use the `wow_world_inventory::vendor_session`
+  tracing target (#1384 follow-up 2 applies here too).
 
 ### Validation
 

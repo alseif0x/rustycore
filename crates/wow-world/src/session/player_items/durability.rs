@@ -17,9 +17,6 @@ impl WorldSession {
     pub fn set_repair_cost_rate_like_cpp(&mut self, rate: f32) {
         self.config.repair_cost_rate_like_cpp = rate.max(0.0);
     }
-    pub(crate) fn repair_cost_rate_like_cpp(&self) -> f32 {
-        self.config.repair_cost_rate_like_cpp()
-    }
     /// Set the C++ `RATE_DURABILITY_LOSS_ON_DEATH` fraction
     /// (`DurabilityLoss.OnDeath / 100`).
     pub fn set_durability_loss_on_death_rate_like_cpp(&mut self, rate: f32) {

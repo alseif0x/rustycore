@@ -48,10 +48,6 @@ impl WorldSession {
             ],
         )
     }
-    pub(crate) fn set_inventory_item_object_slot(&mut self, item_guid: ObjectGuid, slot: u8) {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.set_inventory_item_object_slot(&mut hub, item_guid, slot)
-    }
     pub(crate) fn represented_empty_inventory_positions_like_cpp(&self) -> Option<Vec<(u8, u8)>> {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.represented_empty_inventory_positions_like_cpp(hub)

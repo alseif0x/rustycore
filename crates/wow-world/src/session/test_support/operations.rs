@@ -396,7 +396,3 @@ impl WorldSession {
         });
     }
 }
-
-#[cfg(test)]
-#[path = "../../../unit_tests/session/test_support/operations/test_only.rs"]
-mod test_only;

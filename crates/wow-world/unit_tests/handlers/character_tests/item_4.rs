@@ -762,30 +762,6 @@ fn destroy_item_count_action_matches_cpp_direct_item_branch() {
     );
 }
 #[test]
-fn item_currently_looted_guard_uses_runtime_loot_generated_state() {
-    let mut item = wow_entities::Item::default();
-    assert!(!item_is_currently_looted_like_cpp(&item));
-
-    item.set_loot_generated(true);
-    assert!(item_is_currently_looted_like_cpp(&item));
-}
-#[test]
-fn sell_non_empty_bag_guard_matches_cpp_is_not_empty_bag() {
-    assert!(item_is_not_empty_bag_like_cpp(
-        Some(InventoryType::Bag),
-        true
-    ));
-    assert!(!item_is_not_empty_bag_like_cpp(
-        Some(InventoryType::Bag),
-        false
-    ));
-    assert!(!item_is_not_empty_bag_like_cpp(
-        Some(InventoryType::Chest),
-        true
-    ));
-    assert!(!item_is_not_empty_bag_like_cpp(None, true));
-}
-#[test]
 fn parse_equipment_cache_real_data() {
     // Real data from DB: first slot has inv_type=0, next few slots have gear
     let cache = "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 4 2470 0 0 0 20 33257 0 1 0";

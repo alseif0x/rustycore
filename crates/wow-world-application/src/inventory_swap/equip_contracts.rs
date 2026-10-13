@@ -21,14 +21,7 @@ pub fn item_dynamic_flags_changed_like_cpp(
     before.item_flags_bits() != after.item_flags_bits()
 }
 
-pub fn item_spell_charges_db_string(charges: &[i32], effect_count: usize) -> String {
-    let mut out = String::new();
-    for charge in charges.iter().take(effect_count) {
-        out.push_str(&charge.to_string());
-        out.push(' ');
-    }
-    out
-}
+pub use wow_world_inventory::item_spell_charges_db_string;
 
 pub fn item_storage_mutable_persistence_like_cpp(
     db_guid: u64,

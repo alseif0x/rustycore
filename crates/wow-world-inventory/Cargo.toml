@@ -7,13 +7,18 @@ license.workspace = true
 publish = false
 
 [features]
-test-fixtures = ["wow-world-core/test-fixtures"]
+test-fixtures = [
+    "wow-world-core/test-fixtures",
+    "wow-world-interaction/test-fixtures",
+    "wow-world-lifecycle/test-fixtures",
+]
 
 [dependencies]
 num-traits = { workspace = true }
 rand = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+wow-conditions = { workspace = true }
 wow-constants = { workspace = true }
 wow-core = { workspace = true }
 wow-data = { workspace = true }

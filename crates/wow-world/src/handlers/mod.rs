@@ -40,6 +40,8 @@ pub mod void_storage;
 #[cfg(test)]
 mod battle_pet_test_shims;
 #[cfg(test)]
+mod character_query_test_shims;
+#[cfg(test)]
 mod loot_test_shims;
 #[cfg(test)]
 mod player_test_shims;
@@ -50,5 +52,7 @@ mod test_shims;
 #[cfg(test)]
 #[path = "../../unit_tests/handlers/test_support/mod.rs"]
 mod test_support;
+#[cfg(test)]
+mod vendor_test_shims;
 #[cfg(test)]
 mod visibility_test_shims;
