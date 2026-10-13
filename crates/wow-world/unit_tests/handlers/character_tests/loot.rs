@@ -3,8 +3,6 @@
 //! Split out of character_tests.rs under #628; assertions and
 //! registrations are unchanged and shared fixtures stay in the parent module.
 
-use super::*;
-
 #[test]
 fn committed_money_callers_publish_all_runtime_state_before_reopening_admission() {
     fn assert_publication_segment(
@@ -204,15 +202,4 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         "self.stage_player_money_change_like_cpp",
         &["self.apply_inventory_item_durability_repair_runtime_like_cpp(item_guid)"],
     );
-}
-#[test]
-fn player_money_gain_like_cpp_enforces_max_money_amount() {
-    assert_eq!(player_money_gain_like_cpp(0, 0), Some(0));
-    assert_eq!(
-        player_money_gain_like_cpp(MAX_MONEY_AMOUNT - 1, 1),
-        Some(MAX_MONEY_AMOUNT)
-    );
-    assert_eq!(player_money_gain_like_cpp(MAX_MONEY_AMOUNT, 1), None);
-    assert_eq!(player_money_gain_like_cpp(MAX_MONEY_AMOUNT - 10, 11), None);
-    assert_eq!(player_money_gain_like_cpp(0, MAX_MONEY_AMOUNT + 1), None);
 }

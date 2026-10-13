@@ -4,6 +4,11 @@
 
 //! Test-only entry points for the character query handlers moved to
 //! `wow-world-character` (#1263 F5, #1363 A5).
+//!
+//! Mounted only for the test build. Moved here from
+//! `handlers/character/query/test_shims.rs`, outside the character hotspot
+//! tree, and marked `#![cfg(test)]` so the classifier counts it as test code
+//! (#1363 slice 8b; #1386 follow-up 4).
 
 #![cfg(test)]
 

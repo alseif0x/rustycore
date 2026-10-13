@@ -170,7 +170,7 @@ pub trait VendorSessionHostLikeCpp: BattlePetPurchaseHostLikeCpp {
     ) -> impl Future<Output = bool> + Send;
 }
 
-pub fn player_money_gain_like_cpp(current_money: u64, amount: u64) -> Option<u64> {
+fn player_money_gain_like_cpp(current_money: u64, amount: u64) -> Option<u64> {
     if amount == 0 {
         return Some(current_money);
     }
@@ -183,13 +183,17 @@ pub fn player_money_gain_like_cpp(current_money: u64, amount: u64) -> Option<u64
     }
 }
 
-pub fn item_is_currently_looted_like_cpp(item: &wow_entities::Item) -> bool {
+fn item_is_currently_looted_like_cpp(item: &wow_entities::Item) -> bool {
     item.loot_generated()
 }
 
-pub fn item_is_not_empty_bag_like_cpp(
+fn item_is_not_empty_bag_like_cpp(
     inventory_type: Option<InventoryType>,
     contains_items: bool,
 ) -> bool {
     matches!(inventory_type, Some(InventoryType::Bag)) && contains_items
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/vendor_session_helpers.rs"]
+mod tests;

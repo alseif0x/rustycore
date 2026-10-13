@@ -104,7 +104,7 @@ use wow_entities::{
 };
 // Test-only: their production readers moved to `wow-world-inventory` (#1363 slice 8b).
 #[cfg(test)]
-use wow_entities::{INVENTORY_SLOT_ITEM_START, MAX_MONEY_AMOUNT};
+use wow_entities::INVENTORY_SLOT_ITEM_START;
 // Test-only: the production registration source that used these two moved to the
 // application crate's character/account area registrar under #1263 F5.
 #[cfg(test)]
@@ -489,13 +489,6 @@ fn destroy_item_count_action(current_count: u32, requested_count: u32) -> Destro
 #[cfg(test)]
 use wow_world_application::item_spell_charges_db_string;
 use wow_world_application::item_storage_mutable_persistence_like_cpp;
-
-// Test-only: the vendor helpers moved to `wow_world_inventory::vendor_session`
-// with the vendor bodies (#1363 slice 8b); the character scenarios still call them.
-#[cfg(test)]
-use wow_world_inventory::{
-    item_is_currently_looted_like_cpp, item_is_not_empty_bag_like_cpp, player_money_gain_like_cpp,
-};
 
 #[cfg(test)]
 #[path = "../../../unit_tests/handlers/character_vendor_atomicity_tests.rs"]

@@ -163,6 +163,8 @@ pub use void_storage_handlers::{
     VoidStorageHandlerHostLikeCpp, register_void_storage_handlers_like_cpp,
 };
 // The vendor and bank character handlers (#1363 slice 8b).
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use vendor_session::update_vendor_item_current_count;
 pub use vendor_session::{
     PlayerConditionContextSourceLikeCpp, VendorSessionHostLikeCpp, handle_banker_activate,
     handle_buy_back_item_with_generator_like_cpp,
@@ -170,11 +172,6 @@ pub use vendor_session::{
     handle_buy_item_with_generator_like_cpp, handle_item_purchase_refund_with_generator_like_cpp,
     handle_list_inventory, handle_repair_item_with_generator_like_cpp,
     handle_sell_item_with_generator_like_cpp,
-};
-#[cfg(any(test, feature = "test-fixtures"))]
-pub use vendor_session::{
-    item_is_currently_looted_like_cpp, item_is_not_empty_bag_like_cpp, player_money_gain_like_cpp,
-    update_vendor_item_current_count,
 };
 pub use void_transfer_contracts::{
     EffectiveVoidStorageRandomPropertiesLikeCpp, PlannedVoidDestroyedInventoryItemLikeCpp,
