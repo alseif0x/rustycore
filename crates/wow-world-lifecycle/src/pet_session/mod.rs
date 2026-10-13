@@ -35,7 +35,7 @@ pub use login_loading::{
 pub use summoning::resummon_pet_temporary_unsummoned_like_cpp;
 
 pub trait PetSessionHostLikeCpp: SessionHubHostLikeCpp {
-    /// The World `cx_pets` split: the lifecycle state and the mutable hub.
+    /// The World `split_lifecycle_mut` split: the lifecycle state and the mutable hub.
     fn split_pets_mut(&mut self) -> (&mut SessionLifecycleState, HubMut<'_>);
     fn resolved_represented_at_login_flags_like_cpp(&self) -> Option<u16>;
 }
