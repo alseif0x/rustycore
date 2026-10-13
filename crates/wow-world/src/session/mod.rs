@@ -189,13 +189,15 @@ use collection_adapter::DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP;
 pub(crate) use collection_adapter::RepresentedTransmogCriteriaEvent;
 pub(crate) use collection_adapter::{AccountMountSaveRowLikeCpp, AccountToySaveRowLikeCpp};
 mod connection_identity;
-pub(crate) use connection_identity::GLOBAL_CACHE_MASK_LIKE_CPP;
 pub(crate) use connection_identity::PER_CHARACTER_CACHE_MASK_LIKE_CPP;
 #[cfg(test)]
 use connection_identity::PacketSpoofPendingBanLikeCpp;
 use connection_identity::PacketSpoofPendingBanTargetLikeCpp;
 pub use connection_identity::SessionState;
-pub(crate) use connection_identity::{ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, AccountDataLikeCpp};
+pub(crate) use connection_identity::{AccountDataLikeCpp, GLOBAL_CACHE_MASK_LIKE_CPP};
+// Test-only: its production reader moved to `wow-world-character` (#1363 slice 8d).
+#[cfg(test)]
+pub(crate) use connection_identity::ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP;
 #[cfg(test)]
 pub(crate) use connection_identity::{ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp};
 use connection_identity::{trinity_sprintf_like_cpp, unix_now};

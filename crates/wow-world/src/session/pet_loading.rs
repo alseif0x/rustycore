@@ -4,8 +4,6 @@
 //! Pet loading row types. The pet mode state and the `PetsCx` row loaders moved
 //! to `wow_world_lifecycle::pet_session` (#1363 slice 7a).
 
-use super::Item;
-
 pub(crate) use wow_world_lifecycle::adjusted_represented_pet_aura_remain_time_like_cpp;
 // The character aura rows moved down to `wow-world-spell` (#1363 slice 8d).
 pub(crate) use wow_world_spell::{CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp};
