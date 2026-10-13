@@ -2229,3 +2229,265 @@ validated SHA).
   `SessionQuestState`, `PlayerConditionProjectionCxLikeCpp` (now quest
   crate, an allowed edge) and `PlayerAuraApplicationCxLikeCpp`
   (`aura_removal`, application).
+
+## A7 result (loot operations → new `wow-world-loot-ops`)
+
+Branch `1363-sA7-loot-ops`, base `fff4249ee` (A6 merged). Move-only (R2):
+all 17 moved files are 100% renames; only the new crate root, caller crate
+prefixes, adapter comments and manifests change. Opcode registration and
+dispatch order and every processing flag are unchanged
+(`handler_composition.rs` changes only the loot registrar path).
+
+### Re-measure and pre-check
+
+- **Base.** `wow-world-application/src` is 15,961 lines in 61 files on
+  `fff4249ee`, as A6 reported. The two units are 4,427 file lines in 17
+  files: `loot_handlers.rs` 671 + `loot_handlers/` 6 files (1,286);
+  `loot_release/` 10 files (2,470, including its 105-line `tests.rs`).
+- **Scan** (lexical, as in A6: `crate::…`, `super::…`, names re-exported from
+  `lib.rs`). The only application edge out of the units is
+  `loot_handlers` → `crate::LootReleaseCxLikeCpp` (`loot_release`, which moves
+  with it). Every other `super::…` stays inside its own module. The units name
+  nothing that stays in application. No item had to move down and the
+  boundary did not change.
+- **Who names the units.** Nothing in application except `lib.rs` (the
+  module declarations and the eight re-exported names). So application
+  does **not** depend on the new crate, and the planned application →
+  loot-ops edge is not needed. In `wow-world`: `handler_composition.rs`
+  (registrar), `session_commands.rs`, the loot adapters
+  (`handlers/loot/{loot_host,persistence,claims/release,handlers/money,
+  handlers/test_shims,sources/gameobject,sources/gameobject_authority}.rs`)
+  and five test files.
+- **Closure check before moving.** Every planned edge is simulated
+  (`--add` loot-ops → core, entities, instances, inventory, lifecycle, loot,
+  quest, social, spell; `wow-world` → loot-ops). Lock and metadata modes:
+  PASS. The check now also enforces a new rule: only `wow-world-application`
+  and `wow-world` may reach `wow-world-loot-ops`. There is a new self-test
+  case with a direct violation (quest → loot-ops, which also reports the
+  cycle) and a transitive one (loot → loot-ops reached through instances).
+  That makes 10 cases, and the case fails when the rule is disabled.
+
+### What moved
+
+- **To the new `wow-world-loot-ops`** (4,427 file lines, 17 files; module
+  names and layout unchanged): `loot_handlers.rs` + `loot_handlers/`
+  (`item`, `master_loot`, `money`, `roll`, `specialization`, `unit`) and
+  `loot_release/` (`mod`, `authority`, `creature`, `detached`, `fanout`,
+  `gameobject`, `item`, `publication`, `registry`, `tests`).
+  - Its `lib.rs` (22 lines) holds the same two module declarations and the
+    same two re-export items application had (`LootReleaseCxLikeCpp` and
+    the four loot-release helpers; `LootHandlerCxLikeCpp`,
+    `LootHandlerHostLikeCpp`, `register_loot_handlers_like_cpp`).
+  - `loot_handlers` keeps naming `crate::LootReleaseCxLikeCpp`.
+  - No visibility changes. The units' 19 `pub(crate)`/`pub(super)` items
+    have no caller outside the units.
+- **Callers.** `wow-world` (16 files) names `wow_world_loot_ops::…`. Four
+  adapter comments name the new owner crate. rustfmt folds one call in
+  `loot_tests/item_1.rs`.
+- **Checker.**
+  - `LOOT_REGISTRAR` moves to package `wow-world-loot-ops`.
+  - The composer test mounts `loot_handlers.rs` at its new path plus the
+    loot-ops crate root. The `crate` facade contract follows the registrar.
+  - The reviewed production-package set adds `wow-world-loot-ops`.
+  - `handler-module-policy.json` follows the registrar.
+  - The session-ownership scan gains a `WorldLootOps` package role,
+    mirroring `WorldQuest` at every site: the root constants, the enum, the
+    package name, the two non-owner matches in `state_2.rs`, the scan match
+    and the repository units in `state_3.rs`. The role never owns a Session
+    contract. It is included in the three role-list tests and the real-root
+    load test, which asserts that `crate::loot_handlers::master_loot` loads.
+    This keeps the 19 `loot_handlers::{master_loot,money}` registry rows
+    inventoried.
+  - **#1378 follow-up 1:** the duplicate `| PackageRole::WorldQuest` in
+    `state_2.rs` is gone; the new role is listed once there. The checker
+    builds with its four pre-existing warnings (unused imports and
+    `analyze_owner_source`) and no `unreachable_patterns`.
+
+### Accounting
+
+- **`wow-world-application/src`: 15,961 → 11,523 lines (−4,438), 61 → 44
+  files.** 4,427 lines leave as files, and `lib.rs` goes from 98 to 87 lines
+  (−11: two module lines and the two re-export items). `unit_tests/` is
+  unchanged (241).
+- **Destination.** `wow-world-loot-ops/src` 0 → 4,449 lines (4,427 moved,
+  22 `lib.rs`), 18 files.
+- **`crates/wow-world`**: +25 −24 in 17 files (paths, four comments, the
+  manifest, one rustfmt fold). `net_move.py check`: S 0, G 11, 0 duplicate
+  bodies, PASS. It reports NOT-APPLICABLE as a move check because
+  `wow-world/src` does not shrink: the move is application → loot-ops.
+- **Edges.**
+  - Added: loot-ops → core, entities, instances, inventory, lifecycle,
+    loot, quest, social, spell. It also gains `wow-constants`, `wow-core`,
+    `wow-data`, `wow-entities`, `wow-handler`, `wow-loot`, `wow-map`,
+    `wow-packet`, `wow-persistence` and external `tracing`.
+  - Added: `wow-world` → loot-ops.
+  - Removed: application → `wow-loot`, `wow-map`, `wow-world-social` (no
+    remaining user).
+  - Head closures: loot-ops → core, entities, instances, interaction,
+    inventory, lifecycle, loot, quest, social, spell, visibility.
+    Application's closure is unchanged: it still reaches social through
+    quest.
+  - Only `wow-world` reaches loot-ops. Only application, `wow-world` and
+    loot-ops reach quest. Lock and metadata modes: PASS.
+- **Policy (`dependency-policy.json`).**
+  - `wow-world-loot-ops` joins the `application` category, restricted to
+    its 18 actual dependencies, with external `tracing` only.
+  - Application −= `wow-loot`, `wow-map`, `wow-world-social`.
+  - New fixtures `forbidden-loot-ops-to-wow-world.json` and
+    `forbidden-loot-ops-to-world-application.json` (self-test: 28
+    fixtures).
+  - `net-move-policy.json` adds the loot-ops `src/` destination root (16;
+    `test_net_move.py` pins it).
+  - The loot-ops crate gets a `test-fixtures` feature that forwards to its
+    nine `wow-world-*` dependencies, plus a self dev-dependency, as quest
+    has. The moved code has fixture-gated fields and arguments.
+    `wow-world`'s `test-fixtures` and its dev-dependency forward to it.
+    Application no longer forwards to social.
+  - `cargo tree -p world-server -e normal,build -e features` shows no
+    `test-fixtures` and no `wow-world-test-support`.
+- **`session-ownership-policy.json`** is reprinted with `print-baseline`.
+  The delta is the 19 `loot_handlers` registry rows (package and source
+  path) and the resulting sort order. With `wow-world-loot-ops` masked as
+  `wow-world-application`, the old and new policies are equal.
+- **Ceilings.** None raised.
+  - One hotspot owner is tightened to its live values in
+    `runtime-ownership-ledger.json`: loot handler test 18,985 → 18,983 and
+    total 28,449 → 28,447. This is the `item_1.rs` fold. Production 9,464
+    is unchanged.
+  - Every physical row is unchanged. No moved file is above 1,000 lines
+    (largest `loot_release/gameobject.rs`, 730).
+- **Warnings.**
+  - `wow-world` `dead_code` is 0 in the production lib, the lib with
+    `test-fixtures` and the lib test build. `unused_imports` is 152 and 161
+    in the first two, as in A6.
+  - No changed `wow-world` line warns.
+  - The warning set of application + loot-ops at head equals application's
+    at base in all three builds (compared by file and message).
+    loot-ops has one warning: the pre-existing production-only
+    `unused_mut` in `loot_handlers/money.rs`.
+- **Tests.** The Rust test-name multiset is unchanged: 10,215 test
+  attributes, 5 ignored, the same names on base and head. The seven
+  `loot_release/tests.rs` tests run in loot-ops (application 17 → 10 test
+  functions in `src`, loot-ops 0 → 7). The closure self-test gains one
+  Python case (10).
+
+### Validation
+
+`final --architecture --timings` (`VALIDATION_V2_CARGO_JOBS=1`,
+`VALIDATION_V2_TIMEOUT_SECONDS=1800`) runs on the committed head that
+includes this section. Its manifest path, dirty flag and duration are in
+the PR body. This section is not edited after that run, so the PR head is
+the validated SHA.
+
+## Slice A summary (A1–A7)
+
+Slice A split `wow-world-application` by domain without changing behaviour.
+Every PR was move-only, kept the test-name multiset and registration order,
+and passed the closure check in lock and metadata modes.
+
+**`wow-world-application/src` (physical lines):**
+
+| After | Lines | Files | Moved out |
+|---|---:|---:|---|
+| base `465f3791a` | 51,225 | 170 | — |
+| A1 | 47,743 | 158 | vehicle, spell-click values, movement registrars → entities; instances → instances |
+| A2 | 42,374 | 153 | trade, guild bank, reputation → social; group, battleground → instances |
+| A3 | 38,833 | 144 | travel, combat, corpse, gameobject → entities; dungeon finding → instances; client state, data service, player save → lifecycle; npc → interaction |
+| A4 | 36,164 | 139 | stats, bank, vendor, collections, battle pets → inventory |
+| A5 | 30,330 | 112 | profession, spell acquisition → spell; character family → `wow-world-character` |
+| A6 | 15,961 | 61 | quest cluster (+ conditions, valuation, registry sync, trainer admission proof) → `wow-world-quest` |
+| A7 | 11,523 | 44 | loot handlers, loot release → `wow-world-loot-ops` |
+
+That is −39,702 lines (−77.5 %). The plan expected about 11k of
+orchestration after A7, and 11.5k remain.
+
+**Crates created:**
+
+- `wow-world-character` (A5, 3,088 lines);
+- `wow-world-quest` (A6, 14,395);
+- `wow-world-loot-ops` (A7, 4,449).
+
+Each is in the `application` dependency category, restricted to its
+actual dependencies. Each has forbidden-edge fixtures to `wow-world` and
+`wow-world-application`, a net-move destination root, a session-ownership
+package role and a closure rule placing it high:
+
+- only application and `wow-world` reach character and loot-ops;
+- only application, `wow-world` and loot-ops reach quest.
+
+Existing crates grew from the slice A base:
+
+- entities 10,588 → 13,793;
+- inventory 10,990 → 13,668;
+- lifecycle 9,286 → 11,407;
+- social 8,764 → 11,309;
+- spell 6,204 → 8,964;
+- instances 1,268 → 5,575;
+- interaction 571 → 782.
+
+**What remains in application** (11,523 lines, cross-domain orchestration):
+
+| Module | Lines | Why it stays |
+|---|---:|---|
+| `trainer_purchase` | 3,680 | money, quest events, aura application, spell acquisition and conditions in one C++ transaction |
+| `inventory_swap` | 2,566 | equip rules, quest item counts, conditions, stats and publication |
+| `aura_removal` | 1,587 | item effects, shapeshift, threat, mount and quest state |
+| `spell_handlers` | 897 | borrows quest state for cast/cancel |
+| `character_account_handlers` | 800 | composes bank, vendor, inventory and trainer registrars |
+| `player_handlers` | 644 | borrows quest state, instances and visibility |
+| `equipment_set_use` | 503 | inventory operation that still needs the quest-crate registry sync |
+| `inventory_move_planning` | 324 | conditions and valuation (quest crate) |
+| `inventory_scaling` | 220 | inventory operation that still needs the quest-crate registry sync |
+| `talent_handlers`, `trainer_handlers` | 215 | registrars of the trainer/talent family |
+| `lib.rs` | 87 | module declarations and re-exports |
+
+**Recommendations for what comes next:**
+
+1. **Make quest only quest** (#1378 review follow-up 2). `wow-world-quest`
+   also holds four non-quest parts:
+   - the player-condition projection (`player_conditions`);
+   - `inventory_valuation`;
+   - `registry_sync`;
+   - the trainer admission proof.
+
+   Inventory, trainer, aura and equipment code all need these parts.
+   Move them into a lower crate (for example `wow-world-player-conditions`,
+   above inventory/spell/loot and below quest) before slice 6 or a trainer
+   split. This is not a plain file move.
+   `PlayerConditionProjectionCxLikeCpp` is extended by inherent impls in
+   `quest/visibility.rs` and in valuation. The quest-side impl blocks must
+   first become free functions or an extension trait, in a separate
+   behaviour-neutral change. Then the type and valuation can move.
+2. **Send `registry_sync`, `inventory_scaling` and `equipment_set_use` to
+   `wow-world-inventory`** (A4/A6 *Next*). First make the fixture hydration
+   in `registry_sync` quest-agnostic (behaviour-neutral, separate change).
+   Then the three move together. This takes the two inventory operations
+   (723 lines) out of application.
+3. **Re-measure a `wow-world-trainer` split** (trainer purchase + handlers +
+   talent, ~3.9k) after point 1. Trainer purchase then reaches the
+   condition crate instead of quest. It still needs
+   `PlayerAuraApplicationCxLikeCpp` from `aura_removal`: either aura removal
+   moves with it, or the trainer crate takes the aura application context
+   through a host trait.
+4. **wow-world slices.** Lower crates (spell, loot, social, instances,
+   character, creature) reach quest logic only through host traits or
+   through application/`wow-world` (#1378 review follow-up 4).
+   - **Slice 5 (loot, ~8k):** handler bodies and release/roll operations
+     go to `wow-world-loot-ops`; pure loot state goes to `wow-world-loot`.
+     A7 is its prerequisite and is now done.
+   - **Slice 6 (quest, ~7k):** goes to `wow-world-quest`, after point 1 so
+     the bodies land in a quest-only crate.
+   - **Slice 7 (combat, pets, battle pets, progression, rest, xp, ~5k):**
+     goes to entities, spell, inventory and lifecycle by owner. It needs
+     its own closure pre-check because entities, spell and inventory may
+     not reach social or instances.
+   - **Slice 8 (character, ~12.5k):** login load and character handlers go
+     to `wow-world-character`. Inventory moves and vendor go to inventory;
+     visibility, gossip and transports go to visibility, interaction and
+     entities. It needs its own cycle pre-check: nothing below character
+     may gain an edge to it.
+   - **Slice 9 (spell effects + player cast, ~7k)** follows.
+5. **Checker hygiene** (#1378 review follow-up 3). Consider denying
+   warnings for `handler-contract-check` in validation-v2. Its four
+   remaining warnings (unused imports and `analyze_owner_source`) should be
+   cleaned first, in a separate change.
