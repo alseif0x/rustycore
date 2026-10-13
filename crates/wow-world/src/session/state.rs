@@ -31,9 +31,9 @@ mod fixtures;
 pub(in crate::session) use fixtures::SessionFixtures;
 mod hub;
 pub(crate) use hub::{
-    HubMut, InventoryCxRef, LifecycleCx, LifecycleCxRef, LootCx, LootCxRef, PetsCx, PetsCxRef,
-    QuestStateCx, QuestStateCxRef, cx_inventory_ref, cx_lifecycle, cx_lifecycle_ref, cx_loot,
-    cx_loot_ref, cx_pets, cx_pets_ref, cx_quest_state, cx_quest_state_ref, hub_mut, hub_ref,
+    HubMut, InventoryCxRef, LifecycleCx, LifecycleCxRef, LootCxRef, PetsCx, PetsCxRef,
+    QuestStateCx, QuestStateCxRef, cx_inventory_ref, cx_lifecycle, cx_lifecycle_ref, cx_loot_ref,
+    cx_pets, cx_pets_ref, cx_quest_state, cx_quest_state_ref, hub_mut, hub_ref,
     split_aura_application_mut, split_battle_pet_handler_mut, split_battleground_mut,
     split_character_handler_mut, split_group_handler_states_mut, split_guild_bank_mut,
     split_instances_mut, split_instances_ref, split_interaction, split_interaction_ref,

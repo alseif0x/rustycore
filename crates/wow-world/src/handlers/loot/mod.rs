@@ -16,12 +16,7 @@ use wow_loot::{
     LOOT_METHOD_ROUND_ROBIN_LIKE_CPP, creature_loot_is_allowed_to_player_like_cpp,
     loot_can_be_opened_by_player_like_cpp, loot_has_over_threshold_item_like_cpp,
     loot_is_looted_like_cpp, loot_item_is_looted_for_player_like_cpp,
-    loot_player_has_unlooted_ffa_item_like_cpp, mark_loot_allowed_for_player_like_cpp,
     mark_loot_item_looted_for_player_like_cpp,
-    prepare_represented_shared_creature_loot_generation_like_cpp,
-    prepare_represented_shared_loot_generation_like_cpp,
-    rebuild_represented_personal_loot_counts_like_cpp,
-    rebuild_represented_personal_loot_counts_preserving_consumed_like_cpp,
 };
 
 use wow_loot::{
@@ -37,15 +32,14 @@ mod authority;
 mod claims;
 mod combat_commands;
 mod fanout;
-mod generation;
 mod handlers;
 mod loot_host;
 mod money;
 mod persistence;
 mod random_properties;
-mod request_cache;
 mod requests;
 mod rolls;
+mod session_loot_host;
 mod sources;
 mod storage_plans;
 mod visibility_commands;
@@ -57,7 +51,6 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
-use rand::Rng;
 use tracing::{debug, warn};
 
 use crate::session::directory::{PlayerRegistry, PrepareLootMoneyApplicationLikeCpp};
@@ -71,21 +64,12 @@ use crate::session::mailbox::{
     SendAddonIfRegisteredLikeCppCommand, SendCreatureLootReleaseValuesUpdateLikeCppCommand,
     SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand,
     SendPartyUpdateLikeCppCommand, SessionCommand,
-    SyncChestGameobjectStateAndRefreshLikeCppCommand,
-    SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
-    SyncGooberGameobjectStateAndRefreshLikeCppCommand,
 };
-use wow_constants::{
-    ClientOpcodes, InventoryResult, ItemContext, ItemFieldFlags, ItemFlags, ItemFlags2,
-    UnitDynFlags,
-};
-use wow_core::{ObjectGuid, guid::HighGuid};
+use wow_constants::{ClientOpcodes, InventoryResult, ItemContext, ItemFieldFlags, UnitDynFlags};
+use wow_core::ObjectGuid;
 use wow_entities::{
-    AccessorObjectKind, GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_GATHERING_NODE,
-    GAMEOBJECT_TYPE_GOOBER, GO_DYNFLAG_LO_NO_INTERACT, GameObjectLootSource,
-    GatheringNodeUseSource, GoState, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0,
-    INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START, ItemPosCount, LootState, MAX_MONEY_AMOUNT,
-    make_item_pos,
+    INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_END,
+    INVENTORY_SLOT_ITEM_START, ItemPosCount, MAX_MONEY_AMOUNT, make_item_pos,
 };
 use wow_handler::{PacketProcessing, SessionStatus};
 
@@ -100,33 +84,20 @@ use wow_world_core::session::OwnedLootAuthorityLookupOutcomeLikeCpp;
 #[cfg(test)]
 use wow_world_core::session::looted_corpse_decay_secs_like_cpp;
 
-use crate::session::hub_support::RepresentedLootPlayerContext;
 use crate::session::registry::PacketHandlerEntry;
 use wow_loot::{
-    GeneratedLootItem, LootClaimCommitError, LootClaimError, LootClaimLease, LootClaimPayload,
-    LootConditionId, LootConditionRowLikeCpp, LootFillError, LootFillOptions,
-    LootItemRandomProperties, LootItemTemplateMetadata, LootStoreItem, LootStoreItemContext,
-    LootStoreKind, LootTemplate, OwnedLootAuthority, OwnedLootAuthorityLifecycle, OwnedLootScope,
-    OwnedLootSnapshot, condition_compare_values_like_cpp, loot_condition_reference_ids_like_cpp,
-    loot_condition_reference_self_references_like_cpp,
+    LootClaimCommitError, LootClaimError, LootClaimLease, LootClaimPayload, OwnedLootAuthority,
+    OwnedLootSnapshot, loot_condition_reference_self_references_like_cpp,
     loot_condition_row_normalize_without_external_stores_like_cpp,
-    loot_conditions_allow_player_with_references_like_cpp_representable,
-    loot_item_ui_type_for_player_like_cpp,
 };
 use wow_packet::ServerPacket;
 use wow_packet::packets::item::ItemInstance;
 use wow_packet::packets::loot::{
-    CoinRemoved, CreatureLoot, LOOT_ERROR_MASTER_INV_FULL_LIKE_CPP,
-    LOOT_ERROR_MASTER_OTHER_LIKE_CPP, LOOT_ERROR_MASTER_UNIQUE_ITEM_LIKE_CPP,
-    LOOT_ERROR_NO_LOOT_LIKE_CPP, LOOT_ERROR_TOO_FAR_LIKE_CPP,
-    LOOT_RESPONSE_DEFAULT_FAILURE_REASON_LIKE_CPP, LOOT_RESPONSE_DEFAULT_THRESHOLD_LIKE_CPP,
-    LOOT_TYPE_CHEST_LIKE_CPP, LOOT_TYPE_CORPSE_LIKE_CPP, LOOT_TYPE_DISENCHANTING_LIKE_CPP,
-    LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP, LOOT_TYPE_FISHINGHOLE_LIKE_CPP,
-    LOOT_TYPE_INSIGNIA_LIKE_CPP, LOOT_TYPE_MILLING_LIKE_CPP, LOOT_TYPE_PROSPECTING_LIKE_CPP,
-    LOOT_TYPE_SKINNING_LIKE_CPP, LootAllPassed, LootEntry, LootEntryFlags, LootItemData, LootList,
+    CoinRemoved, LOOT_ERROR_MASTER_OTHER_LIKE_CPP, LOOT_ERROR_NO_LOOT_LIKE_CPP,
+    LOOT_ERROR_TOO_FAR_LIKE_CPP, LOOT_RESPONSE_DEFAULT_FAILURE_REASON_LIKE_CPP,
+    LOOT_RESPONSE_DEFAULT_THRESHOLD_LIKE_CPP, LootAllPassed, LootEntry, LootItemData, LootList,
     LootMoney, LootMoneyNotify, LootReleaseAll, LootRemoved, LootResponse, LootRoll,
-    LootRollBroadcast, LootRollWon, MasterLootCandidateList, SLootRelease, SetLootSpecialization,
-    StartLootRoll,
+    LootRollBroadcast, LootRollWon, SLootRelease, SetLootSpecialization, StartLootRoll,
 };
 use wow_packet::packets::update::{ItemCreateData, ItemEnchantmentValuesUpdate, UpdateObject};
 use wow_persistence::{
@@ -145,9 +116,8 @@ use crate::session::{
     DurableItemLootCompletionLikeCpp, DurableItemLootPersistenceGuardLikeCpp,
     DurableLootItemFanoutLikeCpp, InventoryItem, ItemValuationCatalogsLikeCpp,
     LootMoneyDeliveryAddressLikeCpp, LootMoneyPersistenceErrorLikeCpp,
-    LootMoneyViewerFanoutLikeCpp, RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
-    RepresentedLootRollState, RepresentedLootRollVote,
-    RepresentedQuestObjectiveProgressEventLikeCpp, SessionState, WorldSession,
+    LootMoneyViewerFanoutLikeCpp, RepresentedLootRollState, RepresentedLootRollVote,
+    RepresentedQuestObjectiveProgressEventLikeCpp, WorldSession,
     loot_money_durable_outcome_like_cpp,
 };
 use random_properties::{LootStoreRandomProperties, loot_store_data_can_stack_with_item};
@@ -156,24 +126,9 @@ use storage_plans::{
     PlannedDisenchantExistingPush, PlannedDisenchantExistingStack, PlannedDisenchantGrant,
     PlannedDisenchantNewPush, PlannedLootNewStack,
 };
-use wow_conditions::{
-    QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_FAILED_LIKE_CPP, QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-    QUEST_STATUS_NONE_LIKE_CPP,
-};
 const LOOT_ROLL_TIMEOUT_MS_LIKE_CPP: u32 = 60_000;
 #[cfg(test)]
 const ROLL_ALL_TYPE_NO_DISENCHANT_LIKE_CPP: u8 = 0x07;
-const LOOT_MODE_DEFAULT_LIKE_CPP: u16 = 0x01;
-const LOOT_MODE_JUNK_FISH_LIKE_CPP: u16 = 0x8000;
-use wow_world_lifecycle::loot_template_rules::{
-    ItemTemplateAddonLootMetadataLikeCpp, player_class_mask_like_cpp,
-    referenced_loot_max_count_like_cpp, roll_chance_with_rate_like_cpp,
-};
-const MAX_LOOT_REFERENCE_FRAMES_LIKE_CPP: u32 = 64;
-const CONDITION_OBJECT_ENTRY_GUID_LIKE_CPP: i32 = 51;
-const CONDITION_TYPE_MASK_LIKE_CPP: i32 = 52;
-const TYPEID_PLAYER_LIKE_CPP: u32 = 6;
-const PLAYER_TYPE_MASK_LIKE_CPP: u32 = 0x0001 | 0x0020 | 0x0040;
 #[cfg(test)]
 const LOCK_KEY_SKILL_LIKE_CPP: u8 = 2;
 #[cfg(test)]
@@ -181,105 +136,9 @@ const LOCK_KEY_SPELL_LIKE_CPP: u8 = 3;
 #[cfg(test)]
 const SPELL_EFFECT_OPEN_LOCK_LIKE_CPP: u32 = 33;
 
-// ── Handler registrations ─────────────────────────────────────────
-
-// ── Handler implementations ───────────────────────────────────────
-
-fn master_loot_error_for_inventory_result_like_cpp(result: InventoryResult) -> Option<u8> {
-    match result {
-        InventoryResult::Ok => None,
-        InventoryResult::ItemMaxCount => Some(LOOT_ERROR_MASTER_UNIQUE_ITEM_LIKE_CPP),
-        InventoryResult::InvFull => Some(LOOT_ERROR_MASTER_INV_FULL_LIKE_CPP),
-        _ => Some(LOOT_ERROR_MASTER_OTHER_LIKE_CPP),
-    }
-}
-
-// ── Loot generation ───────────────────────────────────────────────
-
-fn player_team_for_race_cpp_representable(race: u8) -> u32 {
-    match race {
-        2 | 5 | 6 | 8 | 9 | 10 | 26 | 27 | 28 | 31 | 35 | 36 | 70 => 67,
-        _ => 469,
-    }
-}
-
-fn represented_item_faction_flags_block_player_like_cpp(flags2: Option<u32>, race: u8) -> bool {
-    let Some(flags2) = flags2 else {
-        return false;
-    };
-
-    let team = player_team_for_race_cpp_representable(race);
-    ((flags2 & ItemFlags2::FactionHorde as u32) != 0 && team != 67)
-        || ((flags2 & ItemFlags2::FactionAlliance as u32) != 0 && team != 469)
-}
-
-fn player_quest_status_mask_like_cpp(status: Option<u8>, rewarded: bool) -> u32 {
-    if rewarded {
-        return 0x40;
-    }
-
-    match status {
-        None => 0x01,
-        Some(QUEST_STATUS_COMPLETE_LIKE_CPP) => 0x02,
-        Some(QUEST_STATUS_INCOMPLETE_LIKE_CPP) => 0x08,
-        Some(QUEST_STATUS_FAILED_LIKE_CPP) => 0x20,
-        _ => 0,
-    }
-}
-
-fn generated_creature_loot_item_to_entry_like_cpp(
-    item: GeneratedLootItem,
-    addon_metadata: ItemTemplateAddonLootMetadataLikeCpp,
-) -> LootEntry {
-    LootEntry {
-        loot_list_id: item.loot_list_id as u8,
-        item_id: item.item_id,
-        quantity: item.count,
-        random_properties_id: item.random_properties_id,
-        random_properties_seed: item.random_properties_seed,
-        item_context: item.context,
-        flags: LootEntryFlags {
-            follow_loot_rules: !item.needs_quest || addon_metadata.follows_loot_rules(),
-            freeforall: item.free_for_all,
-            blocked: item.is_blocked,
-            counted: item.is_counted,
-            under_threshold: item.is_under_threshold,
-            needs_quest: item.needs_quest,
-        },
-        allowed_looters: Vec::new(),
-        roll_winner: ObjectGuid::EMPTY,
-        ffa_looted_by: Vec::new(),
-        taken: item.is_looted,
-    }
-}
-
-fn generated_shared_gameobject_loot_item_to_entry_like_cpp<FAllowed>(
-    item: GeneratedLootItem,
-    addon_metadata: ItemTemplateAddonLootMetadataLikeCpp,
-    allowed_looters: &[ObjectGuid],
-    mut item_allowed_for_player: FAllowed,
-) -> LootEntry
-where
-    FAllowed: FnMut(LootStoreItemContext, ObjectGuid) -> bool,
-{
-    let store_item_context = item.store_item_context;
-    let mut entry = generated_creature_loot_item_to_entry_like_cpp(item, addon_metadata);
-    for looter in allowed_looters {
-        if item_allowed_for_player(store_item_context, *looter) {
-            entry.add_allowed_looter_like_cpp(*looter);
-        }
-    }
-    entry
-}
-
-use wow_world_loot::RepresentedCreatureLootStateLikeCpp;
-
-#[derive(Debug, Clone)]
-struct RepresentedGameObjectLootInstallObservationLikeCpp {
-    authority: OwnedLootAuthority,
-    object_generation: u64,
-    loot_lifecycle_revision: u64,
-}
+#[cfg(test)]
+use super::loot_test_shims::*;
+use wow_world_loot::{loot_type_for_client_like_cpp, represented_loot_response_items_like_cpp};
 
 // Gameobject interaction geometry is shared with the application layer's
 // LootRelease context; the canonical implementation lives in
@@ -287,41 +146,11 @@ struct RepresentedGameObjectLootInstallObservationLikeCpp {
 #[cfg(test)]
 pub(crate) use wow_world_entities::represented_gameobject_display_box_contains_like_cpp;
 
-#[cfg(test)]
-fn represented_loot_object_guid_like_cpp(owner: ObjectGuid) -> ObjectGuid {
-    if owner.is_empty() {
-        return ObjectGuid::EMPTY;
-    }
-
-    ObjectGuid::create_world_object(
-        HighGuid::LootObject,
-        0,
-        owner.realm_id(),
-        owner.map_id(),
-        0,
-        0,
-        owner.counter(),
-    )
-}
-
 /// Unit fixtures that predate canonical map objects may exercise packet-cache
 /// behavior locally. This is a compile-time false branch in production: live
 /// Creature/GameObject claims fail closed without their map-owned authority.
 const fn represented_local_loot_fixture_allowed_like_cpp() -> bool {
     cfg!(test)
-}
-
-fn loot_type_for_client_like_cpp(loot_type: u8) -> u8 {
-    match loot_type {
-        LOOT_TYPE_PROSPECTING_LIKE_CPP | LOOT_TYPE_MILLING_LIKE_CPP => {
-            LOOT_TYPE_DISENCHANTING_LIKE_CPP
-        }
-        LOOT_TYPE_INSIGNIA_LIKE_CPP => LOOT_TYPE_SKINNING_LIKE_CPP,
-        LOOT_TYPE_FISHINGHOLE_LIKE_CPP | LOOT_TYPE_FISHING_JUNK_LIKE_CPP => {
-            LOOT_TYPE_FISHING_LIKE_CPP
-        }
-        _ => loot_type,
-    }
 }
 
 #[cfg(test)]
@@ -346,45 +175,6 @@ fn assign_represented_personal_loot_items_like_cpp<R: Rng + ?Sized>(
     }
 
     rebuild_represented_personal_loot_counts_like_cpp(loot);
-}
-
-fn represented_loot_response_items_like_cpp(
-    loot: &CreatureLoot,
-    player_guid: ObjectGuid,
-) -> Vec<LootItemData> {
-    loot.items
-        .iter()
-        .filter_map(|entry| {
-            let ui_type = loot_item_ui_type_for_player_like_cpp(
-                player_guid,
-                &entry.allowed_looters,
-                loot_item_is_looted_for_player_like_cpp(loot, entry, player_guid),
-                entry.flags.freeforall,
-                loot_player_has_unlooted_ffa_item_like_cpp(loot, player_guid, entry.loot_list_id),
-                entry.flags.needs_quest,
-                entry.flags.follow_loot_rules,
-                loot.loot_method,
-                loot.round_robin_player,
-                loot.loot_master,
-                entry.flags.under_threshold,
-                entry.flags.blocked,
-                entry.roll_winner,
-            )?;
-
-            Some(LootItemData {
-                item_type: 0,
-                ui_type,
-                can_trade_to_tap_list: false,
-                loot: ItemInstance {
-                    item_id: entry.item_id as i32,
-                    ..ItemInstance::default()
-                },
-                loot_list_id: entry.loot_list_id,
-                quantity: entry.quantity,
-                loot_item_type: 0,
-            })
-        })
-        .collect()
 }
 
 #[cfg(test)]
@@ -511,57 +301,6 @@ use wow_world_loot::{
     LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP, LOOT_SLOT_TYPE_LOCKED_LIKE_CPP,
     LOOT_SLOT_TYPE_ROLL_ONGOING_LIKE_CPP, loot_roll_broadcast_item_like_cpp,
 };
-
-fn represented_disenchant_loot_plain_row_can_roll_like_cpp(
-    row: &LootStoreItem,
-    item_exists: bool,
-) -> bool {
-    row.can_roll_as_plain_entry_like_cpp(item_exists, LOOT_MODE_DEFAULT_LIKE_CPP)
-}
-
-fn represented_disenchant_loot_reference_row_can_roll_like_cpp(row: &LootStoreItem) -> bool {
-    row.can_roll_as_reference_entry_like_cpp(LOOT_MODE_DEFAULT_LIKE_CPP)
-}
-
-#[derive(Debug, Clone)]
-struct DisenchantLootTemplateFrame {
-    template: LootTemplate,
-    entry_index: usize,
-    group_index: usize,
-    requested_group_id: u8,
-}
-
-fn disenchant_loot_template_frame_like_cpp(
-    rows: Vec<LootStoreItem>,
-    requested_group_id: u8,
-) -> DisenchantLootTemplateFrame {
-    let mut template = LootTemplate::default();
-    for row in rows {
-        template.add_entry_like_cpp(row);
-    }
-
-    DisenchantLootTemplateFrame {
-        template,
-        entry_index: 0,
-        group_index: 0,
-        requested_group_id,
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-enum DisenchantLootTemplateTable {
-    Disenchant,
-    Reference,
-}
-
-impl DisenchantLootTemplateTable {
-    fn name(self) -> &'static str {
-        match self {
-            Self::Disenchant => "disenchant_loot_template",
-            Self::Reference => "reference_loot_template",
-        }
-    }
-}
 
 fn loot_item_context(context: u8) -> ItemContext {
     <ItemContext as num_traits::FromPrimitive>::from_u8(context).unwrap_or(ItemContext::None)

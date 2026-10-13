@@ -31,8 +31,9 @@ impl WorldSession {
             return false;
         };
 
-        let disenchant_entries = self
-            .generate_represented_disenchant_loot_template_entries_like_cpp(
+        let disenchant_entries =
+            wow_world_loot_ops::generate_represented_disenchant_loot_template_entries_like_cpp(
+                self,
                 disenchant_id,
                 winner_guid,
             )
@@ -246,7 +247,8 @@ impl WorldSession {
         for loot_entry in loot_entries {
             let random_properties = {
                 let mut rng = self.core.represented_runtime_subrng_like_cpp();
-                self.generate_loot_store_random_properties_with_rng_like_cpp(
+                wow_world_loot_ops::generate_loot_store_random_properties_with_rng_like_cpp(
+                    self,
                     loot_entry.item_id,
                     &mut rng,
                 )
@@ -549,8 +551,11 @@ impl WorldSession {
         }
 
         for grant in &planned_grants {
-            let quest_log_item_id = self
-                .load_creature_item_template_addon_loot_metadata_like_cpp(grant.entry.item_id)
+            let quest_log_item_id =
+                wow_world_loot_ops::load_creature_item_template_addon_loot_metadata_like_cpp(
+                    self,
+                    grant.entry.item_id,
+                )
                 .await
                 .quest_log_item_id
                 .try_into()

@@ -539,33 +539,9 @@ pub(crate) fn cx_lifecycle_ref(s: &WorldSession) -> LifecycleCxRef<'_> {
     }
 }
 
-/// Capped group context (#1241 F3): the `loot` state, sibling states and hub members its
-/// moved fns read, borrowed from disjoint WorldSession fields.
-pub(crate) struct LootCx<'a> {
-    #[cfg(test)]
-    pub(crate) lifecycle: &'a mut SessionLifecycleState,
-    pub(crate) world_entities: &'a mut WorldEntitiesState,
-    pub(crate) hub: HubMut<'a>,
-}
-
-pub(crate) fn cx_loot(s: &mut WorldSession) -> LootCx<'_> {
-    LootCx {
-        #[cfg(test)]
-        lifecycle: &mut s.lifecycle,
-        world_entities: &mut s.world_entities,
-        hub: HubMut {
-            core: &mut s.core,
-            catalogs: &s.catalogs,
-            config: &s.config,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixtures: &mut s.fixtures,
-        },
-    }
-}
-
-/// Shared counterpart of `LootCx` for `&self` methods.
+/// Shared loot context for `&self` methods: the `loot` state, sibling states and hub members
+/// its moved fns read, borrowed from disjoint WorldSession fields.
 pub(crate) struct LootCxRef<'a> {
-    pub(crate) loot: &'a LootState,
     pub(crate) inventory: &'a InventoryState,
     pub(crate) lifecycle: &'a SessionLifecycleState,
     pub(crate) world_entities: &'a WorldEntitiesState,
@@ -574,7 +550,6 @@ pub(crate) struct LootCxRef<'a> {
 
 pub(crate) fn cx_loot_ref(s: &WorldSession) -> LootCxRef<'_> {
     LootCxRef {
-        loot: &s.loot,
         inventory: &s.inventory,
         lifecycle: &s.lifecycle,
         world_entities: &s.world_entities,

@@ -294,7 +294,7 @@ impl WorldSession {
         pending.sort_by_key(|guid| (guid.high_value(), guid.low_value()));
         pending.dedup();
         for creature_guid in pending {
-            self.ensure_represented_creature_kill_loot_like_cpp(creature_guid)
+            wow_world_loot_ops::ensure_represented_creature_kill_loot_like_cpp(self, creature_guid)
                 .await;
         }
 

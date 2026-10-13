@@ -462,8 +462,7 @@ impl WorldSession {
             if let Some(bytes) = move_stop {
                 let _ = self.send_tx().send(bytes);
             }
-            self.ensure_represented_creature_kill_loot_like_cpp(guid)
-                .await;
+            wow_world_loot_ops::ensure_represented_creature_kill_loot_like_cpp(self, guid).await;
             // Give XP for the kill
             let (mob_level, can_give_experience) = self
                 .core

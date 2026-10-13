@@ -97,7 +97,7 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         &mut self,
         guid: ObjectGuid,
     ) -> Option<RepresentedCreatureLootStateLikeCpp> {
-        WorldSession::represented_creature_loot_state_like_cpp(self, guid)
+        wow_world_loot_ops::represented_creature_loot_state_like_cpp(self, guid)
     }
 
     fn loot_unit_interrupt_non_melee_spell_cast_like_cpp(&mut self) {
@@ -113,7 +113,7 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         main_loot_target: ObjectGuid,
         player_guid: ObjectGuid,
     ) -> impl Future<Output = Vec<ObjectGuid>> + Send + 'a {
-        WorldSession::represented_ae_loot_creature_targets_like_cpp(
+        wow_world_loot_ops::represented_ae_loot_creature_targets_like_cpp(
             self,
             main_loot_target,
             player_guid,
@@ -207,7 +207,7 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         owner_guid: ObjectGuid,
         scope_player: ObjectGuid,
     ) -> OwnedLootAuthorityLookupOutcomeLikeCpp {
-        WorldSession::prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
+        wow_world_loot_ops::prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
             self,
             owner_guid,
             scope_player,
@@ -219,7 +219,7 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         owner_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) -> bool {
-        WorldSession::reconcile_represented_loot_cache_like_cpp(self, owner_guid, player_guid)
+        wow_world_loot_ops::reconcile_represented_loot_cache_like_cpp(self, owner_guid, player_guid)
     }
 
     fn master_loot_can_store_error_like_cpp(
@@ -228,7 +228,9 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         item_id: u32,
         count: u32,
     ) -> Option<u8> {
-        WorldSession::represented_master_loot_can_store_error_like_cpp(self, target, item_id, count)
+        wow_world_loot_ops::represented_master_loot_can_store_error_like_cpp(
+            self, target, item_id, count,
+        )
     }
 
     fn master_loot_store_claimed_direct_item_like_cpp<'a>(
@@ -240,7 +242,7 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         loot_obj: ObjectGuid,
         claim: &'a LootClaimLease,
     ) -> impl Future<Output = bool> + Send + 'a {
-        WorldSession::store_claimed_direct_loot_item_from_owner_with_generator_like_cpp(
+        wow_world_loot_ops::store_claimed_direct_loot_item_from_owner_with_generator_like_cpp(
             self,
             item_guid_generator,
             loot_entry,
@@ -274,7 +276,7 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         loot_list_id: u8,
         target: ObjectGuid,
     ) {
-        WorldSession::mark_represented_master_loot_item_removed_like_cpp(
+        wow_world_loot_ops::mark_represented_master_loot_item_removed_like_cpp(
             self,
             owner_guid,
             loot_obj,
@@ -299,7 +301,7 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         &mut self,
         owner_guid: ObjectGuid,
     ) -> Option<wow_core::Position> {
-        WorldSession::represented_creature_position_for_loot_like_cpp(self, owner_guid)
+        wow_world_loot_ops::represented_creature_position_for_loot_like_cpp(self, owner_guid)
     }
 
     fn loot_item_apply_pending_durable_completions_like_cpp<'a>(
@@ -317,7 +319,7 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         owner_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) {
-        WorldSession::refresh_represented_loot_owner_canonical_summary_like_cpp(
+        wow_world_loot_ops::refresh_represented_loot_owner_canonical_summary_like_cpp(
             self,
             owner_guid,
             player_guid,

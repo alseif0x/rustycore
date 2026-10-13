@@ -2,6 +2,7 @@
 
 mod contracts;
 mod random_properties;
+mod response;
 mod state;
 pub mod storage_plans;
 
@@ -14,4 +15,5 @@ pub use contracts::{
     loot_roll_broadcast_item_like_cpp,
 };
 pub use random_properties::loot_store_data_can_stack_with_item;
+pub use response::{loot_type_for_client_like_cpp, represented_loot_response_items_like_cpp};
 pub use state::LootState;

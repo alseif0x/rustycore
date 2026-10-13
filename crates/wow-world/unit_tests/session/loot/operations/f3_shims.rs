@@ -75,7 +75,8 @@ impl WorldSession {
         &mut self,
         port: Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>,
     ) {
-        crate::session::cx_loot(self).set_group_loot_money_persistence_port_like_cpp(port)
+        self.lifecycle
+            .set_group_loot_money_persistence_port_like_cpp(port)
     }
     pub(crate) fn set_pass_on_group_loot_like_cpp(&mut self, value: bool) -> bool {
         let (state, mut hub) = crate::session::split_loot_mut(self);
@@ -84,15 +85,5 @@ impl WorldSession {
     pub(crate) fn set_loot_specialization_id_like_cpp(&mut self, spec_id: u32) -> bool {
         let (state, mut hub) = crate::session::split_loot_mut(self);
         state.set_loot_specialization_id_like_cpp(&mut hub, spec_id)
-    }
-}
-
-impl crate::session::LootCx<'_> {
-    pub(crate) fn set_group_loot_money_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>,
-    ) {
-        self.lifecycle
-            .set_group_loot_money_persistence_port_like_cpp(port);
     }
 }

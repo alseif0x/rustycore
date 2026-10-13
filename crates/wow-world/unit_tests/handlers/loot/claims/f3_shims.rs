@@ -12,7 +12,6 @@ impl crate::session::WorldSession {
         gameobject_guid: ObjectGuid,
         source: GameObjectLootSource,
     ) {
-        crate::session::cx_loot(self)
-            .record_represented_gameobject_chest_release_metadata_like_cpp(gameobject_guid, source)
+        record_represented_gameobject_chest_release_metadata_like_cpp(self, gameobject_guid, source)
     }
 }

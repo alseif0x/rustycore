@@ -46,8 +46,10 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
         &self,
         gameobject_guid: ObjectGuid,
     ) -> usize {
-        crate::session::cx_loot_ref(self)
-            .queue_goober_gameobject_state_refresh_for_same_map_like_cpp(gameobject_guid)
+        wow_world_loot_ops::queue_goober_gameobject_state_refresh_for_same_map_like_cpp(
+            self,
+            gameobject_guid,
+        )
     }
 
     fn record_represented_gameobject_template_quest_source_like_cpp(
@@ -154,7 +156,7 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
         gameobject_entry: u32,
         loot_id: u32,
     ) -> impl Future<Output = ()> + Send {
-        WorldSession::open_represented_fishing_hole_with_catalogs_like_cpp(
+        wow_world_loot_ops::open_represented_fishing_hole_with_catalogs_like_cpp(
             self,
             item_valuation,
             gameobject_guid,
@@ -170,7 +172,7 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
         area_id: u32,
         junk: bool,
     ) -> impl Future<Output = ()> + Send {
-        WorldSession::open_represented_fishing_node_loot_with_catalogs_like_cpp(
+        wow_world_loot_ops::open_represented_fishing_node_loot_with_catalogs_like_cpp(
             self,
             item_valuation,
             gameobject_guid,
@@ -187,7 +189,7 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
         source: GameObjectLootSource,
         template_money: (u32, u32),
     ) -> impl Future<Output = ()> + Send {
-        WorldSession::open_represented_gameobject_chest_with_template_money_like_cpp(
+        wow_world_loot_ops::open_represented_gameobject_chest_with_template_money_like_cpp(
             self,
             item_guid_generator,
             item_valuation,
@@ -204,7 +206,7 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
         gameobject_entry: u32,
         source: GatheringNodeUseSource,
     ) -> impl Future<Output = ()> + Send {
-        WorldSession::open_represented_gathering_node_with_catalogs_like_cpp(
+        wow_world_loot_ops::open_represented_gathering_node_with_catalogs_like_cpp(
             self,
             item_valuation,
             gameobject_guid,
