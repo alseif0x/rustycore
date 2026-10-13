@@ -5697,6 +5697,13 @@ The character family (`handlers/character/**`) was 14,788 production lines on
 
 The rest of the total is import, mount and call-site edits.
 
+*Footnote (9a, #1390 review follow-up 2).* The per-slice Δ column sums to
+−11,676, two more than the total row's −11,674. The difference is the 8d
+row: 8d recorded 59,703 for the tree that 8e re-measured as 59,705 (see the
+8e accounting). The total row is the end-to-end measurement 70,077 → 58,403
+and is correct; against the re-measured figure the 8d row reads 63,201 →
+59,705, −3,496.
+
 - **Moved vs reclassified.** About 12,014 production lines left `wow-world`
   as moved code. About 509 left the production figure without moving: they
   are `cfg(test)` entry points and wrappers whose only production callers
@@ -5733,3 +5740,355 @@ The rest of the total is import, mount and call-site edits.
     `login_data_gossip_test_shims.rs` 141, and the item, vendor and query
     shims) by converting the scenario call sites.
   - Move the coordinator once its callees have owners.
+
+## Slice 9 plan (spell effects and player cast, phase 2)
+
+Measured on `b5fdc923b` (8e merged) before anything moved, with the slice 8
+tools: the hotspot classifier for production lines, and the lexical scan
+that blanks comments, literals and every `cfg(test)` item or statement and
+counts the `self.`/`session.` calls to inherent `WorldSession` methods
+defined outside the family. Field reads (`self.core`, `self.catalogs`,
+`self.spell_state`) are not counted; they become hub or field accessors.
+"Outside" includes methods of the other spell families, which become
+in-crate calls once those move too, so later parts overstate.
+
+- **`wow-world` production (classifier): 58,403** lines, 64,582 physical,
+  476 files.
+- **The spell domain is about 14k production lines**, twice the original
+  slice 9 row (about 7k): the row did not count the spell-state, aura,
+  spell-click and acquisition families.
+
+| Family | Files | Production | Methods | Outside calls |
+|---|---|---:|---:|---:|
+| Spellbook (known spells, learn/remove, spell rows, traits, overrides, talent-row side effects, acquisition marks) | `session/spell_state/{spellbook,spell,effects,acquisition}.rs` | 1,516 | 63 | 20 |
+| Spell effects: execution | `session/spell_effects/{execution*,execution/**,destinations,checks}.rs` | 2,360 | 20 | 77 |
+| Spell effects: combat | `session/spell_effects/{effect_combat*,effect_combat/**,combat,threat}.rs` | 2,115 | 34 | 18 |
+| Spell effects: the rest | `session/spell_effects/{effects,effects_player,effects_power,effects_progress,effect_apply,effect_summon}.rs` | 2,608 | 58 | 37 |
+| Player cast | `session/player_cast/**`, `session/player_cast.rs`, `session/spell_state/cast.rs` | 1,149 | 29 | 20 |
+| Spell handlers | `handlers/spell/**` | 1,394 | 32 | 28 |
+| Auras left | `session/spell_state/{aura,aura/**,aura_application,aura_publication,mount_aura}.rs` | 1,374 | 46 | 26 |
+| Spell click | `session/spell_state/spell_click.rs`, `session/world_entities/spell_click.rs` | 574 | 7 | 11 |
+| Talents | `session/progression/talents.rs`, `handlers/talent/**` | 402 | 11 | 12 |
+| Acquisition adapters | `spell_acquisition/**`, `session/{effect_learning,trainer_acquisition}.rs` | 1,215 | 9 | 13 |
+| Cooldowns and charges | `session/spell_state/cooldown.rs` (the rest left in 8e) | 7 | 0 | 0 |
+| Catalog setters | `session/spell_state/catalog.rs` | 133 | 26 | 0 |
+
+Findings:
+
+- **The spellbook has the lowest surface per line** (1,516 lines over 20
+  outside calls) and is the prerequisite the 7c talent decision named. Of its
+  20 calls, 3 are hub defaults (`player_guid`, `send_packet`) or one-line
+  catalog forwards (`spell_store`, `skill_store`); one is a `cfg!(test)`
+  term. It goes first.
+- **The spell-map dispatch stays on the session for now.**
+  `with_player_spell_runtime_like_cpp` and `mutate_player_spell_runtime_like_cpp`
+  pass the World `cfg!(test)` flag; as host methods the flag keeps its World
+  meaning without a fixture predicate.
+- **The login spell application stays with the coordinator.** The
+  start-all-spells option, the loaded dependency closure, the login
+  proficiencies and combat capabilities, `set_known_spells_like_cpp`, the
+  favorites and the login spell reset are called only by the continue-login
+  coordinator (`handlers/character/world_entry/login.rs`, plus scenarios).
+  Their free-function call syntax wraps longer than the method syntax:
+  moving them grew the coordinator from 896 to 913 lines, above its
+  physical ceiling, even with an import block. They move with the
+  coordinator (8d plan).
+- **Talents** need, after the spellbook, the talent reset commit and
+  publication (persistence), the points refresh (it builds
+  `wow_world_quest::QuestRewardCx`, so it stays a World host method), the
+  at-login flags and the loaded check.
+- **Spell effects (7.1k) do not fit one part.** Execution has the largest
+  surface (77) and goes last.
+
+**Closure pre-check.** Every edge the plan may need was simulated on the base
+with `tools/architecture/wow_world_closure.py check --add …`, in lock and
+metadata mode, before anything moved: both PASS (17 packages) with
+`wow-world-spell->wow-world-{entities,inventory,interaction,visibility,loot}`
+added together. Five negative probes fail as they must:
+`wow-world-spell->wow-world-quest`, `->wow-world-character` and
+`->wow-world-loot-ops` (cycles through their spell dependency), and
+`->wow-world-social` and `->wow-world-instances` (cycles through social).
+9a needs no edge. Each part re-runs the check for the edges it actually adds.
+
+**Split (each part re-measures on its own base; at most about 4.5k moved
+and 15 % host):**
+
+- **9a, the spellbook → spell:** the learn/remove closure, the known-spell
+  reads, the spell-row, trait-config and override operations, the
+  talent-row spell side effects and the acquisition marks. Result below.
+- **9b, talents, auras, spell click and player cast → spell (about 3.5k):**
+  talents first (the 7c design step), then the auras left, spell click and
+  the player cast with `spell_state/cast.rs`. Adds `spell->entities` (and
+  `->inventory` if the off-hand and item checks move instead of staying
+  host methods).
+- **9c, spell effects without execution → spell (about 4.7k):** the effect
+  bodies and the combat effects. If the 9c re-measure exceeds about 4.5k,
+  threat (425) waits for 9d.
+- **9d, execution and the spell handlers (about 3.8k, surface about 100):**
+  the execution entry points, destinations, checks and `handlers/spell`.
+  Highest surface last; it may split again.
+- **Later:** the acquisition adapters (1.2k) and the coordinator's login
+  spell application, with the coordinator.
+
+## Slice 9a result (the spellbook → spell)
+
+Branch `1363-s9a-spellbook`, base `b5fdc923b` (8e merged). Move-only (R2),
+with the 8d/8e rewrites and nothing else:
+
+- `self` becomes `host` (`fn name<H: SpellbookHostLikeCpp>(host: &mut H, …)`,
+  or `host: &H` for an `&self` method); a call between moved functions
+  becomes a free call; `self.core` becomes `host.core()` (the hub default,
+  `&self.core`), `self.catalogs` becomes `host.hub_ref().catalogs` and
+  `self.spell_state` becomes `host.spell_state()`;
+- `crate::session::hub_ref(self)`/`hub_mut(self)` and
+  `crate::session::split_spell_state_{ref,mut}(self)` become the same call
+  through the host;
+- **two one-line World wrappers are inlined**, each as the exact body of the
+  wrapper: `self.spell_store()` (in the titan-grip cleanup) becomes
+  `host.hub_ref().catalogs.spell_store()`, and `self.skill_store()` (in the
+  learn-skill downgrade) becomes `host.hub_ref().catalogs.skill_store()`.
+  Both base bodies are `self.catalogs.X()`. Neither is async.
+
+No moved body had a `cfg(test)` branch or a `cfg!(test)` term, so no
+fixture predicate was needed. A token comparison of the 38 moved functions
+against the same rewrite applied by script to their base bodies finds 36
+identical; the other two differ by one rustfmt trailing comma each.
+
+### What moved
+
+To `wow-world-spell/src/spellbook_session/` (C++ `Player::LearnSpell`,
+`Player::RemoveSpell`, `Player::GetSpellMap` and the spell-map
+bookkeeping around them):
+
+- `spellbook.rs`, from `session/spell_state/spellbook.rs`: the learn-skill
+  lookup, the learn-validity and direct-trigger reads, the account-mount
+  learn, the learn and dependent learn, the remove closure (remove,
+  remove with suppressed messaging and the recursive remove with its seen
+  set: next ranks, requiring spells, the learn-skill downgrade, learned
+  spells and their overrides, the lower-rank relearn with
+  `SMSG_SUPERCEDED_SPELLS`, the trait override, titan grip, dual wield, the
+  off-hand check and `SMSG_UNLEARNED_SPELLS`), and the known-spell and
+  dependent-spell reads. The previous-skill lookup, the downgrade and the
+  recursive remove stay private, as they were;
+- `runtime.rs`, from `session/spell_state/spell.rs`: the talent spell and
+  override-pair reads, the trait-definition take, the loaded-row install,
+  the trait-config begin, complete and clears, the fallback-row clear, the
+  row invalidation, the complete and loaded row replacement, the titan-grip
+  cleanup (now `pub(super)`), the override add, remove and reads, the
+  trait-definition reads and replacement, and the complete-row read;
+- `effects.rs`, from `session/spell_state/effects.rs`: the talent-row load
+  with its spell side effects and the active-talent spell side effects, with
+  `SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP`, which only they read;
+- `acquisition.rs`, from `session/spell_state/acquisition.rs`: the
+  auxiliary-authority invalidation and the snapshot completeness mark;
+- `mod.rs`: the host trait and the mounts.
+
+**Stays in `wow-world`:**
+
+- the login spell application the coordinator calls (plan above):
+  `apply_represented_start_all_spells_with_catalogs_like_cpp`,
+  `apply_loaded_spell_dependencies_from_roots_like_cpp`,
+  `apply_loaded_known_spell_dependencies_like_cpp`,
+  `apply_loaded_spell_dependency_skills_like_cpp`,
+  `apply_login_known_spell_{proficiencies,combat_capabilities}_like_cpp`,
+  `set_known_spells_like_cpp`, `set_represented_favorite_known_spells_like_cpp`
+  and `apply_represented_login_spell_reset_if_needed_like_cpp`. They now
+  call the moved functions as free calls;
+- the spell-map dispatch and its snapshot (the World `cfg!(test)` flag);
+- the composition setters (cast unstuck, off-hand check, script and
+  acquisition authority), the spell-focus, hit-inert and hit-source reads,
+  the reset notification text, the mount promotion and usability, the
+  self-res read and the far-teleport interrupt. They belong to later parts
+  (cast, auras, acquisition) or are composition.
+
+Every World caller calls the free function with `self` (48 call sites in 22
+files). The four host adapters that forwarded a moved method by path now
+name the free function: `login_host.rs` (six forwards), `session_loot_host.rs`
+(`known_spells_like_cpp`) and `battle_pet_purchase/host.rs` (the dependent
+learn). Left as `WorldSession::name(self)`, those forwards would have
+resolved to their own trait method once the inherent method was gone; the
+compiler's recursion lint caught the loot one in an intermediate build, and a
+grep for `WorldSession::`/`Self::` plus method-call syntax of every moved
+name finds none left.
+
+**Reclassified, not moved** (the `#![cfg(test)]`
+`handlers/spellbook_test_shims.rs`, 433 lines, outside the session hotspot
+tree):
+
+- the 11 `#[cfg(test)]` methods nested in the production impls of the four
+  files (the fixture known-spell writes, the trait-definition and override
+  fixtures, the test dispatch, the loaded-row and acquisition-runtime
+  fixtures and the start-all-spells test entry), verbatim except that
+  `pub(in crate::session)` reads `pub(crate)`. They were already test-only;
+  the classifier counted them as production because they were nested;
+- the spellbook's three #1241 F3 test entry points, verbatim from
+  `unit_tests/session/spell_state/spellbook/f3_shims.rs` (deleted with its
+  mount). This is test code moving, not a production change;
+- 23 one-call forwards to the moved functions the scenarios and these
+  fixtures call. No scenario call site changes.
+
+**Tests that changed their import path only:** the talent scenarios import
+the interrupt-flag constant from `wow_world_spell`; `skill_owner.rs` names
+`wow_world_spell::canonical_player_spell_record_like_cpp` by path and
+`spellbook_owner.rs` imports it (the session root no longer imports it for
+production). No assertion changes.
+
+### Host surface
+
+- **`SpellbookHostLikeCpp: SessionHubHostLikeCpp`** (spell, 8 methods, 24
+  lines with docs). The supertrait lends the hub (`core`, `player_guid`,
+  `send_packet`, `hub_ref`, `hub_mut`). The methods are 3 accessors (the
+  `spell_state` field and the two existing splits) and 5 operations: the
+  spell-map read and dispatch, the off-hand auto-unequip, the aura removal
+  for a spell and the interrupt-flag aura removal. None is async.
+- **Adapter** `session/spell_state/spellbook_host.rs` (41 lines). Each
+  operation names the inherent method by path; a script checked that all
+  five name a method of an inherent `impl WorldSession` block, so none
+  resolves to its own trait method.
+- **Widening.**
+  - In spell: the crate exports the trait and the 30 functions World
+    production calls. Five more (the learn-skill lookup, the suppressed
+    remove, the resolved known-spell read, the loaded-row replacement and the
+    interrupt-flag constant) are exported only under
+    `cfg(any(test, feature = "test-fixtures"))` for the shim and the
+    scenarios.
+  - In World: `with_player_spell_runtime_like_cpp`,
+    `mutate_player_spell_runtime_like_cpp` and
+    `player_spell_runtime_snapshot_like_cpp` widen to `pub(crate)` because the
+    reclassified fixtures in the shim call them (the 7c precedent). The #754
+    rule still holds in production: the dispatch's production callers are
+    the remaining `session/spell_state` functions and the host adapter,
+    through which only the moved spellbook functions reach it.
+- **Budget.** 65 host lines (trait 24 + adapter 41) against 791 moved
+  production lines: 8.2 %. With the whole `spellbook_session/mod.rs` (60) it
+  is 101 lines, 12.8 %.
+
+### Await counts (per function, base vs head)
+
+Counted with the 8d script (comments and literals blanked) over every
+changed World file and the destination files.
+
+| Function | Base | Head |
+|---|---:|---:|
+| 38 moved functions (none is async) | 0 | 0 |
+| 17 async World functions in the changed files (the spell-click caster 2; first-login casts, self-res, spell click, the five account collection loads, achievements, delayed teleport, `teleport_to{,_with_options}`, the stored-item loot save and wait: 1 each) | 18 | 18 |
+
+The rewritten call sites are synchronous calls; none sits in an expression
+with an `.await`, and no future is spawned, boxed or reordered.
+
+### Behaviour
+
+Every moved body is its base text after the rewrites above. In particular,
+these are unchanged: the learn order (the hit-aura authority invalidation
+before the row invalidation and the runtime learn; the dependent mark after
+the learn), the remove order (next ranks unless a talent, requiring spells,
+the forget with complete-row preservation, the learn-skill downgrade,
+learned spells and their overrides, the lower-rank relearn as dependent or
+not, `SMSG_SUPERCEDED_SPELLS`, the override and trait-definition cleanup,
+titan grip, dual wield, the off-hand check, then `SMSG_UNLEARNED_SPELLS`
+with its suppress flag), the account-mount learn, the talent-row and
+active-talent side effects (the interrupt-flag aura removal last) and the
+acquisition marks. No persistence code moved; the talent commit and the
+login load order (#169) are untouched. The opcode registrations, their
+processing and status flags are untouched (`wow-world-application` is not in
+the diff).
+
+### Edges and closure
+
+No `Cargo.toml` change: spell already depends on core, lifecycle, data,
+entities and packet. `wow_world_closure.py check` passes in lock and
+metadata mode (17 packages); spell's direct set is core and lifecycle.
+
+### Accounting
+
+- **`crates/wow-world/src`.** Classifier: 58,403 → **57,424 production
+  (−979)**. Physical: 64,582 → 64,035 (−547). Files: 476 → 478. Test: 6,179 →
+  6,611 (+432).
+  - **791 is production code that left `wow-world`:** the 38 moved functions
+    (783 lines) and 8 lines of separating blank lines, net of the free-call
+    rewrites in the functions that stay in those four files.
+  - **233 is reclassified to test:** the 11 nested `#[cfg(test)]` methods.
+    They were test-only code at base; this is not a production reduction.
+  - **+41 is the adapter**, +1 its mount.
+  - **The rest (+3) is call-site and import edits:** the free-call
+    rewrites in 15 files (movement state +8, load authority +4, talents +3,
+    appearance +2, effect learning +1, others −1 to −3 each) and the
+    session-root imports (−5).
+  - The test figure grows by the shim file (433), less the F3 shim mount.
+- **Destination.** `wow-world-spell/src`: 9,076 → 10,013 physical (+937;
+  production 8,812 → 9,742, +930; test +7, the fixture-gated export).
+  `spellbook_session/` is 908 lines: `spellbook.rs` 440, `runtime.rs` 257,
+  `effects.rs` 121, `mod.rs` 60, `acquisition.rs` 30.
+- **`net_move.py check`.** PASS: growth 937 ≤ 1,535.3, 0 duplicate bodies.
+- **`session-ownership-policy.json`** is reprinted with `print-baseline`.
+  The delta is exactly: 55 items leave `crate::session` (38 moved, 11
+  reclassified, 3 relocated F3 entry points and the 3 old visibilities of
+  the widened dispatch, read and snapshot), and 48 arrive (37 shim items, the
+  adapter's 8 trait items and the 3 widened methods). The syntax-only check
+  passes.
+- **Ceilings.** None raised. Tightened to live values:
+  - hotspot `session/mod.rs`: production 38,989 → 38,012, test 141,878 →
+    141,842, total 180,867 → 179,854. The test figure falls because the
+    spellbook F3 shim left the session tree; the two test import edits add 1;
+  - hotspot `handlers/character/mod.rs`: production 3,487 → 3,486 (the
+    collections call site), test 15,655 (live, unchanged), total 19,142 →
+    19,141;
+  - physical `session/mod.rs` 967 → 962;
+  - physical `handlers/character/mod.rs` 323 → 321 (#1390 follow-up 1; the
+    file did not change in 9a);
+  - new physical row `handlers/spellbook_test_shims.rs` at 433.
+- **Warnings.** The `wow-world` warning sets (`--message-format=short` lines
+  under `crates/wow-world/`, compared without line numbers against the 8e
+  head, whose tree is this base) are identical in all three builds:
+  production lib 146, lib with `test-fixtures` 154, lib plus lib-test 291.
+  One base warning (the unused `known_spells` binding of the verbatim
+  `fixture_set_known_spells_like_cpp`) moved with its method to the shim
+  file. `wow-world` `dead_code` is 0 in all three. `wow-world-spell` and
+  every other crate keep exactly their base sets.
+- **Tests.** No `#[test]` or `#[ignore]` is added or removed; the workspace
+  test-name multiset is identical (10,214 names, 5 ignores). Focused runs
+  during the move (the final run covers the head): the `wow-world` lib
+  passed 3,680 with 1 ignored, and the `wow-world-spell` tests passed 25.
+
+### #1390 follow-ups
+
+1. **Done.** The `handlers/character/mod.rs` physical ceiling is 321, the
+   live value. The hotspot test figure (15,655) is the live value too; it
+   was not stale.
+2. **Done.** The slice 8 summary has a footnote for the 59,703/59,705
+   correction.
+3. **Checked.** The binder entry point was a `#[cfg(test)]` method nested in
+   a production impl. The classifier counts nested `cfg(test)` items as
+   production, so moving it to the `#![cfg(test)]` shim lowered the
+   classifier figure without removing production code. 8e reported it as
+   reclassified, not moved, which is the right label; 9a labels its 233
+   lines the same way.
+4. **Open.** Retiring the shim files, now including
+   `spellbook_test_shims.rs` (433), remains open.
+
+### 9b plan
+
+Talents first: `session/progression/talents.rs` and `handlers/talent/**`
+(402) can now call the learn/remove closure in spell. The host adds the
+talent reset commit and publication, the points refresh (World:
+`QuestRewardCx`), the at-login flag read and removal, the talents-loaded
+check and `trinity_string`. Then the auras left (1,374), spell click (574)
+and the player cast with `spell_state/cast.rs` (1,149), re-measured for the
+15 % budget; spell gains the `entities` edge if the aura or click bodies
+need it (simulated PASS above).
+
+### Follow-ups
+
+- The coordinator's login spell application (about 220 lines in
+  `session/spell_state/{spellbook,effects}.rs`) moves with the coordinator.
+- The moved log sites (none in 9a; the spellbook bodies do not log) need no
+  tracing note.
+- The spell-map dispatch moves to spell when its last World caller does;
+  its `cfg!(test)` flag then becomes the host's fixture predicate.
+
+### Validation
+
+`final --architecture --timings` (`VALIDATION_V2_CARGO_JOBS=1`,
+`VALIDATION_V2_TIMEOUT_SECONDS=1800`) runs on the committed head that
+includes this section. Its manifest path, dirty flag and duration are in
+the PR body. This section is not edited after that run.
