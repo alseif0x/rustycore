@@ -2447,11 +2447,13 @@ Existing crates grew from the slice A base:
    also holds four non-quest parts:
    - the player-condition projection (`player_conditions`);
    - `inventory_valuation`;
-   - `registry_sync`;
+   - `registry_sync`, which goes to `wow-world-inventory` (point 2 and
+     *`registry_sync` destination* below), not to the condition crate;
    - the trainer admission proof.
 
    Inventory, trainer, aura and equipment code all need these parts.
-   Move them into a lower crate (for example `wow-world-player-conditions`,
+   Move the condition projection, valuation and the admission proof into a
+   lower crate (for example `wow-world-player-conditions`,
    above inventory/spell/loot and below quest) before slice 6 or a trainer
    split. This is not a plain file move.
    `PlayerConditionProjectionCxLikeCpp` is extended by inherent impls in
@@ -2491,3 +2493,44 @@ Existing crates grew from the slice A base:
    warnings for `handler-contract-check` in validation-v2. Its four
    remaining warnings (unused imports and `analyze_owner_source`) should be
    cleaned first, in a separate change.
+
+### `registry_sync` destination (#1379 review follow-up 1)
+
+Recommendations 1 and 2 above used to name two homes for `registry_sync`:
+a new condition crate below quest, and `wow-world-inventory`. Settled on
+`1423cfbfa`: **`registry_sync` goes to `wow-world-inventory`**, with
+`inventory_scaling` and `equipment_set_use`, in two changes:
+
+1. Behaviour-neutral: make `PlayerRegistryHydrationContext` quest-agnostic.
+   Its only quest dependency is `&SessionQuestState` in fixture-gated code,
+   read once for `player_quest_gameplay_fixture_like_cpp()`, whose result
+   type is `wow_entities::PlayerQuestGameplayState`. A fixture-gated
+   provider (closure or one-method trait) replaces the reference; the read
+   still happens at the same step of the sequence.
+2. Move the three units. Inventory gains `wow-world-loot` (`LootState`,
+   normal) and `wow-world-spell` (`SessionSpellState`, used only by the
+   fixture-gated hydration). Neither reaches inventory, social or
+   instances on `1423cfbfa` (loot → core; spell → core, lifecycle), so
+   there is no cycle.
+
+Why inventory and not the condition crate:
+
+- `registry_sync` has nothing to do with player conditions. It is the
+  World-session registry publication: position, fixture hydration, loot
+  rolls, party type. Its non-quest inputs are core, loot and spell state.
+- Its consumers are inventory operations (`inventory_scaling`,
+  `equipment_set_use`, the inventory swap's equip step, item publication)
+  and loot release, trainer runtime install, aura removal and quest
+  completion. All of these sit at or above inventory and can reach it.
+- `equipment_set_use` then needs nothing above inventory. Its
+  `wow_world_*` uses on `1423cfbfa` are core, inventory, loot and the two
+  `registry_sync` types. `inventory_scaling` is the same plus its own
+  private `restored_health_like_cpp`. Neither names a condition,
+  valuation or quest type, so neither would need the condition crate.
+- In the condition crate, which sits above inventory, `registry_sync` would
+  pin every registry-publishing inventory operation above inventory. Those
+  operations could then never move to inventory.
+
+Constraint this adds: once inventory → loot exists, `wow-world-loot`
+(pure loot state) may never depend on inventory. Slice 5 keeps it that way
+(see *Slice 5 plan*).
