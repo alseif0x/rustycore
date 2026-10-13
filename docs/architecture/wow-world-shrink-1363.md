@@ -2534,3 +2534,106 @@ Why inventory and not the condition crate:
 Constraint this adds: once inventory → loot exists, `wow-world-loot`
 (pure loot state) may never depend on inventory. Slice 5 keeps it that way
 (see *Slice 5 plan*).
+
+## Slice 5 plan (loot, phase 2)
+
+Measured on `1423cfbfa` (A7 merged) before anything moved. The phase 1 and
+slice A estimates were off, so these figures come from the code, with the
+same two lexical tools as slice 4: the hotspot classifier for production
+lines, and a scan of the inherent `WorldSession` methods (body lines, the
+`self.`/`session.` calls they make to methods defined elsewhere, and the
+session fields they touch).
+
+- **`wow-world` production (classifier): 82,910** lines, 86,410 physical,
+  514 files.
+- **The loot family** is `handlers/loot/**` (9,464 production, 27 files;
+  the loot hotspot owner) plus `session/loot/**` (81). It has 128 inherent
+  `WorldSession` methods with 7,457 body lines. Together they call 53
+  methods defined outside the family and touch 13 session fields. The
+  rest is the 554-line `mod.rs` (imports, constants, pure helpers and the
+  two persistence workers), the `LootCx`/`LootCxRef` helper impls and
+  the F5 adapter `loot_host.rs`.
+
+| Group | Production | Methods / body lines | Outside calls |
+|---|---:|---:|---:|
+| `sources.rs` + `sources/` (creature, conditions, gameobject, gameobject authority) | 2,858 | 37 / 2,356 | 13 |
+| `generation.rs` | 281 | 2 / 212 | 3 |
+| `requests/context.rs` | 358 | 11 / 322 | 9 |
+| `claims.rs`, `request_cache.rs`, `authority.rs`, `random_properties.rs` | 325 | 18 / 242 | 7 |
+| `rolls.rs` | 883 | 11 / 851 | 5 (+7 into the loot family) |
+| `requests.rs`, `requests/item_storage{,/disenchant}.rs` | 1,848 | 14 / 1,720 | 25 |
+| `persistence.rs`, `money.rs`, `handlers.rs`, `handlers/money.rs` | 1,399 | 13 / 1,175 | 17 |
+| `fanout.rs` | 237 | 4 / 222 | 6 |
+| `combat_commands.rs`, `visibility_commands.rs` | 293 | 8 / 261 | 8 |
+| `loot_host.rs`, `claims/release.rs`, `storage_plans.rs`, `mod.rs` | 982 | 3 / 43 | — |
+
+"Outside calls" counts methods defined outside the loot family. In the
+first four groups taken together the count is 29, because their calls
+into each other become free calls.
+
+### Destinations
+
+- **`wow-world-loot-ops` (operations above quest).** Every body that
+  needs the session goes here, behind a loot host trait in the F5
+  inverted pattern. That covers opening and generating loot from sources,
+  conditions and quest gates, rolls, item storage, persistence, money and
+  the loot command handlers. The trait's supertrait is
+  `WorldEntitiesHostLikeCpp`. It reuses the hub, the world-entity
+  accessors and splits, and `resolved_group_guid_like_cpp`, and adds only
+  what the bodies call.
+  - The `LootCx`/`LootCxRef` helper methods in moved files move as free
+    functions over the host: `self.<field>` becomes `host.<field>()`, as
+    in 4a.
+  - The two context structs and their builders stay in `wow-world`. Their
+    unit-test shims extend `LootCx` with inherent impls, so the type
+    cannot leave the crate.
+- **`wow-world-loot` (pure state, below quest).** It takes the session-free
+  value helpers that both sides still need: the loot-response item list
+  and the client loot type. They use only `wow_loot`/`wow_packet` types,
+  which the crate already depends on, so loot gains no edge. It still
+  reaches only core.
+  - Pure helpers that only moved bodies use stay private in loot-ops.
+  - The *registry_sync* constraint above holds: loot never depends on
+    inventory.
+- **Stays in `wow-world`:**
+  - the F5 handler adapters (`loot_host.rs`);
+  - the loot-release context builder (`claims/release.rs`, which needs
+    every disjoint session field);
+  - the `LootCx`/`LootCxRef` builders;
+  - the composition setters in `session/loot/operations.rs`;
+  - `represented_local_loot_fixture_allowed_like_cpp`. It is
+    `cfg!(test)` of the World crate, so moved bodies read it through a
+    host method whose adapter keeps it.
+  - `combat_commands.rs` and `visibility_commands.rs` are not loot. They
+    are creature attack start/stop, PvP combat expiry and visibility
+    refresh mailbox handlers, and they go with slices 7 and 11.
+
+### 5a / 5b split
+
+- **5a, lowest surface first.** The sources, generation, request context,
+  claims, request cache, authority and random-properties facade groups:
+  66 methods, 3,132 body lines, 29 outside calls, about 3.8k production
+  lines with their helpers.
+  - Their remaining calls are mostly accessors: the group registry, item
+    templates and drop rates, loot stores, quest snapshot, known spells,
+    the release context, the dungeon checks, the visible-gameobject
+    refresh and `give_xp`.
+  - The calls back into the rest of the loot family are the
+    loot-opened publication, release-all, the dungeon-unlock checks and
+    the direct item store.
+  - At about 6 lines per host method that is about 2.6 % of the
+    moved lines, well inside the 15 % budget.
+- **5b, the rest of the operations.** Rolls, requests, item storage and
+  disenchant, persistence, both money paths, the loot command handlers
+  and fanout: 42 methods, 3,968 body lines, about 4.6k production lines.
+  - Their surface is 54 outside methods: inventory insertion and
+    publication, quest-objective drain and persistence plans, gold
+    mutation, the kick, the creature melee publication and the registry
+    sync.
+  - That still fits the budget (about 8 %).
+  - Slice 6 (quest) turns the quest-objective part into free calls.
+    Doing 5b after 6 would make it cheaper, but it does not depend on
+    6.
+- **Closure.** 5a and 5b need no new `wow-world-*` edge. Loot-ops already
+  depends on core, entities, instances, inventory, lifecycle, loot, quest,
+  social and spell. The check is still simulated before each move.
