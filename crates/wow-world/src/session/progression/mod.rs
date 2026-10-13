@@ -6,4 +6,5 @@ use super::*;
 
 mod reputation;
 mod skills;
+mod talent_host;
 mod talents;

@@ -77,7 +77,7 @@ impl Runtime for WorldSession {
     }
 
     fn resolve_override(&self, original: &wow_data::SpellInfo) -> wow_data::SpellInfo {
-        self.represented_cast_spell_info_like_cpp(original)
+        wow_world_spell::represented_cast_spell_info_like_cpp(self, original)
     }
 
     fn remaining(&self, spell: &wow_data::SpellInfo) -> Option<(u32, u32)> {

@@ -775,6 +775,20 @@
       "review_checkpoint": "584:C4"
     },
     {
+      "path": "crates/wow-world/src/handlers/talent_test_shims.rs",
+      "observed_lines": 114,
+      "ceiling_lines": 114,
+      "split": "cfg(test) method-syntax entry points for the talent bodies moved to wow-world-spell (talent_session, #1363 slice 9b): the talents' #1241 F3 test entry points that were unit_tests/session/progression/talents/f3_shims.rs (verbatim except pub(in crate::session) reads pub(crate)) and one-call forwards to the moved free functions the scenarios and the handlers/talent test_only fixture call, so no scenario call site changes. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. It retires with the other shims when the scenarios call the free functions directly.",
+      "review_checkpoint": "584:C4"
+    },
+    {
+      "path": "crates/wow-world/src/handlers/aura_test_shims.rs",
+      "observed_lines": 75,
+      "ceiling_lines": 75,
+      "split": "cfg(test) method-syntax entry points for the aura bodies moved to wow-world-spell (aura_session, #1363 slice 9b): the #[cfg(test)] mounted-aura test entry that was nested in the production impl of session/spell_state/mount_aura.rs (verbatim; that file is deleted) and one-call forwards to the moved free functions the scenarios call, so no scenario call site changes. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. It retires with the other shims when the scenarios call the free functions directly.",
+      "review_checkpoint": "584:C4"
+    },
+    {
       "path": "crates/wow-world-inventory/src/vendor_session/buy.rs",
       "observed_lines": 1075,
       "ceiling_lines": 1075,

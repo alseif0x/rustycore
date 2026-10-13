@@ -653,9 +653,15 @@ impl WorldSession {
                     continue;
                 }
                 if effect.is_mounted_aura_like_cpp() {
-                    self.apply_represented_mounted_aura_like_cpp(spell_id, player_guid, effect)?;
+                    wow_world_spell::apply_represented_mounted_aura_like_cpp(
+                        self,
+                        spell_id,
+                        player_guid,
+                        effect,
+                    )?;
                 } else if effect.is_provide_spell_focus_aura_like_cpp() {
-                    self.apply_represented_provide_spell_focus_aura_like_cpp(
+                    wow_world_spell::apply_represented_provide_spell_focus_aura_like_cpp(
+                        self,
                         spell_id,
                         player_guid,
                         effect,

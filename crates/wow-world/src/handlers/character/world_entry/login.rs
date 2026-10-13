@@ -846,7 +846,7 @@ impl WorldSession {
         self.send_item_enchant_time_update_plans(guid, &loaded_non_equipped_enchantment_updates);
         self.send_loaded_equipped_item_enchantment_updates_like_cpp(&loaded_enchantment_updates);
         self.apply_represented_login_spell_reset_if_needed_like_cpp();
-        self.apply_represented_login_talent_reset_if_needed_like_cpp();
+        wow_world_spell::apply_represented_login_talent_reset_if_needed_like_cpp(self);
         let applied_first_login_like_cpp =
             self.apply_represented_first_login_flag_if_needed_like_cpp();
         if applied_first_login_like_cpp {

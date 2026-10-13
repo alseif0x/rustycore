@@ -19,40 +19,6 @@ pub(super) const AT_LOGIN_RESET_SPELLS_LIKE_CPP: u16 = 0x002;
 pub(super) const AT_LOGIN_RESET_TALENTS_LIKE_CPP: u16 = 0x004;
 
 impl WorldSession {
-    /// Handle CMSG_LEARN_TALENT.
-    ///
-    /// C++ calls `Player::LearnTalent(TalentID, RequestedRank)` and sends
-    /// `SendTalentsInfoData()` only on success. Rust currently has the
-    /// represented talent snapshot plus DB2 spell-rank and talent-tab class
-    /// validation, but not the complete C++ point/prerequisite/tier runtime.
-    pub(crate) async fn handle_learn_talent(
-        &mut self,
-        talent_tabs: &wow_data::TalentTabStore,
-        mut packet: WorldPacket,
-    ) {
-        let request = match LearnTalent::read(&mut packet) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!("Bad LearnTalent: {error}");
-                return;
-            }
-        };
-
-        if request.talent_id < 0 {
-            return;
-        }
-
-        if self.learn_represented_talent_like_cpp(
-            talent_tabs,
-            request.talent_id as u32,
-            request.requested_rank,
-        ) && let Some(talent_data) =
-            crate::session::hub_ref(self).resolved_update_talent_data_packet_like_cpp()
-        {
-            self.send_packet(&talent_data);
-        }
-    }
-
     /// Handle CMSG_CONFIRM_RESPEC_WIPE.
     ///
     /// C++ resolves `GetNPCIfCanInteractWith(..., UNIT_NPC_FLAG_TRAINER)`,

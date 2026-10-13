@@ -169,7 +169,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         effect_rows: impl IntoIterator<Item = CharacterAuraEffectRowLikeCpp>,
         timediff_secs: u32,
     ) -> usize {
-        WorldSession::load_represented_character_auras_like_cpp(
+        wow_world_spell::load_represented_character_auras_like_cpp(
             self,
             aura_rows,
             effect_rows,
@@ -293,7 +293,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         WorldSession::reset_group_update_sequence_if_needed_like_cpp(self)
     }
     fn reset_represented_talents_like_cpp(&mut self) {
-        WorldSession::reset_represented_talents_like_cpp(self)
+        wow_world_spell::reset_represented_talents_like_cpp(self)
     }
     fn resolved_player_flags_for_create_like_cpp(&self) -> Option<(u32, u32)> {
         WorldSession::resolved_player_flags_for_create_like_cpp(self)

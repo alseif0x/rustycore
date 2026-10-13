@@ -10,16 +10,17 @@ pub(crate) use wow_world_spell::PlayerSpellAndTraitTestFixtureLikeCpp;
 mod acquisition;
 mod aura;
 mod aura_application;
+mod aura_host;
 mod aura_publication;
 mod cast;
 mod catalog;
 mod cooldown;
 mod effects;
-mod mount_aura;
 
 pub(crate) use aura_publication::player_aura_info_like_cpp;
 mod spell;
 mod spell_click;
+mod spell_click_host;
 mod spell_publication;
 mod spellbook;
 mod spellbook_host;

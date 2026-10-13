@@ -4,6 +4,7 @@
 //! are unchanged and the shared fixtures stay in the parent module.
 
 use super::*;
+use rand::seq::SliceRandom;
 
 #[test]
 fn gameobject_use_new_flag_drop_records_owner_state_and_delete_like_cpp() {

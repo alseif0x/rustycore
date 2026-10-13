@@ -352,6 +352,7 @@ use persistence_capabilities::loaded_character_power_snapshot_like_cpp;
 mod pet_dismissal;
 #[cfg(test)]
 pub(crate) use wow_world_core::session::CharacterPetStableRowLikeCpp;
+#[cfg(test)]
 pub(crate) use wow_world_lifecycle::adjusted_represented_pet_aura_remain_time_like_cpp;
 #[cfg(test)]
 pub(crate) use wow_world_lifecycle::{
@@ -359,6 +360,7 @@ pub(crate) use wow_world_lifecycle::{
     CharacterPetDeclinedNamesRowLikeCpp, CharacterPetSpellChargeRowLikeCpp,
     CharacterPetSpellCooldownRowLikeCpp, CharacterPetSpellRowLikeCpp,
 };
+#[cfg(test)]
 pub(crate) use wow_world_spell::{CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp};
 mod player_binding;
 use player_binding::PlayerIdentityBootstrapLikeCpp;
@@ -471,7 +473,6 @@ pub(crate) use spell_click_values::RepresentedVehicleEnterRequestLikeCpp;
 pub(crate) use spell_click_values::RepresentedVehicleSeatChangeRequestLikeCpp;
 #[cfg(test)]
 pub(crate) use spell_click_values::RepresentedVehicleSeatSpellClickRequestLikeCpp;
-use spell_click_values::represented_spell_click_school_damage_amount_like_cpp;
 use spell_click_values::spell_effect_has_non_or_db_nearby_entry_destination_like_cpp;
 use spell_click_values::spell_effect_is_represented_summon_object_slot_like_cpp;
 use wow_world_spell::spell_cast_adapter::represented_spell_cast_guid_for_map_like_cpp;
@@ -526,7 +527,7 @@ use std::sync::{
 };
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use rand::{Rng, seq::SliceRandom};
+use rand::Rng;
 #[cfg(test)]
 use rand::{SeedableRng, rngs::StdRng};
 use tracing::{debug, info, warn};
@@ -637,21 +638,21 @@ use wow_data::{
     MountStore, MountTypeXCapabilityStore, MountXDisplayStore, MovieStore,
     NpcSpellClickStoreLikeCpp, PhaseGroupStore, PhaseStore, PlayerConditionCountLikeCpp,
     PlayerConditionSkillLikeCpp, PlayerConditionStore, PlayerStatsStore, PvpItemStore,
-    RandPropPointsStore, RegenGameTablesLikeCpp, SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP,
-    ScriptIdLikeCpp, ScriptNameInternerLikeCpp, ShieldBlockRegularGameTableLikeCpp, SkillLineStore,
-    SkillStore, SkillTiersStoreLikeCpp, SpellAcquisitionCatalogLikeCpp, SpellAreaLikeCpp,
-    SpellAreaStoreLikeCpp, SpellAuraOptionsStore, SpellAuraRestrictionsStore, SpellCategoryStore,
-    SpellChainStoreLikeCpp, SpellCustomAttributeStoreLikeCpp, SpellDurationStore,
-    SpellEquippedItemsEntry, SpellEquippedItemsStore, SpellGroupStackRuleStoreLikeCpp,
-    SpellGroupStoreLikeCpp, SpellItemEnchantmentConditionStore, SpellItemEnchantmentStore,
-    SpellLearnSkillStoreLikeCpp, SpellLearnSpellStoreLikeCpp, SpellLevelsStore,
-    SpellLinkedStoreLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp, SpellProcStoreLikeCpp,
-    SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore,
-    SpellStore, SpellTargetPositionStoreLikeCpp, SpellTargetRestrictionsStore,
-    SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp, TactKeyStore, TalentStore, TalentTabStore,
-    TavernAreaTriggerStoreLikeCpp, ToyStore, TrainerStoreLikeCpp, TransmogSetItemStore,
-    TrinityStringStoreLikeCpp, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
-    WorldSafeLocStore, is_player_meeting_condition_like_cpp,
+    RandPropPointsStore, RegenGameTablesLikeCpp, ScriptIdLikeCpp, ScriptNameInternerLikeCpp,
+    ShieldBlockRegularGameTableLikeCpp, SkillLineStore, SkillStore, SkillTiersStoreLikeCpp,
+    SpellAcquisitionCatalogLikeCpp, SpellAreaStoreLikeCpp, SpellAuraOptionsStore,
+    SpellAuraRestrictionsStore, SpellCategoryStore, SpellChainStoreLikeCpp,
+    SpellCustomAttributeStoreLikeCpp, SpellDurationStore, SpellEquippedItemsEntry,
+    SpellEquippedItemsStore, SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp,
+    SpellItemEnchantmentConditionStore, SpellItemEnchantmentStore, SpellLearnSkillStoreLikeCpp,
+    SpellLearnSpellStoreLikeCpp, SpellLevelsStore, SpellLinkedStoreLikeCpp, SpellMiscStore,
+    SpellPetAuraStoreLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore,
+    SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore, SpellStore,
+    SpellTargetPositionStoreLikeCpp, SpellTargetRestrictionsStore, SpellThreatEntryLikeCpp,
+    SpellThreatStoreLikeCpp, TactKeyStore, TalentStore, TavernAreaTriggerStoreLikeCpp, ToyStore,
+    TrainerStoreLikeCpp, TransmogSetItemStore, TrinityStringStoreLikeCpp,
+    VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, WorldSafeLocStore,
+    is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, CurvePointStore, CurveStore, FactionEntry, FactionStore,
         FactionTemplateStore, FriendshipRepReactionStore, NumTalentsAtLevelStore,
@@ -788,7 +789,6 @@ const DEFAULT_VISIBILITY_DISTANCE_YARDS_LIKE_CPP: u32 = 100;
 const QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP: u32 = 0x1;
 const QUEST_FLAGS_PLAYER_CAST_ACCEPT_LIKE_CPP: u32 = 0x0010_0000;
 const QUEST_FLAGS_EX_RECAST_ACCEPT_SPELL_ON_LOGIN_LIKE_CPP: u32 = 0x0000_1000;
-pub(crate) use wow_world_core::session::MAX_SPECIALIZATIONS_LIKE_CPP;
 pub(crate) use wow_world_entities::spell_click_values::MAX_GAMEOBJECT_SLOT_LIKE_CPP;
 #[cfg(test)]
 pub(crate) use wow_world_spell::spell_cast_adapter::SPELL_CAST_SOURCE_NORMAL_LIKE_CPP;
@@ -834,9 +834,7 @@ use wow_world_core::session::PLAYER_FLAGS_IN_PVP_LIKE_CPP;
 const PLAYER_FLAGS_PVP_TIMER_LIKE_CPP: u32 = 0x0004_0000;
 use wow_world_core::session::SPELL_PVP_RULES_ENABLED_LIKE_CPP;
 const LANG_RESET_SPELLS_LIKE_CPP: u32 = 215;
-const LANG_RESET_TALENTS_LIKE_CPP: u32 = 216;
 const LANG_RESET_SPELLS_TEXT_LIKE_CPP: &str = "Your spells have been reset.";
-const LANG_RESET_TALENTS_TEXT_LIKE_CPP: &str = "Your talents have been reset.";
 #[cfg(test)]
 pub(crate) const TRADE_STATUS_PLAYER_BUSY_LIKE_CPP: u8 = 0;
 #[cfg(test)]
@@ -951,11 +949,13 @@ pub use wow_entities::{RepresentedAuraEffectAmountLikeCpp, RepresentedAuraEffect
 pub(crate) use wow_world_core::session::AFLAG_NOCASTER_LIKE_CPP;
 
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP: u32 = 0x0000_0800;
-pub(crate) const SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP: u32 = 0x0000_0008;
-pub(crate) const SPELL_AURA_INTERRUPT_FLAG_MOVING_OR_TURNING_LIKE_CPP: u32 =
-    SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP | SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP;
+#[cfg(test)]
+use wow_data::{SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP, SpellAreaLikeCpp};
 pub(crate) use wow_world_core::session::PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP;
+#[cfg(test)]
 pub(crate) use wow_world_entities::SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP;
+#[cfg(test)]
+pub(crate) use wow_world_spell::SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP;
 
 #[cfg(test)]
 #[path = "../../unit_tests/session_tests.rs"]

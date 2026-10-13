@@ -33,9 +33,9 @@ impl wow_world_spell::SpellbookHostLikeCpp for WorldSession {
         WorldSession::represented_auto_unequip_offhand_if_need_like_cpp(self, force)
     }
     fn remove_represented_auras_due_to_spell_like_cpp(&mut self, spell_id: i32) -> usize {
-        WorldSession::remove_represented_auras_due_to_spell_like_cpp(self, spell_id)
+        wow_world_spell::remove_represented_auras_due_to_spell_like_cpp(self, spell_id)
     }
     fn remove_auras_with_interrupt_flags_like_cpp(&mut self, flags: u32, flags2: u32) -> usize {
-        WorldSession::remove_auras_with_interrupt_flags_like_cpp(self, flags, flags2)
+        wow_world_spell::remove_auras_with_interrupt_flags_like_cpp(self, flags, flags2)
     }
 }

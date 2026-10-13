@@ -258,14 +258,14 @@ impl WorldSession {
                 continue;
             }
             if cast.caster == RepresentedSpellClickUnitRefLikeCpp::Clickee {
-                match self
-                    .execute_represented_spell_click_clickee_caster_like_cpp(
-                        creature_guid,
-                        cast,
-                        player_guid,
-                        clickee_owner_guid,
-                    )
-                    .await
+                match wow_world_spell::execute_represented_spell_click_clickee_caster_like_cpp(
+                    self,
+                    creature_guid,
+                    cast,
+                    player_guid,
+                    clickee_owner_guid,
+                )
+                .await
                 {
                     RepresentedSpellClickClickeeCasterOutcomeLikeCpp::Executed => {
                         outcome.executed_casts += 1;

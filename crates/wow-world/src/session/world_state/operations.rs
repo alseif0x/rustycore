@@ -362,7 +362,9 @@ impl WorldSession {
             return false;
         }
 
-        self.remove_indoor_outdoor_auras_for_current_position_represented_like_cpp();
+        wow_world_spell::remove_indoor_outdoor_auras_for_current_position_represented_like_cpp(
+            self,
+        );
 
         if area_id == 0 {
             return false;

@@ -8,7 +8,8 @@
 //! path for `wow_world_application::register_talent_handlers_like_cpp`. This
 //! adapter lends that registrar the same `WorldSession` operations with the
 //! same catalog destructuring the legacy closures used; the talent-reset
-//! commit and its publication stay in those operations.
+//! commit and its publication stay in those operations. The CMSG_LEARN_TALENT
+//! body lives in `wow_world_spell` (#1363 slice 9b) with this session as host.
 
 use wow_handler::HandlerFuture;
 use wow_packet::WorldPacket;
@@ -38,8 +39,12 @@ impl TalentHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            self.handle_learn_talent(catalogs.player_bootstrap.talent_tabs.as_ref(), pkt)
-                .await
+            wow_world_spell::handle_learn_talent(
+                self,
+                catalogs.player_bootstrap.talent_tabs.as_ref(),
+                pkt,
+            )
+            .await
         })
     }
 }
