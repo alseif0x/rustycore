@@ -16,9 +16,6 @@ pub use wow_world_core::session::SessionState;
 #[cfg(test)]
 pub(crate) use wow_world_social::{ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp};
 
-// Test-only: its production reader moved to `wow-world-character` (#1363 slice 8d).
-#[cfg(test)]
-pub(crate) use wow_world_lifecycle::ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP;
 pub(crate) use wow_world_lifecycle::{
     AccountDataLikeCpp, GLOBAL_CACHE_MASK_LIKE_CPP, PER_CHARACTER_CACHE_MASK_LIKE_CPP,
 };

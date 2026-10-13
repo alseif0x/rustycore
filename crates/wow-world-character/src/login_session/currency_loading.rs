@@ -30,10 +30,7 @@ pub async fn load_character_currencies_for_login_like_cpp<H: CharacterLoginHostL
         wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
             wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::Currencies(rows),
         ) => {
-            let Some(mut currencies) = ({
-                let (state, hub) = host.split_inventory_ref();
-                state.player_currencies_like_cpp(hub)
-            }) else {
+            let Some(mut currencies) = host.player_currencies_like_cpp() else {
                 warn!("canonical Player currency owner unavailable after currency load");
                 return false;
             };
@@ -59,10 +56,7 @@ pub async fn load_character_currencies_for_login_like_cpp<H: CharacterLoginHostL
                 }
             }
             let currency_count = currencies.len();
-            if !({
-                let (state, mut hub) = host.split_inventory_mut();
-                state.set_player_currencies_like_cpp(&mut hub, currencies)
-            }) {
+            if !host.set_player_currencies_like_cpp(currencies) {
                 warn!("canonical Player currency owner unavailable after currency load");
                 return false;
             }

@@ -52,16 +52,37 @@ use wow_world_loot::LootState;
 use wow_world_spell::SessionSpellState;
 use wow_world_visibility::VisibilityState;
 
+mod action_buttons;
+mod admission;
+mod aura_loading;
+mod cuf_profiles;
+mod currency_loading;
+mod default_skills;
 mod entry_zone;
+mod glyph_loading;
+mod group_loading;
 mod initial_packets;
 mod inventory_load;
 mod lifecycle;
-mod loaders;
 mod login_recovery;
 mod login_sequence;
+mod reputation_loading;
+mod skill_loading;
+mod spell_loading;
+mod spell_map_finalization;
+mod talent_loading;
+mod transport_restore;
 mod world_entry;
 
+pub use action_buttons::load_action_buttons_for_login_like_cpp;
+pub use admission::{LoginAdmissionDataLikeCpp, load_login_admission_data_like_cpp};
+pub use aura_loading::load_character_auras_for_login_like_cpp;
+pub use cuf_profiles::load_cuf_profiles_for_login_like_cpp;
+pub use currency_loading::load_character_currencies_for_login_like_cpp;
+pub use default_skills::apply_default_skills_for_login_like_cpp;
 pub use entry_zone::apply_post_add_zone_from_terrain_like_cpp;
+pub use glyph_loading::load_character_glyphs_for_login_like_cpp;
+pub use group_loading::load_group_membership_for_login_like_cpp;
 pub use initial_packets::send_initial_packets_after_add_to_map_with_catalogs_like_cpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use initial_packets::{
@@ -78,16 +99,6 @@ pub use lifecycle::{
     load_default_graveyard_homebind_like_cpp, load_map_corpse_data_like_cpp,
     load_player_customizations_like_cpp,
 };
-pub use loaders::{
-    LoginAdmissionDataLikeCpp, LoginSpellRowsLikeCpp, apply_default_skills_for_login_like_cpp,
-    finalize_player_spell_map_for_login_like_cpp, load_action_buttons_for_login_like_cpp,
-    load_character_auras_for_login_like_cpp, load_character_currencies_for_login_like_cpp,
-    load_character_favorite_spells_for_login_like_cpp, load_character_glyphs_for_login_like_cpp,
-    load_character_reputation_for_login_like_cpp, load_character_skill_rows_for_login_like_cpp,
-    load_character_spell_rows_for_login_like_cpp, load_character_talents_for_login_like_cpp,
-    load_cuf_profiles_for_login_like_cpp, load_group_membership_for_login_like_cpp,
-    load_login_admission_data_like_cpp, restore_persisted_transport_for_login_like_cpp,
-};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use login_recovery::continue_login_after_grid_load_like_cpp;
 pub use login_recovery::{
@@ -98,6 +109,15 @@ pub use login_recovery::{
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use login_sequence::resolve_persisted_transport_login_like_cpp;
 pub use login_sequence::send_login_sequence;
+pub use reputation_loading::load_character_reputation_for_login_like_cpp;
+pub use skill_loading::load_character_skill_rows_for_login_like_cpp;
+pub use spell_loading::{
+    LoginSpellRowsLikeCpp, load_character_favorite_spells_for_login_like_cpp,
+    load_character_spell_rows_for_login_like_cpp,
+};
+pub use spell_map_finalization::finalize_player_spell_map_for_login_like_cpp;
+pub use talent_loading::load_character_talents_for_login_like_cpp;
+pub use transport_restore::restore_persisted_transport_for_login_like_cpp;
 pub use world_entry::{
     fallback_direct_login, handle_logout_request_with_generator_like_cpp,
     player_login_combat_stats_like_cpp,
@@ -120,6 +140,7 @@ pub trait CharacterLoginHostLikeCpp:
     fn apply_loaded_inventory_item_collection_hooks_like_cpp(&mut self, item: &wow_entities::Item);
     fn cleanup_shared_runtime_state(&mut self) -> FinalizationOutcome;
     fn clear_player_currencies_like_cpp(&mut self) -> bool;
+    #[allow(clippy::too_many_arguments)]
     fn ensure_login_player_controller_like_cpp(
         &mut self,
         guid: ObjectGuid,
@@ -156,6 +177,7 @@ pub trait CharacterLoginHostLikeCpp:
         effect_rows: impl IntoIterator<Item = CharacterAuraEffectRowLikeCpp>,
         timediff_secs: u32,
     ) -> usize;
+    #[allow(clippy::too_many_arguments)]
     fn load_represented_equipment_set_row_like_cpp(
         &mut self,
         guid: u64,
@@ -184,6 +206,7 @@ pub trait CharacterLoginHostLikeCpp:
     fn mark_represented_spell_acquisition_snapshot_complete_like_cpp(&mut self);
     fn mark_represented_talents_loaded_like_cpp(&mut self);
     fn notify_other_players_visibility_changed_like_cpp(&self);
+    fn player_currencies_like_cpp(&self) -> Option<HashMap<u32, PlayerCurrency>>;
     fn prepare_represented_void_storage_login_load_like_cpp(&mut self) -> bool;
     fn quest_log_create_entries_like_cpp(&self) -> Vec<(u32, u32, i64, [u16; 24])>;
     fn register_in_player_registry(&self);
@@ -206,6 +229,7 @@ pub trait CharacterLoginHostLikeCpp:
         rows: impl IntoIterator<Item = RepresentedPlayerSpellLikeCpp>,
     ) -> bool;
     fn set_owned_player_group_like_cpp(&mut self, membership: Option<(u64, u8)>) -> bool;
+    fn set_player_currencies_like_cpp(&mut self, currencies: HashMap<u32, PlayerCurrency>) -> bool;
     fn set_player_aura_authority_complete_like_cpp(&mut self, complete: bool) -> bool;
     fn set_player_guid(&mut self, guid: Option<ObjectGuid>);
     fn set_player_moved_unit_guid_like_cpp(&mut self, guid: ObjectGuid);
@@ -233,3 +257,7 @@ pub trait CharacterLoginHostLikeCpp:
         new_area: u32,
     ) -> bool;
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/login_session_scans.rs"]
+mod tests;

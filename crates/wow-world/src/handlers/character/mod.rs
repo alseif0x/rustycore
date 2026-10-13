@@ -58,12 +58,10 @@ use wow_constants::unit::{UNIT_FLAGS2_ALLOWED_LIKE_CPP, UNIT_FLAGS3_ALLOWED_LIKE
 use wow_constants::{
     ConditionSourceType, InventoryResult, ItemContext, TypeId, TypeMask, UnitStandStateType,
 };
-// Test-only: their production readers moved to `wow-world-character` (#1363 slice 8d).
+// Test-only: their production readers moved to `wow-world-inventory` (#1363 slice 8b)
+// and `wow-world-character` (#1363 slice 8d).
 #[cfg(test)]
-use wow_constants::{InventoryType, ItemFieldFlags, PowerType};
-// Test-only: its production readers moved to `wow-world-inventory` (#1363 slice 8b).
-#[cfg(test)]
-use wow_constants::ItemVendorType;
+use wow_constants::{InventoryType, ItemFieldFlags, ItemVendorType, PowerType};
 // Test-only: its production readers were the character/account registrations that
 // moved to `wow-world-application` under #1263 F5; the character scenarios still
 // reach these three names through `super::*`.
@@ -72,13 +70,10 @@ use wow_constants::ClientOpcodes;
 use wow_core::{ObjectGuid, Position};
 use wow_crypto::rsa_sign::rsa_sign_connect_to;
 #[cfg(test)]
-use wow_data::PlayerCreatePositionLikeCpp;
+use wow_data::{PlayerCreateInfoLikeCpp, PlayerCreatePositionLikeCpp};
 // Test-only: its production caller moved to `wow-world-character` (#1263 F5, #1363 A5).
 #[cfg(test)]
 use wow_data::PlayerStatSystemProjectionLikeCpp;
-// Test-only: its production reader moved to `wow-world-character` (#1363 slice 8d).
-#[cfg(test)]
-use wow_data::PlayerCreateInfoLikeCpp;
 use wow_data::{
     ConditionEntriesByTypeStore, ConditionId, CurrencyTypesStore, HotfixRecordStatus,
     ItemExtendedCostStore, PlayerConditionContextLikeCpp, PlayerConditionStore,
@@ -100,18 +95,19 @@ use wow_entities::MovementGeneratorType;
 use wow_entities::{
     GAMEOBJECT_TYPE_QUESTGIVER, INVENTORY_DEFAULT_SIZE, SendNewItemPlan, WorldObject,
 };
-// Test-only: their production reader moved to `wow-world-character` (#1363 slice 8d).
+// Test-only: their production readers moved to `wow-world-inventory` (#1363 slice 8b)
+// and `wow-world-character` (#1363 slice 8d).
 #[cfg(test)]
-use wow_entities::{INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START};
-// Test-only: their production readers moved to `wow-world-inventory` (#1363 slice 8b).
-#[cfg(test)]
-use wow_entities::INVENTORY_SLOT_ITEM_START;
+use wow_entities::{INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START};
 // Test-only: the production registration source that used these two moved to the
 // application crate's character/account area registrar under #1263 F5.
 #[cfg(test)]
 use wow_handler::{PacketProcessing, SessionStatus};
 #[cfg(test)]
-pub(crate) use wow_world_lifecycle::login_transport::GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT_LIKE_CPP;
+pub(crate) use wow_world_lifecycle::login_transport::{
+    GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT_LIKE_CPP,
+    player_visibility_create_update_from_snapshot_like_cpp,
+};
 
 // The character/account packet registrations that used to reach
 // `crate::session::registry::PacketHandlerEntry` from here moved to the
@@ -151,32 +147,25 @@ use creation_support::{default_character_power1_like_cpp, start_position, start_
 use enumeration_support::{enum_character_flags_like_cpp, enum_character_pet_data_like_cpp};
 use login_support::*;
 use login_transport_support::{MapTransportCreateLikeCpp, TransportCreatePositionLikeCpp};
-// Test-only: the character scenarios still reach these names through
-// `super::*`; their production readers moved to `wow-world-character`
-// (#1363 slice 8d).
-#[cfg(test)]
-pub(crate) use login_transport_support::player_visibility_create_update_from_snapshot_like_cpp;
-#[cfg(test)]
-use wow_constants::character::RESPONSE_SUCCESS_LIKE_CPP;
-#[cfg(test)]
-use wow_core::guid::HighGuid;
-#[cfg(test)]
-use wow_packet::packets::character::*;
-#[cfg(test)]
-use wow_packet::packets::movement::TransportInfo;
-#[cfg(test)]
-use wow_world_core::corpse_load::MapCorpseLoadOutcomeLikeCpp;
-#[cfg(test)]
-use wow_world_inventory::loaded_item_support::*;
-// Test-only: their production readers moved to `wow-world-character` (#1363 slice 8d).
-#[cfg(test)]
-use login_transport_support::{
-    compose_init_self_create_blocks_like_cpp, transport_route_contains_saved_map_like_cpp,
-    validate_persisted_transport_login_like_cpp,
-};
 #[cfg(test)]
 use wow_entities::GAMEOBJECT_TYPE_GOOBER;
 use wow_progression::mgr::CharacterReputationRowLikeCpp;
+
+// Test-only: the scenarios reach these through `super::*`; their production
+// readers moved to `wow-world-character` (#1363 slice 8d).
+#[cfg(test)]
+use {
+    login_transport_support::{
+        compose_init_self_create_blocks_like_cpp, transport_route_contains_saved_map_like_cpp,
+        validate_persisted_transport_login_like_cpp,
+    },
+    wow_constants::character::RESPONSE_SUCCESS_LIKE_CPP,
+    wow_core::guid::HighGuid,
+    wow_packet::packets::{character::*, movement::TransportInfo},
+    wow_world_character::{motd_lines_like_cpp, void_storage_login_context_like_cpp},
+    wow_world_core::corpse_load::MapCorpseLoadOutcomeLikeCpp,
+    wow_world_inventory::loaded_item_support::*,
+};
 
 // ── Handler registration ────────────────────────────────────────────
 
@@ -321,11 +310,9 @@ fn loaded_inventory_slot_count_with_legacy_rust_compat(saved_slots: u8) -> u8 {
 #[cfg(test)]
 const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xDF2F_53CF;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
-// Test-only: its production reader (the rename result) moved to
-// `wow-world-character` (#1363 slice 8d), which uses its own identical constant.
+// Test-only since #1363 slice 8d (the rename result uses the character crate's own).
 #[cfg(test)]
 const CHAR_CREATE_ERROR_LIKE_CPP: u8 = 25;
-// Test-only: their production readers moved to `wow-world-character` (#1363 slice 8d).
 pub(crate) use wow_constants::character::{
     AT_LOGIN_CHANGE_FACTION_LIKE_CPP, AT_LOGIN_CHANGE_RACE_LIKE_CPP, AT_LOGIN_FIRST_LIKE_CPP,
     AT_LOGIN_RENAME_LIKE_CPP, AT_LOGIN_RESURRECT_LIKE_CPP, CHAR_CUSTOMIZE_FLAG_CUSTOMIZE_LIKE_CPP,
@@ -334,8 +321,6 @@ pub(crate) use wow_constants::character::{
     CHARACTER_FLAG_RENAME_LIKE_CPP, CLASS_DEATH_KNIGHT_LIKE_CPP, CLASS_HUNTER_LIKE_CPP,
     CLASS_WARLOCK_LIKE_CPP, PLAYER_FLAGS_GHOST_LIKE_CPP,
 };
-#[cfg(test)]
-use wow_world_character::{motd_lines_like_cpp, void_storage_login_context_like_cpp};
 // Test-only: their production readers moved to `wow-world-character` (#1263 F5, #1363 A5).
 #[cfg(test)]
 pub(crate) use wow_constants::character::{

@@ -11,10 +11,24 @@ use super::super::spell_rules::{
 };
 use super::super::vendor::rules::{LoadedItemRefundDecision, loaded_item_refund_decision};
 use super::*;
+use wow_world_character::{
+    LoginAdmissionDataLikeCpp, LoginSpellRowsLikeCpp, abort_partial_login_sequence_like_cpp,
+    apply_default_skills_for_login_like_cpp, delete_invalid_character_homebind_like_cpp,
+    finalize_player_spell_map_for_login_like_cpp, load_action_buttons_for_login_like_cpp,
+    load_character_auras_for_login_like_cpp, load_character_currencies_for_login_like_cpp,
+    load_character_favorite_spells_for_login_like_cpp, load_character_glyphs_for_login_like_cpp,
+    load_character_reputation_for_login_like_cpp, load_character_skill_rows_for_login_like_cpp,
+    load_character_spell_rows_for_login_like_cpp, load_character_talents_for_login_like_cpp,
+    load_cuf_profiles_for_login_like_cpp, load_group_membership_for_login_like_cpp,
+    load_inventory_for_login_like_cpp, load_login_admission_data_like_cpp,
+    player_login_combat_stats_like_cpp, repair_character_homebind_like_cpp,
+    restore_persisted_transport_for_login_like_cpp, retry_login_at_homebind_like_cpp,
+    seed_login_location_zone_area_like_cpp, send_login_sequence,
+};
 
 mod mail_loading;
 
-use wow_world_character::LoginAdmissionDataLikeCpp;
+use LoginAdmissionDataLikeCpp;
 
 impl WorldSession {
     /// Continue the player login after the instance socket is connected.
@@ -112,13 +126,7 @@ impl WorldSession {
             battleground_login_data,
             homebind: loaded_login_homebind,
             guild_id: loaded_guild_id_like_cpp,
-        }) = wow_world_character::load_login_admission_data_like_cpp(
-            self,
-            &player_lifecycle_port,
-            guid,
-            map_id,
-        )
-        .await
+        }) = load_login_admission_data_like_cpp(self, &player_lifecycle_port, guid, map_id).await
         else {
             return;
         };
@@ -146,12 +154,12 @@ impl WorldSession {
                 player_guid = guid.counter(),
                 "repairing invalid, instanceable, or expansion-inaccessible character homebind like C++ Player::_LoadHomeBind"
             );
-            wow_world_character::delete_invalid_character_homebind_like_cpp(self, guid).await;
+            delete_invalid_character_homebind_like_cpp(self, guid).await;
         }
         let repaired_or_valid_homebind = if let Some(homebind) = valid_login_homebind {
             Some(homebind)
         } else {
-            wow_world_character::repair_character_homebind_like_cpp(
+            repair_character_homebind_like_cpp(
                 self,
                 guid,
                 race,
@@ -276,12 +284,7 @@ impl WorldSession {
             base_row.summoned_pet_number.unwrap_or(0),
         )
         .await;
-        wow_world_character::load_group_membership_for_login_like_cpp(
-            self,
-            &player_lifecycle_port,
-            guid,
-        )
-        .await;
+        load_group_membership_for_login_like_cpp(self, &player_lifecycle_port, guid).await;
         crate::session::hub_mut(self).refresh_next_level_xp_with_catalogs_like_cpp(progression);
         self.clamp_loaded_player_xp_to_next_level_like_cpp();
         if saved_character_map_is_battleground {
@@ -300,9 +303,7 @@ impl WorldSession {
                     .expect("validated battleground login fallback map ID");
                 map_id = i32::from(fallback_map_id);
                 position = fallback.position;
-                wow_world_character::seed_login_location_zone_area_like_cpp(
-                    self, &mut zone, fallback,
-                );
+                seed_login_location_zone_area_like_cpp(self, &mut zone, fallback);
                 crate::session::hub_mut(self)
                     .set_player_map_position_like_cpp(fallback_map_id, fallback.position);
                 let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
@@ -321,7 +322,7 @@ impl WorldSession {
         } else if attached_controller {
             let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
         }
-        if wow_world_character::retry_login_at_homebind_like_cpp(
+        if retry_login_at_homebind_like_cpp(
             self,
             &mut map_id,
             &mut zone,
@@ -371,13 +372,8 @@ impl WorldSession {
         let account_mount_rows_complete_like_cpp = self.load_account_mounts_like_cpp().await;
 
         let realm_id = self.realm_id();
-        let inventory = wow_world_character::load_inventory_for_login_like_cpp(
-            self,
-            &player_lifecycle_port,
-            guid,
-            realm_id,
-        )
-        .await;
+        let inventory =
+            load_inventory_for_login_like_cpp(self, &player_lifecycle_port, guid, realm_id).await;
         let Some(inventory) = inventory else {
             return;
         };
@@ -388,53 +384,28 @@ impl WorldSession {
         let loaded_item_time_updates = inventory.loaded_item_time_updates;
         let loaded_non_equipped_enchantment_updates =
             inventory.loaded_non_equipped_enchantment_updates;
-        wow_world_character::load_cuf_profiles_for_login_like_cpp(
-            self,
-            &player_lifecycle_port,
-            guid,
-        )
-        .await;
+        load_cuf_profiles_for_login_like_cpp(self, &player_lifecycle_port, guid).await;
 
-        if !wow_world_character::load_character_currencies_for_login_like_cpp(
-            self,
-            &player_lifecycle_port,
-            guid,
-        )
-        .await
-        {
+        if !load_character_currencies_for_login_like_cpp(self, &player_lifecycle_port, guid).await {
             return;
         }
 
         // ── Load known spells from character_spell ──
-        let wow_world_character::LoginSpellRowsLikeCpp {
+        let LoginSpellRowsLikeCpp {
             player_spell_rows: loaded_player_spell_rows,
             side_effect_spells: mut loaded_spell_side_effect_spells,
             mut known_spells,
             complete: loaded_player_spell_rows_complete_like_cpp,
-        } = wow_world_character::load_character_spell_rows_for_login_like_cpp(
-            self,
-            &player_lifecycle_port,
-            guid,
-        )
-        .await;
+        } = load_character_spell_rows_for_login_like_cpp(self, &player_lifecycle_port, guid).await;
         let (favorite_spell_rows, favorite_spell_rows_complete_like_cpp) =
-            wow_world_character::load_character_favorite_spells_for_login_like_cpp(
-                self,
-                &player_lifecycle_port,
-                guid,
-            )
-            .await;
+            load_character_favorite_spells_for_login_like_cpp(self, &player_lifecycle_port, guid)
+                .await;
         let mut skill_rewarded_dependent_spells = HashSet::new();
         let mut skill_rewarded_removed_spells = HashSet::new();
 
         // ── C++ Player::_LoadSkills ──
         let (mut skill_records, loaded_skill_records_like_cpp) =
-            wow_world_character::load_character_skill_rows_for_login_like_cpp(
-                self,
-                &player_lifecycle_port,
-                guid,
-            )
-            .await;
+            load_character_skill_rows_for_login_like_cpp(self, &player_lifecycle_port, guid).await;
         let mut skill_info_by_id = BTreeMap::<u16, wow_data::SkillInfoEntry>::new();
 
         // C++ `_LoadSkills` rejects forbidden race/class rows, fixes language,
@@ -514,16 +485,15 @@ impl WorldSession {
             );
         }
 
-        let talent_rows_complete_like_cpp =
-            wow_world_character::load_character_talents_for_login_like_cpp(
-                self,
-                &player_lifecycle_port,
-                player_bootstrap,
-                guid,
-                &mut known_spells,
-                &mut skill_rewarded_dependent_spells,
-            )
-            .await;
+        let talent_rows_complete_like_cpp = load_character_talents_for_login_like_cpp(
+            self,
+            &player_lifecycle_port,
+            player_bootstrap,
+            guid,
+            &mut known_spells,
+            &mut skill_rewarded_dependent_spells,
+        )
+        .await;
 
         let custom_spell_count = self.apply_represented_start_all_spells_with_catalogs_like_cpp(
             player_bootstrap,
@@ -615,7 +585,7 @@ impl WorldSession {
             );
         }
 
-        wow_world_character::load_character_glyphs_for_login_like_cpp(
+        load_character_glyphs_for_login_like_cpp(
             self,
             &player_lifecycle_port,
             player_bootstrap,
@@ -623,43 +593,33 @@ impl WorldSession {
         )
         .await;
 
-        let Some(action_buttons) = wow_world_character::load_action_buttons_for_login_like_cpp(
-            self,
-            &player_lifecycle_port,
-            guid,
-        )
-        .await
+        let Some(action_buttons) =
+            load_action_buttons_for_login_like_cpp(self, &player_lifecycle_port, guid).await
         else {
             return;
         };
 
         // Store current map and character info for VALUES updates + stat recalculation
         self.set_loaded_player_identity_like_cpp(map_id as u16, race, class, level, gender);
-        let validated_persisted_transport_login =
-            wow_world_character::restore_persisted_transport_for_login_like_cpp(
-                self,
-                guid,
-                saved_transport_guid_low,
-                saved_map_id_for_transport,
-                saved_transport_position,
-                saved_character_map_is_battleground,
-                login_homebind,
-                attached_controller,
-                &mut map_id,
-                &mut zone,
-                &mut position,
-            )
-            .await;
+        let validated_persisted_transport_login = restore_persisted_transport_for_login_like_cpp(
+            self,
+            guid,
+            saved_transport_guid_low,
+            saved_map_id_for_transport,
+            saved_transport_position,
+            saved_character_map_is_battleground,
+            login_homebind,
+            attached_controller,
+            &mut map_id,
+            &mut zone,
+            &mut position,
+        )
+        .await;
         crate::session::hub_mut(self).refresh_next_level_xp_with_catalogs_like_cpp(progression);
         // NOTE: known_spells is stored below after DBC merge (see "Merge DBC auto-learned spells")
 
         let reputation_rows_complete_like_cpp =
-            wow_world_character::load_character_reputation_for_login_like_cpp(
-                self,
-                &player_lifecycle_port,
-                guid,
-            )
-            .await;
+            load_character_reputation_for_login_like_cpp(self, &player_lifecycle_port, guid).await;
 
         // C++ `Player::LoadFromDB` restores `fields.health` after `UpdateAllStats`,
         // clamping it to the recalculated max and preserving zero as corpse state.
@@ -674,16 +634,14 @@ impl WorldSession {
         self.load_player_quests().await;
 
         let persisted_skill_count = skill_info_by_id.len();
-        let Some(default_skill_entries) =
-            wow_world_character::apply_default_skills_for_login_like_cpp(
-                self,
-                race,
-                class,
-                level,
-                &mut skill_records,
-                &mut skill_info_by_id,
-            )
-        else {
+        let Some(default_skill_entries) = apply_default_skills_for_login_like_cpp(
+            self,
+            race,
+            class,
+            level,
+            &mut skill_records,
+            &mut skill_info_by_id,
+        ) else {
             return;
         };
 
@@ -746,7 +704,7 @@ impl WorldSession {
             && talent_rows_complete_like_cpp
             && account_mount_rows_complete_like_cpp
             && reputation_rows_complete_like_cpp;
-        wow_world_character::finalize_player_spell_map_for_login_like_cpp(
+        finalize_player_spell_map_for_login_like_cpp(
             self,
             guid,
             loaded_player_spell_rows,
@@ -784,12 +742,7 @@ impl WorldSession {
         self.load_completed_achievements_like_cpp().await;
         self.load_instance_time_restrictions_like_cpp().await;
         self.load_player_account_data_like_cpp(guid).await;
-        wow_world_character::load_character_auras_for_login_like_cpp(
-            self,
-            &player_lifecycle_port,
-            guid,
-        )
-        .await;
+        load_character_auras_for_login_like_cpp(self, &player_lifecycle_port, guid).await;
         // C++ `Player::LoadFromDB` runs `_LoadAuras` before `_LoadInventory`,
         // whose final `_ApplyAllItemMods` pass applies, for each equipment slot,
         // the item-set effect, regular equip spell, and enchantments before
@@ -817,14 +770,8 @@ impl WorldSession {
         // `_LoadAuras` and `_LoadInventory` have applied every aura and item
         // modifier. Build the initial self snapshot at the same boundary.
         let (combat, base_mana_like_cpp, current_power0) = if let Some(combat) =
-            wow_world_character::player_login_combat_stats_like_cpp(
-                self,
-                race,
-                class,
-                level,
-                saved_health,
-                saved_power0,
-            ) {
+            player_login_combat_stats_like_cpp(self, race, class, level, saved_health, saved_power0)
+        {
             combat
         } else {
             warn!(
@@ -875,7 +822,7 @@ impl WorldSession {
                 spell_charge_entries.clone(),
             );
 
-        if !wow_world_character::send_login_sequence(
+        if !send_login_sequence(
             self,
             item_guid_generator,
             player_bootstrap.trait_node_entries.as_ref(),
@@ -909,7 +856,7 @@ impl WorldSession {
         )
         .await
         {
-            wow_world_character::abort_partial_login_sequence_like_cpp(self);
+            abort_partial_login_sequence_like_cpp(self);
             return;
         }
         self.send_item_time_update_plans(&loaded_item_time_updates);

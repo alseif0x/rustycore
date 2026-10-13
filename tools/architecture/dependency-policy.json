@@ -152,17 +152,23 @@
       "wow-social"
     ],
     "wow-world-character": [
+      "wow-config",
       "wow-constants",
       "wow-core",
       "wow-data",
       "wow-entities",
       "wow-handler",
+      "wow-network",
       "wow-packet",
       "wow-persistence",
+      "wow-progression",
       "wow-world-core",
       "wow-world-entities",
       "wow-world-inventory",
-      "wow-world-lifecycle"
+      "wow-world-lifecycle",
+      "wow-world-loot",
+      "wow-world-spell",
+      "wow-world-visibility"
     ],
     "wow-world-creature": [
       "wow-ai",
@@ -668,6 +674,9 @@
       },
       "wow-world-character": {
         "normal": [
+          "flume",
+          "num-traits",
+          "tokio",
           "tracing"
         ],
         "build": []

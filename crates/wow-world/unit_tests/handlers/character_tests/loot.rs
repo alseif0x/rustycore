@@ -62,6 +62,7 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         include_str!("../../../src/handlers/character/items.rs"),
         include_str!("../../../src/handlers/character/items/handlers.rs"),
         include_str!("../../../src/handlers/character/items/equipment_sets.rs"),
+        include_str!("../../../src/handlers/character/items/host.rs"),
         include_str!("../../../../wow-world-character/src/login_session/inventory_load.rs"),
         // #1363 slice 8c: the item handler, inventory move and autobank bodies
         // moved to wow-world-inventory (item_session), so the scan follows them there.
@@ -74,7 +75,6 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         include_str!("../../../../wow-world-inventory/src/item_session/real_swap.rs"),
         include_str!("../../../../wow-world-character/src/login_session/lifecycle.rs"),
         include_str!("../../../src/handlers/character/query.rs"),
-        include_str!("../../../src/handlers/character/session_state.rs"),
         include_str!("../../../../wow-world-character/src/login_session/login_sequence.rs"),
         include_str!("../../../../wow-world-spell/src/login_spell_rules.rs"),
         include_str!("../../../src/handlers/character/stats.rs"),
@@ -94,34 +94,25 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         include_str!("../../../../wow-world-inventory/src/vendor_session/repair.rs"),
         include_str!("../../../../wow-world-inventory/src/vendor_session/sell.rs"),
         include_str!("../../../src/handlers/character/visibility.rs"),
-        include_str!("../../../src/handlers/character/world_entry.rs"),
         include_str!("../../../../wow-world-character/src/login_session/world_entry.rs"),
         include_str!("../../../../wow-world-character/src/login_session/initial_packets.rs"),
         include_str!("../../../src/handlers/character/world_entry/login.rs"),
-        include_str!("../../../../wow-world-character/src/login_session/loaders/admission.rs"),
-        include_str!("../../../../wow-world-character/src/login_session/loaders/action_buttons.rs"),
-        include_str!("../../../../wow-world-character/src/login_session/loaders/aura_loading.rs"),
-        include_str!("../../../../wow-world-character/src/login_session/loaders/cuf_profiles.rs"),
-        include_str!(
-            "../../../../wow-world-character/src/login_session/loaders/currency_loading.rs"
-        ),
-        include_str!("../../../../wow-world-character/src/login_session/loaders/default_skills.rs"),
-        include_str!("../../../../wow-world-character/src/login_session/loaders/glyph_loading.rs"),
-        include_str!("../../../../wow-world-character/src/login_session/loaders/group_loading.rs"),
+        include_str!("../../../../wow-world-character/src/login_session/admission.rs"),
+        include_str!("../../../../wow-world-character/src/login_session/action_buttons.rs"),
+        include_str!("../../../../wow-world-character/src/login_session/aura_loading.rs"),
+        include_str!("../../../../wow-world-character/src/login_session/cuf_profiles.rs"),
+        include_str!("../../../../wow-world-character/src/login_session/currency_loading.rs"),
+        include_str!("../../../../wow-world-character/src/login_session/default_skills.rs"),
+        include_str!("../../../../wow-world-character/src/login_session/glyph_loading.rs"),
+        include_str!("../../../../wow-world-character/src/login_session/group_loading.rs"),
         include_str!("../../../src/handlers/character/world_entry/login/mail_loading.rs"),
         include_str!("../../../../wow-world-lifecycle/src/pet_session/login_loading.rs"),
-        include_str!(
-            "../../../../wow-world-character/src/login_session/loaders/reputation_loading.rs"
-        ),
-        include_str!("../../../../wow-world-character/src/login_session/loaders/skill_loading.rs"),
-        include_str!("../../../../wow-world-character/src/login_session/loaders/spell_loading.rs"),
-        include_str!(
-            "../../../../wow-world-character/src/login_session/loaders/spell_map_finalization.rs"
-        ),
-        include_str!("../../../../wow-world-character/src/login_session/loaders/talent_loading.rs"),
-        include_str!(
-            "../../../../wow-world-character/src/login_session/loaders/transport_restore.rs"
-        ),
+        include_str!("../../../../wow-world-character/src/login_session/reputation_loading.rs"),
+        include_str!("../../../../wow-world-character/src/login_session/skill_loading.rs"),
+        include_str!("../../../../wow-world-character/src/login_session/spell_loading.rs"),
+        include_str!("../../../../wow-world-character/src/login_session/spell_map_finalization.rs"),
+        include_str!("../../../../wow-world-character/src/login_session/talent_loading.rs"),
+        include_str!("../../../../wow-world-character/src/login_session/transport_restore.rs"),
         include_str!("../../../../wow-world-character/src/login_session/login_recovery.rs"),
     );
     // #236 split the former `session.rs`; the committed-money callers stayed

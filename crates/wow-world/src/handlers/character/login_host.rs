@@ -58,6 +58,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
     fn clear_player_currencies_like_cpp(&mut self) -> bool {
         WorldSession::clear_player_currencies_like_cpp(self)
     }
+    #[allow(clippy::too_many_arguments)]
     fn ensure_login_player_controller_like_cpp(
         &mut self,
         guid: ObjectGuid,
@@ -115,6 +116,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
             timediff_secs,
         )
     }
+    #[allow(clippy::too_many_arguments)]
     fn load_represented_equipment_set_row_like_cpp(
         &mut self,
         guid: u64,
@@ -174,6 +176,9 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
     fn notify_other_players_visibility_changed_like_cpp(&self) {
         WorldSession::notify_other_players_visibility_changed_like_cpp(self)
     }
+    fn player_currencies_like_cpp(&self) -> Option<HashMap<u32, PlayerCurrency>> {
+        WorldSession::player_currencies_like_cpp(self)
+    }
     fn prepare_represented_void_storage_login_load_like_cpp(&mut self) -> bool {
         WorldSession::prepare_represented_void_storage_login_load_like_cpp(self)
     }
@@ -229,6 +234,9 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
     }
     fn set_owned_player_group_like_cpp(&mut self, membership: Option<(u64, u8)>) -> bool {
         WorldSession::set_owned_player_group_like_cpp(self, membership)
+    }
+    fn set_player_currencies_like_cpp(&mut self, currencies: HashMap<u32, PlayerCurrency>) -> bool {
+        WorldSession::set_player_currencies_like_cpp(self, currencies)
     }
     fn set_player_aura_authority_complete_like_cpp(&mut self, complete: bool) -> bool {
         WorldSession::set_player_aura_authority_complete_like_cpp(self, complete)
