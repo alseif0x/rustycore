@@ -4043,3 +4043,92 @@ the PR body. This section is not edited after that run.
     prerequisite.
   - Slice 9 (spell effects) should take the spellbook learn/remove closure
     first, which unblocks the talents.
+
+## Slice 8 plan (character, phase 2)
+
+Measured on `518d8bd66` (7c merged) before anything moved, with the slice 5
+and 7 tools: the hotspot classifier for production lines, and a lexical scan
+of each family's files. The scan blanks comments, literals and every item or
+statement behind `#[cfg(test)]`/`#[cfg(any(test, feature = "test-fixtures"))]`
+(nested ones too), then counts the `self.`/`session.` calls to inherent
+`WorldSession` methods defined outside the family. That count is the host
+surface if only the family moves.
+
+- **`wow-world` production (classifier): 70,077** lines, 75,090 physical,
+  506 files.
+- **The character family is `handlers/character/**`: 14,788 production
+  lines.** The original row estimated about 12.5k.
+
+| Family | Files | Production | Outside calls | Destination |
+|---|---|---:|---:|---|
+| Visibility (nearby creature/gameobject create, visibility update, spawn-row materialization) | `visibility.rs`, `visibility/{creatures,gameobjects}.rs` + about 90 lines of `mod.rs` helpers | 1,569 | 21 | entities |
+| Vendor and bank (list, buy, sell, buyback, repair, extended cost, bank slots, autobank) | `vendor.rs`, `vendor/*`, `vendor_admission.rs`, `bank.rs` | 3,073 | 70 | inventory |
+| Item handlers and inventory moves (swap/split/destroy, real swap, item mutations, equipment sets) | `items.rs`, `items/{handlers,destruction,equipment_sets}.rs`, `items/inventory_moves*` | 2,480 | 45 | inventory (the `inventory_swap` users stay behind the host) |
+| Gossip (hello, menu build, select, binder) | `gossip.rs` | 747 | 22 (5 into vendor, bank, trainer) | character |
+| Character lifecycle (realm list, rename, hearth, entry zone) | `lifecycle.rs`, `entry_zone.rs` | 292 | 7 | character |
+| Login load (world entry, initial packets, login loaders, login data, item login load, recovery, transport restore) | `world_entry.rs`, `world_entry/**`, `session_state*`, `items/login_load.rs` | 4,739 | 152 | character |
+| Quest-giver status queries | `query.rs` (+ `query/test_shims.rs`, 77, `cfg(test)`-mounted) | 286 | 4 | stays: it names quest types, and character may not reach quest |
+| Adapters, shared helpers and composition (`account/**`, `character_handler_host.rs`, `mod.rs`, stats, the support stubs) | | 1,602 | — | stays (F5 adapters and registrar composition) |
+
+Findings:
+
+- **Visibility has the lowest surface per line.** Of its 21 outside calls,
+  `send_packet` and `can_see_phase_shift_like_cpp` are already on the hub and
+  entities host traits. `realm_id` and `player_registry` are one-line
+  `self.core.X()` forwards (the 7a rewrite), and four more (aggro radius,
+  creature stats, the two gameobject records) are one-statement
+  `split_world_entities_*` forwards that inline as the same state call with
+  the hub (the 7c rewrite). That leaves about 13 host operations plus the
+  lifecycle and visibility accessors and the quest-state visibility refresh
+  flag.
+- **Visibility goes to entities, not to `wow-world-visibility`.** The bodies
+  read and write `WorldEntitiesState` (the materialized creature
+  registration, the gameobject overrides and records), which lives in
+  entities, and `wow-world-visibility` sits below lifecycle and entities.
+  Entities gains a direct edge to `wow-world-visibility`
+  (`VisibilityState`); it already reaches it through lifecycle.
+- **Gossip does not go to interaction.** It calls
+  `represented_gameobject_gossip_can_interact_with_like_cpp` in entities,
+  and entities depends on interaction. It goes to character after vendor and
+  bank, so its five calls into them become free calls.
+- **Vendor and bank are the largest host surface** (70): money persistence
+  and its exclusive transaction, the quest-objective drain, the item store
+  and publication operations, currencies and buyback. 8b re-measures which
+  of these are already inventory free functions; if the share stays above
+  15 % it splits buy/sell/buyback from repair and bank.
+- **Login load is #169-sensitive** (login/logout ordering, the persistence
+  fences of the loaders) and has the largest surface (152). It goes last.
+
+**Closure pre-check.** Every edge the plan may need was simulated on the
+base with `tools/architecture/wow_world_closure.py check --add …`, in lock
+and metadata mode, before anything moved: both PASS (17 packages) with
+`wow-world-entities->wow-world-visibility`,
+`wow-world-inventory->wow-world-entities` and
+`wow-world-character->{interaction,visibility,spell,social,instances,loot}`
+added together. Two negative probes fail as they must:
+`wow-world-character->wow-world-quest` (quest is reached only by
+application, `wow-world` and loot-ops) and
+`wow-world-entities->wow-world-character` (a cycle). Each part re-runs the
+check for the edges it actually adds.
+
+**Split (each part re-measures on its own base):**
+
+- **8a, visibility → entities (about 1.7k):** the nearby creature and
+  gameobject create paths, the visibility update and the spawn-row
+  materialization with its pure helpers. The single new edge is
+  entities → visibility; entities also needs the external `tokio` (the
+  spawn-catalog query timeout).
+- **8b, vendor and bank → inventory (about 3.1k, surface 70):** the
+  vendor list/buy/sell/buyback/repair paths and the bank slot and autobank
+  handlers. Money, item-store and buyback order are #169/persistence
+  sensitive and move verbatim.
+- **8c, item handlers and inventory moves → inventory; gossip and the
+  character lifecycle → character (about 3.5k, surface about 70):** the
+  `inventory_swap` users (`wow-world-application`) stay behind host methods.
+- **8d, login load → character (about 4.7k, surface 152):** world entry,
+  initial packets, the login loaders, login data, the item login load,
+  recovery and the transport restore. Its order is the #169 contract; if the
+  8d re-measure exceeds about 4.5k, `session_state/login_data.rs` splits off
+  into an 8e.
+- **Stays:** the quest-giver status queries (quest types), the F5 adapters,
+  the registrar composition and the shared `mod.rs` constants.
