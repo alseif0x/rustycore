@@ -236,7 +236,8 @@ async fn master_loot_item_self_target_success_marks_removed_like_cpp() {
         },
     );
 
-    session.mark_represented_master_loot_item_removed_like_cpp(
+    wow_world_loot_ops::mark_represented_master_loot_item_removed_like_cpp(
+        &mut session,
         loot_owner,
         loot_object,
         0,

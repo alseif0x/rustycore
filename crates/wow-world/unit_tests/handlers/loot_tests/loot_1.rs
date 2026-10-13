@@ -295,7 +295,7 @@ fn represented_loot_removed_uses_players_looting_like_cpp() {
         },
     );
 
-    session.represented_notify_loot_item_removed_like_cpp(owner_guid, 0);
+    wow_world_loot_ops::represented_notify_loot_item_removed_like_cpp(&mut session, owner_guid, 0);
 
     let sent = send_rx.try_recv().unwrap();
     let mut sent = WorldPacket::from_bytes(&sent);

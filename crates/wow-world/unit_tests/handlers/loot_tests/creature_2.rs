@@ -389,17 +389,17 @@ fn creature_loot_release_dynamic_flags_are_viewer_dependent_like_cpp() {
         ..UnitDataValuesDeltaUpdate::default()
     };
     let dynamic_flags_for = |viewer_guid| {
-        session
-            .creature_loot_release_values_for_viewer_like_cpp(
-                owner_guid,
-                viewer_guid,
-                false,
-                Some(&authority),
-                update.clone(),
-            )
-            .object_data
-            .unwrap()
-            .dynamic_flags
+        wow_world_loot_ops::creature_loot_release_values_for_viewer_like_cpp(
+            &session,
+            owner_guid,
+            viewer_guid,
+            false,
+            Some(&authority),
+            update.clone(),
+        )
+        .object_data
+        .unwrap()
+        .dynamic_flags
     };
 
     assert_eq!(dynamic_flags_for(first_player), 0);

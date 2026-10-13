@@ -828,8 +828,7 @@ fn personal_encounter_late_upsert_cannot_cross_clear_loot_like_cpp() {
     });
 
     assert!(
-        session
-            .upsert_represented_personal_gameobject_loot_authority_if_observed_with_empty_policy_like_cpp(
+        wow_world_loot_ops::upsert_represented_personal_gameobject_loot_authority_if_observed_with_empty_policy_like_cpp(&mut session,
                 gameobject_guid,
                 late_player,
                 stale_late_pool,

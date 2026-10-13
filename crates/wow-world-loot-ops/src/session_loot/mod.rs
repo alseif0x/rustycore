@@ -8,16 +8,19 @@
 //! gathering nodes, fishing), loot generation and condition admission, the
 //! request player context and quest gates, the owned-loot claim, cache and
 //! authority facades, group rolls, the loot-window requests, item storage and
-//! disenchant, durable persistence and its workers, and the loot fanout.
+//! disenchant, durable persistence and its workers, the loot fanout, and
+//! (slice 5c) both money paths and the loot session-command receivers.
 //!
 //! Each body takes the World session through [`LootSessionHostLikeCpp`]; the
-//! registrations, release and the money paths stay with the host.
+//! registrations and release stay with the host.
 
 mod authority;
 mod claims;
 mod fanout;
 mod generation;
+mod handlers;
 mod host;
+mod money;
 mod persistence;
 mod random_properties;
 mod request_cache;
@@ -32,6 +35,8 @@ pub use authority::*;
 pub use claims::*;
 pub use fanout::*;
 pub use generation::*;
+pub use handlers::*;
+pub use money::*;
 pub use persistence::*;
 pub use random_properties::*;
 pub use request_cache::*;
@@ -146,6 +151,21 @@ use wow_world_loot::{
     start_loot_roll_packet_like_cpp,
 };
 use wow_world_quest::RepresentedQuestObjectiveProgressEventLikeCpp;
+
+// #1363 slice 5c: both money paths and the loot session-command receivers.
+use std::sync::atomic::AtomicU64;
+use wow_packet::ClientPacket;
+use wow_packet::packets::loot::{LootMoney, SLootRelease};
+use wow_world_core::session::directory::PrepareLootMoneyApplicationLikeCpp;
+use wow_world_core::session::mailbox::{
+    ApplyLootMoneyLikeCppCommand, ApplyLootMoneyResultLikeCpp, LootRollStoreWinnerCommand,
+    LootRollVoteCommand, MasterLootGiveCommand,
+};
+use wow_world_lifecycle::LootMoneyPersistenceErrorLikeCpp;
+use wow_world_lifecycle::loot_delivery_contracts::{
+    LootMoneyDeliveryAddressLikeCpp, LootMoneyViewerFanoutLikeCpp,
+    loot_money_durable_outcome_like_cpp,
+};
 
 pub const LOOT_MODE_DEFAULT_LIKE_CPP: u16 = 0x01;
 pub const LOOT_MODE_JUNK_FISH_LIKE_CPP: u16 = 0x8000;

@@ -2,11 +2,11 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! World-side adapter for the loot bodies that moved to `wow_world_loot_ops`
-//! (#1363 slices 5a and 5b). Each method forwards to the same-named session
+//! (#1363 slices 5a, 5b and 5c). Each method forwards to the same-named session
 //! field or inherent operation (the durable item-loot persistence ones through
-//! the inventory context, `Loot::NotifyMoneyRemoved` through the loot handler
-//! owner's default method); the fixture predicate keeps this crate's
-//! `cfg!(test)`.
+//! the inventory context; `Loot::NotifyMoneyRemoved` and four of the 5c money
+//! operations through the loot handler owner's default methods); the fixture
+//! predicate keeps this crate's `cfg!(test)`.
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -338,5 +338,52 @@ impl LootSessionHostLikeCpp for WorldSession {
                 .wait_for_durable_item_loot_persistence_like_cpp()
                 .await
         }
+    } // #1363 slice 5c: the money paths.
+    fn handle_apply_loot_money_with_generator_like_cpp_command<'a>(
+        &'a mut self,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+        command: ApplyLootMoneyLikeCppCommand,
+    ) -> impl Future<Output = ()> + Send + 'a {
+        <Self as LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp>>::handle_apply_loot_money_with_generator_like_cpp_command(
+            self, item_guid_generator, command,
+        )
+    }
+    fn represented_loot_money_recipients_like_cpp(&self, loot_guid: ObjectGuid) -> Vec<ObjectGuid> {
+        <Self as LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp>>::represented_loot_money_recipients_like_cpp(
+            self, loot_guid,
+        )
+    }
+    fn spawn_group_loot_money_persistence_like_cpp(
+        &self,
+        payouts: Vec<(ObjectGuid, u64)>,
+        claim: wow_loot::LootClaimLease,
+        deliveries: Vec<(LootMoneyDeliveryAddressLikeCpp, SessionCommand)>,
+        authority_committed: Arc<AtomicBool>,
+        viewer_fanout: LootMoneyViewerFanoutLikeCpp,
+    ) -> Result<
+        wow_world_lifecycle::loot_money_persistence::LootMoneyPersistenceWorkerHandleLikeCpp,
+        crate::session::LootMoneyPersistenceErrorLikeCpp,
+    > {
+        <Self as LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp>>::spawn_group_loot_money_persistence_like_cpp(
+            self, payouts, claim, deliveries, authority_committed, viewer_fanout,
+        )
+    }
+    fn persist_and_consume_stored_item_money_like_cpp(
+        &self,
+        item_guid: ObjectGuid,
+        cached_notified_amount: u64,
+    ) -> impl Future<Output = Option<(Arc<AtomicBool>, Arc<AtomicBool>, u64, u64)>> + Send {
+        <Self as LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp>>::persist_and_consume_stored_item_money_like_cpp(
+            self, item_guid, cached_notified_amount,
+        )
+    }
+    fn mutate_and_persist_player_gold_exclusive_like_cpp<F>(
+        &mut self,
+        mutation: F,
+    ) -> impl Future<Output = Option<(u64, u64)>> + Send
+    where
+        F: FnOnce(u64) -> u64 + Send,
+    {
+        self.mutate_and_persist_player_gold_exclusive_like_cpp(mutation)
     }
 }

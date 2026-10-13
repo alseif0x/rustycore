@@ -68,21 +68,24 @@ impl WorldSession {
                 self.handle_notify_loot_money_removed_like_cpp_command(command);
             }
             SessionCommand::MasterLootGive(command) => {
-                self.handle_represented_master_loot_give_command_with_generator_like_cpp(
+                wow_world_loot_ops::handle_represented_master_loot_give_command_with_generator_like_cpp(
+                    self,
                     catalogs.id_generators.item.as_ref(),
                     command,
                 )
                 .await;
             }
             SessionCommand::LootRollStoreWinner(command) => {
-                self.handle_represented_loot_roll_store_winner_command_with_generator_like_cpp(
+                wow_world_loot_ops::handle_represented_loot_roll_store_winner_command_with_generator_like_cpp(
+                    self,
                     catalogs.id_generators.item.as_ref(),
                     command,
                 )
                 .await;
             }
             SessionCommand::LootRollVote(command) => {
-                self.handle_represented_loot_roll_vote_command_with_generator_like_cpp(
+                wow_world_loot_ops::handle_represented_loot_roll_vote_command_with_generator_like_cpp(
+                    self,
                     catalogs.id_generators.item.as_ref(),
                     catalogs.item_valuation.as_ref(),
                     command,

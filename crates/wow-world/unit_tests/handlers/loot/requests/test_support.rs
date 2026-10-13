@@ -12,7 +12,8 @@ impl WorldSession {
         response: LootResponse,
     ) {
         let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
-        self.represented_on_loot_opened_with_catalogs_like_cpp(
+        wow_world_loot_ops::represented_on_loot_opened_with_catalogs_like_cpp(
+            self,
             &item_valuation,
             owner_guid,
             player_guid,
@@ -29,7 +30,8 @@ impl WorldSession {
         let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
             return false;
         };
-        self.store_direct_loot_item_with_generator_like_cpp(
+        wow_world_loot_ops::store_direct_loot_item_with_generator_like_cpp(
+            self,
             generator.as_ref(),
             loot_entry,
             dungeon_encounter_id,
@@ -58,7 +60,8 @@ impl WorldSession {
         let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
             return false;
         };
-        self.store_direct_disenchant_batch_with_generator_like_cpp(
+        wow_world_loot_ops::store_direct_disenchant_batch_with_generator_like_cpp(
+            self,
             generator.as_ref(),
             loot_entries,
             dungeon_encounter_id,

@@ -27,9 +27,9 @@ use super::{
     classify_stored_item_money_reconciliation_like_cpp,
     creature_loot_is_allowed_to_player_like_cpp, generated_creature_loot_item_to_entry_like_cpp,
     generated_shared_gameobject_loot_item_to_entry_like_cpp, loot_is_looted_like_cpp,
-    loot_item_context, loot_type_for_client_like_cpp, looted_corpse_decay_secs_like_cpp,
-    mark_loot_allowed_for_player_like_cpp, mark_loot_item_looted_for_player_like_cpp,
-    prepare_represented_shared_loot_generation_like_cpp,
+    loot_item_context, loot_money_durable_outcome_like_cpp, loot_type_for_client_like_cpp,
+    looted_corpse_decay_secs_like_cpp, mark_loot_allowed_for_player_like_cpp,
+    mark_loot_item_looted_for_player_like_cpp, prepare_represented_shared_loot_generation_like_cpp,
     queue_creature_loot_release_command_reliably_like_cpp,
     represented_gameobject_display_box_contains_like_cpp, represented_loot_object_guid_like_cpp,
     represented_loot_response_items_like_cpp, start_loot_roll_packet_like_cpp,
@@ -56,7 +56,7 @@ use crate::session::{
 use crate::session::{
     DurableItemLootCompletionLikeCpp, LootMoneyDeliveryAddressLikeCpp,
     LootMoneyViewerFanoutLikeCpp, RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
-    RepresentedLootRollCriteriaEvent, SessionState, loot_money_durable_outcome_like_cpp,
+    RepresentedLootRollCriteriaEvent, SessionState,
 };
 use crate::session_policy::LootDropRatesLikeCpp;
 use rand::{Rng, SeedableRng, rngs::StdRng};

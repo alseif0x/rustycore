@@ -16,7 +16,7 @@ impl WorldSession {
         dungeon_encounter_id: u32,
         entry: LootEntry,
         claim: Option<LootClaimLease>,
-    ) -> MasterLootGiveResult {
+    ) -> wow_world_core::session::mailbox::MasterLootGiveResult {
         let (state, hub) = crate::session::split_loot_ref(self);
         state
             .request_represented_remote_master_loot_give_like_cpp(

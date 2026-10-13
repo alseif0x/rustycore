@@ -169,7 +169,7 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_loot_money_with_generator_like_cpp(
+            wow_world_loot_ops::handle_loot_money_with_generator_like_cpp(
                 self,
                 catalogs.id_generators.item.as_ref(),
                 pkt,
@@ -357,7 +357,7 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         apply_money: bool,
         publish: bool,
     ) -> impl Future<Output = ApplyLootMoneyResultLikeCpp> + Send + 'a {
-        WorldSession::apply_durable_represented_loot_money_payout_like_cpp(
+        wow_world_loot_ops::apply_durable_represented_loot_money_payout_like_cpp(
             self,
             item_guid_generator,
             notified_amount,

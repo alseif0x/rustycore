@@ -195,8 +195,7 @@ async fn represented_gameobject_chest_uses_resolved_template_money_like_cpp() {
     let gameobject_guid = test_gameobject_guid(91_022);
     attach_loot_guid_allocator_for_owner(&mut session, gameobject_guid);
 
-    let loot = session
-        .generate_represented_gameobject_chest_loot_with_template_money_like_cpp(
+    let loot = wow_world_loot_ops::generate_represented_gameobject_chest_loot_with_template_money_like_cpp(&mut session,
             gameobject_guid,
             ObjectGuid::create_player(1, 42),
             GameObjectLootSource::default(),
