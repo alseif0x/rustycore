@@ -109,7 +109,8 @@ impl WorldSession {
             return;
         };
 
-        let mut reputation = self.calculate_kill_reputation_gain_like_cpp(
+        let mut reputation = wow_world_social::calculate_kill_reputation_gain_like_cpp(
+            self,
             creature_level,
             reputation_value,
             effective_faction_id,

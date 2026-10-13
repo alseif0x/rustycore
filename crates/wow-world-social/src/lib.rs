@@ -23,6 +23,7 @@ mod guild_handlers;
 mod handlers;
 mod lfg_lock_info;
 mod reputation;
+mod reputation_gain;
 mod requests;
 mod social_contacts_handlers;
 mod social_host;
@@ -88,6 +89,10 @@ pub use lfg_lock_info::{
 };
 pub use reputation::{
     ReputationHandlerCxLikeCpp, ReputationHandlerHostLikeCpp, register_reputation_handlers_like_cpp,
+};
+pub use reputation_gain::{
+    apply_recruit_a_friend_reputation_bonus_like_cpp, calculate_kill_reputation_gain_like_cpp,
+    calculate_reputation_gain_like_cpp, reputation_gain_percent_before_reward_rate_like_cpp,
 };
 pub use social_contacts_handlers::normalize_player_name_like_cpp;
 pub use social_contacts_handlers::{

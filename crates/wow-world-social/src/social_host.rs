@@ -3,7 +3,8 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! The World operations the moved text-emote, LFG lock-info (#1363 slice 4a),
-//! arena-skirmish and wargame-invite (slice 4b) bodies still call. Each method is the same-named `WorldSession`
+//! arena-skirmish and wargame-invite (slice 4b) and reputation-gain (slice 7b)
+//! bodies still call. Each method is the same-named `WorldSession`
 //! operation, called at the exact point the body called it before the move;
 //! auras, instance locks, quest rewards and the represented inventory stay
 //! with the host.
@@ -21,4 +22,10 @@ pub trait SocialSessionHostLikeCpp: SessionHubHostLikeCpp {
     fn represented_average_item_level_like_cpp(&self) -> Option<f32>;
     fn represented_has_item_count_like_cpp(&self, item_entry: u32, count: u32) -> bool;
     fn resolved_group_guid_like_cpp(&self) -> Option<u64>;
+    fn resolved_total_represented_aura_modifier_by_misc_value_like_cpp(
+        &self,
+        effect: wow_entities::RepresentedAuraEffectLikeCpp,
+        misc_value: i32,
+    ) -> Option<i32>;
+    fn gets_recruit_a_friend_bonus_like_cpp(&self, for_xp: bool) -> bool;
 }
