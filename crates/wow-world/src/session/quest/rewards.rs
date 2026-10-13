@@ -52,7 +52,7 @@ impl WorldSession {
                 continue;
             }
             for spell_id in self.represented_quest_rewarded_spell_triggers_like_cpp(quest) {
-                self.learn_known_spell_like_cpp(spell_id);
+                wow_world_spell::learn_known_spell_like_cpp(self, spell_id);
                 learned += 1;
             }
         }
@@ -84,8 +84,7 @@ impl WorldSession {
             .filter(|effect| {
                 effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL
                     && effect.effect_trigger_spell > 0
-                    && !self
-                        .known_spells_like_cpp()
+                    && !wow_world_spell::known_spells_like_cpp(self)
                         .contains(&effect.effect_trigger_spell)
             })
             .map(|effect| effect.effect_trigger_spell)
@@ -97,7 +96,7 @@ impl WorldSession {
 
         let learned_0 = spell_info.effects()[0].effect_trigger_spell;
         if learned_0 > 0
-            && !self.known_spells_like_cpp().contains(&learned_0)
+            && !wow_world_spell::known_spells_like_cpp(self).contains(&learned_0)
             && !self.skill_store().is_some_and(|store| {
                 store
                     .get_skill_line_ability_map_bounds_like_cpp(learned_0)

@@ -188,7 +188,9 @@ impl WorldSession {
         if search_template.required_ability != 0
             && !i32::try_from(search_template.required_ability)
                 .ok()
-                .is_some_and(|spell_id| self.known_spells_like_cpp().contains(&spell_id))
+                .is_some_and(|spell_id| {
+                    wow_world_spell::known_spells_like_cpp(self).contains(&spell_id)
+                })
         {
             return false;
         }
@@ -214,9 +216,9 @@ impl WorldSession {
         if let (Some((_, first)), Some((_, second))) =
             (effect_spell_ids.first(), effect_spell_ids.get(1))
             && matches!(*first, 483 | 55_884)
-            && i32::try_from(*second)
-                .ok()
-                .is_some_and(|spell_id| self.known_spells_like_cpp().contains(&spell_id))
+            && i32::try_from(*second).ok().is_some_and(|spell_id| {
+                wow_world_spell::known_spells_like_cpp(self).contains(&spell_id)
+            })
         {
             return false;
         }

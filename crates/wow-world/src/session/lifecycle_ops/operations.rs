@@ -100,7 +100,7 @@ impl WorldSession {
                 collections.replace_mounts_like_cpp(mounts);
             });
         self.expand_account_mount_faction_definitions_like_cpp();
-        self.learn_account_mount_spells_like_cpp();
+        wow_world_spell::learn_account_mount_spells_like_cpp(self);
     }
     pub(in crate::session) fn add_account_mount_with_faction_counterpart_like_cpp(
         &mut self,

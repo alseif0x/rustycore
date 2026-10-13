@@ -169,7 +169,7 @@ impl WorldSession {
         };
 
         let mut applied = 0usize;
-        for spell_id in self.known_spells_like_cpp().to_vec() {
+        for spell_id in wow_world_spell::known_spells_like_cpp(self).to_vec() {
             if spell_id <= 0
                 || !spell_store.is_passive_like_cpp(spell_id)
                 || crate::session::hub_ref(self).player_has_visible_aura_spell_like_cpp(spell_id)

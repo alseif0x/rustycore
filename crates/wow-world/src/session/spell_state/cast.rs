@@ -266,7 +266,7 @@ impl WorldSession {
         &self,
         spell_info: &wow_data::SpellInfo,
     ) -> wow_data::SpellInfo {
-        let override_spells = self.represented_override_spells_like_cpp();
+        let override_spells = wow_world_spell::represented_override_spells_like_cpp(self);
         if let Some(overrides) = override_spells.get(&spell_info.spell_id) {
             if let Some(store) = self.spell_store() {
                 for new_spell_id in overrides {

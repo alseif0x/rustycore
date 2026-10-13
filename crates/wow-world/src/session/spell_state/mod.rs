@@ -22,3 +22,4 @@ mod spell;
 mod spell_click;
 mod spell_publication;
 mod spellbook;
+mod spellbook_host;

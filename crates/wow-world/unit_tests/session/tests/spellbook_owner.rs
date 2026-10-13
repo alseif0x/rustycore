@@ -1,6 +1,7 @@
 //! Ordinary spell-book writes operate on native canonical state.
 
 use super::*;
+use wow_world_spell::canonical_player_spell_record_like_cpp;
 
 #[test]
 fn known_spell_commands_match_previous_active_and_detached_owner() {

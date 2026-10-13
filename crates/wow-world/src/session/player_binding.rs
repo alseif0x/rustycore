@@ -120,7 +120,7 @@ impl WorldSession {
             #[cfg(test)]
             self.social
                 .clear_represented_guild_identity_for_test_like_cpp();
-            let _ = self.clear_represented_trait_config_rows_like_cpp();
+            let _ = wow_world_spell::clear_represented_trait_config_rows_like_cpp(self);
             let _ =
                 crate::session::hub_mut(self).update_player_pet_lifecycle_state_like_cpp(|state| {
                     state.character_rows_empty_authority_complete = false;
@@ -137,7 +137,7 @@ impl WorldSession {
             self.spell_state
                 .clear_spell_acquisition_post_commit_actions_for_test_like_cpp();
             if previous_player_guid.is_some() {
-                let _ = self.clear_represented_fallback_spell_rows_like_cpp();
+                let _ = wow_world_spell::clear_represented_fallback_spell_rows_like_cpp(self);
             }
             // `_SaveSkills` tombstones belong to the current C++ Player's
             // update-field slots, not to the authenticated WorldSession.

@@ -96,7 +96,7 @@ impl LootSessionHostLikeCpp for WorldSession {
         self.item_template_start_quest_id(item_id)
     }
     fn known_spells_like_cpp(&self) -> Vec<i32> {
-        self.known_spells_like_cpp()
+        wow_world_spell::known_spells_like_cpp(self)
     }
     fn loot_drop_rates_like_cpp(&self) -> LootDropRatesLikeCpp {
         self.loot_drop_rates_like_cpp()

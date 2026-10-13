@@ -12,6 +12,7 @@ mod session;
 mod spell_acquisition;
 mod spell_acquisition_application;
 pub mod spell_cast_adapter;
+mod spellbook_session;
 mod state;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod test_support;
@@ -63,6 +64,34 @@ pub use spell_acquisition_application::{
     validate_prepared_player_spell_acquisition_runtime_like_cpp,
 };
 pub use spell_cast_adapter::present_visual;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use spellbook_session::{
+    SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP,
+    remove_known_spell_with_suppress_messaging_like_cpp,
+    replace_loaded_represented_player_spell_rows_like_cpp, resolved_known_spells_like_cpp,
+    spell_learn_skill_like_cpp,
+};
+pub use spellbook_session::{
+    SpellbookHostLikeCpp, add_represented_override_spell_like_cpp,
+    apply_represented_active_talent_spell_side_effects_like_cpp,
+    begin_represented_trait_config_load_like_cpp, clear_represented_fallback_spell_rows_like_cpp,
+    clear_represented_trait_and_override_state_like_cpp,
+    clear_represented_trait_config_rows_like_cpp, complete_represented_override_spells_like_cpp,
+    complete_represented_player_spell_rows_like_cpp,
+    complete_represented_spell_trait_definition_ids_like_cpp,
+    complete_represented_trait_config_rows_like_cpp, install_loaded_spell_row_like_cpp,
+    invalidate_represented_player_spell_rows_like_cpp,
+    invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp, known_spells_like_cpp,
+    learn_account_mount_spells_like_cpp, learn_dependent_known_spell_like_cpp,
+    learn_known_spell_like_cpp, load_represented_talent_row_with_spell_side_effects_like_cpp,
+    mark_represented_spell_acquisition_snapshot_complete_like_cpp, remove_known_spell_like_cpp,
+    remove_represented_override_spell_like_cpp, represented_dependent_known_spells_like_cpp,
+    represented_direct_learn_spell_triggers_like_cpp, represented_override_spells_like_cpp,
+    represented_spell_valid_for_learning_like_cpp, represented_talent_override_spell_pair_like_cpp,
+    represented_talent_spell_id_like_cpp, set_complete_represented_player_spell_rows_like_cpp,
+    set_complete_represented_spell_trait_definition_ids_like_cpp,
+    take_represented_trait_definition_id_like_cpp,
+};
 pub use state::SessionSpellState;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use test_support::PlayerSpellAndTraitTestFixtureLikeCpp;

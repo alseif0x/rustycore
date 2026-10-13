@@ -18,17 +18,25 @@ impl WorldSession {
         talent_id: u32,
         rank: u8,
     ) {
-        if let Some(spell_id) = self.represented_talent_spell_id_like_cpp(talent_id, rank) {
-            self.remove_known_spell_like_cpp(spell_id);
-            for trigger_spell in self.represented_direct_learn_spell_triggers_like_cpp(spell_id) {
-                self.remove_known_spell_like_cpp(trigger_spell);
+        if let Some(spell_id) =
+            wow_world_spell::represented_talent_spell_id_like_cpp(self, talent_id, rank)
+        {
+            wow_world_spell::remove_known_spell_like_cpp(self, spell_id);
+            for trigger_spell in
+                wow_world_spell::represented_direct_learn_spell_triggers_like_cpp(self, spell_id)
+            {
+                wow_world_spell::remove_known_spell_like_cpp(self, trigger_spell);
             }
         }
 
         if let Some((overriden_spell_id, new_spell_id)) =
-            self.represented_talent_override_spell_pair_like_cpp(talent_id)
+            wow_world_spell::represented_talent_override_spell_pair_like_cpp(self, talent_id)
         {
-            self.remove_represented_override_spell_like_cpp(overriden_spell_id, new_spell_id);
+            wow_world_spell::remove_represented_override_spell_like_cpp(
+                self,
+                overriden_spell_id,
+                new_spell_id,
+            );
         }
     }
 

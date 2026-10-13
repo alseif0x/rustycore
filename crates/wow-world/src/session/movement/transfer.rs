@@ -126,8 +126,7 @@ impl WorldSession {
             && self.core.player_map_id_like_cpp() == DEATH_KNIGHT_START_MAP_LIKE_CPP
             && u32::from(self.core.player_map_id_like_cpp()) != new_map
             && crate::session::hub_ref(self).player_is_game_master_like_cpp() != Some(true)
-            && !self
-                .known_spells_like_cpp()
+            && !wow_world_spell::known_spells_like_cpp(self)
                 .contains(&DEATH_KNIGHT_ESCAPE_SPELL_LIKE_CPP)
         {
             crate::session::hub_ref(self).send_transfer_aborted_with_params_like_cpp(

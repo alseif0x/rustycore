@@ -17,9 +17,9 @@ impl WorldSession {
         }
 
         self.remove_represented_at_login_flag_like_cpp(AT_LOGIN_RESET_SPELLS_LIKE_CPP, true);
-        let spells = self.known_spells_like_cpp().to_vec();
+        let spells = wow_world_spell::known_spells_like_cpp(self).to_vec();
         for spell_id in spells {
-            self.remove_known_spell_like_cpp(spell_id);
+            wow_world_spell::remove_known_spell_like_cpp(self, spell_id);
         }
         self.apply_represented_quest_rewarded_spells_like_cpp();
         self.core
@@ -64,129 +64,6 @@ impl WorldSession {
         }
 
         applied
-    }
-    #[cfg(test)]
-    pub(crate) fn apply_represented_start_all_spells_like_cpp(
-        &mut self,
-        known_spells: &mut Vec<i32>,
-    ) -> usize {
-        let player_bootstrap = self.player_bootstrap_catalogs_for_test_like_cpp();
-        self.apply_represented_start_all_spells_with_catalogs_like_cpp(
-            &player_bootstrap,
-            known_spells,
-        )
-    }
-    pub(crate) fn load_represented_talent_row_with_spell_side_effects_like_cpp(
-        &mut self,
-        talent_tabs: &TalentTabStore,
-        talent_id: u32,
-        rank: u8,
-        talent_group: u8,
-        known_spells: &mut Vec<i32>,
-        dependent_spells: &mut HashSet<i32>,
-    ) -> bool {
-        let previous_rank = crate::session::hub_ref(self)
-            .player_talent_runtime_snapshot_like_cpp()
-            .and_then(|runtime| {
-                runtime
-                    .talent_group_like_cpp(talent_group)
-                    .and_then(|talents| talents.get(&talent_id).copied())
-            });
-
-        if !crate::session::hub_mut(self).load_represented_talent_row_like_cpp(
-            talent_tabs,
-            talent_id,
-            rank,
-            talent_group,
-        ) {
-            return false;
-        }
-
-        if crate::session::hub_ref(self).represented_active_talent_group_like_cpp()
-            != Some(talent_group)
-        {
-            return true;
-        }
-
-        if let Some(previous_rank) = previous_rank {
-            if let Some(previous_spell_id) =
-                self.represented_talent_spell_id_like_cpp(talent_id, previous_rank)
-            {
-                known_spells.retain(|known_spell| *known_spell != previous_spell_id);
-                dependent_spells.remove(&previous_spell_id);
-                for trigger_spell in
-                    self.represented_direct_learn_spell_triggers_like_cpp(previous_spell_id)
-                {
-                    known_spells.retain(|known_spell| *known_spell != trigger_spell);
-                    dependent_spells.remove(&trigger_spell);
-                }
-            }
-        }
-
-        if let Some(spell_id) = self.represented_talent_spell_id_like_cpp(talent_id, rank) {
-            if !known_spells.contains(&spell_id) {
-                known_spells.push(spell_id);
-            }
-            dependent_spells.insert(spell_id);
-            for trigger_spell in self.represented_direct_learn_spell_triggers_like_cpp(spell_id) {
-                if !known_spells.contains(&trigger_spell) {
-                    known_spells.push(trigger_spell);
-                }
-                dependent_spells.insert(trigger_spell);
-            }
-        }
-
-        if let Some((overriden_spell_id, new_spell_id)) =
-            self.represented_talent_override_spell_pair_like_cpp(talent_id)
-        {
-            self.add_represented_override_spell_like_cpp(overriden_spell_id, new_spell_id);
-        }
-
-        true
-    }
-    pub(in crate::session) fn apply_represented_active_talent_spell_side_effects_like_cpp(
-        &mut self,
-        talent_id: u32,
-        previous_rank: Option<u8>,
-        rank: u8,
-        talent_group: u8,
-    ) {
-        if crate::session::hub_ref(self).represented_active_talent_group_like_cpp()
-            != Some(talent_group)
-        {
-            return;
-        }
-
-        if let Some(previous_rank) = previous_rank {
-            if let Some(previous_spell_id) =
-                self.represented_talent_spell_id_like_cpp(talent_id, previous_rank)
-            {
-                self.remove_known_spell_like_cpp(previous_spell_id);
-                for trigger_spell in
-                    self.represented_direct_learn_spell_triggers_like_cpp(previous_spell_id)
-                {
-                    self.remove_known_spell_like_cpp(trigger_spell);
-                }
-            }
-        }
-
-        if let Some(spell_id) = self.represented_talent_spell_id_like_cpp(talent_id, rank) {
-            self.learn_known_spell_like_cpp(spell_id);
-            for trigger_spell in self.represented_direct_learn_spell_triggers_like_cpp(spell_id) {
-                self.learn_known_spell_like_cpp(trigger_spell);
-            }
-        }
-
-        if let Some((overriden_spell_id, new_spell_id)) =
-            self.represented_talent_override_spell_pair_like_cpp(talent_id)
-        {
-            self.add_represented_override_spell_like_cpp(overriden_spell_id, new_spell_id);
-        }
-
-        self.remove_auras_with_interrupt_flags_like_cpp(
-            0,
-            SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP,
-        );
     }
     pub(crate) fn apply_loaded_spell_dependency_skills_like_cpp(
         &mut self,
@@ -250,7 +127,8 @@ impl WorldSession {
                 // including auto-learned and already-known spells.
                 if learned_spell.active && learned_spell.overrides_spell != 0 {
                     if let Ok(overrides_spell_id) = i32::try_from(learned_spell.overrides_spell) {
-                        self.add_represented_override_spell_like_cpp(
+                        wow_world_spell::add_represented_override_spell_like_cpp(
+                            self,
                             overrides_spell_id,
                             learned_spell_id,
                         );

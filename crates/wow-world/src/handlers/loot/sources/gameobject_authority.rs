@@ -12,7 +12,7 @@ impl WorldSession {
             &self.loot,
             &self.world_entities,
             crate::session::hub_ref(self),
-            &self.known_spells_like_cpp(),
+            &wow_world_spell::known_spells_like_cpp(self),
             guid,
             player_guid,
         )

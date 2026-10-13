@@ -114,7 +114,7 @@ impl WorldSession {
                         .values()
                         .any(|aura| u32::try_from(aura.spell_id).ok() == Some(aura_id))
                 },
-                |spell_id| self.known_spells_like_cpp().contains(&spell_id),
+                |spell_id| wow_world_spell::known_spells_like_cpp(self).contains(&spell_id),
             )
             .copied()
     }

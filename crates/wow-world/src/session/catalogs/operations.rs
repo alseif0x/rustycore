@@ -91,12 +91,12 @@ impl WorldSession {
     pub fn set_mount_store(&mut self, store: Arc<MountStore>) {
         self.catalogs.mount_store = Some(store);
         self.expand_account_mount_faction_definitions_like_cpp();
-        self.learn_account_mount_spells_like_cpp();
+        wow_world_spell::learn_account_mount_spells_like_cpp(self);
     }
     pub fn set_mount_definition_store_like_cpp(&mut self, store: Arc<MountDefinitionStoreLikeCpp>) {
         self.catalogs.mount_definition_store_like_cpp = Some(store);
         self.expand_account_mount_faction_definitions_like_cpp();
-        self.learn_account_mount_spells_like_cpp();
+        wow_world_spell::learn_account_mount_spells_like_cpp(self);
     }
     pub fn set_mount_capability_store(&mut self, store: Arc<MountCapabilityStore>) {
         self.catalogs.mount_capability_store = Some(store);
