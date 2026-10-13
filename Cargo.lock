@@ -3597,6 +3597,7 @@ version = "0.1.0"
 dependencies = [
  "num-traits",
  "rand",
+ "tokio",
  "tracing",
  "wow-ai",
  "wow-anticheat",
@@ -3616,6 +3617,7 @@ dependencies = [
  "wow-world-core",
  "wow-world-interaction",
  "wow-world-lifecycle",
+ "wow-world-visibility",
 ]
 
 [[package]]

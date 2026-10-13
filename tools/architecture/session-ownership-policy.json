@@ -457,27 +457,7 @@
         },
         {
           "module": "crate::handlers::character::visibility",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::character::visibility::creatures",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::character::visibility::creatures",
-          "trait_path": null,
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "module": "crate::handlers::character::visibility::gameobjects",
-          "trait_path": null,
+          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
           "cfg": [],
           "source_class": "production"
         },
@@ -1231,6 +1211,14 @@
         },
         {
           "module": "crate::handlers::vehicle::test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
+          "module": "crate::handlers::visibility_test_shims",
           "trait_path": null,
           "cfg": [
             "cfg (test)"
@@ -4285,20 +4273,6 @@
           "module": "crate::handlers::character::items",
           "trait_path": null,
           "kind": "method",
-          "name": "creature_virtual_items_from_row_with_catalogs_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn creature_virtual_items_from_row_with_catalogs_like_cpp (& mut self , catalogs : & CreatureSpawnCatalogsLikeCpp , entry : u32 , persisted_equipment_id : i16 ,) -> CreatureEquipmentCreateFieldsLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::items",
-          "trait_path": null,
-          "kind": "method",
           "name": "has_item_count_direct_inventory",
           "visibility": "pub (super)",
           "signature": "fn has_item_count_direct_inventory (& self , item_entry : u32 , count : u32) -> bool",
@@ -5616,117 +5590,282 @@
         },
         {
           "module": "crate::handlers::character::visibility",
-          "trait_path": null,
+          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
           "kind": "method",
-          "name": "creature_addon_create_fields_like_cpp",
-          "visibility": "pub (in crate :: handlers :: character)",
-          "signature": "fn creature_addon_create_fields_like_cpp (addon : Option < & CreatureAddonLifecycleRecordLikeCpp > ,) -> CreatureAddonCreateFieldsLikeCpp",
+          "name": "consume_movement_visibility_refresh_request_like_cpp",
+          "visibility": "private",
+          "signature": "fn consume_movement_visibility_refresh_request_like_cpp (& mut self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
             "external_impl",
-            "visible"
+            "trait_impl"
           ]
         },
         {
           "module": "crate::handlers::character::visibility",
-          "trait_path": null,
+          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
           "kind": "method",
-          "name": "materialize_creature_spawn_row_with_catalogs_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn materialize_creature_spawn_row_with_catalogs_like_cpp (& mut self , catalogs : & CreatureSpawnCatalogsLikeCpp , map_id : u16 , row : & wow_persistence :: CreatureVisibilityPersistenceRowLikeCpp , viewer_position : & Position , visibility_range : f32 ,) -> Option < MaterializedCreatureSpawnLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::visibility::creatures",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_nearby_creatures",
-          "visibility": "pub (crate)",
-          "signature": "async fn send_nearby_creatures (& mut self , map_id : u16 , position : & Position , zone_id : u32 ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::visibility::creatures",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_nearby_creatures_with_catalogs_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn send_nearby_creatures_with_catalogs_like_cpp (& mut self , catalogs : & CreatureSpawnCatalogsLikeCpp , map_id : u16 , position : & Position , _zone_id : u32 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::visibility::creatures",
-          "trait_path": null,
-          "kind": "method",
-          "name": "update_visibility",
-          "visibility": "pub (crate)",
-          "signature": "async fn update_visibility (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::visibility::creatures",
-          "trait_path": null,
-          "kind": "method",
-          "name": "update_visibility_with_catalogs_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn update_visibility_with_catalogs_like_cpp (& mut self , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::visibility::creatures",
-          "trait_path": null,
-          "kind": "method",
-          "name": "viewer_creature_create_block_like_cpp",
+          "name": "creature_aggro_radius_for_faction_template_like_cpp",
           "visibility": "private",
-          "signature": "fn viewer_creature_create_block_like_cpp (& mut self , spawn : & MaterializedCreatureSpawnLikeCpp ,) -> UpdateBlock",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::visibility::gameobjects",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_nearby_gameobjects",
-          "visibility": "pub (crate)",
-          "signature": "async fn send_nearby_gameobjects (& mut self , map_id : u16 , position : & Position , _zone_id : u32 ,)",
+          "signature": "fn creature_aggro_radius_for_faction_template_like_cpp (& self , faction_template_id : u32 , default_radius : f32 ,) -> f32",
           "cfg": [],
           "source_class": "production",
           "guards": [
             "external_impl",
-            "visible"
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::visibility",
+          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
+          "kind": "method",
+          "name": "creature_create_stats_with_catalogs_like_cpp",
+          "visibility": "private",
+          "signature": "fn creature_create_stats_with_catalogs_like_cpp (& self , catalogs : & CreatureSpawnCatalogsLikeCpp , entry : u32 , level : u8 , unit_class : u8 , classification : u32 , regen_health : bool , db_cur_health : u32 , db_cur_mana : u32 ,) -> wow_world_entities :: CreatureCreateStatsLikeCpp",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::visibility",
+          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
+          "kind": "method",
+          "name": "lifecycle",
+          "visibility": "private",
+          "signature": "fn lifecycle (& self) -> & SessionLifecycleState",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::visibility",
+          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
+          "kind": "method",
+          "name": "player_map_visibility_range_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_map_visibility_range_like_cpp (& self , map_id : u16) -> f32",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::visibility",
+          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
+          "kind": "method",
+          "name": "record_represented_gameobject_db_phase_shift_like_cpp",
+          "visibility": "private",
+          "signature": "fn record_represented_gameobject_db_phase_shift_like_cpp (& mut self , guid : ObjectGuid , map_id : u16 , phase_use_flags : u8 , phase_id : u16 , phase_group_id : u32 , terrain_swap_map : i32 ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::visibility",
+          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
+          "kind": "method",
+          "name": "record_represented_gameobject_runtime_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn record_represented_gameobject_runtime_state_like_cpp (& mut self , map_id : u16 , guid : ObjectGuid , entry : u32 , position : Position , go_type : u8 ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::visibility",
+          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
+          "kind": "method",
+          "name": "represented_gameobject_dynamic_flags_for_player_like_cpp",
+          "visibility": "private",
+          "signature": "fn represented_gameobject_dynamic_flags_for_player_like_cpp (& self , gameobject_entry : u32 , state : & RepresentedGameObjectUseState ,) -> u32",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::visibility",
+          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
+          "kind": "method",
+          "name": "represented_viewer_dependent_creature_npc_flags_like_cpp",
+          "visibility": "private",
+          "signature": "fn represented_viewer_dependent_creature_npc_flags_like_cpp (& self , creature_guid : ObjectGuid , npc_flags : u64 ,) -> u64",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::visibility",
+          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
+          "kind": "method",
+          "name": "represented_visibility_source_position_like_cpp",
+          "visibility": "private",
+          "signature": "fn represented_visibility_source_position_like_cpp (& self) -> Option < Position >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::visibility",
+          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
+          "kind": "method",
+          "name": "sync_represented_farsight_clear_from_canonical_like_cpp",
+          "visibility": "private",
+          "signature": "fn sync_represented_farsight_clear_from_canonical_like_cpp (& mut self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::visibility",
+          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
+          "kind": "method",
+          "name": "visibility",
+          "visibility": "private",
+          "signature": "fn visibility (& self) -> & VisibilityState",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::visibility",
+          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
+          "kind": "method",
+          "name": "visibility_mut",
+          "visibility": "private",
+          "signature": "fn visibility_mut (& mut self) -> & mut VisibilityState",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::visibility",
+          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
+          "kind": "method",
+          "name": "visible_area_triggers_from_canonical_map_like_cpp",
+          "visibility": "private",
+          "signature": "fn visible_area_triggers_from_canonical_map_like_cpp (& self , map_id : u16 , position : & Position , visibility_radius : f32 ,) -> Option < Vec < wow_packet :: packets :: update :: AreaTriggerCreateData > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::visibility",
+          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
+          "kind": "method",
+          "name": "visible_dynamic_objects_from_canonical_map_like_cpp",
+          "visibility": "private",
+          "signature": "fn visible_dynamic_objects_from_canonical_map_like_cpp (& self , map_id : u16 , position : & Position , visibility_radius : f32 ,) -> Option < Vec < wow_packet :: packets :: update :: DynamicObjectCreateData > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::visibility",
+          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
+          "kind": "method",
+          "name": "visible_gameobjects_from_canonical_map_like_cpp",
+          "visibility": "private",
+          "signature": "fn visible_gameobjects_from_canonical_map_like_cpp (& self , map_id : u16 , position : & Position , visibility_radius : f32 ,) -> Option < Vec < wow_packet :: packets :: update :: GameObjectCreateData > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::visibility",
+          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
+          "kind": "method",
+          "name": "visible_misc_objects_from_canonical_map_like_cpp",
+          "visibility": "private",
+          "signature": "fn visible_misc_objects_from_canonical_map_like_cpp (& self , map_id : u16 , position : & Position , visibility_radius : f32 ,) -> Option < (Vec < wow_packet :: packets :: update :: CorpseCreateData > , Vec < wow_packet :: packets :: update :: SceneObjectCreateData > , Vec < wow_packet :: packets :: update :: ConversationCreateData > ,) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::visibility",
+          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
+          "kind": "method",
+          "name": "visible_other_players_from_registry_like_cpp",
+          "visibility": "private",
+          "signature": "fn visible_other_players_from_registry_like_cpp (& self , map_id : u16 , position : & Position , visibility_radius : f32 ,) -> Vec < (ObjectGuid , PlayerVisibilityCreateSnapshot) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::visibility",
+          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
+          "kind": "method",
+          "name": "visible_transports_from_canonical_map_like_cpp",
+          "visibility": "private",
+          "signature": "fn visible_transports_from_canonical_map_like_cpp (& self , map_id : u16 ,) -> Option < Vec < wow_packet :: packets :: update :: GameObjectCreateData > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::visibility",
+          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
+          "kind": "method",
+          "name": "visible_world_creatures_from_map_like_cpp",
+          "visibility": "private",
+          "signature": "fn visible_world_creatures_from_map_like_cpp (& self , map_id : u16 , position : & Position ,) -> Vec < wow_entities :: Creature >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
           ]
         },
         {
@@ -15601,6 +15740,54 @@
           "source_class": "test_fixture",
           "guards": [
             "external_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::visibility_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "send_nearby_creatures",
+          "visibility": "pub (crate)",
+          "signature": "async fn send_nearby_creatures (& mut self , map_id : u16 , position : & Position , zone_id : u32 ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::visibility_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "send_nearby_gameobjects",
+          "visibility": "pub (crate)",
+          "signature": "async fn send_nearby_gameobjects (& mut self , map_id : u16 , position : & Position , zone_id : u32 ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::visibility_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "update_visibility",
+          "visibility": "pub (crate)",
+          "signature": "async fn update_visibility (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -56241,19 +56428,6 @@
         },
         {
           "package": "wow-world",
-          "module": "crate::handlers::character::visibility::creatures",
-          "source": "crates/wow-world/src/handlers/character/visibility.rs",
-          "enclosing": "impl WorldSession::update_visibility_with_catalogs_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
           "module": "crate::handlers::group",
           "source": "crates/wow-world/src/handlers/group.rs",
           "enclosing": "module",
@@ -59201,6 +59375,19 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-entities",
+          "module": "crate::visibility_session::update",
+          "source": "crates/wow-world-entities/src/visibility_session/update.rs",
+          "enclosing": "fn update_visibility_with_catalogs_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
           "count": 1
         },
         {

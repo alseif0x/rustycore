@@ -181,7 +181,7 @@ impl WorldSession {
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
     ) {
         self.visibility.clear_last_visibility_pos_like_cpp();
-        self.update_visibility_with_catalogs_like_cpp(creature_spawn_catalogs)
+        wow_world_entities::update_visibility_with_catalogs_like_cpp(self, creature_spawn_catalogs)
             .await;
     }
     pub(crate) async fn flush_pending_visibility_refresh_with_catalogs_like_cpp(

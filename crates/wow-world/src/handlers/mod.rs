@@ -50,3 +50,5 @@ mod test_shims;
 #[cfg(test)]
 #[path = "../../unit_tests/handlers/test_support/mod.rs"]
 mod test_support;
+#[cfg(test)]
+mod visibility_test_shims;
