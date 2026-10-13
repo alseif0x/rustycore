@@ -35,9 +35,7 @@ async fn battle_pet_modify_name_requires_lock_and_updates_name_state_like_cpp() 
         ))
     );
 
-    crate::session::cx_pets(&mut session)
-        .send_battle_pet_journal_lock_status_like_cpp()
-        .await;
+    session.send_battle_pet_journal_lock_status_like_cpp().await;
     assert!(!session.battle_pet_modify_name_like_cpp(unknown_guid, "Ghost".to_string(), None, 11,));
     assert!(session.battle_pet_modify_name_like_cpp(
         pet_guid,
@@ -281,10 +279,7 @@ fn battle_pet_max_pet_level_ignores_removed_rows_like_cpp() {
     let high_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x1b1);
     let removed_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x1b2);
 
-    assert_eq!(
-        crate::session::cx_pets_ref(&session).battle_pet_max_pet_level_like_cpp(),
-        Some(0)
-    );
+    assert_eq!(session.battle_pet_max_pet_level_like_cpp(), Some(0));
 
     session.add_represented_battle_pet_packet_info_like_cpp(
         low_guid,
@@ -320,10 +315,7 @@ fn battle_pet_max_pet_level_ignores_removed_rows_like_cpp() {
         },
     );
 
-    assert_eq!(
-        crate::session::cx_pets_ref(&session).battle_pet_max_pet_level_like_cpp(),
-        Some(19)
-    );
+    assert_eq!(session.battle_pet_max_pet_level_like_cpp(), Some(19));
 }
 #[test]
 fn battle_pet_has_max_pet_count_uses_cpp_default_species_limit() {
@@ -368,11 +360,11 @@ fn battle_pet_has_max_pet_count_uses_cpp_default_species_limit() {
 
     assert_eq!(session.battle_pet_count_like_cpp(11, None), 3);
     assert_eq!(
-        crate::session::cx_pets_ref(&session).battle_pet_has_max_pet_count_like_cpp(11, None),
+        session.battle_pet_has_max_pet_count_like_cpp(11, None),
         Some(true)
     );
     assert_eq!(
-        crate::session::cx_pets_ref(&session).battle_pet_has_max_pet_count_like_cpp(12, None),
+        session.battle_pet_has_max_pet_count_like_cpp(12, None),
         Some(false)
     );
 }
@@ -399,7 +391,7 @@ fn battle_pet_has_max_pet_count_honors_legacy_account_unique_like_cpp() {
 
     assert_eq!(session.battle_pet_count_like_cpp(11, None), 1);
     assert_eq!(
-        crate::session::cx_pets_ref(&session).battle_pet_has_max_pet_count_like_cpp(11, None),
+        session.battle_pet_has_max_pet_count_like_cpp(11, None),
         Some(true)
     );
 }
@@ -606,9 +598,7 @@ async fn battle_pet_change_quality_applies_cpp_gates_without_side_effects() {
         session.battle_pet_change_battle_pet_quality_represented_like_cpp(pet_guid, 3),
         RepresentedBattlePetQualityOutcomeLikeCpp::NoJournalLock
     );
-    crate::session::cx_pets(&mut session)
-        .send_battle_pet_journal_lock_status_like_cpp()
-        .await;
+    session.send_battle_pet_journal_lock_status_like_cpp().await;
     let _ = drain_server_packet_bytes(&send_rx);
 
     assert_eq!(
@@ -674,9 +664,7 @@ async fn battle_pet_change_quality_applies_stats_heals_and_sends_update_like_cpp
             save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
         },
     );
-    crate::session::cx_pets(&mut session)
-        .send_battle_pet_journal_lock_status_like_cpp()
-        .await;
+    session.send_battle_pet_journal_lock_status_like_cpp().await;
     let _ = drain_server_packet_bytes(&send_rx);
 
     assert_eq!(
@@ -741,9 +729,7 @@ async fn battle_pet_change_quality_does_not_abort_when_calculate_stats_returns_e
             )
         },
     );
-    crate::session::cx_pets(&mut session)
-        .send_battle_pet_journal_lock_status_like_cpp()
-        .await;
+    session.send_battle_pet_journal_lock_status_like_cpp().await;
     let _ = drain_server_packet_bytes(&send_rx);
 
     assert_eq!(
@@ -826,9 +812,7 @@ async fn battle_pet_grant_level_applies_cpp_gates_without_side_effects() {
         session.battle_pet_grant_battle_pet_level_represented_like_cpp(pet_guid, 1),
         RepresentedBattlePetGrantLevelOutcomeLikeCpp::NoJournalLock
     );
-    crate::session::cx_pets(&mut session)
-        .send_battle_pet_journal_lock_status_like_cpp()
-        .await;
+    session.send_battle_pet_journal_lock_status_like_cpp().await;
     let _ = drain_server_packet_bytes(&send_rx);
 
     assert_eq!(

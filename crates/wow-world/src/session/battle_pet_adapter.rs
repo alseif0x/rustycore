@@ -3,14 +3,13 @@
 
 //! Battle pet adapter: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
+//! The outcome types, the stats application and the uncage `DestroyItem`
+//! phase moved to `wow_world_inventory::battle_pet_session` (#1363 slice 7b).
 
 #[cfg(test)]
 use super::RepresentedBattlePetCageItemLikeCpp;
-use super::{
-    AuraApplication, Instant, ObjectGuid, RepresentedAuraEffectLikeCpp,
-    RepresentedBattlePetCalculatedStatsLikeCpp, RepresentedBattlePetDataLikeCpp, WorldSession,
-};
-use super::{represented_aura_effect_amounts_like_cpp, warn};
+use super::represented_aura_effect_amounts_like_cpp;
+use super::{AuraApplication, Instant, ObjectGuid, RepresentedAuraEffectLikeCpp, WorldSession};
 
 #[cfg(test)]
 use std::sync::atomic::{AtomicI64, Ordering};
@@ -24,25 +23,6 @@ pub(crate) fn next_represented_battle_pet_guid_like_cpp() -> ObjectGuid {
     ObjectGuid::create_global(wow_core::guid::HighGuid::BattlePet, 0, counter)
 }
 
-pub(crate) fn apply_battle_pet_calculated_stats_like_cpp(
-    pet: &mut RepresentedBattlePetDataLikeCpp,
-    calculated_stats: Option<RepresentedBattlePetCalculatedStatsLikeCpp>,
-) {
-    if let Some(calculated_stats) = calculated_stats {
-        pet.max_health = calculated_stats.max_health;
-        pet.power = calculated_stats.power;
-        pet.speed = calculated_stats.speed;
-    }
-    pet.health = pet.max_health;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedBattlePetXpSourceLikeCpp {
-    PetBattle,
-    SpellEffect,
-    Invalid,
-}
-
 #[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedBattlePetCageOutcomeLikeCpp {
@@ -54,38 +34,6 @@ pub(crate) enum RepresentedBattlePetCageOutcomeLikeCpp {
     Damaged,
     InventoryUnavailable,
     StoreFailed,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedBattlePetQualityOutcomeLikeCpp {
-    Changed,
-    NoJournalLock,
-    UnknownPet,
-    QualityAboveRare,
-    CantBattle,
-    NotUpgrade,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedBattlePetGrantLevelOutcomeLikeCpp {
-    Changed,
-    NoJournalLock,
-    UnknownPet,
-    CantBattle,
-    AlreadyMaxLevel,
-    NoGrantedLevels,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedBattlePetGrantExperienceOutcomeLikeCpp {
-    Changed,
-    NoJournalLock,
-    UnknownPet,
-    InvalidXpOrSource,
-    CantBattle,
-    AlreadyMaxLevel,
-    MissingXpRow,
 }
 
 impl WorldSession {
@@ -128,84 +76,6 @@ impl WorldSession {
         self.send_aura_update_applied(spell_id, slot, caster_guid, 30_000, 0x0000_0001, 0x1);
 
         Ok(())
-    }
-
-    /// Finish C++ `Player::DestroyItem` after the Login DB pet/receipt commit.
-    ///
-    /// The receipt makes this second database phase retryable: a reconnect may
-    /// observe the already-created pet and finish deleting the cage without
-    /// publishing another pet or visual.
-    pub(in crate::session) async fn destroy_uncaged_battle_pet_item_durable_like_cpp(
-        &mut self,
-        source_item_guid: ObjectGuid,
-    ) -> bool {
-        let Some(player_guid) = self.player_guid() else {
-            return false;
-        };
-        let player_db_guid = player_guid.counter() as u64;
-        let item_db_guid = source_item_guid.counter() as u64;
-
-        let (owner_guid, inventory_linked) = match self
-            .uncage_item_state_like_cpp(player_db_guid, item_db_guid)
-            .await
-        {
-            wow_persistence::PlayerUncageItemStateLoadOutcomeLikeCpp::Loaded(state) => {
-                (state.owner_guid, state.inventory_linked)
-            }
-            wow_persistence::PlayerUncageItemStateLoadOutcomeLikeCpp::Failed { reason } => {
-                warn!(
-                    account = self.core.account_id,
-                    item_guid = item_db_guid,
-                    %reason,
-                    "Failed to inspect the uncaged battle-pet item"
-                );
-                return false;
-            }
-        };
-        if owner_guid.is_some_and(|owner_guid| owner_guid != player_db_guid) {
-            warn!(
-                account = self.core.account_id,
-                item_guid = item_db_guid,
-                durable_owner = ?owner_guid,
-                player_guid = player_db_guid,
-                "Refusing to destroy an uncaged item owned by another character"
-            );
-            return false;
-        }
-        let Some((bag, slot, item)) = self.get_inventory_item_by_guid_like_cpp(source_item_guid)
-        else {
-            return owner_guid.is_none() && !inventory_linked;
-        };
-        let runtime_item = self.resolved_inventory_item_object_like_cpp(source_item_guid);
-        self.destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp(
-            bag,
-            slot,
-            item,
-            runtime_item,
-            owner_guid.map(|_| player_db_guid),
-            "BattlePetUncage",
-        )
-        .await
-    }
-
-    #[cfg(test)]
-    pub(crate) fn battle_pet_grant_battle_pet_experience_with_owner_auras_like_cpp(
-        &mut self,
-        pet_guid: ObjectGuid,
-        xp: u16,
-        xp_source: RepresentedBattlePetXpSourceLikeCpp,
-    ) -> RepresentedBattlePetGrantExperienceOutcomeLikeCpp {
-        let multiplier = if xp_source == RepresentedBattlePetXpSourceLikeCpp::PetBattle {
-            self.total_represented_aura_multiplier_like_cpp(
-                RepresentedAuraEffectLikeCpp::ModBattlePetXpPct,
-            )
-        } else {
-            1.0
-        };
-
-        self.battle_pet_grant_battle_pet_experience_represented_like_cpp(
-            pet_guid, xp, xp_source, multiplier,
-        )
     }
 }
 

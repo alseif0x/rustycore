@@ -41,4 +41,11 @@ pub trait SessionHubHostLikeCpp {
     fn test_fixtures_like_cpp(&mut self) -> Option<&mut super::state::SessionFixtures> {
         None
     }
+    /// The `&self` form of [`Self::test_fixtures_like_cpp`], for moved `&self`
+    /// bodies whose former `#[cfg(test)]` branch only reads the fixtures
+    /// (#1363 slice 7b).
+    #[cfg(any(test, feature = "test-fixtures"))]
+    fn test_fixtures_ref_like_cpp(&self) -> Option<&super::state::SessionFixtures> {
+        None
+    }
 }

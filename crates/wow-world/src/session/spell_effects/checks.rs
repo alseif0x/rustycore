@@ -26,8 +26,7 @@ impl WorldSession {
                 return Some(SpellCastResult::BadTargets);
             };
 
-            if !crate::session::cx_pets_ref(self).has_represented_battle_pet_journal_lock_like_cpp()
-            {
+            if !self.has_represented_battle_pet_journal_lock_like_cpp() {
                 return Some(SpellCastResult::CantDoThatRightNow);
             }
 
@@ -41,14 +40,12 @@ impl WorldSession {
                 return Some(SpellCastResult::BadTargets);
             }
 
-            let Some(pet) =
-                crate::session::cx_pets_ref(self).represented_battle_pet_like_cpp(companion_guid)
-            else {
+            let Some(pet) = self.represented_battle_pet_like_cpp(companion_guid) else {
                 continue;
             };
 
             if let Some(species) =
-                crate::session::cx_pets_ref(self).battle_pet_species_entry_like_cpp(pet.species)
+                wow_world_inventory::battle_pet_species_entry_like_cpp(self, pet.species)
             {
                 let battle_pet_type = effect.effect_misc_value_1 as u32;
                 if battle_pet_type != 0 {

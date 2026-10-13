@@ -33,9 +33,7 @@ async fn battle_pet_grant_level_caps_at_max_resets_xp_and_sends_update_like_cpp(
             save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
         },
     );
-    crate::session::cx_pets(&mut session)
-        .send_battle_pet_journal_lock_status_like_cpp()
-        .await;
+    session.send_battle_pet_journal_lock_status_like_cpp().await;
     let _ = drain_server_packet_bytes(&send_rx);
 
     assert_eq!(
@@ -115,9 +113,7 @@ async fn battle_pet_grant_level_does_not_abort_when_calculate_stats_returns_earl
             )
         },
     );
-    crate::session::cx_pets(&mut session)
-        .send_battle_pet_journal_lock_status_like_cpp()
-        .await;
+    session.send_battle_pet_journal_lock_status_like_cpp().await;
     let _ = drain_server_packet_bytes(&send_rx);
 
     assert_eq!(
@@ -192,9 +188,7 @@ async fn battle_pet_grant_experience_applies_cpp_gates_without_side_effects() {
         ),
         RepresentedBattlePetGrantExperienceOutcomeLikeCpp::NoJournalLock
     );
-    crate::session::cx_pets(&mut session)
-        .send_battle_pet_journal_lock_status_like_cpp()
-        .await;
+    session.send_battle_pet_journal_lock_status_like_cpp().await;
     let _ = drain_server_packet_bytes(&send_rx);
 
     assert_eq!(
@@ -318,9 +312,7 @@ async fn battle_pet_grant_experience_prefers_real_game_table_over_represented_pr
             )
         },
     );
-    crate::session::cx_pets(&mut session)
-        .send_battle_pet_journal_lock_status_like_cpp()
-        .await;
+    session.send_battle_pet_journal_lock_status_like_cpp().await;
     let _ = drain_server_packet_bytes(&send_rx);
 
     assert_eq!(
@@ -367,9 +359,7 @@ async fn battle_pet_grant_experience_pet_battle_applies_multiplier_and_active_cr
             )
         },
     );
-    crate::session::cx_pets(&mut session)
-        .send_battle_pet_journal_lock_status_like_cpp()
-        .await;
+    session.send_battle_pet_journal_lock_status_like_cpp().await;
     let _ = drain_server_packet_bytes(&send_rx);
 
     assert_eq!(
@@ -437,9 +427,7 @@ async fn battle_pet_grant_experience_missing_later_xp_row_keeps_prior_criteria_b
             )
         },
     );
-    crate::session::cx_pets(&mut session)
-        .send_battle_pet_journal_lock_status_like_cpp()
-        .await;
+    session.send_battle_pet_journal_lock_status_like_cpp().await;
     let _ = drain_server_packet_bytes(&send_rx);
 
     assert_eq!(

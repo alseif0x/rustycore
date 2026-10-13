@@ -43,9 +43,10 @@
 //!
 //! The saga runs on the Player's session. Each [`BattlePetPurchaseHostLikeCpp`]
 //! method is the same-named `WorldSession` operation, called at the exact
-//! point the body called it before the move: the battle-pet journal reads and
-//! lease, the purchase criteria, money staging and publication, the quest
-//! objective drain and the dependent spell learn stay with the host.
+//! point the body called it before the move: money staging and publication,
+//! the quest objective drain and the dependent spell learn stay with the host.
+//! The battle-pet journal reads, the lease and the purchase criteria are the
+//! `battle_pet_session` free functions over the same host (#1363 slice 7b).
 
 use std::future::Future;
 use std::sync::Arc;
@@ -66,10 +67,15 @@ use wow_world_core::battle_pet_account::{
     BattlePetAccountOwnerLikeCpp, BattlePetAddFailureLikeCpp, BattlePetAddOutcomeLikeCpp,
     BattlePetAddRequestKeyLikeCpp, BattlePetAddRequestLikeCpp, BattlePetLeaseIdLikeCpp,
 };
-use wow_world_core::session::{HubMut, SessionHubHostLikeCpp};
 use wow_world_lifecycle::{
     ExclusivePlayerMoneyPersistenceLikeCpp, PlayerMoneyCommitCancellationFenceLikeCpp,
-    SessionLifecycleState,
+};
+
+use crate::battle_pet_session::{
+    BattlePetSessionHostLikeCpp, battle_pet_account_owner_lease_like_cpp,
+    battle_pet_purchase_store_like_cpp, battle_pet_species_entry_like_cpp,
+    battle_pet_try_acquire_journal_lease_like_cpp,
+    record_battle_pet_trainer_purchase_criteria_like_cpp,
 };
 
 mod ops_1;
@@ -92,19 +98,7 @@ pub struct PreparedBattlePetTrainerOfferLikeCpp {
     pub species_id: u32,
 }
 
-pub trait BattlePetPurchaseHostLikeCpp: SessionHubHostLikeCpp {
-    fn lifecycle(&self) -> &SessionLifecycleState;
-    fn split_lifecycle_mut(&mut self) -> (&mut SessionLifecycleState, HubMut<'_>);
-    fn battle_pet_account_owner_lease_like_cpp(
-        &self,
-    ) -> Option<(Arc<BattlePetAccountOwnerLikeCpp>, BattlePetLeaseIdLikeCpp)>;
-    fn battle_pet_purchase_store_like_cpp(&self) -> Option<Arc<dyn BattlePetPurchaseStoreLikeCpp>>;
-    fn battle_pet_species_entry_like_cpp(
-        &self,
-        species: u32,
-    ) -> Option<wow_data::BattlePetSpeciesEntry>;
-    fn battle_pet_try_acquire_journal_lease_like_cpp(&self) -> impl Future<Output = bool> + Send;
-    fn record_battle_pet_trainer_purchase_criteria_like_cpp(&mut self, species: u32);
+pub trait BattlePetPurchaseHostLikeCpp: BattlePetSessionHostLikeCpp {
     fn resolved_player_money_like_cpp(&self) -> Option<u64>;
     fn stage_player_money_change_like_cpp(&mut self, old_money: u64, new_money: u64) -> bool;
     fn send_player_values_update_from_entity_bridge(

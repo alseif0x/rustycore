@@ -592,9 +592,7 @@ async fn battle_pet_grant_experience_spell_effect_levels_without_active_criteria
             )
         },
     );
-    crate::session::cx_pets(&mut session)
-        .send_battle_pet_journal_lock_status_like_cpp()
-        .await;
+    session.send_battle_pet_journal_lock_status_like_cpp().await;
     let _ = drain_server_packet_bytes(&send_rx);
 
     assert_eq!(
@@ -686,9 +684,7 @@ async fn spell_effect_grant_battle_pet_experience_uses_unit_companion_guid_like_
             )
         },
     );
-    crate::session::cx_pets(&mut session)
-        .send_battle_pet_journal_lock_status_like_cpp()
-        .await;
+    session.send_battle_pet_journal_lock_status_like_cpp().await;
     let _ = drain_server_packet_bytes(&send_rx);
     assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
 

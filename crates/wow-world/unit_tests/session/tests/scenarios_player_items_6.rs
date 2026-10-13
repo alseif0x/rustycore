@@ -40,9 +40,7 @@ async fn battle_pet_cage_battle_pet_creates_cage_item_removes_and_deletes_like_c
         },
     );
     assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
-    crate::session::cx_pets(&mut session)
-        .send_battle_pet_journal_lock_status_like_cpp()
-        .await;
+    session.send_battle_pet_journal_lock_status_like_cpp().await;
     let _ = drain_server_packet_bytes(&send_rx);
 
     assert_eq!(

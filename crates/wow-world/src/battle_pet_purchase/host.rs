@@ -4,54 +4,19 @@
 
 //! World adapter for the battle-pet purchase saga moved to
 //! `wow_world_inventory::battle_pet_purchase` (#1363 slice 7a). Every method
-//! is a pure forward to the same-named inherent `WorldSession` method, field
-//! or pets-context method.
+//! is a pure forward to the same-named inherent `WorldSession` method. The
+//! journal reads, the lease and the purchase criteria are the
+//! `wow_world_inventory::battle_pet_session` free functions over the
+//! [`wow_world_inventory::BattlePetSessionHostLikeCpp`] adapter (#1363 slice 7b).
 
 use std::future::Future;
-use std::sync::Arc;
 
 use wow_core::ObjectGuid;
-use wow_persistence::BattlePetPurchasePersistencePortLikeCpp;
-use wow_world_core::session::HubMut;
 use wow_world_inventory::BattlePetPurchaseHostLikeCpp;
-use wow_world_lifecycle::SessionLifecycleState;
 
-use crate::battle_pet_account::{BattlePetAccountOwnerLikeCpp, BattlePetLeaseIdLikeCpp};
 use crate::session::{ExclusivePlayerMoneyPersistenceLikeCpp, WorldSession};
 
 impl BattlePetPurchaseHostLikeCpp for WorldSession {
-    fn lifecycle(&self) -> &SessionLifecycleState {
-        &self.lifecycle
-    }
-    fn split_lifecycle_mut(&mut self) -> (&mut SessionLifecycleState, HubMut<'_>) {
-        crate::session::split_lifecycle_mut(self)
-    }
-    fn battle_pet_account_owner_lease_like_cpp(
-        &self,
-    ) -> Option<(Arc<BattlePetAccountOwnerLikeCpp>, BattlePetLeaseIdLikeCpp)> {
-        crate::session::cx_pets_ref(self).battle_pet_account_owner_lease_like_cpp()
-    }
-    fn battle_pet_purchase_store_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn BattlePetPurchasePersistencePortLikeCpp>> {
-        crate::session::cx_pets_ref(self).battle_pet_purchase_store_like_cpp()
-    }
-    fn battle_pet_species_entry_like_cpp(
-        &self,
-        species: u32,
-    ) -> Option<wow_data::BattlePetSpeciesEntry> {
-        crate::session::cx_pets_ref(self).battle_pet_species_entry_like_cpp(species)
-    }
-    fn battle_pet_try_acquire_journal_lease_like_cpp(&self) -> impl Future<Output = bool> + Send {
-        async move {
-            crate::session::cx_pets_ref(self)
-                .battle_pet_try_acquire_journal_lease_like_cpp()
-                .await
-        }
-    }
-    fn record_battle_pet_trainer_purchase_criteria_like_cpp(&mut self, species: u32) {
-        crate::session::cx_pets(self).record_battle_pet_trainer_purchase_criteria_like_cpp(species)
-    }
     fn resolved_player_money_like_cpp(&self) -> Option<u64> {
         WorldSession::resolved_player_money_like_cpp(self)
     }

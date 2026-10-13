@@ -107,7 +107,7 @@ pub(super) async fn compensate_battle_pet_purchase_like_cpp<H: BattlePetPurchase
             }
             if !command.published
                 && !account_mismatch
-                && host.battle_pet_try_acquire_journal_lease_like_cpp().await
+                && battle_pet_try_acquire_journal_lease_like_cpp(host).await
             {
                 let replay = owner
                     .try_add_pet_like_cpp(
@@ -289,7 +289,7 @@ pub(super) fn publish_battle_pet_trainer_purchase_like_cpp<H: BattlePetPurchaseH
     // C++ `BattlePetMgr::AddPet`: SendUpdates first, then the two set-like
     // criteria hooks. Their represented bridge derives current durable
     // state, making receipt and packet-publication recovery idempotent.
-    host.record_battle_pet_trainer_purchase_criteria_like_cpp(species);
+    record_battle_pet_trainer_purchase_criteria_like_cpp(host, species);
     host.learn_dependent_known_spell_like_cpp(spell_id as i32);
     let learned_enqueued = host
         .core()

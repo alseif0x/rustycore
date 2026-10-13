@@ -26,12 +26,12 @@ pub async fn execute_battle_pet_trainer_purchase_with_generator_like_cpp<
     trainer_id: u32,
     offer: PreparedBattlePetTrainerOfferLikeCpp,
 ) -> BattlePetPurchaseExecutionLikeCpp {
-    let Some((owner, lease_id)) = host.battle_pet_account_owner_lease_like_cpp() else {
+    let Some((owner, lease_id)) = battle_pet_account_owner_lease_like_cpp(host) else {
         return BattlePetPurchaseExecutionLikeCpp::Unavailable(
             BattlePetPurchaseAdmissionFailureLikeCpp::NoJournalAuthority,
         );
     };
-    let Some(store) = host.battle_pet_purchase_store_like_cpp() else {
+    let Some(store) = battle_pet_purchase_store_like_cpp(host) else {
         return BattlePetPurchaseExecutionLikeCpp::Unavailable(
             BattlePetPurchaseAdmissionFailureLikeCpp::StoreUnavailable,
         );
@@ -41,7 +41,7 @@ pub async fn execute_battle_pet_trainer_purchase_with_generator_like_cpp<
             BattlePetPurchaseAdmissionFailureLikeCpp::StoreUnavailable,
         );
     };
-    let Some(species_entry) = host.battle_pet_species_entry_like_cpp(offer.species_id) else {
+    let Some(species_entry) = battle_pet_species_entry_like_cpp(host, offer.species_id) else {
         return BattlePetPurchaseExecutionLikeCpp::Unavailable(
             BattlePetPurchaseAdmissionFailureLikeCpp::SelectionUnavailable,
         );
@@ -56,7 +56,7 @@ pub async fn execute_battle_pet_trainer_purchase_with_generator_like_cpp<
             BattlePetPurchaseAdmissionFailureLikeCpp::Capacity,
         );
     }
-    if !host.battle_pet_try_acquire_journal_lease_like_cpp().await {
+    if !battle_pet_try_acquire_journal_lease_like_cpp(host).await {
         return BattlePetPurchaseExecutionLikeCpp::Unavailable(
             BattlePetPurchaseAdmissionFailureLikeCpp::JournalLocked,
         );
@@ -266,8 +266,8 @@ pub async fn recover_battle_pet_trainer_purchases_with_generator_like_cpp<
     host: &mut H,
     item_guid_generator: &wow_core::ObjectGuidGenerator,
 ) -> Option<BattlePetPurchaseRecoveryLikeCpp> {
-    let (owner, lease_id) = host.battle_pet_account_owner_lease_like_cpp()?;
-    let store = host.battle_pet_purchase_store_like_cpp()?;
+    let (owner, lease_id) = battle_pet_account_owner_lease_like_cpp(host)?;
+    let store = battle_pet_purchase_store_like_cpp(host)?;
     let player_guid = host.player_guid()?;
     let commands = match store
         .load_pending_commands(
@@ -405,7 +405,7 @@ pub async fn recover_battle_pet_trainer_purchases_with_generator_like_cpp<
                 }
             }
             BattlePetPurchaseStatusLikeCpp::PendingApplication => {
-                if !host.battle_pet_try_acquire_journal_lease_like_cpp().await {
+                if !battle_pet_try_acquire_journal_lease_like_cpp(host).await {
                     summary.deferred += 1;
                     break;
                 }
@@ -499,7 +499,7 @@ pub async fn recover_battle_pet_trainer_purchases_with_generator_like_cpp<
                 if command.published {
                     continue;
                 }
-                if !host.battle_pet_try_acquire_journal_lease_like_cpp().await {
+                if !battle_pet_try_acquire_journal_lease_like_cpp(host).await {
                     summary.deferred += 1;
                     break;
                 }

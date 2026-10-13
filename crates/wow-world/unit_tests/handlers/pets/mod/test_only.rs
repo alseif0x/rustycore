@@ -7,25 +7,6 @@
 use super::*;
 
 impl crate::session::WorldSession {
-    pub(crate) async fn handle_battle_pet_delete_pet_represented_like_cpp(
-        &mut self,
-        pkt: wow_packet::WorldPacket,
-    ) {
-        crate::session::cx_pets(self)
-            .handle_battle_pet_delete_pet_represented_like_cpp(pkt)
-            .await
-    }
-    pub(crate) async fn handle_battle_pet_modify_name_represented_like_cpp(
-        &mut self,
-        pkt: wow_packet::WorldPacket,
-    ) {
-        crate::session::cx_pets(self)
-            .handle_battle_pet_modify_name_represented_like_cpp(pkt)
-            .await
-    }
-}
-
-impl crate::session::PetsCx<'_> {
     /// CMSG_BATTLE_PET_DELETE_PET — represented battle-pet removal body.
     ///
     /// C++ registers this handler and forwards only the pet guid to
@@ -41,7 +22,7 @@ impl crate::session::PetsCx<'_> {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.hub.core.account_id,
+                    account = self.core.account_id,
                     "BattlePetDeletePet parse failed: {error}"
                 );
                 return;
@@ -66,7 +47,7 @@ impl crate::session::PetsCx<'_> {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.hub.core.account_id,
+                    account = self.core.account_id,
                     "BattlePetModifyName parse failed: {error}"
                 );
                 return;

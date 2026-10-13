@@ -213,9 +213,7 @@ impl WorldSession {
 
         // C++ sends the journal lock before
         // `Player::SendInitialPacketsBeforeAddToMap`.
-        crate::session::cx_pets(self)
-            .send_battle_pet_journal_lock_status_like_cpp()
-            .await;
+        self.send_battle_pet_journal_lock_status_like_cpp().await;
         self.core
             .wait_for_realm_send_before_instance_update_like_cpp()
             .await
