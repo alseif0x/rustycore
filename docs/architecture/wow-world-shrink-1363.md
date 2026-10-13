@@ -4858,3 +4858,135 @@ about 4.5k, `session_state/login_data.rs` splits off into an 8e.
 `VALIDATION_V2_TIMEOUT_SECONDS=1800`) runs on the committed head that
 includes this section. Its manifest path, dirty flag and duration are in
 the PR body. This section is not edited after that run.
+
+## Slice 8c2 result (deferred: gossip, lifecycle and entry zone ride with 8d)
+
+Branch `1363-s8c2-gossip`, base `ca23e294d` (8c merged). Nothing moved. The
+re-measure on this base puts the host share above the 15 % budget for every
+cut of the family. As the 8c2 plan allows, the family rides with 8d instead
+of being forced. No code, ceiling, policy or test file changes; this section
+is the only diff.
+
+### Re-measure
+
+The lexical scan is the slice 8 one: comments, literals and `cfg(test)` items
+are blanked, and the scan counts `self.`/`session.` calls to `WorldSession`
+methods defined outside the family. Production lines come from the hotspot
+classifier.
+
+| Family | Production | Outside methods | Call sites |
+|---|---:|---:|---:|
+| `gossip.rs` + `lifecycle.rs` + `entry_zone.rs` | 1,039 | 28 | 48 |
+| login load (8d: `world_entry*`, `session_state*`, `items/login_load.rs`) | 4,739 | 152 | 236 |
+| 8d with 8c2 folded in | 5,778 | 171 | 280 |
+| `session_state/login_data.rs` alone (the 8e candidate) | 455 | 10 | 11 |
+
+Both families are unchanged since the 8b head (8c touched neither). The
+`cfg(test)` binder entry point (11 lines) would go to a shim file. The
+trainer gossip helpers and constants of the character `mod.rs` (about 65
+lines) would move with gossip, because `vendor.rs`'s trainer gossip menu
+also calls them.
+
+### Host surface, drafted
+
+Five of the 28 calls inline as the same call through the hub: `player_guid`,
+`send_packet`, `realm_id`, `send_tx`, `mmap_runtime_config_like_cpp`, and the
+catalog reads `condition_store` and `player_condition_store`. Six are lent by
+existing traits:
+
+- `VendorSessionHostLikeCpp`: feign-death removal, the show-bank
+  publication, the condition creature object and the player-condition
+  context. Extending it also makes `wow_world_inventory::handle_list_inventory`
+  a free call.
+- `WorldEntitiesHostLikeCpp`: the gameobject gossip check.
+- `CorpseHostLikeCpp`: `teleport_to`.
+
+The 17 operations that remain have no lender:
+
+- the interaction splits (`ref` and `mut`) and `split_lifecycle_ref`;
+- the instanceable-map check;
+- the cast GUID and the nine-argument spell execution;
+- the two trainer lists and the trainer gossip menu;
+- the gossip option store (clear, replace and read) and the gossip text;
+- the quest-giver fallback;
+- the homebind;
+- the zone update and the zone-authority flag.
+
+These operations were written out as a trait (`CharacterSessionHostLikeCpp:
+VendorSessionHostLikeCpp + WorldEntitiesHostLikeCpp + CorpseHostLikeCpp`) and
+a rustfmt-formatted `WorldSession` adapter in the 8b/8c forwarding style.
+This was a scratch draft, not committed. It comes to **187 lines (76 trait +
+111 adapter)**, which is the minimum before the destination module's
+`mod.rs` (docs, mounts, exports) and the adapter imports.
+
+| Cut | Host (minimum) | Moved production | Share |
+|---|---:|---:|---:|
+| whole family | 187 | about 1,093 (1,028 + about 65 helpers) | 17.1 % (about 19–21 % with `mod.rs` and imports) |
+| gossip alone | about 156 (13 methods) | about 801 | 19.5 % |
+| lifecycle + entry zone alone | about 48 (4 methods) | 292 | 16.4 % |
+
+Each cut is above 15 % at its minimum, so nothing is forced in.
+
+### Edges (simulated, nothing added)
+
+`wow_world_closure.py check` with
+`wow-world-character->{interaction,visibility,spell,instances}` added passes
+in lock and metadata mode (17 packages). Three negative probes fail as they
+must:
+
+- `character->quest`;
+- `entities->character` (a cycle);
+- `inventory->character` (a cycle).
+
+On this base only `wow-world` reaches character (application does not), and
+character's closure is core, entities, interaction, inventory, lifecycle and
+visibility.
+
+### Recommendation for 8d
+
+- **Lifecycle and the entry zone belong to 8d.** The login loaders are their
+  only production callers: `session_state.rs` (corpse load, customizations),
+  `initial_packets.rs` (entry zone) and `login_recovery.rs` (default graveyard
+  homebind). The exceptions are `update_realm_characters` (the character
+  handler host) and the rename enqueue (session driver callbacks), and both
+  of those callers stay World adapters. If 8d moves without these functions,
+  8d needs four extra host methods to call them. Moving them together makes
+  those calls free calls. Their own operations are login operations 8d needs
+  anyway: homebind, teleport, the zone update and zone authority, and the
+  lifecycle split.
+- **Gossip shares almost nothing with login load.** Only the five trivial
+  forwards above are common to both. Its 13 methods cost about 156 host lines
+  wherever it lands. It fits the budget only inside a combined character host
+  budget (the 8d trait, which gossip would extend), not as its own slice.
+- **Size.** 8d with all of 8c2 is 5,778 lines, above the plan's 4.5k
+  threshold. The 8e rule applies:
+  - **8d** is login load without `login_data.rs`, plus lifecycle and the
+    entry zone, about 4,576 lines;
+  - **8e** is `login_data.rs` plus gossip, about 1,200 lines. Gossip's
+    methods extend the 8d host trait.
+
+  8d re-measures on its base and decides gossip's place against the 8d/8e
+  combined host share. If gossip still does not fit, it waits until its
+  trainer and gossip-store callees can move with it.
+
+### Follow-ups
+
+- **#1388 optional follow-up 1 is deferred.** It would add
+  `handlers/character/items/host.rs` to the
+  `committed_money_callers_publish_all_runtime_state_before_reopening_admission`
+  scan. The file has none of the scan's markers, so the assertions would not
+  change. But the extra `include_str!` line raises the
+  `handlers/character/mod.rs` hotspot's test figure from 15,679 to 15,680,
+  above its live ceiling (checked: `check_architecture.py check` fails with
+  +1). It goes in with 8d, which shrinks that list.
+- **#1388 optional follow-up 2.** `item_session/mod.rs` exports the `plan_*`
+  functions under `cfg(any(test, feature = "test-fixtures"))` only. No 8c2
+  code depends on them.
+
+### Validation
+
+Documentation only. No Rust, policy or test file changed, so no build or test
+evidence is claimed or needed for this delta. The closure runs and the
+classifier and architecture checks above are the evidence of the re-measure.
+No PR is opened for this section alone. It goes in with the 8d PR, or on its
+own if the reviewer prefers.
