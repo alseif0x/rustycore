@@ -240,22 +240,6 @@ impl WorldSession {
             })
     }
 
-    pub(crate) fn current_played_time_values_like_cpp(&self) -> (u32, u32) {
-        let session_secs: u32 = self
-            .lifecycle
-            .login_time_like_cpp()
-            .map(|time| time.elapsed().as_secs() as u32)
-            .unwrap_or(0);
-        (
-            self.lifecycle
-                .total_played_time_like_cpp()
-                .saturating_add(session_secs),
-            self.lifecycle
-                .level_played_time_like_cpp()
-                .saturating_add(session_secs),
-        )
-    }
-
     pub(crate) fn take_deferred_rest_flag_update_dirty_like_cpp(&mut self) -> bool {
         self.take_player_deferred_rest_flag_update_dirty_like_cpp()
     }
