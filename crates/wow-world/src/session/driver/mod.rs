@@ -154,7 +154,10 @@ impl WorldSession {
         if self.core.state == SessionState::LoggedIn {
             self.core
                 .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::SessionOwnedTicks);
-            self.update_pvp_flag_like_cpp(wow_entities::game_time_secs_like_cpp());
+            wow_world_entities::update_pvp_flag_like_cpp(
+                self,
+                wow_entities::game_time_secs_like_cpp(),
+            );
             let _ = crate::session::hub_mut(self).set_represented_can_delay_teleport_like_cpp(true);
             self.world_entities.advance_creature_tick_like_cpp();
             // C++ `Player::Update` runs `RegenerateAll()` after
@@ -162,7 +165,8 @@ impl WorldSession {
             // canonical Player owns the accumulators; this session pass is the
             // single writer and consumes the published stat snapshot.
             let regen_game_tables = self.catalogs.regen_game_tables.clone();
-            self.tick_player_regeneration_like_cpp(
+            wow_world_entities::tick_player_regeneration_like_cpp(
+                self,
                 diff_ms,
                 catalogs.creature_spawns.power_types.as_ref(),
                 regen_game_tables.as_deref(),

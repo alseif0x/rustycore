@@ -814,24 +814,12 @@
           "source_class": "test_fixture"
         },
         {
-          "module": "crate::handlers::loot::combat_commands",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "module": "crate::handlers::loot::fanout::f3_shims",
           "trait_path": null,
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "module": "crate::handlers::loot::handlers",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "module": "crate::handlers::loot::handlers::test_shims",
@@ -965,6 +953,14 @@
         },
         {
           "module": "crate::handlers::pets::test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
+          "module": "crate::handlers::player_test_shims",
           "trait_path": null,
           "cfg": [
             "cfg (test)"
@@ -1514,6 +1510,12 @@
         {
           "module": "crate::session",
           "trait_path": "wow_world_core :: session :: SessionHubHostLikeCpp",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_entities :: CombatSessionHostLikeCpp",
           "cfg": [],
           "source_class": "production"
         },
@@ -8782,48 +8784,6 @@
           ]
         },
         {
-          "module": "crate::handlers::loot::combat_commands",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_creature_attack_start_like_cpp_command_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_creature_attack_start_like_cpp_command_like_cpp (& mut self , command : CreatureAttackStartLikeCppCommand ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::combat_commands",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_creature_attack_stop_like_cpp_command_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_creature_attack_stop_like_cpp_command_like_cpp (& mut self , command : CreatureAttackStopLikeCppCommand ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::combat_commands",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_reconcile_pvp_combat_expiry_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_reconcile_pvp_combat_expiry_like_cpp (& mut self , command : ReconcilePvpCombatExpiryLikeCppCommand ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::loot::fanout::f3_shims",
           "trait_path": null,
           "kind": "method",
@@ -8850,34 +8810,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::handlers",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_apply_creature_melee_damage_like_cpp_command_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_apply_creature_melee_damage_like_cpp_command_like_cpp (& mut self , command : ApplyCreatureMeleeDamageLikeCppCommand ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::handlers",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_send_creature_loot_release_values_update_command_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_send_creature_loot_release_values_update_command_like_cpp (& mut self , command : SendCreatureLootReleaseValuesUpdateLikeCppCommand ,)",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "external_impl",
             "visible"
@@ -9711,6 +9643,20 @@
           "name": "has_active_non_item_loot_views_like_cpp",
           "visibility": "private",
           "signature": "fn has_active_non_item_loot_views_like_cpp (& self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::session_loot_host",
+          "trait_path": "LootSessionHostLikeCpp",
+          "kind": "method",
+          "name": "has_pending_bind_like_cpp",
+          "visibility": "private",
+          "signature": "fn has_pending_bind_like_cpp (& self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -11700,6 +11646,70 @@
           "name": "handle_query_battle_pet_name",
           "visibility": "pub (crate)",
           "signature": "async fn handle_query_battle_pet_name (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_apply_creature_melee_damage_like_cpp_command_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn handle_apply_creature_melee_damage_like_cpp_command_like_cpp (& mut self , command : ApplyCreatureMeleeDamageLikeCppCommand ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "send_player_power_update_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn send_player_power_update_like_cpp (& self , guid : ObjectGuid , power : PowerType , value : i32 ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "tick_player_regeneration_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn tick_player_regeneration_like_cpp (& mut self , diff_ms : u32 , power_types : & wow_data :: character_progression :: PowerTypeStore , regen_game_tables : Option < & wow_data :: RegenGameTablesLikeCpp > , rates : & PlayerRegenerationRatesLikeCpp ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "update_pvp_flag_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn update_pvp_flag_like_cpp (& mut self , curr_time : i64)",
           "cfg": [
             "cfg (test)"
           ],
@@ -17548,19 +17558,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_represented_ffa_pvp_login_state_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn apply_represented_ffa_pvp_login_state_like_cpp (& mut self) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "apply_represented_first_login_cast_spells_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn apply_represented_first_login_cast_spells_like_cpp (& mut self) -> usize",
@@ -19863,19 +19860,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "combat_stop_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn combat_stop_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "commit_represented_talent_reset_at_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "async fn commit_represented_talent_reset_at_like_cpp (& mut self , now_secs : u64 , no_reset_talent_cost : bool ,) -> Option < CommittedRepresentedTalentResetLikeCpp >",
@@ -21181,17 +21165,6 @@
           "guards": [
             "visible"
           ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "finish_combat_stop_like_cpp",
-          "visibility": "private",
-          "signature": "fn finish_combat_stop_like_cpp (& mut self , player_guid : ObjectGuid , stopped_target : Option < ObjectGuid > , owner_guids : Vec < ObjectGuid > ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
         },
         {
           "module": "crate::session",
@@ -26782,19 +26755,6 @@
           "name": "publish_heal_spell_log_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn publish_heal_spell_log_like_cpp (& self , spell_id : Option < i32 > , healer_guid : ObjectGuid , target_guid : ObjectGuid , heal_amount : u32 , effective_heal : u32 , absorbed : u32 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "publish_melee_absorb_consumption_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn publish_melee_absorb_consumption_like_cpp (& mut self , attacker_guid : ObjectGuid , victim_guid : ObjectGuid , original_damage : i32 , mana_spent : u32 , consumptions : & [crate :: session :: mailbox :: CreatureMeleeAbsorbConsumptionLikeCpp] , split_combat_log_packets : & [Vec < u8 >] ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -32845,19 +32805,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "reset_contested_pvp_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn reset_contested_pvp_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "reset_driver_phase_trace_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn reset_driver_phase_trace_like_cpp (& mut self)",
@@ -34360,35 +34307,9 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "send_player_food_emote_visual_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn send_player_food_emote_visual_like_cpp (& self , guid : ObjectGuid , kit_record_id : i32 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "send_player_party_type_update_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn send_player_party_type_update_like_cpp (& self , category : u8 , party_type : u8)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_player_power_update_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn send_player_power_update_like_cpp (& self , guid : ObjectGuid , power : PowerType , value : i32 ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -39029,20 +38950,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "set_represented_ffa_pvp_flag_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn set_represented_ffa_pvp_flag_like_cpp (& mut self , enabled : bool ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "set_represented_gray_level_script_override_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn set_represented_gray_level_script_override_like_cpp (& mut self , player_level : u8 , gray_level : u8 ,)",
@@ -41678,19 +41585,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "tick_player_regeneration_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn tick_player_regeneration_like_cpp (& mut self , diff_ms : u32 , power_types : & wow_data :: character_progression :: PowerTypeStore , regen_game_tables : Option < & wow_data :: RegenGameTablesLikeCpp > , rates : & PlayerRegenerationRatesLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "tick_represented_creature_auras_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn tick_represented_creature_auras_like_cpp (& mut self)",
@@ -42095,19 +41989,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "update_pvp_flag_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn update_pvp_flag_like_cpp (& mut self , curr_time : i64)",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -44286,6 +44167,84 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_entities :: CombatSessionHostLikeCpp",
+          "kind": "method",
+          "name": "broadcast_player_packet_to_visible_set_realm_like_cpp",
+          "visibility": "private",
+          "signature": "fn broadcast_player_packet_to_visible_set_realm_like_cpp (& self , bytes : Vec < u8 >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_entities :: CombatSessionHostLikeCpp",
+          "kind": "method",
+          "name": "is_ffa_pvp_realm_like_cpp",
+          "visibility": "private",
+          "signature": "fn is_ffa_pvp_realm_like_cpp (& self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_entities :: CombatSessionHostLikeCpp",
+          "kind": "method",
+          "name": "present_committed_creature_melee_health_like_cpp",
+          "visibility": "private",
+          "signature": "fn present_committed_creature_melee_health_like_cpp (& mut self , committed_revision : u64 ,) -> Option < u64 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_entities :: CombatSessionHostLikeCpp",
+          "kind": "method",
+          "name": "publish_creature_melee_death_durability_loss_like_cpp",
+          "visibility": "private",
+          "signature": "fn publish_creature_melee_death_durability_loss_like_cpp (& mut self , over_damage : i32)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_entities :: CombatSessionHostLikeCpp",
+          "kind": "method",
+          "name": "represented_player_is_polymorphed_like_cpp",
+          "visibility": "private",
+          "signature": "fn represented_player_is_polymorphed_like_cpp (& self) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_entities :: CombatSessionHostLikeCpp",
+          "kind": "method",
+          "name": "resolved_visible_resting_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_visible_resting_like_cpp (& self) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
           "guards": [
             "trait_impl"
           ]

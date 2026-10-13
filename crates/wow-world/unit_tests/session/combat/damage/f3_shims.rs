@@ -22,7 +22,7 @@ impl crate::session::WorldSession {
     }
 }
 
-impl WorldSession {
+impl crate::session::WorldSession {
     pub(crate) fn set_player_health_after_runtime_damage_like_cpp(&mut self, health_after: u64) {
         let Some((_, max_health, _)) =
             crate::session::hub_ref(self).resolved_player_vitals_like_cpp()

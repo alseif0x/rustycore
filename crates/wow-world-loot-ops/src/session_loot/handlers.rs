@@ -7,8 +7,9 @@
 //! and the roll winner store (#1363 slice 5c; moved from the World
 //! `handlers/loot/handlers.rs`). `CMSG_LOOT_MONEY` is in `money`.
 //!
-//! The creature melee-damage and loot-release VALUES receivers that shared the
-//! World file are not loot; they stay in the World session (slice 7).
+//! The receiver half of the creature loot-release VALUES fanout followed in
+//! slice 7a. The creature melee-damage receiver that shared the World file
+//! moved to `wow-world-entities` (`combat_session`).
 
 use super::*;
 
@@ -224,4 +225,74 @@ pub async fn handle_represented_loot_roll_store_winner_command_with_generator_li
     );
 
     let _ = command.result_tx.send(result);
+}
+
+/// Receiver-owned half of the loot-release VALUES fanout. Applying
+/// `Player::isAllowedToLoot` here preserves session-local pending-bind
+/// state and avoids serialising one player's dynamic flags for another.
+pub fn handle_send_creature_loot_release_values_update_command_like_cpp<
+    H: LootSessionHostLikeCpp,
+>(
+    host: &mut H,
+    command: SendCreatureLootReleaseValuesUpdateLikeCppCommand,
+) {
+    if host.state() != SessionState::LoggedIn
+        || host.core().player_map_id_like_cpp() != command.map_id
+    {
+        return;
+    }
+    let instance_id = host
+        .core()
+        .current_canonical_player_map_key_like_cpp()
+        .map(|key| key.instance_id)
+        .unwrap_or(0);
+    if instance_id != command.instance_id
+        || !host
+            .core()
+            .client_visible_guids_like_cpp
+            .contains(&command.creature_guid)
+    {
+        return;
+    }
+    if host.represented_can_receive_creature_message_to_set_by_guid_like_cpp(
+        command.creature_guid,
+        command.map_id,
+        command.instance_id,
+        false,
+    ) != Some(true)
+    {
+        return;
+    }
+    let Some(expected_authority) = command.authority.as_ref() else {
+        return;
+    };
+    // Both non-found facts refuse the queued VALUES update, and neither
+    // reconstructs an authority from the other store.
+    let OwnedLootAuthorityLookupOutcomeLikeCpp::Found(current_authority) =
+        represented_owned_loot_authority_outcome_like_cpp(host, command.creature_guid)
+    else {
+        return;
+    };
+    if !current_authority.shares_storage_like_cpp(expected_authority) {
+        // The queued update belongs to an older corpse generation. C++
+        // publishes synchronously before respawn; Rust must not apply the
+        // delayed VALUES delta to a replacement creature with the same GUID.
+        return;
+    }
+    let Some(viewer_guid) = host.player_guid() else {
+        return;
+    };
+    let viewer_update = creature_loot_release_values_for_viewer_like_cpp(
+        host,
+        command.creature_guid,
+        viewer_guid,
+        host.has_pending_bind_like_cpp(),
+        Some(expected_authority),
+        command.unit_values_update,
+    );
+    host.send_packet(&UpdateObject::unit_values_update(
+        command.creature_guid,
+        command.map_id,
+        viewer_update,
+    ));
 }

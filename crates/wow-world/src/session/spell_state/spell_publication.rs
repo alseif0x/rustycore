@@ -28,7 +28,7 @@ impl WorldSession {
             instance_id,
             packet_already_broadcast: false,
         };
-        self.handle_creature_attack_start_like_cpp_command_like_cpp(command);
+        wow_world_entities::handle_creature_attack_start_like_cpp_command_like_cpp(self, command);
 
         let packet_bytes = wow_packet::packets::combat::AttackStart {
             attacker: attacker_guid,

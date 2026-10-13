@@ -133,7 +133,7 @@ impl WorldSession {
             // directly from `packet.Entered`, independently of RestMgr's
             // aggregate mask. Leaving an inn can therefore restore FFA while
             // a city/faction rest flag still keeps PLAYER_FLAGS_RESTING set.
-            self.set_represented_ffa_pvp_flag_like_cpp(!entered);
+            wow_world_entities::set_represented_ffa_pvp_flag_like_cpp(self, !entered);
         }
         true
     }

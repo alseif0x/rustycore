@@ -82,7 +82,8 @@ use wow_packet::packets::loot::{
     LootEntry, LootEntryFlags, LootRemoved, LootResponse, MasterLootCandidateList,
 };
 use wow_world_core::session::mailbox::{
-    SessionCommand, SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    SendCreatureLootReleaseValuesUpdateLikeCppCommand, SessionCommand,
+    SyncChestGameobjectStateAndRefreshLikeCppCommand,
     SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
     SyncGooberGameobjectStateAndRefreshLikeCppCommand,
 };
