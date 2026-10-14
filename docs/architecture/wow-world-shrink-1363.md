@@ -7405,3 +7405,61 @@ duplicate body.
   - **the open-item loot family** (about 960 in `handlers/spell/ops_{1,2}.rs`):
     loot, for loot-ops;
   - **the respec wipe** (about 130 in `handlers/talent/state.rs`): slice 13.
+
+## Slice 10 plan (world entities and gameobject state, phase 2)
+
+Measured on `b240d01a6` (9e merged) before anything moved: the hotspot
+classifier for production lines, and the slice 8/9 lexical scan for the calls
+each family makes to inherent `WorldSession` methods (or `crate::session::`
+splits and other crates' free functions with the session as argument) defined
+outside the family. Field reads (`self.core`, `self.world_entities`,
+`self.catalogs`, `self.config`) are not counted; they become hub or field
+accessors.
+
+- **`wow-world` production (classifier): 49,482** lines, 56,805 physical,
+  471 files.
+- **The world-entity domain left in `wow-world` is about 3.4k production
+  lines**: `session/world_entities/**` (3,250) and the capture-point removal
+  in `session/movement/movement_publication.rs` (37). The original row
+  (about 4k) also counted the gameobject-use handlers, which 4a moved.
+  `handlers/entities/**` (682) is now the F5 adapters (`host.rs`,
+  `corpse/host.rs`) and `cfg(test)` shims; the adapters stay until
+  `WorldSession` itself splits.
+
+| Family | Files | Body lines | Outside calls | Host cost if moved to entities |
+|---|---|---:|---:|---|
+| GameObject update tick and linked-trap despawn (`GameObject::Update` states, traps, chests, capture points, despawn/respawn) | `gameobject.rs` tick, `spawn.rs` | 696 | 8 | +2 (loot-cache removal, chest refresh queue), −1 (the trap despawn host method retires) |
+| Last-update gameobject publication (visual despawn, capture-point removal, the shared visible-set filter) | `gameobject_state.rs`, `gameobject_query.rs` summary, `movement_publication.rs` | 357 | 5 | +1 (`current_seer_guid_like_cpp`) |
+| Visible-object queries (gameobjects with the canonical create data, creatures, the seer's combat reach) | `gameobject_query.rs`, `gameobject.rs` create data, `creature_query.rs`, `aggro.rs` reach | 323 | 4 | −2 (two visibility host methods retire); the quest crate's pure per-viewer GoState projection (16 lines) moves down with it |
+| Creature publication and represented creature auras (message-to-set gates, aura apply/tick/publish, creature broadcast) | `creature.rs`, `creature_publication.rs` | 347 | 7 | 0 |
+| Creature kill, reputation and death-state completion | `creature_kill.rs` | 439 | 16 | ~9 (social reputation gain, loot-ops kill loot, quest objective, XP, tapper pet hooks, currency store, social split) |
+| Spell threat (initial threat, threat-relevant auras) | `aggro.rs` | 255 | 8 | spell-bound (two `wow_world_spell` calls and the pull publication): belongs to `wow-world-spell`, not entities |
+| Spell-click visibility, viewer NPC flags | `spell_click.rs`, `creature_interaction.rs` | 120 | 4 | quest-bound (`wow_world_quest` predicate, condition projection): stays behind the host |
+| Committed creature melee health presentation | `creature.rs` | 61 | 1 | 1, plus a fixture accessor for its `cfg(test)` block |
+| Dynamic flags, kill credit, gameobject mutate | `gameobject.rs` | 73 | 5 | quest-bound; already host methods; stay |
+| Catalog setters (`pub` API for world-server) | `creature_query.rs`, `gameobject_query.rs`, `aggro.rs` | ~60 | 0 | stay (session construction API) |
+| `cfg(test)` registry and test entries nested in production impls | `creature_registry.rs`, `creature.rs`, `creature_kill.rs`, `aggro.rs` | ~375 | — | reclassification only (test shims), no host |
+
+**Closure pre-check** (lock and metadata, on the base): the four 10a families
+need **no new edge**; `check` passes as is (17 packages). The forbidden
+targets were probed and fail as they must:
+`wow-world-entities->wow-world-{quest,loot-ops,spell,social}` (cycles or
+forbidden reach). `wow-world-entities->wow-world-loot` would pass, but 10a
+uses one host method for the loot-cache removal instead of an edge (no
+`Cargo.lock` change, so no extra recompilation in `final`).
+
+**Split (each part re-measures on its own base; at most about 4.5k moved and
+15 % host), lowest host surface first:**
+
+- **10a → entities (about 1.7k, host net 0):** the four families with net
+  host cost ≤ 2: the update tick and trap despawn, the last-update
+  publication, the visible-object queries and the creature publication and
+  auras. Also #1395 follow-up 1 (the session test re-exports move to a
+  session-side `#![cfg(test)]` file).
+- **10b (about 1.2k):** creature kill and reputation → entities behind about
+  nine host methods (the 15 % budget holds only if the reputation branch and
+  the death-state completion move together); the melee health presentation
+  with a fixture accessor; spell threat → `wow-world-spell` (spell may reach
+  entities; entities may not reach spell); and the `cfg(test)` registry
+  reclassification. Spell-click visibility, dynamic flags and kill credit stay
+  behind the host (quest-bound).
