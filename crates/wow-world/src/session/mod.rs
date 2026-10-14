@@ -385,7 +385,6 @@ pub(in crate::session) use wow_world_creature::legacy_attack_power_multiplier_li
 #[cfg(test)]
 pub(in crate::session) use wow_world_creature::take_canonical_player_attack_swings_like_cpp;
 mod player_presentation;
-use player_presentation::RepresentedMountSpellCheckOutcomeLikeCpp;
 mod player_registry_binding;
 mod player_spell_records;
 pub(crate) use player_spell_records::RepresentedPlayerSkillLikeCpp;

@@ -5,7 +5,6 @@ use crate::player_cast::Runtime;
 use wire::PlayerCastPublicationPhaseLikeCpp;
 use wow_entities::{SpellCastState, SpellCastVisualLikeCpp};
 use wow_packet::packets::spell::{CastFailed, SpellPreparePkt, SpellStartPkt};
-mod checks;
 mod identity;
 mod publication;
 mod state;
@@ -197,7 +196,8 @@ impl Runtime for WorldSession {
         visual: &SpellCastVisualLikeCpp,
         metadata: SpellCastMetadata,
     ) -> bool {
-        match self.check_represented_cast_preparation_like_cpp(
+        match wow_world_spell::check_represented_cast_preparation_like_cpp(
+            self,
             spell,
             cast,
             &crate::spell_cast_adapter::present_visual(visual.clone()),

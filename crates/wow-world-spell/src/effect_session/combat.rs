@@ -9,6 +9,9 @@
 //! live in the private damage and healing children.
 
 use super::SpellEffectHostLikeCpp;
+use crate::aura_session::{
+    represented_player_aura_state_mask_like_cpp, represented_unit_aura_state_mask_like_cpp,
+};
 use wow_core::ObjectGuid;
 
 mod damage;
@@ -250,7 +253,7 @@ fn represented_spell_damage_pct_done_like_cpp<H: SpellEffectHostLikeCpp>(
     } else if spell_id == DRAIN_SOUL_LIKE_CPP {
         // C++ `HasAuraState(AURA_STATE_WOUNDED_20_PERCENT)` reads the caster.
         let wounded = 1_u32 << (wow_entities::AURA_STATE_WOUNDED_20_PERCENT - 1);
-        if crate::represented_player_aura_state_mask_like_cpp(host).unwrap_or(0) & wounded != 0 {
+        if represented_player_aura_state_mask_like_cpp(host).unwrap_or(0) & wounded != 0 {
             max_mod *= 2.0;
         }
     }
@@ -335,7 +338,7 @@ pub fn represented_target_aura_state_mask_like_cpp<H: SpellEffectHostLikeCpp>(
     host: &H,
     target_guid: ObjectGuid,
 ) -> u32 {
-    crate::represented_unit_aura_state_mask_like_cpp(host, target_guid)
+    represented_unit_aura_state_mask_like_cpp(host, target_guid)
 }
 
 /// The represented target's current health percentage: the session player's

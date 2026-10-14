@@ -12,12 +12,6 @@ use super::RepresentedForceDeselectLikeCpp;
 use super::debug;
 use super::{SKILL_RIDING_LIKE_CPP, SpellCastResult, WorldSession};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::session) enum RepresentedMountSpellCheckOutcomeLikeCpp {
-    CastFailed(SpellCastResult),
-    DontReport,
-}
-
 impl WorldSession {
     pub(in crate::session) fn update_player_collision_height_like_cpp(&mut self) {
         let mut hub = crate::session::hub_mut(self);

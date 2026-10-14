@@ -4,7 +4,6 @@
 
 use super::*;
 use wow_world_spell::{represented_disallowed_mount_form_like_cpp, represented_homebind_like_cpp};
-mod checks;
 mod destinations;
 mod effect_apply;
 mod effect_combat;

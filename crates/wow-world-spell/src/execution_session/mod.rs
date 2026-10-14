@@ -20,7 +20,10 @@ use wow_entities::{RepresentedAuraEffectLikeCpp, SpellCastMetadata};
 use wow_packet::packets::spell::SpellTargetData;
 use wow_world_entities::CreatureSpawnCatalogsLikeCpp;
 
-use crate::aura_session::update_represented_flight_flags_for_flight_aura_like_cpp;
+use crate::aura_session::{
+    apply_represented_mounted_aura_like_cpp, apply_represented_provide_spell_focus_aura_like_cpp,
+    update_represented_flight_flags_for_flight_aura_like_cpp,
+};
 use crate::effect_session::{
     apply_add_extra_attacks_effect_like_cpp, apply_block_effect_like_cpp,
     apply_change_raid_marker_effect_like_cpp, apply_dismiss_pet_effect_like_cpp,
@@ -37,7 +40,7 @@ use crate::effect_session::{
     apply_upgrade_heirloom_effect_like_cpp, power_drain_pre_scaled_damage_like_cpp,
     represented_spell_damage_bonus_done_like_cpp, represented_spell_healing_bonus_done_like_cpp,
 };
-use crate::{RepresentedSpellFocusObjectLikeCpp, SpellEffectHostLikeCpp};
+use crate::SpellEffectHostLikeCpp;
 use completion::complete_spell_execution_like_cpp;
 use post_spell_go::{
     apply_post_spell_go_target_effects_like_cpp, apply_spell_gameobject_summon_effects_like_cpp,
@@ -49,6 +52,7 @@ use target_resolution::{
 };
 
 mod cast_state;
+mod checks;
 mod completion;
 mod destinations;
 mod execution;
@@ -59,6 +63,7 @@ mod primary_effect_fallback;
 mod target_resolution;
 
 pub use cast_state::*;
+pub use checks::*;
 pub use destinations::*;
 pub use execution::*;
 pub use overloads::*;
@@ -74,13 +79,11 @@ pub trait SpellExecutionHostLikeCpp:
         &mut self,
         f: impl FnOnce(&mut wow_entities::CastExecutionStateLikeCpp) -> R,
     ) -> Option<R>;
-    fn check_represented_cast_preparation_like_cpp(
-        &mut self,
-        spell_info: &wow_data::SpellInfo,
-        cast_id: ObjectGuid,
-        spell_visual: &wow_packet::packets::spell::SpellCastVisual,
-        metadata: SpellCastMetadata,
-    ) -> Result<Option<Option<RepresentedSpellFocusObjectLikeCpp>>, &'static str>;
+    fn has_represented_battle_pet_journal_lock_like_cpp(&self) -> bool;
+    fn represented_battle_pet_like_cpp(
+        &self,
+        pet_guid: ObjectGuid,
+    ) -> Option<wow_world_core::session::RepresentedBattlePetDataLikeCpp>;
     fn force_update_visibility_with_catalogs_like_cpp(
         &mut self,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,

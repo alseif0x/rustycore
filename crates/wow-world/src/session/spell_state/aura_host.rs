@@ -13,23 +13,6 @@ impl wow_world_spell::AuraHostLikeCpp for WorldSession {
     fn remove_aura(&mut self, slot: u8) -> Result<(), &'static str> {
         WorldSession::remove_aura(self, slot)
     }
-    fn apply_represented_aura_modifier_like_cpp(
-        &mut self,
-        spell_id: i32,
-        caster_guid: ObjectGuid,
-        effect: &wow_data::SpellEffectInfo,
-        represented_effect: RepresentedAuraEffectLikeCpp,
-        duration_ms: u32,
-    ) -> Result<(), &'static str> {
-        WorldSession::apply_represented_aura_modifier_like_cpp(
-            self,
-            spell_id,
-            caster_guid,
-            effect,
-            represented_effect,
-            duration_ms,
-        )
-    }
     fn represented_mount_capability_selection_for_type_like_cpp(
         &self,
         mount_type_id: u16,

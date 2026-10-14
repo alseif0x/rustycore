@@ -660,14 +660,9 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                 continue;
             }
             if effect.is_mounted_aura_like_cpp() {
-                crate::apply_represented_mounted_aura_like_cpp(
-                    host,
-                    spell_id,
-                    player_guid,
-                    effect,
-                )?;
+                apply_represented_mounted_aura_like_cpp(host, spell_id, player_guid, effect)?;
             } else if effect.is_provide_spell_focus_aura_like_cpp() {
-                crate::apply_represented_provide_spell_focus_aura_like_cpp(
+                apply_represented_provide_spell_focus_aura_like_cpp(
                     host,
                     spell_id,
                     player_guid,
