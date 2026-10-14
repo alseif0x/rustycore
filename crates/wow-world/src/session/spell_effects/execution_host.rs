@@ -72,7 +72,7 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
         duration_ms: u32,
         provenance: wow_entities::AuraCastProvenanceLikeCpp,
     ) -> Result<(), &'static str> {
-        WorldSession::apply_creature_aura_with_provenance_like_cpp(
+        wow_world_entities::apply_creature_aura_with_provenance_like_cpp(
             self,
             spell_id,
             caster_guid,

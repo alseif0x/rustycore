@@ -74,3 +74,5 @@ mod test_support;
 mod vendor_test_shims;
 #[cfg(test)]
 mod visibility_test_shims;
+#[cfg(test)]
+mod world_entities_test_shims;

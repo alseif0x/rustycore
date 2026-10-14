@@ -104,7 +104,6 @@ mod trainer_acquisition;
 mod trait_configs;
 mod visibility;
 mod world_entities;
-pub(crate) use world_entities::creature_message_to_set_target_allows_like_cpp;
 pub(crate) use world_entities::insert_canonical_creature_map_object_on_map_like_cpp;
 mod world_state;
 

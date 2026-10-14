@@ -271,7 +271,8 @@ impl LootSessionHostLikeCpp for WorldSession {
         instance_id: u32,
         required_3d: bool,
     ) -> Option<bool> {
-        self.represented_can_receive_creature_message_to_set_by_guid_like_cpp(
+        wow_world_entities::represented_can_receive_creature_message_to_set_by_guid_like_cpp(
+            self,
             guid,
             map_id,
             instance_id,

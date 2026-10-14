@@ -14,6 +14,7 @@ mod creature_interaction;
 mod creature_kill;
 pub mod creature_movement_adapter;
 mod creature_publication;
+mod creature_publication_session;
 mod creature_query;
 mod creature_registry;
 pub mod creature_spell_admission;
@@ -89,6 +90,12 @@ pub use corpse_handlers::{
 pub use corpse_registrations::{CorpseHandlerHostLikeCpp, register_corpse_handlers_like_cpp};
 pub use creature::creature_message_to_set_target_allows_like_cpp;
 pub use creature_publication::represented_creature_aura_info_like_cpp;
+pub use creature_publication_session::{
+    apply_creature_aura_with_provenance_like_cpp, broadcast_creature_packet_to_visible_set_like_cpp,
+    represented_can_receive_creature_message_to_set_by_guid_like_cpp,
+    represented_can_receive_creature_message_to_set_like_cpp,
+    tick_represented_creature_auras_like_cpp,
+};
 pub use creature_registry::{
     CanonicalCreatureInsertOutcomeLikeCpp,
     insert_canonical_creature_map_object_on_locked_map_like_cpp,
