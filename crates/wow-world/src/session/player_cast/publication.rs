@@ -13,28 +13,6 @@ impl WorldSession {
         state.publish_player_cast_interruption_like_cpp(&mut hub, cast)
     }
 
-    pub(in crate::session) fn publish_player_cast_interrupted_frames_like_cpp(
-        &mut self,
-        metadata: SpellCastMetadata,
-        cast_id: ObjectGuid,
-        spell_id: i32,
-        visual: &wow_packet::packets::spell::SpellCastVisual,
-    ) {
-        let (state, mut hub) = crate::session::split_spell_state_mut(self);
-        state.publish_player_cast_interrupted_frames_like_cpp(
-            &mut hub, metadata, cast_id, spell_id, visual,
-        )
-    }
-
-    pub(crate) fn publish_player_cast_frame_like_cpp(
-        &mut self,
-        metadata: SpellCastMetadata,
-        bytes: Vec<u8>,
-    ) {
-        let (state, mut hub) = crate::session::split_spell_state_mut(self);
-        state.publish_player_cast_frame_like_cpp(&mut hub, metadata, bytes)
-    }
-
     pub(crate) fn handle_player_cast_publication_like_cpp(
         &mut self,
         command: SendPlayerSpellIfVisibleLikeCppCommand,

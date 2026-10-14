@@ -126,7 +126,8 @@ impl WorldSession {
                 })
                 .flatten();
             if let Some((threat_value, newly_engaged)) = threat_outcome {
-                self.sync_represented_creature_threat_to_canonical_like_cpp(
+                wow_world_spell::sync_represented_creature_threat_to_canonical_like_cpp(
+                    self,
                     target_guid,
                     caster_guid,
                     threat_value,
@@ -178,7 +179,8 @@ impl WorldSession {
         if amount == 0.0 {
             return;
         }
-        let owner_guids = self.canonical_threatened_by_me_owner_guids_like_cpp(target_guid);
+        let owner_guids =
+            wow_world_spell::canonical_threatened_by_me_owner_guids_like_cpp(self, target_guid);
         let controlled_mask = UnitState::CONTROLLED.bits();
         let eligible_count = owner_guids
             .iter()
@@ -212,7 +214,8 @@ impl WorldSession {
                 })
                 .flatten();
             if let Some(threat_value) = threat_value {
-                self.sync_represented_creature_threat_to_canonical_like_cpp(
+                wow_world_spell::sync_represented_creature_threat_to_canonical_like_cpp(
+                    self,
                     owner_guid,
                     caster_guid,
                     threat_value,

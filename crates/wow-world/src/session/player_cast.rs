@@ -7,7 +7,6 @@ use wow_entities::{SpellCastState, SpellCastVisualLikeCpp};
 use wow_packet::packets::spell::{CastFailed, SpellPreparePkt, SpellStartPkt};
 mod checks;
 mod identity;
-mod power;
 mod publication;
 mod state;
 pub(in crate::session) mod wire;
@@ -256,7 +255,7 @@ impl Runtime for WorldSession {
             timed: cast.cast_time_ms != 0,
         };
         let (cast_data, cast_flags) =
-            self.player_cast_publication_like_cpp(spell, &cast.metadata, phase);
+            wow_world_spell::player_cast_publication_like_cpp(self, spell, &cast.metadata, phase);
         let packet = SpellStartPkt {
             cast_data,
             caster,
@@ -269,7 +268,8 @@ impl Runtime for WorldSession {
             cast_time_ms: cast.cast_time_ms,
             target: crate::spell_cast_adapter::present_targets(cast.target_data.clone()),
         };
-        self.publish_player_cast_frame_like_cpp(
+        wow_world_spell::publish_player_cast_frame_like_cpp(
+            self,
             cast.metadata,
             wow_packet::ServerPacket::to_bytes(&packet),
         );

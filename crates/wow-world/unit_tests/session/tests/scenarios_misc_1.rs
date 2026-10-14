@@ -755,7 +755,7 @@ fn summon_object_slot_session_resolver_rejects_invalid_slot_like_cpp() {
 
     assert_eq!(
         outcome.status,
-        ApplyEffectSummonObjectSlotSessionStatusLikeCpp::InvalidSlot
+        wow_world_spell::ApplyEffectSummonObjectSlotSessionStatusLikeCpp::InvalidSlot
     );
     assert_eq!(outcome.slot, Some(MAX_GAMEOBJECT_SLOT_LIKE_CPP));
     assert!(outcome.map_outcome.is_none());

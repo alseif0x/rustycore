@@ -405,16 +405,16 @@ impl WorldSession {
         // `CastSpell(_player, SpellID, GetMap()->GetDifficultyID())`, whose
         // trigger flags are TRIGGERED_NONE: not a triggered cast, and the
         // global cooldown applies.
-        if self
-            .execute_server_triggered_spell_like_cpp(
-                item_guid_generator,
-                creature_spawn_catalogs,
-                request.spell_id,
-                player_guid,
-                crate::session::SpellCastMetadata::default(),
-            )
-            .await
-            .is_ok()
+        if wow_world_spell::execute_server_triggered_spell_like_cpp(
+            self,
+            item_guid_generator,
+            creature_spawn_catalogs,
+            request.spell_id,
+            player_guid,
+            crate::session::SpellCastMetadata::default(),
+        )
+        .await
+        .is_ok()
         {
             {
                 let (s, mut h) = crate::session::split_spell_state_mut(self);

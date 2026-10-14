@@ -238,7 +238,7 @@ fn summon_object_slot_session_resolver_cleans_old_slot_and_creates_with_fallback
 
     assert_eq!(
         outcome.status,
-        ApplyEffectSummonObjectSlotSessionStatusLikeCpp::MapResolved
+        wow_world_spell::ApplyEffectSummonObjectSlotSessionStatusLikeCpp::MapResolved
     );
     assert_eq!(outcome.slot, Some(slot));
     assert_eq!(outcome.template_entry, Some(template_entry));

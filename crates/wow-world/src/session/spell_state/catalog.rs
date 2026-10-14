@@ -6,13 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::session) fn restore_represented_character_spell_charge_like_cpp(
-        &mut self,
-        category_id: u32,
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_spell_state_mut(self);
-        state.restore_represented_character_spell_charge_like_cpp(&mut hub, category_id)
-    }
     /// Set the spell store for this session.
     pub fn set_spell_store(&mut self, store: Arc<SpellStore>) {
         self.core

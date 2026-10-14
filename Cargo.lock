@@ -3835,6 +3835,7 @@ dependencies = [
  "wow-spell-acquisition",
  "wow-world-core",
  "wow-world-entities",
+ "wow-world-inventory",
  "wow-world-lifecycle",
  "wow-world-spell",
 ]

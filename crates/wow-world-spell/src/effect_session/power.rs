@@ -6,7 +6,10 @@
 //! spell execute log (#1363 slice 9c), from the World
 //! `session/spell_effects/effects_power.rs`.
 
-use super::{SpellEffectHostLikeCpp, represented_spell_damage_bonus_done_like_cpp};
+use super::{
+    SpellEffectHostLikeCpp, forward_assisting_threat_like_cpp,
+    represented_spell_damage_bonus_done_like_cpp,
+};
 use wow_constants::unit::PowerType;
 use wow_core::ObjectGuid;
 use wow_entities::MAX_POWERS;
@@ -90,7 +93,8 @@ pub fn apply_energize_effect_like_cpp<H: SpellEffectHostLikeCpp>(
     };
     // C++ `Unit::EnergizeBySpell` (`Unit.cpp:6586`) forwards `damage / 2`
     // assisting threat before the log, with `ignoreModifiers = true`.
-    host.forward_assisting_threat_like_cpp(
+    forward_assisting_threat_like_cpp(
+        host,
         Some(spell_id),
         caster_guid,
         target_guid,

@@ -11,6 +11,7 @@ test-fixtures = [
     "wow-spell-acquisition/test-fixtures",
     "wow-world-core/test-fixtures",
     "wow-world-entities/test-fixtures",
+    "wow-world-inventory/test-fixtures",
 ]
 
 [dependencies]
@@ -29,6 +30,7 @@ wow-persistence = { workspace = true }
 wow-spell-acquisition = { workspace = true }
 wow-world-core = { workspace = true }
 wow-world-entities = { workspace = true }
+wow-world-inventory = { workspace = true }
 wow-world-lifecycle = { workspace = true }
 
 [dev-dependencies]

@@ -136,16 +136,16 @@ impl WorldSession {
             // `CastSpellExtraArgs().SetCastItem(item)`, whose default trigger
             // flags are TRIGGERED_NONE: not a triggered cast, and the global
             // cooldown applies.
-            if self
-                .execute_server_triggered_spell_like_cpp(
-                    item_guid_generator,
-                    creature_spawn_catalogs,
-                    spell_id,
-                    player_guid,
-                    SpellCastMetadata::default(),
-                )
-                .await
-                .is_ok()
+            if wow_world_spell::execute_server_triggered_spell_like_cpp(
+                self,
+                item_guid_generator,
+                creature_spawn_catalogs,
+                spell_id,
+                player_guid,
+                SpellCastMetadata::default(),
+            )
+            .await
+            .is_ok()
             {
                 applied.push(spell_id);
             }

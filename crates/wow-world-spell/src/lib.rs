@@ -4,6 +4,7 @@ pub mod aura_effects;
 mod aura_rows;
 mod aura_session;
 mod effect_session;
+mod execution_session;
 pub mod login_spell_rules;
 pub mod melee_damage;
 pub mod melee_rules;
@@ -22,6 +23,8 @@ mod talent_session;
 mod test_support;
 
 pub use aura_rows::{CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use aura_session::update_represented_flight_flags_for_flight_aura_like_cpp;
 pub use aura_session::{
     AuraHostLikeCpp, apply_represented_mounted_aura_like_cpp,
     apply_represented_provide_spell_focus_aura_like_cpp, insert_player_visible_aura_like_cpp,
@@ -38,6 +41,12 @@ pub use aura_session::{
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use aura_session::{
     SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP, represented_mount_aura_display_candidates_like_cpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use effect_session::{
+    ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp,
+    ApplyEffectSummonObjectSlotSessionStatusLikeCpp, apply_effect_summon_object_slot_like_cpp,
+    apply_modify_spell_charges_effect_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use effect_session::{
@@ -67,6 +76,20 @@ pub use effect_session::{
     represented_disallowed_mount_form_like_cpp, represented_homebind_like_cpp,
     represented_object_target_position_like_cpp, represented_spell_damage_bonus_done_like_cpp,
     represented_spell_healing_bonus_done_like_cpp, send_spell_execute_log_like_cpp,
+};
+pub use effect_session::{
+    canonical_threatened_by_me_owner_guids_like_cpp,
+    sync_represented_creature_threat_to_canonical_like_cpp,
+};
+pub use execution_session::{
+    SpellExecutionHostLikeCpp, execute_server_triggered_spell_like_cpp,
+    execute_spell_with_visual_and_target_data_and_generator_like_cpp,
+    execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp,
+    player_cast_publication_like_cpp, publish_player_cast_frame_like_cpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use execution_session::{
+    represented_transport_destination_world_position_like_cpp, take_spell_power_like_cpp,
 };
 pub use player_cast::PlayerCastPublicationPhaseLikeCpp;
 pub use profession::{

@@ -35,3 +35,12 @@ pub fn send_aura_update_applied<H: AuraHostLikeCpp>(
     let (state, hub) = host.split_spell_state_ref();
     state.send_aura_update_applied(hub, spell_id, slot, caster, duration, flags, effect_mask)
 }
+
+pub fn update_represented_flight_flags_for_flight_aura_like_cpp<H: AuraHostLikeCpp>(
+    host: &mut H,
+    apply: bool,
+) {
+    let mut hub = host.hub_mut();
+    let (presentation, mut movement) = hub.aura_removal_mount_accesses_like_cpp();
+    movement.update_flight_flags_for_aura_like_cpp(&presentation, apply);
+}
