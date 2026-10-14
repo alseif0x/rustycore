@@ -46,3 +46,33 @@ impl WorldSession {
         )
     }
 }
+
+impl WorldSession {
+    pub(crate) fn visible_gameobjects_from_canonical_map_like_cpp(
+        &self,
+        map_id: u16,
+        position: &wow_core::Position,
+        visibility_radius: f32,
+    ) -> Option<Vec<wow_packet::packets::update::GameObjectCreateData>> {
+        wow_world_entities::visible_gameobjects_from_canonical_map_like_cpp(
+            self,
+            map_id,
+            position,
+            visibility_radius,
+        )
+    }
+    pub(crate) fn visible_world_creatures_from_map_like_cpp(
+        &self,
+        map_id: u16,
+        position: &wow_core::Position,
+    ) -> Vec<wow_entities::Creature> {
+        wow_world_entities::visible_world_creatures_from_map_like_cpp(self, map_id, position)
+    }
+    pub(crate) fn visible_creatures_from_canonical_map_like_cpp(
+        &self,
+        map_id: u16,
+        position: &wow_core::Position,
+    ) -> Option<Vec<wow_entities::Creature>> {
+        wow_world_entities::visible_creatures_from_canonical_map_like_cpp(self, map_id, position)
+    }
+}

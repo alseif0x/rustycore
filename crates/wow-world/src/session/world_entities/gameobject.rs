@@ -61,57 +61,6 @@ impl WorldSession {
             cfg!(test),
         )
     }
-    pub(in crate::session) fn gameobject_create_data_from_canonical_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        gameobject: &wow_entities::GameObject,
-    ) -> Option<wow_packet::packets::update::GameObjectCreateData> {
-        let object = gameobject.world();
-        let data = gameobject.data();
-        let display_id = u32::try_from(data.display_id).ok()?;
-        if display_id == 0 {
-            return None;
-        }
-        let go_type = u8::try_from(data.type_id).ok()?;
-        let go_state = match data.state {
-            0 => Some(wow_entities::GoState::Active),
-            1 => Some(wow_entities::GoState::Ready),
-            2 => Some(wow_entities::GoState::Destroyed),
-            24 => Some(wow_entities::GoState::TransportActive),
-            25 => Some(wow_entities::GoState::TransportStopped),
-            _ => None,
-        };
-
-        Some(wow_packet::packets::update::GameObjectCreateData {
-            guid,
-            entry: object.object().entry(),
-            dynamic_flags: self.represented_gameobject_dynamic_flags_for_player_like_cpp(
-                object.object().entry(),
-                &RepresentedGameObjectUseState {
-                    go_type: Some(go_type),
-                    go_state,
-                    dynamic_flags: object.object().dynamic_flags(),
-                    ..Default::default()
-                },
-            ),
-            display_id,
-            go_type,
-            position: object.position(),
-            rotation: gameobject.local_rotation_like_cpp(),
-            anim_progress: gameobject.go_anim_progress_like_cpp(),
-            state: data.state,
-            art_kit: data.art_kit,
-            created_by: data.created_by,
-            faction_template: data.faction_template,
-            gameobject_flags: data.flags,
-            world_effect_id: 0,
-            scale: object.object().scale(),
-            level: 0, // non-transport GameObject: Level unused (period via AnimationData)
-            // Canonical GameObject entity does not yet carry per-spawn ParentRotation;
-            // identity until the entity stores it (#NEXT.R8.ENTITIES.1216 follow-up).
-            parent_rotation: [0.0, 0.0, 0.0, 1.0],
-        })
-    }
     pub(crate) async fn kill_credit_gameobject_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,

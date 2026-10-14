@@ -114,7 +114,8 @@ impl WorldSession {
     ) -> Option<Vec<wow_packet::packets::update::DynamicObjectCreateData>> {
         let requested_map_id = u32::from(map_id);
         let player_map_key = self.core.current_canonical_player_map_key_like_cpp();
-        let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
+        let source_combat_reach =
+            wow_world_entities::represented_visibility_source_combat_reach_like_cpp(self);
         let manager = self.core.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
             return None;
@@ -173,7 +174,8 @@ impl WorldSession {
     ) -> Option<Vec<wow_packet::packets::update::AreaTriggerCreateData>> {
         let requested_map_id = u32::from(map_id);
         let player_map_key = self.core.current_canonical_player_map_key_like_cpp();
-        let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
+        let source_combat_reach =
+            wow_world_entities::represented_visibility_source_combat_reach_like_cpp(self);
         let viewer_phase_shift = self.represented_player_phase_shift_like_cpp();
         let manager = self.core.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
@@ -242,7 +244,8 @@ impl WorldSession {
     )> {
         let requested_map_id = u32::from(map_id);
         let player_map_key = self.core.current_canonical_player_map_key_like_cpp();
-        let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
+        let source_combat_reach =
+            wow_world_entities::represented_visibility_source_combat_reach_like_cpp(self);
         let viewer_phase_shift = self.represented_player_phase_shift_like_cpp();
         let manager = self.core.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {

@@ -14,7 +14,11 @@ impl wow_world_spell::SpellEffectHostLikeCpp for WorldSession {
         source_guid: ObjectGuid,
         bytes: Vec<u8>,
     ) {
-        wow_world_entities::broadcast_creature_packet_to_visible_set_like_cpp(self, source_guid, bytes)
+        wow_world_entities::broadcast_creature_packet_to_visible_set_like_cpp(
+            self,
+            source_guid,
+            bytes,
+        )
     }
     fn add_transmog_set_like_cpp(
         &mut self,
@@ -76,6 +80,6 @@ impl wow_world_spell::SpellEffectHostLikeCpp for WorldSession {
         WorldSession::set_represented_homebind_like_cpp(self, homebind)
     }
     fn represented_visibility_source_combat_reach_like_cpp(&self) -> f32 {
-        WorldSession::represented_visibility_source_combat_reach_like_cpp(self)
+        wow_world_entities::represented_visibility_source_combat_reach_like_cpp(self)
     }
 }

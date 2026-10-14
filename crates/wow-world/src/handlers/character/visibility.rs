@@ -59,25 +59,8 @@ impl wow_world_entities::VisibilitySessionHostLikeCpp for WorldSession {
     fn represented_visibility_source_position_like_cpp(&self) -> Option<Position> {
         WorldSession::represented_visibility_source_position_like_cpp(self)
     }
-    fn visible_world_creatures_from_map_like_cpp(
-        &self,
-        map_id: u16,
-        position: &Position,
-    ) -> Vec<wow_entities::Creature> {
-        WorldSession::visible_world_creatures_from_map_like_cpp(self, map_id, position)
-    }
-    fn visible_gameobjects_from_canonical_map_like_cpp(
-        &self,
-        map_id: u16,
-        position: &Position,
-        visibility_radius: f32,
-    ) -> Option<Vec<GameObjectCreateData>> {
-        WorldSession::visible_gameobjects_from_canonical_map_like_cpp(
-            self,
-            map_id,
-            position,
-            visibility_radius,
-        )
+    fn current_seer_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        WorldSession::current_seer_guid_like_cpp(self)
     }
     fn visible_dynamic_objects_from_canonical_map_like_cpp(
         &self,

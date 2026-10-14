@@ -49,7 +49,8 @@ pub async fn send_nearby_creatures_with_catalogs_like_cpp<H: VisibilitySessionHo
     position: &Position,
     _zone_id: u32,
 ) {
-    let map_creatures = host.visible_world_creatures_from_map_like_cpp(map_id, position);
+    let map_creatures =
+        super::queries::visible_world_creatures_from_map_like_cpp(host, map_id, position);
     if host.core().has_world_map_manager_like_cpp() {
         let mut blocks = Vec::with_capacity(map_creatures.len());
         let mut visible_guids = Vec::with_capacity(map_creatures.len());
@@ -237,7 +238,8 @@ pub async fn send_nearby_gameobjects<H: VisibilitySessionHostLikeCpp>(
     position: &Position,
     _zone_id: u32,
 ) {
-    if let Some(gameobjects) = host.visible_gameobjects_from_canonical_map_like_cpp(
+    if let Some(gameobjects) = super::queries::visible_gameobjects_from_canonical_map_like_cpp(
+        host,
         map_id,
         position,
         DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP,

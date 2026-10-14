@@ -27,10 +27,17 @@ use crate::RepresentedGameObjectUseState;
 use crate::world_entities_host::WorldEntitiesHostLikeCpp;
 
 mod nearby;
+mod queries;
 mod spawn;
 mod update;
 
 pub use nearby::{send_nearby_creatures_with_catalogs_like_cpp, send_nearby_gameobjects};
+pub use queries::{
+    represented_gameobject_go_state_for_viewer_like_cpp,
+    represented_visibility_source_combat_reach_like_cpp,
+    visible_creatures_from_canonical_map_like_cpp, visible_gameobjects_from_canonical_map_like_cpp,
+    visible_world_creatures_from_map_like_cpp,
+};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use spawn::{
     WAYPOINT_MOTION_TYPE_LIKE_CPP, choose_creature_flags_like_cpp,
@@ -60,17 +67,8 @@ pub trait VisibilitySessionHostLikeCpp: WorldEntitiesHostLikeCpp {
     ) -> u32;
     fn sync_represented_farsight_clear_from_canonical_like_cpp(&mut self) -> bool;
     fn represented_visibility_source_position_like_cpp(&self) -> Option<Position>;
-    fn visible_world_creatures_from_map_like_cpp(
-        &self,
-        map_id: u16,
-        position: &Position,
-    ) -> Vec<wow_entities::Creature>;
-    fn visible_gameobjects_from_canonical_map_like_cpp(
-        &self,
-        map_id: u16,
-        position: &Position,
-        visibility_radius: f32,
-    ) -> Option<Vec<GameObjectCreateData>>;
+    /// The World's `current_seer_guid_like_cpp` (`Player::m_seer` as a GUID).
+    fn current_seer_guid_like_cpp(&self) -> Option<ObjectGuid>;
     fn visible_dynamic_objects_from_canonical_map_like_cpp(
         &self,
         map_id: u16,
