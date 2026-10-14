@@ -30,6 +30,7 @@ mod gameobject_contracts;
 mod gameobject_handlers;
 mod gameobject_interaction;
 mod gameobject_overrides;
+mod gameobject_publication_session;
 mod gameobject_query;
 mod gameobject_state;
 mod gameobject_use;
@@ -116,6 +117,10 @@ pub use gameobject_handlers::{
 pub use gameobject_interaction::{
     represented_gameobject_display_box_contains_like_cpp,
     represented_gameobject_interaction_distance_like_cpp,
+};
+pub use gameobject_publication_session::{
+    send_represented_capture_point_removed_from_last_update_like_cpp,
+    send_represented_gameobject_visual_despawn_from_last_update_like_cpp,
 };
 pub use gameobject_use_dispatch::{
     handle_game_obj_use_with_catalogs_like_cpp,

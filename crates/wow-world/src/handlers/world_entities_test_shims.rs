@@ -76,3 +76,13 @@ impl WorldSession {
         wow_world_entities::visible_creatures_from_canonical_map_like_cpp(self, map_id, position)
     }
 }
+
+impl WorldSession {
+    pub(crate) fn send_represented_gameobject_visual_despawn_from_last_update_like_cpp(
+        &mut self,
+    ) -> usize {
+        wow_world_entities::send_represented_gameobject_visual_despawn_from_last_update_like_cpp(
+            self,
+        )
+    }
+}
