@@ -113,7 +113,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         target_data: SpellTargetData,
         metadata: SpellCastMetadata,
     ) -> impl Future<Output = Result<(), &'static str>> + Send {
-        WorldSession::execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+        wow_world_spell::execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
             self,
             item_guid_generator,
             creature_spawn_catalogs,

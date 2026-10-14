@@ -4,7 +4,8 @@
 
 //! Represented spell-effect bodies at the session boundary (#1363 slice 9c),
 //! moved from the World `session/spell_effects` files without the execution
-//! entry points.
+//! entry points, and the threat, taunt, transmog-set, kill-credit,
+//! spell-charge, raid-marker and summon-slot bodies (#1363 slice 9d).
 //!
 //! C++ `Spell::Effect*` (`SpellEffects.cpp`) and the `Unit` damage, healing
 //! and power helpers they call (`Unit::SpellDamageBonusDone`,
@@ -26,9 +27,13 @@ mod effects;
 mod homebind;
 mod player;
 mod power;
+mod progress;
 mod pve_combat;
 mod summon;
 mod summon_contracts;
+mod summon_slot;
+mod taunt;
+mod threat;
 
 pub use apply::*;
 pub use combat::*;
@@ -36,38 +41,35 @@ pub use effects::*;
 pub use homebind::*;
 pub use player::*;
 pub use power::*;
+pub use progress::*;
 pub use pve_combat::*;
 pub use summon::*;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use summon_contracts::*;
+pub use summon_slot::*;
+pub use taunt::*;
+pub use threat::*;
 
 /// The World session as the spell effects' host (supertrait: the spell-click
 /// host, which lends the registry sync and the unit VALUES update object).
 pub trait SpellEffectHostLikeCpp: SpellClickHostLikeCpp {
-    fn forward_heal_threat_like_cpp(
-        &mut self,
-        spell_id: Option<i32>,
-        healer_guid: ObjectGuid,
-        target_guid: ObjectGuid,
-        effective_heal: u32,
-    );
-    fn forward_assisting_threat_like_cpp(
-        &mut self,
-        spell_id: Option<i32>,
-        assistant_guid: ObjectGuid,
-        assisted_guid: ObjectGuid,
-        base_amount: f32,
-        ignore_modifiers: bool,
-    );
-    fn canonical_threatened_by_me_owner_guids_like_cpp(
+    fn hydrate_canonical_threat_relevant_auras_like_cpp(&mut self);
+    fn broadcast_creature_packet_to_visible_set_like_cpp(
         &self,
-        target_guid: ObjectGuid,
-    ) -> Vec<ObjectGuid>;
-    fn scale_canonical_owner_threat_to_target_zero_like_cpp(
-        &mut self,
-        owner_guid: ObjectGuid,
-        target_guid: ObjectGuid,
+        source_guid: ObjectGuid,
+        bytes: Vec<u8>,
     );
+    fn add_transmog_set_like_cpp(
+        &mut self,
+        transmog_set_id: u32,
+    ) -> Option<wow_entities::PlayerValuesUpdate>;
+    fn resolved_group_guid_like_cpp(&self) -> Option<u64>;
+    fn on_creature_killed_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_entry: u32,
+        creature_guid: ObjectGuid,
+    ) -> impl Future<Output = ()> + Send;
     /// The World spell damage to a creature with its kill cascade (loot, XP,
     /// reputation and quest credit), which stays on the session.
     fn apply_damage_from_caster_like_cpp(

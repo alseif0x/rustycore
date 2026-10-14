@@ -285,7 +285,7 @@ fn give_xp_runtime_spends_rested_bonus_for_victim_like_cpp() {
         REST_STATE_RESTED_LIKE_CPP,
         0x07,
     );
-    let expected_packet = player_values_update_to_update_object(
+    let expected_packet = crate::entity_update_bridge::player_values_update_to_update_object(
         session.player_guid().expect("loaded test player"),
         session.core.player_map_id_like_cpp(),
         &expected_delta.values_update(true),
@@ -334,7 +334,7 @@ fn give_xp_runtime_normalizes_zero_integer_rested_award_like_cpp() {
     expected_delta.set_scaling_player_level_delta_like_cpp(-1);
     expected_delta.mark_scaling_player_level_delta_changed_like_cpp();
     expected_delta.prepare_rest_info_values_update_like_cpp(0, 0, REST_STATE_NORMAL_LIKE_CPP, 0x07);
-    let expected_packet = player_values_update_to_update_object(
+    let expected_packet = crate::entity_update_bridge::player_values_update_to_update_object(
         session.player_guid().expect("loaded test player"),
         session.core.player_map_id_like_cpp(),
         &expected_delta.values_update(true),
@@ -375,7 +375,7 @@ fn give_xp_runtime_zero_integer_rested_award_keeps_consistent_state_like_cpp() {
     expected_delta.mark_xp_changed_like_cpp();
     expected_delta.set_scaling_player_level_delta_like_cpp(-1);
     expected_delta.mark_scaling_player_level_delta_changed_like_cpp();
-    let expected_packet = player_values_update_to_update_object(
+    let expected_packet = crate::entity_update_bridge::player_values_update_to_update_object(
         session.player_guid().expect("loaded test player"),
         session.core.player_map_id_like_cpp(),
         &expected_delta.values_update(true),

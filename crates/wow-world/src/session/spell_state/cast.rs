@@ -38,20 +38,20 @@ impl WorldSession {
             // C++ `CharacterHandler.cpp` casts the create-mode spells with
             // `CastSpell(pCurrChar, spellId, true)`, i.e. TRIGGERED_FULL_MASK:
             // the cast is triggered and ignores the global cooldown.
-            if self
-                .execute_server_triggered_spell_like_cpp(
-                    item_guid_generator,
-                    creature_spawn_catalogs,
-                    spell_id as i32,
-                    player_guid,
-                    SpellCastMetadata {
-                        cast_flags: CAST_FLAG_PENDING_LIKE_CPP,
-                        triggered_ignores_global_cooldown_like_cpp: true,
-                        ..SpellCastMetadata::default()
-                    },
-                )
-                .await
-                .is_ok()
+            if wow_world_spell::execute_server_triggered_spell_like_cpp(
+                self,
+                item_guid_generator,
+                creature_spawn_catalogs,
+                spell_id as i32,
+                player_guid,
+                SpellCastMetadata {
+                    cast_flags: CAST_FLAG_PENDING_LIKE_CPP,
+                    triggered_ignores_global_cooldown_like_cpp: true,
+                    ..SpellCastMetadata::default()
+                },
+            )
+            .await
+            .is_ok()
             {
                 cast_count += 1;
             }

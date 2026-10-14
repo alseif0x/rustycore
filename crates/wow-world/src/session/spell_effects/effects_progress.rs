@@ -1,6 +1,7 @@
-//! Represented effects that change progression state: quests, reputation, proficiency and raid markers.
+//! Represented effects that change progression state: quests, reputation and proficiency.
 //!
-//! Moved out of the Session root under #621. Behaviour is preserved.
+//! Moved out of the Session root under #621. Behaviour is preserved. The raid
+//! marker effect moved to `wow_world_spell` (#1363 slice 9d).
 
 use super::*;
 
@@ -90,80 +91,6 @@ impl WorldSession {
             self.send_packet(&packet);
         }
         outcome.applied
-    }
-    /// C++ `Spell::EffectChangeRaidMarker`.
-    ///
-    /// Represented boundary: current in-memory HOME group only. This mirrors
-    /// `Group::AddRaidMarker` storage and `SMSG_RAID_MARKERS_CHANGED` fanout to
-    /// connected represented members. Full DB persistence, instance/original
-    /// group category routing and `CMSG_CLEAR_RAID_MARKER` remain group-runtime
-    /// follow-ups.
-    pub(in crate::session) fn apply_change_raid_marker_effect_like_cpp(
-        &mut self,
-        damage: i32,
-        target_data: &SpellTargetData,
-    ) -> bool {
-        let Some(player_guid) = self.player_guid() else {
-            return false;
-        };
-        let Some(destination) = target_data.dst_location.as_ref() else {
-            return false;
-        };
-        let Some(group_guid) = self.resolved_group_guid_like_cpp() else {
-            return false;
-        };
-        let Some(group_registry) = self.group_registry().cloned() else {
-            return false;
-        };
-
-        let outcome = match group_registry.add_raid_marker_transition_like_cpp(
-            group_guid,
-            player_guid,
-            damage as u8,
-            u32::from(self.core.player_map_id_like_cpp()),
-            destination.position,
-            destination.transport,
-        ) {
-            Ok(outcome) => outcome,
-            Err(_) => return false,
-        };
-        let packet_bytes_and_members = {
-            let group = outcome.group;
-            use wow_packet::ServerPacket;
-            let packet = wow_packet::packets::party::RaidMarkersChanged {
-                party_index: group.group_category_like_cpp(),
-                active_markers: group.active_raid_markers_mask_like_cpp(),
-                raid_markers: group
-                    .raid_marker_list_like_cpp()
-                    .into_iter()
-                    .map(|marker| wow_packet::packets::party::RaidMarker {
-                        transport_guid: marker.transport_guid,
-                        map_id: marker.map_id,
-                        position: marker.position,
-                    })
-                    .collect(),
-            }
-            .to_bytes();
-            (packet, group.members)
-        };
-
-        let (packet_bytes, members) = packet_bytes_and_members;
-        let mut sent_to_self_via_registry = false;
-        if let Some(registry) = self.player_registry().cloned() {
-            for member_guid in members {
-                let Some(member) = registry.group_presence(member_guid) else {
-                    continue;
-                };
-                if member_guid == player_guid {
-                    sent_to_self_via_registry = true;
-                }
-                let _ = registry.try_send_current_packet(member.registration, packet_bytes.clone());
-            }
-        }
-        if !sent_to_self_via_registry {
-            self.send_raw_packet(&packet_bytes);
-        }
-        true
     }
     pub(in crate::session) fn apply_proficiency_effect_like_cpp(
         &mut self,

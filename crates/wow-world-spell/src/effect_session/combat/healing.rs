@@ -6,6 +6,7 @@
 //! `session/spell_effects/effect_combat/healing_application.rs`.
 
 use super::*;
+use crate::effect_session::forward_heal_threat_like_cpp;
 use tracing::debug;
 use tracing::info;
 use wow_core::ObjectGuid;
@@ -50,7 +51,7 @@ pub async fn apply_heal_from_caster_like_cpp<H: SpellEffectHostLikeCpp>(
             debug!(
                 account = host.core().account_id,
                 heal = heal_amount,
-                "Skipping host heal because C++ EffectHeal requires alive target"
+                "Skipping self heal because C++ EffectHeal requires alive target"
             );
             return Ok(());
         }
@@ -68,14 +69,14 @@ pub async fn apply_heal_from_caster_like_cpp<H: SpellEffectHostLikeCpp>(
         info!(
             account = host.core().account_id,
             heal = heal_amount,
-            "Healed host"
+            "Healed self"
         );
         if healed != current {
             host.sync_player_registry_state_like_cpp();
             host.core()
                 .send_player_health_values_update_like_cpp(player_guid, u64::from(healed));
         }
-        host.forward_heal_threat_like_cpp(spell_id, healer_guid, target_guid, effective_heal);
+        forward_heal_threat_like_cpp(host, spell_id, healer_guid, target_guid, effective_heal);
         return Ok(());
     }
 
@@ -115,7 +116,7 @@ pub async fn apply_heal_from_caster_like_cpp<H: SpellEffectHostLikeCpp>(
     let Some((values_update, effective_heal)) = heal_outcome else {
         return Ok(());
     };
-    host.forward_heal_threat_like_cpp(spell_id, healer_guid, target_guid, effective_heal);
+    forward_heal_threat_like_cpp(host, spell_id, healer_guid, target_guid, effective_heal);
     publish_heal_spell_log_like_cpp(
         host,
         spell_id,

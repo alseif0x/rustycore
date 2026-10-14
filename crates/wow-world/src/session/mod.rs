@@ -97,7 +97,6 @@ mod social;
 mod spell_effects;
 mod spell_state;
 pub(crate) use persistence::player_homebind_update_request_like_cpp;
-pub(crate) use spell_state::player_aura_info_like_cpp;
 mod taxi;
 pub(crate) use time_synchronization::game_time_ms_like_cpp;
 mod test_support;
@@ -472,7 +471,6 @@ pub(crate) use spell_click_values::RepresentedVehicleEnterRequestLikeCpp;
 pub(crate) use spell_click_values::RepresentedVehicleSeatChangeRequestLikeCpp;
 #[cfg(test)]
 pub(crate) use spell_click_values::RepresentedVehicleSeatSpellClickRequestLikeCpp;
-use spell_click_values::spell_effect_has_non_or_db_nearby_entry_destination_like_cpp;
 use spell_click_values::spell_effect_is_represented_summon_object_slot_like_cpp;
 use wow_world_spell::spell_cast_adapter::represented_spell_cast_guid_for_map_like_cpp;
 mod spell_pet_catalogs;
@@ -502,9 +500,6 @@ pub(crate) use state::{
 };
 #[cfg(test)]
 pub(crate) use state::{InventoryCx, cx_inventory};
-mod summon_object_contracts;
-pub(crate) use summon_object_contracts::ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp;
-pub(crate) use summon_object_contracts::ApplyEffectSummonObjectSlotSessionStatusLikeCpp;
 pub(crate) use wow_world_spell::RepresentedSpellFocusObjectLikeCpp;
 #[cfg(test)]
 mod support_features;
@@ -524,15 +519,14 @@ use std::sync::{
 };
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use rand::Rng;
 #[cfg(test)]
-use rand::{SeedableRng, rngs::StdRng};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 use tracing::{debug, info, warn};
 
 use crate::battle_pet_account::BattlePetAccountAttachmentLikeCpp;
 use crate::entity_update_bridge::{
     dynamic_object_values_update_to_update_object, item_values_update_to_update_object,
-    player_values_update_to_update_object, unit_values_update_to_packet,
+    unit_values_update_to_packet,
 };
 use crate::loot_persistence::DurableLootMoneyCompletionLikeCpp;
 #[cfg(test)]
@@ -664,7 +658,6 @@ use wow_data::{
         SPELL_CLICK_USER_FRIEND_LIKE_CPP, SPELL_CLICK_USER_PARTY_LIKE_CPP,
         SPELL_CLICK_USER_RAID_LIKE_CPP, UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP,
     },
-    spell_duration_ms_like_cpp, spell_effect_radius_like_cpp,
 };
 #[cfg(test)]
 use wow_data::{
@@ -786,6 +779,7 @@ const DEFAULT_VISIBILITY_DISTANCE_YARDS_LIKE_CPP: u32 = 100;
 const QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP: u32 = 0x1;
 const QUEST_FLAGS_PLAYER_CAST_ACCEPT_LIKE_CPP: u32 = 0x0010_0000;
 const QUEST_FLAGS_EX_RECAST_ACCEPT_SPELL_ON_LOGIN_LIKE_CPP: u32 = 0x0000_1000;
+#[cfg(test)]
 pub(crate) use wow_world_entities::spell_click_values::MAX_GAMEOBJECT_SLOT_LIKE_CPP;
 #[cfg(test)]
 pub(crate) use wow_world_spell::spell_cast_adapter::SPELL_CAST_SOURCE_NORMAL_LIKE_CPP;

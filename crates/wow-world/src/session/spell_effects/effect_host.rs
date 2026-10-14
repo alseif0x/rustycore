@@ -6,53 +6,36 @@ use super::*;
 use std::future::Future;
 
 impl wow_world_spell::SpellEffectHostLikeCpp for WorldSession {
-    fn forward_heal_threat_like_cpp(
-        &mut self,
-        spell_id: Option<i32>,
-        healer_guid: ObjectGuid,
-        target_guid: ObjectGuid,
-        effective_heal: u32,
-    ) {
-        WorldSession::forward_heal_threat_like_cpp(
-            self,
-            spell_id,
-            healer_guid,
-            target_guid,
-            effective_heal,
-        )
+    fn hydrate_canonical_threat_relevant_auras_like_cpp(&mut self) {
+        WorldSession::hydrate_canonical_threat_relevant_auras_like_cpp(self)
     }
-    fn forward_assisting_threat_like_cpp(
-        &mut self,
-        spell_id: Option<i32>,
-        assistant_guid: ObjectGuid,
-        assisted_guid: ObjectGuid,
-        base_amount: f32,
-        ignore_modifiers: bool,
-    ) {
-        WorldSession::forward_assisting_threat_like_cpp(
-            self,
-            spell_id,
-            assistant_guid,
-            assisted_guid,
-            base_amount,
-            ignore_modifiers,
-        )
-    }
-    fn canonical_threatened_by_me_owner_guids_like_cpp(
+    fn broadcast_creature_packet_to_visible_set_like_cpp(
         &self,
-        target_guid: ObjectGuid,
-    ) -> Vec<ObjectGuid> {
-        WorldSession::canonical_threatened_by_me_owner_guids_like_cpp(self, target_guid)
-    }
-    fn scale_canonical_owner_threat_to_target_zero_like_cpp(
-        &mut self,
-        owner_guid: ObjectGuid,
-        target_guid: ObjectGuid,
+        source_guid: ObjectGuid,
+        bytes: Vec<u8>,
     ) {
-        WorldSession::scale_canonical_owner_threat_to_target_zero_like_cpp(
+        WorldSession::broadcast_creature_packet_to_visible_set_like_cpp(self, source_guid, bytes)
+    }
+    fn add_transmog_set_like_cpp(
+        &mut self,
+        transmog_set_id: u32,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        WorldSession::add_transmog_set_like_cpp(self, transmog_set_id)
+    }
+    fn resolved_group_guid_like_cpp(&self) -> Option<u64> {
+        WorldSession::resolved_group_guid_like_cpp(self)
+    }
+    fn on_creature_killed_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_entry: u32,
+        creature_guid: ObjectGuid,
+    ) -> impl Future<Output = ()> + Send {
+        WorldSession::on_creature_killed_with_generator_like_cpp(
             self,
-            owner_guid,
-            target_guid,
+            item_guid_generator,
+            creature_entry,
+            creature_guid,
         )
     }
     fn apply_damage_from_caster_like_cpp(

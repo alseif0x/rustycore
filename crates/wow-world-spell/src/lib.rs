@@ -4,6 +4,7 @@ pub mod aura_effects;
 mod aura_rows;
 mod aura_session;
 mod effect_session;
+mod execution_session;
 pub mod login_spell_rules;
 pub mod melee_damage;
 pub mod melee_rules;
@@ -22,6 +23,8 @@ mod talent_session;
 mod test_support;
 
 pub use aura_rows::{CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use aura_session::update_represented_flight_flags_for_flight_aura_like_cpp;
 pub use aura_session::{
     AuraHostLikeCpp, apply_represented_mounted_aura_like_cpp,
     apply_represented_provide_spell_focus_aura_like_cpp, insert_player_visible_aura_like_cpp,
@@ -41,32 +44,36 @@ pub use aura_session::{
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use effect_session::{
+    ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp,
+    ApplyEffectSummonObjectSlotSessionStatusLikeCpp, apply_effect_summon_object_slot_like_cpp,
+    apply_modify_spell_charges_effect_like_cpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use effect_session::{
     ApplyEffectSummonObjectWildSessionOutcomeLikeCpp,
     ApplyEffectSummonObjectWildSessionStatusLikeCpp, DAMAGE_FIRE_LIKE_CPP,
-    apply_damage_with_generator_like_cpp, apply_effect_summon_object_wild_like_cpp, apply_heal,
-    represented_target_aura_state_mask_like_cpp, represented_target_creature_type_mask_like_cpp,
-    represented_target_mechanic_mask_like_cpp,
+    apply_damage_with_generator_like_cpp, apply_effect_add_farsight_like_cpp,
+    apply_effect_summon_object_wild_like_cpp, apply_heal, apply_heal_max_health_like_cpp,
+    implicit_target_conditions_like_cpp, represented_target_aura_state_mask_like_cpp,
+    represented_target_creature_type_mask_like_cpp, represented_target_mechanic_mask_like_cpp,
 };
 pub use effect_session::{
-    SpellEffectHostLikeCpp, apply_add_extra_attacks_effect_like_cpp, apply_block_effect_like_cpp,
-    apply_dismiss_pet_effect_like_cpp, apply_distract_effect_like_cpp,
-    apply_dual_wield_effect_like_cpp, apply_effect_add_farsight_like_cpp,
-    apply_effect_bind_like_cpp, apply_effect_environmental_damage_like_cpp,
-    apply_effect_summon_object_wild_with_focus_like_cpp, apply_effect_teleport_units_like_cpp,
-    apply_energize_effect_like_cpp, apply_give_honor_effect_like_cpp,
-    apply_heal_from_caster_like_cpp, apply_heal_max_health_like_cpp, apply_heal_pct_like_cpp,
-    apply_health_leech_like_cpp, apply_inebriate_effect_like_cpp, apply_instakill_like_cpp,
-    apply_modify_cooldown_effect_like_cpp, apply_parry_effect_like_cpp,
-    apply_play_movie_effect_like_cpp, apply_power_drain_effect_like_cpp,
-    apply_sanctuary_effect_like_cpp, apply_titan_grip_effect_like_cpp,
-    apply_upgrade_heirloom_effect_like_cpp, current_map_dungeon_state_like_cpp,
-    current_map_is_dungeon_like_cpp, has_implicit_target_conditions_like_cpp,
-    implicit_target_conditions_like_cpp, notify_other_players_visibility_changed_like_cpp,
-    player_current_map_instanceable_like_cpp, power_drain_pre_scaled_damage_like_cpp,
-    record_spell_execute_log_durability_damage_like_cpp,
+    SpellEffectHostLikeCpp, apply_block_effect_like_cpp, apply_parry_effect_like_cpp,
+    canonical_threatened_by_me_owner_guids_like_cpp, current_map_dungeon_state_like_cpp,
+    current_map_is_dungeon_like_cpp, notify_other_players_visibility_changed_like_cpp,
+    player_current_map_instanceable_like_cpp, record_spell_execute_log_durability_damage_like_cpp,
     represented_disallowed_mount_form_like_cpp, represented_homebind_like_cpp,
-    represented_object_target_position_like_cpp, represented_spell_damage_bonus_done_like_cpp,
-    represented_spell_healing_bonus_done_like_cpp, send_spell_execute_log_like_cpp,
+    sync_represented_creature_threat_to_canonical_like_cpp,
+};
+pub use execution_session::{
+    SpellExecutionHostLikeCpp, execute_server_triggered_spell_like_cpp,
+    execute_spell_with_visual_and_target_data_and_generator_like_cpp,
+    execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp,
+    player_cast_publication_like_cpp, publish_player_cast_frame_like_cpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use execution_session::{
+    represented_transport_destination_world_position_like_cpp, take_spell_power_like_cpp,
 };
 pub use player_cast::PlayerCastPublicationPhaseLikeCpp;
 pub use profession::{

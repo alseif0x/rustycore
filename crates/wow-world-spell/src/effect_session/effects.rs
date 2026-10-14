@@ -7,7 +7,9 @@
 
 use super::{
     SpellEffectHostLikeCpp, add_honor_xp_to_current_player_like_cpp,
-    apply_damage_with_generator_like_cpp, record_spell_execute_log_extra_attacks_like_cpp,
+    apply_damage_with_generator_like_cpp, canonical_threatened_by_me_owner_guids_like_cpp,
+    record_spell_execute_log_extra_attacks_like_cpp,
+    scale_canonical_owner_threat_to_target_zero_like_cpp,
     stop_represented_player_pve_combat_like_cpp,
 };
 use std::sync::Arc;
@@ -558,9 +560,9 @@ pub fn apply_sanctuary_effect_like_cpp<H: SpellEffectHostLikeCpp>(
         return Ok(());
     }
 
-    let owner_guids = host.canonical_threatened_by_me_owner_guids_like_cpp(target_guid);
+    let owner_guids = canonical_threatened_by_me_owner_guids_like_cpp(host, target_guid);
     for owner_guid in owner_guids {
-        host.scale_canonical_owner_threat_to_target_zero_like_cpp(owner_guid, target_guid);
+        scale_canonical_owner_threat_to_target_zero_like_cpp(host, owner_guid, target_guid);
         let _ = host.core_mut().mutate_world_creature(owner_guid, |owner| {
             owner
                 .unit_mut()

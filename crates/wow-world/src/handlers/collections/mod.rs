@@ -207,8 +207,9 @@ impl crate::session::WorldSession {
                 spell_visual: crate::spell_cast_adapter::retain_visual(spell_visual),
                 metadata,
             }));
-        } else if let Err(error) = self
-            .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+        } else if let Err(error) =
+            wow_world_spell::execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+                self,
                 item_guid_generator,
                 creature_spawn_catalogs,
                 request.cast.spell_id,

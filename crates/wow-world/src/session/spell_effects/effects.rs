@@ -1,50 +1,13 @@
 //! Remaining represented effect operations owned by this responsibility.
 //!
 //! Moved out of the Session root under #621. Behaviour is preserved; the
-//! canonical owner of this state is unchanged.
+//! canonical owner of this state is unchanged. The server-triggered cast, the
+//! transmog-set and kill-credit effects moved to `wow_world_spell` (#1363
+//! slice 9d).
 
 use super::*;
 
 impl WorldSession {
-    /// Server-triggered cast with an explicit C++ trigger contract.
-    ///
-    /// C++ `Unit::CastSpell` always constructs a `Spell`, so `m_castId` is a
-    /// real `Map::GenerateLowGuid<HighGuid::Cast>` value even when no client
-    /// requested the cast. Publishing an empty CastID leaves the client unable
-    /// to correlate the resulting `SMSG_SPELL_GO`, so this entry point
-    /// allocates from the admitted Map's shared Cast sequence just like the
-    /// normal request path and the represented creature consumer.
-    ///
-    /// `metadata` carries the caller's own contract; normal client defaults are
-    /// never imposed on these consumers.
-    pub(crate) async fn execute_server_triggered_spell_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
-        spell_id: i32,
-        target_guid: ObjectGuid,
-        metadata: SpellCastMetadata,
-    ) -> Result<(), &'static str> {
-        use wow_packet::packets::spell::SpellCastVisual;
-
-        let Some(cast_id) = self.next_represented_spell_cast_guid_like_cpp(spell_id) else {
-            return Err("canonical Map cast identity unavailable for a triggered cast");
-        };
-        self.execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
-            item_guid_generator,
-            creature_spawn_catalogs,
-            spell_id,
-            target_guid,
-            cast_id,
-            SpellCastVisual {
-                spell_visual_id: 0,
-                script_visual_id: 0,
-            },
-            Default::default(),
-            metadata,
-        )
-        .await
-    }
     pub(crate) fn set_represented_homebind_like_cpp(
         &mut self,
         homebind: RepresentedHomebindLikeCpp,
@@ -62,32 +25,6 @@ impl WorldSession {
             return true;
         }
         false
-    }
-    pub(in crate::session) fn apply_learn_transmog_set_effect_like_cpp(
-        &mut self,
-        target_guid: ObjectGuid,
-        transmog_set_id: i32,
-    ) {
-        let Some(player_guid) = self.player_guid() else {
-            return;
-        };
-        if target_guid != player_guid {
-            return;
-        }
-
-        let Ok(transmog_set_id) = u32::try_from(transmog_set_id) else {
-            return;
-        };
-        let Some(update) = self.add_transmog_set_like_cpp(transmog_set_id) else {
-            return;
-        };
-        if let Some(packet) = player_values_update_to_update_object(
-            player_guid,
-            self.core.player_map_id_like_cpp(),
-            &update,
-        ) {
-            self.send_packet(&packet);
-        }
     }
     pub(in crate::session) fn represented_nearby_candidate_meets_implicit_conditions_like_cpp(
         &self,
@@ -296,43 +233,5 @@ impl WorldSession {
         #[cfg(not(test))]
         let _ = caster_guid;
         true
-    }
-    pub(in crate::session) async fn apply_kill_credit_effect_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        target_guid: ObjectGuid,
-        creature_entry: i32,
-        group_reward_like_cpp: bool,
-    ) -> Result<(), &'static str> {
-        let player_guid = self.player_guid().ok_or("No player GUID")?;
-        if target_guid != player_guid {
-            return Ok(());
-        }
-
-        let Ok(creature_entry) = u32::try_from(creature_entry) else {
-            debug!(
-                account = self.core.account_id,
-                "Skipping represented kill-credit spell effect with negative MiscValue"
-            );
-            return Ok(());
-        };
-        if creature_entry == 0 {
-            return Ok(());
-        }
-
-        if group_reward_like_cpp {
-            debug!(
-                account = self.core.account_id,
-                creature_entry,
-                "Represented SPELL_EFFECT_KILL_CREDIT2 applies current-session credit only; C++ group fanout remains unrepresented"
-            );
-        }
-        self.on_creature_killed_with_generator_like_cpp(
-            item_guid_generator,
-            creature_entry,
-            ObjectGuid::EMPTY,
-        )
-        .await;
-        Ok(())
     }
 }

@@ -17,7 +17,6 @@ mod catalog;
 mod cooldown;
 mod effects;
 
-pub(crate) use aura_publication::player_aura_info_like_cpp;
 mod spell;
 mod spell_click;
 mod spell_click_host;

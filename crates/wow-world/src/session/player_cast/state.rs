@@ -219,8 +219,9 @@ impl WorldSession {
         let metadata = cast_state.metadata;
 
         // The owner guard is released before effect execution and failure publication.
-        if let Err(e) = self
-            .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+        if let Err(e) =
+            wow_world_spell::execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+                self,
                 item_guid_generator,
                 creature_spawn_catalogs,
                 spell_id,
