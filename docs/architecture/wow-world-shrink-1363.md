@@ -6409,12 +6409,14 @@ Branch `1363-s9c-spell-effects`, base `923fd0942` (9b merged). Move-only
   `cfg(any(test, feature = "test-fixtures"))`. In a production build they
   are compiled out; in the `test-fixtures` build the accessor is `None`.
 
-A token comparison of the 66 moved functions against the same rewrite
-applied by script to their base bodies finds 53 identical; the other 13
-differ only by `core_mut` (8), the two fixture steps and the two
-execute-log split accessors. The two private bit helpers, the four
-constants and the wild summon contracts are byte-identical apart from
-`pub(crate)` → `pub` on the contracts.
+A token comparison of the 68 moved bodies (the 66 methods and the two free
+bit helpers) against the same rewrite applied by script to their base
+bodies finds 55 identical; the other 13 differ only by `core_mut` (9
+places), the two fixture steps and the two execute-log split accessors. The
+two private bit helpers, the four constants and the wild summon contracts
+are byte-identical apart from `pub(crate)` → `pub` on the contracts. *(9d
+correction, #1393 review: the counts read "66 moved functions", "53
+identical" and `core_mut` (8).)*
 
 ### Re-measure and the cut
 

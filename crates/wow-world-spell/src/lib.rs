@@ -52,33 +52,17 @@ pub use effect_session::{
 pub use effect_session::{
     ApplyEffectSummonObjectWildSessionOutcomeLikeCpp,
     ApplyEffectSummonObjectWildSessionStatusLikeCpp, DAMAGE_FIRE_LIKE_CPP,
-    apply_damage_with_generator_like_cpp, apply_effect_summon_object_wild_like_cpp, apply_heal,
-    represented_target_aura_state_mask_like_cpp, represented_target_creature_type_mask_like_cpp,
-    represented_target_mechanic_mask_like_cpp,
+    apply_damage_with_generator_like_cpp, apply_effect_add_farsight_like_cpp,
+    apply_effect_summon_object_wild_like_cpp, apply_heal, apply_heal_max_health_like_cpp,
+    implicit_target_conditions_like_cpp, represented_target_aura_state_mask_like_cpp,
+    represented_target_creature_type_mask_like_cpp, represented_target_mechanic_mask_like_cpp,
 };
 pub use effect_session::{
-    SpellEffectHostLikeCpp, apply_add_extra_attacks_effect_like_cpp, apply_block_effect_like_cpp,
-    apply_dismiss_pet_effect_like_cpp, apply_distract_effect_like_cpp,
-    apply_dual_wield_effect_like_cpp, apply_effect_add_farsight_like_cpp,
-    apply_effect_bind_like_cpp, apply_effect_environmental_damage_like_cpp,
-    apply_effect_summon_object_wild_with_focus_like_cpp, apply_effect_teleport_units_like_cpp,
-    apply_energize_effect_like_cpp, apply_give_honor_effect_like_cpp,
-    apply_heal_from_caster_like_cpp, apply_heal_max_health_like_cpp, apply_heal_pct_like_cpp,
-    apply_health_leech_like_cpp, apply_inebriate_effect_like_cpp, apply_instakill_like_cpp,
-    apply_modify_cooldown_effect_like_cpp, apply_parry_effect_like_cpp,
-    apply_play_movie_effect_like_cpp, apply_power_drain_effect_like_cpp,
-    apply_sanctuary_effect_like_cpp, apply_titan_grip_effect_like_cpp,
-    apply_upgrade_heirloom_effect_like_cpp, current_map_dungeon_state_like_cpp,
-    current_map_is_dungeon_like_cpp, has_implicit_target_conditions_like_cpp,
-    implicit_target_conditions_like_cpp, notify_other_players_visibility_changed_like_cpp,
-    player_current_map_instanceable_like_cpp, power_drain_pre_scaled_damage_like_cpp,
-    record_spell_execute_log_durability_damage_like_cpp,
+    SpellEffectHostLikeCpp, apply_block_effect_like_cpp, apply_parry_effect_like_cpp,
+    canonical_threatened_by_me_owner_guids_like_cpp, current_map_dungeon_state_like_cpp,
+    current_map_is_dungeon_like_cpp, notify_other_players_visibility_changed_like_cpp,
+    player_current_map_instanceable_like_cpp, record_spell_execute_log_durability_damage_like_cpp,
     represented_disallowed_mount_form_like_cpp, represented_homebind_like_cpp,
-    represented_object_target_position_like_cpp, represented_spell_damage_bonus_done_like_cpp,
-    represented_spell_healing_bonus_done_like_cpp, send_spell_execute_log_like_cpp,
-};
-pub use effect_session::{
-    canonical_threatened_by_me_owner_guids_like_cpp,
     sync_represented_creature_threat_to_canonical_like_cpp,
 };
 pub use execution_session::{
