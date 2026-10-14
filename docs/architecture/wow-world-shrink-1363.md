@@ -6997,3 +6997,411 @@ the click plan in `spell_state/spell_click.rs` 390 (6, 7),
 `VALIDATION_V2_TIMEOUT_SECONDS=1800`) runs on the committed head that
 includes this section. Its manifest path, dirty flag and duration are in
 the PR body. This section is not edited after that run.
+
+## Slice 9e result (player cast, cast checks, spell handlers and the spell-click plan → spell)
+
+Branch `1363-s9e-player-cast`, base `c9d3222b3` (9d merged). Move-only (R2),
+with the 9a–9d rewrites and nothing else:
+
+- `self` becomes `host` (`fn name<H: Bound>(host: &mut H, …)`, `host: &H`
+  for an `&self` method), with the narrowest host the body needs:
+  `SpellExecutionHostLikeCpp` for the cast checks and the cast driver,
+  `SessionHubHostLikeCpp` for the publication rail and the DisableMgr gate,
+  and the new `PlayerCastHostLikeCpp` for the three handlers and the
+  spell-click plan and execution; a call between moved functions, or to a
+  function already in spell, becomes a free call; `self.core` becomes
+  `host.core()`, or `host.core_mut()` where the body mutates through it (the
+  two AI spell-click inform writes of the click execution:
+  `mutate_world_creature` and `mutate_canonical_creature_by_guid_like_cpp`);
+  `self.catalogs` becomes `host.hub_ref().catalogs`;
+  `crate::session::{hub_ref,split_spell_state_*}(self)` become the same call
+  through the host;
+- World re-export paths name their source: `crate::session::SpellCastMetadata`
+  → `wow_entities::SpellCastMetadata`, `crate::session::CreatureSpawnCatalogsLikeCpp`
+  → `wow_world_entities::…`, `crate::session::ProgressionCatalogsLikeCpp` →
+  `wow_world_core::session::…`, `crate::session::PlayerGridLoadResolverLikeCpp`
+  → `wow_world_core::session::map_admission::…`; the cast handler's
+  `&AreaTriggerCatalogsLikeCpp` becomes `&H::AreaTriggerCatalogsLikeCpp` (the
+  movement host's associated type, which the World binds to the same type);
+  `RepresentedPendingSpellCastRequestLikeCpp` keeps its name through a local
+  `use wow_entities::PendingSpellCastRequestLikeCpp as …` (the World alias);
+  the clickee caster is named `super::` from the click plan;
+- **five World wrappers are inlined**, each as its exact body, none async:
+  `self.spell_store()` (body `self.catalogs.spell_store()`; the cast handler
+  and the seat plan, one site each), `self.player_condition_store()` (body
+  `self.catalogs.player_condition_store()`; the plan) and `self.disable_mgr()`
+  (body `self.catalogs.disable_mgr()`; the DisableMgr gate) become
+  `host.hub_ref().catalogs.X()`; the two split wrappers
+  `resolved_has_represented_aura_effect_with_misc_value_like_cpp` and
+  `search_spell_focus_like_cpp` (one site each, the cast preparation check)
+  become the same split and state call inside the `if` block that already
+  scoped the call, the 8e form. No split is held across another call or an
+  `.await`;
+- **one fixture step uses the host accessor:** the ready-cast take's
+  `#[cfg(test)]` handle-less branch is
+  `#[cfg(any(test, feature = "test-fixtures"))] if host.test_fixtures_ref_like_cpp().is_some() && host.core().player_handle_like_cpp.is_none()`,
+  which is `Some` only in the World `cfg(test)` build, so it keeps its World
+  meaning;
+- **the aura modifier is a provided method** of `AuraHostLikeCpp` (body
+  verbatim with `self.core` → `self.core()` and the three spell calls as
+  in-crate calls, plus `where Self: Sized`), not a free function: its 23
+  spell call sites (22 in `execution_session/execution.rs`, one in the
+  mount aura) keep their `host.apply_represented_aura_modifier_like_cpp(…)`
+  form. As free calls they would add a line each and push the 996-line
+  execution entry point over the 1,000-line limit. `WorldSession` no longer
+  overrides it (the adapter forward is gone);
+- the battle-pet and mount checks and their outcome enum become private to
+  `execution_session/checks.rs` (they were `pub(in crate::session)`; only the
+  cast preparation check calls them).
+
+A token comparison of the 13 moved functions against the same rewrite
+applied by script (literals and comments masked, so no string literal is
+touched) to their base bodies finds 5 identical; the other 8 differ only by
+the inlined splits (cast preparation), `pub` → private (battle-pet and mount
+checks), the fixture accessor (ready-cast take), the source paths and the
+associated catalog type (the three handlers), and `super::`, `core_mut` (2)
+and a rustfmt trailing comma (click execution). The aura modifier body is
+compared by hand: identical apart from `self.core()` and the in-crate paths.
+No string literal, constant, operator or control-flow token changed.
+
+### Re-measure and the cut
+
+On `c9d3222b3` (classifier, `wow-world` production 50,696) the 9e families
+measured 3.0k as planned, but 960 of `handlers/spell` is not spell:
+`handle_open_item`, the wrapped gifts, the item loot-template generation,
+the addon loot loads and the loot-condition/quest-objective readers
+(`ops_1.rs`/`ops_2.rs`) are the item loot family that `SpellHandler.cpp`
+happens to host. They read the quest objective snapshot and the stored-loot
+persistence, so they belong to `wow-world-loot-ops`, which spell must not
+reach. The cut, by host cost:
+
+- **9e moves** the cast preparation checks (`player_cast/checks.rs` and
+  `spell_effects/checks.rs` with `RepresentedMountSpellCheckOutcomeLikeCpp`),
+  the ready-cast take and the active-cast tick, the cast publication rail,
+  the DisableMgr spell gate, `CMSG_CAST_SPELL`, `CMSG_SPELL_CLICK`,
+  `CMSG_SELF_RES`, the spell-click plan (with the World player-condition
+  context through an associated type, the 8b inventory pattern) and its
+  execution, and the aura modifier.
+- **Stays on the session, with the reason:**
+  - the `player_cast::Runtime` impl (`session/player_cast.rs`, 277 lines with
+    the interruption): it
+    is already the World side of the request lifecycle's own host trait. Its
+    `visual`, `install` and `start` carry `#[cfg(test)]` fixture branches and
+    read the World config. Moving it needs a blanket
+    `impl<H: …> Runtime for H`, a design change rather than a move;
+  - the pending-request tick, the request replacement and the pending owner
+    transition (`player_cast/state.rs`): the owner transition takes a
+    `cfg(any(test, feature = "test-fixtures"))` fallback closure parameter,
+    which a host-trait signature cannot carry without a feature-mismatch risk
+    across crates. The tick is a host method of the cast handler;
+  - the cast identity allocation (`player_cast/identity.rs`, a `cfg(test)`
+    static counter) and the interruptions (they call `wow_world_application`,
+    which depends on spell);
+  - the first-login cast spells: they belong to the login coordinator (slice 9
+    plan);
+  - **the respec wipe (`CMSG_CONFIRM_RESPEC_WIPE`) is deferred.** It is 90
+    lines over four host operations: the World-private
+    `CommittedRepresentedTalentResetLikeCpp` (an associated type), the
+    async commit and publication, and feign-death removal (application). On
+    top of that, its `represented_can_confirm_respec_wipe_like_cpp` wrapper
+    shares its name with the free helper it calls, so it would inline into
+    the `if` condition as a block, and two of its constants are read by the
+    talent scenarios. That is about 60 host lines for 90 moved, and it is
+    talent-reset persistence orchestration. It goes with slice 13 (persistence
+    and lifecycle orchestration), which owns the commit and publication;
+  - the open-item loot family (above): with the loot-ops follow-up.
+
+### What moved
+
+To `wow-world-spell/src/execution_session/checks.rs` (C++ `Spell::CheckCast`
+for the spell focus, the battle-pet effects and the mount spells,
+`SpellInfo::CheckLocation`): `check_represented_cast_preparation_like_cpp`,
+`check_represented_battle_pet_spell_like_cpp`,
+`check_represented_mount_spell_like_cpp` and the outcome enum. The execution
+preparation now calls the cast check as a free function.
+
+To the new `wow-world-spell/src/player_cast_session/` (C++
+`WorldSession::HandleCastSpellOpcode`, `HandleSpellClick`,
+`HandleSelfResOpcode`, the Player cast driver and the cast publication):
+
+- `driver.rs`: `take_ready_player_cast_like_cpp`,
+  `tick_active_spell_cast_with_generator_like_cpp`;
+- `publication.rs`: `handle_player_cast_publication_like_cpp`,
+  `is_spell_disabled_for_player_like_cpp`;
+- `handlers.rs`: `handle_cast_spell_with_catalogs_like_cpp`,
+  `handle_spell_click_with_generator_like_cpp`,
+  `handle_self_res_with_generator_like_cpp`;
+- `mod.rs`: the host trait.
+
+To `wow-world-spell/src/spell_click_session/plan.rs`:
+`represented_handle_spell_click_plan_like_cpp`,
+`represented_handle_spell_click_plan_with_seat_like_cpp`,
+`execute_represented_spell_click_plan_with_generator_like_cpp`. To
+`aura_session/mod.rs`: `apply_represented_aura_modifier_like_cpp` (the
+provided method).
+
+World callers call the free function with `self`: the driver tick, the
+session command (publication), the pending tick, the `Runtime` impl
+(`disabled`, `check_preconditions`), the three spell-handler adapter
+forwards (`spell_handler_contexts.rs`) and the vehicle adapter forward
+(seat plan). `session/player_cast/checks.rs`,
+`session/spell_effects/checks.rs` and `session/spell_state/spell_click.rs`
+are deleted.
+
+**Recursion check.** A grep of every moved and inlined name with method or
+`WorldSession::`/`Self::` path syntax over the production files (the
+`#![cfg(test)]` shims excluded) finds only the four trait-definition lines of
+the application and entities adapters, whose bodies now name
+`wow_world_spell::…`. All six new forwards (`PlayerCastHostLikeCpp`: the
+pending tick, the self-res check, the spell-click creature snapshot, the
+player-condition context; `SpellExecutionHostLikeCpp`: the battle-pet journal
+lock and the battle pet) name an ungated method of an inherent
+`impl WorldSession` block. The aura modifier shim names the trait's provided
+method by UFCS, and `WorldSession` does not override it. The production,
+`test-fixtures` and all-targets builds report no `unconditional_recursion`.
+
+**Reclassified, not moved:** the four `#[cfg(test)]` overloads nested in the
+moved production impls (`tick_active_spell_cast`, `handle_cast_spell`,
+`handle_self_res`, `execute_represented_spell_click_plan_like_cpp`, 53 lines
+that the classifier counted as production), verbatim except that their calls
+are free calls, and the `search_spell_focus_like_cpp` split wrapper (7), whose
+only production caller moved and inlined it but which a scenario calls. All
+of them move to the new `#![cfg(test)]` `handlers/player_cast_test_shims.rs`,
+together with one-call forwards for the moved functions the scenarios call.
+The two other inlined split wrappers (`resolved_has_…_with_misc_value`, 9
+lines; `disable_mgr`, 4) had no caller left and are **retired**. The names
+only the session scenarios read after the move (the spell-click values, the
+reaction input, `SpellTargetData`, the battle-pet level cap, the spell-focus
+object, the two `SPELL_CLICK_USER_*` constants) are re-exported from the
+shim's `session_test_reexports` module, which the session root glob-imports
+under `cfg(test)`. The two aura interrupt flags that were already
+`cfg(test)` session-root imports moved there too, so the session tree's test
+ceiling does not grow. No scenario call site changes.
+
+### Host surface
+
+| Trait (spell) | Methods | Trait lines | Adapter | Adapter lines |
+|---|---:|---:|---|---:|
+| `PlayerCastHostLikeCpp: SpellExecutionHostLikeCpp + player_cast::Runtime + wow_world_entities::PlayerMovementHostLikeCpp` | 1 associated type (player-condition context) + 4: pending-request tick (async), self-res spell check, spell-click creature snapshot, player-condition context | 23 | `session/player_cast/host.rs` | 35 |
+| `SpellExecutionHostLikeCpp` (9d) | −1 (cast preparation checks), +2 (battle-pet journal lock, battle pet: both pass the World `cfg!(test)`) | 95 → 93 | `session/spell_effects/execution_host.rs` | 181 → 175 |
+| `AuraHostLikeCpp` (9b) | the modifier becomes a provided method | — | `session/spell_state/aura_host.rs` | 85 → 68 |
+
+- The supertraits lend the rest: the movement host for the embedded
+  `MoveUpdate`, `Runtime` for `player_cast::request`, and the execution chain
+  for the execution, the clickee caster and the cast identity.
+- **Budget.** Gross new host lines: 58 (trait 23 + adapter 35) plus the two
+  execution methods (5 trait + 9 adapter lines), 72 in all, against 1,093
+  moved function lines: **6.6 %**. Net of what shrank (the cast-check
+  declaration −7 and forward −15, the aura forward −17 and declaration −8),
+  25 lines, **2.3 %**.
+- **Widening.** In spell the crate exports the new trait and the 7 functions
+  World production calls (the three handlers, the tick, the publication rail,
+  the DisableMgr gate, the seat plan) and `check_represented_cast_preparation_like_cpp`
+  (the `Runtime` adapter); 3 more (the ready-cast take, the plan without seat,
+  the click execution) only under `cfg(any(test, feature = "test-fixtures"))`.
+  `execute_represented_spell_click_clickee_caster_like_cpp` is no longer
+  exported (its only World caller moved). **9d follow-up:** the four 9b
+  `aura_session` exports without a World production caller
+  (`apply_represented_mounted_aura_like_cpp`,
+  `apply_represented_provide_spell_focus_aura_like_cpp`,
+  `represented_player_aura_state_mask_like_cpp`,
+  `represented_unit_aura_state_mask_like_cpp`) are now test-fixture gated; their
+  in-crate callers import them from `aura_session` (same lines). No World
+  item is widened.
+
+### Await counts (per function, base vs head)
+
+Counted with the 8d script (comments and literals blanked) over every
+changed World and spell file.
+
+| Function | Base | Head |
+|---|---:|---:|
+| `handle_cast_spell_with_catalogs_like_cpp` (moved; the movement update, the pending tick) | 2 | 2 |
+| `handle_spell_click_with_generator_like_cpp`, `handle_self_res_with_generator_like_cpp` (moved) | 1 each | 1 each |
+| `execute_represented_spell_click_plan_with_generator_like_cpp` (moved) | 2 | 2 |
+| `tick_active_spell_cast_with_generator_like_cpp` (moved) | 1 | 1 |
+| 8 other moved functions and the aura modifier | sync | sync |
+| the four reclassified test overloads | 1 each | 1 each |
+| the three spell-handler adapter thunks, the pending tick (stays) | 1 each | 1 each |
+| the new pending-tick adapter forward | – | 0 |
+| 25 other async functions in the changed files (the open-item family, the session commands, the vehicle handlers, …) | unchanged | unchanged |
+
+Base 85 awaits in 42 functions, head 85 in 43: the difference is the new
+forward (0). No future is spawned, boxed or reordered; every rewritten call
+site keeps its `.await` in the same position, and no borrow is split
+differently across an await (the moved bodies take `&mut H` exactly where
+they took `&mut self`; the two `core_mut` sites are synchronous closures; the
+two inlined splits are synchronous `&self` reads).
+
+### Behaviour
+
+Every moved body is its base text after the rewrites above. Unchanged in
+particular: the `CMSG_CAST_SPELL` order (player, parse, spell-info gate before
+the embedded `MoveUpdate`, the request, the immediate pending tick); the
+request validation and result codes (`player_cast::request` over the same
+`Runtime` impl); the cast-check order (spell focus aura, focus object search,
+`SPELL_FAILED_REQUIRES_SPELL_FOCUS` with the focus id in FailedArg1, the
+battle-pet checks in effect order with their result codes, the mount and
+shapeshift-form capability, the water gate, the disallowed form with
+`MOUNT_RESULT_SHAPESHIFTED` and `DONT_REPORT`); the ready-cast residence
+fence and the execution with the `CastFailed` fallback; the publication
+opcode and visibility gate; the DisableMgr reference; the spell-click user
+types, the condition evaluation with its snapshots and player-condition
+context, the vehicle control effect and the cast flags, and the execution
+order with its skip counters and AI inform; `CMSG_SELF_RES` and the self-res
+spell removal on success; the aura modifier slot, row and `SMSG_AURA_UPDATE`.
+No persistence code moved (#169). The opcode registrations, processing and
+status flags are untouched (`wow-world-application`, `session/registry.rs`
+and `world-server` are not in the diff; the application registrar still
+calls the same World adapter, whose forwards now name `wow_world_spell`).
+The moved log sites keep their messages and fields; their tracing targets
+are now `wow_world_spell::{execution_session,player_cast_session,spell_click_session}`.
+
+### Edges and closure
+
+`wow-world-spell -> wow-conditions` is added for the spell-click plan
+(`ConditionUnitSnapshot`, `is_object_meeting_spell_click_conditions_like_cpp`,
+`condition_meets_basic_like_cpp`). `wow-conditions` is a leaf `application`
+crate (constants, data, entities, loot) that core, entities and inventory
+already use, and the dependency policy now allows the edge. It was
+simulated first with `wow_world_closure.py check --add wow-world-spell->wow-conditions`
+in lock and metadata mode (both PASS), and passes as added (17 packages). No
+`wow-world` edge is added. The five negative probes
+(`wow-world-spell->wow-world-{quest,character,loot-ops,social,instances}`)
+still fail as they must.
+
+### Accounting
+
+- **`crates/wow-world/src`.** Classifier: 50,696 → **49,482 production
+  (−1,214)**. Physical: 57,867 → 56,805 (−1,062). Files: 472 → 471. Test:
+  7,171 → 7,323 (+152).
+  - **1,099 is production code that left `wow-world`:** the 13 moved
+    functions and the aura modifier (1,093 lines at base with their docs and
+    attributes) and the outcome enum (6).
+  - **60 is reclassified to test:** the four nested `#[cfg(test)]` overloads
+    (53) and the `search_spell_focus_like_cpp` wrapper (7).
+  - **13 is retired:** the two inlined wrappers left without a caller.
+  - **+12 is the adapter delta:** the new adapter (+35), the execution
+    adapter (−6) and the aura adapter (−17).
+  - **The rest (about −54) is file scaffolding, import, mount and call-site
+    edits:** the three deleted files' headers and impl blocks, the
+    session-root imports (−19), `handlers/spell.rs` imports (−3), and the
+    free calls in the driver (+1) and the `Runtime` impl.
+  - The test figure grows by the shim file (150) and the two
+    `cfg(test)` mount and re-export lines (+2 each in `handlers/mod.rs` and
+    `player_cast.rs`), less the two session-root lines that moved to the
+    shim (−2).
+- **Destination.** `wow-world-spell/src`: 18,053 → 19,387 physical
+  (+1,334; production 17,753 → 19,077, +1,324; test +10, the gated exports).
+  New `player_cast_session/` 496 lines (`handlers.rs` 249, `driver.rs` 103,
+  `publication.rs` 85, `mod.rs` 59), `spell_click_session/plan.rs` 401,
+  `execution_session/checks.rs` 362; `aura_session/mod.rs` +52, `lib.rs` +16,
+  the execution module imports and call sites +0 net.
+- **`net_move.py check`.** PASS: growth 1,334 ≤ 2,069.8, 0 duplicate bodies.
+- **`session-ownership-policy.json`** is reprinted with `print-baseline`
+  (the persistence snapshot is unchanged). The delta is exactly: 23 items
+  leave `crate::session` (the 14 moved methods, the 4 reclassified test
+  overloads, the 3 inlined wrappers and the 2 trait forwards of the cast check
+  and the aura modifier), and 17 arrive (10 shim items, 6 adapter trait
+  methods and the associated type) with 2 impls. The
+  syntax-only check passes.
+- **Policy.** `dependency-policy.json` allows `wow-world-spell ->
+  wow-conditions` (the edge above). No other policy file changes.
+- **Ceilings.** None raised. Tightened to live values:
+  - hotspot `session/mod.rs`: production 31,315 → 30,380, test 141,687 →
+    141,685, total 173,002 → 172,065;
+  - physical `session/mod.rs` 949 → 928, `handlers/spell.rs` 242 → 62;
+  - new physical row `handlers/player_cast_test_shims.rs` at 150.
+- **Warnings.** The warning sets (`--message-format=short` lines, compared
+  without line numbers against the 9d head, whose tree is this base) are
+  identical for `wow-world` in all three builds: production lib 146, lib with
+  `test-fixtures` 154, all targets 291. `wow-world-spell` keeps its base set
+  (lib 8, all targets 5). The other crates in those builds have no source
+  change. `wow-world` `dead_code` is 0 in all three; `unconditional_recursion`
+  is 0 in all three.
+- **Tests.** No `#[test]` or `#[ignore]` is added or removed; the workspace
+  test-name multiset is identical (10,214 names, 5 ignores). Focused run
+  during the move (the final run covers the head): the `wow-world` lib passed
+  905 filtered tests (spell, cast, click, self_res, aura, mount, battle_pet,
+  publication, disable, focus).
+
+### Follow-ups
+
+- **The open-item loot family** (`handlers/spell/ops_{1,2}.rs`, about 960
+  production lines) goes to `wow-world-loot-ops`, not spell: `CMSG_OPEN_ITEM`,
+  the wrapped gift, the item loot templates and the loot-condition readers.
+- **The respec wipe** goes with slice 13 (above).
+- **The `Runtime` impl and the pending-request tick** move together once the
+  pending owner transition's fixture fallback has an accessor (a blanket
+  `Runtime` impl over a host trait is the design step).
+- Retire the shim files, now including `player_cast_test_shims.rs` (150),
+  when the scenarios call the free functions; `session_test_reexports` then
+  goes too.
+
+### Validation
+
+`final --architecture --timings` (`VALIDATION_V2_CARGO_JOBS=1`,
+`VALIDATION_V2_TIMEOUT_SECONDS=1800`) runs on the committed head that
+includes this section. Its manifest path, dirty flag and duration are in
+the PR body. This section is not edited after that run.
+
+## Slice 9 summary (9a–9e)
+
+The spell domain was about 14k production lines on `b5fdc923b` (slice 9
+plan). Slice 9 moved its bodies to `wow-world-spell`:
+
+| Slice | `wow-world` production | Δ | Moved out | Adapter | Reclassified | Retired |
+|---|---|---:|---:|---:|---:|---:|
+| 9a spellbook | 58,403 → 57,424 | −979 | 791 | +42 | 233 | 0 |
+| 9b talents, auras, aura sources, spell-click caster | 57,424 → 56,283 | −1,141 | about 1,290 | +134 | 12 | 0 |
+| 9c effect bodies | 56,283 → 53,691 | −2,592 | about 2,700 | +99 | 16 | 0 |
+| 9d execution, threat, execution-bound effects | 53,691 → 50,696 | −2,995 | about 3,035 | +164 | 101 | 0 |
+| 9e player cast, checks, handlers, click plan | 50,696 → 49,482 | −1,214 | 1,099 | +12 | 60 | 13 |
+| **Total** | **58,403 → 49,482** | **−8,921** | **about 8,915** | **about +451** | **422** | **13** |
+
+The rest of each row is import, mount, scaffolding and call-site edits.
+`wow-world-spell/src` grew from 9,076 to 19,387 physical lines (production
+8,812 → 19,077) over the slice; every part passed `net_move.py` with no
+duplicate body.
+
+- **Moved vs reclassified.** About 8,915 production lines left `wow-world` as
+  moved code. 422 left the production figure without moving: `cfg(test)`
+  entry points nested in production impls and wrappers whose only production
+  callers moved, now in ratcheted `#![cfg(test)]` shim files
+  (`spellbook_test_shims.rs`, `talent_test_shims.rs`, `aura_test_shims.rs`,
+  `spell_effect_test_shims.rs`, `spell_execution_test_shims.rs`,
+  `player_cast_test_shims.rs`). 13 were retired. The World adapters added back
+  about 451.
+- **Edges.** `wow-world-spell` gained `wow-world-entities` (9b),
+  `wow-world-inventory` (9d) and `wow-conditions` (9e); it still reaches none
+  of quest, character, loot-ops, social or instances.
+- **What spell code remains in `wow-world` (about 6.0k production lines in
+  the spell directories, from 7.2k on the 9e base), and why:**
+  - **the F5 adapters**, about 470 lines (`execution_host.rs` 175,
+    `effect_host.rs` 81, `aura_host.rs` 68, `talent/host.rs` 50,
+    `spellbook_host.rs` 41, `player_cast/host.rs` 35, `spell_click_host.rs`
+    24): the World side of the host traits, which go only when `WorldSession`
+    itself is split;
+  - **the World-only effect surfaces** (about 1,150 lines in
+    `spell_effects/{effect_combat/damage_and_combat_application,effects,effects_progress,effects_player,effect_apply,destinations}.rs`):
+    the creature spell damage with its kill cascade, quest complete,
+    reputation, force deselect, the farsight seer consumer, the nearby-entry
+    search with the player-condition context, durability, duel and
+    learn-spell, the homebind write and proficiency, stuck and self resurrect
+    with their `cfg(test)` fixture pairs. Each reaches quest, social,
+    visibility, items or acquisition, which spell must not reach, or carries a
+    fixture pair without an accessor;
+  - **the request-lifecycle `Runtime` impl, the pending tick and the cast
+    identity** (about 550 lines in `session/player_cast*` besides its
+    adapter): see the 9e follow-ups;
+  - **the acquisition adapters** (`trainer_acquisition.rs` 657,
+    `spell_acquisition/**` about 450, `effect_learning.rs` 104) and the
+    login spell application: with the login coordinator (slice 9 plan);
+  - **the aura application context and the spell-state wrappers**
+    (`aura_application.rs` 241, `spell_state/{spell,spellbook,effects,catalog,spell_publication}.rs`
+    about 680): the `wow_world_application` aura-application context (which
+    depends on spell) and catalog setters and split wrappers the World still
+    calls;
+  - **the open-item loot family** (about 960 in `handlers/spell/ops_{1,2}.rs`):
+    loot, for loot-ops;
+  - **the respec wipe** (about 130 in `handlers/talent/state.rs`): slice 13.
