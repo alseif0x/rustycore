@@ -3824,6 +3824,7 @@ dependencies = [
  "tokio",
  "tracing",
  "wow-combat",
+ "wow-conditions",
  "wow-config",
  "wow-constants",
  "wow-core",
