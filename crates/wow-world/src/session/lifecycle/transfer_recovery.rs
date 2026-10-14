@@ -26,7 +26,7 @@ impl WorldSession {
         if state.can_delay {
             return;
         }
-        let Some(homebind) = self.represented_homebind_like_cpp() else {
+        let Some(homebind) = wow_world_spell::represented_homebind_like_cpp(self) else {
             self.terminate_worldport_recovery_like_cpp();
             return;
         };

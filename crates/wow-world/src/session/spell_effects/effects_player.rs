@@ -5,76 +5,6 @@
 use super::*;
 
 impl WorldSession {
-    /// Ask nearby sessions to run the same visibility diff after this player enters.
-    ///
-    /// C++ adds the new Player to the map before `UpdateVisibilityForPlayer`, so
-    /// other players discover it through their normal `m_clientGUIDs` path. Queue
-    /// the existing full visibility command instead of sending a raw CREATE that
-    /// cannot update the receiver's client-visible GUID set.
-    pub(crate) fn notify_other_players_visibility_changed_like_cpp(&self) {
-        let Some(guid) = self.player_guid() else {
-            return;
-        };
-        let Some(registry) = &self.core.player_registry else {
-            return;
-        };
-        let Some(pos) = crate::session::hub_ref(self).player_position_like_cpp() else {
-            return;
-        };
-        let map_id = self.core.player_map_id_like_cpp();
-        let instance_id = self
-            .core
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-        let visibility_range = self.config.player_map_visibility_range_like_cpp(map_id);
-        let target_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
-        let mut broadcast_count = 0;
-
-        for recipient in registry.runtime_recipients() {
-            if recipient.guid == guid
-                || !recipient.is_in_world
-                || recipient.map_id != map_id
-                || recipient.instance_id != instance_id
-            {
-                continue;
-            }
-            if !wow_core::visibility_distance_allows_like_cpp(
-                &recipient.position,
-                recipient.combat_reach,
-                &pos,
-                target_combat_reach,
-                visibility_range,
-            ) {
-                continue;
-            }
-
-            match registry.request_current_visibility_refresh(
-                recipient.registration,
-                map_id,
-                instance_id,
-            ) {
-                Ok(()) => {
-                    broadcast_count += 1;
-                }
-                Err(_) => {}
-            }
-        }
-
-        if broadcast_count > 0 {
-            info!(
-                "Queued visibility refresh for {:?} on {} nearby players on map {}",
-                guid, broadcast_count, map_id
-            );
-        }
-    }
-    pub(crate) fn player_current_map_instanceable_like_cpp(&self) -> bool {
-        let map_id = u32::from(self.core.player_map_id_like_cpp());
-        self.catalogs
-            .map_store()
-            .and_then(|store| store.get(map_id))
-            .is_some_and(|entry| entry.instance_type != wow_data::map::MAP_COMMON)
-    }
     pub(in crate::session) fn persist_player_homebind_like_cpp(
         &mut self,
         homebind: RepresentedHomebindLikeCpp,
@@ -104,20 +34,6 @@ impl WorldSession {
                 "represented homebind database worker stopped"
             );
         }
-    }
-    pub(in crate::session) fn add_honor_xp_to_current_player_like_cpp(
-        &mut self,
-        xp: i32,
-    ) -> Option<wow_entities::PlayerValuesUpdate> {
-        let xp = u32::try_from(xp).ok()?;
-        let player_level = crate::session::hub_ref(self).player_level_like_cpp();
-        self.core
-            .mutate_canonical_player_like_cpp(|player| {
-                player
-                    .add_honor_xp_like_cpp(xp, player_level)
-                    .then(|| player.values_update(true))
-            })
-            .flatten()
     }
     pub(in crate::session) fn apply_self_resurrect_effect_like_cpp(
         &mut self,

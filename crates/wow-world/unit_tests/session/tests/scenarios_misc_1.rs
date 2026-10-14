@@ -650,7 +650,7 @@ fn summon_object_wild_session_resolver_rejects_missing_template_like_cpp() {
 
     assert_eq!(
         outcome.status,
-        ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingTemplate
+        wow_world_spell::ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingTemplate
     );
     assert_eq!(outcome.template_entry, Some(9001));
     assert!(outcome.map_outcome.is_none());
@@ -698,7 +698,7 @@ fn summon_object_wild_session_resolver_creates_go_with_explicit_destination_like
 
     assert_eq!(
         outcome.status,
-        ApplyEffectSummonObjectWildSessionStatusLikeCpp::MapResolved
+        wow_world_spell::ApplyEffectSummonObjectWildSessionStatusLikeCpp::MapResolved
     );
     assert_eq!(outcome.template_entry, Some(template_entry));
     assert_eq!(outcome.duration_ms, Some(5_000));

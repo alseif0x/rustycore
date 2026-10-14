@@ -706,7 +706,7 @@ async fn environmental_damage_spell_damages_player_and_logs_fire_like_cpp() {
     assert_eq!(damage_log.read_packed_guid().expect("victim"), player_guid);
     assert_eq!(
         damage_log.read_uint8().expect("environmental type"),
-        DAMAGE_FIRE_LIKE_CPP
+        wow_world_spell::DAMAGE_FIRE_LIKE_CPP
     );
     assert_eq!(damage_log.read_int32().expect("amount"), 73);
     assert_eq!(damage_log.read_int32().expect("resisted"), 0);
@@ -798,7 +798,7 @@ async fn primary_environmental_damage_spell_damages_player_like_cpp() {
     assert_eq!(damage_log.read_packed_guid().expect("victim"), player_guid);
     assert_eq!(
         damage_log.read_uint8().expect("environmental type"),
-        DAMAGE_FIRE_LIKE_CPP
+        wow_world_spell::DAMAGE_FIRE_LIKE_CPP
     );
     assert_eq!(damage_log.read_int32().expect("amount"), 81);
     assert_eq!(damage_log.read_int32().expect("resisted"), 0);

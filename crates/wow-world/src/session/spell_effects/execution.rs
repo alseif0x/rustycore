@@ -188,12 +188,13 @@ impl WorldSession {
             match direct_effect_type {
                 x if wow_data::spell::spell_effect_types::is_cpp_null_or_unused_noop(x) => {}
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_INSTAKILL => {
-                    self.apply_instakill_like_cpp(item_guid_generator, spell_id, target_guid)
+                    apply_instakill_like_cpp(self, item_guid_generator, spell_id, target_guid)
                         .await?;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL => {
                     if let Ok(heal_amount) = u32::try_from(direct_effect_base_points) {
-                        let heal_amount = self.represented_spell_healing_bonus_done_like_cpp(
+                        let heal_amount = represented_spell_healing_bonus_done_like_cpp(
+                            self,
                             spell_id,
                             caster_guid,
                             target_guid,
@@ -201,7 +202,8 @@ impl WorldSession {
                             direct_effect_bonus_coefficient_from_ap,
                             heal_amount,
                         );
-                        self.apply_heal_from_caster_like_cpp(
+                        apply_heal_from_caster_like_cpp(
+                            self,
                             Some(spell_id),
                             caster_guid,
                             target_guid,
@@ -220,7 +222,8 @@ impl WorldSession {
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_MECHANICAL => {
                     if let Ok(heal_amount) = u32::try_from(direct_effect_base_points) {
-                        self.apply_heal_from_caster_like_cpp(
+                        apply_heal_from_caster_like_cpp(
+                            self,
                             Some(spell_id),
                             caster_guid,
                             target_guid,
@@ -238,7 +241,8 @@ impl WorldSession {
                     }
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_MAX_HEALTH => {
-                    self.apply_heal_max_health_like_cpp(
+                    apply_heal_max_health_like_cpp(
+                        self,
                         spell_id,
                         direct_effect_base_points,
                         caster_guid,
@@ -247,7 +251,8 @@ impl WorldSession {
                     .await?;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_PCT => {
-                    self.apply_heal_pct_like_cpp(
+                    apply_heal_pct_like_cpp(
+                        self,
                         spell_id,
                         direct_effect_base_points,
                         caster_guid,
@@ -256,14 +261,15 @@ impl WorldSession {
                     .await?;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ADD_EXTRA_ATTACKS => {
-                    self.apply_add_extra_attacks_effect_like_cpp(
+                    apply_add_extra_attacks_effect_like_cpp(
+                        self,
                         x,
                         direct_effect_base_points,
                         target_guid,
                     );
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_INEBRIATE => {
-                    self.apply_inebriate_effect_like_cpp(direct_effect_base_points, target_guid);
+                    apply_inebriate_effect_like_cpp(self, direct_effect_base_points, target_guid);
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_REPUTATION => {
                     self.apply_reputation_effect_like_cpp(
@@ -273,7 +279,8 @@ impl WorldSession {
                     );
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_DRAIN => {
-                    let drain_damage = self.power_drain_pre_scaled_damage_like_cpp(
+                    let drain_damage = power_drain_pre_scaled_damage_like_cpp(
+                        self,
                         spell_id,
                         direct_effect_index,
                         caster_guid,
@@ -282,7 +289,8 @@ impl WorldSession {
                         direct_effect_bonus_coefficient_from_ap,
                         direct_effect_base_points,
                     );
-                    self.apply_power_drain_effect_like_cpp(
+                    apply_power_drain_effect_like_cpp(
+                        self,
                         item_guid_generator,
                         spell_id,
                         x,
@@ -297,7 +305,8 @@ impl WorldSession {
                     .await;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE => {
-                    self.apply_energize_effect_like_cpp(
+                    apply_energize_effect_like_cpp(
+                        self,
                         spell_id,
                         caster_guid,
                         direct_effect_base_points,
@@ -307,7 +316,8 @@ impl WorldSession {
                     );
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE_PCT => {
-                    self.apply_energize_effect_like_cpp(
+                    apply_energize_effect_like_cpp(
+                        self,
                         spell_id,
                         caster_guid,
                         direct_effect_base_points,
@@ -317,7 +327,8 @@ impl WorldSession {
                     );
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_BURN => {
-                    let burn_damage = self.power_drain_pre_scaled_damage_like_cpp(
+                    let burn_damage = power_drain_pre_scaled_damage_like_cpp(
+                        self,
                         spell_id,
                         direct_effect_index,
                         caster_guid,
@@ -326,7 +337,8 @@ impl WorldSession {
                         direct_effect_bonus_coefficient_from_ap,
                         direct_effect_base_points,
                     );
-                    self.apply_power_drain_effect_like_cpp(
+                    apply_power_drain_effect_like_cpp(
+                        self,
                         item_guid_generator,
                         spell_id,
                         x,
@@ -341,7 +353,8 @@ impl WorldSession {
                     .await;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEALTH_LEECH => {
-                    self.apply_health_leech_like_cpp(
+                    apply_health_leech_like_cpp(
+                        self,
                         item_guid_generator,
                         spell_id,
                         direct_effect_base_points,
@@ -350,16 +363,16 @@ impl WorldSession {
                     .await?;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD => {
-                    self.apply_dual_wield_effect_like_cpp(target_guid)?;
+                    apply_dual_wield_effect_like_cpp(self, target_guid)?;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_TITAN_GRIP => {
-                    self.apply_titan_grip_effect_like_cpp(direct_effect_misc_value_1)?;
+                    apply_titan_grip_effect_like_cpp(self, direct_effect_misc_value_1)?;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PARRY => {
-                    self.apply_parry_effect_like_cpp()?;
+                    apply_parry_effect_like_cpp(self)?;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_BLOCK => {
-                    self.apply_block_effect_like_cpp()?;
+                    apply_block_effect_like_cpp(self)?;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PROFICIENCY => {
                     self.apply_proficiency_effect_like_cpp(spell_id)?;
@@ -382,13 +395,14 @@ impl WorldSession {
                     );
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR => {
-                    self.apply_give_honor_effect_like_cpp(direct_effect_base_points, target_guid)?;
+                    apply_give_honor_effect_like_cpp(self, direct_effect_base_points, target_guid)?;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_THREAT => {
                     self.apply_threat_effect_like_cpp(direct_effect_base_points, target_guid)?;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DISTRACT => {
-                    self.apply_distract_effect_like_cpp(
+                    apply_distract_effect_like_cpp(
+                        self,
                         direct_effect_base_points,
                         target_guid,
                         direct_effect_target_data,
@@ -414,7 +428,8 @@ impl WorldSession {
                     )?;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_MODIFY_COOLDOWN => {
-                    self.apply_modify_cooldown_effect_like_cpp(
+                    apply_modify_cooldown_effect_like_cpp(
+                        self,
                         direct_effect_base_points,
                         direct_effect_trigger_spell,
                         target_guid,
@@ -428,7 +443,7 @@ impl WorldSession {
                     );
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SANCTUARY => {
-                    self.apply_sanctuary_effect_like_cpp(target_guid)?;
+                    apply_sanctuary_effect_like_cpp(self, target_guid)?;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT => {
                     self.apply_self_resurrect_effect_like_cpp(
@@ -440,7 +455,7 @@ impl WorldSession {
                     self.apply_stuck_effect_like_cpp().await;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE => {
-                    self.apply_play_movie_effect_like_cpp(target_guid, direct_effect_misc_value_1);
+                    apply_play_movie_effect_like_cpp(self, target_guid, direct_effect_misc_value_1);
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DUEL => {
                     self.apply_duel_effect_like_cpp(
@@ -450,7 +465,7 @@ impl WorldSession {
                     );
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DISMISS_PET => {
-                    self.apply_dismiss_pet_effect_like_cpp(target_guid);
+                    apply_dismiss_pet_effect_like_cpp(self, target_guid);
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_FORCE_DESELECT => {
                     self.apply_force_deselect_effect_like_cpp();
@@ -477,7 +492,7 @@ impl WorldSession {
                     );
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_UPGRADE_HEIRLOOM => {
-                    self.apply_upgrade_heirloom_effect_like_cpp(metadata);
+                    apply_upgrade_heirloom_effect_like_cpp(self, metadata);
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_UNCAGE_BATTLEPET => {
                     wow_world_inventory::apply_uncage_battle_pet_effect_like_cpp(
@@ -538,7 +553,8 @@ impl WorldSession {
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE => {
                     if let Ok(damage_amount) = u32::try_from(direct_effect_base_points) {
-                        let damage_amount = self.represented_spell_damage_bonus_done_like_cpp(
+                        let damage_amount = represented_spell_damage_bonus_done_like_cpp(
+                            self,
                             spell_id,
                             direct_effect_index,
                             caster_guid,
@@ -570,7 +586,8 @@ impl WorldSession {
                 x if x
                     == wow_data::spell::spell_effect_types::SPELL_EFFECT_ENVIRONMENTAL_DAMAGE =>
                 {
-                    self.apply_effect_environmental_damage_like_cpp(
+                    apply_effect_environmental_damage_like_cpp(
+                        self,
                         &wow_data::SpellEffectInfo {
                             effect_index: direct_effect_index,
                             effect: direct_effect_type,

@@ -20,7 +20,7 @@ impl WorldSession {
             return None;
         }
 
-        if self.has_implicit_target_conditions_like_cpp(spell_id, effect.effect_index) {
+        if has_implicit_target_conditions_like_cpp(self, spell_id, effect.effect_index) {
             return None;
         }
 
@@ -82,7 +82,7 @@ impl WorldSession {
         // cast must therefore keep the creature's own position rather than
         // borrowing the logged-in session player's homebind.
         let (map_id, transport, position) = if Some(caster_guid) == self.player_guid() {
-            let homebind = self.represented_homebind_like_cpp()?;
+            let homebind = represented_homebind_like_cpp(self)?;
             (homebind.map_id, ObjectGuid::EMPTY, homebind.position)
         } else {
             self.represented_effective_caster_destination_like_cpp(caster_guid)?
@@ -247,7 +247,7 @@ impl WorldSession {
                 (caster_position, None, caster_transport)
             }
         } else if let Some(target_position) =
-            self.represented_object_target_position_like_cpp(target_data)
+            represented_object_target_position_like_cpp(self, target_data)
         {
             (target_position, None, ObjectGuid::EMPTY)
         } else {
@@ -289,7 +289,7 @@ impl WorldSession {
 
         let spell_id_u32 = u32::try_from(spell_id).ok()?;
         let implicit_conditions =
-            self.implicit_target_conditions_like_cpp(spell_id, effect.effect_index);
+            implicit_target_conditions_like_cpp(self, spell_id, effect.effect_index);
         let has_implicit_conditions = implicit_conditions
             .as_ref()
             .is_some_and(|conditions| !conditions.is_empty());
