@@ -14,16 +14,49 @@
 
 use std::future::Future;
 
+use tracing::{debug, info};
 use wow_core::{ObjectGuid, Position};
-use wow_entities::SpellCastMetadata;
+use wow_entities::{RepresentedAuraEffectLikeCpp, SpellCastMetadata};
+use wow_packet::packets::spell::SpellTargetData;
 use wow_world_entities::CreatureSpawnCatalogsLikeCpp;
 
+use crate::aura_session::update_represented_flight_flags_for_flight_aura_like_cpp;
+use crate::effect_session::{
+    apply_add_extra_attacks_effect_like_cpp, apply_block_effect_like_cpp,
+    apply_change_raid_marker_effect_like_cpp, apply_dismiss_pet_effect_like_cpp,
+    apply_distract_effect_like_cpp, apply_dual_wield_effect_like_cpp,
+    apply_effect_environmental_damage_like_cpp, apply_energize_effect_like_cpp,
+    apply_give_honor_effect_like_cpp, apply_heal_from_caster_like_cpp,
+    apply_heal_max_health_like_cpp, apply_heal_pct_like_cpp, apply_health_leech_like_cpp,
+    apply_inebriate_effect_like_cpp, apply_instakill_like_cpp, apply_kill_credit_effect_like_cpp,
+    apply_learn_transmog_set_effect_like_cpp, apply_modify_cooldown_effect_like_cpp,
+    apply_modify_spell_charges_effect_like_cpp, apply_modify_threat_percent_effect_like_cpp,
+    apply_parry_effect_like_cpp, apply_play_movie_effect_like_cpp,
+    apply_power_drain_effect_like_cpp, apply_sanctuary_effect_like_cpp,
+    apply_taunt_effect_like_cpp, apply_threat_effect_like_cpp, apply_titan_grip_effect_like_cpp,
+    apply_upgrade_heirloom_effect_like_cpp, power_drain_pre_scaled_damage_like_cpp,
+    represented_spell_damage_bonus_done_like_cpp, represented_spell_healing_bonus_done_like_cpp,
+};
 use crate::{RepresentedSpellFocusObjectLikeCpp, SpellEffectHostLikeCpp};
+use completion::complete_spell_execution_like_cpp;
+use post_spell_go::{
+    apply_post_spell_go_target_effects_like_cpp, apply_spell_gameobject_summon_effects_like_cpp,
+};
+use preparation::prepare_represented_spell_execution_like_cpp;
+use primary_effect_fallback::apply_primary_spell_effect_fallback_like_cpp;
+use target_resolution::{
+    ResolvedSpellEffectTargetsLikeCpp, resolve_spell_effect_target_data_like_cpp,
+};
 
 mod cast_state;
+mod completion;
 mod destinations;
 mod execution;
 mod overloads;
+mod post_spell_go;
+mod preparation;
+mod primary_effect_fallback;
+mod target_resolution;
 
 pub use cast_state::*;
 pub use destinations::*;

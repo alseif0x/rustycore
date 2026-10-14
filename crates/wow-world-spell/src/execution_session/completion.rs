@@ -4,7 +4,7 @@
 
 //! Final cast bookkeeping after the represented effect phases have completed.
 
-use super::super::SpellExecutionHostLikeCpp;
+use super::SpellExecutionHostLikeCpp;
 use crate::effect_session::send_spell_execute_log_like_cpp;
 use std::time::Instant;
 use wow_core::ObjectGuid;

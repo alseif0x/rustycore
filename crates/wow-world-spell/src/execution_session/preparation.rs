@@ -4,7 +4,7 @@
 
 //! Prepare represented casts before target snapshots and SpellGo publication.
 
-use super::super::{
+use super::{
     SpellExecutionHostLikeCpp, publish_player_cast_interrupted_frames_like_cpp,
     represented_gameobject_summon_missing_nearby_entry_destination_like_cpp,
     take_spell_power_like_cpp,

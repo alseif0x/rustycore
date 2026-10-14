@@ -4,7 +4,7 @@
 
 //! Resolve the cast and per-effect target data before spell-go publication.
 
-use super::super::{
+use super::{
     SpellExecutionHostLikeCpp, represented_db_caster_destination_target_data_like_cpp,
     represented_focus_destination_target_data_like_cpp,
     represented_home_destination_target_data_like_cpp,

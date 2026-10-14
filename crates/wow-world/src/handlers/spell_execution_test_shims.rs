@@ -10,7 +10,9 @@
 //! calls to the moved execution entry points are free calls: they were already
 //! test-only. The second holds one-call method forwards for the moved
 //! functions the scenarios and the `execution_overloads` test fixture call,
-//! with this session as the host, so no scenario call site changes.
+//! with this session as the host, so no scenario call site changes. It also
+//! mounts the `execution_overloads` test fixture, whose parent module left
+//! with the production overload.
 
 #![cfg(test)]
 
@@ -22,6 +24,9 @@ use wow_world_entities::CreatureSpawnCatalogsLikeCpp;
 use wow_world_spell::{
     ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp, PlayerCastPublicationPhaseLikeCpp,
 };
+
+#[path = "../../unit_tests/session/spell_effects/execution_overloads/test_only.rs"]
+mod execution_overloads_test_only;
 
 impl WorldSession {
     pub(crate) async fn execute_spell(

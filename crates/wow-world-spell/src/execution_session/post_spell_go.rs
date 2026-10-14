@@ -4,7 +4,7 @@
 
 //! Ordered target-dependent effect phases that follow spell-go publication.
 
-use super::super::SpellExecutionHostLikeCpp;
+use super::SpellExecutionHostLikeCpp;
 use crate::RepresentedSpellFocusObjectLikeCpp;
 use crate::effect_session::{
     apply_effect_add_farsight_like_cpp, apply_effect_bind_like_cpp,

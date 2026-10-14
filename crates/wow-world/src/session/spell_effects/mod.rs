@@ -13,7 +13,3 @@ mod effects;
 mod effects_player;
 mod effects_progress;
 mod execution_host;
-
-#[cfg(test)]
-#[path = "../../../unit_tests/session/spell_effects/execution_overloads/test_only.rs"]
-mod execution_overloads_test_only;

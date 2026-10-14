@@ -4,7 +4,7 @@
 
 //! Preserve the represented primary-effect fallback after per-effect handling.
 
-use super::super::SpellExecutionHostLikeCpp;
+use super::SpellExecutionHostLikeCpp;
 use tracing::debug;
 use wow_core::ObjectGuid;
 

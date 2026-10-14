@@ -524,8 +524,6 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 use tracing::{debug, info, warn};
 
 use crate::battle_pet_account::BattlePetAccountAttachmentLikeCpp;
-#[cfg(test)]
-use crate::entity_update_bridge::player_values_update_to_update_object;
 use crate::entity_update_bridge::{
     dynamic_object_values_update_to_update_object, item_values_update_to_update_object,
     unit_values_update_to_packet,
