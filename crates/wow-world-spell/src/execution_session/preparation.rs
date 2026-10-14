@@ -5,7 +5,8 @@
 //! Prepare represented casts before target snapshots and SpellGo publication.
 
 use super::{
-    SpellExecutionHostLikeCpp, publish_player_cast_interrupted_frames_like_cpp,
+    SpellExecutionHostLikeCpp, check_represented_cast_preparation_like_cpp,
+    publish_player_cast_interrupted_frames_like_cpp,
     represented_gameobject_summon_missing_nearby_entry_destination_like_cpp,
     take_spell_power_like_cpp,
 };
@@ -25,7 +26,8 @@ pub(super) fn prepare_represented_spell_execution_like_cpp<H: SpellExecutionHost
     spell_visual: &wow_packet::packets::spell::SpellCastVisual,
     metadata: SpellCastMetadata,
 ) -> Result<Option<Option<RepresentedSpellFocusObjectLikeCpp>>, &'static str> {
-    let Some(represented_focus_object) = host.check_represented_cast_preparation_like_cpp(
+    let Some(represented_focus_object) = check_represented_cast_preparation_like_cpp(
+        host,
         spell_info,
         cast_id,
         spell_visual,

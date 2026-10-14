@@ -11,12 +11,20 @@
 //! is the same-named `WorldSession` operation or split, called at the exact
 //! point the body called it before the move.
 
+use std::time::Instant;
+
 use wow_core::ObjectGuid;
-use wow_entities::{RepresentedAuraEffectAmountLikeCpp, RepresentedAuraEffectLikeCpp};
+use wow_entities::{
+    AuraApplicationLikeCpp as AuraApplication, RepresentedAuraEffectAmountLikeCpp,
+    RepresentedAuraEffectLikeCpp,
+};
 use wow_world_core::session::HubMut;
 use wow_world_entities::WorldEntitiesState;
 
-use crate::{RepresentedPlayerSpellRuntimeLikeCpp, SpellbookHostLikeCpp};
+use crate::{
+    RepresentedPlayerSpellRuntimeLikeCpp, SpellbookHostLikeCpp,
+    represented_aura_effect_amounts_like_cpp,
+};
 
 mod application;
 mod aura_state;
@@ -34,6 +42,9 @@ pub use sources::*;
 pub trait AuraHostLikeCpp: SpellbookHostLikeCpp {
     fn split_world_entities_mut(&mut self) -> (&mut WorldEntitiesState, HubMut<'_>);
     fn remove_aura(&mut self, slot: u8) -> Result<(), &'static str>;
+    /// The represented player aura modifier (#1363 slice 9e), moved from the
+    /// World `session/spell_state/aura_application.rs` as this provided
+    /// method so its 23 spell call sites keep their method form.
     fn apply_represented_aura_modifier_like_cpp(
         &mut self,
         spell_id: i32,
@@ -41,7 +52,48 @@ pub trait AuraHostLikeCpp: SpellbookHostLikeCpp {
         effect: &wow_data::SpellEffectInfo,
         represented_effect: RepresentedAuraEffectLikeCpp,
         duration_ms: u32,
-    ) -> Result<(), &'static str>;
+    ) -> Result<(), &'static str>
+    where
+        Self: Sized,
+    {
+        let slot = next_player_visible_aura_slot_like_cpp(self)
+            .ok_or("No free aura slots or missing Player aura owner")?;
+
+        let aura = AuraApplication {
+            spell_id,
+            difficulty_id: self.core().current_map_difficulty_id_like_cpp(),
+            caster_guid,
+            slot,
+            duration_total: duration_ms,
+            duration_remaining: duration_ms,
+            stack_count: 1,
+            aura_flags: 0x0000_0001,
+            effect_mask: 1u32 << effect.effect_index,
+            aura_interrupt_flags: 0,
+            aura_interrupt_flags2: 0,
+            represented_effect: Some(represented_effect),
+            represented_amount: effect.effect_base_points,
+            represented_effect_amounts: represented_aura_effect_amounts_like_cpp(effect),
+            represented_misc_value: None,
+            represented_multiplier: 1.0,
+            applied_at: Instant::now(),
+        };
+
+        if !insert_player_visible_aura_like_cpp(self, aura) {
+            return Err("Missing Player aura owner");
+        }
+        send_aura_update_applied(
+            self,
+            spell_id,
+            slot,
+            caster_guid,
+            duration_ms,
+            0x0000_0001,
+            1u32 << effect.effect_index,
+        );
+
+        Ok(())
+    }
     fn represented_mount_capability_selection_for_type_like_cpp(
         &self,
         mount_type_id: u16,

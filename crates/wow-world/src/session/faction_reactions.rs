@@ -5,8 +5,7 @@
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
 pub(crate) use wow_world_core::session::{
-    RepresentedFactionReactionInputLikeCpp, RepresentedGetReactionInputLikeCpp,
-    ReputationGainSourceLikeCpp,
+    RepresentedFactionReactionInputLikeCpp, ReputationGainSourceLikeCpp,
 };
 
 #[cfg(test)]

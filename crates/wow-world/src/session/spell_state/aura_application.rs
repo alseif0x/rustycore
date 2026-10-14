@@ -232,52 +232,6 @@ impl WorldSession {
 
         applied
     }
-    pub(in crate::session) fn apply_represented_aura_modifier_like_cpp(
-        &mut self,
-        spell_id: i32,
-        caster_guid: ObjectGuid,
-        effect: &wow_data::SpellEffectInfo,
-        represented_effect: RepresentedAuraEffectLikeCpp,
-        duration_ms: u32,
-    ) -> Result<(), &'static str> {
-        let slot = wow_world_spell::next_player_visible_aura_slot_like_cpp(self)
-            .ok_or("No free aura slots or missing Player aura owner")?;
-
-        let aura = AuraApplication {
-            spell_id,
-            difficulty_id: self.core.current_map_difficulty_id_like_cpp(),
-            caster_guid,
-            slot,
-            duration_total: duration_ms,
-            duration_remaining: duration_ms,
-            stack_count: 1,
-            aura_flags: 0x0000_0001,
-            effect_mask: 1u32 << effect.effect_index,
-            aura_interrupt_flags: 0,
-            aura_interrupt_flags2: 0,
-            represented_effect: Some(represented_effect),
-            represented_amount: effect.effect_base_points,
-            represented_effect_amounts: represented_aura_effect_amounts_like_cpp(effect),
-            represented_misc_value: None,
-            represented_multiplier: 1.0,
-            applied_at: Instant::now(),
-        };
-
-        if !wow_world_spell::insert_player_visible_aura_like_cpp(self, aura) {
-            return Err("Missing Player aura owner");
-        }
-        wow_world_spell::send_aura_update_applied(
-            self,
-            spell_id,
-            slot,
-            caster_guid,
-            duration_ms,
-            0x0000_0001,
-            1u32 << effect.effect_index,
-        );
-
-        Ok(())
-    }
     /// Remove an aura by slot and send SMSG_AURA_UPDATE.
     pub(crate) fn remove_aura(&mut self, slot: u8) -> Result<(), &'static str> {
         self.player_aura_application_cx_like_cpp()

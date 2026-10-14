@@ -23,9 +23,8 @@ use std::collections::HashMap;
 
 use tracing::{debug, warn};
 
-use wow_constants::{BagFamilyMask, ClientOpcodes, InventoryResult, ItemFlags, TypeId};
+use wow_constants::{BagFamilyMask, InventoryResult, ItemFlags};
 use wow_core::ObjectGuid;
-use wow_data::{DISABLE_TYPE_SPELL, DisableWorldObjectRefLikeCpp};
 use wow_entities::INVENTORY_SLOT_BAG_0;
 
 use wow_loot::{
@@ -39,11 +38,9 @@ use wow_packet::packets::loot::{
 };
 #[cfg(test)]
 use wow_packet::packets::spell::CancelModSpeedNoControlAuras;
-use wow_packet::packets::spell::{CastSpellRequest, OpenItem, SelfRes, SpellClick};
+use wow_packet::packets::spell::OpenItem;
 
-use crate::session::{
-    AreaTriggerCatalogsLikeCpp, RepresentedPendingSpellCastRequestLikeCpp, WorldSession,
-};
+use crate::session::WorldSession;
 use wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
 
 mod ops_1;

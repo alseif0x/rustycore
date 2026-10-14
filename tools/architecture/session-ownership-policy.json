@@ -784,6 +784,14 @@
           "source_class": "test_fixture"
         },
         {
+          "module": "crate::handlers::player_cast_test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::player_test_shims",
           "trait_path": null,
           "cfg": [
@@ -1440,6 +1448,12 @@
         {
           "module": "crate::session",
           "trait_path": "wow_world_spell :: AuraHostLikeCpp",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_spell :: PlayerCastHostLikeCpp",
           "cfg": [],
           "source_class": "production"
         },
@@ -13131,6 +13145,166 @@
           ]
         },
         {
+          "module": "crate::handlers::player_cast_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_represented_aura_modifier_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_represented_aura_modifier_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid , effect : & wow_data :: SpellEffectInfo , represented_effect : RepresentedAuraEffectLikeCpp , duration_ms : u32 ,) -> Result < () , & 'static str >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_cast_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "execute_represented_spell_click_plan_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn execute_represented_spell_click_plan_like_cpp (& mut self , creature_guid : ObjectGuid , plan : & RepresentedSpellClickPlanLikeCpp ,) -> RepresentedSpellClickExecutionOutcomeLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_cast_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_cast_spell",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_cast_spell (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_cast_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_player_cast_publication_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn handle_player_cast_publication_like_cpp (& mut self , command : SendPlayerSpellIfVisibleLikeCppCommand ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_cast_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_self_res",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_self_res (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_cast_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_handle_spell_click_plan_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_handle_spell_click_plan_like_cpp (& self , creature_guid : ObjectGuid ,) -> RepresentedSpellClickPlanLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_cast_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_handle_spell_click_plan_with_seat_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_handle_spell_click_plan_with_seat_like_cpp (& self , creature_guid : ObjectGuid , seat_id : Option < i8 > ,) -> RepresentedSpellClickPlanLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_cast_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "search_spell_focus_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn search_spell_focus_like_cpp (& self , focus_id : u32 ,) -> Option < RepresentedSpellFocusObjectLikeCpp >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_cast_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "take_ready_player_cast_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn take_ready_player_cast_like_cpp (& mut self) -> Option < SpellCastState >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_cast_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "tick_active_spell_cast",
+          "visibility": "pub (crate)",
+          "signature": "async fn tick_active_spell_cast (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
           "module": "crate::handlers::player_test_shims",
           "trait_path": null,
           "kind": "method",
@@ -15395,36 +15569,6 @@
           "module": "crate::handlers::spell::ops_1",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_cast_spell",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_cast_spell (& mut self , pkt : wow_packet :: WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_cast_spell_with_catalogs_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_cast_spell_with_catalogs_like_cpp (& mut self , area_trigger_catalogs : & AreaTriggerCatalogsLikeCpp , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , progression : & crate :: session :: ProgressionCatalogsLikeCpp , player_grid_loader : & crate :: session :: PlayerGridLoadResolverLikeCpp , item_guid_generator : & wow_core :: ObjectGuidGenerator , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_1",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_open_item",
           "visibility": "pub (crate)",
           "signature": "async fn handle_open_item (& mut self , mut pkt : wow_packet :: WorldPacket)",
@@ -15527,50 +15671,6 @@
           "module": "crate::handlers::spell::ops_2",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_self_res",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_self_res (& mut self , pkt : wow_packet :: WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_self_res_with_generator_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_self_res_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_spell_click_with_generator_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_spell_click_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "kind": "method",
           "name": "has_incomplete_quest_item_drop_for_item_like_cpp_representable",
           "visibility": "pub (super)",
           "signature": "fn has_incomplete_quest_item_drop_for_item_like_cpp_representable (& self , item_id : u32 ,) -> bool",
@@ -15602,20 +15702,6 @@
           "name": "has_incomplete_quest_objective_for_object_id_like_cpp_representable",
           "visibility": "pub (super)",
           "signature": "fn has_incomplete_quest_objective_for_object_id_like_cpp_representable (& self , item_object_id : i32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "is_spell_disabled_for_player_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn is_spell_disabled_for_player_like_cpp (& self , spell_id : i32) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -20430,19 +20516,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_represented_aura_modifier_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn apply_represented_aura_modifier_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid , effect : & wow_data :: SpellEffectInfo , represented_effect : RepresentedAuraEffectLikeCpp , duration_ms : u32 ,) -> Result < () , & 'static str >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "apply_represented_durability_loss_all_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn apply_represented_durability_loss_all_like_cpp (& mut self , percent : f64 , inventory : bool ,) -> usize",
@@ -21940,45 +22013,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "check_represented_battle_pet_spell_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn check_represented_battle_pet_spell_like_cpp (& self , spell_info : & wow_data :: SpellInfo , metadata : SpellCastMetadata ,) -> Option < SpellCastResult >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "check_represented_cast_preparation_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn check_represented_cast_preparation_like_cpp (& mut self , spell_info : & wow_data :: SpellInfo , cast_id : ObjectGuid , spell_visual : & wow_packet :: packets :: spell :: SpellCastVisual , metadata : SpellCastMetadata ,) -> Result < Option < Option < RepresentedSpellFocusObjectLikeCpp > > , & 'static str >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "check_represented_mount_spell_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn check_represented_mount_spell_like_cpp (& self , spell_info : & wow_data :: SpellInfo ,) -> Option < RepresentedMountSpellCheckOutcomeLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "check_spell_group_stack_rules_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn check_spell_group_stack_rules_like_cpp (& self , first_rank_spell_id_1 : u32 , first_rank_spell_id_2 : u32 ,) -> SpellGroupStackRuleLikeCpp",
@@ -22809,19 +22843,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "disable_mgr",
-          "visibility": "pub (crate)",
-          "signature": "fn disable_mgr (& self) -> Option < & Arc < DisableMgrLikeCpp > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "dispatch_area_trigger_script_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn dispatch_area_trigger_script_like_cpp (& mut self , dispatcher : Option < & AreaTriggerScriptDispatcherLikeCpp > , script_id : ScriptIdLikeCpp , trigger_id : u32 , entered : bool ,) -> Option < bool >",
@@ -23065,34 +23086,6 @@
           "cfg": [],
           "source_class": "production",
           "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "execute_represented_spell_click_plan_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn execute_represented_spell_click_plan_like_cpp (& mut self , creature_guid : ObjectGuid , plan : & RepresentedSpellClickPlanLikeCpp ,) -> RepresentedSpellClickExecutionOutcomeLikeCpp",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "execute_represented_spell_click_plan_with_generator_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn execute_represented_spell_click_plan_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , creature_guid : ObjectGuid , plan : & RepresentedSpellClickPlanLikeCpp ,) -> RepresentedSpellClickExecutionOutcomeLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
         },
         {
           "module": "crate::session",
@@ -23679,19 +23672,6 @@
           "name": "handle_move_teleport_ack_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn handle_move_teleport_ack_like_cpp (& mut self , mover_guid : ObjectGuid , ack_index : i32 , move_time : i32 ,) -> MoveTeleportAckActionLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_player_cast_publication_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_player_cast_publication_like_cpp (& mut self , command : SendPlayerSpellIfVisibleLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -30737,32 +30717,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_handle_spell_click_plan_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_handle_spell_click_plan_like_cpp (& self , creature_guid : ObjectGuid ,) -> RepresentedSpellClickPlanLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_handle_spell_click_plan_with_seat_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_handle_spell_click_plan_with_seat_like_cpp (& self , creature_guid : ObjectGuid , seat_id : Option < i8 > ,) -> RepresentedSpellClickPlanLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_has_aura_state_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn represented_has_aura_state_like_cpp (& self , aura_state : u32) -> bool",
@@ -33031,19 +32985,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "resolved_has_represented_aura_effect_with_misc_value_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn resolved_has_represented_aura_effect_with_misc_value_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp , misc_value : i32 ,) -> Option < bool >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "resolved_inventory_item_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_inventory_item_like_cpp (& self , slot : u8) -> Option < InventoryItem >",
@@ -33804,19 +33745,6 @@
           "name": "script_name_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn script_name_like_cpp (& self , id : ScriptIdLikeCpp) -> & str",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "search_spell_focus_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn search_spell_focus_like_cpp (& self , focus_id : u32 ,) -> Option < RepresentedSpellFocusObjectLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -40870,19 +40798,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "take_ready_player_cast_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn take_ready_player_cast_like_cpp (& mut self) -> Option < SpellCastState >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "take_represented_resurrection_request_if_requested_by_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn take_represented_resurrection_request_if_requested_by_like_cpp (& mut self , resurrecter : ObjectGuid ,) -> Option < PlayerResurrectionRequestLikeCpp >",
@@ -41045,34 +40960,6 @@
           "name": "terminate_worldport_recovery_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn terminate_worldport_recovery_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "tick_active_spell_cast",
-          "visibility": "pub (crate)",
-          "signature": "async fn tick_active_spell_cast (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "tick_active_spell_cast_with_generator_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn tick_active_spell_cast_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -44045,19 +43932,6 @@
           "module": "crate::session",
           "trait_path": "wow_world_spell :: AuraHostLikeCpp",
           "kind": "method",
-          "name": "apply_represented_aura_modifier_like_cpp",
-          "visibility": "private",
-          "signature": "fn apply_represented_aura_modifier_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid , effect : & wow_data :: SpellEffectInfo , represented_effect : RepresentedAuraEffectLikeCpp , duration_ms : u32 ,) -> Result < () , & 'static str >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "wow_world_spell :: AuraHostLikeCpp",
-          "kind": "method",
           "name": "canonical_threat_aura_snapshot_for_difficulty_like_cpp",
           "visibility": "private",
           "signature": "fn canonical_threat_aura_snapshot_for_difficulty_like_cpp (& self , spell_id : i32 , difficulty : u8 , effect_mask : u32 , represented_effect_amounts : & [RepresentedAuraEffectAmountLikeCpp] ,) -> wow_entities :: AuraThreatSnapshotLikeCpp",
@@ -44178,6 +44052,71 @@
           "name": "update_player_collision_height_like_cpp",
           "visibility": "private",
           "signature": "fn update_player_collision_height_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_spell :: PlayerCastHostLikeCpp",
+          "kind": "method",
+          "name": "has_represented_self_res_spell_like_cpp",
+          "visibility": "private",
+          "signature": "fn has_represented_self_res_spell_like_cpp (& self , spell_id : i32) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_spell :: PlayerCastHostLikeCpp",
+          "kind": "method",
+          "name": "represented_player_condition_context_like_cpp",
+          "visibility": "private",
+          "signature": "fn represented_player_condition_context_like_cpp (& self ,) -> Option < RepresentedPlayerConditionContextLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_spell :: PlayerCastHostLikeCpp",
+          "kind": "method",
+          "name": "represented_spell_click_creature_snapshot_like_cpp",
+          "visibility": "private",
+          "signature": "fn represented_spell_click_creature_snapshot_like_cpp (& self , guid : ObjectGuid ,) -> Option < RepresentedSpellClickCreatureSnapshotLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_spell :: PlayerCastHostLikeCpp",
+          "kind": "method",
+          "name": "tick_pending_spell_cast_request_with_generator_like_cpp",
+          "visibility": "private",
+          "signature": "fn tick_pending_spell_cast_request_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp ,) -> impl Future < Output = () > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_spell :: PlayerCastHostLikeCpp",
+          "kind": "type",
+          "name": "PlayerConditionContext",
+          "visibility": "private",
+          "signature": "type PlayerConditionContext = RepresentedPlayerConditionContextLikeCpp",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -44527,19 +44466,6 @@
           "module": "crate::session",
           "trait_path": "wow_world_spell :: SpellExecutionHostLikeCpp",
           "kind": "method",
-          "name": "check_represented_cast_preparation_like_cpp",
-          "visibility": "private",
-          "signature": "fn check_represented_cast_preparation_like_cpp (& mut self , spell_info : & wow_data :: SpellInfo , cast_id : ObjectGuid , spell_visual : & wow_packet :: packets :: spell :: SpellCastVisual , metadata : SpellCastMetadata ,) -> Result < Option < Option < RepresentedSpellFocusObjectLikeCpp > > , & 'static str >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "wow_world_spell :: SpellExecutionHostLikeCpp",
-          "kind": "method",
           "name": "consume_add_farsight_set_seer_outcome_like_cpp",
           "visibility": "private",
           "signature": "fn consume_add_farsight_set_seer_outcome_like_cpp (& mut self , outcome : & wow_map :: map :: FarsightDynamicObjectCreateOutcomeLikeCpp ,) -> bool",
@@ -44566,9 +44492,35 @@
           "module": "crate::session",
           "trait_path": "wow_world_spell :: SpellExecutionHostLikeCpp",
           "kind": "method",
+          "name": "has_represented_battle_pet_journal_lock_like_cpp",
+          "visibility": "private",
+          "signature": "fn has_represented_battle_pet_journal_lock_like_cpp (& self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_spell :: SpellExecutionHostLikeCpp",
+          "kind": "method",
           "name": "mutate_cast_execution_like_cpp",
           "visibility": "private",
           "signature": "fn mutate_cast_execution_like_cpp < R > (& mut self , f : impl FnOnce (& mut wow_entities :: CastExecutionStateLikeCpp) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_spell :: SpellExecutionHostLikeCpp",
+          "kind": "method",
+          "name": "represented_battle_pet_like_cpp",
+          "visibility": "private",
+          "signature": "fn represented_battle_pet_like_cpp (& self , pet_guid : ObjectGuid ,) -> Option < RepresentedBattlePetDataLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [

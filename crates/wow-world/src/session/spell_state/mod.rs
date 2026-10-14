@@ -18,7 +18,6 @@ mod cooldown;
 mod effects;
 
 mod spell;
-mod spell_click;
 mod spell_click_host;
 mod spell_publication;
 mod spellbook;

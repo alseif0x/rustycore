@@ -12,20 +12,14 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
     ) -> Option<R> {
         WorldSession::mutate_cast_execution_like_cpp(self, f)
     }
-    fn check_represented_cast_preparation_like_cpp(
-        &mut self,
-        spell_info: &wow_data::SpellInfo,
-        cast_id: ObjectGuid,
-        spell_visual: &wow_packet::packets::spell::SpellCastVisual,
-        metadata: SpellCastMetadata,
-    ) -> Result<Option<Option<RepresentedSpellFocusObjectLikeCpp>>, &'static str> {
-        WorldSession::check_represented_cast_preparation_like_cpp(
-            self,
-            spell_info,
-            cast_id,
-            spell_visual,
-            metadata,
-        )
+    fn has_represented_battle_pet_journal_lock_like_cpp(&self) -> bool {
+        WorldSession::has_represented_battle_pet_journal_lock_like_cpp(self)
+    }
+    fn represented_battle_pet_like_cpp(
+        &self,
+        pet_guid: ObjectGuid,
+    ) -> Option<RepresentedBattlePetDataLikeCpp> {
+        WorldSession::represented_battle_pet_like_cpp(self, pet_guid)
     }
     fn force_update_visibility_with_catalogs_like_cpp(
         &mut self,

@@ -6,13 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn search_spell_focus_like_cpp(
-        &self,
-        focus_id: u32,
-    ) -> Option<RepresentedSpellFocusObjectLikeCpp> {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.search_spell_focus_like_cpp(hub, focus_id)
-    }
     /// Install the complete process-wide C++ script binding audit.
     ///
     /// Positive and negative `spell_script_names` rows remain separate: a

@@ -121,7 +121,6 @@ pub(crate) use auction_contracts::RepresentedAuctionReplicateRequestLikeCpp;
 pub(crate) use auction_contracts::RepresentedAuctionSellItemLikeCpp;
 mod aura_effect_values;
 use aura_effect_values::CanonicalThreatAuraSnapshotLikeCpp;
-use aura_effect_values::represented_aura_effect_amounts_like_cpp;
 use aura_effect_values::unit_owned_apply_aura_effect_mask_like_cpp;
 mod battle_pet_adapter;
 #[cfg(test)]
@@ -243,7 +242,6 @@ pub(crate) use duel_contracts::RepresentedDuelCancelledLikeCpp;
 pub(crate) use duel_contracts::{RepresentedDuelAcceptedLikeCpp, RepresentedDuelRequestedLikeCpp};
 mod faction_reactions;
 pub(crate) use faction_reactions::RepresentedFactionReactionInputLikeCpp;
-pub(crate) use faction_reactions::RepresentedGetReactionInputLikeCpp;
 pub(crate) use faction_reactions::ReputationGainSourceLikeCpp;
 mod gameobject_interaction;
 pub(crate) use gameobject_interaction::RepresentedCapturePointStateLikeCpp;
@@ -385,7 +383,6 @@ pub(in crate::session) use wow_world_creature::legacy_attack_power_multiplier_li
 #[cfg(test)]
 pub(in crate::session) use wow_world_creature::take_canonical_player_attack_swings_like_cpp;
 mod player_presentation;
-use player_presentation::RepresentedMountSpellCheckOutcomeLikeCpp;
 mod player_registry_binding;
 mod player_spell_records;
 pub(crate) use player_spell_records::RepresentedPlayerSkillLikeCpp;
@@ -449,18 +446,10 @@ pub(crate) use social_requests::RepresentedSilencePartyTalkerLikeCpp;
 #[cfg(test)]
 pub(crate) use social_requests::RepresentedWargameInviteAcceptanceLikeCpp;
 mod spell_click_values;
-use spell_click_values::NPC_CLICK_CAST_CASTER_CLICKER_LIKE_CPP;
-use spell_click_values::NPC_CLICK_CAST_ORIG_CASTER_OWNER_LIKE_CPP;
-use spell_click_values::NPC_CLICK_CAST_TARGET_CLICKER_LIKE_CPP;
 pub(crate) use spell_click_values::RepresentedCanSeeSpellClickOutcomeLikeCpp;
 pub(crate) use spell_click_values::RepresentedCreatureAccessLikeCpp;
 pub(crate) use spell_click_values::RepresentedGameObjectAccessLikeCpp;
-pub(crate) use spell_click_values::RepresentedSpellClickCastLikeCpp;
-use spell_click_values::RepresentedSpellClickClickeeCasterOutcomeLikeCpp;
 use spell_click_values::RepresentedSpellClickCreatureSnapshotLikeCpp;
-pub(crate) use spell_click_values::RepresentedSpellClickExecutionOutcomeLikeCpp;
-pub(crate) use spell_click_values::RepresentedSpellClickPlanLikeCpp;
-pub(crate) use spell_click_values::RepresentedSpellClickUnitRefLikeCpp;
 #[cfg(test)]
 pub(crate) use spell_click_values::RepresentedVehicleBaseMovementLikeCpp;
 #[cfg(test)]
@@ -471,7 +460,6 @@ pub(crate) use spell_click_values::RepresentedVehicleEnterRequestLikeCpp;
 pub(crate) use spell_click_values::RepresentedVehicleSeatChangeRequestLikeCpp;
 #[cfg(test)]
 pub(crate) use spell_click_values::RepresentedVehicleSeatSpellClickRequestLikeCpp;
-use spell_click_values::spell_effect_is_represented_summon_object_slot_like_cpp;
 use wow_world_spell::spell_cast_adapter::represented_spell_cast_guid_for_map_like_cpp;
 mod spell_pet_catalogs;
 mod stand_state_adapter;
@@ -500,7 +488,6 @@ pub(crate) use state::{
 };
 #[cfg(test)]
 pub(crate) use state::{InventoryCx, cx_inventory};
-pub(crate) use wow_world_spell::RepresentedSpellFocusObjectLikeCpp;
 #[cfg(test)]
 mod support_features;
 mod taxi_contracts;
@@ -590,10 +577,10 @@ use wow_constants::unit::{
 use wow_constants::{
     BuyResult, ClientOpcodes, InventoryResult, InventoryType, ItemClass, ItemContext, ItemFlags,
     ItemFlags2, ItemFlags3, ItemModifier, ItemQuality, ItemSpelltriggerType, ItemSubClassArmor,
-    ItemSubClassWeapon, ServerOpcodes, SpellCastResult, TypeId, UnitState,
+    ItemSubClassWeapon, UnitState,
 };
 #[cfg(test)]
-use wow_constants::{SellResult, item::ItemBonusType, movement::MovementFlag};
+use wow_constants::{SellResult, TypeId, item::ItemBonusType, movement::MovementFlag};
 use wow_core::{
     EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator, Position,
     VoidStorageItemIdGeneratorLikeCpp, guid::HighGuid,
@@ -654,10 +641,7 @@ use wow_data::{
         CreatureOnKillReputationStoreLikeCpp, RepSpilloverTemplateStoreLikeCpp,
         ReputationRewardRateStoreLikeCpp,
     },
-    spell_click::{
-        SPELL_CLICK_USER_FRIEND_LIKE_CPP, SPELL_CLICK_USER_PARTY_LIKE_CPP,
-        SPELL_CLICK_USER_RAID_LIKE_CPP, UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP,
-    },
+    spell_click::UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP,
 };
 #[cfg(test)]
 use wow_data::{
@@ -744,8 +728,7 @@ use wow_packet::packets::item::{
 };
 use wow_packet::packets::item::{ItemEnchantTimeUpdate, ItemTimeUpdate};
 use wow_packet::packets::misc::{
-    AccountHeirloom, AccountMount, AccountToy, DungeonDifficultySet,
-    MOUNT_RESULT_SHAPESHIFTED_LIKE_CPP, MountResult, SetProficiency, SetupCurrency,
+    AccountHeirloom, AccountMount, AccountToy, DungeonDifficultySet, SetProficiency, SetupCurrency,
     SetupCurrencyRecord, TRADE_SLOT_COUNT_LIKE_CPP,
 };
 #[cfg(test)]
@@ -755,7 +738,6 @@ use wow_packet::packets::quest::{
     QuestGiverRequestItemsCollect, QuestGiverRequestItemsCurrency, QuestListEntry,
     QuestObjectiveSimple, QuestRewardsBlock,
 };
-use wow_packet::packets::spell::SpellTargetData;
 use wow_social::group::{
     GroupInfo, GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry,
     PendingInvites, group_guid_by_db_store_id_like_cpp,
@@ -895,7 +877,6 @@ pub(crate) const BATTLE_PET_CAGE_ITEM_ID_LIKE_CPP: u32 = 82_800;
 pub(crate) const BATTLE_PET_BREED_QUALITY_RARE_LIKE_CPP: u8 = 3;
 #[cfg(test)]
 pub(crate) use wow_world_inventory::BATTLE_PET_SPELL_VISUAL_UNCAGE_PET_LIKE_CPP;
-pub(crate) use wow_world_inventory::MAX_BATTLE_PET_LEVEL_LIKE_CPP;
 
 pub(crate) const SKILL_RIDING_LIKE_CPP: u16 = 762;
 pub use wow_world_core::session::SharedCanonicalMapManager;
@@ -937,12 +918,10 @@ pub(crate) use wow_world_core::session::AFLAG_NOCASTER_LIKE_CPP;
 
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP: u32 = 0x0000_0800;
 #[cfg(test)]
+pub(crate) use crate::handlers::player_cast_test_shims::session_test_reexports::*;
+#[cfg(test)]
 use wow_data::{SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP, SpellAreaLikeCpp};
 pub(crate) use wow_world_core::session::PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP;
-#[cfg(test)]
-pub(crate) use wow_world_entities::SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP;
-#[cfg(test)]
-pub(crate) use wow_world_spell::SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP;
 
 #[cfg(test)]
 #[path = "../../unit_tests/session_tests.rs"]

@@ -334,6 +334,7 @@
     ],
     "wow-world-spell": [
       "wow-combat",
+      "wow-conditions",
       "wow-config",
       "wow-constants",
       "wow-core",
