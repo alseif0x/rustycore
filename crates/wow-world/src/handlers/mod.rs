@@ -52,7 +52,7 @@ mod login_test_shims;
 #[cfg(test)]
 mod loot_test_shims;
 #[cfg(test)]
-mod player_cast_test_shims;
+pub(crate) mod player_cast_test_shims;
 #[cfg(test)]
 mod player_test_shims;
 #[cfg(test)]
