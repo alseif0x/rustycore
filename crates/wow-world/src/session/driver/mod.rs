@@ -275,7 +275,7 @@ impl WorldSession {
                 catalogs.item_valuation.as_ref(),
             )
             .await;
-            self.tick_represented_gameobject_update_like_cpp();
+            wow_world_entities::tick_represented_gameobject_update_like_cpp(self);
             self.send_represented_gameobject_visibility_on_destroy_from_last_update_like_cpp();
             wow_world_entities::send_represented_capture_point_removed_from_last_update_like_cpp(
                 self,

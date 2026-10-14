@@ -217,7 +217,9 @@ pub fn apply_represented_gameobject_goober_just_deactivated_like_cpp<
         .and_then(|state| state.linked_trap_guid);
     if source.linked_trap_entry != 0 {
         if let Some(trap_guid) = linked_trap_guid {
-            host.despawn_represented_linked_trap_by_guid_like_cpp(trap_guid);
+            crate::gameobject_update_session::despawn_represented_linked_trap_by_guid_like_cpp(
+                host, trap_guid,
+            );
         }
         host.world_entities_mut()
             .record_represented_gameobject_use_effect_like_cpp(

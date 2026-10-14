@@ -7,11 +7,10 @@
 #[cfg(test)]
 pub(crate) use wow_world_entities::{
     BattlegroundFlagDropClickTarget, RepresentedBattlegroundObjectUseRejection,
-    RepresentedGameObjectCriteriaEvent,
+    RepresentedCapturePointStateLikeCpp, RepresentedGameObjectCriteriaEvent,
 };
 pub(crate) use wow_world_entities::{
-    RepresentedCapturePointStateLikeCpp, RepresentedGameObjectUseEffect,
-    RepresentedGameObjectUseState, RepresentedNewFlagStateRequest,
+    RepresentedGameObjectUseEffect, RepresentedGameObjectUseState, RepresentedNewFlagStateRequest,
 };
 
 #[cfg(test)]

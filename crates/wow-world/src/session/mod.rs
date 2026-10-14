@@ -243,7 +243,6 @@ mod faction_reactions;
 pub(crate) use faction_reactions::RepresentedFactionReactionInputLikeCpp;
 pub(crate) use faction_reactions::ReputationGainSourceLikeCpp;
 mod gameobject_interaction;
-pub(crate) use gameobject_interaction::RepresentedCapturePointStateLikeCpp;
 pub(crate) use gameobject_interaction::RepresentedGameObjectUseEffect;
 pub(crate) use gameobject_interaction::RepresentedGameObjectUseState;
 pub(crate) use gameobject_interaction::RepresentedNewFlagStateRequest;
@@ -497,13 +496,13 @@ mod void_storage_adapter;
 mod xp_grants;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
-#[cfg(test)]
-use std::sync::atomic::AtomicUsize;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
+#[cfg(test)]
+use std::{sync::atomic::AtomicUsize, time::Duration};
 
 #[cfg(test)]
 use rand::{Rng, SeedableRng, rngs::StdRng};
@@ -916,8 +915,9 @@ pub use wow_entities::{RepresentedAuraEffectAmountLikeCpp, RepresentedAuraEffect
 pub(crate) use wow_world_core::session::AFLAG_NOCASTER_LIKE_CPP;
 
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP: u32 = 0x0000_0800;
+mod test_reexports;
 #[cfg(test)]
-pub(crate) use crate::handlers::player_cast_test_shims::session_test_reexports::*;
+pub(crate) use test_reexports::*;
 #[cfg(test)]
 use wow_data::{SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP, SpellAreaLikeCpp};
 pub(crate) use wow_world_core::session::PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP;

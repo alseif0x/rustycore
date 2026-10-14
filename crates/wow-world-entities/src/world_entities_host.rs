@@ -39,7 +39,12 @@ pub trait WorldEntitiesHostLikeCpp: SessionHubHostLikeCpp {
         gameobject_guid: ObjectGuid,
     ) -> usize;
     fn can_see_phase_shift_like_cpp(&self, other: &PhaseShift) -> bool;
-    fn despawn_represented_linked_trap_by_guid_like_cpp(&mut self, trap_guid: ObjectGuid);
+    /// The loot state's `remove_cached_loot_for_owner_like_cpp`.
+    fn remove_cached_loot_for_owner_like_cpp(&mut self, owner: ObjectGuid);
+    fn queue_session_chest_gameobject_state_refresh_for_same_map_like_cpp(
+        &self,
+        gameobject_guid: ObjectGuid,
+    ) -> usize;
     fn kill_credit_gameobject_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,

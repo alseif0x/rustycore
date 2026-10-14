@@ -131,8 +131,18 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
         WorldSession::can_see_phase_shift_like_cpp(self, other)
     }
 
-    fn despawn_represented_linked_trap_by_guid_like_cpp(&mut self, trap_guid: ObjectGuid) {
-        WorldSession::despawn_represented_linked_trap_by_guid_like_cpp(self, trap_guid)
+    fn remove_cached_loot_for_owner_like_cpp(&mut self, owner: ObjectGuid) {
+        self.loot.remove_cached_loot_for_owner_like_cpp(owner);
+    }
+
+    fn queue_session_chest_gameobject_state_refresh_for_same_map_like_cpp(
+        &self,
+        gameobject_guid: ObjectGuid,
+    ) -> usize {
+        wow_world_loot_ops::queue_session_chest_gameobject_state_refresh_for_same_map_like_cpp(
+            self,
+            gameobject_guid,
+        )
     }
 
     fn kill_credit_gameobject_with_generator_like_cpp(

@@ -33,6 +33,7 @@ mod gameobject_overrides;
 mod gameobject_publication_session;
 mod gameobject_query;
 mod gameobject_state;
+mod gameobject_update_session;
 mod gameobject_use;
 mod gameobject_use_dispatch;
 mod gameobject_use_kinds;
@@ -122,6 +123,7 @@ pub use gameobject_publication_session::{
     send_represented_capture_point_removed_from_last_update_like_cpp,
     send_represented_gameobject_visual_despawn_from_last_update_like_cpp,
 };
+pub use gameobject_update_session::tick_represented_gameobject_update_like_cpp;
 pub use gameobject_use_dispatch::{
     handle_game_obj_use_with_catalogs_like_cpp,
     represented_gameobject_gossip_can_interact_with_like_cpp,
