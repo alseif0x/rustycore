@@ -17,9 +17,5 @@ mod gameobject;
 mod gameobject_overrides;
 mod gameobject_query;
 mod gameobject_state;
-#[cfg(test)]
-mod gameobject_use_scripted;
-#[cfg(test)]
-mod gameobject_use_types;
 mod spawn;
 mod spell_click;

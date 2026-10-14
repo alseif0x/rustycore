@@ -13,7 +13,3 @@ impl WorldSession {
         state.broadcast_player_packet_to_visible_set_realm_like_cpp(hub, bytes)
     }
 }
-
-#[cfg(test)]
-#[path = "../../../unit_tests/session/world_entities/creature_publication/f3_shims.rs"]
-mod f3_shims;

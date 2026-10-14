@@ -16,13 +16,12 @@ use wow_social::group::GroupRegistry;
 use wow_world_core::session::directory::PlayerRegistry;
 use wow_world_core::session::{HubMut, HubRef};
 use wow_world_lifecycle::SessionLifecycleState;
-use wow_world_loot_ops::LootSessionHostLikeCpp;
+use wow_world_loot_ops::{LootHandlerHostLikeCpp, LootSessionHostLikeCpp};
 
 use super::*;
 use wow_loot::LootStores;
 use wow_world_core::session_policy::LootDropRatesLikeCpp;
 use wow_world_inventory::InventoryState;
-use wow_world_loot_ops::LootHandlerHostLikeCpp;
 
 use crate::handlers::quest::{
     QuestSourceItemBoundPersistencePlanLikeCpp, QuestSourceItemBoundPreflightLikeCpp,
