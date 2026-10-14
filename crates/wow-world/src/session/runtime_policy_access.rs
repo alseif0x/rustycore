@@ -30,10 +30,6 @@ impl WorldSession {
         self.catalogs.disable_mgr = Some(store);
     }
 
-    pub(crate) fn disable_mgr(&self) -> Option<&Arc<DisableMgrLikeCpp>> {
-        self.catalogs.disable_mgr()
-    }
-
     pub(crate) fn lock_entry_exists_like_cpp(&self, lock_id: u32) -> bool {
         self.catalogs.lock_entry_exists_like_cpp(lock_id)
     }

@@ -182,7 +182,7 @@ impl WorldSession {
                 self.handle_send_creature_spell_cast_if_visible_like_cpp_command_like_cpp(command);
             }
             SessionCommand::SendPlayerSpellIfVisibleLikeCpp(command) => {
-                self.handle_player_cast_publication_like_cpp(command);
+                wow_world_spell::handle_player_cast_publication_like_cpp(self, command);
             }
             SessionCommand::SendRealmIfVisibleLikeCpp(command) => {
                 self.handle_send_if_visible_like_cpp_command_like_cpp(command, true);

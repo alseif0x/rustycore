@@ -10,7 +10,7 @@ use super::Player;
 use super::RepresentedForceDeselectLikeCpp;
 #[cfg(test)]
 use super::debug;
-use super::{SKILL_RIDING_LIKE_CPP, SpellCastResult, WorldSession};
+use super::{SKILL_RIDING_LIKE_CPP, WorldSession};
 
 impl WorldSession {
     pub(in crate::session) fn update_player_collision_height_like_cpp(&mut self) {

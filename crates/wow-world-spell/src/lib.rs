@@ -9,6 +9,7 @@ pub mod login_spell_rules;
 pub mod melee_damage;
 pub mod melee_rules;
 pub mod player_cast;
+mod player_cast_session;
 mod profession;
 mod records;
 mod session;
@@ -78,6 +79,14 @@ pub use execution_session::{
     represented_transport_destination_world_position_like_cpp, take_spell_power_like_cpp,
 };
 pub use player_cast::PlayerCastPublicationPhaseLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use player_cast_session::take_ready_player_cast_like_cpp;
+pub use player_cast_session::{
+    PlayerCastHostLikeCpp, handle_cast_spell_with_catalogs_like_cpp,
+    handle_player_cast_publication_like_cpp, handle_self_res_with_generator_like_cpp,
+    handle_spell_click_with_generator_like_cpp, is_spell_disabled_for_player_like_cpp,
+    tick_active_spell_cast_with_generator_like_cpp,
+};
 pub use profession::{
     DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP, MAX_PRIMARY_TRADE_SKILLS_CONFIG_LIKE_CPP,
     NO_PRIMARY_PROFESSION_EQUIPMENT_SLOT_LIKE_CPP, PlannedPrimaryProfessionLikeCpp,
@@ -124,7 +133,12 @@ pub use spell_acquisition_application::{
 };
 pub use spell_cast_adapter::present_visual;
 pub use spell_click_session::{
-    SpellClickHostLikeCpp, execute_represented_spell_click_clickee_caster_like_cpp,
+    SpellClickHostLikeCpp, represented_handle_spell_click_plan_with_seat_like_cpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use spell_click_session::{
+    execute_represented_spell_click_plan_with_generator_like_cpp,
+    represented_handle_spell_click_plan_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use spellbook_session::{

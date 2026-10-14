@@ -7,5 +7,4 @@
 pub(in crate::session) type CanonicalThreatAuraSnapshotLikeCpp =
     wow_entities::AuraThreatSnapshotLikeCpp;
 
-pub(in crate::session) use wow_world_spell::represented_aura_effect_amounts_like_cpp;
 pub(in crate::session) use wow_world_spell::unit_owned_apply_aura_effect_mask_like_cpp;

@@ -5,6 +5,7 @@ use crate::player_cast::Runtime;
 use wire::PlayerCastPublicationPhaseLikeCpp;
 use wow_entities::{SpellCastState, SpellCastVisualLikeCpp};
 use wow_packet::packets::spell::{CastFailed, SpellPreparePkt, SpellStartPkt};
+mod host;
 mod identity;
 mod publication;
 mod state;
@@ -14,42 +15,6 @@ impl WorldSession {
     pub(crate) fn interrupt_player_cast_like_cpp(&mut self, spell_id: Option<i32>) -> bool {
         let (state, mut hub) = crate::session::split_spell_state_mut(self);
         wow_world_application::interrupt_player_cast_like_cpp(&mut hub, state, spell_id)
-    }
-
-    pub(crate) fn take_ready_player_cast_like_cpp(&mut self) -> Option<SpellCastState> {
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return self
-                .mutate_cast_execution_like_cpp(
-                    wow_entities::CastExecutionStateLikeCpp::take_ready_cast,
-                )
-                .flatten();
-        }
-        let handle = self.core.player_handle_like_cpp?;
-        if Some(handle.guid()) != self.player_guid() {
-            return None;
-        }
-        let mut manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
-        let revision = manager
-            .player_active_residence_revision_like_cpp(handle)
-            .map(|(_, revision)| revision);
-        manager
-            .with_player_mut_like_cpp(handle, |player| {
-                let state = &mut player.unit_mut().subsystems_mut().spells.execution;
-                // Any residence-stamped prepared cast is fenced, not only the
-                // normal client request: a server-triggered timed cast
-                // prepared in a previous residence must not launch after
-                // reentry either.
-                if state.active.as_ref().is_some_and(|cast| {
-                    cast.metadata.prepared_residence_revision.is_some()
-                        && cast.metadata.prepared_residence_revision != revision
-                }) {
-                    state.active = None;
-                    return None;
-                }
-                state.take_ready_cast()
-            })
-            .flatten()
     }
 }
 
@@ -160,7 +125,7 @@ impl Runtime for WorldSession {
     }
 
     fn disabled(&self, spell: i32) -> bool {
-        self.is_spell_disabled_for_player_like_cpp(spell)
+        wow_world_spell::is_spell_disabled_for_player_like_cpp(self, spell)
     }
 
     fn on_cooldown(&self, spell: &wow_data::SpellInfo) -> Option<bool> {

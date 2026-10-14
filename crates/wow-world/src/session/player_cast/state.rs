@@ -179,7 +179,8 @@ impl WorldSession {
             return;
         };
         if crate::player_cast::prepare(self, request) {
-            self.tick_active_spell_cast_with_generator_like_cpp(
+            wow_world_spell::tick_active_spell_cast_with_generator_like_cpp(
+                self,
                 item_guid_generator,
                 creature_spawn_catalogs,
             )
@@ -192,69 +193,6 @@ impl WorldSession {
         let generators = self.id_generators_for_test_like_cpp();
         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         self.tick_pending_spell_cast_request_with_generator_like_cpp(
-            generators.item.as_ref(),
-            &creature_spawn_catalogs,
-        )
-        .await;
-    }
-
-    /// Called every ~100ms. Checks if an in-progress spell cast has completed.
-    ///
-    /// If `active_spell_cast` is set and its cast time has elapsed, this method
-    /// executes the spell (applies effects, cooldowns, etc.) and clears the cast state.
-    pub(crate) async fn tick_active_spell_cast_with_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
-    ) {
-        let Some(cast_state) = self.take_ready_player_cast_like_cpp() else {
-            return;
-        };
-
-        let spell_id = cast_state.spell_id;
-        let target = cast_state.target_guid;
-        let target_data = crate::spell_cast_adapter::present_targets(cast_state.target_data);
-        let cast_id = cast_state.cast_id;
-        let spell_visual = crate::spell_cast_adapter::present_visual(cast_state.spell_visual);
-        let metadata = cast_state.metadata;
-
-        // The owner guard is released before effect execution and failure publication.
-        if let Err(e) =
-            wow_world_spell::execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
-                self,
-                item_guid_generator,
-                creature_spawn_catalogs,
-                spell_id,
-                target,
-                cast_id,
-                spell_visual.clone(),
-                target_data,
-                metadata,
-            )
-            .await
-        {
-            warn!(
-                account = self.core.account_id,
-                "Spell execution failed: {}", e
-            );
-            // Send CastFailed so client cancels cast animation
-            use wow_packet::packets::spell::CastFailed;
-            self.send_packet(&CastFailed {
-                cast_id,
-                spell_id,
-                visual: spell_visual,
-                reason: 2, // SpellCastResult::NotKnown
-                fail_arg1: 0,
-                fail_arg2: 0,
-            });
-        }
-    }
-
-    #[cfg(test)]
-    pub(crate) async fn tick_active_spell_cast(&mut self) {
-        let generators = self.id_generators_for_test_like_cpp();
-        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
-        self.tick_active_spell_cast_with_generator_like_cpp(
             generators.item.as_ref(),
             &creature_spawn_catalogs,
         )

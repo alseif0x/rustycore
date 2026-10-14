@@ -88,7 +88,7 @@ impl wow_world_entities::VehicleSessionHostLikeCpp for WorldSession {
         creature_guid: wow_core::ObjectGuid,
         seat_id: Option<i8>,
     ) -> wow_world_entities::spell_click_values::RepresentedSpellClickPlanLikeCpp {
-        WorldSession::represented_handle_spell_click_plan_with_seat_like_cpp(
+        wow_world_spell::represented_handle_spell_click_plan_with_seat_like_cpp(
             self,
             creature_guid,
             seat_id,

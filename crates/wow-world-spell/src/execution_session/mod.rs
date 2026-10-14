@@ -20,6 +20,7 @@ use wow_entities::{RepresentedAuraEffectLikeCpp, SpellCastMetadata};
 use wow_packet::packets::spell::SpellTargetData;
 use wow_world_entities::CreatureSpawnCatalogsLikeCpp;
 
+use crate::SpellEffectHostLikeCpp;
 use crate::aura_session::{
     apply_represented_mounted_aura_like_cpp, apply_represented_provide_spell_focus_aura_like_cpp,
     update_represented_flight_flags_for_flight_aura_like_cpp,
@@ -40,7 +41,6 @@ use crate::effect_session::{
     apply_upgrade_heirloom_effect_like_cpp, power_drain_pre_scaled_damage_like_cpp,
     represented_spell_damage_bonus_done_like_cpp, represented_spell_healing_bonus_done_like_cpp,
 };
-use crate::SpellEffectHostLikeCpp;
 use completion::complete_spell_execution_like_cpp;
 use post_spell_go::{
     apply_post_spell_go_target_effects_like_cpp, apply_spell_gameobject_summon_effects_like_cpp,

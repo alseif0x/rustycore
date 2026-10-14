@@ -4,9 +4,10 @@
 //! Faction reactions: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
+#[cfg(test)]
+pub(crate) use wow_world_core::session::RepresentedGetReactionInputLikeCpp;
 pub(crate) use wow_world_core::session::{
-    RepresentedFactionReactionInputLikeCpp, RepresentedGetReactionInputLikeCpp,
-    ReputationGainSourceLikeCpp,
+    RepresentedFactionReactionInputLikeCpp, ReputationGainSourceLikeCpp,
 };
 
 #[cfg(test)]

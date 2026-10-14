@@ -47,7 +47,7 @@ impl SpellHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_cast_spell_with_catalogs_like_cpp(
+            wow_world_spell::handle_cast_spell_with_catalogs_like_cpp(
                 self,
                 catalogs.area_triggers.as_ref(),
                 catalogs.creature_spawns.as_ref(),
@@ -70,7 +70,7 @@ impl SpellHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_self_res_with_generator_like_cpp(
+            wow_world_spell::handle_self_res_with_generator_like_cpp(
                 self,
                 catalogs.id_generators.item.as_ref(),
                 catalogs.creature_spawns.as_ref(),
@@ -86,7 +86,7 @@ impl SpellHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_spell_click_with_generator_like_cpp(
+            wow_world_spell::handle_spell_click_with_generator_like_cpp(
                 self,
                 catalogs.id_generators.item.as_ref(),
                 catalogs.creature_spawns.as_ref(),

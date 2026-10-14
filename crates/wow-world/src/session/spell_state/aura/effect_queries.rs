@@ -11,15 +11,6 @@ impl WorldSession {
         state.resolved_has_represented_aura_effect_like_cpp(hub, effect)
     }
 
-    pub(in crate::session) fn resolved_has_represented_aura_effect_with_misc_value_like_cpp(
-        &self,
-        effect: RepresentedAuraEffectLikeCpp,
-        misc_value: i32,
-    ) -> Option<bool> {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.resolved_has_represented_aura_effect_with_misc_value_like_cpp(hub, effect, misc_value)
-    }
-
     pub(in crate::session) fn resolved_total_represented_aura_modifier_by_misc_value_like_cpp(
         &self,
         effect: RepresentedAuraEffectLikeCpp,
