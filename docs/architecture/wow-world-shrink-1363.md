@@ -8335,7 +8335,7 @@ world state to slice 13 is needed.
 
 | Part | New trait | New adapter | Retired | Moved function lines |
 |---|---:|---:|---:|---:|
-| World state and instance admission (`InstanceSessionHostLikeCpp`, 14 methods; `AreaTriggerCatalogAccessLikeCpp`, 2) | 32 | 70 | 0 | 816 |
+| World state and instance admission (`InstanceSessionHostLikeCpp`, 13 methods; `AreaTriggerCatalogAccessLikeCpp`, 2) | 32 | 70 | 0 | 816 |
 
 - New host code is 102 lines against 816 moved function lines: **12.5 %**.
   The six rest-flag methods are 24 of them (2.9 %); without them 9.6 %.
