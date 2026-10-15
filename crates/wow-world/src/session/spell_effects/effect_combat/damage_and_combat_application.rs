@@ -82,7 +82,7 @@ impl WorldSession {
                 )
             });
         let caster_school_threat_mod = if caster_is_session_player {
-            self.hydrate_canonical_threat_relevant_auras_like_cpp();
+            wow_world_spell::hydrate_canonical_threat_relevant_auras_like_cpp(self);
             self.core
                 .mutate_canonical_player_like_cpp(|player| {
                     player

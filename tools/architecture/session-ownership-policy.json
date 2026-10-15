@@ -19005,6 +19005,22 @@
           "module": "crate::handlers::world_entities_registry_test_shims",
           "trait_path": null,
           "kind": "method",
+          "name": "apply_spell_initial_threat_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_spell_initial_threat_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid , target_guid : ObjectGuid , is_positive : bool ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::world_entities_registry_test_shims",
+          "trait_path": null,
+          "kind": "method",
           "name": "canonical_creature_threat_value_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn canonical_creature_threat_value_like_cpp (& self , creature_guid : ObjectGuid , attacker_guid : ObjectGuid ,) -> Option < f32 >",
@@ -21301,19 +21317,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_spell_initial_threat_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn apply_spell_initial_threat_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid , target_guid : ObjectGuid , is_positive : bool ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "apply_stuck_effect_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "async fn apply_stuck_effect_like_cpp (& mut self)",
@@ -22280,19 +22283,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "canonical_threat_aura_snapshot_for_difficulty_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn canonical_threat_aura_snapshot_for_difficulty_like_cpp (& self , spell_id : i32 , difficulty : u8 , effect_mask : u32 , represented_effect_amounts : & [RepresentedAuraEffectAmountLikeCpp] ,) -> CanonicalThreatAuraSnapshotLikeCpp",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -24218,19 +24208,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "hydrate_canonical_threat_relevant_auras_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn hydrate_canonical_threat_relevant_auras_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -40764,19 +40741,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "sync_canonical_threat_relevant_aura_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn sync_canonical_threat_relevant_aura_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid , slot : u8 , effect_mask : u32 , represented_effect_amounts : & [RepresentedAuraEffectAmountLikeCpp] , apply : bool ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "sync_current_player_session_visibility_detection_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn sync_current_player_session_visibility_detection_like_cpp (& mut self)",
@@ -43849,19 +43813,6 @@
           "module": "crate::session",
           "trait_path": "wow_world_spell :: AuraHostLikeCpp",
           "kind": "method",
-          "name": "canonical_threat_aura_snapshot_for_difficulty_like_cpp",
-          "visibility": "private",
-          "signature": "fn canonical_threat_aura_snapshot_for_difficulty_like_cpp (& self , spell_id : i32 , difficulty : u8 , effect_mask : u32 , represented_effect_amounts : & [RepresentedAuraEffectAmountLikeCpp] ,) -> wow_entities :: AuraThreatSnapshotLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "wow_world_spell :: AuraHostLikeCpp",
-          "kind": "method",
           "name": "next_represented_spell_cast_guid_like_cpp",
           "visibility": "private",
           "signature": "fn next_represented_spell_cast_guid_like_cpp (& self , spell_id : i32) -> Option < ObjectGuid >",
@@ -43943,6 +43894,19 @@
           "name": "split_world_entities_mut",
           "visibility": "private",
           "signature": "fn split_world_entities_mut (& mut self) -> (& mut WorldEntitiesState , HubMut < '_ >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_spell :: AuraHostLikeCpp",
+          "kind": "method",
+          "name": "split_world_entities_ref",
+          "visibility": "private",
+          "signature": "fn split_world_entities_ref (& self) -> (& WorldEntitiesState , HubRef < '_ >)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -44109,19 +44073,6 @@
           "module": "crate::session",
           "trait_path": "wow_world_spell :: SpellEffectHostLikeCpp",
           "kind": "method",
-          "name": "hydrate_canonical_threat_relevant_auras_like_cpp",
-          "visibility": "private",
-          "signature": "fn hydrate_canonical_threat_relevant_auras_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "wow_world_spell :: SpellEffectHostLikeCpp",
-          "kind": "method",
           "name": "on_creature_killed_with_generator_like_cpp",
           "visibility": "private",
           "signature": "fn on_creature_killed_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_entry : u32 , creature_guid : ObjectGuid ,) -> impl Future < Output = () > + Send",
@@ -44138,6 +44089,19 @@
           "name": "persist_player_homebind_like_cpp",
           "visibility": "private",
           "signature": "fn persist_player_homebind_like_cpp (& mut self , homebind : RepresentedHomebindLikeCpp)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_spell :: SpellEffectHostLikeCpp",
+          "kind": "method",
+          "name": "publish_spell_pull_attack_start_like_cpp",
+          "visibility": "private",
+          "signature": "fn publish_spell_pull_attack_start_like_cpp (& mut self , attacker : ObjectGuid , victim : ObjectGuid ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -44347,19 +44311,6 @@
           "name": "apply_self_resurrect_effect_like_cpp",
           "visibility": "private",
           "signature": "fn apply_self_resurrect_effect_like_cpp (& mut self , damage : i32 , misc_value : i32)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "wow_world_spell :: SpellExecutionHostLikeCpp",
-          "kind": "method",
-          "name": "apply_spell_initial_threat_like_cpp",
-          "visibility": "private",
-          "signature": "fn apply_spell_initial_threat_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid , target_guid : ObjectGuid , is_positive : bool ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [

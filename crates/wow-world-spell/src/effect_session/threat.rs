@@ -5,7 +5,7 @@
 //! Threat forwarding and synchronisation raised by represented effects
 //! (#1363 slice 9d), from the World `session/spell_effects/threat.rs`.
 
-use super::SpellEffectHostLikeCpp;
+use super::{SpellEffectHostLikeCpp, hydrate_canonical_threat_relevant_auras_like_cpp};
 use wow_constants::UnitState;
 use wow_core::ObjectGuid;
 
@@ -99,7 +99,7 @@ pub fn forward_assisting_threat_like_cpp<H: SpellEffectHostLikeCpp>(
         });
     let caster_school_threat_mod =
         if !ignore_modifiers && host.player_guid() == Some(assistant_guid) {
-            host.hydrate_canonical_threat_relevant_auras_like_cpp();
+            hydrate_canonical_threat_relevant_auras_like_cpp(host);
             host.core()
                 .mutate_canonical_player_like_cpp(|player| {
                     player

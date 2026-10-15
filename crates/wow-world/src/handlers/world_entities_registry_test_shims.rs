@@ -9,8 +9,9 @@
 //! objective entries without a generator, and the two canonical threat
 //! readers), moved verbatim so the classifier counts them as test code, and
 //! one-call method forwards to the creature kill reputation and death-state
-//! completion moved to `wow_world_entities` (#1363 slice 10b), so no scenario
-//! call site changes. The
+//! completion moved to `wow_world_entities` and to the spell initial threat
+//! moved to `wow_world_spell` (#1363 slice 10b), so no scenario call site
+//! changes. The
 //! two threat readers widen from `pub(in crate::session)` to `pub(crate)`,
 //! because this file is outside the session tree. Mounted from
 //! `handlers/mod.rs`, so the session hotspot's test lines do not grow; the
@@ -340,6 +341,21 @@ impl WorldSession {
             self,
             attacker_guid,
             creature_guid,
+        )
+    }
+    pub(crate) fn apply_spell_initial_threat_like_cpp(
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        target_guid: ObjectGuid,
+        is_positive: bool,
+    ) {
+        wow_world_spell::apply_spell_initial_threat_like_cpp(
+            self,
+            spell_id,
+            caster_guid,
+            target_guid,
+            is_positive,
         )
     }
 }

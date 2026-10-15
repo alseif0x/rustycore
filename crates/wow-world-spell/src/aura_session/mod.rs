@@ -14,11 +14,8 @@
 use std::time::Instant;
 
 use wow_core::ObjectGuid;
-use wow_entities::{
-    AuraApplicationLikeCpp as AuraApplication, RepresentedAuraEffectAmountLikeCpp,
-    RepresentedAuraEffectLikeCpp,
-};
-use wow_world_core::session::HubMut;
+use wow_entities::{AuraApplicationLikeCpp as AuraApplication, RepresentedAuraEffectLikeCpp};
+use wow_world_core::session::{HubMut, HubRef};
 use wow_world_entities::WorldEntitiesState;
 
 use crate::{
@@ -40,6 +37,7 @@ pub use sources::*;
 
 /// The World session as the auras' host (supertrait: the spellbook host).
 pub trait AuraHostLikeCpp: SpellbookHostLikeCpp {
+    fn split_world_entities_ref(&self) -> (&WorldEntitiesState, HubRef<'_>);
     fn split_world_entities_mut(&mut self) -> (&mut WorldEntitiesState, HubMut<'_>);
     fn remove_aura(&mut self, slot: u8) -> Result<(), &'static str>;
     /// The represented player aura modifier (#1363 slice 9e), moved from the
@@ -105,13 +103,6 @@ pub trait AuraHostLikeCpp: SpellbookHostLikeCpp {
     fn represented_mount_x_display_usable_like_cpp(&self, player_condition_id: u32) -> bool;
     fn update_player_collision_height_like_cpp(&mut self);
     fn next_represented_spell_cast_guid_like_cpp(&self, spell_id: i32) -> Option<ObjectGuid>;
-    fn canonical_threat_aura_snapshot_for_difficulty_like_cpp(
-        &self,
-        spell_id: i32,
-        difficulty: u8,
-        effect_mask: u32,
-        represented_effect_amounts: &[RepresentedAuraEffectAmountLikeCpp],
-    ) -> wow_entities::AuraThreatSnapshotLikeCpp;
     fn tick_represented_creature_auras_like_cpp(&mut self);
     fn represented_spell_area_quest_status_like_cpp(&self, quest_id: u32) -> Option<u8>;
     fn player_spell_runtime_snapshot_like_cpp(

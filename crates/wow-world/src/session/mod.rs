@@ -119,7 +119,6 @@ pub(crate) use auction_contracts::RepresentedAuctionReplicateRequestLikeCpp;
 #[cfg(test)]
 pub(crate) use auction_contracts::RepresentedAuctionSellItemLikeCpp;
 mod aura_effect_values;
-use aura_effect_values::CanonicalThreatAuraSnapshotLikeCpp;
 use aura_effect_values::unit_owned_apply_aura_effect_mask_like_cpp;
 mod battle_pet_adapter;
 #[cfg(test)]
@@ -575,10 +574,10 @@ use wow_constants::unit::{
 use wow_constants::{
     BuyResult, ClientOpcodes, InventoryResult, InventoryType, ItemClass, ItemContext, ItemFlags,
     ItemFlags2, ItemFlags3, ItemModifier, ItemQuality, ItemSpelltriggerType, ItemSubClassArmor,
-    ItemSubClassWeapon, UnitState,
+    ItemSubClassWeapon,
 };
 #[cfg(test)]
-use wow_constants::{SellResult, TypeId, item::ItemBonusType, movement::MovementFlag};
+use wow_constants::{SellResult, TypeId, UnitState, item::ItemBonusType, movement::MovementFlag};
 use wow_core::{
     EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator, Position,
     VoidStorageItemIdGeneratorLikeCpp, guid::HighGuid,

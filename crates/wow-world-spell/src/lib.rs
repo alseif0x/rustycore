@@ -56,14 +56,16 @@ pub use effect_session::{
     ApplyEffectSummonObjectWildSessionStatusLikeCpp, DAMAGE_FIRE_LIKE_CPP,
     apply_damage_with_generator_like_cpp, apply_effect_add_farsight_like_cpp,
     apply_effect_summon_object_wild_like_cpp, apply_heal, apply_heal_max_health_like_cpp,
-    implicit_target_conditions_like_cpp, represented_target_aura_state_mask_like_cpp,
-    represented_target_creature_type_mask_like_cpp, represented_target_mechanic_mask_like_cpp,
+    apply_spell_initial_threat_like_cpp, implicit_target_conditions_like_cpp,
+    represented_target_aura_state_mask_like_cpp, represented_target_creature_type_mask_like_cpp,
+    represented_target_mechanic_mask_like_cpp,
 };
 pub use effect_session::{
     SpellEffectHostLikeCpp, apply_block_effect_like_cpp, apply_parry_effect_like_cpp,
     canonical_threatened_by_me_owner_guids_like_cpp, current_map_dungeon_state_like_cpp,
-    current_map_is_dungeon_like_cpp, notify_other_players_visibility_changed_like_cpp,
-    player_current_map_instanceable_like_cpp, record_spell_execute_log_durability_damage_like_cpp,
+    current_map_is_dungeon_like_cpp, hydrate_canonical_threat_relevant_auras_like_cpp,
+    notify_other_players_visibility_changed_like_cpp, player_current_map_instanceable_like_cpp,
+    record_spell_execute_log_durability_damage_like_cpp,
     represented_disallowed_mount_form_like_cpp, represented_homebind_like_cpp,
     sync_represented_creature_threat_to_canonical_like_cpp,
 };

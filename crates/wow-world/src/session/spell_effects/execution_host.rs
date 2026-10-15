@@ -48,21 +48,6 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
             implicit_conditions,
         )
     }
-    fn apply_spell_initial_threat_like_cpp(
-        &mut self,
-        spell_id: i32,
-        caster_guid: ObjectGuid,
-        target_guid: ObjectGuid,
-        is_positive: bool,
-    ) {
-        WorldSession::apply_spell_initial_threat_like_cpp(
-            self,
-            spell_id,
-            caster_guid,
-            target_guid,
-            is_positive,
-        )
-    }
     fn apply_creature_aura_with_provenance_like_cpp(
         &mut self,
         spell_id: i32,
