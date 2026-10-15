@@ -9919,3 +9919,61 @@ Quest only.
 includes this section. Its manifest path, dirty flag and duration are in
 the PR body. This section is not edited after that run, so the PR head is
 the validated SHA.
+
+## Warning recipe (canonical from slice 6a; #1403 follow-up 1)
+
+Measured on `18cb95eff` (slice Q merged). From slice 6a on, every slice
+compares warnings with exactly these three commands, at base and at head,
+with `PROTOC` set and the per-worktree `CARGO_TARGET_DIR`:
+
+```sh
+cargo check -p wow-world --lib                          --jobs 1 --message-format json > lib.json
+cargo check -p wow-world --lib --features test-fixtures --jobs 1 --message-format json > fixtures.json
+cargo check -p wow-world --lib --tests                  --jobs 1 --message-format json > tests.json
+```
+
+- **What each build is.**
+  1. The production lib: `wow-world` and every `wow-world-*` crate without
+     `test-fixtures`.
+  2. The lib with `test-fixtures` and without `cfg(test)`: what dependents'
+     tests link. It **compiles at base** (exit 0, no error).
+  3. `--lib --tests`: the `test-fixtures` lib (dev-dependencies unify the
+     features), the lib unit-test build (`cfg(test)`) and the two
+     integration tests (`production_character_rename`,
+     `production_login_player_owner`).
+- **Counting.** Cargo emits a unit's messages before its
+  `compiler-artifact` line, so each warning is attributed to the unit
+  that follows it (with `--jobs 1` the units are sequential; cached units
+  replay their messages). A unit is the target name plus
+  `profile.test`. Count warnings by unit and lint code; compare head with
+  base by file, lint and message, with moved paths mapped.
+- **Base figures (`18cb95eff`):**
+
+| Build | `wow-world` lib | `wow-world` lib test | All `wow-world*` lib units | `wow-world` `dead_code` |
+|---|---:|---:|---:|---:|
+| production lib | 142 (137 `unused_imports`, 3 `unused_mut`, 2 `unused_variables`) | — | 265 | 0 |
+| lib + `test-fixtures` | 150 (145, 3, 2) | — | 230 | 0 |
+| `--lib --tests` | 150 (same set as above) | 197 (149 `unused_imports`, 24 `unused_mut`, 24 `unused_variables`) | 427 | 0 / 0 |
+
+  The integration-test units report no warning. No build reports
+  `unconditional_recursion`.
+- **Correction of earlier figures.** Slice Q reported that the
+  `test-fixtures` lib "already fails at base, with 87 `E0061` errors". The
+  canonical command above compiles at slice Q's merge, and `final`'s
+  `cargo check --workspace --all-targets` compiles the same configuration.
+  The 87 errors therefore came from a different, unrecorded invocation,
+  not from this build, and no feature forwarding needed fixing
+  (`wow-progression/test-fixtures` and
+  `wow-spell-acquisition/test-fixtures` come only from wow-world's
+  dev-dependencies; the `test-fixtures` lib does not need them). rustc runs
+  the `dead_code` lint only after type checking succeeds. So in any
+  earlier slice whose "lib + `test-fixtures`" build did not type-check,
+  the reported "`wow-world` `dead_code` 0" for that build was not
+  measured. Slice Q's 310 / 309 figures and the earlier slices' "lib with
+  `test-fixtures`" figures may not have covered `wow-world` itself. They
+  are not comparable with the table above. The table is the new
+  baseline: `dead_code` is 0 in all three builds at `18cb95eff`.
+- **Forbidden-edge fixture** (#1403 follow-up 2):
+  `fixtures/forbidden-loot-to-inventory.json`. `wow-world-loot` may not
+  depend on `wow-world-inventory`. The architecture self-test passes with
+  32 fixtures, and fails when the fixture's expectation is inverted.
