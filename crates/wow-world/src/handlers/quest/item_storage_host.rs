@@ -86,6 +86,6 @@ impl QuestItemStorageHostLikeCpp for WorldSession {
         entry_id: u32,
         count: u32,
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
-        WorldSession::plan_store_new_direct_inventory_item(self, entry_id, count)
+        wow_world_application::plan_store_new_direct_inventory_item(self, entry_id, count)
     }
 }

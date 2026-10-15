@@ -327,13 +327,13 @@
         },
         {
           "module": "crate::handlers::character::items::host",
-          "trait_path": null,
+          "trait_path": "ItemSessionHostLikeCpp",
           "cfg": [],
           "source_class": "production"
         },
         {
           "module": "crate::handlers::character::items::host",
-          "trait_path": "ItemSessionHostLikeCpp",
+          "trait_path": "wow_world_inventory :: PlayerItemsSessionHostLikeCpp",
           "cfg": [],
           "source_class": "production"
         },
@@ -851,6 +851,14 @@
         },
         {
           "module": "crate::handlers::player_cast_test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
+          "module": "crate::handlers::player_item_builders_test_shims",
           "trait_path": null,
           "cfg": [
             "cfg (test)"
@@ -4474,48 +4482,6 @@
         },
         {
           "module": "crate::handlers::character::items::host",
-          "trait_path": null,
-          "kind": "method",
-          "name": "execute_inventory_equip_to_empty_raw_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn execute_inventory_equip_to_empty_raw_like_cpp (& mut self , source_bag : u8 , source_slot : u8 , destination : u16 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::items::host",
-          "trait_path": null,
-          "kind": "method",
-          "name": "publish_inventory_position_changes_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn publish_inventory_position_changes_like_cpp (& mut self , positions : & [(u8 , u8)])",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::items::host",
-          "trait_path": null,
-          "kind": "method",
-          "name": "validate_inventory_swap_target_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn validate_inventory_swap_target_like_cpp (& self , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 , swap : bool , require_exact_destination : bool ,) -> Option < (InventoryResult , InventorySwapTargetLikeCpp) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::items::host",
           "trait_path": "ItemSessionHostLikeCpp",
           "kind": "method",
           "name": "apply_committed_inventory_item_relocation_like_cpp",
@@ -4773,6 +4739,20 @@
           "name": "validate_inventory_swap_target_like_cpp",
           "visibility": "private",
           "signature": "fn validate_inventory_swap_target_like_cpp (& self , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 , swap : bool , require_exact_destination : bool ,) -> Option < (InventoryResult , InventorySwapTargetLikeCpp) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::items::host",
+          "trait_path": "wow_world_inventory :: PlayerItemsSessionHostLikeCpp",
+          "kind": "method",
+          "name": "split_player_items_mut",
+          "visibility": "private",
+          "signature": "fn split_player_items_mut (& mut self ,) -> wow_world_inventory :: PlayerItemsSessionFieldsLikeCpp < '_ >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -14521,6 +14501,262 @@
           ]
         },
         {
+          "module": "crate::handlers::player_item_builders_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_committed_inventory_item_relocation_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_committed_inventory_item_relocation_like_cpp (& mut self , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 , moved_count : u32 ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_item_builders_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_committed_inventory_item_swap_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_committed_inventory_item_swap_like_cpp (& mut self , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_item_builders_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_inventory_item_remove_side_effects_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_inventory_item_remove_side_effects_like_cpp (& mut self , bag : u8 , slot : u8 , item_guid : ObjectGuid , cleared_mainhand_enchantments : & [EnchantmentSlot] ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_item_builders_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_inventory_item_store_side_effects_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_inventory_item_store_side_effects_like_cpp (& mut self , bag : u8 , slot : u8 , item_guid : ObjectGuid ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_item_builders_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "build_equipment_set_use_context_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn build_equipment_set_use_context_like_cpp (& mut self ,) -> wow_world_inventory :: EquipmentSetUseContextLikeCpp < '_ >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_item_builders_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "execute_inventory_equip_to_empty_raw_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn execute_inventory_equip_to_empty_raw_like_cpp (& mut self , source_bag : u8 , source_slot : u8 , destination : u16 ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_item_builders_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "plan_bank_existing_inventory_item_at_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn plan_bank_existing_inventory_item_at_like_cpp (& self , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 , swap : bool ,) -> Option < (InventoryResult , Vec < ItemPosCount >) >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_item_builders_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "plan_equip_existing_inventory_item_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn plan_equip_existing_inventory_item_like_cpp (& self , source_bag : u8 , source_slot : u8 , requested_slot : u8 , swap : bool ,) -> Option < (InventoryResult , u16) >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_item_builders_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "plan_store_existing_inventory_item_at_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn plan_store_existing_inventory_item_at_like_cpp (& self , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 , swap : bool ,) -> Option < (InventoryResult , Vec < ItemPosCount > , Option < u32 >) >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_item_builders_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "plan_store_new_direct_inventory_item",
+          "visibility": "pub (crate)",
+          "signature": "fn plan_store_new_direct_inventory_item (& self , entry_id : u32 , count : u32 ,) -> Option < (InventoryResult , Vec < ItemPosCount > , Option < u32 >) >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_item_builders_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "plan_store_new_direct_inventory_item_at",
+          "visibility": "pub (crate)",
+          "signature": "fn plan_store_new_direct_inventory_item_at (& self , entry_id : u32 , count : u32 , bag : u8 , slot : u8 ,) -> Option < (InventoryResult , Vec < ItemPosCount > , Option < u32 >) >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_item_builders_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "plan_store_new_direct_inventory_item_with_overlays_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn plan_store_new_direct_inventory_item_with_overlays_like_cpp (& self , entry_id : u32 , count : u32 , overlays : & [DirectInventoryStorageOverlayLikeCpp] , vacated_positions : & [(u8 , u8)] ,) -> Option < (InventoryResult , Vec < ItemPosCount > , Option < u32 >) >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_item_builders_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "publish_inventory_position_changes_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn publish_inventory_position_changes_like_cpp (& mut self , positions : & [(u8 , u8)])",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_item_builders_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "uncage_item_state_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn uncage_item_state_like_cpp (& self , player_db_guid : u64 , item_db_guid : u64 ,) -> wow_persistence :: PlayerUncageItemStateLoadOutcomeLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_item_builders_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "update_represented_item_level_area_based_scaling_with_publication_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn update_represented_item_level_area_based_scaling_with_publication_like_cpp (& mut self , publish : bool ,) -> Option < bool >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::player_item_builders_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "validate_inventory_swap_target_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn validate_inventory_swap_target_like_cpp (& self , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 , swap : bool , require_exact_destination : bool ,) -> Option < (InventoryResult , InventorySwapTargetLikeCpp) >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
           "module": "crate::handlers::player_items_test_shims",
           "trait_path": null,
           "kind": "method",
@@ -21891,45 +22127,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_committed_inventory_item_relocation_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_committed_inventory_item_relocation_like_cpp (& mut self , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 , moved_count : u32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_committed_inventory_item_removal_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_committed_inventory_item_removal_like_cpp (& mut self , source_bag : u8 , source_slot : u8 , item_guid : ObjectGuid ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_committed_inventory_item_swap_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_committed_inventory_item_swap_like_cpp (& mut self , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "apply_committed_new_inventory_item_at_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn apply_committed_new_inventory_item_at_like_cpp (& mut self , bag : u8 , slot : u8 , inventory_item : InventoryItem , item_object : Item ,) -> bool",
@@ -22175,32 +22372,6 @@
           "name": "apply_inventory_item_obtain_spells_with_generator_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn apply_inventory_item_obtain_spells_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , item_entry : u32 ,) -> Vec < i32 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_inventory_item_remove_side_effects_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_inventory_item_remove_side_effects_like_cpp (& mut self , bag : u8 , slot : u8 , item_guid : ObjectGuid , cleared_mainhand_enchantments : & [EnchantmentSlot] ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_inventory_item_store_side_effects_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_inventory_item_store_side_effects_like_cpp (& mut self , bag : u8 , slot : u8 , item_guid : ObjectGuid ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -23022,19 +23193,6 @@
           "name": "build_calendar_handler_cx_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn build_calendar_handler_cx_like_cpp (& mut self) -> CalendarHandlerCxLikeCpp < '_ >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_equipment_set_use_context_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_equipment_set_use_context_like_cpp (& mut self ,) -> wow_world_inventory :: EquipmentSetUseContextLikeCpp < '_ >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -25276,19 +25434,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "inventory_equip_cx_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn inventory_equip_cx_like_cpp (& mut self ,) -> wow_world_application :: InventoryEquipCxLikeCpp < '_ >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "inventory_item_objects_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn inventory_item_objects_like_cpp (& self) -> & HashMap < ObjectGuid , Item >",
@@ -25319,19 +25464,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "inventory_position_publication_cx_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn inventory_position_publication_cx_like_cpp (& mut self ,) -> wow_world_application :: InventoryPositionPublicationCxLikeCpp < '_ >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "inventory_remove_enchantment_persistence_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn inventory_remove_enchantment_persistence_like_cpp (& self , item_guid : ObjectGuid , clear_mainhand_only : bool ,) -> Option < (String , Vec < EnchantmentSlot >) >",
@@ -25340,17 +25472,6 @@
           "guards": [
             "visible"
           ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "inventory_swap_effects_cx_like_cpp",
-          "visibility": "private",
-          "signature": "fn inventory_swap_effects_cx_like_cpp (& mut self ,) -> wow_world_application :: InventorySwapEffectsCxLikeCpp < '_ >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
         },
         {
           "module": "crate::session",
@@ -27121,32 +27242,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "plan_bank_existing_inventory_item_at_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn plan_bank_existing_inventory_item_at_like_cpp (& self , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 , swap : bool ,) -> Option < (InventoryResult , Vec < ItemPosCount >) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "plan_equip_existing_inventory_item_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn plan_equip_existing_inventory_item_like_cpp (& self , source_bag : u8 , source_slot : u8 , requested_slot : u8 , swap : bool ,) -> Option < (InventoryResult , u16) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "plan_inventory_storage_move_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn plan_inventory_storage_move_like_cpp (& self , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 , target : InventoryStorageTargetLikeCpp ,) -> Option < Result < InventoryStorageMovePlanLikeCpp , InventoryResult > >",
@@ -27169,69 +27264,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "plan_store_direct_inventory_item_like_cpp",
-          "visibility": "private",
-          "signature": "fn plan_store_direct_inventory_item_like_cpp (& self , entry_id : u32 , count : u32 , bag : u8 , slot : u8 , source_item : Option < & Item > , swap : bool , overlays : & [DirectInventoryStorageOverlayLikeCpp] , vacated_positions : & [(u8 , u8)] ,) -> Option < (InventoryResult , Vec < ItemPosCount > , Option < u32 >) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "plan_store_existing_inventory_item_at_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn plan_store_existing_inventory_item_at_like_cpp (& self , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 , swap : bool ,) -> Option < (InventoryResult , Vec < ItemPosCount > , Option < u32 >) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "plan_store_new_direct_inventory_item",
-          "visibility": "pub (crate)",
-          "signature": "fn plan_store_new_direct_inventory_item (& self , entry_id : u32 , count : u32 ,) -> Option < (InventoryResult , Vec < ItemPosCount > , Option < u32 >) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "plan_store_new_direct_inventory_item_at",
-          "visibility": "pub (crate)",
-          "signature": "fn plan_store_new_direct_inventory_item_at (& self , entry_id : u32 , count : u32 , bag : u8 , slot : u8 ,) -> Option < (InventoryResult , Vec < ItemPosCount > , Option < u32 >) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "plan_store_new_direct_inventory_item_with_overlays_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn plan_store_new_direct_inventory_item_with_overlays_like_cpp (& self , entry_id : u32 , count : u32 , overlays : & [DirectInventoryStorageOverlayLikeCpp] , vacated_positions : & [(u8 , u8)] ,) -> Option < (InventoryResult , Vec < ItemPosCount > , Option < u32 >) >",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -40033,19 +40065,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "uncage_item_state_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn uncage_item_state_like_cpp (& self , player_db_guid : u64 , item_db_guid : u64 ,) -> wow_persistence :: PlayerUncageItemStateLoadOutcomeLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "under_map_damage_events_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn under_map_damage_events_like_cpp (& self) -> & [MovementUnderMapDamageEvent]",
@@ -40156,19 +40175,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "update_represented_item_level_area_based_scaling_with_publication_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn update_represented_item_level_area_based_scaling_with_publication_like_cpp (& mut self , publish : bool ,) -> Option < bool >",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]

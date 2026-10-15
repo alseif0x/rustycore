@@ -26,23 +26,6 @@ impl WorldSession {
                 );
         }
     }
-    /// C++ `Player::CanEquipItem` for a represented runtime item.
-    pub(crate) fn plan_equip_existing_inventory_item_like_cpp(
-        &self,
-        source_bag: u8,
-        source_slot: u8,
-        requested_slot: u8,
-        swap: bool,
-    ) -> Option<(InventoryResult, u16)> {
-        let conditions = self.player_condition_projection_cx_like_cpp();
-        wow_world_application::InventoryMovePlanningCxLikeCpp::new(&conditions)
-            .plan_equip_existing_inventory_item_like_cpp(
-                source_bag,
-                source_slot,
-                requested_slot,
-                swap,
-            )
-    }
 }
 
 #[cfg(test)]

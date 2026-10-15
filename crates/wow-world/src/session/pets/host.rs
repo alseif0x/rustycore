@@ -42,7 +42,7 @@ impl wow_world_inventory::BattlePetSessionHostLikeCpp for WorldSession {
         player_db_guid: u64,
         item_db_guid: u64,
     ) -> impl Future<Output = wow_persistence::PlayerUncageItemStateLoadOutcomeLikeCpp> + Send {
-        WorldSession::uncage_item_state_like_cpp(self, player_db_guid, item_db_guid)
+        wow_world_inventory::uncage_item_state_like_cpp(self, player_db_guid, item_db_guid)
     }
     fn destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp(
         &mut self,

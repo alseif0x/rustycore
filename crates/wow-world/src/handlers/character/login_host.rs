@@ -372,7 +372,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         &mut self,
         publish: bool,
     ) -> Option<bool> {
-        WorldSession::update_represented_item_level_area_based_scaling_with_publication_like_cpp(
+        wow_world_inventory::update_represented_item_level_area_based_scaling_with_publication_like_cpp(
             self, publish,
         )
     }

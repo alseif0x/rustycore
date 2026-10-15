@@ -33,5 +33,5 @@
     ]
   },
   "staying_bound": {"methods": 43, "lines": 1282},
-  "outside_ceiling": {"methods": 270, "lines": 7320}
+  "outside_ceiling": {"methods": 261, "lines": 6857}
 }

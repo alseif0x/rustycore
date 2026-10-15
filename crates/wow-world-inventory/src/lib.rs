@@ -109,7 +109,7 @@ pub use battle_pet_session::{
     battle_pet_species_entry_like_cpp, battle_pet_species_has_flag_like_cpp,
     battle_pet_try_acquire_journal_lease_like_cpp, battle_pet_try_add_pet_durable_like_cpp,
     battle_pet_xp_per_level_like_cpp, destroy_uncaged_battle_pet_item_durable_like_cpp,
-    record_battle_pet_trainer_purchase_criteria_like_cpp,
+    record_battle_pet_trainer_purchase_criteria_like_cpp, uncage_item_state_like_cpp,
 };
 pub use collections_handlers::{
     CollectionsHandlerCxLikeCpp, CollectionsHandlerHostLikeCpp,

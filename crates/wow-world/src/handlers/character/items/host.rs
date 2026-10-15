@@ -3,13 +3,13 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Inventory operations kept in the World (the swap-target validation, the raw
-//! equip and the position publication, which run application participants;
-//! moved verbatim from the former `items/inventory_moves{,/item_mutations}.rs`),
-//! and the World adapter for the item handler bodies moved to
+//! The World adapter for the item handler bodies moved to
 //! `wow_world_inventory::item_session` (#1363 slice 8c). Every adapter method is
 //! a pure forward to the same-named inherent `WorldSession` method or
-//! application operation.
+//! application operation; the swap-target validation, the raw equip and the
+//! position publication moved to `wow_world_application::player_items_session`
+//! (#1363 slice 12b1b). Also the session's field split for the inventory
+//! player-item builders (`PlayerItemsSessionHostLikeCpp`, slice 12b1b).
 
 use super::*;
 
@@ -19,45 +19,6 @@ use wow_constants::EnchantmentSlot;
 use wow_entities::{InventoryStorageMovePlanLikeCpp, ItemPosCount, PlayerQuestStatusRecord};
 use wow_world_application::InventoryStorageMoveHostLikeCpp;
 use wow_world_inventory::ItemSessionHostLikeCpp;
-
-impl WorldSession {
-    pub(crate) fn validate_inventory_swap_target_like_cpp(
-        &self,
-        source_bag: u8,
-        source_slot: u8,
-        destination_bag: u8,
-        destination_slot: u8,
-        swap: bool,
-        require_exact_destination: bool,
-    ) -> Option<(InventoryResult, InventorySwapTargetLikeCpp)> {
-        let conditions = self.player_condition_projection_cx_like_cpp();
-        wow_world_application::InventoryMovePlanningCxLikeCpp::new(&conditions)
-            .validate_inventory_swap_target_like_cpp(
-                source_bag,
-                source_slot,
-                destination_bag,
-                destination_slot,
-                swap,
-                require_exact_destination,
-            )
-    }
-
-    pub(crate) async fn execute_inventory_equip_to_empty_raw_like_cpp(
-        &mut self,
-        source_bag: u8,
-        source_slot: u8,
-        destination: u16,
-    ) {
-        self.inventory_equip_cx_like_cpp()
-            .execute_inventory_equip_to_empty_raw_like_cpp(source_bag, source_slot, destination)
-            .await;
-    }
-
-    pub(crate) fn publish_inventory_position_changes_like_cpp(&mut self, positions: &[(u8, u8)]) {
-        self.inventory_position_publication_cx_like_cpp()
-            .publish_inventory_position_changes_like_cpp(positions);
-    }
-}
 
 impl ItemSessionHostLikeCpp for WorldSession {
     fn storage_move_plan_like_cpp(
@@ -111,7 +72,7 @@ impl ItemSessionHostLikeCpp for WorldSession {
         swap: bool,
         require_exact_destination: bool,
     ) -> Option<(InventoryResult, InventorySwapTargetLikeCpp)> {
-        WorldSession::validate_inventory_swap_target_like_cpp(
+        wow_world_application::validate_inventory_swap_target_like_cpp(
             self,
             source_bag,
             source_slot,
@@ -128,7 +89,7 @@ impl ItemSessionHostLikeCpp for WorldSession {
         requested_slot: u8,
         swap: bool,
     ) -> Option<(InventoryResult, u16)> {
-        WorldSession::plan_equip_existing_inventory_item_like_cpp(
+        wow_world_application::plan_equip_existing_inventory_item_like_cpp(
             self,
             source_bag,
             source_slot,
@@ -144,7 +105,7 @@ impl ItemSessionHostLikeCpp for WorldSession {
         destination_slot: u8,
         swap: bool,
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
-        WorldSession::plan_store_existing_inventory_item_at_like_cpp(
+        wow_world_application::plan_store_existing_inventory_item_at_like_cpp(
             self,
             source_bag,
             source_slot,
@@ -161,7 +122,7 @@ impl ItemSessionHostLikeCpp for WorldSession {
         destination_slot: u8,
         swap: bool,
     ) -> Option<(InventoryResult, Vec<ItemPosCount>)> {
-        WorldSession::plan_bank_existing_inventory_item_at_like_cpp(
+        wow_world_application::plan_bank_existing_inventory_item_at_like_cpp(
             self,
             source_bag,
             source_slot,
@@ -176,7 +137,7 @@ impl ItemSessionHostLikeCpp for WorldSession {
         source_slot: u8,
         destination: u16,
     ) -> impl Future<Output = ()> + Send {
-        WorldSession::execute_inventory_equip_to_empty_raw_like_cpp(
+        wow_world_application::execute_inventory_equip_to_empty_raw_like_cpp(
             self,
             source_bag,
             source_slot,
@@ -191,7 +152,7 @@ impl ItemSessionHostLikeCpp for WorldSession {
         destination_slot: u8,
         moved_count: u32,
     ) -> bool {
-        WorldSession::apply_committed_inventory_item_relocation_like_cpp(
+        wow_world_application::apply_committed_inventory_item_relocation_like_cpp(
             self,
             source_bag,
             source_slot,
@@ -206,7 +167,7 @@ impl ItemSessionHostLikeCpp for WorldSession {
         source_slot: u8,
         item_guid: ObjectGuid,
     ) -> bool {
-        WorldSession::apply_committed_inventory_item_removal_like_cpp(
+        wow_world_application::apply_committed_inventory_item_removal_like_cpp(
             self,
             source_bag,
             source_slot,
@@ -220,7 +181,7 @@ impl ItemSessionHostLikeCpp for WorldSession {
         destination_bag: u8,
         destination_slot: u8,
     ) -> bool {
-        WorldSession::apply_committed_inventory_item_swap_like_cpp(
+        wow_world_application::apply_committed_inventory_item_swap_like_cpp(
             self,
             source_bag,
             source_slot,
@@ -235,7 +196,7 @@ impl ItemSessionHostLikeCpp for WorldSession {
         item_guid: ObjectGuid,
         cleared_mainhand_enchantments: &[EnchantmentSlot],
     ) -> bool {
-        WorldSession::apply_inventory_item_remove_side_effects_like_cpp(
+        wow_world_application::apply_inventory_item_remove_side_effects_like_cpp(
             self,
             bag,
             slot,
@@ -249,7 +210,9 @@ impl ItemSessionHostLikeCpp for WorldSession {
         slot: u8,
         item_guid: ObjectGuid,
     ) -> bool {
-        WorldSession::apply_inventory_item_store_side_effects_like_cpp(self, bag, slot, item_guid)
+        wow_world_application::apply_inventory_item_store_side_effects_like_cpp(
+            self, bag, slot, item_guid,
+        )
     }
     fn apply_quest_item_removed_like_cpp(&mut self, entry_id: u32) -> Option<Vec<u32>> {
         wow_world_quest::apply_quest_item_removed_like_cpp(self, entry_id)
@@ -268,7 +231,7 @@ impl ItemSessionHostLikeCpp for WorldSession {
         )
     }
     fn publish_inventory_position_changes_like_cpp(&mut self, positions: &[(u8, u8)]) {
-        WorldSession::publish_inventory_position_changes_like_cpp(self, positions)
+        wow_world_application::publish_inventory_position_changes_like_cpp(self, positions)
     }
     fn represented_bag_contains_active_item_loot_like_cpp(&self, bag_guid: ObjectGuid) -> bool {
         WorldSession::represented_bag_contains_active_item_loot_like_cpp(self, bag_guid)
@@ -284,5 +247,27 @@ impl ItemSessionHostLikeCpp for WorldSession {
     }
     fn record_represented_avg_equipped_item_level_update_like_cpp(&mut self) {
         WorldSession::record_represented_avg_equipped_item_level_update_like_cpp(self)
+    }
+}
+
+impl wow_world_inventory::PlayerItemsSessionHostLikeCpp for WorldSession {
+    fn split_player_items_mut(
+        &mut self,
+    ) -> wow_world_inventory::PlayerItemsSessionFieldsLikeCpp<'_> {
+        wow_world_inventory::PlayerItemsSessionFieldsLikeCpp {
+            hub: wow_world_core::session::HubMut {
+                core: &mut self.core,
+                catalogs: &self.catalogs,
+                config: &self.config,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                fixtures: &mut self.fixtures,
+            },
+            inventory: &mut self.inventory,
+            loot: &self.loot,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            spell_state: &self.spell_state,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            quest_state: &self.quest_state,
+        }
     }
 }

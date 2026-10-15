@@ -108,7 +108,7 @@ impl LootSessionHostLikeCpp for WorldSession {
         entry_id: u32,
         count: u32,
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
-        self.plan_store_new_direct_inventory_item(entry_id, count)
+        wow_world_application::plan_store_new_direct_inventory_item(self, entry_id, count)
     }
     fn player_quest_gameplay_snapshot_like_cpp(
         &self,

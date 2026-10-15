@@ -27,6 +27,7 @@ use wow_world_lifecycle::SessionLifecycleState;
 use crate::InventoryState;
 
 mod durable;
+mod item_state;
 mod journal;
 mod uncage;
 
@@ -34,6 +35,7 @@ pub use durable::{
     battle_pet_grant_experience_durable_like_cpp, battle_pet_grant_level_durable_like_cpp,
     battle_pet_try_add_pet_durable_like_cpp,
 };
+pub use item_state::uncage_item_state_like_cpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use journal::battle_pet_count_like_cpp;
 pub use journal::{
