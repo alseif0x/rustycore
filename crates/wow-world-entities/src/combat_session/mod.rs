@@ -10,9 +10,10 @@
 //! `Unit::CalcAbsorbResist` and `Unit::SetPower` run on the Player. Their Rust
 //! bodies now live in this crate; each host method below is the same-named
 //! `WorldSession` operation, called at the exact point the body called it
-//! before the move. The melee health presentation, the death durability loss,
-//! the resting and polymorph reads, the realm flag and the visible-set fanout
-//! stay with the host. The former `#[cfg(test)]` fixture steps run through
+//! before the move. The death durability loss, the resting and polymorph reads,
+//! the realm flag, the visible-set fanout and the melee health presentation's
+//! high-water mark stay with the host; the presentation itself moved here in
+//! #1363 slice 10b. The former `#[cfg(test)]` fixture steps run through
 //! `SessionHubHostLikeCpp::test_fixtures_like_cpp`.
 
 use crate::movement_host::PlayerMovementHostLikeCpp;
@@ -42,10 +43,9 @@ pub use regeneration::tick_player_regeneration_like_cpp;
 
 pub trait CombatSessionHostLikeCpp: WorldEntitiesHostLikeCpp + PlayerMovementHostLikeCpp {
     fn broadcast_player_packet_to_visible_set_realm_like_cpp(&self, bytes: Vec<u8>);
-    fn present_committed_creature_melee_health_like_cpp(
-        &mut self,
-        committed_revision: u64,
-    ) -> Option<u64>;
+    /// The World `view.last_presented_creature_melee_health_state_revision_like_cpp`
+    /// field: the melee health presentation high-water mark.
+    fn last_presented_creature_melee_health_state_revision_like_cpp(&mut self) -> &mut u64;
     fn publish_creature_melee_death_durability_loss_like_cpp(&mut self, over_damage: i32);
     fn resolved_visible_resting_like_cpp(&self) -> Option<bool>;
     fn represented_player_is_polymorphed_like_cpp(&self) -> Option<bool>;
