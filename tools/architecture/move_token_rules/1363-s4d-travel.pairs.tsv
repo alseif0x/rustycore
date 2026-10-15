@@ -1,0 +1,4 @@
+# base_path name head_path (#1363 slice 4d travel, base dc17fe39b)
+crates/wow-world/src/handlers/travel/travel.rs	handle_area_trigger_with_catalogs_like_cpp	crates/wow-world-instances/src/instance_session/area_trigger_opcode.rs
+crates/wow-world/src/handlers/travel/travel.rs	area_trigger_client_conditions_meet_like_cpp	crates/wow-world-instances/src/instance_session/area_trigger_opcode.rs
+crates/wow-world/src/handlers/travel/travel.rs	handle_activate_taxi	crates/wow-world-entities/src/activate_taxi_session.rs

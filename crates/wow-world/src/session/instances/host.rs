@@ -8,20 +8,9 @@
 use std::sync::Arc;
 
 use wow_world_core::session::{HubMut, HubRef};
-use wow_world_instances::{
-    AreaTriggerCatalogAccessLikeCpp, InstanceSessionHostLikeCpp, InstanceState,
-};
+use wow_world_instances::{InstanceSessionHostLikeCpp, InstanceState};
 
 use super::*;
-
-impl AreaTriggerCatalogAccessLikeCpp for AreaTriggerCatalogsLikeCpp {
-    fn destinations(&self) -> &Arc<AreaTriggerStore> {
-        &self.destinations
-    }
-    fn taverns(&self) -> &Arc<TavernAreaTriggerStoreLikeCpp> {
-        &self.taverns
-    }
-}
 
 impl InstanceSessionHostLikeCpp for WorldSession {
     fn split_instances_ref(&self) -> (&InstanceState, HubRef<'_>) {

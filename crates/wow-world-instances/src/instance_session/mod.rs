@@ -29,6 +29,7 @@ use wow_world_spell::AuraHostLikeCpp;
 use crate::InstanceState;
 
 mod admission;
+mod area_trigger_opcode;
 mod area_triggers;
 mod create_map;
 mod exploration;
@@ -40,6 +41,7 @@ pub use admission::{
     create_map_active_instance_lock_context_like_cpp, create_map_instance_owner_guid_like_cpp,
     create_map_player_context_like_cpp, player_cannot_enter_target_map_like_cpp,
 };
+pub use area_trigger_opcode::{AreaTriggerHostLikeCpp, handle_area_trigger_with_catalogs_like_cpp};
 pub use area_triggers::{
     check_area_triggers_with_catalogs_like_cpp,
     handle_represented_tavern_area_trigger_with_catalog_like_cpp,
@@ -81,11 +83,14 @@ pub const TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP: u32 = 4;
 pub const TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP: u32 = 6;
 pub const TRANSFER_ABORT_NEED_GROUP_LIKE_CPP: u32 = 11;
 
-/// The two process-owned area-trigger catalogs the area-trigger transition
+/// The process-owned area-trigger catalogs the area-trigger transition
 /// reads (the World `AreaTriggerCatalogsLikeCpp` fields of the same names).
 pub trait AreaTriggerCatalogAccessLikeCpp: Sync {
     fn destinations(&self) -> &Arc<AreaTriggerStore>;
     fn taverns(&self) -> &Arc<TavernAreaTriggerStoreLikeCpp>;
+    /// The `db2` and `scripts` fields the area-trigger opcode reads (#1363 slice 4d).
+    fn db2(&self) -> &Arc<wow_data::AreaTriggerDb2Store>;
+    fn scripts(&self) -> &Arc<wow_data::AreaTriggerScriptStoreLikeCpp>;
 }
 
 /// The World operations the moved world-state and instance-admission bodies

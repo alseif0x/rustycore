@@ -35,6 +35,7 @@ pub mod support;
 pub mod talent;
 pub mod trainer;
 pub mod travel;
+mod travel_host;
 pub mod vehicle;
 pub mod void_storage;
 
@@ -89,6 +90,8 @@ mod test_shims;
 #[cfg(test)]
 #[path = "../../unit_tests/handlers/test_support/mod.rs"]
 mod test_support;
+#[cfg(test)]
+mod travel_test_shims;
 #[cfg(test)]
 mod vendor_test_shims;
 #[cfg(test)]
