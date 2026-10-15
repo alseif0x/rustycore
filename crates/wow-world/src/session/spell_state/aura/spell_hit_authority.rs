@@ -58,7 +58,10 @@ impl WorldSession {
                 .represented_auto_push_quest_aura_source_is_empty_like_cpp()
             || !crate::session::hub_ref(self)
                 .represented_character_pet_aura_source_is_empty_like_cpp()
-            || !self.represented_quest_login_aura_sources_are_hit_inert_like_cpp(difficulty_id)
+            || !wow_world_quest::represented_quest_login_aura_sources_are_hit_inert_like_cpp(
+                self,
+                difficulty_id,
+            )
             || !wow_world_spell::represented_spell_area_autocast_source_is_empty_like_cpp(self)
             || !self.represented_war_mode_update_zone_aura_source_is_empty_like_cpp()
             || !self.represented_update_area_pvp_rule_aura_source_is_empty_like_cpp()

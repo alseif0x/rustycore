@@ -227,7 +227,7 @@ pub fn use_represented_creature_questgiver_like_cpp<H: QuestSessionHostLikeCpp>(
                     host.hub_ref().player_class_like_cpp(),
                     host.hub_ref().player_level_like_cpp(),
                 ),
-                host.can_take_quest(quest),
+                can_take_quest(host, quest),
                 quests
                     .statuses_like_cpp()
                     .get(&quest.id)
@@ -412,7 +412,7 @@ pub(crate) fn represented_starter_quest_menu_item_like_cpp<H: QuestSessionHostLi
     host: &H,
     quest: &wow_data::quest::QuestTemplate,
 ) -> Option<RepresentedPreparedQuestMenuItemLikeCpp> {
-    if !host.can_take_quest(quest) {
+    if !can_take_quest(host, quest) {
         return None;
     }
 
@@ -457,7 +457,7 @@ pub(crate) fn quest_list_entry_from_menu_item_like_cpp<H: QuestSessionHostLikeCp
             && quest.is_repeatable()
             && !quest.is_daily_or_weekly_like_cpp()
             && !quest.is_monthly_like_cpp(),
-        important: host.represented_quest_is_important_like_cpp(quest),
+        important: represented_quest_is_important_like_cpp(host, quest),
         title: quest.log_title.clone(),
     }
 }

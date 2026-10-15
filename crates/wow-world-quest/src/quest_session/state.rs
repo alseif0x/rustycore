@@ -8,6 +8,9 @@
 
 use super::*;
 
+pub const QUEST_FLAGS_PLAYER_CAST_ACCEPT_LIKE_CPP: u32 = 0x0010_0000;
+pub const QUEST_FLAGS_EX_RECAST_ACCEPT_SPELL_ON_LOGIN_LIKE_CPP: u32 = 0x0000_1000;
+
 pub fn remove_represented_active_rewarded_duplicates_like_cpp<H: QuestSessionHostLikeCpp>(
     host: &mut H,
 ) -> Vec<u32> {
@@ -188,4 +191,89 @@ pub(crate) fn player_quest_level_like_cpp<H: QuestSessionHostLikeCpp>(
         hub.player_level_like_cpp()
     };
     state.player_quest_level_like_cpp(player_level, quest)
+}
+
+pub async fn complete_represented_quest_after_add_with_generator_like_cpp<
+    H: QuestSessionHostLikeCpp,
+>(
+    host: &mut H,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    quest: &wow_data::quest::QuestTemplate,
+) -> bool {
+    host.complete_represented_quest_after_objective_with_generator_like_cpp(
+        item_guid_generator,
+        quest,
+        0,
+    )
+    .await
+}
+
+pub async fn add_quest_confirm_accept_local_state_like_cpp<H: QuestSessionHostLikeCpp>(
+    host: &mut H,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    quest: &wow_data::quest::QuestTemplate,
+) -> bool {
+    let Some(slot) = crate::first_free_quest_slot_like_cpp(host) else {
+        return false;
+    };
+
+    let (accept_time_secs, end_time_secs) =
+        quest.accepted_and_end_time_like_cpp(wow_core::GameTime::now().as_secs() as i64);
+
+    host.invalidate_player_quest_status_authority_like_cpp();
+    let status = PlayerQuestStatus {
+        quest_id: quest.id,
+        status: QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+        explored: false,
+        accept_time_secs,
+        end_time_secs,
+        objective_counts: vec![0; quest.objectives.len()],
+        slot,
+    };
+    if crate::insert_represented_quest_status_like_cpp(host, quest.id, status) == false {
+        return false;
+    }
+    complete_represented_quest_after_add_with_generator_like_cpp(host, item_guid_generator, quest)
+        .await;
+    crate::save_represented_quest_status_like_cpp(host, quest.id).await;
+    host.sync_player_registry_state_like_cpp();
+    true
+}
+
+pub fn represented_quest_login_aura_sources_are_hit_inert_like_cpp<H: QuestSessionHostLikeCpp>(
+    host: &H,
+    difficulty_id: u8,
+) -> bool {
+    let Some(state) = host.player_quest_gameplay_snapshot_like_cpp() else {
+        return false;
+    };
+    if !state.status_authority_complete_like_cpp() {
+        return false;
+    }
+    let Some(quests) = host.hub_ref().catalogs.quests.store.as_ref() else {
+        return state.rewarded_quest_rows_like_cpp().is_empty()
+            && state.statuses_like_cpp().is_empty();
+    };
+
+    // C++ `_LoadQuestStatusRewarded` calls `LearnQuestRewardedSpells`
+    // before filtering special quests out of `m_RewardedQuests`. Keep the
+    // narrow TESTBOT proof to rows whose static reward spell is absent.
+    if state.rewarded_quest_rows_like_cpp().iter().any(|quest_id| {
+        quests
+            .get(*quest_id)
+            .is_none_or(|quest| quest.reward_spell != 0)
+    }) {
+        return false;
+    }
+
+    state.statuses_like_cpp().values().all(|status| {
+        let Some(quest) = quests.get(status.quest_id) else {
+            return false;
+        };
+        let recasts_accept_spell = quest.flags & QUEST_FLAGS_PLAYER_CAST_ACCEPT_LIKE_CPP != 0
+            && quest.flags_ex & QUEST_FLAGS_EX_RECAST_ACCEPT_SPELL_ON_LOGIN_LIKE_CPP != 0
+            && quest.source_spell_id != 0;
+        !recasts_accept_spell
+            || host.player_target_spell_is_hit_inert_like_cpp(quest.source_spell_id, difficulty_id)
+    })
 }

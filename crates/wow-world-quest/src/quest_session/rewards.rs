@@ -254,7 +254,7 @@ pub fn can_complete_repeatable_quest_represented_bounded_like_cpp<H: QuestSessio
     // The full CanRewardQuest blocker set includes disable checks, quest status, day/week/month/
     // seasonal gates, level/skill/reputation, reward status, item/currency/money checks, etc.
     // This bounded #611 seam must not overclaim completion while those blockers remain open.
-    if !host.can_take_quest(quest) {
+    if !can_take_quest(host, quest) {
         return false;
     }
 

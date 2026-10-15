@@ -18,7 +18,7 @@ expressions applied in order to the base body; a rule containing `{name}` is
 expanded once per moved name (the name is regex-escaped in the pattern).
 Rules apply only to code, never inside string literals or comments.
 Tokens keep comments (whitespace-normalised) and string literals verbatim,
-and a trailing comma before a closing delimiter is dropped (rustfmt). The
+and a trailing comma before a closing delimiter or `>` is dropped (rustfmt). The
 output lists the functions that are identical and, for the others, the token
 difference, so every remaining change can be reviewed by name. It exits 1 if
 a function cannot be found.
@@ -43,7 +43,7 @@ def tokens(text):
     for match in TOKEN.finditer(text):
         tok = match.group(0)
         out.append(" ".join(tok.split()) if tok.startswith(("//", "/*")) else tok)
-    return [t for i, t in enumerate(out) if not (t == "," and i + 1 < len(out) and out[i + 1] in ")]}")]
+    return [t for i, t in enumerate(out) if not (t == "," and i + 1 < len(out) and out[i + 1] in ")]}>")]
 
 
 def extract(src, name):

@@ -38,8 +38,11 @@ impl WorldSession {
             );
             return;
         };
-        let status =
-            self.get_represented_quest_giver_status_with_catalog_like_cpp(Some(quest_info), source);
+        let status = wow_world_quest::get_represented_quest_giver_status_with_catalog_like_cpp(
+            self,
+            Some(quest_info),
+            source,
+        );
 
         debug!(
             account = self.core.account_id,

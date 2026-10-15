@@ -39,9 +39,6 @@ impl WorldSession {
     pub(crate) fn item_template_flags2(&self, item_id: u32) -> Option<u32> {
         self.catalogs.item_template_flags2(item_id)
     }
-    pub(crate) fn item_template_flags3(&self, item_id: u32) -> Option<u32> {
-        self.catalogs.item_template_flags3(item_id)
-    }
     pub(crate) fn item_template_lock_id(&self, item_id: u32) -> Option<u16> {
         self.catalogs.item_template_lock_id(item_id)
     }

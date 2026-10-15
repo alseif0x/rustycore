@@ -66,7 +66,7 @@ impl WorldSession {
             return;
         };
 
-        if !self.can_take_quest(quest) {
+        if !wow_world_quest::can_take_quest(self, quest) {
             return;
         }
 

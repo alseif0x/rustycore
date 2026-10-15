@@ -70,7 +70,7 @@ impl QuestGiverCompleteQuestHostLikeCpp for WorldSession {
         &self,
         quest: &QuestTemplate,
     ) -> bool {
-        WorldSession::can_see_start_quest_represented_bounded_like_cpp(self, quest)
+        wow_world_quest::can_see_start_quest_represented_bounded_like_cpp(self, quest)
     }
 
     fn complete_quest_can_reward_quest_represented_bounded_like_cpp(

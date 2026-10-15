@@ -8,4 +8,3 @@
 use super::*;
 
 mod controller;
-mod validation;

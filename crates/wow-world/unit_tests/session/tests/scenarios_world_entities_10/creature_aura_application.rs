@@ -6,8 +6,6 @@ use super::*;
 /// expires when its represented duration elapses.
 #[tokio::test]
 async fn spell_apply_aura_on_creature_target_lands_on_the_creature_like_cpp() {
-    use wow_packet::ServerPacket;
-
     let (mut session, _, send_rx) = make_session();
     let spell_id = 795_i32;
     let player_guid = ObjectGuid::create_player(1, 795);

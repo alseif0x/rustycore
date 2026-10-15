@@ -104,13 +104,11 @@ pub(crate) use wow_world_lifecycle::login_transport::{
 // application crate's explicit area registrar under #1263 F5, so this module no
 // longer needs the entry type in scope.
 use wow_packet::packets::auth::{ConnectTo, ConnectToAddress, ConnectToKey, ConnectToSerial};
-use wow_packet::packets::misc::*;
-use wow_packet::packets::quest::QuestGiverStatusMultiple;
 use wow_packet::packets::spell::{SpellCastVisual, SpellTargetData};
+use wow_packet::packets::{gossip::*, misc::*, quest::QuestGiverStatusMultiple};
 // Explicit provenance for child modules that reach these names through `super::{}`:
 // a glob import leaves the ownership checker without a defining source.
 use wow_packet::WorldPacket;
-use wow_packet::packets::misc::BindPointUpdate;
 
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
 use crate::session::{
@@ -234,7 +232,6 @@ fn initial_character_rest_state_like_cpp(is_a_recruiter: bool, recruiter_id: u32
     wow_world_character::initial_character_rest_state_like_cpp(is_a_recruiter, recruiter_id)
 }
 
-use wow_packet::packets::gossip::*;
 #[cfg(test)]
 use wow_packet::packets::query::*;
 

@@ -46,44 +46,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_quest_state_mut(self);
         wow_world_quest::mutate_player_quest_gameplay_like_cpp(hub, state, mutate)
     }
-    pub(in crate::session) fn represented_quest_login_aura_sources_are_hit_inert_like_cpp(
-        &self,
-        difficulty_id: u8,
-    ) -> bool {
-        let Some(state) = self.player_quest_gameplay_snapshot_like_cpp() else {
-            return false;
-        };
-        if !state.status_authority_complete_like_cpp() {
-            return false;
-        }
-        let Some(quests) = self.catalogs.quests.store.as_ref() else {
-            return state.rewarded_quest_rows_like_cpp().is_empty()
-                && state.statuses_like_cpp().is_empty();
-        };
-
-        // C++ `_LoadQuestStatusRewarded` calls `LearnQuestRewardedSpells`
-        // before filtering special quests out of `m_RewardedQuests`. Keep the
-        // narrow TESTBOT proof to rows whose static reward spell is absent.
-        if state.rewarded_quest_rows_like_cpp().iter().any(|quest_id| {
-            quests
-                .get(*quest_id)
-                .is_none_or(|quest| quest.reward_spell != 0)
-        }) {
-            return false;
-        }
-
-        state.statuses_like_cpp().values().all(|status| {
-            let Some(quest) = quests.get(status.quest_id) else {
-                return false;
-            };
-            let recasts_accept_spell = quest.flags & QUEST_FLAGS_PLAYER_CAST_ACCEPT_LIKE_CPP != 0
-                && quest.flags_ex & QUEST_FLAGS_EX_RECAST_ACCEPT_SPELL_ON_LOGIN_LIKE_CPP != 0
-                && quest.source_spell_id != 0;
-            !recasts_accept_spell
-                || self
-                    .player_target_spell_is_hit_inert_like_cpp(quest.source_spell_id, difficulty_id)
-        })
-    }
     /// Set the quest store shared reference.
     pub fn set_quest_store(&mut self, store: Arc<wow_data::quest::QuestStore>) {
         self.core

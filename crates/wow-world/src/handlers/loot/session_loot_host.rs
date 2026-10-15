@@ -156,7 +156,8 @@ impl LootSessionHostLikeCpp for WorldSession {
         quest_log_item_id: u32,
         count: u32,
     ) -> impl Future<Output = Vec<u32>> + Send {
-        self.apply_quest_source_item_added_non_bound_objective_progress_with_generator_like_cpp(
+        wow_world_quest::apply_quest_source_item_added_non_bound_objective_progress_with_generator_like_cpp(
+            self,
             item_guid_generator,
             entry_id,
             quest_log_item_id,
@@ -170,7 +171,8 @@ impl LootSessionHostLikeCpp for WorldSession {
         quest_log_item_id: u32,
         count: u32,
     ) -> impl Future<Output = Option<QuestSourceItemBoundPreflightLikeCpp>> + Send {
-        self.apply_quest_source_item_bound_objective_preflight_with_generator_like_cpp(
+        wow_world_quest::apply_quest_source_item_bound_objective_preflight_with_generator_like_cpp(
+            self,
             item_guid_generator,
             entry_id,
             quest_log_item_id,

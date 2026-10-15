@@ -252,7 +252,7 @@ impl ItemSessionHostLikeCpp for WorldSession {
         WorldSession::apply_inventory_item_store_side_effects_like_cpp(self, bag, slot, item_guid)
     }
     fn apply_quest_item_removed_like_cpp(&mut self, entry_id: u32) -> Option<Vec<u32>> {
-        WorldSession::apply_quest_item_removed_like_cpp(self, entry_id)
+        wow_world_quest::apply_quest_item_removed_like_cpp(self, entry_id)
     }
     fn plan_item_transfer_quest_persistence_like_cpp(
         &self,

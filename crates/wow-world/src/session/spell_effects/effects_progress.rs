@@ -220,7 +220,8 @@ impl WorldSession {
             if should_send_event_complete {
                 self.send_packet(&wow_packet::packets::quest::QuestUpdateComplete { quest_id });
             }
-            self.complete_represented_quest_after_add_with_generator_like_cpp(
+            wow_world_quest::complete_represented_quest_after_add_with_generator_like_cpp(
+                self,
                 item_guid_generator,
                 &quest,
             )
