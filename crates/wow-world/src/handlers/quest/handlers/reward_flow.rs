@@ -103,7 +103,8 @@ impl WorldSession {
                 &quest,
             )
             .await;
-            self.save_represented_quest_statuses_completed_after_like_cpp(
+            wow_world_quest::save_represented_quest_statuses_completed_after_like_cpp(
+                self,
                 completion_evidence_start,
             )
             .await;

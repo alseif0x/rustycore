@@ -99,7 +99,8 @@ impl WorldSession {
                 .await;
             }
             SessionCommand::ResetSeasonalQuestStatus(command) => {
-                let _ = self.reset_seasonal_quest_status_like_cpp(
+                let _ = wow_world_quest::reset_seasonal_quest_status_like_cpp(
+                    self,
                     command.event_id,
                     command.event_start_time,
                 );

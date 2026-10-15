@@ -77,14 +77,14 @@ impl QuestGiverCompleteQuestHostLikeCpp for WorldSession {
         &self,
         quest: &QuestTemplate,
     ) -> bool {
-        WorldSession::can_reward_quest_represented_bounded_like_cpp(self, quest)
+        wow_world_quest::can_reward_quest_represented_bounded_like_cpp(self, quest)
     }
 
     fn complete_quest_can_complete_repeatable_quest_represented_bounded_like_cpp(
         &self,
         quest: &QuestTemplate,
     ) -> bool {
-        WorldSession::can_complete_repeatable_quest_represented_bounded_like_cpp(self, quest)
+        wow_world_quest::can_complete_repeatable_quest_represented_bounded_like_cpp(self, quest)
     }
 
     fn send_represented_quest_giver_request_items_with_completion_like_cpp(
@@ -94,7 +94,7 @@ impl QuestGiverCompleteQuestHostLikeCpp for WorldSession {
         can_complete: bool,
         auto_launched: bool,
     ) {
-        WorldSession::send_represented_quest_giver_request_items_with_completion_like_cpp(
+        wow_world_quest::send_represented_quest_giver_request_items_with_completion_like_cpp(
             self,
             source_guid,
             quest,

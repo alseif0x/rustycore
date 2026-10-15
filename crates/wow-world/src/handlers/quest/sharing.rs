@@ -13,8 +13,7 @@ impl WorldSession {
         quest: &wow_data::quest::QuestTemplate,
     ) -> bool {
         quest.flags & QUEST_FLAGS_SHARABLE_LIKE_CPP != 0
-            && self
-                .represented_player_quest_status_like_cpp(quest.id)
+            && wow_world_quest::represented_player_quest_status_like_cpp(self, quest.id)
                 .is_some_and(|status| status.is_some())
     }
 

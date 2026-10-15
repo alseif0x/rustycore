@@ -64,6 +64,8 @@ mod player_test_shims;
 #[cfg(test)]
 mod progression_test_shims;
 #[cfg(test)]
+mod quest_session_test_shims;
+#[cfg(test)]
 mod session_lifecycle_test_shims;
 #[cfg(test)]
 mod spell_effect_test_shims;

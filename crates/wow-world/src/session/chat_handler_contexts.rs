@@ -67,11 +67,11 @@ impl SocialSessionHostLikeCpp for WorldSession {
     }
 
     fn quest_money_reward_like_cpp(&self, quest: &wow_data::quest::QuestTemplate) -> u32 {
-        WorldSession::quest_money_reward_like_cpp(self, quest)
+        wow_world_quest::quest_money_reward_like_cpp(self, quest)
     }
 
     fn quest_xp_reward_like_cpp(&self, quest: &wow_data::quest::QuestTemplate) -> u32 {
-        WorldSession::quest_xp_reward_like_cpp(self, quest)
+        wow_world_quest::quest_xp_reward_like_cpp(self, quest)
     }
 
     fn represented_average_item_level_like_cpp(&self) -> Option<f32> {

@@ -210,13 +210,22 @@ impl WorldSession {
         sender_guid: ObjectGuid,
         quest: &wow_data::quest::QuestTemplate,
     ) {
-        let can_complete = self.can_complete_repeatable_quest_represented_bounded_like_cpp(quest);
+        let can_complete =
+            wow_world_quest::can_complete_repeatable_quest_represented_bounded_like_cpp(
+                self, quest,
+            );
         if can_complete && !quest_has_represented_item_objective_like_cpp(quest) {
-            self.send_represented_quest_giver_offer_reward_like_cpp(sender_guid, quest, true);
+            wow_world_quest::send_represented_quest_giver_offer_reward_like_cpp(
+                self,
+                sender_guid,
+                quest,
+                true,
+            );
             return;
         }
 
-        self.send_represented_quest_giver_request_items_with_completion_like_cpp(
+        wow_world_quest::send_represented_quest_giver_request_items_with_completion_like_cpp(
+            self,
             sender_guid,
             quest,
             can_complete,

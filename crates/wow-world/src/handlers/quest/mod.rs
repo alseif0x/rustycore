@@ -25,10 +25,7 @@ use crate::session::mailbox::SessionCommand;
 use crate::session::mailbox::{
     SendRepeatableTurnInRequestItemsLikeCppCommand, SetQuestSharingInfoAndSendDetailsCommand,
 };
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 use tracing::{debug, info, warn};
 use wow_constants::item::ItemFlags3;
 use wow_constants::unit::NPCFlags1;
@@ -89,8 +86,7 @@ use crate::session::{
     RepresentedQuestCompleteStatusUpdateLikeCpp, RepresentedQuestConfirmAcceptLikeCpp,
     RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp,
     RepresentedQuestObjectiveProgressEventLikeCpp, RepresentedQuestPushResultResponseLikeCpp,
-    RepresentedQuestRewardReputationSourceLikeCpp, ReputationGainSourceLikeCpp,
-    SeasonalQuestStatusDbRowLikeCpp, WorldSession,
+    RepresentedQuestRewardReputationSourceLikeCpp, ReputationGainSourceLikeCpp, WorldSession,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::{
@@ -99,9 +95,10 @@ use crate::session::{
     RepresentedQuestRewardTalentPointsLikeCpp, RepresentedQuestRewardTitleLikeCpp,
 };
 use wow_conditions::{
-    QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_FAILED_LIKE_CPP, QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-    QUEST_STATUS_NONE_LIKE_CPP, QUEST_STATUS_REWARDED_LIKE_CPP,
+    QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_INCOMPLETE_LIKE_CPP, QUEST_STATUS_NONE_LIKE_CPP,
 };
+#[cfg(test)]
+use wow_conditions::{QUEST_STATUS_FAILED_LIKE_CPP, QUEST_STATUS_REWARDED_LIKE_CPP};
 
 use wow_world_quest::quest_giver_creature_id_from_source_like_cpp;
 
@@ -114,10 +111,6 @@ pub(crate) use wow_constants::quest::{
 };
 pub(crate) const QUEST_PUSH_REASON_INVALID_LIKE_CPP: u8 = 1;
 pub(crate) const QUEST_PUSH_REASON_INVALID_TO_RECIPIENT_LIKE_CPP: u8 = 2;
-#[cfg(test)]
-const QUEST_OBJECTIVE_CURRENCY_LIKE_CPP_LOCAL: u8 = 4;
-#[cfg(test)]
-const QUEST_OBJECTIVE_MONEY_LIKE_CPP_LOCAL: u8 = 8;
 pub(crate) use wow_constants::quest::{
     QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP, QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
 };
@@ -348,26 +341,22 @@ pub(crate) use wow_world_quest::RepresentedQuestGiverStatusSourceLikeCpp;
 #[path = "../../../unit_tests/handlers/quest_tests.rs"]
 mod tests;
 
+#[cfg(test)]
+use wow_constants::quest::{
+    QUEST_OBJECTIVE_CURRENCY_LIKE_CPP as QUEST_OBJECTIVE_CURRENCY_LIKE_CPP_LOCAL,
+    QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP as QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP_LOCAL,
+    QUEST_OBJECTIVE_FLAG_PART_OF_PROGRESS_BAR_LIKE_CPP as QUEST_OBJECTIVE_FLAG_PART_OF_PROGRESS_BAR_LIKE_CPP_LOCAL,
+    QUEST_OBJECTIVE_FLAG_SEQUENCED_LIKE_CPP as QUEST_OBJECTIVE_FLAG_SEQUENCED_LIKE_CPP_LOCAL,
+    QUEST_OBJECTIVE_MONEY_LIKE_CPP as QUEST_OBJECTIVE_MONEY_LIKE_CPP_LOCAL,
+    QUEST_OBJECTIVE_MONSTER_LIKE_CPP as QUEST_OBJECTIVE_MONSTER_LIKE_CPP_LOCAL,
+    QUEST_OBJECTIVE_PROGRESS_BAR_LIKE_CPP as QUEST_OBJECTIVE_PROGRESS_BAR_LIKE_CPP_LOCAL,
+};
 use wow_constants::quest::{
     QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP as QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL,
     QUEST_OBJECTIVE_ITEM_LIKE_CPP as QUEST_OBJECTIVE_ITEM_LIKE_CPP_LOCAL,
 };
-#[cfg(test)]
-use wow_constants::quest::{
-    QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP as QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP_LOCAL,
-    QUEST_OBJECTIVE_FLAG_PART_OF_PROGRESS_BAR_LIKE_CPP as QUEST_OBJECTIVE_FLAG_PART_OF_PROGRESS_BAR_LIKE_CPP_LOCAL,
-    QUEST_OBJECTIVE_FLAG_SEQUENCED_LIKE_CPP as QUEST_OBJECTIVE_FLAG_SEQUENCED_LIKE_CPP_LOCAL,
-    QUEST_OBJECTIVE_MONSTER_LIKE_CPP as QUEST_OBJECTIVE_MONSTER_LIKE_CPP_LOCAL,
-    QUEST_OBJECTIVE_PROGRESS_BAR_LIKE_CPP as QUEST_OBJECTIVE_PROGRESS_BAR_LIKE_CPP_LOCAL,
-};
 
 // ── PlayerQuestStatus ────────────────────────────────────────────────────────
-
-#[derive(Debug, Clone)]
-pub(crate) struct ItemTransferQuestPersistencePlanLikeCpp {
-    statuses: HashMap<u32, PlayerQuestStatus>,
-    changed_quest_ids: Vec<u32>,
-}
 
 impl WorldSession {
     pub(in crate::handlers::quest) fn represented_quest_dialog_classification_like_cpp(

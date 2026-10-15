@@ -167,7 +167,7 @@ impl InventoryStorageMoveHostLikeCpp for WorldSession {
         post_move_non_bank_count: u32,
         added_count: u32,
     ) -> Vec<wow_entities::PlayerQuestStatusRecord> {
-        WorldSession::plan_bank_item_quest_persistence_like_cpp(
+        wow_world_quest::plan_bank_item_quest_persistence_like_cpp(
             self,
             entry_id,
             quest_log_item_id,

@@ -113,7 +113,7 @@ impl WorldSession {
             return;
         }
 
-        if self.use_represented_creature_questgiver_like_cpp(guid, access.entry) {
+        if wow_world_quest::use_represented_creature_questgiver_like_cpp(self, guid, access.entry) {
             debug!(
                 account = self.core.account_id,
                 creature_entry = access.entry,
@@ -145,7 +145,8 @@ impl WorldSession {
             respond_to_giver,
             "Received QuestGiverQueryQuest like C++"
         );
-        if !self.send_represented_quest_giver_query_quest_like_cpp(guid, quest_id) {
+        if !wow_world_quest::send_represented_quest_giver_query_quest_like_cpp(self, guid, quest_id)
+        {
             warn!(
                 account = self.core.account_id,
                 ?guid,

@@ -202,10 +202,12 @@ impl WorldSession {
             return;
         };
         post_removal_non_bank_counts.sort_unstable_by_key(|(entry_id, _)| *entry_id);
-        let mut quest_persistence_plan = self.begin_item_transfer_quest_persistence_like_cpp(
-            &removed_entry_order,
-            &post_removal_non_bank_counts,
-        );
+        let mut quest_persistence_plan =
+            wow_world_quest::begin_item_transfer_quest_persistence_like_cpp(
+                self,
+                &removed_entry_order,
+                &post_removal_non_bank_counts,
+            );
         let mut planned_withdrawals: Vec<PlannedVoidWithdrawalLikeCpp> = Vec::new();
         let mut used_withdrawal_ids = HashSet::new();
         let mut storage_overlays = Vec::new();
@@ -257,7 +259,8 @@ impl WorldSession {
             let quest_log_item_id = self
                 .quest_source_item_quest_log_item_id_like_cpp(void_item.item_entry)
                 .await;
-            if self.plan_item_transfer_withdrawal_quest_persistence_like_cpp(
+            if wow_world_quest::plan_item_transfer_withdrawal_quest_persistence_like_cpp(
+                self,
                 &mut quest_persistence_plan,
                 void_item.item_entry,
                 quest_log_item_id,
@@ -520,7 +523,10 @@ impl WorldSession {
         }
 
         let planned_quest_statuses =
-            self.finish_item_transfer_quest_persistence_like_cpp(quest_persistence_plan);
+            wow_world_quest::finish_item_transfer_quest_persistence_like_cpp(
+                self,
+                quest_persistence_plan,
+            );
 
         let Some(money_persistence) = self
             .begin_exclusive_player_money_persistence_like_cpp()

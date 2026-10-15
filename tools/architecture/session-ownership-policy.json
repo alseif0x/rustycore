@@ -908,12 +908,6 @@
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::quest::persistence::item_mutations",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "module": "crate::handlers::quest::quest_query_host",
           "trait_path": "QuestGiverCompleteQuestHostLikeCpp",
           "cfg": [],
@@ -957,6 +951,14 @@
         },
         {
           "module": "crate::handlers::quest::state::test_only",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
+          "module": "crate::handlers::quest_session_test_shims",
           "trait_path": null,
           "cfg": [
             "cfg (test)"
@@ -1428,6 +1430,12 @@
         {
           "module": "crate::session",
           "trait_path": "PlayerMovementHostLikeCpp",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "QuestSessionHostLikeCpp",
           "cfg": [],
           "source_class": "production"
         },
@@ -15749,20 +15757,6 @@
           "module": "crate::handlers::quest::objectives",
           "trait_path": null,
           "kind": "method",
-          "name": "quest_bound_item_objective_quest_order_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn quest_bound_item_objective_quest_order_like_cpp (& self) -> Vec < u32 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::objectives",
-          "trait_path": null,
-          "kind": "method",
           "name": "quest_source_item_quest_log_item_id_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn quest_source_item_quest_log_item_id_like_cpp (& mut self , entry_id : u32 ,) -> u32",
@@ -15790,179 +15784,9 @@
           "module": "crate::handlers::quest::persistence",
           "trait_path": null,
           "kind": "method",
-          "name": "load_player_quests",
-          "visibility": "pub (crate)",
-          "signature": "async fn load_player_quests (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::persistence",
-          "trait_path": null,
-          "kind": "method",
           "name": "quest_poi_store_like_cpp",
           "visibility": "pub (super)",
           "signature": "async fn quest_poi_store_like_cpp (& mut self) -> Arc < HashMap < i32 , QuestPoiData > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::persistence",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_quest_statuses_for_save_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_quest_statuses_for_save_like_cpp (& self) -> Vec < (u32 , u8) >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::persistence",
-          "trait_path": null,
-          "kind": "method",
-          "name": "save_changed_represented_quest_statuses_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn save_changed_represented_quest_statuses_like_cpp (& self , quest_ids : & mut Vec < u32 > ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::persistence",
-          "trait_path": null,
-          "kind": "method",
-          "name": "save_quest_to_db",
-          "visibility": "pub (super)",
-          "signature": "async fn save_quest_to_db (& self , quest_id : u32 , status : u8)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::persistence",
-          "trait_path": null,
-          "kind": "method",
-          "name": "save_represented_quest_status_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn save_represented_quest_status_like_cpp (& self , quest_id : u32)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::persistence",
-          "trait_path": null,
-          "kind": "method",
-          "name": "save_represented_quest_statuses_completed_after_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn save_represented_quest_statuses_completed_after_like_cpp (& mut self , completion_evidence_start : usize ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::persistence::item_mutations",
-          "trait_path": null,
-          "kind": "method",
-          "name": "begin_item_transfer_quest_persistence_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn begin_item_transfer_quest_persistence_like_cpp (& self , removed_entries_in_order : & [u32] , post_removal_non_bank_counts : & [(u32 , u32)] ,) -> ItemTransferQuestPersistencePlanLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::persistence::item_mutations",
-          "trait_path": null,
-          "kind": "method",
-          "name": "finish_item_transfer_quest_persistence_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn finish_item_transfer_quest_persistence_like_cpp (& self , mut plan : ItemTransferQuestPersistencePlanLikeCpp ,) -> Vec < PlayerQuestStatus >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::persistence::item_mutations",
-          "trait_path": null,
-          "kind": "method",
-          "name": "plan_bank_item_quest_persistence_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn plan_bank_item_quest_persistence_like_cpp (& self , entry_id : u32 , quest_log_item_id : u32 , moving_to_bank : bool , post_move_non_bank_count : u32 , added_count : u32 ,) -> Vec < PlayerQuestStatus >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::persistence::item_mutations",
-          "trait_path": null,
-          "kind": "method",
-          "name": "plan_item_transfer_quest_persistence_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn plan_item_transfer_quest_persistence_like_cpp (& self , removed_entries_in_order : & [u32] , post_removal_non_bank_counts : & [(u32 , u32)] , added_items_in_order : & [(u32 , u32 , u32)] ,) -> Vec < PlayerQuestStatus >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::persistence::item_mutations",
-          "trait_path": null,
-          "kind": "method",
-          "name": "plan_item_transfer_withdrawal_quest_persistence_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn plan_item_transfer_withdrawal_quest_persistence_like_cpp (& self , plan : & mut ItemTransferQuestPersistencePlanLikeCpp , entry_id : u32 , quest_log_item_id : u32 , count : u32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::persistence::item_mutations",
-          "trait_path": null,
-          "kind": "method",
-          "name": "plan_quest_source_item_bound_objective_persistence_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn plan_quest_source_item_bound_objective_persistence_like_cpp (& self , entry_id : u32 , quest_log_item_id : u32 , count : u32 ,) -> Option < QuestSourceItemBoundPersistencePlanLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -16339,50 +16163,9 @@
           "module": "crate::handlers::quest::state",
           "trait_path": null,
           "kind": "method",
-          "name": "first_free_quest_slot_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn first_free_quest_slot_like_cpp (& self) -> Option < u8 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::state",
-          "trait_path": null,
-          "kind": "method",
           "name": "quest_log_create_entries_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn quest_log_create_entries_like_cpp (& self) -> Vec < (u32 , u32 , i64 , [u16 ; 24]) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "quest_slot_has_active_entry_like_cpp",
-          "visibility": "private",
-          "signature": "fn quest_slot_has_active_entry_like_cpp (& self , slot : u8) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "remove_represented_active_rewarded_duplicates_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn remove_represented_active_rewarded_duplicates_like_cpp (& mut self) -> Vec < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -16411,6 +16194,343 @@
           "name": "get_quest_slot_quest_id_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn get_quest_slot_quest_id_like_cpp (& self , slot : u8) -> Option < u32 >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "begin_item_transfer_quest_persistence_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn begin_item_transfer_quest_persistence_like_cpp (& self , removed_entries_in_order : & [u32] , post_removal_non_bank_counts : & [(u32 , u32)] ,) -> ItemTransferQuestPersistencePlanLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "begin_player_quest_status_authority_load_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn begin_player_quest_status_authority_load_like_cpp (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "can_complete_repeatable_quest_represented_bounded_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn can_complete_repeatable_quest_represented_bounded_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "clear_loaded_quest_completed_bit_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn clear_loaded_quest_completed_bit_like_cpp (& mut self , quest_bit : u32) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "finish_item_transfer_quest_persistence_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn finish_item_transfer_quest_persistence_like_cpp (& self , plan : ItemTransferQuestPersistencePlanLikeCpp ,) -> Vec < PlayerQuestStatus >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "first_free_quest_slot_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn first_free_quest_slot_like_cpp (& self) -> Option < u8 >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "load_player_quests",
+          "visibility": "pub (crate)",
+          "signature": "async fn load_player_quests (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "load_seasonal_quest_status_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn load_seasonal_quest_status_like_cpp (& mut self , rows : impl IntoIterator < Item = SeasonalQuestStatusDbRowLikeCpp > , quest_store : Option < & wow_data :: quest :: QuestStore > , quest_v2_store : Option < & QuestV2Store > ,) -> LoadSeasonalQuestStatusOutcomeLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "plan_bank_item_quest_persistence_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn plan_bank_item_quest_persistence_like_cpp (& self , entry_id : u32 , quest_log_item_id : u32 , moving_to_bank : bool , post_move_non_bank_count : u32 , added_count : u32 ,) -> Vec < PlayerQuestStatus >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "plan_item_transfer_quest_persistence_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn plan_item_transfer_quest_persistence_like_cpp (& self , removed_entries_in_order : & [u32] , post_removal_non_bank_counts : & [(u32 , u32)] , added_items_in_order : & [(u32 , u32 , u32)] ,) -> Vec < PlayerQuestStatus >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "plan_item_transfer_withdrawal_quest_persistence_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn plan_item_transfer_withdrawal_quest_persistence_like_cpp (& self , plan : & mut ItemTransferQuestPersistencePlanLikeCpp , entry_id : u32 , quest_log_item_id : u32 , count : u32 ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "plan_quest_source_item_bound_objective_persistence_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn plan_quest_source_item_bound_objective_persistence_like_cpp (& self , entry_id : u32 , quest_log_item_id : u32 , count : u32 ,) -> Option < QuestSourceItemBoundPersistencePlanLikeCpp >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "remove_represented_active_rewarded_duplicates_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn remove_represented_active_rewarded_duplicates_like_cpp (& mut self) -> Vec < u32 >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_quest_statuses_for_save_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_quest_statuses_for_save_like_cpp (& self) -> Vec < (u32 , u8) >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "reset_seasonal_quest_status_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn reset_seasonal_quest_status_like_cpp (& mut self , event_id : u16 , event_start_time : u64 ,) -> ResetSeasonalQuestStatusOutcomeLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "save_quest_to_db",
+          "visibility": "pub (crate)",
+          "signature": "async fn save_quest_to_db (& self , quest_id : u32 , status : u8)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "seed_seasonal_quest_status_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn seed_seasonal_quest_status_like_cpp (& mut self , event_id : u16 , quest_id : u32 , completed_time : u64 ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "send_represented_quest_giver_query_quest_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn send_represented_quest_giver_query_quest_like_cpp (& mut self , source_guid : ObjectGuid , quest_id : u32 ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_loaded_quest_completed_bit_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn set_loaded_quest_completed_bit_like_cpp (& mut self , quest_bit : u32) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "use_represented_creature_questgiver_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn use_represented_creature_questgiver_like_cpp (& mut self , creature_guid : ObjectGuid , creature_entry : u32 ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "use_represented_gameobject_questgiver_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn use_represented_gameobject_questgiver_like_cpp (& mut self , gameobject_guid : ObjectGuid , player_guid : ObjectGuid , gameobject_entry : u32 , source : wow_entities :: QuestgiverUseSource ,) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -22545,19 +22665,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_represented_quest_rewarded_spells_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_represented_quest_rewarded_spells_like_cpp (& mut self) -> usize",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "apply_represented_stand_state_changed_live_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn apply_represented_stand_state_changed_live_like_cpp (& mut self , change : & RepresentedStandStateChangedLikeCpp ,) -> RepresentedLiveIntentApplyOutcomeLikeCpp",
@@ -22973,19 +23080,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "begin_player_quest_status_authority_load_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn begin_player_quest_status_authority_load_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "begin_represented_trait_authority_load_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn begin_represented_trait_authority_load_like_cpp (& mut self) -> bool",
@@ -23308,19 +23402,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "can_complete_repeatable_quest_represented_bounded_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn can_complete_repeatable_quest_represented_bounded_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "can_destroy_direct_item_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn can_destroy_direct_item_like_cpp (& self , slot : u8 , source_item : Option < & Item > , proto : Option < & ItemStorageTemplate > , source_is_not_empty_bag : bool ,) -> InventoryResult",
@@ -23328,19 +23409,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "can_reward_quest_represented_bounded_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn can_reward_quest_represented_bounded_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -23640,19 +23708,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "clear_loaded_quest_completed_bit_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn clear_loaded_quest_completed_bit_like_cpp (& mut self , quest_bit : u32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -25248,19 +25303,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "insert_represented_quest_status_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn insert_represented_quest_status_like_cpp (& mut self , quest_id : u32 , status : wow_entities :: PlayerQuestStatusRecord ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "install_detached_canonical_player_for_test_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn install_detached_canonical_player_for_test_like_cpp (& mut self) -> bool",
@@ -25326,58 +25368,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "install_represented_loaded_daily_quests_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn install_represented_loaded_daily_quests_like_cpp (& mut self , df_quest_ids : std :: collections :: BTreeSet < u32 > , daily_quest_ids : std :: collections :: BTreeSet < u32 > , last_daily_time_secs : i64 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "install_represented_loaded_monthly_quests_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn install_represented_loaded_monthly_quests_like_cpp (& mut self , monthly_quest_ids : std :: collections :: BTreeSet < u32 > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "install_represented_loaded_quest_statuses_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn install_represented_loaded_quest_statuses_like_cpp (& mut self , loaded : & wow_entities :: PlayerQuestGameplayState ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "install_represented_loaded_weekly_quests_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn install_represented_loaded_weekly_quests_like_cpp (& mut self , weekly_quest_ids : std :: collections :: BTreeSet < u32 > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -26380,19 +26370,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "load_seasonal_quest_status_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn load_seasonal_quest_status_like_cpp (& mut self , rows : impl IntoIterator < Item = SeasonalQuestStatusDbRowLikeCpp > , quest_store : Option < & wow_data :: quest :: QuestStore > , quest_v2_store : Option < & QuestV2Store > ,) -> LoadSeasonalQuestStatusOutcomeLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "load_tutorials_data_like_cpp",
           "visibility": "pub",
           "signature": "async fn load_tutorials_data_like_cpp (& mut self)",
@@ -26611,19 +26588,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "mark_represented_quest_explored_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn mark_represented_quest_explored_like_cpp (& mut self , quest_id : u32 , failed_status : u8 ,) -> Option < (bool , bool) >",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -28281,19 +28245,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "player_quest_level_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn player_quest_level_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate ,) -> i32",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "player_registry",
           "visibility": "pub (crate)",
           "signature": "fn player_registry (& self) -> Option < & Arc < PlayerRegistry > >",
@@ -28845,32 +28796,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "quest_list_entry_from_menu_item_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn quest_list_entry_from_menu_item_like_cpp (& self , menu_item : & RepresentedPreparedQuestMenuItemLikeCpp ,) -> QuestListEntry",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "quest_money_reward_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn quest_money_reward_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate ,) -> u32",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "quest_objective_operation_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn quest_objective_operation_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , operation : QuestObjectiveOperationLikeCpp < '_ > ,) -> bool",
@@ -28905,19 +28830,6 @@
           ],
           "source_class": "production",
           "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "quest_xp_reward_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn quest_xp_reward_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate) -> u32",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
         },
         {
           "module": "crate::session",
@@ -30895,19 +30807,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_creature_quest_menu_items_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn represented_creature_quest_menu_items_like_cpp (& self , quest_store : & wow_data :: quest :: QuestStore , creature_entry : u32 ,) -> Vec < RepresentedPreparedQuestMenuItemLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_critter_guid_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_critter_guid_like_cpp (& self) -> Option < ObjectGuid >",
@@ -31218,19 +31117,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_gameobject_quest_menu_items_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn represented_gameobject_quest_menu_items_like_cpp (& self , quest_store : & wow_data :: quest :: QuestStore , gameobject_entry : u32 ,) -> Vec < RepresentedPreparedQuestMenuItemLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -32106,45 +31992,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_player_quest_status_is_complete_or_incomplete_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn represented_player_quest_status_is_complete_or_incomplete_like_cpp (& self , quest_id : u32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_player_quest_status_is_none_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn represented_player_quest_status_is_none_like_cpp (& self , quest_id : u32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_player_quest_status_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_player_quest_status_like_cpp (& self , quest_id : u32 ,) -> Option < Option < u8 > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_player_recent_instance_id_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_player_recent_instance_id_like_cpp (& self , map_id : u32) -> u32",
@@ -32251,32 +32098,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_quest_giver_query_creature_menu_item_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn represented_quest_giver_query_creature_menu_item_like_cpp (& self , quest_store : & wow_data :: quest :: QuestStore , creature_entry : u32 , quest : & wow_data :: quest :: QuestTemplate ,) -> Option < RepresentedPreparedQuestMenuItemLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_quest_giver_query_gameobject_menu_item_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn represented_quest_giver_query_gameobject_menu_item_like_cpp (& self , quest_store : & wow_data :: quest :: QuestStore , gameobject_entry : u32 , quest : & wow_data :: quest :: QuestTemplate ,) -> Option < RepresentedPreparedQuestMenuItemLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -32413,17 +32234,6 @@
           "guards": [
             "visible"
           ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_quest_rewarded_spell_triggers_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_quest_rewarded_spell_triggers_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate ,) -> Vec < i32 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
         },
         {
           "module": "crate::session",
@@ -32620,19 +32430,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_spell_area_quest_status_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn represented_spell_area_quest_status_like_cpp (& self , quest_id : u32 ,) -> Option < u8 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_spell_click_creature_snapshot_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn represented_spell_click_creature_snapshot_like_cpp (& self , guid : ObjectGuid ,) -> Option < RepresentedSpellClickCreatureSnapshotLikeCpp >",
@@ -32653,19 +32450,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_starter_quest_menu_item_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn represented_starter_quest_menu_item_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate ,) -> Option < RepresentedPreparedQuestMenuItemLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -33440,19 +33224,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "reset_seasonal_quest_status_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn reset_seasonal_quest_status_like_cpp (& mut self , event_id : u16 , event_start_time : u64 ,) -> ResetSeasonalQuestStatusOutcomeLikeCpp",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -34277,21 +34048,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "seed_seasonal_quest_status_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn seed_seasonal_quest_status_like_cpp (& mut self , event_id : u16 , quest_id : u32 , completed_time : u64 ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "send_bag_slot_values_update_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn send_bag_slot_values_update_like_cpp (& self , bag_slot : u8 , changed_slot : u8)",
@@ -34561,84 +34317,6 @@
           "name": "send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp (& mut self ,) -> usize",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_represented_prepared_quest_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn send_represented_prepared_quest_like_cpp (& mut self , source_guid : ObjectGuid , menu_items : Vec < RepresentedPreparedQuestMenuItemLikeCpp > ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_represented_prepared_single_quest_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn send_represented_prepared_single_quest_like_cpp (& mut self , source_guid : ObjectGuid , menu_item : & RepresentedPreparedQuestMenuItemLikeCpp , auto_launched : bool ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_represented_quest_giver_offer_reward_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn send_represented_quest_giver_offer_reward_like_cpp (& mut self , source_guid : ObjectGuid , quest : & wow_data :: quest :: QuestTemplate , auto_launched : bool ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_represented_quest_giver_query_quest_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn send_represented_quest_giver_query_quest_like_cpp (& mut self , source_guid : ObjectGuid , quest_id : u32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_represented_quest_giver_quest_details_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn send_represented_quest_giver_quest_details_like_cpp (& mut self , source_guid : ObjectGuid , quest : & wow_data :: quest :: QuestTemplate , auto_launched : bool ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_represented_quest_giver_request_items_with_completion_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn send_represented_quest_giver_request_items_with_completion_like_cpp (& mut self , source_guid : ObjectGuid , quest : & wow_data :: quest :: QuestTemplate , can_complete : bool , auto_launched : bool ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -36611,20 +36289,6 @@
           "name": "set_loaded_player_name_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn set_loaded_player_name_like_cpp (& mut self , name : String)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_loaded_quest_completed_bit_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn set_loaded_quest_completed_bit_like_cpp (& mut self , quest_bit : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -38998,20 +38662,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_represented_quest_rewarded_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn set_represented_quest_rewarded_like_cpp (& mut self , quest_id : u32 , rewarded : bool ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "setter",
             "visible"
@@ -41521,32 +41171,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "use_represented_creature_questgiver_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn use_represented_creature_questgiver_like_cpp (& mut self , creature_guid : ObjectGuid , creature_entry : u32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "use_represented_gameobject_questgiver_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn use_represented_gameobject_questgiver_like_cpp (& mut self , gameobject_guid : ObjectGuid , player_guid : ObjectGuid , gameobject_entry : u32 , source : wow_entities :: QuestgiverUseSource ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "visibility_refresh_cx_like_cpp",
           "visibility": "private",
           "signature": "fn visibility_refresh_cx_like_cpp (& self) -> VisibilityRefreshCxLikeCpp < '_ >",
@@ -42790,6 +42414,175 @@
           "name": "AreaTriggerCatalogsLikeCpp",
           "visibility": "private",
           "signature": "type AreaTriggerCatalogsLikeCpp = AreaTriggerCatalogsLikeCpp",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "QuestSessionHostLikeCpp",
+          "kind": "method",
+          "name": "can_take_quest",
+          "visibility": "private",
+          "signature": "fn can_take_quest (& self , quest : & wow_data :: quest :: QuestTemplate) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "QuestSessionHostLikeCpp",
+          "kind": "method",
+          "name": "invalidate_player_quest_status_authority_like_cpp",
+          "visibility": "private",
+          "signature": "fn invalidate_player_quest_status_authority_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "QuestSessionHostLikeCpp",
+          "kind": "method",
+          "name": "lifecycle",
+          "visibility": "private",
+          "signature": "fn lifecycle (& self) -> & SessionLifecycleState",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "QuestSessionHostLikeCpp",
+          "kind": "method",
+          "name": "mutate_player_quest_gameplay_like_cpp",
+          "visibility": "private",
+          "signature": "fn mutate_player_quest_gameplay_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut PlayerQuestGameplayState) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "QuestSessionHostLikeCpp",
+          "kind": "method",
+          "name": "player_quest_gameplay_snapshot_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_quest_gameplay_snapshot_like_cpp (& self) -> Option < PlayerQuestGameplayState >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "QuestSessionHostLikeCpp",
+          "kind": "method",
+          "name": "quest_state",
+          "visibility": "private",
+          "signature": "fn quest_state (& self) -> & SessionQuestState",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "QuestSessionHostLikeCpp",
+          "kind": "method",
+          "name": "represented_gameobject_questgiver_can_interact_with_like_cpp",
+          "visibility": "private",
+          "signature": "fn represented_gameobject_questgiver_can_interact_with_like_cpp (& self , guid : ObjectGuid ,) -> Option < RepresentedGameObjectAccessLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "QuestSessionHostLikeCpp",
+          "kind": "method",
+          "name": "represented_inventory_item_counts_like_cpp",
+          "visibility": "private",
+          "signature": "fn represented_inventory_item_counts_like_cpp (& self) -> Option < HashMap < u32 , u32 > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "QuestSessionHostLikeCpp",
+          "kind": "method",
+          "name": "represented_quest_is_important_like_cpp",
+          "visibility": "private",
+          "signature": "fn represented_quest_is_important_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "QuestSessionHostLikeCpp",
+          "kind": "method",
+          "name": "split_quest_state_mut",
+          "visibility": "private",
+          "signature": "fn split_quest_state_mut (& mut self) -> (& mut SessionQuestState , HubMut < '_ >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "QuestSessionHostLikeCpp",
+          "kind": "method",
+          "name": "split_quest_state_ref",
+          "visibility": "private",
+          "signature": "fn split_quest_state_ref (& self) -> (& SessionQuestState , HubRef < '_ >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "QuestSessionHostLikeCpp",
+          "kind": "method",
+          "name": "world_entities_mut",
+          "visibility": "private",
+          "signature": "fn world_entities_mut (& mut self) -> & mut WorldEntitiesState",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "QuestSessionHostLikeCpp",
+          "kind": "method",
+          "name": "world_test_consumer_like_cpp",
+          "visibility": "private",
+          "signature": "fn world_test_consumer_like_cpp (& self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [

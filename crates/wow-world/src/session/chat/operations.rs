@@ -86,8 +86,11 @@ impl WorldSession {
                 )
             })
             .collect::<Vec<_>>();
-        let menu_items =
-            self.represented_creature_quest_menu_items_like_cpp(quest_store, creature_entry);
+        let menu_items = wow_world_quest::represented_creature_quest_menu_items_like_cpp(
+            self,
+            quest_store,
+            creature_entry,
+        );
         info!(
             creature_entry,
             race = crate::session::hub_ref(self).player_race_like_cpp(),

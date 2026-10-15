@@ -24,7 +24,8 @@ impl WorldSession {
         };
 
         self.set_represented_pending_quest_sharing_like_cpp(command.sender_guid, command.quest.id);
-        self.send_represented_quest_giver_quest_details_like_cpp(
+        wow_world_quest::send_represented_quest_giver_quest_details_like_cpp(
+            self,
             receiver_guid,
             &command.quest,
             false,

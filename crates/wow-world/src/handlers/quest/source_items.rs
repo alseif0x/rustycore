@@ -38,10 +38,11 @@ impl WorldSession {
             .await
         {
             for quest_id in bound_preflight.changed_quest_ids {
-                self.save_represented_quest_status_like_cpp(quest_id).await;
+                wow_world_quest::save_represented_quest_status_like_cpp(self, quest_id).await;
             }
             if bound_preflight.no_grant {
-                self.save_represented_quest_statuses_completed_after_like_cpp(
+                wow_world_quest::save_represented_quest_statuses_completed_after_like_cpp(
+                    self,
                     completion_evidence_start,
                 )
                 .await;
@@ -358,10 +359,13 @@ impl WorldSession {
             )
             .await;
         for quest_id in changed_non_bound_quest_ids {
-            self.save_represented_quest_status_like_cpp(quest_id).await;
+            wow_world_quest::save_represented_quest_status_like_cpp(self, quest_id).await;
         }
-        self.save_represented_quest_statuses_completed_after_like_cpp(completion_evidence_start)
-            .await;
+        wow_world_quest::save_represented_quest_statuses_completed_after_like_cpp(
+            self,
+            completion_evidence_start,
+        )
+        .await;
 
         self.send_new_item_plan(&SendNewItemPlan {
             player_guid,

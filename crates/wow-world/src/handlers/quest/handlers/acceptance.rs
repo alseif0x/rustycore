@@ -79,7 +79,7 @@ impl WorldSession {
         }
 
         // C++ Player::AddQuest uses FindQuestSlot(0) over explicit QuestLog slots.
-        let Some(slot) = self.first_free_quest_slot_like_cpp() else {
+        let Some(slot) = wow_world_quest::first_free_quest_slot_like_cpp(self) else {
             warn!(account = self.core.account_id, "Quest log full");
             return;
         };
@@ -101,7 +101,9 @@ impl WorldSession {
             objective_counts: vec![0; obj_count],
             slot,
         };
-        if self.insert_represented_quest_status_like_cpp(quest_id, status) == false {
+        if wow_world_quest::insert_represented_quest_status_like_cpp(self, quest_id, status)
+            == false
+        {
             return;
         }
 
@@ -122,7 +124,7 @@ impl WorldSession {
                     .map(|status| status.status)
             })
         {
-            self.save_quest_to_db(quest_id, status).await;
+            wow_world_quest::save_quest_to_db(self, quest_id, status).await;
         }
         self.sync_player_registry_state_like_cpp();
         self.send_represented_quest_log_slot_update_like_cpp(slot);
@@ -353,7 +355,7 @@ impl WorldSession {
             return;
         }
 
-        if self.first_free_quest_slot_like_cpp().is_none() {
+        if wow_world_quest::first_free_quest_slot_like_cpp(self).is_none() {
             record(
                 self,
                 RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp::ReceiverCanAddQuestLogFull,

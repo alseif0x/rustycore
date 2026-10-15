@@ -260,7 +260,7 @@ impl ItemSessionHostLikeCpp for WorldSession {
         post_removal_non_bank_counts: &[(u32, u32)],
         added_items_in_order: &[(u32, u32, u32)],
     ) -> Vec<PlayerQuestStatusRecord> {
-        WorldSession::plan_item_transfer_quest_persistence_like_cpp(
+        wow_world_quest::plan_item_transfer_quest_persistence_like_cpp(
             self,
             removed_entries_in_order,
             post_removal_non_bank_counts,
