@@ -12352,6 +12352,11 @@ and unmerged, ≤ ~4.5k moved, closure simulated first, no ceiling raised).
   API; every ceiling is tightened to its final value; and the final production
   figure with its split into the four groups above is recorded in the phase 2
   summary.
+- **Mechanical form** (#1411 review follow-up 2; defined in the 12b1b result
+  below): `python3 tools/architecture/session_method_index.py check --done`
+  passes, i.e. 0 non-forward methods in `session/**` outside the explicit
+  allow-list `tools/architecture/session-method-index.json`, whose staying set
+  is bounded at 43 methods / 1,282 lines and may only shrink.
 
 ### Standalone `--tests` over every domain crate (#1410 follow-up 3)
 
@@ -12649,3 +12654,64 @@ compared with `warning_units.py`:
 runs on the committed head that includes this section. The manifest path,
 dirty flag and duration are in the PR body. This section is not edited after
 that run, so the PR head is the validated SHA.
+
+## Slice 12b1b result (player-items application builders, inventory field-borrow builders and leftovers)
+
+Branch `1363-s12b1b-player-items`, base `e5c8195b0` (slice 12b1 merged).
+
+### Mechanical done criterion (#1411 review follow-ups 2 and 3)
+
+- **Index tool.** `tools/architecture/session_method_index.py` is the 12b1
+  index, committed with a self-test:
+  - `index [--methods] [--json PATH]` prints the totals and one row per module
+    (`session/<dir>`, `handlers/<dir>`, else the file) with non-forward and
+    forward counts and lines;
+  - `check [--done]` applies the policy below;
+  - `self-test` pins the parser (forward/non-forward, literal and comment
+    masking, `#[cfg(test)]` methods and impls, impls inside a top-level
+    `cfg(test)` module, trait impls ignored, `#![cfg(test)]` and shim files
+    skipped) and the policy arithmetic.
+- **Definition.** It counts the production inherent `WorldSession` methods in
+  `crates/wow-world/src/**.rs` with the 12b plan's rules (shim files and
+  `#![cfg(test)]` files skipped, `cfg(test)` impls and methods excluded, lines
+  from the first doc or attribute line through the closing brace; a forward
+  has at most one `;` and no `let`/`if`/`match`/`for`/`while`/`loop`/`return`).
+  It also skips impl blocks inside a top-level `cfg(test)` item and methods
+  whose `#[cfg(test)]` follows a doc comment, which the 12b1 scratch index
+  counted: on `e5c8195b0` that drops `update`, `process_pending` and
+  `session_handler_catalogs_for_test_like_cpp` in `session/driver/mod.rs`, so
+  the index reads **340 non-forward methods (9,513 lines) and 293 forwards
+  (1,729 lines)** instead of 343 / 9,569.
+- **Allow-list** (`tools/architecture/session-method-index.json`, paths under
+  `crates/wow-world/src`):
+  - runtime shell: `session/driver/` (18 methods), `session/map_admission.rs`
+    (1), `session/construction.rs::new`,
+    `session/connection.rs::poll_instance_link_with_module_registry_like_cpp`
+    (called only by the driver and `connection.rs`) and
+    `session/connection_identity.rs::set_state`;
+  - construction API: the 21 non-forward store/registry/authority setters
+    `world-server` calls from `session_resources.rs` / `session_factory.rs`,
+    named one by one.
+  - Everything else in `session/**` is logic that must leave. In particular
+    the rest of `session/catalogs` (the rest-bonus ticks and
+    `send_session_init_packets_with_policy_like_cpp`, 6 methods / 233 lines)
+    is **not** construction API: the 12b plan's "construction API 10 / 253"
+    row overstated it and those six join 12b7. `session_commands.rs` (1 / 193)
+    and `handlers/**` are outside `session/**` and outside the done scope.
+- **Bounds.** The staying set is **43 methods / 1,282 lines** on the base and
+  `staying_bound` pins it (it may only shrink). The non-forward methods in
+  `session/**` outside the allow-list are a ratchet, `outside_ceiling`:
+  **270 / 7,320** on the base, tightened by each 12b slice; the #1363 done
+  criterion is `check --done` (outside = 0).
+- **Wiring.** `final` plans `session_method_index.py check` for any
+  `crates/wow-world/src/**` change and for the tool, its policy or
+  `hotspot_metrics.py`, and the tool's `self-test` when the tool changes;
+  `quick` never does (pinned in `tools/test_validation_v2.py`; dropping the
+  `crates/wow-world/src/` trigger fails it with `AssertionError:
+  crates/wow-world/src/session/mod.rs`). Documented in
+  `docs/operations/validation-v2.md`.
+- **Follow-up 3.** The standalone `--tests` checks now take `-p` from the
+  manifest's `[package] name` (directory name only if the manifest cannot be
+  read). The fixture gives `wow-world-other` the package name
+  `wow-world-other-package`; reverting to the directory name fails the
+  self-test (`AssertionError: crates/wow-world-fixture/Cargo.toml`).

@@ -174,7 +174,18 @@ feature does not forward to its fixture-bearing `wow-world*` dependencies (the
 `wow-world-instances` standalone failure found in the slice 4d review). The standalone checks
 can, including a dependent whose own manifest did not change but which a forwarding change in
 another manifest reaches. `quick` never plans them, a domain source change or another crate's
-manifest does not trigger them, and `wow-world` itself is left to the closure check.
+manifest does not trigger them, and `wow-world` itself is left to the closure check. Each
+`-p` names the manifest's `[package] name`, not its directory (#1411 review follow-up 3); an
+unreadable manifest falls back to the directory name and fails in Cargo.
+
+A `final` run whose diff touches `crates/wow-world/src/**`, `tools/architecture/session_method_index.py`,
+its policy `tools/architecture/session-method-index.json` or `hotspot_metrics.py` also plans
+`python3 tools/architecture/session_method_index.py check` (#1363 done criterion, #1411 review
+follow-up 2): the non-forward inherent `WorldSession` methods in `crates/wow-world/src/session/**`
+must stay within the bounded runtime-shell and construction-API allow-list (`staying_bound`), and
+the rest within the `outside_ceiling` ratchet. `index` prints the per-module table; `check --done`
+is the #1363 done criterion (no non-forward method outside the allow-list). Changing the tool also
+plans its `self-test`. It reads sources only and calls no Cargo.
 
 Paths classified as `documentation` run no Cargo command. Classification is directory-first:
 even a README under `crates/`, `tools/wow-test-bot/` or

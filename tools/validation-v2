@@ -766,6 +766,21 @@ def validation_commands(
         "tools/architecture/net-move-policy.json",
     } for path in all_paths):
         add_command(planned, ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_net_move.py"])
+    # #1363 done criterion (#1411 review follow-up 2): the non-forward inherent
+    # WorldSession methods in session/** stay within the bounded runtime-shell
+    # and construction-API allow-list, and the rest only shrinks. Final only,
+    # for a wow-world/src change or a change to the index or its policy; the
+    # tool's self-test follows the tool. Neither calls Cargo.
+    session_index_files = {
+        "tools/architecture/session_method_index.py",
+        "tools/architecture/session-method-index.json",
+        "tools/architecture/hotspot_metrics.py",
+    }
+    if profile == "final" and any(
+        path.startswith("crates/wow-world/src/") or path in session_index_files
+        for path in all_paths
+    ):
+        add_command(planned, ["python3", "tools/architecture/session_method_index.py", "check"])
     # #1241 F3-6b: a git-ignored source under crates/ can be mounted by committed
     # code and pass locally while a fresh clone lacks it. Final only, for any crates/ change.
     if profile == "final" and any(path.startswith("crates/") for path in all_paths):
@@ -794,7 +809,11 @@ def validation_commands(
     # #1363 slice 6c (#1405 review): the warning counter and the moved-body
     # token comparison run their own self-tests in final when either file
     # changes, like the closure suite above. Neither calls Cargo.
-    for tool in ("tools/architecture/warning_units.py", "tools/architecture/move_token_compare.py"):
+    for tool in (
+        "tools/architecture/warning_units.py",
+        "tools/architecture/move_token_compare.py",
+        "tools/architecture/session_method_index.py",
+    ):
         if profile == "final" and tool in all_paths:
             add_command(planned, ["python3", tool, "self-test"])
     text_suffixes = {".json", ".lock", ".md", ".proto", ".py", ".rs", ".sh", ".toml", ".tsv", ".txt", ".yaml", ".yml"}
@@ -915,13 +934,23 @@ def validation_commands(
                     and parts[1].startswith("wow-world-")
                 )
 
+            # `-p` takes the manifest's `[package] name`, which need not equal
+            # the directory name (#1411 review follow-up 3); an unreadable
+            # manifest falls back to the directory name and fails in Cargo.
+            def package_name(manifest: Path) -> str:
+                try:
+                    name = tomllib.loads(manifest.read_text(encoding="utf-8"))["package"]["name"]
+                except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError, KeyError, TypeError):
+                    return manifest.parent.name
+                return name if isinstance(name, str) else manifest.parent.name
+
             if any(domain_manifest(path) for path in all_paths):
                 for manifest in sorted((repo / "crates").glob("wow-world-*/Cargo.toml")):
                     add_command(
                         planned,
                         [
                             "cargo", "check", "--locked", "--tests", "--jobs", str(jobs),
-                            "-p", manifest.parent.name,
+                            "-p", package_name(manifest),
                         ],
                     )
         if profile == "final" and workspace["direct_library_packages"]:
