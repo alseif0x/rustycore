@@ -12,7 +12,9 @@ use wow_entities::GoState;
 use wow_world_core::session::{
     OwnedInventoryAccessLikeCpp, QuestObjectiveAccessLikeCpp, SessionCatalogs,
 };
-use wow_world_entities::RepresentedGameObjectUseState;
+use wow_world_entities::{
+    RepresentedGameObjectUseState, represented_gameobject_go_state_for_viewer_like_cpp,
+};
 use wow_world_inventory::InventoryState;
 
 use super::QuestEligibilityCx;
@@ -23,24 +25,6 @@ use crate::quest::objective_progress::current_quest_gameplay_snapshot_like_cpp;
 use crate::quest::represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp;
 
 use super::super::objectives::QuestObjectiveProgressCx;
-
-/// Resolve per-player state with the original viewer identity and expiry checks.
-pub fn represented_gameobject_go_state_for_viewer_like_cpp(
-    state: &RepresentedGameObjectUseState,
-    player_guid: Option<ObjectGuid>,
-    now: Instant,
-) -> GoState {
-    if state.per_player_state_player_guid == player_guid
-        && state
-            .per_player_go_state_until
-            .is_none_or(|until| until > now)
-        && let Some(per_player_go_state) = state.per_player_go_state
-    {
-        return per_player_go_state;
-    }
-
-    state.go_state.unwrap_or(GoState::Ready)
-}
 
 /// C++ `Player::SatisfyPlayerCondition` for a raw GameObject condition id.
 ///

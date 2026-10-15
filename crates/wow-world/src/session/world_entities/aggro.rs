@@ -294,36 +294,6 @@ impl WorldSession {
             );
         }
     }
-    pub(in crate::session) fn represented_visibility_source_combat_reach_like_cpp(&self) -> f32 {
-        let Some(player_guid) = self.player_guid() else {
-            return 0.0;
-        };
-        let seer_guid = self
-            .current_seer_guid_like_cpp()
-            .filter(|guid| !guid.is_empty())
-            .unwrap_or(player_guid);
-
-        if let (Some(key), Some(manager)) = (
-            self.core.current_canonical_player_map_key_like_cpp(),
-            self.core.canonical_map_manager.as_ref(),
-        ) && let Ok(manager) = manager.lock()
-            && let Some(reach) = manager
-                .find_map(key.map_id, key.instance_id)
-                .and_then(|managed| {
-                    managed.map().with_world_object_by_kinds_like_cpp(
-                        seer_guid,
-                        wow_entities::represented_seer_kinds_like_cpp(),
-                        |object| object.combat_reach(),
-                    )
-                })
-        {
-            return reach.max(0.0);
-        }
-
-        self.core
-            .canonical_player_combat_reach_snapshot_like_cpp()
-            .max(0.0)
-    }
 }
 
 #[cfg(test)]

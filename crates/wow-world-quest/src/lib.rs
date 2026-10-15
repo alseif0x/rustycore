@@ -66,7 +66,6 @@ pub use quest::{
     represented_gameobject_activate_to_quest_like_cpp,
     represented_gameobject_dynamic_flags_for_player_like_cpp,
     represented_gameobject_dynamic_flags_update_like_cpp,
-    represented_gameobject_go_state_for_viewer_like_cpp,
     represented_gameobject_is_for_quests_like_cpp, represented_has_quest_for_gameobject_like_cpp,
     represented_meets_player_condition_id_like_cpp, update_visible_gameobjects_like_cpp,
     update_visible_gameobjects_or_spell_clicks_like_cpp, update_visible_spell_clicks_like_cpp,

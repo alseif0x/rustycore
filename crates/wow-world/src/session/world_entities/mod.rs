@@ -4,9 +4,7 @@
 
 use super::*;
 mod aggro;
-pub(in crate::session) use creature::RepresentedCreatureAuraLikeCpp;
 mod creature;
-pub(crate) use creature::creature_message_to_set_target_allows_like_cpp;
 mod creature_interaction;
 mod creature_kill;
 mod creature_publication;
@@ -19,9 +17,5 @@ mod gameobject;
 mod gameobject_overrides;
 mod gameobject_query;
 mod gameobject_state;
-#[cfg(test)]
-mod gameobject_use_scripted;
-#[cfg(test)]
-mod gameobject_use_types;
 mod spawn;
 mod spell_click;

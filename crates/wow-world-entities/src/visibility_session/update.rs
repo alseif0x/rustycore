@@ -69,9 +69,10 @@ pub async fn update_visibility_with_catalogs_like_cpp<H: VisibilitySessionHostLi
     let y_min = pos.y - range;
     let y_max = pos.y + range;
 
-    let map_creatures = host.visible_world_creatures_from_map_like_cpp(map_id, &pos);
+    let map_creatures =
+        super::queries::visible_world_creatures_from_map_like_cpp(host, map_id, &pos);
     let canonical_gameobjects =
-        host.visible_gameobjects_from_canonical_map_like_cpp(map_id, &pos, range);
+        super::queries::visible_gameobjects_from_canonical_map_like_cpp(host, map_id, &pos, range);
     let canonical_dynamic_objects =
         host.visible_dynamic_objects_from_canonical_map_like_cpp(map_id, &pos, range);
     let canonical_area_triggers =

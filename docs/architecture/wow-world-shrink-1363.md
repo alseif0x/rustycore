@@ -7405,3 +7405,223 @@ duplicate body.
   - **the open-item loot family** (about 960 in `handlers/spell/ops_{1,2}.rs`):
     loot, for loot-ops;
   - **the respec wipe** (about 130 in `handlers/talent/state.rs`): slice 13.
+
+## Slice 10 plan (world entities and gameobject state, phase 2)
+
+Measured on `b240d01a6` (9e merged) before anything moved: the hotspot
+classifier for production lines, and the slice 8/9 lexical scan for the calls
+each family makes to inherent `WorldSession` methods (or `crate::session::`
+splits and other crates' free functions with the session as argument) defined
+outside the family. Field reads (`self.core`, `self.world_entities`,
+`self.catalogs`, `self.config`) are not counted; they become hub or field
+accessors.
+
+- **`wow-world` production (classifier): 49,482** lines, 56,805 physical,
+  471 files.
+- **The world-entity domain left in `wow-world` is about 3.4k production
+  lines**: `session/world_entities/**` (3,250) and the capture-point removal
+  in `session/movement/movement_publication.rs` (37). The original row
+  (about 4k) also counted the gameobject-use handlers, which 4a moved.
+  `handlers/entities/**` (682) is now the F5 adapters (`host.rs`,
+  `corpse/host.rs`) and `cfg(test)` shims; the adapters stay until
+  `WorldSession` itself splits.
+
+| Family | Files | Body lines | Outside calls | Host cost if moved to entities |
+|---|---|---:|---:|---|
+| GameObject update tick and linked-trap despawn (`GameObject::Update` states, traps, chests, capture points, despawn/respawn) | `gameobject.rs` tick, `spawn.rs` | 696 | 8 | +2 (loot-cache removal, chest refresh queue), −1 (the trap despawn host method retires) |
+| Last-update gameobject publication (visual despawn, capture-point removal, the shared visible-set filter) | `gameobject_state.rs`, `gameobject_query.rs` summary, `movement_publication.rs` | 357 | 5 | +1 (`current_seer_guid_like_cpp`) |
+| Visible-object queries (gameobjects with the canonical create data, creatures, the seer's combat reach) | `gameobject_query.rs`, `gameobject.rs` create data, `creature_query.rs`, `aggro.rs` reach | 323 | 4 | −2 (two visibility host methods retire); the quest crate's pure per-viewer GoState projection (16 lines) moves down with it |
+| Creature publication and represented creature auras (message-to-set gates, aura apply/tick/publish, creature broadcast) | `creature.rs`, `creature_publication.rs` | 347 | 7 | 0 |
+| Creature kill, reputation and death-state completion | `creature_kill.rs` | 439 | 16 | ~9 (social reputation gain, loot-ops kill loot, quest objective, XP, tapper pet hooks, currency store, social split) |
+| Spell threat (initial threat, threat-relevant auras) | `aggro.rs` | 255 | 8 | spell-bound (two `wow_world_spell` calls and the pull publication): belongs to `wow-world-spell`, not entities |
+| Spell-click visibility, viewer NPC flags | `spell_click.rs`, `creature_interaction.rs` | 120 | 4 | quest-bound (`wow_world_quest` predicate, condition projection): stays behind the host |
+| Committed creature melee health presentation | `creature.rs` | 61 | 1 | 1, plus a fixture accessor for its `cfg(test)` block |
+| Dynamic flags, kill credit, gameobject mutate | `gameobject.rs` | 73 | 5 | quest-bound; already host methods; stay |
+| Catalog setters (`pub` API for world-server) | `creature_query.rs`, `gameobject_query.rs`, `aggro.rs` | ~60 | 0 | stay (session construction API) |
+| `cfg(test)` registry and test entries nested in production impls | `creature_registry.rs`, `creature.rs`, `creature_kill.rs`, `aggro.rs` | ~375 | — | reclassification only (test shims), no host |
+
+**Closure pre-check** (lock and metadata, on the base): the four 10a families
+need **no new edge**; `check` passes as is (17 packages). The forbidden
+targets were probed and fail as they must:
+`wow-world-entities->wow-world-{quest,loot-ops,spell,social}` (cycles or
+forbidden reach). `wow-world-entities->wow-world-loot` would pass, but 10a
+uses one host method for the loot-cache removal instead of an edge (no
+`Cargo.lock` change, so no extra recompilation in `final`).
+
+**Split (each part re-measures on its own base; at most about 4.5k moved and
+15 % host), lowest host surface first:**
+
+- **10a → entities (about 1.7k, host net 0):** the four families with net
+  host cost ≤ 2: the update tick and trap despawn, the last-update
+  publication, the visible-object queries and the creature publication and
+  auras. Also #1395 follow-up 1 (the session test re-exports move to a
+  session-side `#![cfg(test)]` file).
+- **10b (about 1.2k):** creature kill and reputation → entities behind about
+  nine host methods (the 15 % budget holds only if the reputation branch and
+  the death-state completion move together); the melee health presentation
+  with a fixture accessor; spell threat → `wow-world-spell` (spell may reach
+  entities; entities may not reach spell); and the `cfg(test)` registry
+  reclassification. Spell-click visibility, dynamic flags and kill credit stay
+  behind the host (quest-bound).
+
+## Slice 10a result (gameobject update and publication, visible-object queries, creature publication → entities)
+
+Branch `1363-s10a-world-entities`, base `b240d01a6` (9e merged). Move-only
+(R2), with the slice 4–9 rewrites and nothing else:
+
+- `self` becomes `host` with the narrowest bound the body needs:
+  `WorldEntitiesHostLikeCpp` for the update tick, the linked-trap despawn,
+  the creature publication and auras and the creature queries;
+  `VisibilitySessionHostLikeCpp` for the last-update publication, the
+  gameobject query and the seer's combat reach. `self.core` becomes
+  `host.core()` (`core_mut()` where the body mutates: the client-visible GUID
+  set and the canonical creature aura writes), `self.world_entities` becomes
+  `world_entities()`/`world_entities_mut()`, `self.visibility` (two delivery
+  admissions) becomes `visibility_mut()`, `self.config`/`self.catalogs` read
+  through `host.hub_ref()`, `crate::session::{hub_ref,hub_mut,split_*}(self)`
+  become the same host calls, a call between moved functions becomes a free
+  call, `wow_world_entities::` becomes `crate::` and
+  `crate::creature_projection` becomes `wow_world_core::creature_projection`
+  (the same module the World re-exported);
+- **two World wrappers are inlined**, each as its exact body, none async:
+  `self.spell_store()` (body `self.catalogs.spell_store()`; the creature
+  aura application) becomes `host.hub_ref().catalogs.spell_store()`, and
+  `self.canonical_creature_access_like_cpp(guid)` (body: the
+  `split_world_entities_ref` split and the state call; the creature
+  broadcast) becomes that split and call in a block. The World wrapper stays
+  for its other callers. The private `canonical_creature_aura_slot_like_cpp`
+  split moves as a private free function;
+- **the quest crate's pure per-viewer GoState projection**
+  (`represented_gameobject_go_state_for_viewer_like_cpp`, 16 lines, no
+  quest type) moves down to `visibility_session/queries.rs` with its only
+  World caller; `wow-world-quest` imports it from entities and drops it from
+  its three re-export lists.
+
+A token comparison of the 19 moved functions against the same rewrite applied
+by script to their base bodies (comments masked) finds 2 identical; the other
+17 differ only by accessor parentheses, `_mut` accessors, free-call
+argument order, `crate::`/`wow_world_core::` paths, the two inlined
+wrappers, the three host calls (loot-cache removal, chest refresh, goober
+refresh) and rustfmt trailing commas. No string literal, constant, operator or
+control-flow token changed.
+
+### What moved
+
+- **`gameobject_update_session.rs` (692 lines):** the represented
+  `GameObject::Update` tick (per-player state expiry, despawn delays,
+  respawns, door/button and goober resets, charges, bomb and non-bomb traps,
+  fishing bobbers, chest restocks, capture points and the
+  `GO_JUST_DEACTIVATED` cleanup) and the linked-trap despawn.
+- **`gameobject_publication_session.rs` (396):** the `SMSG_GAMEOBJECT_DESPAWN`
+  visual despawn and the capture-point removal from the map's last update
+  summary, with their shared visible-set filter. The emptied
+  `session/movement/movement_publication.rs` is deleted.
+- **`visibility_session/queries.rs` (363):** the nearby gameobject query with
+  the canonical create data, the two nearby creature queries, the seer's
+  combat reach and the GoState projection.
+- **`creature_publication_session.rs` (361):** the two
+  `SendMessageToSet` receiver gates, the creature visible-set broadcast and
+  the creature aura apply, slot publication and tick.
+- **Stays in `wow-world`, with the reason:** the quest-bound dynamic flags,
+  kill credit and spell-click visibility; creature kill and reputation,
+  spell threat and the melee health presentation (10b); the catalog setters
+  (world-server construction API); the `cfg(test)` registry and test entries
+  (10b reclassification).
+
+### Host surface
+
+- `WorldEntitiesHostLikeCpp` gains `remove_cached_loot_for_owner_like_cpp`
+  (the loot state's method; its result was already discarded) and
+  `queue_session_chest_gameobject_state_refresh_for_same_map_like_cpp` (the
+  loot-ops facade), and loses `despawn_represented_linked_trap_by_guid_like_cpp`
+  (its entities caller now makes the free call). The goober refresh in the
+  tick uses the existing host method, whose adapter calls the same loot-ops
+  function the body called.
+- `VisibilitySessionHostLikeCpp` gains `current_seer_guid_like_cpp` (the World
+  method, widened from `pub(in crate::session)` to `pub(crate)` for the
+  adapter; it keeps its `cfg(test)` seer fixture) and loses
+  `visible_world_creatures_from_map_like_cpp` and
+  `visible_gameobjects_from_canonical_map_like_cpp`.
+- New host code: 3 trait methods (about 9 lines) and 3 adapter entries
+  (about 15 lines), against about 1,720 moved lines: **about 1.4 %**. Net, the
+  host shrinks (3 methods retired, about 35 lines).
+- No new crate edge: `wow_world_closure.py check` PASS in lock and metadata
+  mode (17 packages); `Cargo.lock` is unchanged.
+
+### Await counts and recursion
+
+- None of the 19 moved functions is `async` or contains `.await` (base 0,
+  head 0); the driver calls the tick, the capture-point removal and the visual
+  despawn at the same points, in the same order.
+- Every moved name was grepped across the production (non-shim) `wow-world`
+  files. The six remaining references are trait-impl forwards and inherent
+  callers, and every one names the free function
+  (`wow_world_entities::…(self, …)`): the execution host (creature aura),
+  the aura host (creature aura tick), the effect host (creature broadcast,
+  combat reach), the loot host (message-to-set gate), and the combat-reach
+  callers in `visibility/operations.rs` and `instances/map_resolution.rs` (3).
+  The new forwards resolve to the inherent `current_seer_guid_like_cpp`, the
+  `LootState` method and the loot-ops free function.
+  `unconditional_recursion`: 0 in the production lib, the lib with
+  `test-fixtures` and the lib test build.
+
+### #1395 follow-up 1
+
+`session_test_reexports` left `handlers/player_cast_test_shims.rs` for the
+`#![cfg(test)]` `session/test_reexports.rs`, glob-imported by the session
+root under `cfg(test)`; `session/mod.rs` no longer imports from `handlers`.
+It also carries `RepresentedCapturePointStateLikeCpp`, whose last production
+reader moved. Its 23 test lines are offset in the session hotspot by moving
+the creature-publication F3 shim mount and the scripted-goober and per-type
+gameobject-use test entries (whose bodies moved in 4a) to
+`handlers/world_entities_test_shims.rs`; the session test ceiling falls.
+
+### Accounting
+
+- **`wow-world` production (classifier): 49,482 → 47,711 (−1,771)**;
+  physical 56,805 → 55,155, 471 → 470 files.
+  - **Moved out:** about 1,720 production lines (the 19 function bodies with
+    their doc comments, and the emptied `movement_publication.rs`).
+  - **Reclassified:** 35 (the `cfg(test)`-mounted `gameobject_use_scripted.rs`
+    and `gameobject_use_types.rs`, which the classifier counted as production,
+    now in the `#![cfg(test)]` shim).
+  - The rest is imports, re-exports and the forward rewrites.
+- **Destinations.** `wow-world-entities/src` +1,857 / −20 (the four new
+  files 1,812, `lib.rs` +18); `wow-world-quest/src` +3 / −22.
+- `net_move.py check`: S = 1,650, G = 1,819, allowance 2,693.5, PASS, 0
+  duplicate bodies.
+- **Ceilings** (none raised):
+  - hotspot `session/mod.rs`: production 30,380 → 28,563, test 141,685 →
+    141,677, total 172,065 → 170,240;
+  - hotspot `handlers/character/mod.rs`: production 3,486 → 3,469, total
+    19,141 → 19,124 (the visibility adapter);
+  - hotspot `handlers/loot/mod.rs` unchanged (the forward's extra argument
+    line is offset by merging the adapter's two `wow_world_loot_ops`
+    imports);
+  - physical `session/mod.rs` 928 → 927, `handlers/player_cast_test_shims.rs`
+    150 → 128; new ratcheted row `handlers/world_entities_test_shims.rs` at
+    125.
+  - `session-ownership-policy.json` is reprinted with `print-baseline`; the
+    delta is the moved items, the new adapter entries and the shims.
+- **Warnings.** Per lint and crate, identical to the base in the production
+  lib, the lib with `test-fixtures` and the lib test build (`wow-world`
+  `dead_code` 0 in all three).
+- **Tests.** No test file and no `#[test]`/`#[ignore]` line changed; the
+  scenarios keep method syntax through the shim forwards.
+
+### 10b plan
+
+Re-measure on the 10a merge. In order: the `cfg(test)` registry and test
+entries reclassification (about 375, no host); the melee health presentation
+with a fixture accessor; creature kill, reputation and death-state
+completion → entities behind about nine host methods, only if it stays
+within 15 %; spell threat → `wow-world-spell`. Spell-click visibility, the
+dynamic flags and kill credit stay behind the host (quest-bound).
+
+### Follow-ups
+
+- The visual despawn body repeats the visible-set filter of
+  `visible_gameobject_guids_from_last_update_summary_like_cpp` (moved as is);
+  a later behaviour-neutral change can make it call the shared filter.
+- The world-entities shim retires with the other shims when the scenarios
+  call the free functions directly.

@@ -275,10 +275,12 @@ impl WorldSession {
                 catalogs.item_valuation.as_ref(),
             )
             .await;
-            self.tick_represented_gameobject_update_like_cpp();
+            wow_world_entities::tick_represented_gameobject_update_like_cpp(self);
             self.send_represented_gameobject_visibility_on_destroy_from_last_update_like_cpp();
-            self.send_represented_capture_point_removed_from_last_update_like_cpp();
-            self.send_represented_gameobject_visual_despawn_from_last_update_like_cpp();
+            wow_world_entities::send_represented_capture_point_removed_from_last_update_like_cpp(
+                self,
+            );
+            wow_world_entities::send_represented_gameobject_visual_despawn_from_last_update_like_cpp(self);
             wow_world_spell::tick_active_spell_cast_with_generator_like_cpp(
                 self,
                 catalogs.id_generators.item.as_ref(),

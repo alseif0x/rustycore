@@ -57,7 +57,8 @@ impl WorldSession {
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
-        let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
+        let source_combat_reach =
+            wow_world_entities::represented_visibility_source_combat_reach_like_cpp(self);
 
         registry
             .player_visibility_create_candidates(
@@ -145,7 +146,7 @@ impl WorldSession {
     /// Player. C++ keeps a pointer, but every Rust consumer in this boundary
     /// needs only its GUID; `ActivePlayerData::FarsightObject` is the durable
     /// owner and an empty value means the Player itself.
-    pub(in crate::session) fn current_seer_guid_like_cpp(&self) -> Option<ObjectGuid> {
+    pub(crate) fn current_seer_guid_like_cpp(&self) -> Option<ObjectGuid> {
         let player_guid = self.player_guid()?;
         if let Some(farsight) = self
             .core

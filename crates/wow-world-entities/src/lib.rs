@@ -14,6 +14,7 @@ mod creature_interaction;
 mod creature_kill;
 pub mod creature_movement_adapter;
 mod creature_publication;
+mod creature_publication_session;
 mod creature_query;
 mod creature_registry;
 pub mod creature_spell_admission;
@@ -29,8 +30,10 @@ mod gameobject_contracts;
 mod gameobject_handlers;
 mod gameobject_interaction;
 mod gameobject_overrides;
+mod gameobject_publication_session;
 mod gameobject_query;
 mod gameobject_state;
+mod gameobject_update_session;
 mod gameobject_use;
 mod gameobject_use_dispatch;
 mod gameobject_use_kinds;
@@ -89,6 +92,13 @@ pub use corpse_handlers::{
 pub use corpse_registrations::{CorpseHandlerHostLikeCpp, register_corpse_handlers_like_cpp};
 pub use creature::creature_message_to_set_target_allows_like_cpp;
 pub use creature_publication::represented_creature_aura_info_like_cpp;
+pub use creature_publication_session::{
+    apply_creature_aura_with_provenance_like_cpp,
+    broadcast_creature_packet_to_visible_set_like_cpp,
+    represented_can_receive_creature_message_to_set_by_guid_like_cpp,
+    represented_can_receive_creature_message_to_set_like_cpp,
+    tick_represented_creature_auras_like_cpp,
+};
 pub use creature_registry::{
     CanonicalCreatureInsertOutcomeLikeCpp,
     insert_canonical_creature_map_object_on_locked_map_like_cpp,
@@ -109,6 +119,11 @@ pub use gameobject_interaction::{
     represented_gameobject_display_box_contains_like_cpp,
     represented_gameobject_interaction_distance_like_cpp,
 };
+pub use gameobject_publication_session::{
+    send_represented_capture_point_removed_from_last_update_like_cpp,
+    send_represented_gameobject_visual_despawn_from_last_update_like_cpp,
+};
+pub use gameobject_update_session::tick_represented_gameobject_update_like_cpp;
 pub use gameobject_use_dispatch::{
     handle_game_obj_use_with_catalogs_like_cpp,
     represented_gameobject_gossip_can_interact_with_like_cpp,
@@ -196,8 +211,11 @@ pub use vehicle_session::{
     represented_request_vehicle_switch_seat_like_cpp, represented_ride_vehicle_interact_like_cpp,
 };
 pub use visibility_session::{
-    VisibilitySessionHostLikeCpp, send_nearby_creatures_with_catalogs_like_cpp,
-    send_nearby_gameobjects, update_visibility_with_catalogs_like_cpp,
+    VisibilitySessionHostLikeCpp, represented_gameobject_go_state_for_viewer_like_cpp,
+    represented_visibility_source_combat_reach_like_cpp,
+    send_nearby_creatures_with_catalogs_like_cpp, send_nearby_gameobjects,
+    update_visibility_with_catalogs_like_cpp, visible_creatures_from_canonical_map_like_cpp,
+    visible_gameobjects_from_canonical_map_like_cpp, visible_world_creatures_from_map_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use visibility_session::{

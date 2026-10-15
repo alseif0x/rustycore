@@ -16,13 +16,12 @@ use wow_social::group::GroupRegistry;
 use wow_world_core::session::directory::PlayerRegistry;
 use wow_world_core::session::{HubMut, HubRef};
 use wow_world_lifecycle::SessionLifecycleState;
-use wow_world_loot_ops::LootSessionHostLikeCpp;
+use wow_world_loot_ops::{LootHandlerHostLikeCpp, LootSessionHostLikeCpp};
 
 use super::*;
 use wow_loot::LootStores;
 use wow_world_core::session_policy::LootDropRatesLikeCpp;
 use wow_world_inventory::InventoryState;
-use wow_world_loot_ops::LootHandlerHostLikeCpp;
 
 use crate::handlers::quest::{
     QuestSourceItemBoundPersistencePlanLikeCpp, QuestSourceItemBoundPreflightLikeCpp,
@@ -271,7 +270,8 @@ impl LootSessionHostLikeCpp for WorldSession {
         instance_id: u32,
         required_3d: bool,
     ) -> Option<bool> {
-        self.represented_can_receive_creature_message_to_set_by_guid_like_cpp(
+        wow_world_entities::represented_can_receive_creature_message_to_set_by_guid_like_cpp(
+            self,
             guid,
             map_id,
             instance_id,

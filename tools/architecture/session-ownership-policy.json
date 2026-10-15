@@ -1164,6 +1164,30 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::world_entities_test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
+          "module": "crate::handlers::world_entities_test_shims::creature_publication_f3_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
+          "module": "crate::handlers::world_entities_test_shims::gameobject_use_types_f3_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::player::quest_persistence_projection",
           "trait_path": null,
           "cfg": [],
@@ -6171,6 +6195,20 @@
           "module": "crate::handlers::character::visibility",
           "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
           "kind": "method",
+          "name": "current_seer_guid_like_cpp",
+          "visibility": "private",
+          "signature": "fn current_seer_guid_like_cpp (& self) -> Option < ObjectGuid >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::visibility",
+          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
+          "kind": "method",
           "name": "lifecycle",
           "visibility": "private",
           "signature": "fn lifecycle (& self) -> & SessionLifecycleState",
@@ -6297,20 +6335,6 @@
           "module": "crate::handlers::character::visibility",
           "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
           "kind": "method",
-          "name": "visible_gameobjects_from_canonical_map_like_cpp",
-          "visibility": "private",
-          "signature": "fn visible_gameobjects_from_canonical_map_like_cpp (& self , map_id : u16 , position : & Position , visibility_radius : f32 ,) -> Option < Vec < GameObjectCreateData > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::visibility",
-          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
-          "kind": "method",
           "name": "visible_misc_objects_from_canonical_map_like_cpp",
           "visibility": "private",
           "signature": "fn visible_misc_objects_from_canonical_map_like_cpp (& self , map_id : u16 , position : & Position , visibility_radius : f32 ,) -> Option < (Vec < CorpseCreateData > , Vec < SceneObjectCreateData > , Vec < ConversationCreateData > ,) >",
@@ -6342,20 +6366,6 @@
           "name": "visible_transports_from_canonical_map_like_cpp",
           "visibility": "private",
           "signature": "fn visible_transports_from_canonical_map_like_cpp (& self , map_id : u16 ,) -> Option < Vec < GameObjectCreateData > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::visibility",
-          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
-          "kind": "method",
-          "name": "visible_world_creatures_from_map_like_cpp",
-          "visibility": "private",
-          "signature": "fn visible_world_creatures_from_map_like_cpp (& self , map_id : u16 , position : & Position ,) -> Vec < wow_entities :: Creature >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -7907,20 +7917,6 @@
           "module": "crate::handlers::entities::host",
           "trait_path": "WorldEntitiesHostLikeCpp",
           "kind": "method",
-          "name": "despawn_represented_linked_trap_by_guid_like_cpp",
-          "visibility": "private",
-          "signature": "fn despawn_represented_linked_trap_by_guid_like_cpp (& mut self , trap_guid : ObjectGuid)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::entities::host",
-          "trait_path": "WorldEntitiesHostLikeCpp",
-          "kind": "method",
           "name": "ensure_canonical_world_map_for_current_player_like_cpp",
           "visibility": "private",
           "signature": "fn ensure_canonical_world_map_for_current_player_like_cpp (& mut self ,) -> Option < wow_map :: CreateMapDecision >",
@@ -8019,6 +8015,20 @@
           "module": "crate::handlers::entities::host",
           "trait_path": "WorldEntitiesHostLikeCpp",
           "kind": "method",
+          "name": "queue_session_chest_gameobject_state_refresh_for_same_map_like_cpp",
+          "visibility": "private",
+          "signature": "fn queue_session_chest_gameobject_state_refresh_for_same_map_like_cpp (& self , gameobject_guid : ObjectGuid ,) -> usize",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::host",
+          "trait_path": "WorldEntitiesHostLikeCpp",
+          "kind": "method",
           "name": "queue_visible_gameobject_packet_for_same_map_like_cpp",
           "visibility": "private",
           "signature": "fn queue_visible_gameobject_packet_for_same_map_like_cpp (& self , gameobject_guid : ObjectGuid , packet_bytes : Vec < u8 > ,) -> usize",
@@ -8050,6 +8060,20 @@
           "name": "remove_aura",
           "visibility": "private",
           "signature": "fn remove_aura (& mut self , slot : u8) -> Result < () , & 'static str >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::host",
+          "trait_path": "WorldEntitiesHostLikeCpp",
+          "kind": "method",
+          "name": "remove_cached_loot_for_owner_like_cpp",
+          "visibility": "private",
+          "signature": "fn remove_cached_loot_for_owner_like_cpp (& mut self , owner : ObjectGuid)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -18908,6 +18932,198 @@
           ]
         },
         {
+          "module": "crate::handlers::world_entities_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_creature_aura_with_provenance_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_creature_aura_with_provenance_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid , target_guid : ObjectGuid , effect_mask : u32 , duration_ms : u32 , provenance : wow_entities :: AuraCastProvenanceLikeCpp ,) -> Result < () , & 'static str >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::world_entities_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_can_receive_creature_message_to_set_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_can_receive_creature_message_to_set_like_cpp (& self , guid : ObjectGuid , creature : & wow_entities :: Creature , required_3d : bool ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::world_entities_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "send_represented_gameobject_visual_despawn_from_last_update_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn send_represented_gameobject_visual_despawn_from_last_update_like_cpp (& mut self ,) -> usize",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::world_entities_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "use_represented_gameobject_goober_preamble_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn use_represented_gameobject_goober_preamble_like_cpp (& mut self , gameobject_guid : ObjectGuid , gameobject_entry : u32 , gameobject_position : Position , player_guid : ObjectGuid , source : wow_entities :: GooberUseSource ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::world_entities_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "visible_creatures_from_canonical_map_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn visible_creatures_from_canonical_map_like_cpp (& self , map_id : u16 , position : & wow_core :: Position ,) -> Option < Vec < wow_entities :: Creature > >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::world_entities_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "visible_gameobjects_from_canonical_map_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn visible_gameobjects_from_canonical_map_like_cpp (& self , map_id : u16 , position : & wow_core :: Position , visibility_radius : f32 ,) -> Option < Vec < wow_packet :: packets :: update :: GameObjectCreateData > >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::world_entities_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "visible_world_creatures_from_map_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn visible_world_creatures_from_map_like_cpp (& self , map_id : u16 , position : & wow_core :: Position ,) -> Vec < wow_entities :: Creature >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::world_entities_test_shims::creature_publication_f3_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "broadcast_creature_packet_from_position_to_visible_set_realm_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn broadcast_creature_packet_from_position_to_visible_set_realm_like_cpp (& self , source_guid : ObjectGuid , source_position : Position , bytes : Vec < u8 > ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::world_entities_test_shims::gameobject_use_types_f3_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "tick_represented_gameobject_door_or_button_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn tick_represented_gameobject_door_or_button_like_cpp (& mut self , gameobject_guid : ObjectGuid ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::world_entities_test_shims::gameobject_use_types_f3_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "use_represented_gameobject_door_or_button_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn use_represented_gameobject_door_or_button_like_cpp (& mut self , gameobject_guid : ObjectGuid , user_guid : ObjectGuid , restore_time_ms : u32 ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::world_entities_test_shims::gameobject_use_types_f3_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "use_represented_gameobject_spell_focus_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn use_represented_gameobject_spell_focus_like_cpp (& mut self , gameobject_guid : ObjectGuid , player_guid : ObjectGuid , linked_trap_entry : u32 ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::world_entities_test_shims::gameobject_use_types_f3_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "use_represented_gameobject_trap_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn use_represented_gameobject_trap_like_cpp (& mut self , gameobject_guid : ObjectGuid , user_guid : ObjectGuid , source : wow_entities :: TrapUseSource ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
           "module": "crate::player::quest_persistence_projection::f3_shims",
           "trait_path": null,
           "kind": "method",
@@ -19941,19 +20157,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_creature_aura_with_provenance_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_creature_aura_with_provenance_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid , target_guid : ObjectGuid , effect_mask : u32 , duration_ms : u32 , provenance : wow_entities :: AuraCastProvenanceLikeCpp ,) -> Result < () , & 'static str >",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -21279,45 +21482,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "broadcast_creature_packet_from_position_to_visible_set_realm_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn broadcast_creature_packet_from_position_to_visible_set_realm_like_cpp (& self , source_guid : ObjectGuid , source_position : Position , bytes : Vec < u8 > ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "broadcast_creature_packet_to_visible_set_and_connection_like_cpp",
-          "visibility": "private",
-          "signature": "fn broadcast_creature_packet_to_visible_set_and_connection_like_cpp (& self , source_guid : ObjectGuid , bytes : Vec < u8 > , realm_connection : bool ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "broadcast_creature_packet_to_visible_set_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn broadcast_creature_packet_to_visible_set_like_cpp (& self , source_guid : ObjectGuid , bytes : Vec < u8 > ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "broadcast_item_push_result_to_group",
           "visibility": "pub (in crate :: session)",
           "signature": "fn broadcast_item_push_result_to_group (& self , bytes : Vec < u8 >) -> bool",
@@ -21726,17 +21890,6 @@
           "guards": [
             "visible"
           ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "canonical_creature_aura_slot_like_cpp",
-          "visibility": "private",
-          "signature": "fn canonical_creature_aura_slot_like_cpp (& mut self , target_guid : ObjectGuid , spell_id : u32 , caster_guid : ObjectGuid ,) -> Option < u8 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
         },
         {
           "module": "crate::session",
@@ -22734,7 +22887,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "current_seer_guid_like_cpp",
-          "visibility": "pub (in crate :: session)",
+          "visibility": "pub (crate)",
           "signature": "fn current_seer_guid_like_cpp (& self) -> Option < ObjectGuid >",
           "cfg": [],
           "source_class": "production",
@@ -22820,19 +22973,6 @@
           "name": "delete_represented_void_storage_item_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn delete_represented_void_storage_item_like_cpp (& mut self , slot : u8 ,) -> Option < RepresentedVoidStorageItemLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "despawn_represented_linked_trap_by_guid_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn despawn_represented_linked_trap_by_guid_like_cpp (& mut self , trap_guid : ObjectGuid ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -23471,19 +23611,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "gameobject_create_data_from_canonical_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn gameobject_create_data_from_canonical_like_cpp (& self , guid : ObjectGuid , gameobject : & wow_entities :: GameObject ,) -> Option < wow_packet :: packets :: update :: GameObjectCreateData >",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -27929,19 +28056,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "publish_creature_aura_slot_update_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn publish_creature_aura_slot_update_like_cpp (& self , target_guid : ObjectGuid , slot : u8 , applied : bool ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "publish_creature_melee_death_durability_loss_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn publish_creature_melee_death_durability_loss_like_cpp (& mut self , over_damage : i32 ,)",
@@ -30004,32 +30118,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_can_receive_creature_message_to_set_by_guid_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_can_receive_creature_message_to_set_by_guid_like_cpp (& self , guid : ObjectGuid , map_id : u16 , instance_id : u32 , required_3d : bool ,) -> Option < bool >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_can_receive_creature_message_to_set_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn represented_can_receive_creature_message_to_set_like_cpp (& self , guid : ObjectGuid , creature : & wow_entities :: Creature , required_3d : bool ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -32582,19 +32670,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_visibility_source_combat_reach_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn represented_visibility_source_combat_reach_like_cpp (& self) -> f32",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_visibility_source_position_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_visibility_source_position_like_cpp (& self) -> Option < Position >",
@@ -34109,19 +34184,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "send_represented_capture_point_removed_from_last_update_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn send_represented_capture_point_removed_from_last_update_like_cpp (& mut self ,) -> usize",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "send_represented_cinematic_start_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn send_represented_cinematic_start_like_cpp (& mut self , cinematic_id : u32)",
@@ -34151,19 +34213,6 @@
           "name": "send_represented_gameobject_visibility_on_destroy_from_last_update_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn send_represented_gameobject_visibility_on_destroy_from_last_update_like_cpp (& mut self ,) -> usize",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_represented_gameobject_visual_despawn_from_last_update_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn send_represented_gameobject_visual_despawn_from_last_update_like_cpp (& mut self ,) -> usize",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -40998,47 +41047,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "tick_represented_creature_auras_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn tick_represented_creature_auras_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "tick_represented_gameobject_door_or_button_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn tick_represented_gameobject_door_or_button_like_cpp (& mut self , gameobject_guid : ObjectGuid ,) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "tick_represented_gameobject_update_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn tick_represented_gameobject_update_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "tick_represented_online_xp_rest_bonus_with_policy_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn tick_represented_online_xp_rest_bonus_with_policy_like_cpp (& mut self , policy : & PlayerRestRatePolicyLikeCpp , now_secs : u64 ,)",
@@ -41566,71 +41574,11 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "use_represented_gameobject_door_or_button_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn use_represented_gameobject_door_or_button_like_cpp (& mut self , gameobject_guid : ObjectGuid , user_guid : ObjectGuid , restore_time_ms : u32 ,) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "use_represented_gameobject_goober_preamble_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn use_represented_gameobject_goober_preamble_like_cpp (& mut self , gameobject_guid : ObjectGuid , gameobject_entry : u32 , gameobject_position : Position , player_guid : ObjectGuid , source : wow_entities :: GooberUseSource ,) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "use_represented_gameobject_questgiver_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn use_represented_gameobject_questgiver_like_cpp (& mut self , gameobject_guid : ObjectGuid , player_guid : ObjectGuid , gameobject_entry : u32 , source : wow_entities :: QuestgiverUseSource ,) -> bool",
           "cfg": [],
           "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "use_represented_gameobject_spell_focus_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn use_represented_gameobject_spell_focus_like_cpp (& mut self , gameobject_guid : ObjectGuid , player_guid : ObjectGuid , linked_trap_entry : u32 ,) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "use_represented_gameobject_trap_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn use_represented_gameobject_trap_like_cpp (& mut self , gameobject_guid : ObjectGuid , user_guid : ObjectGuid , source : wow_entities :: TrapUseSource ,) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -41678,48 +41626,9 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "visible_creatures_from_canonical_map_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn visible_creatures_from_canonical_map_like_cpp (& self , map_id : u16 , position : & wow_core :: Position ,) -> Option < Vec < wow_entities :: Creature > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "visible_dynamic_objects_from_canonical_map_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn visible_dynamic_objects_from_canonical_map_like_cpp (& self , map_id : u16 , position : & wow_core :: Position , visibility_radius : f32 ,) -> Option < Vec < wow_packet :: packets :: update :: DynamicObjectCreateData > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "visible_gameobject_guids_from_last_update_summary_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn visible_gameobject_guids_from_last_update_summary_like_cpp < F > (& self , select_guids : F ,) -> Option < (u32 , u32 , u64 , Vec < ObjectGuid >) > where F : FnOnce (& wow_map :: map :: GameObjectsUpdateSummaryLikeCpp) -> Vec < ObjectGuid > ,",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "visible_gameobjects_from_canonical_map_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn visible_gameobjects_from_canonical_map_like_cpp (& self , map_id : u16 , position : & wow_core :: Position , visibility_radius : f32 ,) -> Option < Vec < wow_packet :: packets :: update :: GameObjectCreateData > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -41759,19 +41668,6 @@
           "name": "visible_transports_from_canonical_map_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn visible_transports_from_canonical_map_like_cpp (& self , map_id : u16 ,) -> Option < Vec < wow_packet :: packets :: update :: GameObjectCreateData > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "visible_world_creatures_from_map_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn visible_world_creatures_from_map_like_cpp (& self , map_id : u16 , position : & wow_core :: Position ,) -> Vec < wow_entities :: Creature >",
           "cfg": [],
           "source_class": "production",
           "guards": [

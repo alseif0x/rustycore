@@ -52,7 +52,7 @@ mod login_test_shims;
 #[cfg(test)]
 mod loot_test_shims;
 #[cfg(test)]
-pub(crate) mod player_cast_test_shims;
+mod player_cast_test_shims;
 #[cfg(test)]
 mod player_test_shims;
 #[cfg(test)]
@@ -74,3 +74,5 @@ mod test_support;
 mod vendor_test_shims;
 #[cfg(test)]
 mod visibility_test_shims;
+#[cfg(test)]
+mod world_entities_test_shims;
