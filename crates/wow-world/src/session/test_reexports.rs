@@ -1,7 +1,7 @@
 //! Names only the session scenarios read through the session root (#1363 slices 9e-13a): the
 //! player cast, cast-check, spell-click, battle-pet, aura-interrupt, area-flag, capture-point,
 //! spell-area autocast, dynamic-object VALUES, teleport, rest-flag, create-map and transfer-abort
-//! names. `#![cfg(test)]`; the session root mounts and glob-imports it under `cfg(test)` (#1395/#1396).
+//! names. `#![cfg(test)]`; mounted and glob-imported under `cfg(test)` (#1395/#1396 follow-up 1).
 
 #![cfg(test)]
 
