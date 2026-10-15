@@ -12676,9 +12676,12 @@ Branch `1363-s12b1b-player-items`, base `e5c8195b0` (slice 12b1 merged).
   `#![cfg(test)]` files skipped, `cfg(test)` impls and methods excluded, lines
   from the first doc or attribute line through the closing brace; a forward
   has at most one `;` and no `let`/`if`/`match`/`for`/`while`/`loop`/`return`).
-  It also skips impl blocks inside a top-level `cfg(test)` item and methods
-  whose `#[cfg(test)]` follows a doc comment, which the 12b1 scratch index
-  counted: on `e5c8195b0` that drops `update`, `process_pending` and
+  It also skips impl blocks inside a top-level `cfg(test)` item, and it takes
+  line numbers from the masked text (which keeps every newline) instead of
+  mixing byte offsets of the masked text with character offsets of the
+  source. The 12b1 scratch index did the latter, so after non-ASCII text its
+  attribute look-up drifted by a few lines and missed three `#[cfg(test)]`
+  methods: on `e5c8195b0` the tool drops `update`, `process_pending` and
   `session_handler_catalogs_for_test_like_cpp` in `session/driver/mod.rs`, so
   the index reads **340 non-forward methods (9,513 lines) and 293 forwards
   (1,729 lines)** instead of 343 / 9,569.
