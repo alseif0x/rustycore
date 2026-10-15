@@ -13539,3 +13539,54 @@ compared with `warning_units.py`:
 runs on the committed head that includes this section. The manifest path,
 dirty flag and duration are in the PR body. This section is not edited after
 that run, so the PR head is the validated SHA.
+
+## Slice 12b2b result (kill cascade, nearby-entry pair, enchantment / item-mod / set-aura family)
+
+Branch `1363-s12b2b`, base `ca48c58e9` (slice 12b2 merged).
+
+### #1414 follow-ups 1–3: the index tool
+
+Fixed in a separate commit, before anything moved. None of these cases occurs
+in the tree today; the measurement on the base is unchanged (staying 44 /
+1,190, outside 259 / 6,361, crate 331 / 8,763).
+
+- **Follow-up 1 (blind spots), each fixed or rejected loudly:**
+  - **nested-`<>` generics:** `IMPL_RE` accepts up to four levels of `<>` in
+    the impl and type generics (`impl<T: Into<Vec<Option<u8>>>> WorldSession`);
+  - **`::wow_world::` paths:** a leading `::` is accepted
+    (`impl ::wow_world::session::WorldSession`);
+  - **type aliases: rejected.** A production `type X = WorldSession;` or
+    `use … WorldSession as X;` fails `check` (and makes `index` exit 1),
+    because the alias's impls would be invisible. `<WorldSession as Trait>::`
+    and cfg-gated aliases are not flagged;
+  - **same-line attributes before `fn`** (`#[inline] fn`, `#[cfg(test)] fn`)
+    are matched, and a gated one stays excluded;
+  - **`extern "C" fn`** is matched;
+  - **`&|x|` / `&mut ||` closures** count as closures (non-forward);
+  - **`#[path]` mounts outside `src`:** a production one now fails `check`
+    (`production #[path] mount outside src`); a gated test mount such as
+    `unit_tests/` stays allowed.
+- **Follow-up 2 (self-test gaps), all added:** `not(not(test))` (off),
+  `any(not(test), test)` (on), `not(any(not(test), test))` (off, which tells
+  Kleene `True` from unknown), the nested-fn guard (a `fn helper` inside a
+  method body is not indexed), and `check` failing on an unreached source
+  (the self-test now runs the same `check_errors` path as `check` on a
+  temporary crate).
+- **Follow-up 3 (shim physical-row convention): add rows.** Every
+  `crates/wow-world/src/handlers/*_test_shims.rs` carries a ratcheting
+  `physical-file-policy.json` row at its live value from creation, whatever
+  its size. 29 of 31 already did; the two missing rows
+  (`player_item_builders_test_shims.rs` 233, `spell_effect_session_test_shims.rs`
+  42) are added, and `session_method_index.py check` now fails on a shim
+  without a row. Shims in subdirectories (`handlers/<dir>/test_shims.rs`,
+  `unit_tests/**/f3_shims.rs`) predate #1363's top-level shim files and are
+  outside the convention.
+- **Mutation checks**, each run against the self-test (12/12 caught):
+  four-level generics cut to one; the leading `::` dropped; the alias
+  rejection dropped; the same-line attribute group dropped; `extern` dropped;
+  `&` dropped from the closure leads; the outside-`src` error dropped; `not`
+  collapsing `not(True)` to unknown; `any` losing its `True` short-circuit;
+  the nested-fn depth guard dropped; the unreached-source error dropped from
+  `check`; the shim-row check dropped.
+- Follow-up 4 (moving the packet-spoof counter into the core admission state)
+  is not in this slice; it stays recorded.

@@ -845,6 +845,20 @@
       "review_checkpoint": "584:C4"
     },
     {
+      "path": "crates/wow-world/src/handlers/player_item_builders_test_shims.rs",
+      "observed_lines": 233,
+      "ceiling_lines": 233,
+      "split": "cfg(test) method-syntax entry points for the player-item builders, planning and committed publications moved to wow-world-application and wow-world-inventory (#1363 slice 12b1b): one-call forwards to the moved functions the scenarios call, so no scenario call site changes. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to a hotspot's test ceiling. 2026-10-15 #1363 slice 12b2b: row added under the shim physical-row convention (every handlers/*_test_shims.rs carries a ratcheting row at its live value from creation, enforced by session_method_index.py check); it retires with the other shims when the scenarios call the free functions directly.",
+      "review_checkpoint": "584:C4"
+    },
+    {
+      "path": "crates/wow-world/src/handlers/spell_effect_session_test_shims.rs",
+      "observed_lines": 42,
+      "ceiling_lines": 42,
+      "split": "cfg(test) method-syntax entry points for the spell-effect bodies moved to wow-world-spell (#1363 slice 12b2) and the item-flags catalog read only the scenarios call: one-call forwards, so no scenario call site changes. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production and are not charged to a hotspot's test ceiling. 2026-10-15 #1363 slice 12b2b: row added under the shim physical-row convention (every handlers/*_test_shims.rs carries a ratcheting row at its live value from creation, enforced by session_method_index.py check); it retires with the other shims when the scenarios call the free functions directly.",
+      "review_checkpoint": "584:C4"
+    },
+    {
       "path": "crates/wow-world/src/handlers/group_session_test_shims.rs",
       "observed_lines": 37,
       "ceiling_lines": 37,
