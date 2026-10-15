@@ -41,138 +41,151 @@ use wow_world_social::SessionSocialLimits;
 
 use super::{SessionQuestState, objective_progress::current_quest_gameplay_snapshot_like_cpp};
 
-impl PlayerConditionProjectionCxLikeCpp<'_> {
-    /// Evaluate one quest's ungrouped availability conditions at the selected
-    /// condition-projection phase.
-    pub fn represented_quest_available_conditions_meet_like_cpp(
-        &self,
-        owner: &QuestObjectiveAccessLikeCpp<'_>,
-        quest_state: &SessionQuestState,
-        catalogs: &SessionCatalogs,
-        quest_id: u32,
-        consumer_test: bool,
-    ) -> bool {
-        let condition_store = if let Some(store) = catalogs.condition_store() {
-            Arc::clone(store)
-        } else if let Some(store) = wow_conditions::condition_mgr_store_like_cpp() {
-            store
-        } else {
-            return true;
-        };
+/// Evaluate one quest's ungrouped availability conditions at the selected
+/// condition-projection phase.
+pub fn represented_quest_available_conditions_meet_like_cpp(
+    conditions: &PlayerConditionProjectionCxLikeCpp<'_>,
+    owner: &QuestObjectiveAccessLikeCpp<'_>,
+    quest_state: &SessionQuestState,
+    catalogs: &SessionCatalogs,
+    quest_id: u32,
+    consumer_test: bool,
+) -> bool {
+    let condition_store = if let Some(store) = catalogs.condition_store() {
+        Arc::clone(store)
+    } else if let Some(store) = wow_conditions::condition_mgr_store_like_cpp() {
+        store
+    } else {
+        return true;
+    };
 
-        if !wow_conditions::has_conditions_for_not_grouped_entry_like_cpp(
-            condition_store.as_ref(),
-            wow_constants::ConditionSourceType::QuestAvailable,
-            quest_id,
-        ) {
-            return true;
-        }
+    if !wow_conditions::has_conditions_for_not_grouped_entry_like_cpp(
+        condition_store.as_ref(),
+        wow_constants::ConditionSourceType::QuestAvailable,
+        quest_id,
+    ) {
+        return true;
+    }
 
-        let Some(player_object) = self.player.build_condition_player_object_like_cpp() else {
-            return false;
-        };
-        let Some(recurrence) =
-            current_quest_gameplay_snapshot_like_cpp(owner, quest_state, consumer_test)
-        else {
-            return false;
-        };
+    let Some(player_object) = conditions
+        .player_access_like_cpp()
+        .build_condition_player_object_like_cpp()
+    else {
+        return false;
+    };
+    let Some(recurrence) =
+        current_quest_gameplay_snapshot_like_cpp(owner, quest_state, consumer_test)
+    else {
+        return false;
+    };
 
-        let quest_statuses: Vec<_> = recurrence
-            .statuses_like_cpp()
-            .iter()
-            .map(
-                |(&quest_id, status)| wow_conditions::ConditionQuestStatusSnapshot {
-                    quest_id,
-                    status: status.status,
-                },
-            )
-            .collect();
-        let quest_store = catalogs.quests.store.as_ref();
-        let quest_objective_progress: Vec<_> = quest_store
-            .map(|store| {
-                recurrence
-                    .statuses_like_cpp()
-                    .iter()
-                    .filter_map(|(&quest_id, status)| {
-                        store.get(quest_id).map(|quest| {
-                            quest.objectives.iter().filter_map(move |objective| {
-                                let storage_index =
-                                    usize::try_from(objective.storage_index).ok()?;
-                                let counter = status
-                                    .objective_counts
-                                    .get(storage_index)
-                                    .copied()
-                                    .unwrap_or(0);
-                                Some(wow_conditions::ConditionQuestObjectiveProgressSnapshot {
-                                    quest_id,
-                                    objective_id: objective.id,
-                                    counter,
-                                })
+    let quest_statuses: Vec<_> = recurrence
+        .statuses_like_cpp()
+        .iter()
+        .map(
+            |(&quest_id, status)| wow_conditions::ConditionQuestStatusSnapshot {
+                quest_id,
+                status: status.status,
+            },
+        )
+        .collect();
+    let quest_store = catalogs.quests.store.as_ref();
+    let quest_objective_progress: Vec<_> = quest_store
+        .map(|store| {
+            recurrence
+                .statuses_like_cpp()
+                .iter()
+                .filter_map(|(&quest_id, status)| {
+                    store.get(quest_id).map(|quest| {
+                        quest.objectives.iter().filter_map(move |objective| {
+                            let storage_index = usize::try_from(objective.storage_index).ok()?;
+                            let counter = status
+                                .objective_counts
+                                .get(storage_index)
+                                .copied()
+                                .unwrap_or(0);
+                            Some(wow_conditions::ConditionQuestObjectiveProgressSnapshot {
+                                quest_id,
+                                objective_id: objective.id,
+                                counter,
                             })
                         })
                     })
-                    .flatten()
-                    .collect()
-            })
-            .unwrap_or_default();
-        let rewarded_quest_ids: Vec<_> = recurrence
-            .rewarded_quest_ids_like_cpp()
-            .iter()
-            .copied()
-            .collect();
-        let daily_quest_ids: Vec<_> = recurrence
-            .daily_quest_ids_like_cpp()
-            .iter()
-            .copied()
-            .collect();
-        let quest_snapshot = wow_conditions::ConditionPlayerQuestSnapshot {
-            statuses: &quest_statuses,
-            objective_progress: &quest_objective_progress,
-            rewarded_quest_ids: &rewarded_quest_ids,
-            daily_quest_ids: &daily_quest_ids,
-        };
+                })
+                .flatten()
+                .collect()
+        })
+        .unwrap_or_default();
+    let rewarded_quest_ids: Vec<_> = recurrence
+        .rewarded_quest_ids_like_cpp()
+        .iter()
+        .copied()
+        .collect();
+    let daily_quest_ids: Vec<_> = recurrence
+        .daily_quest_ids_like_cpp()
+        .iter()
+        .copied()
+        .collect();
+    let quest_snapshot = wow_conditions::ConditionPlayerQuestSnapshot {
+        statuses: &quest_statuses,
+        objective_progress: &quest_objective_progress,
+        rewarded_quest_ids: &rewarded_quest_ids,
+        daily_quest_ids: &daily_quest_ids,
+    };
 
-        let Some(player_condition_context) = self.project_like_cpp() else {
-            return false;
-        };
-        let area_table_store = self.valuation_catalogs.area_table_store_like_cpp().cloned();
+    let Some(player_condition_context) = conditions.project_like_cpp() else {
+        return false;
+    };
+    let area_table_store = conditions
+        .valuation_catalogs
+        .area_table_store_like_cpp()
+        .cloned();
 
-        let mut source_info =
-            wow_conditions::ConditionSourceInfo::from_targets(Some(&player_object), None, None);
-        let Some(player_unit_snapshot) = self.player.condition_player_unit_snapshot_like_cpp()
-        else {
-            return false;
-        };
-        source_info.set_unit_target_snapshot(0, player_unit_snapshot);
-        source_info.set_player_target_snapshot(0, self.player.condition_player_snapshot_like_cpp());
-        source_info.set_player_quest_target_snapshot(0, quest_snapshot);
-        if let Some(store) = self.valuation_catalogs.player_condition_store_like_cpp() {
-            source_info.set_player_condition_store(store.as_ref());
-            if let Some(context) = self.condition_context_like_cpp(&player_condition_context) {
-                source_info.set_player_condition_context(0, context);
-            }
+    let mut source_info =
+        wow_conditions::ConditionSourceInfo::from_targets(Some(&player_object), None, None);
+    let Some(player_unit_snapshot) = conditions
+        .player_access_like_cpp()
+        .condition_player_unit_snapshot_like_cpp()
+    else {
+        return false;
+    };
+    source_info.set_unit_target_snapshot(0, player_unit_snapshot);
+    source_info.set_player_target_snapshot(
+        0,
+        conditions
+            .player_access_like_cpp()
+            .condition_player_snapshot_like_cpp(),
+    );
+    source_info.set_player_quest_target_snapshot(0, quest_snapshot);
+    if let Some(store) = conditions
+        .valuation_catalogs
+        .player_condition_store_like_cpp()
+    {
+        source_info.set_player_condition_store(store.as_ref());
+        if let Some(context) = conditions.condition_context_like_cpp(&player_condition_context) {
+            source_info.set_player_condition_context(0, context);
         }
-
-        wow_conditions::is_object_meeting_not_grouped_conditions_like_cpp(
-            condition_store.as_ref(),
-            wow_constants::ConditionSourceType::QuestAvailable,
-            quest_id,
-            &mut source_info,
-            |condition, source_info| {
-                wow_conditions::condition_meets_basic_like_cpp(
-                    condition,
-                    source_info,
-                    |area_id, required_area_id| {
-                        area_table_store.as_ref().is_some_and(|store| {
-                            store.is_in_area_like_cpp(area_id, required_area_id)
-                        })
-                    },
-                )
-                .value()
-                .unwrap_or(false)
-            },
-        )
     }
+
+    wow_conditions::is_object_meeting_not_grouped_conditions_like_cpp(
+        condition_store.as_ref(),
+        wow_constants::ConditionSourceType::QuestAvailable,
+        quest_id,
+        &mut source_info,
+        |condition, source_info| {
+            wow_conditions::condition_meets_basic_like_cpp(
+                condition,
+                source_info,
+                |area_id, required_area_id| {
+                    area_table_store
+                        .as_ref()
+                        .is_some_and(|store| store.is_in_area_like_cpp(area_id, required_area_id))
+                },
+            )
+            .value()
+            .unwrap_or(false)
+        },
+    )
 }
 
 /// Preserve the existing publication rule: only a represented Hidden result
