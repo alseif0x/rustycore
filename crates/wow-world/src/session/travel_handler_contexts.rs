@@ -59,7 +59,7 @@ impl TravelHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_world_port_response_with_catalogs_like_cpp(
+            wow_world_character::handle_world_port_response_with_catalogs_like_cpp(
                 self,
                 catalogs.creature_spawns.as_ref(),
                 catalogs.player_bootstrap.trait_node_entries.as_ref(),

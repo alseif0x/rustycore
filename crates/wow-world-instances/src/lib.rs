@@ -68,9 +68,13 @@ pub use instance_session::{
     check_area_explore_and_outdoor_represented_with_catalogs_like_cpp,
     check_area_triggers_with_catalogs_like_cpp, create_map_active_instance_lock_context_like_cpp,
     create_map_instance_owner_guid_like_cpp, create_map_player_context_like_cpp,
+    ensure_canonical_player_owner_for_map_like_cpp,
+    ensure_canonical_world_map_for_current_player_like_cpp,
     handle_represented_tavern_area_trigger_with_catalog_like_cpp,
     player_cannot_enter_target_map_like_cpp, player_explored_zones_snapshot_like_cpp,
-    player_is_in_area_trigger_radius_like_cpp, update_zone_represented_like_cpp,
+    player_is_in_area_trigger_radius_like_cpp, prepare_canonical_map_entry_like_cpp,
+    try_attach_worldport_destination_like_cpp,
+    try_attach_worldport_destination_with_publication_like_cpp, update_zone_represented_like_cpp,
     update_zone_represented_without_rest_update_packet_like_cpp,
 };
 pub use state::InstanceState;

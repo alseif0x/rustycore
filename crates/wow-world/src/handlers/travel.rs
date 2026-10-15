@@ -6,7 +6,6 @@
 //! Travel and worldport packet handlers.
 
 mod travel;
-mod worldport_create;
 
 #[cfg(test)]
 #[path = "../../unit_tests/handlers/travel/tests/mod.rs"]

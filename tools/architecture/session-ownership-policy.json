@@ -1130,12 +1130,6 @@
           "source_class": "test_fixture"
         },
         {
-          "module": "crate::handlers::travel::worldport_create",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "module": "crate::handlers::vehicle::test_shims",
           "trait_path": null,
           "cfg": [
@@ -1229,6 +1223,14 @@
         },
         {
           "module": "crate::handlers::world_entities_test_shims::gameobject_use_types_f3_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
+          "module": "crate::handlers::worldport_test_shims",
           "trait_path": null,
           "cfg": [
             "cfg (test)"
@@ -1472,6 +1474,12 @@
         {
           "module": "crate::session",
           "trait_path": "VisibilityRefreshHostLikeCpp",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "WorldportHostLikeCpp",
           "cfg": [],
           "source_class": "production"
         },
@@ -18334,21 +18342,7 @@
           "kind": "method",
           "name": "handle_world_port_response_with_catalogs_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_world_port_response_with_catalogs_like_cpp (& mut self , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , trait_node_entries : & wow_data :: trait_tree :: TraitNodeEntryStore , item_guid_generator : & wow_core :: ObjectGuidGenerator , _pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::travel::travel",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_player_self_create_for_teleport_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn send_player_self_create_for_teleport_like_cpp (& mut self , trait_node_entries : & wow_data :: trait_tree :: TraitNodeEntryStore ,) -> Option < bool >",
+          "signature": "async fn handle_world_port_response_with_catalogs_like_cpp (& mut self , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , trait_node_entries : & wow_data :: trait_tree :: TraitNodeEntryStore , item_guid_generator : & wow_core :: ObjectGuidGenerator , pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -18417,20 +18411,6 @@
           "source_class": "test_fixture",
           "guards": [
             "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::travel::worldport_create",
-          "trait_path": null,
-          "kind": "method",
-          "name": "prepare_player_self_create_for_teleport_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn prepare_player_self_create_for_teleport_like_cpp (& self) -> Option < UpdateObject >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
           ]
         },
         {
@@ -19729,6 +19709,198 @@
           ]
         },
         {
+          "module": "crate::handlers::worldport_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "account_heirloom_active_player_rows_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn account_heirloom_active_player_rows_like_cpp (& self) -> Vec < (i32 , u32) >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::worldport_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "account_toy_active_player_rows_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn account_toy_active_player_rows_like_cpp (& self) -> Vec < i32 >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::worldport_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "add_instance_enter_time_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn add_instance_enter_time_like_cpp (& mut self , instance_id : u32 , enter_time : u64)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::worldport_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "begin_worldport_post_add_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn begin_worldport_post_add_like_cpp (& mut self , map_id : u32 , position : Position ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::worldport_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "create_map_difficulty_context_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn create_map_difficulty_context_like_cpp (& self , map_id : u32 , difficulty_id : wow_map :: Difficulty ,) -> Option < wow_map :: CreateMapDifficultyContext >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::worldport_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "ensure_canonical_player_owner_for_map_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn ensure_canonical_player_owner_for_map_like_cpp (& mut self , key : wow_map :: MapKey , position : Position ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::worldport_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "finish_worldport_native_before_disconnect_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn finish_worldport_native_before_disconnect_like_cpp (& mut self) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::worldport_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "prepare_canonical_map_entry_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn prepare_canonical_map_entry_like_cpp (& mut self , map_id : u32 ,) -> Option < wow_map :: CreateMapDecision >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::worldport_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "prepare_player_self_create_for_teleport_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn prepare_player_self_create_for_teleport_like_cpp (& self) -> Option < UpdateObject >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::worldport_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "recover_rejected_worldport_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn recover_rejected_worldport_like_cpp (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::worldport_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "send_player_self_create_for_teleport_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn send_player_self_create_for_teleport_like_cpp (& mut self , trait_node_entries : & wow_data :: trait_tree :: TraitNodeEntryStore ,) -> Option < bool >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::worldport_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "try_attach_worldport_destination_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn try_attach_worldport_destination_like_cpp (& mut self , map_id : u32 , position : wow_core :: Position ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
           "module": "crate::player::quest_persistence_projection::f3_shims",
           "trait_path": null,
           "kind": "method",
@@ -19836,19 +20008,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "account_heirloom_active_player_rows_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn account_heirloom_active_player_rows_like_cpp (& self) -> Vec < (i32 , u32) >",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -19980,19 +20139,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "account_toy_active_player_rows_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn account_toy_active_player_rows_like_cpp (& self) -> Vec < i32 >",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -20225,19 +20371,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "add_instance_enter_time_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn add_instance_enter_time_like_cpp (& mut self , instance_id : u32 , enter_time : u64)",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -20507,19 +20640,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "advance_worldport_post_add_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn advance_worldport_post_add_like_cpp (& mut self , phase : Phase) -> bool",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -22048,19 +22168,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "begin_worldport_post_add_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn begin_worldport_post_add_like_cpp (& mut self , map_id : u32 , position : Position ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "broadcast_item_push_result_to_group",
           "visibility": "pub (in crate :: session)",
           "signature": "fn broadcast_item_push_result_to_group (& self , bytes : Vec < u8 >) -> bool",
@@ -22448,19 +22555,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "cannot_enter_existing_instance_lock_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn cannot_enter_existing_instance_lock_like_cpp (& self , map_id : u32 , difficulty_id : wow_map :: Difficulty , target_lock_context : wow_map :: CreateMapInstanceLockContext ,) -> Option < wow_instances :: TransferAbortReason >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "canonical_creature_access_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn canonical_creature_access_like_cpp (& self , guid : ObjectGuid ,) -> Option < RepresentedCreatureAccessLikeCpp >",
@@ -22657,19 +22751,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "check_instance_count_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn check_instance_count_like_cpp (& mut self , instance_id : u32) -> bool",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -23133,19 +23214,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "create_map_difficulty_context_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn create_map_difficulty_context_like_cpp (& self , map_id : u32 , difficulty_id : wow_map :: Difficulty ,) -> Option < wow_map :: CreateMapDifficultyContext >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "creature_display_power_for_class_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn creature_display_power_for_class_like_cpp (& self , unit_class : u8) -> u8",
@@ -23570,19 +23638,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "ensure_canonical_player_owner_for_map_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn ensure_canonical_player_owner_for_map_like_cpp (& mut self , key : wow_map :: MapKey , position : Position ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "ensure_canonical_world_map_for_current_player_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn ensure_canonical_world_map_for_current_player_like_cpp (& mut self ,) -> Option < wow_map :: CreateMapDecision >",
@@ -23772,30 +23827,6 @@
           "name": "finish_character_rename_callbacks_like_cpp",
           "visibility": "pub",
           "signature": "async fn finish_character_rename_callbacks_like_cpp (& mut self) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "finish_pending_far_entry_before_disconnect_like_cpp",
-          "visibility": "private",
-          "signature": "fn finish_pending_far_entry_before_disconnect_like_cpp (& mut self) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "finish_worldport_native_before_disconnect_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn finish_worldport_native_before_disconnect_like_cpp (& mut self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -28062,30 +28093,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "prepare_canonical_map_entry_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn prepare_canonical_map_entry_like_cpp (& mut self , map_id : u32 ,) -> Option < wow_map :: CreateMapDecision >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "prepare_canonical_map_entry_with_publication_like_cpp",
-          "visibility": "private",
-          "signature": "fn prepare_canonical_map_entry_with_publication_like_cpp (& mut self , map_id : u32 , publish : bool ,) -> Option < wow_map :: CreateMapDecision >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "prepare_player_save_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn prepare_player_save_like_cpp (& mut self , now : i64 ,) -> Option < PreparedPlayerSave >",
@@ -28815,32 +28822,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "recover_rejected_worldport_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn recover_rejected_worldport_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "recovery_worldport_ack_ready_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn recovery_worldport_ack_ready_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -40874,19 +40855,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "terminate_worldport_recovery_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn terminate_worldport_recovery_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "tick_pending_spell_cast_request_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn tick_pending_spell_cast_request_like_cpp (& mut self)",
@@ -41067,32 +41035,6 @@
           "name": "trinity_string_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn trinity_string_like_cpp (& self , entry : u32) -> & str",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "try_attach_worldport_destination_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn try_attach_worldport_destination_like_cpp (& mut self , map_id : u32 , position : wow_core :: Position ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "try_attach_worldport_destination_with_publication_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn try_attach_worldport_destination_with_publication_like_cpp (& mut self , map_id : u32 , position : wow_core :: Position , publish : bool ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -42091,6 +42033,19 @@
           "name": "end_player_rest_flag_sync_like_cpp",
           "visibility": "private",
           "signature": "fn end_player_rest_flag_sync_like_cpp (& mut self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "InstanceSessionHostLikeCpp",
+          "kind": "method",
+          "name": "ensure_canonical_player_owner_exists_like_cpp",
+          "visibility": "private",
+          "signature": "fn ensure_canonical_player_owner_exists_like_cpp (& mut self , key : wow_map :: MapKey) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -43289,6 +43244,19 @@
           "name": "visibility_refresh_unit_npc_flags_update_like_cpp",
           "visibility": "private",
           "signature": "fn visibility_refresh_unit_npc_flags_update_like_cpp (& self , guid : ObjectGuid , map_id : u16 , packet_update : wow_packet :: packets :: update :: UnitDataValuesDeltaUpdate ,) -> wow_packet :: packets :: update :: UpdateObject",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "WorldportHostLikeCpp",
+          "kind": "method",
+          "name": "resume_deferred_player_save_with_generator_like_cpp",
+          "visibility": "private",
+          "signature": "fn resume_deferred_player_save_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator ,) -> impl Future < Output = Option < PlayerSaveOutcomeLikeCpp > > + Send",
           "cfg": [],
           "source_class": "production",
           "guards": [

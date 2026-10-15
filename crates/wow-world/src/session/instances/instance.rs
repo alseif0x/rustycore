@@ -6,14 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::session) fn check_instance_count_like_cpp(&mut self, instance_id: u32) -> bool {
-        let (state, mut hub) = crate::session::split_instances_mut(self);
-        state.check_instance_count_like_cpp(&mut hub, instance_id)
-    }
-    pub(crate) fn add_instance_enter_time_like_cpp(&mut self, instance_id: u32, enter_time: u64) {
-        let (state, mut hub) = crate::session::split_instances_mut(self);
-        state.add_instance_enter_time_like_cpp(&mut hub, instance_id, enter_time)
-    }
     pub fn set_instance_ignore_raid_like_cpp(&mut self, ignore: bool) {
         self.core.realm_policy.instance_ignore_raid_like_cpp = ignore;
     }

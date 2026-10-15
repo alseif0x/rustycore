@@ -84,3 +84,5 @@ mod visibility_test_shims;
 mod world_entities_registry_test_shims;
 #[cfg(test)]
 mod world_entities_test_shims;
+#[cfg(test)]
+mod worldport_test_shims;

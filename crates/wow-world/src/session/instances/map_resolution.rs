@@ -18,42 +18,13 @@ impl WorldSession {
         }
         self.core.canonical_map_manager = Some(mgr);
     }
-    /// Resolve the one canonical Player identity and move that exact value to
-    /// the selected map. Existing map records predate Player handles, so the
-    /// transition must adopt them before considering a new initial value.
-    pub(in crate::session) fn ensure_canonical_player_owner_for_map_like_cpp(
+    /// The login and battleground-fallback map entry and the cross-crate
+    /// fixture call it as a session method; the body moved to
+    /// `wow_world_instances` (#1363 slice 13a).
+    pub(crate) fn ensure_canonical_world_map_for_current_player_like_cpp(
         &mut self,
-        key: wow_map::MapKey,
-        position: Position,
-    ) -> bool {
-        if !self.ensure_canonical_player_owner_exists_like_cpp(key) {
-            return false;
-        }
-        let Some(manager) = self.core.canonical_map_manager.as_ref().map(Arc::clone) else {
-            return false;
-        };
-
-        let Some(handle) = self.core.player_handle_like_cpp else {
-            return false;
-        };
-        let Ok(mut manager) = manager.lock() else {
-            return false;
-        };
-        match manager.player_residence_like_cpp(handle) {
-            Some(wow_map::PlayerResidenceLikeCpp::Active(current)) if current == key => manager
-                .relocate_player_like_cpp(handle, position)
-                .is_ok_and(|outcome| outcome.relocated),
-            Some(wow_map::PlayerResidenceLikeCpp::Active(_)) => {
-                manager.detach_player_like_cpp(handle).is_ok()
-                    && manager
-                        .attach_player_like_cpp(handle, key, position)
-                        .is_ok()
-            }
-            Some(wow_map::PlayerResidenceLikeCpp::Detached) => manager
-                .attach_player_like_cpp(handle, key, position)
-                .is_ok(),
-            None => false,
-        }
+    ) -> Option<wow_map::CreateMapDecision> {
+        wow_world_instances::ensure_canonical_world_map_for_current_player_like_cpp(self)
     }
     /// Inject the dedicated Detour worker handle. The session only sends
     /// path requests; it never owns raw mmap/navmesh state.

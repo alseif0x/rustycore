@@ -14,16 +14,6 @@ pub use wow_world_core::session::map_admission::{
     WaypointPathResolverLikeCpp,
 };
 
-pub(in crate::session) fn create_map_decision_difficulty_id_like_cpp(
-    decision: &wow_map::CreateMapDecision,
-) -> Option<wow_map::Difficulty> {
-    match decision {
-        wow_map::CreateMapDecision::Existing { difficulty_id, .. }
-        | wow_map::CreateMapDecision::Create { difficulty_id, .. } => Some(*difficulty_id),
-        wow_map::CreateMapDecision::Reject { .. } => None,
-    }
-}
-
 impl WorldSession {
     pub(in crate::session) fn access_requirement_abort_like_cpp(
         &self,

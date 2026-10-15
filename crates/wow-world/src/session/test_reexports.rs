@@ -1,9 +1,7 @@
-//! Names only the session scenarios read through the session root (#1363
-//! slices 9e-11b): the player cast, cast-check, spell-click and battle-pet
-//! names, the aura interrupt and area flags, the capture-point state, the
-//! spell-area autocast names, the dynamic-object VALUES bridge, the teleport,
-//! rest-flag and create-map names. `#![cfg(test)]`; the session root mounts
-//! and glob-imports it under `cfg(test)` (#1395/#1396 follow-up 1).
+//! Names only the session scenarios read through the session root (#1363 slices 9e-13a): the
+//! player cast, cast-check, spell-click, battle-pet, aura-interrupt, area-flag, capture-point,
+//! spell-area autocast, dynamic-object VALUES, teleport, rest-flag, create-map and transfer-abort
+//! names. `#![cfg(test)]`; the session root mounts and glob-imports it under `cfg(test)` (#1395/#1396).
 
 #![cfg(test)]
 
@@ -38,6 +36,8 @@ pub(crate) use wow_world_entities::{
 pub(crate) use wow_world_instances::{
     AREA_FLAG_ENEMIES_PVP_FLAGGED_LIKE_CPP, CreateMapSideEffectApplySummaryLikeCpp,
     REST_FLAG_IN_CITY_LIKE_CPP, REST_FLAG_IN_FACTION_AREA_LIKE_CPP,
+    TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP, TRANSFER_ABORT_NEED_GROUP_LIKE_CPP,
+    TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP, TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP,
     create_map_instance_lock_token_like_cpp,
 };
 pub(crate) use wow_world_inventory::MAX_BATTLE_PET_LEVEL_LIKE_CPP;

@@ -6,14 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn create_map_difficulty_context_like_cpp(
-        &self,
-        map_id: u32,
-        difficulty_id: wow_map::Difficulty,
-    ) -> Option<wow_map::CreateMapDifficultyContext> {
-        let (state, hub) = crate::session::split_instances_ref(self);
-        state.create_map_difficulty_context_like_cpp(hub, map_id, difficulty_id)
-    }
     /// Set the C++ Difficulty.db2 store used by `sDifficultyStore`.
     pub fn set_difficulty_store(&mut self, store: Arc<DifficultyStore>) {
         self.core
