@@ -8090,7 +8090,7 @@ part: 1,412 moved function lines and 70 new host lines.
 
 - Per function, base vs head: `teleport_to_with_options` 1 → 1 (the writer
   fence), the delayed far teleport 1 → 1 (the writer fence), the delayed
-  teleport after the update 1 → 1 (the delayed far teleport); the other 16
+  teleport after the update 1 → 1 (the delayed far teleport); the other 15
   moved functions 0 → 0. Callers unchanged: `teleport_to` 1 → 1, the driver's
   delayed-teleport step 1 → 1. No borrow is held across an await differently
   (the fence future borrows `host.core()` as it borrowed `self.core`).
