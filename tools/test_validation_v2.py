@@ -716,6 +716,21 @@ def test_planner_contract(repo: Path) -> None:
         suite_quick, _ = runner.validation_commands(repo, "quick", 2, "base", runner.grouped_paths([changed]), None)
         assert closure_suite in suite_final and closure_check in suite_final, changed
         assert closure_suite not in suite_quick and closure_check not in suite_quick, changed
+    # #1363 slice 6c (#1405 review): each tool's self-test runs in final when
+    # that tool changes, never in quick and never for an unrelated change.
+    tool_self_tests = {
+        tool: ["python3", tool, "self-test"]
+        for tool in ("tools/architecture/warning_units.py", "tools/architecture/move_token_compare.py")
+    }
+    for tool, command in tool_self_tests.items():
+        suite_final, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([tool]), None)
+        suite_quick, _ = runner.validation_commands(repo, "quick", 2, "base", runner.grouped_paths([tool]), None)
+        assert command in suite_final and command not in suite_quick, tool
+        others = [other for name, other in tool_self_tests.items() if name != tool]
+        assert all(other not in suite_final for other in others), tool
+    for changed in ("tools/architecture/net_move.py", "crates/wow-world/src/lib.rs", "docs/state.md"):
+        planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        assert all(command not in planned for command in tool_self_tests.values()), changed
     # The F3-4 situation: a committed mount whose shim a `skills/` rule hides fails the check.
     spec = importlib.util.spec_from_file_location(
         "ignored_sources", Path(__file__).resolve().parent / "architecture/ignored_sources.py")
@@ -1221,6 +1236,9 @@ def main() -> None:
         environment["PATH"] = f"{fake_bin}:{environment['PATH']}"
         environment.pop("CARGO_TARGET_DIR", None)
         environment.pop("VALIDATION_V2_CARGO_JOBS", None)
+        # The canonical final recipe exports a timeout; the fixtures pin the
+        # runner defaults, so the self-test must not inherit it (#1363 slice 6c).
+        environment.pop("VALIDATION_V2_TIMEOUT_SECONDS", None)
         environment.pop("PROTOC", None)
         environment["VALIDATION_V2_LOCK_DIR"] = str(directory / "locks")
         test_empty_scope_contract(repo, tools, environment, directory)

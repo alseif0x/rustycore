@@ -13,7 +13,9 @@ plus its kinds, with `+test` for the `cfg(test)` build of a library.
     warning_units.py self-test
 
 `count` prints the errors, the warnings per unit and the `wow_world*` library
-total, and the per-lint split of the `wow_world` units. `--detail` writes one
+total, and the per-lint split of the `wow_world` units; it exits 1 when the
+stream holds a compiler error, because a build that did not type-check cannot
+report its `dead_code` (#1405 review). `--detail` writes one
 tab-separated row per warning (unit, kind, lint, file, line, message) for every
 unit. `compare` matches two detail files by unit kind, lint, file and message (line
 numbers are ignored; `--map` renames a moved path prefix in the base rows) and
@@ -131,6 +133,10 @@ def self_test():
                    artifact("wow_world_quest")]
     errors, unattributed, units = attribute(base_stream)
     assert errors == 0 and unattributed == 0
+    error_stream = [json.dumps({"reason": "compiler-message", "package_id": "wow_world",
+                                "target": {"name": "wow_world"},
+                                "message": {"level": "error", "code": None, "message": "E",
+                                            "spans": []}}), artifact("wow_world")]
     assert [len(w) for _, w in units] == [1, 1], units
     with tempfile.TemporaryDirectory() as tmp:
         paths = {}
@@ -141,6 +147,10 @@ def self_test():
             paths[label] = f"{tmp}/{label}.tsv"
             count(src, paths[label], out=open("/dev/null", "w"))
         sink = open("/dev/null", "w")
+        src = f"{tmp}/error.json"
+        with open(src, "w", encoding="utf-8") as handle:
+            handle.write("\n".join(error_stream) + "\n")
+        assert count(src, out=sink) == 1, "a counted error must be reported"
         assert compare(paths["base"], paths["head"], [("src/q.rs", "src/moved/q.rs")], out=sink) == 0
         assert compare(paths["head"], paths["base"], out=sink) == 1, "a new warning must fail"
     print("warning_units self-test: PASS")
@@ -160,8 +170,7 @@ def main():
     sub.add_parser("self-test")
     args = parser.parse_args()
     if args.command == "count":
-        count(args.json, args.detail)
-        return 0
+        return 1 if count(args.json, args.detail) else 0
     if args.command == "compare":
         return compare(args.base, args.head, [tuple(m.split("=", 1)) for m in args.map])
     return self_test()

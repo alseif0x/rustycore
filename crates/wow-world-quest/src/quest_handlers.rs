@@ -41,11 +41,11 @@
 //! `CMSG_QUEST_CONFIRM_ACCEPT` (`:774`) and `CMSG_PUSH_QUEST_TO_PARTY`
 //! (`:746`); the Rust entries reproduce those exactly.
 //!
-//! The handler bodies stay in their existing owners under
-//! `crates/wow-world/src/handlers/quest/**`; the World-side adapter
-//! `crates/wow-world/src/handlers/quest/handlers/host.rs` lends this registrar
-//! the session operations and the catalog view the legacy closures destructured
-//! (`adventure_map_pois`, `quest_info`, `id_generators.item`).
+//! The handler bodies moved to [`crate::quest_session`] (#1363 slice 6c), so
+//! each thunk calls its moved body directly; the host lends only the three
+//! catalog-view fields the legacy closures destructured (`adventure_map_pois`,
+//! `quest_info`, `id_generators.item`) and the session operations of
+//! [`crate::QuestHandlerSessionHostLikeCpp`].
 
 use wow_constants::ClientOpcodes;
 use wow_handler::{
@@ -54,73 +54,25 @@ use wow_handler::{
 };
 use wow_packet::ClientPacket;
 use wow_packet::WorldPacket;
-use wow_packet::packets::query::QuestPoiQuery;
 
 /// The narrow host entry points this registration family needs.
 ///
-/// The World session owns the represented quest-giver interaction and its
-/// publication; this crate reaches those operations only through these calls.
-/// `C` is the session's catalog view, borrowed exactly as the legacy
-/// registration closures borrowed it, so no catalog type leaks into this crate.
-///
-/// `handle_quest_giver_complete_quest_like_cpp` is a supertrait because its body
-/// already lives in this crate ([`crate::quest_query_handlers`]); the
-/// registration calls that moved body directly instead of duplicating it behind
-/// another entry point.
-pub trait QuestHandlerHostLikeCpp<C>: crate::QuestGiverCompleteQuestHostLikeCpp {
-    /// C++ `AdventureMapHandler.cpp:24` `HandleAdventureMapStartQuest`.
-    fn handle_adventure_map_start_quest_with_catalog_like_cpp<'a>(
-        &'a mut self,
-        catalogs: &'a C,
-        pkt: WorldPacket,
-    ) -> HandlerFuture<'a, ()>;
-
-    /// C++ `QuestHandler.cpp:41` `HandleQuestgiverStatusQueryOpcode`.
-    fn handle_quest_giver_status_query_with_catalog_like_cpp<'a>(
-        &'a mut self,
-        catalogs: &'a C,
-        pkt: WorldPacket,
-    ) -> HandlerFuture<'a, ()>;
-
-    /// C++ `QuestHandler.cpp:76` `HandleQuestgiverHelloOpcode`.
-    fn handle_quest_giver_hello<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()>;
-
-    /// C++ `QuestHandler.cpp:228` `HandleQuestgiverQueryQuestOpcode`.
-    fn handle_quest_giver_query_quest<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()>;
-
-    /// C++ `QuestHandler.cpp:105` `HandleQuestgiverAcceptQuestOpcode`.
-    fn handle_quest_giver_accept_quest_with_generator_like_cpp<'a>(
-        &'a mut self,
-        catalogs: &'a C,
-        pkt: WorldPacket,
-    ) -> HandlerFuture<'a, ()>;
-
-    /// C++ `QueryHandler.cpp:280` `HandleQuestPOIQuery`.
-    fn handle_quest_poi_query<'a>(&'a mut self, query: QuestPoiQuery) -> HandlerFuture<'a, ()>;
-
-    /// C++ `QuestHandler.cpp:410` `HandleQuestgiverRequestRewardOpcode`.
-    fn handle_quest_giver_request_reward_with_generator_like_cpp<'a>(
-        &'a mut self,
-        catalogs: &'a C,
-        pkt: WorldPacket,
-    ) -> HandlerFuture<'a, ()>;
-
-    /// C++ `QuestHandler.cpp:269` `HandleQuestgiverChooseRewardOpcode`.
-    fn handle_quest_giver_choose_reward_with_generator_like_cpp<'a>(
-        &'a mut self,
-        catalogs: &'a C,
-        pkt: WorldPacket,
-    ) -> HandlerFuture<'a, ()>;
-
-    /// C++ `QuestHandler.cpp:499` `HandleQuestConfirmAccept`.
-    fn handle_quest_confirm_accept_with_generator_like_cpp<'a>(
-        &'a mut self,
-        catalogs: &'a C,
-        pkt: WorldPacket,
-    ) -> HandlerFuture<'a, ()>;
-
-    /// C++ `QuestHandler.cpp:603` `HandlePushQuestToParty`.
-    fn handle_push_quest_to_party<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()>;
+/// The packet bodies live in this crate ([`crate::quest_session`] and, for
+/// `handle_quest_giver_complete_quest_like_cpp`, [`crate::quest_query_handlers`])
+/// and reach the session through the supertraits. `C` is the session's catalog
+/// view, borrowed exactly as the legacy registration closures borrowed it, so
+/// no catalog type leaks into this crate: the three accessors are the fields
+/// those closures destructured. `Sync` lets the boxed handler futures hold a
+/// shared session borrow across an await, as the World bodies did.
+pub trait QuestHandlerHostLikeCpp<C>:
+    crate::QuestGiverCompleteQuestHostLikeCpp + crate::QuestHandlerSessionHostLikeCpp + Sync
+{
+    /// The catalog view's `adventure_map_pois` (`sAdventureMapPOIStore`).
+    fn adventure_map_pois_like_cpp(catalogs: &C) -> &wow_data::AdventureMapPoiStore;
+    /// The catalog view's `quest_info` (`sQuestInfoStore`).
+    fn quest_info_like_cpp(catalogs: &C) -> &wow_data::progression_rewards::QuestInfoStore;
+    /// The catalog view's `id_generators.item`.
+    fn item_guid_generator_like_cpp(catalogs: &C) -> &wow_core::ObjectGuidGenerator;
 }
 
 fn handle_adventure_map_start_quest_thunk<'a, S, C>(
@@ -133,9 +85,12 @@ where
     C: Sync,
 {
     Box::pin(async move {
-        session
-            .handle_adventure_map_start_quest_with_catalog_like_cpp(catalogs, pkt)
-            .await
+        crate::handle_adventure_map_start_quest_with_catalog_like_cpp(
+            session,
+            S::adventure_map_pois_like_cpp(catalogs),
+            pkt,
+        )
+        .await
     })
 }
 
@@ -149,9 +104,12 @@ where
     C: Sync,
 {
     Box::pin(async move {
-        session
-            .handle_quest_giver_status_query_with_catalog_like_cpp(catalogs, pkt)
-            .await
+        crate::handle_quest_giver_status_query_with_catalog_like_cpp(
+            session,
+            S::quest_info_like_cpp(catalogs),
+            pkt,
+        )
+        .await
     })
 }
 
@@ -164,7 +122,7 @@ where
     S: QuestHandlerHostLikeCpp<C> + Send,
     C: Sync,
 {
-    Box::pin(async move { session.handle_quest_giver_hello(pkt).await })
+    Box::pin(async move { crate::handle_quest_giver_hello(session, pkt).await })
 }
 
 fn handle_quest_giver_query_quest_thunk<'a, S, C>(
@@ -176,7 +134,7 @@ where
     S: QuestHandlerHostLikeCpp<C> + Send,
     C: Sync,
 {
-    Box::pin(async move { session.handle_quest_giver_query_quest(pkt).await })
+    Box::pin(async move { crate::handle_quest_giver_query_quest(session, pkt).await })
 }
 
 fn handle_quest_giver_accept_quest_thunk<'a, S, C>(
@@ -189,9 +147,12 @@ where
     C: Sync,
 {
     Box::pin(async move {
-        session
-            .handle_quest_giver_accept_quest_with_generator_like_cpp(catalogs, pkt)
-            .await
+        crate::handle_quest_giver_accept_quest_with_generator_like_cpp(
+            session,
+            S::item_guid_generator_like_cpp(catalogs),
+            pkt,
+        )
+        .await
     })
 }
 
@@ -206,7 +167,7 @@ where
 {
     Box::pin(async move {
         match wow_packet::packets::query::QuestPoiQuery::read(&mut pkt) {
-            Ok(query) => session.handle_quest_poi_query(query).await,
+            Ok(query) => crate::handle_quest_poi_query(session, query).await,
             Err(e) => tracing::warn!("Failed to read QuestPoiQuery: {e}"),
         }
     })
@@ -222,9 +183,12 @@ where
     C: Sync,
 {
     Box::pin(async move {
-        session
-            .handle_quest_giver_request_reward_with_generator_like_cpp(catalogs, pkt)
-            .await
+        crate::handle_quest_giver_request_reward_with_generator_like_cpp(
+            session,
+            S::item_guid_generator_like_cpp(catalogs),
+            pkt,
+        )
+        .await
     })
 }
 
@@ -250,9 +214,12 @@ where
     C: Sync,
 {
     Box::pin(async move {
-        session
-            .handle_quest_giver_choose_reward_with_generator_like_cpp(catalogs, pkt)
-            .await
+        crate::handle_quest_giver_choose_reward_with_generator_like_cpp(
+            session,
+            S::item_guid_generator_like_cpp(catalogs),
+            pkt,
+        )
+        .await
     })
 }
 
@@ -266,9 +233,12 @@ where
     C: Sync,
 {
     Box::pin(async move {
-        session
-            .handle_quest_confirm_accept_with_generator_like_cpp(catalogs, pkt)
-            .await
+        crate::handle_quest_confirm_accept_with_generator_like_cpp(
+            session,
+            S::item_guid_generator_like_cpp(catalogs),
+            pkt,
+        )
+        .await
     })
 }
 
@@ -281,7 +251,7 @@ where
     S: QuestHandlerHostLikeCpp<C> + Send,
     C: Sync,
 {
-    Box::pin(async move { session.handle_push_quest_to_party(pkt).await })
+    Box::pin(async move { crate::handle_push_quest_to_party(session, pkt).await })
 }
 
 /// Registers the quest-giver interaction handlers on the packet registry.

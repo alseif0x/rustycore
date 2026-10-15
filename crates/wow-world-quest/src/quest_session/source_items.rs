@@ -27,9 +27,7 @@ pub async fn store_quest_source_item_with_generator_like_cpp<H: QuestItemStorage
     if dest.is_empty() {
         return None;
     }
-    let quest_log_item_id = host
-        .quest_source_item_quest_log_item_id_like_cpp(entry_id)
-        .await;
+    let quest_log_item_id = quest_source_item_quest_log_item_id_like_cpp(host, entry_id).await;
     let completion_evidence_start = host
         .quest_state()
         .represented_quest_complete_status_updates_like_cpp()
@@ -407,4 +405,51 @@ pub async fn store_quest_source_item_with_generator_like_cpp<H: QuestItemStorage
         delivery: SendNewItemDelivery::Direct,
     });
     Some(QuestSourceItemStoreOutcomeLikeCpp::StoredNewItem)
+}
+
+pub async fn quest_source_item_quest_log_item_id_like_cpp<H: QuestItemStorageHostLikeCpp>(
+    host: &mut H,
+    entry_id: u32,
+) -> u32 {
+    if let Some(quest_log_item_id) = host
+        .hub_ref()
+        .catalogs
+        .item_template_addon_quest_log_item_id_like_cpp(entry_id)
+    {
+        return quest_log_item_id;
+    }
+
+    let Some(port) = host
+        .lifecycle()
+        .item_template_addon_catalog_persistence_port_like_cpp()
+        .cloned()
+    else {
+        return 0;
+    };
+
+    let quest_log_item_id = match port
+        .load_item_template_addon_loot_metadata_like_cpp(
+            wow_persistence::ItemTemplateAddonCatalogRequestLikeCpp {
+                item_entry: entry_id,
+            },
+        )
+        .await
+    {
+        wow_persistence::ItemTemplateAddonLootMetadataOutcomeLikeCpp::Found(row) => {
+            row.quest_log_item_id.try_into().unwrap_or(0)
+        }
+        wow_persistence::ItemTemplateAddonLootMetadataOutcomeLikeCpp::Missing => 0,
+        wow_persistence::ItemTemplateAddonLootMetadataOutcomeLikeCpp::Failed { reason } => {
+            warn!(
+                account = host.core().account_id,
+                entry_id,
+                error = %reason,
+                "QuestConfirmAccept: failed to load item_template_addon QuestLogItemId"
+            );
+            0
+        }
+    };
+    host.catalogs_mut()
+        .cache_item_template_addon_quest_log_item_id_like_cpp(entry_id, quest_log_item_id);
+    quest_log_item_id
 }

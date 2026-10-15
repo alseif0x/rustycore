@@ -29,16 +29,6 @@ impl WorldSession {
     }
 }
 
-impl crate::session::QuestStateCxRef<'_> {
-    pub(crate) fn quest_poi_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>> {
-        self.lifecycle
-            .quest_poi_persistence_port_like_cpp()
-            .cloned()
-    }
-}
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/quest/persistence/test_only.rs"]
 mod test_only;

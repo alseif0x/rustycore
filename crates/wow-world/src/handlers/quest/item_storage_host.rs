@@ -4,8 +4,8 @@
 
 //! World-side adapter for the item-objective, source-item and reward-inventory
 //! quest bodies that moved to `wow_world_quest` (#1363 slice 6b). Each method
-//! forwards to the same-named session operation (`make_inventory_item_object`
-//! to the World inventory context's).
+//! forwards to the same-named session operation or field
+//! (`make_inventory_item_object` to the World inventory context's).
 
 use wow_constants::ItemContext;
 use wow_entities::{Item, ItemObjectUpdateLikeCpp, ItemPosCount, SendNewItemPlan};
@@ -15,11 +15,8 @@ use super::*;
 use crate::session::InventoryItem;
 
 impl QuestItemStorageHostLikeCpp for WorldSession {
-    fn quest_source_item_quest_log_item_id_like_cpp(
-        &mut self,
-        entry_id: u32,
-    ) -> impl Future<Output = u32> + Send {
-        WorldSession::quest_source_item_quest_log_item_id_like_cpp(self, entry_id)
+    fn catalogs_mut(&mut self) -> &mut wow_world_core::session::SessionCatalogs {
+        &mut self.catalogs
     }
     fn get_inventory_item_by_pos(&self, bag: u8, slot: u8) -> Option<InventoryItem> {
         WorldSession::get_inventory_item_by_pos(self, bag, slot)
