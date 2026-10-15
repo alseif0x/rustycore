@@ -170,7 +170,11 @@ even a README under `crates/`, `tools/wow-test-bot/` or
 `tools/architecture/handler-contract-check/` takes that directory's Cargo route. The standalone
 checker and QA bot use their own manifests. A final architecture-checker run executes all its
 library tests, including the now syntax-only `repository_surface_can_be_collected`; it does not
-recompute the exhaustive persistence inventory. Committed capture contracts belong to `audit`,
+recompute the exhaustive persistence inventory. `final` also runs those library tests (and the
+checker's format check) when the checked production-package set can change without a checker
+file: a root `Cargo.toml` or `Cargo.lock` change, or a `crates/*/Cargo.toml` that gains or loses a
+`wow-handler` dependency against the base, including a new or deleted crate (#1363 slice Q2). The
+repository test pins that package list. Committed capture contracts belong to `audit`,
 and live database/runtime/capture operations to explicit QA procedures. Commands run sequentially and each exact command appears at
 most once. Neither level-2 nor level-3 profile calls a legacy wrapper or uses the network; Cargo is forced offline.
 

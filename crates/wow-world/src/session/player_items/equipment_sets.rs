@@ -30,7 +30,7 @@ impl WorldSession {
     }
     pub(crate) fn build_equipment_set_use_context_like_cpp(
         &mut self,
-    ) -> wow_world_application::EquipmentSetUseContextLikeCpp<'_> {
+    ) -> wow_world_inventory::EquipmentSetUseContextLikeCpp<'_> {
         let combat = self.core.equipment_set_combat_access_like_cpp(
             #[cfg(any(test, feature = "test-fixtures"))]
             &self.fixtures.combat.in_combat,
@@ -61,7 +61,7 @@ impl WorldSession {
                 .progression
                 .represented_primary_specialization_id_like_cpp,
         );
-        let item_mods = wow_world_application::EquipmentSetUseItemModsStoresLikeCpp::new(
+        let item_mods = wow_world_inventory::EquipmentSetUseItemModsStoresLikeCpp::new(
             self.catalogs.items.store.as_ref(),
             self.catalogs.items.stats_store.as_ref(),
             self.catalogs.scaling_stat_distribution_store.as_ref(),
@@ -85,7 +85,7 @@ impl WorldSession {
         #[cfg(all(not(test), feature = "test-fixtures"))]
         let registry_hydration = None;
 
-        wow_world_application::EquipmentSetUseContextLikeCpp::new(
+        wow_world_inventory::EquipmentSetUseContextLikeCpp::new(
             &mut self.inventory,
             owner,
             inventory_access,
@@ -98,7 +98,7 @@ impl WorldSession {
             self.core.packet_publication_access_like_cpp(),
             &self.loot,
             #[cfg(any(test, feature = "test-fixtures"))]
-            wow_world_application::EquipmentSetUseFixtureRefsLikeCpp::new(
+            wow_world_inventory::EquipmentSetUseFixtureRefsLikeCpp::new(
                 &self.fixtures.movement.player_position,
                 &self.fixtures.identity.player_race,
                 &self.fixtures.identity.player_class,
@@ -135,14 +135,14 @@ impl WorldSession {
 }
 
 impl
-    wow_world_application::EquipmentSetUseHandlerHostLikeCpp<
+    wow_world_inventory::EquipmentSetUseHandlerHostLikeCpp<
         crate::session::SessionHandlerCatalogsLikeCpp,
     > for WorldSession
 {
     fn equipment_set_use_handler_cx_like_cpp<'a>(
         &'a mut self,
         _catalogs: &'a crate::session::SessionHandlerCatalogsLikeCpp,
-    ) -> wow_world_application::EquipmentSetUseContextLikeCpp<'a> {
+    ) -> wow_world_inventory::EquipmentSetUseContextLikeCpp<'a> {
         self.build_equipment_set_use_context_like_cpp()
     }
 }

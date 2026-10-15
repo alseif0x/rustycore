@@ -1,0 +1,16 @@
+# base_path name head_path (#1363 slice Q2, base bc5bc0be7)
+crates/wow-world-application/src/inventory_scaling.rs new crates/wow-world-inventory/src/inventory_scaling.rs
+crates/wow-world-application/src/inventory_scaling.rs update_item_level_area_based_scaling_like_cpp crates/wow-world-inventory/src/inventory_scaling.rs
+crates/wow-world-application/src/inventory_scaling.rs record_all_item_mods_like_cpp crates/wow-world-inventory/src/inventory_scaling.rs
+crates/wow-world-application/src/inventory_scaling.rs restored_health_like_cpp crates/wow-world-inventory/src/inventory_scaling.rs
+crates/wow-world-application/src/inventory_scaling.rs scaling_restoration_retains_integer_floor_and_zero_maximum_guard crates/wow-world-inventory/src/inventory_scaling.rs
+crates/wow-world-application/src/equipment_set_use.rs stats_access_like_cpp crates/wow-world-inventory/src/equipment_set_use_handlers.rs
+crates/wow-world-application/src/equipment_set_use.rs handle_use_equipment_set_like_cpp crates/wow-world-inventory/src/equipment_set_use_handlers.rs
+crates/wow-world-application/src/equipment_set_use.rs apply_equipment_set_like_cpp crates/wow-world-inventory/src/equipment_set_use_handlers.rs
+crates/wow-world-application/src/equipment_set_use.rs move_item_like_cpp crates/wow-world-inventory/src/equipment_set_use_handlers.rs
+crates/wow-world-application/src/equipment_set_use.rs sync_player_registry_like_cpp crates/wow-world-inventory/src/equipment_set_use_handlers.rs
+crates/wow-world-application/src/equipment_set_use.rs send_raw_item_bonus_update_like_cpp crates/wow-world-inventory/src/equipment_set_use_handlers.rs
+crates/wow-world-application/src/equipment_set_use.rs handle_use_equipment_set_thunk crates/wow-world-inventory/src/equipment_set_use_handlers.rs
+crates/wow-world-application/src/equipment_set_use.rs register_equipment_set_use_handler_like_cpp crates/wow-world-inventory/src/equipment_set_use_handlers.rs
+crates/wow-world-application/src/equipment_set_use/registration_tests.rs equipment_set_use_handler_cx_like_cpp crates/wow-world-inventory/src/equipment_set_use_handlers/registration_tests.rs
+crates/wow-world-application/src/equipment_set_use/registration_tests.rs registrar_preserves_entry_metadata_without_constructing_host_and_rejects_duplicate crates/wow-world-inventory/src/equipment_set_use_handlers/registration_tests.rs

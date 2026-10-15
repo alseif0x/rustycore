@@ -42,7 +42,7 @@ impl WorldSession {
         let player = self
             .core
             .player_stats_access_like_cpp(&self.catalogs, &self.config);
-        wow_world_application::InventoryScalingApplicationCxLikeCpp::new(
+        wow_world_inventory::InventoryScalingApplicationCxLikeCpp::new(
             &mut self.inventory,
             player,
             self.core.owned_inventory_access_like_cpp(),

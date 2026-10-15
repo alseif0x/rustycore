@@ -656,6 +656,40 @@ def audit_steps(base_commit: str, jobs: int) -> list[dict[str, object]]:
     return steps
 
 
+HANDLER_DEPENDENCY_LINE = re.compile(r"^\s*wow-handler\s*(?:=|\.)", re.MULTILINE)
+
+
+def declares_handler_dependency(text: str) -> bool:
+    return HANDLER_DEPENDENCY_LINE.search(text) is not None
+
+
+def handler_graph_changed(repo: Path, base_commit: str, paths: list[str]) -> bool:
+    """Whether the checker's production-package set can have changed.
+
+    The handler-contract checker lists every package whose source surface it
+    guards (the workspace members that reach `wow-handler`), and its lib tests
+    pin that list. A workspace manifest or lock change, or a crate manifest
+    that gains or loses a `wow-handler` dependency (including a new or deleted
+    crate), can change it without touching the checker (#1363 slice Q2, after
+    #1403 added a package and the pinned list drifted unnoticed).
+    """
+    for path in paths:
+        if path in {"Cargo.toml", "Cargo.lock"}:
+            return True
+        if not (path.startswith("crates/") and path.endswith("/Cargo.toml")):
+            continue
+        head_file = repo / path
+        head = head_file.read_text(encoding="utf-8") if head_file.is_file() else ""
+        shown = subprocess.run(
+            ["git", "show", f"{base_commit}:{path}"],
+            cwd=repo, text=True, capture_output=True,
+        )
+        base = shown.stdout if shown.returncode == 0 else ""
+        if declares_handler_dependency(head) != declares_handler_dependency(base):
+            return True
+    return False
+
+
 def validation_commands(
     repo: Path,
     profile: str,
@@ -845,9 +879,12 @@ def validation_commands(
             )
 
     cargo_config_changed = bool(CARGO_CONFIG_PATHS.intersection(all_paths))
+    # Final also runs the checker lib suite when the checked package set can
+    # change (see `handler_graph_changed`); its repository test pins that set.
+    handler_graph = profile == "final" and handler_graph_changed(repo, base_commit, all_paths)
     # Cargo resolves configuration from cwd, including --manifest-path calls
     # for these standalone tools; a root config change affects them too.
-    if "architecture-checker" in groups or cargo_config_changed:
+    if "architecture-checker" in groups or cargo_config_changed or handler_graph:
         add_command(planned, ["cargo", "fmt", "--manifest-path", CHECKER_MANIFEST, "--", "--check"])
         command = "test" if profile == "final" else "check"
         checker = ["cargo", command, "--locked", "--manifest-path", CHECKER_MANIFEST, "--jobs", str(jobs)]

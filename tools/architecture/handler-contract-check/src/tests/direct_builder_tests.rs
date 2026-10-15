@@ -151,15 +151,15 @@ fn direct_instances_registrar_accepts_exact_seven_entry_source() {
 #[test]
 fn direct_equipment_set_use_registrar_accepts_its_exact_owner_and_rejects_aliases() {
     const SOURCE: &str =
-        include_str!("../../../../../crates/wow-world-application/src/equipment_set_use.rs");
+        include_str!("../../../../../crates/wow-world-inventory/src/equipment_set_use_handlers.rs");
     let report = analyze_owner_source_with_contracts(
         EQUIPMENT_SET_USE_REGISTRAR.package,
         EQUIPMENT_SET_USE_REGISTRAR.module,
-        Path::new("equipment_set_use.rs"),
+        Path::new("equipment_set_use_handlers.rs"),
         SOURCE,
         DIRECT_REGISTRAR_CONTRACTS,
     )
-    .expect("Application EquipmentSetUse has its exact finite direct registrar");
+    .expect("Inventory EquipmentSetUse has its exact finite direct registrar");
     assert_eq!(report.entries, 1);
     assert_eq!(report.registrar_count, 1);
     assert_eq!(report.contract, Some(EQUIPMENT_SET_USE_REGISTRAR));
@@ -174,7 +174,7 @@ fn direct_equipment_set_use_registrar_accepts_its_exact_owner_and_rejects_aliase
         analyze_owner_source_with_contracts(
             EQUIPMENT_SET_USE_REGISTRAR.package,
             EQUIPMENT_SET_USE_REGISTRAR.module,
-            Path::new("equipment_set_use.rs"),
+            Path::new("equipment_set_use_handlers.rs"),
             &aliased_entry,
             DIRECT_REGISTRAR_CONTRACTS,
         )
@@ -185,8 +185,8 @@ fn direct_equipment_set_use_registrar_accepts_its_exact_owner_and_rejects_aliase
     assert!(
         analyze_owner_source_with_contracts(
             EQUIPMENT_SET_USE_REGISTRAR.package,
-            "crate::equipment_set_use::other",
-            Path::new("equipment_set_use.rs"),
+            "crate::equipment_set_use_handlers::other",
+            Path::new("equipment_set_use_handlers.rs"),
             SOURCE,
             DIRECT_REGISTRAR_CONTRACTS,
         )
@@ -198,7 +198,7 @@ fn direct_equipment_set_use_registrar_accepts_its_exact_owner_and_rejects_aliase
         analyze_owner_source_with_contracts(
             EQUIPMENT_SET_USE_REGISTRAR.package,
             EQUIPMENT_SET_USE_REGISTRAR.module,
-            Path::new("equipment_set_use.rs"),
+            Path::new("equipment_set_use_handlers.rs"),
             SOURCE,
             &[INVENTORY_REGISTRAR, INSTANCES_REGISTRAR],
         )

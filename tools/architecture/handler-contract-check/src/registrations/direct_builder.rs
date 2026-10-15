@@ -123,16 +123,19 @@ const EQUIPMENT_SET_USE_ROOT_EXPORTS: &[&str] = &[
     "EquipmentSetUseHandlerHostLikeCpp",
     "EquipmentSetUseItemModsStoresLikeCpp",
 ];
+// #1363 slice Q2: the registrar moved to inventory, whose `equipment_set_use`
+// module already holds the slot/plan helpers, so it lives in
+// `equipment_set_use_handlers` (as `bank_handlers`). The owner label is unchanged.
 const EQUIPMENT_SET_USE_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
     module: "crate",
-    child: "equipment_set_use",
+    child: "equipment_set_use_handlers",
     exports: EQUIPMENT_SET_USE_ROOT_EXPORTS,
 }];
 
 pub(crate) const EQUIPMENT_SET_USE_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationEquipmentSetUse",
-    package: "wow-world-application",
-    module: "crate::equipment_set_use",
+    package: "wow-world-inventory",
+    module: "crate::equipment_set_use_handlers",
     registrar: "register_equipment_set_use_handler_like_cpp",
     host_trait: "EquipmentSetUseHandlerHostLikeCpp",
     production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],

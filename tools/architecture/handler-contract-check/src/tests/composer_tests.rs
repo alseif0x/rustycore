@@ -139,8 +139,10 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             EQUIPMENT_SET_USE_REGISTRAR.package,
             EQUIPMENT_SET_USE_REGISTRAR.module,
-            "crates/wow-world-application/src/equipment_set_use.rs",
-            include_str!("../../../../../crates/wow-world-application/src/equipment_set_use.rs"),
+            "crates/wow-world-inventory/src/equipment_set_use_handlers.rs",
+            include_str!(
+                "../../../../../crates/wow-world-inventory/src/equipment_set_use_handlers.rs"
+            ),
         ),
         mount(
             BANK_REGISTRAR.package,
@@ -803,19 +805,19 @@ fn composition_guard_rejects_missing_aliased_and_wrong_equipment_set_use_calls()
     aliased[authority].source = mutate_fixture(
         &mutate_fixture(
             &aliased[authority].source,
-            "wow_world_application::register_equipment_set_use_handler_like_cpp",
-            "application_alias::register_equipment_set_use_handler_like_cpp",
+            "wow_world_inventory::register_equipment_set_use_handler_like_cpp",
+            "inventory_alias::register_equipment_set_use_handler_like_cpp",
         ),
         "use std::sync::Arc;",
-        "use std::sync::Arc;\nuse wow_world_application as application_alias;",
+        "use std::sync::Arc;\nuse wow_world_inventory as inventory_alias;",
     );
-    assert_rejected(&aliased, "aliased Application EquipmentSetUse registrar");
+    assert_rejected(&aliased, "aliased Inventory EquipmentSetUse registrar");
 
     let mut wrong_owner = actual_mounts();
     let authority = authority_index(&wrong_owner);
     wrong_owner[authority].source = mutate_fixture(
         &wrong_owner[authority].source,
-        "wow_world_application::register_equipment_set_use_handler_like_cpp",
+        "wow_world_inventory::register_equipment_set_use_handler_like_cpp",
         "wow_world_instances::register_instance_handlers_like_cpp",
     );
     assert_rejected(
@@ -824,20 +826,20 @@ fn composition_guard_rejects_missing_aliased_and_wrong_equipment_set_use_calls()
     );
 
     let mut missing_facade = actual_mounts();
-    let application_root = missing_facade
+    let inventory_root = missing_facade
         .iter_mut()
         .find(|mount| {
             mount.package == EQUIPMENT_SET_USE_REGISTRAR.package
                 && mount
                     .source_path
-                    .ends_with("crates/wow-world-application/src/lib.rs")
+                    .ends_with("crates/wow-world-inventory/src/lib.rs")
         })
-        .expect("Application root source mount exists");
+        .expect("Inventory root source mount exists");
     let missing_export = "register_equipment_set_use_handler_like_cpp,";
-    assert_eq!(application_root.source.matches(missing_export).count(), 1);
-    let original_root = application_root.source.clone();
-    application_root.source = application_root.source.replace(missing_export, "");
-    assert_ne!(application_root.source, original_root);
+    assert_eq!(inventory_root.source.matches(missing_export).count(), 1);
+    let original_root = inventory_root.source.clone();
+    inventory_root.source = inventory_root.source.replace(missing_export, "");
+    assert_ne!(inventory_root.source, original_root);
     println!(
         "MISSING FACADE OUTCOME: {:?}",
         validate_composition_mounts(&missing_facade)
@@ -848,21 +850,21 @@ fn composition_guard_rejects_missing_aliased_and_wrong_equipment_set_use_calls()
     );
 
     let mut aliased_facade = actual_mounts();
-    let application_root = aliased_facade
+    let inventory_root = aliased_facade
         .iter_mut()
         .find(|mount| {
             mount.package == EQUIPMENT_SET_USE_REGISTRAR.package
                 && mount
                     .source_path
-                    .ends_with("crates/wow-world-application/src/lib.rs")
+                    .ends_with("crates/wow-world-inventory/src/lib.rs")
         })
-        .expect("Application root source mount exists");
-    let original_root = application_root.source.clone();
-    application_root.source = application_root.source.replace(
+        .expect("Inventory root source mount exists");
+    let original_root = inventory_root.source.clone();
+    inventory_root.source = inventory_root.source.replace(
         "register_equipment_set_use_handler_like_cpp,",
         "register_equipment_set_use_handler_like_cpp as register_use_handler,",
     );
-    assert_ne!(application_root.source, original_root);
+    assert_ne!(inventory_root.source, original_root);
     assert_rejected(
         &aliased_facade,
         "aliased EquipmentSetUse root facade export",

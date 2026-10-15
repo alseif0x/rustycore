@@ -1,0 +1,28 @@
+{
+ "slice": "#1363 slice Q2",
+ "base": "bc5bc0be7",
+ "moved": [
+  "new",
+  "update_item_level_area_based_scaling_like_cpp",
+  "record_all_item_mods_like_cpp",
+  "restored_health_like_cpp",
+  "scaling_restoration_retains_integer_floor_and_zero_maximum_guard",
+  "stats_access_like_cpp",
+  "handle_use_equipment_set_like_cpp",
+  "apply_equipment_set_like_cpp",
+  "move_item_like_cpp",
+  "sync_player_registry_like_cpp",
+  "send_raw_item_bonus_update_like_cpp",
+  "handle_use_equipment_set_thunk",
+  "register_equipment_set_use_handler_like_cpp",
+  "equipment_set_use_handler_cx_like_cpp",
+  "registrar_preserves_entry_metadata_without_constructing_host_and_rejects_duplicate"
+ ],
+ "note": "Move-only: wow-world-application -> wow-world-inventory. The only rewrite is the crate path of inventory items. The three same-named `new` constructors of equipment_set_use.rs cannot be told apart by name; the whole-file diff covers them.",
+ "rules": [
+  [
+   "\\bwow_world_inventory::",
+   "crate::"
+  ]
+ ]
+}

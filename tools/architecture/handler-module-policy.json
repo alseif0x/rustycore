@@ -32,8 +32,8 @@
     },
     {
       "capability": "handler_registration",
-      "package": "wow-world-application",
-      "module": "crate::equipment_set_use",
+      "package": "wow-world-inventory",
+      "module": "crate::equipment_set_use_handlers",
       "allow_descendants": false,
       "tracking_issue": 1263
     },
