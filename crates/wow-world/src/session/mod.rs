@@ -110,13 +110,10 @@ mod action_bar_adapter;
 #[cfg(test)]
 mod auction_contracts;
 #[cfg(test)]
-pub(crate) use auction_contracts::RepresentedAuctionPlaceBidLikeCpp;
-#[cfg(test)]
-pub(crate) use auction_contracts::RepresentedAuctionRemoveItemLikeCpp;
-#[cfg(test)]
-pub(crate) use auction_contracts::RepresentedAuctionReplicateRequestLikeCpp;
-#[cfg(test)]
-pub(crate) use auction_contracts::RepresentedAuctionSellItemLikeCpp;
+pub(crate) use auction_contracts::{
+    RepresentedAuctionPlaceBidLikeCpp, RepresentedAuctionRemoveItemLikeCpp,
+    RepresentedAuctionReplicateRequestLikeCpp, RepresentedAuctionSellItemLikeCpp,
+};
 mod aura_effect_values;
 use aura_effect_values::unit_owned_apply_aura_effect_mask_like_cpp;
 mod battle_pet_adapter;
@@ -125,17 +122,7 @@ pub(crate) use battle_pet_adapter::{
     NEXT_REPRESENTED_BATTLE_PET_COUNTER_LIKE_CPP, RepresentedBattlePetCageOutcomeLikeCpp,
     next_represented_battle_pet_guid_like_cpp,
 };
-#[cfg(test)]
-pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetCageItemLikeCpp;
-#[cfg(test)]
-pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetCalculatedStatsLikeCpp;
 pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetDataLikeCpp;
-#[cfg(test)]
-pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetLevelCriteriaLikeCpp;
-#[cfg(test)]
-pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetQueryCompanionLikeCpp;
-#[cfg(test)]
-pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetSaveInfoLikeCpp;
 #[cfg(test)]
 pub(crate) use wow_world_inventory::{
     RepresentedAutoUnequipOffhandLikeCpp, RepresentedBattlePetGrantExperienceOutcomeLikeCpp,
@@ -307,10 +294,6 @@ mod map_admission;
 use map_admission::create_map_decision_difficulty_id_like_cpp;
 pub use map_admission::{MMapRuntimeConfigLikeCpp, WaypointPathResolverLikeCpp};
 pub use map_admission::{PlayerGridLoadOutcomeLikeCpp, PlayerGridLoadResolverLikeCpp};
-#[cfg(test)]
-pub(crate) use wow_world_instances::CreateMapSideEffectApplySummaryLikeCpp;
-#[cfg(test)]
-use wow_world_instances::create_map_instance_lock_token_like_cpp;
 mod money_persistence_contracts;
 use money_persistence_contracts::AbsolutePlayerMoneyCommitReconciliationLikeCpp;
 pub(crate) use money_persistence_contracts::CommittedRepresentedTalentResetLikeCpp;
@@ -785,8 +768,6 @@ pub type AreaTriggerScriptDispatcherLikeCpp =
 use wow_world_core::session::state::config::GivePlayerXpScriptDispatcherLikeCpp;
 
 use wow_world_instances::REST_FLAG_IN_TAVERN_LIKE_CPP;
-#[cfg(test)]
-use wow_world_instances::{REST_FLAG_IN_CITY_LIKE_CPP, REST_FLAG_IN_FACTION_AREA_LIKE_CPP};
 const REST_OFFLINE_WILDERNESS_BUBBLE_LIKE_CPP: f32 = 0.031;
 const REST_OFFLINE_TAVERN_OR_CITY_BUBBLE_LIKE_CPP: f32 = 0.125;
 const REST_ONLINE_INGAME_BUBBLE_LIKE_CPP: f32 = 0.125;
@@ -807,10 +788,6 @@ const LANG_RESET_SPELLS_TEXT_LIKE_CPP: &str = "Your spells have been reset.";
 pub(crate) const TRADE_STATUS_PLAYER_BUSY_LIKE_CPP: u8 = 0;
 #[cfg(test)]
 use wow_world_core::session::PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP;
-#[cfg(test)]
-use wow_world_instances::AREA_FLAG_ENEMIES_PVP_FLAGGED_LIKE_CPP;
-#[cfg(test)]
-use wow_world_spell::AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP;
 const CURRENCY_DB_UNUSED_FLAGS_LIKE_CPP: u8 = 0x13;
 pub(crate) use wow_world_core::session::movement_protocol::TeleportToOptionsLikeCpp;
 pub(crate) use wow_world_entities::TELE_TO_NONE_LIKE_CPP;
