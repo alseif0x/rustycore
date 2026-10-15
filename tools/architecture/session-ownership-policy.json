@@ -422,13 +422,15 @@
           "source_class": "test_fixture"
         },
         {
-          "module": "crate::handlers::collections",
+          "module": "crate::handlers::collections::test_shims",
           "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
-          "module": "crate::handlers::collections::test_shims",
+          "module": "crate::handlers::collections_session_test_shims",
           "trait_path": null,
           "cfg": [
             "cfg (test)"
@@ -548,12 +550,6 @@
           "source_class": "test_fixture"
         },
         {
-          "module": "crate::handlers::group::commands",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "module": "crate::handlers::group::ops_1",
           "trait_path": null,
           "cfg": [],
@@ -577,6 +573,14 @@
         },
         {
           "module": "crate::handlers::group::test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
+          "module": "crate::handlers::group_session_test_shims",
           "trait_path": null,
           "cfg": [
             "cfg (test)"
@@ -620,6 +624,24 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
+        },
+        {
+          "module": "crate::handlers::leaf_session_hosts",
+          "trait_path": "GroupSessionHostLikeCpp",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::handlers::leaf_session_hosts",
+          "trait_path": "wow_world_instances :: AreaTriggerHostLikeCpp",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::handlers::leaf_session_hosts",
+          "trait_path": "wow_world_inventory :: AddToyHostLikeCpp",
+          "cfg": [],
+          "source_class": "production"
         },
         {
           "module": "crate::handlers::login_data_gossip_test_shims",
@@ -1107,6 +1129,14 @@
         },
         {
           "module": "crate::handlers::travel::travel::test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
+          "module": "crate::handlers::travel_test_shims",
           "trait_path": null,
           "cfg": [
             "cfg (test)"
@@ -7024,50 +7054,6 @@
           ]
         },
         {
-          "module": "crate::handlers::collections",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_add_toy",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_add_toy (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::collections",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_use_toy",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_use_toy (& mut self , pkt : wow_packet :: WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::collections",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_use_toy_with_generator_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_use_toy_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::collections::test_shims",
           "trait_path": null,
           "kind": "method",
@@ -7159,6 +7145,87 @@
           "source_class": "test_fixture",
           "guards": [
             "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::collections_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "add_account_toy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn add_account_toy_like_cpp (& mut self , item_id : u32 , is_favorite : bool , has_fanfare : bool ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::collections_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_add_toy",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_add_toy (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::collections_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_use_toy",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_use_toy (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::collections_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "send_equip_error",
+          "visibility": "pub (crate)",
+          "signature": "fn send_equip_error (& self , result : InventoryResult , item1 : Option < ObjectGuid > , item2 : Option < ObjectGuid > , required_level : u32 , limit_category : u32 ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::collections_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_active_spell_cast_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn set_active_spell_cast_like_cpp (& mut self , cast : Option < SpellCastState >) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "setter",
             "visible"
           ]
         },
@@ -9230,76 +9297,6 @@
           ]
         },
         {
-          "module": "crate::handlers::group::commands",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_apply_group_difficulty_command_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_apply_group_difficulty_command_like_cpp (& mut self , command : ApplyGroupDifficultyLikeCppCommand ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::group::commands",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_apply_group_join_command_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_apply_group_join_command_like_cpp (& mut self , command : ApplyGroupJoinLikeCppCommand ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::group::commands",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_apply_group_removal_command_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_apply_group_removal_command_like_cpp (& mut self , command : ApplyGroupRemovalLikeCppCommand ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::group::commands",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_apply_group_subgroup_command_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_apply_group_subgroup_command_like_cpp (& mut self , command : ApplyGroupSubgroupLikeCppCommand ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::group::commands",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_send_party_update_command_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_send_party_update_command_like_cpp (& mut self , mut command : SendPartyUpdateLikeCppCommand ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::group::ops_1::f3_shims",
           "trait_path": null,
           "kind": "method",
@@ -9722,6 +9719,54 @@
           "name": "handle_update_raid_target",
           "visibility": "pub (crate)",
           "signature": "async fn handle_update_raid_target (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::group_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_group_publication_tail_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn apply_group_publication_tail_like_cpp (& mut self , tail : GroupPublicationTailLikeCpp ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::group_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "next_group_update_sequence_number_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn next_group_update_sequence_number_like_cpp (& mut self , category : u8 ,) -> Option < i32 >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::group_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "reconcile_group_state_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn reconcile_group_state_like_cpp (& mut self) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -10545,6 +10590,104 @@
           "guards": [
             "external_impl",
             "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::leaf_session_hosts",
+          "trait_path": "GroupSessionHostLikeCpp",
+          "kind": "method",
+          "name": "apply_group_difficulty_like_cpp",
+          "visibility": "private",
+          "signature": "fn apply_group_difficulty_like_cpp (& mut self , group_guid : u64 , difficulty_id : u32 , kind : GroupDifficultyKindLikeCpp ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::leaf_session_hosts",
+          "trait_path": "GroupSessionHostLikeCpp",
+          "kind": "method",
+          "name": "lifecycle",
+          "visibility": "private",
+          "signature": "fn lifecycle (& self) -> & SessionLifecycleState",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::leaf_session_hosts",
+          "trait_path": "GroupSessionHostLikeCpp",
+          "kind": "method",
+          "name": "split_social_mut",
+          "visibility": "private",
+          "signature": "fn split_social_mut (& mut self) -> (& mut SessionSocialLimits , HubMut < '_ >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::leaf_session_hosts",
+          "trait_path": "GroupSessionHostLikeCpp",
+          "kind": "method",
+          "name": "split_social_ref",
+          "visibility": "private",
+          "signature": "fn split_social_ref (& self) -> (& SessionSocialLimits , HubRef < '_ >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::leaf_session_hosts",
+          "trait_path": "GroupSessionHostLikeCpp",
+          "kind": "method",
+          "name": "update_visible_gameobjects_or_spell_clicks_like_cpp",
+          "visibility": "private",
+          "signature": "fn update_visible_gameobjects_or_spell_clicks_like_cpp (& self) -> usize",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::leaf_session_hosts",
+          "trait_path": "wow_world_instances :: AreaTriggerHostLikeCpp",
+          "kind": "method",
+          "name": "dispatch_area_trigger_script_like_cpp",
+          "visibility": "private",
+          "signature": "fn dispatch_area_trigger_script_like_cpp (& mut self , catalogs : & AreaTriggerCatalogsLikeCpp , script_id : wow_data :: ScriptIdLikeCpp , trigger_id : u32 , entered : bool ,) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::leaf_session_hosts",
+          "trait_path": "wow_world_inventory :: AddToyHostLikeCpp",
+          "kind": "method",
+          "name": "can_use_inventory_item_represented_like_cpp",
+          "visibility": "private",
+          "signature": "fn can_use_inventory_item_represented_like_cpp (& self , item : & InventoryItem , runtime_item : Option < & Item > ,) -> InventoryResult",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
           ]
         },
         {
@@ -18934,63 +19077,6 @@
           "module": "crate::handlers::travel::travel",
           "trait_path": null,
           "kind": "method",
-          "name": "area_trigger_client_conditions_meet_like_cpp",
-          "visibility": "private",
-          "signature": "fn area_trigger_client_conditions_meet_like_cpp (& mut self , trigger_id : u32) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::travel::travel",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_activate_taxi",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_activate_taxi (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::travel::travel",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_area_trigger",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_area_trigger (& mut self , pkt : wow_packet :: WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::travel::travel",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_area_trigger_with_catalogs_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_area_trigger_with_catalogs_like_cpp (& mut self , catalogs : & AreaTriggerCatalogsLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::travel::travel",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_world_port_response",
           "visibility": "pub (crate)",
           "signature": "async fn handle_world_port_response (& mut self , pkt : wow_packet :: WorldPacket)",
@@ -19078,6 +19164,54 @@
           "source_class": "test_fixture",
           "guards": [
             "external_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::travel_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_activate_taxi",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_activate_taxi (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::travel_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_area_trigger",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_area_trigger (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::travel_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_taxi_usable_mount_displays_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_taxi_usable_mount_displays_like_cpp (& self , flying_mount_id : u32 ,) -> Vec < i32 >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -21157,19 +21291,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "add_account_toy_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn add_account_toy_like_cpp (& mut self , item_id : u32 , is_favorite : bool , has_fanfare : bool ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "add_currency_item_refund",
           "visibility": "pub (crate)",
           "signature": "fn add_currency_item_refund (& mut self , currency_id : u32 , amount : u32 ,) -> Result < Option < PlayerCurrencyDelta > , () >",
@@ -21592,17 +21713,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_authoritative_group_state_like_cpp",
-          "visibility": "private",
-          "signature": "fn apply_authoritative_group_state_like_cpp (& mut self , player_guid : ObjectGuid , group_registry : & GroupRegistry ,) -> GroupReconciliationOutcomeLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "apply_chat_away_mode_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn apply_chat_away_mode_like_cpp (& mut self , mode : PlayerAwayModeLikeCpp , text : String ,) -> bool",
@@ -21835,32 +21945,6 @@
           "name": "apply_group_difficulty_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn apply_group_difficulty_like_cpp (& mut self , group_guid : u64 , difficulty_id : u32 , kind : wow_social :: group :: GroupDifficultyKindLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_group_publication_tail_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn apply_group_publication_tail_like_cpp (& mut self , tail : GroupPublicationTailLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_group_subgroup_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_group_subgroup_like_cpp (& mut self , group_guid : u64 , subgroup : u8)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -23958,19 +24042,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "defer_group_state_reconciliation_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn defer_group_state_reconciliation_like_cpp (& self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "defer_player_rest_flag_sync_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn defer_player_rest_flag_sync_like_cpp (& mut self) -> bool",
@@ -24740,19 +24811,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "has_account_toy_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn has_account_toy_like_cpp (& self , item_id : u32) -> bool",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -26809,19 +26867,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "next_group_update_sequence_number_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn next_group_update_sequence_number_like_cpp (& mut self , category : u8 ,) -> Option < i32 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "next_represented_spell_cast_guid_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn next_represented_spell_cast_guid_like_cpp (& self , spell_id : i32 ,) -> Option < ObjectGuid >",
@@ -28592,32 +28637,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "reconcile_group_difficulty_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn reconcile_group_difficulty_like_cpp (& mut self , dungeon : u32 , raid : u32 , legacy_raid : u32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "reconcile_group_state_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn reconcile_group_state_like_cpp (& mut self) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "reconcile_player_transport_membership_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn reconcile_player_transport_membership_like_cpp (& self , player_guid : ObjectGuid , requested_transport_guid : Option < ObjectGuid > ,) -> wow_world_core :: session :: MovementTransportMembershipLikeCpp",
@@ -29533,7 +29552,7 @@
           "kind": "method",
           "name": "represented_activate_taxi_requests_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_activate_taxi_requests_like_cpp (& self ,) -> & [RepresentedActivateTaxiLikeCpp]",
+          "signature": "fn represented_activate_taxi_requests_like_cpp (& self ,) -> & [wow_world_core :: session :: RepresentedActivateTaxiLikeCpp]",
           "cfg": [
             "cfg (test)"
           ],
@@ -32223,19 +32242,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_taxi_usable_mount_displays_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_taxi_usable_mount_displays_like_cpp (& self , flying_mount_id : u32 ,) -> Vec < i32 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_temporary_unsummoned_pet_number_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_temporary_unsummoned_pet_number_like_cpp (& self) -> u32",
@@ -33669,43 +33675,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "send_destroyed_group_party_update_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn send_destroyed_group_party_update_like_cpp (& mut self , group_guid : u64 , category : u8 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_equip_error",
-          "visibility": "pub (crate)",
-          "signature": "fn send_equip_error (& self , result : InventoryResult , item1 : Option < ObjectGuid > , item2 : Option < ObjectGuid > , required_level : u32 , limit_category : u32 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_group_party_update_after_owner_like_cpp",
-          "visibility": "private",
-          "signature": "fn send_group_party_update_after_owner_like_cpp (& self , group : & wow_social :: group :: GroupInfo)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "send_item_enchant_time_update_plan",
           "visibility": "pub",
           "signature": "fn send_item_enchant_time_update_plan (& self , owner_guid : ObjectGuid , update : & PlayerEnchantTimeUpdate ,)",
@@ -33780,19 +33749,6 @@
           "name": "send_packet_realm",
           "visibility": "pub (crate)",
           "signature": "fn send_packet_realm (& self , pkt : & impl wow_packet :: ServerPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_player_party_type_update_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn send_player_party_type_update_like_cpp (& self , category : u8 , party_type : u8)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -34115,20 +34071,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_active_spell_cast_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn set_active_spell_cast_like_cpp (& mut self , cast : Option < SpellCastState >) -> bool",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "setter",
             "visible"
@@ -56166,45 +56108,6 @@
         },
         {
           "package": "wow-world",
-          "module": "crate::session::group_application_handler_contexts",
-          "source": "crates/wow-world/src/session/group_application_handler_contexts.rs",
-          "enclosing": "impl WorldSession::send_group_party_update_after_owner_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::group_application_handler_contexts",
-          "source": "crates/wow-world/src/session/group_application_handler_contexts.rs",
-          "enclosing": "impl WorldSession::send_group_party_update_after_owner_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::group_application_handler_contexts",
-          "source": "crates/wow-world/src/session/group_application_handler_contexts.rs",
-          "enclosing": "impl WorldSession::send_group_party_update_after_owner_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "argument_escape",
-          "symbol": "send_party_update",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
           "module": "crate::session::instances::map_resolution",
           "source": "crates/wow-world/src/session/instances/map_resolution.rs",
           "enclosing": "impl WorldSession::set_canonical_map_manager",
@@ -56584,32 +56487,6 @@
           "package": "wow-world",
           "module": "crate::session::social::group",
           "source": "crates/wow-world/src/session/social/group.rs",
-          "enclosing": "impl WorldSession::apply_authoritative_group_state_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "type_reference",
-          "symbol": "group_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "& GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::social::group",
-          "source": "crates/wow-world/src/session/social/group.rs",
-          "enclosing": "impl WorldSession::apply_authoritative_group_state_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "get",
-          "symbol": "get",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "get(& authority . group_guid)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::social::group",
-          "source": "crates/wow-world/src/session/social/group.rs",
           "enclosing": "impl WorldSession::authoritative_group_membership_like_cpp",
           "registry": "GroupRegistry",
           "operation": "member",
@@ -56825,84 +56702,6 @@
           "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "self . core . group_registry ()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::social::group",
-          "source": "crates/wow-world/src/session/social/group.rs",
-          "enclosing": "impl WorldSession::reconcile_group_state_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "member",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "self . core . player_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::social::group",
-          "source": "crates/wow-world/src/session/social/group.rs",
-          "enclosing": "impl WorldSession::reconcile_group_state_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "player_guid",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "player_guid:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::social::group",
-          "source": "crates/wow-world/src/session/social/group.rs",
-          "enclosing": "impl WorldSession::reconcile_group_state_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "player_registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::social::group",
-          "source": "crates/wow-world/src/session/social/group.rs",
-          "enclosing": "impl WorldSession::reconcile_group_state_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "member",
-          "symbol": "group_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "self . core . directory . group_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::social::group",
-          "source": "crates/wow-world/src/session/social/group.rs",
-          "enclosing": "impl WorldSession::reconcile_group_state_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "local_alias",
-          "symbol": "group_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "group_registry:GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::social::group",
-          "source": "crates/wow-world/src/session/social/group.rs",
-          "enclosing": "impl WorldSession::reconcile_group_state_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "argument_escape",
-          "symbol": "apply_authoritative_group_state_like_cpp",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "& group_registry",
           "count": 1
         },
         {
@@ -59968,6 +59767,162 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "& group_reg",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::group_session",
+          "source": "crates/wow-world-instances/src/group_session.rs",
+          "enclosing": "fn apply_authoritative_group_state_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "type_reference",
+          "symbol": "group_registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "& GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::group_session",
+          "source": "crates/wow-world-instances/src/group_session.rs",
+          "enclosing": "fn apply_authoritative_group_state_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "get(& authority . group_guid)",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::group_session",
+          "source": "crates/wow-world-instances/src/group_session.rs",
+          "enclosing": "fn reconcile_group_state_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "host . core () . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::group_session",
+          "source": "crates/wow-world-instances/src/group_session.rs",
+          "enclosing": "fn reconcile_group_state_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "player_guid",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_guid:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::group_session",
+          "source": "crates/wow-world-instances/src/group_session.rs",
+          "enclosing": "fn reconcile_group_state_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::group_session",
+          "source": "crates/wow-world-instances/src/group_session.rs",
+          "enclosing": "fn reconcile_group_state_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "member",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "host . core () . directory . group_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::group_session",
+          "source": "crates/wow-world-instances/src/group_session.rs",
+          "enclosing": "fn reconcile_group_state_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::group_session",
+          "source": "crates/wow-world-instances/src/group_session.rs",
+          "enclosing": "fn reconcile_group_state_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "argument_escape",
+          "symbol": "apply_authoritative_group_state_like_cpp",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "& group_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::group_session",
+          "source": "crates/wow-world-instances/src/group_session.rs",
+          "enclosing": "fn send_group_party_update_after_owner_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::group_session",
+          "source": "crates/wow-world-instances/src/group_session.rs",
+          "enclosing": "fn send_group_party_update_after_owner_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::group_session",
+          "source": "crates/wow-world-instances/src/group_session.rs",
+          "enclosing": "fn send_group_party_update_after_owner_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "send_party_update",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-instances",
+          "module": "crate::group_session",
+          "source": "crates/wow-world-instances/src/group_session.rs",
+          "enclosing": "module",
+          "registry": "GroupRegistry",
+          "operation": "import_alias",
+          "symbol": "GroupRegistry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "wow_social::group::{GroupDifficultyKindLikeCpp,GroupRegistry}",
           "count": 1
         },
         {
