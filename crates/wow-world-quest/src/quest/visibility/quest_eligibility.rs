@@ -4,10 +4,10 @@
 
 //! Selected quest eligibility predicates used by quest-dialog visibility.
 
-use crate::PlayerConditionProjectionCxLikeCpp;
 use crate::quest::{QuestObjectiveProgressCx, QuestRewardCx, SessionQuestState};
 use wow_data::quest::QuestTemplate;
 use wow_world_core::session::{QuestEligibilityAccessLikeCpp, SessionCatalogs};
+use wow_world_player_conditions::PlayerConditionProjectionCxLikeCpp;
 
 /// Read-only participants for the complete quest-admission predicate.
 pub struct QuestEligibilityCx<'a> {

@@ -43,9 +43,9 @@ use wow_world_application::{
     trainer_price_like_cpp,
 };
 #[cfg(test)]
-use wow_world_quest::TrainerAdmissionProofLikeCpp;
+use wow_world_player_conditions::TrainerAdmissionProofLikeCpp;
 #[cfg(test)]
-use wow_world_quest::trainer_condition_admission_proof_like_cpp;
+use wow_world_player_conditions::trainer_condition_admission_proof_like_cpp;
 
 // ── Handler registrations ─────────────────────────────────────────────────────
 

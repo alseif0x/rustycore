@@ -20,13 +20,13 @@ use wow_world_core::session::PlayerConditionAccessLikeCpp;
 use wow_world_entities::RepresentedGameObjectUseState;
 
 use super::QuestObjectiveProgressCx;
-use crate::PlayerConditionProjectionCxLikeCpp;
 use crate::quest::{
     QuestEligibilityCx, VisibilityRefreshCxLikeCpp, VisibilityRefreshHostLikeCpp,
     represented_can_see_spell_click_on_like_cpp,
     represented_viewer_dependent_creature_npc_flags_like_cpp,
     update_visible_gameobjects_or_spell_clicks_like_cpp,
 };
+use wow_world_player_conditions::PlayerConditionProjectionCxLikeCpp;
 
 impl QuestObjectiveProgressCx<'_, '_> {
     /// C++ `Player::UpdateVisibleGameobjectsOrSpellClicks` at quest completion.

@@ -3,7 +3,7 @@
 
 use wow_constants::InventoryResult;
 use wow_entities::{ItemPosCount, is_bank_pos, is_equipment_pos, is_inventory_pos};
-use wow_world_quest::PlayerConditionProjectionCxLikeCpp;
+use wow_world_player_conditions::PlayerConditionProjectionCxLikeCpp;
 
 mod bank;
 
@@ -169,7 +169,7 @@ impl<'cx, 'owner> InventoryMovePlanningCxLikeCpp<'cx, 'owner> {
             #[cfg(any(test, feature = "test-fixtures"))]
             self.conditions.in_combat,
         )?;
-        let outcome = wow_world_quest::can_equip_inventory_item_like_cpp(
+        let outcome = wow_world_player_conditions::can_equip_inventory_item_like_cpp(
             self.conditions,
             &inventory_item,
             &runtime_item,

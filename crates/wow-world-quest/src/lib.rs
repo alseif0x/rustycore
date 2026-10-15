@@ -2,32 +2,15 @@
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Quest operations, player-condition projection and inventory valuation
-//! shared by World adapters (#1363 A6: moved from `wow-world-application`).
-//!
-//! `PlayerConditionProjectionCxLikeCpp` is extended by inherent impls in
-//! `quest/visibility.rs` and `inventory_valuation`, so the cluster lives in
-//! one crate.
+//! Quest operations shared by World adapters (#1363 A6: moved from
+//! `wow-world-application`). The player-condition projection, inventory
+//! valuation and trainer admission proof moved down to
+//! `wow-world-player-conditions` (#1363 slice Q).
 
-mod trainer_admission;
-pub use trainer_admission::{
-    TrainerAdmissionProofLikeCpp, trainer_condition_admission_proof_like_cpp,
-};
-mod inventory_valuation;
-mod player_conditions;
 mod quest;
 mod quest_handlers;
 mod quest_query_handlers;
 mod registry_sync;
-pub use inventory_valuation::{
-    can_equip_inventory_item_like_cpp, can_equip_unique_item_like_cpp,
-    can_use_inventory_item_represented_with_loading_like_cpp,
-};
-pub use player_conditions::{
-    PlayerConditionProjectionCxLikeCpp, PlayerConditionProjectionInputsLikeCpp,
-    RepresentedPlayerConditionContextLikeCpp, meets_player_condition_id_like_cpp,
-    player_condition_projection_cx_like_cpp,
-};
 pub use quest::QuestEligibilityCx;
 pub use quest::QuestRewardDurablePlanLikeCpp;
 pub use quest::add_currency_quest_reward_like_cpp;

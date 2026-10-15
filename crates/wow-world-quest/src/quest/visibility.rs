@@ -24,7 +24,6 @@ pub use self::gameobject_flags::{
 
 use std::sync::Arc;
 
-use crate::PlayerConditionProjectionCxLikeCpp;
 use wow_core::ObjectGuid;
 use wow_data::{
     AreaTableStore, ChrSpecializationStore, ConditionEntriesByTypeStore, NpcSpellClickStoreLikeCpp,
@@ -37,6 +36,7 @@ use wow_world_core::session::{
 use wow_world_entities::RepresentedGameObjectUseState;
 use wow_world_entities::WorldEntitiesState;
 use wow_world_entities::spell_click_values::RepresentedCanSeeSpellClickOutcomeLikeCpp;
+use wow_world_player_conditions::PlayerConditionProjectionCxLikeCpp;
 use wow_world_social::SessionSocialLimits;
 
 use super::{SessionQuestState, objective_progress::current_quest_gameplay_snapshot_like_cpp};

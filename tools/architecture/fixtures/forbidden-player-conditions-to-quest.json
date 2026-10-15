@@ -1,0 +1,6 @@
+{
+  "name": "the player-conditions crate may not depend on wow-world-quest; quest sits above it and reads the projection (#1363 slice Q)",
+  "source": "wow-world-player-conditions",
+  "target": "wow-world-quest",
+  "expected": "forbidden"
+}

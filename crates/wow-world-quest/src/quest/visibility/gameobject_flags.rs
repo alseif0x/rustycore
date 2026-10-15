@@ -18,11 +18,11 @@ use wow_world_entities::{
 use wow_world_inventory::InventoryState;
 
 use super::QuestEligibilityCx;
-use crate::PlayerConditionProjectionCxLikeCpp;
 use crate::SessionQuestState;
 use crate::quest::dialog_status::RepresentedQuestGiverStatusSourceLikeCpp;
 use crate::quest::objective_progress::current_quest_gameplay_snapshot_like_cpp;
 use crate::quest::represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp;
+use wow_world_player_conditions::PlayerConditionProjectionCxLikeCpp;
 
 use super::super::objectives::QuestObjectiveProgressCx;
 

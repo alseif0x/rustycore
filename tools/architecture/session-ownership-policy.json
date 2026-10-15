@@ -27784,7 +27784,7 @@
           "kind": "method",
           "name": "player_condition_projection_cx_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn player_condition_projection_cx_like_cpp (& self ,) -> wow_world_quest :: PlayerConditionProjectionCxLikeCpp < '_ >",
+          "signature": "fn player_condition_projection_cx_like_cpp (& self ,) -> wow_world_player_conditions :: PlayerConditionProjectionCxLikeCpp < '_ >",
           "cfg": [],
           "source_class": "production",
           "guards": [

@@ -17,7 +17,7 @@ use wow_spell_acquisition::{
     SpellAcquisitionPlanLikeCpp, SpellAcquisitionRootLikeCpp,
 };
 use wow_world_core::session::RepresentedPlayerSkillLikeCpp;
-use wow_world_quest::TrainerAdmissionProofLikeCpp;
+use wow_world_player_conditions::TrainerAdmissionProofLikeCpp;
 use wow_world_spell::{
     PrimaryProfessionCapacityPlanErrorLikeCpp, PrimaryProfessionCapacityPlanLikeCpp,
 };

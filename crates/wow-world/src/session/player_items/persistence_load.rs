@@ -13,7 +13,7 @@ impl WorldSession {
         not_loading: bool,
     ) -> InventoryResult {
         let player_conditions = self.player_condition_projection_cx_like_cpp();
-        wow_world_quest::can_use_inventory_item_represented_with_loading_like_cpp(
+        wow_world_player_conditions::can_use_inventory_item_represented_with_loading_like_cpp(
             &player_conditions,
             item,
             runtime_item,

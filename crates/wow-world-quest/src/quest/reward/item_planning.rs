@@ -252,11 +252,11 @@ impl QuestRewardCx<'_> {
         fixtures: &'b QuestRewardItemPlanningFixtureRefsLikeCpp<'_>,
         #[cfg(any(test, feature = "test-fixtures"))]
         reputation: &'b wow_entities::PlayerReputationStateLikeCpp,
-    ) -> crate::PlayerConditionProjectionCxLikeCpp<'b> {
+    ) -> wow_world_player_conditions::PlayerConditionProjectionCxLikeCpp<'b> {
         #[cfg(any(test, feature = "test-fixtures"))]
         let (spell_state, instances, battleground, battleground_status, skills_complete, in_combat) =
             fixtures.condition_projection_fixtures_like_cpp();
-        crate::PlayerConditionProjectionCxLikeCpp::new(
+        wow_world_player_conditions::PlayerConditionProjectionCxLikeCpp::new(
             player,
             &*self.inventory,
             self.social,

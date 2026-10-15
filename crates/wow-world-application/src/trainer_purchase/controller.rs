@@ -31,8 +31,8 @@ use wow_world_core::session::{
 };
 use wow_world_interaction::InteractionState;
 use wow_world_lifecycle::ExclusivePlayerMoneyPersistenceLikeCpp;
-use wow_world_quest::PlayerConditionProjectionCxLikeCpp;
-use wow_world_quest::TrainerAdmissionProofLikeCpp;
+use wow_world_player_conditions::PlayerConditionProjectionCxLikeCpp;
+use wow_world_player_conditions::TrainerAdmissionProofLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_world_spell::canonical_player_spell_runtime_like_cpp;
 use wow_world_spell::{
@@ -98,7 +98,7 @@ pub struct AppTrainerListCx<'a> {
     npc: wow_world_core::session::AuraNpcAccessBuilderLikeCpp<'a>,
     aura: crate::PlayerAuraApplicationCxLikeCpp<'a>,
     pub(super) spell_access: OwnedSpellAcquisitionAccessLikeCpp<'a>,
-    player_conditions: wow_world_quest::PlayerConditionProjectionInputsLikeCpp<'a>,
+    player_conditions: wow_world_player_conditions::PlayerConditionProjectionInputsLikeCpp<'a>,
     pub(super) catalogs: TrainerListCatalogsLikeCpp<'a>,
     account_id: u32,
     session_locale_name: &'a str,
@@ -217,7 +217,7 @@ impl<'a> AppTrainerListCx<'a> {
         npc: wow_world_core::session::AuraNpcAccessBuilderLikeCpp<'a>,
         spell_access: OwnedSpellAcquisitionAccessLikeCpp<'a>,
         aura: crate::PlayerAuraApplicationCxLikeCpp<'a>,
-        player_conditions: wow_world_quest::PlayerConditionProjectionInputsLikeCpp<'a>,
+        player_conditions: wow_world_player_conditions::PlayerConditionProjectionInputsLikeCpp<'a>,
         catalogs: TrainerListCatalogsLikeCpp<'a>,
         account_id: u32,
         session_locale_name: &'a str,

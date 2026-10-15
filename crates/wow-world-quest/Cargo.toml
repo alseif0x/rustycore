@@ -14,6 +14,7 @@ test-fixtures = [
     "wow-world-inventory/test-fixtures",
     "wow-world-lifecycle/test-fixtures",
     "wow-world-loot/test-fixtures",
+    "wow-world-player-conditions/test-fixtures",
     "wow-world-social/test-fixtures",
     "wow-world-spell/test-fixtures",
 ]
@@ -37,6 +38,7 @@ wow-world-instances = { workspace = true }
 wow-world-inventory = { workspace = true }
 wow-world-lifecycle = { workspace = true }
 wow-world-loot = { workspace = true }
+wow-world-player-conditions = { workspace = true }
 wow-world-social = { workspace = true }
 wow-world-spell = { workspace = true }
 
