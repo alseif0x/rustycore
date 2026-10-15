@@ -11602,3 +11602,386 @@ so no separate handler-contract `check` is required; `final` runs the
 checker suite because `Cargo.lock` changed). The manifest path, dirty flag
 and duration are in the PR body. This section is not edited after that
 run, so the PR head is the validated SHA.
+
+## Slice 4d result (travel, group receivers/reconciliation/publication tail, collections → instances, spell, inventory)
+
+Branch `1363-s4d-leaf-handlers`, base `dc17fe39b` (slice 4c merged).
+Move-only (R2) after a tooling commit for the #1408 follow-ups. Packets and
+their order, the #743 reconciliation, the group publication tail, the toy
+account row and item destruction order (#169), registrations and processing
+flags are unchanged; no registrar moved.
+
+### #1408 follow-ups, commit `6dec1fbbc`
+
+- **Trigger fixtures (follow-up 1).** `test_validation_v2.py` gains
+  `dev-dependencies-only` and `build-dependencies-only`: the base has
+  `[dependencies]`, the head adds the same table plus one `wow-handler`
+  entry in only that table. Mutation check: removing `"dev-dependencies"`
+  from `GRAPH_TABLES` fails the self-test (`AssertionError:
+  dev-dependencies-only`), and so does removing `"build-dependencies"`
+  (`AssertionError: build-dependencies-only`); with the table restored the
+  self-test passes. `docs/operations/validation-v2.md` now says the
+  self-test has, for each table and the package name, one fixture where only
+  that part differs, which covers those cases and not every manifest edit;
+  the package-list pin belongs to the checker's lib test. The 4c section
+  says the two tables were not isolated before this slice.
+- **Ledger history (follow-up 2).** The `session/mod.rs` hotspot
+  `latest_growth_review` keeps its whole history in the field itself, as
+  every other entry does. Slice 4c replaced the chain (6c back to 9e), and
+  slice 9e had already replaced the one before it (9d back to #1241 F1 and
+  #584). Both were restored from `bc5bc0be7` and `b240d01a6~1`; an audit of
+  the last 15 ledger commits found no other replaced chain. This slice's
+  review is prepended with `Previous: ` in front of the restored chain
+  (39,436 characters; the 4c text is contained verbatim).
+- **Doc wording (follow-up 3).** The 4c note on the inlined loot-condition
+  wrapper now says a self-resolving name would have been a compile error,
+  not runtime recursion.
+
+### Re-measure and the design step
+
+Re-measured on `dc17fe39b` with the lexical index of the 4c plan, then
+again while moving (the existing host traits now cover more than in 4c):
+
+| Family | Moved function lines | New host methods | Destination |
+|---|---:|---:|---|
+| travel (area trigger + client conditions, activate taxi + mount-display filter) | 305 | 1 (+2 catalog accessors) | `wow-world-instances` |
+| group (5 command receivers, reconciliation, publication tail, 4 wrappers only they called) | 332 (+10 enum) | 5 | `wow-world-instances` |
+| collections (use toy, add toy) | 262 (+1 constant) | 1 | `wow-world-spell`, `wow-world-inventory` |
+
+- **Travel design decision.** The area-trigger catalogs hold
+  `AreaTriggerScriptDispatcherLikeCpp = Arc<dyn Fn(&mut WorldSession, …)>`.
+  A dispatcher generic over a host trait would make the catalog type generic
+  and touch the world-server construction and the script seam; that is not
+  small. Instead the dispatcher stays a World type and does not cross:
+  the moved body takes the catalogs as `&H::AreaTriggerCatalogsLikeCpp`, the
+  associated type the movement host already declares (World binds it to
+  `AreaTriggerCatalogsLikeCpp`), reads `db2`, `scripts`, `taverns` and
+  `destinations` through `AreaTriggerCatalogAccessLikeCpp` (two accessors
+  added), and calls one host method, `dispatch_area_trigger_script_like_cpp(catalogs, …)`,
+  whose World impl is `WorldSession::dispatch_area_trigger_script_like_cpp(self, catalogs.script_dispatcher.as_ref(), …)`,
+  the call the body made. Behaviour-neutral: the same `Arc` clone and
+  call on the same session at the same point.
+- **Taxi destination.** The 4c plan put `CMSG_ACTIVATE_TAXI` in entities.
+  Its usable-mount-display filter reads the aura host's
+  `represented_mount_x_display_usable_like_cpp` (spell, above entities), so
+  entities would need a host method for the filter. In instances (above
+  spell) the body and the filter both move with no new host method. The
+  first commit (`4b5ef9813`) used entities; `a0ed45ba3` moves it.
+- **Edges simulated before moving.** `wow_world_closure.py check --add
+  "wow-world-instances->wow-conditions"`: PASS in lock and metadata modes
+  (19 packages with the simulated edge). Group and collections add no edge
+  (instances already depends on social, lifecycle and `wow-world-social`;
+  spell on inventory; inventory on core).
+
+### What moved
+
+- **Travel → `wow-world-instances`** (`instance_session/area_trigger_opcode.rs`,
+  `instance_session/activate_taxi.rs`), commits `4b5ef9813`, `a0ed45ba3`:
+  `CMSG_AREA_TRIGGER` (C++ `MiscHandler.cpp:478` `HandleAreaTriggerOpcode`)
+  with `area_trigger_client_conditions_meet_like_cpp`, and
+  `CMSG_ACTIVATE_TAXI` (`TaxiHandler.cpp:167`) with
+  `represented_taxi_usable_mount_displays_like_cpp`
+  (`session/taxi/operations.rs`).
+  - Host: **`AreaTriggerHostLikeCpp: InstanceSessionHostLikeCpp<AreaTriggerCatalogsLikeCpp: AreaTriggerCatalogAccessLikeCpp>`**,
+    one method (above). The taxi bodies take `InstanceSessionHostLikeCpp`.
+  - Inlined one-line World wrappers: `teleport_to`
+    (`wow_world_entities::teleport_to_with_options(host, …, TELE_TO_NONE_LIKE_CPP)`,
+    its whole body) and `condition_store` (`host.hub_ref().catalogs.condition_store()`).
+- **Group → `wow-world-instances`** (`group_session.rs`), commit
+  `41b6ca19b`: the `ApplyGroupRemoval`/`ApplyGroupJoin`/`SendPartyUpdate`/
+  `ApplyGroupDifficulty`/`ApplyGroupSubgroup` receivers
+  (`handlers/group/commands.rs`, deleted), `reconcile_group_state_like_cpp`
+  with `apply_authoritative_group_state_like_cpp` and
+  `GroupReconciliationOutcomeLikeCpp`, `apply_group_publication_tail_like_cpp`
+  with `send_group_party_update_after_owner_like_cpp`, and the four wrappers
+  only these bodies called (`apply_group_subgroup_like_cpp`,
+  `defer_group_state_reconciliation_like_cpp`,
+  `send_destroyed_group_party_update_like_cpp`,
+  `reconcile_group_difficulty_like_cpp`), moved with them.
+  - Host: **`GroupSessionHostLikeCpp: InstanceSessionHostLikeCpp`**, five
+    methods: `split_social_ref`/`split_social_mut` (the World splits),
+    `lifecycle` (the field), `update_visible_gameobjects_or_spell_clicks_like_cpp`
+    and `apply_group_difficulty_like_cpp` (inherent).
+  - Inlined one-line World wrappers (each the same `SessionSocialLimits`
+    operation over the same split): `set_owned_player_group_like_cpp`,
+    `send_player_party_type_update_like_cpp`,
+    `next_group_update_sequence_number_like_cpp` (parenthesised, because it
+    is a `let … else` scrutinee), `sync_player_registry_party_member_party_type_like_cpp`;
+    and `send_packet_realm`, `player_registry` (`host.core().…`).
+  - Callers: `session_commands.rs` and the driver call the free functions;
+    `GroupHandlerHostLikeCpp::run_group_publication_tail_like_cpp` calls
+    `wow_world_instances::apply_group_publication_tail_like_cpp`.
+- **Collections**, commit `7a9cdc5f4`: `CMSG_USE_TOY` (`ToyHandler.cpp:54`)
+  → `wow-world-spell` (`toy_session.rs`) with
+  `CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP`, over the existing
+  `SpellExecutionHostLikeCpp` (no new method); `CMSG_ADD_TOY`
+  (`ToyHandler.cpp:28`) → `wow-world-inventory` (`toy_session.rs`) behind
+  **`AddToyHostLikeCpp: ItemSessionHostLikeCpp`** (one method,
+  `can_use_inventory_item_represented_like_cpp`).
+  - Inlined one-line World wrappers: `item_storage_template`, `spell_store`
+    (catalog reads), `has_account_toy_like_cpp`/`add_account_toy_like_cpp`
+    (the lifecycle split), `get_inventory_item_by_guid_like_cpp`/
+    `resolved_inventory_item_objects_like_cpp` (the inventory split),
+    `send_equip_error`/`send_packet_realm` (core) and
+    `set_active_spell_cast_like_cpp`, inlined as
+    `{ let cast = …; host.mutate_cast_execution_like_cpp(|state| state.active = cast) }`:
+    the argument is bound first as the wrapper bound it, and the discarded
+    `.is_some()` is not evaluated (as a block statement it would be an
+    `unused_must_use` warning; it is a pure read).
+  - The two stale doc paragraphs above the toy body
+    (`CMSG_COLLECTION_ITEM_SET_FAVORITE`, `CMSG_TRANSMOGRIFY_ITEMS`, whose
+    handlers moved earlier) are dropped; the toy documentation moves to the
+    module docs.
+- **Adapters.** One World file outside the hotspot trees,
+  `handlers/leaf_session_hosts.rs` (commit `ab00265da`), holds the
+  area-trigger catalog access (moved from `session/instances/host.rs` with its
+  two new accessors) and the three host impls.
+- **Retired with their last production reader** (commit `cca8252e4`, found
+  by the canonical warning recipe): `has_account_toy_like_cpp`,
+  `send_player_party_type_update_like_cpp`, the `retain_targets`/`retain_visual`
+  re-exports and `session/taxi_contracts.rs` (its test readers name the
+  `wow_world_core` path). Moved verbatim to the `#![cfg(test)]` shim files
+  for their scenarios: `send_equip_error`, `add_account_toy_like_cpp`,
+  `set_active_spell_cast_like_cpp`, `next_group_update_sequence_number_like_cpp`.
+- **Token comparison** (`move_token_compare.py --base dc17fe39b`, rules
+  `move_token_rules/1363-s4d-{travel,group,collections}.{json,pairs.tsv}`):
+  travel **3 of 4** identical, group **13 of 13**, collections **2 of 2**.
+  The other differs only by a rustfmt closure-brace reflow after the dedent
+  (`|current_area, required_area| { … }` now fits without the block).
+- **Visibility.** `pub` only for what World calls: the handlers,
+  reconciliation and tail, the host traits, the toy constant, and under
+  `cfg(any(test, feature = "test-fixtures"))` the taxi mount-display filter
+  the shims forward to. Everything else is private.
+
+### Host surface
+
+New host lines are 125 against 910 moved lines (899 function, 10 enum,
+1 constant): **13.7 %**.
+
+- Traits: `AreaTriggerHostLikeCpp` 13, the two catalog accessors 3,
+  `GroupSessionHostLikeCpp` 14, `AddToyHostLikeCpp` 9 (39 lines with docs).
+- World adapter `handlers/leaf_session_hosts.rs`: 94 lines, of which 8 are
+  the relocated catalog impl (not new): 86.
+
+### Await counts (per function, base vs head)
+
+| Function | Base | Head |
+|---|---:|---:|
+| `handle_area_trigger_with_catalogs_like_cpp` | 1 | 1 |
+| `apply_group_publication_tail_like_cpp` | 1 | 1 |
+| `handle_use_toy_with_generator_like_cpp` | 1 | 1 |
+| `handle_add_toy` | 1 | 1 |
+
+Every other moved function has none, base and head. Token identity puts
+each await at the same point.
+
+### Recursion
+
+- Every moved name was grepped across production (non-shim) `wow-world`.
+  The hits are the registrar adapters, `session_commands.rs`, the driver and
+  the tail adapter, each calling the explicit free function
+  (`wow_world_instances::…`, `wow_world_spell::…`, `wow_world_inventory::…`).
+  `TravelHandlerHostLikeCpp::handle_activate_taxi`/`handle_area_trigger_with_catalogs_like_cpp`
+  and `CollectionsHandlerHostLikeCpp::handle_add_toy` share the moved names;
+  their impls name the crate path.
+- Every new host forward resolves to an inherent method
+  (`WorldSession::dispatch_area_trigger_script_like_cpp`,
+  `…::update_visible_gameobjects_or_spell_clicks_like_cpp`,
+  `…::apply_group_difficulty_like_cpp`,
+  `…::can_use_inventory_item_represented_like_cpp`), an explicit free
+  function (`crate::session::split_social_{ref,mut}`) or a field. The
+  dispatch forward shares its name with the inherent method and differs in
+  its parameter types; `WorldSession::name` resolves to the inherent item
+  first, and a trait resolution would not type-check.
+- `unconditional_recursion`: 0 in all three canonical builds.
+
+### Registration
+
+No registrar moved. The travel, collections and group registrations, their
+order, `SessionStatus`, `PacketProcessing`, handler names and thunks are
+untouched; only the World adapters' call targets changed. No checker
+constant, mount or `handler-module-policy.json` change, so no
+handler-contract `check` is required. The `handler_contract` lib tests ran
+in the focused run below.
+
+### Edges and closure
+
+`wow-world-instances` → `wow-conditions` (external to `wow-world*`, the
+area-trigger client conditions), in `dependency-policy.json`; `Cargo.lock`
+gains that one line. No `wow-world*` edge. `wow_world_closure.py check`:
+PASS in lock and metadata modes (18 packages). `cargo tree -p world-server
+-e normal,build -e features` shows no `test-fixtures` and no
+`wow-world-test-support`.
+
+### Accounting
+
+| Crate `src` | Base physical | Head physical | Base production | Head production |
+|---|---:|---:|---:|---:|
+| `wow-world` | 41,144 (451 files) | 40,282 (453) | **31,664** | **30,664** |
+| `wow-world-instances` | 7,248 | 8,090 | 7,200 | 8,038 |
+| `wow-world-spell` | 20,112 | 20,343 | 19,795 | 20,026 |
+| `wow-world-inventory` | 23,730 | 23,855 | 23,338 | 23,463 |
+| `wow-world-entities` | 20,986 | 20,987 | 20,695 | 20,696 |
+
+- **`wow-world` production −1,000.** By file (classifier): `collections/mod.rs`
+  −322, `travel/travel.rs` −286, `session/social/group.rs` −169,
+  `group/commands.rs` −150 (deleted), `group_application_handler_contexts.rs`
+  −68, `taxi/operations.rs` −37, `instances/host.rs` −13,
+  `lifecycle_ops/operations.rs` −13, `player_items/equipment.rs` −11,
+  `instances/difficulty.rs` −10, `taxi_contracts.rs` −7 (deleted),
+  `player_cast/state.rs` −5, `session/mod.rs` −3, `spell_cast_adapter.rs` −2,
+  `group.rs` −1, `leaf_session_hosts.rs` +94, three one-line doc/mount edits +3.
+  - **Moved:** 910 lines (899 function lines, the 10-line outcome enum, the
+    toy constant).
+  - **Reclassified production → test:** 48 lines: the four wrappers moved
+    to the shim files (31) and the two `cfg(test)` entry points that were
+    nested in the moved impls, which the classifier counts as production
+    (`handle_area_trigger` 6, `handle_use_toy` 11).
+  - **Retired:** 131 lines: the two dead wrappers (8), the taxi re-export
+    module and its mount (9), the collapsed adapter re-export (2), the two
+    stale toy doc paragraphs (13) and the moved files' headers, imports,
+    `impl` lines and blank lines (99). The 8-line catalog impl is relocated,
+    not retired.
+  - **New host in `wow-world`:** 86 adapter lines (above), plus 3 lines of
+    docs and mounts.
+- **Destinations (production):** instances +838 (`group_session.rs` 457,
+  `area_trigger_opcode.rs` 252, `activate_taxi.rs` 114, mounts, exports and
+  the catalog accessors 15); spell +231 (`toy_session.rs`); inventory +125
+  (`toy_session.rs`); entities +1 (a doc line).
+- `net_move.py check --base origin/3.4.3`: S = 862, G = 1,199 within the
+  1,866.1 allowance, 0 duplicate bodies, PASS.
+
+### Policy and ceilings
+
+- **Ceilings tightened, none raised.** Hotspot `session/mod.rs`: production
+  21,606 → 21,272, test 141,630 unchanged, total 163,236 → 162,902.
+  Physical `session/mod.rs` 825 → 820, `handlers/group.rs` 75 → 74. The
+  other hotspots are unchanged.
+- **New physical rows** at their live size, all `#![cfg(test)]` and mounted
+  from `handlers/mod.rs` outside the hotspot trees:
+  `handlers/travel_test_shims.rs` (31), `handlers/group_session_test_shims.rs`
+  (37), `handlers/collections_session_test_shims.rs` (64).
+- `session-ownership-policy.json` reprinted with `print-baseline`; the delta
+  is the moved and retired items, the new host impls and the shims
+  (`check --syntax-only` PASS). `dependency-policy.json`: instances →
+  `wow-conditions`.
+- The test lines of `session/mod.rs` do not grow: the two scenarios that read
+  `CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP` name it as
+  `wow_world_spell::CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP` (same check, same
+  value), instead of a new `cfg(test)` re-export.
+
+### Warnings and tests
+
+Canonical recipe (with `--locked`), base `dc17fe39b` vs head, counted and
+compared with `warning_units.py`:
+
+| Build | `wow-world` lib | `wow-world` lib test | All `wow-world*` lib units |
+|---|---:|---:|---:|
+| production lib | 122 → 120 | — | 249 → 247 |
+| lib + `test-fixtures` | 131 → 129 | — | 213 → 211 |
+| `--lib --tests` | 131 → 129 | 179 → 178 | 213 → 211 |
+
+- `compare`: nothing only in the head in any build. Gone: the two unused
+  import groups of `handlers/collections/mod.rs` (and the lib-test copy).
+  The destination crates keep exactly their pre-existing warnings.
+- `wow-world` `dead_code`: 0 in all three builds. `unconditional_recursion`: 0.
+- **Tests.** The test-name multiset is identical: 9,492
+  `#[test]`/`#[tokio::test]` functions under `crates/`, 5 ignored, base and
+  head. Scenario call sites keep method syntax through the shim files; the
+  edits under `unit_tests` are two constant paths, one import path
+  (`RepresentedActivateTaxiLikeCpp` from `wow_world_core`) and the unused
+  `use super::*` of the collections test module. No assertion changed in
+  meaning. Focused run during the move: `cargo test -p wow-world --lib --
+  area_trigger taxi group toy collections send_equip_error party travel
+  handler_contract`: 381 passed, 1 ignored.
+
+### Remaining (after 4d)
+
+The leaf families are done. What is left under `handlers/` is registrar
+adapters, `cfg(test)` shims and the field-borrow context builders:
+
+- **talent and trainer** (`trainer*` 761, `talent*` 99 production lines):
+  context builders and construction setters, slice 12.
+- **Shim files counted as production.** `handlers/group/test_shims.rs` (233),
+  `handlers/travel/travel/test_shims.rs` (40) and
+  `handlers/collections/test_shims.rs` (47) are mounted with `#[cfg(test)]`
+  but lack `#![cfg(test)]`, so the classifier counts them as production.
+  Marking them is a reclassification for the cleanup, not a move.
+
+### Follow-ups
+
+- #1407 follow-up 3 and #1405 nit 5 remain open.
+- The shim files retire with the cleanup (the scenarios call the free
+  functions directly).
+- `represented_taxi_usable_mount_displays_like_cpp` keeps its base
+  `#[allow(dead_code)]` (verbatim); it is used, so the attribute can go in a
+  later behaviour-neutral cleanup.
+
+### Validation
+
+`VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+runs on the committed head that includes this section and the slice 4
+summary (no registrar moved, so no separate handler-contract `check`;
+`final` runs the checker suite because `Cargo.lock` and crate manifests
+changed). The manifest path, dirty flag and duration are in the PR body.
+This section is not edited after that run, so the PR head is the validated
+SHA.
+
+## Slice 4 summary (4a–4d)
+
+| Slice | Moved | New host | Host share | `wow-world` production |
+|---|---:|---:|---:|---|
+| 4a (gameobject use, player attack, text emote, LFG lock info) | 3,536 | ~514 | 14.5 % | 87,998 → 84,815 |
+| 4b (movement, vehicle, corpse, arena skirmish) | ~2,120 | ~270 | 12.8 % | 84,815 → 82,922 |
+| 4c (open-item loot, void storage and its unlock commit) | 2,476 | 194 | 7.8 % | 34,219 → 31,664 |
+| 4d (travel, group receivers/reconciliation/tail, collections) | 910 | 125 | 13.7 % | 31,664 → 30,664 |
+| **Slice 4** | **~9,040** | **~1,100** | **~12 %** | −8,631 across the four (other slices ran between 4b and 4c) |
+
+- Every leaf handler family planned for slice 4 has moved; talent and
+  trainer were re-planned as slice 12 (their remaining World code is
+  field-borrow context builders, not bodies).
+- Every slice was move-only: token-identical bodies after documented
+  mechanical rules (the only differences rustfmt brace reflows), equal
+  per-function await counts, no registrar change except where noted, no
+  new `wow-world*` edge outside the layering (4c and 4d each add one
+  external dependency), `dead_code` 0 and no new warning in the three
+  canonical builds, and the test-name multiset unchanged.
+- Host trait pattern (F5 inverted): a destination trait over
+  `SessionHubHostLikeCpp`, the World impl in a `handlers/*` adapter file
+  outside the hotspot trees, test entry points in ratcheted `#![cfg(test)]`
+  shim files.
+
+### Plan for slice 12 and the final cleanup
+
+Lexical estimate on this head (lexical index of inherent `WorldSession`
+methods; to be re-measured before each step):
+
+1. **12a: talent and trainer leftovers.** `trainer*` (761) and `talent*`
+   (99) are `AppTrainer*Cx` and talent context builders that borrow six
+   disjoint session fields with `cfg!(test)` fixture refs. Move the builders
+   to `wow-world-application`/`wow-world-spell` as functions over a split
+   that returns the borrowed fields (one `split_trainer_mut` host method),
+   and give the `cfg!(test)` flag the 4b fixture-hook form. The catalog
+   setters stay (world-server construction API).
+2. **12b: base-module logic.** Remaining non-forward inherent bodies in
+   `session/**` (persistence load helpers, player-items, visibility refresh,
+   player-condition projection builders): measure per module, move those
+   whose callers are already in domain crates, under the same 15 % rule.
+3. **12c: thin `WorldSession` forward sweep.** About 509 of the 862
+   production inherent methods are single-statement forwards (about 2.4k
+   lines). Where every caller is a host impl or a registrar adapter, point
+   the caller at the target (split, free function or core) and delete the
+   forward; where scenarios are the only other caller, move it to a shim.
+   Verify with the recursion rule (every forward resolves to an inherent
+   method or an explicit free function) and the warning recipe.
+4. **12d: adapter retirement.** 85 trait impls for `WorldSession` and about
+   1.3k lines of `*_handler_contexts.rs`. Merge host traits that now
+   duplicate forwards (`LootSessionHostLikeCpp`,
+   `QuestItemStorageHostLikeCpp`, the inventory chain), and collapse
+   per-family adapter files into one per destination crate.
+5. **Final cleanup.** Convert scenario call sites to the free functions and
+   retire the `#![cfg(test)]` shim files (and mark or retire the three
+   `#[cfg(test)]`-mounted shim files above); drop the `#[allow(dead_code)]`
+   left on moved items that are used; tighten every ceiling to its final
+   value; re-measure and record the final `wow-world` production in the
+   phase 2 summary.
