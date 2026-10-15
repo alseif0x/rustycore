@@ -12367,3 +12367,285 @@ plan both standalone checks, the other three changes plan none). Mutation
 checks: disabling the branch fails the self-test (`AssertionError:
 crates/wow-world-fixture/Cargo.toml`), and so does narrowing it back to the
 changed crate. Documented in `docs/operations/validation-v2.md`.
+
+## Slice 12b1 result (player-item durability, repair, item mods, offhand and appearance → inventory)
+
+Branch `1363-s12b1-player-items`, base `91d9f12bb` (slice 12a merged).
+Move-only (R2) after the plan/tooling commit above. Durability loss and
+repair (including the money/durability persistence order, #169), item mods,
+the item-bonus stat publication, the item-set item records, the offhand
+auto-unequip (direct move, item-set and item-mod removal, mail fallback),
+item storage/move/stack, the appearance gate and collection hook, item object
+publication and every packet are unchanged; no registrar moved.
+
+### Re-measure and the cut
+
+`session/player_items` on the base: 86 non-forward methods (2,376 lines) and
+57 forwards (394). Only the part inventory can own without reaching spell,
+application, quest or player-conditions moves here (12b1a is the whole of
+12b1; no second PR is needed for this destination). The rest is recorded in
+the 12b plan as 12b1b (application builders, inventory field-borrow builders)
+and 12b2 (aura, enchantment and obtain-spell paths, which call spell). After
+the move `session/player_items` has 53 non-forward methods (1,187 lines) and
+51 forwards (352); the whole index goes from 377 to 343 non-forward methods.
+
+### What moved
+
+Into `wow-world-inventory/src/player_items_session/` (commit `d2012215e`),
+as free functions over the existing hosts:
+
+| Head file | Functions (base file) | Base lines |
+|---|---|---:|
+| `durability.rs` | `apply_represented_durability_loss_all`, `…_points_loss_all`, `…_points_loss_at_slot`, `…_loss_at_slot`, `…_loss_item`, `…_points_loss`, `apply_durability_damage_pct_effect`, `represented_durability_loss_aura_multiplier`, `represented_prevent_durability_loss`, `apply_represented_durability_loss_on_death`, `publish_creature_melee_death_durability_loss`, `represented_player_in_battleground` (`durability.rs`) | 211 |
+| `repair.rs` | `repair_inventory_item_durability_with_generator`, `apply_inventory_item_durability_repair_runtime`, `repair_all_…_with_player_money_and_generator` (`durability.rs`), `repair_all_…_with_guild_bank_and_generator` (`bank.rs`) | 359 |
+| `item_mods.rs` | `record_represented_item_mods`, `send_represented_item_bonus_player_stat_update` (`modifiers.rs`), `record_represented_items_set_item`, `…_events` (`items.rs`) | 79 |
+| `offhand.rs` | `represented_auto_unequip_offhand_if_need` (`offhand.rs`, deleted), `move_represented_direct_inventory_item_to_pos` (`storage_slots.rs`), `move_represented_direct_inventory_item`, `record_direct_inventory_item_set_remove` (`storage.rs`), `record_represented_offhand_item_mod_remove` (`items.rs`), `plan_store_existing_direct_inventory_item`, `plan_store_existing_inventory_item` (`persistence.rs`) | 220 |
+| `appearance.rs` | `on_item_added_to_collection` (`items.rs`), `add_item_appearance_for_item`, `add_item_appearance_for_runtime_item`, `can_add_item_appearance_represented` (`appearance.rs`), the free `player_class_by_armor_subclass_like_cpp` (`session/item_modifiers.rs`) | 350 |
+| **Total** | 31 methods and 1 free function | **1,219** |
+
+(All names end in `_like_cpp`.) The bodies grew to 1,365 lines after rustfmt,
+mostly from the inlined split blocks.
+
+- **Host.** The functions take `H: VendorSessionHostLikeCpp` (the offhand
+  group `H: ItemSessionHostLikeCpp`, whose `plan_store_existing_inventory_item_at_like_cpp`,
+  titan-grip and average-item-level records it calls).
+  - `VendorSessionHostLikeCpp` loses the three repair methods (the repair
+    handler calls the free functions) and gains one,
+    `item_appearance_known_spells_like_cpp` (the World impl names
+    `wow_world_spell::known_spells_like_cpp`; inventory is below spell, and the
+    name avoids the same-named methods of the login, loot, teleport and trade
+    hosts). It keeps `on_item_added_to_collection_like_cpp`, whose World impl
+    now names the free function, so vendor buy and the void-storage transfer
+    are untouched (an earlier draft retired it too and grew
+    `vendor_session/buy.rs` past its ceiling by 3 lines; commit `4e2245539`
+    restores the method instead of raising the ceiling).
+  - `ItemSessionHostLikeCpp` loses `send_represented_item_bonus_player_stat_update_like_cpp`;
+    `item_mutations.rs` and `real_swap.rs` call the free function
+    (`host.f()` → `crate::f(host)`).
+  - **Fixture hook.** The former World `cfg!(test)` arguments and the
+    `#[cfg(test)]` steps (the guild-bank withdraw record, the offhand request
+    record and its `stored_destination`) read the private
+    `world_test_consumer_like_cpp(host)` helper (`test_fixtures_ref_like_cpp().is_some()`
+    under `test-fixtures`, `false` otherwise), the 6a/12a form: `Some`
+    fixtures only in the World test build, so the value is `cfg!(test)` of
+    `wow-world` in all three builds. Each step is `#[cfg(any(test, feature =
+    "test-fixtures"))]` and runs only when the hook is true.
+- **Mechanical rules** (`move_token_rules/1363-s12b1-{host,split}.json`,
+  pairs alongside): the signatures (`&self`/`&mut self` → `host: &H`/`&mut H`
+  with the bound and the head visibility); the hook prologue where the body
+  reads `cfg!(test)` or has a `#[cfg(test)]` step; the field-split prologue
+  (`let (inventory, hub) = host.split_inventory_mut(); let HubMut { core, … } = hub;`)
+  for the two bodies that borrowed `self.core`/`self.catalogs`/`self.fixtures`
+  and `self.inventory` together; the `#[cfg(test)]` step rewrites;
+  `crate::session::split_inventory_{ref,mut}(self)`/`hub_{ref,mut}(self)` →
+  the host methods; `wow_world_spell::known_spells_like_cpp(self)` → the new
+  host method; the inlined wrappers below; `self.<moved>(` → `<moved>(host, `;
+  `self.catalogs.`/`self.config.` → `host.hub_ref().…`, `self.core.` →
+  `host.core().`, `self.lifecycle.` → `host.lifecycle().`, `self.inventory.` →
+  `host.split_inventory_{mut,ref}().0.`; `self.` → `host.`; `cfg!(test)` →
+  `world_test`; `wow_world_inventory::` → `crate::`. Rules never touch string
+  literals. **32 of 32 identical** after the rules except
+  `can_add_item_appearance_represented_like_cpp`, whose only difference is
+  one rustfmt brace reflow (the `and_then(|skill| { … })` closure body lost
+  its braces once the inlined call fit on one line).
+- **Inlined one-line wrappers** (each verified to be one split plus one state
+  call, or one catalog read): `resolved_inventory_item_like_cpp`,
+  `resolved_inventory_item_object_like_cpp`, `resolved_inventory_item_objects_like_cpp`,
+  `resolved_inventory_items_like_cpp`, `get_inventory_item_by_pos`,
+  `send_bag_slot_values_update_like_cpp`, `represented_item_reputation_rank_like_cpp`
+  (`split_inventory_ref` + call); `apply_inventory_item_object_updates_like_cpp`,
+  `remove_inventory_item_like_cpp`, `remove_inventory_item_duration_refs_like_cpp`,
+  `remove_inventory_tradeable_item_like_cpp`, `add_item_appearance_like_cpp`,
+  `add_temporary_item_appearance_like_cpp` (`split_inventory_mut` + call);
+  `add_account_heirloom_like_cpp` (`split_lifecycle_mut` + call);
+  `item_modified_appearance_ref`, `item_modified_appearance_for_item`,
+  `item_storage_template`, `item_template_quality` (`self.catalogs.<same>`);
+  `kick` (`self.core.kick`). The host's `split_inventory_ref`,
+  `split_inventory_mut`, `split_lifecycle_mut`, `lifecycle`, `hub_ref` and
+  `hub_mut` are the World's same splits. Of these wrappers,
+  `item_template_quality`, `represented_item_reputation_rank_like_cpp` and the
+  two remove wrappers lost their last caller and are deleted; the appearance
+  adds, the two modified-appearance reads and the heirloom add are called only
+  by scenarios and moved to the shim.
+- **World callers** name the free functions:
+  `session/movement/host.rs`, `session/combat/host.rs`,
+  `session/spell_effects/execution_host.rs` (the percent effect),
+  `session/spell_state/spellbook_host.rs`, `handlers/loot/session_loot_host.rs`,
+  `handlers/character/vendor.rs` (the collection hook), `session/persistence/load.rs`,
+  `session/player_items/persistence_load.rs` and the bodies that stay:
+  `apply_durability_damage_effect_like_cpp` (it logs through
+  `wow_world_spell`, so it waits for 12b2), `apply_initial_loaded_item_mods_like_cpp`
+  and `apply_initial_item_set_auras_like_cpp`.
+- **Shims.** `handlers/player_items_test_shims.rs` (`#![cfg(test)]`,
+  mounted from `handlers/mod.rs` outside the hotspot trees): the three nested
+  `#[cfg(test)]` repair entry points (verbatim except that they call the free
+  functions), one-call forwards for the 11 moved names the scenarios call, the
+  five scenario-only wrappers above, and the offhand-request accessor from the
+  retired `unit_tests/session/player_items/offhand/f3_shims.rs` (its mount in
+  the deleted `offhand.rs` goes too). No scenario call site changes.
+- **Retired with their last production reader** (commit `b36c50cd0`, found by
+  the warning recipe): the session root's `is_represented_bag_slot`,
+  `player_team_id_for_race_cpp`, `item_values_update_to_update_object` and
+  `player_class_by_armor_subclass_like_cpp` imports and the `InventoryType`,
+  `ItemFlags2` and nine `wow_entities` names; the names only the scenarios read
+  (`RepresentedItemSetSpellEventLikeCpp`, `player_class_mask_for_transmog_like_cpp`,
+  `ItemFlags3`, `ItemQuality`, `ItemSubClassArmor`, `ItemSubClassWeapon`,
+  `EQUIPMENT_SLOT_OFFHAND`, `MAX_MONEY_AMOUNT`) become `cfg(test)` imports.
+- **Visibility.** `pub` (re-exported from the crate root) for what World
+  calls; `can_add_item_appearance_represented_like_cpp`,
+  `record_represented_items_set_item_like_cpp`,
+  `record_direct_inventory_item_set_remove_like_cpp`,
+  `apply_inventory_item_durability_repair_runtime_like_cpp` and the three
+  repair functions are re-exported only under `cfg(any(test, feature =
+  "test-fixtures"))` for the shim (the repairs are `pub(crate)` otherwise, for
+  the repair handler); the rest are module-private.
+- **#1405 nit 5** (move `QuestItemStorageHostLikeCpp`'s 12 inventory ops to an
+  inventory host) did not fall out: none of the moved bodies calls them. It
+  stays a 12d adapter-merge item.
+
+### Host surface
+
+Moved: **1,219 function lines** (from the first doc or attribute line through
+the closing brace, at the base).
+
+- New host: the trait method with its doc (3) and its World impl (3), and the
+  fixture-hook helper (11): **17 lines, 1.4 %**. No adapter file was merged,
+  so the merged and unmerged figures are the same.
+- Retired host: the three `VendorSessionHostLikeCpp` repair methods (20) and
+  `ItemSessionHostLikeCpp::send_represented_item_bonus_player_stat_update_like_cpp`
+  (1), and their World forwards (43 + 3): **67 lines**. Net host −50.
+- Everything counted, reported for completeness: the new files' headers,
+  imports, exports and blank lines between functions (210 lines including the
+  11-line helper) plus the trait method and impl (6): 216 lines, 17.7 %; net
+  of the retired host, 149, 12.2 %. The prologues and the rustfmt growth of
+  the inlined blocks are inside the 1,365 head function lines.
+
+### Await counts (per function, base vs head)
+
+| Function | Base | Head |
+|---|---:|---:|
+| `repair_inventory_item_durability_with_generator_like_cpp` | 4 | 4 |
+| `repair_all_inventory_item_durability_with_player_money_and_generator_like_cpp` | 3 | 3 |
+| `repair_all_inventory_item_durability_with_guild_bank_and_generator_like_cpp` | 1 | 1 |
+| `handle_repair_item_with_generator_like_cpp` (caller, unmoved) | 3 | 3 |
+| the three shim repair entry points | 1 each | 1 each |
+| every other moved function | 0 | 0 |
+
+### Recursion
+
+- Every moved name (and every retired or shimmed wrapper) was grepped in
+  production (non-shim) `wow-world`: each hit is a `wow_world_inventory::<name>(self, …)`
+  call (movement, combat, spell execution, spellbook, loot and vendor host
+  impls; `persistence/load.rs`, `persistence_load.rs`; the three World bodies
+  that stay) or the host-impl method declaration itself; there is no
+  `WorldSession::<moved>` or `self.<moved>(` left.
+- The trait methods that kept a moved name (`VendorSessionHostLikeCpp::on_item_added_to_collection_like_cpp`,
+  the loot-ops host's method of the same name, the spell execution, movement,
+  combat and spellbook host methods) have World impls that name the free
+  function by path; the free functions call no host method of their own name.
+- The only new forward, `item_appearance_known_spells_like_cpp`, calls
+  `wow_world_spell::known_spells_like_cpp`, an explicit free function.
+- `unconditional_recursion`: 0 in all three canonical builds.
+
+### Registration
+
+No registrar moved; the item, vendor, repair and bank registrations, their
+order, `SessionStatus`, `PacketProcessing`, handler names and thunks are
+unchanged. No checker constant, mount or `handler-module-policy.json` change.
+
+### Edges and closure
+
+No new crate edge (inventory already depends on core, entities, lifecycle,
+loot, persistence, packet and constants); no manifest or `Cargo.lock` change.
+Closure at head: PASS in lock and metadata modes (18 packages). Nothing in the
+moved code names `wow_world_spell`, `wow_world_application`,
+`wow_world_quest`, `wow_world_player_conditions`, `wow_world_social` or
+`wow_world_instances`.
+
+### Accounting
+
+| Crate `src` | Base physical | Head physical | Base production | Head production |
+|---|---:|---:|---:|---:|
+| `wow-world` | 39,586 (453 files) | 38,420 (453) | **29,898** | **28,528** |
+| `wow-world-inventory` | 23,855 (87) | 25,421 (93) | 23,463 | 25,007 |
+
+- **`wow-world` production −1,370:**
+  - **Moved:** 1,219 function lines.
+  - **Reclassified production → test:** 80 function lines (the three nested
+    `#[cfg(test)]` repair entry points, 46, and the five scenario-only
+    wrappers, 34, now in the `#![cfg(test)]` shim).
+  - **Retired:** 29 (the four dead wrappers, 18; the deleted `offhand.rs`
+    header and empty impl, 10; its mount line, 1) and 17 import lines in
+    `session/mod.rs` and `session/item_modifiers.rs` (of the names they held,
+    eight became `cfg(test)` imports, +11 test lines).
+  - **Host adapter, net:** −43 (−46 retired forwards, +3 new impl).
+  - **Caller rewrites:** +18 (the path calls rustfmt wraps in five World
+    files).
+  - −1,219 − 80 − 29 − 17 − 43 + 18 = −1,370.
+- **Destination (production):** inventory +1,544: `player_items_session/`
+  1,553, `lib.rs` export 4, `vendor_session/repair.rs` +5 (the import),
+  `vendor_session/mod.rs` −17 (−20 repair methods, +3 new method),
+  `item_session/mod.rs` −1.
+- `net_move.py check --base origin/3.4.3`: S = 1,166, G = 1,566 within the
+  2,185.3 allowance, 0 duplicate bodies, PASS.
+
+### Policy and ceilings
+
+- **Ceilings tightened, none raised.** Hotspot `session/mod.rs`: production
+  20,574 → 19,247, test 141,630 → 141,621, total 162,204 → 160,868. Hotspot
+  `handlers/character/mod.rs`: production 2,287 → 2,244, test 15,655
+  unchanged (the committed-money publication scan follows the repairs to
+  `player_items_session/repair.rs` at the same line count), total 17,942 →
+  17,899. Physical `session/mod.rs` 817 → 814, `handlers/character/vendor.rs`
+  232 → 192, `handlers/trainer_talent_test_shims.rs` 58 → 57 (#1410 nit 4: the
+  redundant inner `#[cfg(test)]` is dropped).
+- **New physical row** at its live size: `handlers/player_items_test_shims.rs`
+  (195), `#![cfg(test)]`.
+- `session-ownership-policy.json` reprinted with `print-baseline` (the moved
+  and retired methods, the shim surface, the new host method);
+  `check --syntax-only` PASS. `dependency-policy.json` unchanged.
+
+### Warnings and tests
+
+Canonical recipe (with `--locked`), base `91d9f12bb` vs head, counted and
+compared with `warning_units.py`:
+
+| Build | `wow-world` lib | `wow-world` lib test | All `wow-world*` lib units |
+|---|---:|---:|---:|
+| production lib | 118 → 118 | — | 245 → 245 |
+| lib + `test-fixtures` | 127 → 127 | — | 209 → 209 |
+| `--lib --tests` | 127 → 127 | 178 → 178 | 209 → 209 |
+
+- `compare`: nothing only in the base or only in the head in any build
+  (after `b36c50cd0`; before it, the eight now-unused import groups above).
+  `wow-world-inventory` keeps exactly its pre-existing warnings (11 / 8 / 8).
+- `wow-world` `dead_code`: 0 in all three builds. `unconditional_recursion`: 0.
+- **Tests.** The test-name multiset is identical: 9,492
+  `#[test]`/`#[tokio::test]` functions under `crates/`, 5 ignored, base and
+  head. No scenario call site changed. The one test-tree edit is the
+  committed-money publication scan (`unit_tests/handlers/character_tests/loot.rs`):
+  it drops the deleted `offhand.rs` from its include list, adds
+  `player_items_session/repair.rs`, and its two durability needles take the
+  bodies' rewrite (`self.stage_player_money_change_like_cpp` →
+  `host.stage_player_money_change_like_cpp`,
+  `self.apply_inventory_item_durability_repair_runtime_like_cpp(item_guid)` →
+  `apply_inventory_item_durability_repair_runtime_like_cpp(host, item_guid)`),
+  with the same two assertions (no await, the runtime publication before the
+  money-guard drop). No assertion changed. Focused run during the move:
+  `cargo test -p wow-world --lib`: 3,680 passed, 1 ignored.
+
+### Follow-ups
+
+- 12b1b and 12b2 as planned above; the stayed
+  `apply_durability_damage_effect_like_cpp` moves with 12b2.
+- #1405 nit 5 stays a 12d item; #1407 follow-up 3 remains open.
+- `VendorSessionHostLikeCpp::on_item_added_to_collection_like_cpp` is now a
+  forward to a free function of the same crate; 12d can retire it once
+  `vendor_session/buy.rs` has room (or is split).
+
+### Validation
+
+`VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+runs on the committed head that includes this section. The manifest path,
+dirty flag and duration are in the PR body. This section is not edited after
+that run, so the PR head is the validated SHA.
