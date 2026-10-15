@@ -696,6 +696,7 @@
       },
       "wow-world-application": {
         "normal": [
+          "num-traits",
           "tracing"
         ],
         "build": []

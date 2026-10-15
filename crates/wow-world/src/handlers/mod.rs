@@ -94,6 +94,8 @@ mod vendor_test_shims;
 #[cfg(test)]
 mod visibility_test_shims;
 #[cfg(test)]
+mod void_storage_test_shims;
+#[cfg(test)]
 mod world_entities_registry_test_shims;
 #[cfg(test)]
 mod world_entities_test_shims;

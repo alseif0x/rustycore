@@ -771,11 +771,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 21734,
-          "test_lines": 141641,
-          "total_lines": 163375,
+          "production_lines": 21606,
+          "test_lines": 141630,
+          "total_lines": 163236,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-10-15 #1363 slice 4c: tightened to the live values: production 21741 -> 21734 (-7), test 141641 -> 141641 (0), total 163382 -> 163375 (-7). The two one-line catalog wrappers item_template_lock_id (session/player_items/catalog.rs) and lock_entry_exists_like_cpp (session/runtime_policy_access.rs) lost their only production caller when the CMSG_OPEN_ITEM body moved to wow-world-loot-ops, which inlines them as host.hub_ref().catalogs reads: the lock-entry wrapper retires and the lock-id wrapper, which one scenario still calls, moves to the #![cfg(test)] handlers/open_item_test_shims.rs outside this tree.",
+          "latest_growth_review": "2026-10-15 #1363 slice 4c: tightened to the live values: production 21741 -> 21606 (-135), test 141641 -> 141630 (-11), total 163382 -> 163236 (-146). Open-item part: the item_template_lock_id and lock_entry_exists_like_cpp catalog wrappers lost their only production caller when CMSG_OPEN_ITEM moved to wow-world-loot-ops, which reads the catalog through the host (the lock-entry wrapper retires; the lock-id wrapper, which one scenario calls, moves to the #![cfg(test)] handlers/open_item_test_shims.rs). Void-storage part: the unlock commit (session/persistence/commit.rs, which retires), the seven void-storage reads and writes of session/void_storage_adapter.rs and the LifecycleCxRef void-storage loaded read moved to wow-world-application::void_storage_session; LifecycleCxRef and cx_lifecycle_ref, whose last reader that was, retire; SessionIdGeneratorsLikeCpp and its cfg-gated Default (the 11 test lines) moved to wow-world-core and are re-exported at the old path.",
           "open_retirement_issues": [
             584
           ],

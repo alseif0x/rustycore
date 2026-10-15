@@ -3498,6 +3498,7 @@ dependencies = [
 name = "wow-world-application"
 version = "0.1.0"
 dependencies = [
+ "num-traits",
  "tokio",
  "tracing",
  "wow-constants",

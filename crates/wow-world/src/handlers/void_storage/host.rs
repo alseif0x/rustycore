@@ -6,10 +6,11 @@
 //!
 //! The four `VoidStorageHandler.cpp` opcodes left the legacy inventory path for
 //! `wow_world_inventory::register_void_storage_handlers_like_cpp`. This adapter
-//! lends that registrar the same `WorldSession` operations with the same
-//! catalog destructuring the legacy closures used; NPC admission, the
-//! exclusive money-persistence fence, the void-storage persistence port and
-//! every publication stay in those operations.
+//! lends that registrar the same operations with the same catalog
+//! destructuring the legacy closures used; NPC admission, the exclusive
+//! money-persistence fence, the void-storage persistence port and every
+//! publication stay in those operations, whose bodies moved to
+//! `wow_world_application::void_storage_session` (#1363 slice 4c).
 
 use wow_handler::HandlerFuture;
 use wow_packet::WorldPacket;
@@ -24,7 +25,8 @@ impl VoidStorageHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSessi
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            self.handle_void_storage_unlock_with_generator_like_cpp(
+            wow_world_application::handle_void_storage_unlock_with_generator_like_cpp(
+                self,
                 catalogs.id_generators.item.as_ref(),
                 pkt,
             )
@@ -36,7 +38,7 @@ impl VoidStorageHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSessi
         &'a mut self,
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { self.handle_void_storage_query(pkt).await })
+        Box::pin(async move { wow_world_application::handle_void_storage_query(self, pkt).await })
     }
 
     fn handle_void_storage_transfer_with_catalogs_like_cpp<'a>(
@@ -45,7 +47,8 @@ impl VoidStorageHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSessi
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            self.handle_void_storage_transfer_with_generators_like_cpp(
+            wow_world_application::handle_void_storage_transfer_with_generators_like_cpp(
+                self,
                 catalogs.id_generators.as_ref(),
                 pkt,
             )
@@ -57,6 +60,8 @@ impl VoidStorageHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSessi
         &'a mut self,
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { self.handle_void_storage_swap_item(pkt).await })
+        Box::pin(
+            async move { wow_world_application::handle_void_storage_swap_item(self, pkt).await },
+        )
     }
 }

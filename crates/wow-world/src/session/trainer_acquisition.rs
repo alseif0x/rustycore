@@ -4,9 +4,9 @@
 
 //! Selected World-session inputs for the admitted trainer application.
 
+use super::ObjectGuidGenerator;
 use super::WorldSession;
 use std::sync::Arc;
-use wow_core::ObjectGuidGenerator;
 use wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp;
 use wow_world_application::{
     AppTrainerBuyCx, AppTrainerCx, AppTrainerListCx, TrainerAcquisitionCatalogsLikeCpp,

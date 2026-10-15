@@ -1144,34 +1144,18 @@
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::void_storage::items",
-          "trait_path": null,
+          "module": "crate::handlers::void_storage::session_host",
+          "trait_path": "VoidStorageSessionHostLikeCpp",
           "cfg": [],
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::void_storage::publication",
+          "module": "crate::handlers::void_storage_test_shims",
           "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::void_storage::swap",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::void_storage::transfer",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::void_storage::unlock_and_query",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "module": "crate::handlers::world_entities_registry_test_shims",
@@ -19666,259 +19650,289 @@
           ]
         },
         {
-          "module": "crate::handlers::void_storage::items",
+          "module": "crate::handlers::void_storage::session_host",
+          "trait_path": "VoidStorageSessionHostLikeCpp",
+          "kind": "method",
+          "name": "apply_committed_new_inventory_item_at_like_cpp",
+          "visibility": "private",
+          "signature": "fn apply_committed_new_inventory_item_at_like_cpp (& mut self , bag : u8 , slot : u8 , inventory_item : InventoryItem , item_object : Item ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage::session_host",
+          "trait_path": "VoidStorageSessionHostLikeCpp",
+          "kind": "method",
+          "name": "get_inventory_item_by_guid_like_cpp",
+          "visibility": "private",
+          "signature": "fn get_inventory_item_by_guid_like_cpp (& self , item_guid : ObjectGuid ,) -> Option < (u8 , u8 , InventoryItem) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage::session_host",
+          "trait_path": "VoidStorageSessionHostLikeCpp",
+          "kind": "method",
+          "name": "inventory_remove_enchantment_persistence_like_cpp",
+          "visibility": "private",
+          "signature": "fn inventory_remove_enchantment_persistence_like_cpp (& self , item_guid : ObjectGuid , clear_mainhand_only : bool ,) -> Option < (String , Vec < EnchantmentSlot >) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage::session_host",
+          "trait_path": "VoidStorageSessionHostLikeCpp",
+          "kind": "method",
+          "name": "plan_store_new_direct_inventory_item_with_overlays_like_cpp",
+          "visibility": "private",
+          "signature": "fn plan_store_new_direct_inventory_item_with_overlays_like_cpp (& self , entry_id : u32 , count : u32 , overlays : & [DirectInventoryStorageOverlayLikeCpp] , vacated_positions : & [(u8 , u8)] ,) -> Option < (InventoryResult , Vec < ItemPosCount > , Option < u32 >) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage::session_host",
+          "trait_path": "VoidStorageSessionHostLikeCpp",
+          "kind": "method",
+          "name": "player_values_update_snapshot",
+          "visibility": "private",
+          "signature": "fn player_values_update_snapshot (& self) -> Option < InventoryPlayerProjectionLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage::session_host",
+          "trait_path": "VoidStorageSessionHostLikeCpp",
+          "kind": "method",
+          "name": "refresh_inventory_item_enchantment_duration_refs_like_cpp",
+          "visibility": "private",
+          "signature": "fn refresh_inventory_item_enchantment_duration_refs_like_cpp (& mut self , item_guid : ObjectGuid)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage::session_host",
+          "trait_path": "VoidStorageSessionHostLikeCpp",
+          "kind": "method",
+          "name": "represented_empty_inventory_positions_like_cpp",
+          "visibility": "private",
+          "signature": "fn represented_empty_inventory_positions_like_cpp (& self) -> Option < Vec < (u8 , u8) > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage::session_host",
+          "trait_path": "VoidStorageSessionHostLikeCpp",
+          "kind": "method",
+          "name": "represented_player_flags_value_like_cpp",
+          "visibility": "private",
+          "signature": "fn represented_player_flags_value_like_cpp (& self) -> Option < u32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage::session_host",
+          "trait_path": "VoidStorageSessionHostLikeCpp",
+          "kind": "method",
+          "name": "send_bag_slot_values_update_like_cpp",
+          "visibility": "private",
+          "signature": "fn send_bag_slot_values_update_like_cpp (& self , bag_slot : u8 , changed_slot : u8)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage::session_host",
+          "trait_path": "VoidStorageSessionHostLikeCpp",
+          "kind": "method",
+          "name": "split_loot_mut",
+          "visibility": "private",
+          "signature": "fn split_loot_mut (& mut self) -> (& mut LootState , HubMut < '_ >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage::session_host",
+          "trait_path": "VoidStorageSessionHostLikeCpp",
+          "kind": "method",
+          "name": "void_storage_is_unlocked_like_cpp",
+          "visibility": "private",
+          "signature": "fn void_storage_is_unlocked_like_cpp (& self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "add_represented_void_storage_item_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn add_represented_void_storage_item_like_cpp (& mut self , item : RepresentedVoidStorageItemLikeCpp ,) -> Option < u8 >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage_test_shims",
           "trait_path": null,
           "kind": "method",
           "name": "apply_committed_void_storage_destroyed_items_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn apply_committed_void_storage_destroyed_items_like_cpp (& mut self , destroyed_items : & [PlannedVoidDestroyedInventoryItemLikeCpp] ,) -> Option < (Vec < wow_core :: ObjectGuid > , Vec < u32 >) >",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_committed_void_storage_destroyed_items_like_cpp (& mut self , destroyed_items : & [PlannedVoidDestroyedInventoryItemLikeCpp] ,) -> Option < (Vec < ObjectGuid > , Vec < u32 >) >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::void_storage::items",
+          "module": "crate::handlers::void_storage_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_committed_void_storage_unlock_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_committed_void_storage_unlock_like_cpp (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage_test_shims",
           "trait_path": null,
           "kind": "method",
           "name": "apply_effective_void_storage_random_properties_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn apply_effective_void_storage_random_properties_like_cpp (item : & mut wow_entities :: Item , random_properties : & EffectiveVoidStorageRandomPropertiesLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_effective_void_storage_random_properties_like_cpp (item : & mut Item , random_properties : & EffectiveVoidStorageRandomPropertiesLikeCpp ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::void_storage::items",
+          "module": "crate::handlers::void_storage_test_shims",
           "trait_path": null,
           "kind": "method",
           "name": "clear_item_publication_changes_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn clear_item_publication_changes_like_cpp (item : & mut wow_entities :: Item)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "fn clear_item_publication_changes_like_cpp (item : & mut Item)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::void_storage::items",
+          "module": "crate::handlers::void_storage_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "delete_represented_void_storage_item_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn delete_represented_void_storage_item_like_cpp (& mut self , slot : u8 ,) -> Option < RepresentedVoidStorageItemLikeCpp >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage_test_shims",
           "trait_path": null,
           "kind": "method",
           "name": "effective_void_storage_random_properties_like_cpp",
-          "visibility": "pub (super)",
+          "visibility": "pub (crate)",
           "signature": "fn effective_void_storage_random_properties_like_cpp (& self , random_properties_id : i32 , random_properties_seed : i32 ,) -> EffectiveVoidStorageRandomPropertiesLikeCpp",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::void_storage::items",
-          "trait_path": null,
-          "kind": "method",
-          "name": "overwrite_void_storage_random_property_enchantments_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn overwrite_void_storage_random_property_enchantments_like_cpp (enchantments : & str , random_properties : & EffectiveVoidStorageRandomPropertiesLikeCpp ,) -> String",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage::items",
-          "trait_path": null,
-          "kind": "method",
-          "name": "plan_void_storage_destroyed_items_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn plan_void_storage_destroyed_items_like_cpp (& self , bag : u8 , slot : u8 , inventory_item : InventoryItem , cleared_mainhand_enchantments : Vec < wow_constants :: EnchantmentSlot > ,) -> Option < Vec < PlannedVoidDestroyedInventoryItemLikeCpp > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage::items",
-          "trait_path": null,
-          "kind": "method",
-          "name": "void_storage_enchantments_db_string_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn void_storage_enchantments_db_string_like_cpp (enchantment_ids : & [i32 ; wow_entities :: MAX_ENCHANTMENT_SLOT] ,) -> String",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage::items",
-          "trait_path": null,
-          "kind": "method",
-          "name": "void_storage_item_write_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn void_storage_item_write_like_cpp (item : & RepresentedVoidStorageItemLikeCpp ,) -> wow_persistence :: VoidStorageItemWriteLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage::items",
-          "trait_path": null,
-          "kind": "method",
-          "name": "void_storage_merged_item_write_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn void_storage_merged_item_write_like_cpp (& self , inventory_item : & InventoryItem , item : & wow_entities :: Item , enchantments : & str ,) -> wow_persistence :: VoidStorageMergedInventoryItemWriteLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage::items",
-          "trait_path": null,
-          "kind": "method",
-          "name": "void_storage_swap_destination_slot_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn void_storage_swap_destination_slot_like_cpp (dst_slot : u32) -> u8",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage::publication",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_void_withdrawal_post_store_state_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn apply_void_withdrawal_post_store_state_like_cpp (item : & mut wow_entities :: Item , creator_guid : wow_core :: ObjectGuid , random_properties : & EffectiveVoidStorageRandomPropertiesLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage::publication",
-          "trait_path": null,
-          "kind": "method",
-          "name": "merged_void_withdrawal_item_publications_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn merged_void_withdrawal_item_publications_like_cpp (item_guid : wow_core :: ObjectGuid , store_stack_count : u32 , store_dynamic_flags : Option < u32 > , post_store_item : & wow_entities :: Item , map_id : u16 ,) -> Vec < VoidWithdrawalItemPublicationLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage::publication",
-          "trait_path": null,
-          "kind": "method",
-          "name": "new_void_withdrawal_item_publication_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn new_void_withdrawal_item_publication_like_cpp (create_item : & wow_entities :: Item , post_store_item : & wow_entities :: Item , create_dynamic_flags : u32 , container_slots : u32 , map_id : u16 ,) -> VoidWithdrawalItemPublicationLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage::publication",
-          "trait_path": null,
-          "kind": "method",
-          "name": "publish_void_storage_item_lifecycle_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn publish_void_storage_item_lifecycle_like_cpp (& self , map_id : u16 , destroyed_deposit_items : Vec < ((u8 , u8) , Vec < wow_core :: ObjectGuid >) > , withdrawal_item_publications : Vec < VoidWithdrawalItemPublicationLikeCpp > ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage::publication",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_void_storage_transfer_result_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn send_void_storage_transfer_result_like_cpp (& self , result : VoidTransferErrorLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage::publication",
-          "trait_path": null,
-          "kind": "method",
-          "name": "void_storage_withdrawal_container_db_guid_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn void_storage_withdrawal_container_db_guid_like_cpp (& self , bag : u8 , planned_container_db_guids : & HashMap < u8 , u64 > ,) -> Option < u64 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage::publication",
-          "trait_path": null,
-          "kind": "method",
-          "name": "void_storage_withdrawal_container_item_guid_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn void_storage_withdrawal_container_item_guid_like_cpp (& self , bag : u8 , planned_container_item_guids : & HashMap < u8 , wow_core :: ObjectGuid > ,) -> Option < wow_core :: ObjectGuid >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage::swap",
+          "module": "crate::handlers::void_storage_test_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_void_storage_swap_item",
           "visibility": "pub (crate)",
-          "signature": "async fn handle_void_storage_swap_item (& mut self , mut pkt : WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "signature": "async fn handle_void_storage_swap_item (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::void_storage::transfer",
+          "module": "crate::handlers::void_storage_test_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_void_storage_transfer",
@@ -19934,35 +19948,7 @@
           ]
         },
         {
-          "module": "crate::handlers::void_storage::transfer",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_void_storage_transfer_with_generators_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_void_storage_transfer_with_generators_like_cpp (& mut self , generators : & SessionIdGeneratorsLikeCpp , mut pkt : WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage::unlock_and_query",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_void_storage_query",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_void_storage_query (& mut self , mut pkt : WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage::unlock_and_query",
+          "module": "crate::handlers::void_storage_test_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_void_storage_unlock",
@@ -19978,14 +19964,192 @@
           ]
         },
         {
-          "module": "crate::handlers::void_storage::unlock_and_query",
+          "module": "crate::handlers::void_storage_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_void_storage_unlock_with_generator_like_cpp",
+          "name": "merged_void_withdrawal_item_publications_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn handle_void_storage_unlock_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , mut pkt : WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
+          "signature": "fn merged_void_withdrawal_item_publications_like_cpp (item_guid : ObjectGuid , store_stack_count : u32 , store_dynamic_flags : Option < u32 > , post_store_item : & Item , map_id : u16 ,) -> Vec < VoidWithdrawalItemPublicationLikeCpp >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "new_void_withdrawal_item_publication_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn new_void_withdrawal_item_publication_like_cpp (create_item : & Item , post_store_item : & Item , create_dynamic_flags : u32 , container_slots : u32 , map_id : u16 ,) -> VoidWithdrawalItemPublicationLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "plan_void_storage_destroyed_items_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn plan_void_storage_destroyed_items_like_cpp (& self , bag : u8 , slot : u8 , inventory_item : InventoryItem , cleared_mainhand_enchantments : Vec < wow_constants :: EnchantmentSlot > ,) -> Option < Vec < PlannedVoidDestroyedInventoryItemLikeCpp > >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "publish_void_storage_item_lifecycle_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn publish_void_storage_item_lifecycle_like_cpp (& self , map_id : u16 , destroyed_deposit_items : Vec < ((u8 , u8) , Vec < ObjectGuid >) > , withdrawal_item_publications : Vec < VoidWithdrawalItemPublicationLikeCpp > ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_void_storage_free_slots_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_void_storage_free_slots_like_cpp (& self) -> Option < usize >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_void_storage_item_at_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_void_storage_item_at_like_cpp (& self , slot : u8 ,) -> Option < RepresentedVoidStorageItemLikeCpp >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_void_storage_item_by_id_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_void_storage_item_by_id_like_cpp (& self , item_id : u64 ,) -> Option < (u8 , RepresentedVoidStorageItemLikeCpp) >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "void_storage_enchantments_db_string_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn void_storage_enchantments_db_string_like_cpp (enchantment_ids : & [i32 ; wow_entities :: MAX_ENCHANTMENT_SLOT] ,) -> String",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "void_storage_merged_item_write_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn void_storage_merged_item_write_like_cpp (& self , inventory_item : & InventoryItem , item : & Item , enchantments : & str ,) -> wow_persistence :: VoidStorageMergedInventoryItemWriteLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "void_storage_swap_destination_slot_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn void_storage_swap_destination_slot_like_cpp (dst_slot : u32) -> u8",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "void_storage_withdrawal_container_db_guid_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn void_storage_withdrawal_container_db_guid_like_cpp (& self , bag : u8 , planned_container_db_guids : & HashMap < u8 , u64 > ,) -> Option < u64 >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "void_storage_withdrawal_container_item_guid_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn void_storage_withdrawal_container_item_guid_like_cpp (& self , bag : u8 , planned_container_item_guids : & HashMap < u8 , ObjectGuid > ,) -> Option < ObjectGuid >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -21223,19 +21387,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "add_represented_void_storage_item_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn add_represented_void_storage_item_like_cpp (& mut self , item : RepresentedVoidStorageItemLikeCpp ,) -> Option < u8 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "add_represented_xp_rest_bonus_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn add_represented_xp_rest_bonus_like_cpp (& mut self , rest_bonus : f32) -> u8",
@@ -21509,19 +21660,6 @@
           "name": "apply_committed_new_inventory_item_at_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn apply_committed_new_inventory_item_at_like_cpp (& mut self , bag : u8 , slot : u8 , inventory_item : InventoryItem , item_object : Item ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_committed_void_storage_unlock_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_committed_void_storage_unlock_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -23868,19 +24006,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "delete_represented_void_storage_item_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn delete_represented_void_storage_item_like_cpp (& mut self , slot : u8 ,) -> Option < RepresentedVoidStorageItemLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -26710,19 +26835,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "next_represented_void_storage_item_id_with_generator_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn next_represented_void_storage_item_id_with_generator_like_cpp (& self , generator : & VoidStorageItemIdGeneratorLikeCpp ,) -> u64",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "notify_game_event_quest_complete_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn notify_game_event_quest_complete_like_cpp (& mut self , quest_id : u32 ,) -> GameEventQuestCompleteClientOutcomeLikeCpp",
@@ -28078,7 +28190,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_values_update_snapshot",
-          "visibility": "pub (in crate :: session)",
+          "visibility": "pub (crate)",
           "signature": "fn player_values_update_snapshot (& self ,) -> Option < wow_world_core :: session :: InventoryPlayerProjectionLikeCpp >",
           "cfg": [],
           "source_class": "production",
@@ -32477,58 +32589,6 @@
           "name": "represented_visibility_source_position_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_visibility_source_position_like_cpp (& self) -> Option < Position >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_void_storage_contents_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_void_storage_contents_like_cpp (& self ,) -> Option < wow_packet :: packets :: void_storage :: VoidStorageContents >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_void_storage_free_slots_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_void_storage_free_slots_like_cpp (& self) -> Option < usize >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_void_storage_item_at_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_void_storage_item_at_like_cpp (& self , slot : u8 ,) -> Option < RepresentedVoidStorageItemLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_void_storage_item_by_id_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_void_storage_item_by_id_like_cpp (& self , item_id : u64 ,) -> Option < (u8 , RepresentedVoidStorageItemLikeCpp) >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -40808,7 +40868,7 @@
           "kind": "method",
           "name": "with_owned_void_storage_like_cpp",
           "visibility": "pub (in crate :: session)",
-          "signature": "fn with_owned_void_storage_like_cpp < R > (& self , f : impl FnMut (& [Option < RepresentedVoidStorageItemLikeCpp >] , bool) -> R ,) -> Option < R >",
+          "signature": "fn with_owned_void_storage_like_cpp < R > (& self , f : impl FnMut (& [Option < crate :: session :: RepresentedVoidStorageItemLikeCpp >] , bool) -> R ,) -> Option < R >",
           "cfg": [
             "cfg (test)"
           ],

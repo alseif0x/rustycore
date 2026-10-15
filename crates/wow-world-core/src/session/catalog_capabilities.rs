@@ -5,6 +5,11 @@ use crate::session_policy::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
 };
 use std::sync::Arc;
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_core::guid::HighGuid;
+use wow_core::{
+    EquipmentSetGuidGeneratorLikeCpp, ObjectGuidGenerator, VoidStorageItemIdGeneratorLikeCpp,
+};
 use wow_data::trait_tree::TraitNodeEntryStore;
 use wow_data::{
     ExplorationBaseXpStoreLikeCpp, GlyphPropertiesStore, ImportPriceStores, ItemClassStore,
@@ -240,6 +245,29 @@ impl Default for PlayerRestRatePolicyLikeCpp {
             offline_wilderness: 1.0,
             offline_tavern_or_city: 1.0,
             ingame: 1.0,
+        }
+    }
+}
+
+/// Process-wide ObjectMgr identifier allocators.
+///
+/// C++ initializes these once from database maxima. Sessions consume values
+/// but never own an allocator or return a value after a later failure.
+pub struct SessionIdGeneratorsLikeCpp {
+    pub player: Arc<ObjectGuidGenerator>,
+    pub item: Arc<ObjectGuidGenerator>,
+    pub equipment_set: Arc<EquipmentSetGuidGeneratorLikeCpp>,
+    pub void_storage_item: Arc<VoidStorageItemIdGeneratorLikeCpp>,
+}
+
+#[cfg(any(test, feature = "test-fixtures"))]
+impl Default for SessionIdGeneratorsLikeCpp {
+    fn default() -> Self {
+        Self {
+            player: Arc::new(ObjectGuidGenerator::new(HighGuid::Player, 1)),
+            item: Arc::new(ObjectGuidGenerator::new(HighGuid::Item, 1)),
+            equipment_set: Arc::new(EquipmentSetGuidGeneratorLikeCpp::new(1)),
+            void_storage_item: Arc::new(VoidStorageItemIdGeneratorLikeCpp::new(1)),
         }
     }
 }

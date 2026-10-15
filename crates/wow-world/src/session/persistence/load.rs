@@ -394,13 +394,6 @@ impl crate::session::LifecycleCx<'_> {
     }
 }
 
-impl crate::session::LifecycleCxRef<'_> {
-    pub(crate) fn represented_void_storage_loaded_like_cpp(&self) -> Option<bool> {
-        self.inventory
-            .with_owned_void_storage_like_cpp(self.hub, |_, loaded| loaded)
-    }
-}
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/persistence/load/f3_shims.rs"]
 mod f3_shims;

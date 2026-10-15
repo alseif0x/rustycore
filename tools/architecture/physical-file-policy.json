@@ -817,6 +817,13 @@
       "review_checkpoint": "584:C4"
     },
     {
+      "path": "crates/wow-world/src/handlers/void_storage_test_shims.rs",
+      "observed_lines": 231,
+      "ceiling_lines": 231,
+      "split": "cfg(test) method-syntax entry points for the void-storage bodies moved to wow-world-application (void_storage_session, #1363 slice 4c): the CMSG_UNLOCK_VOID_STORAGE and CMSG_VOID_STORAGE_TRANSFER test entry points that were nested in the moved files (verbatim except that they call the moved handlers as free functions), and one-call forwards to the moved functions the void-storage and session scenarios call, so no scenario call site changes except the two loaded-state reads that named the retired LifecycleCxRef. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-15 #1363 slice 4c: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly.",
+      "review_checkpoint": "584:C4"
+    },
+    {
       "path": "crates/wow-world/src/handlers/instance_session_test_shims.rs",
       "observed_lines": 107,
       "ceiling_lines": 107,

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-use wow_core::EquipmentSetGuidGeneratorLikeCpp;
+use super::EquipmentSetGuidGeneratorLikeCpp;
 use wow_world_inventory::{
     EquipmentSetsHandlerCxLikeCpp, EquipmentSetsSaveCxLikeCpp, InventoryHandlerHostLikeCpp,
 };

@@ -40,6 +40,7 @@ pub use player_handlers::{
 mod inventory_move_planning;
 mod trainer_handlers;
 mod trainer_purchase;
+mod void_storage_session;
 pub use inventory_move_planning::{InventoryMovePlanningCxLikeCpp, InventorySwapTargetLikeCpp};
 mod inventory_swap;
 pub use inventory_swap::{
@@ -97,4 +98,27 @@ pub use trainer_purchase::{
     publish_spell_acquisition_action_like_cpp, resolve_creature_trainer_like_cpp,
     trainer_list_required_npc_flags_like_cpp, trainer_price_like_cpp,
     trainer_spell_class_race_fit_like_cpp, trainer_spell_product_like_cpp,
+};
+pub use void_storage_session::{
+    VoidStorageSessionHostLikeCpp, handle_void_storage_query, handle_void_storage_swap_item,
+    handle_void_storage_transfer_with_generators_like_cpp,
+    handle_void_storage_unlock_with_generator_like_cpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use void_storage_session::{
+    VoidWithdrawalItemPublicationLikeCpp, add_represented_void_storage_item_like_cpp,
+    apply_committed_void_storage_destroyed_items_like_cpp,
+    apply_committed_void_storage_unlock_like_cpp,
+    apply_effective_void_storage_random_properties_like_cpp,
+    clear_item_publication_changes_like_cpp, delete_represented_void_storage_item_like_cpp,
+    effective_void_storage_random_properties_like_cpp,
+    merged_void_withdrawal_item_publications_like_cpp,
+    new_void_withdrawal_item_publication_like_cpp, plan_void_storage_destroyed_items_like_cpp,
+    publish_void_storage_item_lifecycle_like_cpp, represented_void_storage_free_slots_like_cpp,
+    represented_void_storage_item_at_like_cpp, represented_void_storage_item_by_id_like_cpp,
+    represented_void_storage_loaded_like_cpp, void_storage_enchantments_db_string_like_cpp,
+    void_storage_merged_item_write_like_cpp, void_storage_swap_destination_slot_like_cpp,
+    void_storage_withdrawal_container_db_guid_like_cpp,
+    void_storage_withdrawal_container_item_guid_like_cpp,
+    void_withdrawal_item_create_data_like_cpp,
 };

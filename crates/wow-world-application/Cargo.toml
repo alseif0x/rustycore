@@ -24,6 +24,7 @@ test-fixtures = [
 ]
 
 [dependencies]
+num-traits = { workspace = true }
 tracing = { workspace = true }
 wow-constants = { workspace = true }
 wow-core = { workspace = true }
