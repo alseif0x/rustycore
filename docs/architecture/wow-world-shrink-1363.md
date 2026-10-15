@@ -8555,3 +8555,281 @@ completion cannot live in lifecycle.
   commit. If the host passes 15 %, the account lifecycle and finalization
   split into 13c.
 - **13c:** the continue-login coordinator, once its callees have owners.
+
+## Slice 13a result (map entry → instances, far-transfer completion → character)
+
+Branch `1363-s13a-map-entry`, base `d8e8caf5c` (11b merged). Move-only (R2),
+with the slice 4–11 rewrites and nothing else:
+
+- `self` becomes `host`. The map entry is bound by `InstanceSessionHostLikeCpp`;
+  the far-transfer completion by the new
+  `WorldportHostLikeCpp: CharacterLoginHostLikeCpp + InstanceSessionHostLikeCpp + VisibilitySessionHostLikeCpp + SpellEffectHostLikeCpp + PetSessionHostLikeCpp`.
+  The supertraits carry what the bodies already called on other hosts.
+- Accessors: `self.core` becomes `host.core()`. It becomes `core_mut()` only
+  for `send_time_sync` and the inlined `kick`. `self.catalogs` reads through
+  `host.hub_ref().catalogs`. `crate::session::{hub_ref,hub_mut,split_lifecycle_ref,split_lifecycle_mut}(self)`
+  become the same host calls.
+- Call rewrites:
+  - A call between moved functions becomes a free call.
+  - `wow_world_instances::f(self, …)` becomes `f(host, …)` inside instances.
+  - `wow_world_character::f(self, …)` becomes `crate::f(host, …)` inside
+    character.
+  - `crate::session::{SessionState,PlayerSaveOutcomeLikeCpp}` name their
+    sources, `wow_world_core` and `wow_world_lifecycle`. They were re-exports.
+  - `crate::handlers::character::default_display_id` becomes
+    `crate::character_creation::default_display_id`. That is the same
+    re-export of `wow_world_core::session::default_display_id`.
+- **One disambiguation.** `pending_teleport_like_cpp` exists on both
+  `CorpseHostLikeCpp` and `PlayerTeleportHostLikeCpp`, and both forward to the
+  same inherent. The three call sites name the teleport host by UFCS:
+  `PlayerTeleportHostLikeCpp::pending_teleport_like_cpp(host)`.
+- **Wrappers inlined as their exact bodies.** Only one is async:
+  - `self.teleport_to(map, pos)` becomes
+    `wow_world_entities::teleport_to_with_options(host, map, pos, TELE_TO_NONE_LIKE_CPP).await`.
+    This is the homebind recovery, which keeps one await.
+  - `self.kick(r)` becomes `host.core_mut().kick(r)`, at 8 sites.
+  - `self.battlenet_account_id()` becomes `host.core().battlenet_account_id()`.
+  - `self.skill_store()` becomes `host.hub_ref().catalogs.skill_store()`.
+  - Five instance split wrappers at 7 sites:
+    `create_map_db2_entries_like_cpp` ×2, `create_map_difficulty_context_like_cpp`
+    (inside the manager-lock closure, as before),
+    `cannot_enter_existing_instance_lock_like_cpp`,
+    `check_instance_count_like_cpp` and `add_instance_enter_time_like_cpp`.
+  - `resolved_inventory_items_like_cpp` becomes the inventory split. The
+    block is parenthesised because a `let … else` initializer cannot end in
+    `}`.
+  - `account_{toy,heirloom}_active_player_rows_like_cpp` become the lifecycle
+    split, as in the login self CREATE.
+- **What happened to the inlined wrappers:**
+  - `cannot_enter_existing_instance_lock_like_cpp` and
+    `check_instance_count_like_cpp` retire.
+  - `add_instance_enter_time_like_cpp`, `create_map_difficulty_context_like_cpp`
+    and the two account-row wrappers have only scenario callers left. They
+    move verbatim to the shim file.
+  - The other World wrappers stay for their callers.
+- **Every other call keeps its form.** The hub-host provided
+  `player_guid`/`send_packet`/`state` have the inherent bodies. The
+  existing character, vendor, battle-pet, teleport and instance adapters
+  forward to the inherent of the same name.
+
+A token comparison of the 16 moved functions against their base bodies
+(`/home/ubuntu/rustycore-wip/s13a/cmp.py`) finds four identical. The rest
+differ only by the rewrites above, the generic signatures and the visibility
+changes: `pub(crate)`/`pub(in crate::session)` became `pub` (re-exported),
+`pub(super)` or private. No string literal changed: the `kick` reasons, the
+`[FAR_TELEPORT]` messages and "worldport self CREATE …" are verbatim. No
+comment, constant, operator or control-flow token changed either.
+
+### Re-measure
+
+On `d8e8caf5c` the 13a families measured as planned: 984 moved function
+lines. That is the map entry 351, the owner residence 37, the decision
+difficulty 9, the world-port response and self-CREATE send 222, the self
+CREATE build 183, the post-add phases and native completion 134, and the
+homebind recovery 48.
+
+### What moved
+
+- **`wow-world-instances/src/instance_session/map_entry.rs` (435 physical):**
+  - `try_attach_worldport_destination_like_cpp` and its `_with_publication`
+    form;
+  - `ensure_canonical_world_map_for_current_player_like_cpp`;
+  - `prepare_canonical_map_entry_like_cpp` and its `_with_publication` form,
+    which is `MapManager::CreateMap` with every admission gate in order;
+  - `ensure_canonical_player_owner_for_map_like_cpp`;
+  - `create_map_decision_difficulty_id_like_cpp`.
+
+  `InstanceSessionHostLikeCpp` gains `ensure_canonical_player_owner_exists_like_cpp`.
+  It constructs the initial Player through the World's `initial_player_box_like_cpp`.
+- **`wow-world-character/src/worldport_session/` (727 physical):**
+  - `mod.rs` (52): the host trait;
+  - `response.rs` (245): `HandleMoveWorldportAck` and the self-CREATE send;
+  - `self_create.rs` (203): `Map::SendInitSelf`'s player CREATE;
+  - `completion.rs` (156): the post-add begin/advance, the native completion
+    before disconnect and the pending far entry;
+  - `recovery.rs` (71): the ACK readiness, the homebind recovery and the
+    terminal recovery.
+
+  `handlers/travel/worldport_create.rs` and `session/lifecycle/{map_entry,transfer_recovery}.rs`
+  are deleted. `transfer_completion.rs` keeps only its four save-fence
+  regressions. Their `use super::*` became one braced import of the two names
+  they read, so the line count is unchanged.
+- **New edge `wow-world-character → wow-world-instances`.** It is in the
+  manifest, `Cargo.lock`, `test-fixtures` forwarding and the
+  `dependency-policy.json` allowlist.
+- **What stays in the World as forwards:**
+  - `WorldSession::handle_world_port_response_with_catalogs_like_cpp` (pub).
+    The `wow-world/tests` integration tests call it as a method, and so does
+    the `cfg(test)` `handle_world_port_response`.
+  - `WorldSession::ensure_canonical_world_map_for_current_player_like_cpp`.
+    The login coordinator calls it twice, and so does the `test-fixtures`
+    cross-crate fixture. Rewriting the login call would wrap past the 896-line
+    ceiling of `world_entry/login.rs`.
+
+  Both name the free function explicitly.
+- **Callers:**
+  - The travel registrar context calls
+    `wow_world_character::handle_world_port_response_with_catalogs_like_cpp`.
+  - Finalization calls `wow_world_character::finish_worldport_native_before_disconnect_like_cpp`.
+  - The entities adapter calls `wow_world_instances::ensure_canonical_world_map_for_current_player_like_cpp`.
+- **Reclassified to `handlers/worldport_test_shims.rs`** (`#![cfg(test)]`,
+  new ratcheted row, 84 lines). It holds one-call method forwards for the
+  scenarios: attach, entry preparation, owner residence, recovery, native
+  completion, post-add begin, and the self-CREATE send and build. It also
+  holds the four wrappers above, verbatim.
+
+  The four transfer-abort codes only the scenarios read
+  (`MAX_PLAYERS`, `NEED_GROUP`, `TOO_MANY_INSTANCES`, `ZONE_IN_COMBAT`) join
+  `session/test_reexports.rs`. Its header comment is rewrapped from six to
+  four lines, so the session test lines do not grow.
+- **Stays in `wow-world`, with the reason:**
+  - the initial Player construction (host method);
+  - the deferred save resume (13b persistence; host method returning the
+    World future);
+  - `pending_teleport_like_cpp`/`set_pending_teleport_like_cpp`, the teleport
+    and corpse adapters' targets;
+  - the access requirement (its condition context borrows the session).
+
+### Host surface
+
+| Part | New trait | New adapter | Retired | Moved function lines |
+|---|---:|---:|---:|---:|
+| Map entry (`InstanceSessionHostLikeCpp` +1) | 1 | 3 | 0 | 397 |
+| Far-transfer completion (`WorldportHostLikeCpp`, 1 method) | 12 | 22 | 0 | 587 |
+| **13a** | **13** | **25** | **0** | **984** |
+
+- New host code is 38 lines against 984 moved function lines: **3.9 %**.
+- With the two retained World forwards (travel 19, map entry 8) it is 65
+  lines, **6.6 %**.
+
+### Await table (per function, base vs head)
+
+| Function | Base | Head | Awaited, in order |
+|---|---:|---:|---|
+| `handle_world_port_response_with_catalogs_like_cpp` | 6 | 6 | recovery (reject branch); self-CREATE send; nearby creatures; nearby gameobjects; `send_initial_packets_after_add_to_map`; deferred save resume (host future, unchanged) |
+| `send_player_self_create_for_teleport_like_cpp` | 0 | 0 | — (async fn, awaited once by the caller) |
+| `recover_rejected_worldport_like_cpp` | 1 | 1 | the homebind teleport (`teleport_to` → its body, the same `teleport_to_with_options` future) |
+| map entry ×7, completion ×4, self-CREATE build, ACK readiness, terminal recovery | 0 | 0 | — (synchronous; no guard crosses an await) |
+| travel registrar thunk | 1 | 1 | the response future |
+| `cfg(test)` `handle_world_port_response` / integration tests | 1 | 1 (+1 forward layer) | the World forward, which awaits the same future |
+| finalization `NativeTransfer` step | 0 | 0 | synchronous call |
+
+- No future that was awaited inline is spawned, reordered or held across a
+  different borrow. Each await borrows `host` as it borrowed `self`.
+- The deferred-save host method returns `WorldSession`'s own future.
+
+### Behaviour (#169)
+
+The world-port response keeps its exact order. Each item is a packet or a
+DB step:
+
+1. the disconnecting/recovery gate, the far-pending semaphore and the pending
+   destination;
+2. the attach (`MapManager::CreateMap` admission and `AddPlayerToMap`
+   residence) or the recovery;
+3. the semaphore and destination clear;
+4. `SMSG_RESUME_TOKEN` with the pre-reset movement counter;
+5. the counter reset, `SMSG_MOVE_SET_ACTIVE_MOVER` and the time sync;
+6. the self CREATE;
+7. the post-add begin;
+8. the nearby creatures and gameobjects (visibility);
+9. `SendInitialPacketsAfterAddToMap`;
+10. the native completion: post-add zone, item-level scaling, pet resummon,
+    delayed resurrection;
+11. the deferred save (the #169 save fence) and its outcome gate;
+12. the final stat update and `LoggedIn`.
+
+`SMSG_NEW_WORLD` is still sent at the suspend-token response, as before. The
+map entry keeps every gate, result code and publish flag in order, and holds
+the map manager lock over the same span. The logout/finalization native
+completion runs at the same step. Registrations and processing flags are
+unchanged.
+
+### Recursion
+
+- Every moved name was grepped across the production (non-shim) `wow-world`
+  files. What remains is the two retained forwards, which name the free
+  function explicitly, and free calls from the travel context, finalization
+  and the entities adapter.
+- No adapter forwards through `WorldSession::name(self, …)` to a moved name.
+  The new forwards resolve to inherent methods:
+  `ensure_canonical_player_owner_exists_like_cpp` and
+  `resume_deferred_player_save_with_generator_like_cpp`.
+- `unconditional_recursion`: 0 in the production lib, the lib with
+  `test-fixtures`, the lib test build and the destination all-targets build.
+
+### Edges and closure
+
+One new edge, `wow-world-character → wow-world-instances` (simulated in the
+plan). `wow_world_closure.py check` passes in lock and metadata mode (17
+packages). Character's closure gains instances and social. Only
+`wow-world`/`wow-world-application` reach character, and instances still
+does not reach character.
+
+### Accounting
+
+- **`wow-world` production (classifier): 44,322 → 43,306 (−1,016).**
+  Physical lines 52,321 → 51,391; files 470 → 469 (three deleted, the
+  adapter and the shim added).
+  - **Moved:** 984 function lines.
+  - **Reclassified, not production reduction:** 20 (the four wrappers in the
+    shim file).
+  - **Retired:** 18 (two split wrappers).
+  - **Added:** the adapters (25) and the two forwards (27). The rest is
+    headers and imports.
+- **Destinations:**
+  - `wow-world-instances/src` +449 physical (`map_entry.rs` 435, mod/lib 14);
+  - `wow-world-character/src` +738 (`worldport_session` 727, lib 11).
+- `net_move.py check`: S = 930, G = 1,187, allowance 1,937.5, PASS, 0
+  duplicate bodies.
+- **Ceilings** (none raised):
+  - hotspot `session/mod.rs`: production 25,185 → 24,562, test 141,656 →
+    141,656, total 166,841 → 166,218;
+  - physical `session/mod.rs` 887 → 882;
+  - new ratcheted row `handlers/worldport_test_shims.rs` at 84;
+  - `session-ownership-policy.json` reprinted with `print-baseline`. The
+    delta is the moved and retired items, the new adapter entries and the
+    shims.
+- **Warnings.** Per crate, file, lint and message, these builds are
+  identical to the base:
+  - the production lib;
+  - the lib with `test-fixtures`;
+  - the lib test build (`--profile test`, base rebuilt from the same tree).
+
+  The `wow-world-{core,entities,instances,character}` all-targets build is
+  identical except that the pre-existing instances `set_player_difficulty_like_cpp`
+  dead-code warning no longer appears. The cause is feature unification:
+  character's `test-fixtures` now forwards `wow-world-instances/test-fixtures`
+  in that combined command, which compiles the method's test-fixture caller.
+  No code changed there. `wow-world` `dead_code` is 0 in all three builds.
+- **Tests.** No test function changed and the test-name multiset is
+  identical. The only test-module edit is the import line in
+  `transfer_completion.rs`. The scenarios keep method syntax through the
+  shim forwards. Focused run before final: 241 passed (map entry, travel,
+  transfer, post-add, worldport, teleport, instance filters).
+
+### 13b plan
+
+On the 13a base, re-measure the persistence orchestration
+(`session/persistence/**`, `session/lifecycle/persistence{,/deferred,/prepared}.rs`,
+about 1.4k) with the deferred-save resume and the respec wipe with its
+talent-reset commit. Candidate destination is `wow-world-application`, with
+`application → loot-ops` and `application → character` (both simulated,
+PASS) for the save participants. Finalization, cleanup, logout and the
+account lifecycle (about 0.8k) go with it if the host stays under 15 %, or
+else in 13c with the continue-login coordinator.
+
+### Follow-ups
+
+- The shim file retires when the scenarios call the free functions directly.
+- The two retained World forwards retire with the login coordinator (13c)
+  and when the integration tests name the character function.
+- `CorpseHostLikeCpp` and `PlayerTeleportHostLikeCpp` both carry
+  `pending_teleport_like_cpp`. This is the #1398 follow-up, now visible as
+  the UFCS disambiguation here.
+
+### Validation
+
+`VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+on the PR head; the manifest, duration and test counts are recorded on the
+PR.
