@@ -8833,3 +8833,331 @@ else in 13c with the continue-login coordinator.
 `VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
 on the PR head; the manifest, duration and test counts are recorded on the
 PR.
+
+## Slice 13b result (lifecycle orchestration and the respec wipe → application)
+
+Branch `1363-s13b-persistence`, base `293055e87` (13a merged). Move-only (R2),
+with the slice 4–13a rewrites and nothing else.
+
+### Re-measure and the cut
+
+The 13b families measure 2,318 production lines on the base (classifier). Of
+those, only about 0.73k is orchestration that can leave the World:
+
+- **Moved (715 function lines):** the finalization ledger executor
+  (`finalize_session` 60, the step executor 119, two private helpers 8), the
+  disconnect cleanup 27, the logout buyback clear and the account appearance
+  and illusion saves 175, the deferred save resume 32, the periodic save entry
+  19, and `CMSG_CONFIRM_RESPEC_WIPE` 61 with its trainer check 27, the
+  talent-reset commit 108 and publication 79. The committed-reset record and
+  the four respec constants move with them.
+- **Stays, and why:**
+  - the `PlayerSaveHostLikeCpp` adapter (`lifecycle/persistence.rs`, about
+    130). It is the World's impl of a lifecycle trait, so it must live here.
+    The save fence itself is `wow_world_lifecycle::player_save` already;
+  - the money-fence constructors (`plans.rs`) and other split forwards. They
+    borrow disjoint `WorldSession` fields; they are host adapters by nature;
+  - `#[cfg(test)]` fixture code (`lifecycle/persistence/prepared.rs`, the
+    fixture snapshot of `save.rs`, about 160);
+  - the login hydration steps (`persistence/load.rs` 532, `load_authority.rs`
+    72, `lifecycle_ops/operations.rs` 233) and the void-storage unlock commit.
+    They are `Player::LoadFromDB` and collection steps, not orchestration.
+    Their right owners are domain crates (inventory, instances, quest), and
+    most are `CharacterLoginHostLikeCpp` methods the login coordinator calls.
+    They go with 13c.
+
+Moved lines are far below 4.5k and the host is about 6 %, so no split was
+needed and finalization stayed in 13b.
+
+### What moved
+
+`wow-world-application/src/session_lifecycle/` (976 physical):
+
+- `mod.rs` (63): `SessionLifecycleHostLikeCpp: WorldportHostLikeCpp + LootSessionHostLikeCpp + TalentHostLikeCpp + PlayerSaveHostLikeCpp + Send`
+  with one method, `session_account_save_cx_like_cpp`. It returns
+  `SessionAccountSaveCxLikeCpp`, which is the World `LifecycleCx` without the
+  instance state these steps never read;
+- `finalization.rs` (236): `finalize_session_with_generator_like_cpp` and
+  `execute_finalization_step` with `finalization_result` and
+  `finalization_identity_is_current`;
+- `cleanup.rs` (63): `cleanup_shared_runtime_state`;
+- `account_saves.rs` (191): `clear_buyback_on_logout`,
+  `save_account_item_appearances_like_cpp` and
+  `save_account_transmog_illusions_like_cpp`, as methods of the cx;
+- `player_save.rs` (65): the deferred save resume and the periodic save
+  entry;
+- `talent_reset.rs` (358): the respec wipe, its trainer check, the
+  talent-reset commit (with `_at`) and publication, and the committed record.
+
+Rewrites, beyond `self` → `host`:
+
+- **Field accessors.** `self.lifecycle` becomes `host.lifecycle_mut()`
+  (`CharacterLoginHostLikeCpp`) in these `&mut` bodies, and `self.core`
+  becomes `host.core()` (`core_mut()` only for the inlined `kick`). The one
+  place a field-disjoint borrow was needed (`install_finalization` reads the
+  Player handle) uses `host.split_lifecycle_mut()`. That is the same two
+  fields, in the same order.
+- **Split forwards** become their host forms:
+  `crate::session::split_{lifecycle,inventory}_mut(self)` and
+  `split_lifecycle_ref(self)` become `host.split_*()`, and
+  `crate::session::hub_{ref,mut}(self)` becomes `host.hub_*()`.
+  `crate::session::cx_lifecycle(self)` becomes
+  `host.session_account_save_cx_like_cpp()`.
+- **Paths.** `crate::FinalizationOutcome` and `crate::FinalizationDisposition`
+  now name `wow_world_lifecycle`; they were re-exports.
+- **Calls between moved functions** become free calls.
+- **UFCS where two supertraits carry the same name.** Each impl forwards to
+  the same `WorldSession` inherent or field:
+  - `LootSessionHostLikeCpp::loot`/`loot_mut` (also on the character host);
+  - `PlayerTeleportHostLikeCpp::sync_current_player_session_visibility_detection_like_cpp`
+    (also on the character host);
+  - `BattlePetPurchaseHostLikeCpp::resolved_player_money_like_cpp` and
+    `::drain_represented_quest_objective_progress_with_generator_like_cpp`
+    (also on the loot host);
+  - `SpellbookHostLikeCpp::split_spell_state_mut` (also on the character
+    host).
+
+  The drain and money-fence impls return the inherent future unchanged.
+- **`#[cfg(test)]` steps** run through the hub fixture accessors (slice 4b).
+  `test_fixtures_ref_like_cpp().is_some()` is the World test build. It gates
+  the deferred-save fixture return and the talent-reset COMMIT fixture seams.
+  `test_fixtures_like_cpp()` records the respec request; that was
+  `record_represented_confirm_respec_wipe_like_cpp`, whose production body was
+  empty.
+
+**Wrappers inlined as their exact bodies** (one-line or two-line):
+
+- the six account split forwards (`mark_character_offline`,
+  `mark_character_account_offline_like_cpp`,
+  `mark_login_account_offline_on_disconnect_like_cpp`,
+  `save_account_{mounts,toys,heirlooms}_like_cpp`);
+- `unregister_from_player_registry` ×2;
+- `set_player_logout_like_cpp` ×2 (the lifecycle flag, then the visibility
+  sync);
+- `restore_realm_channels` and `clear_inventory_items_and_objects_like_cpp` ×2;
+- `represented_talent_reset_persistence_plan_like_cpp`;
+- `send_buy_error` (`host.core().send_buy_error`);
+- `kick` ×4 (`host.core_mut().kick`);
+- `record_represented_confirm_respec_wipe_like_cpp`;
+- the `represented_can_confirm_respec_wipe_like_cpp` method wrapper. The free
+  function it called moved verbatim.
+
+Of these, `clear_inventory_items_and_objects_like_cpp`,
+`record_represented_confirm_respec_wipe_like_cpp` and the can-confirm wrapper
+retire. The six account forwards, `unregister_from_player_registry`,
+`set_player_logout_like_cpp`, `restore_realm_channels`, `send_buy_error` and
+the talent-reset plan have only scenario callers left. They move verbatim to
+the shim file.
+
+A token comparison of the 15 moved functions against their base bodies
+(`/home/ubuntu/rustycore-wip/s13b/cmp.py`) finds five identical. These are the
+two finalization helpers, the two collection saves and the free trainer check.
+The rest differ only by the rewrites above. No string literal, comment,
+constant, operator or control-flow token changed. The kick reasons, the
+warn messages and the `talent reset` operation tag are verbatim.
+
+**World side:**
+
+- the public `finalize_session_with_generator_like_cpp` and
+  `cleanup_shared_runtime_state` stay as one-call forwards that name the free
+  function (world-server, the integration tests, the character login adapter);
+- the `WorldportHostLikeCpp` adapter returns the application resume future;
+- the talent registrar adapter and the session driver call the free
+  functions;
+- the new adapter is `session/lifecycle/lifecycle_host.rs`;
+- `handlers/session_lifecycle_test_shims.rs` (`#![cfg(test)]`, new ratcheted
+  row, 205) holds the one-call forwards the scenarios use (finalization step,
+  periodic save, talent-reset commit, respec wipe, the three `LifecycleCx`
+  saves), the verbatim wrappers above with the two `cfg(test)`
+  disconnect-cleanup entries, and the remounted `persistence/commit.rs` F3
+  shim;
+- the test-only respec constants are re-exported from the application in
+  `handlers/talent/state.rs`.
+
+### Host surface
+
+| Part | New trait/struct | New adapter | Retained forwards | Moved function lines |
+|---|---:|---:|---:|---:|
+| 13b | 12 | 15 | 15 | 715 |
+
+- New host code is 27 lines against 715 moved: **3.8 %**.
+- With the two retained World forwards it is 42 lines, **5.9 %**.
+
+### Await table (per function, base vs head)
+
+| Function | Base | Head | Awaited, in order |
+|---|---:|---:|---|
+| `finalize_session_with_generator_like_cpp` | 1 | 1 | the step executor, once per ledger step |
+| `execute_finalization_step` | 14 | 14 | loot-persistence wait; loot release-all; buyback clear; character save; mounts; toys; heirlooms; appearances; illusions; character offline; character-account offline; login-account offline; instance-send fence; realm `LogoutComplete` send |
+| `clear_buyback_on_logout` / appearances / illusions | 1/1/1 | 1/1/1 | the port call |
+| `resume_deferred_player_save_with_generator_like_cpp` | 1 | 1 | the full save |
+| `process_pending_periodic_player_save_with_generator_like_cpp` | 1 | 1 | the full save |
+| `handle_confirm_respec_wipe_with_generator_like_cpp` | 2 | 2 | commit; publication |
+| `commit_represented_talent_reset_like_cpp` | 1 | 1 | `_at` |
+| `commit_represented_talent_reset_at_like_cpp` | 2 | 2 | exclusive money fence; `persist_talent_reset` |
+| `publish_committed_represented_talent_reset_like_cpp` | 1 | 1 | the objective drain, after `drop(money_persistence)` |
+| cleanup, the trainer check, the two helpers | 0 | 0 | — |
+| World `finalize_session` forward / integration tests | 1 | 1 (+1 forward layer) | the application future |
+| worldport adapter (resume) | — | — | returns the application future unchanged |
+
+- The inlined account wrappers held the lifecycle split across their one
+  await; the inlined arm holds the same split across the same await.
+- No future that was awaited inline is spawned, reordered or held across a
+  different borrow.
+
+### Behaviour (#169)
+
+**Finalization order is unchanged.** These are the ledger steps:
+
+1. `NativeTransfer`: the character native completion, the
+   character-selection deferral, then the logout flag, the visibility sync and
+   the clear logout time;
+2. `LootSettlement`;
+3. `Buyback`;
+4. `CharacterSave`, the #169 save fence through
+   `wow_world_lifecycle::save_current_player_to_db`;
+5. the account saves: mounts, toys, heirlooms, appearances, illusions;
+6. the offline marks: character, character-account, login-account;
+7. `Retirement`: registry, visibility notice, map unregister;
+8. `LogoutPublication`: the instance write fence, then the realm route;
+9. `Release`.
+
+The previous-ledger handover and the interrupt rules are unchanged. So is the
+identity check before each step.
+
+**Talent reset.** The commit order is:
+
+1. the reset cost;
+2. the exclusive money fence;
+3. the money check;
+4. the plan;
+5. the fixture seams;
+6. the cancellation fence;
+7. `persist_talent_reset`;
+8. the outcome classification: applied, rolled back, or unknown, which
+   quarantines.
+
+The publication still has no await before `drop(money_persistence)`, and
+drains only afterwards. Registrations, statuses and processing flags are
+unchanged.
+
+The scenario tests asserting this order pass unchanged, with no assertion
+touched:
+
+- the finalization ledger tests in `wow-world/tests/production_login_player_owner`;
+- the logout-publication fence test in `lifecycle/finalization.rs`;
+- the talent-reset rollback, unknown-COMMIT and publication scenarios;
+- the buyback durability tests.
+
+### Recursion
+
+- Every moved name was grepped across the production (non-shim) `wow-world`
+  files. What remains is two kinds of call:
+  - the two pub forwards, which name `wow_world_application::*` explicitly;
+  - the worldport adapter, the talent adapter and the driver, which call the
+    free functions.
+- The character login adapter's `finalize_session` and
+  `cleanup_shared_runtime_state` resolve to the World inherents, which
+  forward to the free functions. No moved body calls those host methods.
+- `unconditional_recursion`: 0 in the production lib, the lib with
+  `test-fixtures` and the lib test build.
+
+### Edges and closure
+
+Two new edges, recorded in the manifest, `Cargo.lock`, the `test-fixtures`
+forwarding and the `dependency-policy.json` allowlist:
+
+- **`wow-world-application → wow-world-character`**, for the native completion
+  the `NativeTransfer` step calls (#1400 follow-up 1);
+- **`wow-world-application → wow-world-loot-ops`**, for the loot settlement.
+
+Both were simulated before the move (`wow_world_closure.py check --add …`,
+lock and metadata, PASS). After the move the closure passes in both modes (17
+packages). Only `wow-world` reaches application. Character and loot-ops do
+not reach application.
+
+The 13c login coordinator must therefore land in `wow-world-application` or
+stay in the World, never in character: character → application would be a
+cycle.
+
+### Accounting
+
+- **`wow-world` production (classifier): 43,306 → 42,437 (−869).** Physical
+  lines 51,391 → 50,766; files 469 → 470 (`account.rs` deleted; the adapter and
+  the shim added).
+  - **Moved:** 715 function lines, plus the committed-reset record and the
+    respec constants (about 15).
+  - **Reclassified, not production reduction:** about 101. These are the
+    verbatim wrappers and the two `cfg(test)` cleanup entries, which the
+    classifier counted as production, now in the `#![cfg(test)]` shim.
+  - **Retired:** 22 (three wrappers).
+  - **Added:** the adapter (25) and the two forwards (15).
+- **`wow-world-application/src`: 11,397 → 12,385 physical (+988)**; 10,596 →
+  11,571 classifier production; 44 → 50 files.
+  - All of the growth is `session_lifecycle/`: 715 moved lines, with the
+    expansion of the inlined wrappers and the generic signatures, the trait,
+    the cx struct and the headers.
+  - This is orchestration: the finalization ledger over lifecycle, loot,
+    inventory and the character completion, and the talent-reset money
+    transaction with its publication.
+- `net_move.py check`: S = 625, G = 988, allowance 1,617.2, PASS, 0 duplicate
+  bodies.
+- **Ceilings** (none raised):
+  - hotspot `session/mod.rs`: production 24,562 → 23,812, test 141,656 →
+    141,650, total 166,218 → 165,462;
+  - physical `session/mod.rs` stays at 882;
+  - new ratcheted row `handlers/session_lifecycle_test_shims.rs` at 205;
+  - `session-ownership-policy.json` reprinted with `print-baseline`. The delta
+    is the moved and retired items, the adapter method and the shims.
+- **Warnings.** The same per crate, file, lint and message as the base in the
+  production lib, the lib with `test-fixtures` and the lib test build. The one
+  exception is that the pre-existing `cleanup.rs` unused-import warning is
+  gone, because the `cfg(test)` entries that used it moved to the shim.
+  `wow-world` `dead_code` is 0 in all three builds.
+- **Tests.**
+  - The test-name multiset is identical (10,214 tests, 5 ignored), and no test
+    file changed.
+  - The scenarios keep method syntax through the shim forwards.
+  - Focused run before final: 440 `wow-world` lib tests (finalization, logout,
+    cleanup, buyback, account collections, talent/respec, save, persistence,
+    connection), 34 `production_login_player_owner` and 13
+    `wow-world-application` tests passed.
+
+### #1400 follow-up 3
+
+The `session/test_reexports.rs` header is four lines of at most 98 characters
+and names "follow-up 1" again. The change is comment-only and the test lines
+are unchanged.
+
+### 13c plan
+
+On the 13b base:
+
+- the continue-login coordinator (`handlers/character/world_entry/login.rs`)
+  goes to `wow-world-application`, or stays in the World, never in character;
+- with it, the login hydration steps it calls (`persistence/load.rs`,
+  `load_authority.rs`, `lifecycle_ops/operations.rs`, the void-storage unlock
+  commit), each to its domain crate where layering allows:
+  - void storage and heirlooms → inventory;
+  - difficulties and instance time restrictions → instances;
+  - titles and rest → quest and lifecycle.
+
+Re-measure first. The coordinator alone was about 20 % host at 60 outside
+calls.
+
+### Follow-ups
+
+- The shim file retires when the scenarios call the free functions directly.
+- The pub `finalize_session` and `cleanup_shared_runtime_state` forwards retire
+  when world-server and the integration tests name the application functions.
+- The UFCS sites mark duplicate host names: `loot`/`loot_mut` and
+  `resolved_player_money`/`drain` on the character, loot and battle-pet hosts;
+  `sync_current_player_session_visibility_detection` and
+  `split_spell_state_mut` on the character and teleport/spellbook hosts. They
+  can be consolidated once one supertrait owns each.
+
+### Validation
+
+`VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+on the PR head; the manifest, duration and test counts are recorded on the
+PR.
