@@ -37,12 +37,9 @@ pub use player_handlers::item_purchase_contents_from_extended_cost;
 pub use player_handlers::{
     PlayerHandlerCxLikeCpp, PlayerHandlerHostLikeCpp, register_player_handlers_like_cpp,
 };
-mod equipment_set_use;
-mod inventory_scaling;
+mod inventory_move_planning;
 mod trainer_handlers;
 mod trainer_purchase;
-pub use inventory_scaling::InventoryScalingApplicationCxLikeCpp;
-mod inventory_move_planning;
 pub use inventory_move_planning::{InventoryMovePlanningCxLikeCpp, InventorySwapTargetLikeCpp};
 mod inventory_swap;
 pub use inventory_swap::{
@@ -65,12 +62,6 @@ pub use aura_removal::{
     plan_item_set_aura_refresh_with_access_like_cpp, player_aura_application_cx_like_cpp,
 };
 
-#[cfg(any(test, feature = "test-fixtures"))]
-pub use equipment_set_use::EquipmentSetUseFixtureRefsLikeCpp;
-pub use equipment_set_use::{
-    EquipmentSetUseContextLikeCpp, EquipmentSetUseHandlerHostLikeCpp,
-    EquipmentSetUseItemModsStoresLikeCpp, register_equipment_set_use_handler_like_cpp,
-};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use inventory_swap::InventoryEquipFixtureRefsLikeCpp;
 // The exact `ApplicationTalent` owner facade the handler-contract checker

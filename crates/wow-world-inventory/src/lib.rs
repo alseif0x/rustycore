@@ -20,12 +20,14 @@ mod durability;
 mod enchantment;
 mod equipment;
 mod equipment_set_use;
+mod equipment_set_use_handlers;
 mod equipment_sets;
 mod equipment_slots;
 mod guild_inventory_contracts;
 mod handlers;
 mod inventory_move_contracts;
 mod inventory_request_contracts;
+mod inventory_scaling;
 mod item_modifiers;
 mod item_session;
 mod item_sets;
@@ -120,6 +122,14 @@ pub use enchantment::{
     InitialLoadedItemModsOutcomeLikeCpp, ItemEnchantmentApplicationCxLikeCpp,
     ItemEnchantmentCatalogsLikeCpp, LoadedEquippedItemEnchantmentsOutcomeLikeCpp,
 };
+// The exact equipment-set use owner facade the handler-contract checker
+// requires (#1363 slice Q2).
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use equipment_set_use_handlers::EquipmentSetUseFixtureRefsLikeCpp;
+pub use equipment_set_use_handlers::{
+    EquipmentSetUseContextLikeCpp, EquipmentSetUseHandlerHostLikeCpp,
+    EquipmentSetUseItemModsStoresLikeCpp, register_equipment_set_use_handler_like_cpp,
+};
 pub use equipment_sets::represented_equipment_set_from_packet_like_cpp;
 pub use guild_inventory_contracts::{
     RepresentedBankItemMoveLikeCpp, RepresentedGuildBankTabActionKindLikeCpp,
@@ -144,6 +154,7 @@ pub use inventory_move_contracts::{
 pub use inventory_request_contracts::{
     RepresentedAutoUnequipOffhandLikeCpp, RepresentedAutoUnequipOffhandReasonLikeCpp,
 };
+pub use inventory_scaling::InventoryScalingApplicationCxLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use item_modifiers::{
     RepresentedCombatStatRecalculationLikeCpp, RepresentedItemModsReapplyEventLikeCpp,

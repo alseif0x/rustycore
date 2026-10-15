@@ -3,11 +3,11 @@
 
 //! Complete area-based item-level transition over selected owners.
 
+use crate::{InventoryState, ItemModsCatalogsViewLikeCpp};
 use wow_world_core::session::{
     InventoryValuationAccessLikeCpp, OwnedInventoryAccessLikeCpp, OwnedItemModifiersAccessLikeCpp,
     PacketPublicationAccessLikeCpp, PlayerStatsAccessLikeCpp,
 };
-use wow_world_inventory::{InventoryState, ItemModsCatalogsViewLikeCpp};
 use wow_world_loot::LootState;
 
 pub struct InventoryScalingApplicationCxLikeCpp<'a> {
@@ -30,7 +30,7 @@ pub struct InventoryScalingApplicationCxLikeCpp<'a> {
     #[cfg(any(test, feature = "test-fixtures"))]
     transport: &'a Option<Box<wow_world_core::session::PlayerTransportLoginStateLikeCpp>>,
     #[cfg(any(test, feature = "test-fixtures"))]
-    hydration: wow_world_inventory::PlayerRegistryHydrationContext<'a>,
+    hydration: crate::PlayerRegistryHydrationContext<'a>,
 }
 
 impl<'a> InventoryScalingApplicationCxLikeCpp<'a> {
@@ -53,7 +53,7 @@ impl<'a> InventoryScalingApplicationCxLikeCpp<'a> {
             Box<wow_world_core::session::PlayerTransportLoginStateLikeCpp>,
         >,
         #[cfg(any(test, feature = "test-fixtures"))]
-        hydration: wow_world_inventory::PlayerRegistryHydrationContext<'a>,
+        hydration: crate::PlayerRegistryHydrationContext<'a>,
     ) -> Self {
         Self {
             inventory,
@@ -133,7 +133,7 @@ impl<'a> InventoryScalingApplicationCxLikeCpp<'a> {
                 #[cfg(any(test, feature = "test-fixtures"))]
                 self.transport,
             ) {
-                let sync = wow_world_inventory::PlayerRegistrySyncContext::new(
+                let sync = crate::PlayerRegistrySyncContext::new(
                     position,
                     control,
                     self.loot,
@@ -146,7 +146,7 @@ impl<'a> InventoryScalingApplicationCxLikeCpp<'a> {
             }
         }
         if publish && !targets.is_empty() {
-            let mut stats = wow_world_inventory::CharacterStatsApplicationCxLikeCpp::new(
+            let mut stats = crate::CharacterStatsApplicationCxLikeCpp::new(
                 self.player,
                 &*self.inventory,
                 self.publication,
@@ -164,7 +164,7 @@ impl<'a> InventoryScalingApplicationCxLikeCpp<'a> {
                     let update = wow_packet::packets::update::UpdateObject::player_stat_update(
                         guid,
                         self.valuation.player_map_id_like_cpp(),
-                        wow_world_inventory::represented_player_stat_changes_like_cpp(&bonuses),
+                        crate::represented_player_stat_changes_like_cpp(&bonuses),
                     );
                     self.valuation
                         .packet_publication_access_like_cpp()

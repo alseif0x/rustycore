@@ -19,7 +19,7 @@ impl AuraRemovalCxLikeCpp<'_> {
             #[cfg(any(test, feature = "test-fixtures"))]
             &*self.shapeshift_form,
         );
-        crate::InventoryScalingApplicationCxLikeCpp::new(
+        wow_world_inventory::InventoryScalingApplicationCxLikeCpp::new(
             &mut *self.inventory,
             player,
             self.player.inventory_access_like_cpp(),

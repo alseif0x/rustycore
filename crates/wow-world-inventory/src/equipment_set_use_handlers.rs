@@ -3,6 +3,11 @@
 
 use std::sync::Arc;
 
+use crate::CharacterStatsApplicationCxLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+use crate::PlayerRegistryHydrationContext;
+use crate::PlayerRegistrySyncContext;
+use crate::{InventoryState, represented_player_stat_changes_like_cpp};
 use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
 use wow_data::progression_rewards::{ScalingStatDistributionStore, ScalingStatValuesStore};
@@ -25,11 +30,6 @@ use wow_world_core::session::{
     OwnedItemModifiersAccessLikeCpp, OwnedItemSetAccessLikeCpp, PacketPublicationAccessLikeCpp,
     SessionCatalogs, SessionWorldConfig,
 };
-use wow_world_inventory::CharacterStatsApplicationCxLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
-use wow_world_inventory::PlayerRegistryHydrationContext;
-use wow_world_inventory::PlayerRegistrySyncContext;
-use wow_world_inventory::{InventoryState, represented_player_stat_changes_like_cpp};
 use wow_world_loot::LootState;
 
 /// Selected item-modifier stores retained without cloning their owning Arcs.
@@ -458,5 +458,5 @@ where
 }
 
 #[cfg(test)]
-#[path = "equipment_set_use/registration_tests.rs"]
+#[path = "equipment_set_use_handlers/registration_tests.rs"]
 mod registration_tests;
