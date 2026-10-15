@@ -30,10 +30,6 @@ impl WorldSession {
         self.catalogs.disable_mgr = Some(store);
     }
 
-    pub(crate) fn lock_entry_exists_like_cpp(&self, lock_id: u32) -> bool {
-        self.catalogs.lock_entry_exists_like_cpp(lock_id)
-    }
-
     pub(in crate::session) fn trinity_string_like_cpp(&self, entry: u32) -> &str {
         self.catalogs
             .trinity_string_store

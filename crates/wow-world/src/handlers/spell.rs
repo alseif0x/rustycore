@@ -19,41 +19,27 @@
 //! the same `WorldSession` operations and catalog destructuring the legacy
 //! closures used.
 
-use std::collections::HashMap;
-
-use tracing::{debug, warn};
-
-use wow_constants::{BagFamilyMask, InventoryResult, ItemFlags};
-use wow_core::ObjectGuid;
-use wow_entities::INVENTORY_SLOT_BAG_0;
-
-use wow_loot::{
-    LootConditionRowLikeCpp, condition_compare_values_like_cpp,
-    loot_conditions_allow_player_with_references_like_cpp_representable,
-};
+#[cfg(test)]
 use wow_packet::ClientPacket;
-use wow_packet::packets::item::{ItemExpirePurchaseRefund, ItemInstance};
-use wow_packet::packets::loot::{
-    CreatureLoot, LOOT_TYPE_ITEM_LIKE_CPP, LootEntry, LootEntryFlags, LootItemData, LootResponse,
-};
 #[cfg(test)]
 use wow_packet::packets::spell::CancelModSpeedNoControlAuras;
-use wow_packet::packets::spell::OpenItem;
 
+#[cfg(test)]
 use crate::session::WorldSession;
-use wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
 
-mod ops_1;
-mod ops_2;
 mod state;
 #[cfg(test)]
 mod test_shims;
-#[allow(unused_imports)]
-pub use ops_1::*;
-#[allow(unused_imports)]
-pub use ops_2::*;
+#[cfg(test)]
 #[allow(unused_imports)]
 pub use state::*;
+
+#[cfg(test)]
+#[path = "../../unit_tests/handlers/spell/ops_1/f3_shims.rs"]
+mod f3_shims;
+#[cfg(test)]
+#[path = "../../unit_tests/handlers/spell/ops_2/test_only.rs"]
+mod test_only;
 
 // ── Handler implementations ───────────────────────────────────────
 

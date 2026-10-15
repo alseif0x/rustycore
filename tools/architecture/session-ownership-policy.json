@@ -786,6 +786,26 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::open_item_host",
+          "trait_path": null,
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::handlers::open_item_host",
+          "trait_path": "OpenItemHostLikeCpp",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::handlers::open_item_test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::pets::battle_pet_host",
           "trait_path": "BattlePetHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
@@ -944,13 +964,7 @@
           "source_class": "test_fixture"
         },
         {
-          "module": "crate::handlers::spell::ops_1",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::spell::ops_1::f3_shims",
+          "module": "crate::handlers::spell::f3_shims",
           "trait_path": null,
           "cfg": [
             "cfg (test)"
@@ -958,13 +972,7 @@
           "source_class": "test_fixture"
         },
         {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::spell::ops_2::test_only",
+          "module": "crate::handlers::spell::test_only",
           "trait_path": null,
           "cfg": [
             "cfg (test)"
@@ -13944,6 +13952,124 @@
           ]
         },
         {
+          "module": "crate::handlers::open_item_host",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_wrapped_gift_row_to_runtime_item_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_wrapped_gift_row_to_runtime_item_like_cpp (& mut self , bag : u8 , item_guid : ObjectGuid , slot : u8 , entry : u32 , flags : u32 ,) -> Option < u32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::open_item_host",
+          "trait_path": "OpenItemHostLikeCpp",
+          "kind": "method",
+          "name": "apply_wrapped_gift_row_to_runtime_item_like_cpp",
+          "visibility": "private",
+          "signature": "fn apply_wrapped_gift_row_to_runtime_item_like_cpp (& mut self , bag : u8 , item_guid : ObjectGuid , slot : u8 , entry : u32 , flags : u32 ,) -> Option < u32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::open_item_host",
+          "trait_path": "OpenItemHostLikeCpp",
+          "kind": "method",
+          "name": "get_inventory_item_by_pos",
+          "visibility": "private",
+          "signature": "fn get_inventory_item_by_pos (& self , bag : u8 , slot : u8) -> Option < InventoryItem >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::open_item_host",
+          "trait_path": "OpenItemHostLikeCpp",
+          "kind": "method",
+          "name": "remove_fully_looted_runtime_item",
+          "visibility": "private",
+          "signature": "fn remove_fully_looted_runtime_item (& mut self , bag : u8 , slot : u8 , item_guid : ObjectGuid)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::open_item_host",
+          "trait_path": "OpenItemHostLikeCpp",
+          "kind": "method",
+          "name": "send_stat_update",
+          "visibility": "private",
+          "signature": "fn send_stat_update (& mut self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::open_item_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_open_item",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_open_item (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::open_item_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "item_template_lock_id",
+          "visibility": "pub (crate)",
+          "signature": "fn item_template_lock_id (& self , item_id : u32) -> Option < u16 >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::open_item_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "open_active_item_loot_view_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn open_active_item_loot_view_like_cpp (& mut self , player_guid : ObjectGuid , item_guid : ObjectGuid ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
           "module": "crate::handlers::pets::battle_pet_host",
           "trait_path": "BattlePetHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
@@ -16633,91 +16759,7 @@
           ]
         },
         {
-          "module": "crate::handlers::spell::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_wrapped_gift_row_to_runtime_item_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_wrapped_gift_row_to_runtime_item_like_cpp (& mut self , bag : u8 , item_guid : ObjectGuid , slot : u8 , entry : u32 , flags : u32 ,) -> Option < u32 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "destroy_stale_wrapped_gift_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn destroy_stale_wrapped_gift_like_cpp (& mut self , bag : u8 , slot : u8 , item_guid : ObjectGuid ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "generate_item_loot_template_entries_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn generate_item_loot_template_entries_like_cpp (& mut self , item_entry : u32 ,) -> Vec < LootEntry >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_open_item",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_open_item (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "open_active_item_loot_view_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn open_active_item_loot_view_like_cpp (& mut self , player_guid : ObjectGuid , item_guid : ObjectGuid ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "open_wrapped_gift_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn open_wrapped_gift_like_cpp (& mut self , bag : u8 , slot : u8 , item_guid : ObjectGuid ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_1::f3_shims",
+          "module": "crate::handlers::spell::f3_shims",
           "trait_path": null,
           "kind": "method",
           "name": "load_item_template_addon_loot_metadata_like_cpp",
@@ -16733,7 +16775,7 @@
           ]
         },
         {
-          "module": "crate::handlers::spell::ops_1::f3_shims",
+          "module": "crate::handlers::spell::f3_shims",
           "trait_path": null,
           "kind": "method",
           "name": "load_item_template_addon_money_loot_like_cpp",
@@ -16749,147 +16791,7 @@
           ]
         },
         {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "direct_inventory_item_count_like_cpp_representable",
-          "visibility": "pub (super)",
-          "signature": "fn direct_inventory_item_count_like_cpp_representable (& self , item_id : u32 ,) -> Option < u32 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "evaluate_loot_condition_like_cpp_representable",
-          "visibility": "pub (super)",
-          "signature": "fn evaluate_loot_condition_like_cpp_representable (& self , condition : & LootConditionRowLikeCpp ,) -> Option < bool >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "has_incomplete_quest_item_drop_for_item_like_cpp_representable",
-          "visibility": "pub (super)",
-          "signature": "fn has_incomplete_quest_item_drop_for_item_like_cpp_representable (& self , item_id : u32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "has_incomplete_quest_objective_for_item_like_cpp_representable",
-          "visibility": "pub (super)",
-          "signature": "fn has_incomplete_quest_objective_for_item_like_cpp_representable (& self , item_id : u32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "has_incomplete_quest_objective_for_object_id_like_cpp_representable",
-          "visibility": "pub (super)",
-          "signature": "fn has_incomplete_quest_objective_for_object_id_like_cpp_representable (& self , item_object_id : i32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "item_loot_allowed_for_player_like_cpp_representable",
-          "visibility": "pub (super)",
-          "signature": "fn item_loot_allowed_for_player_like_cpp_representable (& self , item_id : u32 , needs_quest : bool , addon_metadata : ItemTemplateAddonLootMetadataLikeCpp , conditions : & [LootConditionRowLikeCpp] , condition_references : & HashMap < u32 , Vec < LootConditionRowLikeCpp > > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "loot_conditions_allow_player_with_references_like_cpp_representable",
-          "visibility": "pub (super)",
-          "signature": "fn loot_conditions_allow_player_with_references_like_cpp_representable (& self , conditions : & [LootConditionRowLikeCpp] , condition_references : & HashMap < u32 , Vec < LootConditionRowLikeCpp > > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "loot_entry_flags_for_row_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn loot_entry_flags_for_row_like_cpp (& self , row : & LootTemplateRow , addon_metadata : ItemTemplateAddonLootMetadataLikeCpp ,) -> LootEntryFlags",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "player_quest_objective_progress_like_cpp_representable",
-          "visibility": "pub (super)",
-          "signature": "fn player_quest_objective_progress_like_cpp_representable (& self , objective_id : u32 ,) -> Option < i32 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "save_new_stored_item_loot_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn save_new_stored_item_loot_like_cpp (& self , item_guid : wow_core :: ObjectGuid , money : u32 , items : & [LootEntry] ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_2::test_only",
+          "module": "crate::handlers::spell::test_only",
           "trait_path": null,
           "kind": "method",
           "name": "try_handle_cancel_mod_speed_no_control_auras_like_cpp",
@@ -25596,19 +25498,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "item_template_lock_id",
-          "visibility": "pub (crate)",
-          "signature": "fn item_template_lock_id (& self , item_id : u32) -> Option < u16 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "item_template_max_durability",
           "visibility": "pub (crate)",
           "signature": "fn item_template_max_durability (& self , item_id : u32) -> u32",
@@ -26075,19 +25964,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "lock_entry_exists_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn lock_entry_exists_like_cpp (& self , lock_id : u32) -> bool",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
