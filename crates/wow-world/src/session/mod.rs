@@ -264,7 +264,6 @@ pub(crate) use item_modifiers::RepresentedItemSetEffectLikeCpp;
 pub(crate) use item_modifiers::RepresentedItemSetSpellEventLikeCpp;
 use item_modifiers::is_represented_bag_slot;
 pub(crate) use item_modifiers::item_storage_fields_values_update_like_cpp;
-use item_modifiers::player_class_by_armor_subclass_like_cpp;
 use item_modifiers::player_class_mask_for_transmog_like_cpp;
 use item_modifiers::represented_player_stat_changes_like_cpp;
 #[cfg(test)]

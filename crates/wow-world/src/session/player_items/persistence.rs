@@ -137,25 +137,6 @@ impl WorldSession {
             vacated_positions,
         )
     }
-    pub(crate) fn plan_store_existing_direct_inventory_item_like_cpp(
-        &self,
-        source_slot: u8,
-    ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
-        self.plan_store_existing_inventory_item_like_cpp(INVENTORY_SLOT_BAG_0, source_slot)
-    }
-    pub(crate) fn plan_store_existing_inventory_item_like_cpp(
-        &self,
-        source_bag: u8,
-        source_slot: u8,
-    ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
-        self.plan_store_existing_inventory_item_at_like_cpp(
-            source_bag,
-            source_slot,
-            NULL_BAG,
-            NULL_SLOT,
-            false,
-        )
-    }
     pub(crate) fn plan_store_existing_inventory_item_at_like_cpp(
         &self,
         source_bag: u8,

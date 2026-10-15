@@ -38,6 +38,7 @@ mod money;
 mod offhand;
 mod persistence;
 mod persistence_load;
+mod player_items_session;
 mod publication;
 mod quest_reward;
 mod registry_sync;
@@ -229,3 +230,6 @@ pub use fixtures::PlayerItemTestFixtureLikeCpp;
 pub use registry_sync::PlayerRegistryHydrationContext;
 pub use registry_sync::PlayerRegistrySyncContext;
 pub use registry_sync::sync_player_registry_state_like_cpp;
+// The represented player-item operations moved from the World session
+// (#1363 slice 12b1).
+pub use player_items_session::*;

@@ -775,7 +775,9 @@ pub async fn handle_void_storage_transfer_with_generators_like_cpp<
                     item_object.clone(),
                 );
                 debug_assert!(inserted);
-                collection_updates.extend(host.on_item_added_to_collection_like_cpp(item_object));
+                collection_updates.extend(
+                    wow_world_inventory::on_item_added_to_collection_like_cpp(host, item_object),
+                );
                 let container_slots = host
                     .hub_ref()
                     .catalogs
@@ -804,7 +806,9 @@ pub async fn handle_void_storage_transfer_with_generators_like_cpp<
                     ))],
                 );
                 debug_assert!(updated);
-                collection_updates.extend(host.on_item_added_to_collection_like_cpp(item_object));
+                collection_updates.extend(
+                    wow_world_inventory::on_item_added_to_collection_like_cpp(host, item_object),
+                );
                 withdrawal_item_publications.extend(
                     merged_void_withdrawal_item_publications_like_cpp(
                         inventory_item.guid,

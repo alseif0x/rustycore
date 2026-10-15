@@ -270,9 +270,6 @@ impl ItemSessionHostLikeCpp for WorldSession {
     fn publish_inventory_position_changes_like_cpp(&mut self, positions: &[(u8, u8)]) {
         WorldSession::publish_inventory_position_changes_like_cpp(self, positions)
     }
-    fn send_represented_item_bonus_player_stat_update_like_cpp(&mut self) -> bool {
-        WorldSession::send_represented_item_bonus_player_stat_update_like_cpp(self)
-    }
     fn represented_bag_contains_active_item_loot_like_cpp(&self, bag_guid: ObjectGuid) -> bool {
         WorldSession::represented_bag_contains_active_item_loot_like_cpp(self, bag_guid)
     }

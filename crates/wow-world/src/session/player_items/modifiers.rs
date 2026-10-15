@@ -28,37 +28,6 @@ impl WorldSession {
         self.catalogs.spell_catalogs.item_set_spell_store = Some(store);
     }
 
-    pub(in crate::session) fn record_represented_item_mods_like_cpp(
-        &mut self,
-        item_guid: ObjectGuid,
-        slot: u8,
-        apply: bool,
-    ) -> usize {
-        let inventory_access = self.core.owned_inventory_access_like_cpp();
-        let modifier_access = self.core.owned_item_modifiers_access_like_cpp();
-        let catalogs = wow_world_inventory::ItemModsCatalogsViewLikeCpp::new(
-            self.catalogs.items.store.as_ref(),
-            self.catalogs.items.stats_store.as_ref(),
-            self.catalogs.scaling_stat_distribution_store.as_ref(),
-            self.catalogs.scaling_stat_values_store.as_ref(),
-            self.catalogs.shield_block_regular_game_table.as_ref(),
-            self.catalogs.spell_catalogs.spell_shapeshift_form_store(),
-        );
-        self.inventory
-            .record_represented_item_mods_with_access_like_cpp(
-                &inventory_access,
-                &modifier_access,
-                catalogs,
-                item_guid,
-                slot,
-                apply,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                &self.fixtures.identity.player_level,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                &self.fixtures.auras.represented_shapeshift_form_like_cpp,
-                cfg!(test),
-            )
-    }
     pub(in crate::session) fn apply_initial_item_set_auras_like_cpp(
         &mut self,
         item_guid: ObjectGuid,
@@ -66,7 +35,9 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return 0;
         };
-        let events = self.record_represented_items_set_item_events_like_cpp(item_guid, true);
+        let events = wow_world_inventory::record_represented_items_set_item_events_like_cpp(
+            self, item_guid, true,
+        );
         let mut applied = 0usize;
         for event in events {
             if !event.apply {
@@ -139,7 +110,9 @@ impl WorldSession {
                 .resolved_inventory_item_object_like_cpp(item_guid)
                 .is_some_and(|item| !item.is_broken())
             {
-                self.record_represented_item_mods_like_cpp(item_guid, slot, true);
+                wow_world_inventory::record_represented_item_mods_like_cpp(
+                    self, item_guid, slot, true,
+                );
             }
             item_set_auras += self.apply_initial_item_set_auras_like_cpp(item_guid);
             item_equip_auras += self.apply_initial_item_equip_auras_like_cpp(item_guid);
@@ -151,26 +124,6 @@ impl WorldSession {
             item_equip_auras,
             enchantments,
         }
-    }
-    pub(crate) fn send_represented_item_bonus_player_stat_update_like_cpp(&mut self) -> bool {
-        // Item changes alter derived stats, vital maxima and weapon ranges
-        // together. Publish the same complete projection consumed by combat;
-        // sending only the raw bonus accumulator would leave the canonical
-        // snapshot stale and could make the client and server disagree after
-        // repair or an equipment-set swap. A raw packet is retained only as a
-        // fixture/early-login fallback when the complete projection cannot yet
-        // be formed; no derived combat snapshot exists in that state.
-        if self.send_stat_update() {
-            return true;
-        }
-        let Some(update) = ({
-            let (s, h) = crate::session::split_inventory_ref(self);
-            s.represented_item_bonus_player_stat_update_object_like_cpp(h)
-        }) else {
-            return false;
-        };
-        self.send_packet(&update);
-        true
     }
     pub(in crate::session) fn apply_represented_item_bonus_action_state_like_cpp(
         &mut self,
@@ -185,14 +138,6 @@ impl WorldSession {
     ) -> bool {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.initial_loaded_item_mods_can_apply_like_cpp(hub, item_guid)
-    }
-
-    pub(crate) fn represented_item_reputation_rank_like_cpp(
-        &self,
-        required_reputation_faction: u32,
-    ) -> Option<u32> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.represented_item_reputation_rank_like_cpp(hub, required_reputation_faction)
     }
 }
 

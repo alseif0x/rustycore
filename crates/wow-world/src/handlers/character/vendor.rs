@@ -131,12 +131,6 @@ impl VendorSessionHostLikeCpp for WorldSession {
             item_guid, entry_id, owner_guid, count, durability, context, slot,
         )
     }
-    fn on_item_added_to_collection_like_cpp(
-        &mut self,
-        item: &wow_entities::Item,
-    ) -> Vec<wow_entities::PlayerValuesUpdate> {
-        WorldSession::on_item_added_to_collection_like_cpp(self, item)
-    }
     fn apply_item_turnin_changes(
         &mut self,
         player_guid: ObjectGuid,
@@ -186,47 +180,7 @@ impl VendorSessionHostLikeCpp for WorldSession {
             operation,
         )
     }
-    fn repair_inventory_item_durability_with_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        item_guid: ObjectGuid,
-        take_cost: bool,
-        discount: f32,
-        repair_cost_rate: f32,
-    ) -> impl Future<Output = bool> + Send {
-        WorldSession::repair_inventory_item_durability_with_generator_like_cpp(
-            self,
-            item_guid_generator,
-            item_guid,
-            take_cost,
-            discount,
-            repair_cost_rate,
-        )
-    }
-    fn repair_all_inventory_item_durability_with_guild_bank_and_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        discount: f32,
-        repair_cost_rate: f32,
-    ) -> impl Future<Output = bool> + Send {
-        WorldSession::repair_all_inventory_item_durability_with_guild_bank_and_generator_like_cpp(
-            self,
-            item_guid_generator,
-            discount,
-            repair_cost_rate,
-        )
-    }
-    fn repair_all_inventory_item_durability_with_player_money_and_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        discount: f32,
-        repair_cost_rate: f32,
-    ) -> impl Future<Output = bool> + Send {
-        WorldSession::repair_all_inventory_item_durability_with_player_money_and_generator_like_cpp(
-            self,
-            item_guid_generator,
-            discount,
-            repair_cost_rate,
-        )
+    fn item_appearance_known_spells_like_cpp(&self) -> Vec<i32> {
+        wow_world_spell::known_spells_like_cpp(self)
     }
 }

@@ -30,7 +30,7 @@ impl wow_world_spell::SpellbookHostLikeCpp for WorldSession {
         WorldSession::mutate_player_spell_runtime_like_cpp(self, f)
     }
     fn represented_auto_unequip_offhand_if_need_like_cpp(&mut self, force: bool) -> bool {
-        WorldSession::represented_auto_unequip_offhand_if_need_like_cpp(self, force)
+        wow_world_inventory::represented_auto_unequip_offhand_if_need_like_cpp(self, force)
     }
     fn remove_represented_auras_due_to_spell_like_cpp(&mut self, spell_id: i32) -> usize {
         wow_world_spell::remove_represented_auras_due_to_spell_like_cpp(self, spell_id)

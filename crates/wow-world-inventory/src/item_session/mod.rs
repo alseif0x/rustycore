@@ -171,7 +171,6 @@ pub trait ItemSessionHostLikeCpp: VendorSessionHostLikeCpp {
         added_items_in_order: &[(u32, u32, u32)],
     ) -> Vec<PlayerQuestStatusRecord>;
     fn publish_inventory_position_changes_like_cpp(&mut self, positions: &[(u8, u8)]);
-    fn send_represented_item_bonus_player_stat_update_like_cpp(&mut self) -> bool;
     fn represented_bag_contains_active_item_loot_like_cpp(&self, bag_guid: ObjectGuid) -> bool;
     fn do_loot_release_all_like_cpp(
         &mut self,

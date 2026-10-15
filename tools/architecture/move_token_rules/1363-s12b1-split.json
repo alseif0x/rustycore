@@ -1,0 +1,443 @@
+{
+ "slice": "#1363 slice 12b1 (player items -> wow-world-inventory, split rules)",
+ "base": "91d9f12bb",
+ "moved": [
+  "apply_represented_durability_loss_all_like_cpp",
+  "apply_represented_durability_points_loss_all_like_cpp",
+  "apply_represented_durability_points_loss_at_slot_like_cpp",
+  "apply_represented_durability_loss_at_slot_like_cpp",
+  "apply_represented_durability_loss_item_like_cpp",
+  "apply_represented_durability_points_loss_like_cpp",
+  "apply_durability_damage_pct_effect_like_cpp",
+  "represented_durability_loss_aura_multiplier_like_cpp",
+  "represented_prevent_durability_loss_like_cpp",
+  "apply_represented_durability_loss_on_death_like_cpp",
+  "publish_creature_melee_death_durability_loss_like_cpp",
+  "represented_player_in_battleground_like_cpp",
+  "repair_inventory_item_durability_with_generator_like_cpp",
+  "apply_inventory_item_durability_repair_runtime_like_cpp",
+  "repair_all_inventory_item_durability_with_player_money_and_generator_like_cpp",
+  "repair_all_inventory_item_durability_with_guild_bank_and_generator_like_cpp",
+  "record_represented_item_mods_like_cpp",
+  "send_represented_item_bonus_player_stat_update_like_cpp",
+  "record_represented_items_set_item_like_cpp",
+  "record_represented_items_set_item_events_like_cpp",
+  "represented_auto_unequip_offhand_if_need_like_cpp",
+  "move_represented_direct_inventory_item_to_pos_like_cpp",
+  "move_represented_direct_inventory_item_like_cpp",
+  "record_direct_inventory_item_set_remove_like_cpp",
+  "record_represented_offhand_item_mod_remove_like_cpp",
+  "plan_store_existing_direct_inventory_item_like_cpp",
+  "plan_store_existing_inventory_item_like_cpp",
+  "on_item_added_to_collection_like_cpp",
+  "add_item_appearance_for_item_like_cpp",
+  "add_item_appearance_for_runtime_item_like_cpp",
+  "can_add_item_appearance_represented_like_cpp"
+ ],
+ "rules": [
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?(async\\s+)?fn record_represented_item_mods_like_cpp\\(\\s*&(mut )?self,?",
+   "pub \\1fn record_represented_item_mods_like_cpp<H: VendorSessionHostLikeCpp>(host: &\\2H,"
+  ],
+  [
+   "(fn record_represented_item_mods_like_cpp<H: VendorSessionHostLikeCpp>\\(host: &(?:mut )?H,[^{]*\\{)",
+   "\\1\\n    let (inventory, hub) = host.split_inventory_mut();\\n    let HubMut { core, catalogs, #[cfg(any(test, feature = \"test-fixtures\"))] fixtures, .. } = hub;"
+  ],
+  [
+   "(fn record_represented_item_mods_like_cpp<H: VendorSessionHostLikeCpp>\\(host: &(?:mut )?H,[^{]*\\{)",
+   "\\1\\n    let world_test = world_test_consumer_like_cpp(host);"
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?(async\\s+)?fn move_represented_direct_inventory_item_like_cpp\\(\\s*&(mut )?self,?",
+   "\\1fn move_represented_direct_inventory_item_like_cpp<H: ItemSessionHostLikeCpp>(host: &\\2H,"
+  ],
+  [
+   "(fn move_represented_direct_inventory_item_like_cpp<H: ItemSessionHostLikeCpp>\\(host: &(?:mut )?H,[^{]*\\{)",
+   "\\1\\n    let (inventory, hub) = host.split_inventory_mut();\\n    let HubMut { core, .. } = hub;"
+  ],
+  [
+   "#\\[cfg\\(not\\(test\\)\\)\\]\\s*let _ = reason;",
+   "#[cfg(not(any(test, feature = \"test-fixtures\")))]\n        let _ = reason;"
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*let mut stored_destination = None;",
+   "#[cfg(any(test, feature = \"test-fixtures\"))]\n        let mut stored_destination = None;"
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*\\{\\s*stored_destination = Some\\(\\(bag, slot\\)\\);\\s*\\}",
+   "#[cfg(any(test, feature = \"test-fixtures\"))]\n                {\n                    stored_destination = Some((bag, slot));\n                }"
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*self\\s*\\.\\s*inventory\\s*\\.\\s*record_represented_auto_unequip_offhand_request_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\);",
+   "#[cfg(any(test, feature = \"test-fixtures\"))]\n        if world_test {\n            host.split_inventory_mut()\n                .0\n                .record_represented_auto_unequip_offhand_request_like_cpp(\\1);\n        }"
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*let withdraw_amount = ",
+   "#[cfg(any(test, feature = \"test-fixtures\"))]\n        let withdraw_amount = "
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*self\\s*\\.\\s*inventory\\s*\\.\\s*record_represented_guild_repair_bank_withdraw_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\);",
+   "#[cfg(any(test, feature = \"test-fixtures\"))]\n        if world_test {\n            host.split_inventory_mut()\n                .0\n                .record_represented_guild_repair_bank_withdraw_like_cpp(\\1);\n        }"
+  ],
+  [
+   "crate::session::split_inventory_ref\\(self\\)",
+   "host.split_inventory_ref()"
+  ],
+  [
+   "crate::session::split_inventory_mut\\(self\\)",
+   "host.split_inventory_mut()"
+  ],
+  [
+   "crate::session::hub_ref\\(self\\)",
+   "host.hub_ref()"
+  ],
+  [
+   "crate::session::hub_mut\\(self\\)",
+   "host.hub_mut()"
+  ],
+  [
+   "wow_world_spell::known_spells_like_cpp\\(self\\)",
+   "host.item_appearance_known_spells_like_cpp()"
+  ],
+  [
+   "(\\breturn\\s+)\\bself\\s*\\.\\s*resolved_inventory_item_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "\\1{ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_item_like_cpp(hub, \\2) }"
+  ],
+  [
+   "(\\blet\\s+\\w+\\s*=\\s*)\\bself\\s*\\.\\s*resolved_inventory_item_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*;)",
+   "\\1{ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_item_like_cpp(hub, \\2) }\\3"
+  ],
+  [
+   "(\\bif\\s+let\\s+[^=]+=\\s*)\\bself\\s*\\.\\s*resolved_inventory_item_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\{)",
+   "\\1{ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_item_like_cpp(hub, \\2) }\\3"
+  ],
+  [
+   "\\bself\\s*\\.\\s*resolved_inventory_item_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\}\\s*)\\Z",
+   "{ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_item_like_cpp(hub, \\1) }\\2"
+  ],
+  [
+   "\\bself\\s*\\.\\s*resolved_inventory_item_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "({ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_item_like_cpp(hub, \\1) })"
+  ],
+  [
+   "(\\breturn\\s+)\\bself\\s*\\.\\s*resolved_inventory_item_object_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "\\1{ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_item_object_like_cpp(hub, \\2) }"
+  ],
+  [
+   "(\\blet\\s+\\w+\\s*=\\s*)\\bself\\s*\\.\\s*resolved_inventory_item_object_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*;)",
+   "\\1{ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_item_object_like_cpp(hub, \\2) }\\3"
+  ],
+  [
+   "(\\bif\\s+let\\s+[^=]+=\\s*)\\bself\\s*\\.\\s*resolved_inventory_item_object_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\{)",
+   "\\1{ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_item_object_like_cpp(hub, \\2) }\\3"
+  ],
+  [
+   "\\bself\\s*\\.\\s*resolved_inventory_item_object_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\}\\s*)\\Z",
+   "{ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_item_object_like_cpp(hub, \\1) }\\2"
+  ],
+  [
+   "\\bself\\s*\\.\\s*resolved_inventory_item_object_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "({ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_item_object_like_cpp(hub, \\1) })"
+  ],
+  [
+   "(\\breturn\\s+)\\bself\\s*\\.\\s*resolved_inventory_item_objects_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "\\1{ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_item_objects_like_cpp(hub, \\2) }"
+  ],
+  [
+   "(\\blet\\s+\\w+\\s*=\\s*)\\bself\\s*\\.\\s*resolved_inventory_item_objects_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*;)",
+   "\\1{ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_item_objects_like_cpp(hub, \\2) }\\3"
+  ],
+  [
+   "(\\bif\\s+let\\s+[^=]+=\\s*)\\bself\\s*\\.\\s*resolved_inventory_item_objects_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\{)",
+   "\\1{ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_item_objects_like_cpp(hub, \\2) }\\3"
+  ],
+  [
+   "\\bself\\s*\\.\\s*resolved_inventory_item_objects_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\}\\s*)\\Z",
+   "{ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_item_objects_like_cpp(hub, \\1) }\\2"
+  ],
+  [
+   "\\bself\\s*\\.\\s*resolved_inventory_item_objects_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "({ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_item_objects_like_cpp(hub, \\1) })"
+  ],
+  [
+   "(\\breturn\\s+)\\bself\\s*\\.\\s*resolved_inventory_items_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "\\1{ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_items_like_cpp(hub, \\2) }"
+  ],
+  [
+   "(\\blet\\s+\\w+\\s*=\\s*)\\bself\\s*\\.\\s*resolved_inventory_items_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*;)",
+   "\\1{ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_items_like_cpp(hub, \\2) }\\3"
+  ],
+  [
+   "(\\bif\\s+let\\s+[^=]+=\\s*)\\bself\\s*\\.\\s*resolved_inventory_items_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\{)",
+   "\\1{ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_items_like_cpp(hub, \\2) }\\3"
+  ],
+  [
+   "\\bself\\s*\\.\\s*resolved_inventory_items_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\}\\s*)\\Z",
+   "{ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_items_like_cpp(hub, \\1) }\\2"
+  ],
+  [
+   "\\bself\\s*\\.\\s*resolved_inventory_items_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "({ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_items_like_cpp(hub, \\1) })"
+  ],
+  [
+   "(\\breturn\\s+)\\bself\\s*\\.\\s*get_inventory_item_by_pos\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "\\1{ let (state, hub) = host.split_inventory_ref(); state.get_inventory_item_by_pos(hub, \\2) }"
+  ],
+  [
+   "(\\blet\\s+\\w+\\s*=\\s*)\\bself\\s*\\.\\s*get_inventory_item_by_pos\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*;)",
+   "\\1{ let (state, hub) = host.split_inventory_ref(); state.get_inventory_item_by_pos(hub, \\2) }\\3"
+  ],
+  [
+   "(\\bif\\s+let\\s+[^=]+=\\s*)\\bself\\s*\\.\\s*get_inventory_item_by_pos\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\{)",
+   "\\1{ let (state, hub) = host.split_inventory_ref(); state.get_inventory_item_by_pos(hub, \\2) }\\3"
+  ],
+  [
+   "\\bself\\s*\\.\\s*get_inventory_item_by_pos\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\}\\s*)\\Z",
+   "{ let (state, hub) = host.split_inventory_ref(); state.get_inventory_item_by_pos(hub, \\1) }\\2"
+  ],
+  [
+   "\\bself\\s*\\.\\s*get_inventory_item_by_pos\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "({ let (state, hub) = host.split_inventory_ref(); state.get_inventory_item_by_pos(hub, \\1) })"
+  ],
+  [
+   "(\\breturn\\s+)\\bself\\s*\\.\\s*send_bag_slot_values_update_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "\\1{ let (state, hub) = host.split_inventory_ref(); state.send_bag_slot_values_update_like_cpp(hub, \\2) }"
+  ],
+  [
+   "(\\blet\\s+\\w+\\s*=\\s*)\\bself\\s*\\.\\s*send_bag_slot_values_update_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*;)",
+   "\\1{ let (state, hub) = host.split_inventory_ref(); state.send_bag_slot_values_update_like_cpp(hub, \\2) }\\3"
+  ],
+  [
+   "(\\bif\\s+let\\s+[^=]+=\\s*)\\bself\\s*\\.\\s*send_bag_slot_values_update_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\{)",
+   "\\1{ let (state, hub) = host.split_inventory_ref(); state.send_bag_slot_values_update_like_cpp(hub, \\2) }\\3"
+  ],
+  [
+   "\\bself\\s*\\.\\s*send_bag_slot_values_update_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\}\\s*)\\Z",
+   "{ let (state, hub) = host.split_inventory_ref(); state.send_bag_slot_values_update_like_cpp(hub, \\1) }\\2"
+  ],
+  [
+   "\\bself\\s*\\.\\s*send_bag_slot_values_update_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "({ let (state, hub) = host.split_inventory_ref(); state.send_bag_slot_values_update_like_cpp(hub, \\1) })"
+  ],
+  [
+   "(\\breturn\\s+)\\bself\\s*\\.\\s*represented_item_reputation_rank_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "\\1{ let (state, hub) = host.split_inventory_ref(); state.represented_item_reputation_rank_like_cpp(hub, \\2) }"
+  ],
+  [
+   "(\\blet\\s+\\w+\\s*=\\s*)\\bself\\s*\\.\\s*represented_item_reputation_rank_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*;)",
+   "\\1{ let (state, hub) = host.split_inventory_ref(); state.represented_item_reputation_rank_like_cpp(hub, \\2) }\\3"
+  ],
+  [
+   "(\\bif\\s+let\\s+[^=]+=\\s*)\\bself\\s*\\.\\s*represented_item_reputation_rank_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\{)",
+   "\\1{ let (state, hub) = host.split_inventory_ref(); state.represented_item_reputation_rank_like_cpp(hub, \\2) }\\3"
+  ],
+  [
+   "\\bself\\s*\\.\\s*represented_item_reputation_rank_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\}\\s*)\\Z",
+   "{ let (state, hub) = host.split_inventory_ref(); state.represented_item_reputation_rank_like_cpp(hub, \\1) }\\2"
+  ],
+  [
+   "\\bself\\s*\\.\\s*represented_item_reputation_rank_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "({ let (state, hub) = host.split_inventory_ref(); state.represented_item_reputation_rank_like_cpp(hub, \\1) })"
+  ],
+  [
+   "(\\breturn\\s+)\\bself\\s*\\.\\s*apply_inventory_item_object_updates_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "\\1{ let (state, mut hub) = host.split_inventory_mut(); state.apply_inventory_item_object_updates_like_cpp(&mut hub, \\2) }"
+  ],
+  [
+   "(\\blet\\s+\\w+\\s*=\\s*)\\bself\\s*\\.\\s*apply_inventory_item_object_updates_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*;)",
+   "\\1{ let (state, mut hub) = host.split_inventory_mut(); state.apply_inventory_item_object_updates_like_cpp(&mut hub, \\2) }\\3"
+  ],
+  [
+   "(\\bif\\s+let\\s+[^=]+=\\s*)\\bself\\s*\\.\\s*apply_inventory_item_object_updates_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\{)",
+   "\\1{ let (state, mut hub) = host.split_inventory_mut(); state.apply_inventory_item_object_updates_like_cpp(&mut hub, \\2) }\\3"
+  ],
+  [
+   "\\bself\\s*\\.\\s*apply_inventory_item_object_updates_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\}\\s*)\\Z",
+   "{ let (state, mut hub) = host.split_inventory_mut(); state.apply_inventory_item_object_updates_like_cpp(&mut hub, \\1) }\\2"
+  ],
+  [
+   "\\bself\\s*\\.\\s*apply_inventory_item_object_updates_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "({ let (state, mut hub) = host.split_inventory_mut(); state.apply_inventory_item_object_updates_like_cpp(&mut hub, \\1) })"
+  ],
+  [
+   "(\\breturn\\s+)\\bself\\s*\\.\\s*remove_inventory_item_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "\\1{ let (state, mut hub) = host.split_inventory_mut(); state.remove_inventory_item_like_cpp(&mut hub, \\2) }"
+  ],
+  [
+   "(\\blet\\s+\\w+\\s*=\\s*)\\bself\\s*\\.\\s*remove_inventory_item_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*;)",
+   "\\1{ let (state, mut hub) = host.split_inventory_mut(); state.remove_inventory_item_like_cpp(&mut hub, \\2) }\\3"
+  ],
+  [
+   "(\\bif\\s+let\\s+[^=]+=\\s*)\\bself\\s*\\.\\s*remove_inventory_item_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\{)",
+   "\\1{ let (state, mut hub) = host.split_inventory_mut(); state.remove_inventory_item_like_cpp(&mut hub, \\2) }\\3"
+  ],
+  [
+   "\\bself\\s*\\.\\s*remove_inventory_item_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\}\\s*)\\Z",
+   "{ let (state, mut hub) = host.split_inventory_mut(); state.remove_inventory_item_like_cpp(&mut hub, \\1) }\\2"
+  ],
+  [
+   "\\bself\\s*\\.\\s*remove_inventory_item_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "({ let (state, mut hub) = host.split_inventory_mut(); state.remove_inventory_item_like_cpp(&mut hub, \\1) })"
+  ],
+  [
+   "(\\breturn\\s+)\\bself\\s*\\.\\s*remove_inventory_item_duration_refs_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "\\1{ let (state, mut hub) = host.split_inventory_mut(); state.remove_inventory_item_duration_refs_like_cpp(&mut hub, \\2) }"
+  ],
+  [
+   "(\\blet\\s+\\w+\\s*=\\s*)\\bself\\s*\\.\\s*remove_inventory_item_duration_refs_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*;)",
+   "\\1{ let (state, mut hub) = host.split_inventory_mut(); state.remove_inventory_item_duration_refs_like_cpp(&mut hub, \\2) }\\3"
+  ],
+  [
+   "(\\bif\\s+let\\s+[^=]+=\\s*)\\bself\\s*\\.\\s*remove_inventory_item_duration_refs_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\{)",
+   "\\1{ let (state, mut hub) = host.split_inventory_mut(); state.remove_inventory_item_duration_refs_like_cpp(&mut hub, \\2) }\\3"
+  ],
+  [
+   "\\bself\\s*\\.\\s*remove_inventory_item_duration_refs_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\}\\s*)\\Z",
+   "{ let (state, mut hub) = host.split_inventory_mut(); state.remove_inventory_item_duration_refs_like_cpp(&mut hub, \\1) }\\2"
+  ],
+  [
+   "\\bself\\s*\\.\\s*remove_inventory_item_duration_refs_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "({ let (state, mut hub) = host.split_inventory_mut(); state.remove_inventory_item_duration_refs_like_cpp(&mut hub, \\1) })"
+  ],
+  [
+   "(\\breturn\\s+)\\bself\\s*\\.\\s*remove_inventory_tradeable_item_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "\\1{ let (state, mut hub) = host.split_inventory_mut(); state.remove_inventory_tradeable_item_like_cpp(&mut hub, \\2) }"
+  ],
+  [
+   "(\\blet\\s+\\w+\\s*=\\s*)\\bself\\s*\\.\\s*remove_inventory_tradeable_item_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*;)",
+   "\\1{ let (state, mut hub) = host.split_inventory_mut(); state.remove_inventory_tradeable_item_like_cpp(&mut hub, \\2) }\\3"
+  ],
+  [
+   "(\\bif\\s+let\\s+[^=]+=\\s*)\\bself\\s*\\.\\s*remove_inventory_tradeable_item_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\{)",
+   "\\1{ let (state, mut hub) = host.split_inventory_mut(); state.remove_inventory_tradeable_item_like_cpp(&mut hub, \\2) }\\3"
+  ],
+  [
+   "\\bself\\s*\\.\\s*remove_inventory_tradeable_item_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\}\\s*)\\Z",
+   "{ let (state, mut hub) = host.split_inventory_mut(); state.remove_inventory_tradeable_item_like_cpp(&mut hub, \\1) }\\2"
+  ],
+  [
+   "\\bself\\s*\\.\\s*remove_inventory_tradeable_item_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "({ let (state, mut hub) = host.split_inventory_mut(); state.remove_inventory_tradeable_item_like_cpp(&mut hub, \\1) })"
+  ],
+  [
+   "(\\breturn\\s+)\\bself\\s*\\.\\s*add_item_appearance_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "\\1{ let (state, mut hub) = host.split_inventory_mut(); state.add_item_appearance_like_cpp(&mut hub, \\2) }"
+  ],
+  [
+   "(\\blet\\s+\\w+\\s*=\\s*)\\bself\\s*\\.\\s*add_item_appearance_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*;)",
+   "\\1{ let (state, mut hub) = host.split_inventory_mut(); state.add_item_appearance_like_cpp(&mut hub, \\2) }\\3"
+  ],
+  [
+   "(\\bif\\s+let\\s+[^=]+=\\s*)\\bself\\s*\\.\\s*add_item_appearance_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\{)",
+   "\\1{ let (state, mut hub) = host.split_inventory_mut(); state.add_item_appearance_like_cpp(&mut hub, \\2) }\\3"
+  ],
+  [
+   "\\bself\\s*\\.\\s*add_item_appearance_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\}\\s*)\\Z",
+   "{ let (state, mut hub) = host.split_inventory_mut(); state.add_item_appearance_like_cpp(&mut hub, \\1) }\\2"
+  ],
+  [
+   "\\bself\\s*\\.\\s*add_item_appearance_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "({ let (state, mut hub) = host.split_inventory_mut(); state.add_item_appearance_like_cpp(&mut hub, \\1) })"
+  ],
+  [
+   "(\\breturn\\s+)\\bself\\s*\\.\\s*add_temporary_item_appearance_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "\\1{ let (state, mut hub) = host.split_inventory_mut(); state.add_temporary_item_appearance_like_cpp(&mut hub, \\2) }"
+  ],
+  [
+   "(\\blet\\s+\\w+\\s*=\\s*)\\bself\\s*\\.\\s*add_temporary_item_appearance_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*;)",
+   "\\1{ let (state, mut hub) = host.split_inventory_mut(); state.add_temporary_item_appearance_like_cpp(&mut hub, \\2) }\\3"
+  ],
+  [
+   "(\\bif\\s+let\\s+[^=]+=\\s*)\\bself\\s*\\.\\s*add_temporary_item_appearance_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\{)",
+   "\\1{ let (state, mut hub) = host.split_inventory_mut(); state.add_temporary_item_appearance_like_cpp(&mut hub, \\2) }\\3"
+  ],
+  [
+   "\\bself\\s*\\.\\s*add_temporary_item_appearance_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\}\\s*)\\Z",
+   "{ let (state, mut hub) = host.split_inventory_mut(); state.add_temporary_item_appearance_like_cpp(&mut hub, \\1) }\\2"
+  ],
+  [
+   "\\bself\\s*\\.\\s*add_temporary_item_appearance_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "({ let (state, mut hub) = host.split_inventory_mut(); state.add_temporary_item_appearance_like_cpp(&mut hub, \\1) })"
+  ],
+  [
+   "(\\breturn\\s+)\\bself\\s*\\.\\s*add_account_heirloom_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "\\1{ let (state, mut hub) = host.split_lifecycle_mut(); state.add_account_heirloom_like_cpp(&mut hub, \\2) }"
+  ],
+  [
+   "(\\blet\\s+\\w+\\s*=\\s*)\\bself\\s*\\.\\s*add_account_heirloom_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*;)",
+   "\\1{ let (state, mut hub) = host.split_lifecycle_mut(); state.add_account_heirloom_like_cpp(&mut hub, \\2) }\\3"
+  ],
+  [
+   "(\\bif\\s+let\\s+[^=]+=\\s*)\\bself\\s*\\.\\s*add_account_heirloom_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\{)",
+   "\\1{ let (state, mut hub) = host.split_lifecycle_mut(); state.add_account_heirloom_like_cpp(&mut hub, \\2) }\\3"
+  ],
+  [
+   "\\bself\\s*\\.\\s*add_account_heirloom_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)(\\s*\\}\\s*)\\Z",
+   "{ let (state, mut hub) = host.split_lifecycle_mut(); state.add_account_heirloom_like_cpp(&mut hub, \\1) }\\2"
+  ],
+  [
+   "\\bself\\s*\\.\\s*add_account_heirloom_like_cpp\\(((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))*)\\)",
+   "({ let (state, mut hub) = host.split_lifecycle_mut(); state.add_account_heirloom_like_cpp(&mut hub, \\1) })"
+  ],
+  [
+   "\\bself\\s*\\.\\s*item_modified_appearance_ref\\(",
+   "host.hub_ref().catalogs.item_modified_appearance_ref("
+  ],
+  [
+   "\\bself\\s*\\.\\s*item_modified_appearance_for_item\\(",
+   "host.hub_ref().catalogs.item_modified_appearance_for_item("
+  ],
+  [
+   "\\bself\\s*\\.\\s*item_storage_template\\(",
+   "host.hub_ref().catalogs.item_storage_template("
+  ],
+  [
+   "\\bself\\s*\\.\\s*item_template_quality\\(",
+   "host.hub_ref().catalogs.item_template_quality("
+  ],
+  [
+   "\\bself\\s*\\.\\s*kick\\(",
+   "host.core_mut().kick("
+  ],
+  [
+   "\\bself\\s*\\.\\s*{name}\\(",
+   "{name}(host, "
+  ],
+  [
+   "&self\\s*\\.\\s*fixtures\\s*\\.",
+   "&fixtures."
+  ],
+  [
+   "\\bself\\s*\\.\\s*catalogs\\s*\\.",
+   "catalogs."
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.",
+   "core."
+  ],
+  [
+   "\\bself\\s*\\.\\s*inventory\\b",
+   "inventory"
+  ],
+  [
+   "\\bself\\s*\\.\\s*",
+   "host."
+  ],
+  [
+   "\\bself\\b",
+   "host"
+  ],
+  [
+   "cfg!\\(test\\)",
+   "world_test"
+  ],
+  [
+   "wow_world_inventory::",
+   "crate::"
+  ],
+  [
+   "pub\\(in crate::session\\) fn player_class_by_armor_subclass_like_cpp",
+   "fn player_class_by_armor_subclass_like_cpp"
+  ]
+ ]
+}

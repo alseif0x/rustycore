@@ -42,9 +42,6 @@ impl WorldSession {
     pub(crate) fn item_template_start_quest_id(&self, item_id: u32) -> Option<i32> {
         self.catalogs.item_template_start_quest_id(item_id)
     }
-    pub(crate) fn item_template_quality(&self, item_id: u32) -> Option<i8> {
-        self.catalogs.item_template_quality(item_id)
-    }
     pub(crate) fn item_storage_template(&self, item_id: u32) -> Option<ItemStorageTemplate> {
         self.catalogs.item_storage_template(item_id)
     }

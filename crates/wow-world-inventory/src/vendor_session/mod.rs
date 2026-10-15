@@ -30,7 +30,7 @@ use wow_core::ObjectGuid;
 use wow_data::PlayerConditionContextLikeCpp;
 use wow_entities::{
     Item, ItemPosCount, MAX_MONEY_AMOUNT, PlayerCurrency, PlayerInventoryItem as InventoryItem,
-    PlayerValuesUpdate, SendNewItemPlan, WorldObject,
+    SendNewItemPlan, WorldObject,
 };
 use wow_world_core::session::{HubMut, PlayerCurrencyDelta};
 use wow_world_interaction::InteractionState;
@@ -122,7 +122,6 @@ pub trait VendorSessionHostLikeCpp: BattlePetPurchaseHostLikeCpp {
         context: ItemContext,
         slot: u8,
     ) -> Item;
-    fn on_item_added_to_collection_like_cpp(&mut self, item: &Item) -> Vec<PlayerValuesUpdate>;
     fn apply_item_turnin_changes(
         &mut self,
         player_guid: ObjectGuid,
@@ -148,26 +147,9 @@ pub trait VendorSessionHostLikeCpp: BattlePetPurchaseHostLikeCpp {
     ) -> impl Future<Output = Option<ExclusivePlayerMoneyPersistenceLikeCpp>> + Send
     where
         F: Future<Output = wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp> + Send;
-    fn repair_inventory_item_durability_with_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        item_guid: ObjectGuid,
-        take_cost: bool,
-        discount: f32,
-        repair_cost_rate: f32,
-    ) -> impl Future<Output = bool> + Send;
-    fn repair_all_inventory_item_durability_with_guild_bank_and_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        discount: f32,
-        repair_cost_rate: f32,
-    ) -> impl Future<Output = bool> + Send;
-    fn repair_all_inventory_item_durability_with_player_money_and_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        discount: f32,
-        repair_cost_rate: f32,
-    ) -> impl Future<Output = bool> + Send;
+    /// The Player's known spells (`Player::HasSpell` source), read by the
+    /// appearance gate's required-ability and learning-effect checks.
+    fn item_appearance_known_spells_like_cpp(&self) -> Vec<i32>;
 }
 
 fn player_money_gain_like_cpp(current_money: u64, amount: u64) -> Option<u64> {

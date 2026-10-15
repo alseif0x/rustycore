@@ -10,6 +10,11 @@ use wow_constants::NPCFlags1;
 use wow_packet::packets::misc::RepairItem;
 
 use super::VendorSessionHostLikeCpp;
+use crate::player_items_session::{
+    repair_all_inventory_item_durability_with_guild_bank_and_generator_like_cpp,
+    repair_all_inventory_item_durability_with_player_money_and_generator_like_cpp,
+    repair_inventory_item_durability_with_generator_like_cpp,
+};
 
 /// CMSG_REPAIR_ITEM — player repairs item at a repair vendor.
 /// C++ ref: WorldSession::HandleRepairItemOpcode.
@@ -40,15 +45,15 @@ pub async fn handle_repair_item_with_generator_like_cpp<H: VendorSessionHostLike
     let repair_cost_rate = host.hub_ref().config.repair_cost_rate_like_cpp();
 
     if !repair.item_guid.is_empty() {
-        let repaired = host
-            .repair_inventory_item_durability_with_generator_like_cpp(
-                item_guid_generator,
-                repair.item_guid,
-                true,
-                discount_mod,
-                repair_cost_rate,
-            )
-            .await;
+        let repaired = repair_inventory_item_durability_with_generator_like_cpp(
+            host,
+            item_guid_generator,
+            repair.item_guid,
+            true,
+            discount_mod,
+            repair_cost_rate,
+        )
+        .await;
         debug!(
             npc_guid = ?repair.npc_guid,
             item_guid = ?repair.item_guid,
@@ -60,13 +65,13 @@ pub async fn handle_repair_item_with_generator_like_cpp<H: VendorSessionHostLike
     }
 
     if repair.use_guild_bank {
-        let repaired = host
-            .repair_all_inventory_item_durability_with_guild_bank_and_generator_like_cpp(
-                item_guid_generator,
-                discount_mod,
-                repair_cost_rate,
-            )
-            .await;
+        let repaired = repair_all_inventory_item_durability_with_guild_bank_and_generator_like_cpp(
+            host,
+            item_guid_generator,
+            discount_mod,
+            repair_cost_rate,
+        )
+        .await;
         debug!(
             npc_guid = ?repair.npc_guid,
             repaired,
@@ -76,13 +81,13 @@ pub async fn handle_repair_item_with_generator_like_cpp<H: VendorSessionHostLike
         return;
     }
 
-    let repaired = host
-        .repair_all_inventory_item_durability_with_player_money_and_generator_like_cpp(
-            item_guid_generator,
-            discount_mod,
-            repair_cost_rate,
-        )
-        .await;
+    let repaired = repair_all_inventory_item_durability_with_player_money_and_generator_like_cpp(
+        host,
+        item_guid_generator,
+        discount_mod,
+        repair_cost_rate,
+    )
+    .await;
     debug!(
         npc_guid = ?repair.npc_guid,
         repaired,

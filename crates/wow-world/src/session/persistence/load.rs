@@ -62,7 +62,7 @@ impl WorldSession {
         // instance and calls `CollectionMgr::AddItemAppearance`; this DB shape
         // only carries the fixed-level modifier, so the effective appearance
         // modifier remains the template default zero.
-        let _ = self.add_item_appearance_for_item_like_cpp(item_entry, 0);
+        let _ = wow_world_inventory::add_item_appearance_for_item_like_cpp(self, item_entry, 0);
         true
     }
     pub(crate) async fn load_instance_time_restrictions_like_cpp(&mut self) {
