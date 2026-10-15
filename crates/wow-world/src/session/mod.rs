@@ -684,14 +684,13 @@ use wow_entities::{
     EQUIPMENT_SLOT_RANGED, GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0,
     INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT,
     Item, ItemDataUpdate, ItemPosCount, ItemStorageTemplate, ItemValuesUpdate, MAX_MONEY_AMOUNT,
-    MAX_POWERS_PER_CLASS, NULL_BAG, NULL_SLOT, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PhaseShift,
-    Player, PlayerEnchantTimeUpdate, PlayerInteractionDataLikeCpp, PlayerInventoryRuntime,
-    PlayerItemTimeUpdate, PlayerPetLifecycleStateLikeCpp, PlayerQuestGameplayState,
-    PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp,
-    QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END,
-    REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemPlan,
-    TYPEID_ITEM, UpdateMask, Vehicle, VisibleItemValues, WorldObject, is_equipment_packed_pos,
-    make_item_pos, parse_explored_zones_db_string_like_cpp,
+    MAX_POWERS_PER_CLASS, NULL_BAG, NULL_SLOT, PhaseShift, Player, PlayerEnchantTimeUpdate,
+    PlayerInteractionDataLikeCpp, PlayerInventoryRuntime, PlayerItemTimeUpdate,
+    PlayerPetLifecycleStateLikeCpp, PlayerQuestGameplayState, PlayerResurrectionRequestLikeCpp,
+    PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp, QUESTS_COMPLETED_BITS_PER_BLOCK,
+    QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery,
+    SendNewItemDisplayText, SendNewItemPlan, TYPEID_ITEM, UpdateMask, Vehicle, VisibleItemValues,
+    WorldObject, is_equipment_packed_pos, make_item_pos, parse_explored_zones_db_string_like_cpp,
 };
 #[cfg(test)]
 use wow_entities::{ActiveState, PetType, explored_zones_db_string_from_blocks_like_cpp};
@@ -734,8 +733,6 @@ use wow_packet::packets::quest::{
     QuestGiverRequestItemsCollect, QuestGiverRequestItemsCurrency, QuestListEntry,
     QuestObjectiveSimple, QuestRewardsBlock,
 };
-#[cfg(test)]
-use wow_social::group::GroupInfo;
 use wow_social::group::{
     GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry,
     PendingInvites, group_guid_by_db_store_id_like_cpp,
