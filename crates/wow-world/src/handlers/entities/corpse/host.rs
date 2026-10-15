@@ -75,7 +75,7 @@ impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
         &mut self,
         request: wow_entities::PlayerResurrectionRequestLikeCpp,
     ) -> bool {
-        WorldSession::schedule_represented_resurrection_after_teleport_like_cpp(self, request)
+        wow_world_entities::schedule_represented_resurrection_after_teleport_like_cpp(self, request)
     }
 
     fn teleport_to(

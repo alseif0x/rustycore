@@ -136,7 +136,7 @@ fn reward_creature_kill_reputation_branch_like_cpp<H: WorldEntitiesHostLikeCpp>(
         return;
     }
 
-    // Hoist the player identity: `self.player_*_like_cpp()` re-enters the
+    // Hoist the player identity: `host.hub_ref().player_*_like_cpp()` re-enters the
     // canonical manager lock held by the closure and would self-deadlock.
     let player_race = host.hub_ref().player_race_like_cpp();
     let player_class = host.hub_ref().player_class_like_cpp();

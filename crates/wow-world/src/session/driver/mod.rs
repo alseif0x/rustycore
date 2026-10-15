@@ -186,7 +186,7 @@ impl WorldSession {
             );
             let _ =
                 crate::session::hub_mut(self).set_represented_can_delay_teleport_like_cpp(false);
-            self.process_represented_delayed_teleport_after_update_like_cpp()
+            wow_world_entities::process_represented_delayed_teleport_after_update_like_cpp(self)
                 .await;
         }
 
@@ -294,7 +294,7 @@ impl WorldSession {
             )
             .await;
             self.sync_represented_farsight_clear_from_canonical_like_cpp();
-            self.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp();
+            wow_world_entities::send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(self);
             self.send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp();
         }
 

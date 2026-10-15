@@ -80,9 +80,8 @@ pub mod mailbox;
 mod money;
 mod movement;
 mod object_updates;
-pub(crate) use object_updates::dynamic_object_create_data_from_canonical_like_cpp;
+pub(crate) use wow_world_entities::dynamic_object_create_data_from_canonical_like_cpp;
 pub(crate) use wow_world_quest::represented_gameobject_dynamic_flags_update_like_cpp;
-pub(crate) use wow_world_visibility::represented_dynamic_object_values_update_delivery_fingerprint_like_cpp;
 mod persistence;
 mod pets;
 mod player_cast;
@@ -319,7 +318,6 @@ pub(crate) use money_persistence_contracts::PlayerMoneyCommitCancellationFenceLi
 use money_persistence_contracts::RepresentedTalentResetStatePlanLikeCpp;
 use money_persistence_contracts::reconcile_absolute_player_money_commit_like_cpp;
 mod movement_protocol;
-pub(crate) use movement_protocol::MoveTeleportAckActionLikeCpp;
 #[cfg(test)]
 pub(crate) use movement_protocol::{
     MoveSplineDoneTaxiActionLikeCpp, MoveSplineDoneTaxiEventLikeCpp, MoveTeleportAckEventLikeCpp,
@@ -509,8 +507,7 @@ use tracing::{debug, info, warn};
 
 use crate::battle_pet_account::BattlePetAccountAttachmentLikeCpp;
 use crate::entity_update_bridge::{
-    dynamic_object_values_update_to_update_object, item_values_update_to_update_object,
-    unit_values_update_to_packet,
+    item_values_update_to_update_object, unit_values_update_to_packet,
 };
 use crate::loot_persistence::DurableLootMoneyCompletionLikeCpp;
 #[cfg(test)]
@@ -814,21 +811,14 @@ use wow_world_spell::AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP;
 const AREA_FLAG_CONTESTED_LIKE_CPP: u32 = 0x0004_0000;
 const AREA_FLAG_COMBAT_ZONE_LIKE_CPP: u32 = 0x0100_0000;
 const CURRENCY_DB_UNUSED_FLAGS_LIKE_CPP: u8 = 0x13;
-pub(crate) use wow_world_core::session::movement_protocol::{
-    TELE_TO_SEAMLESS_LIKE_CPP, TeleportToOptionsLikeCpp,
-};
+pub(crate) use wow_world_core::session::movement_protocol::TeleportToOptionsLikeCpp;
 pub(crate) const TELE_TO_NONE_LIKE_CPP: TeleportToOptionsLikeCpp = 0x00;
 #[allow(dead_code)]
 pub(crate) const TELE_TO_GM_MODE_LIKE_CPP: TeleportToOptionsLikeCpp = 0x01;
 #[allow(dead_code)]
 pub(crate) const TELE_TO_NOT_LEAVE_TRANSPORT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x02;
 #[allow(dead_code)]
-pub(crate) const TELE_TO_NOT_LEAVE_COMBAT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x04;
-pub(crate) const TELE_TO_SPELL_LIKE_CPP: TeleportToOptionsLikeCpp = 0x10;
-#[allow(dead_code)]
 pub(crate) const TELE_TO_TRANSPORT_TELEPORT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x20;
-#[allow(dead_code)]
-pub(crate) const TELE_REVIVE_AT_TELEPORT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x40;
 #[cfg(test)]
 const SUMMON_PROPERTIES_ONLY_VISIBLE_TO_SUMMONER_LIKE_CPP: u32 = 0x0000_0010;
 #[cfg(test)]
@@ -850,13 +840,8 @@ const TRANSFER_ABORT_ERROR_LIKE_CPP: u32 = 1;
 const TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP: u32 = 2;
 const TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP: u32 = 4;
 const TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP: u32 = 6;
-const TRANSFER_ABORT_INSUF_EXPAN_LVL_LIKE_CPP: u32 = 7;
-const TRANSFER_ABORT_UNIQUE_MESSAGE_LIKE_CPP: u32 = 9;
 const TRANSFER_ABORT_NEED_GROUP_LIKE_CPP: u32 = 11;
-const TRANSFER_ABORT_MAP_NOT_ALLOWED_LIKE_CPP: u32 = 16;
-const CLASS_DEATH_KNIGHT_LIKE_CPP: u8 = 6;
-const DEATH_KNIGHT_START_MAP_LIKE_CPP: u16 = 609;
-const DEATH_KNIGHT_ESCAPE_SPELL_LIKE_CPP: i32 = 50977;
+use wow_world_entities::TRANSFER_ABORT_MAP_NOT_ALLOWED_LIKE_CPP;
 // C++ `SpellCastSource::Normal` is encoded in the six-bit Cast GUID subtype.
 // The capture contract validates this field rather than treating it as a runtime counter, so keep the canonical numeric value here.
 pub(crate) const CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP: u32 = 0x08000;

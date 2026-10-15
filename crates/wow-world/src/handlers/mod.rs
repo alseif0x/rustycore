@@ -42,6 +42,8 @@ mod aura_test_shims;
 #[cfg(test)]
 mod battle_pet_test_shims;
 #[cfg(test)]
+mod canonical_objects_test_shims;
+#[cfg(test)]
 mod character_query_test_shims;
 #[cfg(test)]
 mod item_test_shims;
@@ -65,6 +67,8 @@ mod spell_execution_test_shims;
 mod spellbook_test_shims;
 #[cfg(test)]
 mod talent_test_shims;
+#[cfg(test)]
+mod teleport_test_shims;
 #[cfg(test)]
 mod test_shims;
 #[cfg(test)]

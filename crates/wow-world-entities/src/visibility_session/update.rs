@@ -74,12 +74,19 @@ pub async fn update_visibility_with_catalogs_like_cpp<H: VisibilitySessionHostLi
     let canonical_gameobjects =
         super::queries::visible_gameobjects_from_canonical_map_like_cpp(host, map_id, &pos, range);
     let canonical_dynamic_objects =
-        host.visible_dynamic_objects_from_canonical_map_like_cpp(map_id, &pos, range);
+        super::canonical_objects::visible_dynamic_objects_from_canonical_map_like_cpp(
+            host, map_id, &pos, range,
+        );
     let canonical_area_triggers =
-        host.visible_area_triggers_from_canonical_map_like_cpp(map_id, &pos, range);
+        super::canonical_objects::visible_area_triggers_from_canonical_map_like_cpp(
+            host, map_id, &pos, range,
+        );
     let canonical_misc_objects =
-        host.visible_misc_objects_from_canonical_map_like_cpp(map_id, &pos, range);
-    let canonical_transports = host.visible_transports_from_canonical_map_like_cpp(map_id);
+        super::canonical_objects::visible_misc_objects_from_canonical_map_like_cpp(
+            host, map_id, &pos, range,
+        );
+    let canonical_transports =
+        super::canonical_objects::visible_transports_from_canonical_map_like_cpp(host, map_id);
     let transports_visibility_available = canonical_transports.is_some();
     let visible_other_players =
         host.visible_other_players_from_registry_like_cpp(map_id, &pos, range);

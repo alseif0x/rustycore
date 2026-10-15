@@ -6,7 +6,6 @@
 
 use super::WorldSession;
 
-pub(crate) use wow_world_core::session::movement_protocol::MoveTeleportAckActionLikeCpp;
 #[cfg(test)]
 pub(crate) use wow_world_core::session::movement_protocol::UnitMoveTypeLikeCpp;
 #[cfg(test)]

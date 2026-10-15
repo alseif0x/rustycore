@@ -370,9 +370,9 @@ impl<'a> MovementHandlerCxLikeCpp<'a> {
     /// C++ order: the body logs the ACK, then the near-teleport state machine
     /// (`IsBeingTeleportedNear`, the mover-GUID gate, the semaphore reset and the
     /// destination update) runs in
-    /// `WorldSession::handle_move_teleport_ack_like_cpp`, which lives on the
-    /// World session shell that the handler context does not reach; the thunk
-    /// applies that host step at this point.
+    /// `crate::handle_move_teleport_ack_like_cpp` (`teleport_session`, #1363
+    /// slice 11a), which needs the session host that the handler context does
+    /// not reach; the thunk applies that host step at this point.
     pub async fn handle_move_teleport_ack(
         &mut self,
         pkt: MoveTeleportAck,
@@ -550,8 +550,9 @@ pub trait MovementHandlerHostLikeCpp<C> {
 
     /// C++ `HandleMoveTeleportAck` (`MovementHandler.cpp:261`) runs the
     /// near-teleport state machine through
-    /// `WorldSession::handle_move_teleport_ack_like_cpp`, which lives on the
-    /// World session shell that the handler context does not reach.
+    /// `crate::handle_move_teleport_ack_like_cpp` (`teleport_session`, #1363
+    /// slice 11a), which needs the session host that the handler context does
+    /// not reach.
     fn handle_move_teleport_ack_like_cpp(
         &mut self,
         mover_guid: ObjectGuid,

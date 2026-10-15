@@ -80,7 +80,7 @@ impl WorldSession {
             }
         }
         wow_world_lifecycle::resummon_pet_temporary_unsummoned_like_cpp(self);
-        self.process_represented_delayed_resurrection_after_teleport_like_cpp();
+        wow_world_entities::process_represented_delayed_resurrection_after_teleport_like_cpp(self);
         self.core
             .with_owned_player_mut_like_cpp(|player| {
                 player.teleport_state_mut_like_cpp().post_add = None;
