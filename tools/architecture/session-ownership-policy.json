@@ -223,6 +223,14 @@
           "source_class": "test_fixture"
         },
         {
+          "module": "crate::handlers::canonical_objects_test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::character::account",
           "trait_path": null,
           "cfg": [],
@@ -1058,6 +1066,22 @@
           "source_class": "test_fixture"
         },
         {
+          "module": "crate::handlers::teleport_test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
+          "module": "crate::handlers::teleport_test_shims::far_transfer_f3_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::test_shims",
           "trait_path": null,
           "cfg": [
@@ -1452,6 +1476,12 @@
         {
           "module": "crate::session",
           "trait_path": "wow_world_entities :: CombatSessionHostLikeCpp",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_entities :: PlayerTeleportHostLikeCpp",
           "cfg": [],
           "source_class": "production"
         },
@@ -3347,6 +3377,38 @@
           "name": "handle_calendar_update_event",
           "visibility": "pub (crate)",
           "signature": "async fn handle_calendar_update_event (& mut self , _query : CalendarUpdateEvent)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::canonical_objects_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp (& mut self ,) -> usize",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::canonical_objects_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "visible_dynamic_objects_from_canonical_map_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn visible_dynamic_objects_from_canonical_map_like_cpp (& self , map_id : u16 , position : & wow_core :: Position , visibility_radius : f32 ,) -> Option < Vec < wow_packet :: packets :: update :: DynamicObjectCreateData > >",
           "cfg": [
             "cfg (test)"
           ],
@@ -6323,65 +6385,9 @@
           "module": "crate::handlers::character::visibility",
           "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
           "kind": "method",
-          "name": "visible_area_triggers_from_canonical_map_like_cpp",
-          "visibility": "private",
-          "signature": "fn visible_area_triggers_from_canonical_map_like_cpp (& self , map_id : u16 , position : & Position , visibility_radius : f32 ,) -> Option < Vec < AreaTriggerCreateData > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::visibility",
-          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
-          "kind": "method",
-          "name": "visible_dynamic_objects_from_canonical_map_like_cpp",
-          "visibility": "private",
-          "signature": "fn visible_dynamic_objects_from_canonical_map_like_cpp (& self , map_id : u16 , position : & Position , visibility_radius : f32 ,) -> Option < Vec < DynamicObjectCreateData > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::visibility",
-          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
-          "kind": "method",
-          "name": "visible_misc_objects_from_canonical_map_like_cpp",
-          "visibility": "private",
-          "signature": "fn visible_misc_objects_from_canonical_map_like_cpp (& self , map_id : u16 , position : & Position , visibility_radius : f32 ,) -> Option < (Vec < CorpseCreateData > , Vec < SceneObjectCreateData > , Vec < ConversationCreateData > ,) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::visibility",
-          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
-          "kind": "method",
           "name": "visible_other_players_from_registry_like_cpp",
           "visibility": "private",
           "signature": "fn visible_other_players_from_registry_like_cpp (& self , map_id : u16 , position : & Position , visibility_radius : f32 ,) -> Vec < (ObjectGuid , PlayerVisibilityCreateSnapshot) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::visibility",
-          "trait_path": "wow_world_entities :: VisibilitySessionHostLikeCpp",
-          "kind": "method",
-          "name": "visible_transports_from_canonical_map_like_cpp",
-          "visibility": "private",
-          "signature": "fn visible_transports_from_canonical_map_like_cpp (& self , map_id : u16 ,) -> Option < Vec < GameObjectCreateData > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -17631,6 +17637,135 @@
           ]
         },
         {
+          "module": "crate::handlers::teleport_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_move_teleport_ack_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn handle_move_teleport_ack_like_cpp (& mut self , mover_guid : ObjectGuid , ack_index : i32 , move_time : i32 ,) -> MoveTeleportAckActionLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::teleport_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "move_teleport_ack_events_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn move_teleport_ack_events_like_cpp (& self) -> & [MoveTeleportAckEventLikeCpp]",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::teleport_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "pending_teleport_save_destination_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn pending_teleport_save_destination_like_cpp (& self ,) -> Option < (u16 , wow_core :: Position) >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::teleport_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "process_represented_delayed_teleport_after_update_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn process_represented_delayed_teleport_after_update_like_cpp (& mut self ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::teleport_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_delayed_resurrection_after_teleport_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_delayed_resurrection_after_teleport_like_cpp (& self ,) -> Option < PlayerResurrectionRequestLikeCpp >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::teleport_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "schedule_represented_resurrection_after_teleport_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn schedule_represented_resurrection_after_teleport_like_cpp (& mut self , request : PlayerResurrectionRequestLikeCpp ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::teleport_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "teleport_to_with_options",
+          "visibility": "pub (crate)",
+          "signature": "async fn teleport_to_with_options (& mut self , new_map : u32 , new_pos : wow_core :: Position , options : TeleportToOptionsLikeCpp ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::teleport_test_shims::far_transfer_f3_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_represented_far_teleport_pending_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn set_represented_far_teleport_pending_like_cpp (& mut self , pending : bool) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "setter",
+            "visible"
+          ]
+        },
+        {
           "module": "crate::handlers::test_shims",
           "trait_path": null,
           "kind": "method",
@@ -22474,19 +22609,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "clear_active_player_transport_server_time_override_for_far_teleport_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn clear_active_player_transport_server_time_override_for_far_teleport_like_cpp (& mut self ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "clear_all_inventory_runtime_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn clear_all_inventory_runtime_like_cpp (& mut self)",
@@ -23455,17 +23577,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "exit_represented_vehicle_for_teleport_like_cpp",
-          "visibility": "private",
-          "signature": "fn exit_represented_vehicle_for_teleport_like_cpp (& mut self) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "expand_account_mount_faction_definitions_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn expand_account_mount_faction_definitions_like_cpp (& mut self)",
@@ -24020,19 +24131,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_move_teleport_ack_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_move_teleport_ack_like_cpp (& mut self , mover_guid : ObjectGuid , ack_index : i32 , move_time : i32 ,) -> MoveTeleportAckActionLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_represented_tavern_area_trigger_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn handle_represented_tavern_area_trigger_like_cpp (& mut self , trigger_id : u32 , entered : bool ,) -> bool",
@@ -24267,30 +24365,6 @@
           "guards": [
             "visible"
           ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "initiate_far_teleport_after_delay_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "async fn initiate_far_teleport_after_delay_like_cpp (& mut self , map_id : u32 , destination : wow_core :: Position , options : TeleportToOptionsLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "initiate_same_map_near_teleport_like_cpp",
-          "visibility": "private",
-          "signature": "fn initiate_same_map_near_teleport_like_cpp (& mut self , map_id : u32 , destination : wow_core :: Position , options : TeleportToOptionsLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
         },
         {
           "module": "crate::session",
@@ -25907,19 +25981,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "maybe_leave_represented_battleground_on_far_teleport_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn maybe_leave_represented_battleground_on_far_teleport_like_cpp (& mut self , new_map : u32 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "model_for_totem_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn model_for_totem_like_cpp (& self , spell_id : u32 , race_id : u8) -> u32",
@@ -26033,21 +26094,6 @@
           "name": "move_spline_done_taxi_events_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn move_spline_done_taxi_events_like_cpp (& self ,) -> & [MoveSplineDoneTaxiEventLikeCpp]",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "move_teleport_ack_events_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn move_teleport_ack_events_like_cpp (& self) -> & [MoveTeleportAckEventLikeCpp]",
           "cfg": [
             "cfg (test)"
           ],
@@ -26618,19 +26664,6 @@
           "name": "pending_teleport_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn pending_teleport_like_cpp (& self) -> Option < (u32 , Position) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "pending_teleport_save_destination_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn pending_teleport_save_destination_like_cpp (& self ,) -> Option < (u16 , Position) >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -27639,7 +27672,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_resurrection_state_snapshot_like_cpp",
-          "visibility": "pub (in crate :: session)",
+          "visibility": "pub (crate)",
           "signature": "fn player_resurrection_state_snapshot_like_cpp (& self ,) -> Option < PlayerResurrectionStateLikeCpp >",
           "cfg": [],
           "source_class": "production",
@@ -28101,32 +28134,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "process_represented_delayed_resurrection_after_teleport_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn process_represented_delayed_resurrection_after_teleport_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "process_represented_delayed_teleport_after_update_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "async fn process_represented_delayed_teleport_after_update_like_cpp (& mut self ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "process_represented_session_commands_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn process_represented_session_commands_like_cpp (& mut self)",
@@ -28504,17 +28511,6 @@
           "guards": [
             "visible"
           ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "record_move_teleport_ack_event_like_cpp",
-          "visibility": "private",
-          "signature": "fn record_move_teleport_ack_event_like_cpp (& mut self , mover_guid : ObjectGuid , ack_index : i32 , move_time : i32 , action : MoveTeleportAckActionLikeCpp , destination_map_id : Option < u16 > , destination_position : Option < wow_core :: Position > , old_zone_id : Option < u32 > , new_zone_id : Option < u32 > , new_area_id : Option < u32 > , honorless_target_cast : bool , pvp_disabled : bool , pet_resummon_requested : bool , delayed_operations_processed : bool ,) -> MoveTeleportAckActionLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
         },
         {
           "module": "crate::session",
@@ -30411,21 +30407,6 @@
           "name": "represented_current_vehicle_seat_can_switch_from_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_current_vehicle_seat_can_switch_from_like_cpp (& self) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_delayed_resurrection_after_teleport_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_delayed_resurrection_after_teleport_like_cpp (& self ,) -> Option < PlayerResurrectionRequestLikeCpp >",
           "cfg": [
             "cfg (test)"
           ],
@@ -33588,17 +33569,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "resurrect_player_percent_for_teleport_like_cpp",
-          "visibility": "private",
-          "signature": "fn resurrect_player_percent_for_teleport_like_cpp (& mut self , restore_percent : f32)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "retain_loaded_trait_configs_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn retain_loaded_trait_configs_like_cpp (& mut self , configs : & [TraitConfigCreateData] ,) -> bool",
@@ -33796,19 +33766,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "schedule_represented_resurrection_after_teleport_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn schedule_represented_resurrection_after_teleport_like_cpp (& mut self , request : PlayerResurrectionRequestLikeCpp ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -34200,19 +34157,6 @@
           "name": "send_represented_cinematic_start_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn send_represented_cinematic_start_like_cpp (& mut self , cinematic_id : u32)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp (& mut self ,) -> usize",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -38576,22 +38520,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "set_represented_far_teleport_pending_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn set_represented_far_teleport_pending_like_cpp (& mut self , pending : bool) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "set_represented_favorite_known_spells_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn set_represented_favorite_known_spells_like_cpp (& mut self , favorite_spells : HashSet < i32 > ,)",
@@ -40948,19 +40876,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "teleport_to_with_options",
-          "visibility": "pub (crate)",
-          "signature": "async fn teleport_to_with_options (& mut self , new_map : u32 , new_pos : wow_core :: Position , mut options : TeleportToOptionsLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "temporary_pet_resummon_requests_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn temporary_pet_resummon_requests_like_cpp (& self) -> u32",
@@ -41583,19 +41498,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "visible_area_triggers_from_canonical_map_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn visible_area_triggers_from_canonical_map_like_cpp (& self , map_id : u16 , position : & wow_core :: Position , visibility_radius : f32 ,) -> Option < Vec < wow_packet :: packets :: update :: AreaTriggerCreateData > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "visible_aura_slot_for_spell_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn visible_aura_slot_for_spell_like_cpp (& self , spell_id : i32) -> Option < u8 >",
@@ -41611,48 +41513,9 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "visible_dynamic_objects_from_canonical_map_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn visible_dynamic_objects_from_canonical_map_like_cpp (& self , map_id : u16 , position : & wow_core :: Position , visibility_radius : f32 ,) -> Option < Vec < wow_packet :: packets :: update :: DynamicObjectCreateData > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "visible_misc_objects_from_canonical_map_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn visible_misc_objects_from_canonical_map_like_cpp (& self , map_id : u16 , position : & wow_core :: Position , visibility_radius : f32 ,) -> Option < (Vec < wow_packet :: packets :: update :: CorpseCreateData > , Vec < wow_packet :: packets :: update :: SceneObjectCreateData > , Vec < wow_packet :: packets :: update :: ConversationCreateData > ,) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "visible_other_players_from_registry_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn visible_other_players_from_registry_like_cpp (& self , map_id : u16 , position : & Position , visibility_radius : f32 ,) -> Vec < (ObjectGuid , PlayerVisibilityCreateSnapshot) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "visible_transports_from_canonical_map_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn visible_transports_from_canonical_map_like_cpp (& self , map_id : u16 ,) -> Option < Vec < wow_packet :: packets :: update :: GameObjectCreateData > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -43507,6 +43370,163 @@
           "name": "resolved_visible_resting_like_cpp",
           "visibility": "private",
           "signature": "fn resolved_visible_resting_like_cpp (& self) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_entities :: PlayerTeleportHostLikeCpp",
+          "kind": "method",
+          "name": "active_area_trigger_mut_like_cpp",
+          "visibility": "private",
+          "signature": "fn active_area_trigger_mut_like_cpp (& mut self) -> & mut Option < u32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_entities :: PlayerTeleportHostLikeCpp",
+          "kind": "method",
+          "name": "interrupt_non_melee_spells_for_far_teleport_like_cpp",
+          "visibility": "private",
+          "signature": "fn interrupt_non_melee_spells_for_far_teleport_like_cpp (& mut self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_entities :: PlayerTeleportHostLikeCpp",
+          "kind": "method",
+          "name": "is_map_disabled_for_player_like_cpp",
+          "visibility": "private",
+          "signature": "fn is_map_disabled_for_player_like_cpp (& self , map_id : u32) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_entities :: PlayerTeleportHostLikeCpp",
+          "kind": "method",
+          "name": "known_spells_like_cpp",
+          "visibility": "private",
+          "signature": "fn known_spells_like_cpp (& self) -> Vec < i32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_entities :: PlayerTeleportHostLikeCpp",
+          "kind": "method",
+          "name": "pending_teleport_like_cpp",
+          "visibility": "private",
+          "signature": "fn pending_teleport_like_cpp (& self) -> Option < (u32 , Position) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_entities :: PlayerTeleportHostLikeCpp",
+          "kind": "method",
+          "name": "player_cannot_enter_target_map_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_cannot_enter_target_map_like_cpp (& self , map_id : u32) -> Option < (u32 , u8 , i32) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_entities :: PlayerTeleportHostLikeCpp",
+          "kind": "method",
+          "name": "player_logout_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_logout_like_cpp (& self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_entities :: PlayerTeleportHostLikeCpp",
+          "kind": "method",
+          "name": "remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp",
+          "visibility": "private",
+          "signature": "fn remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp (& mut self) -> usize",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_entities :: PlayerTeleportHostLikeCpp",
+          "kind": "method",
+          "name": "request_represented_battleground_leave_like_cpp",
+          "visibility": "private",
+          "signature": "fn request_represented_battleground_leave_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_entities :: PlayerTeleportHostLikeCpp",
+          "kind": "method",
+          "name": "resummon_pet_temporary_unsummoned_like_cpp",
+          "visibility": "private",
+          "signature": "fn resummon_pet_temporary_unsummoned_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_entities :: PlayerTeleportHostLikeCpp",
+          "kind": "method",
+          "name": "set_pending_teleport_like_cpp",
+          "visibility": "private",
+          "signature": "fn set_pending_teleport_like_cpp (& mut self , destination : Option < (u32 , Position) >) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_entities :: PlayerTeleportHostLikeCpp",
+          "kind": "method",
+          "name": "sync_current_player_session_visibility_detection_like_cpp",
+          "visibility": "private",
+          "signature": "fn sync_current_player_session_visibility_detection_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
           "guards": [

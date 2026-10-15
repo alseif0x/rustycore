@@ -7949,3 +7949,258 @@ methods.
 - **11b → instances (about 1.0k):** world state and the instance admission
   with the create-map side effects, behind one instances host trait; the
   movement state leftovers where their callers have moved.
+
+## Slice 11a result (canonical-map object queries, dynamic-object publication, teleport and far transfer → entities)
+
+Branch `1363-s11a-movement`, base `24013c9ec` (10b merged). Move-only (R2),
+with the slice 4–10 rewrites and nothing else:
+
+- `self` becomes `host` with the narrowest bound the body needs:
+  `VisibilitySessionHostLikeCpp` for the canonical-map queries and the
+  dynamic-object publication, the new `PlayerTeleportHostLikeCpp` for the
+  teleport family. `self.core` becomes `host.core()` (`core_mut()` only for the
+  `SessionState::Transfer` write and `kick`), `self.catalogs` reads through
+  `host.hub_ref()`, `crate::session::{hub_ref,hub_mut}(self)` become the same
+  host calls, `self.visibility` becomes `host.visibility_mut()`,
+  `crate::entity_update_bridge::f` and
+  `crate::session::represented_dynamic_object_values_update_delivery_fingerprint_like_cpp`
+  name their sources (`wow_world_core::entity_update_bridge::f`,
+  `wow_world_visibility::…`; both were re-exports of the same functions),
+  `wow_world_entities::f(self, …)` becomes `crate::f(host, …)`, and a call
+  between moved functions becomes a free call;
+- **two World wrappers are inlined**, each as its exact body, neither async:
+  `self.send_packet_realm(p)` (body `self.core.send_packet_realm(pkt)`; the
+  TRANSFER_PENDING send of the far teleport and of the delayed far teleport)
+  and `self.kick(r)` (body `self.core.kick(reason)`; the two writer-fence
+  failures). Both World wrappers stay for their other callers;
+  `self.player_guid()` and `self.send_packet(…)` resolve to the
+  `SessionHubHostLikeCpp` provided methods, whose bodies are the inherent
+  ones;
+- **statements that become host calls:** the instance gates
+  (`is_map_disabled_for_player_like_cpp`,
+  `player_cannot_enter_target_map_like_cpp`),
+  `wow_world_spell::known_spells_like_cpp(self)`,
+  `self.interrupt_non_melee_spells_for_far_teleport_like_cpp()`,
+  `wow_world_spell::remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp(self)`,
+  `self.request_represented_battleground_leave_like_cpp()`,
+  `self.sync_current_player_session_visibility_detection_like_cpp()`, the
+  pending far destination get/set, `self.view.active_area_trigger` (a
+  `&mut Option<u32>` accessor), `self.lifecycle.player_logout_like_cpp()` and
+  `wow_world_lifecycle::resummon_pet_temporary_unsummoned_like_cpp(self)`;
+  `sync_player_registry_state_like_cpp` and `update_zone_represented_like_cpp`
+  were already `PlayerMovementHostLikeCpp` methods;
+- **the `#[cfg(test)]` steps use the host fixture accessors.** The delayed
+  resurrection record, the delayed-operations counter and the ACK event
+  record become
+  `#[cfg(any(test, feature = "test-fixtures"))] if let Some(fixtures) = host.test_fixtures_like_cpp() …`,
+  the handle-less resurrection fallback takes the request through the same
+  accessor, `cfg!(test)` in the schedule result becomes one `world_test` local
+  read from `test_fixtures_ref_like_cpp`, and `#[cfg(not(test))]` becomes
+  `#[cfg(not(any(test, feature = "test-fixtures")))]` (the ACK record's
+  unused-argument tuple also names `host`, which only the fixture branch
+  reads). The accessors are `Some` only in the World `cfg(test)` build, so each
+  step keeps its World meaning.
+
+A token comparison of the 13 teleport functions against the same rewrite
+applied by script to their base bodies (comments compared separately) finds
+the differences limited to the multi-line `self.core`/`self.catalogs` chains,
+the fixture gates above, `pub(in crate::session)`/`pub(crate)` → `pub` or
+`pub(super)`, and rustfmt trailing commas; the five visibility functions differ
+only by the rewrites in the first item. No string literal (including the C2
+capture root `"WorldSession::teleport_to_with_options::far_transfer_detach"`),
+comment, constant, operator or control-flow token changed.
+
+### Re-measure
+
+On `24013c9ec` (classifier, `wow-world` production 46,591) the 11a families
+measured as planned: the canonical-map queries 269 function lines, the
+dynamic-object publication 189 and its create-data helper 21 (479), the
+teleport family 933 (transfer.rs 819 in ten functions, far_transfer.rs 114 in
+three) plus 11 lines of nested `#[cfg(test)]` readers. Everything fits one
+part: 1,412 moved function lines and 70 new host lines.
+
+### What moved
+
+- **`wow-world-entities/src/visibility_session/canonical_objects.rs` (306):**
+  the dynamic-object create data (from `session/object_updates.rs`, re-exported
+  by the session root for the spell-effect caller) and the four canonical-map
+  queries (`map_resolution.rs`): transports (`Map::SendInitTransports`'s
+  whole-map scan), dynamic objects, area triggers and the
+  corpse/scene-object/conversation triple. The visibility update calls them
+  directly; three stay `pub(crate)`.
+- **`visibility_session/dynamic_object_values.rs` (202):** the dynamic-object
+  VALUES publication from the last map-owned `Map::SendObjectUpdates`
+  snapshot (`map_key.rs`), called by the World driver as a free function.
+- **`wow-world-entities/src/teleport_session/` (1,138: `mod.rs` 71 with the
+  host trait and the eight teleport-only constants, `teleport.rs` 506,
+  `far_transfer.rs` 147, `teleport_ack.rs` 414):** `Player::TeleportTo`
+  (`teleport_to_with_options`: the terminal-recovery, catalog/coordinate,
+  DisableMgr, battleground, expansion and death-knight gates, the vehicle
+  exit, the same-map near teleport, `Map::PlayerCannotEnter`, the seamless
+  gate, the delay, the combat/pvp/pet/dynamic-object/area-trigger/spell
+  cleanup, TRANSFER_PENDING, the far detach with the C2 capture, the pending
+  destination, the far-pending fence, `SessionState::Transfer`, the writer
+  fence and SUSPEND_TOKEN), the pending save destination, the delayed teleport
+  after the update, the delayed far teleport (`far_transfer.rs`), the near
+  `HandleMoveTeleportAck` state machine with its event record, and the
+  resurrection delayed across a teleport (schedule and process).
+  `session/movement/far_transfer.rs` is deleted; `transfer.rs` keeps the
+  public `teleport_to`, which the integration tests and the World callers use.
+- **Reclassified to `handlers/teleport_test_shims.rs` (`#![cfg(test)]`, new
+  ratcheted row, 67):** the two `#[cfg(test)]` readers nested in
+  `transfer.rs` (`represented_delayed_resurrection_after_teleport_like_cpp`,
+  `move_teleport_ack_events_like_cpp`) verbatim, with
+  `player_resurrection_state_snapshot_like_cpp` widened from
+  `pub(in crate::session)` to `pub(crate)` because the file is outside the
+  session tree; one-call method forwards to the moved free functions the
+  scenarios call; and the far-transfer F3 shim mount.
+  `handlers/canonical_objects_test_shims.rs` (`#![cfg(test)]`, new ratcheted
+  row, 35) forwards the two moved visibility functions the scenarios call. The
+  teleport constants, `MoveTeleportAckActionLikeCpp`,
+  `TELE_TO_SEAMLESS_LIKE_CPP` and the dynamic-object VALUES bridge, which only
+  the scenarios still name, join `session/test_reexports.rs`.
+- **Callers:** the driver (delayed teleport, dynamic-object publication),
+  `transfer_completion.rs` (delayed resurrection), the #169 save
+  (`save.rs`, both pending-destination reads), the movement handler adapter
+  (teleport ACK) and the corpse adapter (resurrection schedule) call the free
+  functions.
+- **#1397 nits:** `unit_tests/session/world_entities/gameobject_overrides/f3_shims.rs`
+  imports `super::*`; the `creature_kill_session.rs` hoist comment names
+  `host.hub_ref()`.
+- **Stays in `wow-world`, with the reason:** the world-port response
+  (far-transfer completion, slice 13), world state and the instance admission
+  and create-map side effects (11b), the movement state leftovers, the split
+  wrappers and the catalog setters.
+
+### Host surface
+
+| Part | New trait | New adapter | Retired trait | Retired adapter | Moved function lines |
+|---|---:|---:|---:|---:|---:|
+| Canonical-map queries and dynamic-object publication (`VisibilitySessionHostLikeCpp` −4 query forwards) | 0 | 0 | 26 | 49 | 479 |
+| Teleport and far transfer (`PlayerTeleportHostLikeCpp: CombatSessionHostLikeCpp`, 12 methods) | 21 | 49 | 0 | 0 | 933 |
+| **11a** | **21** | **49** | **26** | **49** | **1,412** |
+
+- New host code is 70 lines against 1,412 moved function lines: **5.0 %**
+  (teleport alone 70 / 933, **7.5 %**). Net of the 75 retired lines it is −5.
+- The teleport adapter (`session/movement/host.rs`) forwards to the inherent
+  `WorldSession` operations, `wow_world_spell` free functions, the lifecycle
+  free function, the view field and the lifecycle state.
+
+### Await counts and recursion
+
+- Per function, base vs head: `teleport_to_with_options` 1 → 1 (the writer
+  fence), the delayed far teleport 1 → 1 (the writer fence), the delayed
+  teleport after the update 1 → 1 (the delayed far teleport); the other 16
+  moved functions 0 → 0. Callers unchanged: `teleport_to` 1 → 1, the driver's
+  delayed-teleport step 1 → 1. No borrow is held across an await differently
+  (the fence future borrows `host.core()` as it borrowed `self.core`).
+- Every moved name was grepped across the production (non-shim) `wow-world`
+  files: the remaining references are free calls
+  (`wow_world_entities::…(self, …)` from the driver, the save,
+  `transfer_completion.rs`, `teleport_to`, the movement and corpse adapters)
+  and the session root's create-data re-export. The two adapters that
+  forwarded through `WorldSession::handle_move_teleport_ack_like_cpp` and
+  `WorldSession::schedule_represented_resurrection_after_teleport_like_cpp`
+  now call the free functions, so no `WorldSession::name(self, …)` path can
+  fall through to a trait method of the same name. Every new trait-impl
+  forward resolves to an inherent method
+  (`is_map_disabled_for_player_like_cpp`,
+  `player_cannot_enter_target_map_like_cpp`,
+  `interrupt_non_melee_spells_for_far_teleport_like_cpp`,
+  `request_represented_battleground_leave_like_cpp`,
+  `sync_current_player_session_visibility_detection_like_cpp`,
+  `pending_teleport_like_cpp`, `set_pending_teleport_like_cpp`), a field, the
+  lifecycle state or another crate's free function (`known_spells_like_cpp`
+  names `wow_world_spell::` explicitly, because the World test build has a
+  test-only inherent of that name). `unconditional_recursion`: 0 in the
+  production lib, the lib with `test-fixtures` and the lib test build.
+
+### Behaviour
+
+The teleport keeps its gate order and its packets in order: the abort
+packets, TRANSFER_PENDING on the realm channel, the transport server-time
+reset, the far detach and C2 capture, the pending destination, the
+far-pending fence, `SessionState::Transfer`, the writer fence, SUSPEND_TOKEN
+with the movement counter; the near teleport's move-update fan-out before the
+MOVE_TELEPORT to the mover; the ACK's state machine, zone update, PvP flag,
+pet resummon and delayed resurrection. The pending save destination (#169)
+reads the same far and near state at the same two points. The map queries
+keep one manager lock each and the same filters; the dynamic-object
+publication keeps its seer and shared-vision gates, its fingerprint admission
+and its send order. Registrations and processing flags are unchanged.
+
+### Edges and closure
+
+No new crate edge: `Cargo.lock` and the manifests are unchanged.
+`wow_world_closure.py check` PASS in lock and metadata mode (17 packages).
+`wow-world-entities->wow-world-{instances,social,spell}` were probed in the
+plan and fail as they must, so the instance, battleground and spell steps are
+host methods.
+
+### Accounting
+
+- **`wow-world` production (classifier): 46,591 → 45,137 (−1,454)**;
+  physical 54,369 → 53,029, 467 → 468 files (`far_transfer.rs` deleted, two
+  shim files added).
+  - **Reclassified, not production reduction:** 11 (the two `#[cfg(test)]`
+    teleport readers).
+  - **Moved:** 1,412 function lines (visibility 479, teleport 933; 44 of the
+    teleport lines are former `#[cfg(test)]` steps the classifier counted as
+    production, so the moved production proper is about 1,370) and the eight
+    teleport-only constants.
+  - The rest (about 31) is the adapters (−49 retired, +49 new), the deleted
+    file's header and the imports.
+- **Destination.** `wow-world-entities/src` +1,649 physical (production
+  19,047 → 20,694, test 289 → 291).
+- `net_move.py check`: S = 1,340, G = 1,649, allowance 2,368.0, PASS, 0
+  duplicate bodies.
+- **Ceilings** (none raised):
+  - hotspot `session/mod.rs`: production 27,405 → 26,002, test 141,663 →
+    141,658, total 169,068 → 167,660;
+  - hotspot `handlers/character/mod.rs`: production 3,469 → 3,416, total
+    19,124 → 19,071 (the four retired visibility forwards);
+  - physical `session/mod.rs` 925 → 910; new ratcheted rows
+    `handlers/teleport_test_shims.rs` at 67 and
+    `handlers/canonical_objects_test_shims.rs` at 35.
+  - `session-ownership-policy.json` is reprinted with `print-baseline`; the
+    delta is the moved and retired items, the new adapter entries and the
+    shims.
+- **Warnings.** Per file and lint, the `wow-world` warnings are identical to
+  the base in the production lib (146 → 145), the lib with `test-fixtures`
+  (154 → 153) and the lib test build (291 → 290) except one: the pre-existing
+  `unused variable: destination_map_id` of the far detach moved with its body
+  to `teleport_session/teleport.rs`, so the `wow-world-entities`,
+  `wow-world-spell` and `wow-world-instances` all-targets count goes 15 → 16
+  with that same warning. `wow-world` `dead_code` 0 in all three.
+- **Tests.** No `#[test]` changed; the test-name multiset is identical
+  (10,214 test functions, lexical). The only test-file edit is the #1397 nit
+  import. The scenarios keep method syntax through the shim forwards.
+
+### 11b plan
+
+On the 11a base: world state (`session/world_state/operations.rs`, 557) and
+the instance admission and create-map side effects (`map_key.rs` 325
+remaining, the access requirement in `map_admission.rs`) → `wow-world-instances`
+behind one instances host trait, with the `instances → spell` edge for the
+indoor/outdoor aura removal (simulated, PASS) and the area-trigger teleport
+through `wow_world_entities::teleport_to_with_options`. Re-measure first; if
+the rest-flag surface (eight methods) pushes world state over 15 %, the rest
+flags move with it or world state waits for slice 13's rest/lifecycle step.
+The movement state leftovers (`state.rs`, 131) follow their callers.
+
+### Follow-ups
+
+- The test shims (`teleport_test_shims.rs`, `canonical_objects_test_shims.rs`)
+  retire when the scenarios call the free functions directly.
+- `CorpseHostLikeCpp` and `PlayerTeleportHostLikeCpp` both carry
+  `pending_teleport_like_cpp`; the corpse host can take the teleport host as
+  supertrait and drop its copy (and its `schedule_…` forward) in a later
+  slice.
+- The pre-existing unused `destination_map_id` in the far detach is left for
+  a behaviour-neutral cleanup outside a move-only slice.
+
+### Validation
+
+`VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+on the PR head; the manifest, duration and test counts are recorded on the
+PR.
