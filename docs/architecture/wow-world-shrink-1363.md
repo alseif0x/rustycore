@@ -9927,10 +9927,15 @@ compares warnings with exactly these three commands, at base and at head,
 with `PROTOC` set and the per-worktree `CARGO_TARGET_DIR`:
 
 ```sh
-cargo check -p wow-world --lib                          --jobs 1 --message-format json > lib.json
-cargo check -p wow-world --lib --features test-fixtures --jobs 1 --message-format json > fixtures.json
-cargo check -p wow-world --lib --tests                  --jobs 1 --message-format json > tests.json
+cargo check --locked -p wow-world --lib                          --jobs 1 --message-format json > lib.json
+cargo check --locked -p wow-world --lib --features test-fixtures --jobs 1 --message-format json > fixtures.json
+cargo check --locked -p wow-world --lib --tests                  --jobs 1 --message-format json > tests.json
 ```
+
+(`--locked` added after the #1404 review; it fails instead of updating
+`Cargo.lock`, so every slice measures the committed dependency graph.) Count
+and compare with `tools/architecture/warning_units.py` (`count`, `compare`,
+`self-test`; slice 6b).
 
 - **What each build is.**
   1. The production lib: `wow-world` and every `wow-world-*` crate without
