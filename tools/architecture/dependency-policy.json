@@ -114,6 +114,7 @@
       "wow-data",
       "wow-entities",
       "wow-handler",
+      "wow-module-api",
       "wow-packet",
       "wow-persistence",
       "wow-spell-acquisition",

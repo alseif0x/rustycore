@@ -32,6 +32,7 @@ wow-persistence = { workspace = true }
 wow-spell-acquisition = { workspace = true }
 wow-entities = { workspace = true }
 wow-handler = { workspace = true }
+wow-module-api = { workspace = true }
 wow-world-character = { workspace = true }
 wow-world-core = { workspace = true }
 wow-world-entities = { workspace = true }

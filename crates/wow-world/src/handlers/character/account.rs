@@ -7,7 +7,6 @@
 
 use super::*;
 
-mod collections;
 mod host;
 mod registrations;
 

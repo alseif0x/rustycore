@@ -101,10 +101,6 @@ impl WorldSession {
                 swap,
             )
     }
-    pub(crate) fn set_player_bank_bag_slot_count_like_cpp(&mut self, count: u8) -> bool {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.set_player_bank_bag_slot_count_like_cpp(&mut hub, count)
-    }
 }
 
 #[cfg(test)]

@@ -7,10 +7,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) async fn load_completed_achievements_like_cpp(&mut self) {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.load_completed_achievements_like_cpp(&mut hub).await
-    }
     pub(crate) fn begin_represented_trait_config_authority_load_like_cpp(&mut self) {
         let _ = wow_world_spell::begin_represented_trait_config_load_like_cpp(self);
         self.core

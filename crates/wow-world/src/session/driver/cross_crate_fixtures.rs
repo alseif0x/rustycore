@@ -52,8 +52,7 @@ impl WorldSession {
             level,
             0,
         ));
-        if self
-            .ensure_canonical_world_map_for_current_player_like_cpp()
+        if wow_world_instances::ensure_canonical_world_map_for_current_player_like_cpp(self)
             .is_none()
         {
             return false;

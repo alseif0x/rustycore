@@ -56,10 +56,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.get_inventory_item_by_pos(hub, bag, slot)
     }
-    pub(crate) fn set_player_inventory_slot_count_like_cpp(&mut self, count: u8) -> bool {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.set_player_inventory_slot_count_like_cpp(&mut hub, count)
-    }
 }
 
 #[cfg(test)]

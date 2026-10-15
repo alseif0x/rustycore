@@ -41,9 +41,7 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
     // publication-order scan must still see the whole family's source.
     let character = concat!(
         include_str!("../../../src/handlers/character/mod.rs"),
-        include_str!("../../../src/handlers/character/creation_support.rs"),
         include_str!("../../../src/handlers/character/enumeration_support.rs"),
-        include_str!("../../../src/handlers/character/login_support.rs"),
         include_str!("../../../src/handlers/character/login_transport_support.rs"),
         include_str!("../../../src/handlers/character/account.rs"),
         include_str!("../../../src/handlers/character/account/host.rs"),
@@ -54,7 +52,9 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         // registrar, so this scan follows it there exactly as it followed the
         // #224 character split above.
         include_str!("../../../../wow-world-application/src/character_account_handlers.rs"),
-        include_str!("../../../src/handlers/character/account/collections.rs"),
+        include_str!("../../../../wow-world-inventory/src/account_collection_loading.rs"),
+        include_str!("../../../../wow-world-spell/src/login_spell_application.rs"),
+        include_str!("../../../../wow-world-application/src/continue_login/hydration.rs"),
         include_str!("../../../src/handlers/character/bank.rs"),
         include_str!("../../../src/handlers/character/condition_objects.rs"),
         include_str!("../../../../wow-world-character/src/login_session/entry_zone.rs"),
@@ -80,7 +80,6 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         include_str!("../../../src/handlers/character/stats.rs"),
         include_str!("../../../src/handlers/character/stats_update.rs"),
         include_str!("../../../src/handlers/character/vendor.rs"),
-        include_str!("../../../src/handlers/character/vendor/rules.rs"),
         include_str!("../../../../wow-world-inventory/unit_tests/vendor_rules.rs"),
         // #1363 slice 8b: the vendor and bank bodies moved to wow-world-inventory
         // (vendor_session), so the scan follows them there.
@@ -96,7 +95,7 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         include_str!("../../../src/handlers/character/visibility.rs"),
         include_str!("../../../../wow-world-character/src/login_session/world_entry.rs"),
         include_str!("../../../../wow-world-character/src/login_session/initial_packets.rs"),
-        include_str!("../../../src/handlers/character/world_entry/login.rs"),
+        include_str!("../../../../wow-world-application/src/continue_login/login.rs"),
         include_str!("../../../../wow-world-character/src/login_session/admission.rs"),
         include_str!("../../../../wow-world-character/src/login_session/action_buttons.rs"),
         include_str!("../../../../wow-world-character/src/login_session/aura_loading.rs"),

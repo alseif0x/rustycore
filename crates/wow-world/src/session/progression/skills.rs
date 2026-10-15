@@ -33,18 +33,6 @@ impl WorldSession {
     pub(crate) fn max_primary_trade_skills_like_cpp(&self) -> u8 {
         self.config.max_primary_trade_skills_like_cpp()
     }
-    pub(crate) fn replace_player_skill_records_like_cpp(
-        &mut self,
-        skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
-        loaded: bool,
-        complete: bool,
-    ) -> bool {
-        crate::session::hub_mut(self).replace_player_skill_records_like_cpp(
-            skill_records,
-            loaded,
-            complete,
-        )
-    }
     pub(in crate::session) fn clear_player_skill_tombstones_like_cpp(&mut self) {
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {

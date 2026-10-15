@@ -18,16 +18,14 @@ mod character_handler_host;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod character_handler_shims;
 mod condition_objects;
-mod creation_support;
+mod continue_login_host;
 // Test-only: its production readers moved to `wow-world-character` (#1263 F5, #1363 A5).
 #[cfg(test)]
 mod enumeration_support;
 mod items;
 mod login_host;
-mod login_support;
 mod login_transport_support;
 mod query;
-mod spell_rules;
 mod stats;
 #[cfg(test)]
 #[path = "../../../unit_tests/handlers/character/stats_queries/test_only.rs"]
@@ -35,9 +33,8 @@ mod stats_queries;
 mod stats_update;
 mod vendor;
 mod visibility;
-mod world_entry;
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use rand::Rng;
@@ -87,9 +84,7 @@ pub(crate) use wow_entities::SocketedGem;
 // Test-only: its production readers moved to `wow-world-entities` (#1363 slice 8a).
 #[cfg(test)]
 use wow_entities::MovementGeneratorType;
-use wow_entities::{
-    GAMEOBJECT_TYPE_QUESTGIVER, INVENTORY_DEFAULT_SIZE, SendNewItemPlan, WorldObject,
-};
+use wow_entities::{GAMEOBJECT_TYPE_QUESTGIVER, SendNewItemPlan, WorldObject};
 // Test-only: their production readers moved to `wow-world-inventory` (#1363 slice 8b)
 // and `wow-world-character` (#1363 slice 8d).
 #[cfg(test)]
@@ -108,9 +103,7 @@ pub(crate) use wow_world_lifecycle::login_transport::{
 // `crate::session::registry::PacketHandlerEntry` from here moved to the
 // application crate's explicit area registrar under #1263 F5, so this module no
 // longer needs the entry type in scope.
-use wow_packet::packets::auth::{
-    ConnectTo, ConnectToAddress, ConnectToKey, ConnectToSerial, ResumeComms,
-};
+use wow_packet::packets::auth::{ConnectTo, ConnectToAddress, ConnectToKey, ConnectToSerial};
 use wow_packet::packets::misc::*;
 use wow_packet::packets::quest::QuestGiverStatusMultiple;
 use wow_packet::packets::spell::{SpellCastVisual, SpellTargetData};
@@ -118,35 +111,28 @@ use wow_packet::packets::spell::{SpellCastVisual, SpellTargetData};
 // a glob import leaves the ownership checker without a defining source.
 use wow_packet::WorldPacket;
 use wow_packet::packets::misc::BindPointUpdate;
-use wow_packet::packets::update::PlayerCombatStats;
 
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
 use crate::session::{
-    CreatureSpawnCatalogsLikeCpp, PlayerBootstrapCatalogsLikeCpp, REST_STATE_NORMAL_LIKE_CPP,
-    RepresentedBankItemMoveLikeCpp, RepresentedGameObjectUseState, RepresentedHomebindLikeCpp,
+    CreatureSpawnCatalogsLikeCpp, PlayerBootstrapCatalogsLikeCpp, RepresentedBankItemMoveLikeCpp,
+    RepresentedGameObjectUseState, RepresentedHomebindLikeCpp,
     RepresentedQuestObjectiveProgressEventLikeCpp, RepresentedVoidStorageItemLikeCpp,
     SpellCastMetadata, SupportFeaturePolicyLikeCpp,
 };
 // Test-only: its production caller moved to `wow-world-character` (#1263 F5, #1363 A5).
 #[cfg(test)]
-use crate::session::REST_STATE_RAF_LINKED_LIKE_CPP;
+use crate::session::{REST_STATE_NORMAL_LIKE_CPP, REST_STATE_RAF_LINKED_LIKE_CPP};
 #[cfg(test)]
 use crate::session::{RepresentedAlterAppearanceLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp};
-pub(crate) use creation_support::default_display_id;
-use creation_support::{default_health_mana, restored_saved_health_like_cpp};
-// Test-only: their production callers moved to `wow-world-character` (#1263 F5, #1363 A5).
-#[cfg(test)]
-use creation_support::{default_character_power1_like_cpp, start_position, start_zone};
 #[cfg(test)]
 use enumeration_support::{enum_character_flags_like_cpp, enum_character_pet_data_like_cpp};
-use login_support::*;
 use login_transport_support::{MapTransportCreateLikeCpp, TransportCreatePositionLikeCpp};
 #[cfg(test)]
 use wow_entities::GAMEOBJECT_TYPE_GOOBER;
 use wow_progression::mgr::CharacterReputationRowLikeCpp;
 
 // Test-only: the scenarios reach these through `super::*`; their production
-// readers moved to `wow-world-character` (#1363 slices 8d and 8e).
+// readers moved to `wow-world-character` (#1363 slices 8d and 8e) and `-application` (13c).
 #[cfg(test)]
 use {
     login_transport_support::{
@@ -155,13 +141,19 @@ use {
     },
     wow_constants::character::RESPONSE_SUCCESS_LIKE_CPP,
     wow_core::guid::HighGuid,
+    wow_entities::INVENTORY_DEFAULT_SIZE,
     wow_packet::packets::update::*,
     wow_packet::packets::{character::*, movement::TransportInfo},
+    wow_world_application::loaded_inventory_slot_count_with_legacy_rust_compat,
     wow_world_character::GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP,
+    wow_world_character::{character_creation::*, character_login_support::*},
     wow_world_character::{motd_lines_like_cpp, void_storage_login_context_like_cpp},
     wow_world_core::corpse_load::MapCorpseLoadOutcomeLikeCpp,
     wow_world_inventory::loaded_item_support::*,
 };
+// Test-only: its production reader moved to `wow-world-application` (#1363 slice 13c).
+#[cfg(test)]
+pub(crate) use wow_world_character::character_creation::default_display_id;
 
 // ── Handler registration ────────────────────────────────────────────
 
@@ -207,22 +199,6 @@ fn plan_direct_inventory_swap_persistence_like_cpp(
         });
     }
     updates
-}
-
-fn primary_max_power_for_class_like_cpp(class_id: u8, max_mana: i64) -> i32 {
-    wow_world_inventory::primary_max_power_for_class_like_cpp(class_id, max_mana)
-}
-
-fn loaded_inventory_slot_count_with_legacy_rust_compat(saved_slots: u8) -> u8 {
-    // C++ loads the saved value directly, but TrinityCore's schema defaults
-    // inventorySlots to the base backpack size. Older RustyCore builds
-    // explicitly inserted zero before this field was wired; keep those
-    // already-created characters playable without an out-of-band migration.
-    if saved_slots == 0 {
-        INVENTORY_DEFAULT_SIZE
-    } else {
-        saved_slots
-    }
 }
 
 #[cfg(test)]
@@ -300,7 +276,7 @@ use wow_world_application::item_spell_charges_db_string;
 // Test-only (#1363 slice 8c): the production readers of these names moved to
 // `wow-world-inventory` with the item handler bodies; the scenarios still use them.
 #[cfg(test)]
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 #[cfg(test)]
 use wow_entities::{INVENTORY_SLOT_BAG_0, NULL_BAG, NULL_SLOT, SwapItemPreflightResult};
 #[cfg(test)]
