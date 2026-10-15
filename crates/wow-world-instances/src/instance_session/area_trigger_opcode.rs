@@ -22,8 +22,7 @@ use super::{AreaTriggerCatalogAccessLikeCpp, InstanceSessionHostLikeCpp};
 pub trait AreaTriggerHostLikeCpp:
     InstanceSessionHostLikeCpp<AreaTriggerCatalogsLikeCpp: AreaTriggerCatalogAccessLikeCpp>
 {
-    /// `WorldSession::dispatch_area_trigger_script_like_cpp` over the
-    /// catalogs' optional `script_dispatcher`.
+    /// `WorldSession::dispatch_area_trigger_script_like_cpp` over `script_dispatcher`.
     fn dispatch_area_trigger_script_like_cpp(
         &mut self,
         catalogs: &Self::AreaTriggerCatalogsLikeCpp,

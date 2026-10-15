@@ -40,14 +40,11 @@ use wow_world_social::SessionSocialLimits;
 
 use crate::{GroupPublicationTailLikeCpp, InstanceSessionHostLikeCpp};
 
-/// The World operations the moved group bodies still call; each is the
-/// same-named `WorldSession` operation, or the named field or split.
+/// The World operations the moved group bodies still call: the same-named
+/// `WorldSession` operation, split or field.
 pub trait GroupSessionHostLikeCpp: InstanceSessionHostLikeCpp {
-    /// `crate::session::split_social_ref`.
     fn split_social_ref(&self) -> (&SessionSocialLimits, HubRef<'_>);
-    /// `crate::session::split_social_mut`.
     fn split_social_mut(&mut self) -> (&mut SessionSocialLimits, HubMut<'_>);
-    /// The session's `lifecycle` field.
     fn lifecycle(&self) -> &SessionLifecycleState;
     fn update_visible_gameobjects_or_spell_clicks_like_cpp(&self) -> usize;
     fn apply_group_difficulty_like_cpp(

@@ -12,7 +12,7 @@
 //!
 //! `#1363 slice 4d`: the area-trigger body with its client conditions moved
 //! to `wow_world_instances` with the taxi activation; their World adapters
-//! are `session/travel_handler_contexts.rs` and `handlers/travel_host.rs`.
+//! are `session/travel_handler_contexts.rs` and `handlers/leaf_session_hosts.rs`.
 
 #[cfg(test)]
 mod test_shims;
