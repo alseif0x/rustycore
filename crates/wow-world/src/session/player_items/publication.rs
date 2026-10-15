@@ -72,7 +72,7 @@ impl WorldSession {
         );
         #[cfg(any(test, feature = "test-fixtures"))]
         let hydration = if cfg!(test) {
-            Some(wow_world_quest::PlayerRegistryHydrationContext::new(
+            Some(wow_world_inventory::PlayerRegistryHydrationContext::new(
                 self.core.player_registry_hydration_access_like_cpp(),
                 &self.spell_state,
                 &self.quest_state,

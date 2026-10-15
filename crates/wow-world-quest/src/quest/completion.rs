@@ -118,7 +118,7 @@ pub(crate) fn sync_quest_completion_registry_like_cpp(
         return;
     };
 
-    let sync = crate::PlayerRegistrySyncContext::new(
+    let sync = wow_world_inventory::PlayerRegistrySyncContext::new(
         position,
         control,
         loot,
@@ -131,13 +131,14 @@ pub(crate) fn sync_quest_completion_registry_like_cpp(
     );
     #[cfg(any(test, feature = "test-fixtures"))]
     if world_test_consumer {
-        let sync = sync.with_fixture_hydration(crate::PlayerRegistryHydrationContext::new(
-            owner.player_registry_hydration_access_like_cpp(),
-            spell_state,
-            quest_state,
-            fixture_vehicle_and_pet,
-            true,
-        ));
+        let sync =
+            sync.with_fixture_hydration(wow_world_inventory::PlayerRegistryHydrationContext::new(
+                owner.player_registry_hydration_access_like_cpp(),
+                spell_state,
+                quest_state,
+                fixture_vehicle_and_pet,
+                true,
+            ));
         sync.sync();
         return;
     }

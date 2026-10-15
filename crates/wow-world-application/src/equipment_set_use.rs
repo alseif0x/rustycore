@@ -26,11 +26,11 @@ use wow_world_core::session::{
     SessionCatalogs, SessionWorldConfig,
 };
 use wow_world_inventory::CharacterStatsApplicationCxLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_world_inventory::PlayerRegistryHydrationContext;
+use wow_world_inventory::PlayerRegistrySyncContext;
 use wow_world_inventory::{InventoryState, represented_player_stat_changes_like_cpp};
 use wow_world_loot::LootState;
-#[cfg(any(test, feature = "test-fixtures"))]
-use wow_world_quest::PlayerRegistryHydrationContext;
-use wow_world_quest::PlayerRegistrySyncContext;
 
 /// Selected item-modifier stores retained without cloning their owning Arcs.
 pub struct EquipmentSetUseItemModsStoresLikeCpp<'a> {

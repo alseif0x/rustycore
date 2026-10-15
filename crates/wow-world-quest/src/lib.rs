@@ -10,7 +10,6 @@
 mod quest;
 mod quest_handlers;
 mod quest_query_handlers;
-mod registry_sync;
 pub use quest::QuestEligibilityCx;
 pub use quest::QuestRewardDurablePlanLikeCpp;
 pub use quest::add_currency_quest_reward_like_cpp;
@@ -73,7 +72,3 @@ pub use quest_query_handlers::{
     QuestGiverCompleteQuestHostLikeCpp, handle_quest_giver_complete_quest_like_cpp,
     quest_giver_creature_id_from_source_like_cpp, quest_is_disabled_like_cpp,
 };
-#[cfg(any(test, feature = "test-fixtures"))]
-pub use registry_sync::PlayerRegistryHydrationContext;
-pub use registry_sync::PlayerRegistrySyncContext;
-pub use registry_sync::sync_player_registry_state_like_cpp;

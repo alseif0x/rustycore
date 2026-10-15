@@ -3698,6 +3698,7 @@ dependencies = [
  "wow-world-interaction",
  "wow-world-inventory",
  "wow-world-lifecycle",
+ "wow-world-loot",
 ]
 
 [[package]]
