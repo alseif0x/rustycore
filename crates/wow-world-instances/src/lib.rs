@@ -13,6 +13,7 @@ mod fixtures;
 mod group_handlers;
 mod handlers;
 mod instance;
+mod instance_session;
 mod map_key;
 mod map_resolution;
 mod operations;
@@ -51,5 +52,25 @@ pub use handlers::{
     handle_set_dungeon_difficulty_like_cpp, handle_set_raid_difficulty_like_cpp,
     handle_set_saved_instance_extend_like_cpp, handle_toggle_difficulty_like_cpp,
     register_instance_handlers_like_cpp, reset_represented_instances_like_cpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use instance_session::{
+    AREA_FLAG_ENEMIES_PVP_FLAGGED_LIKE_CPP, set_represented_tavern_resting_like_cpp,
+    update_area_represented_with_rest_update_like_cpp,
+};
+pub use instance_session::{
+    AreaTriggerCatalogAccessLikeCpp, CreateMapSideEffectApplySummaryLikeCpp,
+    InstanceSessionHostLikeCpp, REST_FLAG_IN_CITY_LIKE_CPP, REST_FLAG_IN_FACTION_AREA_LIKE_CPP,
+    REST_FLAG_IN_TAVERN_LIKE_CPP, TRANSFER_ABORT_DIFFICULTY_LIKE_CPP,
+    TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP, TRANSFER_ABORT_NEED_GROUP_LIKE_CPP,
+    TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP, TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP,
+    apply_create_map_side_effects_like_cpp,
+    check_area_explore_and_outdoor_represented_with_catalogs_like_cpp,
+    check_area_triggers_with_catalogs_like_cpp, create_map_active_instance_lock_context_like_cpp,
+    create_map_instance_owner_guid_like_cpp, create_map_player_context_like_cpp,
+    handle_represented_tavern_area_trigger_with_catalog_like_cpp,
+    player_cannot_enter_target_map_like_cpp, player_explored_zones_snapshot_like_cpp,
+    player_is_in_area_trigger_radius_like_cpp, update_zone_represented_like_cpp,
+    update_zone_represented_without_rest_update_packet_like_cpp,
 };
 pub use state::InstanceState;

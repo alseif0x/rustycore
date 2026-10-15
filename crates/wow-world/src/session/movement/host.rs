@@ -34,7 +34,7 @@ impl PlayerMovementHostLikeCpp for WorldSession {
     }
 
     fn update_zone_represented_like_cpp(&mut self, new_zone: u32, new_area: u32) -> bool {
-        WorldSession::update_zone_represented_like_cpp(self, new_zone, new_area)
+        wow_world_instances::update_zone_represented_like_cpp(self, new_zone, new_area)
     }
 
     fn check_area_explore_and_outdoor_represented_with_catalogs_like_cpp(
@@ -42,7 +42,7 @@ impl PlayerMovementHostLikeCpp for WorldSession {
         progression: &ProgressionCatalogsLikeCpp,
         area_id: u32,
     ) -> impl Future<Output = bool> + Send {
-        WorldSession::check_area_explore_and_outdoor_represented_with_catalogs_like_cpp(
+        wow_world_instances::check_area_explore_and_outdoor_represented_with_catalogs_like_cpp(
             self,
             progression,
             area_id,
@@ -60,7 +60,7 @@ impl PlayerMovementHostLikeCpp for WorldSession {
         &mut self,
         catalogs: &AreaTriggerCatalogsLikeCpp,
     ) -> impl Future<Output = ()> + Send {
-        WorldSession::check_area_triggers_with_catalogs_like_cpp(self, catalogs)
+        wow_world_instances::check_area_triggers_with_catalogs_like_cpp(self, catalogs)
     }
 
     fn sync_player_registry_state_like_cpp(&self) {
@@ -90,7 +90,7 @@ impl wow_world_entities::PlayerTeleportHostLikeCpp for WorldSession {
     }
 
     fn player_cannot_enter_target_map_like_cpp(&self, map_id: u32) -> Option<(u32, u8, i32)> {
-        WorldSession::player_cannot_enter_target_map_like_cpp(self, map_id)
+        wow_world_instances::player_cannot_enter_target_map_like_cpp(self, map_id)
     }
 
     fn known_spells_like_cpp(&self) -> Vec<i32> {

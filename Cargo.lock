@@ -3638,6 +3638,7 @@ version = "0.1.0"
 dependencies = [
  "rand",
  "tracing",
+ "wow-ai",
  "wow-constants",
  "wow-core",
  "wow-data",
@@ -3653,6 +3654,7 @@ dependencies = [
  "wow-world-lifecycle",
  "wow-world-loot",
  "wow-world-social",
+ "wow-world-spell",
 ]
 
 [[package]]

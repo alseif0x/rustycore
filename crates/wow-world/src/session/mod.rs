@@ -304,10 +304,12 @@ pub(crate) use loot_delivery_contracts::RepresentedLootRollVote;
 pub(crate) use wow_world_loot::RepresentedLootRollCriteriaEvent;
 pub(crate) use wow_world_loot::RepresentedLootRollState;
 mod map_admission;
-pub(crate) use map_admission::CreateMapSideEffectApplySummaryLikeCpp;
+use map_admission::create_map_decision_difficulty_id_like_cpp;
 pub use map_admission::{MMapRuntimeConfigLikeCpp, WaypointPathResolverLikeCpp};
 pub use map_admission::{PlayerGridLoadOutcomeLikeCpp, PlayerGridLoadResolverLikeCpp};
-use map_admission::{create_map_decision_difficulty_id_like_cpp, create_map_decision_key_like_cpp};
+#[cfg(test)]
+pub(crate) use wow_world_instances::CreateMapSideEffectApplySummaryLikeCpp;
+#[cfg(test)]
 use wow_world_instances::create_map_instance_lock_token_like_cpp;
 mod money_persistence_contracts;
 use money_persistence_contracts::AbsolutePlayerMoneyCommitReconciliationLikeCpp;
@@ -363,7 +365,8 @@ mod player_condition_values;
 pub(crate) use player_condition_values::RepresentedItemLevelCapsLikeCpp;
 pub(crate) use player_condition_values::RepresentedPlayerConditionContextLikeCpp;
 mod player_load_values;
-use player_load_values::{gender_from_u8, player_team_id_for_race_cpp};
+use player_load_values::gender_from_u8;
+use wow_world_core::session::player_team_id_for_race_cpp;
 // #1363 slice 3: the player melee phase moved to `wow-world-creature`;
 // world-server and the unit tests keep these Session paths.
 pub use wow_world_creature::PlayerMeleeAttackerSnapshotLikeCpp;
@@ -527,7 +530,6 @@ use crate::session_policy::{
     LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, PlayerRegenerationRatesLikeCpp,
     ReputationRatesLikeCpp,
 };
-use wow_ai::max_level_for_expansion_like_cpp;
 // #1363 slice 3: names the creature runtime used through this root; since it
 // moved to `wow-world-creature` only the unit tests still read them here.
 #[cfg(test)]
@@ -732,8 +734,10 @@ use wow_packet::packets::quest::{
     QuestGiverRequestItemsCollect, QuestGiverRequestItemsCurrency, QuestListEntry,
     QuestObjectiveSimple, QuestRewardsBlock,
 };
+#[cfg(test)]
+use wow_social::group::GroupInfo;
 use wow_social::group::{
-    GroupInfo, GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry,
+    GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry,
     PendingInvites, group_guid_by_db_store_id_like_cpp,
 };
 
@@ -783,9 +787,9 @@ pub type AreaTriggerScriptDispatcherLikeCpp =
 #[cfg(test)]
 use wow_world_core::session::state::config::GivePlayerXpScriptDispatcherLikeCpp;
 
-const REST_FLAG_IN_TAVERN_LIKE_CPP: u32 = 0x1;
-const REST_FLAG_IN_CITY_LIKE_CPP: u32 = 0x2;
-const REST_FLAG_IN_FACTION_AREA_LIKE_CPP: u32 = 0x4;
+use wow_world_instances::REST_FLAG_IN_TAVERN_LIKE_CPP;
+#[cfg(test)]
+use wow_world_instances::{REST_FLAG_IN_CITY_LIKE_CPP, REST_FLAG_IN_FACTION_AREA_LIKE_CPP};
 const REST_OFFLINE_WILDERNESS_BUBBLE_LIKE_CPP: f32 = 0.031;
 const REST_OFFLINE_TAVERN_OR_CITY_BUBBLE_LIKE_CPP: f32 = 0.125;
 const REST_ONLINE_INGAME_BUBBLE_LIKE_CPP: f32 = 0.125;
@@ -806,13 +810,13 @@ const LANG_RESET_SPELLS_TEXT_LIKE_CPP: &str = "Your spells have been reset.";
 pub(crate) const TRADE_STATUS_PLAYER_BUSY_LIKE_CPP: u8 = 0;
 #[cfg(test)]
 use wow_world_core::session::PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP;
-const AREA_FLAG_ENEMIES_PVP_FLAGGED_LIKE_CPP: u32 = 0x0000_0010;
+#[cfg(test)]
+use wow_world_instances::AREA_FLAG_ENEMIES_PVP_FLAGGED_LIKE_CPP;
+#[cfg(test)]
 use wow_world_spell::AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP;
-const AREA_FLAG_CONTESTED_LIKE_CPP: u32 = 0x0004_0000;
-const AREA_FLAG_COMBAT_ZONE_LIKE_CPP: u32 = 0x0100_0000;
 const CURRENCY_DB_UNUSED_FLAGS_LIKE_CPP: u8 = 0x13;
 pub(crate) use wow_world_core::session::movement_protocol::TeleportToOptionsLikeCpp;
-pub(crate) const TELE_TO_NONE_LIKE_CPP: TeleportToOptionsLikeCpp = 0x00;
+pub(crate) use wow_world_entities::TELE_TO_NONE_LIKE_CPP;
 #[allow(dead_code)]
 pub(crate) const TELE_TO_GM_MODE_LIKE_CPP: TeleportToOptionsLikeCpp = 0x01;
 #[allow(dead_code)]
@@ -835,13 +839,12 @@ const PACKET_SPOOF_BAN_AUTHOR_LIKE_CPP: &str = "Server: AutoDOS";
 
 use wow_packet::WorldPacket;
 
-const TRANSFER_ABORT_DIFFICULTY_LIKE_CPP: u32 = 8;
 const TRANSFER_ABORT_ERROR_LIKE_CPP: u32 = 1;
-const TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP: u32 = 2;
-const TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP: u32 = 4;
-const TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP: u32 = 6;
-const TRANSFER_ABORT_NEED_GROUP_LIKE_CPP: u32 = 11;
-use wow_world_entities::TRANSFER_ABORT_MAP_NOT_ALLOWED_LIKE_CPP;
+use wow_world_instances::{
+    TRANSFER_ABORT_DIFFICULTY_LIKE_CPP, TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP,
+    TRANSFER_ABORT_NEED_GROUP_LIKE_CPP, TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP,
+    TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP,
+};
 // C++ `SpellCastSource::Normal` is encoded in the six-bit Cast GUID subtype.
 // The capture contract validates this field rather than treating it as a runtime counter, so keep the canonical numeric value here.
 pub(crate) const CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP: u32 = 0x08000;

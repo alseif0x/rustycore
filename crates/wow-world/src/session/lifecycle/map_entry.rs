@@ -114,7 +114,12 @@ impl WorldSession {
         }
 
         let player_guid = self.core.player_guid?;
-        let player = self.create_map_player_context_like_cpp(map_id, map_entry, player_guid)?;
+        let player = wow_world_instances::create_map_player_context_like_cpp(
+            self,
+            map_id,
+            map_entry,
+            player_guid,
+        )?;
         let is_dungeon = map_entry.is_dungeon();
         let requested_difficulty = player
             .group
@@ -185,7 +190,11 @@ impl WorldSession {
         };
         let active_instance_lock = is_dungeon
             .then(|| {
-                self.create_map_active_instance_lock_context_like_cpp(map_id, requested_difficulty)
+                wow_world_instances::create_map_active_instance_lock_context_like_cpp(
+                    self,
+                    map_id,
+                    requested_difficulty,
+                )
             })
             .flatten();
 
@@ -335,13 +344,18 @@ impl WorldSession {
             self.add_instance_enter_time_like_cpp(key.instance_id, now_secs);
         }
 
-        let _ = self.apply_create_map_side_effects_like_cpp(map_id, &decision);
+        let _ =
+            wow_world_instances::apply_create_map_side_effects_like_cpp(self, map_id, &decision);
 
         if is_dungeon
             && let Some(key) = key
             && let Some(difficulty_id) = create_map_decision_difficulty_id_like_cpp(&decision)
             && let Some(lock) =
-                self.create_map_active_instance_lock_context_like_cpp(map_id, difficulty_id)
+                wow_world_instances::create_map_active_instance_lock_context_like_cpp(
+                    self,
+                    map_id,
+                    difficulty_id,
+                )
         {
             let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
             if let Ok(mut manager) = manager.lock()

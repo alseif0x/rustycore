@@ -392,7 +392,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         new_zone: u32,
         new_area: u32,
     ) -> bool {
-        WorldSession::update_zone_represented_without_rest_update_packet_like_cpp(
+        wow_world_instances::update_zone_represented_without_rest_update_packet_like_cpp(
             self, new_zone, new_area,
         )
     }

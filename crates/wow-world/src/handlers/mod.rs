@@ -46,6 +46,8 @@ mod canonical_objects_test_shims;
 #[cfg(test)]
 mod character_query_test_shims;
 #[cfg(test)]
+mod instance_session_test_shims;
+#[cfg(test)]
 mod item_test_shims;
 #[cfg(test)]
 mod login_data_gossip_test_shims;

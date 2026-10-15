@@ -14,23 +14,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_instances_ref(self);
         state.create_map_difficulty_context_like_cpp(hub, map_id, difficulty_id)
     }
-    pub(in crate::session) fn represented_player_difficulty_id_for_map_entry_like_cpp(
-        &self,
-        map_id: u32,
-        map_entry: wow_data::map::MapEntry,
-    ) -> Option<wow_map::Difficulty> {
-        let (state, hub) = crate::session::split_instances_ref(self);
-        state.represented_player_difficulty_id_for_map_entry_like_cpp(hub, map_id, map_entry)
-    }
-    pub(in crate::session) fn represented_group_difficulty_id_for_map_entry_like_cpp(
-        &self,
-        map_id: u32,
-        map_entry: wow_data::map::MapEntry,
-        group: &GroupInfo,
-    ) -> wow_map::Difficulty {
-        let (state, hub) = crate::session::split_instances_ref(self);
-        state.represented_group_difficulty_id_for_map_entry_like_cpp(hub, map_id, map_entry, group)
-    }
     /// Set the C++ Difficulty.db2 store used by `sDifficultyStore`.
     pub fn set_difficulty_store(&mut self, store: Arc<DifficultyStore>) {
         self.core

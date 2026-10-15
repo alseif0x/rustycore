@@ -24,6 +24,13 @@ pub fn player_team_for_race_cpp(race: u8) -> Team {
     }
 }
 
+pub fn player_team_id_for_race_cpp(race: u8) -> u32 {
+    match player_team_for_race_cpp(race) {
+        Team::Horde => 1,
+        _ => 0,
+    }
+}
+
 /// Default display ID for a race/sex combination.
 pub fn default_display_id(race: u8, sex: u8) -> u32 {
     match (race, sex) {
