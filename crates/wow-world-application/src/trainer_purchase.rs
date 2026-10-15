@@ -33,6 +33,12 @@ mod projection;
 pub use projection::TrainerProjectionCatalogsLikeCpp;
 mod publication;
 mod runtime_install;
+mod session_context;
+mod session_host;
+pub use session_host::{
+    TrainerSessionFieldsLikeCpp, TrainerSessionHostLikeCpp, handle_trainer_list,
+    handle_trainer_list_for_gossip_option_like_cpp, trainer_offer_decision_like_cpp,
+};
 
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use context::TrainerAcquisitionFixturesLikeCpp;

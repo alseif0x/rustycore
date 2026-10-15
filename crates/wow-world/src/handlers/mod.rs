@@ -95,6 +95,8 @@ mod test_shims;
 #[path = "../../unit_tests/handlers/test_support/mod.rs"]
 mod test_support;
 #[cfg(test)]
+mod trainer_talent_test_shims;
+#[cfg(test)]
 mod travel_test_shims;
 #[cfg(test)]
 mod vendor_test_shims;

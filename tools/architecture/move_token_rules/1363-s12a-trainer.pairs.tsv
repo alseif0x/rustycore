@@ -1,0 +1,8 @@
+# base_path name head_path (#1363 slice 12a trainer, base 8e618d0e2)
+crates/wow-world/src/session/trainer_acquisition.rs	trainer_buy_context_like_cpp	crates/wow-world-application/src/trainer_purchase/session_context.rs
+crates/wow-world/src/session/trainer_acquisition.rs	trainer_buy_admission_context_like_cpp	crates/wow-world-application/src/trainer_purchase/session_context.rs
+crates/wow-world/src/session/trainer_acquisition.rs	trainer_list_publication_context_like_cpp	crates/wow-world-application/src/trainer_purchase/session_context.rs
+crates/wow-world/src/handlers/trainer.rs	trainer_offer_decision_like_cpp	crates/wow-world-application/src/trainer_purchase/session_host.rs
+crates/wow-world/src/handlers/trainer.rs	handle_trainer_list	crates/wow-world-application/src/trainer_purchase/session_host.rs
+crates/wow-world/src/handlers/trainer.rs	handle_trainer_list_for_gossip_option_like_cpp	crates/wow-world-application/src/trainer_purchase/session_host.rs
+crates/wow-world/src/handlers/trainer.rs	send_trainer_list_like_cpp	crates/wow-world-application/src/trainer_purchase/session_host.rs

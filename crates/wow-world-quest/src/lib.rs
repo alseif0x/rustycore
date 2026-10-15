@@ -133,6 +133,7 @@ pub use quest_session::{
     quest_poi_store_like_cpp, quest_source_item_quest_log_item_id_like_cpp,
     quest_xp_reward_like_cpp, read_quest_choice_item_like_cpp,
     read_quest_giver_accept_quest_like_cpp, read_quest_giver_query_quest_like_cpp,
+    refresh_represented_talent_points_like_cpp,
     remove_represented_active_rewarded_duplicates_like_cpp,
     represented_can_reward_quest_inventory_like_cpp,
     represented_creature_quest_menu_items_like_cpp, represented_player_quest_status_like_cpp,

@@ -139,7 +139,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         WorldSession::force_update_visibility_with_catalogs_like_cpp(self, creature_spawn_catalogs)
     }
     fn handle_trainer_list(&mut self, hello: Hello) -> impl Future<Output = ()> + Send {
-        WorldSession::handle_trainer_list(self, hello)
+        wow_world_application::handle_trainer_list(self, hello)
     }
     fn handle_trainer_list_for_gossip_option_like_cpp(
         &mut self,
@@ -147,7 +147,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         gossip_menu_id: u32,
         gossip_option_id: u32,
     ) -> impl Future<Output = ()> + Send {
-        WorldSession::handle_trainer_list_for_gossip_option_like_cpp(
+        wow_world_application::handle_trainer_list_for_gossip_option_like_cpp(
             self,
             hello,
             gossip_menu_id,

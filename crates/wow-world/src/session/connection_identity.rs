@@ -4,10 +4,10 @@
 //! Connection identity: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-#[cfg(test)]
-use super::ObjectGuidGenerator;
 use super::WorldSession;
 use super::{Arc, ObjectGuid, SessionManager};
+#[cfg(test)]
+use wow_core::ObjectGuidGenerator;
 #[cfg(test)]
 pub(in crate::session) use wow_world_core::session::PacketSpoofPendingBanLikeCpp;
 pub(in crate::session) use wow_world_core::session::PacketSpoofPendingBanTargetLikeCpp;

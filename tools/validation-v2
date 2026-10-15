@@ -899,6 +899,22 @@ def validation_commands(
                 planned,
                 ["cargo", "check", "--locked", "--tests", "--jobs", str(jobs), *package_args],
             )
+        if profile == "final":
+            # #1409 review follow-up 1: the closure check above unifies the
+            # features of every selected package, which hides a domain crate
+            # whose own `test-fixtures` forwarding is incomplete. A changed
+            # `wow-world-*` manifest therefore also checks that crate's tests
+            # alone, with only the features its own manifest enables.
+            for path in all_paths:
+                parts = path.split("/")
+                if (
+                    len(parts) == 3 and parts[0] == "crates" and parts[2] == "Cargo.toml"
+                    and parts[1].startswith("wow-world-") and (repo / path).is_file()
+                ):
+                    add_command(
+                        planned,
+                        ["cargo", "check", "--locked", "--tests", "--jobs", str(jobs), "-p", parts[1]],
+                    )
         if profile == "final" and workspace["direct_library_packages"]:
             package_args = [
                 argument

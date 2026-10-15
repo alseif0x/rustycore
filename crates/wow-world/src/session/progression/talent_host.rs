@@ -1,12 +1,12 @@
 //! The World session as the host of the talent bodies moved to
 //! `wow_world_spell` (#1363 slice 9b). Each operation names the inherent
-//! `WorldSession` method by path.
+//! `WorldSession` method or the moved free function (slice 12a) by path.
 
 use super::*;
 
 impl wow_world_spell::TalentHostLikeCpp for WorldSession {
     fn refresh_represented_talent_points_like_cpp(&mut self) {
-        WorldSession::refresh_represented_talent_points_like_cpp(self)
+        wow_world_quest::refresh_represented_talent_points_like_cpp(self)
     }
     fn resolved_represented_at_login_flags_like_cpp(&self) -> Option<u16> {
         WorldSession::resolved_represented_at_login_flags_like_cpp(self)

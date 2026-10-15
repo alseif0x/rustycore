@@ -1,0 +1,70 @@
+{
+ "slice": "#1363 slice 12a (trainer context builders, trainer list and offer decision -> wow-world-application)",
+ "base": "8e618d0e2",
+ "moved": [
+  "trainer_list_publication_context_like_cpp",
+  "send_trainer_list_like_cpp"
+ ],
+ "rules": [
+  [
+   "pub\\(crate\\) fn trainer_buy_context_like_cpp<'a>\\(\\s*&'a mut self,",
+   "pub(crate) fn trainer_buy_context_like_cpp<'a, H: TrainerSessionHostLikeCpp>(host: &'a mut H,"
+  ],
+  [
+   "\\) -> AppTrainerBuyCx<'a> \\{",
+   ") -> AppTrainerBuyCx<'a> {\n    let world_test = host.world_test_consumer_like_cpp();\n    let TrainerSessionFieldsLikeCpp {\n        hub: HubMut { core, catalogs: session_catalogs, #[cfg(any(test, feature = \"test-fixtures\"))] fixtures, .. },\n        lifecycle, inventory, spell_state, quest_state, loot, interaction,\n        ..\n    } = host.split_trainer_mut();"
+  ],
+  [
+   "pub\\(crate\\) fn trainer_buy_admission_context_like_cpp\\(\\s*&mut self,\\s*\\) -> wow_world_application::AppTrainerBuyAdmissionCxLikeCpp<'_> \\{",
+   "pub(crate) fn trainer_buy_admission_context_like_cpp<H: TrainerSessionHostLikeCpp>(host: &mut H) -> crate::AppTrainerBuyAdmissionCxLikeCpp<'_> {\n    let world_test = host.world_test_consumer_like_cpp();\n    let TrainerSessionFieldsLikeCpp {\n        hub: HubMut { core, catalogs: session_catalogs, config, #[cfg(any(test, feature = \"test-fixtures\"))] fixtures, .. },\n        inventory, spell_state, #[cfg(any(test, feature = \"test-fixtures\"))] quest_state, loot, interaction,\n        ..\n    } = host.split_trainer_mut();"
+  ],
+  [
+   "pub\\(crate\\) fn trainer_list_publication_context_like_cpp\\(&mut self\\) -> AppTrainerListCx<'_> \\{",
+   "pub(crate) fn trainer_list_publication_context_like_cpp<H: TrainerSessionHostLikeCpp>(host: &mut H) -> AppTrainerListCx<'_> {\n    let world_test = host.world_test_consumer_like_cpp();\n    let TrainerSessionFieldsLikeCpp {\n        hub: HubMut { core, catalogs: session_catalogs, config, #[cfg(any(test, feature = \"test-fixtures\"))] fixtures, .. },\n        inventory, spell_state, #[cfg(any(test, feature = \"test-fixtures\"))] quest_state, loot, interaction, social, #[cfg(any(test, feature = \"test-fixtures\"))] instances, \n        ..\n    } = host.split_trainer_mut();"
+  ],
+  [
+   "fn trainer_offer_decision_like_cpp\\(\\s*&mut self,",
+   "pub fn trainer_offer_decision_like_cpp<H: TrainerSessionHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "pub\\(crate\\) async fn handle_trainer_list\\(&mut self,",
+   "pub async fn handle_trainer_list<H: TrainerSessionHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "pub\\(crate\\) async fn handle_trainer_list_for_gossip_option_like_cpp\\(\\s*&mut self,",
+   "pub async fn handle_trainer_list_for_gossip_option_like_cpp<H: TrainerSessionHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "fn send_trainer_list_like_cpp\\(\\s*&mut self,",
+   "fn send_trainer_list_like_cpp<H: TrainerSessionHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "\\bself\\s*\\.\\s*{name}\\(",
+   "{name}(host, "
+  ],
+  [
+   "&?self\\s*\\.\\s*catalogs\\b",
+   "session_catalogs"
+  ],
+  [
+   "&mut self\\s*\\.\\s*(lifecycle|inventory|spell_state|quest_state|interaction)\\b(?![\\w.])",
+   "\\1"
+  ],
+  [
+   "&self\\s*\\.\\s*(loot|social|instances|quest_state|interaction|config)\\b(?![\\w.\\[])",
+   "\\1"
+  ],
+  [
+   "\\bself\\s*\\.\\s*",
+   ""
+  ],
+  [
+   "cfg!\\(test\\)",
+   "world_test"
+  ],
+  [
+   "wow_world_application::",
+   "crate::"
+  ]
+ ]
+}
