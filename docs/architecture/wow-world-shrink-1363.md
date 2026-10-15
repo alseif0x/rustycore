@@ -10073,12 +10073,17 @@ lines), behind `QuestSessionHostLikeCpp: SessionHubHostLikeCpp`:
 **Rewrites, beyond `self` → `host`:** `self.catalogs` →
 `host.hub_ref().catalogs`; `self.core` → `host.core()`; `self.lifecycle`,
 `self.quest_state` → `host.lifecycle()`, `host.quest_state()` (the `&` in
-front of them is dropped, three arguments in two functions);
+front of them and of `catalogs` is dropped: six arguments in two
+functions);
 `self.world_entities` → `host.world_entities_mut()`;
 `crate::session::{hub_ref,split_quest_state_ref,split_quest_state_mut}(self)`
 → the host forms; `wow_world_quest::` → `crate::`; a call between moved
-functions becomes a free call; `cfg!(test)` (three arguments) →
-`host.world_test_consumer_like_cpp()`. The two `#[cfg(test)]` fixture
+functions becomes a free call; `cfg!(test)` (two arguments) →
+`host.world_test_consumer_like_cpp()`. The World constants
+`QUEST_OBJECTIVE_{ITEM,CURRENCY,MONEY}_LIKE_CPP` and
+`QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP` (and its `_LOCAL`
+aliases) are imported from `wow_constants::quest`, which defines the same
+values (1, 4, 8, 0x1); the identifiers in the bodies are unchanged. The two `#[cfg(test)]` fixture
 branches of the completed-quest bits become
 `#[cfg(any(test, feature = "test-fixtures"))]` and are gated on the same
 flag, read once before the split (two lines each). The unused `&self` of
@@ -10191,9 +10196,11 @@ continue-login and loot host forwards return the moved future unchanged.
 ### Recursion
 
 - Every moved name was grepped across the production (non-shim)
-  `wow-world` files. What remains are the eleven trait-impl definitions
-  (loot ×2, continue-login, item, entities ×2, aura, quest query, login,
-  chat ×2), and each body names `wow_world_quest::…(self, …)`.
+  `wow-world` files. What remains are the eleven same-named trait-impl
+  definitions (loot ×2, continue-login, item, entities ×2, aura, quest
+  query, login, chat ×2) and two quest-query forwards under other names
+  (`complete_quest_can_reward_…`, `complete_quest_can_complete_repeatable_…`);
+  each body names `wow_world_quest::…(self, …)`.
 - The adapter's six operation forwards use `WorldSession::name(self, …)`
   and resolve to inherents that are still defined
   (`session/quest/state.rs`, `session/quest/giver.rs`,
@@ -10214,22 +10221,24 @@ shows no `test-fixtures` and no `wow-world-test-support`.
 - **`wow-world` production (classifier): 40,743 → 38,509 (−2,234).**
   Physical 49,349 → 47,335 (−2,014); 465 files (two deleted, the adapter
   and the shim added).
-  - **Moved:** 2,209 production lines. That is the 52 functions with
-    their doc comments (2,123) and the moved items (86): the dialog types,
+  - **Moved:** 2,205 production lines. That is the 52 functions with
+    their doc comments (2,123) and the moved items (82): the dialog types,
     seasonal types, log-row helper and menu-icon constants of
-    `quest_dialog.rs`/`session/mod.rs`, the four quest-objective constants
-    and `ItemTransferQuestPersistencePlanLikeCpp`.
+    `quest_dialog.rs`/`session/mod.rs` and
+    `ItemTransferQuestPersistencePlanLikeCpp`.
   - **Reclassified, not production reduction:** 35. These are the two
     nested `#[cfg(test)]` readers, now in the `#![cfg(test)]` shim.
-  - **Retired:** 84. That is the rewards-block wrapper (6), the shells of
-    the two deleted files (20), and the imports, re-exports and emptied
-    impl shells the moved bodies alone used.
+  - **Retired:** 88. That is the rewards-block wrapper (6), the shells of
+    the two deleted files (20), the four World quest-objective constant
+    definitions (the bodies import the identical `wow_constants::quest`
+    ones), and the imports, re-exports and emptied impl shells the moved
+    bodies alone used.
   - **Added:** the adapter (65) and the caller rewrites (net +29 from
     rustfmt: `wow_world_quest::name(self, …)` is longer than
     `self.name(…)`).
 - **Destination:** `wow-world-quest/src` 12,179 → 14,705 physical
   (+2,526): `quest_session/` 2,494 and the `lib.rs` re-export (+32);
-  classifier production 11,597 → 14,123, 47 → 54 files. Over the 2,209
+  classifier production 11,597 → 14,123, 47 → 54 files. Over the 2,205
   moved lines the growth is the module headers and imports, the host
   trait and the generic signatures.
 - `net_move.py check --base origin/3.4.3`: S = 2,014, G = 2,526,
