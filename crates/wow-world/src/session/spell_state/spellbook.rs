@@ -46,7 +46,7 @@ impl WorldSession {
             let Some(before) = self.player_persistent_capability_state_snapshot_like_cpp() else {
                 return applied;
             };
-            if self.apply_proficiency_effect_like_cpp(spell_id).is_ok()
+            if wow_world_spell::apply_proficiency_effect_like_cpp(self, spell_id).is_ok()
                 && self
                     .player_persistent_capability_state_snapshot_like_cpp()
                     .is_some_and(|after| {

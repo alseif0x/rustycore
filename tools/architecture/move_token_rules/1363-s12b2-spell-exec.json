@@ -1,0 +1,150 @@
+{
+ "slice": "#1363 slice 12b2 (spell-effect and player-item spell bodies -> wow-world-spell over SpellExecutionHostLikeCpp / SpellEffectHostLikeCpp, and the farsight seer consumer over VisibilitySessionHostLikeCpp)",
+ "base": "aa034f7e0",
+ "moved": [
+  "apply_stuck_effect_like_cpp",
+  "apply_self_resurrect_effect_like_cpp",
+  "apply_proficiency_effect_like_cpp",
+  "apply_durability_damage_effect_like_cpp",
+  "apply_inventory_item_obtain_spells_with_generator_like_cpp",
+  "set_represented_homebind_like_cpp",
+  "send_set_viewpoint_target_visibility_like_cpp",
+  "consume_add_farsight_set_seer_outcome_like_cpp",
+  "persist_player_homebind_like_cpp",
+  "player_homebind_update_request_like_cpp"
+ ],
+ "rules": [
+  [
+   "pub\\(in crate::session\\) async fn apply_stuck_effect_like_cpp\\(&mut self\\)",
+   "pub async fn apply_stuck_effect_like_cpp<H: SpellExecutionHostLikeCpp>(host: &mut H)"
+  ],
+  [
+   "pub\\(crate\\) async fn apply_inventory_item_obtain_spells_with_generator_like_cpp\\(\\s*&mut self,",
+   "pub async fn apply_inventory_item_obtain_spells_with_generator_like_cpp<H: SpellExecutionHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "pub\\(in crate::session\\) fn apply_durability_damage_effect_like_cpp\\(\\s*&mut self,",
+   "pub fn apply_durability_damage_effect_like_cpp<H: SpellEffectHostLikeCpp + VendorSessionHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "pub\\(crate\\) fn set_represented_homebind_like_cpp\\(\\s*&mut self,",
+   "pub fn set_represented_homebind_like_cpp<H: SpellEffectHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "pub\\(in crate::session\\) fn send_set_viewpoint_target_visibility_like_cpp\\(\\s*&mut self,",
+   "pub fn send_set_viewpoint_target_visibility_like_cpp<H: VisibilitySessionHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "pub\\(crate\\) fn player_homebind_update_request_like_cpp\\(",
+   "pub fn player_homebind_update_request_like_cpp("
+  ],
+  [
+   "pub\\(in crate::session\\) fn persist_player_homebind_like_cpp\\(\\s*&mut self,",
+   "pub fn persist_player_homebind_like_cpp<H: SpellEffectHostLikeCpp + BattlePetSessionHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "pub\\(in crate::session\\) fn consume_add_farsight_set_seer_outcome_like_cpp\\(\\s*&mut self,",
+   "pub fn consume_add_farsight_set_seer_outcome_like_cpp<H: SpellExecutionHostLikeCpp + VisibilitySessionHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "pub\\(in crate::session\\) fn {name}\\(\\s*&mut self,",
+   "pub fn {name}<H: SpellExecutionHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "\\bself\\s*\\.\\s*config\\s*\\.",
+   "host.hub_ref().config."
+  ],
+  [
+   "\\bself\\s*\\.\\s*catalogs\\s*\\.",
+   "host.hub_ref().catalogs."
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.\\s*client_visible_guids_like_cpp\\s*\\.\\s*insert\\(",
+   "host.core_mut().client_visible_guids_like_cpp.insert("
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "crate::session::hub_ref\\(self\\)",
+   "host.hub_ref()"
+  ],
+  [
+   "crate::session::split_spell_state_mut\\(self\\)",
+   "host.split_spell_state_mut()"
+  ],
+  [
+   "\\bself\\s*\\.\\s*spell_last_cast_time_like_cpp\\(\\s*HEARTHSTONE_SPELL_ID_LIKE_CPP\\s*\\)",
+   "({ let (state, hub) = host.split_spell_state_ref(); state.spell_last_cast_time_like_cpp(hub, HEARTHSTONE_SPELL_ID_LIKE_CPP) })"
+  ],
+  [
+   "\\bself\\s*\\.\\s*resolved_inventory_item_like_cpp\\(\\s*slot\\s*\\)",
+   "({ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_item_like_cpp(hub, slot) })"
+  ],
+  [
+   "\\bself\\s*\\.\\s*item_template_flags\\(\\s*item_entry\\s*\\)",
+   "host.hub_ref().catalogs.item_template_flags(item_entry)"
+  ],
+  [
+   "\\b(represented_homebind_like_cpp|record_spell_execute_log_durability_damage_like_cpp|apply_represented_durability_points_loss_all_like_cpp|apply_represented_durability_points_loss_at_slot_like_cpp|execute_server_triggered_spell_like_cpp)\\(\\s*self,",
+   "\\1(host,"
+  ],
+  [
+   "\\brepresented_homebind_like_cpp\\(self\\)",
+   "represented_homebind_like_cpp(host)"
+  ],
+  [
+   "\\bself\\s*\\.\\s*send_set_viewpoint_target_visibility_like_cpp\\(",
+   "send_set_viewpoint_target_visibility_like_cpp(host, "
+  ],
+  [
+   "\\bself\\s*\\.\\s*visibility\\s*\\.\\s*observe_farsight_object_like_cpp\\(",
+   "host.visibility_mut().observe_farsight_object_like_cpp("
+  ],
+  [
+   "crate::session::dynamic_object_create_data_from_canonical_like_cpp",
+   "wow_world_entities::dynamic_object_create_data_from_canonical_like_cpp"
+  ],
+  [
+   "crate::session::split_visibility_ref\\(self\\)",
+   "(host.visibility(), host.hub_ref())"
+  ],
+  [
+   "crate::session::player_homebind_update_request_like_cpp\\(",
+   "player_homebind_update_request_like_cpp("
+  ],
+  [
+   "\\bself\\s*\\.\\s*lifecycle\\s*\\.\\s*queue_player_homebind_persistence_like_cpp\\(",
+   "host.split_lifecycle_mut().0 .queue_player_homebind_persistence_like_cpp("
+  ],
+  [
+   "\\bself\\s*\\.\\s*lifecycle\\s*\\.\\s*player_lifecycle_port_like_cpp\\(\\)",
+   "host.lifecycle().player_lifecycle_port_like_cpp()"
+  ],
+  [
+   "\\bself\\s*\\.\\s*visibility\\s*\\.\\s*set_represented_seer_guid_fixture_like_cpp\\(",
+   "host.set_represented_seer_guid_fixture_like_cpp("
+  ],
+  [
+   "wow_world_spell::",
+   "crate::"
+  ],
+  [
+   "\\bself\\s*\\.\\s*",
+   "host."
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]",
+   "#[cfg(any(test, feature = \"test-fixtures\"))]"
+  ],
+  [
+   "#\\[cfg\\(not\\(test\\)\\)\\]",
+   "#[cfg(not(any(test, feature = \"test-fixtures\")))]"
+  ],
+  [
+   "\\bhost\\.fixtures\\s*\\.",
+   "fixtures."
+  ]
+ ]
+}

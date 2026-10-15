@@ -56,7 +56,10 @@ mod checks;
 mod completion;
 mod destinations;
 mod execution;
+mod farsight;
+mod item_effects;
 mod overloads;
+mod player_effects;
 mod post_spell_go;
 mod preparation;
 mod primary_effect_fallback;
@@ -66,12 +69,16 @@ pub use cast_state::*;
 pub use checks::*;
 pub use destinations::*;
 pub use execution::*;
+pub use farsight::*;
+pub use item_effects::*;
 pub use overloads::*;
+pub use player_effects::*;
 
 /// The World session as the spell execution's host (supertrait: the spell
 /// effect host). The effect bodies that reach the World quest, social,
-/// visibility, item and acquisition state stay on the session and are called
-/// here as host methods.
+/// visibility, item and acquisition state are called here as host methods;
+/// where such a body has moved to this crate or above it (#1363 slice 12b2),
+/// the World impl names the moved free function.
 pub trait SpellExecutionHostLikeCpp:
     SpellEffectHostLikeCpp + wow_world_inventory::BattlePetSessionHostLikeCpp
 {
@@ -147,14 +154,34 @@ pub trait SpellExecutionHostLikeCpp:
         misc_value: i32,
         target_guid: ObjectGuid,
     ) -> bool;
-    fn apply_proficiency_effect_like_cpp(&mut self, spell_id: i32) -> Result<(), &'static str>;
     fn apply_quest_complete_effect_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         target_guid: ObjectGuid,
         quest_id: i32,
     ) -> impl Future<Output = Result<(), &'static str>> + Send;
-    fn apply_stuck_effect_like_cpp(&mut self) -> impl Future<Output = ()> + Send;
-    fn apply_self_resurrect_effect_like_cpp(&mut self, damage: i32, misc_value: i32);
     fn apply_force_deselect_effect_like_cpp(&mut self) -> bool;
+    /// The World resurrection snapshot, ghost flag and alive state the moved
+    /// stuck effect reads and writes (#1363 slice 12b2).
+    fn player_resurrection_state_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerResurrectionStateLikeCpp>;
+    fn set_player_ghost_flag_like_cpp(&mut self, ghost: bool);
+    fn set_player_alive_like_cpp(&mut self, alive: bool);
+    /// The World test session's handle-less capability owner for the moved
+    /// proficiency effect's fixture step; `None` for every other host.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    fn mutate_player_persistent_capability_state_like_cpp<R>(
+        &mut self,
+        mutate: impl FnOnce(&mut wow_entities::PlayerPersistentCapabilityStateLikeCpp) -> R,
+    ) -> Option<R> {
+        let _ = mutate;
+        None
+    }
+    /// The World test session's represented seer fixture, which the moved
+    /// farsight seer consumer writes; a no-op for every other host.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    fn set_represented_seer_guid_fixture_like_cpp(&mut self, guid: Option<ObjectGuid>) {
+        let _ = guid;
+    }
 }

@@ -5,21 +5,6 @@
 
 use super::*;
 
-pub(crate) fn player_homebind_update_request_like_cpp(
-    homebind: RepresentedHomebindLikeCpp,
-    guid_counter: u64,
-) -> wow_persistence::PlayerHomebindPersistenceRequestLikeCpp {
-    wow_persistence::PlayerHomebindPersistenceRequestLikeCpp::UpdateLive {
-        player_guid: guid_counter,
-        map_id: homebind.map_id,
-        area_id: homebind.area_id,
-        x: homebind.position.x,
-        y: homebind.position.y,
-        z: homebind.position.z,
-        orientation: homebind.position.orientation,
-    }
-}
-
 impl WorldSession {
     pub(crate) fn plan_add_currency_vendor_like_cpp(
         &self,

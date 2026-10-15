@@ -59,20 +59,22 @@ pub use effect_session::{
     apply_damage_with_generator_like_cpp, apply_effect_add_farsight_like_cpp,
     apply_effect_summon_object_wild_like_cpp, apply_heal, apply_heal_max_health_like_cpp,
     apply_spell_initial_threat_like_cpp, implicit_target_conditions_like_cpp,
-    represented_target_aura_state_mask_like_cpp, represented_target_creature_type_mask_like_cpp,
-    represented_target_mechanic_mask_like_cpp,
+    player_homebind_update_request_like_cpp, represented_target_aura_state_mask_like_cpp,
+    represented_target_creature_type_mask_like_cpp, represented_target_mechanic_mask_like_cpp,
 };
 pub use effect_session::{
     SpellEffectHostLikeCpp, apply_block_effect_like_cpp, apply_parry_effect_like_cpp,
     canonical_threatened_by_me_owner_guids_like_cpp, current_map_dungeon_state_like_cpp,
     current_map_is_dungeon_like_cpp, hydrate_canonical_threat_relevant_auras_like_cpp,
-    notify_other_players_visibility_changed_like_cpp, player_current_map_instanceable_like_cpp,
-    record_spell_execute_log_durability_damage_like_cpp,
+    notify_other_players_visibility_changed_like_cpp, persist_player_homebind_like_cpp,
+    player_current_map_instanceable_like_cpp, record_spell_execute_log_durability_damage_like_cpp,
     represented_disallowed_mount_form_like_cpp, represented_homebind_like_cpp,
-    sync_represented_creature_threat_to_canonical_like_cpp,
+    set_represented_homebind_like_cpp, sync_represented_creature_threat_to_canonical_like_cpp,
 };
 pub use execution_session::{
-    SpellExecutionHostLikeCpp, check_represented_cast_preparation_like_cpp,
+    SpellExecutionHostLikeCpp, apply_durability_damage_effect_like_cpp,
+    apply_inventory_item_obtain_spells_with_generator_like_cpp, apply_proficiency_effect_like_cpp,
+    check_represented_cast_preparation_like_cpp, consume_add_farsight_set_seer_outcome_like_cpp,
     execute_server_triggered_spell_like_cpp,
     execute_spell_with_visual_and_target_data_and_generator_like_cpp,
     execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp,
@@ -80,7 +82,8 @@ pub use execution_session::{
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use execution_session::{
-    represented_transport_destination_world_position_like_cpp, take_spell_power_like_cpp,
+    represented_transport_destination_world_position_like_cpp,
+    send_set_viewpoint_target_visibility_like_cpp, take_spell_power_like_cpp,
 };
 pub use login_spell_application::{
     apply_loaded_known_spell_dependencies_like_cpp,

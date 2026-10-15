@@ -94,11 +94,12 @@ pub trait SpellEffectHostLikeCpp: SpellClickHostLikeCpp {
         item_id: u32,
         cast_item: i32,
     ) -> Option<wow_entities::PlayerValuesUpdate>;
-    /// The World homebind persistence (the lifecycle port and its ordered
-    /// worker), which stays on the session.
+    /// The homebind persistence (the lifecycle port and its ordered worker);
+    /// the World impl names the free function of the same name (#1363 slice
+    /// 12b2), which also needs the battle-pet host's lifecycle split.
     fn persist_player_homebind_like_cpp(&mut self, homebind: RepresentedHomebindLikeCpp);
-    /// The World homebind write; its handle-less fixture branch stays on the
-    /// session with the login coordinator that also calls it.
+    /// The homebind write, which the login coordinator also calls; the World
+    /// impl names the free function of the same name (#1363 slice 12b2).
     fn set_represented_homebind_like_cpp(&mut self, homebind: RepresentedHomebindLikeCpp) -> bool;
     fn represented_visibility_source_combat_reach_like_cpp(&self) -> f32;
 }

@@ -3,12 +3,12 @@
 //! Separated from the Session root under #621.
 
 use super::*;
-use wow_world_spell::represented_homebind_like_cpp;
 mod destinations;
-mod effect_apply;
 mod effect_combat;
 mod effect_host;
 mod effects;
-mod effects_player;
+#[cfg(test)]
+#[path = "../../../unit_tests/session/spell_effects/effects_player/test_only.rs"]
+mod effects_player_test_only;
 mod effects_progress;
 mod execution_host;

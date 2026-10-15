@@ -56,69 +56,6 @@ impl WorldSession {
     ) -> InventoryResult {
         self.can_use_inventory_item_represented_with_loading_like_cpp(item, runtime_item, true)
     }
-    /// C++ `Player::ApplyItemObtainSpells(item, true)` after `_StoreItem`.
-    pub(crate) async fn apply_inventory_item_obtain_spells_with_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
-        item_entry: u32,
-    ) -> Vec<i32> {
-        if self
-            .item_template_flags(item_entry)
-            .is_some_and(|flags| flags.contains(ItemFlags::LEGACY))
-        {
-            return Vec::new();
-        }
-        let spell_ids = self
-            .catalogs
-            .items
-            .effect_store
-            .as_ref()
-            .map(|store| {
-                store
-                    .item_effects_for_item_id_like_cpp(item_entry)
-                    .into_iter()
-                    .filter(|effect| {
-                        effect.trigger_type == ItemSpelltriggerType::OnPickup as i8
-                            && effect.spell_id > 0
-                    })
-                    .map(|effect| effect.spell_id)
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        let Some(player_guid) = self.player_guid() else {
-            return Vec::new();
-        };
-        let Some(visible_auras) =
-            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
-        else {
-            return Vec::new();
-        };
-        let mut applied = Vec::new();
-        for spell_id in spell_ids {
-            if visible_auras.values().any(|aura| aura.spell_id == spell_id) {
-                continue;
-            }
-            // C++ `Player::ApplyItemObtainSpells` uses
-            // `CastSpellExtraArgs().SetCastItem(item)`, whose default trigger
-            // flags are TRIGGERED_NONE: not a triggered cast, and the global
-            // cooldown applies.
-            if wow_world_spell::execute_server_triggered_spell_like_cpp(
-                self,
-                item_guid_generator,
-                creature_spawn_catalogs,
-                spell_id,
-                player_guid,
-                SpellCastMetadata::default(),
-            )
-            .await
-            .is_ok()
-            {
-                applied.push(spell_id);
-            }
-        }
-        applied
-    }
     pub(crate) fn resolved_inventory_items_like_cpp(&self) -> Option<HashMap<u8, InventoryItem>> {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.resolved_inventory_items_like_cpp(hub)
