@@ -39,6 +39,8 @@ pub use instances::map_key::{RuntimeLocationCaptureLikeCpp, session_state_name_l
 mod canonical_access;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use canonical_access::NpcInteractionFixtureRefsLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use canonical_access::PlayerQuestGameplayFixtureSourceLikeCpp;
 pub use canonical_access::QuestEligibilityAccessLikeCpp;
 pub use canonical_access::{AuraConditionAccessBuilderLikeCpp, AuraNpcAccessBuilderLikeCpp};
 #[cfg(any(test, feature = "test-fixtures"))]

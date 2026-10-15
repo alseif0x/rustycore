@@ -5,6 +5,15 @@ use crate::session::state::SessionCore;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_core::ObjectGuid;
 
+/// Fixture-only source of the represented quest gameplay snapshot (#1363
+/// slice Q). The condition projection and the registry hydration read the
+/// World-test quest fixture through it at their existing step, without naming
+/// the quest crate's `SessionQuestState`, which implements it.
+#[cfg(any(test, feature = "test-fixtures"))]
+pub trait PlayerQuestGameplayFixtureSourceLikeCpp {
+    fn player_quest_gameplay_fixture_like_cpp(&self) -> wow_entities::PlayerQuestGameplayState;
+}
+
 /// Narrow access for the canonical Player inputs used by directory hydration.
 ///
 /// The Player and SessionCore remain private; callers receive only the strict quest snapshot,

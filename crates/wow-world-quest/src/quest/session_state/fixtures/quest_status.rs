@@ -541,3 +541,11 @@ impl SessionQuestState {
             state.rewarded_quest_rows_like_cpp().clone();
     }
 }
+
+/// The quest fixture snapshot, lent to the condition projection and the
+/// registry hydration through the core seam (#1363 slice Q).
+impl wow_world_core::session::PlayerQuestGameplayFixtureSourceLikeCpp for SessionQuestState {
+    fn player_quest_gameplay_fixture_like_cpp(&self) -> wow_entities::PlayerQuestGameplayState {
+        SessionQuestState::player_quest_gameplay_fixture_like_cpp(self)
+    }
+}

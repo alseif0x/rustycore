@@ -64,7 +64,7 @@ pub struct PlayerConditionProjectionCxLikeCpp<'a> {
     #[cfg(any(test, feature = "test-fixtures"))]
     spell_state: &'a SessionSpellState,
     #[cfg(any(test, feature = "test-fixtures"))]
-    quest_state: &'a crate::SessionQuestState,
+    quest_state: &'a dyn wow_world_core::session::PlayerQuestGameplayFixtureSourceLikeCpp,
     #[cfg(any(test, feature = "test-fixtures"))]
     instances: &'a InstanceState,
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -90,7 +90,7 @@ impl<'a> PlayerConditionProjectionCxLikeCpp<'a> {
         social: &'a SessionSocialLimits,
         chr_specializations: Option<&'a ChrSpecializationStore>,
         #[cfg(any(test, feature = "test-fixtures"))] spell_state: &'a SessionSpellState,
-        #[cfg(any(test, feature = "test-fixtures"))] quest_state: &'a crate::SessionQuestState,
+        #[cfg(any(test, feature = "test-fixtures"))] quest_state: &'a dyn wow_world_core::session::PlayerQuestGameplayFixtureSourceLikeCpp,
         #[cfg(any(test, feature = "test-fixtures"))] instances: &'a InstanceState,
         #[cfg(any(test, feature = "test-fixtures"))]
         battleground_fixture: &'a wow_world_core::session::BattlegroundState,
@@ -338,7 +338,8 @@ pub fn player_condition_projection_cx_like_cpp<'a>(
     inventory: &'a InventoryState,
     social: &'a SessionSocialLimits,
     #[cfg(any(test, feature = "test-fixtures"))] spell_state: &'a SessionSpellState,
-    #[cfg(any(test, feature = "test-fixtures"))] quest_state: &'a crate::SessionQuestState,
+    #[cfg(any(test, feature = "test-fixtures"))]
+    quest_state: &'a dyn wow_world_core::session::PlayerQuestGameplayFixtureSourceLikeCpp,
     #[cfg(any(test, feature = "test-fixtures"))] instances: &'a InstanceState,
     #[cfg(any(test, feature = "test-fixtures"))] consumer_test: bool,
 ) -> PlayerConditionProjectionCxLikeCpp<'a> {
