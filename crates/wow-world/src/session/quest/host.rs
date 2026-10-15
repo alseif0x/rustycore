@@ -1,13 +1,13 @@
 //! World-side adapter for the quest bodies that moved to `wow_world_quest`
-//! (#1363 slice 6a). Each method forwards to the same-named session field,
-//! split or inherent operation; `world_test_consumer_like_cpp` is this
-//! crate's `cfg!(test)`.
+//! (#1363 slices 6a and 6b). Each method forwards to the same-named session
+//! field, split or inherent operation.
 
 use std::collections::HashMap;
 
 use wow_world_core::session::{HubMut, HubRef, RepresentedGameObjectAccessLikeCpp};
 use wow_world_entities::WorldEntitiesState;
 use wow_world_lifecycle::SessionLifecycleState;
+use wow_world_player_conditions::PlayerConditionProjectionCxLikeCpp;
 use wow_world_quest::{QuestSessionHostLikeCpp, SessionQuestState};
 
 use super::*;
@@ -28,9 +28,6 @@ impl QuestSessionHostLikeCpp for WorldSession {
     fn world_entities_mut(&mut self) -> &mut WorldEntitiesState {
         &mut self.world_entities
     }
-    fn world_test_consumer_like_cpp(&self) -> bool {
-        cfg!(test)
-    }
     fn player_quest_gameplay_snapshot_like_cpp(&self) -> Option<PlayerQuestGameplayState> {
         WorldSession::player_quest_gameplay_snapshot_like_cpp(self)
     }
@@ -43,15 +40,6 @@ impl QuestSessionHostLikeCpp for WorldSession {
     fn invalidate_player_quest_status_authority_like_cpp(&mut self) {
         WorldSession::invalidate_player_quest_status_authority_like_cpp(self)
     }
-    fn can_take_quest(&self, quest: &wow_data::quest::QuestTemplate) -> bool {
-        WorldSession::can_take_quest(self, quest)
-    }
-    fn represented_quest_is_important_like_cpp(
-        &self,
-        quest: &wow_data::quest::QuestTemplate,
-    ) -> bool {
-        WorldSession::represented_quest_is_important_like_cpp(self, quest)
-    }
     fn represented_inventory_item_counts_like_cpp(&self) -> Option<HashMap<u32, u32>> {
         WorldSession::represented_inventory_item_counts_like_cpp(self)
     }
@@ -61,5 +49,33 @@ impl QuestSessionHostLikeCpp for WorldSession {
     ) -> Option<RepresentedGameObjectAccessLikeCpp> {
         crate::session::cx_quest_state_ref(self)
             .represented_gameobject_questgiver_can_interact_with_like_cpp(guid)
+    }
+    fn complete_represented_quest_after_objective_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        quest: &wow_data::quest::QuestTemplate,
+        ignored_objective_id: u32,
+    ) -> impl Future<Output = bool> + Send {
+        WorldSession::complete_represented_quest_after_objective_with_generator_like_cpp(
+            self,
+            item_guid_generator,
+            quest,
+            ignored_objective_id,
+        )
+    }
+    fn sync_player_registry_state_like_cpp(&self) {
+        WorldSession::sync_player_registry_state_like_cpp(self)
+    }
+    fn update_visible_gameobjects_or_spell_clicks_like_cpp(&self) -> usize {
+        WorldSession::update_visible_gameobjects_or_spell_clicks_like_cpp(self)
+    }
+    fn send_represented_quest_log_slot_update_like_cpp(&mut self, slot: u8) {
+        WorldSession::send_represented_quest_log_slot_update_like_cpp(self, slot)
+    }
+    fn player_condition_projection_cx_like_cpp(&self) -> PlayerConditionProjectionCxLikeCpp<'_> {
+        WorldSession::player_condition_projection_cx_like_cpp(self)
+    }
+    fn player_target_spell_is_hit_inert_like_cpp(&self, spell_id: u32, difficulty_id: u8) -> bool {
+        WorldSession::player_target_spell_is_hit_inert_like_cpp(self, spell_id, difficulty_id)
     }
 }

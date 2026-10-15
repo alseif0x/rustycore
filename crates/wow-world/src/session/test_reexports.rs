@@ -1,7 +1,7 @@
-//! Names only the session scenarios read through the session root (#1363 slices 9e-13c): the
+//! Names only the session scenarios read through the session root (#1363 slices 6a-13c): the
 //! player cast, cast-check, spell-click, battle-pet, aura-interrupt, area-flag, capture-point,
-//! spell-area autocast, dynamic-object VALUES, teleport, rest-flag, create-map, transfer-abort and
-//! login names. `#![cfg(test)]`; mounted and glob-imported in cfg(test) (#1395/#1396 follow-up 1).
+//! spell-area autocast, dynamic-object VALUES, teleport, rest-flag, create-map, transfer-abort,
+//! login and quest names. `#![cfg(test)]`; mounted and glob-imported in cfg(test) (#1395/#1396).
 
 #![cfg(test)]
 
@@ -53,6 +53,7 @@ pub(crate) use wow_world_instances::{
 };
 pub(crate) use wow_world_inventory::MAX_BATTLE_PET_LEVEL_LIKE_CPP;
 pub(crate) use wow_world_quest::{
+    QUEST_FLAGS_EX_RECAST_ACCEPT_SPELL_ON_LOGIN_LIKE_CPP, QUEST_FLAGS_PLAYER_CAST_ACCEPT_LIKE_CPP,
     ResetSeasonalQuestStatusReasonLikeCpp, SeasonalQuestStatusDbRowLikeCpp,
 };
 pub(crate) use wow_world_spell::{

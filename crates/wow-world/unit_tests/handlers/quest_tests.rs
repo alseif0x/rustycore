@@ -10,11 +10,10 @@
 #![cfg(test)]
 
 use super::*;
-use crate::player::inventory_persistence_test_fixture::PlayerInventoryPersistencePortFixtureLikeCpp;
 use crate::player::quest_persistence_test_fixture::{
     PlayerQuestLoadStageFixtureLikeCpp, PlayerQuestPersistencePortFixtureLikeCpp,
 };
-use crate::session::directory::PlayerRegistry;
+use crate::session::{InventoryItem, directory::PlayerRegistry};
 use wow_constants::{
     ComparisonType, ConditionSourceType, ConditionType, InventoryType, ItemBondingType, ItemClass,
 };
@@ -43,13 +42,11 @@ use wow_packet::packets::item::InventoryChangeFailure;
 use wow_packet::packets::quest::QuestGiverQuestFailed;
 use wow_packet::{ClientPacket, WorldPacket};
 use wow_persistence::{
-    ItemTemplateAddonCatalogPersistencePortLikeCpp, ItemTemplateAddonCatalogRequestLikeCpp,
-    ItemTemplateAddonLootMetadataOutcomeLikeCpp, ItemTemplateAddonMoneyOutcomeLikeCpp,
-    PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, PlayerQuestActivePersistenceRowLikeCpp,
-    PlayerQuestDailyPersistenceRowLikeCpp, PlayerQuestIdPersistenceRowLikeCpp,
-    PlayerQuestObjectivePersistenceRowLikeCpp, PlayerQuestStatusPersistenceRequestLikeCpp,
-    QuestPoiBlobLoadRowLikeCpp, QuestPoiLoadOutcomeLikeCpp, QuestPoiLoadStageLikeCpp,
-    QuestPoiPersistencePortLikeCpp, QuestPoiPointLoadRowLikeCpp,
+    ItemTemplateAddonCatalogRequestLikeCpp, ItemTemplateAddonLootMetadataOutcomeLikeCpp,
+    PlayerQuestActivePersistenceRowLikeCpp, PlayerQuestDailyPersistenceRowLikeCpp,
+    PlayerQuestIdPersistenceRowLikeCpp, PlayerQuestObjectivePersistenceRowLikeCpp,
+    PlayerQuestStatusPersistenceRequestLikeCpp, QuestPoiLoadOutcomeLikeCpp,
+    QuestPoiLoadStageLikeCpp, QuestPoiPointLoadRowLikeCpp,
 };
 use wow_social::group::{GroupInfo, GroupRegistry, PendingInvites};
 

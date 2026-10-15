@@ -181,7 +181,7 @@ impl InventoryStorageMoveHostLikeCpp for WorldSession {
         &mut self,
         entry_id: u32,
     ) -> Option<Vec<u32>> {
-        WorldSession::apply_quest_item_removed_like_cpp(self, entry_id)
+        wow_world_quest::apply_quest_item_removed_like_cpp(self, entry_id)
     }
 
     fn storage_move_apply_quest_item_added_like_cpp<'a>(
@@ -192,7 +192,7 @@ impl InventoryStorageMoveHostLikeCpp for WorldSession {
         count: u32,
     ) -> impl Future<Output = Vec<u32>> + Send + 'a {
         async move {
-            WorldSession::apply_quest_item_added_objective_progress_with_generator_like_cpp(
+            wow_world_quest::apply_quest_item_added_objective_progress_with_generator_like_cpp(
                 self,
                 item_guid_generator,
                 entry_id,

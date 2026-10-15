@@ -53,7 +53,7 @@ impl WorldSession {
             }
         };
 
-        if self.is_quest_disabled_like_cpp(quest_id) {
+        if wow_world_quest::is_quest_disabled_like_cpp(self, quest_id) {
             debug!(
                 account = self.core.account_id,
                 quest_id, "RequestReward: quest disabled"
@@ -98,7 +98,8 @@ impl WorldSession {
                 .quest_state
                 .represented_quest_complete_status_updates_like_cpp()
                 .len();
-            self.complete_represented_quest_after_add_with_generator_like_cpp(
+            wow_world_quest::complete_represented_quest_after_add_with_generator_like_cpp(
+                self,
                 item_guid_generator,
                 &quest,
             )
@@ -221,7 +222,7 @@ impl WorldSession {
             }
         };
 
-        if self.is_quest_disabled_like_cpp(quest_id) {
+        if wow_world_quest::is_quest_disabled_like_cpp(self, quest_id) {
             debug!(
                 account = self.core.account_id,
                 quest_id, "ChooseReward: quest disabled"
@@ -265,7 +266,7 @@ impl WorldSession {
                 );
                 return;
             }
-            if !self.represented_reward_choice_template_exists_like_cpp(choice) {
+            if !wow_world_quest::represented_reward_choice_template_exists_like_cpp(self, choice) {
                 warn!(
                     account = self.core.account_id,
                     quest_id,
@@ -277,7 +278,9 @@ impl WorldSession {
             }
             let valid = WorldSession::represented_reward_choice_matches_loaded_type_like_cpp(
                 &quest, choice,
-            ) || self.represented_quest_package_choice_matches_like_cpp(&quest, choice);
+            ) || wow_world_quest::represented_quest_package_choice_matches_like_cpp(
+                self, &quest, choice,
+            );
             if !valid {
                 warn!(
                     account = self.core.account_id,
@@ -312,7 +315,7 @@ impl WorldSession {
             return;
         }
 
-        if !self.represented_can_reward_quest_inventory_like_cpp(&quest, choice) {
+        if !wow_world_quest::represented_can_reward_quest_inventory_like_cpp(self, &quest, choice) {
             debug!(
                 account = self.core.account_id,
                 quest_id,

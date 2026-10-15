@@ -10,15 +10,14 @@
 //! dispatcher arm are unchanged; this module keeps the shared constants,
 //! helper types and free functions the features build on.
 
-pub(crate) mod dialog_status;
 mod eligibility;
 mod handlers;
+mod item_storage_host;
 mod objectives;
 mod persistence;
 mod quest_query_host;
 mod rewards;
 mod sharing;
-mod source_items;
 mod state;
 
 use crate::session::mailbox::SessionCommand;
@@ -27,28 +26,21 @@ use crate::session::mailbox::{
 };
 use std::{collections::HashMap, sync::Arc};
 use tracing::{debug, info, warn};
-use wow_constants::item::ItemFlags3;
 use wow_constants::unit::NPCFlags1;
-use wow_constants::{InventoryResult, ItemBondingType, ItemContext, ItemFieldFlags, ItemFlags2};
+use wow_constants::{InventoryResult, ItemFlags2};
 // Test-only: its production readers were the eleven quest-giver registrations
 // that moved to the quest crate's `quest_handlers` area registrar under
 // #1263 F5; the quest test shims and scenarios still reach it through
-// `super::*`.
+// `super::*`. The item names are test-only since #1363 slice 6b: their
+// production readers moved with the item-objective and source-item bodies.
 #[cfg(test)]
-use wow_constants::ClientOpcodes;
+use wow_constants::{ClientOpcodes, ItemContext, ItemFieldFlags, item::ItemFlags3};
 use wow_core::{GameTime, ObjectGuid};
-use wow_data::{
-    progression_rewards::{
-        QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP, QUEST_PACKAGE_FILTER_EVERYONE_LIKE_CPP,
-        QUEST_PACKAGE_FILTER_LOOT_SPECIALIZATION_LIKE_CPP, QuestPackageItemEntry,
-    },
-    quest::QuestStore,
+use wow_data::progression_rewards::{
+    QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP, QUEST_PACKAGE_FILTER_EVERYONE_LIKE_CPP,
+    QUEST_PACKAGE_FILTER_LOOT_SPECIALIZATION_LIKE_CPP,
 };
 pub use wow_entities::PlayerQuestStatusRecord as PlayerQuestStatus;
-use wow_entities::{
-    ItemPosCount, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemInstancePlan,
-    SendNewItemModifier, SendNewItemPlan, is_bag_pos,
-};
 // Test-only: the production readers of these two were the eleven quest-giver
 // registrations that moved to the quest crate's `quest_handlers` area
 // registrar under #1263 F5; the quest scenarios still reach them through
@@ -68,20 +60,18 @@ use wow_packet::packets::query::{
 };
 use wow_packet::packets::quest::{
     AdventureMapStartQuest, PushQuestToParty, QueryQuestInfoResponse, QuestConfirmAccept,
-    QuestGiverOfferReward, QuestGiverQuestComplete, QuestGiverQuestFailed, QuestGiverStatus,
-    QuestObjectiveInfo, QuestPushResult, QuestPushResultResponse, QuestRewardsBlock,
-    WorldQuestUpdateResponse, quest_push_reason,
+    QuestGiverOfferReward, QuestGiverQuestComplete, QuestGiverStatus, QuestObjectiveInfo,
+    QuestPushResult, QuestPushResultResponse, QuestRewardsBlock, WorldQuestUpdateResponse,
+    quest_push_reason,
 };
 // Test-only: the quest handler test fixtures read the dialog status
 // discriminators through this module's glob import.
 #[cfg(test)]
 use wow_packet::packets::quest::quest_giver_status;
 
-use wow_packet::packets::update::{ItemCreateData, ItemEnchantmentValuesUpdate, UpdateObject};
-
 use crate::handlers::character::ExtendedCostItemTurninChange;
 use crate::session::{
-    CurrencyGainSourceLikeCpp, InventoryItem, RepresentedAdventureMapStartQuestLikeCpp,
+    CurrencyGainSourceLikeCpp, RepresentedAdventureMapStartQuestLikeCpp,
     RepresentedPushQuestToPartyOutcomeLikeCpp, RepresentedPushQuestToPartyOutcomeReasonLikeCpp,
     RepresentedQuestCompleteStatusUpdateLikeCpp, RepresentedQuestConfirmAcceptLikeCpp,
     RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp,
@@ -135,18 +125,9 @@ fn read_quest_giver_accept_quest_like_cpp(
     Ok((guid, quest_id, start_cheat))
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct QuestChoiceItemLikeCpp {
-    loot_item_type: u8,
-    item_id: u32,
-    quantity: i32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum QuestSourceItemStoreOutcomeLikeCpp {
-    StoredNewItem,
-    BoundObjectiveNoGrant,
-}
+// The reward choice and the source-item store outcome moved with the
+// reward-inventory admission and the source-item grant (#1363 slice 6b).
+pub(crate) use wow_world_quest::{QuestChoiceItemLikeCpp, QuestSourceItemStoreOutcomeLikeCpp};
 
 // The source-item bound-objective records are read by the loot item storage
 // moved to `wow-world-loot-ops` (#1363 slice 5b), so they live in the quest crate.
@@ -344,32 +325,19 @@ mod tests;
 #[cfg(test)]
 use wow_constants::quest::{
     QUEST_OBJECTIVE_CURRENCY_LIKE_CPP as QUEST_OBJECTIVE_CURRENCY_LIKE_CPP_LOCAL,
+    QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP as QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL,
     QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP as QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP_LOCAL,
     QUEST_OBJECTIVE_FLAG_PART_OF_PROGRESS_BAR_LIKE_CPP as QUEST_OBJECTIVE_FLAG_PART_OF_PROGRESS_BAR_LIKE_CPP_LOCAL,
     QUEST_OBJECTIVE_FLAG_SEQUENCED_LIKE_CPP as QUEST_OBJECTIVE_FLAG_SEQUENCED_LIKE_CPP_LOCAL,
+    QUEST_OBJECTIVE_ITEM_LIKE_CPP as QUEST_OBJECTIVE_ITEM_LIKE_CPP_LOCAL,
     QUEST_OBJECTIVE_MONEY_LIKE_CPP as QUEST_OBJECTIVE_MONEY_LIKE_CPP_LOCAL,
     QUEST_OBJECTIVE_MONSTER_LIKE_CPP as QUEST_OBJECTIVE_MONSTER_LIKE_CPP_LOCAL,
     QUEST_OBJECTIVE_PROGRESS_BAR_LIKE_CPP as QUEST_OBJECTIVE_PROGRESS_BAR_LIKE_CPP_LOCAL,
-};
-use wow_constants::quest::{
-    QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP as QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL,
-    QUEST_OBJECTIVE_ITEM_LIKE_CPP as QUEST_OBJECTIVE_ITEM_LIKE_CPP_LOCAL,
 };
 
 // ── PlayerQuestStatus ────────────────────────────────────────────────────────
 
 impl WorldSession {
-    pub(in crate::handlers::quest) fn represented_quest_dialog_classification_like_cpp(
-        quest: &wow_data::quest::QuestTemplate,
-        quest_info: Option<&wow_data::progression_rewards::QuestInfoStore>,
-    ) -> crate::handlers::quest::dialog_status::QuestDialogClassificationLikeCpp {
-        crate::handlers::quest::dialog_status::QuestDialogClassificationLikeCpp::new(
-            quest.flags,
-            quest.flags_ex,
-            quest_info.and_then(|store| store.get(quest.quest_info_id as u32)),
-        )
-    }
-
     pub(in crate::handlers::quest) fn represented_reward_choice_matches_loaded_type_like_cpp(
         quest: &wow_data::quest::QuestTemplate,
         choice: QuestChoiceItemLikeCpp,

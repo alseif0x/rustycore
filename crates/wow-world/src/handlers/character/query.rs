@@ -6,6 +6,7 @@
 //! Character and name queries, inspection responses.
 
 use super::*;
+use wow_world_quest::get_represented_quest_giver_status_with_catalog_like_cpp;
 
 impl WorldSession {
     pub(super) fn collect_quest_giver_status_multiple_like_cpp(
@@ -24,7 +25,8 @@ impl WorldSession {
                     continue;
                 }
 
-                let status = self.get_represented_quest_giver_status_with_catalog_like_cpp(
+                let status = get_represented_quest_giver_status_with_catalog_like_cpp(
+                    self,
                     Some(quest_info),
                     RepresentedQuestGiverStatusSourceLikeCpp::Creature {
                         entry: access.entry,
@@ -48,7 +50,8 @@ impl WorldSession {
                     continue;
                 }
 
-                let status = self.get_represented_quest_giver_status_with_catalog_like_cpp(
+                let status = get_represented_quest_giver_status_with_catalog_like_cpp(
+                    self,
                     Some(quest_info),
                     RepresentedQuestGiverStatusSourceLikeCpp::GameObject {
                         entry: access.entry,

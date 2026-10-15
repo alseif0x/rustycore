@@ -724,7 +724,8 @@ impl WorldSession {
             match &withdrawal.destination {
                 PlannedVoidWithdrawalDestinationLikeCpp::QuestBoundNoItem => {
                     added_changed_quest_ids.extend(
-                        self.apply_quest_item_added_bound_state_like_cpp(
+                        wow_world_quest::apply_quest_item_added_bound_state_like_cpp(
+                            self,
                             withdrawal.void_item.item_entry,
                             withdrawal.quest_log_item_id,
                             1,
@@ -823,7 +824,8 @@ impl WorldSession {
                 PlannedVoidWithdrawalDestinationLikeCpp::QuestBoundNoItem
             ) {
                 added_changed_quest_ids.extend(
-                    self.apply_quest_item_added_non_bound_state_like_cpp(
+                    wow_world_quest::apply_quest_item_added_non_bound_state_like_cpp(
+                        self,
                         withdrawal.void_item.item_entry,
                         withdrawal.quest_log_item_id,
                         1,
@@ -860,7 +862,10 @@ impl WorldSession {
             destroyed_deposit_items,
             withdrawal_item_publications,
         );
-        self.publish_quest_item_added_status_changes_like_cpp(&added_changed_quest_ids);
+        wow_world_quest::publish_quest_item_added_status_changes_like_cpp(
+            self,
+            &added_changed_quest_ids,
+        );
         for update in &collection_updates {
             self.core.send_player_values_update_like_cpp(update);
         }

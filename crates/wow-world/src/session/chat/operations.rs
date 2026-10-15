@@ -82,7 +82,7 @@ impl WorldSession {
                     quest.allowable_classes,
                     quest.min_level,
                     quest.max_level,
-                    self.can_take_quest(quest),
+                    wow_world_quest::can_take_quest(self, quest),
                 )
             })
             .collect::<Vec<_>>();
@@ -123,7 +123,7 @@ impl WorldSession {
                 && quest.is_repeatable()
                 && !quest.is_daily_or_weekly_like_cpp()
                 && !quest.is_monthly_like_cpp(),
-            important: self.represented_quest_is_important_like_cpp(quest),
+            important: wow_world_quest::represented_quest_is_important_like_cpp(self, quest),
             quest_title: quest.log_title.clone(),
         }
     }

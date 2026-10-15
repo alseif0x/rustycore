@@ -66,7 +66,7 @@ impl WorldSession {
 
         // Full eligibility check: SatisfyQuestStatus + PrevQuestId + race/class/level
         // Legacy non-canonical note: Player.CanTakeQuest(quest, true)
-        if !self.can_take_quest(quest) {
+        if !wow_world_quest::can_take_quest(self, quest) {
             warn!(
                 account = self.core.account_id,
                 quest_id,
@@ -107,7 +107,8 @@ impl WorldSession {
             return;
         }
 
-        self.complete_represented_quest_after_add_with_generator_like_cpp(
+        wow_world_quest::complete_represented_quest_after_add_with_generator_like_cpp(
+            self,
             item_guid_generator,
             quest,
         )
@@ -341,7 +342,7 @@ impl WorldSession {
             return;
         }
 
-        if !self.can_take_quest(&quest) {
+        if !wow_world_quest::can_take_quest(self, &quest) {
             record(
                 self,
                 RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp::ReceiverCanTakeQuestFailed,
@@ -428,9 +429,12 @@ impl WorldSession {
             };
 
             if let Some(source_item_no_grant_reason) = source_item_no_grant_reason {
-                if !self
-                    .add_quest_confirm_accept_local_state_like_cpp(item_guid_generator, &quest)
-                    .await
+                if !wow_world_quest::add_quest_confirm_accept_local_state_like_cpp(
+                    self,
+                    item_guid_generator,
+                    &quest,
+                )
+                .await
                 {
                     record(
                         self,
@@ -461,9 +465,12 @@ impl WorldSession {
                 return;
             }
 
-            if !self
-                .add_quest_confirm_accept_local_state_like_cpp(item_guid_generator, &quest)
-                .await
+            if !wow_world_quest::add_quest_confirm_accept_local_state_like_cpp(
+                self,
+                item_guid_generator,
+                &quest,
+            )
+            .await
             {
                 record(
                     self,
@@ -478,8 +485,9 @@ impl WorldSession {
                 return;
             }
 
-            let Some(source_item_store_outcome) = self
-                .store_quest_source_item_with_generator_like_cpp(
+            let Some(source_item_store_outcome) =
+                wow_world_quest::store_quest_source_item_with_generator_like_cpp(
+                    self,
                     item_guid_generator,
                     quest.source_item_id,
                     source_item_count,
@@ -524,9 +532,12 @@ impl WorldSession {
             return;
         }
 
-        if !self
-            .add_quest_confirm_accept_local_state_like_cpp(item_guid_generator, &quest)
-            .await
+        if !wow_world_quest::add_quest_confirm_accept_local_state_like_cpp(
+            self,
+            item_guid_generator,
+            &quest,
+        )
+        .await
         {
             record(
                 self,

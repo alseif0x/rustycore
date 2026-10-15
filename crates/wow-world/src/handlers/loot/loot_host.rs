@@ -42,8 +42,6 @@
 //! moved to that owner; its body stays in the shell and this host lends it the
 //! item GUID generator of the dispatch catalogs bundle.
 
-use std::future::Future;
-
 use wow_core::ObjectGuid;
 use wow_handler::HandlerFuture;
 use wow_loot::{LootClaimLease, LootEntry};

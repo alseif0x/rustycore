@@ -151,8 +151,10 @@ impl WorldSession {
             destroyed_guids.push(destroyed.inventory_item.guid);
             // C++ recursive DestroyItem runs ItemRemovedQuestCheck after each
             // child/parent removal, preserving intermediate objective updates.
-            changed_quest_ids
-                .extend(self.apply_quest_item_removed_like_cpp(destroyed.inventory_item.entry_id)?);
+            changed_quest_ids.extend(wow_world_quest::apply_quest_item_removed_like_cpp(
+                self,
+                destroyed.inventory_item.entry_id,
+            )?);
         }
         changed_quest_ids.sort_unstable();
         changed_quest_ids.dedup();
