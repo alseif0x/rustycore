@@ -10707,7 +10707,12 @@ Branch `1363-s6c-quest`, base `5c04ace6b` (6b merged). Move-only (R2) with
 the slice 4–13 rewrites, after a tooling commit for the #1405 review
 follow-ups (`warning_units.py count` exits 1 when it counted a compiler
 error; `final` runs the `warning_units` and `move_token_compare` self-tests
-when either file changes, pinned in `tools/test_validation_v2.py`).
+when either file changes, pinned in `tools/test_validation_v2.py`). Because
+the slice changes `tools/validation-v2`, `final` runs `test_validation_v2.py`.
+The self-test inherited the recipe's `VALIDATION_V2_TIMEOUT_SECONDS=1800` and
+failed its default-timeout pin. That failure was pre-existing and is unrelated
+to the change, so the self-test now drops the variable from its fixture
+environment, like `VALIDATION_V2_CARGO_JOBS`.
 
 ### Re-measure and the cut
 

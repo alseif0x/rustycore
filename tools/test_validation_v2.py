@@ -1236,6 +1236,9 @@ def main() -> None:
         environment["PATH"] = f"{fake_bin}:{environment['PATH']}"
         environment.pop("CARGO_TARGET_DIR", None)
         environment.pop("VALIDATION_V2_CARGO_JOBS", None)
+        # The canonical final recipe exports a timeout; the fixtures pin the
+        # runner defaults, so the self-test must not inherit it (#1363 slice 6c).
+        environment.pop("VALIDATION_V2_TIMEOUT_SECONDS", None)
         environment.pop("PROTOC", None)
         environment["VALIDATION_V2_LOCK_DIR"] = str(directory / "locks")
         test_empty_scope_contract(repo, tools, environment, directory)
