@@ -8,11 +8,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn find_quest_slot_like_cpp(&self, quest_id: u32) -> Option<u8> {
-        let owner = self.core.quest_objective_access_like_cpp();
-        wow_world_quest::find_quest_slot_like_cpp(&owner, &self.quest_state, quest_id, cfg!(test))
-    }
-
     pub(crate) fn quest_log_create_entries_like_cpp(&self) -> Vec<(u32, u32, i64, [u16; 24])> {
         let owner = self.core.quest_objective_access_like_cpp();
         wow_world_quest::quest_log_create_entries_like_cpp(

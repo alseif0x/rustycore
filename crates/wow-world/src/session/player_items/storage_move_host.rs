@@ -156,7 +156,9 @@ impl InventoryStorageMoveHostLikeCpp for WorldSession {
         &'a mut self,
         entry_id: u32,
     ) -> impl Future<Output = u32> + Send + 'a {
-        async move { WorldSession::quest_source_item_quest_log_item_id_like_cpp(self, entry_id).await }
+        async move {
+            wow_world_quest::quest_source_item_quest_log_item_id_like_cpp(self, entry_id).await
+        }
     }
 
     fn storage_move_plan_quest_statuses_like_cpp(

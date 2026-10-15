@@ -58,12 +58,12 @@ impl QuestGiverCompleteQuestHostLikeCpp for WorldSession {
         quest_id: u32,
         quest_store: &QuestStore,
     ) -> bool {
-        crate::session::cx_quest_state_ref(self)
-            .represented_quest_giver_involved_source_allows_quest_like_cpp(
-                source_guid,
-                quest_id,
-                quest_store,
-            )
+        wow_world_quest::represented_quest_giver_involved_source_allows_quest_like_cpp(
+            self,
+            source_guid,
+            quest_id,
+            quest_store,
+        )
     }
 
     fn complete_quest_can_see_start_quest_represented_bounded_like_cpp(

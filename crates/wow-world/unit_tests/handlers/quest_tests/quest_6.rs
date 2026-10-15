@@ -271,7 +271,8 @@ fn push_quest_to_party_registration_and_dispatch_are_wired_like_cpp() {
     assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
     assert_eq!(entry.handler_name, "handle_push_quest_to_party");
     assert!(
-        QUEST_HANDLER_REGISTRATIONS.contains("session.handle_push_quest_to_party(pkt).await"),
+        QUEST_HANDLER_REGISTRATIONS
+            .contains("crate::handle_push_quest_to_party(session, pkt).await"),
         "the PushQuestToParty registration must carry the call itself"
     );
 }
@@ -281,17 +282,17 @@ fn quest_packet_registration_and_dispatch_are_wired_like_cpp() {
         (
             ClientOpcodes::QuestGiverQueryQuest,
             "handle_quest_giver_query_quest",
-            "session.handle_quest_giver_query_quest(pkt).await",
+            "crate::handle_quest_giver_query_quest(session, pkt).await",
         ),
         (
             ClientOpcodes::QuestGiverAcceptQuest,
             "handle_quest_giver_accept_quest",
-            ".handle_quest_giver_accept_quest_with_generator_like_cpp(",
+            "::handle_quest_giver_accept_quest_with_generator_like_cpp(",
         ),
         (
             ClientOpcodes::QuestGiverRequestReward,
             "handle_quest_giver_request_reward",
-            ".handle_quest_giver_request_reward_with_generator_like_cpp(",
+            "::handle_quest_giver_request_reward_with_generator_like_cpp(",
         ),
         (
             // #1263 F5: the body moved to the application quest owner; the
@@ -303,7 +304,7 @@ fn quest_packet_registration_and_dispatch_are_wired_like_cpp() {
         (
             ClientOpcodes::QuestGiverChooseReward,
             "handle_quest_giver_choose_reward",
-            ".handle_quest_giver_choose_reward_with_generator_like_cpp(",
+            "::handle_quest_giver_choose_reward_with_generator_like_cpp(",
         ),
         (
             ClientOpcodes::QueryQuestInfo,

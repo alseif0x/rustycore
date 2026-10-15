@@ -75,11 +75,10 @@ pub(super) use catalog_persistence::{
 };
 
 /// The quest opcode registrations (#359: one `PacketHandlerEntry` per opcode).
-/// The query slice moved its bodies to `wow-world-quest`, and #1263 F5
-/// moved the eleven quest-giver registrations to that crate's explicit area
-/// registrar, so this scan follows the registration source there.
+/// #1263 F5 moved the quest registrations to `wow-world-quest`'s two area
+/// registrars and #1363 slice 6c their remaining bodies, so this scan reads
+/// only those registrars.
 const QUEST_HANDLER_REGISTRATIONS: &str = concat!(
-    include_str!("../../src/handlers/quest/handlers.rs"),
     include_str!("../../../wow-world-quest/src/quest_query_handlers.rs"),
     include_str!("../../../wow-world-quest/src/quest_handlers.rs"),
 );

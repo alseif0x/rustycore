@@ -164,7 +164,7 @@ impl VendorSessionHostLikeCpp for WorldSession {
         &mut self,
         entry_id: u32,
     ) -> impl Future<Output = u32> + Send {
-        WorldSession::quest_source_item_quest_log_item_id_like_cpp(self, entry_id)
+        wow_world_quest::quest_source_item_quest_log_item_id_like_cpp(self, entry_id)
     }
     fn await_exclusive_player_money_transaction_outcome_like_cpp<F>(
         &mut self,

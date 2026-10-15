@@ -10,24 +10,13 @@
 //! dispatcher arm are unchanged; this module keeps the shared constants,
 //! helper types and free functions the features build on.
 
-mod eligibility;
-mod handlers;
 mod item_storage_host;
-mod objectives;
-mod persistence;
+mod quest_handler_host;
 mod quest_query_host;
 mod rewards;
-mod sharing;
 mod state;
 
-use crate::session::mailbox::SessionCommand;
-use crate::session::mailbox::{
-    SendRepeatableTurnInRequestItemsLikeCppCommand, SetQuestSharingInfoAndSendDetailsCommand,
-};
-use std::{collections::HashMap, sync::Arc};
-use tracing::{debug, info, warn};
-use wow_constants::unit::NPCFlags1;
-use wow_constants::{InventoryResult, ItemFlags2};
+use wow_constants::InventoryResult;
 // Test-only: its production readers were the eleven quest-giver registrations
 // that moved to the quest crate's `quest_handlers` area registrar under
 // #1263 F5; the quest test shims and scenarios still reach it through
@@ -35,11 +24,7 @@ use wow_constants::{InventoryResult, ItemFlags2};
 // production readers moved with the item-objective and source-item bodies.
 #[cfg(test)]
 use wow_constants::{ClientOpcodes, ItemContext, ItemFieldFlags, item::ItemFlags3};
-use wow_core::{GameTime, ObjectGuid};
-use wow_data::progression_rewards::{
-    QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP, QUEST_PACKAGE_FILTER_EVERYONE_LIKE_CPP,
-    QUEST_PACKAGE_FILTER_LOOT_SPECIALIZATION_LIKE_CPP,
-};
+use wow_core::ObjectGuid;
 pub use wow_entities::PlayerQuestStatusRecord as PlayerQuestStatus;
 // Test-only: the production readers of these two were the eleven quest-giver
 // registrations that moved to the quest crate's `quest_handlers` area
@@ -47,87 +32,31 @@ pub use wow_entities::PlayerQuestStatusRecord as PlayerQuestStatus;
 // `super::*`.
 #[cfg(test)]
 use wow_handler::{PacketProcessing, SessionStatus};
-
-// The quest-giver registrations that used to reach
-// `crate::session::registry::PacketHandlerEntry` from here moved to the
-// quest crate's explicit area registrar under #1263 F5, so this module no
-// longer needs the entry type in scope.
-use wow_packet::ServerPacket;
-use wow_packet::packets::misc::SetCurrency;
-use wow_packet::packets::query::{
-    QueryQuestCompletionNpcs, QuestCompletionNpc, QuestCompletionNpcResponse, QuestPoiBlobData,
-    QuestPoiBlobPoint, QuestPoiData, QuestPoiQuery, QuestPoiQueryResponse,
-};
-use wow_packet::packets::quest::{
-    AdventureMapStartQuest, PushQuestToParty, QueryQuestInfoResponse, QuestConfirmAccept,
-    QuestGiverOfferReward, QuestGiverQuestComplete, QuestGiverStatus, QuestObjectiveInfo,
-    QuestPushResult, QuestPushResultResponse, QuestRewardsBlock, WorldQuestUpdateResponse,
-    quest_push_reason,
-};
 // Test-only: the quest handler test fixtures read the dialog status
 // discriminators through this module's glob import.
 #[cfg(test)]
 use wow_packet::packets::quest::quest_giver_status;
 
-use crate::handlers::character::ExtendedCostItemTurninChange;
-use crate::session::{
-    CurrencyGainSourceLikeCpp, RepresentedAdventureMapStartQuestLikeCpp,
-    RepresentedPushQuestToPartyOutcomeLikeCpp, RepresentedPushQuestToPartyOutcomeReasonLikeCpp,
-    RepresentedQuestCompleteStatusUpdateLikeCpp, RepresentedQuestConfirmAcceptLikeCpp,
-    RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp,
-    RepresentedQuestObjectiveProgressEventLikeCpp, RepresentedQuestPushResultResponseLikeCpp,
-    RepresentedQuestRewardReputationSourceLikeCpp, ReputationGainSourceLikeCpp, WorldSession,
-};
+use crate::session::{RepresentedAdventureMapStartQuestLikeCpp, WorldSession};
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::{
     RepresentedQuestRewardMailLikeCpp, RepresentedQuestRewardReputationLikeCpp,
     RepresentedQuestRewardSpellCastLikeCpp, RepresentedQuestRewardSpellKindLikeCpp,
     RepresentedQuestRewardTalentPointsLikeCpp, RepresentedQuestRewardTitleLikeCpp,
 };
-use wow_conditions::{
-    QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_INCOMPLETE_LIKE_CPP, QUEST_STATUS_NONE_LIKE_CPP,
-};
 #[cfg(test)]
 use wow_conditions::{QUEST_STATUS_FAILED_LIKE_CPP, QUEST_STATUS_REWARDED_LIKE_CPP};
 
-use wow_world_quest::quest_giver_creature_id_from_source_like_cpp;
-
-pub(crate) const QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP: u32 = 0x0001_0000;
 #[cfg(test)]
 pub(crate) use wow_constants::quest::QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP;
-pub(crate) const QUEST_FLAGS_SHARABLE_LIKE_CPP: u32 = 0x0000_0008;
-pub(crate) use wow_constants::quest::{
-    QUEST_FLAGS_EX_IS_WORLD_QUEST_LIKE_CPP, QUEST_FLAGS_EX_REWARDS_IGNORE_CAPS_LIKE_CPP,
-};
-pub(crate) const QUEST_PUSH_REASON_INVALID_LIKE_CPP: u8 = 1;
-pub(crate) const QUEST_PUSH_REASON_INVALID_TO_RECIPIENT_LIKE_CPP: u8 = 2;
 pub(crate) use wow_constants::quest::{
     QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP, QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
 };
 #[cfg(test)]
 const CURRENCY_DESTROY_REASON_QUEST_TURNIN_LIKE_CPP: i32 = 3;
 
-fn read_quest_giver_query_quest_like_cpp(
-    pkt: &mut wow_packet::WorldPacket,
-) -> Result<(ObjectGuid, u32, bool), wow_packet::PacketError> {
-    let guid = pkt.read_packed_guid()?;
-    let quest_id = pkt.read_uint32().unwrap_or(0);
-    let respond_to_giver = pkt.read_bit().unwrap_or(false);
-    Ok((guid, quest_id, respond_to_giver))
-}
-
-fn read_quest_giver_accept_quest_like_cpp(
-    pkt: &mut wow_packet::WorldPacket,
-) -> Result<(ObjectGuid, u32, bool), wow_packet::PacketError> {
-    let guid = pkt.read_packed_guid()?;
-    let quest_id = pkt.read_uint32().unwrap_or(0);
-    let start_cheat = pkt.read_bit().unwrap_or(false);
-    Ok((guid, quest_id, start_cheat))
-}
-
-// The reward choice and the source-item store outcome moved with the
-// reward-inventory admission and the source-item grant (#1363 slice 6b).
-pub(crate) use wow_world_quest::{QuestChoiceItemLikeCpp, QuestSourceItemStoreOutcomeLikeCpp};
+// The reward choice moved with the reward-inventory admission (#1363 slice 6b).
+pub(crate) use wow_world_quest::QuestChoiceItemLikeCpp;
 
 // The source-item bound-objective records are read by the loot item storage
 // moved to `wow-world-loot-ops` (#1363 slice 5b), so they live in the quest crate.
@@ -135,192 +64,13 @@ pub(crate) use wow_world_quest::{
     QuestSourceItemBoundPersistencePlanLikeCpp, QuestSourceItemBoundPreflightLikeCpp,
 };
 
-pub(crate) const QUEST_PUSH_REASON_BUSY_LIKE_CPP: u8 = 5;
-pub(crate) const QUEST_PUSH_REASON_DEAD_LIKE_CPP: u8 = 6;
-pub(crate) const QUEST_PUSH_REASON_DEAD_TO_RECIPIENT_LIKE_CPP: u8 = 7;
-pub(crate) const QUEST_PUSH_REASON_LOG_FULL_LIKE_CPP: u8 = 8;
-pub(crate) const QUEST_PUSH_REASON_LOG_FULL_TO_RECIPIENT_LIKE_CPP: u8 = 9;
-pub(crate) const QUEST_PUSH_REASON_ON_QUEST_LIKE_CPP: u8 = 10;
-pub(crate) const QUEST_PUSH_REASON_ON_QUEST_TO_RECIPIENT_LIKE_CPP: u8 = 11;
-pub(crate) const QUEST_PUSH_REASON_ALREADY_DONE_LIKE_CPP: u8 = 12;
-pub(crate) const QUEST_PUSH_REASON_ALREADY_DONE_TO_RECIPIENT_LIKE_CPP: u8 = 13;
-pub(crate) const QUEST_PUSH_REASON_PREREQUISITE_LIKE_CPP: u8 = 20;
-pub(crate) const QUEST_PUSH_REASON_PREREQUISITE_TO_RECIPIENT_LIKE_CPP: u8 = 21;
-pub(crate) const QUEST_PUSH_REASON_LOW_LEVEL_LIKE_CPP: u8 = 22;
-pub(crate) const QUEST_PUSH_REASON_LOW_LEVEL_TO_RECIPIENT_LIKE_CPP: u8 = 23;
-pub(crate) const QUEST_PUSH_REASON_HIGH_LEVEL_LIKE_CPP: u8 = 24;
-pub(crate) const QUEST_PUSH_REASON_HIGH_LEVEL_TO_RECIPIENT_LIKE_CPP: u8 = 25;
-pub(crate) const QUEST_PUSH_REASON_CLASS_LIKE_CPP: u8 = 26;
-pub(crate) const QUEST_PUSH_REASON_CLASS_TO_RECIPIENT_LIKE_CPP: u8 = 27;
-pub(crate) const QUEST_PUSH_REASON_RACE_LIKE_CPP: u8 = 28;
-pub(crate) const QUEST_PUSH_REASON_RACE_TO_RECIPIENT_LIKE_CPP: u8 = 29;
-pub(crate) const QUEST_PUSH_REASON_LOW_FACTION_LIKE_CPP: u8 = 30;
-pub(crate) const QUEST_PUSH_REASON_LOW_FACTION_TO_RECIPIENT_LIKE_CPP: u8 = 31;
-pub(crate) const QUEST_PUSH_REASON_EXPANSION_LIKE_CPP: u8 = 32;
-pub(crate) const QUEST_PUSH_REASON_EXPANSION_TO_RECIPIENT_LIKE_CPP: u8 = 33;
-pub(crate) const QUEST_PUSH_REASON_SUCCESS_LIKE_CPP: u8 = 0;
-
-fn player_race_or_class_mask_like_cpp(id: u8) -> u32 {
-    if id == 0 {
-        return 0;
-    }
-
-    1_u32
-        .checked_shl(u32::from(id.saturating_sub(1)))
-        .unwrap_or(0)
-}
-
-fn represented_satisfy_quest_dependent_previous_quests_failed_like_cpp(
-    quest_store: &wow_data::quest::QuestStore,
-    quest: &wow_data::quest::QuestTemplate,
-    receiver_rewarded_quests: &std::collections::HashSet<u32>,
-) -> bool {
-    wow_world_quest::QuestEligibilityCx::represented_satisfy_quest_dependent_previous_quests_failed_like_cpp(
-        quest_store,
-        quest,
-        receiver_rewarded_quests,
-    )
-}
-
-fn represented_satisfy_quest_dependent_breadcrumb_quests_failed_like_cpp(
-    quest: &wow_data::quest::QuestTemplate,
-    receiver_active_quest_statuses: &std::collections::HashMap<u32, u8>,
-) -> bool {
-    wow_world_quest::QuestEligibilityCx::represented_satisfy_quest_dependent_breadcrumb_quests_failed_like_cpp(
-        quest,
-        receiver_active_quest_statuses,
-    )
-}
-
-fn represented_can_take_quest_after_expansion_like_cpp(
-    quest_store: &wow_data::quest::QuestStore,
-    quest: &wow_data::quest::QuestTemplate,
-    receiver: &crate::session::directory::PlayerQuestSharingSnapshot,
-) -> bool {
-    // C++ anchor: `Player::CanTakeQuest`, Player.cpp:14093-14102, after the
-    // push handler has already emitted dedicated messages for class/race/level,
-    // reputation, prerequisite, daily/DF, and expansion gates. This bounded
-    // helper keeps the remaining represented `false` cases that TrinityCore
-    // groups under `QuestPushReason::Invalid` at the final CanTakeQuest gate.
-    // Explicitly out of scope for this represented-partial slice: DisableMgr,
-    // skill, timed, weekly/monthly, ConditionMgr, and full seasonal runtime.
-    let receiver_status = receiver
-        .active_quest_statuses
-        .get(&quest.id)
-        .copied()
-        .unwrap_or(QUEST_STATUS_NONE_LIKE_CPP);
-    if receiver.rewarded_quests.contains(&quest.id) || receiver_status != QUEST_STATUS_NONE_LIKE_CPP
-    {
-        return false;
-    }
-
-    if quest.exclusive_group <= 0 {
-        return true;
-    }
-
-    for peer_quest in quest_store
-        .quests
-        .values()
-        .filter(|candidate| candidate.exclusive_group == quest.exclusive_group)
-    {
-        if peer_quest.id == quest.id {
-            continue;
-        }
-
-        if peer_quest.is_df_quest_like_cpp() && receiver.df_quests.contains(&peer_quest.id) {
-            return false;
-        }
-        if peer_quest.is_daily_like_cpp()
-            && receiver.daily_quests_completed.contains(&peer_quest.id)
-        {
-            return false;
-        }
-
-        if receiver
-            .active_quest_statuses
-            .get(&peer_quest.id)
-            .copied()
-            .unwrap_or(QUEST_STATUS_NONE_LIKE_CPP)
-            != QUEST_STATUS_NONE_LIKE_CPP
-        {
-            return false;
-        }
-
-        if !(quest.is_repeatable() && peer_quest.is_repeatable())
-            && receiver.rewarded_quests.contains(&peer_quest.id)
-        {
-            return false;
-        }
-    }
-
-    true
-}
-
-pub(crate) use wow_world_quest::represented_quest_completion_npc_response_like_cpp;
-
-fn build_quest_poi_store_like_cpp(
-    point_rows: Vec<wow_persistence::QuestPoiPointLoadRowLikeCpp>,
-    poi_rows: Vec<wow_persistence::QuestPoiBlobLoadRowLikeCpp>,
-) -> HashMap<i32, QuestPoiData> {
-    let mut all_points: HashMap<(i32, i32), Vec<QuestPoiBlobPoint>> = HashMap::new();
-    for row in point_rows {
-        all_points
-            .entry((row.quest_id, row.idx1))
-            .or_default()
-            .push(QuestPoiBlobPoint {
-                x: row.x,
-                y: row.y,
-                z: row.z,
-            });
-    }
-
-    let mut store: HashMap<i32, QuestPoiData> = HashMap::new();
-    for row in poi_rows {
-        let Some(points) = all_points.get(&(row.quest_id, row.idx1)).cloned() else {
-            debug!(
-                quest_id = row.quest_id,
-                blob_index = row.blob_index,
-                "quest_poi references unknown quest points like C++; skipping blob"
-            );
-            continue;
-        };
-
-        store
-            .entry(row.quest_id)
-            .or_insert_with(|| QuestPoiData {
-                quest_id: row.quest_id,
-                blobs: Vec::new(),
-            })
-            .blobs
-            .push(QuestPoiBlobData {
-                blob_index: row.blob_index,
-                objective_index: row.objective_index,
-                quest_objective_id: row.quest_objective_id,
-                quest_object_id: row.quest_object_id,
-                map_id: row.map_id,
-                ui_map_id: row.ui_map_id,
-                priority: row.priority,
-                flags: row.flags,
-                world_effect_id: row.world_effect_id,
-                player_condition_id: row.player_condition_id,
-                navigation_player_condition_id: row.navigation_player_condition_id,
-                spawn_tracking_id: row.spawn_tracking_id,
-                points,
-                always_allow_merging_blobs: row.always_allow_merging_blobs,
-            });
-    }
-
-    store
-}
-
-// ── Handler registrations ────────────────────────────────────────────────────
-
-pub(crate) use wow_world_quest::MAX_QUEST_LOG_SIZE_LIKE_CPP;
 pub(crate) use wow_world_quest::RepresentedQuestGiverStatusSourceLikeCpp;
 
 #[cfg(test)]
 #[path = "../../../unit_tests/handlers/quest_tests.rs"]
 mod tests;
+#[cfg(test)]
+pub(crate) use super::quest_handler_test_shims::quest_handler_test_reexports::*;
 
 #[cfg(test)]
 use wow_constants::quest::{
@@ -336,59 +86,3 @@ use wow_constants::quest::{
 };
 
 // ── PlayerQuestStatus ────────────────────────────────────────────────────────
-
-impl WorldSession {
-    pub(in crate::handlers::quest) fn represented_reward_choice_matches_loaded_type_like_cpp(
-        quest: &wow_data::quest::QuestTemplate,
-        choice: QuestChoiceItemLikeCpp,
-    ) -> bool {
-        quest
-            .reward_choice_items
-            .iter()
-            .zip(quest.reward_choice_item_types.iter())
-            .any(|((item_id, _quantity), item_type)| {
-                *item_id != 0 && *item_id == choice.item_id && *item_type == choice.loot_item_type
-            })
-    }
-}
-
-impl WorldSession {
-    pub(in crate::handlers::quest) fn read_quest_choice_item_like_cpp(
-        pkt: &mut wow_packet::WorldPacket,
-    ) -> Result<QuestChoiceItemLikeCpp, wow_packet::PacketError> {
-        // C++ `QuestChoiceItem` starts with `ResetBitPos(); ReadBits(2)`, then
-        // an `Item::ItemInstance`, then signed `Quantity`.
-        pkt.reset_bits();
-        let loot_item_type = pkt.read_bits(2)? as u8;
-
-        let item_id = pkt.read_int32()? as u32;
-        let _random_properties_seed = pkt.read_int32()?;
-        let _random_properties_id = pkt.read_int32()?;
-
-        let has_item_bonus = pkt.read_bit()?;
-        pkt.reset_bits();
-
-        let item_mod_count = pkt.read_bits(6)?;
-        pkt.reset_bits();
-        for _ in 0..item_mod_count {
-            let _value = pkt.read_int32()?;
-            let _modifier_type = pkt.read_uint8()?;
-        }
-
-        if has_item_bonus {
-            let _context = pkt.read_uint8()?;
-            let bonus_count = pkt.read_uint32()?;
-            for _ in 0..bonus_count {
-                let _bonus_id = pkt.read_uint32()?;
-            }
-        }
-
-        let quantity = pkt.read_int32()?;
-
-        Ok(QuestChoiceItemLikeCpp {
-            loot_item_type,
-            item_id,
-            quantity,
-        })
-    }
-}

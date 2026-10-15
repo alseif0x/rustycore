@@ -205,31 +205,4 @@ impl WorldSession {
 
         delivered
     }
-    pub(crate) fn send_repeatable_turn_in_request_items_like_cpp(
-        &mut self,
-        sender_guid: ObjectGuid,
-        quest: &wow_data::quest::QuestTemplate,
-    ) {
-        let can_complete =
-            wow_world_quest::can_complete_repeatable_quest_represented_bounded_like_cpp(
-                self, quest,
-            );
-        if can_complete && !quest_has_represented_item_objective_like_cpp(quest) {
-            wow_world_quest::send_represented_quest_giver_offer_reward_like_cpp(
-                self,
-                sender_guid,
-                quest,
-                true,
-            );
-            return;
-        }
-
-        wow_world_quest::send_represented_quest_giver_request_items_with_completion_like_cpp(
-            self,
-            sender_guid,
-            quest,
-            can_complete,
-            true,
-        );
-    }
 }

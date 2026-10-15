@@ -563,14 +563,12 @@ pub(crate) fn cx_quest_state(s: &mut WorldSession) -> QuestStateCx<'_> {
 
 /// Shared counterpart of `QuestStateCx` for `&self` methods.
 pub(crate) struct QuestStateCxRef<'a> {
-    pub(crate) lifecycle: &'a SessionLifecycleState,
     pub(crate) world_entities: &'a WorldEntitiesState,
     pub(crate) hub: HubRef<'a>,
 }
 
 pub(crate) fn cx_quest_state_ref(s: &WorldSession) -> QuestStateCxRef<'_> {
     QuestStateCxRef {
-        lifecycle: &s.lifecycle,
         world_entities: &s.world_entities,
         hub: hub_ref(s),
     }

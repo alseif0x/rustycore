@@ -192,39 +192,6 @@ impl WorldSession {
         self.instances
             .represented_adventure_map_start_quest_requests_for_test_like_cpp()
     }
-    pub(crate) fn set_represented_pending_quest_sharing_like_cpp(
-        &mut self,
-        sender_guid: ObjectGuid,
-        quest_id: u32,
-    ) {
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            self.quest_state
-                .fixture_set_represented_pending_quest_sharing_like_cpp(Some(
-                    RepresentedPendingQuestSharingLikeCpp {
-                        sender_guid,
-                        quest_id,
-                    },
-                ));
-            self.sync_player_registry_state_like_cpp();
-            return;
-        }
-        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.set_pending_share_like_cpp(Some((sender_guid, quest_id)));
-        });
-        self.sync_player_registry_state_like_cpp();
-    }
-    pub(crate) fn clear_represented_pending_quest_sharing_like_cpp(&mut self) {
-        let (state, hub) = crate::session::split_quest_state_mut(self);
-        wow_world_quest::clear_represented_pending_quest_sharing_like_cpp(hub, state);
-        self.sync_player_registry_state_like_cpp();
-    }
-    pub(crate) fn represented_pending_quest_sharing_like_cpp(
-        &self,
-    ) -> Option<RepresentedPendingQuestSharingLikeCpp> {
-        let (state, hub) = crate::session::split_quest_state_ref(self);
-        wow_world_quest::represented_pending_quest_sharing_like_cpp(hub, state)
-    }
 }
 
 #[cfg(test)]

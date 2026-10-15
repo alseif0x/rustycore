@@ -11,8 +11,6 @@ pub(in crate::session) use wow_world_core::session::currency_max_quantity_cpp;
 
 pub(crate) use wow_world_quest::RepresentedQuestObjectiveProgressEventLikeCpp;
 
-pub(crate) use wow_constants::currency::CurrencyGainSourceLikeCpp;
-
 pub(crate) use wow_world_core::session::state::hub_support::player_team_for_race_cpp;
 
 impl WorldSession {

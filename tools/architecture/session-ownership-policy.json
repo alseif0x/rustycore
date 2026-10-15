@@ -840,70 +840,20 @@
           "source_class": "test_fixture"
         },
         {
-          "module": "crate::handlers::quest",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::quest::handlers",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::quest::handlers::acceptance",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::quest::handlers::host",
-          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::quest::handlers::queries",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::quest::handlers::reward_flow",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::quest::handlers::sharing",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::quest::handlers::test_shims",
-          "trait_path": null,
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
           "module": "crate::handlers::quest::item_storage_host",
           "trait_path": "QuestItemStorageHostLikeCpp",
           "cfg": [],
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::quest::objectives",
-          "trait_path": null,
+          "module": "crate::handlers::quest::quest_handler_host",
+          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::quest::persistence",
-          "trait_path": null,
+          "module": "crate::handlers::quest::quest_handler_host",
+          "trait_path": "QuestHandlerSessionHostLikeCpp",
           "cfg": [],
           "source_class": "production"
         },
@@ -926,12 +876,6 @@
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::quest::sharing",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "module": "crate::handlers::quest::state",
           "trait_path": null,
           "cfg": [],
@@ -939,6 +883,14 @@
         },
         {
           "module": "crate::handlers::quest::state::test_only",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
+          "module": "crate::handlers::quest_handler_test_shims",
           "trait_path": null,
           "cfg": [
             "cfg (test)"
@@ -14968,524 +14920,26 @@
           ]
         },
         {
-          "module": "crate::handlers::quest",
-          "trait_path": null,
-          "kind": "method",
-          "name": "read_quest_choice_item_like_cpp",
-          "visibility": "pub (in crate :: handlers :: quest)",
-          "signature": "fn read_quest_choice_item_like_cpp (pkt : & mut wow_packet :: WorldPacket ,) -> Result < QuestChoiceItemLikeCpp , wow_packet :: PacketError >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_reward_choice_matches_loaded_type_like_cpp",
-          "visibility": "pub (in crate :: handlers :: quest)",
-          "signature": "fn represented_reward_choice_matches_loaded_type_like_cpp (quest : & wow_data :: quest :: QuestTemplate , choice : QuestChoiceItemLikeCpp ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_adventure_map_start_quest",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_adventure_map_start_quest (& mut self , pkt : wow_packet :: WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_adventure_map_start_quest_with_catalog_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_adventure_map_start_quest_with_catalog_like_cpp (& mut self , adventure_map_poi_store : & wow_data :: AdventureMapPoiStore , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::acceptance",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_quest_confirm_accept",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_quest_confirm_accept (& mut self , pkt : wow_packet :: WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::acceptance",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_quest_confirm_accept_with_generator_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_quest_confirm_accept_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::acceptance",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_quest_giver_accept_quest",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_quest_giver_accept_quest (& mut self , pkt : wow_packet :: WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::acceptance",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_quest_giver_accept_quest_with_generator_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_quest_giver_accept_quest_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::host",
-          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
-          "kind": "method",
-          "name": "handle_adventure_map_start_quest_with_catalog_like_cpp",
-          "visibility": "private",
-          "signature": "fn handle_adventure_map_start_quest_with_catalog_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::host",
-          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
-          "kind": "method",
-          "name": "handle_push_quest_to_party",
-          "visibility": "private",
-          "signature": "fn handle_push_quest_to_party < 'a > (& 'a mut self , pkt : WorldPacket) -> HandlerFuture < 'a , () >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::host",
-          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
-          "kind": "method",
-          "name": "handle_quest_confirm_accept_with_generator_like_cpp",
-          "visibility": "private",
-          "signature": "fn handle_quest_confirm_accept_with_generator_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::host",
-          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
-          "kind": "method",
-          "name": "handle_quest_giver_accept_quest_with_generator_like_cpp",
-          "visibility": "private",
-          "signature": "fn handle_quest_giver_accept_quest_with_generator_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::host",
-          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
-          "kind": "method",
-          "name": "handle_quest_giver_choose_reward_with_generator_like_cpp",
-          "visibility": "private",
-          "signature": "fn handle_quest_giver_choose_reward_with_generator_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::host",
-          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
-          "kind": "method",
-          "name": "handle_quest_giver_hello",
-          "visibility": "private",
-          "signature": "fn handle_quest_giver_hello < 'a > (& 'a mut self , pkt : WorldPacket) -> HandlerFuture < 'a , () >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::host",
-          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
-          "kind": "method",
-          "name": "handle_quest_giver_query_quest",
-          "visibility": "private",
-          "signature": "fn handle_quest_giver_query_quest < 'a > (& 'a mut self , pkt : WorldPacket) -> HandlerFuture < 'a , () >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::host",
-          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
-          "kind": "method",
-          "name": "handle_quest_giver_request_reward_with_generator_like_cpp",
-          "visibility": "private",
-          "signature": "fn handle_quest_giver_request_reward_with_generator_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::host",
-          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
-          "kind": "method",
-          "name": "handle_quest_giver_status_query_with_catalog_like_cpp",
-          "visibility": "private",
-          "signature": "fn handle_quest_giver_status_query_with_catalog_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::host",
-          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
-          "kind": "method",
-          "name": "handle_quest_poi_query",
-          "visibility": "private",
-          "signature": "fn handle_quest_poi_query < 'a > (& 'a mut self , query : QuestPoiQuery) -> HandlerFuture < 'a , () >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::queries",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_quest_giver_hello",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_quest_giver_hello (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::queries",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_quest_giver_query_quest",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_quest_giver_query_quest (& mut self , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::queries",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_quest_giver_status_query",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_quest_giver_status_query (& mut self , pkt : wow_packet :: WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::queries",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_quest_giver_status_query_with_catalog_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_quest_giver_status_query_with_catalog_like_cpp (& mut self , quest_info : & wow_data :: progression_rewards :: QuestInfoStore , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::queries",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_quest_poi_query",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_quest_poi_query (& mut self , query : QuestPoiQuery)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::reward_flow",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_quest_giver_choose_reward",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_quest_giver_choose_reward (& mut self , pkt : wow_packet :: WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::reward_flow",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_quest_giver_choose_reward_with_generator_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_quest_giver_choose_reward_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::reward_flow",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_quest_giver_request_reward",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_quest_giver_request_reward (& mut self , pkt : wow_packet :: WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::reward_flow",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_quest_giver_request_reward_with_generator_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_quest_giver_request_reward_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::sharing",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_push_quest_to_party",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_push_quest_to_party (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::sharing",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_send_repeatable_turn_in_request_items_command_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_send_repeatable_turn_in_request_items_command_like_cpp (& mut self , command : SendRepeatableTurnInRequestItemsLikeCppCommand ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::sharing",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_set_quest_sharing_info_and_send_details_command_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_set_quest_sharing_info_and_send_details_command_like_cpp (& mut self , command : SetQuestSharingInfoAndSendDetailsCommand ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_quest_giver_close_quest",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_quest_giver_close_quest (& mut self , pkt : WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_quest_giver_complete_quest",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_quest_giver_complete_quest (& mut self , mut pkt : WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_quest_log_remove_quest",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_quest_log_remove_quest (& mut self , pkt : WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_quest_push_result",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_quest_push_result (& mut self , pkt : WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_request_world_quest_update",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_request_world_quest_update (& mut self , pkt : WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::quest::item_storage_host",
           "trait_path": "QuestItemStorageHostLikeCpp",
           "kind": "method",
           "name": "apply_inventory_item_object_updates_like_cpp",
           "visibility": "private",
           "signature": "fn apply_inventory_item_object_updates_like_cpp (& mut self , item_guid : ObjectGuid , updates : & [ItemObjectUpdateLikeCpp] ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::item_storage_host",
+          "trait_path": "QuestItemStorageHostLikeCpp",
+          "kind": "method",
+          "name": "catalogs_mut",
+          "visibility": "private",
+          "signature": "fn catalogs_mut (& mut self) -> & mut wow_world_core :: session :: SessionCatalogs",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -15567,20 +15021,6 @@
           "module": "crate::handlers::quest::item_storage_host",
           "trait_path": "QuestItemStorageHostLikeCpp",
           "kind": "method",
-          "name": "quest_source_item_quest_log_item_id_like_cpp",
-          "visibility": "private",
-          "signature": "fn quest_source_item_quest_log_item_id_like_cpp (& mut self , entry_id : u32 ,) -> impl Future < Output = u32 > + Send",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::item_storage_host",
-          "trait_path": "QuestItemStorageHostLikeCpp",
-          "kind": "method",
           "name": "represented_non_bank_item_count_like_cpp",
           "visibility": "private",
           "signature": "fn represented_non_bank_item_count_like_cpp (& self , entry_id : u32) -> Option < u32 >",
@@ -15648,31 +15088,171 @@
           ]
         },
         {
-          "module": "crate::handlers::quest::objectives",
-          "trait_path": null,
+          "module": "crate::handlers::quest::quest_handler_host",
+          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
-          "name": "quest_source_item_quest_log_item_id_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn quest_source_item_quest_log_item_id_like_cpp (& mut self , entry_id : u32 ,) -> u32",
+          "name": "adventure_map_pois_like_cpp",
+          "visibility": "private",
+          "signature": "fn adventure_map_pois_like_cpp (catalogs : & SessionHandlerCatalogsLikeCpp ,) -> & wow_data :: AdventureMapPoiStore",
           "cfg": [],
           "source_class": "production",
           "guards": [
             "external_impl",
-            "visible"
+            "trait_impl"
           ]
         },
         {
-          "module": "crate::handlers::quest::persistence",
-          "trait_path": null,
+          "module": "crate::handlers::quest::quest_handler_host",
+          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
-          "name": "quest_poi_store_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn quest_poi_store_like_cpp (& mut self) -> Arc < HashMap < i32 , QuestPoiData > >",
+          "name": "item_guid_generator_like_cpp",
+          "visibility": "private",
+          "signature": "fn item_guid_generator_like_cpp (catalogs : & SessionHandlerCatalogsLikeCpp ,) -> & wow_core :: ObjectGuidGenerator",
           "cfg": [],
           "source_class": "production",
           "guards": [
             "external_impl",
-            "visible"
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::quest_handler_host",
+          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "quest_info_like_cpp",
+          "visibility": "private",
+          "signature": "fn quest_info_like_cpp (catalogs : & SessionHandlerCatalogsLikeCpp ,) -> & wow_data :: progression_rewards :: QuestInfoStore",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::quest_handler_host",
+          "trait_path": "QuestHandlerSessionHostLikeCpp",
+          "kind": "method",
+          "name": "build_gossip_menu",
+          "visibility": "private",
+          "signature": "fn build_gossip_menu (& mut self , entry : u32 , npc_flags : u32 , npc_guid : ObjectGuid ,) -> impl Future < Output = Option < GossipMessage > > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::quest_handler_host",
+          "trait_path": "QuestHandlerSessionHostLikeCpp",
+          "kind": "method",
+          "name": "drain_represented_quest_objective_progress_with_generator_like_cpp",
+          "visibility": "private",
+          "signature": "fn drain_represented_quest_objective_progress_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator ,) -> impl Future < Output = () > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::quest_handler_host",
+          "trait_path": "QuestHandlerSessionHostLikeCpp",
+          "kind": "method",
+          "name": "quest_state_mut",
+          "visibility": "private",
+          "signature": "fn quest_state_mut (& mut self) -> & mut SessionQuestState",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::quest_handler_host",
+          "trait_path": "QuestHandlerSessionHostLikeCpp",
+          "kind": "method",
+          "name": "record_represented_adventure_map_start_quest_like_cpp",
+          "visibility": "private",
+          "signature": "fn record_represented_adventure_map_start_quest_like_cpp (& mut self , request : RepresentedAdventureMapStartQuestLikeCpp ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::quest_handler_host",
+          "trait_path": "QuestHandlerSessionHostLikeCpp",
+          "kind": "method",
+          "name": "resolved_group_guid_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_group_guid_like_cpp (& self) -> Option < u64 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::quest_handler_host",
+          "trait_path": "QuestHandlerSessionHostLikeCpp",
+          "kind": "method",
+          "name": "reward_represented_quest_with_generator_like_cpp",
+          "visibility": "private",
+          "signature": "fn reward_represented_quest_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , quest : & wow_data :: quest :: QuestTemplate , quest_giver_guid : ObjectGuid , choice : QuestChoiceItemLikeCpp ,) -> impl Future < Output = bool > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::quest_handler_host",
+          "trait_path": "QuestHandlerSessionHostLikeCpp",
+          "kind": "method",
+          "name": "send_represented_creature_trainer_gossip_menu_like_cpp",
+          "visibility": "private",
+          "signature": "fn send_represented_creature_trainer_gossip_menu_like_cpp (& mut self , npc_guid : ObjectGuid , entry : u32 , npc_flags : u32 ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::quest_handler_host",
+          "trait_path": "QuestHandlerSessionHostLikeCpp",
+          "kind": "method",
+          "name": "split_world_entities_mut",
+          "visibility": "private",
+          "signature": "fn split_world_entities_mut (& mut self) -> (& mut WorldEntitiesState , HubMut < '_ >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::quest_handler_host",
+          "trait_path": "QuestHandlerSessionHostLikeCpp",
+          "kind": "method",
+          "name": "world_entities",
+          "visibility": "private",
+          "signature": "fn world_entities (& self) -> & WorldEntitiesState",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
           ]
         },
         {
@@ -15830,62 +15410,6 @@
           ]
         },
         {
-          "module": "crate::handlers::quest::sharing",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_can_share_quest_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn represented_can_share_quest_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::sharing",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_push_quest_result_to_sender_if_available_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn send_push_quest_result_to_sender_if_available_like_cpp (& self , sender_guid : Option < ObjectGuid > , result : u8 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::sharing",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_push_quest_result_to_sender_with_title_if_available_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn send_push_quest_result_to_sender_with_title_if_available_like_cpp (& self , sender_guid : ObjectGuid , result : u8 , quest_title : String ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "find_quest_slot_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn find_quest_slot_like_cpp (& self , quest_id : u32) -> Option < u8 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::quest::state",
           "trait_path": null,
           "kind": "method",
@@ -15926,6 +15450,343 @@
           "source_class": "test_fixture",
           "guards": [
             "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "clear_represented_pending_quest_sharing_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn clear_represented_pending_quest_sharing_like_cpp (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_adventure_map_start_quest",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_adventure_map_start_quest (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_push_quest_to_party",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_push_quest_to_party (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_quest_confirm_accept",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_quest_confirm_accept (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_quest_giver_accept_quest",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_quest_giver_accept_quest (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_quest_giver_choose_reward",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_quest_giver_choose_reward (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_quest_giver_close_quest",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_quest_giver_close_quest (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_quest_giver_complete_quest",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_quest_giver_complete_quest (& mut self , mut pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_quest_giver_hello",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_quest_giver_hello (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_quest_giver_request_reward",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_quest_giver_request_reward (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_quest_giver_status_query",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_quest_giver_status_query (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_quest_log_remove_quest",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_quest_log_remove_quest (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_quest_poi_query",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_quest_poi_query (& mut self , query : wow_packet :: packets :: query :: QuestPoiQuery ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_quest_push_result",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_quest_push_result (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_request_world_quest_update",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_request_world_quest_update (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "quest_poi_store_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn quest_poi_store_like_cpp (& mut self ,) -> std :: sync :: Arc < std :: collections :: HashMap < i32 , wow_packet :: packets :: query :: QuestPoiData > >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "quest_source_item_quest_log_item_id_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn quest_source_item_quest_log_item_id_like_cpp (& mut self , entry_id : u32 ,) -> u32",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "read_quest_choice_item_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn read_quest_choice_item_like_cpp (pkt : & mut WorldPacket ,) -> Result < wow_world_quest :: QuestChoiceItemLikeCpp , wow_packet :: PacketError >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_pending_quest_sharing_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_pending_quest_sharing_like_cpp (& self ,) -> Option < RepresentedPendingQuestSharingLikeCpp >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_reward_choice_matches_loaded_type_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_reward_choice_matches_loaded_type_like_cpp (quest : & wow_data :: quest :: QuestTemplate , choice : wow_world_quest :: QuestChoiceItemLikeCpp ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_represented_pending_quest_sharing_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn set_represented_pending_quest_sharing_like_cpp (& mut self , sender_guid : wow_core :: ObjectGuid , quest_id : u32 ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "setter",
             "visible"
           ]
         },
@@ -23625,19 +23486,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "clear_represented_pending_quest_sharing_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn clear_represented_pending_quest_sharing_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -31564,19 +31412,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_pending_quest_sharing_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_pending_quest_sharing_like_cpp (& self ,) -> Option < RepresentedPendingQuestSharingLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_pet_guid_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_pet_guid_like_cpp (& self) -> Option < ObjectGuid >",
@@ -34048,19 +33883,6 @@
           "name": "send_raw_packet",
           "visibility": "pub (crate)",
           "signature": "fn send_raw_packet (& self , data : & [u8])",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_repeatable_turn_in_request_items_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn send_repeatable_turn_in_request_items_like_cpp (& mut self , sender_guid : ObjectGuid , quest : & wow_data :: quest :: QuestTemplate ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -38382,20 +38204,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_represented_pending_quest_sharing_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn set_represented_pending_quest_sharing_like_cpp (& mut self , sender_guid : ObjectGuid , quest_id : u32 ,)",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "setter",
             "visible"
@@ -56305,123 +56113,6 @@
         },
         {
           "package": "wow-world",
-          "module": "crate::handlers::quest::handlers::acceptance",
-          "source": "crates/wow-world/src/handlers/quest/handlers/acceptance.rs",
-          "enclosing": "impl WorldSession::handle_quest_confirm_accept_with_generator_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::quest::handlers::acceptance",
-          "source": "crates/wow-world/src/handlers/quest/handlers/acceptance.rs",
-          "enclosing": "impl WorldSession::handle_quest_confirm_accept_with_generator_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "player_registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::quest::handlers::acceptance",
-          "source": "crates/wow-world/src/handlers/quest/handlers/acceptance.rs",
-          "enclosing": "impl WorldSession::handle_quest_confirm_accept_with_generator_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::quest::handlers::acceptance",
-          "source": "crates/wow-world/src/handlers/quest/handlers/acceptance.rs",
-          "enclosing": "impl WorldSession::handle_quest_confirm_accept_with_generator_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "local_alias",
-          "symbol": "group_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "group_registry:GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::quest::handlers::sharing",
-          "source": "crates/wow-world/src/handlers/quest/handlers/sharing.rs",
-          "enclosing": "impl WorldSession::handle_push_quest_to_party",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::quest::handlers::sharing",
-          "source": "crates/wow-world/src/handlers/quest/handlers/sharing.rs",
-          "enclosing": "impl WorldSession::handle_push_quest_to_party",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "player_registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::quest::handlers::sharing",
-          "source": "crates/wow-world/src/handlers/quest/handlers/sharing.rs",
-          "enclosing": "impl WorldSession::handle_push_quest_to_party",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::quest::handlers::sharing",
-          "source": "crates/wow-world/src/handlers/quest/handlers/sharing.rs",
-          "enclosing": "impl WorldSession::handle_push_quest_to_party",
-          "registry": "GroupRegistry",
-          "operation": "local_alias",
-          "symbol": "group_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "group_registry:GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::quest::handlers::sharing",
-          "source": "crates/wow-world/src/handlers/quest/handlers/sharing.rs",
-          "enclosing": "impl WorldSession::handle_push_quest_to_party",
-          "registry": "GroupRegistry",
-          "operation": "get",
-          "symbol": "get",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "get(& group_guid)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
           "module": "crate::player_directory",
           "source": "crates/wow-world/src/lib.rs",
           "enclosing": "module",
@@ -61732,6 +61423,123 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-quest",
+          "module": "crate::quest_session::accept_handlers",
+          "source": "crates/wow-world-quest/src/quest_session/accept_handlers.rs",
+          "enclosing": "fn handle_quest_confirm_accept_with_generator_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-quest",
+          "module": "crate::quest_session::accept_handlers",
+          "source": "crates/wow-world-quest/src/quest_session/accept_handlers.rs",
+          "enclosing": "fn handle_quest_confirm_accept_with_generator_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-quest",
+          "module": "crate::quest_session::accept_handlers",
+          "source": "crates/wow-world-quest/src/quest_session/accept_handlers.rs",
+          "enclosing": "fn handle_quest_confirm_accept_with_generator_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-quest",
+          "module": "crate::quest_session::accept_handlers",
+          "source": "crates/wow-world-quest/src/quest_session/accept_handlers.rs",
+          "enclosing": "fn handle_quest_confirm_accept_with_generator_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-quest",
+          "module": "crate::quest_session::sharing",
+          "source": "crates/wow-world-quest/src/quest_session/sharing.rs",
+          "enclosing": "fn handle_push_quest_to_party",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-quest",
+          "module": "crate::quest_session::sharing",
+          "source": "crates/wow-world-quest/src/quest_session/sharing.rs",
+          "enclosing": "fn handle_push_quest_to_party",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-quest",
+          "module": "crate::quest_session::sharing",
+          "source": "crates/wow-world-quest/src/quest_session/sharing.rs",
+          "enclosing": "fn handle_push_quest_to_party",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-quest",
+          "module": "crate::quest_session::sharing",
+          "source": "crates/wow-world-quest/src/quest_session/sharing.rs",
+          "enclosing": "fn handle_push_quest_to_party",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-quest",
+          "module": "crate::quest_session::sharing",
+          "source": "crates/wow-world-quest/src/quest_session/sharing.rs",
+          "enclosing": "fn handle_push_quest_to_party",
+          "registry": "GroupRegistry",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "get(& group_guid)",
           "count": 1
         },
         {

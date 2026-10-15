@@ -13,12 +13,12 @@ impl crate::session::WorldSession {
         quest_id: u32,
         quest_store: &wow_data::quest::QuestStore,
     ) -> bool {
-        crate::session::cx_quest_state_ref(self)
-            .represented_quest_giver_accept_source_allows_quest_like_cpp(
-                source_guid,
-                quest_id,
-                quest_store,
-            )
+        wow_world_quest::represented_quest_giver_accept_source_allows_quest_like_cpp(
+            self,
+            source_guid,
+            quest_id,
+            quest_store,
+        )
     }
     pub(crate) fn represented_quest_giver_involved_source_allows_quest_like_cpp(
         &self,
@@ -26,11 +26,11 @@ impl crate::session::WorldSession {
         quest_id: u32,
         quest_store: &wow_data::quest::QuestStore,
     ) -> bool {
-        crate::session::cx_quest_state_ref(self)
-            .represented_quest_giver_involved_source_allows_quest_like_cpp(
-                source_guid,
-                quest_id,
-                quest_store,
-            )
+        wow_world_quest::represented_quest_giver_involved_source_allows_quest_like_cpp(
+            self,
+            source_guid,
+            quest_id,
+            quest_store,
+        )
     }
 }

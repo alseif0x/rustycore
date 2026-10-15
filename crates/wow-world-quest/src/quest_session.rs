@@ -18,29 +18,41 @@
 //! (`ItemAddedQuestCheck`, `ItemRemovedQuestCheck`), the quest-source item
 //! grant, the reward-inventory admission and the eligibility gates
 //! (`CanTakeQuest`, `CanSeeStartQuest`); the inventory operations those reach
-//! form [`QuestItemStorageHostLikeCpp`]. The objective drain and the reward
-//! commit lend the World session's owners and stay with the host, and the
-//! packet handlers follow in slice 6c.
+//! form [`QuestItemStorageHostLikeCpp`]. Slice 6c added the quest-giver,
+//! acceptance, reward and sharing packet entry points
+//! (`HandleQuestgiver*Opcode`, `HandleQuestConfirmAccept`,
+//! `HandlePushQuestToParty`, `HandleQuestPOIQuery`,
+//! `HandleAdventureMapStartQuest`); the session operations only they reach form
+//! [`QuestHandlerSessionHostLikeCpp`]. The objective drain and the reward
+//! commit lend the World session's owners and stay host operations.
 
+mod accept_handlers;
 mod dialog;
 mod eligibility;
 mod giver;
+mod giver_handlers;
 mod item_mutations;
 mod objectives;
 mod persistence;
+mod reward_handlers;
 mod reward_validation;
 mod rewards;
+mod sharing;
 mod source_items;
 mod state;
 
+pub use accept_handlers::*;
 pub use dialog::*;
 pub use eligibility::*;
 pub use giver::*;
+pub use giver_handlers::*;
 pub use item_mutations::*;
 pub use objectives::*;
 pub use persistence::*;
+pub use reward_handlers::*;
 pub use reward_validation::*;
 pub use rewards::*;
+pub use sharing::*;
 pub use source_items::*;
 pub use state::*;
 
@@ -50,7 +62,7 @@ use std::sync::Arc;
 use tracing::{debug, info, warn};
 use wow_conditions::{
     QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_FAILED_LIKE_CPP, QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-    QUEST_STATUS_REWARDED_LIKE_CPP,
+    QUEST_STATUS_NONE_LIKE_CPP, QUEST_STATUS_REWARDED_LIKE_CPP,
 };
 use wow_constants::item::ItemFlags3;
 use wow_constants::quest::{
@@ -75,22 +87,41 @@ use wow_entities::{
     SendNewItemDisplayText, SendNewItemInstancePlan, SendNewItemModifier, SendNewItemPlan,
     is_bag_pos,
 };
+use wow_packet::packets::gossip::GossipMessage;
+use wow_packet::packets::query::{
+    QuestPoiBlobData, QuestPoiBlobPoint, QuestPoiData, QuestPoiQuery, QuestPoiQueryResponse,
+};
+use wow_packet::packets::quest::{
+    AdventureMapStartQuest, PushQuestToParty, QuestConfirmAccept, QuestGiverQuestComplete,
+    QuestGiverStatus, QuestPushResultResponse, QuestRewardsBlock, quest_push_reason,
+};
 use wow_packet::packets::quest::{
     QuestGiverOfferReward, QuestGiverQuestDetails, QuestGiverQuestFailed, QuestGiverQuestList,
     QuestGiverRequestItems, QuestGiverRequestItemsCollect, QuestGiverRequestItemsCurrency,
     QuestListEntry, QuestObjectiveSimple,
 };
 use wow_packet::packets::update::{ItemCreateData, ItemEnchantmentValuesUpdate, UpdateObject};
+use wow_packet::{ClientPacket, ServerPacket};
+use wow_world_core::session::mailbox::{
+    SendRepeatableTurnInRequestItemsLikeCppCommand, SessionCommand,
+    SetQuestSharingInfoAndSendDetailsCommand,
+};
 use wow_world_core::session::{
-    HubMut, HubRef, RepresentedGameObjectAccessLikeCpp, SessionHubHostLikeCpp,
+    HubMut, HubRef, RepresentedGameObjectAccessLikeCpp, SessionCatalogs, SessionHubHostLikeCpp,
 };
 use wow_world_entities::{RepresentedGameObjectUseEffect, WorldEntitiesState};
+use wow_world_instances::RepresentedAdventureMapStartQuestLikeCpp;
 use wow_world_lifecycle::SessionLifecycleState;
 use wow_world_player_conditions::PlayerConditionProjectionCxLikeCpp;
 
+// Only the pending-sharing fixture branch names it (#1363 slice 6c).
+#[cfg(any(test, feature = "test-fixtures"))]
+use crate::RepresentedPendingQuestSharingLikeCpp;
 use crate::{
     MAX_QUEST_LOG_SIZE_LIKE_CPP, QuestSourceItemBoundPersistencePlanLikeCpp,
-    QuestSourceItemBoundPreflightLikeCpp, RepresentedQuestGiverStatusSourceLikeCpp,
+    QuestSourceItemBoundPreflightLikeCpp, RepresentedPushQuestToPartyOutcomeLikeCpp,
+    RepresentedPushQuestToPartyOutcomeReasonLikeCpp, RepresentedQuestConfirmAcceptLikeCpp,
+    RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp, RepresentedQuestGiverStatusSourceLikeCpp,
     SessionQuestState, quest_giver_creature_id_from_source_like_cpp,
 };
 
@@ -152,10 +183,9 @@ pub trait QuestSessionHostLikeCpp: SessionHubHostLikeCpp {
 /// and reward-inventory bodies reach; each is the same-named `WorldSession`
 /// operation (`make_inventory_item_object` is the World inventory context's).
 pub trait QuestItemStorageHostLikeCpp: QuestSessionHostLikeCpp {
-    fn quest_source_item_quest_log_item_id_like_cpp(
-        &mut self,
-        entry_id: u32,
-    ) -> impl Future<Output = u32> + Send;
+    /// The World `catalogs` field, written by the item-template-addon
+    /// quest-log item cache and the quest POI store load.
+    fn catalogs_mut(&mut self) -> &mut SessionCatalogs;
     fn get_inventory_item_by_pos(&self, bag: u8, slot: u8) -> Option<InventoryItem>;
     fn resolved_inventory_item_like_cpp(&self, slot: u8) -> Option<InventoryItem>;
     fn resolved_inventory_item_object_like_cpp(&self, guid: ObjectGuid) -> Option<Item>;
@@ -196,4 +226,51 @@ pub trait QuestItemStorageHostLikeCpp: QuestSessionHostLikeCpp {
         entry_id: u32,
         count: u32,
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)>;
+}
+
+/// The World operations only the moved quest packet entry points reach
+/// (#1363 slice 6c); each is the same-named `WorldSession` field, split or
+/// operation. The reward commit and the objective drain lend the session's
+/// owners, so they stay World operations.
+pub trait QuestHandlerSessionHostLikeCpp: QuestItemStorageHostLikeCpp {
+    /// The World `quest_state` field, written by the represented outcome
+    /// records and the pending-sharing fixture.
+    fn quest_state_mut(&mut self) -> &mut SessionQuestState;
+    /// The World `world_entities` field.
+    fn world_entities(&self) -> &WorldEntitiesState;
+    /// The World `split_world_entities_mut` split.
+    fn split_world_entities_mut(&mut self) -> (&mut WorldEntitiesState, HubMut<'_>);
+    fn resolved_group_guid_like_cpp(&self) -> Option<u64>;
+    /// `wow_world_character::build_gossip_menu` over the World session.
+    fn build_gossip_menu(
+        &mut self,
+        entry: u32,
+        npc_flags: u32,
+        npc_guid: ObjectGuid,
+    ) -> impl Future<Output = Option<GossipMessage>> + Send;
+    /// `wow_world_character::send_represented_creature_trainer_gossip_menu_like_cpp`
+    /// over the World session.
+    fn send_represented_creature_trainer_gossip_menu_like_cpp(
+        &mut self,
+        npc_guid: ObjectGuid,
+        entry: u32,
+        npc_flags: u32,
+    ) -> bool;
+    fn record_represented_adventure_map_start_quest_like_cpp(
+        &mut self,
+        request: RepresentedAdventureMapStartQuestLikeCpp,
+    );
+    /// C++ `Player::RewardQuest`: the World reward commit.
+    fn reward_represented_quest_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        quest: &wow_data::quest::QuestTemplate,
+        quest_giver_guid: ObjectGuid,
+        choice: QuestChoiceItemLikeCpp,
+    ) -> impl Future<Output = bool> + Send;
+    /// The World objective drain.
+    fn drain_represented_quest_objective_progress_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+    ) -> impl Future<Output = ()> + Send;
 }

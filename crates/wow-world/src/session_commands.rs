@@ -149,10 +149,14 @@ impl WorldSession {
                 );
             }
             SessionCommand::SetQuestSharingInfoAndSendDetails(command) => {
-                self.handle_set_quest_sharing_info_and_send_details_command_like_cpp(command);
+                wow_world_quest::handle_set_quest_sharing_info_and_send_details_command_like_cpp(
+                    self, command,
+                );
             }
             SessionCommand::SendRepeatableTurnInRequestItemsLikeCpp(command) => {
-                self.handle_send_repeatable_turn_in_request_items_command_like_cpp(command);
+                wow_world_quest::handle_send_repeatable_turn_in_request_items_command_like_cpp(
+                    self, command,
+                );
             }
             SessionCommand::SendRealmPacketLikeCpp(command) => {
                 if self.state() == SessionState::LoggedIn

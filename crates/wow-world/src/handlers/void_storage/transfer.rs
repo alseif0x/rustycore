@@ -256,9 +256,11 @@ impl WorldSession {
                 return;
             }
             let [bag, slot] = destinations[0].pos.to_be_bytes();
-            let quest_log_item_id = self
-                .quest_source_item_quest_log_item_id_like_cpp(void_item.item_entry)
-                .await;
+            let quest_log_item_id = wow_world_quest::quest_source_item_quest_log_item_id_like_cpp(
+                self,
+                void_item.item_entry,
+            )
+            .await;
             if wow_world_quest::plan_item_transfer_withdrawal_quest_persistence_like_cpp(
                 self,
                 &mut quest_persistence_plan,

@@ -131,17 +131,11 @@ pub(crate) use wow_world_inventory::{
 };
 mod battleground_adapter;
 #[cfg(test)]
-pub(crate) use battleground_adapter::RepresentedBattlefieldListLikeCpp;
-#[cfg(test)]
-pub(crate) use battleground_adapter::RepresentedBattlegroundQueueTypeIdLikeCpp;
-#[cfg(test)]
-pub(crate) use battleground_adapter::RepresentedBattlemasterHelloLikeCpp;
-#[cfg(test)]
-pub(crate) use battleground_adapter::RepresentedBattlemasterJoinArenaLikeCpp;
-#[cfg(test)]
-pub(crate) use battleground_adapter::RepresentedBattlemasterJoinLikeCpp;
-#[cfg(test)]
-pub(crate) use battleground_adapter::RepresentedBattlemasterJoinSkirmishLikeCpp;
+pub(crate) use battleground_adapter::{
+    RepresentedBattlefieldListLikeCpp, RepresentedBattlegroundQueueTypeIdLikeCpp,
+    RepresentedBattlemasterHelloLikeCpp, RepresentedBattlemasterJoinArenaLikeCpp,
+    RepresentedBattlemasterJoinLikeCpp, RepresentedBattlemasterJoinSkirmishLikeCpp,
+};
 mod catalog_capabilities;
 pub use catalog_capabilities::AreaTriggerCatalogsLikeCpp;
 pub use catalog_capabilities::GroupInvitePolicyLikeCpp;
@@ -213,16 +207,14 @@ mod currency_adapter;
 pub(crate) use currency_adapter::PlayerCurrencyDelta;
 pub(crate) use currency_adapter::RepresentedQuestObjectiveProgressEventLikeCpp;
 use currency_adapter::currency_max_quantity_cpp;
-pub(crate) use currency_adapter::{CurrencyGainSourceLikeCpp, player_team_for_race_cpp};
+pub(crate) use currency_adapter::player_team_for_race_cpp;
 mod duel_contracts;
 #[cfg(test)]
-pub(crate) use duel_contracts::RepresentedCanDuelSpellCastLikeCpp;
-#[cfg(test)]
-pub(crate) use duel_contracts::RepresentedDuelCancelOutcomeLikeCpp;
-#[cfg(test)]
-pub(crate) use duel_contracts::RepresentedDuelCancelledLikeCpp;
-#[cfg(test)]
-pub(crate) use duel_contracts::{RepresentedDuelAcceptedLikeCpp, RepresentedDuelRequestedLikeCpp};
+pub(crate) use duel_contracts::{
+    RepresentedCanDuelSpellCastLikeCpp, RepresentedDuelAcceptedLikeCpp,
+    RepresentedDuelCancelOutcomeLikeCpp, RepresentedDuelCancelledLikeCpp,
+    RepresentedDuelRequestedLikeCpp,
+};
 mod faction_reactions;
 pub(crate) use faction_reactions::RepresentedFactionReactionInputLikeCpp;
 pub(crate) use faction_reactions::ReputationGainSourceLikeCpp;
@@ -377,25 +369,16 @@ mod player_vitals_adapter;
 mod progression_adapters;
 mod quest_dialog;
 pub(crate) use quest_dialog::RepresentedAdventureMapStartQuestLikeCpp;
-pub(crate) use quest_dialog::RepresentedPendingQuestSharingLikeCpp;
-pub(crate) use quest_dialog::RepresentedPushQuestToPartyOutcomeLikeCpp;
-pub(crate) use quest_dialog::RepresentedPushQuestToPartyOutcomeReasonLikeCpp;
-pub(crate) use quest_dialog::RepresentedQuestCompleteStatusUpdateLikeCpp;
-pub(crate) use quest_dialog::RepresentedQuestConfirmAcceptLikeCpp;
-pub(crate) use quest_dialog::RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp;
-pub(crate) use quest_dialog::RepresentedQuestPushResultResponseLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest_dialog::RepresentedQuestRewardMailLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest_dialog::RepresentedQuestRewardReputationLikeCpp;
-pub(crate) use quest_dialog::RepresentedQuestRewardReputationSourceLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest_dialog::RepresentedQuestRewardSpellCastLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest_dialog::RepresentedQuestRewardSpellKindLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest_dialog::RepresentedQuestRewardTalentPointsLikeCpp;
-use quest_dialog::quest_has_represented_item_objective_like_cpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest_dialog::{
     RepresentedForceDeselectLikeCpp, RepresentedQuestRewardTitleLikeCpp,
@@ -541,8 +524,7 @@ use wow_constants::shared::DifficultyFlags;
 #[cfg(test)]
 use wow_constants::unit::UnitFlags2;
 use wow_constants::unit::{
-    Gender, NPCFlags1, PowerType, Team, UnitFlags, UnitPvpFlags, UnitStandStateType,
-    WeaponAttackType,
+    Gender, PowerType, Team, UnitFlags, UnitPvpFlags, UnitStandStateType, WeaponAttackType,
 };
 #[cfg(test)]
 use wow_constants::{
