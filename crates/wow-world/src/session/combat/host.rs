@@ -12,11 +12,10 @@ impl wow_world_entities::CombatSessionHostLikeCpp for WorldSession {
     fn broadcast_player_packet_to_visible_set_realm_like_cpp(&self, bytes: Vec<u8>) {
         WorldSession::broadcast_player_packet_to_visible_set_realm_like_cpp(self, bytes)
     }
-    fn present_committed_creature_melee_health_like_cpp(
-        &mut self,
-        committed_revision: u64,
-    ) -> Option<u64> {
-        WorldSession::present_committed_creature_melee_health_like_cpp(self, committed_revision)
+    fn last_presented_creature_melee_health_state_revision_like_cpp(&mut self) -> &mut u64 {
+        &mut self
+            .view
+            .last_presented_creature_melee_health_state_revision_like_cpp
     }
     fn publish_creature_melee_death_durability_loss_like_cpp(&mut self, over_damage: i32) {
         WorldSession::publish_creature_melee_death_durability_loss_like_cpp(self, over_damage)

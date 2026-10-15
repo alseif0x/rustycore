@@ -7625,3 +7625,273 @@ dynamic flags and kill credit stay behind the host (quest-bound).
   a later behaviour-neutral change can make it call the shared filter.
 - The world-entities shim retires with the other shims when the scenarios
   call the free functions directly.
+
+## Slice 10b result (registry reclassification, melee health presentation, creature kill → entities, spell threat → spell)
+
+Branch `1363-s10b-world-entities`, base `d1b2bbc77` (10a merged). Move-only
+(R2), with the slice 4–10a rewrites and nothing else:
+
+- `self` becomes `host` with the narrowest bound the body needs:
+  `CombatSessionHostLikeCpp` for the melee health presentation,
+  `WorldEntitiesHostLikeCpp` for the creature kill family,
+  `SpellEffectHostLikeCpp` for the spell initial threat, `AuraHostLikeCpp`
+  for the threat aura snapshot and `SessionHubHostLikeCpp` for the
+  threat-relevant aura sync and hydration. `self.core` becomes `host.core()`
+  (`core_mut()` where the body mutates: the five `mutate_world_creature`
+  calls), `self.world_entities` becomes `host.world_entities_mut()`,
+  `self.catalogs`/`self.config` read through `host.hub_ref()`,
+  `crate::session::{hub_ref,hub_mut,split_world_entities_*}(self)` become the
+  same host calls, `wow_world_spell::f(self, …)` becomes `crate::f(host, …)`,
+  a call between moved functions becomes a free call, and the World alias
+  `CanonicalThreatAuraSnapshotLikeCpp` names its source
+  (`wow_entities::AuraThreatSnapshotLikeCpp`);
+- **two World wrappers are inlined**, each as its exact body, none async:
+  `self.currency_types_store()` (body `self.catalogs.currency_types_store()`;
+  the kill reputation branch) and `self.spell_store()` (body
+  `self.catalogs.spell_store()`; four sites in the initial threat). Both World
+  wrappers stay for their other callers;
+- **statements that become host calls:** the social split
+  `{ let (s, h) = split_social_ref(self); s.represented_player_group_reward_state_like_cpp(h, guid) }`
+  (two sites, the adapter repeats it), `self.loot.cached_loot_for_owner_like_cpp`,
+  `wow_world_social::calculate_kill_reputation_gain_like_cpp(self, …)`,
+  `wow_world_loot_ops::ensure_represented_creature_kill_loot_like_cpp(self, …)`,
+  `self.give_xp`, `self.on_creature_killed_with_generator_like_cpp`,
+  `self.publish_spell_pull_attack_start_like_cpp` and the
+  `self.view.last_presented_creature_melee_health_state_revision_like_cpp`
+  field (a `&mut u64` accessor);
+- **the `#[cfg(test)]` steps use the host fixture accessors.** A
+  `#[cfg(test)]` statement becomes
+  `#[cfg(any(test, feature = "test-fixtures"))] if host.test_fixtures_ref_like_cpp().is_some() …`
+  (the kill reputation record, the kill-hook call in the reward queue), the
+  seven consecutive `#[cfg(test)]` records of the death-state completion
+  become one such block in the same order, the melee presentation's
+  handle-less fallback returns `None` unless the fixtures are present and its
+  fixture write is `if let Some(fixtures) = host.test_fixtures_like_cpp()`,
+  `#[cfg(not(test))]` becomes `#[cfg(not(any(test, feature = "test-fixtures")))]`,
+  and the threat aura sync's two `cfg!(test)` arguments read one
+  `world_test` local set from the same accessor. The accessors are `Some` only
+  in the World `cfg(test)` build, so each step keeps its World meaning; in a
+  World build with only `test-fixtures` they are `None`, as `cfg(test)` was
+  false there. The two test-only kill-hook recorders (the kill hooks and the
+  tapper-pet `KilledUnit` hook, which was a World test-shim method) move as
+  `cfg(any(test, feature = "test-fixtures"))` functions.
+
+A token comparison of the 12 moved functions against the same rewrite applied
+by script to their base bodies (comments compared separately) finds 2
+identical (the kill reputation award and the threat aura hydration); the other
+10 differ only by the host calls and the fixture gates above, `core_mut`,
+`pub` → private or `pub(crate)`, the high-water mark accessor, the type alias
+and rustfmt trailing commas. No string literal, comment, constant, operator or
+control-flow token changed.
+
+### Re-measure and the cut
+
+On `d1b2bbc77` (classifier, `wow-world` production 47,711) the 10b families
+measured as planned: the `cfg(test)` registry and test entries 323
+reclassifiable production lines (plan about 375, which also counted the
+73-line test-only kill-hook recorder; that one moved with its caller), the melee health presentation 63 function
+lines, the creature kill family 486 (plus the 30-line test-only tapper-pet
+hook in `handlers/progression_test_shims.rs`) and the spell threat 258.
+Everything fits one part: 807 moved function lines and 94 new host lines.
+
+### What moved
+
+- **Reclassified to `handlers/world_entities_registry_test_shims.rs`
+  (`#![cfg(test)]`, new ratcheted row):** the five `#[cfg(test)]` creature
+  registration and removal entry points (the whole of
+  `session/world_entities/creature_registry.rs`), `talked_to_creature_like_cpp`,
+  `on_creature_killed` and the two canonical threat readers (widened from
+  `pub(in crate::session)` to `pub(crate)` because the file is outside the
+  session tree), verbatim. The emptied `creature_registry.rs`, `spawn.rs`
+  (#1396 follow-up 2), `gameobject_overrides.rs` and later `creature.rs` are
+  deleted; the creature-registry F3 shim is mounted from the new shim file,
+  the creature, gameobject-override and spawn F3 shims from
+  `session/world_entities/mod.rs`. `mod test_reexports;` gains its outer
+  `#[cfg(test)]` (#1396 follow-up 1), and the cfg(test) spell-area import
+  joins `session/test_reexports.rs` to keep `session/mod.rs` within its
+  ceiling.
+- **`wow-world-entities/src/combat_session/commands.rs` (+63):** the committed
+  creature melee health presentation, a private free function of its only
+  caller, the creature melee-damage receiver.
+- **`wow-world-entities/src/creature_kill_session.rs` (560):** the kill
+  reputation group rate (C++ `KillRewarder`), the per-faction branch and the
+  award (`Player::RewardReputation(Unit*, float)`), the deferred kill reward
+  queue (loot, XP, reputation, quest kill credit, death state, VALUES
+  publication), the death-state completion (`Unit::Kill`'s
+  `setDeathState(JUST_DIED)` with the corpse loot flags) and the two test-only
+  hook recorders.
+- **`wow-world-spell/src/effect_session/initial_threat.rs` (291):**
+  `Spell::HandleThreatSpells`' initial threat (with
+  `ThreatManager::ForwardThreatForAssistingMe` on the positive path), the
+  canonical threat aura snapshot, and the `SPELL_AURA_MOD_THREAT` aura sync
+  (private) and hydration.
+- **Stays in `wow-world`, with the reason:** the quest kill credit
+  `on_creature_killed_with_generator_like_cpp` (quest-bound; now a host method
+  of the kill queue); the spell-click visibility, the viewer NPC flags, the
+  dynamic flags and gameobject kill credit (quest-bound); the catalog setters
+  (`set_creature_aggro_config_like_cpp`, `set_spell_threat_store` and the
+  query setters: world-server construction API); the split wrappers the
+  scenarios and adapters still name. `session/world_entities/` is down to 383
+  production lines (3,250 on the slice 10 base).
+
+### Host surface
+
+| Part | New trait | New adapter | Retired trait | Retired adapter | Moved function lines |
+|---|---:|---:|---:|---:|---:|
+| Melee presentation (`CombatSessionHostLikeCpp`: the presentation forward becomes the high-water mark accessor) | 3 | 5 | 4 | 6 | 63 |
+| Creature kill (`WorldEntitiesHostLikeCpp` +6: group reward state, kill reputation gain, cached loot, kill loot, `give_xp`, quest kill credit; `LootSessionHostLikeCpp::give_xp` retires onto the supertrait method) | 24 | 46 | 6 | 8 | 486 |
+| Spell threat (`SpellEffectHostLikeCpp` +pull publication −hydration; `AuraHostLikeCpp` +entities ref split −threat snapshot; `SpellExecutionHostLikeCpp` −initial threat) | 6 | 10 | 15 | 33 | 258 |
+| **10b** | **33** | **61** | **25** | **47** | **807** |
+
+- New host code is 94 lines against 807 moved function lines: **11.6 %**
+  (creature kill alone 70 / 486, **14.4 %**; melee 12.7 %; threat 6.2 %). Net
+  of the 72 retired lines it is +22, **2.7 %**.
+- The kill family's adapters are the World operations the body called:
+  the social split, `wow_world_social::calculate_kill_reputation_gain_like_cpp`,
+  `LootState::cached_loot_for_owner_like_cpp`,
+  `wow_world_loot_ops::ensure_represented_creature_kill_loot_like_cpp`, and
+  the inherent `give_xp` and `on_creature_killed_with_generator_like_cpp`.
+  `LootSessionHostLikeCpp` already had `give_xp` with the same signature;
+  with the supertrait method its own copy became ambiguous, so it retires and
+  the loot-ops gathering-node XP call resolves to the supertrait method, whose
+  adapter forwards to the same inherent `WorldSession::give_xp`.
+
+### Await counts and recursion
+
+- Per function, base vs head: the reward queue 3 → 3 (kill loot, XP, quest
+  kill credit, each through a host method that returns the World future
+  unawaited); the other 11 moved functions 0 → 0. Their callers are
+  unchanged: the driver's `process_pending_with_catalogs_like_cpp` 11 → 11,
+  the cross-crate kill fixture 4 → 4, the World spell damage
+  `apply_damage_from_caster_like_cpp` 3 → 3, the loot-ops gathering and
+  chest openers 2/3 → 2/3. No borrow is held across an await differently.
+- Every moved name was grepped across the production (non-shim) `wow-world`
+  files. The remaining references are free calls
+  (`wow_world_entities::…(self, …)` from the driver, the cross-crate fixture
+  and the World spell damage; `wow_world_spell::hydrate_…(self)` from the
+  World spell damage). Every new trait-impl forward resolves to an inherent
+  method (`give_xp`, `on_creature_killed_with_generator_like_cpp`,
+  `publish_spell_pull_attack_start_like_cpp`), a state method
+  (`SessionSocialLimits`, `LootState`), a field, the
+  `split_world_entities_ref` free function or another crate's free function.
+  The retired forwards (`present_committed_…`, `apply_spell_initial_threat_…`,
+  `canonical_threat_aura_snapshot_…`, `hydrate_…`) are deleted with their
+  inherent targets, so no `WorldSession::name(self, …)` path can fall through
+  to a trait method. `unconditional_recursion`: 0 in the production lib, the
+  lib with `test-fixtures` and the lib test build.
+
+### Behaviour
+
+The kill reward queue keeps its order: pending kill loot (sorted, deduped),
+then per reward XP, reputation rate, reputation (faction 1 then 2), quest kill
+credit, the test hook record, the death-state completion and its VALUES
+publication to a client that sees the creature. The death-state completion
+keeps the lootable read, the skinning decision, the single `JUST_DIED`
+transition and the record order. The threat math, the pull publication, the
+canonical threat sync and the aura hydration order are token-identical; the
+melee presentation keeps its revision high-water mark, canonical reread,
+fixture mirror and registry sync. Packets and their order, persistence (#169),
+registrations and processing flags are unchanged.
+
+### Edges and closure
+
+No new crate edge: `wow-world-entities` already depended on `wow-loot` (the
+`CreatureLoot` type of the cached-loot method) and `wow-world-spell` on
+`wow-world-entities`. `wow_world_closure.py check` PASS in lock and metadata
+mode (17 packages); `Cargo.lock` is unchanged. The edges the moved bodies
+would otherwise need were probed and fail as they must:
+`wow-world-entities->wow-world-{spell,social,loot-ops,quest}` (cycles or
+forbidden reach), so the social, loot-ops, XP and quest steps are host
+methods.
+
+### Accounting
+
+- **`wow-world` production (classifier): 47,711 → 46,591 (−1,120)**;
+  physical 55,155 → 54,369, 470 → 467 files.
+  - **Reclassified, not production reduction:** 323 (unit 1: the nested
+    `#[cfg(test)]` entry points, the `cfg(test)`-only registry file and the
+    emptied files' headers).
+  - **Moved:** 797 classifier lines (melee −75, creature kill −436, threat
+    −286). Of the 807 moved function lines, 167 are test-only code the
+    classifier counted as production (the nested `#[cfg(test)]` steps of the
+    melee presentation, the reputation branch, the reward queue and the
+    death-state completion, and the test-only kill-hook recorder), so the
+    moved production proper is about 630 lines.
+  - The rest is the adapters (+61 / −47 in `wow-world`), imports, shim
+    forwards and call-site edits.
+- **Destinations.** `wow-world-entities/src` +666 / −9 (production 18,496 →
+  19,047, test 183 → 289: the two `cfg(any(test, feature = "test-fixtures"))`
+  hook recorders); `wow-world-spell/src` +320 / −34 (production 19,077 →
+  19,362); `wow-world-loot-ops/src` −6.
+- `net_move.py check`: S = 786, G = 937, allowance 1,786.3, PASS, 0 duplicate
+  bodies.
+- **Ceilings** (none raised):
+  - hotspot `session/mod.rs`: production 28,563 → 27,405, test 141,677 →
+    141,663, total 170,240 → 169,068;
+  - hotspot `handlers/loot/mod.rs`: production 1,386 → 1,378, total 20,315 →
+    20,307 (the retired `give_xp` forward);
+  - physical `session/mod.rs` 927 → 925, `handlers/progression_test_shims.rs`
+    315 → 284; new ratcheted row
+    `handlers/world_entities_registry_test_shims.rs` at 361.
+  - `session-ownership-policy.json` is reprinted with `print-baseline`; the
+    delta is the moved and retired items, the new adapter entries and the
+    shims.
+- **Warnings.** Per file and lint, the `wow-world` warnings are identical to
+  the base in the production lib (146), the lib with `test-fixtures` (154) and
+  the lib test build (291), and the `wow-world-entities`/`wow-world-spell`
+  all-targets warnings are identical (10); `wow-world` `dead_code` 0 in all
+  three. (A fresh compile of the base gives these counts; a replayed cached
+  build can show fewer.)
+- **Tests.** No test file and no `#[test]`/`#[ignore]` line changed; the
+  test-name multiset is identical (10,214 test functions, 5 ignored, lexical).
+  The scenarios keep method syntax through the shim forwards.
+
+### Follow-ups
+
+- The test shims (`world_entities_registry_test_shims.rs`,
+  `world_entities_test_shims.rs`) retire when the scenarios call the free
+  functions directly.
+- `WorldEntitiesHostLikeCpp` and `SpellEffectHostLikeCpp` both carry
+  `on_creature_killed_with_generator_like_cpp`; they can share one method
+  when a common supertrait exists.
+- The remaining `session/world_entities/` code is quest-bound (spell-click
+  visibility, NPC flags, dynamic flags, gameobject kill credit) or the
+  session construction API; it moves with the quest-bound hosts, not alone.
+
+### Validation
+
+`VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+on the PR head; the manifest, duration and test counts are recorded on the
+PR.
+
+## Slice 10 summary (10a–10b)
+
+The world-entity domain was about 3.4k production lines in `wow-world` on
+`b240d01a6` (slice 10 plan).
+
+| Slice | `wow-world` production | Δ | Moved out | Reclassified | New host (gross / net) |
+|---|---|---:|---:|---:|---|
+| 10a gameobject update and publication, visible-object queries, creature publication → entities | 49,482 → 47,711 | −1,771 | about 1,720 | 35 | 24 / −11 |
+| 10b registry reclassification, melee presentation, creature kill → entities, spell threat → spell | 47,711 → 46,591 | −1,120 | 797 (807 function lines, 167 of them test-only) | 323 | 94 / +22 |
+| **Total** | **49,482 → 46,591** | **−2,891** | **about 2,520** | **358** | **118 / +11** |
+
+- `session/world_entities/` went from 3,250 to 383 production lines;
+  `session/movement/movement_publication.rs` is gone. What stays is
+  quest-bound or construction API (above).
+- `wow-world-entities/src` grew by about 2.5k physical lines (10a 1,857, 10b
+  657) and `wow-world-spell/src` by 286; every part passed `net_move.py` with
+  no duplicate body and no new crate edge.
+- Both parts kept the host within budget: 1.4 % (10a) and 11.6 % (10b, 14.4 %
+  for the creature kill alone), with 10a's and 10b's retirements making the
+  net host growth about 11 lines for the whole slice.
+- #1395 follow-up 1 (10a) and #1396 follow-ups 1 and 2 (10b) are done.
+
+**Next.** Slice 11 (movement, teleport, instances, world state; about 2.9k
+production lines in `session/{movement,instances,world_state}` plus the
+teleport handlers) is the recommended next slice: its bodies already have the
+entities movement host (`PlayerMovementHostLikeCpp`) and the instance and
+visibility hosts to build on, and it does not touch the #169 persistence
+order. Slice 13 (persistence and lifecycle orchestration, about 2.6k in
+`session/{persistence,lifecycle}`) follows, with its own ordering review.
+Slice 12 (base-module logic and the thunk sweep) goes last, because the
+thunks it sweeps retire as the domains above leave.

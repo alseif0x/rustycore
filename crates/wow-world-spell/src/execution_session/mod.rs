@@ -99,13 +99,6 @@ pub trait SpellExecutionHostLikeCpp:
         range: f32,
         implicit_conditions: Option<&[wow_data::Condition]>,
     ) -> Option<Position>;
-    fn apply_spell_initial_threat_like_cpp(
-        &mut self,
-        spell_id: i32,
-        caster_guid: ObjectGuid,
-        target_guid: ObjectGuid,
-        is_positive: bool,
-    );
     fn apply_creature_aura_with_provenance_like_cpp(
         &mut self,
         spell_id: i32,

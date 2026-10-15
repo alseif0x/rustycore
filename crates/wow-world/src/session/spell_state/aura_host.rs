@@ -3,10 +3,13 @@
 //! `WorldSession` method by path; the accessor is the split function.
 
 use super::*;
-use wow_world_core::session::HubMut;
+use wow_world_core::session::{HubMut, HubRef};
 use wow_world_entities::WorldEntitiesState;
 
 impl wow_world_spell::AuraHostLikeCpp for WorldSession {
+    fn split_world_entities_ref(&self) -> (&WorldEntitiesState, HubRef<'_>) {
+        crate::session::split_world_entities_ref(self)
+    }
     fn split_world_entities_mut(&mut self) -> (&mut WorldEntitiesState, HubMut<'_>) {
         crate::session::split_world_entities_mut(self)
     }
@@ -38,21 +41,6 @@ impl wow_world_spell::AuraHostLikeCpp for WorldSession {
     }
     fn next_represented_spell_cast_guid_like_cpp(&self, spell_id: i32) -> Option<ObjectGuid> {
         WorldSession::next_represented_spell_cast_guid_like_cpp(self, spell_id)
-    }
-    fn canonical_threat_aura_snapshot_for_difficulty_like_cpp(
-        &self,
-        spell_id: i32,
-        difficulty: u8,
-        effect_mask: u32,
-        represented_effect_amounts: &[RepresentedAuraEffectAmountLikeCpp],
-    ) -> wow_entities::AuraThreatSnapshotLikeCpp {
-        WorldSession::canonical_threat_aura_snapshot_for_difficulty_like_cpp(
-            self,
-            spell_id,
-            difficulty,
-            effect_mask,
-            represented_effect_amounts,
-        )
     }
     fn tick_represented_creature_auras_like_cpp(&mut self) {
         wow_world_entities::tick_represented_creature_auras_like_cpp(self)

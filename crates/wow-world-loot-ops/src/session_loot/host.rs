@@ -61,12 +61,6 @@ pub trait LootSessionHostLikeCpp: WorldEntitiesHostLikeCpp {
         &mut self,
         player_guid: ObjectGuid,
     ) -> impl Future<Output = ()> + Send;
-    fn give_xp(
-        &mut self,
-        xp: u32,
-        victim: ObjectGuid,
-        group_rate: f32,
-    ) -> impl Future<Output = ()> + Send;
     fn group_registry(&self) -> Option<&Arc<GroupRegistry>>;
     fn has_active_non_item_loot_views_like_cpp(&self) -> bool;
     fn item_drop_rate_like_cpp(&self, item_id: u32) -> f32;

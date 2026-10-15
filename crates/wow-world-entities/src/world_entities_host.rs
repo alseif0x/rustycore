@@ -11,7 +11,8 @@
 //! is the same-named `WorldSession` operation, called at the exact point the
 //! body called it before the move. Loot opening, quest credit and menus, auras,
 //! groups, duels, map selection and the cfg(test) fixture steps stay with the
-//! host.
+//! host; so do the kill reward's social, loot, XP and quest steps (#1363 slice
+//! 10b).
 
 use std::future::Future;
 
@@ -138,4 +139,28 @@ pub trait WorldEntitiesHostLikeCpp: SessionHubHostLikeCpp {
         &self,
         player_guid: Option<ObjectGuid>,
     ) -> Option<UnitPvpFlags>;
+    /// The social state's `represented_player_group_reward_state_like_cpp`.
+    fn represented_player_group_reward_state_like_cpp(
+        &self,
+        player_guid: ObjectGuid,
+    ) -> Option<(u8, u16, Position, bool)>;
+    fn calculate_kill_reputation_gain_like_cpp(&self, level: u8, rep: i32, faction: u32) -> i32;
+    /// The loot state's `cached_loot_for_owner_like_cpp`.
+    fn cached_loot_for_owner_like_cpp(&self, owner: ObjectGuid) -> Option<&wow_loot::CreatureLoot>;
+    fn ensure_represented_creature_kill_loot_like_cpp(
+        &mut self,
+        creature_guid: ObjectGuid,
+    ) -> impl Future<Output = ()> + Send;
+    fn give_xp(
+        &mut self,
+        xp: u32,
+        victim: ObjectGuid,
+        rate: f32,
+    ) -> impl Future<Output = ()> + Send;
+    fn on_creature_killed_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_entry: u32,
+        creature_guid: ObjectGuid,
+    ) -> impl Future<Output = ()> + Send;
 }

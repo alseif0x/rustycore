@@ -119,7 +119,6 @@ pub(crate) use auction_contracts::RepresentedAuctionReplicateRequestLikeCpp;
 #[cfg(test)]
 pub(crate) use auction_contracts::RepresentedAuctionSellItemLikeCpp;
 mod aura_effect_values;
-use aura_effect_values::CanonicalThreatAuraSnapshotLikeCpp;
 use aura_effect_values::unit_owned_apply_aura_effect_mask_like_cpp;
 mod battle_pet_adapter;
 #[cfg(test)]
@@ -575,10 +574,10 @@ use wow_constants::unit::{
 use wow_constants::{
     BuyResult, ClientOpcodes, InventoryResult, InventoryType, ItemClass, ItemContext, ItemFlags,
     ItemFlags2, ItemFlags3, ItemModifier, ItemQuality, ItemSpelltriggerType, ItemSubClassArmor,
-    ItemSubClassWeapon, UnitState,
+    ItemSubClassWeapon,
 };
 #[cfg(test)]
-use wow_constants::{SellResult, TypeId, item::ItemBonusType, movement::MovementFlag};
+use wow_constants::{SellResult, TypeId, UnitState, item::ItemBonusType, movement::MovementFlag};
 use wow_core::{
     EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator, Position,
     VoidStorageItemIdGeneratorLikeCpp, guid::HighGuid,
@@ -915,11 +914,10 @@ pub use wow_entities::{RepresentedAuraEffectAmountLikeCpp, RepresentedAuraEffect
 pub(crate) use wow_world_core::session::AFLAG_NOCASTER_LIKE_CPP;
 
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP: u32 = 0x0000_0800;
+#[cfg(test)]
 mod test_reexports;
 #[cfg(test)]
 pub(crate) use test_reexports::*;
-#[cfg(test)]
-use wow_data::{SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP, SpellAreaLikeCpp};
 pub(crate) use wow_world_core::session::PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP;
 
 #[cfg(test)]

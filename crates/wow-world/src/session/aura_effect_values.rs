@@ -4,7 +4,4 @@
 //! Aura effect values: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-pub(in crate::session) type CanonicalThreatAuraSnapshotLikeCpp =
-    wow_entities::AuraThreatSnapshotLikeCpp;
-
 pub(in crate::session) use wow_world_spell::unit_owned_apply_aura_effect_mask_like_cpp;

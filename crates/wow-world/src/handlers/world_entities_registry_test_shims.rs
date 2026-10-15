@@ -1,14 +1,36 @@
-//! Registration, insertion, relocation and removal of represented creatures on the map.
-//!
-//! Moved out of the Session root under #599. Behaviour is preserved; the
-//! canonical owner of this state is unchanged.
+// Copyright (c) 2026 alseif0x
+// RustyCore — WoW WotLK 3.4.3 server in Rust
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-use super::*;
+//! Test-only world-entity entry points (#1363 slice 10b): the `#[cfg(test)]`
+//! methods that were nested in the production impls of
+//! `session/world_entities/{creature_registry,creature,creature_kill,aggro}.rs`
+//! (the fixture creature registration and removal, the talk-to and kill
+//! objective entries without a generator, and the two canonical threat
+//! readers), moved verbatim so the classifier counts them as test code, and
+//! one-call method forwards to the creature kill reputation and death-state
+//! completion moved to `wow_world_entities` and to the spell initial threat
+//! moved to `wow_world_spell` (#1363 slice 10b), so no scenario call site
+//! changes. The
+//! two threat readers widen from `pub(in crate::session)` to `pub(crate)`,
+//! because this file is outside the session tree. Mounted from
+//! `handlers/mod.rs`, so the session hotspot's test lines do not grow; the
+//! creature-registry F3 shim is mounted here for the same reason.
+
+#![cfg(test)]
+
+use crate::session::*;
+use wow_core::ObjectGuid;
+use wow_entities::CreatureAddonLifecycleRecordLikeCpp;
+
+/// The #1241 F3 entry point of the creature registry, mounted here instead of
+/// from the deleted `session/world_entities/creature_registry.rs`.
+#[path = "../../unit_tests/session/world_entities/creature_registry/f3_shims.rs"]
+mod creature_registry_f3_shims;
 
 impl WorldSession {
     /// Register a creature through the canonical map (test fixtures; the
     /// production spawn path is `register_materialized_creature_spawn_like_cpp`).
-    #[cfg(test)]
     pub(crate) fn register_world_creature(
         &mut self,
         map_id: u16,
@@ -48,7 +70,6 @@ impl WorldSession {
             0,
         );
     }
-    #[cfg(test)]
     pub(crate) fn register_world_creature_with_flags_extra_like_cpp(
         &mut self,
         map_id: u16,
@@ -98,7 +119,6 @@ impl WorldSession {
             0,
         );
     }
-    #[cfg(test)]
     pub(crate) fn register_world_creature_with_flags_extra_and_movement_like_cpp(
         &mut self,
         map_id: u16,
@@ -164,7 +184,6 @@ impl WorldSession {
             0,
         );
     }
-    #[cfg(test)]
     pub(crate) fn register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp(
         &mut self,
         map_id: u16,
@@ -239,7 +258,6 @@ impl WorldSession {
             waypoint_path_id,
         )
     }
-    #[cfg(test)]
     pub(crate) fn remove_world_creature(
         &mut self,
         guid: ObjectGuid,
@@ -247,8 +265,97 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_world_entities_mut(self);
         state.remove_world_creature(&mut hub, guid)
     }
+    pub(crate) async fn talked_to_creature_like_cpp(
+        &mut self,
+        creature_entry: u32,
+        creature_guid: wow_core::ObjectGuid,
+    ) {
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return;
+        };
+        self.talked_to_creature_with_generator_like_cpp(
+            generator.as_ref(),
+            creature_entry,
+            creature_guid,
+        )
+        .await;
+    }
+    pub(crate) async fn on_creature_killed(
+        &mut self,
+        creature_entry: u32,
+        creature_guid: wow_core::ObjectGuid,
+    ) {
+        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+            return;
+        };
+        self.on_creature_killed_with_generator_like_cpp(
+            generator.as_ref(),
+            creature_entry,
+            creature_guid,
+        )
+        .await;
+    }
+    pub(crate) fn canonical_creature_threat_value_like_cpp(
+        &self,
+        creature_guid: ObjectGuid,
+        attacker_guid: ObjectGuid,
+    ) -> Option<f32> {
+        let (state, hub) = crate::session::split_world_entities_ref(self);
+        state.canonical_creature_threat_value_like_cpp(hub, creature_guid, attacker_guid)
+    }
+    pub(crate) fn mirror_canonical_creature_threat_from_attacker_like_cpp(
+        &mut self,
+        creature_guid: ObjectGuid,
+        attacker_guid: ObjectGuid,
+        threat_value: f32,
+    ) -> bool {
+        let (state, mut hub) = crate::session::split_world_entities_mut(self);
+        state.mirror_canonical_creature_threat_from_attacker_like_cpp(
+            &mut hub,
+            creature_guid,
+            attacker_guid,
+            threat_value,
+        )
+    }
+    pub(crate) fn reward_reputation_from_creature_kill_like_cpp(
+        &mut self,
+        creature_entry: u32,
+        creature_guid: ObjectGuid,
+        creature_level: u8,
+        kill_reward_rate: f32,
+    ) {
+        wow_world_entities::reward_reputation_from_creature_kill_like_cpp(
+            self,
+            creature_entry,
+            creature_guid,
+            creature_level,
+            kill_reward_rate,
+        )
+    }
+    pub(crate) fn complete_represented_creature_death_state_after_kill_hooks_like_cpp(
+        &mut self,
+        attacker_guid: ObjectGuid,
+        creature_guid: ObjectGuid,
+    ) -> Option<wow_entities::UnitValuesUpdate> {
+        wow_world_entities::complete_represented_creature_death_state_after_kill_hooks_like_cpp(
+            self,
+            attacker_guid,
+            creature_guid,
+        )
+    }
+    pub(crate) fn apply_spell_initial_threat_like_cpp(
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        target_guid: ObjectGuid,
+        is_positive: bool,
+    ) {
+        wow_world_spell::apply_spell_initial_threat_like_cpp(
+            self,
+            spell_id,
+            caster_guid,
+            target_guid,
+            is_positive,
+        )
+    }
 }
-
-#[cfg(test)]
-#[path = "../../../unit_tests/session/world_entities/creature_registry/f3_shims.rs"]
-mod f3_shims;

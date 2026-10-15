@@ -82,7 +82,7 @@ impl WorldSession {
                 )
             });
         let caster_school_threat_mod = if caster_is_session_player {
-            self.hydrate_canonical_threat_relevant_auras_like_cpp();
+            wow_world_spell::hydrate_canonical_threat_relevant_auras_like_cpp(self);
             self.core
                 .mutate_canonical_player_like_cpp(|player| {
                     player
@@ -258,8 +258,13 @@ impl WorldSession {
             }
             if caster_rewards_session_player {
                 let reputation_rate =
-                    self.represented_creature_kill_reputation_rate_like_cpp(player_guid, guid);
-                self.reward_reputation_from_creature_kill_like_cpp(
+                    wow_world_entities::represented_creature_kill_reputation_rate_like_cpp(
+                        self,
+                        player_guid,
+                        guid,
+                    );
+                wow_world_entities::reward_reputation_from_creature_kill_like_cpp(
+                    self,
                     entry,
                     guid,
                     mob_level,
@@ -268,10 +273,15 @@ impl WorldSession {
                 self.on_creature_killed_with_generator_like_cpp(item_guid_generator, entry, guid)
                     .await;
                 #[cfg(test)]
-                self.record_represented_creature_kill_hooks_like_cpp(player_guid, guid);
+                wow_world_entities::record_represented_creature_kill_hooks_like_cpp(
+                    self,
+                    player_guid,
+                    guid,
+                );
             }
-            if let Some(death_values_update) = self
-                .complete_represented_creature_death_state_after_kill_hooks_like_cpp(
+            if let Some(death_values_update) =
+                wow_world_entities::complete_represented_creature_death_state_after_kill_hooks_like_cpp(
+                    self,
                     caster_guid,
                     guid,
                 )

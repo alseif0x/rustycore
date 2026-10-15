@@ -25,6 +25,7 @@ mod apply;
 mod combat;
 mod effects;
 mod homebind;
+mod initial_threat;
 mod player;
 mod power;
 mod progress;
@@ -39,6 +40,7 @@ pub use apply::*;
 pub use combat::*;
 pub use effects::*;
 pub use homebind::*;
+pub use initial_threat::*;
 pub use player::*;
 pub use power::*;
 pub use progress::*;
@@ -53,7 +55,11 @@ pub use threat::*;
 /// The World session as the spell effects' host (supertrait: the spell-click
 /// host, which lends the registry sync and the unit VALUES update object).
 pub trait SpellEffectHostLikeCpp: SpellClickHostLikeCpp {
-    fn hydrate_canonical_threat_relevant_auras_like_cpp(&mut self);
+    fn publish_spell_pull_attack_start_like_cpp(
+        &mut self,
+        attacker: ObjectGuid,
+        victim: ObjectGuid,
+    );
     fn broadcast_creature_packet_to_visible_set_like_cpp(
         &self,
         source_guid: ObjectGuid,

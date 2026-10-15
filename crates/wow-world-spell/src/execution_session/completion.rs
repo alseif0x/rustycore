@@ -5,7 +5,7 @@
 //! Final cast bookkeeping after the represented effect phases have completed.
 
 use super::SpellExecutionHostLikeCpp;
-use crate::effect_session::send_spell_execute_log_like_cpp;
+use crate::effect_session::{apply_spell_initial_threat_like_cpp, send_spell_execute_log_like_cpp};
 use std::time::Instant;
 use wow_core::ObjectGuid;
 use wow_entities::SpellCastMetadata;
@@ -37,7 +37,8 @@ pub(super) fn complete_spell_execution_like_cpp<H: SpellExecutionHostLikeCpp>(
     }) {
         threat_spell_info.effects = effects.to_vec();
     }
-    host.apply_spell_initial_threat_like_cpp(
+    apply_spell_initial_threat_like_cpp(
+        host,
         spell_id,
         caster_guid,
         target_guid,

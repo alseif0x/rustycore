@@ -65,14 +65,6 @@ impl LootSessionHostLikeCpp for WorldSession {
     ) -> impl Future<Output = ()> + Send {
         self.do_loot_release_all_like_cpp(player_guid)
     }
-    fn give_xp(
-        &mut self,
-        xp: u32,
-        victim: ObjectGuid,
-        group_rate: f32,
-    ) -> impl Future<Output = ()> + Send {
-        self.give_xp(xp, victim, group_rate)
-    }
     fn group_registry(&self) -> Option<&Arc<GroupRegistry>> {
         self.group_registry()
     }

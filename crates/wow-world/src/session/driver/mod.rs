@@ -253,7 +253,8 @@ impl WorldSession {
         self.reconcile_group_state_like_cpp();
         self.core
             .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::CreatureKills);
-        self.process_pending_creature_kills_with_generator_like_cpp(
+        wow_world_entities::process_pending_creature_kills_with_generator_like_cpp(
+            self,
             catalogs.id_generators.item.as_ref(),
         )
         .await;

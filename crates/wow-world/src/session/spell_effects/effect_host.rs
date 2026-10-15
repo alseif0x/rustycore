@@ -6,8 +6,12 @@ use super::*;
 use std::future::Future;
 
 impl wow_world_spell::SpellEffectHostLikeCpp for WorldSession {
-    fn hydrate_canonical_threat_relevant_auras_like_cpp(&mut self) {
-        WorldSession::hydrate_canonical_threat_relevant_auras_like_cpp(self)
+    fn publish_spell_pull_attack_start_like_cpp(
+        &mut self,
+        attacker: ObjectGuid,
+        victim: ObjectGuid,
+    ) {
+        WorldSession::publish_spell_pull_attack_start_like_cpp(self, attacker, victim)
     }
     fn broadcast_creature_packet_to_visible_set_like_cpp(
         &self,

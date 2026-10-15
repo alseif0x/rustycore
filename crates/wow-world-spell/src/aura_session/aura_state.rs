@@ -242,12 +242,14 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
             spell_visual_id: i32::try_from(spell_visual_id).unwrap_or(i32::MAX),
         };
         let aura_flags = AFLAG_NOCASTER_LIKE_CPP | 0x0000_0100;
-        let canonical_snapshot = host.canonical_threat_aura_snapshot_for_difficulty_like_cpp(
-            spell_id,
-            row.difficulty,
-            row.effect_mask,
-            &represented_effect_amounts,
-        );
+        let canonical_snapshot =
+            crate::effect_session::canonical_threat_aura_snapshot_for_difficulty_like_cpp(
+                host,
+                spell_id,
+                row.difficulty,
+                row.effect_mask,
+                &represented_effect_amounts,
+            );
         let aura = AuraApplication {
             spell_id,
             difficulty_id: row.difficulty,

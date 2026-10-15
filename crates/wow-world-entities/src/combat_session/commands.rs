@@ -135,7 +135,8 @@ pub fn handle_apply_creature_melee_damage_like_cpp_command_like_cpp<H: CombatSes
     if session_instance_id != command.instance_id {
         return;
     }
-    let Some(canonical_health) = host.present_committed_creature_melee_health_like_cpp(
+    let Some(canonical_health) = present_committed_creature_melee_health_like_cpp(
+        host,
         command.victim_health_state_revision_after,
     ) else {
         return;
@@ -185,4 +186,66 @@ pub fn handle_apply_creature_melee_damage_like_cpp_command_like_cpp<H: CombatSes
             health: canonical_health.min(i64::MAX as u64) as i64,
         });
     }
+}
+
+/// Present a health transition already committed by the canonical map
+/// owner without replaying the delayed value into canonical state.
+///
+/// The command revision is a presentation high-water mark. The health and
+/// death tuple itself is always reread from the current canonical Player,
+/// so a heal, later hit, death, or resurrection that won after the queued
+/// swing cannot be rolled back by session delivery.
+fn present_committed_creature_melee_health_like_cpp<H: CombatSessionHostLikeCpp>(
+    host: &mut H,
+    committed_revision: u64,
+) -> Option<u64> {
+    if committed_revision == 0
+        || committed_revision
+            <= *host.last_presented_creature_melee_health_state_revision_like_cpp()
+    {
+        return None;
+    }
+
+    let canonical = host.core().with_owned_player_like_cpp(|player| {
+        (
+            player.unit().health_state_revision_like_cpp(),
+            player.unit().data().health,
+            player.unit().data().max_health,
+            player.unit().is_alive(),
+        )
+    });
+    #[cfg(any(test, feature = "test-fixtures"))]
+    let canonical = canonical.or_else(|| {
+        if host.test_fixtures_ref_like_cpp().is_none()
+            || host.core().player_handle_like_cpp.is_some()
+        {
+            return None;
+        }
+        host.core().mutate_canonical_player_like_cpp(|player| {
+            (
+                player.unit().health_state_revision_like_cpp(),
+                player.unit().data().health,
+                player.unit().data().max_health,
+                player.unit().is_alive(),
+            )
+        })
+    });
+    let (canonical_revision, canonical_health, _canonical_max_health, _canonical_alive) =
+        canonical?;
+    if canonical_revision < committed_revision {
+        return None;
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if let Some(fixtures) = host.test_fixtures_like_cpp() {
+        fixtures.combat.player_max_health_like_cpp =
+            _canonical_max_health.clamp(1, u64::from(u32::MAX)) as u32;
+        fixtures.combat.player_health_like_cpp =
+            canonical_health.min(u64::from(fixtures.combat.player_max_health_like_cpp)) as u32;
+        fixtures.combat.player_alive_like_cpp =
+            _canonical_alive && fixtures.combat.player_health_like_cpp > 0;
+    }
+    *host.last_presented_creature_melee_health_state_revision_like_cpp() = committed_revision;
+    host.sync_player_registry_state_like_cpp();
+    Some(canonical_health)
 }
