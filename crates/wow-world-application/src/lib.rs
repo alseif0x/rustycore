@@ -8,8 +8,17 @@ mod character_account_handlers;
 pub use character_account_handlers::{
     CharacterAccountHandlerHostLikeCpp, register_character_account_handlers_like_cpp,
 };
+mod continue_login;
 mod player_handlers;
 mod session_lifecycle;
+pub use continue_login::{
+    ContinueLoginHostLikeCpp, PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP,
+    apply_represented_group_leader_flag_like_cpp,
+    handle_continue_player_login_with_module_registry_like_cpp,
+    load_represented_character_titles_like_cpp,
+    loaded_inventory_slot_count_with_legacy_rust_compat,
+    login_known_spells_after_account_collections_like_cpp,
+};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use session_lifecycle::{
     AT_LOGIN_RESET_TALENTS_LIKE_CPP, CommittedRepresentedTalentResetLikeCpp,

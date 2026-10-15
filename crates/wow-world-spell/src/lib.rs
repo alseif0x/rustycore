@@ -5,6 +5,7 @@ mod aura_rows;
 mod aura_session;
 mod effect_session;
 mod execution_session;
+mod login_spell_application;
 pub mod login_spell_rules;
 pub mod melee_damage;
 pub mod melee_rules;
@@ -79,6 +80,17 @@ pub use execution_session::{
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use execution_session::{
     represented_transport_destination_world_position_like_cpp, take_spell_power_like_cpp,
+};
+pub use login_spell_application::{
+    apply_loaded_known_spell_dependencies_like_cpp,
+    apply_loaded_spell_dependencies_from_roots_like_cpp,
+    apply_loaded_spell_dependency_skills_like_cpp,
+    apply_login_known_spell_combat_capabilities_like_cpp,
+    apply_represented_first_login_cast_spells_with_catalogs_like_cpp,
+    apply_represented_first_login_flag_if_needed_like_cpp,
+    apply_represented_start_all_spells_with_catalogs_like_cpp, load_account_mounts_like_cpp,
+    promote_loaded_character_mount_spells_like_cpp, set_account_mounts_like_cpp,
+    set_known_spells_like_cpp, set_represented_favorite_known_spells_like_cpp,
 };
 pub use player_cast::PlayerCastPublicationPhaseLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]

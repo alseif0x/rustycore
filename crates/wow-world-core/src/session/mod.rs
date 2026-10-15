@@ -303,6 +303,7 @@ pub mod catalog_capabilities;
 pub use catalog_capabilities::GroupInvitePolicyLikeCpp;
 pub use catalog_capabilities::ObjectMgrCatalogsLikeCpp;
 pub use catalog_capabilities::PlayerBootstrapCatalogsLikeCpp;
+pub use catalog_capabilities::PlayerRestRatePolicyLikeCpp;
 pub use catalog_capabilities::{ChatPolicyCatalogsLikeCpp, SupportFeaturePolicyLikeCpp};
 pub use catalog_capabilities::{ItemValuationCatalogsLikeCpp, ProgressionCatalogsLikeCpp};
 

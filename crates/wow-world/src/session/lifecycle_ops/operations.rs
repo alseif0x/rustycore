@@ -43,18 +43,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_lifecycle_ref(self);
         state.represented_battle_pet_login_spell_source_is_empty_like_cpp(hub)
     }
-    pub(crate) fn apply_represented_first_login_flag_if_needed_like_cpp(&mut self) -> bool {
-        const AT_LOGIN_FIRST_LIKE_CPP: u16 = 0x020;
-
-        if !self
-            .resolved_represented_at_login_flags_like_cpp()
-            .is_some_and(|flags| (flags & AT_LOGIN_FIRST_LIKE_CPP) != 0)
-        {
-            return false;
-        }
-
-        self.remove_represented_at_login_flag_like_cpp(AT_LOGIN_FIRST_LIKE_CPP, false)
-    }
     pub(crate) fn ensure_login_player_controller_like_cpp(
         &mut self,
         guid: ObjectGuid,
@@ -81,26 +69,6 @@ impl WorldSession {
             crate::session::hub_mut(self).set_fall_information_like_cpp(0, position.z);
             false
         }
-    }
-    pub(crate) fn set_account_mounts_like_cpp(&mut self, mounts: Vec<AccountMount>) {
-        let mounts = mounts
-            .into_iter()
-            .map(|mount| (mount.spell_id, mount.flags))
-            .collect();
-        let _ =
-            crate::session::hub_mut(self).mutate_player_collection_state_like_cpp(|collections| {
-                collections.replace_mounts_like_cpp(mounts);
-            });
-        self.expand_account_mount_faction_definitions_like_cpp();
-        wow_world_spell::learn_account_mount_spells_like_cpp(self);
-    }
-    pub(in crate::session) fn add_account_mount_with_faction_counterpart_like_cpp(
-        &mut self,
-        spell_id: i32,
-        flags: u8,
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.add_account_mount_with_faction_counterpart_like_cpp(&mut hub, spell_id, flags)
     }
     pub(in crate::session) fn expand_account_mount_faction_definitions_like_cpp(&mut self) {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);

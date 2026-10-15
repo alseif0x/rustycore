@@ -7,7 +7,7 @@ use super::*;
 
 #[test]
 fn continue_login_no_longer_names_the_core_character_statement() {
-    let handler = include_str!("../../../src/handlers/character/world_entry/login.rs");
+    let handler = include_str!("../../../../wow-world-application/src/continue_login/login.rs");
     assert!(handler.contains("load_character_base_like_cpp"));
     assert!(handler.contains("PlayerCharacterBaseLoadOutcomeLikeCpp::Loaded(Some(row))"));
     assert!(handler.contains("PlayerCharacterBaseLoadOutcomeLikeCpp::Loaded(None)"));
@@ -17,7 +17,7 @@ fn continue_login_no_longer_names_the_core_character_statement() {
 
 #[test]
 fn persisted_transport_restore_stays_between_identity_and_reputation_loading_like_cpp() {
-    let login = include_str!("../../../src/handlers/character/world_entry/login.rs");
+    let login = include_str!("../../../../wow-world-application/src/continue_login/login.rs");
     let transport_restore =
         include_str!("../../../../wow-world-character/src/login_session/transport_restore.rs");
     let identity_offset = login
@@ -48,7 +48,7 @@ fn persisted_transport_restore_stays_between_identity_and_reputation_loading_lik
 
 #[test]
 fn reputation_login_phase_returns_completion_for_first_login_reputation() {
-    let login = include_str!("../../../src/handlers/character/world_entry/login.rs");
+    let login = include_str!("../../../../wow-world-application/src/continue_login/login.rs");
     let reputation_loading =
         include_str!("../../../../wow-world-character/src/login_session/reputation_loading.rs");
     let restore_offset = login
@@ -56,7 +56,7 @@ fn reputation_login_phase_returns_completion_for_first_login_reputation() {
         .expect("transport restoration precedes reputation loading");
     let reputation_offset = login
         .find(
-            "let reputation_rows_complete_like_cpp =\n            load_character_reputation_for_login_like_cpp(self,",
+            "let reputation_rows_complete_like_cpp =\n        load_character_reputation_for_login_like_cpp(host,",
         )
         .expect("login keeps the reputation completion result");
     let health_offset = login
@@ -89,7 +89,7 @@ fn reputation_login_phase_returns_completion_for_first_login_reputation() {
 
 #[test]
 fn talent_login_phase_keeps_spell_side_effects_and_completion_result() {
-    let login = include_str!("../../../src/handlers/character/world_entry/login.rs");
+    let login = include_str!("../../../../wow-world-application/src/continue_login/login.rs");
     let talent_loading =
         include_str!("../../../../wow-world-character/src/login_session/talent_loading.rs");
     let skills_offset = login
@@ -131,7 +131,7 @@ fn talent_login_phase_keeps_spell_side_effects_and_completion_result() {
 
 #[test]
 fn skill_row_login_phase_returns_rows_for_coordinator_normalization() {
-    let login = include_str!("../../../src/handlers/character/world_entry/login.rs");
+    let login = include_str!("../../../../wow-world-application/src/continue_login/login.rs");
     let skill_loading =
         include_str!("../../../../wow-world-character/src/login_session/skill_loading.rs");
     let favorites_offset = login
@@ -139,7 +139,7 @@ fn skill_row_login_phase_returns_rows_for_coordinator_normalization() {
         .expect("favorite spells load before skill rows");
     let skill_offset = login
         .find(
-            "let (mut skill_records, loaded_skill_records_like_cpp) =\n            load_character_skill_rows_for_login_like_cpp(self,",
+            "let (mut skill_records, loaded_skill_records_like_cpp) =\n        load_character_skill_rows_for_login_like_cpp(host,",
         )
         .expect("login keeps the skill rows and completion result");
     let normalize_offset = login
@@ -172,7 +172,7 @@ fn skill_row_login_phase_returns_rows_for_coordinator_normalization() {
 
 #[test]
 fn spell_login_phase_returns_projected_rows_and_favorites() {
-    let login = include_str!("../../../src/handlers/character/world_entry/login.rs");
+    let login = include_str!("../../../../wow-world-application/src/continue_login/login.rs");
     let spell_loading =
         include_str!("../../../../wow-world-character/src/login_session/spell_loading.rs");
     let currency_offset = login
@@ -222,13 +222,13 @@ fn spell_login_phase_returns_projected_rows_and_favorites() {
 
 #[test]
 fn default_skill_login_phase_follows_quests_and_returns_learned_entries() {
-    let login = include_str!("../../../src/handlers/character/world_entry/login.rs");
+    let login = include_str!("../../../../wow-world-application/src/continue_login/login.rs");
     let default_skills_forwarder =
         include_str!("../../../../wow-world-character/src/login_session/default_skills.rs");
     let default_skills_core =
         include_str!("../../../../wow-world-core/src/session/progression/default_skills.rs");
     let quests_offset = login
-        .find("self.load_player_quests().await;")
+        .find("host.load_player_quests().await;")
         .expect("quest loading precedes default skills");
     let count_offset = login
         .find("let persisted_skill_count = skill_info_by_id.len();")
@@ -270,11 +270,11 @@ fn default_skill_login_phase_follows_quests_and_returns_learned_entries() {
 
 #[test]
 fn aura_login_phase_precedes_initial_item_mods_and_sets_authority() {
-    let login = include_str!("../../../src/handlers/character/world_entry/login.rs");
+    let login = include_str!("../../../../wow-world-application/src/continue_login/login.rs");
     let aura_loading =
         include_str!("../../../../wow-world-character/src/login_session/aura_loading.rs");
     let account_data_offset = login
-        .find("self.load_player_account_data_like_cpp(guid).await;")
+        .find(".load_player_account_data_like_cpp(&mut hub, guid)")
         .expect("account data loads before character auras");
     let aura_offset = login
         .find("load_character_auras_for_login_like_cpp")
@@ -312,11 +312,11 @@ fn aura_login_phase_precedes_initial_item_mods_and_sets_authority() {
 
 #[test]
 fn player_spell_map_finalization_keeps_merge_rules_and_authority_gate() {
-    let login = include_str!("../../../src/handlers/character/world_entry/login.rs");
+    let login = include_str!("../../../../wow-world-application/src/continue_login/login.rs");
     let finalization =
         include_str!("../../../../wow-world-character/src/login_session/spell_map_finalization.rs");
     let mount_offset = login
-        .find("self.promote_loaded_character_mount_spells_like_cpp(&known_spells);")
+        .find("promote_loaded_character_mount_spells_like_cpp(host, &known_spells);")
         .expect("mount promotion precedes PlayerSpellMap finalization");
     let gate_offset = login
         .find("let login_spell_map_authority_complete_like_cpp")
@@ -360,7 +360,7 @@ fn player_spell_map_finalization_keeps_merge_rules_and_authority_gate() {
 
 #[test]
 fn group_membership_login_phase_resets_then_restores_represented_group() {
-    let login = include_str!("../../../src/handlers/character/world_entry/login.rs");
+    let login = include_str!("../../../../wow-world-application/src/continue_login/login.rs");
     let group_loading =
         include_str!("../../../../wow-world-character/src/login_session/group_loading.rs");
     let pet_offset = login
@@ -370,7 +370,7 @@ fn group_membership_login_phase_resets_then_restores_represented_group() {
         .find("load_group_membership_for_login_like_cpp")
         .expect("login delegates group-membership loading");
     let xp_offset = login
-        .find("self.clamp_loaded_player_xp_to_next_level_like_cpp();")
+        .find("state.clamp_loaded_player_xp_to_next_level_like_cpp(&mut hub)")
         .expect("xp clamp follows group membership");
     assert!(pet_offset < group_offset);
     assert!(group_offset < xp_offset);
@@ -399,7 +399,7 @@ fn group_membership_login_phase_resets_then_restores_represented_group() {
 
 #[test]
 fn mail_login_phase_follows_controller_and_aborts_on_failure() {
-    let login = include_str!("../../../src/handlers/character/world_entry/login.rs");
+    let login = include_str!("../../../../wow-world-application/src/continue_login/login.rs");
     let mail_loading_core =
         include_str!("../../../../wow-world-core/src/session/persistence/login_mail.rs");
     let controller_offset = login
@@ -416,7 +416,7 @@ fn mail_login_phase_follows_controller_and_aborts_on_failure() {
     assert!(!login.contains("PlayerLoginAuxiliaryLoadRequestLikeCpp::Mail"));
     assert!(!login.contains("replace_owned_player_mails_like_cpp"));
     assert!(login.contains(
-        "if !crate::session::hub_mut(self)\n            .load_character_mail_for_login_like_cpp(&player_lifecycle_port, guid)\n            .await\n        {\n            return;\n        }"
+        "if !host\n        .hub_mut()\n        .load_character_mail_for_login_like_cpp(&player_lifecycle_port, guid)\n        .await\n    {\n        return;\n    }"
     ));
 
     for marker in [
@@ -438,7 +438,7 @@ fn mail_login_phase_follows_controller_and_aborts_on_failure() {
 
 #[test]
 fn cuf_profiles_load_after_inventory_and_before_currencies() {
-    let login = include_str!("../../../src/handlers/character/world_entry/login.rs");
+    let login = include_str!("../../../../wow-world-application/src/continue_login/login.rs");
     let cuf_profiles =
         include_str!("../../../../wow-world-character/src/login_session/cuf_profiles.rs");
     let currency_loading =
@@ -471,7 +471,7 @@ fn cuf_profiles_load_after_inventory_and_before_currencies() {
 
 #[test]
 fn currency_hydration_remains_before_spell_loading_and_requires_canonical_player_state() {
-    let login = include_str!("../../../src/handlers/character/world_entry/login.rs");
+    let login = include_str!("../../../../wow-world-application/src/continue_login/login.rs");
     let currency_loading =
         include_str!("../../../../wow-world-character/src/login_session/currency_loading.rs");
     let currency_call_offset = login
@@ -500,7 +500,7 @@ fn currency_hydration_remains_before_spell_loading_and_requires_canonical_player
 
 #[test]
 fn glyph_login_phase_keeps_catalog_filter_and_loaded_marking() {
-    let login = include_str!("../../../src/handlers/character/world_entry/login.rs");
+    let login = include_str!("../../../../wow-world-application/src/continue_login/login.rs");
     let glyph_loading = concat!(
         include_str!("../../../../wow-world-character/src/login_session/glyph_loading.rs"),
         include_str!("../../../../wow-world-lifecycle/src/state/login_load.rs"),
@@ -535,7 +535,7 @@ fn glyph_login_phase_keeps_catalog_filter_and_loaded_marking() {
 
 #[test]
 fn action_button_login_phase_keeps_active_configuration_and_packet_projection() {
-    let login = include_str!("../../../src/handlers/character/world_entry/login.rs");
+    let login = include_str!("../../../../wow-world-application/src/continue_login/login.rs");
     let action_buttons = concat!(
         include_str!("../../../../wow-world-character/src/login_session/action_buttons.rs"),
         include_str!("../../../../wow-world-lifecycle/src/state/login_load.rs"),

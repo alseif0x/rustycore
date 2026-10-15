@@ -4,18 +4,16 @@
 //! registrations are unchanged and shared fixtures stay in the parent module.
 
 use super::*;
-use crate::handlers::character::spell_rules::{
+use wow_world_inventory::vendor::{LoadedItemRefundDecision, loaded_item_refund_decision};
+use wow_world_spell::login_spell_rules::{
     SKILL_FIST_WEAPONS_LIKE_CPP, SKILL_UNARMED_LIKE_CPP,
     sync_loaded_fist_weapons_with_unarmed_like_cpp,
-};
-use crate::handlers::character::vendor::rules::{
-    LoadedItemRefundDecision, loaded_item_refund_decision,
 };
 
 #[test]
 fn continue_login_has_no_concrete_persistence_after_remaining_writes_move() {
     let handler = concat!(
-        include_str!("../../../src/handlers/character/world_entry/login.rs"),
+        include_str!("../../../../wow-world-application/src/continue_login/login.rs"),
         include_str!("../../../../wow-world-character/src/login_session/action_buttons.rs"),
         include_str!("../../../../wow-world-character/src/login_session/aura_loading.rs"),
         include_str!("../../../../wow-world-character/src/login_session/cuf_profiles.rs"),

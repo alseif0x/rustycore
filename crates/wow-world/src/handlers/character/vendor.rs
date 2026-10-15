@@ -11,8 +11,6 @@
 
 use super::*;
 
-pub(super) mod rules;
-
 use std::future::Future;
 
 use wow_entities::{ItemPosCount, PlayerCurrency};

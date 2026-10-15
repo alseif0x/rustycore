@@ -3,6 +3,7 @@
 
 //! Session-owned inventory state and its bounded represented contracts.
 
+mod account_collection_loading;
 mod appearance;
 mod auction_contracts;
 mod bank;
@@ -59,6 +60,9 @@ mod fixtures;
 pub mod loaded_item_support;
 pub mod vendor;
 
+pub use account_collection_loading::{
+    load_account_item_appearances_like_cpp, load_account_transmog_illusions_like_cpp,
+};
 pub use auction_contracts::{
     RepresentedAuctionPlaceBidLikeCpp, RepresentedAuctionRemoveItemLikeCpp,
     RepresentedAuctionReplicateRequestLikeCpp, RepresentedAuctionSellItemLikeCpp,
@@ -112,8 +116,8 @@ pub use contracts::{
     RepresentedEquipmentSetSavedLikeCpp,
 };
 pub use enchantment::{
-    ItemEnchantmentApplicationCxLikeCpp, ItemEnchantmentCatalogsLikeCpp,
-    LoadedEquippedItemEnchantmentsOutcomeLikeCpp,
+    InitialLoadedItemModsOutcomeLikeCpp, ItemEnchantmentApplicationCxLikeCpp,
+    ItemEnchantmentCatalogsLikeCpp, LoadedEquippedItemEnchantmentsOutcomeLikeCpp,
 };
 pub use equipment_sets::represented_equipment_set_from_packet_like_cpp;
 pub use guild_inventory_contracts::{

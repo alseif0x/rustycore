@@ -223,10 +223,6 @@ impl WorldSession {
         // the inventory object updates remain on the instance connection.
         self.send_packet_realm(&packet);
     }
-    pub(crate) fn send_item_time_update_plans(&self, updates: &[PlayerItemTimeUpdate]) {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.send_item_time_update_plans(hub, updates)
-    }
 }
 
 impl crate::session::InventoryCxRef<'_> {

@@ -17,11 +17,6 @@ impl WorldSession {
         state.set_player_aura_authority_complete_like_cpp(&mut hub, complete)
     }
 
-    pub(crate) fn tombstone_player_spell_hit_aura_authority_like_cpp(&mut self) {
-        let (state, mut hub) = crate::session::split_spell_state_mut(self);
-        state.tombstone_player_spell_hit_aura_authority_like_cpp(&mut hub)
-    }
-
     fn represented_active_glyph_aura_source_is_empty_like_cpp(&self) -> bool {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.represented_active_glyph_aura_source_is_empty_like_cpp(hub)

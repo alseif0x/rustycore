@@ -55,21 +55,6 @@ impl WorldSession {
         }
     }
 
-    pub(crate) fn promote_loaded_character_mount_spells_like_cpp(
-        &mut self,
-        spells: &[i32],
-    ) -> usize {
-        if self.catalogs.mount_store.is_none() {
-            return 0;
-        }
-
-        let mut added = 0usize;
-        for &spell_id in spells {
-            added +=
-                usize::from(self.add_account_mount_with_faction_counterpart_like_cpp(spell_id, 0));
-        }
-        added
-    }
     pub(crate) fn player_spell_runtime_snapshot_like_cpp(
         &self,
     ) -> Option<RepresentedPlayerSpellRuntimeLikeCpp> {

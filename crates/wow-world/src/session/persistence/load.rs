@@ -213,36 +213,6 @@ impl WorldSession {
                 .represented_rest_time_secs_like_cpp = 0;
         }
     }
-    pub(crate) fn load_represented_explored_zones_like_cpp(&mut self, input: &str) -> usize {
-        let blocks = parse_explored_zones_db_string_like_cpp(input);
-        let Some(previous) = wow_world_instances::player_explored_zones_snapshot_like_cpp(self)
-        else {
-            return 0;
-        };
-        let changed = previous != blocks;
-
-        let canonical = self
-            .core
-            .mutate_canonical_player_like_cpp(|player| {
-                let applied = player.set_explored_zones_blocks_like_cpp(&blocks);
-                (applied > 0).then(|| player.values_update(true))
-            })
-            .flatten();
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            self.instances
-                .replace_represented_explored_zones_for_test_like_cpp(blocks);
-        }
-        if let Some(update) = canonical {
-            self.core.send_player_values_update_like_cpp(&update);
-        }
-
-        if changed {
-            blocks.iter().filter(|block| **block != 0).count()
-        } else {
-            0
-        }
-    }
     pub(crate) fn mark_represented_talents_loaded_like_cpp(&mut self) {
         let _ = crate::session::hub_mut(self).mark_talents_loaded_like_cpp();
         self.refresh_represented_talent_points_like_cpp();
@@ -250,10 +220,6 @@ impl WorldSession {
     pub(crate) fn represented_talents_loaded_like_cpp(&self) -> bool {
         let (state, hub) = crate::session::split_lifecycle_ref(self);
         state.represented_talents_loaded_like_cpp(hub)
-    }
-    pub(crate) fn clamp_loaded_player_xp_to_next_level_like_cpp(&mut self) {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.clamp_loaded_player_xp_to_next_level_like_cpp(&mut hub)
     }
     /// Set the player loading GUID (ConnectTo flow).
     pub fn set_player_loading(&mut self, guid: Option<ObjectGuid>) {
@@ -293,12 +259,6 @@ impl WorldSession {
     pub async fn load_global_account_data_like_cpp(&mut self) {
         self.load_account_data_like_cpp(ObjectGuid::EMPTY, GLOBAL_CACHE_MASK_LIKE_CPP)
             .await;
-    }
-    pub(crate) async fn load_player_account_data_like_cpp(&mut self, guid: ObjectGuid) {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state
-            .load_player_account_data_like_cpp(&mut hub, guid)
-            .await
     }
     async fn load_account_data_like_cpp(&mut self, guid: ObjectGuid, mask: u32) {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);
@@ -370,59 +330,6 @@ impl WorldSession {
         }
         self.refresh_represented_talent_points_like_cpp();
     }
-    pub(crate) fn set_loaded_player_flags_like_cpp(&mut self, player_flags: u32) {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.set_loaded_player_flags_like_cpp(&mut hub, player_flags)
-    }
-    pub(crate) fn set_loaded_player_flags_ex_like_cpp(&mut self, player_flags_ex: u32) {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.set_loaded_player_flags_ex_like_cpp(&mut hub, player_flags_ex)
-    }
-    pub(crate) fn set_loaded_player_powers_like_cpp(
-        &mut self,
-        powers: [i32; MAX_POWERS_PER_CLASS],
-    ) {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.set_loaded_player_powers_like_cpp(&mut hub, powers)
-    }
-    /// C++ `Player::LoadFromDB` parses `knownTitles` as 32-bit words and
-    /// validates `chosenTitle` against `Player::HasTitle` before setting it.
-    pub(crate) fn load_represented_character_titles_like_cpp(
-        &mut self,
-        known_titles: &str,
-        chosen_title: u32,
-    ) {
-        let mut known_title_ids = BTreeSet::new();
-        for (word_index, token) in known_titles.split_whitespace().enumerate() {
-            let word = token.parse::<u64>().unwrap_or(0) & u64::from(u32::MAX);
-            for bit_index in 0..32_u32 {
-                if (word & (1_u64 << bit_index)) != 0 {
-                    known_title_ids.insert((word_index as u32) * 32 + bit_index);
-                }
-            }
-        }
-
-        let chosen_title = if chosen_title != 0 && !known_title_ids.contains(&chosen_title) {
-            0
-        } else {
-            chosen_title
-        };
-        let chosen_title = i32::try_from(chosen_title).unwrap_or(0);
-        let _canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.replace_known_titles_like_cpp(known_title_ids.clone());
-                player.set_chosen_title_like_cpp(chosen_title);
-            })
-            .is_some();
-        #[cfg(test)]
-        if !_canonical && self.core.player_handle_like_cpp.is_none() {
-            self.quest_state
-                .fixture_replace_represented_known_titles_like_cpp(known_title_ids);
-            self.quest_state
-                .fixture_set_represented_chosen_title_like_cpp(chosen_title);
-        }
-    }
 }
 
 impl crate::session::LifecycleCx<'_> {
@@ -484,42 +391,6 @@ impl crate::session::LifecycleCx<'_> {
             rows.into_iter()
                 .map(|row| (row.instance_id, row.release_time)),
         );
-    }
-
-    /// C++ `Player::LoadFromDB` applies `CheckLoaded*DifficultyID` to the raw
-    /// `characters` columns before any login packets are sent.
-    pub(crate) fn load_represented_player_difficulties_like_cpp(
-        &mut self,
-        dungeon_difficulty_id: u32,
-        raid_difficulty_id: u32,
-        legacy_raid_difficulty_id: u32,
-    ) {
-        let Some(store) = self.hub.catalogs.difficulty_store() else {
-            let _ = self
-                .instances
-                .replace_player_difficulty_preferences_like_cpp(
-                    &mut self.hub,
-                    DIFFICULTY_NORMAL_LIKE_CPP,
-                    DIFFICULTY_NORMAL_RAID_LIKE_CPP,
-                    DIFFICULTY_10_N_LIKE_CPP,
-                );
-            return;
-        };
-
-        let dungeon_difficulty_id =
-            store.check_loaded_dungeon_difficulty_id_like_cpp(dungeon_difficulty_id);
-        let raid_difficulty_id = store.check_loaded_raid_difficulty_id_like_cpp(raid_difficulty_id);
-        let legacy_raid_difficulty_id =
-            store.check_loaded_legacy_raid_difficulty_id_like_cpp(legacy_raid_difficulty_id);
-
-        let _ = self
-            .instances
-            .replace_player_difficulty_preferences_like_cpp(
-                &mut self.hub,
-                dungeon_difficulty_id,
-                raid_difficulty_id,
-                legacy_raid_difficulty_id,
-            );
     }
 }
 

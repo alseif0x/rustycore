@@ -9159,5 +9159,474 @@ calls.
 ### Validation
 
 `VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
-on the PR head; the manifest, duration and test counts are recorded on the
-PR.
+passed on the 13b PR head `f4403e32a` in 570 s (manifest
+`target/validation-v2/manifests/20261015T050603.972605Z-1326267-final.json`;
+`wow-world` lib 3,680 passed and 1 ignored, `wow-world-application` 13
+passed). The PR merged as `887726217` (#1401 review follow-up: the evidence
+is recorded here, not only on the PR).
+
+## Slice 13c result (continue-login coordinator → application, login hydration → spell, inventory, instances)
+
+Branch `1363-s13c-login-coordinator`, base `887726217` (13b merged).
+Move-only (R2), with the slice 4–13b rewrites and nothing else.
+
+### Re-measure and the plan
+
+On the base the coordinator (`handlers/character/world_entry/login.rs`, 896
+physical, 880 function lines) called 61 distinct `WorldSession` methods. Seven
+were already host-trait methods. Of the other 54:
+
+- **25 were one-line split, hub or core forwards** (`kick`, `realm_id`,
+  `session_mgr`, the connect-to setters, the loaded-player flag/power/name
+  setters, the xp clamp, the toy, heirloom, achievement and account-data loads,
+  the slot counts, the three item-time/enchantment publications, the skill
+  replacement, the spell-hit tombstone, the account mount rows, the
+  `PLAYER_FLAGS` fixture step). They inline as their bodies.
+- **16 hydration bodies had no World-only call** once those forwards inline.
+  Each was checked against the host traits its destination crate can name:
+  - **spell** (`SpellbookHostLikeCpp`, `SpellEffectHostLikeCpp`,
+    `SpellExecutionHostLikeCpp`, `TalentHostLikeCpp`, and the inventory
+    `BattlePetSessionHostLikeCpp`): the login spell application, the
+    first-login flag and casts, the mount promotion and the account mount
+    load with its `set_account_mounts`;
+  - **inventory** (`VendorSessionHostLikeCpp`): the account item-appearance
+    and transmog-illusion loads;
+  - **instances** (`InstanceSessionHostLikeCpp`): the explored-zones and
+    difficulty loads;
+  - **application**, beside the coordinator: the titles load (its fixture
+    step needs the loot-ops `quest_state_mut`), the group-leader flag (no
+    application → social edge) and the login known-spell projection (it
+    reads the character host's `split_lifecycle_ref`).
+- **13 stay World operations** and become the coordinator's host methods
+  (list under *Host surface*).
+
+**Closure check.** Every destination already depends on what its moved bodies
+name: spell → inventory, entities, lifecycle, core; inventory → lifecycle,
+core; instances → core, entities; application → every crate above. No
+`wow-world*` edge is added. `wow_world_closure.py check` passed on the base
+and passes on the head, in lock and metadata mode (17 packages). The one new
+edge is `wow-world-application → wow-module-api` (the coordinator's
+`ModuleRegistry` parameter). It is a foundation crate outside the closure
+tool, recorded in `Cargo.lock` and the `dependency-policy.json` allowlist.
+
+The coordinator itself fits: about 1.5k moved function lines over 13 host
+methods, about 7 % host, so no 13d split was needed.
+
+### What moved
+
+- **`wow-world-application/src/continue_login/`** (1,237 physical):
+  - `mod.rs` (115): `ContinueLoginHostLikeCpp: SessionLifecycleHostLikeCpp + SpellExecutionHostLikeCpp`
+    with 13 methods, and the coordinator's imports (the World pattern:
+    `login.rs` reaches them through `use super::*`, which keeps it under the
+    1,000-line review limit);
+  - `login.rs` (980): `handle_continue_player_login_with_module_registry_like_cpp`;
+  - `hydration.rs` (142): the titles load, the group-leader flag with its
+    `PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP`, the login known-spell projection and
+    the legacy backpack-size compatibility.
+- **`wow-world-spell/src/login_spell_application.rs`** (418):
+  `set_known_spells_like_cpp`, `set_represented_favorite_known_spells_like_cpp`,
+  `apply_loaded_known_spell_dependencies_like_cpp`,
+  `apply_loaded_spell_dependencies_from_roots_like_cpp`,
+  `apply_loaded_spell_dependency_skills_like_cpp`,
+  `apply_represented_start_all_spells_with_catalogs_like_cpp`,
+  `apply_login_known_spell_combat_capabilities_like_cpp`,
+  `apply_represented_first_login_flag_if_needed_like_cpp`,
+  `apply_represented_first_login_cast_spells_with_catalogs_like_cpp` (with
+  its `CAST_FLAG_PENDING_LIKE_CPP`), `promote_loaded_character_mount_spells_like_cpp`,
+  `load_account_mounts_like_cpp` and `set_account_mounts_like_cpp`.
+- **`wow-world-inventory/src/account_collection_loading.rs`** (146): the
+  account item-appearance and transmog-illusion loads. The
+  `InitialLoadedItemModsOutcomeLikeCpp` struct moves to `enchantment.rs`
+  (the host method returns it).
+- **`wow-world-instances/src/instance_session/login_load.rs`** (86): the
+  explored-zones load and the difficulty load (a `LifecycleCx` method; it
+  now borrows the same two fields, instance state and hub, through
+  `split_instances_mut`).
+- **`wow-world-core`**: `PlayerRestRatePolicyLikeCpp` (the host method takes
+  it), re-exported at its World path.
+
+**Rewrites, beyond `self` → `host`:**
+
+- **Field accessors.** `self.lifecycle` becomes `host.lifecycle_mut()` in the
+  coordinator and `host.lifecycle()` (battle-pet host) in the loaders.
+  `self.core` becomes `host.core()`, or `core_mut()` for `kick` and the
+  connect-to setters. `self.catalogs` becomes `host.hub_ref().catalogs`.
+  `self.spell_state.record_login_spell_history_packets_like_cpp` becomes
+  `SpellbookHostLikeCpp::split_spell_state_mut(host).0.…`, the 11a precedent.
+- **Split forwards** become their host forms; `crate::session::hub_{ref,mut}(self)`
+  becomes `host.hub_*()`.
+- **`#[cfg(test)]` steps** run only in the World test build, through the
+  hub fixture accessors (slice 4b): the loaded-flag canonicalization in the
+  coordinator, the titles fixture in `hydration.rs` and the explored-zones
+  fixture in `login_load.rs` are gated on
+  `test_fixtures_ref_like_cpp().is_some()`.
+- **UFCS where two supertraits carry the same name.** Each impl forwards to
+  the same `WorldSession` inherent or split:
+  - `CharacterLoginHostLikeCpp::sync_current_player_session_visibility_detection_like_cpp`
+    (also on the teleport host), in the inlined `set_player_loading`;
+  - `SpellbookHostLikeCpp::split_spell_state_mut` (also on the character
+    host), twice;
+  - `BattlePetSessionHostLikeCpp::split_inventory_ref` (also on the loot
+    host), three times.
+
+**Wrappers inlined as their exact bodies** (one-line or two-line):
+
+- `set_player_loading` (the lifecycle flag, then the visibility sync);
+- `kick` ×10 (`host.core_mut().kick`), `set_connect_to_{key,serial}`,
+  `session_mgr`, `realm_id`, `battlenet_account_id` ×3;
+- the lifecycle splits `set_loaded_player_{name,flags,flags_ex,powers}_like_cpp`,
+  `clamp_loaded_player_xp_to_next_level_like_cpp`,
+  `load_account_{toys,heirlooms}_like_cpp`, `load_completed_achievements_like_cpp`,
+  `load_player_account_data_like_cpp`, `account_mount_rows_like_cpp` ×2,
+  `add_account_mount_with_faction_counterpart_like_cpp` and
+  `expand_account_mount_faction_definitions_like_cpp`;
+- the inventory splits `set_player_{inventory_slot,bank_bag_slot}_count_like_cpp`,
+  `load_represented_account_{item_appearances,transmog_illusions}_like_cpp` ×2
+  each, `send_item_time_update_plans`, `send_item_enchant_time_update_plans` and
+  `send_loaded_equipped_item_enchantment_updates_like_cpp`;
+- the hub and catalog forwards `skill_store`, `spell_store`,
+  `replace_player_skill_records_like_cpp`;
+- the spell-state split `tombstone_player_spell_hit_aura_authority_like_cpp`;
+- `ensure_canonical_world_map_for_current_player_like_cpp` ×2 (the 13a World
+  forward, which names the instances free function);
+- `primary_max_power_for_class_like_cpp` (the World private forward to the
+  inventory function);
+- the `#[cfg(test)]` `apply_loaded_player_flags_to_canonical_like_cpp` F3
+  shim (the lifecycle split under the fixture gate).
+
+**What happened to them:**
+
+- **Retired** (no caller left): `send_item_time_update_plans`,
+  `send_item_enchant_time_update_plans`,
+  `add_account_mount_with_faction_counterpart_like_cpp` and the private
+  `primary_max_power_for_class_like_cpp`; the re-export modules whose only
+  production reader was the coordinator, `handlers/character/{creation_support,login_support,spell_rules}.rs`
+  and `vendor/rules.rs`; the `world_entry.rs` mount and the emptied
+  `account/collections.rs`.
+- **Moved verbatim to the new `#![cfg(test)]` `handlers/continue_login_test_shims.rs`**
+  (only scenarios call them): the toy and heirloom loads, the canonical
+  world-map entry forward, the xp clamp, the account-data, achievement and
+  appearance loads, the flag and power setters, the slot counts, the loaded
+  enchantment publication, the skill replacement, the spell-hit tombstone,
+  the `cfg(test)` first-login cast entry of `spell_state/cast.rs` and the
+  difficulty forward of the `persistence/load` F3 shim. The file also holds
+  one-call method forwards to every moved free function the scenarios call,
+  so no call site changes.
+- **Stay for other callers:** `set_player_loading` (pub),
+  `expand_account_mount_faction_definitions_like_cpp`,
+  `load_represented_player_difficulties_like_cpp`'s callers in the scenarios
+  (through the shim) and the rest.
+
+A token comparison of the 21 moved functions against their base bodies
+(`/home/ubuntu/rustycore-wip/s13c/cmp13c.py`, and a whole-body token diff
+for the coordinator) finds two identical (the first-login flag and the
+backpack-size helper). The rest differ only by the rewrites above, the
+generic signatures and rustfmt commas. No string literal, comment, constant,
+operator or control-flow token changed: the `kick` reasons, every
+`info!`/`warn!` message and the `RUSTYCORE_REST_TRACE` gate are verbatim.
+
+**World side:**
+
+- `handlers/character/continue_login_host.rs` (118) replaces `world_entry.rs`.
+  It holds the `ContinueLoginHostLikeCpp` adapter and the public method form
+  of the coordinator, a one-call forward that the `wow-world/tests`
+  integration test pins as a future;
+- the session driver (`session/connection.rs`) calls the free function;
+- the cross-crate fixture calls the instances map entry directly, so the
+  World `ensure_canonical_world_map_for_current_player_like_cpp` forward
+  leaves production (#1400 follow-up 2, the map-entry half);
+- the names only the scenarios still read are `cfg(test)`: the character
+  ones join the existing `cfg(test)` import groups of
+  `handlers/character/mod.rs`, the session ones join `session/test_reexports.rs`;
+- `session/mod.rs` loses `CAST_FLAG_PENDING_LIKE_CPP` and
+  `PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP` (moved).
+
+**Deferred, with the reason:**
+
+- **The 13 host methods** below. Each needs a World-only operation, a
+  World-typed context or a `cfg(test)` fixture branch with no accessor yet.
+- **The void-storage unlock commit** (`persistence/commit.rs`) is the
+  void-storage unlock handler's step, not a login step. It moves with that
+  handler (4c).
+- **The void-storage, group and trait-config load steps** left in
+  `persistence/{load,load_authority}.rs` and `lifecycle_ops/operations.rs`.
+  They are `CharacterLoginHostLikeCpp` methods that the character loaders call
+  (adapters), or have other World callers.
+- **The acquisition adapters** (`spell_acquisition/**`,
+  `session/{effect_learning,trainer_acquisition}.rs`, about 1.2k). They are
+  the World's impls of the application and acquisition runtime traits and
+  the borrowed-context builders. They are adapters by nature and leave only
+  with the `WorldSession` split (slice 12).
+- **The public `finalize_session` and `cleanup_shared_runtime_state`
+  forwards.** world-server and 28 integration-test references use method
+  syntax, so their callers do not allow it yet.
+
+### Host surface
+
+`ContinueLoginHostLikeCpp` methods, each the same-named `WorldSession`
+operation:
+
+1. `apply_initial_loaded_item_mods_like_cpp` (the `_ApplyAllItemMods`
+   replay over the World aura application context);
+2. `apply_loaded_known_spell_previous_rank_passive_auras_like_cpp` and
+3. `apply_login_passive_known_spell_auras_like_cpp` (both build the World
+   `player_aura_application_cx_like_cpp`);
+4. `apply_login_known_spell_proficiencies_like_cpp` (reads the persistent
+   capability snapshot, which has a `cfg(test)` fixture branch);
+5. `apply_offline_xp_rest_bonus_with_policy_like_cpp` (rest fixtures);
+6. `apply_represented_login_spell_reset_if_needed_like_cpp` (calls the
+   quest-reward spell grant, which builds `QuestRewardCx`);
+7. `load_instance_time_restrictions_like_cpp` (needs the lifecycle port next
+   to the instance state; the instance host has no lifecycle access);
+8. `load_player_quests` (375 lines over eight World quest-status
+   installers; it goes with slice 6);
+9. `load_represented_xp_rest_bonus_like_cpp` (`cfg(test)` rest-flag helper);
+10. `set_loaded_player_identity_like_cpp` (`cfg(not(test))` and fixture
+    identity branches);
+11. `set_represented_at_login_flags_like_cpp`;
+12. `set_represented_guild_id_like_cpp` (both have `cfg(test)` fixture
+    branches);
+13. `sync_player_spell_hit_aura_authority_to_canonical_like_cpp` (the
+    World difficulty-dependent empty-source check).
+
+The two future-returning methods return the session's own future unchanged.
+
+| Part | New trait | New adapter | Retained forward | Moved function lines |
+|---|---:|---:|---:|---:|
+| 13c | 36 | 69 | 27 | 1,540 |
+
+- New host code is 105 lines against 1,540 moved: **6.8 %**.
+- With the retained World method forward it is 132 lines, **8.6 %**.
+
+### Await table (per function, base vs head)
+
+| Function | Base | Head | Awaited, in order |
+|---|---:|---:|---|
+| `handle_continue_player_login_with_module_registry_like_cpp` | 32 | 32 | base row; admission data; homebind delete; homebind repair; mail; pet state; group membership; toys; heirlooms; item appearances; transmog illusions; mounts; inventory; CUF profiles; currencies; spell rows; favourites; skill rows; talents; glyphs; action buttons; transport restore; reputation; quests (host future); achievements; instance time restrictions (host future); account data; auras; spell history; `send_login_sequence`; first-login casts; online mark |
+| `apply_represented_first_login_cast_spells_with_catalogs_like_cpp` | 1 | 1 | `execute_server_triggered_spell_like_cpp`, once per create-mode spell |
+| `load_account_mounts_like_cpp`, `load_account_item_appearances_like_cpp`, `load_account_transmog_illusions_like_cpp` | 1 each | 1 each | the account-collection port |
+| the other 17 moved functions | 0 | 0 | — |
+| session driver (`poll_instance_link`) | 1 | 1 | the coordinator future (free function) |
+| World method form / integration test | 1 | 1 (+1 forward layer) | the application future |
+
+- The inlined async wrappers (toys, heirlooms, achievements, account data)
+  held the lifecycle split across their one await. The inlined block holds
+  the same split across the same await.
+- No future that was awaited inline is spawned, reordered or held across a
+  different borrow.
+
+### Behaviour (#169)
+
+**The login order is unchanged.** The load order is the await order above.
+The packet order is:
+
+1. `SMSG_RESUME_COMMS`;
+2. `send_login_sequence`;
+3. the item-time, enchant-time and loaded-enchantment updates;
+4. the login spell reset and the login talent reset;
+5. the first-login flag, the casts, the explored zones and the reputation;
+6. the spell-hit authority tombstone or sync;
+7. the online mark;
+8. the module `OnPlayerLogin`.
+
+The coordinator runs no save, so the #169 save fence is not on this path.
+Every early return (claim release, `kick`, abort) is at the same point.
+
+**The source-order scans pass unchanged in strictness.** They now read the
+application file. Seven markers follow their text:
+
+- the reputation and skill-row bindings (`host,` for `self,` and the dedent);
+- `host.load_player_quests().await;`;
+- `.load_player_account_data_like_cpp(&mut hub, guid)`;
+- `state.clamp_loaded_player_xp_to_next_level_like_cpp(&mut hub)`;
+- `promote_loaded_character_mount_spells_like_cpp(host, &known_spells);`,
+  which still finds the first call;
+- the mail early-return block.
+
+Every order assertion is unchanged. Following the moved files:
+
+- the committed-money scan (`loot.rs`) includes the three moved collection
+  files and drops the five retired World files;
+- two scenario import lines name `wow_world_spell::login_spell_rules` and
+  `wow_world_inventory::vendor`, which the retired re-export modules
+  re-exported.
+
+### Recursion
+
+- Every moved name was grepped across the production (non-shim) `wow-world`
+  files. What remains:
+  - the driver and the method form, which name `wow_world_application::*`;
+  - the entities adapter and the cross-crate fixture, which name
+    `wow_world_instances::ensure_canonical_world_map_for_current_player_like_cpp`;
+  - the `cfg(test)` import of the backpack helper.
+- Each of the 13 adapter methods forwards through `WorldSession::name(self, …)`
+  to an inherent of that name. Each inherent is still defined (in
+  `player_items/modifiers.rs`, `spell_state/{aura_application,spellbook,effects}.rs`,
+  `catalogs/operations.rs`, `persistence/load.rs`, `handlers/quest/persistence.rs`,
+  `lifecycle_ops/operations.rs`, `social/guild.rs` and
+  `spell_state/aura/spell_hit_authority.rs`).
+- The UFCS sites resolve to `crate::session::split_{spell_state_mut,inventory_ref}`
+  and the visibility-sync inherent, as the base wrappers did.
+- `unconditional_recursion`: 0 in the production lib, the lib with
+  `test-fixtures` and the lib test build.
+
+### Edges and closure
+
+There is no new `wow-world*` edge. The closure passes in lock and metadata
+mode, before and after (17 packages):
+
+- only `wow-world` reaches application;
+- character and loot-ops do not reach application;
+- instances does not reach character.
+
+The new foundation edge `wow-world-application → wow-module-api` is in the
+manifest, `Cargo.lock` and the `dependency-policy.json` allowlist.
+
+### Accounting
+
+- **`wow-world` production (classifier): 42,437 → 40,743 (−1,694).**
+  Physical lines 50,766 → 49,349; files 470 → 465 (seven deleted; the
+  adapter and the shim added).
+  - **Moved:** 1,540 function lines, plus `PlayerRestRatePolicyLikeCpp`,
+    `InitialLoadedItemModsOutcomeLikeCpp` and two constants (29).
+  - **Reclassified, not production reduction:** 106. These are the inlined
+    wrappers the scenarios still call and the `cfg(test)` first-login cast
+    entry, which the classifier counted as production, now in the
+    `#![cfg(test)]` shim.
+  - **Retired:** 86. That is three wrappers (20), the private power forward
+    (3), the four re-export modules (36) and the `world_entry.rs` mount (27).
+  - **Added:** the adapter file (118).
+  - The remaining 51 are the imports and module headers the moved bodies
+    used.
+- **Destinations (physical):**
+  - `wow-world-application/src`: 12,385 → 13,635 (+1,250), classifier
+    production 11,571 → 12,821; 50 → 53 files. That is `continue_login/`
+    1,237, `lib.rs` +9 and the #1401 nit +4.
+  - `wow-world-spell/src` +430: `login_spell_application.rs` 418 and the
+    re-exports 12.
+  - `wow-world-inventory/src` +160: the loaders 146, the moved struct 10 and
+    the re-exports 4.
+  - `wow-world-instances/src` +91: `login_load.rs` 86 and the re-exports 5.
+  - `wow-world-core/src` +22: the rest-rate policy.
+- **Why application grows.** This is orchestration: the C++
+  `HandlePlayerLogin` composition over character, spell, inventory,
+  instances, lifecycle and the World host, with its title, group-leader and
+  known-spell projection helpers. The growth over the moved lines is the
+  inlined forwards (about 90 lines of split blocks), the generic signatures
+  and the import block.
+- `net_move.py check`: S = 1,417, G = 1,953, allowance 2,448.9, PASS, 0
+  duplicate bodies.
+- **Ceilings** (none raised):
+  - physical rows retired: `world_entry/login.rs` (896) and `world_entry.rs` (27);
+  - physical rows tightened: `handlers/character/mod.rs` 321 → 297,
+    `handlers/character/vendor.rs` 234 → 232, `session/mod.rs` 882 → 874;
+  - new ratcheted row `handlers/continue_login_test_shims.rs` at 265;
+  - hotspot `session/mod.rs`: production 23,812 → 23,247, test 141,650 →
+    141,645, total 165,462 → 164,892;
+  - hotspot `handlers/character/mod.rs`: production 3,416 → 2,287, test
+    15,655 → 15,655, total 19,071 → 17,942;
+  - `session-ownership-policy.json` reprinted with `print-baseline`. The
+    delta is the moved and retired items, the adapter methods and the shims.
+- **Warnings.** Per crate, file, lint and message, these builds are
+  identical to the base:
+  - the production lib;
+  - the lib with `test-fixtures`;
+  - the lib test build.
+
+  The one exception is that the pre-existing `world_entry/login.rs`
+  unused-import warning is gone with the file. `wow-world` `dead_code` is 0
+  in all three builds.
+- **Tests.**
+  - The test-name multiset is identical. No `#[test]` function was added,
+    removed or renamed, and no assertion changed. The test-file edits are
+    `include_str!` paths, the seven markers above and two import lines.
+  - Focused run before final: `wow-world` lib 3,680 passed and 1 ignored
+    (the full suite, as at 13b), and `production_login_player_owner` 34
+    passed.
+
+### #1401 follow-ups
+
+- **2.** `session_lifecycle/finalization.rs` lines 105 and 223 are wrapped
+  under 100 columns.
+- **1.** The 13b PR body's "+988 is all `session_lifecycle/`" is recorded
+  correctly above: 976 there plus 12 in `lib.rs` and `talent_handlers.rs`.
+- **4.** The coordinator landed in application, not character.
+- **3.** The 13b *Validation* section now records its concrete evidence.
+
+### Follow-ups
+
+- **The shims** (`continue_login_test_shims.rs` 265, with the 13a and 13b
+  ones) retire when the scenarios call the free functions directly.
+- **The 13 coordinator host methods** retire as their domains move:
+  - the quest-status load with slice 6;
+  - the aura and item-mod replays with the application aura owner;
+  - the fixture-branch setters when their fixtures gain accessors;
+  - the time restrictions with an instance-host lifecycle accessor.
+- **The public method form of the coordinator** and the `finalize_session`
+  and `cleanup_shared_runtime_state` forwards retire when world-server and
+  the integration tests name the application functions.
+- **The UFCS sites** add `split_inventory_ref` (battle-pet and loot hosts) to
+  the 13b list of duplicate host names.
+
+### Validation
+
+`VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+runs on the committed PR head. Its SHA, manifest, duration and test counts
+are recorded on the PR, and in this document's next slice.
+
+## Slice 13 summary (13a–13c)
+
+The slice 13 domain was about 4.6k production lines in six families on
+`d8e8caf5c` (slice 13 plan).
+
+| Slice | `wow-world` production | Δ | Moved out (function lines) | Reclassified | New host (lines, share) |
+|---|---|---:|---:|---:|---|
+| 13a map entry → instances, far-transfer completion → character | 44,322 → 43,306 | −1,016 | 984 | 20 | 38, 3.9 % |
+| 13b lifecycle orchestration and respec wipe → application | 43,306 → 42,437 | −869 | 715 (+15) | 101 | 27, 3.8 % |
+| 13c continue-login coordinator → application, login hydration → spell, inventory, instances | 42,437 → 40,743 | −1,694 | 1,540 (+29) | 106 | 105, 6.8 % |
+| **Total** | **44,322 → 40,743** | **−3,579** | **3,239 (+44)** | **227** | **170, 5.2 %** |
+
+- **Destinations:**
+  - `wow-world-application` grew from 11,397 to 13,635 physical lines
+    (+988 in 13b, +1,250 in 13c). It now holds the session lifecycle
+    orchestration and the continue-login coordinator: the C++
+    `WorldSession::LogoutPlayer`/`HandlePlayerLogin` compositions.
+  - `wow-world-character` gained the world-port response (+738, 13a).
+  - `wow-world-instances` gained the map entry (+449, 13a) and the login
+    explored-zones and difficulty loads (+91, 13c).
+  - `wow-world-spell` gained the login spell application (+430).
+  - `wow-world-inventory` gained the account appearance loads (+160).
+- **Edges.** 13a added character → instances; 13b added application →
+  character and application → loot-ops; 13c added only the foundation edge
+  application → `wow-module-api`. The closure passed in both modes at each
+  step.
+- **#169.** The save fence, the finalization ledger order, the world-port
+  response order and the login load and packet order are unchanged. Every
+  await of every moved function is at the same point in the same order.
+- **What stays in the World from the slice 13 families, and why:**
+  - the `PlayerSaveHostLikeCpp` adapter and the money-fence constructors,
+    which are adapters;
+  - the login hydration steps that are `CharacterLoginHostLikeCpp` methods
+    (void storage, group, trait-config loads);
+  - the 13 coordinator host methods (above);
+  - the void-storage unlock commit, which goes with its handler (4c);
+  - the public `finalize_session`, `cleanup_shared_runtime_state` and
+    coordinator method forwards, which have world-server and integration-test
+    callers.
+
+**What remains for #1363 overall:**
+
+- **Slice 12:** the base-module logic and the thunk sweep. The World
+  adapters, the split forwards and the context builders, the acquisition
+  adapters among them, retire as `WorldSession` is split.
+- **The quest split, then slice 6:** make `wow-world-quest` quest-only (the
+  condition projection, valuation and admission proof to a lower crate,
+  `registry_sync` to inventory), then move the quest bodies (about 7k). The
+  quest-status login load and the login spell reset's quest-reward grant go
+  with it.
+- **4c:** the deferred families (collections, group, travel, spell, void
+  storage with its unlock commit, the trainer context).
+- **Cleanup:** retire the `#![cfg(test)]` shim files by converting the
+  scenario call sites, retire the remaining public World forwards with
+  their world-server and integration-test callers, and consolidate the
+  duplicate host names the UFCS sites mark.

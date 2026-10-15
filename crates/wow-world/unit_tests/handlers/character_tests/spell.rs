@@ -4,7 +4,7 @@
 //! registrations are unchanged and shared fixtures stay in the parent module.
 
 use super::*;
-use crate::handlers::character::spell_rules::{
+use wow_world_spell::login_spell_rules::{
     active_known_spell_for_send_like_cpp, apply_skill_rewarded_spell_changes_to_login_like_cpp,
     favorite_known_spells_for_send_like_cpp, loaded_spell_for_add_spell_side_effects_like_cpp,
     spell_charge_entry_from_db_like_cpp, spell_history_entry_from_db_like_cpp,

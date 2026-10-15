@@ -32,6 +32,7 @@ mod admission;
 mod area_triggers;
 mod create_map;
 mod exploration;
+mod login_load;
 mod map_entry;
 mod zone_area;
 
@@ -50,6 +51,9 @@ pub use create_map::{
 pub use exploration::{
     check_area_explore_and_outdoor_represented_with_catalogs_like_cpp,
     player_explored_zones_snapshot_like_cpp,
+};
+pub use login_load::{
+    load_represented_explored_zones_like_cpp, load_represented_player_difficulties_like_cpp,
 };
 pub use map_entry::{
     ensure_canonical_player_owner_for_map_like_cpp,

@@ -321,25 +321,6 @@ impl WorldSession {
                     .contains(&item_modified_appearance_id)
             })
     }
-    pub(crate) fn load_represented_account_item_appearances_like_cpp(
-        &mut self,
-        known_appearance_blocks: impl IntoIterator<Item = (u32, u32)>,
-        favorite_appearances: impl IntoIterator<Item = u32>,
-    ) {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.load_represented_account_item_appearances_like_cpp(
-            &mut hub,
-            known_appearance_blocks,
-            favorite_appearances,
-        )
-    }
-    pub(crate) fn load_represented_account_transmog_illusions_like_cpp(
-        &mut self,
-        known_illusion_blocks: impl IntoIterator<Item = (u32, u32)>,
-    ) {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.load_represented_account_transmog_illusions_like_cpp(&mut hub, known_illusion_blocks)
-    }
     pub(crate) fn add_temporary_item_appearance_like_cpp(
         &mut self,
         item_modified_appearance_id: u32,

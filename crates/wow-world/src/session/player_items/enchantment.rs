@@ -107,14 +107,6 @@ impl WorldSession {
             _ => false,
         }
     }
-    pub(crate) fn send_item_enchant_time_update_plans(
-        &self,
-        owner_guid: ObjectGuid,
-        updates: &[PlayerEnchantTimeUpdate],
-    ) {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.send_item_enchant_time_update_plans(hub, owner_guid, updates)
-    }
     pub(crate) fn refresh_inventory_item_enchantment_duration_refs_like_cpp(
         &mut self,
         item_guid: ObjectGuid,
@@ -206,13 +198,6 @@ impl WorldSession {
             }
         }
         outcome
-    }
-    pub(crate) fn send_loaded_equipped_item_enchantment_updates_like_cpp(
-        &self,
-        outcome: &LoadedEquippedItemEnchantmentsOutcomeLikeCpp,
-    ) {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.send_loaded_equipped_item_enchantment_updates_like_cpp(hub, outcome)
     }
     fn apply_loaded_equipped_item_enchantment_effects_like_cpp(
         &mut self,

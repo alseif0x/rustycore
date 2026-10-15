@@ -23,6 +23,16 @@ pub struct LoadedEquippedItemEnchantmentsOutcomeLikeCpp {
     pub unrepresented_effect_actions: Vec<RepresentedItemBonusActionLikeCpp>,
 }
 
+/// The initial `Player::_ApplyAllItemMods` replay result the continue-login
+/// coordinator reads (moved from the World `session/item_modifiers.rs`,
+/// #1363 slice 13c).
+#[derive(Debug, Clone, Default)]
+pub struct InitialLoadedItemModsOutcomeLikeCpp {
+    pub item_set_auras: usize,
+    pub item_equip_auras: usize,
+    pub enchantments: LoadedEquippedItemEnchantmentsOutcomeLikeCpp,
+}
+
 impl LoadedEquippedItemEnchantmentsOutcomeLikeCpp {
     pub fn append(&mut self, mut other: Self) {
         self.plans.append(&mut other.plans);

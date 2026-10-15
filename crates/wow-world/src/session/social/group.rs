@@ -297,41 +297,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_social_mut(self);
         state.send_destroyed_group_party_update_like_cpp(&mut hub, group_guid, category)
     }
-    /// C++ `Player::_LoadGroup` sets `PLAYER_FLAGS_GROUP_LEADER` when the
-    /// loaded group leader matches the player, and removes it otherwise.
-    pub(crate) fn apply_represented_group_leader_flag_like_cpp(&mut self) -> bool {
-        let Some(player_guid) = self.player_guid() else {
-            return false;
-        };
-
-        let is_group_leader = self
-            .resolved_group_guid_like_cpp()
-            .and_then(|group_guid| {
-                self.core
-                    .directory
-                    .group_registry
-                    .as_ref()
-                    .and_then(|registry| registry.get(&group_guid).map(|group| group.leader_guid))
-            })
-            .is_some_and(|leader_guid| leader_guid == player_guid);
-
-        let updated = self
-            .core
-            .mutate_canonical_player_like_cpp(|player| {
-                if is_group_leader {
-                    player.set_player_flag(PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP);
-                } else {
-                    player.remove_player_flag(PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP);
-                }
-            })
-            .is_some();
-
-        if updated {
-            self.sync_player_registry_state_like_cpp();
-        }
-
-        updated
-    }
     pub fn set_phase_group_store(&mut self, store: Arc<PhaseGroupStore>) {
         self.catalogs.phase_group_store = Some(store);
     }

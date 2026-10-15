@@ -102,7 +102,9 @@ pub async fn execute_finalization_step<H: SessionLifecycleHostLikeCpp>(
             }
             if host.player_guid().is_some() {
                 host.lifecycle_mut().set_player_logout_like_cpp(true);
-                PlayerTeleportHostLikeCpp::sync_current_player_session_visibility_detection_like_cpp(host);
+                PlayerTeleportHostLikeCpp::sync_current_player_session_visibility_detection_like_cpp(
+                    host,
+                );
                 host.lifecycle_mut().clear_logout_time();
             }
             FinalizationOutcome::Applied
@@ -220,7 +222,9 @@ pub async fn execute_finalization_step<H: SessionLifecycleHostLikeCpp>(
                     state.restore_realm_channels(&mut hub)
                 };
                 host.lifecycle_mut().set_player_logout_like_cpp(false);
-                PlayerTeleportHostLikeCpp::sync_current_player_session_visibility_detection_like_cpp(host);
+                PlayerTeleportHostLikeCpp::sync_current_player_session_visibility_detection_like_cpp(
+                    host,
+                );
                 host.set_state(SessionState::Authed);
             } else {
                 host.lifecycle_mut()

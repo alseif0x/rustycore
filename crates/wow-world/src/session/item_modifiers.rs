@@ -84,12 +84,8 @@ pub(in crate::session) use wow_world_core::session::RepresentedScalingStatContex
 
 pub(crate) use wow_world_inventory::LoadedEquippedItemEnchantmentsOutcomeLikeCpp;
 
-#[derive(Debug, Clone, Default)]
-pub(crate) struct InitialLoadedItemModsOutcomeLikeCpp {
-    pub item_set_auras: usize,
-    pub item_equip_auras: usize,
-    pub enchantments: LoadedEquippedItemEnchantmentsOutcomeLikeCpp,
-}
+// Moved to `wow_world_inventory` with the continue-login coordinator (#1363 slice 13c).
+pub(crate) use wow_world_inventory::InitialLoadedItemModsOutcomeLikeCpp;
 
 pub(in crate::session) use wow_world_inventory::is_represented_bag_slot;
 

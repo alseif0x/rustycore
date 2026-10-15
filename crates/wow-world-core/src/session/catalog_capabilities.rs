@@ -222,3 +222,24 @@ impl Default for ChatPolicyCatalogsLikeCpp {
         }
     }
 }
+
+/// Process-owned C++ `World` rates borrowed by `Player`/`RestMgr` transitions.
+///
+/// C++ reads these from `sWorld` at `Player.cpp:17898-17899` and
+/// `RestMgr.cpp:139-151`; a session does not own private copies.
+#[derive(Debug, Clone, Copy)]
+pub struct PlayerRestRatePolicyLikeCpp {
+    pub offline_wilderness: f32,
+    pub offline_tavern_or_city: f32,
+    pub ingame: f32,
+}
+
+impl Default for PlayerRestRatePolicyLikeCpp {
+    fn default() -> Self {
+        Self {
+            offline_wilderness: 1.0,
+            offline_tavern_or_city: 1.0,
+            ingame: 1.0,
+        }
+    }
+}

@@ -86,7 +86,8 @@ impl WorldSession {
             InstanceLinkPollOutcome::Pending => {}
             InstanceLinkPollOutcome::Attached => {
                 // Continue the player login sequence on the instance socket
-                self.handle_continue_player_login_with_module_registry_like_cpp(
+                wow_world_application::handle_continue_player_login_with_module_registry_like_cpp(
+                    self,
                     item_guid_generator,
                     modules,
                     creature_spawn_catalogs,

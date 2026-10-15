@@ -1,17 +1,21 @@
-//! Names only the session scenarios read through the session root (#1363 slices 9e-13a): the
+//! Names only the session scenarios read through the session root (#1363 slices 9e-13c): the
 //! player cast, cast-check, spell-click, battle-pet, aura-interrupt, area-flag, capture-point,
-//! spell-area autocast, dynamic-object VALUES, teleport, rest-flag, create-map and transfer-abort
-//! names. `#![cfg(test)]`; mounted and glob-imported under `cfg(test)` (#1395/#1396 follow-up 1).
+//! spell-area autocast, dynamic-object VALUES, teleport, rest-flag, create-map, transfer-abort and
+//! login names. `#![cfg(test)]`; mounted and glob-imported in cfg(test) (#1395/#1396 follow-up 1).
 
 #![cfg(test)]
 
 pub(crate) use super::gameobject_interaction::RepresentedCapturePointStateLikeCpp;
+pub(crate) use super::player_spell_records::RepresentedPlayerSkillLikeCpp;
 pub(crate) use crate::entity_update_bridge::dynamic_object_values_update_to_update_object;
+pub(crate) use std::collections::HashSet;
 pub(crate) use wow_data::spell_click::{
     SPELL_CLICK_USER_PARTY_LIKE_CPP, SPELL_CLICK_USER_RAID_LIKE_CPP,
 };
 pub(crate) use wow_data::{SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP, SpellAreaLikeCpp};
+pub(crate) use wow_entities::MAX_POWERS_PER_CLASS;
 pub(crate) use wow_packet::packets::spell::SpellTargetData;
+pub(crate) use wow_world_application::PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP;
 pub(crate) use wow_world_core::session::RepresentedGetReactionInputLikeCpp;
 pub(crate) use wow_world_core::session::battle_pet_adapter::{
     RepresentedBattlePetCageItemLikeCpp, RepresentedBattlePetCalculatedStatsLikeCpp,
@@ -35,6 +39,7 @@ pub(crate) use wow_world_entities::{
 };
 pub(crate) use wow_world_instances::{
     AREA_FLAG_ENEMIES_PVP_FLAGGED_LIKE_CPP, CreateMapSideEffectApplySummaryLikeCpp,
+    DIFFICULTY_10_N_LIKE_CPP, DIFFICULTY_NORMAL_LIKE_CPP, DIFFICULTY_NORMAL_RAID_LIKE_CPP,
     REST_FLAG_IN_CITY_LIKE_CPP, REST_FLAG_IN_FACTION_AREA_LIKE_CPP,
     TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP, TRANSFER_ABORT_NEED_GROUP_LIKE_CPP,
     TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP, TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP,
