@@ -7,7 +7,18 @@ license.workspace = true
 publish = false
 
 [features]
-test-fixtures = ["wow-world-core/test-fixtures"]
+# Forwards to every fixture-bearing wow-world dependency, and the self
+# dev-dependency below turns it on for this crate's own test build, so a
+# standalone `cargo check -p wow-world-instances --tests` builds them
+# cfg-aligned with `wow-world-core/test-fixtures` (#1409 review follow-up 1).
+test-fixtures = [
+    "wow-world-core/test-fixtures",
+    "wow-world-entities/test-fixtures",
+    "wow-world-lifecycle/test-fixtures",
+    "wow-world-loot/test-fixtures",
+    "wow-world-social/test-fixtures",
+    "wow-world-spell/test-fixtures",
+]
 
 [dependencies]
 rand = { workspace = true }
@@ -33,6 +44,8 @@ wow-world-spell = { workspace = true }
 
 [dev-dependencies]
 wow-world-core = { workspace = true, features = ["test-fixtures"] }
+# Keep this crate and its concrete participants cfg-aligned in all-targets tests.
+wow-world-instances = { workspace = true, features = ["test-fixtures"] }
 
 [lints]
 workspace = true

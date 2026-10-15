@@ -165,6 +165,15 @@ may reach `wow-world-quest`. It reads only the lock file. Before moving code, si
 (repeatable; quote the arrow); `--source metadata` reads `cargo metadata` normal/build edges
 instead. Changing the check plans its self-test `tools/architecture/test_wow_world_closure.py`.
 
+For each changed (not deleted) `crates/wow-world-*/Cargo.toml`, a `final` run with a workspace
+Rust diff also plans `cargo check --locked --tests -p <crate>` alone (#1409 review follow-up 1).
+The reverse-closure check unifies the features of every selected package, so it cannot see a
+domain crate whose `test-fixtures` feature does not forward to its fixture-bearing `wow-world*`
+dependencies (the `wow-world-instances` standalone failure found in the slice 4d review). The
+standalone check can; it covers only the crates whose manifest changed, not every crate that a
+forwarding change reaches. `quick` never plans it, and `wow-world` itself is left to the
+closure check.
+
 Paths classified as `documentation` run no Cargo command. Classification is directory-first:
 even a README under `crates/`, `tools/wow-test-bot/` or
 `tools/architecture/handler-contract-check/` takes that directory's Cargo route. The standalone

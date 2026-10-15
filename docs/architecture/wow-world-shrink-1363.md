@@ -11762,6 +11762,14 @@ New host lines are 125 against 910 moved lines (899 function, 10 enum,
   `GroupSessionHostLikeCpp` 14, `AddToyHostLikeCpp` 9 (39 lines with docs).
 - World adapter `handlers/leaf_session_hosts.rs`: 94 lines, of which 8 are
   the relocated catalog impl (not new): 86.
+- **Unmerged measurement (#1409 review follow-up 2).** Before `ab00265da`
+  merged the adapters and trimmed four trait doc lines, the same methods
+  took 148 lines: traits 43, and three adapter files
+  (`travel_host.rs` 54, `group_session_host.rs` 38, `toy_host.rs` 21 = 113,
+  less the 8 relocated catalog lines). That is **16.3 %** of 910 (16.5 %
+  with the two extra per-file mount lines). The merge removed file headers,
+  imports and doc lines, not methods or coupling: the method count is the
+  same in both. Later slices report both figures when they merge adapters.
 
 ### Await counts (per function, base vs head)
 

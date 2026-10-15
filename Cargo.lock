@@ -3659,6 +3659,7 @@ dependencies = [
  "wow-social",
  "wow-world-core",
  "wow-world-entities",
+ "wow-world-instances",
  "wow-world-lifecycle",
  "wow-world-loot",
  "wow-world-social",
