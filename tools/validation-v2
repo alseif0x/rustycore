@@ -903,17 +903,26 @@ def validation_commands(
             # #1409 review follow-up 1: the closure check above unifies the
             # features of every selected package, which hides a domain crate
             # whose own `test-fixtures` forwarding is incomplete. A changed
-            # `wow-world-*` manifest therefore also checks that crate's tests
-            # alone, with only the features its own manifest enables.
-            for path in all_paths:
+            # (or deleted) `wow-world-*` manifest therefore checks the tests of
+            # every existing `wow-world-*` crate alone, one at a time, with only
+            # the features its own manifest enables: a forwarding change in one
+            # manifest can break a dependent whose manifest did not change
+            # (#1410 review follow-up 3).
+            def domain_manifest(path: str) -> bool:
                 parts = path.split("/")
-                if (
+                return (
                     len(parts) == 3 and parts[0] == "crates" and parts[2] == "Cargo.toml"
-                    and parts[1].startswith("wow-world-") and (repo / path).is_file()
-                ):
+                    and parts[1].startswith("wow-world-")
+                )
+
+            if any(domain_manifest(path) for path in all_paths):
+                for manifest in sorted((repo / "crates").glob("wow-world-*/Cargo.toml")):
                     add_command(
                         planned,
-                        ["cargo", "check", "--locked", "--tests", "--jobs", str(jobs), "-p", parts[1]],
+                        [
+                            "cargo", "check", "--locked", "--tests", "--jobs", str(jobs),
+                            "-p", manifest.parent.name,
+                        ],
                     )
         if profile == "final" and workspace["direct_library_packages"]:
             package_args = [

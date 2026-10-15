@@ -14,61 +14,6 @@ impl WorldSession {
         self.interaction
             .set_vendor_buy_item_test_override_like_cpp(item);
     }
-    /// Bounded C++ `CollectionMgr::OnItemAdded`.
-    pub(crate) fn on_item_added_to_collection_like_cpp(
-        &mut self,
-        item: &wow_entities::Item,
-    ) -> Vec<wow_entities::PlayerValuesUpdate> {
-        let item_id = item.object().entry();
-        let mut updates = Vec::new();
-
-        if self
-            .catalogs
-            .heirloom_store
-            .as_ref()
-            .and_then(|store| store.get_by_item_id_like_cpp(item_id))
-            .is_some()
-            && self.add_account_heirloom_like_cpp(item_id, 0)
-            && let Some(update) = crate::session::hub_mut(self)
-                .add_player_heirloom_dynamic_fields_like_cpp(item_id, 0)
-        {
-            updates.push(update);
-        }
-
-        if let Some(update) = self.add_item_appearance_for_runtime_item_like_cpp(item) {
-            updates.push(update);
-        }
-
-        updates
-    }
-    pub(crate) fn record_represented_items_set_item_like_cpp(
-        &mut self,
-        item_guid: ObjectGuid,
-        apply: bool,
-    ) -> bool {
-        !self
-            .record_represented_items_set_item_events_like_cpp(item_guid, apply)
-            .is_empty()
-    }
-    pub(in crate::session) fn record_represented_items_set_item_events_like_cpp(
-        &mut self,
-        item_guid: ObjectGuid,
-        apply: bool,
-    ) -> Vec<RepresentedItemSetSpellEventLikeCpp> {
-        let (state, hub) = crate::session::split_inventory_mut(self);
-        let inventory_access = hub.core.owned_inventory_access_like_cpp();
-        let item_modifiers = hub.core.owned_item_modifiers_access_like_cpp();
-        let shared = hub.shared();
-        let item_sets = shared.owned_item_set_access_like_cpp();
-        state.record_represented_items_set_item_like_cpp(
-            &inventory_access,
-            &item_modifiers,
-            &item_sets,
-            item_guid,
-            apply,
-            cfg!(test),
-        )
-    }
     pub(crate) fn item_drop_rate_like_cpp(&self, item_id: u32) -> f32 {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.item_drop_rate_like_cpp(hub, item_id)
@@ -103,19 +48,6 @@ impl WorldSession {
     ) -> bool {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.represented_has_item_fit_to_spell_requirements_like_cpp(hub, equipped)
-    }
-    pub(in crate::session) fn record_represented_offhand_item_mod_remove_like_cpp(
-        &mut self,
-        item_guid: ObjectGuid,
-    ) -> bool {
-        if self
-            .resolved_inventory_item_object_like_cpp(item_guid)
-            .is_some_and(|item| item.is_broken())
-        {
-            return false;
-        }
-
-        self.record_represented_item_mods_like_cpp(item_guid, EQUIPMENT_SLOT_OFFHAND, false) != 0
     }
     pub(crate) fn resolved_buyback_items_like_cpp(&self) -> Option<HashMap<u8, InventoryItem>> {
         let (state, hub) = crate::session::split_inventory_ref(self);

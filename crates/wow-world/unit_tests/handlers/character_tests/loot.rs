@@ -131,7 +131,6 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         include_str!("../../../../wow-world-inventory/src/equipment_slots.rs"),
         include_str!("../../../src/session/player_items/items.rs"),
         include_str!("../../../src/session/player_items/modifiers.rs"),
-        include_str!("../../../src/session/player_items/offhand.rs"),
         include_str!("../../../src/session/player_items/persistence.rs"),
         include_str!("../../../src/session/player_items/persistence_load.rs"),
         include_str!("../../../src/session/player_items/publication.rs"),
@@ -139,6 +138,7 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         include_str!("../../../src/session/player_items/storage_bags.rs"),
         include_str!("../../../src/session/player_items/storage_slots.rs"),
         include_str!("../../../src/session/player_items/valuation.rs"),
+        include_str!("../../../../wow-world-inventory/src/player_items_session/repair.rs"),
     );
     assert_publication_segment(
         character,
@@ -196,13 +196,13 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
     assert_publication_segment(
         session,
         "single item durability repair",
-        "self.stage_player_money_change_like_cpp",
-        &["self.apply_inventory_item_durability_repair_runtime_like_cpp(item_guid)"],
+        "host.stage_player_money_change_like_cpp",
+        &["apply_inventory_item_durability_repair_runtime_like_cpp(host, item_guid)"],
     );
     assert_publication_segment(
         session,
         "all-items durability repair",
-        "self.stage_player_money_change_like_cpp",
-        &["self.apply_inventory_item_durability_repair_runtime_like_cpp(item_guid)"],
+        "host.stage_player_money_change_like_cpp",
+        &["apply_inventory_item_durability_repair_runtime_like_cpp(host, item_guid)"],
     );
 }

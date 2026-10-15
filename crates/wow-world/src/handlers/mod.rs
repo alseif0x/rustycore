@@ -68,6 +68,8 @@ mod open_item_test_shims;
 #[cfg(test)]
 mod player_cast_test_shims;
 #[cfg(test)]
+mod player_items_test_shims;
+#[cfg(test)]
 mod player_test_shims;
 #[cfg(test)]
 mod progression_test_shims;

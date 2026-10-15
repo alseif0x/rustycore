@@ -492,7 +492,7 @@ pub(super) async fn execute_inventory_real_swap_like_cpp<H: ItemSessionHostLikeC
         || added_source_mods
         || added_destination_mods
     {
-        host.send_represented_item_bonus_player_stat_update_like_cpp();
+        crate::send_represented_item_bonus_player_stat_update_like_cpp(host);
     }
     // Preserve the local 3.4.3 C++ ordering in Player::SwapItem: exchange
     // bag contents first, then inspect the items still contained by bags

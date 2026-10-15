@@ -4,7 +4,6 @@
 //! Item modifiers: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::ItemSubClassArmor;
 use super::ShieldBlockRegularGameTableLikeCpp;
 #[cfg(test)]
 use super::TitanGripPenaltyAction;
@@ -14,14 +13,14 @@ use super::{BANK_SLOT_BAG_END, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START}
 use super::{EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND};
 use super::{PlayerStatsStore, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START};
 use super::{WorldSession, two_handed_in_one_hand_like_cpp};
+pub(crate) use wow_world_inventory::RepresentedItemBonusActionLikeCpp;
 #[cfg(test)]
 pub(crate) use wow_world_inventory::RepresentedItemSetAuraRefreshEventLikeCpp;
 #[cfg(test)]
+pub(crate) use wow_world_inventory::RepresentedItemSetSpellEventLikeCpp;
+#[cfg(test)]
 pub(crate) use wow_world_inventory::{
     RepresentedCombatStatRecalculationLikeCpp, RepresentedItemModsReapplyEventLikeCpp,
-};
-pub(crate) use wow_world_inventory::{
-    RepresentedItemBonusActionLikeCpp, RepresentedItemSetSpellEventLikeCpp,
 };
 
 pub(in crate::session) use wow_world_inventory::ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP;
@@ -87,37 +86,8 @@ pub(crate) use wow_world_inventory::LoadedEquippedItemEnchantmentsOutcomeLikeCpp
 // Moved to `wow_world_inventory` with the continue-login coordinator (#1363 slice 13c).
 pub(crate) use wow_world_inventory::InitialLoadedItemModsOutcomeLikeCpp;
 
-pub(in crate::session) use wow_world_inventory::is_represented_bag_slot;
-
+#[cfg(test)]
 pub(crate) use wow_world_core::session::player_class_mask_for_transmog_like_cpp;
-
-pub(in crate::session) fn player_class_by_armor_subclass_like_cpp(subclass: u32) -> u32 {
-    match subclass {
-        x if x == ItemSubClassArmor::Miscellaneous as u32 => 0x0FFF,
-        x if x == ItemSubClassArmor::Cloth as u32 => {
-            (1 << (5 - 1)) | (1 << (8 - 1)) | (1 << (9 - 1))
-        }
-        x if x == ItemSubClassArmor::Leather as u32 => {
-            (1 << (4 - 1)) | (1 << (10 - 1)) | (1 << (11 - 1)) | (1 << (12 - 1))
-        }
-        x if x == ItemSubClassArmor::Mail as u32 => (1 << (3 - 1)) | (1 << (7 - 1)),
-        x if x == ItemSubClassArmor::Plate as u32 => {
-            (1 << (1 - 1)) | (1 << (2 - 1)) | (1 << (6 - 1))
-        }
-        x if x == ItemSubClassArmor::Cosmetic as u32 => 0x0FFF,
-        x if x == ItemSubClassArmor::Shield as u32 => {
-            (1 << (1 - 1)) | (1 << (2 - 1)) | (1 << (7 - 1))
-        }
-        x if x == ItemSubClassArmor::Libram as u32 => 1 << (2 - 1),
-        x if x == ItemSubClassArmor::Idol as u32 => 1 << (11 - 1),
-        x if x == ItemSubClassArmor::Totem as u32 => 1 << (7 - 1),
-        x if x == ItemSubClassArmor::Sigil as u32 => 1 << (6 - 1),
-        x if x == ItemSubClassArmor::Relic as u32 => {
-            (1 << (2 - 1)) | (1 << (6 - 1)) | (1 << (7 - 1)) | (1 << (11 - 1))
-        }
-        _ => 0,
-    }
-}
 
 impl WorldSession {
     pub fn set_shield_block_regular_game_table(

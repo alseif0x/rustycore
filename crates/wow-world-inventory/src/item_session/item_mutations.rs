@@ -274,7 +274,7 @@ pub(super) async fn execute_inventory_stack_merge_like_cpp<H: ItemSessionHostLik
         ));
         host.publish_inventory_position_changes_like_cpp(&[(source_bag, source_slot)]);
         if removed_mods {
-            host.send_represented_item_bonus_player_stat_update_like_cpp();
+            crate::send_represented_item_bonus_player_stat_update_like_cpp(host);
         }
     }
     host.sync_player_registry_state_like_cpp();

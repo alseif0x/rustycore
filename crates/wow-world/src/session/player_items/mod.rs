@@ -13,7 +13,6 @@ mod equipment;
 mod equipment_sets;
 mod items;
 mod modifiers;
-mod offhand;
 mod persistence;
 mod persistence_load;
 mod publication;

@@ -76,7 +76,9 @@ impl PlayerMovementHostLikeCpp for WorldSession {
         percent: f64,
         inventory: bool,
     ) -> usize {
-        WorldSession::apply_represented_durability_loss_all_like_cpp(self, percent, inventory)
+        wow_world_inventory::apply_represented_durability_loss_all_like_cpp(
+            self, percent, inventory,
+        )
     }
 
     fn taxi_node_map_ids_like_cpp(&self) -> &HashMap<u32, u16> {

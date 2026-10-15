@@ -107,7 +107,12 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
         slot: i32,
         target_guid: ObjectGuid,
     ) {
-        WorldSession::apply_durability_damage_pct_effect_like_cpp(self, damage, slot, target_guid)
+        wow_world_inventory::apply_durability_damage_pct_effect_like_cpp(
+            self,
+            damage,
+            slot,
+            target_guid,
+        )
     }
     fn apply_duel_effect_like_cpp(
         &mut self,

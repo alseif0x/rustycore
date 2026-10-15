@@ -261,10 +261,10 @@ pub(crate) use item_modifiers::RepresentedItemModsReapplyEventLikeCpp;
 pub(crate) use item_modifiers::RepresentedItemSetAuraRefreshEventLikeCpp;
 #[cfg(test)]
 pub(crate) use item_modifiers::RepresentedItemSetEffectLikeCpp;
+#[cfg(test)]
 pub(crate) use item_modifiers::RepresentedItemSetSpellEventLikeCpp;
-use item_modifiers::is_represented_bag_slot;
 pub(crate) use item_modifiers::item_storage_fields_values_update_like_cpp;
-use item_modifiers::player_class_by_armor_subclass_like_cpp;
+#[cfg(test)]
 use item_modifiers::player_class_mask_for_transmog_like_cpp;
 use item_modifiers::represented_player_stat_changes_like_cpp;
 #[cfg(test)]
@@ -337,7 +337,6 @@ pub(crate) use player_condition_values::RepresentedItemLevelCapsLikeCpp;
 pub(crate) use player_condition_values::RepresentedPlayerConditionContextLikeCpp;
 mod player_load_values;
 use player_load_values::gender_from_u8;
-use wow_world_core::session::player_team_id_for_race_cpp;
 // #1363 slice 3: the player melee phase moved to `wow-world-creature`;
 // world-server and the unit tests keep these Session paths.
 pub use wow_world_creature::PlayerMeleeAttackerSnapshotLikeCpp;
@@ -462,9 +461,7 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 use tracing::{debug, info, warn};
 
 use crate::battle_pet_account::BattlePetAccountAttachmentLikeCpp;
-use crate::entity_update_bridge::{
-    item_values_update_to_update_object, unit_values_update_to_packet,
-};
+use crate::entity_update_bridge::unit_values_update_to_packet;
 use crate::loot_persistence::DurableLootMoneyCompletionLikeCpp;
 #[cfg(test)]
 use crate::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp;
@@ -524,12 +521,12 @@ use wow_constants::unit::{
 };
 #[cfg(test)]
 use wow_constants::{
-    BuyResult, SellResult, TypeId, UnitState, item::ItemBonusType, movement::MovementFlag,
+    BuyResult, ItemFlags3, ItemQuality, ItemSubClassArmor, ItemSubClassWeapon, SellResult, TypeId,
+    UnitState, item::ItemBonusType, movement::MovementFlag,
 };
 use wow_constants::{
-    ClientOpcodes, InventoryResult, InventoryType, ItemClass, ItemContext, ItemFlags, ItemFlags2,
-    ItemFlags3, ItemModifier, ItemQuality, ItemSpelltriggerType, ItemSubClassArmor,
-    ItemSubClassWeapon,
+    ClientOpcodes, InventoryResult, ItemClass, ItemContext, ItemFlags, ItemModifier,
+    ItemSpelltriggerType,
 };
 use wow_core::{EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, Position, guid::HighGuid};
 #[cfg(test)]
@@ -631,19 +628,19 @@ use wow_entities::{
     ApplyEnchantmentEffectAction, ApplyEnchantmentEffectRef, ApplyEnchantmentPlan,
     ApplyEnchantmentRandomSuffixRef, ApplyEnchantmentResult, BANK_SLOT_BAG_END,
     BANK_SLOT_BAG_START, BUYBACK_SLOT_START, CreatureAddonLifecycleRecordLikeCpp,
-    EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND,
-    EQUIPMENT_SLOT_RANGED, GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0,
-    INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT,
-    Item, ItemDataUpdate, ItemPosCount, ItemStorageTemplate, ItemValuesUpdate, MAX_MONEY_AMOUNT,
-    NULL_BAG, NULL_SLOT, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInteractionDataLikeCpp,
+    EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_RANGED,
+    GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
+    INVENTORY_SLOT_BAG_START, Item, ItemPosCount, ItemStorageTemplate, NULL_BAG, NULL_SLOT,
+    PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInteractionDataLikeCpp,
     PlayerInventoryRuntime, PlayerItemTimeUpdate, PlayerPetLifecycleStateLikeCpp,
     PlayerQuestGameplayState, PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp,
     PlayerTeleportStateLikeCpp, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery,
-    SendNewItemDisplayText, SendNewItemPlan, TYPEID_ITEM, UpdateMask, Vehicle, VisibleItemValues,
-    WorldObject, is_equipment_packed_pos, make_item_pos,
+    SendNewItemDisplayText, SendNewItemPlan, Vehicle, VisibleItemValues, WorldObject,
 };
 #[cfg(test)]
 use wow_entities::{ActiveState, PetType, explored_zones_db_string_from_blocks_like_cpp};
+#[cfg(test)]
+use wow_entities::{EQUIPMENT_SLOT_OFFHAND, MAX_MONEY_AMOUNT};
 #[cfg(test)]
 use wow_entities::{MovementGeneratorKind, PetAuraLikeCpp, PetSaveMode, PetStableInfo, ReactState};
 pub(crate) use wow_entities::{PlayerCurrency, PlayerCurrencyState};

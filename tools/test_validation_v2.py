@@ -825,11 +825,12 @@ def test_planner_contract(repo: Path) -> None:
     for changed in ("crates/wow-world/src/lib.rs", "docs/state.md", "tools/qa.py"):
         planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
         assert checker_suite not in planned, changed
-    # #1409 review follow-up 1: final checks a changed `wow-world-*` domain
-    # manifest's tests standalone (its own features only); quick never does,
-    # and neither does a change to `wow-world` itself, another crate's
-    # manifest, a domain source file or a deleted domain manifest.
-    for name in ("wow-world-fixture", "wow-world"):
+    # #1409 review follow-up 1 and #1410 review follow-up 3: a changed or
+    # deleted `wow-world-*` domain manifest makes final check the tests of
+    # every existing domain crate standalone (its own features only), one
+    # crate per command; quick never does, and neither does a change to
+    # `wow-world` itself, another crate's manifest or a domain source file.
+    for name in ("wow-world-fixture", "wow-world-other", "wow-world"):
         (repo / "crates" / name).mkdir(parents=True, exist_ok=True)
         (repo / "crates" / name / "Cargo.toml").write_text(f'[package]\nname = "{name}"\n')
     domain_workspace = {
@@ -840,13 +841,17 @@ def test_planner_contract(repo: Path) -> None:
         "reverse_closure_packages": ["wow-world-fixture", "b"],
         "direct_library_packages": [],
     }
-    standalone = ["cargo", "check", "--locked", "--tests", "--jobs", "2", "-p", "wow-world-fixture"]
+    standalone_all = [
+        ["cargo", "check", "--locked", "--tests", "--jobs", "2", "-p", name]
+        for name in ("wow-world-fixture", "wow-world-other")
+    ]
     for changed, expected in (
         ("crates/wow-world-fixture/Cargo.toml", True),
+        ("crates/wow-world-other/Cargo.toml", True),
+        ("crates/wow-world-deleted/Cargo.toml", True),
         ("crates/wow-world/Cargo.toml", False),
         ("crates/a/Cargo.toml", False),
         ("crates/wow-world-fixture/src/lib.rs", False),
-        ("crates/wow-world-deleted/Cargo.toml", False),
     ):
         groups = runner.grouped_paths([changed])
         planned, _ = runner.validation_commands(repo, "final", 2, "base", groups, domain_workspace)
@@ -855,8 +860,7 @@ def test_planner_contract(repo: Path) -> None:
             command for command in planned
             if command[:2] == ["cargo", "check"] and "--tests" in command and command.count("-p") == 1
         ]
-        assert (standalone in planned) is expected, changed
-        assert expected or not standalone_planned, changed
+        assert standalone_planned == (standalone_all if expected else []), changed
         assert all(command[:2] != ["cargo", "check"] for command in quick_planned), changed
     test_handler_graph_contract()
     # The F3-4 situation: a committed mount whose shim a `skills/` rule hides fails the check.

@@ -16,7 +16,6 @@ use crate::session::WorldSession;
 use wow_world_application::TrainerOfferDecisionLikeCpp;
 
 impl WorldSession {
-    #[cfg(test)]
     pub(crate) async fn handle_trainer_buy_spell(&mut self, pkt: wow_packet::WorldPacket) {
         let generators = self.id_generators_for_test_like_cpp();
         let selection = self

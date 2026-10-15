@@ -7,27 +7,6 @@ use super::*;
 use wow_entities::ItemObjectUpdateLikeCpp;
 
 impl WorldSession {
-    pub(crate) fn move_represented_direct_inventory_item_like_cpp(
-        &mut self,
-        src: u8,
-        dst: u8,
-    ) -> bool {
-        let access = self.core.owned_inventory_access_like_cpp();
-        self.inventory
-            .move_direct_inventory_item_with_access_like_cpp(&access, src, dst)
-    }
-    pub(crate) fn record_direct_inventory_item_set_remove_like_cpp(
-        &mut self,
-        bag: u8,
-        slot: u8,
-        item_guid: ObjectGuid,
-    ) -> bool {
-        if bag != INVENTORY_SLOT_BAG_0 || slot >= INVENTORY_SLOT_BAG_END {
-            return false;
-        }
-
-        self.record_represented_items_set_item_like_cpp(item_guid, false)
-    }
     pub(crate) fn item_template_inventory_type(&self, item_id: u32) -> Option<u8> {
         crate::session::hub_ref(self).item_template_inventory_type(item_id)
     }
@@ -76,14 +55,6 @@ impl WorldSession {
         runtime_item: Option<&Item>,
     ) -> InventoryResult {
         self.can_use_inventory_item_represented_with_loading_like_cpp(item, runtime_item, true)
-    }
-    pub(crate) fn remove_inventory_item_duration_refs_like_cpp(&mut self, item_guid: ObjectGuid) {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.remove_inventory_item_duration_refs_like_cpp(&mut hub, item_guid)
-    }
-    pub(crate) fn remove_inventory_tradeable_item_like_cpp(&mut self, item_guid: ObjectGuid) {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.remove_inventory_tradeable_item_like_cpp(&mut hub, item_guid)
     }
     /// C++ `Player::ApplyItemObtainSpells(item, true)` after `_StoreItem`.
     pub(crate) async fn apply_inventory_item_obtain_spells_with_generator_like_cpp(

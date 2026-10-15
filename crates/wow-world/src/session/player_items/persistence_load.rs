@@ -27,7 +27,7 @@ impl WorldSession {
     ) {
         let _ = crate::session::cx_lifecycle(self)
             .check_account_heirloom_upgrades_like_cpp(item.object().entry());
-        let _ = self.add_item_appearance_for_runtime_item_like_cpp(item);
+        let _ = wow_world_inventory::add_item_appearance_for_runtime_item_like_cpp(self, item);
     }
     pub(in crate::session) fn loaded_inventory_item_visible_update_like_cpp(
         &self,

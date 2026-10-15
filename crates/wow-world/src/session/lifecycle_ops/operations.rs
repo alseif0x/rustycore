@@ -12,10 +12,6 @@ impl WorldSession {
     pub(crate) fn battlenet_account_id(&self) -> u32 {
         self.core.battlenet_account_id()
     }
-    pub(crate) fn add_account_heirloom_like_cpp(&mut self, item_id: u32, flags: u32) -> bool {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.add_account_heirloom_like_cpp(&mut hub, item_id, flags)
-    }
     pub(crate) fn upgrade_account_heirloom_like_cpp(
         &mut self,
         item_id: u32,

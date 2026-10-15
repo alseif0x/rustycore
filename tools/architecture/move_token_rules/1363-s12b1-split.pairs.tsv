@@ -1,0 +1,3 @@
+# base_path name head_path (#1363 slice 12b1 split, base 91d9f12bb)
+crates/wow-world/src/session/player_items/modifiers.rs	record_represented_item_mods_like_cpp	crates/wow-world-inventory/src/player_items_session/item_mods.rs
+crates/wow-world/src/session/player_items/storage.rs	move_represented_direct_inventory_item_like_cpp	crates/wow-world-inventory/src/player_items_session/offhand.rs

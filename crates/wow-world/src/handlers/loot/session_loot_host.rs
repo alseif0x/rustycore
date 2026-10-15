@@ -234,7 +234,7 @@ impl LootSessionHostLikeCpp for WorldSession {
         )
     }
     fn on_item_added_to_collection_like_cpp(&mut self, item: &Item) -> Vec<PlayerValuesUpdate> {
-        self.on_item_added_to_collection_like_cpp(item)
+        wow_world_inventory::on_item_added_to_collection_like_cpp(self, item)
     }
     fn plan_quest_source_item_bound_objective_persistence_like_cpp(
         &self,
