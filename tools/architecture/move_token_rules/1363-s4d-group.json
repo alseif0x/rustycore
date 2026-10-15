@@ -1,0 +1,97 @@
+{
+ "slice": "#1363 slice 4d (group: command receivers, reconciliation and publication tail -> wow-world-instances::group_session)",
+ "base": "dc17fe39b",
+ "moved": [
+  "handle_apply_group_removal_command_like_cpp",
+  "handle_apply_group_join_command_like_cpp",
+  "handle_send_party_update_command_like_cpp",
+  "handle_apply_group_difficulty_command_like_cpp",
+  "handle_apply_group_subgroup_command_like_cpp",
+  "apply_group_subgroup_like_cpp",
+  "reconcile_group_state_like_cpp",
+  "defer_group_state_reconciliation_like_cpp",
+  "apply_authoritative_group_state_like_cpp",
+  "send_destroyed_group_party_update_like_cpp",
+  "reconcile_group_difficulty_like_cpp",
+  "apply_group_publication_tail_like_cpp",
+  "send_group_party_update_after_owner_like_cpp"
+ ],
+ "rules": [
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?(async\\s+)?fn\\s+(handle_apply_group_removal_command_like_cpp|handle_apply_group_join_command_like_cpp|handle_send_party_update_command_like_cpp|handle_apply_group_difficulty_command_like_cpp|handle_apply_group_subgroup_command_like_cpp|reconcile_group_state_like_cpp|apply_group_publication_tail_like_cpp)\\(",
+   "pub \\1fn \\2<H: GroupSessionHostLikeCpp>("
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?(async\\s+)?fn\\s+(apply_group_subgroup_like_cpp|defer_group_state_reconciliation_like_cpp|apply_authoritative_group_state_like_cpp|send_destroyed_group_party_update_like_cpp|reconcile_group_difficulty_like_cpp|send_group_party_update_after_owner_like_cpp)\\(",
+   "\\1fn \\2<H: GroupSessionHostLikeCpp>("
+  ],
+  [
+   "(GroupSessionHostLikeCpp>)\\((\\s*)&mut self",
+   "\\1(\\2host: &mut H"
+  ],
+  [
+   "(GroupSessionHostLikeCpp>)\\((\\s*)&self",
+   "\\1(\\2host: &H"
+  ],
+  [
+   "\\bself\\s*\\.{name}\\(\\s*\\)",
+   "{name}(host)"
+  ],
+  [
+   "\\bself\\s*\\.{name}\\(",
+   "{name}(host, "
+  ],
+  [
+   "\\bself\\s*\\.set_owned_player_group_like_cpp\\(((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*)\\)",
+   "{ let (state, mut hub) = host.split_social_mut(); state.set_owned_player_group_like_cpp(&mut hub, \\1) }"
+  ],
+  [
+   "\\bself\\s*\\.send_player_party_type_update_like_cpp\\(((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*)\\)",
+   "{ let (state, hub) = host.split_social_ref(); state.send_player_party_type_update_like_cpp(hub, \\1) }"
+  ],
+  [
+   "\\bself\\s*\\.next_group_update_sequence_number_like_cpp\\(((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*)\\)",
+   "({ let (state, mut hub) = host.split_social_mut(); state.next_group_update_sequence_number_like_cpp(&mut hub, \\1) })"
+  ],
+  [
+   "\\bself\\s*\\.sync_player_registry_party_member_party_type_like_cpp\\(\\)",
+   "{ let (state, hub) = host.split_social_ref(); state.sync_player_registry_party_member_party_type_like_cpp(hub) }"
+  ],
+  [
+   "\\bself\\s*\\.send_packet_realm\\(",
+   "host.core().send_packet_realm("
+  ],
+  [
+   "\\bself\\s*\\.player_registry\\(\\)",
+   "host.core().player_registry()"
+  ],
+  [
+   "crate::session::split_(social|instances)_(ref|mut)\\(self\\)",
+   "host.split_\\1_\\2()"
+  ],
+  [
+   "\\bself\\s*\\.core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "\\bself\\s*\\.lifecycle\\s*\\.",
+   "host.lifecycle()."
+  ],
+  [
+   "crate::session::SessionState::",
+   "SessionState::"
+  ],
+  [
+   "\\bself\\s*\\.(state|player_guid|resolved_group_guid_like_cpp|authoritative_group_membership_like_cpp|sync_player_registry_state_like_cpp|update_visible_gameobjects_or_spell_clicks_like_cpp|apply_group_difficulty_like_cpp)\\(",
+   "host.\\1("
+  ],
+  [
+   "\\bself\\s*\\.",
+   "host."
+  ],
+  [
+   "\\(\\s*self(,|\\))",
+   "(host\\1"
+  ]
+ ]
+}

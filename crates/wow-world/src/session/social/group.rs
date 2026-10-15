@@ -85,149 +85,10 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_social_mut(self);
         state.set_owned_player_group_like_cpp(&mut hub, membership)
     }
-    pub(crate) fn apply_group_subgroup_like_cpp(&mut self, group_guid: u64, subgroup: u8) {
-        if self.resolved_group_guid_like_cpp() == Some(group_guid)
-            && self.set_owned_player_group_like_cpp(Some((group_guid, subgroup)))
-        {
-            self.sync_player_registry_state_like_cpp();
-        }
-    }
     pub(crate) fn sync_player_registry_party_member_party_type_like_cpp(&self) {
         let (state, hub) = crate::session::split_social_ref(self);
         state.sync_player_registry_party_member_party_type_like_cpp(hub)
     }
-    /// #743: converge the owned group snapshot on `GroupRegistry`.
-    ///
-    /// C++ never needs this: `Group::RemoveMember` (`Group.cpp:550`),
-    /// `Group::Disband` (`Group.cpp:713`) and `Group::ChangeMembersGroup`
-    /// reach every connected member's `Player` directly, so `Player::SetGroup`
-    /// (`Player.cpp:23440`) runs inside the same operation. RustyCore applies
-    /// the same transitions on the member's own session to keep its admission
-    /// phase, canonical Player guard and publication order; this reconciliation
-    /// is the fence that makes the queue hop lossless.
-    ///
-    /// It runs only for a session the group authority marked, so an untouched
-    /// session never pays for a canonical read. A command that does arrive
-    /// after the reconciliation finds the snapshot already converged and its
-    /// own group guard rejects it, so nothing is published twice.
-    pub(crate) fn reconcile_group_state_like_cpp(&mut self) -> bool {
-        let (Some(player_guid), Some(player_registry)) = (
-            self.player_guid(),
-            self.core.player_registry.as_ref().map(Arc::clone),
-        ) else {
-            return false;
-        };
-        if !player_registry.take_group_state_reconciliation_like_cpp(player_guid) {
-            return false;
-        }
-        if self.state() != crate::session::SessionState::LoggedIn {
-            // The represented Player is not admitted yet. C++ resolves group
-            // membership from the authority at `Player::_LoadGroup`, so the
-            // mark is kept rather than discarded at an ineligible phase.
-            player_registry.mark_group_state_reconciliation_like_cpp(player_guid);
-            return false;
-        }
-        let Some(group_registry) = self.core.directory.group_registry.as_ref().map(Arc::clone)
-        else {
-            return false;
-        };
-        let applied = self.apply_authoritative_group_state_like_cpp(player_guid, &group_registry);
-        if applied == GroupReconciliationOutcomeLikeCpp::Unreachable {
-            // The canonical Player could not be resolved this pass (transfer,
-            // detached residence). Keep the obligation instead of losing it.
-            player_registry.mark_group_state_reconciliation_like_cpp(player_guid);
-            return false;
-        }
-        applied == GroupReconciliationOutcomeLikeCpp::Applied
-    }
-
-    pub(crate) fn defer_group_state_reconciliation_like_cpp(&self) {
-        let (state, hub) = crate::session::split_social_ref(self);
-        state.defer_group_state_reconciliation_like_cpp(hub)
-    }
-
-    /// Apply the authority's membership to the owned snapshot and publish the
-    /// difference, in the order the original operation would have published it.
-    fn apply_authoritative_group_state_like_cpp(
-        &mut self,
-        player_guid: ObjectGuid,
-        group_registry: &GroupRegistry,
-    ) -> GroupReconciliationOutcomeLikeCpp {
-        let authority = group_registry.member_group_state_like_cpp(player_guid);
-        let current_group_guid = self.resolved_group_guid_like_cpp();
-        let current_subgroup = {
-            let (s, h) = crate::session::split_social_ref(self);
-            s.resolved_group_subgroup_like_cpp(h)
-        };
-
-        let Some(authority) = authority else {
-            let Some(previous_group_guid) = current_group_guid else {
-                return GroupReconciliationOutcomeLikeCpp::AlreadyConverged;
-            };
-            // `Group::Disband` retires the group itself; `Group::RemoveMember`
-            // keeps it. That difference selects which teardown packet the
-            // member missed.
-            let surviving_category = group_registry.group_category_like_cpp(previous_group_guid);
-            let category =
-                surviving_category.unwrap_or(wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP);
-            if !self.set_owned_player_group_like_cpp(None) {
-                return GroupReconciliationOutcomeLikeCpp::Unreachable;
-            }
-            self.send_player_party_type_update_like_cpp(
-                category,
-                wow_social::group::GROUP_TYPE_NONE_LIKE_CPP,
-            );
-            self.sync_player_registry_state_like_cpp();
-            let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
-            if surviving_category.is_some() {
-                self.send_packet_realm(&wow_packet::packets::party::GroupUninvite);
-            } else {
-                self.send_packet_realm(&wow_packet::packets::party::GroupDestroyed);
-            }
-            self.send_destroyed_group_party_update_like_cpp(previous_group_guid, category);
-            return GroupReconciliationOutcomeLikeCpp::Applied;
-        };
-
-        let membership_converged = current_group_guid == Some(authority.group_guid)
-            && current_subgroup == Some(authority.subgroup);
-        let mut applied = false;
-        if !membership_converged {
-            let joined_new_group = current_group_guid != Some(authority.group_guid);
-            if !self
-                .set_owned_player_group_like_cpp(Some((authority.group_guid, authority.subgroup)))
-            {
-                return GroupReconciliationOutcomeLikeCpp::Unreachable;
-            }
-            if joined_new_group {
-                self.send_player_party_type_update_like_cpp(
-                    authority.group_category,
-                    wow_social::group::GROUP_TYPE_NORMAL_LIKE_CPP,
-                );
-                self.sync_player_registry_party_member_party_type_like_cpp();
-                let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
-            } else {
-                self.sync_player_registry_state_like_cpp();
-            }
-            applied = true;
-        }
-        // The group also owns the member's three difficulty preferences; a lost
-        // `ApplyGroupDifficultyLikeCpp` diverges them without changing membership.
-        if let Some(group) = group_registry.get(&authority.group_guid)
-            && self.reconcile_group_difficulty_like_cpp(
-                group.dungeon_difficulty_id,
-                group.raid_difficulty_id,
-                group.legacy_raid_difficulty_id,
-            )
-        {
-            applied = true;
-        }
-        if applied {
-            GroupReconciliationOutcomeLikeCpp::Applied
-        } else {
-            GroupReconciliationOutcomeLikeCpp::AlreadyConverged
-        }
-    }
-
     /// Whether this session currently belongs to `group_guid` by the authority.
     ///
     /// C++ readers dereference `Player::m_group`, which the group owner
@@ -289,14 +150,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_social_mut(self);
         state.next_group_update_sequence_number_like_cpp(&mut hub, category)
     }
-    pub(crate) fn send_destroyed_group_party_update_like_cpp(
-        &mut self,
-        group_guid: u64,
-        category: u8,
-    ) {
-        let (state, mut hub) = crate::session::split_social_mut(self);
-        state.send_destroyed_group_party_update_like_cpp(&mut hub, group_guid, category)
-    }
     pub fn set_phase_group_store(&mut self, store: Arc<PhaseGroupStore>) {
         self.catalogs.phase_group_store = Some(store);
     }
@@ -322,17 +175,6 @@ impl WorldSession {
             reward_position,
         )
     }
-}
-
-/// Result of one reconciliation attempt against the group authority.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum GroupReconciliationOutcomeLikeCpp {
-    /// The owned snapshot already matched the authority.
-    AlreadyConverged,
-    /// The snapshot was corrected and the missed difference published.
-    Applied,
-    /// The canonical Player could not be resolved; the mark is retained.
-    Unreachable,
 }
 
 #[cfg(test)]

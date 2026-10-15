@@ -11,6 +11,7 @@ mod fixture_access;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod fixtures;
 mod group_handlers;
+mod group_session;
 mod handlers;
 mod instance;
 mod instance_session;
@@ -42,6 +43,12 @@ pub use group_handlers::GroupPublicationTailLikeCpp;
 pub use group_handlers::resolved_group_guid_like_cpp;
 pub use group_handlers::{
     GroupHandlerCxLikeCpp, GroupHandlerHostLikeCpp, register_group_handlers_like_cpp,
+};
+pub use group_session::{
+    GroupSessionHostLikeCpp, apply_group_publication_tail_like_cpp,
+    handle_apply_group_difficulty_command_like_cpp, handle_apply_group_join_command_like_cpp,
+    handle_apply_group_removal_command_like_cpp, handle_apply_group_subgroup_command_like_cpp,
+    handle_send_party_update_command_like_cpp, reconcile_group_state_like_cpp,
 };
 pub use handlers::{
     InstanceDifficultyHandlerCxLikeCpp, InstanceLockOperationsHandlerCxLikeCpp,

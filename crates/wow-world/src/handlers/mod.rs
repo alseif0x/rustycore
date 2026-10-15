@@ -19,6 +19,7 @@ pub mod dungeon_finding;
 pub mod economy;
 pub mod entities;
 pub mod group;
+mod group_session_host;
 pub mod guild;
 pub mod instances;
 pub mod loot;
@@ -49,6 +50,8 @@ mod canonical_objects_test_shims;
 mod character_query_test_shims;
 #[cfg(test)]
 mod continue_login_test_shims;
+#[cfg(test)]
+mod group_session_test_shims;
 #[cfg(test)]
 mod instance_session_test_shims;
 #[cfg(test)]

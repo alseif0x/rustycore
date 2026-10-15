@@ -5,8 +5,6 @@
 //! moved to `wow_world_instances::instance_session` (#1363 slice 11b). Each
 //! method delegates to the same-named session operation (or field or split).
 
-use std::sync::Arc;
-
 use wow_world_core::session::{HubMut, HubRef};
 use wow_world_instances::{InstanceSessionHostLikeCpp, InstanceState};
 

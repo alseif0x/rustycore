@@ -166,19 +166,19 @@ impl WorldSession {
                 }
             }
             SessionCommand::SendPartyUpdateLikeCpp(command) => {
-                self.handle_send_party_update_command_like_cpp(command);
+                wow_world_instances::handle_send_party_update_command_like_cpp(self, command);
             }
             SessionCommand::ApplyGroupRemovalLikeCpp(command) => {
-                self.handle_apply_group_removal_command_like_cpp(command);
+                wow_world_instances::handle_apply_group_removal_command_like_cpp(self, command);
             }
             SessionCommand::ApplyGroupJoinLikeCpp(command) => {
-                self.handle_apply_group_join_command_like_cpp(command);
+                wow_world_instances::handle_apply_group_join_command_like_cpp(self, command);
             }
             SessionCommand::ApplyGroupDifficultyLikeCpp(command) => {
-                self.handle_apply_group_difficulty_command_like_cpp(command);
+                wow_world_instances::handle_apply_group_difficulty_command_like_cpp(self, command);
             }
             SessionCommand::ApplyGroupSubgroupLikeCpp(command) => {
-                self.handle_apply_group_subgroup_command_like_cpp(command);
+                wow_world_instances::handle_apply_group_subgroup_command_like_cpp(self, command);
             }
             SessionCommand::SendIfVisibleLikeCpp(command) => {
                 self.handle_send_if_visible_like_cpp_command_like_cpp(command, false);

@@ -13,7 +13,6 @@ use tracing::warn;
 use wow_packet::ClientPacket;
 use wow_packet::packets::misc::{ActivateTaxi, ActivateTaxiReply, ERR_TAXITOOFARAWAY_LIKE_CPP};
 use wow_world_core::session::RepresentedActivateTaxiLikeCpp;
-use wow_world_spell::AuraHostLikeCpp;
 
 use super::InstanceSessionHostLikeCpp;
 

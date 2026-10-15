@@ -249,7 +249,7 @@ impl WorldSession {
         // carried it, so a delivered command is never applied twice.
         self.core
             .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::ReconcileGroupState);
-        self.reconcile_group_state_like_cpp();
+        wow_world_instances::reconcile_group_state_like_cpp(self);
         self.core
             .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::CreatureKills);
         wow_world_entities::process_pending_creature_kills_with_generator_like_cpp(
