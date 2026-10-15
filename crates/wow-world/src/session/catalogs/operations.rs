@@ -259,7 +259,7 @@ impl WorldSession {
             return;
         };
 
-        if !self.player_is_in_area_trigger_radius_like_cpp(&at_entry)
+        if !wow_world_instances::player_is_in_area_trigger_radius_like_cpp(self, &at_entry)
             && self.remove_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP)
         {
             self.send_represented_resting_player_flag_update_like_cpp();

@@ -5,6 +5,7 @@
 use super::*;
 mod binding;
 mod difficulty;
+mod host;
 mod instance;
 mod map_key;
 mod map_resolution;

@@ -6,10 +6,10 @@
 //! The played-time values moved to `SessionLifecycleState` and the test-only
 //! rest entry points to `handlers/progression_test_shims.rs` (#1363 slice 7c).
 
+use super::PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP;
 #[cfg(test)]
 use super::RepresentedAuraEffectLikeCpp;
 use super::WorldSession;
-use super::{PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP, REST_FLAG_IN_TAVERN_LIKE_CPP};
 
 impl WorldSession {
     pub(crate) fn represented_player_has_flag_like_cpp(&self, flag: u32) -> bool {
@@ -53,30 +53,6 @@ impl WorldSession {
         trigger_id: u32,
     ) -> bool {
         self.set_player_rest_flag_like_cpp(rest_flag, trigger_id)
-    }
-
-    pub(in crate::session) fn update_represented_rest_flag_like_cpp(
-        &mut self,
-        rest_flag: u32,
-        active: bool,
-    ) -> bool {
-        if active {
-            self.set_represented_rest_flag_like_cpp(rest_flag, 0)
-        } else {
-            self.remove_represented_rest_flag_like_cpp(rest_flag)
-        }
-    }
-
-    pub(crate) fn set_represented_tavern_resting_like_cpp(
-        &mut self,
-        trigger_id: u32,
-        entered: bool,
-    ) -> bool {
-        if entered {
-            self.set_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP, trigger_id)
-        } else {
-            self.remove_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP)
-        }
     }
 
     pub(crate) fn resolved_player_flags_for_create_like_cpp(&self) -> Option<(u32, u32)> {

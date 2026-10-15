@@ -216,6 +216,7 @@
       "wow-world-visibility"
     ],
     "wow-world-instances": [
+      "wow-ai",
       "wow-constants",
       "wow-core",
       "wow-data",
@@ -230,7 +231,8 @@
       "wow-world-entities",
       "wow-world-lifecycle",
       "wow-world-loot",
-      "wow-world-social"
+      "wow-world-social",
+      "wow-world-spell"
     ],
     "wow-world-inventory": [
       "wow-conditions",

@@ -14,34 +14,12 @@ pub use wow_world_core::session::map_admission::{
     WaypointPathResolverLikeCpp,
 };
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(crate) struct CreateMapSideEffectApplySummaryLikeCpp {
-    pub player_recent_instance_sets: u32,
-    pub group_recent_instance_sets: u32,
-    pub skipped_group_recent_instance_sets: u32,
-    pub instance_lock_creates: u32,
-    pub skipped_instance_lock_creates: u32,
-    pub instance_lock_instance_id_updates: u32,
-    pub skipped_instance_lock_instance_id_updates: u32,
-    pub pending_battleground_entry_teleports: u32,
-}
-
 pub(in crate::session) fn create_map_decision_difficulty_id_like_cpp(
     decision: &wow_map::CreateMapDecision,
 ) -> Option<wow_map::Difficulty> {
     match decision {
         wow_map::CreateMapDecision::Existing { difficulty_id, .. }
         | wow_map::CreateMapDecision::Create { difficulty_id, .. } => Some(*difficulty_id),
-        wow_map::CreateMapDecision::Reject { .. } => None,
-    }
-}
-
-pub(in crate::session) fn create_map_decision_key_like_cpp(
-    decision: &wow_map::CreateMapDecision,
-) -> Option<wow_map::MapKey> {
-    match decision {
-        wow_map::CreateMapDecision::Existing { key, .. }
-        | wow_map::CreateMapDecision::Create { key, .. } => Some(*key),
         wow_map::CreateMapDecision::Reject { .. } => None,
     }
 }

@@ -215,7 +215,8 @@ impl WorldSession {
     }
     pub(crate) fn load_represented_explored_zones_like_cpp(&mut self, input: &str) -> usize {
         let blocks = parse_explored_zones_db_string_like_cpp(input);
-        let Some(previous) = self.player_explored_zones_snapshot_like_cpp() else {
+        let Some(previous) = wow_world_instances::player_explored_zones_snapshot_like_cpp(self)
+        else {
             return 0;
         };
         let changed = previous != blocks;

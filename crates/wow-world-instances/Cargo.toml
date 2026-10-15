@@ -12,6 +12,7 @@ test-fixtures = ["wow-world-core/test-fixtures"]
 [dependencies]
 rand = { workspace = true }
 tracing = { workspace = true }
+wow-ai = { workspace = true }
 wow-constants = { workspace = true }
 wow-core = { workspace = true }
 wow-data = { workspace = true }
@@ -27,6 +28,7 @@ wow-world-entities = { workspace = true }
 wow-world-lifecycle = { workspace = true }
 wow-world-loot = { workspace = true }
 wow-world-social = { workspace = true }
+wow-world-spell = { workspace = true }
 
 [dev-dependencies]
 wow-world-core = { workspace = true, features = ["test-fixtures"] }

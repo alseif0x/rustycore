@@ -36,6 +36,7 @@ pub use teleport_ack::{
     schedule_represented_resurrection_after_teleport_like_cpp,
 };
 
+pub const TELE_TO_NONE_LIKE_CPP: TeleportToOptionsLikeCpp = 0x00;
 pub const TELE_TO_NOT_LEAVE_COMBAT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x04;
 pub const TELE_TO_SPELL_LIKE_CPP: TeleportToOptionsLikeCpp = 0x10;
 pub const TELE_REVIVE_AT_TELEPORT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x40;

@@ -306,7 +306,8 @@ impl crate::session::WorldSession {
             return;
         };
 
-        let player_in_area_trigger = self.player_is_in_area_trigger_radius_like_cpp(&at_entry);
+        let player_in_area_trigger =
+            wow_world_instances::player_is_in_area_trigger_radius_like_cpp(self, &at_entry);
         // Legacy1 validates radius only for an enter notification and is the
         // selected parity behavior. Legacy2 instead requires `entered` to
         // equal the current inside/outside result, so it rejects a leave that
@@ -349,7 +350,8 @@ impl crate::session::WorldSession {
             }
         }
 
-        if self.handle_represented_tavern_area_trigger_with_catalog_like_cpp(
+        if wow_world_instances::handle_represented_tavern_area_trigger_with_catalog_like_cpp(
+            self,
             catalogs.taverns.as_ref(),
             trigger_id,
             entered,
