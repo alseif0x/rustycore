@@ -9630,3 +9630,292 @@ The slice 13 domain was about 4.6k production lines in six families on
   scenario call sites, retire the remaining public World forwards with
   their world-server and integration-test callers, and consolidate the
   duplicate host names the UFCS sites mark.
+
+## Slice Q plan (make `wow-world-quest` quest-only)
+
+Measured on `9ddc39f38` (slice 13c merged) before anything moved. This is
+the prerequisite for slice 6: the quest bodies must land in a crate that
+holds only quest code (Slice A summary, recommendations 1 and 2; #1378
+review follow-up 2).
+
+**`wow-world-quest/src`: 14,394 physical lines in 53 files** (classifier
+production 13,745). Four parts of it are not quest:
+
+| Part | Lines | Users outside quest | Quest-only blocker |
+|---|---:|---|---|
+| `player_conditions{,/inputs}` | 690 | application (trainer purchase, trainer views), loot-ops (gameobject release), `wow-world` (condition values, trainer acquisition) | the fixture-gated `quest_state: &SessionQuestState` field and constructor arguments |
+| `inventory_valuation{,/direct_storage}` | 1,280 | application (inventory move planning), `wow-world` (item loading) | none (inherent impls on the projection, which moves with it) |
+| `trainer_admission` | 30 | application (trainer offer and controller), `wow-world` (trainer handler) | none |
+| `registry_sync` | 211 | application (equipment-set use, inventory scaling, inventory swap equip, aura item scaling, trainer runtime install), loot-ops, `wow-world` (5 files), quest completion | the fixture-gated `&SessionQuestState` **and** `&SessionSpellState` in its hydration context (spell → inventory exists since 13c, so inventory can no longer depend on spell) |
+
+The quest side extends `PlayerConditionProjectionCxLikeCpp` with one
+inherent method (`represented_quest_available_conditions_meet_like_cpp`,
+`quest/visibility.rs`, two quest callers). An inherent impl must live in
+the defining crate, so it has to become a free function first.
+
+**Decisions:**
+
+- **New crate `wow-world-player-conditions`** for the projection, the
+  valuation and the admission proof (1,999 lines). No existing crate fits:
+  the projection reads inventory, social and (fixture-only) instances and
+  spell state, so it sits above them, and quest, loot-ops, application and
+  `wow-world` read it, so it sits below quest. Its direct dependencies are
+  core, inventory, social, instances and spell (plus `wow-conditions`,
+  `wow-constants`, `wow-core`, `wow-data`, `wow-entities`; no external
+  crate).
+- **`registry_sync` → `wow-world-inventory`**, as settled on `1423cfbfa`
+  (*`registry_sync` destination*). Inventory gains `wow-world-loot`
+  (`LootState`; loot depends on core only). Unlike that note, the fixture
+  hydration must also stop naming `SessionSpellState`, because
+  spell → inventory now exists.
+- **Fixture seams in `wow-world-core`.** Two one-method, fixture-gated
+  traits beside `PlayerRegistryHydrationAccessLikeCpp`:
+  `PlayerQuestGameplayFixtureSourceLikeCpp` (implemented by
+  `SessionQuestState`) and `KnownSpellsFixtureSourceLikeCpp` (implemented by
+  `SessionSpellState`), both with `Sync` as supertrait. The fixture fields
+  become `&dyn …` references; the read stays lazy, at the same step.
+  Production builds have no field, argument or trait.
+- **`inventory_scaling` and `equipment_set_use` stay in application for
+  now (Q2).** They no longer need quest after `registry_sync` moves (they
+  name `wow_world_inventory` for it), so they are not a quest-only blocker.
+  Moving them is a separate review unit: `equipment_set_use` is a handler
+  registrar (checker contract, composer guard and tests,
+  `handler-module-policy.json`, the exact facade), and inventory already
+  has a `crate::equipment_set_use` module, so the move needs a module
+  name decision that is not move-only.
+- **Closure check before moving** (`--add`
+  `wow-world-player-conditions` → core, inventory, social, instances,
+  spell; quest, loot-ops, application, `wow-world` → player-conditions;
+  inventory → loot), lock and metadata modes: PASS, and all existing rules
+  hold. A new rule places the crate: only quest, loot-ops, application and
+  `wow-world` may reach it (inventory, spell, entities and loot already
+  cannot, because it reaches social and instances).
+- **Order of changes** (separate commits): prep 1 (free function), prep 2
+  (quest fixture seam in the projection), closure rule, move to the new
+  crate, an import-line offset (below), prep 3 (registry-sync fixture
+  seams), move `registry_sync`.
+
+## Slice Q result (condition projection, valuation, admission proof → new `wow-world-player-conditions`; `registry_sync` → inventory)
+
+Branch `1363-sQ-quest-only`, base `9ddc39f38`. Behaviour-neutral prep plus
+move-only (R2) steps. Player-condition evaluation, inventory valuation,
+registry sync (publication order: position, fixture hydration, loot rolls,
+party type) and trainer admission results are unchanged; no await, packet
+or persistence order is touched.
+
+### Prep (behaviour-neutral)
+
+1. **Prep 1** (`c0aab9fb9`): the inherent
+   `PlayerConditionProjectionCxLikeCpp::represented_quest_available_conditions_meet_like_cpp`
+   in `quest/visibility.rs` becomes the free function
+   `quest::visibility::represented_quest_available_conditions_meet_like_cpp(conditions, …)`.
+   The body is dedented one level and `self.` becomes `conditions.`. The
+   three `self.player` reads go through the existing
+   `player_access_like_cpp()` accessor, which returns `&self.player`. The
+   two callers (`dialog_status`, `quest_eligibility`) pass
+   `self.conditions` first. `git diff -w` is 34 lines: same reads, same
+   order, same result.
+2. **Prep 2** (`7d94655e4`, fixture-only): the fixture-gated `quest_state`
+   field and constructor arguments of `PlayerConditionProjectionCxLikeCpp`,
+   `PlayerConditionProjectionInputsLikeCpp` and
+   `player_condition_projection_cx_like_cpp` change from
+   `&crate::SessionQuestState` to
+   `&dyn PlayerQuestGameplayFixtureSourceLikeCpp`. `SessionQuestState`
+   implements the trait by calling its existing inherent
+   `player_quest_gameplay_fixture_like_cpp`. The projection still reads
+   the fixture in `project_values_before_item_level_like_cpp`, at the same
+   step, only when `consumer_test` and the Player handle is absent.
+   Callers keep passing `&SessionQuestState` (unsized coercion).
+3. **Prep 3** (`0502ab280`, fixture-only): the same for
+   `registry_sync`. `PlayerRegistryHydrationContext.spells`/`.quests`, its
+   constructor and the two fixture arguments of
+   `sync_player_registry_state_like_cpp` take
+   `&dyn KnownSpellsFixtureSourceLikeCpp` and
+   `&dyn PlayerQuestGameplayFixtureSourceLikeCpp`. `SessionSpellState`
+   implements the new spell trait with its inherent
+   `known_spells_fixture_like_cpp`. Both traits gain `Sync` as supertrait,
+   because the borrowed sources are held across existing awaits and the
+   concrete references were `Send`. `hydrate()` reads both fixtures at the
+   same step under the same conditions.
+
+Nothing outside `cfg(any(test, feature = "test-fixtures"))` changes in
+preps 2 and 3, so the production build is byte-for-byte the same code
+path. The fixture-gated paths still read the same fixture values at the
+same step, and the full test suites (the `final` run below) exercise them.
+
+### What moved
+
+- **To the new `wow-world-player-conditions`** (`89beacb0d`, 5 R100
+  renames, 2,001 lines, no visibility change): `player_conditions.rs` +
+  `player_conditions/inputs.rs`, `inventory_valuation.rs` +
+  `inventory_valuation/direct_storage.rs`, `trainer_admission.rs`. Its
+  `lib.rs` (28) holds the same module declarations and re-export items the
+  quest root had for them. The valuation's inherent impls on the
+  projection move with the type.
+- **To `wow-world-inventory`** (`bb62db1b2`, R100, 213 lines):
+  `registry_sync.rs`. Inventory re-exports the same three names the quest
+  root did.
+- **The quest root** re-exports no condition, valuation, admission or
+  registry name; no compatibility re-export is kept. Callers name the new
+  owners directly:
+  - quest: 5 files for the projection, `quest/completion.rs` for the sync
+    (rustfmt reflow);
+  - application: trainer purchase (`offer`, `controller`,
+    `runtime_install`), `aura_removal` (trainer views, item scaling),
+    inventory move planning, inventory swap equip, inventory scaling,
+    equipment-set use;
+  - loot-ops: gameobject release, release registry;
+  - `wow-world`: trainer handler, condition values, item loading, trainer
+    acquisition (one import line), canonical player sync, registry
+    binding and three `player_items` files.
+- **Import-line offset** (`5c57eb32b`): the longer crate path no longer
+  fits `trainer_acquisition.rs`'s `let` line, so the file imports
+  `PlayerConditionProjectionInputsLikeCpp` (+1 line in the Session hotspot,
+  whose ceiling is at its live value). Rather than raise the ceiling,
+  `session/driver/mod.rs` drops `use wow_packet::WorldPacket;`, which rustc
+  reports unused in all three builds. No code change; one pre-existing
+  warning fewer.
+
+**What `wow-world-quest` holds now:** `quest/` (43 files),
+`quest_handlers`, `quest_query_handlers{,/complete_quest}` and `lib.rs`.
+Quest only.
+
+### Edges and closure
+
+- **Added:** player-conditions → core, inventory, social, instances, spell
+  (+ the five foundation/domain crates above); quest, loot-ops,
+  application, `wow-world` → player-conditions; inventory → loot.
+  **Removed:** none (quest still uses all 20 of its dependencies).
+- **Head closures:** player-conditions → core, entities, instances,
+  interaction, inventory, lifecycle, loot, social, spell, visibility. Only
+  quest, loot-ops, application and `wow-world` reach it. Only application,
+  loot-ops and `wow-world` reach quest; only application and `wow-world`
+  reach character and loot-ops. Inventory, spell, entities and loot reach
+  neither social nor instances. `wow_world_closure.py check`: PASS in lock
+  and metadata modes (18 packages).
+- **New closure rule** (`ce429b832`) with a self-test case (11 cases). The
+  case covers the cycle and the quest reach if the crate depended on quest,
+  and a direct and a transitive violation from below. It fails when the
+  rule is disabled.
+- `cargo tree -p world-server -e normal,build -e features` shows no
+  `test-fixtures` and no `wow-world-test-support`.
+
+### Accounting
+
+| Crate `src` (physical) | Base | Head | Δ |
+|---|---:|---:|---:|
+| `wow-world-quest` | 14,394 (53 files) | 12,179 (47) | −2,215 |
+| `wow-world-player-conditions` | — | 2,029 (6) | +2,029 |
+| `wow-world-inventory` | 22,776 | 22,996 | +220 |
+| `wow-world-application` | 13,635 | 13,637 | +2 |
+| `wow-world-core` | 47,399 | 47,425 | +26 |
+| `wow-world-spell` | 20,103 | 20,112 | +9 |
+| `wow-world` | 49,349 | 49,349 | 0 |
+
+- **Quest −2,215:**
+  - files out: 2,211 (the condition files 1,970 at base plus the 30-line
+    proof, and `registry_sync` 211);
+  - `lib.rs` 96 → 74 (−22);
+  - +18 from prep 1 (rustfmt of the free function, +9 net over three
+    files) and the fixture trait impl (+8), plus 1 reflow in completion.
+  - Classifier production 13,745 → 11,597.
+- **New crate:** 2,001 moved lines (`player_conditions.rs` is 586, +1
+  from prep 2's rustfmt) plus `lib.rs` 28.
+- **Inventory +220:** `registry_sync` 213 (211 + 2 from prep 3's rustfmt)
+  and the re-exports 7.
+- **Core +26:** the two fixture traits and their re-exports. **Spell +9:**
+  the trait impl.
+- **Application +2:** the rustfmt reflow in `runtime_install.rs`.
+  Classifier production 12,821 → 12,823.
+- **`wow-world` production (classifier): 40,743 → 40,743.** That is +1
+  import and −1 unused import; this slice moves nothing out of
+  `wow-world`.
+- `net_move.py check --base origin/3.4.3`: NOT-APPLICABLE (exit 0; S = 0,
+  G = 71, 0 duplicate bodies). G is the two fixture traits, their impls,
+  the new `lib.rs` and the rustfmt deltas.
+
+### Policy and ceilings
+
+- **`dependency-policy.json`:**
+  - `wow-world-player-conditions` joins the `application` category,
+    restricted to its 10 actual dependencies, with no external
+    dependency;
+  - quest, loot-ops and application += player-conditions;
+  - inventory += `wow-world-loot`.
+- **Fixtures.** New `forbidden-player-conditions-to-wow-world.json`,
+  `…-to-world-application.json` and `…-to-quest.json`.
+- **`net-move-policy.json`** adds the destination root (17;
+  `test_net_move.py` pins it).
+- **`test-fixtures`.** The new crate has a `test-fixtures` feature that
+  forwards to core, instances, inventory, social and spell, plus a self
+  dev-dependency, as quest has. Quest, loot-ops, application and
+  `wow-world` forward to it, and inventory now also forwards to loot.
+- **`session-ownership-policy.json`** is reprinted with `print-baseline`.
+  The delta is one WorldSession signature path
+  (`player_condition_projection_cx_like_cpp`'s return type) and the four
+  `registry_sync` direct-registry rows (package and source
+  `wow-world-quest` → `wow-world-inventory`, and sort order). With those
+  names masked the rows are identical. The condition files have no rows,
+  so the new crate needs no session-ownership package role.
+- **Ceilings.** None raised and none changed: the Session hotspot stays at
+  23,247 / 164,892 through the offset above. No physical row names a
+  moved file.
+
+### Warnings and tests
+
+- **Warnings.** Every `wow-world*` crate is force-recompiled at base and at
+  head (each `lib.rs` touched) and compared by file, lint and message,
+  with the moved paths mapped. The production lib, the lib with
+  `test-fixtures` and the lib test build are identical, except that the
+  dropped `driver/mod.rs` import warning is gone (266 → 265, 310 → 309,
+  371 → 370). `wow-world` `dead_code` is 0 in all three builds.
+  - The `test-fixtures` lib build of `wow-world` alone (without
+    `cfg(test)`) already fails at base, with 87 `E0061` errors in
+    test-only call shapes. Its error set is unchanged at head; this slice
+    does not cause it.
+- **Tests.** The Rust test-name multiset is identical: 10,214 `#[test]`
+  functions and 5 ignored, with the same names. No moved module had
+  tests. The closure self-test gains one Python case (11).
+
+### Q2 plan (follow-up)
+
+- Move `inventory_scaling` (220) and `equipment_set_use` (462 + 41 test
+  lines) from application to `wow-world-inventory`. Both now need only
+  core, inventory, loot and the inventory-owned registry sync.
+- Before the move, choose a module name for the registrar, because
+  inventory already has `crate::equipment_set_use` (the slot/plan helpers).
+- Then follow `EQUIPMENT_SET_USE_REGISTRAR` with the checker:
+  `direct_builder.rs`, the composer guard and tests, and
+  `handler-module-policy.json`. Then the application facade. About −723
+  application lines.
+
+### Slice 6 plan (quest bodies → `wow-world-quest`)
+
+- Re-measure the `wow-world` quest family on the Q merge: the
+  `handlers/quest/**` hotspot (production 5,494) and `session/quest/**`,
+  with the quest-status login load and the login spell reset's quest-reward
+  grant.
+- Move them into the now quest-only crate behind the existing quest
+  host traits. Lower crates keep reaching quest logic only through host
+  traits or application/`wow-world`.
+- Condition and valuation reads go to `wow-world-player-conditions`, which
+  quest already depends on.
+
+### Follow-ups
+
+- Q2 (above).
+- The trainer split (Slice A summary, recommendation 3) can now reach the
+  condition crate instead of quest. Trainer purchase still names
+  `SessionQuestState` for quest events, and `PlayerAuraApplicationCxLikeCpp`
+  from `aura_removal`.
+- The `wow-world` lib with `test-fixtures` but without `cfg(test)` does
+  not compile at base (87 errors). Either fix it or stop listing it as one
+  of the three warning builds.
+
+### Validation
+
+`final --architecture --timings` (`VALIDATION_V2_CARGO_JOBS=1`,
+`VALIDATION_V2_TIMEOUT_SECONDS=1800`) runs on the committed head that
+includes this section. Its manifest path, dirty flag and duration are in
+the PR body. This section is not edited after that run, so the PR head is
+the validated SHA.
