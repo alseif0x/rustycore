@@ -531,9 +531,7 @@ use wow_constants::{
     ItemFlags3, ItemModifier, ItemQuality, ItemSpelltriggerType, ItemSubClassArmor,
     ItemSubClassWeapon,
 };
-use wow_core::{
-    EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid,
-};
+use wow_core::{EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, Position, guid::HighGuid};
 #[cfg(test)]
 use wow_data::CinematicSequencesStore;
 #[cfg(test)]

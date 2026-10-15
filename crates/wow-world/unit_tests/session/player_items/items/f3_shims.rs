@@ -4,7 +4,7 @@
 //! #1241 F3 test shims: WorldSession entry points kept only for unit_tests callers.
 
 #[allow(unused_imports)]
-use super::*;
+use {super::*, wow_core::ObjectGuidGenerator};
 
 impl crate::session::WorldSession {
     #[cfg(test)]
