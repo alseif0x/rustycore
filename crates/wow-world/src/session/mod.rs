@@ -99,7 +99,6 @@ pub(crate) use persistence::player_homebind_update_request_like_cpp;
 mod taxi;
 pub(crate) use time_synchronization::game_time_ms_like_cpp;
 mod test_support;
-mod trainer_acquisition;
 mod trait_configs;
 mod visibility;
 mod world_entities;

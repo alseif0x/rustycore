@@ -215,7 +215,7 @@ impl WorldSession {
     }
     pub(crate) fn mark_represented_talents_loaded_like_cpp(&mut self) {
         let _ = crate::session::hub_mut(self).mark_talents_loaded_like_cpp();
-        self.refresh_represented_talent_points_like_cpp();
+        wow_world_quest::refresh_represented_talent_points_like_cpp(self);
     }
     pub(crate) fn represented_talents_loaded_like_cpp(&self) -> bool {
         let (state, hub) = crate::session::split_lifecycle_ref(self);
@@ -328,7 +328,7 @@ impl WorldSession {
         if initialize_reputation {
             crate::session::hub_mut(self).initialize_reputation_mgr_like_cpp();
         }
-        self.refresh_represented_talent_points_like_cpp();
+        wow_world_quest::refresh_represented_talent_points_like_cpp(self);
     }
 }
 

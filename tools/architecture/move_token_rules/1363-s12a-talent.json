@@ -1,0 +1,31 @@
+{
+ "slice": "#1363 slice 12a (talent-point refresh -> wow-world-quest)",
+ "base": "8e618d0e2",
+ "moved": [],
+ "rules": [
+  [
+   "pub\\(crate\\) fn refresh_represented_talent_points_like_cpp\\(&mut self\\) \\{",
+   "pub fn refresh_represented_talent_points_like_cpp<H: QuestSessionHostLikeCpp>(host: &mut H) {\n    let world_test = host.world_test_consumer_like_cpp();\n    let (quest_state, hub) = host.split_quest_state_mut();\n    #[cfg(not(any(test, feature = \"test-fixtures\")))]\n    let _ = quest_state;\n    let HubMut { core, catalogs: session_catalogs, #[cfg(any(test, feature = \"test-fixtures\"))] fixtures, .. } = hub;"
+  ],
+  [
+   "&self\\s*\\.\\s*catalogs\\b(?![\\w.])",
+   "session_catalogs"
+  ],
+  [
+   "&self\\s*\\.\\s*quest_state\\b(?![\\w.])",
+   "&*quest_state"
+  ],
+  [
+   "\\bself\\s*\\.\\s*",
+   ""
+  ],
+  [
+   "cfg!\\(test\\)",
+   "world_test"
+  ],
+  [
+   "wow_world_quest::",
+   "crate::"
+  ]
+ ]
+}

@@ -78,6 +78,8 @@ pub use talent_handlers::{TalentHandlerHostLikeCpp, register_talent_handlers_lik
 pub use trainer_handlers::{TrainerHandlerHostLikeCpp, register_trainer_handlers_like_cpp};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use trainer_purchase::TrainerAcquisitionFixturesLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use trainer_purchase::trainer_offer_decision_like_cpp;
 pub use trainer_purchase::{
     AppTrainerBuyAdmissionCxLikeCpp, AppTrainerBuyCx, AppTrainerCx, AppTrainerListCx,
     PreparedBattlePetTrainerOfferLikeCpp, PreparedTrainerOfferLikeCpp,
@@ -89,10 +91,11 @@ pub use trainer_purchase::{
     TrainerHiddenReasonLikeCpp, TrainerKnownReasonLikeCpp, TrainerListCatalogsLikeCpp,
     TrainerListOfferResultLikeCpp, TrainerOfferDecisionLikeCpp, TrainerOfferInputLikeCpp,
     TrainerOfferPreflightLikeCpp, TrainerOfferProjectionLikeCpp, TrainerProductLikeCpp,
-    TrainerProjectionCatalogsLikeCpp, TrainerUnavailableReasonLikeCpp,
-    decide_trainer_offer_like_cpp, execute_trainer_acquisition_like_cpp,
-    finish_trainer_offer_after_projection_like_cpp,
-    handle_trainer_buy_spell_with_generator_like_cpp,
+    TrainerProjectionCatalogsLikeCpp, TrainerSessionFieldsLikeCpp, TrainerSessionHostLikeCpp,
+    TrainerUnavailableReasonLikeCpp, decide_trainer_offer_like_cpp,
+    execute_trainer_acquisition_like_cpp, finish_trainer_offer_after_projection_like_cpp,
+    handle_trainer_buy_spell_with_generator_like_cpp, handle_trainer_list,
+    handle_trainer_list_for_gossip_option_like_cpp,
     install_player_spell_acquisition_runtime_snapshot_like_cpp,
     install_represented_spell_acquisition_runtime_like_cpp, prepare_trainer_offer_like_cpp,
     publish_spell_acquisition_action_like_cpp, resolve_creature_trainer_like_cpp,

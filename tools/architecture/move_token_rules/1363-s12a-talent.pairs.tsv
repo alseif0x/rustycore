@@ -1,0 +1,2 @@
+# base_path name head_path (#1363 slice 12a talent, base 8e618d0e2)
+crates/wow-world/src/session/progression/talents.rs	refresh_represented_talent_points_like_cpp	crates/wow-world-quest/src/quest_session/rewards.rs

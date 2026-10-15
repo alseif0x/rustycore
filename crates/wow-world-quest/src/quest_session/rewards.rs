@@ -340,3 +340,52 @@ pub fn send_represented_quest_giver_offer_reward_like_cpp<H: QuestSessionHostLik
         auto_launched,
     });
 }
+
+// C++ `Player::InitTalentForLevel` refresh of the represented talent points,
+// moved from the World `session/progression/talents.rs` (#1363 slice 12a).
+pub fn refresh_represented_talent_points_like_cpp<H: QuestSessionHostLikeCpp>(host: &mut H) {
+    let world_test = host.world_test_consumer_like_cpp();
+    let (quest_state, hub) = host.split_quest_state_mut();
+    #[cfg(not(any(test, feature = "test-fixtures")))]
+    let _ = quest_state;
+    let HubMut {
+        core,
+        catalogs: session_catalogs,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        fixtures,
+        ..
+    } = hub;
+    let catalogs = session_catalogs;
+    #[cfg(any(test, feature = "test-fixtures"))]
+    let quest_state = &*quest_state;
+    let world_test_consumer = world_test;
+    #[cfg(any(test, feature = "test-fixtures"))]
+    let mut player = core.quest_reward_player_access_like_cpp(
+        &fixtures.identity.player_race,
+        &fixtures.identity.player_class,
+    );
+    #[cfg(any(test, feature = "test-fixtures"))]
+    crate::QuestRewardCx::refresh_represented_talent_points_like_cpp(
+        &mut player,
+        catalogs,
+        quest_state,
+        world_test_consumer,
+        &mut fixtures.identity.player_level,
+        &fixtures
+            .progression
+            .represented_gray_level_script_overrides_like_cpp,
+        &fixtures.progression.represented_talents_like_cpp,
+        &fixtures
+            .progression
+            .represented_active_talent_group_like_cpp,
+        &mut fixtures.progression.player_character_points_like_cpp,
+    );
+    #[cfg(not(any(test, feature = "test-fixtures")))]
+    let mut player = core.quest_reward_player_access_like_cpp();
+    #[cfg(not(any(test, feature = "test-fixtures")))]
+    crate::QuestRewardCx::refresh_represented_talent_points_like_cpp(
+        &mut player,
+        catalogs,
+        world_test_consumer,
+    );
+}

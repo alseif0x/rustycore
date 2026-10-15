@@ -1104,12 +1104,6 @@
           "source_class": "test_fixture"
         },
         {
-          "module": "crate::handlers::trainer",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "module": "crate::handlers::trainer::host",
           "trait_path": "TrainerBuySpellHostLikeCpp",
           "cfg": [],
@@ -1120,6 +1114,20 @@
           "trait_path": "TrainerHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
+        },
+        {
+          "module": "crate::handlers::trainer::host",
+          "trait_path": "TrainerSessionHostLikeCpp",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::handlers::trainer_talent_test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "module": "crate::handlers::travel::travel",
@@ -18808,76 +18816,6 @@
           ]
         },
         {
-          "module": "crate::handlers::trainer",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_trainer_buy_spell",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_trainer_buy_spell (& mut self , pkt : wow_packet :: WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::trainer",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_trainer_list",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_trainer_list (& mut self , hello : wow_packet :: packets :: gossip :: Hello)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::trainer",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_trainer_list_for_gossip_option_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_trainer_list_for_gossip_option_like_cpp (& mut self , hello : wow_packet :: packets :: gossip :: Hello , gossip_menu_id : u32 , gossip_option_id : u32 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::trainer",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_trainer_list_like_cpp",
-          "visibility": "private",
-          "signature": "fn send_trainer_list_like_cpp (& mut self , hello : wow_packet :: packets :: gossip :: Hello , gossip_option : Option < (u32 , u32) > ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::trainer",
-          "trait_path": null,
-          "kind": "method",
-          "name": "trainer_offer_decision_like_cpp",
-          "visibility": "private",
-          "signature": "fn trainer_offer_decision_like_cpp (& mut self , trainer_id : u32 , trainer_spell : & wow_data :: TrainerSpellLikeCpp , faction_template_id : u32 ,) -> TrainerOfferDecisionLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
           "module": "crate::handlers::trainer::host",
           "trait_path": "TrainerBuySpellHostLikeCpp",
           "kind": "method",
@@ -18965,37 +18903,9 @@
           "module": "crate::handlers::trainer::host",
           "trait_path": "TrainerBuySpellHostLikeCpp",
           "kind": "method",
-          "name": "trainer_buy_admission_context_like_cpp",
-          "visibility": "private",
-          "signature": "fn trainer_buy_admission_context_like_cpp (& mut self) -> AppTrainerBuyAdmissionCxLikeCpp < '_ >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::trainer::host",
-          "trait_path": "TrainerBuySpellHostLikeCpp",
-          "kind": "method",
           "name": "trainer_buy_battle_pet_capacity_capped_like_cpp",
           "visibility": "private",
           "signature": "fn trainer_buy_battle_pet_capacity_capped_like_cpp (& self , species_id : u32) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::trainer::host",
-          "trait_path": "TrainerBuySpellHostLikeCpp",
-          "kind": "method",
-          "name": "trainer_buy_context_like_cpp",
-          "visibility": "private",
-          "signature": "fn trainer_buy_context_like_cpp < 'a > (& 'a mut self , item_guid_generator : & 'a ObjectGuidGenerator , battle_pet_selection : & 'a BattlePetSelectionStoreLikeCpp ,) -> AppTrainerBuyCx < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -19033,20 +18943,6 @@
         },
         {
           "module": "crate::handlers::trainer::host",
-          "trait_path": "TrainerBuySpellHostLikeCpp",
-          "kind": "method",
-          "name": "trainer_offer_decision_like_cpp",
-          "visibility": "private",
-          "signature": "fn trainer_offer_decision_like_cpp (& mut self , trainer_id : u32 , trainer_spell : & TrainerSpellLikeCpp , faction_template_id : u32 ,) -> TrainerOfferDecisionLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::trainer::host",
           "trait_path": "TrainerHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
           "name": "handle_trainer_buy_spell_like_cpp",
@@ -19071,6 +18967,84 @@
           "guards": [
             "external_impl",
             "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::trainer::host",
+          "trait_path": "TrainerSessionHostLikeCpp",
+          "kind": "method",
+          "name": "split_trainer_mut",
+          "visibility": "private",
+          "signature": "fn split_trainer_mut (& mut self) -> TrainerSessionFieldsLikeCpp < '_ >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::trainer_talent_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_trainer_buy_spell",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_trainer_buy_spell (& mut self , pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::trainer_talent_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_trainer_list",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_trainer_list (& mut self , hello : wow_packet :: packets :: gossip :: Hello)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::trainer_talent_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "refresh_represented_talent_points_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn refresh_represented_talent_points_like_cpp (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::trainer_talent_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "trainer_offer_decision_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn trainer_offer_decision_like_cpp (& mut self , trainer_id : u32 , trainer_spell : & wow_data :: TrainerSpellLikeCpp , faction_template_id : u32 ,) -> TrainerOfferDecisionLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -28926,19 +28900,6 @@
           "name": "refresh_inventory_item_enchantment_duration_refs_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn refresh_inventory_item_enchantment_duration_refs_like_cpp (& mut self , item_guid : ObjectGuid ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "refresh_represented_talent_points_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn refresh_represented_talent_points_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -40325,45 +40286,6 @@
           "cfg": [],
           "source_class": "production",
           "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "trainer_buy_admission_context_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn trainer_buy_admission_context_like_cpp (& mut self ,) -> wow_world_application :: AppTrainerBuyAdmissionCxLikeCpp < '_ >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "trainer_buy_context_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn trainer_buy_context_like_cpp < 'a > (& 'a mut self , item_guid_generator : & 'a ObjectGuidGenerator , battle_pet_selection : & 'a BattlePetSelectionStoreLikeCpp ,) -> AppTrainerBuyCx < 'a >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "trainer_list_publication_context_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn trainer_list_publication_context_like_cpp (& mut self) -> AppTrainerListCx < '_ >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
         },
         {
           "module": "crate::session",

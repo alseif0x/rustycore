@@ -3522,6 +3522,7 @@ dependencies = [
  "wow-world-loot-ops",
  "wow-world-player-conditions",
  "wow-world-quest",
+ "wow-world-social",
  "wow-world-spell",
  "wow-world-visibility",
 ]

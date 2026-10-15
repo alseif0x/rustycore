@@ -11,13 +11,13 @@
 //! money fence, the trainer offer contexts and the represented battle-pet
 //! journal. Every method delegates to the existing World operation at the exact
 //! point the World body invoked it, so no World body is duplicated and no step
-//! value is needed.
+//! value is needed. The trainer contexts are built in the application crate
+//! from the disjoint fields `split_trainer_mut` lends (#1363 slice 12a).
 
 use std::collections::BTreeMap;
 use std::future::Future;
 
 use wow_core::{ObjectGuid, ObjectGuidGenerator};
-use wow_data::TrainerSpellLikeCpp;
 use wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp;
 use wow_handler::HandlerFuture;
 use wow_spell_acquisition::{
@@ -26,13 +26,35 @@ use wow_spell_acquisition::{
     SpellAcquisitionSnapshotAdapterErrorLikeCpp,
 };
 use wow_world_application::{
-    AppTrainerBuyAdmissionCxLikeCpp, AppTrainerBuyCx, PreparedBattlePetTrainerOfferLikeCpp,
-    TrainerBuySpellHostLikeCpp, TrainerHandlerHostLikeCpp, TrainerOfferDecisionLikeCpp,
+    PreparedBattlePetTrainerOfferLikeCpp, TrainerBuySpellHostLikeCpp, TrainerHandlerHostLikeCpp,
+    TrainerSessionFieldsLikeCpp, TrainerSessionHostLikeCpp,
 };
 use wow_world_core::session::{HubMut, HubRef};
 use wow_world_lifecycle::ExclusivePlayerMoneyPersistenceLikeCpp;
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
+
+impl TrainerSessionHostLikeCpp for WorldSession {
+    fn split_trainer_mut(&mut self) -> TrainerSessionFieldsLikeCpp<'_> {
+        TrainerSessionFieldsLikeCpp {
+            hub: HubMut {
+                core: &mut self.core,
+                catalogs: &self.catalogs,
+                config: &self.config,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                fixtures: &mut self.fixtures,
+            },
+            lifecycle: &mut self.lifecycle,
+            inventory: &mut self.inventory,
+            spell_state: &mut self.spell_state,
+            quest_state: &mut self.quest_state,
+            loot: &self.loot,
+            interaction: &mut self.interaction,
+            social: &self.social,
+            instances: &self.instances,
+        }
+    }
+}
 
 impl TrainerBuySpellHostLikeCpp for WorldSession {
     fn trainer_buy_spell_hub_ref_like_cpp(&self) -> HubRef<'_> {
@@ -41,10 +63,6 @@ impl TrainerBuySpellHostLikeCpp for WorldSession {
 
     fn trainer_buy_spell_hub_mut_like_cpp(&mut self) -> HubMut<'_> {
         crate::session::hub_mut(self)
-    }
-
-    fn trainer_buy_admission_context_like_cpp(&mut self) -> AppTrainerBuyAdmissionCxLikeCpp<'_> {
-        WorldSession::trainer_buy_admission_context_like_cpp(self)
     }
 
     fn spell_acquisition_snapshot_like_cpp(
@@ -79,28 +97,6 @@ impl TrainerBuySpellHostLikeCpp for WorldSession {
         &mut self,
     ) -> impl Future<Output = Option<ExclusivePlayerMoneyPersistenceLikeCpp>> + Send {
         WorldSession::begin_exclusive_player_money_persistence_like_cpp(self)
-    }
-
-    fn trainer_buy_context_like_cpp<'a>(
-        &'a mut self,
-        item_guid_generator: &'a ObjectGuidGenerator,
-        battle_pet_selection: &'a BattlePetSelectionStoreLikeCpp,
-    ) -> AppTrainerBuyCx<'a> {
-        WorldSession::trainer_buy_context_like_cpp(self, item_guid_generator, battle_pet_selection)
-    }
-
-    fn trainer_offer_decision_like_cpp(
-        &mut self,
-        trainer_id: u32,
-        trainer_spell: &TrainerSpellLikeCpp,
-        faction_template_id: u32,
-    ) -> TrainerOfferDecisionLikeCpp {
-        WorldSession::trainer_offer_decision_like_cpp(
-            self,
-            trainer_id,
-            trainer_spell,
-            faction_template_id,
-        )
     }
 
     fn execute_battle_pet_trainer_purchase_with_generator_like_cpp<'a>(
@@ -155,7 +151,7 @@ impl TrainerHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         &'a mut self,
         hello: wow_packet::packets::gossip::Hello,
     ) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { WorldSession::handle_trainer_list(self, hello).await })
+        Box::pin(async move { wow_world_application::handle_trainer_list(self, hello).await })
     }
 
     fn handle_trainer_buy_spell_like_cpp<'a>(

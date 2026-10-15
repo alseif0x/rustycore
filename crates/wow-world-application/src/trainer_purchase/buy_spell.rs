@@ -20,7 +20,6 @@ use std::future::Future;
 
 use tracing::info;
 use wow_core::{ObjectGuid, ObjectGuidGenerator};
-use wow_data::TrainerSpellLikeCpp;
 use wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp;
 use wow_packet::WorldPacket;
 use wow_packet::packets::trainer::TrainerBuyFailed;
@@ -32,10 +31,14 @@ use wow_spell_acquisition::{
 use wow_world_core::session::{HubMut, HubRef};
 use wow_world_lifecycle::ExclusivePlayerMoneyPersistenceLikeCpp;
 
+use super::session_context::{
+    trainer_buy_admission_context_like_cpp, trainer_buy_context_like_cpp,
+};
 use super::{
-    AppTrainerBuyAdmissionCxLikeCpp, AppTrainerBuyCx, PreparedBattlePetTrainerOfferLikeCpp,
-    TRAINER_BUY_NPC_FLAGS_LIKE_CPP, TrainerAcquisitionPublicationLikeCpp,
-    TrainerAcquisitionResultLikeCpp, TrainerBuyAdmissionLikeCpp, TrainerOfferDecisionLikeCpp,
+    PreparedBattlePetTrainerOfferLikeCpp, TRAINER_BUY_NPC_FLAGS_LIKE_CPP,
+    TrainerAcquisitionPublicationLikeCpp, TrainerAcquisitionResultLikeCpp,
+    TrainerBuyAdmissionLikeCpp, TrainerOfferDecisionLikeCpp, TrainerSessionHostLikeCpp,
+    trainer_offer_decision_like_cpp,
 };
 use wow_world_spell::snapshot_has_pending_durable_save_like_cpp;
 
@@ -44,16 +47,11 @@ use wow_world_spell::snapshot_has_pending_durable_save_like_cpp;
 /// disjoint session owners and catalogs, the money/durable-save fences and the
 /// represented battle-pet journal. Each method is invoked at the exact point the
 /// World body invoked its counterpart, so no step value or resumption is needed.
-pub trait TrainerBuySpellHostLikeCpp {
+pub trait TrainerBuySpellHostLikeCpp: TrainerSessionHostLikeCpp {
     /// The session's hub, which the moved body uses for represented reads, realm
     /// failure publication and the canonical kick.
     fn trainer_buy_spell_hub_ref_like_cpp(&self) -> HubRef<'_>;
     fn trainer_buy_spell_hub_mut_like_cpp(&mut self) -> HubMut<'_>;
-
-    /// C++ `HandleTrainerBuySpellOpcode` admission (`NPCHandler.cpp:132-202`):
-    /// the trainer-window proof and the packet parse read the player aura shell
-    /// and the session catalogs, which the moved body does not reach.
-    fn trainer_buy_admission_context_like_cpp(&mut self) -> AppTrainerBuyAdmissionCxLikeCpp<'_>;
 
     /// The absolute acquisition snapshot of C++ `Player::SaveToDB` reads the
     /// session's represented spell, skill, trait and override authority.
@@ -76,23 +74,6 @@ pub trait TrainerBuySpellHostLikeCpp {
     fn begin_exclusive_player_money_persistence_like_cpp(
         &mut self,
     ) -> impl Future<Output = Option<ExclusivePlayerMoneyPersistenceLikeCpp>> + Send;
-
-    /// The admitted acquisition runtime is built from the session's disjoint
-    /// owners, selected catalogs and cfg(test) fixtures.
-    fn trainer_buy_context_like_cpp<'a>(
-        &'a mut self,
-        item_guid_generator: &'a ObjectGuidGenerator,
-        battle_pet_selection: &'a BattlePetSelectionStoreLikeCpp,
-    ) -> AppTrainerBuyCx<'a>;
-
-    /// The trainer offer decision is projected from the complete spell, skill,
-    /// condition and represented player authority of the session.
-    fn trainer_offer_decision_like_cpp(
-        &mut self,
-        trainer_id: u32,
-        trainer_spell: &TrainerSpellLikeCpp,
-        faction_template_id: u32,
-    ) -> TrainerOfferDecisionLikeCpp;
 
     /// Issue #161's recoverable saga owns the battle-pet branch end to end; the
     /// moved body discards its execution report exactly as this shell did.
@@ -134,10 +115,7 @@ pub async fn handle_trainer_buy_spell_with_generator_like_cpp<H>(
 ) where
     H: TrainerBuySpellHostLikeCpp + Send,
 {
-    let Some(req) = host
-        .trainer_buy_admission_context_like_cpp()
-        .admit_packet_like_cpp(pkt)
-    else {
+    let Some(req) = trainer_buy_admission_context_like_cpp(host).admit_packet_like_cpp(pkt) else {
         return;
     };
 
@@ -186,7 +164,7 @@ pub async fn handle_trainer_buy_spell_with_generator_like_cpp<H>(
     };
     let fresh_resolution = {
         let context =
-            host.trainer_buy_context_like_cpp(item_guid_generator, battle_pet_selection_store);
+            trainer_buy_context_like_cpp(host, item_guid_generator, battle_pet_selection_store);
         context.resolve_buy_spell_after_boundary_like_cpp(trainer_guid, trainer_id, spell_id as u32)
     };
     let fresh_trainer_spell = match fresh_resolution {
@@ -207,7 +185,8 @@ pub async fn handle_trainer_buy_spell_with_generator_like_cpp<H>(
         }
         Ok(trainer_spell) => trainer_spell,
     };
-    let decision = host.trainer_offer_decision_like_cpp(
+    let decision = trainer_offer_decision_like_cpp(
+        host,
         trainer_id as u32,
         &fresh_trainer_spell,
         fresh_access.faction_template_id,
@@ -299,7 +278,7 @@ pub async fn handle_trainer_buy_spell_with_generator_like_cpp<H>(
     };
     let completion = {
         let mut runtime =
-            host.trainer_buy_context_like_cpp(item_guid_generator, battle_pet_selection_store);
+            trainer_buy_context_like_cpp(host, item_guid_generator, battle_pet_selection_store);
         runtime
             .execute_admitted_acquisition_like_cpp(
                 money_persistence,

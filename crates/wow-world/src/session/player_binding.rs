@@ -241,7 +241,7 @@ impl WorldSession {
                 .class = class;
             self.fixtures.identity.player_class = class;
         }
-        self.refresh_represented_talent_points_like_cpp();
+        wow_world_quest::refresh_represented_talent_points_like_cpp(self);
     }
 
     pub(crate) fn set_player_gold_like_cpp(&mut self, gold: u64) -> bool {
