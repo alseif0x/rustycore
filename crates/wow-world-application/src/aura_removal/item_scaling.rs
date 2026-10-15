@@ -39,7 +39,7 @@ impl AuraRemovalCxLikeCpp<'_> {
             #[cfg(any(test, feature = "test-fixtures"))]
             self.scaling_fixture.transport,
             #[cfg(any(test, feature = "test-fixtures"))]
-            wow_world_quest::PlayerRegistryHydrationContext::new(
+            wow_world_inventory::PlayerRegistryHydrationContext::new(
                 self.player.registry_hydration_access_like_cpp(),
                 &*self.spell,
                 self.scaling_fixture.quests,

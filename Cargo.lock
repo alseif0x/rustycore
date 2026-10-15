@@ -3486,6 +3486,7 @@ dependencies = [
  "wow-world-lifecycle",
  "wow-world-loot",
  "wow-world-loot-ops",
+ "wow-world-player-conditions",
  "wow-world-quest",
  "wow-world-social",
  "wow-world-spell",
@@ -3518,6 +3519,7 @@ dependencies = [
  "wow-world-lifecycle",
  "wow-world-loot",
  "wow-world-loot-ops",
+ "wow-world-player-conditions",
  "wow-world-quest",
  "wow-world-spell",
  "wow-world-visibility",
@@ -3696,6 +3698,7 @@ dependencies = [
  "wow-world-interaction",
  "wow-world-inventory",
  "wow-world-lifecycle",
+ "wow-world-loot",
 ]
 
 [[package]]
@@ -3768,7 +3771,25 @@ dependencies = [
  "wow-world-lifecycle",
  "wow-world-loot",
  "wow-world-loot-ops",
+ "wow-world-player-conditions",
  "wow-world-quest",
+ "wow-world-social",
+ "wow-world-spell",
+]
+
+[[package]]
+name = "wow-world-player-conditions"
+version = "0.1.0"
+dependencies = [
+ "wow-conditions",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-world-core",
+ "wow-world-instances",
+ "wow-world-inventory",
+ "wow-world-player-conditions",
  "wow-world-social",
  "wow-world-spell",
 ]
@@ -3795,6 +3816,7 @@ dependencies = [
  "wow-world-inventory",
  "wow-world-lifecycle",
  "wow-world-loot",
+ "wow-world-player-conditions",
  "wow-world-quest",
  "wow-world-social",
  "wow-world-spell",

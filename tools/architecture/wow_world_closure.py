@@ -24,7 +24,11 @@ Rules (exit 1 on any violation):
   * wow-world-quest sits above the domain crates: only wow-world-application,
     wow-world and wow-world-loot-ops may reach it;
   * wow-world-loot-ops (loot operations above quest) sits high: only
-    wow-world-application and wow-world may reach it.
+    wow-world-application and wow-world may reach it;
+  * wow-world-player-conditions (condition projection, inventory valuation,
+    trainer admission proof) sits below quest and above the domain crates it
+    reads: only wow-world-quest, wow-world-loot-ops, wow-world-application and
+    wow-world may reach it (#1363 slice Q).
 """
 from __future__ import annotations
 
@@ -43,6 +47,8 @@ CHARACTER = "wow-world-character"
 QUEST = "wow-world-quest"
 LOOT_OPS = "wow-world-loot-ops"
 QUEST_USERS = TOP | {LOOT_OPS}
+PLAYER_CONDITIONS = "wow-world-player-conditions"
+PLAYER_CONDITIONS_USERS = QUEST_USERS | {QUEST}
 
 Edges = dict[str, set[str]]
 
@@ -101,6 +107,9 @@ def violations(edges: Edges) -> list[str]:
             found.append(f"{name} reaches ['{QUEST}']")
         if name not in TOP and name != LOOT_OPS and LOOT_OPS in reach:
             found.append(f"{name} reaches ['{LOOT_OPS}']")
+        if (name not in PLAYER_CONDITIONS_USERS and name != PLAYER_CONDITIONS
+                and PLAYER_CONDITIONS in reach):
+            found.append(f"{name} reaches ['{PLAYER_CONDITIONS}']")
     return found
 
 

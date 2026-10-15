@@ -15,11 +15,11 @@ impl AuraRemovalCxLikeCpp<'_> {
     pub(crate) fn trainer_offer_views_like_cpp<'b>(
         &'b self,
         npc: &'b AuraNpcAccessBuilderLikeCpp<'_>,
-        conditions: &'b wow_world_quest::PlayerConditionProjectionInputsLikeCpp<'_>,
+        conditions: &'b wow_world_player_conditions::PlayerConditionProjectionInputsLikeCpp<'_>,
     ) -> (
         &'b wow_world_spell::SessionSpellState,
         NpcInteractionAccessLikeCpp<'b>,
-        wow_world_quest::PlayerConditionProjectionCxLikeCpp<'b>,
+        wow_world_player_conditions::PlayerConditionProjectionCxLikeCpp<'b>,
     ) {
         (
             &*self.spell,

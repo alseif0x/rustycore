@@ -146,6 +146,27 @@ class ClosureTests(unittest.TestCase):
                          ["wow-world-instances reaches ['wow-world-loot-ops']",
                           "wow-world-loot reaches ['wow-world-loot-ops']"])
 
+    def test_only_quest_and_above_may_reach_the_player_conditions_crate(self):
+        conditions = "wow-world-player-conditions"
+        edges = {"wow-world-core": set(), "wow-world-inventory": {"wow-world-core"},
+                 conditions: {"wow-world-inventory"},
+                 "wow-world-quest": {conditions},
+                 "wow-world-loot-ops": {"wow-world-quest", conditions},
+                 "wow-world-application": {"wow-world-quest", conditions},
+                 "wow-world": {"wow-world-application", conditions}}
+        self.assertEqual(closure.violations(edges), [])
+        closure.add_edges(edges, [f"{conditions}->wow-world-quest"])
+        self.assertEqual(closure.violations(edges),
+                         ["cycle: wow-world-player-conditions reaches itself",
+                          "wow-world-player-conditions reaches ['wow-world-quest']",
+                          "cycle: wow-world-quest reaches itself"])
+        edges = {conditions: set(), "wow-world-lifecycle": set(),
+                 "wow-world-character": {"wow-world-lifecycle"}}
+        closure.add_edges(edges, [f"wow-world-lifecycle->{conditions}"])
+        self.assertEqual(closure.violations(edges),
+                         ["wow-world-character reaches ['wow-world-player-conditions']",
+                          "wow-world-lifecycle reaches ['wow-world-player-conditions']"])
+
     def test_malformed_planned_edge_is_an_error(self):
         with self.assertRaises(ValueError):
             closure.add_edges({}, ["wow-world-inventory"])

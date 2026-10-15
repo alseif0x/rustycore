@@ -4,10 +4,10 @@
 
 //! Selected quest eligibility predicates used by quest-dialog visibility.
 
-use crate::PlayerConditionProjectionCxLikeCpp;
 use crate::quest::{QuestObjectiveProgressCx, QuestRewardCx, SessionQuestState};
 use wow_data::quest::QuestTemplate;
 use wow_world_core::session::{QuestEligibilityAccessLikeCpp, SessionCatalogs};
+use wow_world_player_conditions::PlayerConditionProjectionCxLikeCpp;
 
 /// Read-only participants for the complete quest-admission predicate.
 pub struct QuestEligibilityCx<'a> {
@@ -470,16 +470,14 @@ impl QuestEligibilityCx<'_> {
         }
 
         let quest_owner = self.player.quest_objective_access_like_cpp();
-        if !self
-            .conditions
-            .represented_quest_available_conditions_meet_like_cpp(
-                &quest_owner,
-                self.quest_state,
-                self.catalogs,
-                quest.id,
-                self.consumer_test,
-            )
-        {
+        if !super::represented_quest_available_conditions_meet_like_cpp(
+            self.conditions,
+            &quest_owner,
+            self.quest_state,
+            self.catalogs,
+            quest.id,
+            self.consumer_test,
+        ) {
             tracing::debug!(
                 account = self.player.account_id_like_cpp(),
                 quest_id = quest.id,

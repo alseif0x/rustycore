@@ -38,7 +38,6 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use tracing::{debug, info};
-use wow_packet::WorldPacket;
 use wow_world_entities::{
     send_nearby_creatures_with_catalogs_like_cpp, send_nearby_gameobjects, update_pvp_flag_like_cpp,
 };

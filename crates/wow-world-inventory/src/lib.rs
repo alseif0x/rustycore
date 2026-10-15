@@ -38,6 +38,7 @@ mod persistence;
 mod persistence_load;
 mod publication;
 mod quest_reward;
+mod registry_sync;
 mod scaling;
 mod state;
 mod stats;
@@ -209,3 +210,9 @@ pub use void_transfer_contracts::{
 pub use collection_adapter::RepresentedTransmogCriteriaEvent;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use fixtures::PlayerItemTestFixtureLikeCpp;
+// The World-session registry publication sequence (#1363 slice Q: moved from
+// wow-world-quest once its fixture hydration became quest-agnostic).
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use registry_sync::PlayerRegistryHydrationContext;
+pub use registry_sync::PlayerRegistrySyncContext;
+pub use registry_sync::sync_player_registry_state_like_cpp;

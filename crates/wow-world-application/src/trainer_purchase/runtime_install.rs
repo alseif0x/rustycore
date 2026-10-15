@@ -404,7 +404,7 @@ impl PlayerSpellAcquisitionRuntimeLikeCpp for AppTrainerCx<'_> {
                 #[cfg(any(test, feature = "test-fixtures"))]
                 self.fixtures.registry_transport,
             );
-            let sync = wow_world_quest::PlayerRegistrySyncContext::new(
+            let sync = wow_world_inventory::PlayerRegistrySyncContext::new(
                 position,
                 control,
                 self.loot,
@@ -417,18 +417,20 @@ impl PlayerSpellAcquisitionRuntimeLikeCpp for AppTrainerCx<'_> {
             );
             #[cfg(any(test, feature = "test-fixtures"))]
             let sync = if self.consumer_test {
-                sync.with_fixture_hydration(wow_world_quest::PlayerRegistryHydrationContext::new(
-                    self.owner.registry_hydration(),
-                    self.spell_state,
-                    self.quest_state,
-                    (
-                        self.fixtures.registry_mount_vehicle_kit,
-                        self.fixtures.registry_vehicle_seat_flags,
-                        self.fixtures.registry_vehicle_seat_id,
-                        self.fixtures.registry_pet_guid,
+                sync.with_fixture_hydration(
+                    wow_world_inventory::PlayerRegistryHydrationContext::new(
+                        self.owner.registry_hydration(),
+                        self.spell_state,
+                        self.quest_state,
+                        (
+                            self.fixtures.registry_mount_vehicle_kit,
+                            self.fixtures.registry_vehicle_seat_flags,
+                            self.fixtures.registry_vehicle_seat_id,
+                            self.fixtures.registry_pet_guid,
+                        ),
+                        self.consumer_test,
                     ),
-                    self.consumer_test,
-                ))
+                )
             } else {
                 sync
             };

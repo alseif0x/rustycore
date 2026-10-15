@@ -9,7 +9,7 @@ pub struct PlayerConditionProjectionInputsLikeCpp<'a> {
     social: &'a wow_world_social::SessionSocialLimits,
     chr_specializations: Option<&'a wow_data::ChrSpecializationStore>,
     #[cfg(any(test, feature = "test-fixtures"))]
-    quest_state: &'a crate::SessionQuestState,
+    quest_state: &'a dyn wow_world_core::session::PlayerQuestGameplayFixtureSourceLikeCpp,
     #[cfg(any(test, feature = "test-fixtures"))]
     instances: &'a wow_world_instances::InstanceState,
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -32,7 +32,7 @@ impl<'a> PlayerConditionProjectionInputsLikeCpp<'a> {
         player: wow_world_core::session::AuraConditionAccessBuilderLikeCpp<'a>,
         social: &'a wow_world_social::SessionSocialLimits,
         chr_specializations: Option<&'a wow_data::ChrSpecializationStore>,
-        #[cfg(any(test, feature = "test-fixtures"))] quest_state: &'a crate::SessionQuestState,
+        #[cfg(any(test, feature = "test-fixtures"))] quest_state: &'a dyn wow_world_core::session::PlayerQuestGameplayFixtureSourceLikeCpp,
         #[cfg(any(test, feature = "test-fixtures"))]
         instances: &'a wow_world_instances::InstanceState,
         #[cfg(any(test, feature = "test-fixtures"))]

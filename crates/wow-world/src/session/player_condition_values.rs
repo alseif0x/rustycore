@@ -13,8 +13,8 @@ impl WorldSession {
     /// across the boundary and project it there.
     pub(crate) fn player_condition_projection_cx_like_cpp(
         &self,
-    ) -> wow_world_quest::PlayerConditionProjectionCxLikeCpp<'_> {
-        wow_world_quest::player_condition_projection_cx_like_cpp(
+    ) -> wow_world_player_conditions::PlayerConditionProjectionCxLikeCpp<'_> {
+        wow_world_player_conditions::player_condition_projection_cx_like_cpp(
             super::hub_ref(self),
             &self.inventory,
             &self.social,
@@ -32,7 +32,7 @@ impl WorldSession {
 
 #[derive(Debug, Clone, Default)]
 pub struct RepresentedPlayerConditionContextLikeCpp {
-    projected: wow_world_quest::RepresentedPlayerConditionContextLikeCpp,
+    projected: wow_world_player_conditions::RepresentedPlayerConditionContextLikeCpp,
 }
 
 /// Represented subset of C++ `Player::m_unitData` item-level cap fields
@@ -66,7 +66,7 @@ impl WorldSession {
         &self,
         player_condition_id: u32,
     ) -> bool {
-        wow_world_quest::meets_player_condition_id_like_cpp(
+        wow_world_player_conditions::meets_player_condition_id_like_cpp(
             &self.player_condition_projection_cx_like_cpp(),
             self.catalogs.player_condition_store.as_deref(),
             player_condition_id,

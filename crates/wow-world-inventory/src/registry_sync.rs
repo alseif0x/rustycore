@@ -94,8 +94,8 @@ impl<'a> PlayerRegistrySyncContext<'a> {
 #[cfg(any(test, feature = "test-fixtures"))]
 pub struct PlayerRegistryHydrationContext<'a> {
     owner: wow_world_core::session::PlayerRegistryHydrationAccessLikeCpp<'a>,
-    spells: &'a wow_world_spell::SessionSpellState,
-    quests: &'a super::SessionQuestState,
+    spells: &'a dyn wow_world_core::session::KnownSpellsFixtureSourceLikeCpp,
+    quests: &'a dyn wow_world_core::session::PlayerQuestGameplayFixtureSourceLikeCpp,
     mount_vehicle_kit: &'a Option<wow_entities::Vehicle>,
     vehicle_seat_flags: &'a Option<i32>,
     vehicle_seat_id: &'a Option<u32>,
@@ -108,8 +108,8 @@ impl<'a> PlayerRegistryHydrationContext<'a> {
     /// Store only the selected owner and fixture references; resolution remains at execution time.
     pub fn new(
         owner: wow_world_core::session::PlayerRegistryHydrationAccessLikeCpp<'a>,
-        spells: &'a wow_world_spell::SessionSpellState,
-        quests: &'a super::SessionQuestState,
+        spells: &'a dyn wow_world_core::session::KnownSpellsFixtureSourceLikeCpp,
+        quests: &'a dyn wow_world_core::session::PlayerQuestGameplayFixtureSourceLikeCpp,
         fixture_vehicle_and_pet: (
             &'a Option<wow_entities::Vehicle>,
             &'a Option<i32>,
@@ -160,8 +160,10 @@ impl<'a> PlayerRegistryHydrationContext<'a> {
 pub fn sync_player_registry_state_like_cpp(
     hub: wow_world_core::session::HubRef<'_>,
     loot: &LootState,
-    #[cfg(any(test, feature = "test-fixtures"))] spell_state: &wow_world_spell::SessionSpellState,
-    #[cfg(any(test, feature = "test-fixtures"))] quest_state: &super::SessionQuestState,
+    #[cfg(any(test, feature = "test-fixtures"))]
+    spell_state: &dyn wow_world_core::session::KnownSpellsFixtureSourceLikeCpp,
+    #[cfg(any(test, feature = "test-fixtures"))]
+    quest_state: &dyn wow_world_core::session::PlayerQuestGameplayFixtureSourceLikeCpp,
     world_test_consumer: bool,
 ) {
     let core = hub.core;

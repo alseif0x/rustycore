@@ -440,7 +440,7 @@ impl LootReleaseCxLikeCpp<'_> {
     fn represented_condition_projection_like_cpp<'b>(
         &'b self,
         core: &'b SessionCore,
-    ) -> wow_world_quest::PlayerConditionProjectionCxLikeCpp<'b> {
+    ) -> wow_world_player_conditions::PlayerConditionProjectionCxLikeCpp<'b> {
         #[cfg(any(test, feature = "test-fixtures"))]
         let player = core.player_condition_access_with_selected_fixture_refs_like_cpp(
             wow_world_core::session::PlayerConditionFixtureRefsLikeCpp::new(
@@ -487,7 +487,7 @@ impl LootReleaseCxLikeCpp<'_> {
         #[cfg(not(any(test, feature = "test-fixtures")))]
         let player = core.player_condition_access_with_selected_fixture_refs_like_cpp();
 
-        wow_world_quest::PlayerConditionProjectionCxLikeCpp::new(
+        wow_world_player_conditions::PlayerConditionProjectionCxLikeCpp::new(
             player,
             &*self.inventory,
             self.social,

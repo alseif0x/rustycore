@@ -76,16 +76,14 @@ impl QuestEligibilityCx<'_> {
 
         for quest in start_quests {
             let owner = self.player.quest_objective_access_like_cpp();
-            if !self
-                .conditions
-                .represented_quest_available_conditions_meet_like_cpp(
-                    &owner,
-                    self.quest_state,
-                    self.catalogs,
-                    quest.id,
-                    self.consumer_test,
-                )
-            {
+            if !super::represented_quest_available_conditions_meet_like_cpp(
+                self.conditions,
+                &owner,
+                self.quest_state,
+                self.catalogs,
+                quest.id,
+                self.consumer_test,
+            ) {
                 continue;
             }
 

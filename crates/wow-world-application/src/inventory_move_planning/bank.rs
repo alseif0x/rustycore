@@ -99,7 +99,7 @@ impl InventoryMovePlanningCxLikeCpp<'_, '_> {
                 .item_limit_category_template_like_cpp(proto.item_limit_category)
         });
         let can_use_result =
-            wow_world_quest::can_use_inventory_item_represented_with_loading_like_cpp(
+            wow_world_player_conditions::can_use_inventory_item_represented_with_loading_like_cpp(
                 self.conditions,
                 &inventory_item,
                 Some(&source_item),

@@ -40,6 +40,7 @@
       "wow-world-lifecycle",
       "wow-world-loot",
       "wow-world-loot-ops",
+      "wow-world-player-conditions",
       "wow-world-quest",
       "wow-world-social",
       "wow-world-spell",
@@ -127,6 +128,7 @@
       "wow-world-lifecycle",
       "wow-world-loot",
       "wow-world-loot-ops",
+      "wow-world-player-conditions",
       "wow-world-quest",
       "wow-world-spell",
       "wow-world-visibility"
@@ -251,7 +253,8 @@
       "wow-world-core",
       "wow-world-entities",
       "wow-world-interaction",
-      "wow-world-lifecycle"
+      "wow-world-lifecycle",
+      "wow-world-loot"
     ],
     "wow-world-lifecycle": [
       "wow-constants",
@@ -298,7 +301,20 @@
       "wow-world-inventory",
       "wow-world-lifecycle",
       "wow-world-loot",
+      "wow-world-player-conditions",
       "wow-world-quest",
+      "wow-world-social",
+      "wow-world-spell"
+    ],
+    "wow-world-player-conditions": [
+      "wow-conditions",
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-world-core",
+      "wow-world-instances",
+      "wow-world-inventory",
       "wow-world-social",
       "wow-world-spell"
     ],
@@ -320,6 +336,7 @@
       "wow-world-inventory",
       "wow-world-lifecycle",
       "wow-world-loot",
+      "wow-world-player-conditions",
       "wow-world-social",
       "wow-world-spell"
     ],
@@ -750,6 +767,10 @@
           "tokio",
           "tracing"
         ],
+        "build": []
+      },
+      "wow-world-player-conditions": {
+        "normal": [],
         "build": []
       },
       "wow-world-quest": {

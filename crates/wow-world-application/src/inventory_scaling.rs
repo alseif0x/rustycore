@@ -30,7 +30,7 @@ pub struct InventoryScalingApplicationCxLikeCpp<'a> {
     #[cfg(any(test, feature = "test-fixtures"))]
     transport: &'a Option<Box<wow_world_core::session::PlayerTransportLoginStateLikeCpp>>,
     #[cfg(any(test, feature = "test-fixtures"))]
-    hydration: wow_world_quest::PlayerRegistryHydrationContext<'a>,
+    hydration: wow_world_inventory::PlayerRegistryHydrationContext<'a>,
 }
 
 impl<'a> InventoryScalingApplicationCxLikeCpp<'a> {
@@ -53,7 +53,7 @@ impl<'a> InventoryScalingApplicationCxLikeCpp<'a> {
             Box<wow_world_core::session::PlayerTransportLoginStateLikeCpp>,
         >,
         #[cfg(any(test, feature = "test-fixtures"))]
-        hydration: wow_world_quest::PlayerRegistryHydrationContext<'a>,
+        hydration: wow_world_inventory::PlayerRegistryHydrationContext<'a>,
     ) -> Self {
         Self {
             inventory,
@@ -133,7 +133,7 @@ impl<'a> InventoryScalingApplicationCxLikeCpp<'a> {
                 #[cfg(any(test, feature = "test-fixtures"))]
                 self.transport,
             ) {
-                let sync = wow_world_quest::PlayerRegistrySyncContext::new(
+                let sync = wow_world_inventory::PlayerRegistrySyncContext::new(
                     position,
                     control,
                     self.loot,

@@ -145,3 +145,12 @@ impl crate::SessionSpellState {
         self.player_spell_test_fixture_like_cpp.known_spells.clone()
     }
 }
+
+/// The spell fixture's known spells, lent to the registry hydration through
+/// the core seam (#1363 slice Q).
+#[cfg(any(test, feature = "test-fixtures"))]
+impl wow_world_core::session::KnownSpellsFixtureSourceLikeCpp for crate::SessionSpellState {
+    fn known_spells_fixture_like_cpp(&self) -> Vec<i32> {
+        crate::SessionSpellState::known_spells_fixture_like_cpp(self)
+    }
+}

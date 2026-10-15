@@ -27,6 +27,7 @@ members = [
     "crates/wow-world-loot",
     "crates/wow-world-loot-ops",
     "crates/wow-world-quest",
+    "crates/wow-world-player-conditions",
     "crates/wow-world-social",
     "crates/wow-world-spell",
     "crates/wow-world-visibility",
@@ -205,6 +206,7 @@ wow-world-social = { path = "crates/wow-world-social" }
 wow-world-loot = { path = "crates/wow-world-loot" }
 wow-world-loot-ops = { path = "crates/wow-world-loot-ops" }
 wow-world-quest = { path = "crates/wow-world-quest" }
+wow-world-player-conditions = { path = "crates/wow-world-player-conditions" }
 wow-loot = { path = "crates/wow-loot" }
 wow-instances = { path = "crates/wow-instances" }
 wow-anticheat = { path = "crates/wow-anticheat" }

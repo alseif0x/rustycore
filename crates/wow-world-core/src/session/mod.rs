@@ -65,6 +65,10 @@ pub use canonical_access::{
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use canonical_access::{CoreXPGainFixtureRefsLikeCpp, PlayerConditionFixtureRefsLikeCpp};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use canonical_access::{
+    KnownSpellsFixtureSourceLikeCpp, PlayerQuestGameplayFixtureSourceLikeCpp,
+};
 pub use canonical_access::{
     OwnedItemEnchantmentAccessLikeCpp, apply_enchantment_template_from_store_like_cpp,
 };
