@@ -12294,3 +12294,76 @@ compared with `warning_units.py`:
 runs on the committed head that includes this section and the slice 12
 plan. The manifest path, dirty flag and duration are in the PR body. This
 section is not edited after that run, so the PR head is the validated SHA.
+
+## Slice 12b plan: sub-slices, floor and done criterion (#1410 follow-ups 1 and 3)
+
+Re-measured on `91d9f12bb` (12a merged) with the slice 12b1 index: production
+inherent `WorldSession` methods outside shim files and `#![cfg(test)]` files,
+methods of `cfg(test)` impls and `#[cfg(test)]` methods excluded, comments and
+literals blanked, line counts from the first doc or attribute line through the
+closing brace; "forward" means at most one statement and no
+`let`/`if`/`match`/loop/`return`. It finds **377 non-forward methods (10,762
+lines)** and 299 forwards (1,769 lines); the 12a index (390 / ~10.8k) counted
+a few cfg-gated and shim-file methods more. `wow-world` production is 29,898.
+
+### Sub-slices
+
+Each sub-slice is one PR under the same rules as 12a (F5 inverted host trait,
+bodies token-identical after documented mechanical rules, host ≤ 15 % merged
+and unmerged, ≤ ~4.5k moved, closure simulated first, no ceiling raised).
+
+| Sub-slice | Scope (World module → destination) | Non-forward methods / lines | Notes |
+|---|---|---:|---|
+| **12b1** | `session/player_items` → `wow-world-inventory`: durability loss and repair, item mods and the item-bonus stat publication, offhand auto-unequip, item-set item records, appearance/collection gates | 31 / ~1.2k (measured in the 12b1 result) | this PR; only what inventory can own without reaching spell, application, quest or player-conditions |
+| 12b1b | `session/player_items` remainder: the application context builders and planning wrappers (equip, position publication, swap effects, committed relocation/swap/removal, storage/bank/equip planning: ~470) → `wow-world-application`; the inventory field-borrow builders (area-based scaling, average item level, equipment-set use context, ~190) → `wow-world-inventory` behind one split host method; loot/battle-pet leftovers (~100) | ~45 / ~1.0k | the aura/enchantment/obtain-spell paths below go with 12b2 |
+| 12b2 | `session/spell_effects` (1,110) plus the player-items spell paths (durability-damage effect 48, loaded enchantments 205, initial item mods and set auras 93, obtain spells 63) → `wow-world-spell` | 13 + ~8 / ~1.5k | may split 12b2a/12b2b at the 4.5k / host-share limits |
+| 12b3 | `session/spell_state` → `wow-world-spell` | 34 / 616 (+31 forwards, 196) | |
+| 12b4 | `session/persistence`, `session/player_bootstrap`, `session/player_binding` → `wow-world-character`/`-lifecycle` | 24 / 934 | the login bootstrap (406) is one method; it moves only if its callers are domain crates |
+| 12b5 | `session/social`, `session/chat` → `wow-world-social` | 21 / 406 | |
+| 12b6 | `session/quest`, `session/world_entities`, `session/visibility`, `session/deferred_visibility` → quest / entities / visibility | 26 / 644 | |
+| 12b7 | leftovers: `session/player_cast` (220), `session/stand_state_adapter` (311), `session/canonical_access` (232), money/xp/presentation/publication (491) | ~41 / ~1.25k | each measured again first; anything whose callers are not yet domain crates is recorded as staying |
+| stays | runtime shell: `session/driver`, `session_commands.rs`, `session/map_admission.rs` | 23 / 1,273 | not moved by 12b |
+| stays | construction API: `session/catalogs` and the store/config setters across `session/**` | 10 / 253 + 37 forwards | world-server construction API |
+
+### Realistic floor and done criterion for #1363
+
+- **Floor.** About **10–13k** `wow-world` production lines remain when phase 2
+  is done, and that is the target, not a failure to shrink further:
+  - the runtime shell (driver, `session_commands`, `map_admission`, the
+    registry and dispatch, the session root and state struct): ~3k;
+  - the World host impls: 84 `impl … for WorldSession` blocks in 38
+    `*host*.rs` adapter files (4,699 lines) and 26 `*_handler_contexts.rs`
+    files (1,320 lines), ~6k together;
+  - the setters and construction API used by `world-server` (~1k);
+  - the forwards that host impls and scenarios still call.
+- **12c nets only a few hundred to ~1k lines.** A forward can be deleted only
+  where every caller is repointed; most remaining forwards are the targets of
+  host impls, which the deletion only moves into the impl.
+- **12d regroups rather than removes.** It merges host traits that duplicate
+  forwards and collapses the ~6k of adapter files into one adapter per
+  destination crate, reporting merged and unmerged host shares. Its line delta
+  is small.
+- **The final cleanup reclassifies ~1.7k shim lines** (the 19 shim files
+  without `#![cfg(test)]`) from production to test; that is a classifier
+  change, not a move.
+- **Done** when: every 12b sub-slice is merged or recorded here as staying
+  with its reason; 12c, 12d and the cleanup are merged; no non-forward logic
+  body remains in `session/**` outside the runtime shell and the construction
+  API; every ceiling is tightened to its final value; and the final production
+  figure with its split into the four groups above is recorded in the phase 2
+  summary.
+
+### Standalone `--tests` over every domain crate (#1410 follow-up 3)
+
+`final` now plans `cargo check --locked --tests -p <crate>` alone for every
+existing `crates/wow-world-*` crate (17 today, in name order) whenever any
+`crates/wow-world-*/Cargo.toml` changes or is deleted, not only for the changed
+manifest: a `test-fixtures` forwarding change in one manifest can break a
+dependent whose manifest did not change. A change to `wow-world`'s own
+manifest, another crate's manifest or a domain source file does not trigger
+it, and `quick` never does. Pinned in `tools/test_validation_v2.py` (two domain
+fixture crates; a changed, a second changed and a deleted domain manifest each
+plan both standalone checks, the other three changes plan none). Mutation
+checks: disabling the branch fails the self-test (`AssertionError:
+crates/wow-world-fixture/Cargo.toml`), and so does narrowing it back to the
+changed crate. Documented in `docs/operations/validation-v2.md`.
