@@ -7895,3 +7895,57 @@ order. Slice 13 (persistence and lifecycle orchestration, about 2.6k in
 `session/{persistence,lifecycle}`) follows, with its own ordering review.
 Slice 12 (base-module logic and the thunk sweep) goes last, because the
 thunks it sweeps retire as the domains above leave.
+
+## Slice 11 plan (movement, teleport, instances, world state, phase 2)
+
+Measured on `24013c9ec` (10b merged) before anything moved: the hotspot
+classifier for production lines and the slice 8–10 lexical scan for the calls
+each family makes to `WorldSession` methods defined outside it (field reads of
+`self.core`, `self.catalogs`, `self.config` become hub accessors and are not
+counted).
+
+- **`wow-world` production (classifier): 46,591** lines, 54,369 physical,
+  467 files.
+- **The slice 11 domain left in `wow-world` is 2,908 production lines**:
+  `session/movement/**` 1,231 (`transfer.rs` 850, `far_transfer.rs` 125,
+  `state.rs` and the spline stub 144, the `PlayerMovementHostLikeCpp`
+  adapter `host.rs` 85, empty F3 mount stubs 27), `session/instances/**`
+  1,113 (`map_key.rs` 514, `map_resolution.rs` 336, `difficulty.rs` 108,
+  `binding.rs` 81, `instance.rs` 62, `mod.rs` and the fixture re-export 12)
+  and `session/world_state/**` 564. The movement handlers and ACKs already
+  left in 4b; the original row (about 3.5k) counted them.
+- **Not in slice 11:** the world-port response (`handlers/travel/travel.rs`
+  `handle_world_port_response_with_catalogs_like_cpp` and the self-create
+  in `worldport_create.rs`, about 380) is the far-transfer *completion*
+  (`HandleMoveWorldportAck`: AddPlayerToMap, the post-add publication and the
+  #169 save fence) and goes with `session/lifecycle/transfer_*` to slice 13
+  (lifecycle orchestration, with its own ordering review).
+
+| Family | Lines | Outside calls | Destination and host cost |
+|---|---:|---:|---|
+| Canonical-map object queries (`map_resolution.rs`: transports, dynamic objects, area triggers, corpses/scene objects/conversations) and the dynamic-object VALUES publication from the last `Map::SendObjectUpdates` (`map_key.rs`), with the dynamic-object create-data helper (`object_updates.rs`) | about 500 | 3 (phase shift, seer GUID, visibility state: all already on the entities visibility host) | entities (`visibility_session`); **−4** host methods (the four `VisibilitySessionHostLikeCpp` query forwards retire) |
+| Teleport and far transfer (`Player::TeleportTo`: the gates, the near teleport, the delayed teleport, the far-transfer detach and writer fence, `HandleMoveTeleportAck`'s near state machine, the delayed resurrection; `transfer.rs`, `far_transfer.rs`) | about 930 (+ about 45 `cfg(test)` reclassified) | 11 | entities (`teleport_session`) behind a new `PlayerTeleportHostLikeCpp: CombatSessionHostLikeCpp`: map disabled, cannot-enter (instances), known spells, the far-teleport spell interrupt and aura removal (spell), battleground leave, visibility detection sync, pending destination get/set, the active area trigger, logout flag, pet resummon; about 8 % |
+| World state (area/zone update with the rest flags and hostility, area triggers and taverns, exploration XP) | 557 | 16 | `wow-world-instances` (its state already owns the tavern catalog check, the explored-zone fixtures and the zone-area authority); about 12 host methods (rest flags ×8, give_xp, phase shift ×2, view flags), the aura removal through a direct `instances → spell` edge (simulated, PASS) and `teleport_to` through the entities free function |
+| Instance admission and create-map side effects (`player_cannot_enter_target_map`, the create-map player/lock contexts, side effects, owner GUID, the access requirement in `map_admission.rs`) | about 450 | 12 | `wow-world-instances`; group lookups through the social split the crate already reaches, the condition context through the host |
+| Player-owner residence (`ensure_canonical_player_owner_for_map`), movement state leftovers (`state.rs`), the split wrappers (`instance.rs`, `binding.rs`, `difficulty.rs`) and the catalog setters | about 450 | — | the split wrappers and setters are session construction API and the F3/adapter surface; they stay until `WorldSession` itself splits, or retire when their last caller moves |
+
+**Closure pre-check** (lock and metadata, on the base, `wow_world_closure.py
+check --add …`): 11a needs **no new edge** (`check` passes as is, 17
+packages). For 11b `wow-world-instances->wow-world-spell` passes in both
+modes (instances already reaches spell through social). The forbidden
+targets fail as they must: `wow-world-entities->wow-world-{instances,social,spell}`
+and `wow-world-lifecycle->wow-world-instances` (cycles or forbidden reach),
+so the instance, battleground and spell steps of the teleport body are host
+methods.
+
+**Split (each part re-measures on its own base; at most about 4.5k moved and
+15 % host), lowest host surface first:**
+
+- **11a → entities (about 1.4k, host net about +2 %):** the canonical-map
+  queries and the dynamic-object publication (host net negative), then the
+  teleport and far-transfer family; also the #1397 nits (the
+  `gameobject_overrides` F3 shim import, a stale `self` comment in
+  `creature_kill_session.rs`).
+- **11b → instances (about 1.0k):** world state and the instance admission
+  with the create-map side effects, behind one instances host trait; the
+  movement state leftovers where their callers have moved.
