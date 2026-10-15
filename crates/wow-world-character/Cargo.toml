@@ -17,6 +17,7 @@ test-fixtures = [
     "wow-world-core/test-fixtures",
     "wow-world-entities/test-fixtures",
     "wow-world-interaction/test-fixtures",
+    "wow-world-instances/test-fixtures",
     "wow-world-inventory/test-fixtures",
     "wow-world-lifecycle/test-fixtures",
     "wow-world-loot/test-fixtures",
@@ -42,6 +43,7 @@ wow-persistence = { workspace = true }
 wow-progression = { workspace = true }
 wow-world-core = { workspace = true }
 wow-world-entities = { workspace = true }
+wow-world-instances = { workspace = true }
 wow-world-interaction = { workspace = true }
 wow-world-inventory = { workspace = true }
 wow-world-lifecycle = { workspace = true }

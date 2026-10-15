@@ -5,16 +5,18 @@
 //! World state and instance admission at the session boundary (#1363 slice
 //! 11b; moved from the World `session/world_state/operations.rs`,
 //! `session/instances/{map_key,binding,instance}.rs`,
-//! `session/rest_progression.rs` and `session/map_admission.rs`).
+//! `session/rest_progression.rs` and `session/map_admission.rs`; with #1363
+//! slice 13a, the map entry from `session/lifecycle/map_entry.rs`).
 //!
 //! C++ `Player::UpdateZone`/`UpdateArea` with the RestMgr flags and the
 //! hostility update, `Player::IsInAreaTriggerRadius`, the area-trigger and
 //! tavern transitions, `Player::CheckAreaExploreAndOutdoor`,
-//! `Map::PlayerCannotEnter` and the `MapManager::CreateMap` player context and
-//! side effects. Each host method below is the same-named `WorldSession`
-//! operation (or field), called at the exact point the body called it before
-//! the move; the former `#[cfg(test)]` fixture steps run only when
-//! `SessionHubHostLikeCpp::test_fixtures_ref_like_cpp` is `Some`.
+//! `Map::PlayerCannotEnter`, the `MapManager::CreateMap` player context and
+//! side effects, and the login and far-transfer map entry. Each host method
+//! below is the same-named `WorldSession` operation (or field), called at the
+//! exact point the body called it before the move; the former `#[cfg(test)]`
+//! fixture steps run only when `SessionHubHostLikeCpp::test_fixtures_ref_like_cpp`
+//! is `Some`.
 
 use std::sync::Arc;
 
@@ -30,6 +32,7 @@ mod admission;
 mod area_triggers;
 mod create_map;
 mod exploration;
+mod map_entry;
 mod zone_area;
 
 pub use admission::{
@@ -47,6 +50,12 @@ pub use create_map::{
 pub use exploration::{
     check_area_explore_and_outdoor_represented_with_catalogs_like_cpp,
     player_explored_zones_snapshot_like_cpp,
+};
+pub use map_entry::{
+    ensure_canonical_player_owner_for_map_like_cpp,
+    ensure_canonical_world_map_for_current_player_like_cpp, prepare_canonical_map_entry_like_cpp,
+    try_attach_worldport_destination_like_cpp,
+    try_attach_worldport_destination_with_publication_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use zone_area::{
@@ -99,4 +108,5 @@ pub trait InstanceSessionHostLikeCpp: PlayerTeleportHostLikeCpp + AuraHostLikeCp
     fn current_player_is_in_raid_group_like_cpp(&self) -> bool;
     fn authoritative_group_membership_like_cpp(&self) -> Option<u64>;
     fn player_loading(&self) -> Option<ObjectGuid>;
+    fn ensure_canonical_player_owner_exists_like_cpp(&mut self, key: wow_map::MapKey) -> bool;
 }

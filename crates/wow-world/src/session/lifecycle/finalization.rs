@@ -104,7 +104,7 @@ impl WorldSession {
         use FinalizationStep::*;
         match step {
             NativeTransfer => {
-                if !self.finish_worldport_native_before_disconnect_like_cpp() {
+                if !wow_world_character::finish_worldport_native_before_disconnect_like_cpp(self) {
                     return FinalizationOutcome::Unavailable;
                 }
                 if mode == FinalizationMode::CharacterSelection

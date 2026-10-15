@@ -16,6 +16,7 @@ pub mod character_login_support;
 mod character_query_handlers;
 mod gossip_session;
 mod login_session;
+mod worldport_session;
 
 // The exact `ApplicationCharacter` owner facade the handler-contract checker
 // requires: the three canonical exports as one use item. The remaining
@@ -71,4 +72,14 @@ pub use login_session::{
     resolve_persisted_transport_login_like_cpp, send_handle_player_login_packets_like_cpp,
     send_initial_packets_before_add_to_map, skill_rewarded_quest_fallback_allowed_like_cpp,
     void_storage_login_context_like_cpp,
+};
+// The far-transfer completion (#1363 slice 13a).
+pub use worldport_session::{
+    WorldportHostLikeCpp, finish_worldport_native_before_disconnect_like_cpp,
+    handle_world_port_response_with_catalogs_like_cpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use worldport_session::{
+    begin_worldport_post_add_like_cpp, prepare_player_self_create_for_teleport_like_cpp,
+    recover_rejected_worldport_like_cpp, send_player_self_create_for_teleport_like_cpp,
 };

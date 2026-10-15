@@ -112,7 +112,7 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
     fn ensure_canonical_world_map_for_current_player_like_cpp(
         &mut self,
     ) -> Option<wow_map::CreateMapDecision> {
-        WorldSession::ensure_canonical_world_map_for_current_player_like_cpp(self)
+        wow_world_instances::ensure_canonical_world_map_for_current_player_like_cpp(self)
     }
 
     fn current_player_is_in_group_guid_like_cpp(

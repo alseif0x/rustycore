@@ -67,4 +67,7 @@ impl InstanceSessionHostLikeCpp for WorldSession {
     fn player_loading(&self) -> Option<ObjectGuid> {
         WorldSession::player_loading(self)
     }
+    fn ensure_canonical_player_owner_exists_like_cpp(&mut self, key: wow_map::MapKey) -> bool {
+        WorldSession::ensure_canonical_player_owner_exists_like_cpp(self, key)
+    }
 }

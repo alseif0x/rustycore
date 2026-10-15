@@ -291,7 +291,6 @@ pub(crate) use loot_delivery_contracts::RepresentedLootRollVote;
 pub(crate) use wow_world_loot::RepresentedLootRollCriteriaEvent;
 pub(crate) use wow_world_loot::RepresentedLootRollState;
 mod map_admission;
-use map_admission::create_map_decision_difficulty_id_like_cpp;
 pub use map_admission::{MMapRuntimeConfigLikeCpp, WaypointPathResolverLikeCpp};
 pub use map_admission::{PlayerGridLoadOutcomeLikeCpp, PlayerGridLoadResolverLikeCpp};
 mod money_persistence_contracts;
@@ -814,11 +813,7 @@ const PACKET_SPOOF_BAN_AUTHOR_LIKE_CPP: &str = "Server: AutoDOS";
 use wow_packet::WorldPacket;
 
 const TRANSFER_ABORT_ERROR_LIKE_CPP: u32 = 1;
-use wow_world_instances::{
-    TRANSFER_ABORT_DIFFICULTY_LIKE_CPP, TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP,
-    TRANSFER_ABORT_NEED_GROUP_LIKE_CPP, TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP,
-    TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP,
-};
+use wow_world_instances::TRANSFER_ABORT_DIFFICULTY_LIKE_CPP;
 // C++ `SpellCastSource::Normal` is encoded in the six-bit Cast GUID subtype.
 // The capture contract validates this field rather than treating it as a runtime counter, so keep the canonical numeric value here.
 pub(crate) const CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP: u32 = 0x08000;
