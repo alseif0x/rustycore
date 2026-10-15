@@ -533,7 +533,7 @@ async fn spell_upgrade_heirloom_effect_uses_metadata_like_cpp() {
                 misc: [44_000, 0],
                 cast_item_entry: Some(90_002),
                 cast_item_battle_pet_modifiers: None,
-                cast_flags_ex: CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP,
+                cast_flags_ex: wow_world_spell::CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP,
                 original_cast_id: ObjectGuid::EMPTY,
                 unit_target_battle_pet_companion_guid: None,
                 ..SpellCastMetadata::default()

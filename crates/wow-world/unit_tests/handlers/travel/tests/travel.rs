@@ -4,8 +4,8 @@
 //! travel capability handler tests.
 
 use super::*;
-use crate::session::RepresentedActivateTaxiLikeCpp;
 use wow_packet::packets::misc::ERR_TAXITOOFARAWAY_LIKE_CPP;
+use wow_world_core::session::RepresentedActivateTaxiLikeCpp;
 
 #[tokio::test]
 async fn world_port_response_ignores_ack_without_far_teleport_semaphore_like_cpp() {

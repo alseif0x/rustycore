@@ -650,6 +650,10 @@ def test_handler_graph_contract() -> None:
         "table-form": (without, package + '\n[dependencies.wow-handler]\npath = "../wow-handler"\n', True),
         "quoted-key": (without, package + '\n[dependencies]\n"wow-handler" = { path = "../wow-handler" }\n', True),
         "to-dev-dependency": (with_handler, package + '\n[dev-dependencies]\nwow-handler = { path = "../wow-handler" }\n', True),
+        # #1408 review follow-up 1: only one of these tables differs, so
+        # dropping it from `GRAPH_TABLES` fails this test.
+        "dev-dependencies-only": (without, without + '\n[dev-dependencies]\nwow-handler = { path = "../wow-handler" }\n', True),
+        "build-dependencies-only": (without, without + '\n[build-dependencies]\nwow-handler = { path = "../wow-handler" }\n', True),
         "default-feature": (optional, optional.replace("default = []", 'default = ["wow-handler"]'), True),
         "renamed-package": (with_handler, with_handler.replace('name = "x"', 'name = "y"'), True),
         "target-table": (without, without + '\n[target.\'cfg(unix)\'.dependencies]\nwow-handler = { path = "../wow-handler" }\n', True),

@@ -21,6 +21,7 @@ pub mod entities;
 pub mod group;
 pub mod guild;
 pub mod instances;
+mod leaf_session_hosts;
 pub mod loot;
 pub mod movement;
 mod movement_host;
@@ -47,7 +48,11 @@ mod canonical_objects_test_shims;
 #[cfg(test)]
 mod character_query_test_shims;
 #[cfg(test)]
+mod collections_session_test_shims;
+#[cfg(test)]
 mod continue_login_test_shims;
+#[cfg(test)]
+mod group_session_test_shims;
 #[cfg(test)]
 mod instance_session_test_shims;
 #[cfg(test)]
@@ -89,6 +94,8 @@ mod test_shims;
 #[cfg(test)]
 #[path = "../../unit_tests/handlers/test_support/mod.rs"]
 mod test_support;
+#[cfg(test)]
+mod travel_test_shims;
 #[cfg(test)]
 mod vendor_test_shims;
 #[cfg(test)]

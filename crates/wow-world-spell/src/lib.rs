@@ -23,6 +23,7 @@ mod state;
 mod talent_session;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod test_support;
+mod toy_session;
 
 pub use aura_rows::{CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp};
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -193,3 +194,6 @@ pub use talent_session::{
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use test_support::PlayerSpellAndTraitTestFixtureLikeCpp;
+pub use toy_session::{
+    CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP, handle_use_toy_with_generator_like_cpp,
+};

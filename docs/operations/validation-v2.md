@@ -178,7 +178,9 @@ parsed `[dependencies]`, `[dev-dependencies]`, `[build-dependencies]`, `[feature
 tables or `package.name` differ from the base (any TOML spelling: table form, dotted, quoted or
 inline keys), including a new, deleted or unparsable manifest. Comment-only and other metadata
 edits do not trigger it (#1363 slices Q2 and 4c). `quick` plans no checker command for such a
-manifest-only diff. The repository test pins that package list. Committed capture contracts belong to `audit`,
+manifest-only diff. The self-test has, for each of those five tables and the package name,
+a fixture in which only that part differs, plus fixtures for the spellings above; it covers
+those cases, not every possible manifest edit. The checker's own lib test pins the package list. Committed capture contracts belong to `audit`,
 and live database/runtime/capture operations to explicit QA procedures. Commands run sequentially and each exact command appears at
 most once. Neither level-2 nor level-3 profile calls a legacy wrapper or uses the network; Cargo is forced offline.
 

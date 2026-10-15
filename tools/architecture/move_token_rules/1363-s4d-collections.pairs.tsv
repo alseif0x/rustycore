@@ -1,0 +1,3 @@
+# base_path name head_path (#1363 slice 4d collections, base dc17fe39b)
+crates/wow-world/src/handlers/collections/mod.rs	handle_use_toy_with_generator_like_cpp	crates/wow-world-spell/src/toy_session.rs
+crates/wow-world/src/handlers/collections/mod.rs	handle_add_toy	crates/wow-world-inventory/src/toy_session.rs

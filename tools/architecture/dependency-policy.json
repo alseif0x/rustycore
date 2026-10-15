@@ -223,6 +223,7 @@
     ],
     "wow-world-instances": [
       "wow-ai",
+      "wow-conditions",
       "wow-constants",
       "wow-core",
       "wow-data",

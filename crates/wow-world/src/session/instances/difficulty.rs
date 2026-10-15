@@ -46,16 +46,6 @@ impl WorldSession {
         let mut cx = self.build_instance_difficulty_handler_cx_like_cpp();
         cx.apply_group_difficulty_like_cpp(group_guid, difficulty_id, kind);
     }
-    pub(in crate::session) fn reconcile_group_difficulty_like_cpp(
-        &mut self,
-        dungeon: u32,
-        raid: u32,
-        legacy_raid: u32,
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_instances_mut(self);
-        state.reconcile_group_difficulty_like_cpp(&mut hub, dungeon, raid, legacy_raid)
-    }
-
     pub fn set_map_difficulty_store(&mut self, store: Arc<MapDifficultyStore>) {
         self.catalogs.maps.difficulty_store = Some(store);
     }

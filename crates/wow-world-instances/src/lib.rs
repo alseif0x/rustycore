@@ -11,6 +11,7 @@ mod fixture_access;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod fixtures;
 mod group_handlers;
+mod group_session;
 mod handlers;
 mod instance;
 mod instance_session;
@@ -43,6 +44,12 @@ pub use group_handlers::resolved_group_guid_like_cpp;
 pub use group_handlers::{
     GroupHandlerCxLikeCpp, GroupHandlerHostLikeCpp, register_group_handlers_like_cpp,
 };
+pub use group_session::{
+    GroupSessionHostLikeCpp, apply_group_publication_tail_like_cpp,
+    handle_apply_group_difficulty_command_like_cpp, handle_apply_group_join_command_like_cpp,
+    handle_apply_group_removal_command_like_cpp, handle_apply_group_subgroup_command_like_cpp,
+    handle_send_party_update_command_like_cpp, reconcile_group_state_like_cpp,
+};
 pub use handlers::{
     InstanceDifficultyHandlerCxLikeCpp, InstanceLockOperationsHandlerCxLikeCpp,
     InstanceLockResponseOutcomeLikeCpp, InstanceRaidInfoHandlerCxLikeCpp,
@@ -54,22 +61,25 @@ pub use handlers::{
     register_instance_handlers_like_cpp, reset_represented_instances_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
+pub use instance_session::represented_taxi_usable_mount_displays_like_cpp;
+#[cfg(any(test, feature = "test-fixtures"))]
 pub use instance_session::{
     AREA_FLAG_ENEMIES_PVP_FLAGGED_LIKE_CPP, set_represented_tavern_resting_like_cpp,
     update_area_represented_with_rest_update_like_cpp,
 };
 pub use instance_session::{
-    AreaTriggerCatalogAccessLikeCpp, CreateMapSideEffectApplySummaryLikeCpp,
-    InstanceSessionHostLikeCpp, REST_FLAG_IN_CITY_LIKE_CPP, REST_FLAG_IN_FACTION_AREA_LIKE_CPP,
-    REST_FLAG_IN_TAVERN_LIKE_CPP, TRANSFER_ABORT_DIFFICULTY_LIKE_CPP,
-    TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP, TRANSFER_ABORT_NEED_GROUP_LIKE_CPP,
-    TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP, TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP,
-    apply_create_map_side_effects_like_cpp,
+    AreaTriggerCatalogAccessLikeCpp, AreaTriggerHostLikeCpp,
+    CreateMapSideEffectApplySummaryLikeCpp, InstanceSessionHostLikeCpp, REST_FLAG_IN_CITY_LIKE_CPP,
+    REST_FLAG_IN_FACTION_AREA_LIKE_CPP, REST_FLAG_IN_TAVERN_LIKE_CPP,
+    TRANSFER_ABORT_DIFFICULTY_LIKE_CPP, TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP,
+    TRANSFER_ABORT_NEED_GROUP_LIKE_CPP, TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP,
+    TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP, apply_create_map_side_effects_like_cpp,
     check_area_explore_and_outdoor_represented_with_catalogs_like_cpp,
     check_area_triggers_with_catalogs_like_cpp, create_map_active_instance_lock_context_like_cpp,
     create_map_instance_owner_guid_like_cpp, create_map_player_context_like_cpp,
     ensure_canonical_player_owner_for_map_like_cpp,
-    ensure_canonical_world_map_for_current_player_like_cpp,
+    ensure_canonical_world_map_for_current_player_like_cpp, handle_activate_taxi,
+    handle_area_trigger_with_catalogs_like_cpp,
     handle_represented_tavern_area_trigger_with_catalog_like_cpp,
     load_represented_explored_zones_like_cpp, load_represented_player_difficulties_like_cpp,
     player_cannot_enter_target_map_like_cpp, player_explored_zones_snapshot_like_cpp,

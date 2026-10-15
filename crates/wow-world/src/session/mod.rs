@@ -444,8 +444,6 @@ pub(crate) use state::{
 pub(crate) use state::{InventoryCx, cx_inventory};
 #[cfg(test)]
 mod support_features;
-mod taxi_contracts;
-pub(crate) use taxi_contracts::RepresentedActivateTaxiLikeCpp;
 mod time_synchronization;
 mod trade_adapter;
 mod void_storage_adapter;
@@ -760,7 +758,6 @@ const TRANSFER_ABORT_ERROR_LIKE_CPP: u32 = 1;
 use wow_world_instances::TRANSFER_ABORT_DIFFICULTY_LIKE_CPP;
 // C++ `SpellCastSource::Normal` is encoded in the six-bit Cast GUID subtype.
 // The capture contract validates this field rather than treating it as a runtime counter, so keep the canonical numeric value here.
-pub(crate) const CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP: u32 = 0x08000;
 
 pub(crate) use wow_entities::PlayerFavoriteAppearanceStateLikeCpp as FavoriteAppearanceStateLikeCpp;
 

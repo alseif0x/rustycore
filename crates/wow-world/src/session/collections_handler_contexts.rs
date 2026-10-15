@@ -9,7 +9,8 @@
 //!
 //! `#1263 F5 remaining families`: the adapter also lends `CMSG_ADD_TOY`
 //! (`ToyHandler.cpp:28`) and `CMSG_USE_TOY` (`ToyHandler.cpp:54`), whose
-//! represented bodies stay in the World shell.
+//! represented bodies moved to `wow_world_inventory` and `wow_world_spell`
+//! (#1363 slice 4d).
 
 use wow_handler::HandlerFuture;
 use wow_packet::WorldPacket;
@@ -27,7 +28,7 @@ impl CollectionsHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSessi
     }
 
     fn handle_add_toy<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { WorldSession::handle_add_toy(self, pkt).await })
+        Box::pin(async move { wow_world_inventory::handle_add_toy(self, pkt).await })
     }
 
     fn handle_use_toy_with_catalogs_like_cpp<'a>(
@@ -36,7 +37,7 @@ impl CollectionsHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSessi
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_use_toy_with_generator_like_cpp(
+            wow_world_spell::handle_use_toy_with_generator_like_cpp(
                 self,
                 catalogs.id_generators.item.as_ref(),
                 catalogs.creature_spawns.as_ref(),

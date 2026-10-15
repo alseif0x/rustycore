@@ -36,43 +36,6 @@ impl WorldSession {
 
         distance
     }
-    #[allow(dead_code)]
-    pub(crate) fn represented_taxi_usable_mount_displays_like_cpp(
-        &self,
-        flying_mount_id: u32,
-    ) -> Vec<i32> {
-        let Some(mount) = self
-            .catalogs
-            .mount_store
-            .as_ref()
-            .and_then(|store| store.get_by_id(flying_mount_id))
-        else {
-            return Vec::new();
-        };
-
-        if !wow_world_spell::known_spells_like_cpp(self).contains(&mount.source_spell_id) {
-            return Vec::new();
-        }
-
-        let Some(displays) = self
-            .catalogs
-            .mount_x_display_store
-            .as_ref()
-            .and_then(|store| store.displays_for_mount_like_cpp(mount.id))
-        else {
-            return Vec::new();
-        };
-
-        displays
-            .iter()
-            .filter(|display| {
-                display.player_condition_id == 0
-                    || self.represented_mount_x_display_usable_like_cpp(display.player_condition_id)
-            })
-            .map(|display| display.creature_display_info_id)
-            .collect()
-    }
-
     pub(crate) fn set_player_transport_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
         crate::session::hub_mut(self).set_player_transport_guid_like_cpp(guid)
     }

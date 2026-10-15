@@ -37,11 +37,6 @@ impl WorldSession {
         wow_world_application::mutate_cast_execution_like_cpp(&mut hub, state, f)
     }
 
-    pub(crate) fn set_active_spell_cast_like_cpp(&mut self, cast: Option<SpellCastState>) -> bool {
-        self.mutate_cast_execution_like_cpp(|state| state.active = cast)
-            .is_some()
-    }
-
     pub(crate) fn spell_last_cast_time_like_cpp(&self, spell_id: i32) -> Option<Option<Instant>> {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.spell_last_cast_time_like_cpp(hub, spell_id)

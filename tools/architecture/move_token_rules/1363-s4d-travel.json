@@ -1,0 +1,80 @@
+{
+ "slice": "#1363 slice 4d (travel: CMSG_AREA_TRIGGER and CMSG_ACTIVATE_TAXI -> wow-world-instances)",
+ "base": "dc17fe39b",
+ "moved": [
+  "handle_area_trigger_with_catalogs_like_cpp",
+  "area_trigger_client_conditions_meet_like_cpp",
+  "handle_activate_taxi",
+  "represented_taxi_usable_mount_displays_like_cpp"
+ ],
+ "rules": [
+  [
+   "pub\\(crate\\) async fn handle_area_trigger_with_catalogs_like_cpp\\(\\s*&mut self,\\s*catalogs: &AreaTriggerCatalogsLikeCpp,",
+   "pub async fn handle_area_trigger_with_catalogs_like_cpp<H: AreaTriggerHostLikeCpp>(host: &mut H, catalogs: &H::AreaTriggerCatalogsLikeCpp,"
+  ],
+  [
+   "fn area_trigger_client_conditions_meet_like_cpp\\(&mut self,",
+   "fn area_trigger_client_conditions_meet_like_cpp<H: AreaTriggerHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "pub\\(crate\\) async fn handle_activate_taxi\\(&mut self,",
+   "pub async fn handle_activate_taxi<H: InstanceSessionHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "pub\\(crate\\) fn represented_taxi_usable_mount_displays_like_cpp\\(\\s*&self,",
+   "pub fn represented_taxi_usable_mount_displays_like_cpp<H: InstanceSessionHostLikeCpp>(host: &H,"
+  ],
+  [
+   "\\bself\\.area_trigger_client_conditions_meet_like_cpp\\(",
+   "area_trigger_client_conditions_meet_like_cpp(host, "
+  ],
+  [
+   "\\bself\\.dispatch_area_trigger_script_like_cpp\\(\\s*catalogs\\.script_dispatcher\\.as_ref\\(\\),",
+   "host.dispatch_area_trigger_script_like_cpp(catalogs,"
+  ],
+  [
+   "\\bself\\.teleport_to\\(target_map, target_pos\\)",
+   "wow_world_entities::teleport_to_with_options(host, target_map, target_pos, TELE_TO_NONE_LIKE_CPP)"
+  ],
+  [
+   "\\bself\\.condition_store\\(\\)",
+   "host.hub_ref().catalogs.condition_store()"
+  ],
+  [
+   "\\bself\\s*\\.catalogs\\s*\\.",
+   "host.hub_ref().catalogs."
+  ],
+  [
+   "\\bself\\s*\\.core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "crate::session::hub_ref\\(self\\)",
+   "host.hub_ref()"
+  ],
+  [
+   "crate::session::hub_mut\\(self\\)",
+   "host.hub_mut()"
+  ],
+  [
+   "\\bcatalogs\\s*\\.(db2|scripts|taverns|destinations)\\b",
+   "catalogs.\\1()"
+  ],
+  [
+   "wow_world_instances::",
+   "crate::"
+  ],
+  [
+   "\\(\\s*self(,|\\))",
+   "(host\\1"
+  ],
+  [
+   "\\bself\\s*\\.represented_taxi_usable_mount_displays_like_cpp\\(",
+   "represented_taxi_usable_mount_displays_like_cpp(host, "
+  ],
+  [
+   "\\bself\\s*\\.(send_packet|represented_mount_x_display_usable_like_cpp)\\(",
+   "host.\\1("
+  ]
+ ]
+}
