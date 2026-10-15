@@ -65,9 +65,11 @@ pub use player_stats::{StatsAuraFixtureRefs, StatsCombatFixtureRefs, StatsFixtur
 pub use quest_eligibility::QuestEligibilityAccessLikeCpp;
 pub use quest_objectives::QuestObjectiveAccessLikeCpp;
 pub use quest_reward_owner::{OwnedPlayerCurrencyAccessLikeCpp, QuestRewardPlayerAccessLikeCpp};
-#[cfg(any(test, feature = "test-fixtures"))]
-pub use registry_hydration::PlayerQuestGameplayFixtureSourceLikeCpp;
 pub use registry_hydration::PlayerRegistryHydrationAccessLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use registry_hydration::{
+    KnownSpellsFixtureSourceLikeCpp, PlayerQuestGameplayFixtureSourceLikeCpp,
+};
 pub use spell_acquisition::OwnedSpellAcquisitionAccessLikeCpp;
 pub use trainer_interaction::TrainerInteractionRoleAccessLikeCpp;
 pub use trainer_npc::NpcInteractionAccessLikeCpp;

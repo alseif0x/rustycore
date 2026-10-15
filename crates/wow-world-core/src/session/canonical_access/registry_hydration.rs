@@ -10,8 +10,17 @@ use wow_core::ObjectGuid;
 /// World-test quest fixture through it at their existing step, without naming
 /// the quest crate's `SessionQuestState`, which implements it.
 #[cfg(any(test, feature = "test-fixtures"))]
-pub trait PlayerQuestGameplayFixtureSourceLikeCpp {
+pub trait PlayerQuestGameplayFixtureSourceLikeCpp: Sync {
     fn player_quest_gameplay_fixture_like_cpp(&self) -> wow_entities::PlayerQuestGameplayState;
+}
+
+/// Fixture-only source of the represented known-spell list (#1363 slice Q).
+/// The registry hydration reads the World-test spell fixture through it at its
+/// existing step, without naming the spell crate's `SessionSpellState`, which
+/// implements it.
+#[cfg(any(test, feature = "test-fixtures"))]
+pub trait KnownSpellsFixtureSourceLikeCpp: Sync {
+    fn known_spells_fixture_like_cpp(&self) -> Vec<i32>;
 }
 
 /// Narrow access for the canonical Player inputs used by directory hydration.
