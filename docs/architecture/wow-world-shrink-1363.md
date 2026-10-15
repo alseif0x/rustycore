@@ -11136,6 +11136,7 @@ The slice 6 quest family was 7,665 classifier production lines in 32
 
 - **Q2:** `inventory_scaling` and `equipment_set_use` from application to
   `wow-world-inventory` (about −723 application lines; Q2 plan above).
+  Done: see the Q2 result below.
 - **4c:** the deferred families (collections, group, travel, spell, void
   storage with its unlock commit, the trainer context, talent).
 - **Slice 12:** the base-module logic and the thunk sweep. The World adapters
@@ -11145,3 +11146,173 @@ The slice 6 quest family was 7,665 classifier production lines in 32
   converting the scenario call sites, retire the remaining public World
   forwards with their world-server and integration-test callers, and
   consolidate the duplicate host names and constants.
+
+## Slice Q2 result (`inventory_scaling` and the equipment-set use registrar → `wow-world-inventory`)
+
+Branch `1363-sQ2-inventory`, base `bc5bc0be7` (slice 6c merged). Move-only
+(R2), after a tooling commit for the #1406 review follow-up 1. Inventory
+scaling (the PvP item-level switch, the integer health restoration, the
+registry sync and the stat publication) and equipment-set use (item swap
+order, slot and combat checks, registry sync, stat or raw bonus update,
+`SMSG_USE_EQUIPMENT_SET_RESULT`) are unchanged; no await, packet or
+persistence order is touched (neither unit awaits).
+
+### Checker owner list and `final` wiring (#1406 follow-up 1)
+
+- `handler-contract-check/src/tests/scenarios_1.rs`: the repository test's
+  pinned production-package list gains `wow-world-player-conditions` (slice
+  Q added the package; the comment now names it). The checker lib suite
+  passes again: 453 passed, 0 failed (`cargo test --locked --jobs 1
+  --manifest-path tools/architecture/handler-contract-check/Cargo.toml`).
+- `tools/validation-v2`: `final` also plans the checker's format check and
+  lib suite when the checked package set can change without a checker file:
+  a root `Cargo.toml` or `Cargo.lock` change, or a `crates/*/Cargo.toml` that
+  gains or loses a `wow-handler` dependency against the base (a new crate
+  that declares it and a deleted one that did count; comments and other
+  dependency edits do not). `handler_graph_changed` reads the base manifest
+  with `git show`; quick is unchanged.
+  `tools/test_validation_v2.py` pins it: root manifest and lock in final and
+  not in quick, unrelated paths never, and nine fixture manifests in a
+  scratch repository (keeps, gains, loses, comment-only, dotted
+  `wow-handler.workspace`, deleted with and without, new with and without).
+  The suite fails when the trigger is disabled.
+  `docs/operations/validation-v2.md` documents it.
+
+### What moved
+
+- `wow-world-application/src/inventory_scaling.rs` (220, R94) →
+  `wow-world-inventory/src/inventory_scaling.rs`. The name is free in
+  inventory (its `scaling` module is the item-level math).
+- `wow-world-application/src/equipment_set_use.rs` (462, R98) and its
+  `equipment_set_use/registration_tests.rs` (41, R100) →
+  `wow-world-inventory/src/equipment_set_use_handlers.rs` and
+  `equipment_set_use_handlers/registration_tests.rs`. **Module name:**
+  inventory already has a private `equipment_set_use` module (the
+  `InventoryState` slot, plan and move helpers the context calls), so the
+  registrar module is `equipment_set_use_handlers`, following
+  `bank_handlers`, `collections_handlers` and `void_storage_handlers`. The
+  public item names are unchanged, so no caller sees the module name.
+- **The only edits in the moved files:** `wow_world_inventory::` →
+  `crate::` (5 import lines and 5 body paths), the test `#[path]` string,
+  and rustfmt moving the `use crate::…` lines to the top of the import
+  block. `git diff -M bc5bc0be7` shows nothing else. Doc comments that call
+  the registrar "Application-owned" are kept verbatim (move-only).
+- **Token comparison** (`move_token_compare.py --base bc5bc0be7 --pairs
+  tools/architecture/move_token_rules/1363-sQ2.pairs.tsv --rules
+  …/1363-sQ2.json`; one rule, `wow_world_inventory::` → `crate::`): **15 of
+  15 functions identical.** Without the rule 13 of 15 are identical and
+  the two others differ only by the crate path. The three same-named `new`
+  constructors of the equipment-set file cannot be told apart by name, so
+  the whole-file diff above covers them.
+- **Root exports.** Inventory re-exports exactly the names application did:
+  `InventoryScalingApplicationCxLikeCpp`; `EquipmentSetUseContextLikeCpp`,
+  `EquipmentSetUseHandlerHostLikeCpp`, `EquipmentSetUseItemModsStoresLikeCpp`
+  and `register_equipment_set_use_handler_like_cpp` (one exact facade item);
+  `EquipmentSetUseFixtureRefsLikeCpp` under the same fixture `cfg`.
+  Application keeps no compatibility re-export.
+- **Callers** name `wow_world_inventory::…`: application
+  `aura_removal/item_scaling.rs`; `wow-world` `handler_composition.rs`,
+  `session/player_items/equipment_sets.rs` (the host impl and the context
+  builder) and `session/player_items/valuation.rs`. No visibility changed.
+- **Not done (#1405 nit 5, optional):** moving the twelve
+  `QuestItemStorageHostLikeCpp` inventory operations to an inventory-owned
+  host trait. That is a new trait plus a split World impl and a
+  session-ownership reprint, not a move, so it stays a follow-up.
+
+### Registration
+
+- `register_equipment_set_use_handler_like_cpp` is token-identical: one
+  `PacketHandlerEntry` for `UseEquipmentSet`, `SessionStatus::LoggedIn`,
+  `PacketProcessing::Inplace`, `handler_name` `handle_use_equipment_set`,
+  the same thunk and the same `S: EquipmentSetUseHandlerHostLikeCpp<C> +
+  Send, C: Sync` bounds. `handler_composition.rs` calls it at the same
+  position with the same type arguments; only the crate path changed. The
+  registration test moved with it and passes in inventory.
+- **Checker** (as A2 did for the bank registrar):
+  `EQUIPMENT_SET_USE_REGISTRAR` package `wow-world-inventory`, module and
+  facade child `equipment_set_use_handlers`; the owner label
+  `ApplicationEquipmentSetUse` is unchanged. The composer guard tests mount
+  the inventory file and target the inventory root facade and the
+  `wow_world_inventory::` call (alias and substitution cases unchanged in
+  strength). The direct-builder test reads the inventory file.
+  `handler-module-policy.json` moves the capability owner to
+  `wow-world-inventory` / `crate::equipment_set_use_handlers`.
+- **`session-ownership-policy.json`** is reprinted with `print-baseline`:
+  20 lines, the host impl's trait path and two signatures,
+  `wow_world_application` → `wow_world_inventory` (and their sort
+  position). Nothing else.
+
+### Edges and closure
+
+No `Cargo.toml` or `Cargo.lock` change. Inventory already depended on
+core, loot, `wow-handler`, `wow-packet`, `wow-data`, `wow-entities`,
+`wow-constants` and `wow-core`; application still uses loot elsewhere.
+`wow_world_closure.py check`: PASS in lock and metadata modes (18
+packages). Inventory's closure is core, entities, interaction, lifecycle,
+loot and visibility: it reaches none of social, instances, quest,
+player-conditions, application or `wow-world`. `cargo tree -p world-server
+-e normal,build -e features` shows no `test-fixtures` and no
+`wow-world-test-support`.
+
+### Accounting
+
+| Crate `src` | Base physical | Head physical | Δ | Base production | Head production |
+|---|---:|---:|---:|---:|---:|
+| `wow-world-application` | 13,637 (53 files) | 12,905 (50) | −732 | 12,823 | 12,208 |
+| `wow-world-inventory` | 22,996 (83) | 23,730 (86) | +734 | 22,721 | 23,338 |
+| `wow-world` | 43,406 | 43,406 | 0 | 34,219 | 34,219 |
+
+- Application −732: the three files (723) and `lib.rs` −9. Inventory
+  +734: the three files (723) and `lib.rs` +11 (two `mod` lines, the
+  re-exports and a two-line facade comment).
+- `net_move.py check --base origin/3.4.3`: NOT-APPLICABLE (exit 0; S = 0,
+  G = 2, 0 duplicate bodies), because `wow-world` does not shrink.
+
+### Policy and ceilings
+
+`handler-module-policy.json` and `session-ownership-policy.json` as above.
+No ceiling raised or changed; no physical or hotspot row names a moved file
+(`physical-files` and `hotspot-ratchet` pass). No dependency-policy,
+net-move-policy or fixture change.
+
+### Warnings and tests
+
+Canonical recipe (with `--locked`), base `bc5bc0be7` vs head, plus `-p
+wow-world-inventory -p wow-world-application --lib --tests` for the moved
+test modules; counted with `warning_units.py` (no error) and compared with
+the moved paths mapped:
+
+| Build | `wow-world` lib | `wow-world` lib test | inventory lib | application lib | All `wow-world*` lib units |
+|---|---:|---:|---:|---:|---:|
+| production lib | 125 → 125 | — | 10 → 11 | 6 → 5 | 252 → 252 |
+| lib + `test-fixtures` | 133 → 133 | — | 7 → 8 | 4 → 3 | 215 → 215 |
+| `--lib --tests` | 133 → 133 | 181 → 181 | 7 → 8 | 4 → 3 | 215 → 215 |
+
+- The one warning that moves is the unused `use wow_core::ObjectGuid;` in
+  the equipment-set file (the body names `wow_core::ObjectGuid` in full);
+  it is kept, as move-only. In the domain build the inventory lib test goes
+  7 → 8 and the application lib test 3 → 2 for the same reason.
+  `warning_units.py compare`: nothing only in the head or only in the base,
+  in all four builds.
+- `wow-world` `dead_code`: 0 in all three builds. `unconditional_recursion`:
+  0.
+- **Tests.** The test-name multiset is identical: 9,492
+  `#[test]`/`#[tokio::test]` functions under `crates/`, 5 ignored. The two
+  moved tests (`scaling_restoration_retains_integer_floor_and_zero_maximum_guard`
+  and the registrar test) now run in `wow-world-inventory`.
+
+### Follow-ups
+
+- #1405 nit 5 (above).
+- The moved doc comments still say "Application" for the equipment-set
+  registrar; reword them in a non-move PR. The owner label
+  `ApplicationEquipmentSetUse` likewise (the A2 label rename).
+- The unused `wow_core::ObjectGuid` import can go in a cleanup PR.
+
+### Validation
+
+`VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+runs on the committed head that includes this section, together with the
+handler-contract repository `check`. The manifest path, dirty flag and
+duration are in the PR body. This section is not edited after that run, so
+the PR head is the validated SHA.
