@@ -11387,7 +11387,9 @@ moved.
   do not. Pins: 19 manifests (moves to `[dev-dependencies]`, default-feature
   toggles, `[dependencies.wow-handler]`, quoted keys, renames, target
   tables, multi-manifest diffs). Dropping `"features"`, `"target"` or
-  `package.name` from the projection each fails the self-test. The
+  `package.name` from the projection each fails the self-test; the
+  `[dev-dependencies]` and `[build-dependencies]` tables were not isolated
+  by any of these pins until slice 4d added one fixture for each. The
   docstring and `docs/operations/validation-v2.md` describe exactly this.
 
 ### What moved
@@ -11409,8 +11411,9 @@ moved.
     `item_template_lock_id`, `lock_entry_exists_like_cpp`
     (`host.hub_ref().catalogs.…`), `send_equip_error`
     (`host.core().…`), and the loot-condition wrapper whose name equals
-    the `wow_loot` free function it calls (inlined so the moved body cannot
-    resolve to itself). `wow_world_spell::known_spells_like_cpp(self)` becomes
+    the `wow_loot` free function it calls (inlined so the moved call names
+    the single `wow_loot` definition; a self-resolving name there would have
+    been a compile error, not runtime recursion). `wow_world_spell::known_spells_like_cpp(self)` becomes
     `host.known_spells_like_cpp()`, whose World impl is that call.
   - The spell registrar's adapter calls `wow_world_loot_ops::handle_open_item`.
 - **Void storage → `wow-world-application`** (`void_storage_session/`),
