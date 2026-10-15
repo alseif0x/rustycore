@@ -8505,3 +8505,53 @@ fence, `AddPlayerToMap` and the post-add publication, and should be measured
 and split (13a the map entry and world-port response with the instance host,
 13b the persistence orchestration) before anything moves. Slice 12
 (base-module logic and the thunk sweep) stays last.
+
+## Slice 13 plan (persistence and lifecycle orchestration, phase 2)
+
+Measured on `d8e8caf5c` (11b merged) before anything moved: the hotspot
+classifier for production lines and the slice 8–11 lexical scan for the calls
+each family makes to `WorldSession` methods defined outside it (field reads of
+`self.core`, `self.catalogs` become hub accessors and are not counted).
+
+- **`wow-world` production (classifier): 44,322** lines, 52,321 physical,
+  470 files.
+- **The slice 13 domain left in `wow-world` is about 4.6k production lines**
+  in six families. The original row (about 2.6k) counted only
+  `session/{persistence,lifecycle}`; the world-port response (slice 11 plan),
+  the map entry (slice 11b follow-up), the respec wipe (slice 9e) and the
+  continue-login coordinator (slice 8d/8e) were added to it since.
+
+| Family | Lines | Outside calls | Destination and host cost |
+|---|---:|---:|---|
+| Map entry (`session/lifecycle/map_entry.rs` 370: `MapManager::CreateMap` admission for login and the far-transfer entry, the synchronous attach; with `ensure_canonical_player_owner_for_map_like_cpp` from `instances/map_resolution.rs`, 37, and `create_map_decision_difficulty_id_like_cpp` from `map_admission.rs`, 9) | about 410 | 10 | `wow-world-instances` (`instance_session`): three calls are already `InstanceSessionHostLikeCpp` methods (access requirement, raid group, loading GUID), five are instance-split wrappers that inline as their bodies, the owner residence moves with it; **one** new host method (`ensure_canonical_player_owner_exists_like_cpp`, which constructs the initial Player and stays in the World) |
+| World-port response and far-transfer completion (`HandleMoveWorldportAck`: `handlers/travel/travel.rs` 222 with the self-CREATE send, `travel/worldport_create.rs` 190 `Map::SendInitSelf`, `session/lifecycle/transfer_completion.rs` 144 and `transfer_recovery.rs` 55: the post-add phases, the native completion before disconnect, the homebind recovery) | about 610 | 15 + 9 + 4 + 3 | `wow-world-character` (`worldport_session`), beside the login's `Map::AddPlayerToMap`, its self CREATE and `SendInitialPacketsAfterAddToMap`, which it calls: the character login host already carries the quest log, the CREATE flags, the money, the lifecycle split, `set_state`, `send_stat_update` and the item-level scaling; the attach is the instances free function through a new **`wow-world-character → wow-world-instances`** edge; **one** new host method (the deferred save resume, 13b's, returned as the World future) |
+| Persistence orchestration (`session/persistence/**` 1,144: load, load authority, plans, the save, the money/void-storage/talent-reset commits; `session/lifecycle/persistence{,/deferred,/prepared}.rs` 284: `Player::SaveToDB` participants, the prepared and deferred save) | about 1,430 | 23 + 4 | the #169 save fence and its participants drain quest objectives and loot completions, which only `wow-world`/`wow-world-application` may reach; candidate `wow-world-application` with **`application → loot-ops`** (simulated, PASS) or the lifecycle save host growing; re-measure in 13b |
+| Session finalization, cleanup, logout and account lifecycle (`finalization.rs` 218, `cleanup.rs` 74, `account.rs` 227, `logout.rs` 22, `lifecycle_ops/operations.rs` 248) | about 790 | 17 + 4 + 3 + 9 | with 13b: the finalization ledger calls the native completion (13a), the save (13b), loot release and account saves |
+| Respec wipe (`CMSG_CONFIRM_RESPEC_WIPE`, `handlers/talent/state.rs` about 95, with the talent-reset commit and publication in `persistence/commit.rs`) | about 95 + the commit | 6 | with 13b: it is the talent-reset persistence orchestration (slice 9e deferral) and moves with its commit |
+| Continue-login coordinator (`handlers/character/world_entry/login.rs` 896) | 896 | 60 | last (13c), once 13b gives the save/load steps owners: 60 outside calls is still about 20 % host on its own |
+
+**Closure pre-check** (lock and metadata, on the base,
+`wow_world_closure.py check --add …`): `wow-world-character->wow-world-instances`
+passes in both modes (character is not a low crate, instances does not reach
+character); `wow-world-application->wow-world-loot-ops` and
+`wow-world-application->wow-world-character` pass (application is top). The
+forbidden targets fail as they must: `wow-world-instances->wow-world-character`
+(only the top may reach character) and `wow-world-lifecycle->wow-world-instances`
+(cycles through entities, inventory and spell), so the world-port response
+cannot live in instances (it calls the character after-add burst) and the
+completion cannot live in lifecycle.
+
+**Split (each part re-measures on its own base; at most about 4.5k moved and
+15 % host):**
+
+- **13a → instances and character (about 1.0k, host about 5 %):** the map
+  entry onto `InstanceSessionHostLikeCpp`, and the world-port response with the
+  self CREATE, the far-transfer completion and the homebind recovery to
+  `wow-world-character` (#169-sensitive: AddPlayerToMap, the post-add
+  publication, the native completion before the deferred save).
+- **13b → application (about 2.3k, re-measure):** the persistence
+  orchestration (save fence, participants, load, commits), finalization,
+  cleanup, logout, account lifecycle and the respec wipe with the talent-reset
+  commit. If the host passes 15 %, the account lifecycle and finalization
+  split into 13c.
+- **13c:** the continue-login coordinator, once its callees have owners.
