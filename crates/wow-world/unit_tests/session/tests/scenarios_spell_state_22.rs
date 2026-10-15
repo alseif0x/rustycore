@@ -240,7 +240,7 @@ fn handle_use_toy_sends_prepare_and_toy_cast_flags_like_cpp() {
             assert_eq!(go_body.read_uint32().unwrap(), 0);
             assert_eq!(
                 go_body.read_uint32().unwrap(),
-                CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP
+                wow_world_spell::CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP
             );
         });
 }

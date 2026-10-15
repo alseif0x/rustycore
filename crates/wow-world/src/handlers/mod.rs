@@ -34,6 +34,7 @@ pub mod social;
 pub mod spell;
 pub mod support;
 pub mod talent;
+mod toy_host;
 pub mod trainer;
 pub mod travel;
 mod travel_host;
@@ -48,6 +49,8 @@ mod battle_pet_test_shims;
 mod canonical_objects_test_shims;
 #[cfg(test)]
 mod character_query_test_shims;
+#[cfg(test)]
+mod collections_session_test_shims;
 #[cfg(test)]
 mod continue_login_test_shims;
 #[cfg(test)]

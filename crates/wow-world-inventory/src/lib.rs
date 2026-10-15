@@ -48,6 +48,7 @@ mod stats_application;
 mod storage;
 mod storage_bags;
 mod storage_slots;
+mod toy_session;
 mod turnins;
 mod valuation;
 mod vendor_session;
@@ -213,6 +214,7 @@ pub use item_session::{
     handle_autostore_bank_item_with_generator_like_cpp, handle_destroy_item,
     handle_swap_inv_item_with_generator_like_cpp, handle_swap_item_with_generator_like_cpp,
 };
+pub use toy_session::{AddToyHostLikeCpp, handle_add_toy};
 pub use void_transfer_contracts::{
     EffectiveVoidStorageRandomPropertiesLikeCpp, PlannedVoidDestroyedInventoryItemLikeCpp,
 };

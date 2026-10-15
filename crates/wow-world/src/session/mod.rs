@@ -760,7 +760,6 @@ const TRANSFER_ABORT_ERROR_LIKE_CPP: u32 = 1;
 use wow_world_instances::TRANSFER_ABORT_DIFFICULTY_LIKE_CPP;
 // C++ `SpellCastSource::Normal` is encoded in the six-bit Cast GUID subtype.
 // The capture contract validates this field rather than treating it as a runtime counter, so keep the canonical numeric value here.
-pub(crate) const CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP: u32 = 0x08000;
 
 pub(crate) use wow_entities::PlayerFavoriteAppearanceStateLikeCpp as FavoriteAppearanceStateLikeCpp;
 

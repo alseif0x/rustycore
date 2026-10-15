@@ -13,17 +13,6 @@ impl WorldSession {
         self.player_aura_application_cx_like_cpp()
             .apply_initial_item_equip_auras_like_cpp(item_guid)
     }
-    pub(crate) fn send_equip_error(
-        &self,
-        result: InventoryResult,
-        item1: Option<ObjectGuid>,
-        item2: Option<ObjectGuid>,
-        required_level: u32,
-        limit_category: u32,
-    ) {
-        self.core
-            .send_equip_error(result, item1, item2, required_level, limit_category)
-    }
     pub(crate) fn record_represented_avg_equipped_item_level_update_like_cpp(&mut self) {
         #[cfg(test)]
         {
