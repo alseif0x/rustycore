@@ -171,10 +171,14 @@ even a README under `crates/`, `tools/wow-test-bot/` or
 checker and QA bot use their own manifests. A final architecture-checker run executes all its
 library tests, including the now syntax-only `repository_surface_can_be_collected`; it does not
 recompute the exhaustive persistence inventory. `final` also runs those library tests (and the
-checker's format check) when the checked production-package set can change without a checker
-file: a root `Cargo.toml` or `Cargo.lock` change, or a `crates/*/Cargo.toml` that gains or loses a
-`wow-handler` dependency against the base, including a new or deleted crate (#1363 slice Q2). The
-repository test pins that package list. Committed capture contracts belong to `audit`,
+checker's format check) when the checked production-package set (the transitive reverse closure
+of `wow-handler`) can change without a checker file. The trigger is deliberately coarse, not a
+closure computation: a root `Cargo.toml` or `Cargo.lock` change, or a `crates/*/Cargo.toml` whose
+parsed `[dependencies]`, `[dev-dependencies]`, `[build-dependencies]`, `[features]` or `[target.*]`
+tables or `package.name` differ from the base (any TOML spelling: table form, dotted, quoted or
+inline keys), including a new, deleted or unparsable manifest. Comment-only and other metadata
+edits do not trigger it (#1363 slices Q2 and 4c). `quick` plans no checker command for such a
+manifest-only diff. The repository test pins that package list. Committed capture contracts belong to `audit`,
 and live database/runtime/capture operations to explicit QA procedures. Commands run sequentially and each exact command appears at
 most once. Neither level-2 nor level-3 profile calls a legacy wrapper or uses the network; Cargo is forced offline.
 
