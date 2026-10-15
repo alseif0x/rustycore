@@ -26,59 +26,6 @@ impl WorldSession {
     pub fn set_stats_limits_like_cpp(&mut self, limits: wow_data::StatsLimitsLikeCpp) {
         self.config.stats_limits_like_cpp = limits;
     }
-    /// C++ `Spell::EffectDurabilityDamage` (`SpellEffects.cpp:4316-4352`).
-    pub(in crate::session) fn apply_durability_damage_effect_like_cpp(
-        &mut self,
-        effect: u32,
-        damage: i32,
-        slot: i32,
-        target_guid: ObjectGuid,
-    ) {
-        if self.player_guid() != Some(target_guid) {
-            return;
-        }
-        let effect = i32::try_from(effect).unwrap_or(0);
-        if slot < 0 {
-            wow_world_inventory::apply_represented_durability_points_loss_all_like_cpp(
-                self,
-                damage,
-                slot < -1,
-            );
-            // C++ logs `-1`/`-1` for the all-items branch
-            // (`SpellEffects.cpp:4328`).
-            wow_world_spell::record_spell_execute_log_durability_damage_like_cpp(
-                self,
-                effect,
-                target_guid,
-                -1,
-                -1,
-            );
-            return;
-        }
-        let Ok(slot) = u8::try_from(slot) else {
-            return;
-        };
-        if slot >= INVENTORY_SLOT_BAG_END {
-            return;
-        }
-        let item_entry = self
-            .resolved_inventory_item_like_cpp(slot)
-            .map(|item| item.entry_id);
-        if wow_world_inventory::apply_represented_durability_points_loss_at_slot_like_cpp(
-            self, slot, damage,
-        ) && let Some(item_entry) = item_entry
-        {
-            // C++ logs the item entry and the slot as `ItemID`/`Amount`
-            // (`SpellEffects.cpp:4339`).
-            wow_world_spell::record_spell_execute_log_durability_damage_like_cpp(
-                self,
-                effect,
-                target_guid,
-                i32::try_from(item_entry).unwrap_or(i32::MAX),
-                i32::from(slot),
-            );
-        }
-    }
     pub(crate) fn item_template_max_durability(&self, item_id: u32) -> u32 {
         self.catalogs.item_template_max_durability(item_id)
     }

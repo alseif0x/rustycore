@@ -1,0 +1,14 @@
+{
+ "slice": "#1363 slice 12b2 (the quest-complete spell effect -> wow-world-quest over QuestSessionHostLikeCpp)",
+ "base": "aa034f7e0",
+ "moved": [
+  "apply_quest_complete_effect_like_cpp"
+ ],
+ "rules": [
+  ["pub\\(in crate::session\\) async fn apply_quest_complete_effect_like_cpp\\(\\s*&mut self,", "pub async fn apply_quest_complete_effect_like_cpp<H: QuestSessionHostLikeCpp>(host: &mut H,"],
+  ["\\bself\\s*\\.\\s*catalogs\\s*\\.", "host.hub_ref().catalogs."],
+  ["\\bself\\s*\\.\\s*core\\s*\\.", "host.core()."],
+  ["wow_world_quest::(\\w+)\\(\\s*self,", "crate::\\1(host,"],
+  ["\\bself\\s*\\.\\s*", "host."]
+ ]
+}

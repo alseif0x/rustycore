@@ -80,7 +80,6 @@ pub mod mailbox;
 mod money;
 mod movement;
 mod object_updates;
-pub(crate) use wow_world_entities::dynamic_object_create_data_from_canonical_like_cpp;
 pub(crate) use wow_world_quest::represented_gameobject_dynamic_flags_update_like_cpp;
 mod persistence;
 mod pets;
@@ -95,7 +94,6 @@ pub mod registry;
 mod social;
 mod spell_effects;
 mod spell_state;
-pub(crate) use persistence::player_homebind_update_request_like_cpp;
 mod taxi;
 pub(crate) use time_synchronization::game_time_ms_like_cpp;
 mod test_support;
@@ -513,20 +511,17 @@ use wow_constants::ItemEnchantmentType;
 use wow_constants::creature::CreatureTypeFlags;
 use wow_constants::item::{CurrencyTypes, EnchantmentSlot, ItemFieldFlags2};
 use wow_constants::shared::DifficultyFlags;
-#[cfg(test)]
-use wow_constants::unit::UnitFlags2;
 use wow_constants::unit::{
-    Gender, PowerType, Team, UnitFlags, UnitPvpFlags, UnitStandStateType, WeaponAttackType,
+    Gender, Team, UnitFlags, UnitPvpFlags, UnitStandStateType, WeaponAttackType,
 };
+#[cfg(test)]
+use wow_constants::unit::{PowerType, UnitFlags2};
 #[cfg(test)]
 use wow_constants::{
     BuyResult, ItemFlags3, ItemQuality, ItemSubClassArmor, ItemSubClassWeapon, SellResult, TypeId,
     UnitState, item::ItemBonusType, movement::MovementFlag,
 };
-use wow_constants::{
-    ClientOpcodes, InventoryResult, ItemClass, ItemContext, ItemFlags, ItemModifier,
-    ItemSpelltriggerType,
-};
+use wow_constants::{ClientOpcodes, InventoryResult, ItemContext, ItemModifier};
 use wow_core::{EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, Position, guid::HighGuid};
 #[cfg(test)]
 use wow_data::CinematicSequencesStore;
@@ -669,7 +664,7 @@ use wow_packet::packets::item::{
 };
 use wow_packet::packets::item::{ItemEnchantTimeUpdate, ItemTimeUpdate};
 use wow_packet::packets::misc::{
-    AccountHeirloom, AccountMount, AccountToy, DungeonDifficultySet, SetProficiency, SetupCurrency,
+    AccountHeirloom, AccountMount, AccountToy, DungeonDifficultySet, SetupCurrency,
     SetupCurrencyRecord, TRADE_SLOT_COUNT_LIKE_CPP,
 };
 #[cfg(test)]

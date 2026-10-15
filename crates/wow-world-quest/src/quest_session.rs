@@ -39,6 +39,7 @@ mod reward_validation;
 mod rewards;
 mod sharing;
 mod source_items;
+mod spell_effect;
 mod state;
 
 pub use accept_handlers::*;
@@ -54,6 +55,7 @@ pub use reward_validation::*;
 pub use rewards::*;
 pub use sharing::*;
 pub use source_items::*;
+pub use spell_effect::*;
 pub use state::*;
 
 use std::collections::{BTreeMap, HashMap, HashSet};

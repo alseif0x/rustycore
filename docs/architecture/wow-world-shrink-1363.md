@@ -12315,8 +12315,8 @@ and unmerged, ≤ ~4.5k moved, closure simulated first, no ceiling raised).
 | Sub-slice | Scope (World module → destination) | Non-forward methods / lines | Notes |
 |---|---|---:|---|
 | **12b1** | `session/player_items` → `wow-world-inventory`: durability loss and repair, item mods and the item-bonus stat publication, offhand auto-unequip, item-set item records, appearance/collection gates | 31 / ~1.2k (measured in the 12b1 result) | this PR; only what inventory can own without reaching spell, application, quest or player-conditions |
-| 12b1b | `session/player_items` remainder: the application context builders and planning wrappers (equip, position publication, swap effects, committed relocation/swap/removal, storage/bank/equip planning: ~470) → `wow-world-application`; the inventory field-borrow builders (area-based scaling, average item level, equipment-set use context, ~190) → `wow-world-inventory` behind one split host method; loot/battle-pet leftovers (~100) | ~45 / ~1.0k planned; **21 functions / 659 lines moved** (10 non-forward / 483 in `session/**`), see the 12b1b result | the aura/enchantment/obtain-spell paths below go with 12b2; the split wrappers go with 12c and the loot/publication leftovers with 12b7 |
-| 12b2 | `session/spell_effects` (1,110) plus the player-items spell paths (durability-damage effect 48, loaded enchantments 205, initial item mods and set auras 93, obtain spells 63) → `wow-world-spell` | 13 + ~8 / ~1.5k | may split 12b2a/12b2b at the 4.5k / host-share limits |
+| 12b1b | `session/player_items` remainder: the application context builders and planning wrappers (equip, position publication, swap effects, committed relocation/swap/removal, storage/bank/equip planning: ~470) → `wow-world-application`; the inventory field-borrow builders (area-based scaling, average item level, equipment-set use context, ~190) → `wow-world-inventory` behind one split host method; loot/battle-pet leftovers (~100) | ~45 / ~1.0k planned; **21 functions / 659 lines moved** (10 non-forward / 483; 9 / 463 of them in `session/**`, the tenth in `handlers/character/items/host.rs`), see the 12b1b result | the aura/enchantment/obtain-spell paths below go with 12b2; the split wrappers go with 12c and the loot/publication leftovers with 12b7 |
+| 12b2 | `session/spell_effects` (1,110) plus the player-items spell paths (durability-damage effect 48, loaded enchantments 205, initial item mods and set auras 93, obtain spells 63) → `wow-world-spell` | 13 + ~8 / ~1.5k; **11 functions / 625 lines moved** (to spell, and quest complete to quest), see the 12b2 result | the damage kill cascade, the nearby-entry pair, reputation, force deselect and the item-enchantment / item-mod / set-aura family (917) are 12b2b and 12b5, by layering |
 | 12b3 | `session/spell_state` → `wow-world-spell` | 34 / 616 (+31 forwards, 196) | |
 | 12b4 | `session/persistence`, `session/player_bootstrap`, `session/player_binding` → `wow-world-character`/`-lifecycle` | 24 / 934 | the login bootstrap (406) is one method; it moves only if its callers are domain crates |
 | 12b5 | `session/social`, `session/chat` → `wow-world-social` | 21 / 406 | |
@@ -12356,7 +12356,10 @@ and unmerged, ≤ ~4.5k moved, closure simulated first, no ceiling raised).
   below): `python3 tools/architecture/session_method_index.py check --done`
   passes, i.e. 0 non-forward methods in `session/**` outside the explicit
   allow-list `tools/architecture/session-method-index.json`, whose staying set
-  is bounded at 43 methods / 1,282 lines and may only shrink.
+  is bounded at 43 methods / 1,282 lines and may only shrink. (Re-baselined to
+  44 / 1,190 by the #1413 index fixes, with `session/map_admission.rs` moved
+  to the outside ratchet and a whole-crate ceiling added; see the 12b2
+  result.)
 
 ### Standalone `--tests` over every domain crate (#1410 follow-up 3)
 
@@ -12733,8 +12736,10 @@ moves what has a clean owner and an existing or single new host:
   the equipment-set use context (one new split host method), and the uncage
   item-state load (battle-pet leftover).
 
-**21 functions, 659 base lines** (10 non-forward methods / 483 lines in
-`session/**`, the rest forwards). Far under the 4.5k limit; no split needed.
+**21 functions, 659 base lines** (10 non-forward methods / 483 lines, the
+rest forwards; corrected after #1413's review: 9 / 463 of them are in
+`session/**`, the tenth, `validate_inventory_swap_target_like_cpp` (20), was in
+`handlers/character/items/host.rs`). Far under the 4.5k limit; no split needed.
 
 **Deferred** (recorded, not moved):
 - **To 12b2 (spell).** The spell paths: the durability-damage effect (53),
@@ -13031,6 +13036,501 @@ compared with `warning_units.py`:
   - consider giving the planning functions a narrower host than
     `QuestSessionHostLikeCpp`;
   - the 12b1 carry-overs (the vendor collection-hook forward, #1405 nit 5).
+- **Shims.** The `#![cfg(test)]` shims retire in the final cleanup.
+
+### Validation
+
+`VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+runs on the committed head that includes this section. The manifest path,
+dirty flag and duration are in the PR body. This section is not edited after
+that run, so the PR head is the validated SHA.
+
+## Slice 12b2 result (spell-effect and player-item spell bodies → spell, quest complete → quest)
+
+Branch `1363-s12b2-spell-effects`, base `aa034f7e0` (slice 12b1b merged).
+
+### #1413 follow-ups: the index tool, commit `cc1920b8c`
+
+The review of #1413 found five gaps in `tools/architecture/session_method_index.py`.
+All are fixed in a separate commit, before anything moved:
+
+- **F1 (qualified impls).** `IMPL_RE` matched only `impl WorldSession {`. It now
+  also matches path-qualified impls (`impl super::WorldSession`,
+  `impl super::super::WorldSession`, `impl crate::session::WorldSession`) and
+  generic ones (`impl<'a> WorldSession`, also across a line break before `{`).
+  It still skips trait impls (`impl Trait for WorldSession`,
+  `impl crate::Trait for WorldSession`) and `WorldSessionExt`.
+  - Newly indexed in production: `session/dispatch.rs` (`dispatch_packet` 92,
+    `is_status_allowed` 18), `session/admission.rs`
+    (`evaluate_packet_spoof_like_cpp` 48, `flush_packet_spoof_ban_like_cpp` 4,
+    and the forward `packet_spoof_now_secs_like_cpp`),
+    `handlers/account_data/client_state.rs`, `handlers/entities/corpse.rs`,
+    `handlers/travel/travel.rs` and `spell_acquisition/adapter.rs` (5 methods).
+  - `session/driver/phases.rs` (`impl super::super::WorldSession`) holds only
+    two `#[cfg(test)]` methods, so it adds nothing.
+  - **Classified explicitly.** The dispatch and admission methods are C++
+    `WorldSession::Update` packet dispatch and `DosProtection`, so they are the
+    runtime shell. They are allow-listed method by method; the
+    `session/driver/` entry already covers `phases.rs`.
+- **F2 (`map_admission.rs`).** `access_requirement_abort_like_cpp` (176) is
+  C++ `Map::PlayerCannotEnter` / `AccessRequirement` gameplay logic, not shell.
+  It leaves the allow-list and counts in the outside ratchet; its planned home
+  is `wow-world-instances`.
+- **F3 and F4 (production by cfg, not by file name).**
+  - Production is now decided along the module tree. The walk starts at
+    `lib.rs` and follows `mod x;`, including `#[path]` and nesting in inline
+    `mod m { mod x; }` blocks.
+  - Any module, impl, method or nested item is excluded when its `cfg(...)`
+    is off in a build without `test` and without the dev-only `test-fixtures`
+    feature. An inner `#![cfg(..)]` gates its whole file or block. The cfg
+    predicate is evaluated with Kleene logic; an unknown cfg counts as
+    possibly on, so it never hides code.
+  - The file-name rule for shims is gone. No production shim file exists:
+    every `*shim*` file is mounted under a gated `mod`.
+  - Excluded now, all correctly:
+    - `session/driver/cross_crate_fixtures.rs` (`cfg(any(test, feature =
+      "test-fixtures"))` mount; 3 non-forward / 87 lines and 2 forwards that
+      the old index counted as runtime shell);
+    - `session/lifecycle/persistence/prepared.rs::prepare_player_save_like_cpp`
+      (42; a `#[cfg(test)] mod prepared;`);
+    - `session/xp_grants.rs::quest_xp_gain_context_like_cpp` (76; a
+      `cfg(any(test, feature = "test-fixtures"))` method);
+    - `battle_pet_purchase/ops_1.rs` (2 methods; a `#[cfg(test)] mod`).
+  - A source the walk cannot reach fails `check`, as does an allow-list
+    entry that matches no non-forward method.
+- **F4 (whole-crate ceiling).** The new `crate_ceiling` bounds the
+  non-forward methods of the whole crate, so logic cannot leave `session/**`
+  for `handlers/` unseen. `check --done` is unchanged (outside = 0).
+- **F4 (forward heuristic).** A forward now also has no closure, no
+  `async`/`unsafe` block and at most one `?`. Closures are found
+  lexically: a `|` after `(`, `,`, `=`, `{`, `:` or `move`. A boolean `||`
+  stays an operator. This reclassifies 10 former forwards as non-forward:
+  - nine in `session/**`, for example `has_currency` (`is_some_and(|q| …)`),
+    `next_represented_spell_cast_guid_like_cpp` (a `.map(|(guid, _)| guid)`
+    chain) and `trinity_string_like_cpp`;
+  - `session/connection_identity.rs::set_realm_names_like_cpp`, which
+    `world-server` calls from `session_resources.rs`, so it joins the
+    construction API.
+- **Self-test.** It pins every case above:
+  - qualified, generic and trait impls;
+  - `cfg(test)`, `cfg(any(test, feature = "test-fixtures"))`,
+    `cfg(feature = "test-fixtures")`, `cfg(not(test))` and nested gated
+    modules;
+  - closure chains, `async` blocks, `?` chains, and `||` staying a forward;
+  - a temporary crate with `#[path]`, inline nesting, gated and ungated shim
+    names, an inner `#![cfg(test)]` and an unmounted file;
+  - the crate ceiling, an escape into `handlers/`, and a stale entry.
+- **Mutation checks**, each run against the self-test:
+  - reverting `IMPL_RE` fails it (`AssertionError` listing only the
+    unqualified impls);
+  - letting a gated `mod` count as production fails it (the gated and
+    fixture modules appear);
+  - dropping the closure test fails it;
+  - dropping the crate ceiling fails it;
+  - dropping the stale-entry check fails it;
+  - treating `test` as unknown instead of off fails it.
+  - Removing the impl-level gate check did not fail it, because the
+    method-level check already covers a gated impl's methods. The redundant
+    check was removed.
+- **Re-baseline** on `aa034f7e0` (same code, new measure):
+
+| Measure | Old tool | Fixed tool |
+|---|---:|---:|
+| All non-forward (crate) | 330 / 9,030 | **341 / 9,374** |
+| Forwards (crate) | 282 / 1,553 | 275 / 1,535 |
+| Staying (`staying_bound`) | 43 / 1,282 | **44 / 1,190** |
+| Outside (`outside_ceiling`) | 261 / 6,857 | **269 / 6,972** |
+| Crate (`crate_ceiling`, new) | — | **341 / 9,374** |
+
+- **The staying set** loses `map_admission.rs` (176) and the fixture file
+  (87), and gains dispatch and admission (4 / 162) and `set_realm_names_like_cpp`
+  (9).
+  - Its method bound goes from 43 to 44. That is the same set under a stricter
+    definition of forward, not new staying code. Its line bound falls from
+    1,282 to 1,190.
+- **The outside ratchet** gains `map_admission` (1 / 176) and nine closure
+  bodies (9 / 57), and loses the two cfg-gated methods above (2 / 118).
+- These are measurement changes, recorded here. Every later slice tightens
+  from these values.
+- **Doc nit.** The 12b1b result now says that 9 of its 10 non-forward methods
+  (463 of 483 lines) were in `session/**`. The tenth,
+  `validate_inventory_swap_target_like_cpp`, was in
+  `handlers/character/items/host.rs`.
+
+### Re-measure and the cut
+
+The fixed index on `cc1920b8c` measured the planned scope:
+
+- `session/spell_effects`: 13 non-forward methods, 1,110 lines.
+- The player-item spell paths:
+  - `apply_durability_damage_effect_like_cpp` (53);
+  - the obtain spells (63);
+  - the loaded enchantments with their effects and spell actions (60 + 77 +
+    68);
+  - the initial item mods and set auras (53 + 44);
+  - two 7-line helpers.
+
+Spell sits below quest, social, loot-ops, player-conditions and application
+(the closure rules). So each body went where its calls let it go, under one of
+the hosts that `WorldSession` already implements:
+
+- **To `wow-world-spell`** (spell may reach inventory, entities and lifecycle):
+  - the stuck, self-resurrect and proficiency effects;
+  - the durability-damage effect and the item obtain spells;
+  - the homebind write, its persistence request builder and the ordered
+    persistence hand-off;
+  - the farsight seer consumer with its viewpoint create.
+- **To `wow-world-quest`:** the quest-complete effect. Its body calls four
+  quest functions and nothing above quest. `QuestSessionHostLikeCpp` already
+  lends everything else it calls, so it needs no new host.
+
+**Moved: 10 inherent methods and 1 free function, 625 base lines** (611 of them
+non-forward methods in `session/**`).
+
+**Deferred to 12b2b** (recorded, not moved; 917 lines):
+
+- **`apply_damage_from_caster_like_cpp` (304).** Its kill cascade reaches
+  loot-ops (`ensure_represented_creature_kill_loot_like_cpp`), quest (the
+  creature-kill credit), XP (`give_xp`), the tap group and the creature
+  movement stop. That would take at least six new host methods. Destination:
+  `wow-world-loot-ops`, or application.
+- **`represented_nearby_entry_destination_like_cpp` and its implicit-condition
+  check (132 + 55).** They read through the World-local
+  `RepresentedPlayerConditionContextLikeCpp::as_context(&WorldSession)`
+  wrapper, so they need `wow-world-player-conditions` and the wrapper
+  retired first.
+- **`apply_reputation_effect_like_cpp` (86).** It calls
+  `wow_world_social::calculate_reputation_gain_like_cpp` and builds
+  `wow_progression::mgr::SetReputationOptionsLikeCpp`. `wow-world-social`
+  does not depend on `wow-progression`, and adding that edge would make this
+  a manifest change. Destination: `wow-world-social` with that edge, in 12b5.
+- **`apply_force_deselect_effect_like_cpp` (38).** Its fixture step records
+  into the social state (`RepresentedForceDeselectLikeCpp` is a social type).
+  Destination: social, in 12b5.
+- **The loaded-enchantment, initial item-mod and item-set-aura family (about
+  362 lines, 7 methods).** It applies auras through the application
+  `PlayerAuraApplicationCxLikeCpp` (`apply_aura_with_effect_mask_like_cpp`,
+  `apply_initial_item_equip_auras_like_cpp`), so spell cannot own it.
+  Destination: `wow-world-application`, with an aura-application context host
+  method and the World item-enchantment context builder.
+
+### What moved
+
+| Destination file | Functions (base file) | Base lines |
+|---|---|---:|
+| `wow-world-spell/src/execution_session/player_effects.rs` | `apply_stuck_effect_like_cpp` (93, `spell_effects/effect_apply.rs`), `apply_self_resurrect_effect_like_cpp` (84, `effects_player.rs`), `apply_proficiency_effect_like_cpp` (78, `effects_progress.rs`) | 255 |
+| `…/execution_session/item_effects.rs` | `apply_durability_damage_effect_like_cpp` (53, `player_items/durability.rs`), `apply_inventory_item_obtain_spells_with_generator_like_cpp` (63, `player_items/storage.rs`) | 116 |
+| `…/execution_session/farsight.rs` | `send_set_viewpoint_target_visibility_like_cpp` (63), `consume_add_farsight_set_seer_outcome_like_cpp` (52) (`spell_effects/effects.rs`) | 115 |
+| `…/effect_session/homebind.rs` | `set_represented_homebind_like_cpp` (18, `effects.rs`), `persist_player_homebind_like_cpp` (30, `effects_player.rs`), the free `player_homebind_update_request_like_cpp` (14, `persistence/plans.rs`) | 62 |
+| `wow-world-quest/src/quest_session/spell_effect.rs` | `apply_quest_complete_effect_like_cpp` (77, `effects_progress.rs`) | 77 |
+| **Total** | 11 functions | **625** |
+
+After rustfmt the bodies take 646 lines, mostly from wrapped signatures and the
+fixture steps.
+
+- **Hosts.**
+  - **Stuck, self-resurrect, proficiency:** `H: SpellExecutionHostLikeCpp`.
+    The trait retires these three forwards. The execution entry
+    (`execution.rs`) now calls the free functions instead of `host.<name>()`.
+    `spell_state/spellbook.rs` in the World calls
+    `wow_world_spell::apply_proficiency_effect_like_cpp(self, …)`.
+  - **Durability damage:** `H: SpellEffectHostLikeCpp + VendorSessionHostLikeCpp`.
+    These are the two hosts its inventory and execute-log calls already take.
+  - **Obtain spells:** `H: SpellExecutionHostLikeCpp`.
+  - **Homebind write:** `H: SpellEffectHostLikeCpp`.
+  - **Homebind persistence:** `H: SpellEffectHostLikeCpp + BattlePetSessionHostLikeCpp`.
+    The battle-pet host lends `lifecycle()` and `split_lifecycle_mut()`.
+  - **Viewpoint create:** `H: VisibilitySessionHostLikeCpp` (entities).
+  - **Farsight consumer:** `H: SpellExecutionHostLikeCpp + VisibilitySessionHostLikeCpp`.
+  - **Quest complete:** `H: QuestSessionHostLikeCpp`.
+  - **Trait methods kept, now naming the free function.** The World impls of
+    `consume_add_farsight_set_seer_outcome_like_cpp`,
+    `apply_durability_damage_effect_like_cpp`,
+    `apply_quest_complete_effect_like_cpp`, `persist_player_homebind_like_cpp`
+    and `set_represented_homebind_like_cpp` stay. Each needs a bound the
+    execution or effect host does not have, or has a caller above spell (the
+    application login calls the homebind write).
+  - **New host methods on `SpellExecutionHostLikeCpp`:**
+    - `player_resurrection_state_snapshot_like_cpp`,
+      `set_player_ghost_flag_like_cpp` and `set_player_alive_like_cpp`, the
+      same-named World operations the stuck effect calls;
+    - two `cfg(any(test, feature = "test-fixtures"))` hooks with no-op
+      defaults, `mutate_player_persistent_capability_state_like_cpp` (the
+      proficiency fixture branch) and `set_represented_seer_guid_fixture_like_cpp`
+      (the farsight fixture step). The World implements both only under
+      `cfg(test)`.
+    - A hook is needed for the seer fixture because the spell crate's own
+      build does not enable the visibility crate's fixture setter.
+- **Mechanical rules**, with pairs alongside:
+  - `move_token_rules/1363-s12b2-spell-exec.json`:
+    - the signatures;
+    - `self.config.` → `host.hub_ref().config.`;
+    - `self.catalogs.` → `host.hub_ref().catalogs.`;
+    - `self.core.client_visible_guids_like_cpp.insert(` → `host.core_mut()…`;
+    - `self.core.` → `host.core().`;
+    - `crate::session::hub_ref(self)` → `host.hub_ref()`;
+    - `crate::session::split_spell_state_mut(self)` → `host.split_spell_state_mut()`;
+    - `crate::session::split_visibility_ref(self)` → `(host.visibility(), host.hub_ref())`;
+    - `self.visibility.observe_farsight_object_like_cpp(` → `host.visibility_mut()…`;
+    - `self.lifecycle.player_lifecycle_port_like_cpp()` → `host.lifecycle()…`;
+    - `self.lifecycle.queue_player_homebind_persistence_like_cpp(` → `host.split_lifecycle_mut().0…`;
+    - the three inlined wrappers below;
+    - `crate::session::dynamic_object_create_data_from_canonical_like_cpp` →
+      `wow_world_entities::…`, and `crate::session::player_homebind_update_request_like_cpp`
+      → the local name (paths of the same functions);
+    - `<fn>(self,` → `<fn>(host,`, and `wow_world_spell::` → `crate::`;
+    - `self.` → `host.`;
+    - `#[cfg(test)]` → `#[cfg(any(test, feature = "test-fixtures"))]` (and
+      `not(test)` likewise);
+    - `host.fixtures.` → `fixtures.`.
+  - `1363-s12b2-quest.json`: the signature, `self.catalogs.`, `self.core.`,
+    `wow_world_quest::<fn>(self,` → `crate::<fn>(host,` and `self.` → `host.`.
+  - Rules never touch string literals.
+  - **Result: 7 of 11 identical** (`move_token_compare.py --base aa034f7e0`:
+    6/10 and 1/1). The other four differ only in the form of their former
+    World `#[cfg(test)]` fixture step. In each case the step now runs exactly
+    when the World test session runs it, because only that session returns
+    its fixtures from `test_fixtures_like_cpp` / `test_fixtures_ref_like_cpp`
+    (`hub.rs`, `#[cfg(test)]`). In production builds the step is absent, as
+    before.
+    - `apply_stuck_effect_like_cpp`: the `{ … }` block becomes
+      `if let Some(fixtures) = host.test_fixtures_like_cpp() { … }`, the
+      established spell form (`aura_session/mount.rs`).
+    - `set_represented_homebind_like_cpp`: `if handle.is_none() { … }` becomes
+      `if handle.is_none() && let Some(fixtures) = host.test_fixtures_like_cpp() { … }`.
+      This mirrors the sibling `represented_homebind_like_cpp` read moved in 9c.
+    - `apply_self_resurrect_effect_like_cpp`:
+      `if handle.is_some() || fixtures.alive { return None; }` becomes
+      `if handle.is_some() { return None; } let fixtures =
+      host.test_fixtures_like_cpp()?; if fixtures.alive { return None; }`.
+      The two forms return `None` for the same inputs. Outside the World
+      test session the closure returns `None`, which is the base's
+      `cfg(not(test))` `outcome = canonical`.
+    - `apply_proficiency_effect_like_cpp`: a
+      `let world_test = host.test_fixtures_ref_like_cpp().is_some();` under
+      the fixture cfg, and `handle.is_none().then(…)` becomes
+      `(world_test && handle.is_none()).then(…)` in both branches. The guard
+      keeps the `.expect("handle-less fixture capability owner")` out of every
+      non-World-test build, where the base had no branch at all.
+- **Inlined one-line wrappers** (each verified identical to the World body it
+  replaces):
+  - `WorldSession::spell_last_cast_time_like_cpp` (`player_cast/state.rs`:
+    `let (state, hub) = split_spell_state_ref(self); state.spell_last_cast_time_like_cpp(hub, id)`)
+    → `({ let (state, hub) = host.split_spell_state_ref(); state.spell_last_cast_time_like_cpp(hub, HEARTHSTONE_SPELL_ID_LIKE_CPP) })`.
+    The World wrapper stays for its other callers.
+  - `WorldSession::resolved_inventory_item_like_cpp` (`player_items/storage.rs`,
+    the same split over `split_inventory_ref`) → the same block over
+    `host.split_inventory_ref()`. The World wrapper stays.
+  - `WorldSession::item_template_flags` (`player_items/catalog.rs`:
+    `self.catalogs.item_template_flags(id)`) → `host.hub_ref().catalogs.item_template_flags(id)`.
+    Its last production caller moved, so the wrapper moved verbatim into the
+    test shim; only a scenario calls it.
+- **World callers** name the free functions:
+  - `session/spell_effects/execution_host.rs`: the farsight consumer, the
+    durability effect and quest complete;
+  - `session/spell_effects/effect_host.rs`: the homebind write and
+    persistence;
+  - `session/player_items/storage_move_host.rs`: the obtain spells;
+  - `session/spell_state/spellbook.rs`: proficiency, for the login known-spell
+    proficiencies.
+- **Shims.** `handlers/spell_effect_session_test_shims.rs` (`#![cfg(test)]`,
+  mounted from `handlers/mod.rs` outside the hotspot trees, 42 lines) holds
+  one-call forwards for the three moved names the scenarios call
+  (`set_represented_homebind_like_cpp`,
+  `send_set_viewpoint_target_visibility_like_cpp`,
+  `consume_add_farsight_set_seer_outcome_like_cpp`) and the moved
+  `item_template_flags` read. No scenario call site changes. The existing
+  spell shim files are ratcheted, so a new file was needed.
+- **Scenario path edits** (same line counts, no assertion touched). Two
+  scenarios named a retired session-root re-export through `crate::session::`.
+  They now name the function's crate directly, the 12b1b precedent:
+  - `scenarios_quest_1.rs` (two calls) → `wow_world_spell::player_homebind_update_request_like_cpp`;
+  - `scenarios_visibility_1.rs` (one call) → `wow_world_entities::dynamic_object_create_data_from_canonical_like_cpp`.
+- **Files retired:**
+  - `session/spell_effects/effect_apply.rs`;
+  - `session/spell_effects/effects_player.rs`. Its `#[cfg(test)]` mount of
+    `unit_tests/session/spell_effects/effects_player/test_only.rs` (no tests)
+    moves to `spell_effects/mod.rs` with the same three lines.
+- **Visibility.**
+  - `pub` and re-exported from the crate root where the World calls them: the
+    farsight consumer, durability, obtain spells, proficiency, the homebind
+    write and persistence, and quest complete.
+  - The viewpoint create and the request builder are re-exported only under
+    `cfg(any(test, feature = "test-fixtures"))`, for the shim and the scenario.
+  - Stuck and self-resurrect stay crate-internal.
+
+### Host surface
+
+Moved: **625 function lines** (base).
+
+- **New host: 46 lines, 7.4 %.**
+  - The five `SpellExecutionHostLikeCpp` declarations with docs and the two
+    defaults (23).
+  - The World impls (23; 12 of them `cfg(test)`).
+- **Retired host: 12 lines** (the three trait declarations and their World
+  impls). Net: 34 lines, 5.4 %.
+- No adapter file was merged, so the merged and unmerged figures are the same.
+- **Everything counted**, reported for completeness: the destinations grew by
+  760 production lines (spell +666, quest +94).
+  - 646 are the moved bodies (after rustfmt).
+  - The other 114 are:
+    - the five new files' headers and imports;
+    - the module and re-export lines;
+    - the 23-line trait growth;
+    - the execution call-site rewrap (+1).
+
+### Await counts (per function, base vs head)
+
+| Function | Base | Head |
+|---|---:|---:|
+| `apply_stuck_effect_like_cpp` | 1 | 1 |
+| `apply_inventory_item_obtain_spells_with_generator_like_cpp` | 1 | 1 |
+| `apply_quest_complete_effect_like_cpp` | 1 | 1 |
+| every other moved function | 0 | 0 |
+
+- The execution entry awaits `apply_stuck_effect_like_cpp(host)` once, where it
+  awaited `host.apply_stuck_effect_like_cpp()` once before.
+- The World impls of `apply_quest_complete_effect_like_cpp` and
+  `storage_move_apply_obtain_spells_like_cpp` return or await the same single
+  future as before.
+
+### Recursion
+
+- **Production grep.** Every moved name was grepped in production (non-shim)
+  `wow-world`. Each hit is a path call (`wow_world_spell::<name>(self, …)` or
+  `wow_world_quest::<name>(self, …)`) or a trait-impl declaration. There is no
+  `WorldSession::<moved>` or `self.<moved>(` left.
+  - The trap was the five kept trait impls. Their bodies said
+    `WorldSession::<name>(self, …)`, which without the inherent method would
+    resolve to the trait method itself. All five now name the free function.
+- **New host methods.** The World impls of
+  `player_resurrection_state_snapshot_like_cpp`,
+  `set_player_ghost_flag_like_cpp`, `set_player_alive_like_cpp` and
+  `mutate_player_persistent_capability_state_like_cpp` name existing inherent
+  methods (`combat/death.rs`, `player_vitals_adapter.rs`,
+  `persistence/plans.rs`), which UFCS resolves before any trait method. The
+  seer hook writes the field directly.
+- **Free functions.** No moved body calls a host method of its own name. The
+  consumer calls the viewpoint create as a free function. The homebind,
+  durability and quest-complete bodies call only other names.
+- `unconditional_recursion`: 0 in all three canonical builds.
+
+### Registration
+
+No registrar moved. Spell execution, effect dispatch, opcode registrations,
+their order, `SessionStatus`, `PacketProcessing`, handler names and thunks are
+unchanged. No checker constant or `handler-module-policy.json` change.
+
+### Edges and closure
+
+- No new crate edge:
+  - spell already depends on inventory and entities;
+  - quest already depends on spell, conditions and `wow-progression`;
+  - the World already depends on both.
+- No manifest or `Cargo.lock` change.
+- Closure at head: PASS (lock mode, 18 packages).
+
+### Accounting
+
+| Crate `src` | Base physical | Head physical | Base production | Head production |
+|---|---:|---:|---:|---:|
+| `wow-world` | 38,010 (454 files) | 37,414 (453) | **27,884** | **27,244** |
+| `wow-world-spell` | 20,343 (94) | 21,010 (97) | 20,026 | 20,692 |
+| `wow-world-quest` | 19,071 (62) | 19,165 (63) | 18,487 | 18,581 |
+
+- **`wow-world` production −640:**
+  - **Moved:** −625 function lines.
+  - **Reclassified production → test:** −3 (`item_template_flags`, now in
+    the shim).
+  - **Retired:** −30:
+    - the two emptied files' headers, imports and impl shells (−10, −9);
+    - three root re-exports and the spell-effects `represented_homebind_like_cpp`
+      import (−4);
+    - the session-root imports whose last production reader moved
+      (`ItemClass`, `ItemFlags`, `ItemSpelltriggerType`, `SetProficiency`; −3
+      after rustfmt; `PowerType` joins an existing `cfg(test)` import);
+    - the two retired `mod` lines, whose test mount now counts as test (−2);
+    - separator lines (−2).
+  - **Doc headers:** +4 (`effects.rs`, `effects_progress.rs` record the moves).
+  - **Host adapter:** +14 (+23 new impl lines, −9 retired).
+  - −625 − 3 − 30 + 4 + 14 = −640.
+- **Destination production:** spell +666, quest +94.
+- **`net_move.py check --base origin/3.4.3`:** S = 601, G = 750 within the
+  1,592.1 allowance, 0 duplicate bodies, PASS.
+- **`session_method_index`** (fixed tool):
+
+| Measure | Base `aa034f7e0` | After the fixes `cc1920b8c` | Head |
+|---|---:|---:|---:|
+| Non-forward (crate) | 341 / 9,374 | 341 / 9,374 | **331 / 8,763** |
+| Forwards (crate) | 275 / 1,535 | 275 / 1,535 | 274 / 1,532 |
+| Staying | 44 / 1,190 | 44 / 1,190 | 44 / 1,190 |
+| Outside | 269 / 6,972 | 269 / 6,972 | **259 / 6,361** |
+
+  The base column is the fixed tool run on the base code. `session/spell_effects`
+  goes from 13 / 1,110 to 5 / 615: the damage kill cascade, the nearby pair,
+  reputation and force deselect remain.
+
+### Policy and ceilings
+
+- **Ceilings tightened, none raised:**
+  - **`session-method-index.json`:** `outside_ceiling` 269 / 6,972 → 259 /
+    6,361 and `crate_ceiling` 341 / 9,374 → 331 / 8,763. `staying_bound`
+    stays at 44 / 1,190.
+  - **Hotspot `session/mod.rs`:** production 18,618 → 17,978 and total
+    160,239 → 159,599; test unchanged at 141,621.
+  - **Physical `session/mod.rs`:** 813 → 808.
+- The re-baseline in the follow-up commit is a measurement change, recorded
+  above, not a raise: the same code measures 43 → 44 staying methods only
+  because the stricter forward rule reclassifies one setter.
+- `handlers/spell_effect_session_test_shims.rs` (42 lines, `#![cfg(test)]`)
+  needs no physical row.
+- `session-ownership-policy.json` is reprinted with `print-baseline` (the
+  moved methods, the shim surface, the trait changes); `check --syntax-only`
+  PASS. `dependency-policy.json` is unchanged.
+
+### Warnings and tests
+
+Canonical recipe (with `--locked`), base `aa034f7e0` vs head, counted and
+compared with `warning_units.py`:
+
+| Build | `wow-world` lib | `wow-world` lib test | All `wow-world*` lib units |
+|---|---:|---:|---:|
+| production lib | 118 → 118 | — | 245 → 245 |
+| lib + `test-fixtures` | 127 → 127 | — | 209 → 209 |
+| `--lib --tests` | 127 → 127 | 178 → 178 | 209 → 209 |
+
+- **`compare`:** nothing appears only in the base or only in the head, in
+  any build. Before the import cleanup above, the head had `PowerType`,
+  `SetProficiency`, `ItemClass`, `ItemFlags` and `ItemSpelltriggerType` as new
+  unused session-root imports. The `item_template_flags` wrapper was briefly
+  dead too, before it moved to the shim.
+- `wow-world-spell` (8 / 5 / 5) and `wow-world-quest` (27 / 17 / 17) keep
+  exactly their pre-existing warnings.
+- **`wow-world`:** `dead_code` 0 in all three builds. `unconditional_recursion`
+  is 0 in every unit of all three builds.
+- **Tests.** The test-name multiset is identical: 9,492
+  `#[test]`/`#[tokio::test]` functions under `crates/`, 5 ignored, at base and
+  at head. No assertion changed. The only test-tree edits are the two
+  scenario path rewrites above, at the same line counts.
+- **Focused runs during the move:**
+  - `cargo test -p wow-world --lib`: 3,680 passed, 1 ignored;
+  - `cargo test -p wow-world-spell -p wow-world-quest --lib`: 2 and 25
+    passed. These are the crates' own builds, which caught the seer-fixture
+    setter that the spell crate's features do not enable.
+
+### Follow-ups
+
+- **12b2b:** the damage kill cascade (loot-ops or application), the
+  nearby-entry pair (player-conditions, after the World condition-context
+  wrapper retires), the loaded-enchantment / item-mod / set-aura family
+  (application, over the aura-application context).
+- **12b5:** the reputation effect (with a `wow-world-social` →
+  `wow-progression` edge) and force deselect.
+- **`map_admission.rs`:** `access_requirement_abort_like_cpp` →
+  `wow-world-instances` (outside ratchet since this slice).
+- **12d:** the execution host now carries three state hooks and two fixture
+  hooks for moved bodies. Fold them into a narrower player-state host when the
+  adapters regroup.
 - **Shims.** The `#![cfg(test)]` shims retire in the final cleanup.
 
 ### Validation

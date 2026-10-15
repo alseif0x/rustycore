@@ -376,7 +376,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                 apply_block_effect_like_cpp(host)?;
             }
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PROFICIENCY => {
-                host.apply_proficiency_effect_like_cpp(spell_id)?;
+                apply_proficiency_effect_like_cpp(host, spell_id)?;
             }
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DURABILITY_DAMAGE => {
                 host.apply_durability_damage_effect_like_cpp(
@@ -446,13 +446,14 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                 apply_sanctuary_effect_like_cpp(host, target_guid)?;
             }
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT => {
-                host.apply_self_resurrect_effect_like_cpp(
+                apply_self_resurrect_effect_like_cpp(
+                    host,
                     direct_effect_base_points,
                     direct_effect_misc_value_1,
                 );
             }
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_STUCK => {
-                host.apply_stuck_effect_like_cpp().await;
+                apply_stuck_effect_like_cpp(host).await;
             }
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE => {
                 apply_play_movie_effect_like_cpp(host, target_guid, direct_effect_misc_value_1);

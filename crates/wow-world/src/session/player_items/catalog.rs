@@ -33,9 +33,6 @@ impl WorldSession {
     pub(crate) fn item_stats_store(&self) -> Option<&Arc<ItemStatsStore>> {
         self.catalogs.item_stats_store()
     }
-    pub(crate) fn item_template_flags(&self, item_id: u32) -> Option<ItemFlags> {
-        self.catalogs.item_template_flags(item_id)
-    }
     pub(crate) fn item_template_flags2(&self, item_id: u32) -> Option<u32> {
         self.catalogs.item_template_flags2(item_id)
     }

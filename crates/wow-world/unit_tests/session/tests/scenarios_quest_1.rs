@@ -522,7 +522,7 @@ fn player_homebind_update_request_preserves_wide_semantic_values_for_adapter() {
     };
 
     let request =
-        crate::session::player_homebind_update_request_like_cpp(homebind, guid.counter() as u64);
+        wow_world_spell::player_homebind_update_request_like_cpp(homebind, guid.counter() as u64);
 
     assert_eq!(
         request,
@@ -537,7 +537,7 @@ fn player_homebind_update_request_preserves_wide_semantic_values_for_adapter() {
         }
     );
 
-    let wide = crate::session::player_homebind_update_request_like_cpp(
+    let wide = wow_world_spell::player_homebind_update_request_like_cpp(
         RepresentedHomebindLikeCpp {
             map_id: u32::MAX - 2,
             area_id: u32::MAX - 1,

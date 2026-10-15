@@ -3,7 +3,15 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! The represented homebind and the bind effect (#1363 slice 9c), from the
-//! World `session/spell_effects/{effects,effect_apply}.rs`.
+//! World `session/spell_effects/{effects,effect_apply}.rs`; the homebind write,
+//! its persistence request and the ordered persistence hand-off (#1363 slice
+//! 12b2), from the World `session/spell_effects/{effects,effects_player}.rs`
+//! and `session/persistence/plans.rs`.
+
+use std::sync::Arc;
+
+use tracing::warn;
+use wow_world_inventory::BattlePetSessionHostLikeCpp;
 
 use super::{RepresentedHomebindLikeCpp, SpellEffectHostLikeCpp};
 use wow_core::ObjectGuid;
@@ -50,6 +58,73 @@ pub fn represented_homebind_like_cpp<H: SpellEffectHostLikeCpp>(
         return fixtures.teleport.represented_homebind_like_cpp;
     }
     None
+}
+
+pub fn set_represented_homebind_like_cpp<H: SpellEffectHostLikeCpp>(
+    host: &mut H,
+    homebind: RepresentedHomebindLikeCpp,
+) -> bool {
+    let canonical = host
+        .core()
+        .with_owned_player_mut_like_cpp(|player| player.set_homebind_like_cpp(homebind))
+        .is_some();
+    if canonical {
+        return true;
+    }
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if host.core().player_handle_like_cpp.is_none()
+        && let Some(fixtures) = host.test_fixtures_like_cpp()
+    {
+        fixtures.teleport.represented_homebind_like_cpp = Some(homebind);
+        return true;
+    }
+    false
+}
+
+pub fn player_homebind_update_request_like_cpp(
+    homebind: RepresentedHomebindLikeCpp,
+    guid_counter: u64,
+) -> wow_persistence::PlayerHomebindPersistenceRequestLikeCpp {
+    wow_persistence::PlayerHomebindPersistenceRequestLikeCpp::UpdateLive {
+        player_guid: guid_counter,
+        map_id: homebind.map_id,
+        area_id: homebind.area_id,
+        x: homebind.position.x,
+        y: homebind.position.y,
+        z: homebind.position.z,
+        orientation: homebind.position.orientation,
+    }
+}
+
+pub fn persist_player_homebind_like_cpp<H: SpellEffectHostLikeCpp + BattlePetSessionHostLikeCpp>(
+    host: &mut H,
+    homebind: RepresentedHomebindLikeCpp,
+) {
+    let (Some(player_guid), Some(port)) = (
+        host.player_guid(),
+        host.lifecycle()
+            .player_lifecycle_port_like_cpp()
+            .map(Arc::clone),
+    ) else {
+        return;
+    };
+    let guid_counter = player_guid.counter() as u64;
+    let request = player_homebind_update_request_like_cpp(homebind, guid_counter);
+    // C++ Player::SetHomebind queues CharacterDatabase.Execute(stmt) on
+    // the ordered database worker and immediately sends the bind packets.
+    // Send it to one FIFO worker so SQL latency stays off the packet path
+    // without allowing an older bind to finish after a newer one.
+    if host
+        .split_lifecycle_mut()
+        .0
+        .queue_player_homebind_persistence_like_cpp(port, request, guid_counter)
+        .is_err()
+    {
+        warn!(
+            player_guid = guid_counter,
+            "represented homebind database worker stopped"
+        );
+    }
 }
 
 pub async fn apply_effect_bind_like_cpp<H: SpellEffectHostLikeCpp>(

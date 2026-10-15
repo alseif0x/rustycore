@@ -212,7 +212,7 @@ impl InventoryStorageMoveHostLikeCpp for WorldSession {
         entry_id: u32,
     ) -> impl Future<Output = ()> + Send + 'a {
         async move {
-            let _ = WorldSession::apply_inventory_item_obtain_spells_with_generator_like_cpp(
+            let _ = wow_world_spell::apply_inventory_item_obtain_spells_with_generator_like_cpp(
                 self,
                 item_guid_generator,
                 creature_spawn_catalogs,

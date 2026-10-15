@@ -745,7 +745,7 @@ fn add_farsight_set_viewpoint_target_visibility_sends_far_dynamic_object_like_cp
             .map()
             .get_typed_dynamic_object(dynamic_object_guid)
             .expect("canonical typed DynamicObject should exist");
-        crate::session::dynamic_object_create_data_from_canonical_like_cpp(
+        wow_world_entities::dynamic_object_create_data_from_canonical_like_cpp(
             dynamic_object_guid,
             dynamic_object,
         )
