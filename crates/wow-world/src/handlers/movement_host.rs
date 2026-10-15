@@ -92,7 +92,9 @@ impl MovementHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession 
         ack_index: i32,
         move_time: i32,
     ) {
-        WorldSession::handle_move_teleport_ack_like_cpp(self, mover_guid, ack_index, move_time);
+        wow_world_entities::handle_move_teleport_ack_like_cpp(
+            self, mover_guid, ack_index, move_time,
+        );
     }
 
     fn handle_movement_opcode_like_cpp<'a>(

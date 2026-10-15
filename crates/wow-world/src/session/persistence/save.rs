@@ -21,7 +21,8 @@ impl WorldSession {
         // Resolve every session-owned input before taking the manager lock:
         // `player_level_like_cpp` re-enters it and would self-deadlock.
         let level = crate::session::hub_ref(self).player_level_like_cpp();
-        let pending_teleport_destination = self.pending_teleport_save_destination_like_cpp();
+        let pending_teleport_destination =
+            wow_world_entities::pending_teleport_save_destination_like_cpp(self);
         if let Some(snapshot) =
             wow_world_core::session::PlayerSaveOwnerAccessLikeCpp::fixture_canonical_header_like_cpp(
                 &self.core,
@@ -100,7 +101,7 @@ impl WorldSession {
         {
             return;
         }
-        if self.pending_teleport_save_destination_like_cpp().is_some() {
+        if wow_world_entities::pending_teleport_save_destination_like_cpp(self).is_some() {
             return;
         }
 

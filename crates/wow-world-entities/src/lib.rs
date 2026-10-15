@@ -53,6 +53,7 @@ mod spawn;
 mod spell_click;
 pub mod spell_click_values;
 mod state;
+mod teleport_session;
 mod travel_handlers;
 mod vehicle_handlers;
 mod vehicle_session;
@@ -201,6 +202,17 @@ pub use player_attack::{
     start_player_attack_like_cpp,
 };
 pub use state::WorldEntitiesState;
+pub use teleport_session::{
+    CLASS_DEATH_KNIGHT_LIKE_CPP, DEATH_KNIGHT_ESCAPE_SPELL_LIKE_CPP,
+    DEATH_KNIGHT_START_MAP_LIKE_CPP, PlayerTeleportHostLikeCpp, TELE_REVIVE_AT_TELEPORT_LIKE_CPP,
+    TELE_TO_NOT_LEAVE_COMBAT_LIKE_CPP, TELE_TO_SPELL_LIKE_CPP,
+    TRANSFER_ABORT_INSUF_EXPAN_LVL_LIKE_CPP, TRANSFER_ABORT_MAP_NOT_ALLOWED_LIKE_CPP,
+    TRANSFER_ABORT_UNIQUE_MESSAGE_LIKE_CPP, handle_move_teleport_ack_like_cpp,
+    pending_teleport_save_destination_like_cpp,
+    process_represented_delayed_resurrection_after_teleport_like_cpp,
+    process_represented_delayed_teleport_after_update_like_cpp,
+    schedule_represented_resurrection_after_teleport_like_cpp, teleport_to_with_options,
+};
 pub use travel_handlers::{
     TravelHandlerCxLikeCpp, TravelHandlerHostLikeCpp, register_travel_handlers_like_cpp,
 };

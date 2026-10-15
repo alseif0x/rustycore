@@ -6,7 +6,7 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::session) fn player_resurrection_state_snapshot_like_cpp(
+    pub(crate) fn player_resurrection_state_snapshot_like_cpp(
         &self,
     ) -> Option<PlayerResurrectionStateLikeCpp> {
         let canonical = self

@@ -186,7 +186,7 @@ impl WorldSession {
             );
             let _ =
                 crate::session::hub_mut(self).set_represented_can_delay_teleport_like_cpp(false);
-            self.process_represented_delayed_teleport_after_update_like_cpp()
+            wow_world_entities::process_represented_delayed_teleport_after_update_like_cpp(self)
                 .await;
         }
 
