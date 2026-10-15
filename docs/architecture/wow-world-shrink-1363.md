@@ -7620,9 +7620,8 @@ dynamic flags and kill credit stay behind the host (quest-bound).
 
 ### Follow-ups
 
-- `current_seer_guid_like_cpp` and
-  `visible_gameobject_guids_from_last_update_summary_like_cpp`'s filter are
-  duplicated inside the visual despawn body (moved as is); a later
-  behaviour-neutral change can make the despawn call the shared filter.
+- The visual despawn body repeats the visible-set filter of
+  `visible_gameobject_guids_from_last_update_summary_like_cpp` (moved as is);
+  a later behaviour-neutral change can make it call the shared filter.
 - The world-entities shim retires with the other shims when the scenarios
   call the free functions directly.
