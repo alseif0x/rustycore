@@ -1,6 +1,5 @@
 //! Session-independent world-entity state and represented creature publication.
 
-mod activate_taxi_session;
 mod aggro;
 mod catalogs;
 mod combat_handlers;
@@ -92,7 +91,6 @@ pub use corpse_handlers::{
 };
 // The exact `ApplicationCorpse` owner facade the handler-contract checker
 // requires (#1263 F5 deferred families).
-pub use activate_taxi_session::{ActivateTaxiHostLikeCpp, handle_activate_taxi};
 pub use corpse_registrations::{CorpseHandlerHostLikeCpp, register_corpse_handlers_like_cpp};
 pub use creature::creature_message_to_set_target_allows_like_cpp;
 #[cfg(any(test, feature = "test-fixtures"))]

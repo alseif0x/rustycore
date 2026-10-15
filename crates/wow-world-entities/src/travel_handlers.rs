@@ -11,9 +11,9 @@
 //! destination, the canonical creature registry and packet delivery already
 //! live in the hub/lifecycle owners, so the World session only splits its
 //! lifecycle state and builds the borrowed context (#1263 F5). The world-port
-//! body is in `wow_world_character`; the taxi activation is
-//! `crate::activate_taxi_session` and the area-trigger body is in
-//! `wow_world_instances` (#1363 slice 4d), each reached through the host.
+//! body is in `wow_world_character`; the taxi activation and area-trigger
+//! bodies are in `wow_world_instances` (#1363 slice 4d), each reached
+//! through the host.
 //!
 //! `#1263 F5 remaining families` extended this already-owned travel registrar
 //! with the three remaining travel/transfer opcodes that were still submitted

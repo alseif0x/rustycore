@@ -54,6 +54,8 @@ pub use handlers::{
     register_instance_handlers_like_cpp, reset_represented_instances_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
+pub use instance_session::represented_taxi_usable_mount_displays_like_cpp;
+#[cfg(any(test, feature = "test-fixtures"))]
 pub use instance_session::{
     AREA_FLAG_ENEMIES_PVP_FLAGGED_LIKE_CPP, set_represented_tavern_resting_like_cpp,
     update_area_represented_with_rest_update_like_cpp,
@@ -69,7 +71,7 @@ pub use instance_session::{
     check_area_triggers_with_catalogs_like_cpp, create_map_active_instance_lock_context_like_cpp,
     create_map_instance_owner_guid_like_cpp, create_map_player_context_like_cpp,
     ensure_canonical_player_owner_for_map_like_cpp,
-    ensure_canonical_world_map_for_current_player_like_cpp,
+    ensure_canonical_world_map_for_current_player_like_cpp, handle_activate_taxi,
     handle_area_trigger_with_catalogs_like_cpp,
     handle_represented_tavern_area_trigger_with_catalog_like_cpp,
     load_represented_explored_zones_like_cpp, load_represented_player_difficulties_like_cpp,

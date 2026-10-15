@@ -3,8 +3,7 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! World-side adapters for the travel bodies that moved to
-//! `wow_world_instances` (`CMSG_AREA_TRIGGER`) and `wow_world_entities`
-//! (`CMSG_ACTIVATE_TAXI`) (#1363 slice 4d). Each method is the same-named
+//! `wow_world_instances` (#1363 slice 4d). Each method is the same-named
 //! session operation or catalog field; the area-trigger catalog access moved
 //! here from `session/instances/host.rs` with its two new fields.
 
@@ -51,11 +50,5 @@ impl wow_world_instances::AreaTriggerHostLikeCpp for WorldSession {
             trigger_id,
             entered,
         )
-    }
-}
-
-impl wow_world_entities::ActivateTaxiHostLikeCpp for WorldSession {
-    fn represented_taxi_usable_mount_displays_like_cpp(&self, flying_mount_id: u32) -> Vec<i32> {
-        WorldSession::represented_taxi_usable_mount_displays_like_cpp(self, flying_mount_id)
     }
 }

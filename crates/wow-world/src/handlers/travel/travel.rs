@@ -11,8 +11,8 @@
 //! the legacy closures used.
 //!
 //! `#1363 slice 4d`: the area-trigger body with its client conditions moved
-//! to `wow_world_instances` and the taxi activation to `wow_world_entities`;
-//! their World adapters are in `session/travel_handler_contexts.rs`.
+//! to `wow_world_instances` with the taxi activation; their World adapters
+//! are `session/travel_handler_contexts.rs` and `handlers/travel_host.rs`.
 
 #[cfg(test)]
 mod test_shims;

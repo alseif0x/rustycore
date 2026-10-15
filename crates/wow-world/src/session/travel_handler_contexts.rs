@@ -14,7 +14,7 @@
 //! `crates/wow-world/src/handlers/travel/travel.rs`, delegating to the same
 //! `WorldSession` operations with the same catalog destructuring the legacy
 //! closures used. The area-trigger and taxi bodies themselves moved to
-//! `wow_world_instances` and `wow_world_entities` (#1363 slice 4d).
+//! `wow_world_instances` (#1363 slice 4d).
 
 use wow_handler::HandlerFuture;
 use wow_packet::WorldPacket;
@@ -36,7 +36,7 @@ impl TravelHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
     }
 
     fn handle_activate_taxi<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { wow_world_entities::handle_activate_taxi(self, pkt).await })
+        Box::pin(async move { wow_world_instances::handle_activate_taxi(self, pkt).await })
     }
 
     fn handle_area_trigger_with_catalogs_like_cpp<'a>(
