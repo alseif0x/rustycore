@@ -1,12 +1,15 @@
 {
-  "comment": "#1363 done criterion (tools/architecture/session_method_index.py check). Non-forward inherent WorldSession methods in crates/wow-world/src/session/** may remain only in the runtime shell and the world-server construction API listed here; the staying set is bounded, the rest is a ratchet that must reach 0 (check --done). Entries are paths relative to crates/wow-world/src: a trailing '/' is a directory, 'file::method' is one method.",
+  "comment": "#1363 done criterion (tools/architecture/session_method_index.py check). Non-forward inherent WorldSession methods in crates/wow-world/src/session/** may remain only in the runtime shell and the world-server construction API listed here; the staying set is bounded, the rest is a ratchet that must reach 0 (check --done), and crate_ceiling bounds the whole crate so logic cannot leave session/** for handlers/ unseen. Entries are paths relative to crates/wow-world/src: a trailing '/' is a directory, 'file::method' is one method; every entry must match a non-forward method. session/driver/phases.rs is runtime shell under session/driver/ (its two methods are cfg(test)); session/map_admission.rs is gameplay (AccessRequirement / Map::PlayerCannotEnter, planned for wow-world-instances) and counts in the outside ratchet.",
   "allow": {
     "runtime_shell": [
       "session/driver/",
-      "session/map_admission.rs",
       "session/construction.rs::new",
       "session/connection.rs::poll_instance_link_with_module_registry_like_cpp",
-      "session/connection_identity.rs::set_state"
+      "session/connection_identity.rs::set_state",
+      "session/dispatch.rs::dispatch_packet",
+      "session/dispatch.rs::is_status_allowed",
+      "session/admission.rs::evaluate_packet_spoof_like_cpp",
+      "session/admission.rs::flush_packet_spoof_ban_like_cpp"
     ],
     "construction_api": [
       "session/catalogs/operations.rs::set_chr_specialization_store",
@@ -14,6 +17,7 @@
       "session/catalogs/operations.rs::set_mount_store",
       "session/catalogs/operations.rs::set_mount_definition_store_like_cpp",
       "session/connection_identity.rs::set_realm_handle_like_cpp",
+      "session/connection_identity.rs::set_realm_names_like_cpp",
       "session/instances/difficulty.rs::set_difficulty_store",
       "session/instances/map_key.rs::set_map_store",
       "session/instances/map_resolution.rs::set_canonical_map_manager",
@@ -32,6 +36,16 @@
       "session/world_state/operations.rs::set_area_table_store"
     ]
   },
-  "staying_bound": {"methods": 43, "lines": 1282},
-  "outside_ceiling": {"methods": 261, "lines": 6857}
+  "staying_bound": {
+    "methods": 44,
+    "lines": 1190
+  },
+  "outside_ceiling": {
+    "methods": 269,
+    "lines": 6972
+  },
+  "crate_ceiling": {
+    "methods": 341,
+    "lines": 9374
+  }
 }

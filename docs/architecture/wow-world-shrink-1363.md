@@ -12315,7 +12315,7 @@ and unmerged, ≤ ~4.5k moved, closure simulated first, no ceiling raised).
 | Sub-slice | Scope (World module → destination) | Non-forward methods / lines | Notes |
 |---|---|---:|---|
 | **12b1** | `session/player_items` → `wow-world-inventory`: durability loss and repair, item mods and the item-bonus stat publication, offhand auto-unequip, item-set item records, appearance/collection gates | 31 / ~1.2k (measured in the 12b1 result) | this PR; only what inventory can own without reaching spell, application, quest or player-conditions |
-| 12b1b | `session/player_items` remainder: the application context builders and planning wrappers (equip, position publication, swap effects, committed relocation/swap/removal, storage/bank/equip planning: ~470) → `wow-world-application`; the inventory field-borrow builders (area-based scaling, average item level, equipment-set use context, ~190) → `wow-world-inventory` behind one split host method; loot/battle-pet leftovers (~100) | ~45 / ~1.0k planned; **21 functions / 659 lines moved** (10 non-forward / 483 in `session/**`), see the 12b1b result | the aura/enchantment/obtain-spell paths below go with 12b2; the split wrappers go with 12c and the loot/publication leftovers with 12b7 |
+| 12b1b | `session/player_items` remainder: the application context builders and planning wrappers (equip, position publication, swap effects, committed relocation/swap/removal, storage/bank/equip planning: ~470) → `wow-world-application`; the inventory field-borrow builders (area-based scaling, average item level, equipment-set use context, ~190) → `wow-world-inventory` behind one split host method; loot/battle-pet leftovers (~100) | ~45 / ~1.0k planned; **21 functions / 659 lines moved** (10 non-forward / 483; 9 / 463 of them in `session/**`, the tenth in `handlers/character/items/host.rs`), see the 12b1b result | the aura/enchantment/obtain-spell paths below go with 12b2; the split wrappers go with 12c and the loot/publication leftovers with 12b7 |
 | 12b2 | `session/spell_effects` (1,110) plus the player-items spell paths (durability-damage effect 48, loaded enchantments 205, initial item mods and set auras 93, obtain spells 63) → `wow-world-spell` | 13 + ~8 / ~1.5k | may split 12b2a/12b2b at the 4.5k / host-share limits |
 | 12b3 | `session/spell_state` → `wow-world-spell` | 34 / 616 (+31 forwards, 196) | |
 | 12b4 | `session/persistence`, `session/player_bootstrap`, `session/player_binding` → `wow-world-character`/`-lifecycle` | 24 / 934 | the login bootstrap (406) is one method; it moves only if its callers are domain crates |
@@ -12733,8 +12733,10 @@ moves what has a clean owner and an existing or single new host:
   the equipment-set use context (one new split host method), and the uncage
   item-state load (battle-pet leftover).
 
-**21 functions, 659 base lines** (10 non-forward methods / 483 lines in
-`session/**`, the rest forwards). Far under the 4.5k limit; no split needed.
+**21 functions, 659 base lines** (10 non-forward methods / 483 lines, the
+rest forwards; corrected after #1413's review: 9 / 463 of them are in
+`session/**`, the tenth, `validate_inventory_swap_target_like_cpp` (20), was in
+`handlers/character/items/host.rs`). Far under the 4.5k limit; no split needed.
 
 **Deferred** (recorded, not moved):
 - **To 12b2 (spell).** The spell paths: the durability-damage effect (53),

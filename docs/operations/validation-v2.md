@@ -183,9 +183,14 @@ its policy `tools/architecture/session-method-index.json` or `hotspot_metrics.py
 `python3 tools/architecture/session_method_index.py check` (#1363 done criterion, #1411 review
 follow-up 2): the non-forward inherent `WorldSession` methods in `crates/wow-world/src/session/**`
 must stay within the bounded runtime-shell and construction-API allow-list (`staying_bound`), and
-the rest within the `outside_ceiling` ratchet. `index` prints the per-module table; `check --done`
-is the #1363 done criterion (no non-forward method outside the allow-list). Changing the tool also
-plans its `self-test`. It reads sources only and calls no Cargo.
+the rest within the `outside_ceiling` ratchet, and the whole crate within `crate_ceiling` (so logic
+cannot leave `session/**` for `handlers/` unseen). Production is decided by cfg along the module
+tree from `lib.rs` (a module, impl or method gated off without `test` and `test-fixtures` is not
+counted), never by file name; path-qualified and generic inherent impls count, and a closure,
+`async`/`unsafe` block or `?` chain makes a method non-forward (#1413 review F1–F4). A stale
+allow-list entry or a source the module walk cannot reach fails the check. `index` prints the
+per-module table; `check --done` is the #1363 done criterion (no non-forward method outside the
+allow-list). Changing the tool also plans its `self-test`. It reads sources only and calls no Cargo.
 
 Paths classified as `documentation` run no Cargo command. Classification is directory-first:
 even a README under `crates/`, `tools/wow-test-bot/` or
