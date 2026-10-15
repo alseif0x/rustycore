@@ -38,6 +38,8 @@ pub use player_handlers::{
     PlayerHandlerCxLikeCpp, PlayerHandlerHostLikeCpp, register_player_handlers_like_cpp,
 };
 mod inventory_move_planning;
+mod player_items_session;
+pub use player_items_session::*;
 mod trainer_handlers;
 mod trainer_purchase;
 mod void_storage_session;

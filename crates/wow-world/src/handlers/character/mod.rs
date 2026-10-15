@@ -162,7 +162,7 @@ struct DirectInventoryPositionUpdateLikeCpp {
     item_db_guid: u64,
 }
 
-use wow_world_application::InventorySwapTargetLikeCpp;
+use wow_world_application::{self as application, InventorySwapTargetLikeCpp};
 // The StorageMove vocabulary moved to its application owner (#1263 F4); these
 // re-exports keep the handler tree's existing paths resolving unchanged.
 pub(crate) use wow_world_application::{

@@ -17,10 +17,7 @@
 
 // The void-storage unit tests name these through `super::*`.
 #[cfg(test)]
-use crate::session::{
-    DirectInventoryStorageOverlayLikeCpp, InventoryItem, RepresentedVoidStorageItemLikeCpp,
-    WorldSession,
-};
+use crate::session::{InventoryItem, RepresentedVoidStorageItemLikeCpp, WorldSession};
 #[cfg(test)]
 use wow_constants::unit::NPCFlags1;
 #[cfg(test)]
@@ -33,6 +30,8 @@ use wow_packet::WorldPacket;
 use wow_packet::packets::update::UpdateObject;
 #[cfg(test)]
 use wow_world_application::void_withdrawal_item_create_data_like_cpp;
+#[cfg(test)]
+use wow_world_inventory::DirectInventoryStorageOverlayLikeCpp;
 #[cfg(test)]
 use wow_world_inventory::EffectiveVoidStorageRandomPropertiesLikeCpp;
 

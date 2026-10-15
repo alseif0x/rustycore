@@ -812,6 +812,26 @@ def test_planner_contract(repo: Path) -> None:
     for changed in ("tools/architecture/net_move.py", "crates/wow-world/src/lib.rs", "docs/state.md"):
         planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
         assert all(command not in planned for command in tool_self_tests.values()), changed
+    # #1363 done criterion (#1411 review follow-up 2): final plans the session
+    # method index check for a wow-world/src change and for the index, its
+    # policy or the masking it uses; quick never does. The self-test follows
+    # the tool only.
+    session_index = ["python3", "tools/architecture/session_method_index.py", "check"]
+    session_index_self_test = ["python3", "tools/architecture/session_method_index.py", "self-test"]
+    for changed in (
+        "crates/wow-world/src/session/mod.rs",
+        "crates/wow-world/src/deleted.rs",
+        "tools/architecture/session_method_index.py",
+        "tools/architecture/session-method-index.json",
+        "tools/architecture/hotspot_metrics.py",
+    ):
+        planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        quick_planned, _ = runner.validation_commands(repo, "quick", 2, "base", runner.grouped_paths([changed]), None)
+        assert session_index in planned and session_index not in quick_planned, changed
+        assert (session_index_self_test in planned) == changed.endswith("session_method_index.py"), changed
+    for changed in ("crates/wow-world/unit_tests/lib.rs", "crates/wow-world-inventory/src/lib.rs", "docs/state.md"):
+        planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        assert session_index not in planned and session_index_self_test not in planned, changed
     # #1363 slice Q2 (#1406 review follow-up 1): final runs the checker lib
     # suite, whose repository test pins the checked production-package set,
     # for a workspace manifest or lock change; quick never does.
@@ -830,9 +850,15 @@ def test_planner_contract(repo: Path) -> None:
     # every existing domain crate standalone (its own features only), one
     # crate per command; quick never does, and neither does a change to
     # `wow-world` itself, another crate's manifest or a domain source file.
-    for name in ("wow-world-fixture", "wow-world-other", "wow-world"):
+    # `wow-world-other`'s package name differs from its directory: `-p` takes
+    # the `[package] name` (#1411 review follow-up 3).
+    for name, package in (
+        ("wow-world-fixture", "wow-world-fixture"),
+        ("wow-world-other", "wow-world-other-package"),
+        ("wow-world", "wow-world"),
+    ):
         (repo / "crates" / name).mkdir(parents=True, exist_ok=True)
-        (repo / "crates" / name / "Cargo.toml").write_text(f'[package]\nname = "{name}"\n')
+        (repo / "crates" / name / "Cargo.toml").write_text(f'[package]\nname = "{package}"\n')
     domain_workspace = {
         "root_wide": False,
         "direct_packages": ["wow-world-fixture"],
@@ -843,7 +869,7 @@ def test_planner_contract(repo: Path) -> None:
     }
     standalone_all = [
         ["cargo", "check", "--locked", "--tests", "--jobs", "2", "-p", name]
-        for name in ("wow-world-fixture", "wow-world-other")
+        for name in ("wow-world-fixture", "wow-world-other-package")
     ]
     for changed, expected in (
         ("crates/wow-world-fixture/Cargo.toml", True),

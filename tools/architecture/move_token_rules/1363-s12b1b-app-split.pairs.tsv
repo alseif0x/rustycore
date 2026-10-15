@@ -1,0 +1,11 @@
+# base_path name head_path (#1363 slice 12b1b split, base e5c8195b0)
+crates/wow-world/src/session/player_items/publication.rs	inventory_equip_cx_like_cpp	crates/wow-world-application/src/player_items_session/builders.rs
+crates/wow-world/src/session/player_items/publication.rs	inventory_position_publication_cx_like_cpp	crates/wow-world-application/src/player_items_session/builders.rs
+crates/wow-world/src/session/player_items/storage.rs	inventory_swap_effects_cx_like_cpp	crates/wow-world-application/src/player_items_session/builders.rs
+crates/wow-world/src/handlers/character/items/host.rs	execute_inventory_equip_to_empty_raw_like_cpp	crates/wow-world-application/src/player_items_session/builders.rs
+crates/wow-world/src/handlers/character/items/host.rs	publish_inventory_position_changes_like_cpp	crates/wow-world-application/src/player_items_session/builders.rs
+crates/wow-world/src/session/player_items/storage.rs	apply_inventory_item_remove_side_effects_like_cpp	crates/wow-world-application/src/player_items_session/builders.rs
+crates/wow-world/src/session/player_items/storage.rs	apply_inventory_item_store_side_effects_like_cpp	crates/wow-world-application/src/player_items_session/builders.rs
+crates/wow-world/src/session/player_items/persistence.rs	apply_committed_inventory_item_relocation_like_cpp	crates/wow-world-application/src/player_items_session/committed.rs
+crates/wow-world/src/session/player_items/persistence.rs	apply_committed_inventory_item_swap_like_cpp	crates/wow-world-application/src/player_items_session/committed.rs
+crates/wow-world/src/session/player_items/persistence.rs	apply_committed_inventory_item_removal_like_cpp	crates/wow-world-application/src/player_items_session/committed.rs

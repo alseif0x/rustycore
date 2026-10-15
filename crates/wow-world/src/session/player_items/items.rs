@@ -59,26 +59,6 @@ impl WorldSession {
             .flatten()
             .and_then(|state| state.spell_cast_item_guid)
     }
-    pub(crate) async fn uncage_item_state_like_cpp(
-        &self,
-        player_db_guid: u64,
-        item_db_guid: u64,
-    ) -> wow_persistence::PlayerUncageItemStateLoadOutcomeLikeCpp {
-        let Some(port) = self
-            .lifecycle
-            .player_lifecycle_port_like_cpp()
-            .map(Arc::clone)
-        else {
-            return wow_persistence::PlayerUncageItemStateLoadOutcomeLikeCpp::Failed {
-                reason: "Player lifecycle persistence port is unavailable".to_owned(),
-            };
-        };
-        port.load_uncage_item_state_like_cpp(wow_persistence::PlayerUncageItemStateRequestLikeCpp {
-            player_guid: player_db_guid,
-            item_guid: item_db_guid,
-        })
-        .await
-    }
 }
 
 #[cfg(test)]

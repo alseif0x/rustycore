@@ -1,0 +1,37 @@
+{
+  "comment": "#1363 done criterion (tools/architecture/session_method_index.py check). Non-forward inherent WorldSession methods in crates/wow-world/src/session/** may remain only in the runtime shell and the world-server construction API listed here; the staying set is bounded, the rest is a ratchet that must reach 0 (check --done). Entries are paths relative to crates/wow-world/src: a trailing '/' is a directory, 'file::method' is one method.",
+  "allow": {
+    "runtime_shell": [
+      "session/driver/",
+      "session/map_admission.rs",
+      "session/construction.rs::new",
+      "session/connection.rs::poll_instance_link_with_module_registry_like_cpp",
+      "session/connection_identity.rs::set_state"
+    ],
+    "construction_api": [
+      "session/catalogs/operations.rs::set_chr_specialization_store",
+      "session/catalogs/operations.rs::set_faction_store",
+      "session/catalogs/operations.rs::set_mount_store",
+      "session/catalogs/operations.rs::set_mount_definition_store_like_cpp",
+      "session/connection_identity.rs::set_realm_handle_like_cpp",
+      "session/instances/difficulty.rs::set_difficulty_store",
+      "session/instances/map_key.rs::set_map_store",
+      "session/instances/map_resolution.rs::set_canonical_map_manager",
+      "session/player_registry_binding.rs::set_player_registry",
+      "session/progression/reputation.rs::set_paragon_reputation_store",
+      "session/progression/talents.rs::set_num_talents_at_level_store",
+      "session/quest/state.rs::set_quest_store",
+      "session/runtime_policy_access.rs::set_socket_timeouts_like_cpp",
+      "session/social/group.rs::set_group_registry",
+      "session/spell_state/acquisition.rs::set_spell_acquisition_static_authority_like_cpp",
+      "session/spell_state/catalog.rs::set_spell_store",
+      "session/spell_state/catalog.rs::set_spell_chain_store",
+      "session/spell_state/catalog.rs::set_spell_linked_store",
+      "session/spell_state/catalog.rs::set_spell_area_store",
+      "session/spell_state/spell.rs::set_spell_runtime_script_authority_like_cpp",
+      "session/world_state/operations.rs::set_area_table_store"
+    ]
+  },
+  "staying_bound": {"methods": 43, "lines": 1282},
+  "outside_ceiling": {"methods": 261, "lines": 6857}
+}

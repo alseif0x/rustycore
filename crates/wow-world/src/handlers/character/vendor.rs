@@ -7,7 +7,7 @@
 //! `wow_world_inventory::vendor_session` (#1363 slice 8b); the trainer gossip
 //! menu moved to `wow_world_character::gossip_session` (#1363 slice 8e). Every
 //! adapter method is a field access or a pure forward to the same-named
-//! inherent `WorldSession` method.
+//! inherent `WorldSession` method or moved free function (#1363 slice 12b1b).
 
 use super::*;
 
@@ -106,7 +106,7 @@ impl VendorSessionHostLikeCpp for WorldSession {
         entry_id: u32,
         count: u32,
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
-        WorldSession::plan_store_new_direct_inventory_item(self, entry_id, count)
+        application::plan_store_new_direct_inventory_item(self, entry_id, count)
     }
     fn plan_store_new_direct_inventory_item_at(
         &self,
@@ -115,7 +115,7 @@ impl VendorSessionHostLikeCpp for WorldSession {
         bag: u8,
         slot: u8,
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
-        WorldSession::plan_store_new_direct_inventory_item_at(self, entry_id, count, bag, slot)
+        application::plan_store_new_direct_inventory_item_at(self, entry_id, count, bag, slot)
     }
     fn make_inventory_item_object(
         &self,

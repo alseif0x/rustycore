@@ -1,0 +1,47 @@
+{
+ "slice": "#1363 slice 12b1b (area-based item-level scaling and the equipment-set use context -> wow-world-inventory over PlayerItemsSessionHostLikeCpp::split_player_items_mut; the uncage item-state load over BattlePetSessionHostLikeCpp::lifecycle)",
+ "base": "e5c8195b0",
+ "moved": [
+  "update_represented_item_level_area_based_scaling_with_publication_like_cpp",
+  "build_equipment_set_use_context_like_cpp",
+  "uncage_item_state_like_cpp"
+ ],
+ "rules": [
+  [
+   "pub\\(crate\\) fn update_represented_item_level_area_based_scaling_with_publication_like_cpp\\(\\s*&mut self,([^{]*)\\{",
+   "pub fn update_represented_item_level_area_based_scaling_with_publication_like_cpp<H: PlayerItemsSessionHostLikeCpp>(host: &mut H,\\1{\n    let world_test = world_test_consumer_like_cpp(host);\n    let PlayerItemsSessionFieldsLikeCpp {\n        hub: HubMut { core, catalogs, config, #[cfg(any(test, feature = \"test-fixtures\"))] fixtures, .. },\n        inventory, loot, #[cfg(any(test, feature = \"test-fixtures\"))] spell_state, #[cfg(any(test, feature = \"test-fixtures\"))] quest_state,\n    } = host.split_player_items_mut();"
+  ],
+  [
+   "pub\\(crate\\) fn build_equipment_set_use_context_like_cpp\\(\\s*&mut self,?\\s*\\) -> wow_world_inventory::EquipmentSetUseContextLikeCpp<'_> \\{",
+   "pub fn build_equipment_set_use_context_like_cpp<H: PlayerItemsSessionHostLikeCpp>(host: &mut H) -> crate::EquipmentSetUseContextLikeCpp<'_> {\n    let world_test = world_test_consumer_like_cpp(host);\n    let PlayerItemsSessionFieldsLikeCpp {\n        hub: HubMut { core, catalogs, config, #[cfg(any(test, feature = \"test-fixtures\"))] fixtures, .. },\n        inventory, loot, #[cfg(any(test, feature = \"test-fixtures\"))] spell_state, #[cfg(any(test, feature = \"test-fixtures\"))] quest_state,\n    } = host.split_player_items_mut();"
+  ],
+  [
+   "pub\\(crate\\) async fn uncage_item_state_like_cpp\\(\\s*&self,",
+   "pub async fn uncage_item_state_like_cpp<H: BattlePetSessionHostLikeCpp>(host: &H,"
+  ],
+  [
+   "\\bself\\s*\\.\\s*lifecycle\\s*\\.",
+   "host.lifecycle()."
+  ],
+  [
+   "&mut self\\s*\\.\\s*inventory\\b(?![\\w.])",
+   "inventory"
+  ],
+  [
+   "&self\\s*\\.\\s*(loot|catalogs|config|spell_state|quest_state)\\b(?![\\w.\\[])",
+   "\\1"
+  ],
+  [
+   "\\bself\\s*\\.\\s*",
+   ""
+  ],
+  [
+   "cfg!\\(test\\)",
+   "world_test"
+  ],
+  [
+   "wow_world_inventory::",
+   "crate::"
+  ]
+ ]
+}

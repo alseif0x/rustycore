@@ -18,8 +18,8 @@ pub use trainer_admission::{
 mod inventory_valuation;
 mod player_conditions;
 pub use inventory_valuation::{
-    can_equip_inventory_item_like_cpp, can_equip_unique_item_like_cpp,
-    can_use_inventory_item_represented_with_loading_like_cpp,
+    MAX_ITEM_LEVEL_LIKE_CPP, MIN_ITEM_LEVEL_LIKE_CPP, can_equip_inventory_item_like_cpp,
+    can_equip_unique_item_like_cpp, can_use_inventory_item_represented_with_loading_like_cpp,
 };
 pub use player_conditions::{
     PlayerConditionProjectionCxLikeCpp, PlayerConditionProjectionInputsLikeCpp,

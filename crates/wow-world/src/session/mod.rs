@@ -241,7 +241,6 @@ pub(crate) use instance_bind_contracts::RepresentedGameObjectSpellCaster;
 pub(crate) use instance_bind_contracts::RepresentedHomebindLikeCpp;
 pub(crate) use instance_bind_contracts::RepresentedPendingBind;
 mod inventory_request_contracts;
-pub(crate) use inventory_request_contracts::DirectInventoryStorageOverlayLikeCpp;
 pub(crate) use inventory_request_contracts::MAX_EQUIPMENT_SET_INDEX_LIKE_CPP;
 pub(crate) use inventory_request_contracts::RepresentedAutoUnequipOffhandReasonLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -630,17 +629,17 @@ use wow_entities::{
     BANK_SLOT_BAG_START, BUYBACK_SLOT_START, CreatureAddonLifecycleRecordLikeCpp,
     EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_RANGED,
     GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
-    INVENTORY_SLOT_BAG_START, Item, ItemPosCount, ItemStorageTemplate, NULL_BAG, NULL_SLOT,
-    PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInteractionDataLikeCpp,
-    PlayerInventoryRuntime, PlayerItemTimeUpdate, PlayerPetLifecycleStateLikeCpp,
-    PlayerQuestGameplayState, PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp,
-    PlayerTeleportStateLikeCpp, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery,
-    SendNewItemDisplayText, SendNewItemPlan, Vehicle, VisibleItemValues, WorldObject,
+    INVENTORY_SLOT_BAG_START, Item, ItemStorageTemplate, PhaseShift, Player,
+    PlayerEnchantTimeUpdate, PlayerInteractionDataLikeCpp, PlayerInventoryRuntime,
+    PlayerItemTimeUpdate, PlayerPetLifecycleStateLikeCpp, PlayerQuestGameplayState,
+    PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp,
+    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText,
+    SendNewItemPlan, Vehicle, VisibleItemValues, WorldObject,
 };
 #[cfg(test)]
 use wow_entities::{ActiveState, PetType, explored_zones_db_string_from_blocks_like_cpp};
 #[cfg(test)]
-use wow_entities::{EQUIPMENT_SLOT_OFFHAND, MAX_MONEY_AMOUNT};
+use wow_entities::{EQUIPMENT_SLOT_OFFHAND, ItemPosCount, MAX_MONEY_AMOUNT, NULL_SLOT};
 #[cfg(test)]
 use wow_entities::{MovementGeneratorKind, PetAuraLikeCpp, PetSaveMode, PetStableInfo, ReactState};
 pub(crate) use wow_entities::{PlayerCurrency, PlayerCurrencyState};

@@ -40,17 +40,17 @@ async fn uncage_item_state_read_routes_typed_ids_and_preserves_failure_distincti
 
 #[test]
 fn uncage_item_state_seam_no_longer_names_statement_or_driver_errors() {
-    // #597 moved the uncage seam into the player item family; the seam's
-    // contract is unchanged, so the scan follows the code.
-    let session_source = include_str!("../../../../src/session/player_items/items.rs");
+    // #597 and #1363 slice 12b1b moved the uncage seam (now in
+    // `wow-world-inventory`); its contract is unchanged, so the scan follows the code.
+    let session_source =
+        include_str!("../../../../../wow-world-inventory/src/battle_pet_session/item_state.rs");
     let item_source = include_str!("../../../../src/handlers/character/items.rs");
     let (_, helper_and_tail) = session_source
-        .split_once("pub(crate) async fn uncage_item_state_like_cpp")
+        .split_once("pub async fn uncage_item_state_like_cpp")
         .expect("uncage state helper starts");
     let (helper, _) = helper_and_tail
-        // Ends at the helper's own impl-level `    }`, so the scan no longer
-        // depends on which item follows it (#1363 slices 4a/4b).
-        .split_once("\n    }\n")
+        // Ends at the helper's own top-level `}`, whatever item follows it.
+        .split_once("\n}\n")
         .expect("uncage state helper ends at its own closing brace");
 
     assert!(helper.contains("load_uncage_item_state_like_cpp"));

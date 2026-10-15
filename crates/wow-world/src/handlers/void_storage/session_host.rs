@@ -57,7 +57,7 @@ impl VoidStorageSessionHostLikeCpp for WorldSession {
         overlays: &[DirectInventoryStorageOverlayLikeCpp],
         vacated_positions: &[(u8, u8)],
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
-        WorldSession::plan_store_new_direct_inventory_item_with_overlays_like_cpp(
+        wow_world_application::plan_store_new_direct_inventory_item_with_overlays_like_cpp(
             self,
             entry_id,
             count,
