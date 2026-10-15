@@ -138,13 +138,6 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         include_str!("../../../src/session/player_items/storage_bags.rs"),
         include_str!("../../../src/session/player_items/storage_slots.rs"),
         include_str!("../../../src/session/player_items/valuation.rs"),
-        // #1363 slice 12b1 moved the durability repairs, the offhand unequip
-        // and the appearance gates to wow-world-inventory; the scan follows
-        // them there with the same `self.` -> `host` rewrite as the bodies.
-        include_str!("../../../../wow-world-inventory/src/player_items_session/appearance.rs"),
-        include_str!("../../../../wow-world-inventory/src/player_items_session/durability.rs"),
-        include_str!("../../../../wow-world-inventory/src/player_items_session/item_mods.rs"),
-        include_str!("../../../../wow-world-inventory/src/player_items_session/offhand.rs"),
         include_str!("../../../../wow-world-inventory/src/player_items_session/repair.rs"),
     );
     assert_publication_segment(

@@ -10,12 +10,16 @@
 //! call, and the five one-statement wrappers (the appearance adds, the
 //! modified-appearance catalog reads and the account heirloom add) moved
 //! verbatim because only the scenarios still call them once the moved bodies
-//! make the same split and state call through the host. No scenario call site
-//! changes.
+//! make the same split and state call through the host, and the recorded
+//! offhand-request accessor (verbatim from the retired
+//! `unit_tests/session/player_items/offhand/f3_shims.rs`, without its inner
+//! `#[cfg(test)]`, which this file's `#![cfg(test)]` covers). No scenario call
+//! site changes.
 
 #![cfg(test)]
 
 use wow_core::ObjectGuid;
+use wow_world_inventory::RepresentedAutoUnequipOffhandLikeCpp;
 
 use crate::session::WorldSession;
 
@@ -116,6 +120,13 @@ impl WorldSession {
         force: bool,
     ) -> bool {
         wow_world_inventory::represented_auto_unequip_offhand_if_need_like_cpp(self, force)
+    }
+
+    pub(crate) fn represented_auto_unequip_offhand_requests_like_cpp(
+        &self,
+    ) -> &[RepresentedAutoUnequipOffhandLikeCpp] {
+        self.inventory
+            .represented_auto_unequip_offhand_requests_like_cpp()
     }
 
     pub(crate) fn on_item_added_to_collection_like_cpp(

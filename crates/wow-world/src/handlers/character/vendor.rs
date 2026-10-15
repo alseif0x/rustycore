@@ -131,6 +131,12 @@ impl VendorSessionHostLikeCpp for WorldSession {
             item_guid, entry_id, owner_guid, count, durability, context, slot,
         )
     }
+    fn on_item_added_to_collection_like_cpp(
+        &mut self,
+        item: &wow_entities::Item,
+    ) -> Vec<wow_entities::PlayerValuesUpdate> {
+        wow_world_inventory::on_item_added_to_collection_like_cpp(self, item)
+    }
     fn apply_item_turnin_changes(
         &mut self,
         player_guid: ObjectGuid,

@@ -874,10 +874,7 @@ pub async fn handle_buy_item_with_generator_like_cpp<H: VendorSessionHostLikeCpp
             item_object.set_paid_money(buy_price);
             item_object.set_paid_extended_cost(vendor_item.extended_cost as u32);
         }
-        collection_updates.extend(crate::on_item_added_to_collection_like_cpp(
-            host,
-            &item_object,
-        ));
+        collection_updates.extend(host.on_item_added_to_collection_like_cpp(&item_object));
         {
             let (state, mut hub) = host.split_inventory_mut();
             state.insert_inventory_item_object(&mut hub, item_object)

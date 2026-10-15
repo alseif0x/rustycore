@@ -13,9 +13,6 @@ mod equipment;
 mod equipment_sets;
 mod items;
 mod modifiers;
-#[cfg(test)]
-#[path = "../../../unit_tests/session/player_items/offhand/f3_shims.rs"]
-mod offhand_f3_shims;
 mod persistence;
 mod persistence_load;
 mod publication;

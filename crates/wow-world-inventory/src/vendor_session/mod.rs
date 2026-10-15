@@ -30,7 +30,7 @@ use wow_core::ObjectGuid;
 use wow_data::PlayerConditionContextLikeCpp;
 use wow_entities::{
     Item, ItemPosCount, MAX_MONEY_AMOUNT, PlayerCurrency, PlayerInventoryItem as InventoryItem,
-    SendNewItemPlan, WorldObject,
+    PlayerValuesUpdate, SendNewItemPlan, WorldObject,
 };
 use wow_world_core::session::{HubMut, PlayerCurrencyDelta};
 use wow_world_interaction::InteractionState;
@@ -122,6 +122,7 @@ pub trait VendorSessionHostLikeCpp: BattlePetPurchaseHostLikeCpp {
         context: ItemContext,
         slot: u8,
     ) -> Item;
+    fn on_item_added_to_collection_like_cpp(&mut self, item: &Item) -> Vec<PlayerValuesUpdate>;
     fn apply_item_turnin_changes(
         &mut self,
         player_guid: ObjectGuid,
