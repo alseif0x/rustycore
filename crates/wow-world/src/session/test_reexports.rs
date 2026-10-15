@@ -1,12 +1,13 @@
 //! Names only the session scenarios read through the session root (#1363
-//! slices 9e, 10a and 10b): the player cast, cast-check and spell-click names,
-//! the aura interrupt flags, the capture-point state and the spell-area
-//! autocast names. `#![cfg(test)]`; the session root mounts and glob-imports
+//! slices 9e, 10a, 10b and 11a): the player cast, cast-check and spell-click
+//! names, the aura interrupt flags, the capture-point state, the spell-area
+//! autocast names and the dynamic-object VALUES bridge. `#![cfg(test)]`; the session root mounts and glob-imports
 //! it under `cfg(test)` (#1395 follow-up 1, #1396 follow-up 1).
 
 #![cfg(test)]
 
 pub(crate) use super::gameobject_interaction::RepresentedCapturePointStateLikeCpp;
+pub(crate) use crate::entity_update_bridge::dynamic_object_values_update_to_update_object;
 pub(crate) use wow_data::spell_click::{
     SPELL_CLICK_USER_PARTY_LIKE_CPP, SPELL_CLICK_USER_RAID_LIKE_CPP,
 };

@@ -80,9 +80,8 @@ pub mod mailbox;
 mod money;
 mod movement;
 mod object_updates;
-pub(crate) use object_updates::dynamic_object_create_data_from_canonical_like_cpp;
+pub(crate) use wow_world_entities::dynamic_object_create_data_from_canonical_like_cpp;
 pub(crate) use wow_world_quest::represented_gameobject_dynamic_flags_update_like_cpp;
-pub(crate) use wow_world_visibility::represented_dynamic_object_values_update_delivery_fingerprint_like_cpp;
 mod persistence;
 mod pets;
 mod player_cast;
@@ -509,8 +508,7 @@ use tracing::{debug, info, warn};
 
 use crate::battle_pet_account::BattlePetAccountAttachmentLikeCpp;
 use crate::entity_update_bridge::{
-    dynamic_object_values_update_to_update_object, item_values_update_to_update_object,
-    unit_values_update_to_packet,
+    item_values_update_to_update_object, unit_values_update_to_packet,
 };
 use crate::loot_persistence::DurableLootMoneyCompletionLikeCpp;
 #[cfg(test)]

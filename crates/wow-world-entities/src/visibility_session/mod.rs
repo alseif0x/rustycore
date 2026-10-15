@@ -11,14 +11,13 @@
 //! Player and its map. Their Rust bodies now live in this crate; each host
 //! method below is the same-named `WorldSession` operation (or field), called
 //! at the exact point the body called it before the move. The canonical
-//! visible-object queries, the viewer-dependent NPC and gameobject flags, the
-//! far-sight sync and the quest-state refresh request stay with the host.
+//! visible-object queries live here too (gameobjects and creatures since
+//! slice 10a, the other canonical-map objects since slice 11a); the
+//! registry-backed other players, the viewer-dependent NPC and gameobject
+//! flags, the far-sight sync and the quest-state refresh request stay with
+//! the host.
 
 use wow_core::{ObjectGuid, Position};
-use wow_packet::packets::update::{
-    AreaTriggerCreateData, ConversationCreateData, CorpseCreateData, DynamicObjectCreateData,
-    GameObjectCreateData, SceneObjectCreateData,
-};
 use wow_world_core::session::directory::PlayerVisibilityCreateSnapshot;
 use wow_world_lifecycle::SessionLifecycleState;
 use wow_world_visibility::VisibilityState;
@@ -26,11 +25,18 @@ use wow_world_visibility::VisibilityState;
 use crate::RepresentedGameObjectUseState;
 use crate::world_entities_host::WorldEntitiesHostLikeCpp;
 
+mod canonical_objects;
+mod dynamic_object_values;
 mod nearby;
 mod queries;
 mod spawn;
 mod update;
 
+pub use canonical_objects::{
+    dynamic_object_create_data_from_canonical_like_cpp,
+    visible_dynamic_objects_from_canonical_map_like_cpp,
+};
+pub use dynamic_object_values::send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp;
 pub use nearby::{send_nearby_creatures_with_catalogs_like_cpp, send_nearby_gameobjects};
 pub use queries::{
     represented_gameobject_go_state_for_viewer_like_cpp,
@@ -69,32 +75,6 @@ pub trait VisibilitySessionHostLikeCpp: WorldEntitiesHostLikeCpp {
     fn represented_visibility_source_position_like_cpp(&self) -> Option<Position>;
     /// The World's `current_seer_guid_like_cpp` (`Player::m_seer` as a GUID).
     fn current_seer_guid_like_cpp(&self) -> Option<ObjectGuid>;
-    fn visible_dynamic_objects_from_canonical_map_like_cpp(
-        &self,
-        map_id: u16,
-        position: &Position,
-        visibility_radius: f32,
-    ) -> Option<Vec<DynamicObjectCreateData>>;
-    fn visible_area_triggers_from_canonical_map_like_cpp(
-        &self,
-        map_id: u16,
-        position: &Position,
-        visibility_radius: f32,
-    ) -> Option<Vec<AreaTriggerCreateData>>;
-    fn visible_misc_objects_from_canonical_map_like_cpp(
-        &self,
-        map_id: u16,
-        position: &Position,
-        visibility_radius: f32,
-    ) -> Option<(
-        Vec<CorpseCreateData>,
-        Vec<SceneObjectCreateData>,
-        Vec<ConversationCreateData>,
-    )>;
-    fn visible_transports_from_canonical_map_like_cpp(
-        &self,
-        map_id: u16,
-    ) -> Option<Vec<GameObjectCreateData>>;
     fn visible_other_players_from_registry_like_cpp(
         &self,
         map_id: u16,

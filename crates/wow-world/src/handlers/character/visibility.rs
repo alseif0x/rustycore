@@ -7,10 +7,6 @@
 //! `wow_world_entities::visibility_session` (#1363 slice 8a). Every method is a
 //! pure forward to the same-named inherent `WorldSession` method or field.
 
-use wow_packet::packets::update::{
-    AreaTriggerCreateData, ConversationCreateData, CorpseCreateData, DynamicObjectCreateData,
-    GameObjectCreateData, SceneObjectCreateData,
-};
 use wow_world_core::session::directory::PlayerVisibilityCreateSnapshot;
 use wow_world_lifecycle::SessionLifecycleState;
 use wow_world_visibility::VisibilityState;
@@ -61,55 +57,6 @@ impl wow_world_entities::VisibilitySessionHostLikeCpp for WorldSession {
     }
     fn current_seer_guid_like_cpp(&self) -> Option<ObjectGuid> {
         WorldSession::current_seer_guid_like_cpp(self)
-    }
-    fn visible_dynamic_objects_from_canonical_map_like_cpp(
-        &self,
-        map_id: u16,
-        position: &Position,
-        visibility_radius: f32,
-    ) -> Option<Vec<DynamicObjectCreateData>> {
-        WorldSession::visible_dynamic_objects_from_canonical_map_like_cpp(
-            self,
-            map_id,
-            position,
-            visibility_radius,
-        )
-    }
-    fn visible_area_triggers_from_canonical_map_like_cpp(
-        &self,
-        map_id: u16,
-        position: &Position,
-        visibility_radius: f32,
-    ) -> Option<Vec<AreaTriggerCreateData>> {
-        WorldSession::visible_area_triggers_from_canonical_map_like_cpp(
-            self,
-            map_id,
-            position,
-            visibility_radius,
-        )
-    }
-    fn visible_misc_objects_from_canonical_map_like_cpp(
-        &self,
-        map_id: u16,
-        position: &Position,
-        visibility_radius: f32,
-    ) -> Option<(
-        Vec<CorpseCreateData>,
-        Vec<SceneObjectCreateData>,
-        Vec<ConversationCreateData>,
-    )> {
-        WorldSession::visible_misc_objects_from_canonical_map_like_cpp(
-            self,
-            map_id,
-            position,
-            visibility_radius,
-        )
-    }
-    fn visible_transports_from_canonical_map_like_cpp(
-        &self,
-        map_id: u16,
-    ) -> Option<Vec<GameObjectCreateData>> {
-        WorldSession::visible_transports_from_canonical_map_like_cpp(self, map_id)
     }
     fn visible_other_players_from_registry_like_cpp(
         &self,

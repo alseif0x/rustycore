@@ -220,10 +220,13 @@ pub use vehicle_session::{
     represented_request_vehicle_switch_seat_like_cpp, represented_ride_vehicle_interact_like_cpp,
 };
 pub use visibility_session::{
-    VisibilitySessionHostLikeCpp, represented_gameobject_go_state_for_viewer_like_cpp,
+    VisibilitySessionHostLikeCpp, dynamic_object_create_data_from_canonical_like_cpp,
+    represented_gameobject_go_state_for_viewer_like_cpp,
     represented_visibility_source_combat_reach_like_cpp,
     send_nearby_creatures_with_catalogs_like_cpp, send_nearby_gameobjects,
+    send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp,
     update_visibility_with_catalogs_like_cpp, visible_creatures_from_canonical_map_like_cpp,
+    visible_dynamic_objects_from_canonical_map_like_cpp,
     visible_gameobjects_from_canonical_map_like_cpp, visible_world_creatures_from_map_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
