@@ -271,7 +271,7 @@ pub async fn teleport_to_with_options<H: PlayerTeleportHostLikeCpp>(
         let canonical_key = host.core().current_canonical_player_map_key_like_cpp();
         let (resolved_map_id, resolved_instance_id) =
             host.core().current_runtime_map_key_like_cpp();
-        let destination_map_id = u16::try_from(new_map).unwrap_or(u16::MAX);
+        let _destination_map_id = u16::try_from(new_map).unwrap_or(u16::MAX);
         host.core().emit_runtime_location_capture_like_cpp(
             wow_world_core::session::RuntimeLocationCaptureLikeCpp {
                 capture_id: "C2",
