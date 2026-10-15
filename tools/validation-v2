@@ -733,6 +733,12 @@ def validation_commands(
         add_command(planned, ["python3", "tools/architecture/wow_world_closure.py", "check"])
     if profile == "final" and any(path in closure_files for path in all_paths):
         add_command(planned, ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_wow_world_closure.py"])
+    # #1363 slice 6c (#1405 review): the warning counter and the moved-body
+    # token comparison run their own self-tests in final when either file
+    # changes, like the closure suite above. Neither calls Cargo.
+    for tool in ("tools/architecture/warning_units.py", "tools/architecture/move_token_compare.py"):
+        if profile == "final" and tool in all_paths:
+            add_command(planned, ["python3", tool, "self-test"])
     text_suffixes = {".json", ".lock", ".md", ".proto", ".py", ".rs", ".sh", ".toml", ".tsv", ".txt", ".yaml", ".yml"}
     text_files = existing(
         sorted(
