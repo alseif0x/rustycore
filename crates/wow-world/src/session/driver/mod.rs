@@ -355,7 +355,8 @@ impl WorldSession {
         self.process_ready_character_rename_callbacks_like_cpp();
         self.core
             .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PeriodicPlayerSave);
-        self.process_pending_periodic_player_save_with_generator_like_cpp(
+        wow_world_application::process_pending_periodic_player_save_with_generator_like_cpp(
+            self,
             catalogs.id_generators.item.as_ref(),
         )
         .await;

@@ -1,66 +1,30 @@
 //! Session projection adapters for the existing finalization persistence obligations.
 //! No transaction regrouping, retries or acknowledgement changes are introduced here.
-use crate::finalization::FinalizationOutcome;
-use crate::session::WorldSession;
+//! (#1363 slice 13b; moved from the World `session/lifecycle/account.rs`.)
 use std::sync::Arc;
 use tracing::warn;
 use wow_persistence::{
     AccountCollectionSaveLikeCpp, AccountMaskBlockLikeCpp, PersistenceOutcomeLikeCpp,
 };
+use wow_world_lifecycle::FinalizationOutcome;
 
-impl WorldSession {
-    pub(crate) async fn mark_character_offline(&mut self) -> FinalizationOutcome {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.mark_character_offline(&mut hub).await
-    }
+use super::SessionAccountSaveCxLikeCpp;
 
-    pub(crate) async fn mark_character_account_offline_like_cpp(&mut self) -> FinalizationOutcome {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state
-            .mark_character_account_offline_like_cpp(&mut hub)
-            .await
-    }
-
-    pub(crate) async fn mark_login_account_offline_on_disconnect_like_cpp(
-        &mut self,
-    ) -> FinalizationOutcome {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state
-            .mark_login_account_offline_on_disconnect_like_cpp(&mut hub)
-            .await
-    }
-
-    pub(crate) async fn save_account_mounts_like_cpp(&mut self) -> FinalizationOutcome {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.save_account_mounts_like_cpp(&mut hub).await
-    }
-
-    pub(crate) async fn save_account_toys_like_cpp(&mut self) -> FinalizationOutcome {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.save_account_toys_like_cpp(&mut hub).await
-    }
-
-    pub(crate) async fn save_account_heirlooms_like_cpp(&mut self) -> FinalizationOutcome {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.save_account_heirlooms_like_cpp(&mut hub).await
-    }
-}
-
-impl crate::session::LifecycleCx<'_> {
-    pub(crate) async fn clear_buyback_on_logout(&mut self) -> crate::FinalizationOutcome {
+impl SessionAccountSaveCxLikeCpp<'_> {
+    pub async fn clear_buyback_on_logout(&mut self) -> FinalizationOutcome {
         let guid = match self.hub.core.player_guid() {
             Some(g) => g,
-            None => return crate::FinalizationOutcome::NoWork,
+            None => return FinalizationOutcome::NoWork,
         };
         let Some(buyback_items) = self
             .inventory
             .resolved_buyback_items_like_cpp(self.hub.shared())
         else {
-            return crate::FinalizationOutcome::Unavailable;
+            return FinalizationOutcome::Unavailable;
         };
         if buyback_items.is_empty() {
             self.inventory.clear_buyback_runtime_like_cpp(&mut self.hub);
-            return crate::FinalizationOutcome::NoWork;
+            return FinalizationOutcome::NoWork;
         }
 
         let port = match self
@@ -69,7 +33,7 @@ impl crate::session::LifecycleCx<'_> {
             .map(Arc::clone)
         {
             Some(port) => port,
-            None => return crate::FinalizationOutcome::Unavailable,
+            None => return FinalizationOutcome::Unavailable,
         };
         let request = wow_persistence::PlayerBuybackClearRequestLikeCpp {
             player_guid: guid.counter() as u64,
@@ -92,7 +56,7 @@ impl crate::session::LifecycleCx<'_> {
             .inventory
             .resolved_buyback_items_like_cpp(self.hub.shared())
         else {
-            return crate::FinalizationOutcome::Unavailable;
+            return FinalizationOutcome::Unavailable;
         };
         let removed_guids: Vec<_> = buyback_items.values().map(|item| item.guid).collect();
         for item_guid in removed_guids {
@@ -100,10 +64,10 @@ impl crate::session::LifecycleCx<'_> {
                 .remove_inventory_item_object(&mut self.hub, item_guid);
         }
         self.inventory.clear_buyback_runtime_like_cpp(&mut self.hub);
-        crate::FinalizationOutcome::Applied
+        FinalizationOutcome::Applied
     }
 
-    pub(crate) async fn save_account_item_appearances_like_cpp(&mut self) -> FinalizationOutcome {
+    pub async fn save_account_item_appearances_like_cpp(&mut self) -> FinalizationOutcome {
         let Some(port) = self
             .lifecycle
             .player_lifecycle_port_like_cpp()
@@ -165,7 +129,7 @@ impl crate::session::LifecycleCx<'_> {
         outcome.into()
     }
 
-    pub(crate) async fn save_account_transmog_illusions_like_cpp(&mut self) -> FinalizationOutcome {
+    pub async fn save_account_transmog_illusions_like_cpp(&mut self) -> FinalizationOutcome {
         let Some(port) = self
             .lifecycle
             .player_lifecycle_port_like_cpp()

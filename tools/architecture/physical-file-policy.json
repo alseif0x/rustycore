@@ -838,6 +838,13 @@
       "review_checkpoint": "584:C4"
     },
     {
+      "path": "crates/wow-world/src/handlers/session_lifecycle_test_shims.rs",
+      "observed_lines": 205,
+      "ceiling_lines": 205,
+      "split": "cfg(test) lifecycle orchestration entry points (#1363 slice 13b): one-call method forwards to the bodies moved to wow-world-application (session_lifecycle: the finalization step, the periodic save, the talent-reset commit, the respec wipe, and the LifecycleCx buyback and account collection saves) that the scenarios call, so no call site changes; the six account split wrappers of session/lifecycle/account.rs, unregister_from_player_registry and the two disconnect-cleanup test entries of cleanup.rs, set_player_logout of logout.rs, restore_realm_channels of connection.rs, send_buy_error of publication/operations.rs and the talent-reset plan of persistence/plans.rs that only the scenarios still call, moved verbatim; and the persistence/commit.rs F3 shim mount. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-15 #1363 slice 13b: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly.",
+      "review_checkpoint": "584:C4"
+    },
+    {
       "path": "crates/wow-world/src/handlers/worldport_test_shims.rs",
       "observed_lines": 84,
       "ceiling_lines": 84,

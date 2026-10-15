@@ -153,13 +153,12 @@ pub use wow_world_core::session::ChatPolicyCatalogsLikeCpp;
 pub use wow_world_core::session::SupportFeaturePolicyLikeCpp;
 use wow_world_core::session::character_availability::default_available_classes;
 mod character_customization;
-pub(crate) use character_customization::RepresentedConfirmRespecWipeLikeCpp;
-pub(crate) use character_customization::RepresentedTalentRespecVisualSpellCastLikeCpp;
 #[cfg(test)]
 pub(crate) use character_customization::{
     RepresentedAlterAppearanceLikeCpp, RepresentedAtLoginFlagRemovalLikeCpp,
-    RepresentedConfirmBarbersChoiceLikeCpp, RepresentedTalentResetScriptHookLikeCpp,
-    RepresentedTalentRespecCriteriaEventLikeCpp,
+    RepresentedConfirmBarbersChoiceLikeCpp, RepresentedConfirmRespecWipeLikeCpp,
+    RepresentedTalentResetScriptHookLikeCpp, RepresentedTalentRespecCriteriaEventLikeCpp,
+    RepresentedTalentRespecVisualSpellCastLikeCpp,
 };
 mod cinematic_adapter;
 mod collection_adapter;
@@ -295,11 +294,10 @@ pub use map_admission::{MMapRuntimeConfigLikeCpp, WaypointPathResolverLikeCpp};
 pub use map_admission::{PlayerGridLoadOutcomeLikeCpp, PlayerGridLoadResolverLikeCpp};
 mod money_persistence_contracts;
 use money_persistence_contracts::AbsolutePlayerMoneyCommitReconciliationLikeCpp;
-pub(crate) use money_persistence_contracts::CommittedRepresentedTalentResetLikeCpp;
 pub(crate) use money_persistence_contracts::ExclusivePlayerMoneyPersistenceLikeCpp;
 pub(crate) use money_persistence_contracts::LootMoneyPersistenceErrorLikeCpp;
+#[cfg(test)]
 pub(crate) use money_persistence_contracts::PlayerMoneyCommitCancellationFenceLikeCpp;
-use money_persistence_contracts::RepresentedTalentResetStatePlanLikeCpp;
 use money_persistence_contracts::reconcile_absolute_player_money_commit_like_cpp;
 mod movement_protocol;
 #[cfg(test)]
@@ -552,13 +550,15 @@ use wow_constants::unit::{
     Gender, NPCFlags1, PowerType, Team, UnitFlags, UnitPvpFlags, UnitStandStateType,
     WeaponAttackType,
 };
+#[cfg(test)]
 use wow_constants::{
-    BuyResult, ClientOpcodes, InventoryResult, InventoryType, ItemClass, ItemContext, ItemFlags,
-    ItemFlags2, ItemFlags3, ItemModifier, ItemQuality, ItemSpelltriggerType, ItemSubClassArmor,
+    BuyResult, SellResult, TypeId, UnitState, item::ItemBonusType, movement::MovementFlag,
+};
+use wow_constants::{
+    ClientOpcodes, InventoryResult, InventoryType, ItemClass, ItemContext, ItemFlags, ItemFlags2,
+    ItemFlags3, ItemModifier, ItemQuality, ItemSpelltriggerType, ItemSubClassArmor,
     ItemSubClassWeapon,
 };
-#[cfg(test)]
-use wow_constants::{SellResult, TypeId, UnitState, item::ItemBonusType, movement::MovementFlag};
 use wow_core::{
     EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator, Position,
     VoidStorageItemIdGeneratorLikeCpp, guid::HighGuid,

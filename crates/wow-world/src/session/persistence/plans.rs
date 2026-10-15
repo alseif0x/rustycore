@@ -85,27 +85,6 @@ impl WorldSession {
         )
         .await
     }
-    pub(in crate::session) fn represented_talent_reset_persistence_plan_like_cpp(
-        &self,
-        guid_counter: u64,
-        old_money: u64,
-        new_money: u64,
-        cost: u32,
-        reset_time_secs: u64,
-    ) -> Option<(
-        RepresentedTalentResetStatePlanLikeCpp,
-        wow_persistence::PlayerTalentResetPersistenceRequestLikeCpp,
-    )> {
-        let (state, hub) = crate::session::split_lifecycle_ref(self);
-        state.represented_talent_reset_persistence_plan_like_cpp(
-            hub,
-            guid_counter,
-            old_money,
-            new_money,
-            cost,
-            reset_time_secs,
-        )
-    }
     pub(in crate::session) fn player_persistent_capability_state_snapshot_like_cpp(
         &self,
     ) -> Option<wow_entities::PlayerPersistentCapabilityStateLikeCpp> {

@@ -1,13 +1,13 @@
 //! Session-facing effects for the finalization application coordinator.
 //! No transaction grouping or scheduling policy is defined by this adapter.
-use crate::finalization::{
-    FinalizationDisposition, FinalizationMode, FinalizationOutcome, FinalizationReport,
-    FinalizationStep, SessionFinalization,
-};
-use crate::session::{PlayerSaveOutcomeLikeCpp, SessionState, WorldSession};
-use wow_core::ObjectGuid;
+//! The coordinator body moved to `wow_world_application::session_lifecycle`
+//! (#1363 slice 13b); the public entry stays here for the World callers.
+use crate::finalization::{FinalizationMode, FinalizationReport, SessionFinalization};
+#[cfg(test)]
+use crate::finalization::{FinalizationOutcome, FinalizationStep};
+use crate::session::WorldSession;
+#[cfg(test)]
 use wow_packet::packets::misc::LogoutComplete;
-use wow_world_loot_ops::wait_for_active_loot_persistence_with_generator_like_cpp;
 
 impl WorldSession {
     pub fn finalization_report_like_cpp(&self) -> Option<FinalizationReport> {
@@ -24,195 +24,17 @@ impl WorldSession {
         self.finalization_report_like_cpp()
     }
 
-    fn finalization_result(&mut self) -> FinalizationReport {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.finalization_result(&mut hub)
-    }
-
     pub async fn finalize_session_with_generator_like_cpp(
         &mut self,
-        mut mode: FinalizationMode,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-    ) -> FinalizationReport {
-        let no_player = self.player_guid().is_none();
-        if let Some(previous) = self.lifecycle.finalization_mut() {
-            let report = previous.report();
-            if previous.is_unstarted() && report.mode == FinalizationMode::TimedLogout {
-                mode = FinalizationMode::TimedLogout;
-            } else if mode == FinalizationMode::Disconnect
-                && report.mode == FinalizationMode::CharacterSelection
-                && report.outcome(FinalizationStep::NativeTransfer) == FinalizationOutcome::Deferred
-                && report.outcome(FinalizationStep::CharacterSave)
-                    == FinalizationOutcome::NotAttempted
-            {
-                // Completed terminal native recovery hands its source save to
-                // disconnect, before any explicit-logout persistence submission.
-            } else if !(report.disposition == FinalizationDisposition::Complete
-                && report.mode == FinalizationMode::CharacterSelection
-                && mode == FinalizationMode::Disconnect
-                && no_player)
-            {
-                previous.interrupt();
-                return self.finalization_result();
-            }
-        }
-        self.lifecycle
-            .install_finalization(SessionFinalization::new(
-                mode,
-                !no_player,
-                self.core.player_handle_like_cpp,
-            ));
-
-        while let Some(step) = self.lifecycle.finalization().unwrap().next_step() {
-            if !self.lifecycle.finalization_mut().unwrap().begin(step) {
-                return self.finalization_result();
-            }
-            if !self.finalization_identity_is_current() {
-                self.lifecycle
-                    .finalization_mut()
-                    .unwrap()
-                    .finish(step, FinalizationOutcome::Unavailable);
-                return self.finalization_result();
-            }
-            let outcome = self
-                .execute_finalization_step(step, mode, item_guid_generator)
-                .await;
-            if !self
-                .lifecycle
-                .finalization_mut()
-                .unwrap()
-                .finish(step, outcome)
-            {
-                return self.finalization_result();
-            }
-        }
-        self.lifecycle.finalization_mut().unwrap().complete();
-        self.finalization_result()
-    }
-
-    fn finalization_identity_is_current(&self) -> bool {
-        let (state, hub) = crate::session::split_lifecycle_ref(self);
-        state.finalization_identity_is_current(hub)
-    }
-
-    async fn execute_finalization_step(
-        &mut self,
-        step: FinalizationStep,
         mode: FinalizationMode,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
-    ) -> FinalizationOutcome {
-        use FinalizationStep::*;
-        match step {
-            NativeTransfer => {
-                if !wow_world_character::finish_worldport_native_before_disconnect_like_cpp(self) {
-                    return FinalizationOutcome::Unavailable;
-                }
-                if mode == FinalizationMode::CharacterSelection
-                    && self.state() == SessionState::Disconnecting
-                {
-                    return FinalizationOutcome::Deferred;
-                }
-                if self.player_guid().is_some() {
-                    self.set_player_logout_like_cpp(true);
-                    self.lifecycle.clear_logout_time();
-                }
-                FinalizationOutcome::Applied
-            }
-            LootSettlement => {
-                wait_for_active_loot_persistence_with_generator_like_cpp(self, item_guid_generator)
-                    .await;
-                if let Some(guid) = self.player_guid() {
-                    if self.loot.has_active_loot_views_like_cpp() {
-                        self.do_loot_release_all_like_cpp(guid).await;
-                    }
-                }
-                FinalizationOutcome::Applied
-            }
-            Buyback => {
-                crate::session::cx_lifecycle(self)
-                    .clear_buyback_on_logout()
-                    .await
-            }
-            CharacterSave => {
-                match wow_world_lifecycle::save_current_player_to_db_with_generator_like_cpp(
-                    self,
-                    item_guid_generator,
-                )
-                .await
-                {
-                    PlayerSaveOutcomeLikeCpp::Applied => FinalizationOutcome::Applied,
-                    PlayerSaveOutcomeLikeCpp::Failed => FinalizationOutcome::DefinitelyRolledBack,
-                    PlayerSaveOutcomeLikeCpp::Quarantined => FinalizationOutcome::Unknown,
-                    PlayerSaveOutcomeLikeCpp::Unavailable => FinalizationOutcome::Unavailable,
-                    PlayerSaveOutcomeLikeCpp::Deferred => FinalizationOutcome::Deferred,
-                }
-            }
-            Mounts => self.save_account_mounts_like_cpp().await,
-            Toys => self.save_account_toys_like_cpp().await,
-            Heirlooms => self.save_account_heirlooms_like_cpp().await,
-            Appearances => {
-                crate::session::cx_lifecycle(self)
-                    .save_account_item_appearances_like_cpp()
-                    .await
-            }
-            Illusions => {
-                crate::session::cx_lifecycle(self)
-                    .save_account_transmog_illusions_like_cpp()
-                    .await
-            }
-            CharacterOffline => self.mark_character_offline().await,
-            CharacterAccountOffline => self.mark_character_account_offline_like_cpp().await,
-            LoginAccountOffline => {
-                self.mark_login_account_offline_on_disconnect_like_cpp()
-                    .await
-            }
-            Retirement => {
-                self.unregister_from_player_registry();
-                wow_world_spell::notify_other_players_visibility_changed_like_cpp(self);
-                {
-                    let (s, mut h) = crate::session::split_lifecycle_mut(self);
-                    s.unregister_canonical_player_from_map_like_cpp(&mut h)
-                }
-            }
-            LogoutPublication => {
-                // Separate writers must finish the earlier instance response first.
-                // A failed/cancelled fence cannot authorize completion publication.
-                if !self
-                    .core
-                    .wait_for_instance_send_before_realm_send_like_cpp()
-                    .await
-                {
-                    return FinalizationOutcome::Unavailable;
-                }
-                // C++ Opcodes.cpp:1665 routes LogoutComplete to realm.
-                // Saturation yields instead of blocking the executor thread.
-                // Success proves channel acceptance, not client receipt.
-                let bytes = wow_packet::ServerPacket::to_bytes(&LogoutComplete);
-                match self.core.realm_route_tx().send_async(bytes).await {
-                    Ok(()) => FinalizationOutcome::Applied,
-                    Err(_) => FinalizationOutcome::Unavailable,
-                }
-            }
-            Release => {
-                if mode == FinalizationMode::CharacterSelection {
-                    self.set_player_guid(None);
-                    self.lifecycle.release_character_login_claim_like_cpp();
-                    {
-                        let (s, mut h) = crate::session::split_inventory_mut(self);
-                        s.clear_all_inventory_runtime_like_cpp(&mut h)
-                    };
-                    let _ = self.clear_player_currencies_like_cpp();
-                    self.loot.set_active_loot_guid(ObjectGuid::EMPTY);
-                    self.restore_realm_channels();
-                    self.set_player_logout_like_cpp(false);
-                    self.set_state(SessionState::Authed);
-                } else {
-                    self.lifecycle.release_character_login_claim_like_cpp();
-                    self.clear_inventory_items_and_objects_like_cpp();
-                }
-                FinalizationOutcome::Applied
-            }
-        }
+    ) -> FinalizationReport {
+        wow_world_application::finalize_session_with_generator_like_cpp(
+            self,
+            mode,
+            item_guid_generator,
+        )
+        .await
     }
 }
 

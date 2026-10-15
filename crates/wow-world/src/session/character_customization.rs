@@ -12,25 +12,11 @@ pub(crate) use wow_world_lifecycle::RepresentedAtLoginFlagRemovalLikeCpp;
 #[cfg(test)]
 pub(crate) use wow_world_core::session::{
     RepresentedAlterAppearanceLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp,
-    RepresentedTalentResetScriptHookLikeCpp, RepresentedTalentRespecCriteriaEventLikeCpp,
-};
-pub(crate) use wow_world_core::session::{
-    RepresentedConfirmRespecWipeLikeCpp, RepresentedTalentRespecVisualSpellCastLikeCpp,
+    RepresentedConfirmRespecWipeLikeCpp, RepresentedTalentResetScriptHookLikeCpp,
+    RepresentedTalentRespecCriteriaEventLikeCpp, RepresentedTalentRespecVisualSpellCastLikeCpp,
 };
 
 impl WorldSession {
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_represented_confirm_respec_wipe_like_cpp(
-        &mut self,
-        request: RepresentedConfirmRespecWipeLikeCpp,
-    ) {
-        #[cfg(test)]
-        self.fixtures
-            .progression
-            .represented_confirm_respec_wipe_requests_like_cpp
-            .push(request);
-    }
-
     #[cfg(test)]
     pub(crate) fn delayed_operations_processed_like_cpp(&self) -> u32 {
         self.fixtures.movement.delayed_operations_processed_like_cpp

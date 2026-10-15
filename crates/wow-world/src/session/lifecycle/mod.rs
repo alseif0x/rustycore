@@ -9,9 +9,9 @@
 //! ordering each part must preserve is documented beside the code that owns
 //! it rather than in a separate note that can drift.
 
-mod account;
 mod cleanup;
 mod finalization;
+mod lifecycle_host;
 mod login;
 mod logout;
 mod persistence;
