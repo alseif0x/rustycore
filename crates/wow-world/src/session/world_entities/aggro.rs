@@ -6,30 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    #[cfg(test)]
-    pub(in crate::session) fn canonical_creature_threat_value_like_cpp(
-        &self,
-        creature_guid: ObjectGuid,
-        attacker_guid: ObjectGuid,
-    ) -> Option<f32> {
-        let (state, hub) = crate::session::split_world_entities_ref(self);
-        state.canonical_creature_threat_value_like_cpp(hub, creature_guid, attacker_guid)
-    }
-    #[cfg(test)]
-    pub(in crate::session) fn mirror_canonical_creature_threat_from_attacker_like_cpp(
-        &mut self,
-        creature_guid: ObjectGuid,
-        attacker_guid: ObjectGuid,
-        threat_value: f32,
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_world_entities_mut(self);
-        state.mirror_canonical_creature_threat_from_attacker_like_cpp(
-            &mut hub,
-            creature_guid,
-            attacker_guid,
-            threat_value,
-        )
-    }
     pub fn set_creature_aggro_config_like_cpp(&mut self, config: CreatureAggroConfigLikeCpp) {
         self.config.creature_aggro_config_like_cpp = config;
     }

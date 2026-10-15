@@ -1164,6 +1164,22 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::world_entities_registry_test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
+          "module": "crate::handlers::world_entities_registry_test_shims::creature_registry_f3_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::world_entities_test_shims",
           "trait_path": null,
           "cfg": [
@@ -18932,6 +18948,166 @@
           ]
         },
         {
+          "module": "crate::handlers::world_entities_registry_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "canonical_creature_threat_value_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn canonical_creature_threat_value_like_cpp (& self , creature_guid : ObjectGuid , attacker_guid : ObjectGuid ,) -> Option < f32 >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::world_entities_registry_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "mirror_canonical_creature_threat_from_attacker_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn mirror_canonical_creature_threat_from_attacker_like_cpp (& mut self , creature_guid : ObjectGuid , attacker_guid : ObjectGuid , threat_value : f32 ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::world_entities_registry_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "on_creature_killed",
+          "visibility": "pub (crate)",
+          "signature": "async fn on_creature_killed (& mut self , creature_entry : u32 , creature_guid : wow_core :: ObjectGuid ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::world_entities_registry_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "register_world_creature",
+          "visibility": "pub (crate)",
+          "signature": "fn register_world_creature (& mut self , map_id : u16 , position : wow_core :: Position , create_data : wow_packet :: packets :: update :: CreatureCreateData , min_dmg : u32 , max_dmg : u32 , aggro_radius : f32 , loot_id : u32 , skin_loot_id : u32 , gold_min : u32 , gold_max : u32 , boss_id : Option < u32 > , dungeon_encounter_id : u32 , phase_use_flags : u8 , phase_id : u16 , phase_group_id : u32 , terrain_swap_map : i32 ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::world_entities_registry_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "register_world_creature_with_flags_extra_and_movement_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn register_world_creature_with_flags_extra_and_movement_like_cpp (& mut self , map_id : u16 , position : wow_core :: Position , create_data : wow_packet :: packets :: update :: CreatureCreateData , min_dmg : u32 , max_dmg : u32 , aggro_radius : f32 , loot_id : u32 , skin_loot_id : u32 , gold_min : u32 , gold_max : u32 , respawn_delay_secs : u32 , selected_equipment_id : u8 , original_equipment_id : i8 , script_name : String , string_id : Option < String > , addon : Option < CreatureAddonLifecycleRecordLikeCpp > , boss_id : Option < u32 > , dungeon_encounter_id : u32 , phase_use_flags : u8 , phase_id : u16 , phase_group_id : u32 , terrain_swap_map : i32 , flags_extra : u32 , ground_movement_type : u8 , swim_allowed : bool , flight_movement_type : u8 ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::world_entities_registry_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "register_world_creature_with_flags_extra_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn register_world_creature_with_flags_extra_like_cpp (& mut self , map_id : u16 , position : wow_core :: Position , create_data : wow_packet :: packets :: update :: CreatureCreateData , min_dmg : u32 , max_dmg : u32 , aggro_radius : f32 , loot_id : u32 , skin_loot_id : u32 , gold_min : u32 , gold_max : u32 , boss_id : Option < u32 > , dungeon_encounter_id : u32 , phase_use_flags : u8 , phase_id : u16 , phase_group_id : u32 , terrain_swap_map : i32 , flags_extra : u32 ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::world_entities_registry_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp (& mut self , map_id : u16 , position : wow_core :: Position , create_data : wow_packet :: packets :: update :: CreatureCreateData , min_dmg : u32 , max_dmg : u32 , aggro_radius : f32 , loot_id : u32 , skin_loot_id : u32 , gold_min : u32 , gold_max : u32 , respawn_delay_secs : u32 , selected_equipment_id : u8 , original_equipment_id : i8 , script_name : String , string_id : Option < String > , addon : Option < CreatureAddonLifecycleRecordLikeCpp > , boss_id : Option < u32 > , dungeon_encounter_id : u32 , phase_use_flags : u8 , phase_id : u16 , phase_group_id : u32 , terrain_swap_map : i32 , flags_extra : u32 , ground_movement_type : u8 , swim_allowed : bool , flight_movement_type : u8 , rooted : bool , chase_movement_type : u8 , random_movement_type : u8 , interaction_pause_timer_ms : u32 , wander_distance : f32 , default_movement_type : wow_entities :: MovementGeneratorType , waypoint_path_id : u32 ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::world_entities_registry_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "remove_world_creature",
+          "visibility": "pub (crate)",
+          "signature": "fn remove_world_creature (& mut self , guid : ObjectGuid ,) -> Option < wow_entities :: Creature >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::world_entities_registry_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "talked_to_creature_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn talked_to_creature_like_cpp (& mut self , creature_entry : u32 , creature_guid : wow_core :: ObjectGuid ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::world_entities_registry_test_shims::creature_registry_f3_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "mutate_world_creature",
+          "visibility": "pub (crate)",
+          "signature": "fn mutate_world_creature < F , R > (& mut self , guid : ObjectGuid , f : F) -> Option < R > where F : FnOnce (& mut wow_entities :: Creature) -> R ,",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
           "module": "crate::handlers::world_entities_test_shims",
           "trait_path": null,
           "kind": "method",
@@ -21887,21 +22063,6 @@
           "signature": "fn canonical_creature_access_like_cpp (& self , guid : ObjectGuid ,) -> Option < RepresentedCreatureAccessLikeCpp >",
           "cfg": [],
           "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "canonical_creature_threat_value_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn canonical_creature_threat_value_like_cpp (& self , creature_guid : ObjectGuid , attacker_guid : ObjectGuid ,) -> Option < f32 >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -25709,21 +25870,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "mirror_canonical_creature_threat_from_attacker_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn mirror_canonical_creature_threat_from_attacker_like_cpp (& mut self , creature_guid : ObjectGuid , attacker_guid : ObjectGuid , threat_value : f32 ,) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "model_for_totem_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn model_for_totem_like_cpp (& self , spell_id : u32 , race_id : u8) -> u32",
@@ -26227,21 +26373,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "mutate_world_creature",
-          "visibility": "pub (crate)",
-          "signature": "fn mutate_world_creature < F , R > (& mut self , guid : ObjectGuid , f : F) -> Option < R > where F : FnOnce (& mut wow_entities :: Creature) -> R ,",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "new",
           "visibility": "pub",
           "signature": "fn new (account_id : u32 , account_name : String , security : u8 , expansion : u8 , account_expansion : u8 , build : u32 , session_key : Vec < u8 > , locale : String , packet_rx : flume :: Receiver < WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , packet_handler_registry : Arc < crate :: session :: registry :: WorldPacketHandlerRegistry > ,) -> Self",
@@ -26297,21 +26428,6 @@
           "name": "notify_game_event_quest_complete_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn notify_game_event_quest_complete_like_cpp (& mut self , quest_id : u32 ,) -> GameEventQuestCompleteClientOutcomeLikeCpp",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "on_creature_killed",
-          "visibility": "pub (crate)",
-          "signature": "async fn on_creature_killed (& mut self , creature_entry : u32 , creature_guid : wow_core :: ObjectGuid ,)",
           "cfg": [
             "cfg (test)"
           ],
@@ -28757,66 +28873,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "register_world_creature",
-          "visibility": "pub (crate)",
-          "signature": "fn register_world_creature (& mut self , map_id : u16 , position : wow_core :: Position , create_data : wow_packet :: packets :: update :: CreatureCreateData , min_dmg : u32 , max_dmg : u32 , aggro_radius : f32 , loot_id : u32 , skin_loot_id : u32 , gold_min : u32 , gold_max : u32 , boss_id : Option < u32 > , dungeon_encounter_id : u32 , phase_use_flags : u8 , phase_id : u16 , phase_group_id : u32 , terrain_swap_map : i32 ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "register_world_creature_with_flags_extra_and_movement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn register_world_creature_with_flags_extra_and_movement_like_cpp (& mut self , map_id : u16 , position : wow_core :: Position , create_data : wow_packet :: packets :: update :: CreatureCreateData , min_dmg : u32 , max_dmg : u32 , aggro_radius : f32 , loot_id : u32 , skin_loot_id : u32 , gold_min : u32 , gold_max : u32 , respawn_delay_secs : u32 , selected_equipment_id : u8 , original_equipment_id : i8 , script_name : String , string_id : Option < String > , addon : Option < CreatureAddonLifecycleRecordLikeCpp > , boss_id : Option < u32 > , dungeon_encounter_id : u32 , phase_use_flags : u8 , phase_id : u16 , phase_group_id : u32 , terrain_swap_map : i32 , flags_extra : u32 , ground_movement_type : u8 , swim_allowed : bool , flight_movement_type : u8 ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "register_world_creature_with_flags_extra_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn register_world_creature_with_flags_extra_like_cpp (& mut self , map_id : u16 , position : wow_core :: Position , create_data : wow_packet :: packets :: update :: CreatureCreateData , min_dmg : u32 , max_dmg : u32 , aggro_radius : f32 , loot_id : u32 , skin_loot_id : u32 , gold_min : u32 , gold_max : u32 , boss_id : Option < u32 > , dungeon_encounter_id : u32 , phase_use_flags : u8 , phase_id : u16 , phase_group_id : u32 , terrain_swap_map : i32 , flags_extra : u32 ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp (& mut self , map_id : u16 , position : wow_core :: Position , create_data : wow_packet :: packets :: update :: CreatureCreateData , min_dmg : u32 , max_dmg : u32 , aggro_radius : f32 , loot_id : u32 , skin_loot_id : u32 , gold_min : u32 , gold_max : u32 , respawn_delay_secs : u32 , selected_equipment_id : u8 , original_equipment_id : i8 , script_name : String , string_id : Option < String > , addon : Option < CreatureAddonLifecycleRecordLikeCpp > , boss_id : Option < u32 > , dungeon_encounter_id : u32 , phase_use_flags : u8 , phase_id : u16 , phase_group_id : u32 , terrain_swap_map : i32 , flags_extra : u32 , ground_movement_type : u8 , swim_allowed : bool , flight_movement_type : u8 , rooted : bool , chase_movement_type : u8 , random_movement_type : u8 , interaction_pause_timer_ms : u32 , wander_distance : f32 , default_movement_type : wow_entities :: MovementGeneratorType , waypoint_path_id : u32 ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "release_canonical_fishing_hole_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn release_canonical_fishing_hole_like_cpp (& mut self , guid : ObjectGuid , max_opens : Option < u32 > ,) -> Option < (u32 , wow_entities :: LootState , wow_map :: map :: GameObjectSetLootStateOutcomeLikeCpp ,) >",
@@ -29109,21 +29165,6 @@
           "name": "remove_temporary_item_appearance_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn remove_temporary_item_appearance_like_cpp (& mut self , item_modified_appearance_id : u32 , item_guid : ObjectGuid ,) -> Option < wow_entities :: PlayerValuesUpdate >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "remove_world_creature",
-          "visibility": "pub (crate)",
-          "signature": "fn remove_world_creature (& mut self , guid : ObjectGuid ,) -> Option < wow_entities :: Creature >",
           "cfg": [
             "cfg (test)"
           ],
@@ -40863,21 +40904,6 @@
           "name": "take_represented_xp_rest_bonus_for_gain_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn take_represented_xp_rest_bonus_for_gain_like_cpp (& mut self , xp : u32 , victim : wow_core :: ObjectGuid ,) -> (u32 , u8)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "talked_to_creature_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn talked_to_creature_like_cpp (& mut self , creature_entry : u32 , creature_guid : wow_core :: ObjectGuid ,)",
           "cfg": [
             "cfg (test)"
           ],

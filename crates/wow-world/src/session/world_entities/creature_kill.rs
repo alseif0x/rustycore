@@ -269,22 +269,6 @@ impl WorldSession {
         )
         .await;
     }
-    #[cfg(test)]
-    pub(crate) async fn on_creature_killed(
-        &mut self,
-        creature_entry: u32,
-        creature_guid: wow_core::ObjectGuid,
-    ) {
-        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
-            return;
-        };
-        self.on_creature_killed_with_generator_like_cpp(
-            generator.as_ref(),
-            creature_entry,
-            creature_guid,
-        )
-        .await;
-    }
     pub(in crate::session) async fn process_pending_creature_kills_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,

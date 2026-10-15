@@ -6,22 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    #[cfg(test)]
-    pub(crate) async fn talked_to_creature_like_cpp(
-        &mut self,
-        creature_entry: u32,
-        creature_guid: wow_core::ObjectGuid,
-    ) {
-        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
-            return;
-        };
-        self.talked_to_creature_with_generator_like_cpp(
-            generator.as_ref(),
-            creature_entry,
-            creature_guid,
-        )
-        .await;
-    }
     /// Present a health transition already committed by the canonical map
     /// owner without replaying the delayed value into canonical state.
     ///
