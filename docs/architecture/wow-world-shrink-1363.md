@@ -8204,3 +8204,304 @@ The movement state leftovers (`state.rs`, 131) follow their callers.
 `VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
 on the PR head; the manifest, duration and test counts are recorded on the
 PR.
+
+## Slice 11b result (world state and the instance admission → instances)
+
+Branch `1363-s11b-world-state`, base `3e1190e65` (11a merged). Move-only
+(R2), with the slice 4–11a rewrites and nothing else:
+
+- `self` becomes `host` bound by the new
+  `InstanceSessionHostLikeCpp: PlayerTeleportHostLikeCpp + AuraHostLikeCpp`.
+  The supertraits already carry what the bodies call on other hosts: the
+  phase shift, `can_see_phase_shift`, `give_xp` and the group GUID
+  (`WorldEntitiesHostLikeCpp`), the FFA realm flag
+  (`CombatSessionHostLikeCpp`), the active area trigger
+  (`PlayerTeleportHostLikeCpp`), and the bounds that
+  `wow_world_spell::remove_indoor_outdoor_auras_for_current_position_represented_like_cpp`,
+  `wow_world_entities::set_represented_ffa_pvp_flag_like_cpp` and
+  `wow_world_entities::teleport_to_with_options` take;
+- `self.core` becomes `host.core()`, `self.catalogs` reads through
+  `host.hub_ref().catalogs`, `crate::session::{hub_ref,hub_mut,split_instances_ref,split_instances_mut}(self)`
+  become the same host calls, `self.instances` becomes
+  `host.split_instances_ref().0` (`_mut().0` for the fixture records),
+  `self.view.is_pvp_realm_like_cpp` / `is_ffa_pvp_realm_like_cpp` become the
+  host methods, `self.view.active_area_trigger` becomes
+  `*host.active_area_trigger_mut_like_cpp()`, and a call between moved
+  functions becomes a free call;
+- **the area-trigger catalogs** are read through
+  `AreaTriggerCatalogAccessLikeCpp` (`catalogs.destinations` and
+  `catalogs.taverns` become `destinations()` / `taverns()`), because the World
+  `AreaTriggerCatalogsLikeCpp` also holds the `WorldSession`-typed script
+  dispatcher and cannot leave `wow-world`;
+- **wrappers inlined as their exact bodies** (none async except the
+  teleport): `self.teleport_to(map, pos)` (body
+  `wow_world_entities::teleport_to_with_options(self, map, pos, TELE_TO_NONE_LIKE_CPP).await`;
+  the area-trigger teleport, one await before and after), and the eight World
+  instance-split wrappers `let (state, hub) = split_instances_ref(self);
+  state.f(hub, …)` at their 11 call sites:
+  `create_map_db2_entries_like_cpp` (4), `create_map_difficulty_context_like_cpp`,
+  `cannot_enter_existing_instance_lock_like_cpp`,
+  `check_instance_count_probe_like_cpp`,
+  `represented_player_difficulty_id_for_map_entry_like_cpp`,
+  `represented_group_difficulty_id_for_map_entry_like_cpp`,
+  `resolved_player_recent_instance_id_like_cpp` and (`split_instances_mut`)
+  `set_represented_player_recent_instance_like_cpp`. Three of those wrappers
+  had no other caller and retire; the two that only scenarios still call move
+  verbatim to the shim file; the other three stay for their World callers;
+- **the `#[cfg(test)]` steps use the host fixture accessors**: the four
+  area/zone criteria records, the world-map overlay record and the
+  handle-less explored-zones fallback become
+  `#[cfg(any(test, feature = "test-fixtures"))] if host.test_fixtures_ref_like_cpp().is_some() …`,
+  so each keeps its World test-build meaning.
+
+A token comparison of the 19 moved functions against their base bodies finds
+the differences limited to the rewrites above, the generic signatures and
+`pub(crate)`/`pub(in crate::session)` → `pub`/`pub(super)`/private. No string
+literal, comment, constant, operator or control-flow token changed.
+
+### Re-measure and the cut
+
+On `3e1190e65` (classifier, `wow-world` production 45,137) world state is 557
+lines in `session/world_state/operations.rs`, of which 479 function lines
+move (468 + the 22 lines of the two rest-flag helpers in
+`session/rest_progression.rs` that only world state called); the instance
+admission and create-map side effects are 279 lines of `map_key.rs`, 52 of
+`binding.rs`/`instance.rs` and 20 of `map_admission.rs`. Everything fits one
+part: 816 moved function lines and 102 new host lines.
+
+The rest flags stay host methods: the six rest-flag operations cost 24 host
+lines (2.9 % of the moved lines) and the whole host is 12.5 %, under the 15 %
+budget, so neither moving the canonical rest-flag operations nor deferring
+world state to slice 13 is needed.
+
+### What moved
+
+- **`wow-world-instances/src/instance_session/` (1,113 physical):**
+  - `mod.rs` (102): the host trait, the area-trigger catalog trait and the
+    constants that left the session root (`REST_FLAG_IN_{TAVERN,CITY,FACTION_AREA}`,
+    `AREA_FLAG_{ENEMIES_PVP_FLAGGED,CONTESTED,COMBAT_ZONE}`, the five
+    `TRANSFER_ABORT_*` codes the admission returns);
+  - `zone_area.rs` (274): `Player::UpdateZone`/`UpdateArea` with the RestMgr
+    area, city and tavern flags, the deferred rest-flag publication and the
+    zone hostility update, plus `update_represented_rest_flag_like_cpp` and
+    `set_represented_tavern_resting_like_cpp` from `rest_progression.rs`;
+  - `area_triggers.rs` (186): `Player::IsInAreaTriggerRadius`, the tavern
+    area-trigger transition and the movement-driven area-trigger check with
+    its teleport;
+  - `exploration.rs` (130): the explored-zones snapshot and
+    `Player::CheckAreaExploreAndOutdoor` (the indoor/outdoor aura removal
+    through `wow_world_spell`, the explored-zone bit, the values update and
+    the exploration XP);
+  - `admission.rs` (283): `Map::PlayerCannotEnter` for a dungeon target
+    (`player_cannot_enter_target_map_like_cpp`, every gate and result code in
+    order), the create-map player context, the create-map decision key, the
+    active instance lock context, the lock instance-id side effect and the
+    instance owner GUID;
+  - `create_map.rs` (137): the create-map side effects (player and group
+    recent instance, lock creation and instance-id update, battleground entry
+    count) with `CreateMapSideEffectApplySummaryLikeCpp`.
+- **`wow-world-core`:** `player_team_id_for_race_cpp` (6 lines) joins
+  `player_team_for_race_cpp` in `state/hub_support.rs`, because both the
+  moved player context and the World appearance code read it.
+- **`wow-world-entities`:** `TELE_TO_NONE_LIKE_CPP` joins the other teleport
+  options in `teleport_session/mod.rs`; the World root re-imports it.
+- **Reclassified to `handlers/instance_session_test_shims.rs`
+  (`#![cfg(test)]`, new ratcheted row, 107):** the two split wrappers only the
+  scenarios call, verbatim, and one-call method forwards to the moved free
+  functions the scenarios and F3 shims call (explored-zones snapshot, area and
+  zone updates, tavern resting, create-map side effects, player context,
+  active lock and owner GUID), so no scenario call site changes. The names
+  only the scenarios read (the summary, the lock token, two rest flags, two
+  area flags) join `session/test_reexports.rs`.
+- **Callers:** the movement adapter (zone update, exploration, area triggers,
+  `player_cannot_enter_target_map_like_cpp`), the login adapter (zone update
+  without the rest packet), `HandleAreaTrigger` (`travel.rs`: radius, tavern),
+  the tavern recheck (`catalogs/operations.rs`), the explored-zones load
+  (`persistence/load.rs`) and the map entry (`lifecycle/map_entry.rs`: player
+  context, active lock ×2, side effects) call the free functions.
+- **Stays in `wow-world`, with the reason:** `dispatch_area_trigger_script_like_cpp`
+  (the dispatcher is `Fn(&mut WorldSession, …)`);
+  `access_requirement_abort_like_cpp` (its condition context borrows the
+  `WorldSession`, and the slice 13 map entry calls it too; a host method
+  here); the movement state leftovers (`state.rs`: the rest-flag removal is
+  the host's forward target and the tavern recheck's, and the feign-death,
+  moved-unit, at-login-flag, transport-position and visibility-source
+  operations are forwards behind the vendor, talent, login and visibility
+  adapters); the instance split wrappers with World callers, the setters and
+  `set_player_zone_area_authority_complete_like_cpp` (construction API); the
+  map entry and the world-port response (slice 13).
+
+### Host surface
+
+| Part | New trait | New adapter | Retired | Moved function lines |
+|---|---:|---:|---:|---:|
+| World state and instance admission (`InstanceSessionHostLikeCpp`, 14 methods; `AreaTriggerCatalogAccessLikeCpp`, 2) | 32 | 70 | 0 | 816 |
+
+- New host code is 102 lines against 816 moved function lines: **12.5 %**.
+  The six rest-flag methods are 24 of them (2.9 %); without them 9.6 %.
+- The adapter (`session/instances/host.rs`) forwards to the inherent
+  `WorldSession` operations, the instance split and the view field; the
+  existing movement, teleport and login adapters now call the free functions.
+
+### Await counts and recursion
+
+- Per function, base vs head:
+  `check_area_explore_and_outdoor_represented_with_catalogs_like_cpp` 1 → 1
+  (`give_xp`), `check_area_triggers_with_catalogs_like_cpp` 1 → 1 (the
+  teleport: `teleport_to` → its inlined body `teleport_to_with_options`, the
+  same future); the other 17 moved functions 0 → 0. Callers unchanged: the
+  test wrapper `check_area_explore_and_outdoor_represented_like_cpp` 1 → 1;
+  the movement adapters return the free functions' futures as before. No
+  borrow is held across an await differently (`give_xp` and the teleport
+  borrow `host` exactly as they borrowed `self`).
+- Every moved name was grepped across the production (non-shim) `wow-world`
+  files: the remaining references are free calls
+  (`wow_world_instances::…(self, …)`) from the callers listed above and the
+  two `#[cfg(test)]` wrappers left in `world_state/operations.rs`. The four
+  adapters that forwarded through `WorldSession::name(self, …)`
+  (`update_zone_represented_like_cpp`,
+  `check_area_explore_and_outdoor_represented_with_catalogs_like_cpp`,
+  `check_area_triggers_with_catalogs_like_cpp`,
+  `player_cannot_enter_target_map_like_cpp`, and the login adapter's
+  `update_zone_represented_without_rest_update_packet_like_cpp`) now name the
+  free function, so no path can fall through to a trait method of the same
+  name. Every new trait-impl forward resolves to an unconditional inherent
+  method (`set_represented_rest_flag_like_cpp`,
+  `remove_represented_rest_flag_like_cpp`,
+  `defer/end_player_rest_flag_sync_like_cpp`,
+  `clear_player_deferred_rest_flag_update_like_cpp`,
+  `send_represented_resting_player_flag_update_like_cpp`,
+  `access_requirement_abort_like_cpp`,
+  `current_player_is_in_raid_group_like_cpp`,
+  `authoritative_group_membership_like_cpp`, `player_loading`), the instance
+  split free functions or the view field; no UFCS call reaches a trait
+  default. `unconditional_recursion`: 0 in the production lib, the lib with
+  `test-fixtures` and the lib test build.
+
+### Behaviour
+
+Zone and area updates keep their order: the spell-hit authority
+invalidation, the area/zone id writes, the deferred rest-flag sync, the area
+update without its own packet, the hostility update, the city-rest rule, the
+end of the deferred sync and the conditional resting packet with the deferred
+clear, then the criteria records. The area-trigger check keeps its exit then
+entry order, the tavern short-circuit and the teleport; the tavern transition
+keeps the rest flag, the resting packet and the FFA toggle. Exploration keeps
+the alive/taxi gates, the indoor/outdoor aura removal, the explored bit, the
+values update, the XP grant and `SMSG_EXPLORATION_EXPERIENCE`.
+`Map::PlayerCannotEnter` keeps every gate and result code in order (map not
+allowed, difficulty, GM bypass, access requirement, need group, max players,
+zone in combat, the instance lock deny reason, too many instances) and holds
+the map manager lock over the same span. The create-map side effects keep
+their order and summary counts. Persistence (#169) is untouched; registrations
+and processing flags are unchanged.
+
+### Edges and closure
+
+One new crate edge, `wow-world-instances → wow-world-spell` (simulated in
+the plan; `wow_world_closure.py check` PASS in lock and metadata mode, 17
+packages): instances reaches neither character, quest, loot-ops, application
+nor `wow-world`, and inventory, spell, entities and loot still reach neither
+social nor instances. `wow-world-instances` also takes `wow-ai` (for
+`max_level_for_expansion_like_cpp`, already a dependency of `wow-world-core`);
+both are added to its `dependency-policy.json` allowlist.
+
+### Accounting
+
+- **`wow-world` production (classifier): 45,137 → 44,322 (−815)**; physical
+  53,029 → 52,321, 468 → 470 files (the adapter and the shim file added).
+  - **Moved:** 816 function lines in 19 functions, their 24 doc-comment
+    lines, the 11-line summary struct, eleven constants and the 6-line
+    team-id helper.
+  - **Reclassified, not production reduction:** 12 (the two split wrappers
+    in the shim file).
+  - **Retired:** 21 (the three split wrappers whose only callers moved).
+  - **Added:** the 70-line adapter, 17 lines of call-site rewrapping
+    (`map_entry.rs` 14, `travel.rs` 2, `load.rs` 1) and the imports.
+- **Destinations.** `wow-world-instances/src` +1,133 physical (production
+  5,538 → 6,660, test 37 → 48), `wow-world-core/src` +9, `wow-world-entities/src` +1.
+- `net_move.py check`: S = 708, G = 1,143, allowance 1,704.4, PASS, 0
+  duplicate bodies.
+- **Ceilings** (none raised):
+  - hotspot `session/mod.rs`: production 26,002 → 25,185, test 141,658 →
+    141,656, total 167,660 → 166,841. The six test-only imports the move
+    leaves in the root join `session/test_reexports.rs`, and to keep the test
+    ceiling the five battle-pet adapter singletons join the same file as one
+    group and the four auction-contract singletons become one `cfg(test)`
+    group (imports only);
+  - physical `session/mod.rs` 910 → 887; new ratcheted row
+    `handlers/instance_session_test_shims.rs` at 107.
+  - `session-ownership-policy.json` is reprinted with `print-baseline`; the
+    delta is the moved and retired items, the new adapter entries, the shims
+    and the direct-registry rows that moved to `wow-world-instances`.
+- **Warnings.** Per file, lint and full message, the warnings of the
+  production lib, the lib with `test-fixtures`, the lib test build and the
+  `wow-world-{core,entities,spell,instances}` all-targets build are identical
+  to the base, except the pre-existing `unused variable: destination_map_id`
+  of the far detach, which is gone (below). `wow-world` `dead_code` 0 in all
+  three.
+- **Separately, behaviour-neutral:** the far detach's
+  `let destination_map_id = u16::try_from(new_map).unwrap_or(u16::MAX);`
+  (unused since before 11a) is renamed `_destination_map_id`. The initializer
+  has no side effect and the value is `Copy`, and the binding is kept, so
+  evaluation and drop order are unchanged (#1398 follow-up).
+- **Tests.** No test file changed; the test-name multiset is identical. The
+  scenarios keep method syntax through the shim forwards.
+
+### Follow-ups
+
+- The shim files (`instance_session_test_shims.rs` and the 11a shims) retire
+  when the scenarios call the free functions directly.
+- The map entry (`session/lifecycle/map_entry.rs`) re-implements most of the
+  `Map::PlayerCannotEnter` gates for the login and far-transfer entry; it now
+  calls the moved player context, lock context and side effects, and moves
+  with slice 13 (lifecycle orchestration) behind `InstanceSessionHostLikeCpp`.
+- `access_requirement_abort_like_cpp` can follow once the player-condition
+  context no longer borrows the `WorldSession`.
+- `wow-world-instances` re-exports its rest-flag, area-flag and
+  transfer-abort constants publicly for the World root and the scenarios;
+  they can narrow as those readers move (as the nine teleport constants of
+  11a, #1398 review nit).
+
+### Validation
+
+`VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+on the PR head; the manifest, duration and test counts are recorded on the
+PR.
+
+## Slice 11 summary (11a–11b)
+
+The slice 11 domain was 2,908 production lines in
+`session/{movement,instances,world_state}` on `24013c9ec` (slice 11 plan).
+
+| Slice | `wow-world` production | Δ | Moved out (function lines) | Reclassified | New host (gross / net) |
+|---|---|---:|---:|---:|---|
+| 11a canonical-map queries, dynamic-object publication, teleport and far transfer → entities | 46,591 → 45,137 | −1,454 | 1,412 | 11 | 70 / −5 |
+| 11b world state and instance admission → instances | 45,137 → 44,322 | −815 | 816 | 12 | 102 / +102 |
+| **Total** | **46,591 → 44,322** | **−2,269** | **2,228** | **23** | **172 / +97** |
+
+- `session/world_state/` went from 564 to 88 production lines,
+  `session/instances/` from 1,113 to 362 (655 after 11a; 70 of the 362 are
+  the new adapter) and `session/movement/` from 1,231 to 323 (the public
+  `teleport_to`, the adapters and the `state.rs` forwards). What stays is construction API, the World-typed
+  area-trigger script dispatch, the access requirement and the slice 13 map
+  entry and world-port response.
+- `wow-world-entities/src` grew by about 1.65k physical lines (11a) and
+  `wow-world-instances/src` by 1,133 (11b); both parts passed `net_move.py`
+  with no duplicate body. 11a added no crate edge; 11b added
+  `wow-world-instances → wow-world-spell` (closure PASS) and `→ wow-ai`.
+- Host share: 5.0 % (11a, 7.5 % for the teleport alone) and 12.5 % (11b).
+- #1398 follow-up (the unused `destination_map_id`) is done; its other
+  follow-ups (the shims, the corpse/teleport host overlap, the public teleport
+  constants) remain.
+
+**Next.** Slice 13 (persistence and lifecycle orchestration) is the
+recommended next slice: `session/{persistence,lifecycle}` (about 2.6k), the
+world-port response (`handlers/travel/travel.rs` and `worldport_create.rs`,
+about 380) and the map entry, which can take `InstanceSessionHostLikeCpp` for
+its admission and side-effect steps now that those bodies live in
+`wow-world-instances`. It needs its own ordering review of the #169 save
+fence, `AddPlayerToMap` and the post-add publication, and should be measured
+and split (13a the map entry and world-port response with the instance host,
+13b the persistence orchestration) before anything moves. Slice 12
+(base-module logic and the thunk sweep) stays last.
