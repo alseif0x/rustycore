@@ -195,7 +195,6 @@ pub async fn handle_use_toy_with_generator_like_cpp<H: SpellExecutionHostLikeCpp
                 metadata,
             });
             host.mutate_cast_execution_like_cpp(|state| state.active = cast)
-                .is_some()
         };
     } else if let Err(error) =
         crate::execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(

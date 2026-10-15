@@ -32,7 +32,7 @@
   ],
   [
    "\\bself\\s*\\.set_active_spell_cast_like_cpp\\(((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*)\\)",
-   "{ let cast = \\1; host.mutate_cast_execution_like_cpp(|state| state.active = cast).is_some() }"
+   "{ let cast = \\1; host.mutate_cast_execution_like_cpp(|state| state.active = cast) }"
   ],
   [
    "\\bself\\s*\\.get_inventory_item_by_guid_like_cpp\\(((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*)\\)",

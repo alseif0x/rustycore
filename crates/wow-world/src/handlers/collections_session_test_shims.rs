@@ -5,16 +5,18 @@
 //! Test-only method entry points for the toy bodies moved to
 //! `wow_world_inventory` (`CMSG_ADD_TOY`) and `wow_world_spell`
 //! (`CMSG_USE_TOY`) (#1363 slice 4d): one-call forwards with this session as
-//! the host, so no scenario call site changes. The `send_equip_error` session
-//! wrapper, whose last production caller was the moved `CMSG_ADD_TOY` body
-//! (it now calls the core operation directly), keeps its scenario here.
+//! the host, so no scenario call site changes. The session wrappers whose last
+//! production caller was a moved toy body (which now calls the same core,
+//! lifecycle or cast-execution operation directly) move here verbatim for
+//! their scenarios: `send_equip_error`, `add_account_toy_like_cpp` and
+//! `set_active_spell_cast_like_cpp`.
 
 #![cfg(test)]
 
 use wow_constants::InventoryResult;
 use wow_core::ObjectGuid;
 
-use crate::session::WorldSession;
+use crate::session::{SpellCastState, WorldSession};
 
 impl WorldSession {
     pub(crate) async fn handle_add_toy(&mut self, pkt: wow_packet::WorldPacket) {
@@ -43,5 +45,20 @@ impl WorldSession {
     ) {
         self.core
             .send_equip_error(result, item1, item2, required_level, limit_category)
+    }
+
+    pub(crate) fn add_account_toy_like_cpp(
+        &mut self,
+        item_id: u32,
+        is_favorite: bool,
+        has_fanfare: bool,
+    ) -> bool {
+        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
+        state.add_account_toy_like_cpp(&mut hub, item_id, is_favorite, has_fanfare)
+    }
+
+    pub(crate) fn set_active_spell_cast_like_cpp(&mut self, cast: Option<SpellCastState>) -> bool {
+        self.mutate_cast_execution_like_cpp(|state| state.active = cast)
+            .is_some()
     }
 }

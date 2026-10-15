@@ -67,10 +67,6 @@ impl WorldSession {
             })
             .unwrap_or_default()
     }
-    pub(crate) fn send_player_party_type_update_like_cpp(&self, category: u8, party_type: u8) {
-        let (state, hub) = crate::session::split_social_ref(self);
-        state.send_player_party_type_update_like_cpp(hub, category, party_type)
-    }
     /// Resolve C++ `Player::m_group` through this session incarnation's
     /// generation-checked canonical Player handle. An unresolved owner never
     /// falls back in production.
@@ -142,13 +138,6 @@ impl WorldSession {
             return true;
         }
         canonical.unwrap_or(false)
-    }
-    pub(crate) fn next_group_update_sequence_number_like_cpp(
-        &mut self,
-        category: u8,
-    ) -> Option<i32> {
-        let (state, mut hub) = crate::session::split_social_mut(self);
-        state.next_group_update_sequence_number_like_cpp(&mut hub, category)
     }
     pub fn set_phase_group_store(&mut self, store: Arc<PhaseGroupStore>) {
         self.catalogs.phase_group_store = Some(store);

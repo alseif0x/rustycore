@@ -161,7 +161,7 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_activate_taxi_requests_like_cpp(
         &self,
-    ) -> &[RepresentedActivateTaxiLikeCpp] {
+    ) -> &[wow_world_core::session::RepresentedActivateTaxiLikeCpp] {
         &self
             .fixtures
             .vehicles

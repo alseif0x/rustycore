@@ -444,8 +444,6 @@ pub(crate) use state::{
 pub(crate) use state::{InventoryCx, cx_inventory};
 #[cfg(test)]
 mod support_features;
-mod taxi_contracts;
-pub(crate) use taxi_contracts::RepresentedActivateTaxiLikeCpp;
 mod time_synchronization;
 mod trade_adapter;
 mod void_storage_adapter;

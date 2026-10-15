@@ -24,19 +24,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);
         state.upgrade_account_heirloom_like_cpp(&mut hub, item_id, cast_item)
     }
-    pub(crate) fn has_account_toy_like_cpp(&self, item_id: u32) -> bool {
-        let (state, hub) = crate::session::split_lifecycle_ref(self);
-        state.has_account_toy_like_cpp(hub, item_id)
-    }
-    pub(crate) fn add_account_toy_like_cpp(
-        &mut self,
-        item_id: u32,
-        is_favorite: bool,
-        has_fanfare: bool,
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.add_account_toy_like_cpp(&mut hub, item_id, is_favorite, has_fanfare)
-    }
     pub(in crate::session) fn represented_battle_pet_login_spell_source_is_empty_like_cpp(
         &self,
     ) -> bool {
