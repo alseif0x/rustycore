@@ -16,11 +16,15 @@ mod creature;
 mod creature_conditions;
 mod gameobject;
 mod gameobject_authority;
+mod open_item;
+mod open_item_conditions;
 
 pub use creature::*;
 pub use creature_conditions::*;
 pub use gameobject::*;
 pub use gameobject_authority::*;
+pub use open_item::*;
+pub(crate) use open_item_conditions::*;
 
 async fn open_represented_gameobject_personal_loot_like_cpp<H: LootSessionHostLikeCpp>(
     host: &mut H,

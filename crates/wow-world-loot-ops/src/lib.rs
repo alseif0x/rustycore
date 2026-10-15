@@ -44,7 +44,8 @@ pub use session_loot::{
     stored_new_item_dynamic_flags_like_cpp,
 };
 pub use session_loot::{
-    LootSessionHostLikeCpp, RepresentedGameObjectLootInstallObservationLikeCpp,
+    LootSessionHostLikeCpp, OpenItemHostLikeCpp,
+    RepresentedGameObjectLootInstallObservationLikeCpp,
     apply_durable_represented_loot_money_payout_like_cpp,
     apply_pending_durable_item_loot_completions_with_generator_like_cpp,
     apply_pending_durable_item_loot_completions_with_objective_drain_like_cpp,
@@ -56,7 +57,7 @@ pub use session_loot::{
     generate_represented_creature_loot_like_cpp,
     generate_represented_disenchant_loot_template_entries_like_cpp,
     generate_represented_gameobject_chest_loot_with_template_money_like_cpp,
-    handle_loot_money_with_generator_like_cpp,
+    handle_loot_money_with_generator_like_cpp, handle_open_item,
     handle_represented_loot_roll_store_winner_command_with_generator_like_cpp,
     handle_represented_loot_roll_vote_command_with_generator_like_cpp,
     handle_represented_master_loot_give_command_with_generator_like_cpp,
@@ -102,4 +103,9 @@ pub use session_loot::{
     upsert_represented_personal_gameobject_loot_authority_if_observed_like_cpp,
     upsert_represented_personal_gameobject_loot_authority_if_observed_with_empty_policy_like_cpp,
     wait_for_active_loot_persistence_with_generator_like_cpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use session_loot::{
+    load_item_template_addon_loot_metadata_like_cpp, load_item_template_addon_money_loot_like_cpp,
+    open_active_item_loot_view_like_cpp,
 };

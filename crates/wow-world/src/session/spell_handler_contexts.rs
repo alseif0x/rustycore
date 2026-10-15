@@ -61,7 +61,7 @@ impl SpellHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
     }
 
     fn handle_open_item<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { WorldSession::handle_open_item(self, pkt).await })
+        Box::pin(async move { wow_world_loot_ops::handle_open_item(self, pkt).await })
     }
 
     fn handle_self_res_with_generator_like_cpp<'a>(

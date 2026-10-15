@@ -209,7 +209,7 @@ fn locked_login_discards_residual_void_rows_and_initializes_empty_storage_like_c
     session.set_loaded_player_flags_like_cpp(0);
     assert!(!session.prepare_represented_void_storage_login_load_like_cpp());
     assert_eq!(
-        crate::session::cx_lifecycle_ref(&session).represented_void_storage_loaded_like_cpp(),
+        wow_world_application::represented_void_storage_loaded_like_cpp(&session),
         Some(true)
     );
     assert_eq!(
@@ -220,7 +220,7 @@ fn locked_login_discards_residual_void_rows_and_initializes_empty_storage_like_c
     session.apply_committed_void_storage_unlock_like_cpp();
     assert!(session.void_storage_is_unlocked_like_cpp());
     assert_eq!(
-        crate::session::cx_lifecycle_ref(&session).represented_void_storage_loaded_like_cpp(),
+        wow_world_application::represented_void_storage_loaded_like_cpp(&session),
         Some(true)
     );
     assert_eq!(
@@ -261,6 +261,8 @@ async fn unlock_submits_one_semantic_write_before_runtime_publication_like_cpp()
 fn void_storage_mutation_paths_have_no_concrete_persistence_after_port_cut() {
     // #707 divided the handler impl into submodules, so this audits every file of
     // the module instead of slicing three handler bodies out of a single source.
+    // #1363 slice 4c moved the bodies to `wow_world_application::void_storage_session`;
+    // both the World adapter files and the moved module are audited.
     let audited = [
         (
             "void_storage.rs",
@@ -271,24 +273,40 @@ fn void_storage_mutation_paths_have_no_concrete_persistence_after_port_cut() {
             include_str!("../../../src/handlers/void_storage/host.rs"),
         ),
         (
-            "void_storage/items.rs",
-            include_str!("../../../src/handlers/void_storage/items.rs"),
+            "void_storage/session_host.rs",
+            include_str!("../../../src/handlers/void_storage/session_host.rs"),
         ),
         (
-            "void_storage/publication.rs",
-            include_str!("../../../src/handlers/void_storage/publication.rs"),
+            "void_storage_session/mod.rs",
+            include_str!("../../../../wow-world-application/src/void_storage_session/mod.rs"),
         ),
         (
-            "void_storage/unlock_and_query.rs",
-            include_str!("../../../src/handlers/void_storage/unlock_and_query.rs"),
+            "void_storage_session/items.rs",
+            include_str!("../../../../wow-world-application/src/void_storage_session/items.rs"),
         ),
         (
-            "void_storage/transfer.rs",
-            include_str!("../../../src/handlers/void_storage/transfer.rs"),
+            "void_storage_session/publication.rs",
+            include_str!(
+                "../../../../wow-world-application/src/void_storage_session/publication.rs"
+            ),
         ),
         (
-            "void_storage/swap.rs",
-            include_str!("../../../src/handlers/void_storage/swap.rs"),
+            "void_storage_session/storage.rs",
+            include_str!("../../../../wow-world-application/src/void_storage_session/storage.rs"),
+        ),
+        (
+            "void_storage_session/unlock_and_query.rs",
+            include_str!(
+                "../../../../wow-world-application/src/void_storage_session/unlock_and_query.rs"
+            ),
+        ),
+        (
+            "void_storage_session/transfer.rs",
+            include_str!("../../../../wow-world-application/src/void_storage_session/transfer.rs"),
+        ),
+        (
+            "void_storage_session/swap.rs",
+            include_str!("../../../../wow-world-application/src/void_storage_session/swap.rs"),
         ),
     ];
     for (path, source) in audited {
@@ -301,29 +319,39 @@ fn void_storage_mutation_paths_have_no_concrete_persistence_after_port_cut() {
     }
 
     // A submodule added later cannot escape the audit by not being listed here.
-    let directory =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/handlers/void_storage");
-    let mut present: Vec<String> = std::fs::read_dir(&directory)
-        .expect("void-storage module directory")
-        .map(|entry| {
-            entry
-                .expect("void-storage directory entry")
-                .file_name()
-                .to_string_lossy()
-                .into_owned()
-        })
-        .filter(|name| name.ends_with(".rs"))
-        .collect();
-    present.sort();
-    let mut covered: Vec<String> = audited
-        .iter()
-        .filter_map(|(path, _)| path.strip_prefix("void_storage/").map(str::to_owned))
-        .collect();
-    covered.sort();
-    assert_eq!(
-        present, covered,
-        "every void-storage submodule must be audited for concrete persistence syntax"
-    );
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    for (directory, prefix) in [
+        (
+            manifest_dir.join("src/handlers/void_storage"),
+            "void_storage/",
+        ),
+        (
+            manifest_dir.join("../wow-world-application/src/void_storage_session"),
+            "void_storage_session/",
+        ),
+    ] {
+        let mut present: Vec<String> = std::fs::read_dir(&directory)
+            .expect("void-storage module directory")
+            .map(|entry| {
+                entry
+                    .expect("void-storage directory entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .filter(|name| name.ends_with(".rs"))
+            .collect();
+        present.sort();
+        let mut covered: Vec<String> = audited
+            .iter()
+            .filter_map(|(path, _)| path.strip_prefix(prefix).map(str::to_owned))
+            .collect();
+        covered.sort();
+        assert_eq!(
+            present, covered,
+            "every void-storage submodule must be audited for concrete persistence syntax"
+        );
+    }
 }
 
 #[test]

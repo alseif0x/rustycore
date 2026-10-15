@@ -1,0 +1,175 @@
+{
+ "slice": "#1363 slice 4c (void storage -> wow-world-application)",
+ "base": "6fe5b5d2f",
+ "moved": [
+  "handle_void_storage_unlock_with_generator_like_cpp",
+  "handle_void_storage_query",
+  "apply_committed_void_storage_unlock_like_cpp",
+  "represented_void_storage_loaded_like_cpp",
+  "handle_void_storage_swap_item",
+  "handle_void_storage_transfer_with_generators_like_cpp",
+  "void_storage_swap_destination_slot_like_cpp",
+  "void_storage_item_write_like_cpp",
+  "effective_void_storage_random_properties_like_cpp",
+  "void_storage_enchantments_db_string_like_cpp",
+  "overwrite_void_storage_random_property_enchantments_like_cpp",
+  "void_storage_merged_item_write_like_cpp",
+  "apply_effective_void_storage_random_properties_like_cpp",
+  "plan_void_storage_destroyed_items_like_cpp",
+  "clear_item_publication_changes_like_cpp",
+  "apply_committed_void_storage_destroyed_items_like_cpp",
+  "void_storage_withdrawal_container_db_guid_like_cpp",
+  "void_storage_withdrawal_container_item_guid_like_cpp",
+  "new_void_withdrawal_item_publication_like_cpp",
+  "merged_void_withdrawal_item_publications_like_cpp",
+  "apply_void_withdrawal_post_store_state_like_cpp",
+  "send_void_storage_transfer_result_like_cpp",
+  "publish_void_storage_item_lifecycle_like_cpp",
+  "represented_void_storage_free_slots_like_cpp",
+  "represented_void_storage_item_by_id_like_cpp",
+  "represented_void_storage_item_at_like_cpp",
+  "add_represented_void_storage_item_like_cpp",
+  "delete_represented_void_storage_item_like_cpp",
+  "next_represented_void_storage_item_id_with_generator_like_cpp",
+  "represented_void_storage_contents_like_cpp",
+  "void_withdrawal_item_create_data_like_cpp"
+ ],
+ "rules": [
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?(async\\s+)?fn\\s+(handle_void_storage_unlock_with_generator_like_cpp|handle_void_storage_query|apply_committed_void_storage_unlock_like_cpp|represented_void_storage_loaded_like_cpp|handle_void_storage_swap_item|handle_void_storage_transfer_with_generators_like_cpp|effective_void_storage_random_properties_like_cpp|void_storage_merged_item_write_like_cpp|plan_void_storage_destroyed_items_like_cpp|apply_committed_void_storage_destroyed_items_like_cpp|void_storage_withdrawal_container_db_guid_like_cpp|void_storage_withdrawal_container_item_guid_like_cpp|publish_void_storage_item_lifecycle_like_cpp|represented_void_storage_free_slots_like_cpp|represented_void_storage_item_by_id_like_cpp|represented_void_storage_item_at_like_cpp|add_represented_void_storage_item_like_cpp|delete_represented_void_storage_item_like_cpp)\\(",
+   "pub \\1fn \\2<H: VoidStorageSessionHostLikeCpp>("
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?(async\\s+)?fn\\s+(send_void_storage_transfer_result_like_cpp|next_represented_void_storage_item_id_with_generator_like_cpp|represented_void_storage_contents_like_cpp)\\(",
+   "pub(crate) \\1fn \\2<H: VoidStorageSessionHostLikeCpp>("
+  ],
+  [
+   "(VoidStorageSessionHostLikeCpp>)\\((\\s*)&mut self",
+   "\\1(\\2host: &mut H"
+  ],
+  [
+   "(VoidStorageSessionHostLikeCpp>)\\((\\s*)&self",
+   "\\1(\\2host: &H"
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?fn\\s+(void_storage_swap_destination_slot_like_cpp|void_storage_enchantments_db_string_like_cpp|apply_effective_void_storage_random_properties_like_cpp|clear_item_publication_changes_like_cpp|new_void_withdrawal_item_publication_like_cpp|merged_void_withdrawal_item_publications_like_cpp)\\(",
+   "pub fn \\1("
+  ],
+  [
+   "(?:pub(?:\\([^)]*\\))?\\s+)?fn\\s+(void_storage_item_write_like_cpp|overwrite_void_storage_random_property_enchantments_like_cpp|apply_void_withdrawal_post_store_state_like_cpp)\\(",
+   "pub(crate) fn \\1("
+  ],
+  [
+   "^fn\\s+(void_withdrawal_item_create_data_like_cpp)\\(",
+   "pub fn \\1("
+  ],
+  [
+   "\\bSelf::(void_storage_swap_destination_slot_like_cpp|void_storage_item_write_like_cpp|void_storage_enchantments_db_string_like_cpp|overwrite_void_storage_random_property_enchantments_like_cpp|apply_effective_void_storage_random_properties_like_cpp|clear_item_publication_changes_like_cpp|new_void_withdrawal_item_publication_like_cpp|merged_void_withdrawal_item_publications_like_cpp|apply_void_withdrawal_post_store_state_like_cpp)\\b",
+   "\\1"
+  ],
+  [
+   "crate::session::cx_lifecycle_ref\\(self\\)\\s*\\.represented_void_storage_loaded_like_cpp\\(\\)",
+   "represented_void_storage_loaded_like_cpp(host)"
+  ],
+  [
+   "crate::session::cx_inventory_ref\\(self\\)\\s*\\.make_inventory_item_object\\(",
+   "VendorSessionHostLikeCpp::make_inventory_item_object(host, "
+  ],
+  [
+   "crate::session::hub_ref\\(self\\)",
+   "host.hub_ref()"
+  ],
+  [
+   "crate::session::split_inventory_ref\\(self\\)",
+   "host.split_inventory_ref()"
+  ],
+  [
+   "crate::session::split_inventory_mut\\(self\\)",
+   "host.split_inventory_mut()"
+  ],
+  [
+   "crate::session::split_loot_mut\\(self\\)",
+   "host.split_loot_mut()"
+  ],
+  [
+   "crate::entity_update_bridge::",
+   "wow_world_core::entity_update_bridge::"
+  ],
+  [
+   "crate::session::PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP",
+   "PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP"
+  ],
+  [
+   "wow_world_quest::([a-z_0-9]+)\\((\\s*)self\\b",
+   "wow_world_quest::\\1(\\2host"
+  ],
+  [
+   "self(\\s*)\\.(\\s*)inventory(\\s*)\\.(\\s*)with_owned_void_storage_like_cpp\\(self\\.hub,",
+   "let (inventory, hub) = host.split_inventory_ref();\n    inventory.with_owned_void_storage_like_cpp(hub,"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)inventory(\\s*)\\.",
+   "host\\1.\\2split_inventory_ref().0\\3."
+  ],
+  [
+   "#\\[cfg\\(test\\)\\](\\s*)if self\\.core\\.player_handle_like_cpp\\.is_none\\(\\) \\{",
+   "#[cfg(any(test, feature = \"test-fixtures\"))]\\1if host.test_fixtures_ref_like_cpp().is_some() && host.core().player_handle_like_cpp.is_none() {"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)lifecycle(\\s*)\\.(\\s*)(set_represented_loaded_player_flags(?:_applied)?_for_test_like_cpp)",
+   "host\\1.\\2split_lifecycle_mut().0\\3.\\4\\5"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)lifecycle\\b",
+   "BattlePetSessionHostLikeCpp::lifecycle(host)"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)core\\b",
+   "host\\1.\\2core()"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)catalogs\\b",
+   "host\\1.\\2hub_ref().catalogs"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)kick\\(",
+   "host\\1.\\2core_mut().kick("
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)realm_id\\(\\)",
+   "host\\1.\\2core().realm_id()"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)(item_template_max_durability|item_storage_template)\\(",
+   "host\\1.\\2hub_ref().catalogs.\\3("
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)item_template_inventory_type\\(",
+   "host\\1.\\2hub_ref().item_template_inventory_type("
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)send_player_values_update_from_entity_bridge\\(",
+   "BattlePetPurchaseHostLikeCpp::send_player_values_update_from_entity_bridge(host, "
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*)sync_player_registry_state_like_cpp\\(\\)",
+   "VendorSessionHostLikeCpp::sync_player_registry_state_like_cpp(host)"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*){name}\\(\\s*\\)",
+   "{name}(host)"
+  ],
+  [
+   "\\bself(\\s*)\\.(\\s*){name}\\(",
+   "{name}(host, "
+  ],
+  [
+   "\\bself(\\s*)\\.",
+   "host\\1."
+  ],
+  [
+   "\\bself\\b",
+   "host"
+  ]
+ ]
+}

@@ -106,7 +106,7 @@ impl WorldSession {
 
         Some(SetupCurrency::from_records(records))
     }
-    pub(in crate::session) fn player_values_update_snapshot(
+    pub(crate) fn player_values_update_snapshot(
         &self,
     ) -> Option<wow_world_core::session::InventoryPlayerProjectionLikeCpp> {
         let access = self.core.owned_inventory_access_like_cpp();

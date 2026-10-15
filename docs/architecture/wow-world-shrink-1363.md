@@ -11316,3 +11316,286 @@ runs on the committed head that includes this section, together with the
 handler-contract repository `check`. The manifest path, dirty flag and
 duration are in the PR body. This section is not edited after that run, so
 the PR head is the validated SHA.
+
+## Slice 4c plan (remaining leaf families, phase 2)
+
+Measured on `6fe5b5d2f` (slice Q2 merged) before anything moved, with the
+hotspot classifier and a lexical index of the inherent `WorldSession` methods
+(bodies, the `WorldSession` methods each calls, and the host-trait methods
+that already exist in or below each candidate destination). **New host** is
+what a move would add after crediting the existing host traits and inlining
+the one-line catalog/core wrappers.
+
+| Family | Classifier production | Body (functions) | Outside calls | New host | Destination | Blocker |
+|---|---:|---:|---:|---:|---|---|
+| open-item loot (`handlers/spell/ops_{1,2}.rs`, the 9e follow-up) | 1,115 | 823 (16) | 20 | 4 | `wow-world-loot-ops` | none |
+| void storage (handlers, session adapter, unlock commit, loaded read) | 1,724 + 41 | 1,442 (31) | 31 | 11 | `wow-world-application` | the transfer carries the quest item-transfer plan (a `wow_world_quest` type) and calls seven quest functions, so the bodies sit above quest; `SessionIdGeneratorsLikeCpp` is a World type (moves to core) |
+| collections (`CMSG_USE_TOY`, `CMSG_ADD_TOY`) | 495 | 294 (3) | 14 | 7–9 | spell (use) / inventory (add) | spell cast state and execution, the toy account, inventory destruction and the player-condition projection: over 15 % alone |
+| group (command receivers, reconciliation, publication tail) | 933 (233 shims) | 457 (27; about 170 are `split_social_*` wrappers with many World callers) | 8 | about 6 | `wow-world-instances` | about 330 movable lines for about 55 host lines: over 15 % alone |
+| travel (area trigger, activate taxi) | 561 | 345 (11) | 7 | 2 + a catalog type | instances (area trigger) / entities (taxi) | `AreaTriggerCatalogsLikeCpp` holds the World-typed script dispatcher (`Arc<dyn Fn(&mut WorldSession, …)>`): a design step (dispatcher type parameter or associated type) before the body can move |
+| talent | 162 | 44 (3) | 0 | — | — | nothing movable: the catalog setters are the world-server construction API, and `refresh_represented_talent_points_like_cpp` is a `cfg`-split field-borrow builder (slice 12) |
+| trainer | 937 | 664 (7): 636 context builders, 28 forwards | 0 | — | — | `AppTrainer*Cx` builders borrow six disjoint session fields with `cfg!(test)` and fixture refs: the session split (slice 12), not a leaf move |
+
+**Order by host share, lowest first:**
+
+- **4c:** the open-item loot family (about 4 % host) and void storage with
+  its unlock commit (about 9 %). About 2.4k moved lines.
+- **4d:** after two design steps, travel (the area-trigger catalogs get a
+  dispatcher type parameter in instances; the area trigger and its client
+  conditions go to instances, `CMSG_ACTIVATE_TAXI` and the taxi helpers to
+  entities), group (the receivers, reconciliation and publication tail to
+  instances behind about 6 host methods; the `split_social_*` wrappers stay
+  as adapters) and collections (use toy to spell, add toy to inventory).
+  About 900 moved lines for about 110 host lines (about 12 %); none of
+  the three fits alone.
+- **Slice 12:** talent and trainer, whose remaining World code is field-borrow
+  context builders and construction setters, not leaf bodies.
+
+**Edges, simulated before moving** (`wow_world_closure.py check`, lock and
+metadata): 4c adds no `wow-world*` edge; application already depends on
+inventory, quest, loot, lifecycle and core, and loot-ops on lifecycle,
+inventory, loot and quest. The only new dependency is the external
+`num-traits` for application (`FromPrimitive` in the item helpers), added
+to `dependency-policy.json`. 4d needs instances → `wow-conditions` (the
+area-trigger client conditions), to be simulated with `--add`.
+
+## Slice 4c result (open-item loot family → loot-ops; void storage and its unlock commit → application)
+
+Branch `1363-s4c-leaf-handlers`, base `6fe5b5d2f` (slice Q2 merged).
+Move-only (R2) after a tooling commit for #1407 follow-ups 1–2. Packets,
+their order, the money fence, the void-storage persistence port and
+transaction, registrations and processing flags are unchanged; no registrar
+moved.
+
+### validation-v2 (#1407 follow-ups 1–2), commit `462426f32`
+
+- **Quick pin (follow-up 1).** `quick` returned before the handler-graph
+  trigger, so `profile == "final"` was unreachable for quick and the old pin
+  (no `cargo test --lib` in quick) could not fail. The trigger is now
+  computed once before the quick branch, behaviour unchanged (the guard keeps
+  it false in quick, and quick's checker condition is the old one), and the
+  pins assert that quick plans **no command referencing `CHECKER_MANIFEST`**
+  for the root manifest, the lock and every fixture manifest. Removing
+  `profile == "final" and` now fails the self-test (`AssertionError:
+  Cargo.toml`).
+- **Trigger (follow-up 2).** `handler_graph_changed` fires in `final` when a
+  `crates/*/Cargo.toml` changes its parsed `[dependencies]`,
+  `[dev-dependencies]`, `[build-dependencies]`, `[features]` or `[target.*]`
+  tables or `package.name` against the base, in any TOML spelling,
+  including a new, deleted or unparsable manifest; comment-only and other
+  metadata edits (description, `[lints]`, the same dependency in table form)
+  do not. Pins: 19 manifests (moves to `[dev-dependencies]`, default-feature
+  toggles, `[dependencies.wow-handler]`, quoted keys, renames, target
+  tables, multi-manifest diffs). Dropping `"features"`, `"target"` or
+  `package.name` from the projection each fails the self-test. The
+  docstring and `docs/operations/validation-v2.md` describe exactly this.
+
+### What moved
+
+- **Open-item loot family → `wow-world-loot-ops`**
+  (`session_loot/sources/open_item.rs`, `open_item_conditions.rs`), commit
+  `38e229ff1`: `CMSG_OPEN_ITEM` (C++ `HandleOpenItemOpcode`), the item loot
+  view, the wrapped gift (open and stale destruction), the item
+  loot-template generation, the `item_template_addon` money and
+  loot-metadata reads (an `InventoryCxRef` impl before), and the item-loot
+  condition readers and quest gates: 17 functions, 909 base lines.
+  - Host: **`OpenItemHostLikeCpp: LootSessionHostLikeCpp`** (4 methods:
+    `get_inventory_item_by_pos`, the wrapped-gift row application,
+    `remove_fully_looted_runtime_item`, `send_stat_update`), implemented in
+    `handlers/open_item_host.rs` outside the hotspot trees. Adding the four
+    to `LootSessionHostLikeCpp` instead would have grown the loot hotspot by
+    22 lines.
+  - Inlined one-line World wrappers: `item_template_flags`,
+    `item_template_lock_id`, `lock_entry_exists_like_cpp`
+    (`host.hub_ref().catalogs.…`), `send_equip_error`
+    (`host.core().…`), and the loot-condition wrapper whose name equals
+    the `wow_loot` free function it calls (inlined so the moved body cannot
+    resolve to itself). `wow_world_spell::known_spells_like_cpp(self)` becomes
+    `host.known_spells_like_cpp()`, whose World impl is that call.
+  - The spell registrar's adapter calls `wow_world_loot_ops::handle_open_item`.
+- **Void storage → `wow-world-application`** (`void_storage_session/`),
+  commit `661a58c59`: the four handlers (unlock, query, transfer, swap),
+  the item and publication helpers, the seven represented void-storage reads
+  and writes of `session/void_storage_adapter.rs`, the **unlock commit**
+  (`session/persistence/commit.rs`, the 13c deferral) and the loaded-state
+  read: 31 functions, 1,484 base lines, plus the module's 70 lines of
+  constants and plan types.
+  - Host: **`VoidStorageSessionHostLikeCpp: ItemSessionHostLikeCpp +
+    QuestItemStorageHostLikeCpp`** (11 methods: the loot split, the unlock
+    flag and player-flags reads, the values snapshot, four inventory reads
+    and plans, the committed new-item apply, the enchantment-duration
+    refresh, the bag-slot values send), implemented in
+    `handlers/void_storage/session_host.rs`. The seven quest functions take
+    the host directly.
+  - Names both supertrait chains carry (`lifecycle`,
+    `send_player_values_update_from_entity_bridge`,
+    `sync_player_registry_state_like_cpp`, `make_inventory_item_object`) use
+    the explicit trait path; every World impl of each forwards to the same
+    field or inherent method.
+  - Inlined: `kick` (`host.core_mut()`), `realm_id`,
+    `item_storage_template`, `item_template_max_durability`,
+    `item_template_inventory_type`.
+  - The unlock commit's former `#[cfg(test)]` step is
+    `#[cfg(any(test, feature = "test-fixtures"))] if host.test_fixtures_ref_like_cpp().is_some() && …`,
+    the 4b/13c gate, so it still runs exactly in the World test build.
+  - `SessionIdGeneratorsLikeCpp` (with its `cfg`-gated `Default`) and
+    `PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP` move to `wow-world-core`,
+    re-exported at the World paths. `LifecycleCxRef` and `cx_lifecycle_ref`
+    retire with their last reader; the session's generator imports are now
+    used by `trainer_acquisition.rs` and `inventory_handler_contexts.rs`.
+- **Token comparison** (`move_token_compare.py --base 6fe5b5d2f`, rules
+  `move_token_rules/1363-s4c{,-void}.{json,pairs.tsv}`): open-item **16 of
+  17** identical, void storage **30 of 31**. The two others differ only by a
+  rustfmt brace reflow after the dedent (a match-arm block and a closure
+  block that now fit on one line).
+- **Visibility.** Only what a cross-crate consumer needs is `pub`: the
+  handlers and host traits (World adapters), and under
+  `cfg(any(test, feature = "test-fixtures"))` the functions the World test
+  shims forward to; `VoidWithdrawalItemPublicationLikeCpp` becomes `pub`
+  for the same reason. The rest is `pub(crate)` or private.
+
+### Await counts (per function, base vs head)
+
+| Function | Base | Head |
+|---|---:|---:|
+| `handle_open_item` | 7 | 7 |
+| `generate_item_loot_template_entries_like_cpp` | 6 | 6 |
+| `open_wrapped_gift_like_cpp` | 3 | 3 |
+| `open_active_item_loot_view_like_cpp`, `destroy_stale_wrapped_gift_like_cpp`, the three `load_item_template_addon_*` reads, `save_new_stored_item_loot_like_cpp` | 1 each | 1 each |
+| `handle_void_storage_transfer_with_generators_like_cpp` | 4 | 4 |
+| `handle_void_storage_unlock_with_generator_like_cpp` | 3 | 3 |
+| `handle_void_storage_swap_item` | 2 | 2 |
+
+Token identity puts every await at the same point in the same order.
+
+### Recursion
+
+- Every moved name was grepped across production (non-shim) `wow-world`.
+  The only hits are the adapters, which call the explicit free function
+  (`wow_world_loot_ops::handle_open_item`, `wow_world_application::handle_void_storage_*`);
+  `SpellHandlerHostLikeCpp::handle_open_item` shares the moved name, which
+  is why the adapter no longer says `WorldSession::handle_open_item`.
+- Every new host forward is `WorldSession::name(self, …)` over an existing
+  inherent method of that name, or `crate::session::split_loot_mut`.
+- `unconditional_recursion`: 0 in all three canonical builds.
+
+### Registration
+
+No registrar moved. The spell and void-storage registrations, their order,
+`SessionStatus`, `PacketProcessing` and thunks are untouched; only the World
+adapters' call targets changed. No checker constant, mount or
+`handler-module-policy.json` change.
+
+### Edges and closure
+
+No `wow-world*` edge. `Cargo.toml`: application gains `num-traits`
+(external, in `dependency-policy.json`); `Cargo.lock` gains that one
+dependency line. `wow_world_closure.py check`: PASS in lock and metadata
+modes (18 packages). `cargo tree -p world-server -e normal,build -e
+features` shows no `test-fixtures` and no `wow-world-test-support`.
+
+### Accounting
+
+| Crate `src` | Base physical | Head physical | Base production | Head production |
+|---|---:|---:|---:|---:|
+| `wow-world` | 43,406 (455 files) | 41,144 (451) | **34,219** | **31,664** |
+| `wow-world-loot-ops` | 13,132 | 14,144 | 13,047 | 14,054 |
+| `wow-world-application` | 12,905 | 14,708 | 12,208 | 13,993 |
+| `wow-world-core` | 47,425 | 47,455 | 45,591 | 45,608 |
+
+- **`wow-world` production −2,555** (open-item part −949, void part
+  −1,606). `git diff --numstat` on `crates/wow-world/src`: −2,756 / +494.
+  - **Moved:** 2,393 function lines (909 + 1,484) and 83 item lines (the
+    70 void constants and plan types, the 12-line generator type, one
+    constant).
+  - **Reclassified production → test:** `handlers/spell/state.rs` (11, now
+    `#![cfg(test)]`: only the spell scenarios read its re-exports), the
+    `item_template_lock_id` wrapper (3, to the open-item shim file) and the
+    two `cfg(test)` packet entry points nested in the moved void files
+    (about 12, to the void shim file).
+  - **Retired:** `lock_entry_exists_like_cpp`, `LifecycleCxRef` and
+    `cx_lifecycle_ref`, the loot-condition wrapper, the empty
+    `persistence/commit.rs` and the moved files' headers and `impl` lines.
+  - **New host in `wow-world`:** 130 adapter lines (`open_item_host.rs`
+    41 without the relocated wrapper, `void_storage/session_host.rs` 89),
+    plus 5 in `void_storage/host.rs`.
+- **Destinations:** loot-ops +1,012 physical (909 body lines, 17-line
+  trait, headers and exports); application +1,803 (1,523 body lines after
+  rustfmt, 70 item lines, 42-line trait, headers and exports); core +30
+  (the generator type with its `Default`, the constant, imports).
+- **Budget.** New host lines (traits 17 + 42, adapters 41 + 89 + 5) are
+  194 against 2,476 moved lines: **7.8 %** (open-item 58 / 909 = 6.4 %,
+  void 136 / 1,567 = 8.7 %).
+- `net_move.py check --base origin/3.4.3`: S = 2,262, G = 2,845 within the
+  3,336 allowance, 0 duplicate bodies, PASS.
+
+### Policy and ceilings
+
+- **Ceilings tightened, none raised.** Hotspot `session/mod.rs`: production
+  21,741 → 21,606, test 141,641 → 141,630 (the generator `Default` left
+  with the type), total 163,382 → 163,236. The loot, character and quest
+  hotspots are unchanged.
+- **New physical rows** at their live size, as for the earlier shim files:
+  `handlers/open_item_test_shims.rs` (31) and
+  `handlers/void_storage_test_shims.rs` (231), both `#![cfg(test)]`,
+  mounted outside the hotspot trees.
+- `session-ownership-policy.json` reprinted with `print-baseline`; the delta
+  is the moved and retired items, the two new host impls and the shims.
+  `dependency-policy.json`: application → `num-traits`.
+
+### Warnings and tests
+
+Canonical recipe (with `--locked`), base `6fe5b5d2f` vs head, counted and
+compared with `warning_units.py`:
+
+| Build | `wow-world` lib | `wow-world` lib test | loot-ops lib | application lib | All `wow-world*` lib units |
+|---|---:|---:|---:|---:|---:|
+| production lib | 125 → 122 | — | 1 → 1 | 5 → 5 | 252 → 249 |
+| lib + `test-fixtures` | 133 → 131 | — | 0 → 0 | 3 → 3 | 215 → 213 |
+| `--lib --tests` | 133 → 131 | 181 → 179 | 0 → 0 | 3 → 3 | 215 → 213 |
+
+- Nothing only in the head in any build. Gone: the unused `BagFamilyMask`
+  import of `handlers/spell.rs`, the unused `WrappedGiftRow` re-export of
+  `handlers/spell/state.rs`, and the production-only unused `HighGuid` of
+  `session/catalog_capabilities.rs`.
+- `wow-world` `dead_code`: 0 in all three builds. `unconditional_recursion`:
+  0.
+- **Tests.** The test-name multiset is identical: 9,492
+  `#[test]`/`#[tokio::test]` functions under `crates/`, 5 ignored. Scenario
+  call sites keep method syntax through the two shim files, except the two
+  void-storage loaded-state assertions, which now call
+  `wow_world_application::represented_void_storage_loaded_like_cpp(&session)`
+  (the same check; `LifecycleCxRef` retired). The void-storage source scan
+  `void_storage_mutation_paths_have_no_concrete_persistence_after_port_cut`
+  now audits the World adapter files and every file of the moved module, and
+  checks both directories for unaudited files (stricter, not weaker).
+  Focused run during the move: `cargo test -p wow-world --lib -- void
+  open_item item_3 player_items_4 equipment_set handler_contract wrapped
+  generator spell::tests`: 252 passed, 1 ignored.
+
+### Remaining (4d and beyond)
+
+- **4d** (above): travel after the area-trigger catalog dispatcher step,
+  group receivers/reconciliation/publication tail, collections.
+- **Slice 12:** talent and trainer context builders.
+- **Cleanup:** retire the shim files (now including the two above) by
+  converting the scenario call sites.
+
+### Follow-ups
+
+- #1407 follow-up 3 (reword the moved "Application" doc comments and the
+  `ApplicationEquipmentSetUse` label, drop the unused
+  `wow_core::ObjectGuid` import) and #1405 nit 5 remain open.
+- `LootSessionHostLikeCpp`, `QuestItemStorageHostLikeCpp` and the inventory
+  host chain now share several same-named forwards; the void-storage bodies
+  name the trait explicitly at those sites. Consolidating the duplicate host
+  names stays with the cleanup.
+
+### Validation
+
+`VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+runs on the committed head that includes this section (no registrar moved,
+so no separate handler-contract `check` is required; `final` runs the
+checker suite because `Cargo.lock` changed). The manifest path, dirty flag
+and duration are in the PR body. This section is not edited after that
+run, so the PR head is the validated SHA.

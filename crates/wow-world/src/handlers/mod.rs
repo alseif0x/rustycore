@@ -25,6 +25,7 @@ pub mod loot;
 pub mod movement;
 mod movement_host;
 mod npc_host;
+mod open_item_host;
 pub mod pets;
 pub mod progression;
 pub mod quest;
@@ -58,6 +59,8 @@ mod login_test_shims;
 #[cfg(test)]
 mod loot_test_shims;
 #[cfg(test)]
+mod open_item_test_shims;
+#[cfg(test)]
 mod player_cast_test_shims;
 #[cfg(test)]
 mod player_test_shims;
@@ -90,6 +93,8 @@ mod test_support;
 mod vendor_test_shims;
 #[cfg(test)]
 mod visibility_test_shims;
+#[cfg(test)]
+mod void_storage_test_shims;
 #[cfg(test)]
 mod world_entities_registry_test_shims;
 #[cfg(test)]

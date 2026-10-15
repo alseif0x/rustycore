@@ -428,18 +428,17 @@ pub(crate) use stand_state_adapter::RepresentedStandStateChangedLikeCpp;
 mod state;
 pub use state::WorldSession;
 pub(crate) use state::{
-    HubMut, InventoryCxRef, LifecycleCx, LifecycleCxRef, QuestStateCx, QuestStateCxRef,
-    cx_inventory_ref, cx_lifecycle, cx_lifecycle_ref, cx_quest_state, cx_quest_state_ref, hub_mut,
-    hub_ref, hub_support, split_battle_pet_handler_mut, split_battleground_mut,
-    split_character_handler_mut, split_group_handler_states_mut, split_guild_bank_mut,
-    split_instances_mut, split_instances_ref, split_interaction, split_interaction_ref,
-    split_interaction_world_entities_mut, split_inventory_lifecycle_shared_hub_mut,
-    split_inventory_mut, split_inventory_ref, split_lifecycle_mut, split_lifecycle_ref,
-    split_loot_mut, split_loot_ref, split_player_handler_states_mut,
-    split_quest_state_lifecycle_mut, split_quest_state_mut, split_quest_state_ref,
-    split_social_mut, split_social_ref, split_spell_state_mut, split_spell_state_ref,
-    split_trade_mut, split_visibility_mut, split_visibility_ref, split_world_entities_mut,
-    split_world_entities_ref,
+    HubMut, InventoryCxRef, LifecycleCx, QuestStateCx, QuestStateCxRef, cx_inventory_ref,
+    cx_lifecycle, cx_quest_state, cx_quest_state_ref, hub_mut, hub_ref, hub_support,
+    split_battle_pet_handler_mut, split_battleground_mut, split_character_handler_mut,
+    split_group_handler_states_mut, split_guild_bank_mut, split_instances_mut, split_instances_ref,
+    split_interaction, split_interaction_ref, split_interaction_world_entities_mut,
+    split_inventory_lifecycle_shared_hub_mut, split_inventory_mut, split_inventory_ref,
+    split_lifecycle_mut, split_lifecycle_ref, split_loot_mut, split_loot_ref,
+    split_player_handler_states_mut, split_quest_state_lifecycle_mut, split_quest_state_mut,
+    split_quest_state_ref, split_social_mut, split_social_ref, split_spell_state_mut,
+    split_spell_state_ref, split_trade_mut, split_visibility_mut, split_visibility_ref,
+    split_world_entities_mut, split_world_entities_ref,
 };
 #[cfg(test)]
 pub(crate) use state::{InventoryCx, cx_inventory};
@@ -536,8 +535,7 @@ use wow_constants::{
     ItemSubClassWeapon,
 };
 use wow_core::{
-    EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator, Position,
-    VoidStorageItemIdGeneratorLikeCpp, guid::HighGuid,
+    EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid,
 };
 #[cfg(test)]
 use wow_data::CinematicSequencesStore;
@@ -706,11 +704,11 @@ pub(crate) use wow_world_entities::spell_click_values::MAX_GAMEOBJECT_SLOT_LIKE_
 #[cfg(test)]
 pub(crate) use wow_world_spell::spell_cast_adapter::SPELL_CAST_SOURCE_NORMAL_LIKE_CPP;
 const PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP: u32 = 0x0000_0800;
-pub(crate) use wow_world_core::session::PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP;
-pub(crate) const PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP: u32 = 0x2000_0000;
 pub(crate) use wow_constants::rest::{
     REST_STATE_NORMAL_LIKE_CPP, REST_STATE_RAF_LINKED_LIKE_CPP, REST_STATE_RESTED_LIKE_CPP,
 };
+pub(crate) use wow_world_core::session::PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP;
+pub(crate) use wow_world_core::session::PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP;
 
 /// Live seam for C++ `ScriptMgr::OnAreaTrigger`: a ported content script receives the mutable session and returns the same consumed/not-consumed boolean that controls C++ handler continuation.
 pub type AreaTriggerScriptDispatcherLikeCpp =

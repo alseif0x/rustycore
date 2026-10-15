@@ -1,0 +1,18 @@
+# base_path name head_path (#1363 slice 4c, base 6fe5b5d2f)
+crates/wow-world/src/handlers/spell/ops_1.rs	handle_open_item	crates/wow-world-loot-ops/src/session_loot/sources/open_item.rs
+crates/wow-world/src/handlers/spell/ops_1.rs	open_active_item_loot_view_like_cpp	crates/wow-world-loot-ops/src/session_loot/sources/open_item.rs
+crates/wow-world/src/handlers/spell/ops_1.rs	open_wrapped_gift_like_cpp	crates/wow-world-loot-ops/src/session_loot/sources/open_item.rs
+crates/wow-world/src/handlers/spell/ops_1.rs	destroy_stale_wrapped_gift_like_cpp	crates/wow-world-loot-ops/src/session_loot/sources/open_item.rs
+crates/wow-world/src/handlers/spell/ops_1.rs	generate_item_loot_template_entries_like_cpp	crates/wow-world-loot-ops/src/session_loot/sources/open_item.rs
+crates/wow-world/src/handlers/spell/ops_1.rs	load_item_template_addon_money_loot_like_cpp	crates/wow-world-loot-ops/src/session_loot/sources/open_item.rs
+crates/wow-world/src/handlers/spell/ops_1.rs	load_item_template_addon_loot_metadata_like_cpp	crates/wow-world-loot-ops/src/session_loot/sources/open_item.rs
+crates/wow-world/src/handlers/spell/ops_1.rs	load_item_template_addon_loot_metadata_for_rows_like_cpp	crates/wow-world-loot-ops/src/session_loot/sources/open_item.rs
+crates/wow-world/src/handlers/spell/ops_2.rs	item_loot_allowed_for_player_like_cpp_representable	crates/wow-world-loot-ops/src/session_loot/sources/open_item_conditions.rs
+crates/wow-world/src/handlers/spell/ops_2.rs	loot_entry_flags_for_row_like_cpp	crates/wow-world-loot-ops/src/session_loot/sources/open_item_conditions.rs
+crates/wow-world/src/handlers/spell/ops_2.rs	has_incomplete_quest_objective_for_item_like_cpp_representable	crates/wow-world-loot-ops/src/session_loot/sources/open_item_conditions.rs
+crates/wow-world/src/handlers/spell/ops_2.rs	has_incomplete_quest_objective_for_object_id_like_cpp_representable	crates/wow-world-loot-ops/src/session_loot/sources/open_item_conditions.rs
+crates/wow-world/src/handlers/spell/ops_2.rs	has_incomplete_quest_item_drop_for_item_like_cpp_representable	crates/wow-world-loot-ops/src/session_loot/sources/open_item_conditions.rs
+crates/wow-world/src/handlers/spell/ops_2.rs	direct_inventory_item_count_like_cpp_representable	crates/wow-world-loot-ops/src/session_loot/sources/open_item_conditions.rs
+crates/wow-world/src/handlers/spell/ops_2.rs	evaluate_loot_condition_like_cpp_representable	crates/wow-world-loot-ops/src/session_loot/sources/open_item_conditions.rs
+crates/wow-world/src/handlers/spell/ops_2.rs	player_quest_objective_progress_like_cpp_representable	crates/wow-world-loot-ops/src/session_loot/sources/open_item_conditions.rs
+crates/wow-world/src/handlers/spell/ops_2.rs	save_new_stored_item_loot_like_cpp	crates/wow-world-loot-ops/src/session_loot/sources/open_item_conditions.rs

@@ -532,19 +532,6 @@ pub(crate) fn cx_lifecycle(s: &mut WorldSession) -> LifecycleCx<'_> {
     }
 }
 
-/// Shared counterpart of `LifecycleCx` for `&self` methods.
-pub(crate) struct LifecycleCxRef<'a> {
-    pub(crate) inventory: &'a InventoryState,
-    pub(crate) hub: HubRef<'a>,
-}
-
-pub(crate) fn cx_lifecycle_ref(s: &WorldSession) -> LifecycleCxRef<'_> {
-    LifecycleCxRef {
-        inventory: &s.inventory,
-        hub: hub_ref(s),
-    }
-}
-
 /// Capped group context (#1241 F3): the `quest_state` state, sibling states and hub members its
 /// moved fns read, borrowed from disjoint WorldSession fields.
 pub(crate) struct QuestStateCx<'a> {

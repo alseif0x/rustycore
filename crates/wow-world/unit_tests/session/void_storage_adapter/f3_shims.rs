@@ -9,7 +9,7 @@ use super::*;
 impl crate::session::WorldSession {
     pub(in crate::session) fn with_owned_void_storage_like_cpp<R>(
         &self,
-        f: impl FnMut(&[Option<RepresentedVoidStorageItemLikeCpp>], bool) -> R,
+        f: impl FnMut(&[Option<crate::session::RepresentedVoidStorageItemLikeCpp>], bool) -> R,
     ) -> Option<R> {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.with_owned_void_storage_like_cpp(hub, f)

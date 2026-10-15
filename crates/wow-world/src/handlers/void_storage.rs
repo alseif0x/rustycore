@@ -11,137 +11,34 @@
 //!
 //! `#1263 F5 deferred families`: the four registrations moved unchanged to
 //! `wow_world_inventory::register_void_storage_handlers_like_cpp`; `host.rs`
-//! lends that registrar these operations.
+//! lends that registrar these operations. #1363 slice 4c: their bodies moved
+//! to `wow_world_application::void_storage_session`; `session_host.rs` lends
+//! those bodies the remaining `WorldSession` operations.
 
-use std::collections::{HashMap, HashSet};
-
-use num_traits::FromPrimitive;
-use wow_constants::unit::NPCFlags1;
-use wow_constants::{EnchantmentSlot, ItemContext, ItemFieldFlags, ItemModifier};
-use wow_entities::INVENTORY_SLOT_BAG_0;
-
-use wow_packet::packets::update::{ItemCreateData, ItemEnchantmentValuesUpdate, UpdateObject};
-use wow_packet::packets::void_storage::{
-    QueryVoidStorage, SwapVoidItem, UnlockVoidStorage, VoidItemSwapResponse, VoidStorageFailed,
-    VoidStorageTransfer, VoidStorageTransferChanges, VoidTransferErrorLikeCpp, VoidTransferResult,
-};
-use wow_packet::{ClientPacket, WorldPacket};
-
+// The void-storage unit tests name these through `super::*`.
+#[cfg(test)]
 use crate::session::{
     DirectInventoryStorageOverlayLikeCpp, InventoryItem, RepresentedVoidStorageItemLikeCpp,
-    SessionIdGeneratorsLikeCpp, WorldSession,
+    WorldSession,
 };
-use wow_world_inventory::{
-    EffectiveVoidStorageRandomPropertiesLikeCpp, PlannedVoidDestroyedInventoryItemLikeCpp,
-};
-
-const VOID_STORAGE_UNLOCK_COST_LIKE_CPP: u64 = 100 * 10_000;
-const VOID_STORAGE_STORE_ITEM_COST_LIKE_CPP: u64 = 10 * 10_000;
-
-#[derive(Debug, Clone)]
-struct PlannedVoidDepositLikeCpp {
-    destroyed_items: Vec<PlannedVoidDestroyedInventoryItemLikeCpp>,
-    void_item: RepresentedVoidStorageItemLikeCpp,
-    void_slot: u8,
-}
-
-#[derive(Debug, Clone)]
-struct PlannedVoidWithdrawalLikeCpp {
-    old_void_slot: u8,
-    void_item: RepresentedVoidStorageItemLikeCpp,
-    quest_log_item_id: u32,
-    destination: PlannedVoidWithdrawalDestinationLikeCpp,
-}
-
-#[derive(Debug, Clone)]
-enum PlannedVoidWithdrawalDestinationLikeCpp {
-    QuestBoundNoItem,
-    New {
-        bag: u8,
-        slot: u8,
-        db_guid: u64,
-        item_guid: wow_core::ObjectGuid,
-        item_state: RepresentedVoidStorageItemLikeCpp,
-        item_object: wow_entities::Item,
-        create_item_object: wow_entities::Item,
-        post_store_item_object: wow_entities::Item,
-        enchantments: String,
-        create_dynamic_flags: u32,
-    },
-    MergeExisting {
-        inventory_item: InventoryItem,
-        item_object: wow_entities::Item,
-        store_stack_count: u32,
-        store_dynamic_flags: Option<u32>,
-        post_store_item_object: wow_entities::Item,
-        enchantments: String,
-    },
-    MergedIntoPlanned {
-        item_guid: wow_core::ObjectGuid,
-        store_stack_count: u32,
-        store_dynamic_flags: Option<u32>,
-        post_store_item_object: wow_entities::Item,
-    },
-}
-
-enum VoidWithdrawalItemPublicationLikeCpp {
-    New {
-        create: ItemCreateData,
-        post_store: Option<UpdateObject>,
-    },
-    Values(UpdateObject),
-}
-
-#[derive(Debug, Clone)]
-struct PlannedVoidDestinationStateLikeCpp {
-    target: PlannedVoidDestinationTargetLikeCpp,
-    item_object: wow_entities::Item,
-    enchantments: String,
-}
-
-#[derive(Debug, Clone)]
-enum PlannedVoidDestinationTargetLikeCpp {
-    Existing(InventoryItem),
-    Planned(usize),
-}
-
-fn void_withdrawal_item_create_data_like_cpp(
-    item: &wow_entities::Item,
-    create_dynamic_flags: u32,
-    container_slots: u32,
-) -> ItemCreateData {
-    let data = item.data();
-
-    ItemCreateData {
-        item_guid: item.object().guid(),
-        entry_id: item.object().entry() as i32,
-        owner_guid: data.owner,
-        contained_in: data.contained_in,
-        stack_count: data.stack_count,
-        dynamic_flags: create_dynamic_flags,
-        durability: data.durability,
-        max_durability: data.max_durability,
-        // C++ sends `_StoreItem`'s create before `StoreNewItem` applies
-        // random properties and before the void handler restores creator and
-        // unconditional binding. Those fields follow in one VALUES update.
-        random_properties_seed: 0,
-        random_properties_id: 0,
-        enchantments: [ItemEnchantmentValuesUpdate::default(); 13],
-        // Void storage persists neither gems nor container contents.
-        gems: Vec::new(),
-        context: u8::try_from(data.context).unwrap_or(ItemContext::None as u8),
-        container_slots,
-        container_item_guids: [wow_core::ObjectGuid::EMPTY; 36],
-    }
-}
+#[cfg(test)]
+use wow_constants::unit::NPCFlags1;
+#[cfg(test)]
+use wow_constants::{EnchantmentSlot, ItemContext, ItemModifier};
+#[cfg(test)]
+use wow_entities::INVENTORY_SLOT_BAG_0;
+#[cfg(test)]
+use wow_packet::WorldPacket;
+#[cfg(test)]
+use wow_packet::packets::update::UpdateObject;
+#[cfg(test)]
+use wow_world_application::void_withdrawal_item_create_data_like_cpp;
+#[cfg(test)]
+use wow_world_inventory::EffectiveVoidStorageRandomPropertiesLikeCpp;
 
 #[cfg(test)]
 #[path = "../../unit_tests/handlers/void_storage_tests/mod.rs"]
 mod tests;
 
 mod host;
-mod items;
-mod publication;
-mod swap;
-mod transfer;
-mod unlock_and_query;
+mod session_host;

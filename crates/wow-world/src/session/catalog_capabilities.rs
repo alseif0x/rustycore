@@ -4,16 +4,13 @@
 //! Catalog capabilities: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::EquipmentSetGuidGeneratorLikeCpp;
+use super::GraveyardStore;
 use super::HotfixBlobCache;
 use super::LfgDungeonStoreLikeCpp;
-use super::ObjectGuidGenerator;
-use super::VoidStorageItemIdGeneratorLikeCpp;
 use super::{AdventureMapPoiStore, Arc, AreaTriggerDb2Store, AreaTriggerScriptDispatcherLikeCpp};
 use super::{AreaTriggerScriptStoreLikeCpp, AreaTriggerStore, BankBagSlotPricesStore};
 use super::{BattlemasterListStore, ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp};
 use super::{ChatListenRangesLikeCpp, EmotesStore, EmotesTextStore};
-use super::{GraveyardStore, HighGuid};
 
 use super::TavernAreaTriggerStoreLikeCpp;
 use super::{PlayerGridLoadOutcomeLikeCpp, PlayerGridLoadResolverLikeCpp};
@@ -48,28 +45,8 @@ pub struct AreaTriggerCatalogsLikeCpp {
     pub script_dispatcher: Option<AreaTriggerScriptDispatcherLikeCpp>,
 }
 
-/// Process-wide ObjectMgr identifier allocators.
-///
-/// C++ initializes these once from database maxima. Sessions consume values
-/// but never own an allocator or return a value after a later failure.
-pub struct SessionIdGeneratorsLikeCpp {
-    pub player: Arc<ObjectGuidGenerator>,
-    pub item: Arc<ObjectGuidGenerator>,
-    pub equipment_set: Arc<EquipmentSetGuidGeneratorLikeCpp>,
-    pub void_storage_item: Arc<VoidStorageItemIdGeneratorLikeCpp>,
-}
-
-#[cfg(any(test, feature = "test-fixtures"))]
-impl Default for SessionIdGeneratorsLikeCpp {
-    fn default() -> Self {
-        Self {
-            player: Arc::new(ObjectGuidGenerator::new(HighGuid::Player, 1)),
-            item: Arc::new(ObjectGuidGenerator::new(HighGuid::Item, 1)),
-            equipment_set: Arc::new(EquipmentSetGuidGeneratorLikeCpp::new(1)),
-            void_storage_item: Arc::new(VoidStorageItemIdGeneratorLikeCpp::new(1)),
-        }
-    }
-}
+// Moved to `wow_world_core` with the void-storage bodies (#1363 slice 4c).
+pub use wow_world_core::session::SessionIdGeneratorsLikeCpp;
 
 #[cfg(any(test, feature = "test-fixtures"))]
 impl Default for AreaTriggerCatalogsLikeCpp {

@@ -6,8 +6,8 @@ mod prelude;
 pub use prelude::{
     AFLAG_NOCASTER_LIKE_CPP, AFLAG_SCALABLE_LIKE_CPP, PLAYER_FLAGS_AFK_LIKE_CPP,
     PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP, PLAYER_FLAGS_DND_LIKE_CPP, PLAYER_FLAGS_GHOST_LIKE_CPP,
-    PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP, PLAYER_FLAGS_RESTING_LIKE_CPP, SKILL_ENCHANTING_LIKE_CPP,
-    SharedCanonicalMapManager,
+    PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP, PLAYER_FLAGS_RESTING_LIKE_CPP,
+    PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP, SKILL_ENCHANTING_LIKE_CPP, SharedCanonicalMapManager,
 };
 
 pub mod character_availability;
@@ -308,6 +308,7 @@ pub use catalog_capabilities::GroupInvitePolicyLikeCpp;
 pub use catalog_capabilities::ObjectMgrCatalogsLikeCpp;
 pub use catalog_capabilities::PlayerBootstrapCatalogsLikeCpp;
 pub use catalog_capabilities::PlayerRestRatePolicyLikeCpp;
+pub use catalog_capabilities::SessionIdGeneratorsLikeCpp;
 pub use catalog_capabilities::{ChatPolicyCatalogsLikeCpp, SupportFeaturePolicyLikeCpp};
 pub use catalog_capabilities::{ItemValuationCatalogsLikeCpp, ProgressionCatalogsLikeCpp};
 
