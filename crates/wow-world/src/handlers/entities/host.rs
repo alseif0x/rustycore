@@ -286,4 +286,50 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
             source,
         )
     }
+
+    fn represented_player_group_reward_state_like_cpp(
+        &self,
+        player_guid: ObjectGuid,
+    ) -> Option<(u8, u16, Position, bool)> {
+        let (s, h) = crate::session::split_social_ref(self);
+        s.represented_player_group_reward_state_like_cpp(h, player_guid)
+    }
+
+    fn calculate_kill_reputation_gain_like_cpp(&self, level: u8, rep: i32, faction: u32) -> i32 {
+        wow_world_social::calculate_kill_reputation_gain_like_cpp(self, level, rep, faction)
+    }
+
+    fn cached_loot_for_owner_like_cpp(&self, owner: ObjectGuid) -> Option<&wow_loot::CreatureLoot> {
+        self.loot.cached_loot_for_owner_like_cpp(owner)
+    }
+
+    fn ensure_represented_creature_kill_loot_like_cpp(
+        &mut self,
+        creature_guid: ObjectGuid,
+    ) -> impl Future<Output = ()> + Send {
+        wow_world_loot_ops::ensure_represented_creature_kill_loot_like_cpp(self, creature_guid)
+    }
+
+    fn give_xp(
+        &mut self,
+        xp: u32,
+        victim: ObjectGuid,
+        rate: f32,
+    ) -> impl Future<Output = ()> + Send {
+        WorldSession::give_xp(self, xp, victim, rate)
+    }
+
+    fn on_creature_killed_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        creature_entry: u32,
+        creature_guid: ObjectGuid,
+    ) -> impl Future<Output = ()> + Send {
+        WorldSession::on_creature_killed_with_generator_like_cpp(
+            self,
+            item_guid_generator,
+            creature_entry,
+            creature_guid,
+        )
+    }
 }

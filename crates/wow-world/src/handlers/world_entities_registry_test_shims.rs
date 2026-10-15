@@ -7,7 +7,10 @@
 //! `session/world_entities/{creature_registry,creature,creature_kill,aggro}.rs`
 //! (the fixture creature registration and removal, the talk-to and kill
 //! objective entries without a generator, and the two canonical threat
-//! readers), moved verbatim so the classifier counts them as test code. The
+//! readers), moved verbatim so the classifier counts them as test code, and
+//! one-call method forwards to the creature kill reputation and death-state
+//! completion moved to `wow_world_entities` (#1363 slice 10b), so no scenario
+//! call site changes. The
 //! two threat readers widen from `pub(in crate::session)` to `pub(crate)`,
 //! because this file is outside the session tree. Mounted from
 //! `handlers/mod.rs`, so the session hotspot's test lines do not grow; the
@@ -311,6 +314,32 @@ impl WorldSession {
             creature_guid,
             attacker_guid,
             threat_value,
+        )
+    }
+    pub(crate) fn reward_reputation_from_creature_kill_like_cpp(
+        &mut self,
+        creature_entry: u32,
+        creature_guid: ObjectGuid,
+        creature_level: u8,
+        kill_reward_rate: f32,
+    ) {
+        wow_world_entities::reward_reputation_from_creature_kill_like_cpp(
+            self,
+            creature_entry,
+            creature_guid,
+            creature_level,
+            kill_reward_rate,
+        )
+    }
+    pub(crate) fn complete_represented_creature_death_state_after_kill_hooks_like_cpp(
+        &mut self,
+        attacker_guid: ObjectGuid,
+        creature_guid: ObjectGuid,
+    ) -> Option<wow_entities::UnitValuesUpdate> {
+        wow_world_entities::complete_represented_creature_death_state_after_kill_hooks_like_cpp(
+            self,
+            attacker_guid,
+            creature_guid,
         )
     }
 }

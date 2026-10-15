@@ -12,6 +12,7 @@ pub mod creature_aggro_contracts;
 mod creature_aura_tracking;
 mod creature_interaction;
 mod creature_kill;
+mod creature_kill_session;
 pub mod creature_movement_adapter;
 mod creature_publication;
 mod creature_publication_session;
@@ -91,6 +92,14 @@ pub use corpse_handlers::{
 // requires (#1263 F5 deferred families).
 pub use corpse_registrations::{CorpseHandlerHostLikeCpp, register_corpse_handlers_like_cpp};
 pub use creature::creature_message_to_set_target_allows_like_cpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use creature_kill_session::record_represented_creature_kill_hooks_like_cpp;
+pub use creature_kill_session::{
+    complete_represented_creature_death_state_after_kill_hooks_like_cpp,
+    process_pending_creature_kills_with_generator_like_cpp,
+    represented_creature_kill_reputation_rate_like_cpp,
+    reward_reputation_from_creature_kill_like_cpp,
+};
 pub use creature_publication::represented_creature_aura_info_like_cpp;
 pub use creature_publication_session::{
     apply_creature_aura_with_provenance_like_cpp,

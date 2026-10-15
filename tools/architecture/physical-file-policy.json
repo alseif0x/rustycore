@@ -720,9 +720,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/progression_test_shims.rs",
-      "observed_lines": 315,
-      "ceiling_lines": 315,
-      "split": "cfg(test) method entry points for the #1363 slice 7c progression families: the one-call entry point of the battle-pet XP-percent aura moved to wow-world-spell (SessionSpellState), and the #[cfg(test)] methods that were nested in the production impls of session/rest_progression.rs (rest state, XP rest bonus, tavern revalidation, create flags), session/progression_adapters.rs (kill credit, XP table, money), session/progression/{skills,reputation}.rs, session/pets/pet.rs (petition reads, tapper-pet kill hook) and session/combat/state.rs, moved verbatim. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)] so the classifier counts it as test code and the session hotspot's test lines do not grow. 2026-10-13 #1363 slice 7c: ratcheted at the live value from creation. Retire entries as the scenarios move to the owning crates or call the moved bodies directly; no growth is permitted from here.",
+      "observed_lines": 284,
+      "ceiling_lines": 284,
+      "split": "cfg(test) method entry points for the #1363 slice 7c progression families: the one-call entry point of the battle-pet XP-percent aura moved to wow-world-spell (SessionSpellState), and the #[cfg(test)] methods that were nested in the production impls of session/rest_progression.rs (rest state, XP rest bonus, tavern revalidation, create flags), session/progression_adapters.rs (kill credit, XP table, money), session/progression/{skills,reputation}.rs, session/pets/pet.rs (petition reads, tapper-pet kill hook) and session/combat/state.rs, moved verbatim. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)] so the classifier counts it as test code and the session hotspot's test lines do not grow. 2026-10-13 #1363 slice 7c: ratcheted at the live value from creation. Retire entries as the scenarios move to the owning crates or call the moved bodies directly; no growth is permitted from here. 2026-10-15 #1363 slice 10b: tightened 315 -> 284: the test-only tapper-pet KilledUnit hook record moved to wow-world-entities (creature_kill_session.rs, cfg(any(test, feature = \"test-fixtures\"))) with the death-state completion, its only caller, and its RepresentedCreatureKillEventLikeCpp import left.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -818,9 +818,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/world_entities_registry_test_shims.rs",
-      "observed_lines": 316,
-      "ceiling_lines": 316,
-      "split": "cfg(test) world-entity entry points (#1363 slice 10b): the #[cfg(test)] methods that were nested in the production impls of session/world_entities/{creature_registry,creature,creature_kill,aggro}.rs, moved verbatim (the fixture creature registration chain and removal, the talk-to and kill objective entries without a generator, and the two canonical threat readers, widened from pub(in crate::session) to pub(crate) because the file is outside the session tree), and the #[path] mount of the creature-registry F3 shim (unit_tests/session/world_entities/creature_registry/f3_shims.rs), which left the deleted creature_registry.rs. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-15 #1363 slice 10b: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly.",
+      "observed_lines": 345,
+      "ceiling_lines": 345,
+      "split": "cfg(test) world-entity entry points (#1363 slice 10b): the #[cfg(test)] methods that were nested in the production impls of session/world_entities/{creature_registry,creature,creature_kill,aggro}.rs, moved verbatim (the fixture creature registration chain and removal, the talk-to and kill objective entries without a generator, and the two canonical threat readers, widened from pub(in crate::session) to pub(crate) because the file is outside the session tree), one-call method forwards to the creature kill reputation award and death-state completion moved to wow-world-entities (so no scenario call site changes), and the #[path] mount of the creature-registry F3 shim (unit_tests/session/world_entities/creature_registry/f3_shims.rs), which left the deleted creature_registry.rs. Mounted from handlers/mod.rs outside the session hotspot tree and marked #![cfg(test)], so its lines are not production and are not charged to the session hotspot's test ceiling. 2026-10-15 #1363 slice 10b: ratcheted at the live value from creation; it retires with the other shims when the scenarios call the free functions directly.",
       "review_checkpoint": "584:C4"
     },
     {
