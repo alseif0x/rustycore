@@ -11993,3 +11993,304 @@ methods; to be re-measured before each step):
    left on moved items that are used; tighten every ceiling to its final
    value; re-measure and record the final `wow-world` production in the
    phase 2 summary.
+
+## Slice 12 plan (re-measured on the 12a head)
+
+Re-measured on the 12a head with the hotspot classifier and a lexical index
+of the production inherent `WorldSession` methods (comments and literals
+blanked; methods of `cfg(test)` impls, nested `cfg(test)` methods, test
+paths and shim files excluded; "single-statement" means at most one
+statement and no `let`/`if`/`match`/loop/`return`). This index is stricter
+than the one behind the slice 4 summary's 862 / 509: on the 4d base it
+counts **765 methods (13,478 lines), 371 single-statement (2,046 lines)**,
+and on the 12a head **757 (12,777 lines), 367 single-statement (2,018
+lines)**. `wow-world` production is **29,898** (base 30,664).
+
+1. **12a (this slice): done.** The context builders moved; what is left of
+   `trainer*`/`talent*` is the registrar adapters (`handlers/trainer/host.rs`
+   172, `handlers/talent/host.rs` 52, `session/progression/talent_host.rs`
+   23), module roots and docs (`handlers/trainer.rs` 39, `handlers/talent.rs`
+   22, `talent/state.rs` 11) and the two catalog setters (17), which stay
+   (world-server construction API). The adapters are 12d's.
+2. **12b: base-module logic.** 390 non-forward inherent methods (about
+   10.8k lines). The largest groups: `session/player_items` 85 non-forward
+   of 141 (2,646 lines with the forwards), `session/spell_effects` 13
+   (1,086), `session/spell_state` 34 (788 with forwards), `session/persistence`
+   20 (387), `session/social` 16, `session/quest` 8, `session/visibility` 9,
+   `spell_acquisition/adapter.rs` 2 (288), `session/stand_state_adapter.rs`
+   2 (302). `session/driver` (707), `session_commands.rs` (192) and
+   `session/map_admission.rs` (176) are the runtime shell and stay. Move per
+   module where every production caller is already a domain crate or a host
+   impl, under the 15 % rule; player-items first (inventory), then spell
+   effects and spell state (spell).
+3. **12c: thin forward sweep.** 367 single-statement forwards (2,018
+   lines). Where every caller is a host impl or a registrar adapter, point it
+   at the target (split, free function or core) and delete the forward;
+   scenario-only callers move to a shim. Largest groups: `session/player_items`
+   56, `session/catalogs` 37 (setters stay), `handlers/account_data` 31,
+   `session/spell_state` 31, `session/world_entities` 14.
+4. **12d: adapter retirement.** 84 production `impl … for WorldSession`
+   blocks (83 at the 4d base; 12a adds `TrainerSessionHostLikeCpp`), 26
+   `*_handler_contexts.rs` files (1,320 lines) and 38 `*host*.rs` adapter
+   files (4,699 lines; largest `character/login_host.rs` 399, `loot/session_loot_host.rs`
+   385, `loot/loot_host.rs` 368, `entities/host.rs` 335). Merge host traits
+   that duplicate forwards and regroup the adapters by destination crate
+   (the 4d review's follow-up 2), reporting merged and unmerged host shares.
+5. **Final cleanup.** 52 shim files (7,634 physical lines); 19 of them lack
+   `#![cfg(test)]` and are counted as production (1,655 classifier lines),
+   so marking them is a reclassification of about 1.7k lines, not a move.
+   Then convert scenario call sites to the free functions and retire the
+   shims, drop the used `#[allow(dead_code)]` leftovers, tighten every
+   ceiling and record the final production in the phase 2 summary.
+
+## Slice 12a result (trainer contexts and CMSG_TRAINER_LIST → application, talent-point refresh → quest)
+
+Branch `1363-s12a-trainer-talent`, base `8e618d0e2` (slice 4d merged).
+Move-only (R2) after a tooling commit for the #1409 follow-ups. Trainer
+list/buy/unlearn order, the talent learn/reset path, money and persistence
+order (#169), packets, registrations and processing flags are unchanged; no
+registrar moved.
+
+### #1409 follow-ups, commit `a49985733`
+
+- **Standalone `--tests` (follow-up 1).** `wow-world-instances` gets a
+  `test-fixtures` feature forwarding to core, entities, lifecycle, loot,
+  social and spell, plus a self dev-dependency (the spell/social pattern;
+  `Cargo.lock` gains the self edge). `cargo check --locked --jobs 1 -p <crate>
+  --tests`, one crate at a time, for the 17 `wow-world-*` crates:
+  **before**, only `wow-world-instances` failed (11 `E0061`/`E0599` errors in
+  `wow-world-inventory` built without its fixtures); **after**, all 17 pass.
+  At the 12a head (after `wow-world-application` gained the social edge)
+  the same loop passes again for all 17.
+- **validation-v2.** `final` now plans `cargo check --locked --tests -p
+  <crate>` alone for each changed (not deleted) `crates/wow-world-*/Cargo.toml`,
+  because the reverse-closure check unifies features and cannot see a
+  missing forward. Pinned in `tools/test_validation_v2.py` (a domain
+  manifest triggers it; `wow-world`'s own manifest, another crate's manifest,
+  a domain source file and a deleted manifest do not; quick never). Mutation
+  check: disabling the planner branch fails the self-test
+  (`AssertionError: crates/wow-world-fixture/Cargo.toml`). Documented in
+  `docs/operations/validation-v2.md`.
+- **Unmerged host share (follow-up 2):** recorded under the 4d host surface
+  (148 lines, 16.3 %, against the merged 13.7 %).
+
+### What moved
+
+- **Trainer contexts → `wow-world-application`**
+  (`trainer_purchase/session_context.rs`), commit `a8c2f06ff`: the purchase
+  (`trainer_buy_context_like_cpp`), purchase-admission
+  (`trainer_buy_admission_context_like_cpp`) and list-publication
+  (`trainer_list_publication_context_like_cpp`) context builders from the
+  World `session/trainer_acquisition.rs` (deleted). They stay `pub(crate)`.
+  - Host: **`TrainerSessionHostLikeCpp: SessionHubHostLikeCpp`**
+    (`trainer_purchase/session_host.rs`), one required method,
+    `split_trainer_mut`, returning **`TrainerSessionFieldsLikeCpp`**: the
+    `HubMut` plus `lifecycle`, `inventory`, `spell_state`, `quest_state`,
+    `loot`, `interaction`, `social` and `instances`, the same disjoint field
+    borrows the World bodies took. The World impl (in
+    `handlers/trainer/host.rs`, outside the hotspot trees) builds it from the
+    fields.
+  - **Fixture hook.** The World `cfg!(test)` argument becomes
+    `host.world_test_consumer_like_cpp()`, a trait default (the 6a quest form
+    over the 4b `test_fixtures_ref_like_cpp` hook) read once before the
+    split: `Some` fixtures only in the World test build, so the value is
+    `cfg!(test)` of `wow-world` in all three builds.
+  - **Mechanical rules** (`move_token_rules/1363-s12a-trainer.json`): the
+    signatures; a prologue that reads the hook and destructures the split;
+    `&mut self.<field>` and `&self.<field>` → the split binding (whole-field
+    borrows), `self.catalogs` → `session_catalogs` (the bodies shadow
+    `catalogs` with their own catalog views), `self.` → nothing for the
+    remaining `core`/`config`/`fixtures` paths, `cfg!(test)` → `world_test`,
+    `wow_world_application::` → `crate::`. **7 of 7 identical** after the
+    rules (`move_token_compare.py --base 8e618d0e2`).
+- **`CMSG_TRAINER_LIST` → `wow-world-application`** (`session_host.rs`):
+  `handle_trainer_list` and `handle_trainer_list_for_gossip_option_like_cpp`
+  (C++ `NPCHandler.cpp:98` `HandleTrainerListOpcode`/`SendTrainerList`;
+  async, no await), the private `send_trainer_list_like_cpp` and
+  `trainer_offer_decision_like_cpp` from `handlers/trainer.rs`, over the same
+  host. `TrainerBuySpellHostLikeCpp` drops its three context/decision methods
+  and takes `TrainerSessionHostLikeCpp` as supertrait; the purchase body
+  calls the free functions at the same four points (two context builds,
+  the admission build, the decision). Callers: the trainer registrar adapter
+  and the character login host name `wow_world_application::handle_trainer_list*`.
+- **Talent-point refresh → `wow-world-quest`** (`quest_session/rewards.rs`):
+  `refresh_represented_talent_points_like_cpp` from
+  `session/progression/talents.rs`, over the existing
+  `QuestSessionHostLikeCpp::split_quest_state_mut` (no new host method). It
+  cannot go to spell: its body is `QuestRewardCx`'s refresh, and spell is
+  below quest. Rules (`1363-s12a-talent.json`): the signature and a prologue
+  (hook, split, `HubMut` destructure, the production `let _ = quest_state`),
+  `&self.catalogs` → `session_catalogs`, `&self.quest_state` → `&*quest_state`,
+  `self.` → nothing, `cfg!(test)` → `world_test`, `wow_world_quest::` →
+  `crate::`. **1 of 1 identical.** World callers (`persistence/load.rs` ×2,
+  `player_binding.rs`, the `set_num_talents_at_level_store` setter and the
+  spell `TalentHostLikeCpp` impl) call
+  `wow_world_quest::refresh_represented_talent_points_like_cpp(self)`. The
+  catalog setters stay.
+- **Shims.** The `cfg(test)` `handle_trainer_buy_spell` entry point (a
+  nested `#[cfg(test)]` method of `handlers/trainer.rs`) moved verbatim to
+  the new `#![cfg(test)]` `handlers/trainer_talent_test_shims.rs`, with
+  one-call forwards for the moved names the scenarios call
+  (`handle_trainer_list`, `trainer_offer_decision_like_cpp`,
+  `refresh_represented_talent_points_like_cpp`). The imports of
+  `handlers/trainer.rs` that only the regressions read are `#[cfg(test)]`.
+- **Retired with its last production reader** (commit `330756ef8`, found by
+  the warning recipe): the session root's `ObjectGuidGenerator` import (the
+  deleted builder file read it as `super::ObjectGuidGenerator`); its two
+  `cfg(test)` readers import it from `wow_core` at the same line counts.
+- **Inlined one-line wrappers:** none. The three removed
+  `TrainerBuySpellHostLikeCpp` methods were World forwards to the moved
+  builders and the decision; the purchase body now calls those free
+  functions directly (`host.f(a)` → `f(host, a)`), so the forwards retire
+  instead of being inlined.
+- **Visibility.** `pub` for what World calls (the list handlers, the host
+  trait and split struct); `trainer_offer_decision_like_cpp` is re-exported
+  only under `cfg(any(test, feature = "test-fixtures"))` for the shim; the
+  builders and `send_trainer_list_like_cpp` are crate-private.
+
+### Host surface
+
+Moved: **708 function lines** (counted at the base from the first doc or
+attribute line through the closing brace): builders 639 (55 + 213 + 371),
+list/decision 32, talent refresh 37.
+
+- New host: the split struct 12 and the trait 14 (with the 7-line hook
+  default) in `session_host.rs`, and the World impl 22 in
+  `handlers/trainer/host.rs`: **48 lines, 6.8 %**. No adapter file was
+  merged, so the merged and unmerged figures are the same.
+- Retired host: the three trait methods with docs (21) and their World
+  forwards (26): 47 lines. Net host +1.
+- Not counted above, reported for completeness: the two new files' headers
+  and imports (45) and the prologues inside the moved bodies (70 lines after
+  rustfmt explodes the destructures; the moved bodies grew only 708 → 735,
+  because rustfmt rejoined 43 `self\n.fixtures\n.x` chains). Everything
+  counted: 48 + 45 + 27 = 120 lines, 16.9 %; net of the retired host, 73,
+  10.3 %.
+
+### Await counts (per function, base vs head)
+
+| Function | Base | Head |
+|---|---:|---:|
+| `handle_trainer_buy_spell_with_generator_like_cpp` (caller, unmoved) | 5 | 5 |
+| `handle_trainer_list`, `handle_trainer_list_for_gossip_option_like_cpp` (async) | 0 | 0 |
+| the three builders, `send_trainer_list_like_cpp`, `trainer_offer_decision_like_cpp`, the talent refresh | 0 | 0 |
+
+`TrainerHandlerHostLikeCpp::handle_trainer_list_like_cpp` keeps its one
+await (now of the free function); the login host returns the future as
+before.
+
+### Recursion
+
+- Every moved name was grepped in production (non-shim) `wow-world`: the
+  builders, `send_trainer_list_like_cpp` and the decision have no hit;
+  `handle_trainer_list*` appear only in the login host and the trainer
+  registrar adapter, each calling `wow_world_application::…`; the talent
+  refresh appears only as `wow_world_quest::refresh_represented_talent_points_like_cpp(self)`
+  (five call sites, one of them the `TalentHostLikeCpp` method of the same
+  name).
+- The new forward (`split_trainer_mut`) builds a struct from fields. In
+  application, the purchase body calls the imported free functions; the
+  trait methods of those names no longer exist, so nothing can resolve to
+  them. The shims name the crate paths.
+- `unconditional_recursion`: 0 in all three canonical builds.
+
+### Registration
+
+No registrar moved; the trainer and talent registrations, their order,
+`SessionStatus`, `PacketProcessing`, handler names and thunks are
+unchanged (`handler_name: "handle_trainer_list"` is a string literal, not a
+path). No checker constant, mount or `handler-module-policy.json` change, so
+no handler-contract `check` is required; `final` runs the checker lib suite
+because `Cargo.lock` and crate manifests changed.
+
+### Edges and closure
+
+`wow-world-application` → `wow-world-social` (the split names
+`SessionSocialLimits`), simulated first: `wow_world_closure.py check --add
+"wow-world-application->wow-world-social"` PASS in lock and metadata modes;
+added to `dependency-policy.json` and to the application's `test-fixtures`
+forward. `wow-world-instances` → itself (dev). Closure at head: PASS in
+lock and metadata modes (18 packages). `cargo tree -p world-server -e
+normal,build -e features` shows no `test-fixtures` and no
+`wow-world-test-support`.
+
+### Accounting
+
+| Crate `src` | Base physical | Head physical | Base production | Head production |
+|---|---:|---:|---:|---:|
+| `wow-world` | 40,282 (453 files) | 39,586 (453) | **30,664** | **29,898** |
+| `wow-world-application` | 14,708 | 15,462 | 13,993 | 14,745 |
+| `wow-world-quest` | 19,021 | 19,071 | 18,437 | 18,487 |
+
+- **`wow-world` production −766.** By file: `trainer_acquisition.rs` −658
+  (deleted), `handlers/trainer.rs` −64, `progression/talents.rs` −37,
+  `handlers/trainer/host.rs` −4, `session/mod.rs` −3.
+  - **Moved:** 708 function lines.
+  - **Reclassified production → test:** 27: the nested `cfg(test)`
+    `handle_trainer_buy_spell` (19) and the regression-only imports of
+    `handlers/trainer.rs` now gated (8).
+  - **Retired:** 27: the deleted file's header, imports and `impl` lines
+    (19), `handlers/trainer.rs`'s `Arc` import, `impl` lines and section
+    header net of the new 3-line note (5), the `trainer_acquisition` mount
+    and the `ObjectGuidGenerator` import reflow in `session/mod.rs` (3).
+  - **Host adapter, net:** −4 (+22 split impl, −26 retired forwards, doc and
+    import lines).
+- **Destinations (production):** application +752 (`session_context.rs`
+  675, `session_host.rs` 91, mounts and exports 9, `buy_spell.rs` −21 net
+  of the removed trait methods and the import changes); quest +50
+  (`rewards.rs` 49, the export 1).
+- `net_move.py check --base origin/3.4.3`: S = 696, G = 804 within the
+  1,691.8 allowance, 0 duplicate bodies, PASS.
+
+### Policy and ceilings
+
+- **Ceilings tightened, none raised.** Hotspot `session/mod.rs`: production
+  21,272 → 20,574, test 141,630 unchanged, total 162,902 → 162,204 (the
+  review is prepended to the field with `Previous: `). Physical
+  `session/mod.rs` 820 → 817, `handlers/trainer.rs` 114 → 60.
+- **New physical row** at its live size: `handlers/trainer_talent_test_shims.rs`
+  (58), `#![cfg(test)]`, mounted from `handlers/mod.rs` outside the hotspot
+  trees.
+- `session-ownership-policy.json` reprinted with `print-baseline` (the moved
+  methods, the new `TrainerSessionHostLikeCpp` impl and the shim);
+  `check --syntax-only` PASS. `dependency-policy.json`: application → social.
+
+### Warnings and tests
+
+Canonical recipe (with `--locked`), base `8e618d0e2` vs head, counted and
+compared with `warning_units.py`:
+
+| Build | `wow-world` lib | `wow-world` lib test | All `wow-world*` lib units |
+|---|---:|---:|---:|
+| production lib | 120 → 118 | — | 247 → 245 |
+| lib + `test-fixtures` | 129 → 127 | — | 211 → 209 |
+| `--lib --tests` | 129 → 127 | 178 → 178 | 211 → 209 |
+
+- `compare`: nothing only in the head in any build (after `330756ef8`).
+  Gone: the two unused import groups of `handlers/trainer.rs`. The
+  destination crates keep exactly their pre-existing warnings.
+- `wow-world` `dead_code`: 0 in all three builds. `unconditional_recursion`: 0.
+- **Tests.** The test-name multiset is identical: 9,492
+  `#[test]`/`#[tokio::test]` functions under `crates/`, 5 ignored, base and
+  head. No scenario call site changed; the only test-tree edit is the
+  player-items f3 shim's import (`use {super::*, wow_core::ObjectGuidGenerator};`).
+  No assertion changed. Focused run during the move: `cargo test -p
+  wow-world --lib -- trainer talent respec handler_contract battle_pet`:
+  282 passed, 1 ignored.
+
+### Follow-ups
+
+- #1407 follow-up 3 and #1405 nit 5 remain open.
+- 12b–12d and the cleanup as re-planned above. The trainer purchase host
+  (`TrainerBuySpellHostLikeCpp`, 9 methods) and the talent hosts are 12d
+  adapter candidates.
+- The standalone `--tests` check covers only changed domain manifests; a
+  forwarding change that reaches a crate whose manifest is unchanged is
+  still caught only by a manual loop.
+
+### Validation
+
+`VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+runs on the committed head that includes this section and the slice 12
+plan. The manifest path, dirty flag and duration are in the PR body. This
+section is not edited after that run, so the PR head is the validated SHA.
