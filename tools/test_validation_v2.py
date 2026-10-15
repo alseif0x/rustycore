@@ -619,6 +619,53 @@ def test_interrupt_and_verdict_contract(
     assert "requires --manifest" in usage.stderr
 
 
+def test_handler_graph_contract() -> None:
+    """A crate manifest triggers the checker suite only when it gains or loses
+    a `wow-handler` dependency against the base, including a new or deleted
+    crate (#1363 slice Q2)."""
+    checker_suite = ["cargo", "test", "--locked", "--manifest-path", runner.CHECKER_MANIFEST,
+                     "--jobs", "2", "--lib", "--no-fail-fast"]
+    with_handler = '[package]\nname = "x"\n\n[dependencies]\nwow-handler = { path = "../wow-handler" }\n'
+    without = '[package]\nname = "x"\n\n[dependencies]\nwow-core = { path = "../wow-core" }\n'
+    dotted = '[package]\nname = "x"\n\n[dependencies]\nwow-handler.workspace = true\n'
+    with tempfile.TemporaryDirectory(prefix="validation-v2-handler-graph-") as scratch:
+        root = Path(scratch)
+        subprocess.run(["git", "init", "-q", str(root)], check=True)
+        for key, value in (("user.email", "validation-v2@example.invalid"), ("user.name", "Validation V2")):
+            subprocess.run(["git", "config", key, value], cwd=root, check=True)
+        for name, text in (("keeps", with_handler), ("gains", without), ("loses", with_handler),
+                           ("edits", without), ("dotted", without), ("deleted", with_handler),
+                           ("deleted-plain", without)):
+            manifest = root / "crates" / name / "Cargo.toml"
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text(text)
+        subprocess.run(["git", "add", "."], cwd=root, check=True)
+        subprocess.run(["git", "commit", "-qm", "base"], cwd=root, check=True)
+        base = runner.output(root, "git", "rev-parse", "HEAD")
+        (root / "crates/keeps/Cargo.toml").write_text(with_handler + 'wow-core = { path = "../wow-core" }\n')
+        (root / "crates/gains/Cargo.toml").write_text(with_handler)
+        (root / "crates/loses/Cargo.toml").write_text(without)
+        (root / "crates/edits/Cargo.toml").write_text(without + "# comment naming wow-handler\n")
+        (root / "crates/dotted/Cargo.toml").write_text(dotted)
+        (root / "crates/deleted/Cargo.toml").unlink()
+        (root / "crates/deleted-plain/Cargo.toml").unlink()
+        (root / "crates/new/").mkdir()
+        (root / "crates/new/Cargo.toml").write_text(with_handler)
+        (root / "crates/new-plain/").mkdir()
+        (root / "crates/new-plain/Cargo.toml").write_text(without)
+        expected = {
+            "keeps": False, "gains": True, "loses": True, "edits": False, "dotted": True,
+            "deleted": True, "deleted-plain": False, "new": True, "new-plain": False,
+        }
+        for name, triggers in expected.items():
+            path = f"crates/{name}/Cargo.toml"
+            assert runner.handler_graph_changed(root, base, [path]) is triggers, name
+            planned, _ = runner.validation_commands(root, "final", 2, base, runner.grouped_paths([path]), None)
+            quick_planned, _ = runner.validation_commands(root, "quick", 2, base, runner.grouped_paths([path]), None)
+            assert (checker_suite in planned) is triggers, name
+            assert checker_suite not in quick_planned, name
+
+
 def test_planner_contract(repo: Path) -> None:
     metadata = synthetic_metadata(repo)
     one_crate_paths = ["crates/a/src/lib.rs"]
@@ -731,6 +778,20 @@ def test_planner_contract(repo: Path) -> None:
     for changed in ("tools/architecture/net_move.py", "crates/wow-world/src/lib.rs", "docs/state.md"):
         planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
         assert all(command not in planned for command in tool_self_tests.values()), changed
+    # #1363 slice Q2 (#1406 review follow-up 1): final runs the checker lib
+    # suite, whose repository test pins the checked production-package set,
+    # for a workspace manifest or lock change; quick never does.
+    checker_suite = ["cargo", "test", "--locked", "--manifest-path", runner.CHECKER_MANIFEST,
+                     "--jobs", "2", "--lib", "--no-fail-fast"]
+    assert checker_suite not in final and checker_suite not in quick
+    for changed in ("Cargo.toml", "Cargo.lock"):
+        planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        quick_planned, _ = runner.validation_commands(repo, "quick", 2, "base", runner.grouped_paths([changed]), None)
+        assert checker_suite in planned and checker_suite not in quick_planned, changed
+    for changed in ("crates/wow-world/src/lib.rs", "docs/state.md", "tools/qa.py"):
+        planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        assert checker_suite not in planned, changed
+    test_handler_graph_contract()
     # The F3-4 situation: a committed mount whose shim a `skills/` rule hides fails the check.
     spec = importlib.util.spec_from_file_location(
         "ignored_sources", Path(__file__).resolve().parent / "architecture/ignored_sources.py")
