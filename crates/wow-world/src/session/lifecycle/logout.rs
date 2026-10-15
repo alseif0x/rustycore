@@ -15,11 +15,6 @@ impl WorldSession {
         )
         .await
     }
-
-    pub(crate) fn set_player_logout_like_cpp(&mut self, player_logout: bool) {
-        self.lifecycle.set_player_logout_like_cpp(player_logout);
-        self.sync_current_player_session_visibility_detection_like_cpp();
-    }
 }
 
 #[cfg(test)]

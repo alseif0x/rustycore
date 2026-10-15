@@ -29,15 +29,14 @@ use wow_packet::WorldPacket;
 /// The adapter contract between the talent registrations and the World session
 /// that executes them.
 ///
-/// **Talent-reset commit and publication stay with the host.** C++ runs
+/// **Talent-reset commit and publication.** C++ runs
 /// `Player::ResetTalents` and only on success publishes `SendTalentsInfoData`
 /// and the trainer's `Untalent Visual Effect` cast (`SkillHandler.cpp:65-69`);
 /// `Player::LearnTalent` publishes `SendTalentsInfoData` only on success
-/// (`:31-32`). The host keeps the Rust equivalent it already owns: trainer
-/// admission, the durable reset transaction (money, reset metadata, talent
-/// topology) and its COMMIT outcome, and the post-COMMIT publication of the
-/// talent data, spell/pet runtime removal, criteria and visual cast. This crate
-/// owns only the registration and dispatch of the two opcodes.
+/// (`:31-32`). The Rust equivalent (trainer admission, the durable reset
+/// transaction with its COMMIT outcome, and the post-COMMIT publication) is
+/// `crate::session_lifecycle`'s since #1363 slice 13b; the host method
+/// destructures the World catalog view and calls it with the session as host.
 pub trait TalentHandlerHostLikeCpp<C> {
     /// C++ `HandleConfirmRespecWipeOpcode` (`SkillHandler.cpp:43`). The legacy
     /// closure destructured the catalog view (`id_generators.item`,

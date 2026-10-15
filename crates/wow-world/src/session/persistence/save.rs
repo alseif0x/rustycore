@@ -92,25 +92,6 @@ impl WorldSession {
                     .unwrap_or(0)
             })
     }
-    pub(in crate::session) async fn process_pending_periodic_player_save_with_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-    ) {
-        if !self.lifecycle.pending_periodic_player_save_like_cpp()
-            || self.core.state != SessionState::LoggedIn
-        {
-            return;
-        }
-        if wow_world_entities::pending_teleport_save_destination_like_cpp(self).is_some() {
-            return;
-        }
-
-        wow_world_lifecycle::save_current_player_to_db_with_generator_like_cpp(
-            self,
-            item_guid_generator,
-        )
-        .await;
-    }
     #[cfg(test)]
     pub(in crate::session) async fn process_pending_periodic_player_save_like_cpp(&mut self) {
         let generators = self.id_generators_for_test_like_cpp();

@@ -134,11 +134,6 @@ impl WorldSession {
     pub(crate) fn send_packet_realm(&self, pkt: &impl wow_packet::ServerPacket) {
         self.core.send_packet_realm(pkt)
     }
-
-    pub(crate) fn restore_realm_channels(&mut self) {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.restore_realm_channels(&mut hub)
-    }
 }
 
 #[cfg(test)]

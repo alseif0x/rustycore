@@ -47,10 +47,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.remove_inventory_item_object(&mut hub, item_guid)
     }
-    pub(crate) fn clear_inventory_items_and_objects_like_cpp(&mut self) {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.clear_inventory_items_and_objects_like_cpp(&mut hub)
-    }
     pub(crate) fn insert_inventory_item_like_cpp(
         &mut self,
         slot: u8,

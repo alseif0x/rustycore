@@ -161,14 +161,6 @@ impl WorldSession {
     pub(crate) fn send_raw_packet(&self, data: &[u8]) {
         self.core.send_raw_packet(data)
     }
-    pub(crate) fn send_buy_error(
-        &self,
-        result: BuyResult,
-        creature_guid: Option<ObjectGuid>,
-        item: u32,
-    ) {
-        self.core.send_buy_error(result, creature_guid, item)
-    }
 }
 
 #[cfg(test)]

@@ -117,6 +117,7 @@
       "wow-packet",
       "wow-persistence",
       "wow-spell-acquisition",
+      "wow-world-character",
       "wow-world-core",
       "wow-world-entities",
       "wow-world-instances",
@@ -124,6 +125,7 @@
       "wow-world-inventory",
       "wow-world-lifecycle",
       "wow-world-loot",
+      "wow-world-loot-ops",
       "wow-world-quest",
       "wow-world-spell",
       "wow-world-visibility"

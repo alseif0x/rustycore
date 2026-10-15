@@ -9,6 +9,19 @@ pub use character_account_handlers::{
     CharacterAccountHandlerHostLikeCpp, register_character_account_handlers_like_cpp,
 };
 mod player_handlers;
+mod session_lifecycle;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use session_lifecycle::{
+    AT_LOGIN_RESET_TALENTS_LIKE_CPP, CommittedRepresentedTalentResetLikeCpp,
+    UNTALENT_VISUAL_EFFECT_SPELL_ID_LIKE_CPP, commit_represented_talent_reset_at_like_cpp,
+    execute_finalization_step,
+};
+pub use session_lifecycle::{
+    SessionAccountSaveCxLikeCpp, SessionLifecycleHostLikeCpp, cleanup_shared_runtime_state,
+    finalize_session_with_generator_like_cpp, handle_confirm_respec_wipe_with_generator_like_cpp,
+    process_pending_periodic_player_save_with_generator_like_cpp,
+    resume_deferred_player_save_with_generator_like_cpp,
+};
 mod spell_handlers;
 mod talent_handlers;
 pub use player_handlers::item_purchase_contents_from_extended_cost;
