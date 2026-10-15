@@ -206,8 +206,9 @@ impl WorldSession {
             return Ok(());
         };
 
-        let Some((quest_is_in_log, should_send_event_complete)) = self
-            .mark_represented_quest_explored_like_cpp(
+        let Some((quest_is_in_log, should_send_event_complete)) =
+            wow_world_quest::mark_represented_quest_explored_like_cpp(
+                self,
                 quest_id,
                 wow_conditions::QUEST_STATUS_FAILED_LIKE_CPP,
             )
@@ -225,7 +226,9 @@ impl WorldSession {
             )
             .await;
         } else if (quest.flags & QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP_LOCAL) != 0 {
-            if self.set_represented_quest_rewarded_like_cpp(quest_id, true) == false {
+            if wow_world_quest::set_represented_quest_rewarded_like_cpp(self, quest_id, true)
+                == false
+            {
                 return Ok(());
             }
             let quest_bit = self
@@ -236,7 +239,7 @@ impl WorldSession {
                 .map(|store| store.get_quest_unique_bit_flag_like_cpp(quest_id))
                 .unwrap_or(0);
             if quest_bit != 0 {
-                self.set_loaded_quest_completed_bit_like_cpp(quest_bit);
+                wow_world_quest::set_loaded_quest_completed_bit_like_cpp(self, quest_bit);
             }
             self.sync_player_registry_state_like_cpp();
         }

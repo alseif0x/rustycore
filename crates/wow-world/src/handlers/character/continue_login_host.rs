@@ -91,7 +91,7 @@ impl ContinueLoginHostLikeCpp for WorldSession {
         WorldSession::load_instance_time_restrictions_like_cpp(self)
     }
     fn load_player_quests(&mut self) -> impl Future<Output = ()> + Send {
-        WorldSession::load_player_quests(self)
+        wow_world_quest::load_player_quests(self)
     }
     fn load_represented_xp_rest_bonus_like_cpp(&mut self, rest_state: u8, rest_bonus: f32) {
         WorldSession::load_represented_xp_rest_bonus_like_cpp(self, rest_state, rest_bonus)

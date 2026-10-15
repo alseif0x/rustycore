@@ -376,10 +376,8 @@ pub(crate) use wow_world_spell::{
 mod player_vitals_adapter;
 mod progression_adapters;
 mod quest_dialog;
-pub(crate) use quest_dialog::LoadSeasonalQuestStatusOutcomeLikeCpp;
 pub(crate) use quest_dialog::RepresentedAdventureMapStartQuestLikeCpp;
 pub(crate) use quest_dialog::RepresentedPendingQuestSharingLikeCpp;
-use quest_dialog::RepresentedPreparedQuestMenuItemLikeCpp;
 pub(crate) use quest_dialog::RepresentedPushQuestToPartyOutcomeLikeCpp;
 pub(crate) use quest_dialog::RepresentedPushQuestToPartyOutcomeReasonLikeCpp;
 pub(crate) use quest_dialog::RepresentedQuestCompleteStatusUpdateLikeCpp;
@@ -397,15 +395,12 @@ pub(crate) use quest_dialog::RepresentedQuestRewardSpellCastLikeCpp;
 pub(crate) use quest_dialog::RepresentedQuestRewardSpellKindLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest_dialog::RepresentedQuestRewardTalentPointsLikeCpp;
-pub(crate) use quest_dialog::ResetSeasonalQuestStatusOutcomeLikeCpp;
-pub(crate) use quest_dialog::ResetSeasonalQuestStatusReasonLikeCpp;
-pub(crate) use quest_dialog::SeasonalQuestStatusDbRowLikeCpp;
-use quest_dialog::quest_giver_creature_id_from_source_like_cpp;
+use quest_dialog::quest_has_represented_item_objective_like_cpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest_dialog::{
     RepresentedForceDeselectLikeCpp, RepresentedQuestRewardTitleLikeCpp,
 };
-use quest_dialog::{quest_has_represented_item_objective_like_cpp, quest_rewards_block_like_cpp};
+use wow_world_quest::RepresentedPreparedQuestMenuItemLikeCpp;
 mod quest_interaction;
 mod raid_profile_values;
 use raid_profile_values::player_cuf_profile_from_packet_like_cpp;
@@ -668,10 +663,9 @@ use wow_entities::{
     NULL_BAG, NULL_SLOT, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInteractionDataLikeCpp,
     PlayerInventoryRuntime, PlayerItemTimeUpdate, PlayerPetLifecycleStateLikeCpp,
     PlayerQuestGameplayState, PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp,
-    PlayerTeleportStateLikeCpp, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
-    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText,
-    SendNewItemPlan, TYPEID_ITEM, UpdateMask, Vehicle, VisibleItemValues, WorldObject,
-    is_equipment_packed_pos, make_item_pos,
+    PlayerTeleportStateLikeCpp, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery,
+    SendNewItemDisplayText, SendNewItemPlan, TYPEID_ITEM, UpdateMask, Vehicle, VisibleItemValues,
+    WorldObject, is_equipment_packed_pos, make_item_pos,
 };
 #[cfg(test)]
 use wow_entities::{ActiveState, PetType, explored_zones_db_string_from_blocks_like_cpp};
@@ -709,32 +703,13 @@ use wow_packet::packets::misc::{
 };
 #[cfg(test)]
 use wow_packet::packets::misc::{BuyFailed, SellResponse};
-use wow_packet::packets::quest::{
-    QuestGiverOfferReward, QuestGiverQuestDetails, QuestGiverQuestList, QuestGiverRequestItems,
-    QuestGiverRequestItemsCollect, QuestGiverRequestItemsCurrency, QuestListEntry,
-    QuestObjectiveSimple, QuestRewardsBlock,
-};
 use wow_social::group::{
     GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry,
     PendingInvites, group_guid_by_db_store_id_like_cpp,
 };
 
-const QUEST_OBJECTIVE_ITEM_LIKE_CPP: u8 = 1;
-const QUEST_OBJECTIVE_CURRENCY_LIKE_CPP: u8 = 4;
-#[cfg(test)]
-const QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP: u8 = 6;
-#[cfg(test)]
-const QUEST_OBJECTIVE_MAX_REPUTATION_LIKE_CPP: u8 = 7;
-const QUEST_OBJECTIVE_MONEY_LIKE_CPP: u8 = 8;
-#[cfg(test)]
-const QUEST_OBJECTIVE_HAVE_CURRENCY_LIKE_CPP: u8 = 16;
-#[cfg(test)]
-const QUEST_OBJECTIVE_OBTAIN_CURRENCY_LIKE_CPP: u8 = 17;
-#[cfg(test)]
-const QUEST_OBJECTIVE_INCREASE_REPUTATION_LIKE_CPP: u8 = 18;
 #[cfg(test)]
 const DEFAULT_VISIBILITY_DISTANCE_YARDS_LIKE_CPP: u32 = 100;
-const QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP: u32 = 0x1;
 const QUEST_FLAGS_PLAYER_CAST_ACCEPT_LIKE_CPP: u32 = 0x0010_0000;
 const QUEST_FLAGS_EX_RECAST_ACCEPT_SPELL_ON_LOGIN_LIKE_CPP: u32 = 0x0000_1000;
 pub(crate) use wow_world_core::session::PLAYER_FLAGS_RESTING_LIKE_CPP;
@@ -795,10 +770,6 @@ pub(crate) const TELE_TO_TRANSPORT_TELEPORT_LIKE_CPP: TeleportToOptionsLikeCpp =
 const SUMMON_PROPERTIES_ONLY_VISIBLE_TO_SUMMONER_LIKE_CPP: u32 = 0x0000_0010;
 #[cfg(test)]
 const SUMMON_PROPERTIES_ONLY_VISIBLE_TO_SUMMONER_GROUP_LIKE_CPP: u32 = 0x0001_0000;
-
-const QUEST_MENU_ICON_TURN_IN_LIKE_CPP: u8 = 0;
-const QUEST_MENU_ICON_AVAILABLE_LIKE_CPP: u8 = 2;
-const QUEST_MENU_ICON_COMPLETE_LIKE_CPP: u8 = 4;
 
 #[cfg(test)]
 const PACKET_SPOOF_BAN_REASON_LIKE_CPP: &str = "DOS (Packet Flooding/Spoofing";

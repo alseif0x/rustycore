@@ -381,7 +381,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         creature_guid: ObjectGuid,
         creature_entry: u32,
     ) -> bool {
-        WorldSession::use_represented_creature_questgiver_like_cpp(
+        wow_world_quest::use_represented_creature_questgiver_like_cpp(
             self,
             creature_guid,
             creature_entry,

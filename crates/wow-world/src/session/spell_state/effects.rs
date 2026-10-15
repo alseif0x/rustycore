@@ -21,7 +21,7 @@ impl WorldSession {
         for spell_id in spells {
             wow_world_spell::remove_known_spell_like_cpp(self, spell_id);
         }
-        self.apply_represented_quest_rewarded_spells_like_cpp();
+        wow_world_quest::apply_represented_quest_rewarded_spells_like_cpp(self);
         self.core
             .send_notification_like_cpp(self.reset_spells_notification_text_like_cpp());
         true

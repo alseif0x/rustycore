@@ -46,7 +46,7 @@ impl wow_world_spell::AuraHostLikeCpp for WorldSession {
         wow_world_entities::tick_represented_creature_auras_like_cpp(self)
     }
     fn represented_spell_area_quest_status_like_cpp(&self, quest_id: u32) -> Option<u8> {
-        WorldSession::represented_spell_area_quest_status_like_cpp(self, quest_id)
+        wow_world_quest::represented_spell_area_quest_status_like_cpp(self, quest_id)
     }
     fn player_spell_runtime_snapshot_like_cpp(
         &self,

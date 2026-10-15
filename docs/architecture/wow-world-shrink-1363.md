@@ -9919,3 +9919,417 @@ Quest only.
 includes this section. Its manifest path, dirty flag and duration are in
 the PR body. This section is not edited after that run, so the PR head is
 the validated SHA.
+
+## Warning recipe (canonical from slice 6a; #1403 follow-up 1)
+
+Measured on `18cb95eff` (slice Q merged). From slice 6a on, every slice
+compares warnings with exactly these three commands, at base and at head,
+with `PROTOC` set and the per-worktree `CARGO_TARGET_DIR`:
+
+```sh
+cargo check -p wow-world --lib                          --jobs 1 --message-format json > lib.json
+cargo check -p wow-world --lib --features test-fixtures --jobs 1 --message-format json > fixtures.json
+cargo check -p wow-world --lib --tests                  --jobs 1 --message-format json > tests.json
+```
+
+- **What each build is.**
+  1. The production lib: `wow-world` and every `wow-world-*` crate without
+     `test-fixtures`.
+  2. The lib with `test-fixtures` and without `cfg(test)`: what dependents'
+     tests link. It **compiles at base** (exit 0, no error).
+  3. `--lib --tests`: the `test-fixtures` lib (dev-dependencies unify the
+     features), the lib unit-test build (`cfg(test)`) and the two
+     integration tests (`production_character_rename`,
+     `production_login_player_owner`).
+- **Counting.** Cargo emits a unit's messages before its
+  `compiler-artifact` line, so each warning is attributed to the unit
+  that follows it (with `--jobs 1` the units are sequential; cached units
+  replay their messages). A unit is the target name plus
+  `profile.test`. Count warnings by unit and lint code; compare head with
+  base by file, lint and message, with moved paths mapped.
+- **Base figures (`18cb95eff`):**
+
+| Build | `wow-world` lib | `wow-world` lib test | All `wow-world*` lib units | `wow-world` `dead_code` |
+|---|---:|---:|---:|---:|
+| production lib | 142 (137 `unused_imports`, 3 `unused_mut`, 2 `unused_variables`) | — | 265 | 0 |
+| lib + `test-fixtures` | 150 (145, 3, 2) | — | 230 | 0 |
+| `--lib --tests` | 150 (same set as above) | 197 (149 `unused_imports`, 24 `unused_mut`, 24 `unused_variables`) | 427 | 0 / 0 |
+
+  The integration-test units report no warning. No build reports
+  `unconditional_recursion`.
+- **Correction of earlier figures.** Slice Q reported that the
+  `test-fixtures` lib "already fails at base, with 87 `E0061` errors". The
+  canonical command above compiles at slice Q's merge, and `final`'s
+  `cargo check --workspace --all-targets` compiles the same configuration.
+  The 87 errors therefore came from a different, unrecorded invocation,
+  not from this build, and no feature forwarding needed fixing
+  (`wow-progression/test-fixtures` and
+  `wow-spell-acquisition/test-fixtures` come only from wow-world's
+  dev-dependencies; the `test-fixtures` lib does not need them). rustc runs
+  the `dead_code` lint only after type checking succeeds. So in any
+  earlier slice whose "lib + `test-fixtures`" build did not type-check,
+  the reported "`wow-world` `dead_code` 0" for that build was not
+  measured. Slice Q's 310 / 309 figures and the earlier slices' "lib with
+  `test-fixtures`" figures may not have covered `wow-world` itself. They
+  are not comparable with the table above. The table is the new
+  baseline: `dead_code` is 0 in all three builds at `18cb95eff`.
+- **Forbidden-edge fixture** (#1403 follow-up 2):
+  `fixtures/forbidden-loot-to-inventory.json`. `wow-world-loot` may not
+  depend on `wow-world-inventory`. The architecture self-test passes with
+  32 fixtures, and fails when the fixture's expectation is inverted.
+
+## Slice 6 plan (quest bodies → `wow-world-quest`, phase 2)
+
+Measured on `18cb95eff` (slice Q merged) before anything moved, with the
+hotspot classifier and a lexical index of the inherent `WorldSession`
+methods (bodies, callers, field reads and the `WorldSession` methods each
+body calls).
+
+- **The quest family in `wow-world`: 7,665 classifier production lines in
+  32 files** (7,896 physical):
+  - `handlers/quest/**` 5,494 (the hotspot): the handler entry points
+    (`handlers/` 2,101 function lines: quest-giver hello, status, query,
+    accept, confirm-accept, request-reward, choose-reward, POI, push to
+    party, adventure map), objective progress (`objectives.rs` 615),
+    source-item storage (398), persistence and the login quest-status load
+    (507), the item-mutation persistence plans (405), log slots (173),
+    eligibility (144), reward validation and controller (270), sharing
+    helpers (47) and the shared helpers of `mod.rs`;
+  - `session/quest/**` 1,163: state accessors and installers, giver and
+    seasonal status, rewards projections, publication, the objective drain;
+  - `session/quest_dialog.rs` 385 and `session/quest_interaction.rs` 61.
+- **Its whole surface is 131 methods (6,021 function lines) calling 31
+  outside `WorldSession` methods** (inventory and item storage, group and
+  player registry, spell, publication). Moving the handler entry points
+  first would need about 45 host methods; moving bottom-up needs few.
+- **Names already owned by the quest crate stay as host adapters.**
+  `player_quest_gameplay_snapshot_like_cpp`,
+  `mutate_player_quest_gameplay_like_cpp`,
+  `invalidate_player_quest_status_authority_like_cpp`,
+  `find_quest_slot_like_cpp`, `quest_log_create_entries_like_cpp`,
+  `send_represented_quest_log_slot_update_like_cpp` and the pending
+  sharing reads are World forwards over existing quest-crate functions of
+  the same or a colliding name; they stay until their callers move.
+- **Destination: `wow-world-quest` only.** Its users stay application,
+  loot-ops and `wow-world`; no lower crate gains a quest edge.
+
+| Part | Scope | Function lines | Host |
+|---|---|---:|---|
+| **6a** | quest state installers and log slots, quest-status authority, seasonal load/reset and completed-quest bits, quest status save and the login quest-status load, item-mutation persistence plans, quest-giver menus and the prepared-quest/query/request-items/details/offer-reward publication, XP and money projections, `CanRewardQuest`/`CanCompleteRepeatableQuest`, the login rewarded-spell grant | 2,123 (52 functions) | 14 methods; no new edge |
+| **6b** | objective progress (`objectives.rs`), source-item storage, the objective drain and its operation, reward validation and controller, eligibility, the remaining state helpers | about 1,900 | about 18 (item storage, templates, registry sync, visibility refresh, condition projection) |
+| **6c** | the handler entry points (`handlers/**`, `handlers.rs`), the sharing helpers and the `mod.rs` helpers; the registrar then calls the moved bodies and `handlers/host.rs` retires | about 2,500 | about 10 (group and player registries, realm send, gossip menu, POI cache) |
+
+- **Quest-bound world-entity leftovers** (kill credit, dynamic flags,
+  spell-click visibility) are not in this family: they are host methods of
+  the entities and spell hosts that read quest state. They follow 6c,
+  when no World quest body is left for them to call.
+- **Closure.** 6a adds no crate edge (no manifest or lock change): every
+  type the moved bodies name comes from a crate quest already depends on
+  (core, entities, lifecycle, spell, `wow-*` foundations). The closure
+  check passes on the unchanged graph in lock and metadata modes at base
+  and head. 6b and 6c are expected to need none either (inventory, social
+  and spell are already quest dependencies); each re-runs the check.
+
+## Slice 6a result (quest state, persistence, login quest-status load, quest-giver dialog and publication → quest)
+
+Branch `1363-s6a-quest`, base `18cb95eff`. Move-only (R2) with the slice
+4–13 rewrites, after the warning-recipe commit above.
+
+### What moved
+
+**To `wow-world-quest/src/quest_session/`** (new module, 2,494 physical
+lines), behind `QuestSessionHostLikeCpp: SessionHubHostLikeCpp`:
+
+- `persistence.rs` (466): `save_represented_quest_status_like_cpp`,
+  `save_changed_represented_quest_statuses_like_cpp`,
+  `save_represented_quest_statuses_completed_after_like_cpp`,
+  `save_quest_to_db` and `load_player_quests` (the C++
+  `Player::_LoadQuestStatus`, `_LoadQuestStatusObjectives`,
+  `_LoadQuestStatusRewarded`, `_LoadDailyQuestStatus`, weekly, monthly and
+  seasonal loads);
+- `item_mutations.rs` (427): the bank, transfer and withdrawal plans
+  (`ItemAddedQuestCheck`/`ItemRemovedQuestCheck`), the source-item bound
+  objective plan, `quest_bound_item_objective_quest_order_like_cpp` (from
+  `objectives.rs`) and `ItemTransferQuestPersistencePlanLikeCpp`;
+- `state.rs` (191): the rewarded-duplicate removal, the free-slot search
+  and its private helper, the status insert, rewarded flag, explored mark,
+  the four loaded-status installers and the quest level;
+- `giver.rs` (494): the status-authority load start, the status reads,
+  the spell-area quest status, the seasonal load and reset with their
+  outcome and row types, the quest-giver query and the request-items and
+  details packets;
+- `dialog.rs` (463): the creature and gameobject quest-giver use, the
+  menus (`PrepareQuestMenu`), the list entry, the prepared-quest
+  publication (`SendPreparedQuest`, from the deleted
+  `session/quest/publication.rs`), `RepresentedPreparedQuestMenuItemLikeCpp`
+  with its log-row helper and the three menu-icon constants;
+- `rewards.rs` (342): the rewarded-spell grant
+  (`LearnQuestRewardedSpells`, bound by the spell crate's
+  `AuraHostLikeCpp`), the completed-quest bits, the XP and money rewards,
+  `CanRewardQuest` and `CanCompleteRepeatableQuest`, and the offer-reward
+  packet;
+- `quest_session.rs` (111): the module root, imports and the host trait.
+
+**Rewrites, beyond `self` → `host`:** `self.catalogs` →
+`host.hub_ref().catalogs`; `self.core` → `host.core()`; `self.lifecycle`,
+`self.quest_state` → `host.lifecycle()`, `host.quest_state()` (the `&` in
+front of them and of `catalogs` is dropped: six arguments in two
+functions);
+`self.world_entities` → `host.world_entities_mut()`;
+`crate::session::{hub_ref,split_quest_state_ref,split_quest_state_mut}(self)`
+→ the host forms; `wow_world_quest::` → `crate::`; a call between moved
+functions becomes a free call; `cfg!(test)` (two arguments) →
+`host.world_test_consumer_like_cpp()`. The World constants
+`QUEST_OBJECTIVE_{ITEM,CURRENCY,MONEY}_LIKE_CPP` and
+`QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP` (and its `_LOCAL`
+aliases) are imported from `wow_constants::quest`, which defines the same
+values (1, 4, 8, 0x1); the identifiers in the bodies are unchanged. The two `#[cfg(test)]` fixture
+branches of the completed-quest bits become
+`#[cfg(any(test, feature = "test-fixtures"))]` and are gated on the same
+flag, read once before the split (two lines each). The unused `&self` of
+`finish_item_transfer_quest_persistence_like_cpp` becomes `_host`.
+
+**Inlined one-line wrappers (each its exact body; the World wrapper is
+deleted only where no caller remains):**
+
+- `quest_rewards_block_like_cpp(quest)` ×2 (details, offer reward) →
+  `crate::represented_quest_rewards_block_like_cpp(quest)`; the World
+  wrapper retires;
+- `self.is_quest_disabled_like_cpp(quest.id)` ×1 →
+  `crate::quest_is_disabled_like_cpp(host.hub_ref(), quest.id)`;
+- `self.spell_store()` ×1 and `self.skill_store()` ×1 →
+  `host.hub_ref().catalogs.spell_store()` / `.skill_store()`.
+
+None is async. (The code commit message says "two"; the four above are
+the complete list.)
+
+**Token comparison.** Each of the 52 moved functions was compared with its
+base body after the same rewrite applied by script (`/tmp/s6a/tools/cmp.py`,
+comments kept): 25 are identical. The other 27 differ only by the dropped
+`&`, `pub(crate)`/private visibility, the `_host` name, rustfmt (trailing
+commas, generic-bound wrapping, one single-expression closure unwrapped
+from `{ … }`), the four inlined wrappers, the log-row helper's path, the
+spell bounds and the two fixture gates. No string literal, constant,
+operator or control-flow token changed: every `info!`/`warn!`/`debug!`
+message is verbatim.
+
+**World side:**
+
+- `session/quest/host.rs` (65): the `QuestSessionHostLikeCpp` adapter;
+- every production caller names the free function
+  (`wow_world_quest::name(self, …)`), including the trait-impl forwards of
+  the continue-login, loot, item, entities, aura, chat, login and quest
+  query hosts;
+- `handlers/quest_session_test_shims.rs` (219, `#![cfg(test)]`, mounted
+  from `handlers/mod.rs` outside both hotspot trees): 19 one-call method
+  forwards the scenarios call, and the two `#[cfg(test)]` readers nested
+  in the files the bodies left (`seed_seasonal_quest_status_like_cpp`,
+  `represented_quest_statuses_for_save_like_cpp`), moved verbatim;
+- `session/quest/publication.rs` and `handlers/quest/persistence/item_mutations.rs`
+  are deleted; `session/quest_dialog.rs` keeps only its re-exports and the
+  item-objective helper.
+
+**Deferred, with the reason:** the quest POI store load
+(`quest_poi_store_like_cpp` writes the session catalog cache, which the
+hub lends only shared; it goes with its handler in 6c); the async
+completion wrappers and the confirm-accept local state in
+`handlers/quest/state.rs` (they call the objective drain, 6b); the
+eligibility context and `represented_quest_is_important_like_cpp` (6b);
+the quest-crate-name adapters above; and the session setters
+(`set_quest_*_store`, world-server construction API).
+
+### Host surface
+
+`QuestSessionHostLikeCpp` (14 methods, each the same-named World field,
+split or inherent): `quest_state`, `split_quest_state_ref`,
+`split_quest_state_mut`, `lifecycle`, `world_entities_mut`,
+`world_test_consumer_like_cpp` (`cfg!(test)`),
+`player_quest_gameplay_snapshot_like_cpp`,
+`mutate_player_quest_gameplay_like_cpp`,
+`invalidate_player_quest_status_authority_like_cpp`, `can_take_quest`,
+`represented_quest_is_important_like_cpp`,
+`represented_inventory_item_counts_like_cpp` and
+`represented_gameobject_questgiver_can_interact_with_like_cpp` (the
+`QuestStateCxRef` read the body made). `player_guid` and `send_packet`
+come from `SessionHubHostLikeCpp`, as in earlier slices.
+
+| Part | New trait | New adapter | Moved function lines | Share |
+|---|---:|---:|---:|---:|
+| 6a | 39 | 65 | 2,123 | **4.9 %** |
+
+### Await counts (per function, base vs head)
+
+| Function | Base | Head | Awaited, in order |
+|---|---:|---:|---|
+| `load_player_quests` | 8 | 8 | active statuses; objectives; rewarded; stale-rewarded migration save (per quest); daily; weekly; monthly; seasonal |
+| `save_represented_quest_status_like_cpp` | 1 | 1 | `save_quest_to_db` |
+| `save_changed_represented_quest_statuses_like_cpp` | 1 | 1 | the quest crate's changed-status save |
+| `save_represented_quest_statuses_completed_after_like_cpp` | 1 | 1 | the status save, per completed quest |
+| `save_quest_to_db` | 1 | 1 | the quest crate's status save |
+| the other 47 moved functions | 0 | 0 | — |
+
+Every World caller awaits at the same point (the source-item storage,
+reward flow, acceptance and the confirm-accept local state); the
+continue-login and loot host forwards return the moved future unchanged.
+
+### Behaviour (#169)
+
+- **Persistence order is unchanged.** The login load reads the same rows
+  in the same order, installs them through the same canonical Player
+  mutations, migrates stale rewarded rows with the same save before the
+  daily load, and logs the same summary. Quest status saves run at the
+  same points of accept, confirm-accept, objective progress, source-item
+  storage and reward, in the same order relative to the item and money
+  persistence fences.
+- **Packets are unchanged:** `SMSG_QUEST_GIVER_QUEST_LIST_MESSAGE`,
+  `…_QUEST_DETAILS`, `…_REQUEST_ITEMS` and `…_OFFER_REWARD_MESSAGE` are
+  built from the same fields at the same branch of `SendPreparedQuest` and
+  the query.
+- **Registration and processing flags are untouched** (no registrar or
+  opcode file changed).
+- **Fixture branches:** the World `#[cfg(test)]` branches and `cfg!(test)`
+  arguments now read `world_test_consumer_like_cpp`, which is the World
+  crate's `cfg!(test)`. Production builds compile neither branch, as
+  before; the World test build runs them, as before; another crate's
+  `test-fixtures` build sees `false`, as the World `#[cfg(test)]` did.
+
+### Recursion
+
+- Every moved name was grepped across the production (non-shim)
+  `wow-world` files. What remains are the eleven same-named trait-impl
+  definitions (loot ×2, continue-login, item, entities ×2, aura, quest
+  query, login, chat ×2) and two quest-query forwards under other names
+  (`complete_quest_can_reward_…`, `complete_quest_can_complete_repeatable_…`);
+  each body names `wow_world_quest::…(self, …)`.
+- The adapter's six operation forwards use `WorldSession::name(self, …)`
+  and resolve to inherents that are still defined
+  (`session/quest/state.rs`, `session/quest/giver.rs`,
+  `handlers/quest/eligibility.rs`, `session/player_items/storage.rs`); the
+  splits and the interaction read name the World split functions.
+- `unconditional_recursion`: 0 in the three canonical builds.
+
+### Edges and closure
+
+No crate edge is added or removed: no `Cargo.toml` and no `Cargo.lock`
+change. `wow_world_closure.py check`: PASS in lock and metadata modes (18
+packages), before and after. Only application, loot-ops and `wow-world`
+reach quest. `cargo tree -p world-server -e normal,build -e features`
+shows no `test-fixtures` and no `wow-world-test-support`.
+
+### Accounting
+
+- **`wow-world` production (classifier): 40,743 → 38,509 (−2,234).**
+  Physical 49,349 → 47,335 (−2,014); 465 files (two deleted, the adapter
+  and the shim added).
+  - **Moved:** 2,205 production lines. That is the 52 functions with
+    their doc comments (2,123) and the moved items (82): the dialog types,
+    seasonal types, log-row helper and menu-icon constants of
+    `quest_dialog.rs`/`session/mod.rs` and
+    `ItemTransferQuestPersistencePlanLikeCpp`.
+  - **Reclassified, not production reduction:** 35. These are the two
+    nested `#[cfg(test)]` readers, now in the `#![cfg(test)]` shim.
+  - **Retired:** 88. That is the rewards-block wrapper (6), the shells of
+    the two deleted files (20), the four World quest-objective constant
+    definitions (the bodies import the identical `wow_constants::quest`
+    ones), and the imports, re-exports and emptied impl shells the moved
+    bodies alone used.
+  - **Added:** the adapter (65) and the caller rewrites (net +29 from
+    rustfmt: `wow_world_quest::name(self, …)` is longer than
+    `self.name(…)`).
+- **Destination:** `wow-world-quest/src` 12,179 → 14,705 physical
+  (+2,526): `quest_session/` 2,494 and the `lib.rs` re-export (+32);
+  classifier production 11,597 → 14,123, 47 → 54 files. Over the 2,205
+  moved lines the growth is the module headers and imports, the host
+  trait and the generic signatures.
+- `net_move.py check --base origin/3.4.3`: S = 2,014, G = 2,526,
+  allowance 3,075.7, PASS, 0 duplicate bodies.
+- **The remaining quest family in `wow-world`:** 5,429 production lines
+  (from 7,665), with the 65-line adapter.
+
+### Policy and ceilings
+
+- **Hotspots** (`runtime-ownership-ledger.json`, tightened to the live
+  values, none raised):
+  - `session/mod.rs`: production 23,247 → 21,964, test 141,645 →
+    141,644, total 164,892 → 163,608;
+  - `handlers/quest/mod.rs`: production 5,501 → 4,537 (live base 5,494),
+    test 11,253, total 16,754 → 15,790;
+  - `handlers/loot/mod.rs`: production 1,378 → 1,377, total 20,307 →
+    20,306 (the loot host's two forwards; the extra argument line is
+    offset by merging its three `std` imports).
+  - Test lines do not grow: the names only the scenarios read join
+    `session/test_reexports.rs` (`ResetSeasonalQuestStatusReasonLikeCpp`,
+    `SeasonalQuestStatusDbRowLikeCpp` and the quest-objective constants).
+    This is offset by replacing the five `#[cfg(test)]` quest-objective
+    constants of `session/mod.rs` with the identical `wow_constants::quest`
+    re-exports there. Likewise, the two quest statuses only the quest
+    scenarios read become one `#[cfg(test)]` import in
+    `handlers/quest/mod.rs`, offset by turning its two `#[cfg(test)]`
+    objective-type constants into aliases in the existing `#[cfg(test)]`
+    `wow_constants::quest` group. The values are the same (1, 4, 6, 7, 8,
+    16, 17, 18).
+- **Physical:** `session/mod.rs` 874 → 845; new ratcheted row
+  `handlers/quest_session_test_shims.rs` at 219.
+- **`session-ownership-policy.json`** is reprinted with
+  `print-baseline`. The delta is the moved and reclassified items, the 14
+  adapter methods and the shim forwards. `session-ownership-check check
+  --syntax-only` passes.
+- No dependency-policy, net-move-policy or fixture change beyond the
+  recipe commit's fixture.
+
+### Warnings and tests
+
+Canonical recipe (above), base `18cb95eff` vs head:
+
+| Build | `wow-world` lib | `wow-world` lib test | `wow-world-quest` | All `wow-world*` lib units |
+|---|---:|---:|---:|---:|
+| production lib | 142 → 136 | — | 23 → 27 | 265 → 263 |
+| lib + `test-fixtures` | 150 → 144 | — | 15 → 17 | 230 → 226 |
+| `--lib --tests` | 150 → 144 | 197 → 193 | 15 → 17 | 427 → 419 |
+
+- **No new warning.** Compared by crate, file, lint and message:
+  - the two `session/quest_dialog.rs` unused imports (`InventoryResult`,
+    `quest`) are gone with the imports;
+  - the completed-quest-bit functions' pre-existing `unused_mut` (2) and
+    `unused_variables` (`quest_state`, 2) move with them from
+    `session/quest/rewards.rs` to `quest_session/rewards.rs`, same
+    messages. In the `test-fixtures` builds only the two `unused_mut`
+    remain there, because the fixture branch now compiles under
+    `test-fixtures`.
+- `wow-world` `dead_code`: 0 in all three builds. `unconditional_recursion`:
+  0.
+- **Tests.** No test file changed. The test-name multiset is identical:
+  10,214 `#[test]` functions and 5 ignored. Feedback run before final:
+  `cargo test -p wow-world --lib -- quest seasonal void_storage loot
+  item_transfer bank`: 848 passed.
+
+### 6b plan
+
+Re-measure on the 6a merge. Move objective progress (`objectives.rs`), the
+source-item storage, the objective drain with
+`QuestObjectiveOperationLikeCpp`, the reward controller and validation,
+the eligibility context and the async completion wrappers to
+`quest_session`. The host gains the item-storage and template operations
+the source-item storage calls, `sync_player_registry_state_like_cpp`,
+`update_visible_gameobjects_or_spell_clicks_like_cpp` and the condition
+projection: about 18 methods for about 1,900 lines. `can_take_quest` and
+`represented_quest_is_important_like_cpp` leave the host when eligibility
+moves.
+
+### Follow-ups
+
+- 6c (plan above); then the quest-bound world-entity leftovers.
+- The new shim retires with the others when the scenarios call the free
+  functions directly.
+- The six quest-crate-name adapters (snapshot, mutate, invalidate, slot
+  search, log entries, log-slot update) and the pending-sharing reads
+  retire when their last World caller moves.
+- #1403 follow-ups 3–5 (the `final` budget, Q2 and the trainer split, the
+  two long lines) are unchanged by this slice.
+
+### Validation
+
+`VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+runs on the committed head that includes this section. Its manifest path,
+dirty flag and duration are in the PR body. This section is not edited
+after that run, so the PR head is the validated SHA.

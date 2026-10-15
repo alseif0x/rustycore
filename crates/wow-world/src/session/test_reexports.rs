@@ -9,6 +9,12 @@ pub(crate) use super::gameobject_interaction::RepresentedCapturePointStateLikeCp
 pub(crate) use super::player_spell_records::RepresentedPlayerSkillLikeCpp;
 pub(crate) use crate::entity_update_bridge::dynamic_object_values_update_to_update_object;
 pub(crate) use std::collections::HashSet;
+pub(crate) use wow_constants::quest::{
+    QUEST_OBJECTIVE_CURRENCY_LIKE_CPP, QUEST_OBJECTIVE_HAVE_CURRENCY_LIKE_CPP,
+    QUEST_OBJECTIVE_INCREASE_REPUTATION_LIKE_CPP, QUEST_OBJECTIVE_ITEM_LIKE_CPP,
+    QUEST_OBJECTIVE_MAX_REPUTATION_LIKE_CPP, QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP,
+    QUEST_OBJECTIVE_MONEY_LIKE_CPP, QUEST_OBJECTIVE_OBTAIN_CURRENCY_LIKE_CPP,
+};
 pub(crate) use wow_data::spell_click::{
     SPELL_CLICK_USER_PARTY_LIKE_CPP, SPELL_CLICK_USER_RAID_LIKE_CPP,
 };
@@ -46,6 +52,9 @@ pub(crate) use wow_world_instances::{
     create_map_instance_lock_token_like_cpp,
 };
 pub(crate) use wow_world_inventory::MAX_BATTLE_PET_LEVEL_LIKE_CPP;
+pub(crate) use wow_world_quest::{
+    ResetSeasonalQuestStatusReasonLikeCpp, SeasonalQuestStatusDbRowLikeCpp,
+};
 pub(crate) use wow_world_spell::{
     AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP, RepresentedSpellFocusObjectLikeCpp,
     SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP,

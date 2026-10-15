@@ -33,59 +33,12 @@ impl WorldSession {
         .await
     }
 
-    pub(crate) fn remove_represented_active_rewarded_duplicates_like_cpp(&mut self) -> Vec<u32> {
-        let Some(state) = self.player_quest_gameplay_snapshot_like_cpp() else {
-            return Vec::new();
-        };
-        let mut duplicate_quest_ids = state
-            .statuses_like_cpp()
-            .keys()
-            .filter(|quest_id| {
-                let store = self.catalogs.quests.store.as_ref();
-                state.rewarded_quest_ids_like_cpp().contains(quest_id)
-                    && store
-                        .and_then(|store| store.get(**quest_id))
-                        .is_some_and(|quest| !quest.is_repeatable())
-            })
-            .copied()
-            .collect::<Vec<_>>();
-        duplicate_quest_ids.sort_unstable();
-        duplicate_quest_ids.dedup();
-
-        if !duplicate_quest_ids.is_empty() {
-            self.invalidate_player_quest_status_authority_like_cpp();
-        }
-
-        if !duplicate_quest_ids.is_empty() {
-            let duplicate_ids = duplicate_quest_ids.clone();
-            let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
-                for quest_id in &duplicate_ids {
-                    state.remove_status_like_cpp(*quest_id);
-                }
-                let mut remaining_slots = state
-                    .statuses_like_cpp()
-                    .iter()
-                    .map(|(quest_id, status)| (*quest_id, status.slot))
-                    .collect::<Vec<_>>();
-                remaining_slots.sort_by_key(|(_, slot)| *slot);
-                for (slot, (quest_id, _)) in remaining_slots.into_iter().enumerate() {
-                    if let Some(status) = state.status_mut_like_cpp(quest_id) {
-                        status.slot = u8::try_from(slot)
-                            .unwrap_or(MAX_QUEST_LOG_SIZE_LIKE_CPP.saturating_sub(1));
-                    }
-                }
-            });
-        }
-
-        duplicate_quest_ids
-    }
-
     pub(super) async fn add_quest_confirm_accept_local_state_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         quest: &wow_data::quest::QuestTemplate,
     ) -> bool {
-        let Some(slot) = self.first_free_quest_slot_like_cpp() else {
+        let Some(slot) = wow_world_quest::first_free_quest_slot_like_cpp(self) else {
             return false;
         };
 
@@ -102,7 +55,9 @@ impl WorldSession {
             objective_counts: vec![0; quest.objectives.len()],
             slot,
         };
-        if self.insert_represented_quest_status_like_cpp(quest.id, status) == false {
+        if wow_world_quest::insert_represented_quest_status_like_cpp(self, quest.id, status)
+            == false
+        {
             return false;
         }
         self.complete_represented_quest_after_add_with_generator_like_cpp(
@@ -110,33 +65,9 @@ impl WorldSession {
             quest,
         )
         .await;
-        self.save_represented_quest_status_like_cpp(quest.id).await;
+        wow_world_quest::save_represented_quest_status_like_cpp(self, quest.id).await;
         self.sync_player_registry_state_like_cpp();
         true
-    }
-
-    pub(crate) fn first_free_quest_slot_like_cpp(&self) -> Option<u8> {
-        (0..MAX_QUEST_LOG_SIZE_LIKE_CPP)
-            .find(|&slot| !self.quest_slot_has_active_entry_like_cpp(slot))
-    }
-
-    fn quest_slot_has_active_entry_like_cpp(&self, slot: u8) -> bool {
-        // C++ `QuestSlotOffset` stores the quest id independently from the status fields;
-        // represented active slots are INCOMPLETE, COMPLETE, or FAILED.
-        slot < MAX_QUEST_LOG_SIZE_LIKE_CPP
-            && self
-                .player_quest_gameplay_snapshot_like_cpp()
-                .is_some_and(|state| {
-                    state.statuses_like_cpp().values().any(|status| {
-                        status.slot == slot
-                            && matches!(
-                                status.status,
-                                QUEST_STATUS_INCOMPLETE_LIKE_CPP
-                                    | QUEST_STATUS_COMPLETE_LIKE_CPP
-                                    | QUEST_STATUS_FAILED_LIKE_CPP
-                            )
-                    })
-                })
     }
 
     pub(crate) fn find_quest_slot_like_cpp(&self, quest_id: u32) -> Option<u8> {

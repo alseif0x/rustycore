@@ -471,22 +471,6 @@ impl WorldSession {
         self.sync_player_registry_state_like_cpp();
     }
 
-    /// C++ walks one objective-status index and stops at the first quest-bound
-    /// item objective. Durable plans use a `HashMap`, while live Player status
-    /// uses a `BTreeMap`. Use the explicit quest-log slot
-    /// (then quest id as a deterministic duplicate-slot fallback) for both the
-    /// durable plan and its post-commit application.
-    pub(super) fn quest_bound_item_objective_quest_order_like_cpp(&self) -> Vec<u32> {
-        let mut quests = self
-            .player_quest_gameplay_snapshot_like_cpp()
-            .into_iter()
-            .flat_map(|state| state.statuses_snapshot_like_cpp().into_values())
-            .map(|status| (status.slot, status.quest_id))
-            .collect::<Vec<_>>();
-        quests.sort_unstable();
-        quests.into_iter().map(|(_, quest_id)| quest_id).collect()
-    }
-
     pub(super) async fn apply_quest_source_item_bound_objective_progress_for_object_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
@@ -495,7 +479,8 @@ impl WorldSession {
         count_i32: i32,
     ) -> Vec<(u32, i32)> {
         self.invalidate_player_quest_status_authority_like_cpp();
-        let ordered_quest_ids = self.quest_bound_item_objective_quest_order_like_cpp();
+        let ordered_quest_ids =
+            wow_world_quest::quest_bound_item_objective_quest_order_like_cpp(self);
         let Some(wow_entities::QuestBoundItemObjectiveProgressLikeCpp {
             updated_counts,
             quests_to_complete,

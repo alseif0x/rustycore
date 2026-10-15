@@ -260,7 +260,7 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
     }
 
     fn represented_player_quest_status_like_cpp(&self, quest_id: u32) -> Option<Option<u8>> {
-        WorldSession::represented_player_quest_status_like_cpp(self, quest_id)
+        wow_world_quest::represented_player_quest_status_like_cpp(self, quest_id)
     }
 
     fn resolved_group_guid_like_cpp(&self) -> Option<u64> {
@@ -278,7 +278,7 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
         gameobject_entry: u32,
         source: wow_entities::QuestgiverUseSource,
     ) -> bool {
-        WorldSession::use_represented_gameobject_questgiver_like_cpp(
+        wow_world_quest::use_represented_gameobject_questgiver_like_cpp(
             self,
             gameobject_guid,
             player_guid,

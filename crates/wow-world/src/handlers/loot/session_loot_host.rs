@@ -8,9 +8,7 @@
 //! operations through the loot handler owner's default methods); the fixture
 //! predicate keeps this crate's `cfg!(test)`.
 
-use std::collections::HashMap;
-use std::future::Future;
-use std::sync::Arc;
+use std::{collections::HashMap, future::Future, sync::Arc};
 
 use wow_social::group::GroupRegistry;
 use wow_world_core::session::directory::PlayerRegistry;
@@ -242,7 +240,8 @@ impl LootSessionHostLikeCpp for WorldSession {
         quest_log_item_id: u32,
         count: u32,
     ) -> Option<QuestSourceItemBoundPersistencePlanLikeCpp> {
-        self.plan_quest_source_item_bound_objective_persistence_like_cpp(
+        wow_world_quest::plan_quest_source_item_bound_objective_persistence_like_cpp(
+            self,
             entry_id,
             quest_log_item_id,
             count,
@@ -294,7 +293,7 @@ impl LootSessionHostLikeCpp for WorldSession {
         &self,
         quest_ids: &mut Vec<u32>,
     ) -> impl Future<Output = ()> + Send {
-        self.save_changed_represented_quest_statuses_like_cpp(quest_ids)
+        wow_world_quest::save_changed_represented_quest_statuses_like_cpp(self, quest_ids)
     }
     fn send_player_values_update_from_entity_bridge(
         &self,
