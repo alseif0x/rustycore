@@ -4,7 +4,6 @@
 //! Item modifiers: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::ItemSubClassArmor;
 use super::ShieldBlockRegularGameTableLikeCpp;
 #[cfg(test)]
 use super::TitanGripPenaltyAction;
@@ -14,14 +13,14 @@ use super::{BANK_SLOT_BAG_END, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START}
 use super::{EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND};
 use super::{PlayerStatsStore, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START};
 use super::{WorldSession, two_handed_in_one_hand_like_cpp};
+pub(crate) use wow_world_inventory::RepresentedItemBonusActionLikeCpp;
 #[cfg(test)]
 pub(crate) use wow_world_inventory::RepresentedItemSetAuraRefreshEventLikeCpp;
 #[cfg(test)]
+pub(crate) use wow_world_inventory::RepresentedItemSetSpellEventLikeCpp;
+#[cfg(test)]
 pub(crate) use wow_world_inventory::{
     RepresentedCombatStatRecalculationLikeCpp, RepresentedItemModsReapplyEventLikeCpp,
-};
-pub(crate) use wow_world_inventory::{
-    RepresentedItemBonusActionLikeCpp, RepresentedItemSetSpellEventLikeCpp,
 };
 
 pub(in crate::session) use wow_world_inventory::ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP;
@@ -87,8 +86,7 @@ pub(crate) use wow_world_inventory::LoadedEquippedItemEnchantmentsOutcomeLikeCpp
 // Moved to `wow_world_inventory` with the continue-login coordinator (#1363 slice 13c).
 pub(crate) use wow_world_inventory::InitialLoadedItemModsOutcomeLikeCpp;
 
-pub(in crate::session) use wow_world_inventory::is_represented_bag_slot;
-
+#[cfg(test)]
 pub(crate) use wow_world_core::session::player_class_mask_for_transmog_like_cpp;
 
 impl WorldSession {
