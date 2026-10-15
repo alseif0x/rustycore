@@ -511,20 +511,17 @@ use wow_constants::ItemEnchantmentType;
 use wow_constants::creature::CreatureTypeFlags;
 use wow_constants::item::{CurrencyTypes, EnchantmentSlot, ItemFieldFlags2};
 use wow_constants::shared::DifficultyFlags;
-#[cfg(test)]
-use wow_constants::unit::UnitFlags2;
 use wow_constants::unit::{
-    Gender, PowerType, Team, UnitFlags, UnitPvpFlags, UnitStandStateType, WeaponAttackType,
+    Gender, Team, UnitFlags, UnitPvpFlags, UnitStandStateType, WeaponAttackType,
 };
+#[cfg(test)]
+use wow_constants::unit::{PowerType, UnitFlags2};
 #[cfg(test)]
 use wow_constants::{
     BuyResult, ItemFlags3, ItemQuality, ItemSubClassArmor, ItemSubClassWeapon, SellResult, TypeId,
     UnitState, item::ItemBonusType, movement::MovementFlag,
 };
-use wow_constants::{
-    ClientOpcodes, InventoryResult, ItemClass, ItemContext, ItemFlags, ItemModifier,
-    ItemSpelltriggerType,
-};
+use wow_constants::{ClientOpcodes, InventoryResult, ItemContext, ItemModifier};
 use wow_core::{EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, Position, guid::HighGuid};
 #[cfg(test)]
 use wow_data::CinematicSequencesStore;
@@ -667,7 +664,7 @@ use wow_packet::packets::item::{
 };
 use wow_packet::packets::item::{ItemEnchantTimeUpdate, ItemTimeUpdate};
 use wow_packet::packets::misc::{
-    AccountHeirloom, AccountMount, AccountToy, DungeonDifficultySet, SetProficiency, SetupCurrency,
+    AccountHeirloom, AccountMount, AccountToy, DungeonDifficultySet, SetupCurrency,
     SetupCurrencyRecord, TRADE_SLOT_COUNT_LIKE_CPP,
 };
 #[cfg(test)]
