@@ -30,7 +30,7 @@ pub use session_loot::{
     DisenchantLootTemplateFrame, LOOT_MODE_DEFAULT_LIKE_CPP, LOOT_MODE_JUNK_FISH_LIKE_CPP,
     disenchant_loot_template_frame_like_cpp, generated_creature_loot_item_to_entry_like_cpp,
     generated_shared_gameobject_loot_item_to_entry_like_cpp,
-    master_loot_error_for_inventory_result_like_cpp,
+    master_loot_error_for_inventory_result_like_cpp, remove_fully_looted_runtime_item,
     represented_disenchant_loot_plain_row_can_roll_like_cpp,
     represented_disenchant_loot_reference_row_can_roll_like_cpp,
     represented_loot_object_guid_like_cpp,

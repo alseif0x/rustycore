@@ -30,8 +30,13 @@ impl OpenItemHostLikeCpp for WorldSession {
             self, bag, item_guid, slot, entry, flags,
         )
     }
-    fn remove_fully_looted_runtime_item(&mut self, bag: u8, slot: u8, item_guid: ObjectGuid) {
-        WorldSession::remove_fully_looted_runtime_item(self, bag, slot, item_guid)
+    fn split_inventory_mut(
+        &mut self,
+    ) -> (
+        &mut wow_world_inventory::InventoryState,
+        wow_world_core::session::HubMut<'_>,
+    ) {
+        crate::session::split_inventory_mut(self)
     }
     fn send_stat_update(&mut self) -> bool {
         WorldSession::send_stat_update(self)

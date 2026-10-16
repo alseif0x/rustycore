@@ -76,4 +76,27 @@ impl WorldSession {
             update_roll_passed,
         )
     }
+    // Player items (the fully-looted removal moved to `wow_world_loot_ops`).
+    pub(crate) fn remove_fully_looted_runtime_item(
+        &mut self,
+        bag: u8,
+        slot: u8,
+        item_guid: wow_core::ObjectGuid,
+    ) {
+        wow_world_loot_ops::remove_fully_looted_runtime_item(self, bag, slot, item_guid)
+    }
+    pub(crate) fn remove_inventory_item_object(
+        &mut self,
+        item_guid: wow_core::ObjectGuid,
+    ) -> Option<wow_entities::Item> {
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.remove_inventory_item_object(&mut hub, item_guid)
+    }
+    pub(crate) fn remove_inventory_item_like_cpp(
+        &mut self,
+        slot: u8,
+    ) -> Option<wow_entities::PlayerInventoryItem> {
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.remove_inventory_item_like_cpp(&mut hub, slot)
+    }
 }

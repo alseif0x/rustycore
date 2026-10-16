@@ -22,10 +22,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.apply_inventory_item_object_updates_like_cpp(&mut hub, item_guid, updates)
     }
-    pub(crate) fn remove_inventory_item_object(&mut self, item_guid: ObjectGuid) -> Option<Item> {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.remove_inventory_item_object(&mut hub, item_guid)
-    }
     pub(crate) fn insert_inventory_item_like_cpp(
         &mut self,
         slot: u8,
@@ -33,10 +29,6 @@ impl WorldSession {
     ) -> Option<InventoryItem> {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.insert_inventory_item_like_cpp(&mut hub, slot, item)
-    }
-    pub(crate) fn remove_inventory_item_like_cpp(&mut self, slot: u8) -> Option<InventoryItem> {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.remove_inventory_item_like_cpp(&mut hub, slot)
     }
     pub(crate) fn represented_inventory_item_counts_like_cpp(&self) -> Option<HashMap<u32, u32>> {
         let (state, hub) = crate::session::split_inventory_ref(self);

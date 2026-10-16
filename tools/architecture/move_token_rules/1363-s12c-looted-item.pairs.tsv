@@ -1,0 +1,1 @@
+crates/wow-world/src/session/player_items/items.rs	remove_fully_looted_runtime_item	crates/wow-world-loot-ops/src/session_loot/sources/open_item.rs
