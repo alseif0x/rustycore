@@ -1,0 +1,11 @@
+crates/wow-world/src/session/visibility/operations.rs	sync_current_player_session_visibility_detection_like_cpp	crates/wow-world-entities/src/visibility_session/session_visibility.rs
+crates/wow-world/src/session/visibility/operations.rs	visible_other_players_from_registry_like_cpp	crates/wow-world-entities/src/visibility_session/session_visibility.rs
+crates/wow-world/src/session/visibility/operations.rs	canonical_player_phase_visible_like_cpp	crates/wow-world-entities/src/visibility_session/session_visibility.rs
+crates/wow-world/src/session/visibility/operations.rs	represented_player_phase_shift_like_cpp	crates/wow-world-entities/src/visibility_session/session_visibility.rs
+crates/wow-world/src/session/visibility/operations.rs	can_see_phase_shift_like_cpp	crates/wow-world-entities/src/visibility_session/session_visibility.rs
+crates/wow-world/src/session/visibility/operations.rs	resolved_visible_resting_like_cpp	crates/wow-world-entities/src/visibility_session/session_visibility.rs
+crates/wow-world/src/session/visibility/operations.rs	current_seer_guid_like_cpp	crates/wow-world-entities/src/visibility_session/session_visibility.rs
+crates/wow-world/src/session/visibility/operations.rs	force_update_visibility_with_catalogs_like_cpp	crates/wow-world-entities/src/visibility_session/session_visibility.rs
+crates/wow-world/src/session/visibility/operations.rs	player_session_never_visible_for_seer_like_cpp	crates/wow-world-entities/src/visibility_session/session_visibility.rs
+crates/wow-world/src/session/visibility/operations.rs	apply_player_session_visibility_detection_like_cpp	crates/wow-world-entities/src/visibility_session/session_visibility.rs
+crates/wow-world/src/session/deferred_visibility.rs	apply_move_init_active_mover_complete_like_cpp	crates/wow-world-entities/src/visibility_session/session_visibility.rs

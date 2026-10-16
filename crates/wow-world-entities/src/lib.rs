@@ -232,14 +232,19 @@ pub use vehicle_session::{
     represented_request_vehicle_switch_seat_like_cpp, represented_ride_vehicle_interact_like_cpp,
 };
 pub use visibility_session::{
-    VisibilitySessionHostLikeCpp, dynamic_object_create_data_from_canonical_like_cpp,
-    represented_gameobject_go_state_for_viewer_like_cpp,
-    represented_visibility_source_combat_reach_like_cpp,
+    VisibilitySessionHostLikeCpp, apply_move_init_active_mover_complete_like_cpp,
+    can_see_phase_shift_like_cpp, current_seer_guid_like_cpp,
+    dynamic_object_create_data_from_canonical_like_cpp,
+    force_update_visibility_with_catalogs_like_cpp,
+    represented_gameobject_go_state_for_viewer_like_cpp, represented_player_phase_shift_like_cpp,
+    represented_visibility_source_combat_reach_like_cpp, resolved_visible_resting_like_cpp,
     send_nearby_creatures_with_catalogs_like_cpp, send_nearby_gameobjects,
     send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp,
+    sync_current_player_session_visibility_detection_like_cpp,
     update_visibility_with_catalogs_like_cpp, visible_creatures_from_canonical_map_like_cpp,
     visible_dynamic_objects_from_canonical_map_like_cpp,
-    visible_gameobjects_from_canonical_map_like_cpp, visible_world_creatures_from_map_like_cpp,
+    visible_gameobjects_from_canonical_map_like_cpp, visible_other_players_from_registry_like_cpp,
+    visible_world_creatures_from_map_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use visibility_session::{

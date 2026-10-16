@@ -116,3 +116,30 @@ pub fn resolved_represented_guild_id_like_cpp(
         .authority_complete
         .then_some(state.guild_id.unwrap_or(0))
 }
+
+pub fn set_represented_guild_id_like_cpp<H: crate::SocialSessionHostLikeCpp>(
+    host: &mut H,
+    guild_id: u64,
+) -> bool {
+    host.core()
+        .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+    let canonical = host
+        .core()
+        .with_owned_player_mut_like_cpp(|player| player.set_guild_id_like_cpp(guild_id))
+        .is_some();
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if host.test_fixtures_ref_like_cpp().is_some()
+        && !canonical
+        && host.core().player_handle_like_cpp.is_none()
+    {
+        return {
+            let (social, hub) = host.split_social_mut();
+            mutate_player_guild_state_for_test_like_cpp(&hub.shared(), social, |state| {
+                state.guild_id = (guild_id != 0).then_some(guild_id);
+                state.authority_complete = true;
+            })
+        }
+        .is_some();
+    }
+    canonical
+}

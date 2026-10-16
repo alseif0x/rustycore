@@ -10,9 +10,12 @@
 //! with the host.
 
 use wow_entities::PlayerQuestGameplayState;
-use wow_world_core::session::SessionHubHostLikeCpp;
+use wow_world_core::session::{HubMut, SessionHubHostLikeCpp};
 
 pub trait SocialSessionHostLikeCpp: SessionHubHostLikeCpp {
+    /// The World `split_social_mut` split (the duel arbiter install, #1363
+    /// slice 12b5).
+    fn split_social_mut(&mut self) -> (&mut crate::SessionSocialLimits, HubMut<'_>);
     fn remove_auras_with_interrupt_flags_like_cpp(&mut self, flags: u32, flags2: u32) -> usize;
     fn access_requirement_leader_has_achievement_like_cpp(&self, achievement_id: u32) -> bool;
     fn lfg_has_active_instance_lock_like_cpp(&self, map_id: u32, difficulty_id: u8) -> bool;

@@ -25,7 +25,10 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
         &mut self,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
     ) -> impl Future<Output = ()> + Send {
-        WorldSession::force_update_visibility_with_catalogs_like_cpp(self, creature_spawn_catalogs)
+        wow_world_entities::force_update_visibility_with_catalogs_like_cpp(
+            self,
+            creature_spawn_catalogs,
+        )
     }
     fn consume_add_farsight_set_seer_outcome_like_cpp(
         &mut self,
@@ -120,7 +123,7 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
         gameobject_entry: i32,
         target_guid: ObjectGuid,
     ) -> bool {
-        WorldSession::apply_duel_effect_like_cpp(self, spell_id, gameobject_entry, target_guid)
+        wow_world_social::apply_duel_effect_like_cpp(self, spell_id, gameobject_entry, target_guid)
     }
     fn apply_learn_spell_effect_like_cpp(
         &mut self,

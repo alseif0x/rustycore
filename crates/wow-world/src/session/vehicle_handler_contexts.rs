@@ -100,6 +100,10 @@ impl wow_world_entities::VehicleSessionHostLikeCpp for WorldSession {
         player_guid: wow_core::ObjectGuid,
         owner_guid: wow_core::ObjectGuid,
     ) -> bool {
-        WorldSession::represented_player_is_same_raid_with_like_cpp(self, player_guid, owner_guid)
+        wow_world_instances::represented_player_is_same_raid_with_like_cpp(
+            self,
+            player_guid,
+            owner_guid,
+        )
     }
 }

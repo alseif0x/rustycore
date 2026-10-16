@@ -14,7 +14,6 @@ use wow_entities::{PhaseShift, PlayerCurrency, PlayerEnchantTimeUpdate, PlayerIt
 use wow_world_core::session::{HubMut, HubRef, SessionState};
 use wow_world_interaction::InteractionState;
 
-use crate::session::GossipOptionInfo;
 use wow_world_lifecycle::{
     FinalizationMode, FinalizationOutcome, FinalizationReport, SessionLifecycleState,
 };
@@ -49,6 +48,10 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
     fn split_interaction(&mut self) -> (&mut InteractionState, HubRef<'_>) {
         crate::session::split_interaction(self)
     }
+    #[cfg(test)]
+    fn interaction_for_test_like_cpp(&self) -> Option<&InteractionState> {
+        Some(&self.interaction)
+    }
     fn loot(&self) -> &LootState {
         &self.loot
     }
@@ -70,9 +73,6 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
     }
     fn clear_player_currencies_like_cpp(&mut self) -> bool {
         WorldSession::clear_player_currencies_like_cpp(self)
-    }
-    fn clear_player_gossip_options_like_cpp(&mut self) -> bool {
-        WorldSession::clear_player_gossip_options_like_cpp(self)
     }
     fn complete_represented_trait_config_authority_load_like_cpp(
         &mut self,
@@ -136,7 +136,10 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         &mut self,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
     ) -> impl Future<Output = ()> + Send {
-        WorldSession::force_update_visibility_with_catalogs_like_cpp(self, creature_spawn_catalogs)
+        wow_world_entities::force_update_visibility_with_catalogs_like_cpp(
+            self,
+            creature_spawn_catalogs,
+        )
     }
     fn handle_trainer_list(&mut self, hello: Hello) -> impl Future<Output = ()> + Send {
         wow_world_application::handle_trainer_list(self, hello)
@@ -238,9 +241,6 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
     fn player_current_map_instanceable_like_cpp(&self) -> bool {
         wow_world_spell::player_current_map_instanceable_like_cpp(self)
     }
-    fn player_gossip_option_like_cpp(&self, gossip_option_id: i32) -> Option<GossipOptionInfo> {
-        WorldSession::player_gossip_option_like_cpp(self, gossip_option_id)
-    }
     fn player_interaction_source_guid_like_cpp(&self) -> Option<ObjectGuid> {
         WorldSession::player_interaction_source_guid_like_cpp(self)
     }
@@ -252,9 +252,6 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
     }
     fn register_in_player_registry(&self) {
         WorldSession::register_in_player_registry(self)
-    }
-    fn replace_player_gossip_options_like_cpp(&mut self, options: Vec<GossipOptionInfo>) -> bool {
-        WorldSession::replace_player_gossip_options_like_cpp(self, options)
     }
     fn register_loaded_inventory_item_duration_refs_like_cpp(
         &mut self,
@@ -271,7 +268,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         &self,
         creature_entry: u32,
     ) -> Vec<ClientGossipText> {
-        WorldSession::represented_creature_gossip_text_like_cpp(self, creature_entry)
+        wow_world_quest::represented_creature_gossip_text_like_cpp(self, creature_entry)
     }
     fn represented_dependent_known_spells_like_cpp(&self) -> HashSet<i32> {
         wow_world_spell::represented_dependent_known_spells_like_cpp(self)
@@ -283,7 +280,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         wow_world_spell::represented_homebind_like_cpp(self)
     }
     fn reset_group_update_sequence_if_needed_like_cpp(&mut self) -> bool {
-        WorldSession::reset_group_update_sequence_if_needed_like_cpp(self)
+        wow_world_instances::reset_group_update_sequence_if_needed_like_cpp(self)
     }
     fn reset_represented_talents_like_cpp(&mut self) {
         wow_world_spell::reset_represented_talents_like_cpp(self)
@@ -307,7 +304,8 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         wow_world_spell::set_complete_represented_player_spell_rows_like_cpp(self, rows)
     }
     fn set_owned_player_group_like_cpp(&mut self, membership: Option<(u64, u8)>) -> bool {
-        WorldSession::set_owned_player_group_like_cpp(self, membership)
+        let (state, mut hub) = crate::session::split_social_mut(self);
+        state.set_owned_player_group_like_cpp(&mut hub, membership)
     }
     fn void_storage_is_unlocked_like_cpp(&self) -> bool {
         WorldSession::void_storage_is_unlocked_like_cpp(self)
@@ -359,7 +357,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         WorldSession::stats_application_cx_like_cpp(self)
     }
     fn sync_current_player_session_visibility_detection_like_cpp(&mut self) {
-        WorldSession::sync_current_player_session_visibility_detection_like_cpp(self)
+        wow_world_entities::sync_current_player_session_visibility_detection_like_cpp(self)
     }
     fn take_deferred_rest_flag_update_dirty_like_cpp(&mut self) -> bool {
         WorldSession::take_deferred_rest_flag_update_dirty_like_cpp(self)

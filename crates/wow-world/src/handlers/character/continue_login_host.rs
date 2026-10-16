@@ -110,7 +110,7 @@ impl ContinueLoginHostLikeCpp for WorldSession {
         WorldSession::set_represented_at_login_flags_like_cpp(self, flags)
     }
     fn set_represented_guild_id_like_cpp(&mut self, guild_id: u64) -> bool {
-        WorldSession::set_represented_guild_id_like_cpp(self, guild_id)
+        wow_world_social::set_represented_guild_id_like_cpp(self, guild_id)
     }
     fn sync_player_spell_hit_aura_authority_to_canonical_like_cpp(&mut self) -> Option<bool> {
         WorldSession::sync_player_spell_hit_aura_authority_to_canonical_like_cpp(self)

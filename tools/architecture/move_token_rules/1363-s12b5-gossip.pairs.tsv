@@ -1,0 +1,5 @@
+crates/wow-world/src/session/chat/operations.rs	clear_player_gossip_options_like_cpp	crates/wow-world-character/src/gossip_options.rs
+crates/wow-world/src/session/chat/operations.rs	replace_player_gossip_options_like_cpp	crates/wow-world-character/src/gossip_options.rs
+crates/wow-world/src/session/chat/operations.rs	player_gossip_option_like_cpp	crates/wow-world-character/src/gossip_options.rs
+crates/wow-world/src/session/chat/operations.rs	represented_creature_gossip_text_like_cpp	crates/wow-world-quest/src/quest_session/dialog.rs
+crates/wow-world/src/session/chat/operations.rs	gossip_text_from_menu_item_like_cpp	crates/wow-world-quest/src/quest_session/dialog.rs

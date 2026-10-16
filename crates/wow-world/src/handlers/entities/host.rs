@@ -106,7 +106,7 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
     }
 
     fn represented_player_phase_shift_like_cpp(&self) -> Option<PhaseShift> {
-        WorldSession::represented_player_phase_shift_like_cpp(self)
+        wow_world_entities::represented_player_phase_shift_like_cpp(self)
     }
 
     fn ensure_canonical_world_map_for_current_player_like_cpp(
@@ -120,15 +120,12 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
         current_group_guid: Option<u64>,
         group_owner: ObjectGuid,
     ) -> bool {
-        WorldSession::current_player_is_in_group_guid_like_cpp(
-            self,
-            current_group_guid,
-            group_owner,
-        )
+        let (state, hub) = crate::session::split_social_ref(self);
+        state.current_player_is_in_group_guid_like_cpp(hub, current_group_guid, group_owner)
     }
 
     fn can_see_phase_shift_like_cpp(&self, other: &PhaseShift) -> bool {
-        WorldSession::can_see_phase_shift_like_cpp(self, other)
+        wow_world_entities::can_see_phase_shift_like_cpp(self, other)
     }
 
     fn remove_cached_loot_for_owner_like_cpp(&mut self, owner: ObjectGuid) {
@@ -243,8 +240,9 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
         reward_map_id: u16,
         reward_position: Position,
     ) -> bool {
-        WorldSession::represented_player_at_group_reward_distance_like_cpp(
-            self,
+        let (state, hub) = crate::session::split_social_ref(self);
+        state.represented_player_at_group_reward_distance_like_cpp(
+            hub,
             player_guid,
             reward_map_id,
             reward_position,
@@ -256,7 +254,11 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
         player_guid: ObjectGuid,
         owner_guid: ObjectGuid,
     ) -> bool {
-        WorldSession::represented_player_is_same_raid_with_like_cpp(self, player_guid, owner_guid)
+        wow_world_instances::represented_player_is_same_raid_with_like_cpp(
+            self,
+            player_guid,
+            owner_guid,
+        )
     }
 
     fn represented_player_quest_status_like_cpp(&self, quest_id: u32) -> Option<Option<u8>> {

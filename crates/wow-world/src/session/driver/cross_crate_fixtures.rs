@@ -57,13 +57,16 @@ impl WorldSession {
         {
             return false;
         }
-        self.apply_move_init_active_mover_complete_like_cpp(0);
+        wow_world_entities::apply_move_init_active_mover_complete_like_cpp(self, 0);
         self.set_state(SessionState::LoggedIn);
         self.set_player_registry(registry);
         self.register_in_player_registry();
         let catalogs = SessionHandlerCatalogsLikeCpp::default();
-        self.force_update_visibility_with_catalogs_like_cpp(catalogs.creature_spawns.as_ref())
-            .await;
+        wow_world_entities::force_update_visibility_with_catalogs_like_cpp(
+            self,
+            catalogs.creature_spawns.as_ref(),
+        )
+        .await;
         true
     }
 

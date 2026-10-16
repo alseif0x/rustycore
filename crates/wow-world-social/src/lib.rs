@@ -70,7 +70,10 @@ pub use group_handlers::{
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use guild::mutate_player_guild_state_for_test_like_cpp;
-pub use guild::{player_guild_state_snapshot_like_cpp, resolved_represented_guild_id_like_cpp};
+pub use guild::{
+    player_guild_state_snapshot_like_cpp, resolved_represented_guild_id_like_cpp,
+    set_represented_guild_id_like_cpp,
+};
 pub use guild_bank_handlers::{
     GuildBankHandlerCxLikeCpp, GuildBankHandlerHostLikeCpp, register_guild_bank_handlers_like_cpp,
 };
@@ -101,7 +104,10 @@ pub use social_contacts_handlers::{
     register_social_contacts_handlers_like_cpp,
 };
 pub use social_host::SocialSessionHostLikeCpp;
-pub use spell_effects::{apply_force_deselect_effect_like_cpp, apply_reputation_effect_like_cpp};
+pub use spell_effects::{
+    apply_duel_effect_like_cpp, apply_force_deselect_effect_like_cpp,
+    apply_reputation_effect_like_cpp,
+};
 pub use state::SessionSocialLimits;
 pub use text_emote::{
     ANIM_MOUNT_SPECIAL_LIKE_CPP, EMOTE_STATE_DANCE_LIKE_CPP, EMOTE_STATE_SIT_LIKE_CPP,

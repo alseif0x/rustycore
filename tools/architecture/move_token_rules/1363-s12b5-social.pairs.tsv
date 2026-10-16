@@ -1,0 +1,4 @@
+crates/wow-world/src/session/social/duel.rs	set_represented_duel_arbiter_guid_like_cpp	crates/wow-world-social/src/spell_effects.rs
+crates/wow-world/src/session/social/duel.rs	set_represented_duel_state_like_cpp	crates/wow-world-social/src/spell_effects.rs
+crates/wow-world/src/session/social/duel.rs	apply_duel_effect_like_cpp	crates/wow-world-social/src/spell_effects.rs
+crates/wow-world/src/session/social/guild.rs	set_represented_guild_id_like_cpp	crates/wow-world-social/src/guild.rs

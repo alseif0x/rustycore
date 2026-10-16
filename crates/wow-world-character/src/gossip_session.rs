@@ -138,7 +138,7 @@ pub fn send_represented_creature_trainer_gossip_menu_like_cpp<H: CharacterLoginH
         Vec::new()
     };
 
-    if !host.replace_player_gossip_options_like_cpp(stored_options) {
+    if !crate::replace_player_gossip_options_like_cpp(host, stored_options) {
         return false;
     }
     {
@@ -348,7 +348,7 @@ pub async fn handle_gossip_hello<H: CharacterLoginHostLikeCpp>(host: &mut H, hel
         .mutate_world_creature(hello.unit, |creature| {
             creature.pause_interaction_movement_like_cpp();
         });
-    host.clear_player_gossip_options_like_cpp();
+    crate::clear_player_gossip_options_like_cpp(host);
 
     if let Some(access) = gossip_access.as_ref() {
         if let Some(msg) = build_gossip_menu(host, access.entry, access.npc_flags, hello.unit).await
@@ -727,7 +727,7 @@ pub async fn build_gossip_menu<H: CharacterLoginHostLikeCpp>(
     }
 
     // Store gossip state for when the player selects an option.
-    if !host.replace_player_gossip_options_like_cpp(stored_options) {
+    if !crate::replace_player_gossip_options_like_cpp(host, stored_options) {
         return None;
     }
     {
@@ -764,7 +764,7 @@ pub async fn handle_gossip_select_option<H: CharacterLoginHostLikeCpp>(
     );
 
     // Find the selected option in our stored gossip data.
-    let opt = host.player_gossip_option_like_cpp(select.gossip_option_id);
+    let opt = crate::player_gossip_option_like_cpp(host, select.gossip_option_id);
     let opt = match opt {
         Some(o) => o,
         None => {

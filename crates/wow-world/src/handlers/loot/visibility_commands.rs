@@ -10,6 +10,7 @@
 //! and session owners.
 
 use super::*;
+use wow_world_entities::force_update_visibility_with_catalogs_like_cpp;
 
 impl WorldSession {
     /// Recompute this session's map-owned creature visibility.
@@ -42,8 +43,7 @@ impl WorldSession {
             let (s, h) = crate::session::split_visibility_ref(self);
             s.clear_pending_visibility_refresh_like_cpp(h)
         };
-        self.force_update_visibility_with_catalogs_like_cpp(creature_spawn_catalogs)
-            .await;
+        force_update_visibility_with_catalogs_like_cpp(self, creature_spawn_catalogs).await;
     }
 
     pub(crate) fn handle_send_visible_object_values_update_command_like_cpp(

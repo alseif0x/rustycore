@@ -100,7 +100,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return Some(player_position);
         };
-        let Some(seer_guid) = self.current_seer_guid_like_cpp() else {
+        let Some(seer_guid) = wow_world_entities::current_seer_guid_like_cpp(self) else {
             return Some(player_position);
         };
         if seer_guid.is_empty() || seer_guid == player_guid {

@@ -112,7 +112,7 @@ impl wow_world_entities::PlayerTeleportHostLikeCpp for WorldSession {
     }
 
     fn sync_current_player_session_visibility_detection_like_cpp(&mut self) {
-        WorldSession::sync_current_player_session_visibility_detection_like_cpp(self)
+        wow_world_entities::sync_current_player_session_visibility_detection_like_cpp(self)
     }
 
     fn pending_teleport_like_cpp(&self) -> Option<(u32, Position)> {

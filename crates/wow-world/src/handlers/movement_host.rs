@@ -83,7 +83,7 @@ impl MovementHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession 
     }
 
     fn apply_move_init_active_mover_complete_like_cpp(&mut self, ticks: u32) {
-        WorldSession::apply_move_init_active_mover_complete_like_cpp(self, ticks)
+        wow_world_entities::apply_move_init_active_mover_complete_like_cpp(self, ticks)
     }
 
     fn handle_move_teleport_ack_like_cpp(

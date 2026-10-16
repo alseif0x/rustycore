@@ -18,7 +18,6 @@
 //! the host.
 
 use wow_core::{ObjectGuid, Position};
-use wow_world_core::session::directory::PlayerVisibilityCreateSnapshot;
 use wow_world_lifecycle::SessionLifecycleState;
 use wow_world_visibility::VisibilityState;
 
@@ -29,6 +28,7 @@ mod canonical_objects;
 mod dynamic_object_values;
 mod nearby;
 mod queries;
+mod session_visibility;
 mod spawn;
 mod update;
 
@@ -43,6 +43,13 @@ pub use queries::{
     represented_visibility_source_combat_reach_like_cpp,
     visible_creatures_from_canonical_map_like_cpp, visible_gameobjects_from_canonical_map_like_cpp,
     visible_world_creatures_from_map_like_cpp,
+};
+pub use session_visibility::{
+    apply_move_init_active_mover_complete_like_cpp, can_see_phase_shift_like_cpp,
+    current_seer_guid_like_cpp, force_update_visibility_with_catalogs_like_cpp,
+    represented_player_phase_shift_like_cpp, resolved_visible_resting_like_cpp,
+    sync_current_player_session_visibility_detection_like_cpp,
+    visible_other_players_from_registry_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use spawn::{
@@ -75,10 +82,4 @@ pub trait VisibilitySessionHostLikeCpp: WorldEntitiesHostLikeCpp {
     fn represented_visibility_source_position_like_cpp(&self) -> Option<Position>;
     /// The World's `current_seer_guid_like_cpp` (`Player::m_seer` as a GUID).
     fn current_seer_guid_like_cpp(&self) -> Option<ObjectGuid>;
-    fn visible_other_players_from_registry_like_cpp(
-        &self,
-        map_id: u16,
-        position: &Position,
-        visibility_radius: f32,
-    ) -> Vec<(ObjectGuid, PlayerVisibilityCreateSnapshot)>;
 }

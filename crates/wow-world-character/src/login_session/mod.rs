@@ -28,8 +28,7 @@ use wow_core::{ObjectGuid, Position};
 use wow_data::TalentTabStore;
 use wow_entities::PlayerHomebindLikeCpp as RepresentedHomebindLikeCpp;
 use wow_entities::{
-    PhaseShift, PlayerCurrency, PlayerEnchantTimeUpdate, PlayerGossipOptionLikeCpp,
-    PlayerItemTimeUpdate, SpellCastMetadata,
+    PhaseShift, PlayerCurrency, PlayerEnchantTimeUpdate, PlayerItemTimeUpdate, SpellCastMetadata,
 };
 use wow_packet::packets::gossip::{ClientGossipText, Hello};
 use wow_packet::packets::misc::{AccountMount, DungeonDifficultySet};
@@ -151,6 +150,13 @@ pub trait CharacterLoginHostLikeCpp:
     fn visibility_mut(&mut self) -> &mut VisibilityState;
     fn split_visibility_mut(&mut self) -> (&mut VisibilityState, HubMut<'_>);
     fn split_interaction(&mut self) -> (&mut InteractionState, HubRef<'_>);
+    /// The World `interaction` field inside the World crate's own `cfg(test)`
+    /// build, `None` everywhere else: the gossip-option read's fixture step
+    /// runs exactly where its former `#[cfg(test)]` block ran (#1363 slice 12b5).
+    #[cfg(any(test, feature = "test-fixtures"))]
+    fn interaction_for_test_like_cpp(&self) -> Option<&InteractionState> {
+        None
+    }
     fn loot(&self) -> &LootState;
     fn loot_mut(&mut self) -> &mut LootState;
 
@@ -159,7 +165,6 @@ pub trait CharacterLoginHostLikeCpp:
     fn cleanup_shared_runtime_state(&mut self) -> FinalizationOutcome;
     fn begin_represented_trait_config_authority_load_like_cpp(&mut self);
     fn clear_player_currencies_like_cpp(&mut self) -> bool;
-    fn clear_player_gossip_options_like_cpp(&mut self) -> bool;
     fn complete_represented_trait_config_authority_load_like_cpp(
         &mut self,
         configs: impl IntoIterator<Item = (i32, i32, i32, i32)>,
@@ -243,10 +248,6 @@ pub trait CharacterLoginHostLikeCpp:
     fn notify_other_players_visibility_changed_like_cpp(&self);
     fn player_currencies_like_cpp(&self) -> Option<HashMap<u32, PlayerCurrency>>;
     fn player_current_map_instanceable_like_cpp(&self) -> bool;
-    fn player_gossip_option_like_cpp(
-        &self,
-        gossip_option_id: i32,
-    ) -> Option<PlayerGossipOptionLikeCpp>;
     fn player_interaction_source_guid_like_cpp(&self) -> Option<ObjectGuid>;
     /// The World `replace_player_difficulty_preferences_like_cpp` (the
     /// instances split), for the group-difficulty restore (#1363 slice 12b4).
@@ -258,10 +259,6 @@ pub trait CharacterLoginHostLikeCpp:
     ) -> bool;
     fn quest_log_create_entries_like_cpp(&self) -> Vec<(u32, u32, i64, [u16; 24])>;
     fn register_in_player_registry(&self);
-    fn replace_player_gossip_options_like_cpp(
-        &mut self,
-        options: Vec<PlayerGossipOptionLikeCpp>,
-    ) -> bool;
     fn register_loaded_inventory_item_duration_refs_like_cpp(
         &mut self,
         loaded_item_guids: &[ObjectGuid],

@@ -27,8 +27,7 @@ impl WorldSession {
     pub(crate) async fn handle_far_sight(&mut self, pkt: WorldPacket) {
         self.player_test_cx_like_cpp().handle_far_sight(pkt).await;
         let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
-        self.force_update_visibility_with_catalogs_like_cpp(&catalogs)
-            .await;
+        wow_world_entities::force_update_visibility_with_catalogs_like_cpp(self, &catalogs).await;
     }
 
     pub(crate) async fn handle_query_next_mail_time(&mut self) {

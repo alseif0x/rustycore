@@ -461,3 +461,64 @@ pub(crate) fn quest_list_entry_from_menu_item_like_cpp<H: QuestSessionHostLikeCp
         title: quest.log_title.clone(),
     }
 }
+
+pub fn represented_creature_gossip_text_like_cpp<H: QuestSessionHostLikeCpp>(
+    host: &H,
+    creature_entry: u32,
+) -> Vec<wow_packet::packets::gossip::ClientGossipText> {
+    let Some(quest_store) = host.hub_ref().catalogs.quests.store.as_ref() else {
+        return Vec::new();
+    };
+
+    let starter_candidates = quest_store
+        .quests_for_starter(creature_entry)
+        .iter()
+        .map(|quest| {
+            (
+                quest.id,
+                quest.allowable_races,
+                quest.allowable_classes,
+                quest.min_level,
+                quest.max_level,
+                crate::can_take_quest(host, quest),
+            )
+        })
+        .collect::<Vec<_>>();
+    let menu_items =
+        crate::represented_creature_quest_menu_items_like_cpp(host, quest_store, creature_entry);
+    info!(
+        creature_entry,
+        race = host.hub_ref().player_race_like_cpp(),
+        class = host.hub_ref().player_class_like_cpp(),
+        level = host.hub_ref().player_level_like_cpp(),
+        starter_candidates = ?starter_candidates,
+        quests = ?menu_items.iter().map(|item| item.quest.id).collect::<Vec<_>>(),
+        "Prepared creature gossip quest text like C++"
+    );
+
+    menu_items
+        .iter()
+        .map(|item| gossip_text_from_menu_item_like_cpp(host, item))
+        .collect()
+}
+fn gossip_text_from_menu_item_like_cpp<H: QuestSessionHostLikeCpp>(
+    host: &H,
+    menu_item: &RepresentedPreparedQuestMenuItemLikeCpp,
+) -> wow_packet::packets::gossip::ClientGossipText {
+    let quest = &menu_item.quest;
+    wow_packet::packets::gossip::ClientGossipText {
+        quest_id: quest.id as i32,
+        content_tuning_id: 0,
+        quest_type: i32::from(menu_item.quest_icon),
+        quest_level: quest.quest_level,
+        quest_max_scaling_level: quest.quest_max_scaling_level,
+        quest_flags: quest.flags,
+        quest_flags_ex: quest.flags_ex,
+        repeatable: quest.is_turn_in_like_cpp()
+            && quest.is_repeatable()
+            && !quest.is_daily_or_weekly_like_cpp()
+            && !quest.is_monthly_like_cpp(),
+        important: crate::represented_quest_is_important_like_cpp(host, quest),
+        quest_title: quest.log_title.clone(),
+    }
+}

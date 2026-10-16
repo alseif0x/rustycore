@@ -3636,6 +3636,7 @@ dependencies = [
  "wow-progression",
  "wow-recastdetour",
  "wow-world-core",
+ "wow-world-entities",
  "wow-world-interaction",
  "wow-world-lifecycle",
  "wow-world-visibility",

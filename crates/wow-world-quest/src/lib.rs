@@ -135,7 +135,7 @@ pub use quest_session::{
     read_quest_giver_accept_quest_like_cpp, read_quest_giver_query_quest_like_cpp,
     refresh_represented_talent_points_like_cpp,
     remove_represented_active_rewarded_duplicates_like_cpp,
-    represented_can_reward_quest_inventory_like_cpp,
+    represented_can_reward_quest_inventory_like_cpp, represented_creature_gossip_text_like_cpp,
     represented_creature_quest_menu_items_like_cpp, represented_player_quest_status_like_cpp,
     represented_quest_giver_accept_source_allows_quest_like_cpp,
     represented_quest_giver_involved_source_allows_quest_like_cpp,

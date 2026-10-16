@@ -95,7 +95,6 @@ mod social;
 mod spell_effects;
 mod spell_state;
 mod taxi;
-pub(crate) use time_synchronization::game_time_ms_like_cpp;
 mod test_support;
 mod trait_configs;
 mod visibility;
@@ -374,7 +373,6 @@ pub(crate) use quest_dialog::RepresentedQuestRewardTalentPointsLikeCpp;
 pub(crate) use quest_dialog::{
     RepresentedForceDeselectLikeCpp, RepresentedQuestRewardTitleLikeCpp,
 };
-use wow_world_quest::RepresentedPreparedQuestMenuItemLikeCpp;
 mod quest_interaction;
 mod raid_profile_values;
 use raid_profile_values::player_cuf_profile_from_packet_like_cpp;
@@ -459,12 +457,10 @@ use crate::loot_persistence::DurableLootMoneyCompletionLikeCpp;
 #[cfg(test)]
 use crate::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp;
 use crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp;
-use crate::session::directory::{
-    PlayerRegistry, PlayerSessionRegistrationLikeCpp, PlayerVisibilityCreateSnapshot,
-};
+use crate::session::directory::{PlayerRegistry, PlayerSessionRegistrationLikeCpp};
 #[cfg(test)]
 use crate::session::mailbox::GameEventQuestCompleteClientOutcomeLikeCpp;
-use crate::session::mailbox::{GameEventQuestCompleteCommandLikeCpp, SessionCommand};
+use crate::session::mailbox::GameEventQuestCompleteCommandLikeCpp;
 use crate::session_policy::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
     LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, PlayerRegenerationRatesLikeCpp,
@@ -641,7 +637,6 @@ use wow_network::SocketTimeoutsLikeCpp;
 use wow_network::session_mgr::SessionManager;
 #[cfg(test)]
 use wow_packet::packets::chat::{ChatMsg, ChatPkt, PrintNotification};
-use wow_packet::packets::gossip::ClientGossipText;
 #[cfg(test)]
 use wow_packet::packets::item::{
     InventoryChangeFailure, ItemInstance, ItemMod, ItemModList, ItemPushResult,
@@ -658,7 +653,6 @@ use wow_social::group::{
     GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry, PendingInvites,
 };
 
-pub(crate) use wow_world_core::session::PLAYER_FLAGS_RESTING_LIKE_CPP;
 pub(crate) use wow_world_core::session::{
     AFLAG_SCALABLE_LIKE_CPP, PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP, PLAYER_FLAGS_GHOST_LIKE_CPP,
     SKILL_ENCHANTING_LIKE_CPP,
@@ -780,7 +774,6 @@ pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP: u32 = 0x0000_0800;
 mod test_reexports;
 #[cfg(test)]
 pub(crate) use test_reexports::*;
-pub(crate) use wow_world_core::session::PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP;
 
 #[cfg(test)]
 #[path = "../../unit_tests/session_tests.rs"]

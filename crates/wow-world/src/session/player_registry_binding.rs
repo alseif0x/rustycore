@@ -105,7 +105,10 @@ impl WorldSession {
         // so repeat the one-way hydration after that seam as well.
         #[cfg(test)]
         crate::canonical_player_sync::hydrate_player_directory_fixture_like_cpp(self);
-        self.sync_player_registry_party_member_party_type_like_cpp();
+        {
+            let (state, hub) = crate::session::split_social_ref(self);
+            state.sync_player_registry_party_member_party_type_like_cpp(hub)
+        };
         debug!(
             "Registered player {:?} ({}) in broadcast registry (map {})",
             guid, name, map_id
