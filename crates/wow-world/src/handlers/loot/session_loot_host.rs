@@ -101,8 +101,7 @@ impl LootSessionHostLikeCpp for WorldSession {
         guid: ObjectGuid,
         f: impl FnOnce(&mut wow_entities::GameObject) -> R,
     ) -> Option<R> {
-        let (state, mut hub) = crate::session::split_world_entities_mut(self);
-        state.mutate_canonical_gameobject_by_guid_like_cpp(&mut hub, guid, f)
+        self.mutate_canonical_gameobject_by_guid_like_cpp(guid, f)
     }
     fn plan_store_new_direct_inventory_item(
         &self,

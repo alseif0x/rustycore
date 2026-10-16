@@ -5,8 +5,6 @@
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
 use super::WorldSession;
-#[cfg(test)]
-pub(crate) use wow_world_core::session::game_time_ms_like_cpp;
 
 impl WorldSession {}
 

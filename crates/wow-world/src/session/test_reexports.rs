@@ -28,11 +28,10 @@ pub(crate) use wow_world_core::session::battle_pet_adapter::{
     RepresentedBattlePetLevelCriteriaLikeCpp, RepresentedBattlePetQueryCompanionLikeCpp,
     RepresentedBattlePetSaveInfoLikeCpp,
 };
-pub(crate) use wow_world_core::session::movement_protocol::{
-    MoveTeleportAckActionLikeCpp, TELE_TO_SEAMLESS_LIKE_CPP,
-};
 pub(crate) use wow_world_core::session::{
-    RepresentedGetReactionInputLikeCpp, ReputationGainSourceLikeCpp,
+    PLAYER_FLAGS_RESTING_LIKE_CPP, PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP,
+    RepresentedGetReactionInputLikeCpp, ReputationGainSourceLikeCpp, game_time_ms_like_cpp,
+    movement_protocol::{MoveTeleportAckActionLikeCpp, TELE_TO_SEAMLESS_LIKE_CPP},
 };
 pub(crate) use wow_world_entities::SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP;
 pub(crate) use wow_world_entities::spell_click_values::{

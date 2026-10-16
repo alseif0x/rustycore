@@ -95,8 +95,6 @@ mod social;
 mod spell_effects;
 mod spell_state;
 mod taxi;
-#[cfg(test)]
-pub(crate) use time_synchronization::game_time_ms_like_cpp;
 mod test_support;
 mod trait_configs;
 mod visibility;
@@ -655,8 +653,6 @@ use wow_social::group::{
     GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry, PendingInvites,
 };
 
-#[cfg(test)]
-pub(crate) use wow_world_core::session::PLAYER_FLAGS_RESTING_LIKE_CPP;
 pub(crate) use wow_world_core::session::{
     AFLAG_SCALABLE_LIKE_CPP, PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP, PLAYER_FLAGS_GHOST_LIKE_CPP,
     SKILL_ENCHANTING_LIKE_CPP,
@@ -778,8 +774,6 @@ pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP: u32 = 0x0000_0800;
 mod test_reexports;
 #[cfg(test)]
 pub(crate) use test_reexports::*;
-#[cfg(test)]
-pub(crate) use wow_world_core::session::PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP;
 
 #[cfg(test)]
 #[path = "../../unit_tests/session_tests.rs"]

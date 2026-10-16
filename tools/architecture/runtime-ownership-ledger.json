@@ -771,11 +771,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 16526,
-          "test_lines": 141616,
-          "total_lines": 158142,
+          "production_lines": 15937,
+          "test_lines": 141615,
+          "total_lines": 157552,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-10-16 #1363 slice 12b4: tightened to the live values: production 16725 -> 16526 (-199), test 141616 -> 141616 (+0), total 158341 -> 158142 (-199). The represented login-load steps (the trait-config authority load pair in session/persistence/load_authority.rs; the group membership and difficulty restore and the void-storage load in session/persistence/load.rs) moved to wow-world-character (login_session/represented_load.rs) over CharacterLoginHostLikeCpp and SpellbookHostLikeCpp; the login spell reset and its notification text (session/spell_state/effects.rs, retired, and spell.rs) to wow-world-application (continue_login/spell_reset.rs) over TalentHostLikeCpp, QuestSessionHostLikeCpp and AuraHostLikeCpp. The vault-clear wrapper (session/void_storage_adapter.rs), now without a production caller, and one-call forwards for the moved names the scenarios call live in the #![cfg(test)] handlers/login_load_test_shims.rs outside this tree. The group-id import and the void-storage item alias leave production (the alias joins session/test_reexports.rs, whose header is reflowed so the test count does not grow). Bodies are token-identical after the documented rules; no await, lock, save/load order or packet changes.",
+          "latest_growth_review": "2026-10-16 #1363 slices 12b5-12b6: tightened to the live values: production 16526 -> 15937 (-589), test 141616 -> 141615 (-1), total 158142 -> 157552 (-590). The group-membership queries and the group update-sequence reset (session/social/group.rs) moved to wow-world-instances (group_membership.rs); the duel spell effect with its two duel-state steps (session/social/duel.rs, emptied to its test-shim mount) and the guild-id install to wow-world-social; the gossip-option operations (session/chat/operations.rs) to wow-world-character (gossip_options.rs) and the creature gossip quest text with its menu-item builder to wow-world-quest (quest_session/dialog.rs); the seer-detection sync, the registry-backed other players with their phase gate, the phase shift and phase test, the resting flag, the seer GUID, the forced visibility update (session/visibility/operations.rs) and the active-mover completion (session/deferred_visibility.rs) to wow-world-entities (visibility_session/session_visibility.rs). Four social and world-entities field-split forwards retire (their single production callers name the split). Three test-only re-exports join session/test_reexports.rs in a merged group, so the test count does not grow. Bodies are token-identical after the documented rules; await counts, packet order and save/load order are unchanged.",
           "open_retirement_issues": [
             584
           ],
@@ -795,11 +795,11 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 2224,
+          "production_lines": 2208,
           "test_lines": 15655,
-          "total_lines": 17879,
+          "total_lines": 17863,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
-          "latest_growth_review": "2026-10-16 #1363 slice 12b4: tightened to the live values: production 2229 -> 2224 (-5), test 15655 -> 15655 (+0), total 17884 -> 17879 (-5). In the character login host adapter (login_host.rs) both void-storage trait methods retire because wow-world-character now calls the moved free functions directly (-10), and two host methods are added for the moved bodies (replace_player_difficulty_preferences_like_cpp, void_storage_is_unlocked_like_cpp; +6); mod.rs drops one unused import name (-1). continue_login_host.rs only repoints the login spell reset to wow-world-application.",
+          "latest_growth_review": "2026-10-16 #1363 slices 12b5-12b6: tightened to the live values: production 2224 -> 2208 (-16), test 15655 -> 15655 (+0), total 17879 -> 17863 (-16). The three gossip-option methods of the character login host impl retire with their CharacterLoginHostLikeCpp declarations (the gossip bodies call the wow-world-character free functions), the visibility host impl drops the retired visible-other-players method, and the remaining impl methods name the moved free functions; one cfg(test) fixture accessor is added.",
           "open_retirement_issues": [
             584
           ],
