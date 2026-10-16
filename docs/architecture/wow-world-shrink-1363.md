@@ -14153,6 +14153,13 @@ No checker constant or `handler-module-policy.json` change.
 | `wow-world-spell` | 21,227 (98) | 21,532 (102) | 20,909 | 21,214 |
 | `wow-world-social` | 11,456 (30) | 11,616 (31) | 11,340 | 11,498 |
 
+Basis of the production columns (relabelled after the #1417 review): the
+**src-tree physical sum**, i.e. the per-file classifier summed over the files
+under each crate's `src`. It excludes the 1,110 `wow-world` production lines
+mounted by `#[path]` from outside `src`, which the logical crate count
+(`logical_hotspot_row(lib.rs, "crate")`) includes; it is not a "shim-aware"
+count.
+
 - **`wow-world` production −384:**
   - **Moved:** −322 function lines.
   - **Reclassified production → test:** −51 (the two dead-code reads).
@@ -14440,19 +14447,27 @@ thunk changes; no `handler-module-policy.json` change.
 
 ### Accounting
 
-Crate production by the hotspot classifier over each crate's `src` tree
-(`logical_hotspot_row(lib.rs, "crate")`; it counts 27,101 for `wow-world` at
+Crate production by the logical crate count
+(`logical_hotspot_row(lib.rs, "crate")`). It counts 27,101 for `wow-world` at
 base, 1,110 more than the 25,991 recorded with the 12b3 figures, which used
-the shim-aware count; the deltas are what this slice changes):
+the src-tree physical sum (excludes 1,110 `#[path]` production lines).
+
+**Corrected after the #1417 review** (follow-up 1): the head figures first
+recorded here (26,894, −207; character 9,598, +200) were measured three
+lines before the final head. On the merged head `10bdca1a7`:
 
 | Crate | Base | Head | Δ |
 |---|---:|---:|---:|
-| `wow-world` | 27,101 | 26,894 | **−207** |
-| `wow-world-character` | 9,398 | 9,598 | +200 |
+| `wow-world` | 27,101 | 26,897 | **−204** |
+| `wow-world-character` | 9,398 | 9,599 | +201 |
 | `wow-world-application` | 16,130 | 16,181 | +51 |
 
-On the 12b3 basis `wow-world` production is therefore 25,991 − 207 =
-**25,784**.
+On the src-tree basis `wow-world` production is 25,991 − 204 = **25,787**.
+
+**From slice 12b5 on this document uses the logical crate count only.**
+Conversion for earlier figures: a src-tree physical sum from 12b3 or 12b4 plus
+1,110 gives the logical crate count (e.g. 25,991 + 1,110 = 27,101); figures
+before 12b3 were not re-measured on the logical basis.
 
 - `net_move.py check --base origin/3.4.3`: PASS (0 duplicate bodies).
 - `session_method_index`:
