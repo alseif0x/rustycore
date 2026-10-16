@@ -3840,6 +3840,7 @@ dependencies = [
  "wow-handler",
  "wow-packet",
  "wow-persistence",
+ "wow-progression",
  "wow-social",
  "wow-world-core",
  "wow-world-entities",

@@ -1,35 +1,5 @@
-//! Canonical aura-effect queries and modifier projections.
-
-use super::*;
-
-impl WorldSession {
-    pub(in crate::session) fn resolved_has_represented_aura_effect_like_cpp(
-        &self,
-        effect: RepresentedAuraEffectLikeCpp,
-    ) -> Option<bool> {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.resolved_has_represented_aura_effect_like_cpp(hub, effect)
-    }
-
-    pub(in crate::session) fn resolved_total_represented_aura_modifier_by_misc_value_like_cpp(
-        &self,
-        effect: RepresentedAuraEffectLikeCpp,
-        misc_value: i32,
-    ) -> Option<i32> {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.resolved_total_represented_aura_modifier_by_misc_value_like_cpp(
-            hub, effect, misc_value,
-        )
-    }
-
-    pub(in crate::session) fn resolved_total_represented_aura_multiplier_like_cpp(
-        &self,
-        effect: RepresentedAuraEffectLikeCpp,
-    ) -> Option<f32> {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.resolved_total_represented_aura_multiplier_like_cpp(hub, effect)
-    }
-}
+//! Canonical aura-effect queries and modifier projections. The three
+//! field-split queries moved to `wow_world_spell` (#1363 slice 12b3).
 
 #[cfg(test)]
 #[path = "../../../../unit_tests/session/spell_state/aura/effect_queries/f3_shims.rs"]

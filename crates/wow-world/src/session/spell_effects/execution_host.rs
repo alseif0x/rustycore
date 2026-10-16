@@ -135,7 +135,7 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
         misc_value: i32,
         target_guid: ObjectGuid,
     ) -> bool {
-        WorldSession::apply_reputation_effect_like_cpp(self, damage, misc_value, target_guid)
+        wow_world_social::apply_reputation_effect_like_cpp(self, damage, misc_value, target_guid)
     }
     fn apply_quest_complete_effect_like_cpp(
         &mut self,
@@ -151,7 +151,7 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
         )
     }
     fn apply_force_deselect_effect_like_cpp(&mut self) -> bool {
-        WorldSession::apply_force_deselect_effect_like_cpp(self)
+        wow_world_social::apply_force_deselect_effect_like_cpp(self)
     }
     fn player_resurrection_state_snapshot_like_cpp(
         &self,

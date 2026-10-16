@@ -91,12 +91,18 @@ impl SocialSessionHostLikeCpp for WorldSession {
         effect: RepresentedAuraEffectLikeCpp,
         misc_value: i32,
     ) -> Option<i32> {
-        WorldSession::resolved_total_represented_aura_modifier_by_misc_value_like_cpp(
+        wow_world_spell::resolved_total_represented_aura_modifier_by_misc_value_like_cpp(
             self, effect, misc_value,
         )
     }
 
     fn gets_recruit_a_friend_bonus_like_cpp(&self, for_xp: bool) -> bool {
         WorldSession::gets_recruit_a_friend_bonus_like_cpp(self, for_xp)
+    }
+    #[cfg(test)]
+    fn social_limits_for_test_like_cpp(
+        &mut self,
+    ) -> Option<&mut wow_world_social::SessionSocialLimits> {
+        Some(&mut self.social)
     }
 }

@@ -19,7 +19,7 @@ impl wow_world_spell::PlayerCastHostLikeCpp for WorldSession {
         )
     }
     fn has_represented_self_res_spell_like_cpp(&self, spell_id: i32) -> bool {
-        WorldSession::has_represented_self_res_spell_like_cpp(self, spell_id)
+        wow_world_spell::has_represented_self_res_spell_like_cpp(self, spell_id)
     }
     fn represented_spell_click_creature_snapshot_like_cpp(
         &self,

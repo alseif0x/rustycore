@@ -10,9 +10,6 @@ impl WorldSession {
     pub fn set_currency_types_store(&mut self, store: Arc<CurrencyTypesStore>) {
         self.catalogs.currency_types_store = Some(store);
     }
-    pub(crate) fn currency_types_store(&self) -> Option<&Arc<CurrencyTypesStore>> {
-        self.catalogs.currency_types_store()
-    }
     /// C++ `Player::GetCurrencyQuantity`.
     pub(crate) fn player_currency_quantity(&self, currency_id: u32) -> Option<u32> {
         let access = self.core.owned_player_currency_access_like_cpp();

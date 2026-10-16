@@ -19,14 +19,14 @@ impl PlayerMovementHostLikeCpp for WorldSession {
         &self,
         effect: RepresentedAuraEffectLikeCpp,
     ) -> Option<bool> {
-        WorldSession::resolved_has_represented_aura_effect_like_cpp(self, effect)
+        wow_world_spell::resolved_has_represented_aura_effect_like_cpp(self, effect)
     }
 
     fn resolved_total_represented_aura_multiplier_like_cpp(
         &self,
         effect: RepresentedAuraEffectLikeCpp,
     ) -> Option<f32> {
-        WorldSession::resolved_total_represented_aura_multiplier_like_cpp(self, effect)
+        wow_world_spell::resolved_total_represented_aura_multiplier_like_cpp(self, effect)
     }
 
     fn remove_auras_with_interrupt_flags_like_cpp(&mut self, flags: u32, flags2: u32) -> usize {
@@ -100,7 +100,7 @@ impl wow_world_entities::PlayerTeleportHostLikeCpp for WorldSession {
     }
 
     fn interrupt_non_melee_spells_for_far_teleport_like_cpp(&mut self) -> bool {
-        WorldSession::interrupt_non_melee_spells_for_far_teleport_like_cpp(self)
+        wow_world_spell::interrupt_non_melee_spells_for_far_teleport_like_cpp(self)
     }
 
     fn remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp(&mut self) -> usize {

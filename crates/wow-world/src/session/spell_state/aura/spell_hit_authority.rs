@@ -1,4 +1,6 @@
 //! Canonical Player spell-hit aura-source authority and synchronization.
+//! The authority-complete setter and the glyph and add-to-map source queries
+//! moved to `wow_world_spell` (#1363 slice 12b3).
 
 use super::*;
 
@@ -10,21 +12,6 @@ impl WorldSession {
     ) -> Option<R> {
         let (state, mut hub) = crate::session::split_spell_state_mut(self);
         state.mutate_player_aura_subsystem_like_cpp(&mut hub, mutate)
-    }
-
-    pub(crate) fn set_player_aura_authority_complete_like_cpp(&mut self, complete: bool) -> bool {
-        let (state, mut hub) = crate::session::split_spell_state_mut(self);
-        state.set_player_aura_authority_complete_like_cpp(&mut hub, complete)
-    }
-
-    fn represented_active_glyph_aura_source_is_empty_like_cpp(&self) -> bool {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.represented_active_glyph_aura_source_is_empty_like_cpp(hub)
-    }
-
-    fn represented_add_player_to_map_aura_source_is_empty_like_cpp(&self) -> bool {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.represented_add_player_to_map_aura_source_is_empty_like_cpp(hub)
     }
 
     pub(in crate::session) fn can_authorize_empty_player_spell_hit_aura_source_for_difficulty_like_cpp(
@@ -50,9 +37,9 @@ impl WorldSession {
             || wow_world_spell::complete_represented_spell_trait_definition_ids_like_cpp(self)
                 .is_none_or(|traits| !traits.is_empty())
             || !wow_world_spell::represented_trait_config_aura_source_is_empty_like_cpp(self)
-            || !self.represented_active_glyph_aura_source_is_empty_like_cpp()
+            || !wow_world_spell::represented_active_glyph_aura_source_is_empty_like_cpp(self)
             || !self.represented_battle_pet_login_spell_source_is_empty_like_cpp()
-            || !self.represented_add_player_to_map_aura_source_is_empty_like_cpp()
+            || !wow_world_spell::represented_add_player_to_map_aura_source_is_empty_like_cpp(self)
             || !self
                 .catalogs
                 .represented_auto_push_quest_aura_source_is_empty_like_cpp()
@@ -64,8 +51,12 @@ impl WorldSession {
             )
             || !wow_world_spell::represented_spell_area_autocast_source_is_empty_like_cpp(self)
             || !self.represented_war_mode_update_zone_aura_source_is_empty_like_cpp()
-            || !self.represented_update_area_pvp_rule_aura_source_is_empty_like_cpp()
-            || !self.represented_update_zone_script_aura_source_is_hit_inert_like_cpp()
+            || !wow_world_spell::represented_update_area_pvp_rule_aura_source_is_empty_like_cpp(
+                self,
+            )
+            || !wow_world_spell::represented_update_zone_script_aura_source_is_hit_inert_like_cpp(
+                self,
+            )
             || !aura_subsystem
                 .runtime_applications_like_cpp()
                 .values()
@@ -104,7 +95,8 @@ impl WorldSession {
                     .is_some_and(|attributes| {
                         attributes[0] & wow_data::spell::attributes::SPELL_ATTR0_PASSIVE == 0
                             || u32::try_from(spell_id).ok().is_some_and(|spell_id| {
-                                self.player_target_spell_is_hit_inert_like_cpp(
+                                wow_world_spell::player_target_spell_is_hit_inert_like_cpp(
+                                    self,
                                     spell_id,
                                     difficulty_id,
                                 )

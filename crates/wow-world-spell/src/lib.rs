@@ -18,6 +18,7 @@ mod spell_acquisition;
 mod spell_acquisition_application;
 pub mod spell_cast_adapter;
 mod spell_click_session;
+mod spell_state_session;
 mod spellbook_session;
 mod state;
 mod talent_session;
@@ -158,6 +159,21 @@ pub use spell_click_session::{
 pub use spell_click_session::{
     execute_represented_spell_click_plan_with_generator_like_cpp,
     represented_handle_spell_click_plan_like_cpp,
+};
+pub use spell_state_session::{
+    SpellStateHostLikeCpp, apply_login_known_spell_proficiencies_like_cpp,
+    has_represented_self_res_spell_like_cpp, interrupt_non_melee_spells_for_far_teleport_like_cpp,
+    player_target_spell_is_hit_inert_like_cpp, publish_spell_pull_attack_start_like_cpp,
+    represented_active_glyph_aura_source_is_empty_like_cpp,
+    represented_add_player_to_map_aura_source_is_empty_like_cpp,
+    represented_cast_speed_multiplier_like_cpp, represented_login_passive_spell_cast_gate_like_cpp,
+    represented_player_is_polymorphed_like_cpp,
+    represented_update_area_pvp_rule_aura_source_is_empty_like_cpp,
+    represented_update_zone_script_aura_source_is_hit_inert_like_cpp,
+    resolved_has_represented_aura_effect_like_cpp,
+    resolved_total_represented_aura_modifier_by_misc_value_like_cpp,
+    resolved_total_represented_aura_multiplier_like_cpp,
+    set_player_aura_authority_complete_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use spellbook_session::{

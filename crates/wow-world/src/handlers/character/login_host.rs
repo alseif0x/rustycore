@@ -320,7 +320,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         WorldSession::set_player_currencies_like_cpp(self, currencies)
     }
     fn set_player_aura_authority_complete_like_cpp(&mut self, complete: bool) -> bool {
-        WorldSession::set_player_aura_authority_complete_like_cpp(self, complete)
+        wow_world_spell::set_player_aura_authority_complete_like_cpp(self, complete)
     }
     fn set_complete_represented_spell_trait_definition_ids_like_cpp(
         &mut self,

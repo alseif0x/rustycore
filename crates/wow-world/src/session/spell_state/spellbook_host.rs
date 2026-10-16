@@ -39,3 +39,14 @@ impl wow_world_spell::SpellbookHostLikeCpp for WorldSession {
         wow_world_spell::remove_auras_with_interrupt_flags_like_cpp(self, flags, flags2)
     }
 }
+
+impl wow_world_spell::SpellStateHostLikeCpp for WorldSession {
+    fn interrupt_player_cast_like_cpp(&mut self, spell_id: Option<i32>) -> bool {
+        WorldSession::interrupt_player_cast_like_cpp(self, spell_id)
+    }
+    fn player_persistent_capability_state_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerPersistentCapabilityStateLikeCpp> {
+        WorldSession::player_persistent_capability_state_snapshot_like_cpp(self)
+    }
+}

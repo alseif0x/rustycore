@@ -28,4 +28,11 @@ pub trait SocialSessionHostLikeCpp: SessionHubHostLikeCpp {
         misc_value: i32,
     ) -> Option<i32>;
     fn gets_recruit_a_friend_bonus_like_cpp(&self, for_xp: bool) -> bool;
+    /// The World `social` field inside the World crate's own `cfg(test)`
+    /// build, `None` everywhere else: the force-deselect fixture record runs
+    /// exactly where its former `#[cfg(test)]` block ran (#1363 slice 12b3).
+    #[cfg(any(test, feature = "test-fixtures"))]
+    fn social_limits_for_test_like_cpp(&mut self) -> Option<&mut crate::SessionSocialLimits> {
+        None
+    }
 }
