@@ -86,9 +86,9 @@ mod quest_item_test_shims;
 #[cfg(test)]
 mod quest_session_test_shims;
 #[cfg(test)]
-mod session_lifecycle_test_shims;
-#[cfg(test)]
 mod session_leftovers_test_shims;
+#[cfg(test)]
+mod session_lifecycle_test_shims;
 #[cfg(test)]
 mod social_quest_test_shims;
 #[cfg(test)]
