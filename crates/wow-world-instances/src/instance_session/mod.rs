@@ -121,10 +121,8 @@ pub trait InstanceSessionHostLikeCpp: PlayerTeleportHostLikeCpp + AuraHostLikeCp
     fn split_instances_mut(&mut self) -> (&mut InstanceState, HubMut<'_>);
     /// The session view's `is_pvp_realm_like_cpp` field.
     fn is_pvp_realm_like_cpp(&self) -> bool;
-    /// The World test build's handle-less rest-state step
-    /// (`WorldSession::mutate_player_rest_state_like_cpp`); the rest-flag
-    /// bodies call it only when `test_fixtures_ref_like_cpp` is `Some`, so this
-    /// default is never reached (#1363 slice 12c).
+    /// `WorldSession::mutate_player_rest_state_like_cpp` (World test build; called
+    /// only when `test_fixtures_ref_like_cpp` is `Some`, so never this default).
     #[cfg(any(test, feature = "test-fixtures"))]
     fn mutate_player_rest_state_like_cpp<R>(
         &mut self,
@@ -133,14 +131,10 @@ pub trait InstanceSessionHostLikeCpp: PlayerTeleportHostLikeCpp + AuraHostLikeCp
         None
     }
     fn send_represented_resting_player_flag_update_like_cpp(&self) -> bool;
-    /// `WorldSession::gets_recruit_a_friend_xp_bonus_like_cpp`, the
-    /// recruit-a-friend rested-XP gate (read through `QuestRewardCx`).
+    /// `WorldSession::gets_recruit_a_friend_xp_bonus_like_cpp` (`QuestRewardCx`).
     fn represented_recruit_a_friend_xp_rest_state_applies_like_cpp(&self) -> bool;
-    /// The World test build's handle-less rest-bonus steps
-    /// (`WorldSession::fixture_apply_offline_xp_rest_bonus_like_cpp` and
-    /// `fixture_update_online_xp_rest_bonus_like_cpp`); the rest-bonus bodies
-    /// call them only when `test_fixtures_ref_like_cpp` is `Some`, so these
-    /// defaults are never reached (#1363 slice 12c).
+    /// The same-named `WorldSession` rest-bonus fixture steps (World test build;
+    /// called only when `test_fixtures_ref_like_cpp` is `Some`).
     #[cfg(any(test, feature = "test-fixtures"))]
     fn fixture_apply_offline_xp_rest_bonus_like_cpp(
         &mut self,

@@ -41,11 +41,11 @@
     "lines": 1190
   },
   "outside_ceiling": {
-    "methods": 158,
-    "lines": 3325
+    "methods": 112,
+    "lines": 2863
   },
   "crate_ceiling": {
-    "methods": 230,
-    "lines": 5730
+    "methods": 184,
+    "lines": 5270
   }
 }

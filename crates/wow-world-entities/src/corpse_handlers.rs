@@ -35,10 +35,8 @@ pub trait CorpseHostLikeCpp: PlayerMovementHostLikeCpp {
         &mut self,
         conditions_ref: &wow_data::ConditionsReference,
     ) -> bool;
-    /// The World test build's resurrection-request match
-    /// (`WorldSession::represented_resurrection_requested_by_like_cpp`); the
-    /// take body calls it only when `test_fixtures_ref_like_cpp` is `Some`, so
-    /// this default is never reached (#1363 slice 12c).
+    /// The same-named `WorldSession` fixture read (World test build; called only
+    /// when `test_fixtures_ref_like_cpp` is `Some`, so never this default).
     #[cfg(any(test, feature = "test-fixtures"))]
     fn represented_resurrection_requested_by_like_cpp(&self, _resurrecter: ObjectGuid) -> bool {
         false

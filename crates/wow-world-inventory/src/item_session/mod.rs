@@ -181,10 +181,8 @@ pub trait ItemSessionHostLikeCpp: VendorSessionHostLikeCpp {
         &mut self,
         player_guid: ObjectGuid,
     ) -> impl Future<Output = ()> + Send;
-    /// The World test build's average equipped item level
-    /// (`WorldSession::represented_avg_equipped_item_level_like_cpp`); the record
-    /// below calls it only when `test_fixtures_ref_like_cpp` is `Some`, so this
-    /// default is never reached (#1363 slice 12c).
+    /// The same-named `WorldSession` fixture read (World test build; called only
+    /// when `test_fixtures_ref_like_cpp` is `Some`, so never this default).
     #[cfg(any(test, feature = "test-fixtures"))]
     fn represented_avg_equipped_item_level_like_cpp(&self) -> Option<f32> {
         None
