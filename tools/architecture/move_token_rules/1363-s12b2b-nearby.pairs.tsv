@@ -1,0 +1,2 @@
+crates/wow-world/src/session/spell_effects/destinations.rs	represented_nearby_entry_destination_like_cpp	crates/wow-world-spell/src/execution_session/nearby_entry.rs
+crates/wow-world/src/session/spell_effects/effects.rs	represented_nearby_candidate_meets_implicit_conditions_like_cpp	crates/wow-world-spell/src/execution_session/nearby_entry.rs

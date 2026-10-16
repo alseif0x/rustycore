@@ -1,0 +1,46 @@
+{
+ "slice": "#1363 slice 12b2b (the nearby-entry destination search and its implicit-condition check -> wow-world-spell over SpellExecutionHostLikeCpp + VendorSessionHostLikeCpp)",
+ "base": "ca48c58e9",
+ "moved": [
+  "represented_nearby_entry_destination_like_cpp",
+  "represented_nearby_candidate_meets_implicit_conditions_like_cpp"
+ ],
+ "rules": [
+  [
+   "pub\\(in crate::session\\) fn represented_nearby_entry_destination_like_cpp\\(\\s*&self,",
+   "pub fn represented_nearby_entry_destination_like_cpp<H: SpellExecutionHostLikeCpp + VendorSessionHostLikeCpp>(host: &H,"
+  ],
+  [
+   "pub\\(in crate::session\\) fn represented_nearby_candidate_meets_implicit_conditions_like_cpp\\(\\s*&self,",
+   "fn represented_nearby_candidate_meets_implicit_conditions_like_cpp<H: SpellExecutionHostLikeCpp + VendorSessionHostLikeCpp>(host: &H,"
+  ],
+  [
+   "Option<&RepresentedPlayerConditionContextLikeCpp>",
+   "Option<&H::PlayerConditionContext>"
+  ],
+  [
+   "self\\s*\\.\\s*represented_nearby_candidate_meets_implicit_conditions_like_cpp\\(",
+   "represented_nearby_candidate_meets_implicit_conditions_like_cpp(host,"
+  ],
+  [
+   "crate::session::hub_ref\\(self\\)",
+   "host.hub_ref()"
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "\\bself\\s*\\.\\s*catalogs\\s*\\.",
+   "host.hub_ref().catalogs."
+  ],
+  [
+   "as_context\\(self\\)",
+   "as_context(host)"
+  ],
+  [
+   "\\bself\\s*\\.\\s*",
+   "host."
+  ]
+ ]
+}

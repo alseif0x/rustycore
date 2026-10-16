@@ -13590,3 +13590,332 @@ in the tree today; the measurement on the base is unchanged (staying 44 /
   `check`; the shim-row check dropped.
 - Follow-up 4 (moving the packet-spoof counter into the core admission state)
   is not in this slice; it stays recorded.
+
+### Re-measure and the cut
+
+The fixed index on `216983093` (same code as the base `ca48c58e9`) measured the
+three deferred groups:
+
+- `apply_damage_from_caster_like_cpp`: 1 non-forward / 304.
+- The nearby-entry pair: `represented_nearby_entry_destination_like_cpp`
+  (132) and `represented_nearby_candidate_meets_implicit_conditions_like_cpp`
+  (55).
+- The loaded item-mod family: `apply_initial_loaded_item_mods_like_cpp` (53),
+  `apply_initial_item_set_auras_like_cpp` (44),
+  `apply_loaded_equipped_item_enchantments_like_cpp` (77),
+  `apply_loaded_equipped_item_enchantment_effects_like_cpp` (68),
+  `apply_loaded_enchantment_spell_action_like_cpp` (60), and three 7-line
+  split helpers (`initial_loaded_item_mods_can_apply_like_cpp`,
+  `loaded_inventory_item_visible_update_like_cpp`,
+  `apply_represented_item_bonus_action_state_like_cpp`): 323. The 12b2
+  estimate of ~362 counted the one-line wrappers below, which are inlined,
+  not moved.
+
+All three fit one PR (814 lines, far under 4.5k). Destinations, by layering:
+
+- **Kill cascade → `wow-world-application`** (`creature_damage.rs`). It is
+  orchestration above loot-ops (`ensure_represented_creature_kill_loot_like_cpp`),
+  quest (the creature-kill credit through `on_creature_killed_with_generator_like_cpp`)
+  and the XP grant; application already depends on spell, loot-ops and
+  entities. Order unchanged: damage and tap → combat log → threat sync →
+  pull attack start → movement stop → kill loot → XP → reputation → kill
+  credit → kill hooks (World test only) → death state → values update.
+- **Nearby-entry pair → `wow-world-spell`** (`execution_session/nearby_entry.rs`).
+  The World-local `RepresentedPlayerConditionContextLikeCpp::as_context(&WorldSession)`
+  wrapper need not retire first: the inventory `VendorSessionHostLikeCpp`
+  already carries the projection as `type PlayerConditionContext:
+  PlayerConditionContextSourceLikeCpp<Self>`, and the World implements its
+  `as_context` with that same wrapper. Spell already depends on inventory
+  (the 12b2 durability precedent, `H: SpellEffectHostLikeCpp +
+  VendorSessionHostLikeCpp`), so player-conditions is not needed.
+- **Loaded item-mod family → `wow-world-application`**
+  (`player_items_session/loaded_item_mods.rs`). Auras are applied and
+  removed through the application aura-application context, built from the
+  World session's fields as the World builder builds it. Order unchanged:
+  per equipped slot (sorted by slot, then GUID counter) item bonuses → set
+  auras → equip auras → enchantments; per enchantment slot plan → duration →
+  effects (record, spell action, unrepresented, state) → visible item.
+
+**Moved: 11 functions, 814 base lines**, all non-forward methods in
+`session/**`. Nothing is deferred from the 12b2b scope.
+
+### What moved
+
+| Destination file | Functions (base file) | Base lines |
+|---|---|---:|
+| `wow-world-application/src/creature_damage.rs` | `apply_damage_from_caster_like_cpp` (304, `spell_effects/effect_combat/damage_and_combat_application.rs`) | 304 |
+| `wow-world-application/src/player_items_session/loaded_item_mods.rs` | `apply_initial_loaded_item_mods_like_cpp` (53), `apply_initial_item_set_auras_like_cpp` (44), `initial_loaded_item_mods_can_apply_like_cpp` (7), `apply_represented_item_bonus_action_state_like_cpp` (7) (`player_items/modifiers.rs`); `apply_loaded_equipped_item_enchantments_like_cpp` (77), `apply_loaded_equipped_item_enchantment_effects_like_cpp` (68), `apply_loaded_enchantment_spell_action_like_cpp` (60) (`enchantment.rs`); `loaded_inventory_item_visible_update_like_cpp` (7, `persistence_load.rs`) | 323 |
+| `wow-world-spell/src/execution_session/nearby_entry.rs` | `represented_nearby_entry_destination_like_cpp` (132, `spell_effects/destinations.rs`), `represented_nearby_candidate_meets_implicit_conditions_like_cpp` (55, `effects.rs`) | 187 |
+| **Total** | 11 functions | **814** |
+
+After rustfmt the bodies take 850 lines (319 + 337 + 194).
+
+- **Hosts.**
+  - **Kill cascade:** `H: CreatureDamageHostLikeCpp`, a new application trait
+    over `SpellEffectHostLikeCpp + LootSessionHostLikeCpp` (the latter brings
+    `WorldEntitiesHostLikeCpp`), with one method,
+    `current_group_member_guids_for_tap_like_cpp` (the World `social/group.rs`
+    operation). `on_creature_killed_with_generator_like_cpp`,
+    `split_world_entities_ref` and
+    `represented_unit_values_update_to_update_object_like_cpp` are declared by
+    two of the bounded traits, so the body names them by trait (UFCS); every
+    World impl of them names the same inherent operation or hub split.
+  - **Loaded item mods:** `H: LoadedItemModsHostLikeCpp`, a new application
+    trait over `TrainerSessionHostLikeCpp` (the field split),
+    `VendorSessionHostLikeCpp` (`split_inventory_mut`),
+    `BattlePetSessionHostLikeCpp` (`split_inventory_ref`) and
+    `QuestItemStorageHostLikeCpp` (`resolved_inventory_item_object_like_cpp`),
+    with one method, `apply_current_player_item_enchantment_plan_like_cpp`
+    (the World item-enchantment context builder stays: it has another
+    caller).
+  - **Nearby pair:** `H: SpellExecutionHostLikeCpp + VendorSessionHostLikeCpp`.
+    The context parameter's type becomes `Option<&H::PlayerConditionContext>`
+    (the World's associated type is `RepresentedPlayerConditionContextLikeCpp`).
+  - **Trait methods kept, now naming the free function.** The World impls of
+    `SpellEffectHostLikeCpp::apply_damage_from_caster_like_cpp`,
+    `SpellExecutionHostLikeCpp::represented_nearby_entry_destination_like_cpp`
+    and `ContinueLoginHostLikeCpp::apply_initial_loaded_item_mods_like_cpp`
+    stay: the spell execution/effect entries and the application login call
+    them through their hosts. `login.rs` is unchanged, so the login-order
+    source test still finds `apply_initial_loaded_item_mods_like_cpp` after the
+    character-aura load.
+- **Mechanical rules** (`move_token_rules/1363-s12b2b-{kill,item-mods,nearby}.json`
+  with pairs alongside): the signatures; `self.core.` → `host.core().`
+  (`host.core_mut()` for `mutate_world_creature`, which takes `&mut`);
+  `self.catalogs.` → `host.hub_ref().catalogs.`; `crate::session::hub_ref(self)`
+  → `host.hub_ref()`; `crate::session::split_inventory_{mut,ref}(self)` →
+  `host.split_inventory_{mut,ref}()`; `crate::session::split_world_entities_ref(self)`
+  and the two ambiguous host calls → UFCS; `crate::creature_movement::` →
+  `wow_world_core::creature_movement::` (the World path is a re-export of
+  it); `<crate fn>(self,` → `(host,`; calls of moved names → the local free
+  function; `context.as_context(self)` → `(host)`; the inlined wrappers
+  below; `self.` → `host.`. Rules never touch string literals.
+  - **Result** (`move_token_compare.py --base ca48c58e9`): 8 of 11 identical
+    (nearby 1/2, item mods 7/8, kill 0/1). The three others differ only by:
+    - rustfmt brace changes around a one-expression closure (the
+      implicit-condition area check loses `{ }`, the effect-refs lookup gains
+      them);
+    - the former World `#[cfg(test)]` fixture step, now
+      `#[cfg(any(test, feature = "test-fixtures"))]` guarded so it runs
+      exactly in the World test session, as in 12b2:
+      - `apply_loaded_equipped_item_enchantment_effects_like_cpp`:
+        `self.inventory.record_represented_item_bonus_actions_for_test_like_cpp(…)`
+        → `if TrainerSessionHostLikeCpp::world_test_consumer_like_cpp(host) {
+        host.split_inventory_mut().0.record_…(…) }`;
+      - `apply_damage_from_caster_like_cpp`: the kill-hooks record →
+        `if host.test_fixtures_ref_like_cpp().is_some() { … }`.
+      In production builds both steps are absent, as before.
+- **Inlined one-line wrappers** (each verified identical to the World body
+  it replaces):
+  - `WorldSession::spell_store` (`self.catalogs.spell_store()`) →
+    `host.hub_ref().catalogs.spell_store()`; stays for other callers.
+  - `WorldSession::item_storage_template` (`self.catalogs.item_storage_template(id)`)
+    → the same over `host.hub_ref().catalogs`; stays.
+  - `WorldSession::apply_enchantment_effect_refs` and
+    `apply_enchantment_random_suffix_ref` (`self.catalogs.<same>(…)`) → the
+    same over `host.hub_ref().catalogs`. Their last production caller moved,
+    so both moved verbatim into the test shim (two scenarios call them).
+  - `WorldSession::send_tx` (`self.core.send_tx()`) → `host.core().send_tx()`;
+    stays.
+  - `WorldSession::apply_aura_with_effect_mask_like_cpp`,
+    `remove_aura` and `apply_initial_item_equip_auras_like_cpp` (each
+    `self.player_aura_application_cx_like_cpp().<op>(…)`, `remove_aura` naming
+    `remove_aura_like_cpp`) → `session_aura_application_cx_like_cpp(host).<op>(…)`.
+    The first two stay; the equip-aura wrapper lost its last production
+    caller and moved verbatim into the test shim.
+  - `WorldSession::apply_aura_with_effect_mask_without_update_like_cpp` →
+    two levels (it forwards to the private
+    `apply_aura_with_effect_mask_provenance_and_update_like_cpp` with
+    `AuraCastProvenanceLikeCpp::default()` and `false`, which builds the
+    context): `session_aura_application_cx_like_cpp(host).apply_aura_with_effect_mask_provenance_and_update_like_cpp(…, AuraCastProvenanceLikeCpp::default(), false)`.
+    It moved into the test shim with the same one-level inline (a scenario
+    calls it).
+  - The context builder `WorldSession::player_aura_application_cx_like_cpp`
+    itself is reproduced as the private
+    `session_aura_application_cx_like_cpp<H: TrainerSessionHostLikeCpp>`: it
+    takes the hub, spell state, inventory, loot and (under the fixture cfg)
+    quest state from `split_trainer_mut`, the same five field borrows
+    `split_aura_application_mut` returns, and passes
+    `world_test_consumer_like_cpp()` where the World passes `cfg!(test)` (true
+    exactly for the World test session). The World builder stays for its
+    other callers.
+- **World callers** name the free functions:
+  `session/spell_effects/effect_host.rs` (the damage entry),
+  `session/spell_effects/execution_host.rs` (the nearby entry) and
+  `handlers/character/continue_login_host.rs` (the item-mod replay).
+- **Shims.** `handlers/item_mods_session_test_shims.rs` (`#![cfg(test)]`,
+  mounted from `handlers/mod.rs` outside the hotspot trees, 106 lines) holds
+  one-call forwards for the five moved names the scenarios call and the four
+  wrappers whose last production caller moved. No scenario call site
+  changes; no test file changed.
+- **Files retired:** `session/spell_effects/destinations.rs`,
+  `session/spell_effects/effect_combat.rs` and
+  `effect_combat/damage_and_combat_application.rs`.
+- **Visibility.** `pub` and re-exported from the crate root where the World
+  calls them: the two hosts, `apply_damage_from_caster_like_cpp`,
+  `apply_initial_loaded_item_mods_like_cpp`,
+  `apply_loaded_equipped_item_enchantments_like_cpp` and
+  `apply_represented_item_bonus_action_state_like_cpp` (the last two for the
+  shim), and `represented_nearby_entry_destination_like_cpp`. The other five
+  are private to their file.
+
+### Host surface
+
+Moved: **814 function lines** (base).
+
+- **New host: 44 lines, 5.4 %.** The two trait declarations with docs (8 +
+  16) and their World impls (8 + 12).
+- **With the reproduced aura-context builder (24): 68 lines, 8.4 %.** It is
+  adapter code in the destination, counted here for completeness.
+- No adapter file was merged; merged and unmerged figures are the same.
+- No host method was retired.
+
+### Await counts (per function, base vs head)
+
+| Function | Base | Head |
+|---|---:|---:|
+| `apply_damage_from_caster_like_cpp` | 3 | 3 |
+| every other moved function | 0 | 0 |
+
+The three awaits are, in order, the kill loot, `give_xp` and the kill credit.
+The World `SpellEffectHostLikeCpp` impl returns the free function's single
+future, as it returned the inherent method's before.
+
+### Recursion
+
+- **Production grep.** Every moved name, every inlined wrapper and both new
+  host methods were grepped in production (non-shim) `wow-world`. Each hit is
+  a path call (`wow_world_application::<name>(self, …)`,
+  `wow_world_spell::<name>(self, …)`, the imported
+  `apply_initial_loaded_item_mods_like_cpp(self, …)`) or a trait-impl
+  declaration; no `WorldSession::<moved>` or `self.<moved>(` is left.
+- The three kept trait impls (damage, nearby, initial item mods) used to say
+  `WorldSession::<name>(self, …)`; all three now name the free function.
+- **New host methods.** `current_group_member_guids_for_tap_like_cpp` and
+  `apply_current_player_item_enchantment_plan_like_cpp` name existing inherent
+  methods by `WorldSession::` path, which resolve before any trait method.
+- **Free functions.** No moved body calls a host method of its own name.
+- `unconditional_recursion`: 0 in every unit of all three canonical builds.
+
+### Registration
+
+No registrar moved. Spell execution, effect dispatch, login, opcode
+registrations, their order, `SessionStatus`, `PacketProcessing`, handler names
+and thunks are unchanged. No checker constant or `handler-module-policy.json`
+change.
+
+### Edges and closure
+
+- No new crate edge: application already depends on spell, loot-ops,
+  entities, inventory, quest and core; spell already depends on inventory.
+- No manifest or `Cargo.lock` change.
+- Closure at head: PASS (lock mode, 18 packages).
+
+### Accounting
+
+| Crate `src` | Base physical | Head physical | Base production | Head production |
+|---|---:|---:|---:|---:|
+| `wow-world` | 37,414 (453 files) | 36,648 (451) | **27,244** | **26,375** |
+| `wow-world-application` | 16,075 (63) | 16,847 (65) | 15,358 | 16,130 |
+| `wow-world-spell` | 21,010 (97) | 21,227 (98) | 20,692 | 20,909 |
+
+- **`wow-world` production −869:**
+  - **Moved:** −814 function lines.
+  - **Reclassified production → test:** −38 (the four wrappers now in the
+    shim: equip auras 7, without-update aura 18, the two catalog reads 6 + 7).
+  - **Retired:** −28: the three retired files' headers, imports and impl
+    shells (`destinations.rs` −10, `effect_combat.rs` −12, the damage file's
+    −4 beyond its body) and the two `mod` lines in `spell_effects/mod.rs`
+    (−2).
+  - **Imports:** −11: session-root (`mod.rs` −5) and `item_modifiers.rs` (−6)
+    re-exports and six `wow_entities` names whose last production reader
+    moved, dropped or gated into existing `cfg(test)` groups.
+  - **Doc headers:** +1 (`effects.rs` records the move).
+  - **Host adapter:** +22 (the two World impls, 8 + 12, each with its
+    separating blank line); the repointed calls are line-neutral.
+  - **Separator:** −1 (a blank line in `modifiers.rs`).
+  - −814 − 38 − 28 − 11 + 1 + 22 − 1 = −869.
+- **Destinations:** application +772 (656 of it the two moved bodies after
+  rustfmt, 319 + 337; the rest the trait declarations, the aura-context
+  builder, headers, imports and the module/re-export lines); spell +217 (194
+  of it the moved pair; the rest its header, imports, module/re-export lines
+  and the one-line doc update on the damage trait method).
+- **`net_move.py check --base origin/3.4.3`:** growth 989 within the 1,748.5
+  allowance, 0 duplicate bodies, PASS.
+- **`session_method_index`:**
+
+| Measure | Base `ca48c58e9` (= after the fixes `216983093`) | Head |
+|---|---:|---:|
+| Non-forward (crate) | 331 / 8,763 | **320 / 7,949** |
+| Forwards (crate) | 274 / 1,532 | 270 / 1,494 |
+| Staying | 44 / 1,190 | 44 / 1,190 |
+| Outside | 259 / 6,361 | **248 / 5,547** |
+
+  −11 / −814 non-forward are exactly the moved functions; −4 / −38 forwards
+  are the four wrappers now in the shim. `session/spell_effects` goes from 5 /
+  615 to 2 / 124 (reputation and force deselect remain, for 12b5).
+
+### Policy and ceilings
+
+- **Ceilings tightened, none raised:**
+  - **`session-method-index.json`:** `outside_ceiling` 259 / 6,361 → 248 /
+    5,547 and `crate_ceiling` 331 / 8,763 → 320 / 7,949; `staying_bound`
+    stays at 44 / 1,190.
+  - **Hotspot `session/mod.rs`:** production 17,978 → 17,109, test 141,621
+    → 141,616, total 159,599 → 158,725. The names that became test-only join
+    existing `cfg(test)` groups, and five single-name `cfg(test)`
+    `wow_entities` imports merge into one group, so the test figure does not
+    grow.
+  - **Physical `session/mod.rs`:** 808 → 798.
+- **New physical row:** `handlers/item_mods_session_test_shims.rs` at 106,
+  under the shim convention above.
+- `session-ownership-policy.json` is reprinted with `print-baseline` (the 15
+  retired impl items, the 9 shim items, the two new trait-impl items);
+  `check --syntax-only` PASS. `dependency-policy.json` is unchanged.
+
+### Warnings and tests
+
+Canonical recipe (with `--locked`), base `ca48c58e9` vs head, counted and
+compared with `warning_units.py`:
+
+| Build | `wow-world` lib | `wow-world` lib test | All `wow-world*` lib units |
+|---|---:|---:|---:|
+| production lib | 118 → 118 | — | 245 → 245 |
+| lib + `test-fixtures` | 127 → 127 | — | 209 → 209 |
+| `--lib --tests` | 127 → 127 | 178 → 178 | 209 → 209 |
+
+- **`compare`:** nothing appears only in the base or only in the head, in
+  any build. Before the import cleanup, the head had the item-mod outcome
+  and item-bonus re-exports and six `wow_entities` names as new unused
+  imports.
+- **`wow-world`:** `dead_code` 0 in all three builds. `unconditional_recursion`
+  is 0 in every unit of all three builds.
+- `cargo check --locked --tests -p wow-world-application -p wow-world-spell`
+  (the crates' own builds): no warning in the moved files.
+- **Tests.** No test file changed, so the test-name multiset is identical:
+  `git grep` of `#[test]`/`#[tokio::test]` attributes under `crates/` counts
+  9,493 at base and at head (this grep also counts the attribute forms the
+  12b2 count of 9,492 functions excluded), and `#[ignore` 5 at both. No
+  assertion changed.
+- **Focused run during the move:** `cargo test -p wow-world --lib`: 3,680
+  passed, 1 ignored (as at 12b2).
+
+### Follow-ups
+
+- **12b5:** the reputation effect (with a `wow-world-social` →
+  `wow-progression` edge) and force deselect, the last two non-forward
+  methods in `session/spell_effects`.
+- **#1414 follow-up 4:** the packet-spoof counter and policy
+  (`session/admission.rs`) into the core admission state.
+- **12d:** `CreatureDamageHostLikeCpp` and `LoadedItemModsHostLikeCpp` each
+  carry one method; fold them when the adapters regroup. The reproduced
+  aura-context builder can replace the World one once its remaining World
+  callers move.
+- **Shims.** The `#![cfg(test)]` shims retire in the final cleanup.
+
+### Validation
+
+`VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+runs on the committed head that includes this section. The manifest path,
+dirty flag and duration are in the PR body. This section is not edited after
+that run, so the PR head is the validated SHA.
