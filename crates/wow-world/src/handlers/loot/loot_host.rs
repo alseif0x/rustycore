@@ -99,7 +99,7 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
     }
 
     fn loot_unit_interrupt_non_melee_spell_cast_like_cpp(&mut self) {
-        let _ = WorldSession::interrupt_non_melee_spell_cast_for_loot_like_cpp(self);
+        let _ = wow_world_application::interrupt_non_melee_spell_cast_for_loot_like_cpp(self);
     }
 
     fn loot_unit_remove_auras_with_looting_interrupt_flags_like_cpp(&mut self) {

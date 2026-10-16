@@ -1,0 +1,7 @@
+crates/wow-world/src/session/player_cast/state.rs	interrupt_non_melee_spell_cast_for_loot_like_cpp	crates/wow-world-application/src/player_cast_session.rs
+crates/wow-world/src/session/player_cast/state.rs	pending_spell_cast_snapshot_like_cpp	crates/wow-world-application/src/player_cast_session.rs
+crates/wow-world/src/session/player_cast/state.rs	with_pending_spell_cast_owner_like_cpp	crates/wow-world-application/src/player_cast_session.rs
+crates/wow-world/src/session/player_cast/state.rs	remaining_global_cooldown_ms_like_cpp	crates/wow-world-application/src/player_cast_session.rs
+crates/wow-world/src/session/player_cast/state.rs	remaining_active_spell_cast_ms_like_cpp	crates/wow-world-application/src/player_cast_session.rs
+crates/wow-world/src/session/player_cast/state.rs	request_represented_spell_cast_like_cpp	crates/wow-world-application/src/player_cast_session.rs
+crates/wow-world/src/session/player_cast/state.rs	tick_pending_spell_cast_request_with_generator_like_cpp	crates/wow-world-application/src/player_cast_session.rs

@@ -43,12 +43,12 @@ impl Runtime for WorldSession {
     }
 
     fn remaining(&self, spell: &wow_data::SpellInfo) -> Option<(u32, u32)> {
-        self.remaining_global_cooldown_ms_like_cpp(spell)
-            .zip(self.remaining_active_spell_cast_ms_like_cpp())
+        wow_world_application::remaining_global_cooldown_ms_like_cpp(self, spell)
+            .zip(wow_world_application::remaining_active_spell_cast_ms_like_cpp(self))
     }
 
     fn replace_pending(&mut self, request: RepresentedPendingSpellCastRequestLikeCpp) {
-        self.request_represented_spell_cast_like_cpp(request);
+        wow_world_application::request_represented_spell_cast_like_cpp(self, request);
     }
 
     fn failure(&mut self, id: ObjectGuid, spell: i32, visual: SpellCastVisualLikeCpp, reason: i32) {

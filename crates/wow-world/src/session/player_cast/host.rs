@@ -12,7 +12,7 @@ impl wow_world_spell::PlayerCastHostLikeCpp for WorldSession {
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
     ) -> impl Future<Output = ()> + Send {
-        WorldSession::tick_pending_spell_cast_request_with_generator_like_cpp(
+        wow_world_application::tick_pending_spell_cast_request_with_generator_like_cpp(
             self,
             item_guid_generator,
             creature_spawn_catalogs,

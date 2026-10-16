@@ -287,7 +287,8 @@ impl WorldSession {
                 catalogs.creature_spawns.as_ref(),
             )
             .await;
-            self.tick_pending_spell_cast_request_with_generator_like_cpp(
+            wow_world_application::tick_pending_spell_cast_request_with_generator_like_cpp(
+                self,
                 catalogs.id_generators.item.as_ref(),
                 catalogs.creature_spawns.as_ref(),
             )

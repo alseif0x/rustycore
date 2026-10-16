@@ -9,6 +9,7 @@ pub use character_account_handlers::{
     CharacterAccountHandlerHostLikeCpp, register_character_account_handlers_like_cpp,
 };
 mod continue_login;
+mod player_cast_session;
 mod player_handlers;
 mod session_lifecycle;
 pub use continue_login::{
@@ -19,6 +20,13 @@ pub use continue_login::{
     load_represented_character_titles_like_cpp,
     loaded_inventory_slot_count_with_legacy_rust_compat,
     login_known_spells_after_account_collections_like_cpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use player_cast_session::pending_spell_cast_snapshot_like_cpp;
+pub use player_cast_session::{
+    interrupt_non_melee_spell_cast_for_loot_like_cpp, remaining_active_spell_cast_ms_like_cpp,
+    remaining_global_cooldown_ms_like_cpp, request_represented_spell_cast_like_cpp,
+    tick_pending_spell_cast_request_with_generator_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use session_lifecycle::{
