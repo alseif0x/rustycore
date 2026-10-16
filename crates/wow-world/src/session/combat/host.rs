@@ -27,7 +27,7 @@ impl wow_world_entities::CombatSessionHostLikeCpp for WorldSession {
         WorldSession::resolved_visible_resting_like_cpp(self)
     }
     fn represented_player_is_polymorphed_like_cpp(&self) -> Option<bool> {
-        WorldSession::represented_player_is_polymorphed_like_cpp(self)
+        wow_world_spell::represented_player_is_polymorphed_like_cpp(self)
     }
     fn is_ffa_pvp_realm_like_cpp(&self) -> bool {
         self.view.is_ffa_pvp_realm_like_cpp

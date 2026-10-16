@@ -92,6 +92,8 @@ mod spell_effect_test_shims;
 #[cfg(test)]
 mod spell_execution_test_shims;
 #[cfg(test)]
+mod spell_state_session_test_shims;
+#[cfg(test)]
 mod spellbook_test_shims;
 #[cfg(test)]
 mod talent_test_shims;

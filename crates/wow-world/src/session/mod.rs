@@ -664,8 +664,6 @@ use wow_social::group::{
     PendingInvites, group_guid_by_db_store_id_like_cpp,
 };
 
-#[cfg(test)]
-const DEFAULT_VISIBILITY_DISTANCE_YARDS_LIKE_CPP: u32 = 100;
 pub(crate) use wow_world_core::session::PLAYER_FLAGS_RESTING_LIKE_CPP;
 pub(crate) use wow_world_core::session::{
     AFLAG_SCALABLE_LIKE_CPP, PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP, PLAYER_FLAGS_GHOST_LIKE_CPP,

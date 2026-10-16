@@ -64,7 +64,7 @@ impl ContinueLoginHostLikeCpp for WorldSession {
         )
     }
     fn apply_login_known_spell_proficiencies_like_cpp(&mut self, known_spells: &[i32]) -> usize {
-        WorldSession::apply_login_known_spell_proficiencies_like_cpp(self, known_spells)
+        wow_world_spell::apply_login_known_spell_proficiencies_like_cpp(self, known_spells)
     }
     fn apply_login_passive_known_spell_auras_like_cpp(&mut self) -> usize {
         WorldSession::apply_login_passive_known_spell_auras_like_cpp(self)

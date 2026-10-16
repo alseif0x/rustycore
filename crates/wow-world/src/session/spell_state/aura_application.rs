@@ -140,7 +140,9 @@ impl WorldSession {
                 if !self.represented_has_item_fit_to_spell_requirements_like_cpp(&equipped) {
                     continue;
                 }
-            } else if !self.represented_login_passive_spell_cast_gate_like_cpp(spell_id) {
+            } else if !wow_world_spell::represented_login_passive_spell_cast_gate_like_cpp(
+                self, spell_id,
+            ) {
                 continue;
             }
 
@@ -187,7 +189,10 @@ impl WorldSession {
                     && crate::session::hub_ref(self)
                         .player_has_visible_aura_spell_like_cpp(previous_spell_i32)
                         == Some(false)
-                    && self.represented_login_passive_spell_cast_gate_like_cpp(previous_spell_i32)
+                    && wow_world_spell::represented_login_passive_spell_cast_gate_like_cpp(
+                        self,
+                        previous_spell_i32,
+                    )
                     && let Some(spell_info) = spell_store.get(previous_spell_i32).cloned()
                 {
                     let effect_mask = unit_owned_apply_aura_effect_mask_like_cpp(&spell_info);

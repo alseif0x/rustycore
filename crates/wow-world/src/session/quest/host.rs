@@ -76,6 +76,6 @@ impl QuestSessionHostLikeCpp for WorldSession {
         WorldSession::player_condition_projection_cx_like_cpp(self)
     }
     fn player_target_spell_is_hit_inert_like_cpp(&self, spell_id: u32, difficulty_id: u8) -> bool {
-        WorldSession::player_target_spell_is_hit_inert_like_cpp(self, spell_id, difficulty_id)
+        wow_world_spell::player_target_spell_is_hit_inert_like_cpp(self, spell_id, difficulty_id)
     }
 }

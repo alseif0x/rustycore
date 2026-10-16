@@ -27,6 +27,7 @@ mod reputation_gain;
 mod requests;
 mod social_contacts_handlers;
 mod social_host;
+mod spell_effects;
 mod state;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod test_support;
@@ -100,6 +101,7 @@ pub use social_contacts_handlers::{
     register_social_contacts_handlers_like_cpp,
 };
 pub use social_host::SocialSessionHostLikeCpp;
+pub use spell_effects::{apply_force_deselect_effect_like_cpp, apply_reputation_effect_like_cpp};
 pub use state::SessionSocialLimits;
 pub use text_emote::{
     ANIM_MOUNT_SPECIAL_LIKE_CPP, EMOTE_STATE_DANCE_LIKE_CPP, EMOTE_STATE_SIT_LIKE_CPP,
