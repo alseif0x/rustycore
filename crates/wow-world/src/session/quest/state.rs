@@ -6,32 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn player_quest_gameplay_snapshot_like_cpp(
-        &self,
-    ) -> Option<PlayerQuestGameplayState> {
-        let (state, hub) = crate::session::split_quest_state_ref(self);
-        wow_world_quest::player_quest_gameplay_snapshot_like_cpp(hub, state)
-    }
-
-    /// The retained projection.
-    ///
-    /// #756 moved the quest state and its invariants to the canonical Player
-    /// and replaced every single-transition caller with the named operations
-    /// above. What remains are the catalog-driven walks over the whole quest
-    /// log — objective progress and quest-slot compaction — which C++ performs
-    /// in `Player::AdjustQuestObjectiveProgress` (`Player.cpp:15874`) and
-    /// `SetQuestObjectiveData` (`:16426`) while holding the Player. Their rules
-    /// need quest templates and objectives, which may not enter `wow-entities`,
-    /// so they keep this borrow rather than gaining a differently named generic
-    /// closure. **Exit condition:** they retire with the objective-progress
-    /// operation contract of #41, which owns that complete operation.
-    pub(crate) fn mutate_player_quest_gameplay_like_cpp<R>(
-        &mut self,
-        mutate: impl FnOnce(&mut PlayerQuestGameplayState) -> R,
-    ) -> Option<R> {
-        let (state, hub) = crate::session::split_quest_state_mut(self);
-        wow_world_quest::mutate_player_quest_gameplay_like_cpp(hub, state, mutate)
-    }
     /// Set the quest store shared reference.
     pub fn set_quest_store(&mut self, store: Arc<wow_data::quest::QuestStore>) {
         self.core

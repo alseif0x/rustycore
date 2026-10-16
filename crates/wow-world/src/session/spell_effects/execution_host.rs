@@ -10,7 +10,8 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
         &mut self,
         f: impl FnOnce(&mut wow_entities::CastExecutionStateLikeCpp) -> R,
     ) -> Option<R> {
-        WorldSession::mutate_cast_execution_like_cpp(self, f)
+        let (state, mut hub) = crate::session::split_spell_state_mut(self);
+        wow_world_application::mutate_cast_execution_like_cpp(&mut hub, state, f)
     }
     fn has_represented_battle_pet_journal_lock_like_cpp(&self) -> bool {
         WorldSession::has_represented_battle_pet_journal_lock_like_cpp(self)

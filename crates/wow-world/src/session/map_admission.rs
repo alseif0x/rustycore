@@ -119,7 +119,9 @@ impl WorldSession {
                 missing_item = access_requirement.item2;
             }
 
-            let quests = self.player_quest_gameplay_snapshot_like_cpp()?;
+            let (quest_state, hub) = crate::session::split_quest_state_ref(self);
+            let quests =
+                wow_world_quest::player_quest_gameplay_snapshot_like_cpp(hub, quest_state)?;
             match player_team_for_race_cpp(crate::session::hub_ref(self).player_race_like_cpp()) {
                 Team::Alliance
                     if access_requirement.quest_done_a != 0

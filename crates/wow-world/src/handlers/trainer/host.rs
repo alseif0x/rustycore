@@ -129,7 +129,7 @@ impl TrainerBuySpellHostLikeCpp for WorldSession {
     }
 
     fn resolved_player_money_like_cpp(&self) -> Option<u64> {
-        WorldSession::resolved_player_money_like_cpp(self)
+        wow_world_inventory::BattlePetPurchaseHostLikeCpp::resolved_player_money_like_cpp(self)
     }
 
     fn drain_represented_quest_objective_progress_with_generator_like_cpp<'a>(

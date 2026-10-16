@@ -241,6 +241,18 @@ pub fn player_quest_gameplay_snapshot_like_cpp(
 }
 
 /// Canonical Player quest mutation with the same represented fixture fallback.
+///
+/// The retained projection. #756 moved the quest state and its invariants to
+/// the canonical Player and replaced every single-transition caller with named
+/// Player operations. What remains are the catalog-driven walks over the whole
+/// quest log — objective progress and quest-slot compaction — which C++
+/// performs in `Player::AdjustQuestObjectiveProgress` (`Player.cpp:15874`) and
+/// `SetQuestObjectiveData` (`:16426`) while holding the Player. Their rules need
+/// quest templates and objectives, which may not enter `wow-entities`, so they
+/// keep this borrow rather than gaining a differently named generic closure.
+/// **Exit condition:** they retire with the objective-progress operation
+/// contract of #41, which owns that complete operation. (Moved here with the
+/// World session's split forward in #1363 slice 12c.)
 pub fn mutate_player_quest_gameplay_like_cpp<R>(
     hub: wow_world_core::session::HubMut<'_>,
     quest_state: &mut SessionQuestState,

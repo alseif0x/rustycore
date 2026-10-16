@@ -18,7 +18,8 @@ use crate::session::{ExclusivePlayerMoneyPersistenceLikeCpp, WorldSession};
 
 impl BattlePetPurchaseHostLikeCpp for WorldSession {
     fn resolved_player_money_like_cpp(&self) -> Option<u64> {
-        WorldSession::resolved_player_money_like_cpp(self)
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.resolved_player_money_like_cpp(hub)
     }
     fn stage_player_money_change_like_cpp(&mut self, old_money: u64, new_money: u64) -> bool {
         wow_world_inventory::stage_player_money_change_like_cpp(self, old_money, new_money)

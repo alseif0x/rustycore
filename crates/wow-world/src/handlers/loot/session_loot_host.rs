@@ -113,7 +113,7 @@ impl LootSessionHostLikeCpp for WorldSession {
     fn player_quest_gameplay_snapshot_like_cpp(
         &self,
     ) -> Option<wow_entities::PlayerQuestGameplayState> {
-        self.player_quest_gameplay_snapshot_like_cpp()
+        wow_world_quest::QuestSessionHostLikeCpp::player_quest_gameplay_snapshot_like_cpp(self)
     }
     fn player_registry(&self) -> Option<&Arc<PlayerRegistry>> {
         self.player_registry()
@@ -289,7 +289,7 @@ impl LootSessionHostLikeCpp for WorldSession {
         self.resolved_pass_on_group_loot_like_cpp()
     }
     fn resolved_player_money_like_cpp(&self) -> Option<u64> {
-        self.resolved_player_money_like_cpp()
+        wow_world_inventory::BattlePetPurchaseHostLikeCpp::resolved_player_money_like_cpp(self)
     }
     fn save_changed_represented_quest_statuses_like_cpp(
         &self,

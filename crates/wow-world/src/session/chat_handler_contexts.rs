@@ -71,7 +71,7 @@ impl SocialSessionHostLikeCpp for WorldSession {
     }
 
     fn player_quest_gameplay_snapshot_like_cpp(&self) -> Option<PlayerQuestGameplayState> {
-        WorldSession::player_quest_gameplay_snapshot_like_cpp(self)
+        wow_world_quest::QuestSessionHostLikeCpp::player_quest_gameplay_snapshot_like_cpp(self)
     }
 
     fn quest_money_reward_like_cpp(&self, quest: &wow_data::quest::QuestTemplate) -> u32 {

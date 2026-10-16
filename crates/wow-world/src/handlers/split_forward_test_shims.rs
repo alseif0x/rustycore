@@ -99,4 +99,38 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.remove_inventory_item_like_cpp(&mut hub, slot)
     }
+    // Cast state (split forwards retired from `session/player_cast/state.rs`).
+    pub(crate) fn mutate_cast_execution_like_cpp<R>(
+        &mut self,
+        f: impl FnOnce(&mut wow_entities::CastExecutionStateLikeCpp) -> R,
+    ) -> Option<R> {
+        let (state, mut hub) = crate::session::split_spell_state_mut(self);
+        wow_world_application::mutate_cast_execution_like_cpp(&mut hub, state, f)
+    }
+    pub(crate) fn spell_last_cast_time_like_cpp(
+        &self,
+        spell_id: i32,
+    ) -> Option<Option<std::time::Instant>> {
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.spell_last_cast_time_like_cpp(hub, spell_id)
+    }
+    // Money (split forward retired from `session/money/operations.rs`).
+    pub(crate) fn resolved_player_money_like_cpp(&self) -> Option<u64> {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.resolved_player_money_like_cpp(hub)
+    }
+    // Quest state (the split seam retired from `session/quest/state.rs`).
+    pub(crate) fn player_quest_gameplay_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerQuestGameplayState> {
+        let (state, hub) = crate::session::split_quest_state_ref(self);
+        wow_world_quest::player_quest_gameplay_snapshot_like_cpp(hub, state)
+    }
+    pub(crate) fn mutate_player_quest_gameplay_like_cpp<R>(
+        &mut self,
+        mutate: impl FnOnce(&mut wow_entities::PlayerQuestGameplayState) -> R,
+    ) -> Option<R> {
+        let (state, hub) = crate::session::split_quest_state_mut(self);
+        wow_world_quest::mutate_player_quest_gameplay_like_cpp(hub, state, mutate)
+    }
 }

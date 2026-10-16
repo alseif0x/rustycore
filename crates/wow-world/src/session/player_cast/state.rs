@@ -3,19 +3,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn mutate_cast_execution_like_cpp<R>(
-        &mut self,
-        f: impl FnOnce(&mut wow_entities::CastExecutionStateLikeCpp) -> R,
-    ) -> Option<R> {
-        let (state, mut hub) = crate::session::split_spell_state_mut(self);
-        wow_world_application::mutate_cast_execution_like_cpp(&mut hub, state, f)
-    }
-
-    pub(crate) fn spell_last_cast_time_like_cpp(&self, spell_id: i32) -> Option<Option<Instant>> {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.spell_last_cast_time_like_cpp(hub, spell_id)
-    }
-
     /// The driver's entry to the pending-request tick, moved to
     /// `wow_world_application` (#1363 slice 12b7).
     pub(crate) async fn tick_pending_spell_cast_request_with_generator_like_cpp(
