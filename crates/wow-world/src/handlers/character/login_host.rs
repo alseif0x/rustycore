@@ -230,7 +230,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         WorldSession::mark_represented_talents_loaded_like_cpp(self)
     }
     fn next_represented_spell_cast_guid_like_cpp(&self, spell_id: i32) -> Option<ObjectGuid> {
-        WorldSession::next_represented_spell_cast_guid_like_cpp(self, spell_id)
+        wow_world_spell::next_represented_spell_cast_guid_like_cpp(self, spell_id)
     }
     fn notify_other_players_visibility_changed_like_cpp(&self) {
         wow_world_spell::notify_other_players_visibility_changed_like_cpp(self)

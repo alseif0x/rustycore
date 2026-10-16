@@ -25,10 +25,12 @@ use crate::SpellExecutionHostLikeCpp;
 
 mod driver;
 mod handlers;
+mod identity;
 mod publication;
 
 pub use driver::*;
 pub use handlers::*;
+pub use identity::*;
 pub use publication::*;
 
 /// The World session as the player cast's host (supertraits: the spell

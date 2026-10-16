@@ -20,7 +20,7 @@ impl wow_world_spell::AuraHostLikeCpp for WorldSession {
         WorldSession::represented_mount_x_display_usable_like_cpp(self, player_condition_id)
     }
     fn next_represented_spell_cast_guid_like_cpp(&self, spell_id: i32) -> Option<ObjectGuid> {
-        WorldSession::next_represented_spell_cast_guid_like_cpp(self, spell_id)
+        wow_world_spell::next_represented_spell_cast_guid_like_cpp(self, spell_id)
     }
     fn tick_represented_creature_auras_like_cpp(&mut self) {
         wow_world_entities::tick_represented_creature_auras_like_cpp(self)

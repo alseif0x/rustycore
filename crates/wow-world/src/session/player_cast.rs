@@ -6,7 +6,6 @@ use wire::PlayerCastPublicationPhaseLikeCpp;
 use wow_entities::{SpellCastState, SpellCastVisualLikeCpp};
 use wow_packet::packets::spell::{CastFailed, SpellPreparePkt, SpellStartPkt};
 mod host;
-mod identity;
 mod state;
 pub(in crate::session) mod wire;
 
@@ -63,7 +62,7 @@ impl Runtime for WorldSession {
     }
 
     fn allocate(&self, spell: i32) -> Option<(ObjectGuid, Option<u64>)> {
-        self.allocate_player_cast_identity_like_cpp(spell)
+        wow_world_spell::allocate_player_cast_identity_like_cpp(self, spell)
     }
 
     fn visual(&self, spell: &wow_data::SpellInfo) -> Option<SpellCastVisualLikeCpp> {

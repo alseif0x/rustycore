@@ -104,9 +104,10 @@ pub use player_cast::PlayerCastPublicationPhaseLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use player_cast_session::take_ready_player_cast_like_cpp;
 pub use player_cast_session::{
-    PlayerCastHostLikeCpp, handle_cast_spell_with_catalogs_like_cpp,
-    handle_player_cast_publication_like_cpp, handle_self_res_with_generator_like_cpp,
-    handle_spell_click_with_generator_like_cpp, is_spell_disabled_for_player_like_cpp,
+    PlayerCastHostLikeCpp, allocate_player_cast_identity_like_cpp,
+    handle_cast_spell_with_catalogs_like_cpp, handle_player_cast_publication_like_cpp,
+    handle_self_res_with_generator_like_cpp, handle_spell_click_with_generator_like_cpp,
+    is_spell_disabled_for_player_like_cpp, next_represented_spell_cast_guid_like_cpp,
     tick_active_spell_cast_with_generator_like_cpp,
 };
 pub use profession::{

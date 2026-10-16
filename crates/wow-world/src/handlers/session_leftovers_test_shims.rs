@@ -160,4 +160,13 @@ impl WorldSession {
             coinage,
         )
     }
+    pub(crate) fn next_represented_spell_cast_guid_like_cpp(
+        &self,
+        spell_id: i32,
+    ) -> Option<wow_core::ObjectGuid> {
+        wow_world_spell::next_represented_spell_cast_guid_like_cpp(self, spell_id)
+    }
+    pub(crate) fn realm_id(&self) -> u16 {
+        self.core.realm_id()
+    }
 }

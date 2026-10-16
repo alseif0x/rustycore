@@ -65,6 +65,7 @@ pub(crate) use wow_world_quest::{
     RepresentedQuestCompleteStatusUpdateLikeCpp, RepresentedQuestConfirmAcceptLikeCpp,
     RepresentedQuestPushResultResponseLikeCpp,
 };
+pub(crate) use wow_world_spell::spell_cast_adapter::represented_spell_cast_guid_for_map_like_cpp;
 pub(crate) use wow_world_spell::{
     AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP, RepresentedPlayerSpellLikeCpp,
     RepresentedSpellFocusObjectLikeCpp, SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP,

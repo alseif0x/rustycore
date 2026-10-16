@@ -88,10 +88,6 @@ impl WorldSession {
         self.core.account_state.is_a_recruiter_like_cpp = is_a_recruiter;
     }
 
-    pub(crate) fn realm_id(&self) -> u16 {
-        self.core.realm_id()
-    }
-
     /// Set the session manager for ConnectTo flow.
     pub fn set_session_mgr(&mut self, mgr: Arc<SessionManager>) {
         self.core.transport.session_mgr = Some(mgr);

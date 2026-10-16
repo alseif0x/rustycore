@@ -403,7 +403,6 @@ pub(crate) use spell_click_values::RepresentedVehicleEnterRequestLikeCpp;
 pub(crate) use spell_click_values::RepresentedVehicleSeatChangeRequestLikeCpp;
 #[cfg(test)]
 pub(crate) use spell_click_values::RepresentedVehicleSeatSpellClickRequestLikeCpp;
-use wow_world_spell::spell_cast_adapter::represented_spell_cast_guid_for_map_like_cpp;
 mod spell_pet_catalogs;
 mod stand_state_adapter;
 #[cfg(test)]
