@@ -129,7 +129,7 @@ pub(super) fn maybe_leave_represented_battleground_on_far_teleport_like_cpp<
         .and_then(|state| state.battleground_map_id_like_cpp())
         .is_some_and(|bg_map_id| bg_map_id != new_map)
     {
-        host.request_represented_battleground_leave_like_cpp();
+        request_represented_battleground_leave_like_cpp(host);
     }
 }
 pub(super) fn clear_active_player_transport_server_time_override_for_far_teleport_like_cpp<
@@ -144,4 +144,18 @@ pub(super) fn clear_active_player_transport_server_time_override_for_far_telepor
             state.active_transport_server_time = 0;
         });
     host.sync_current_player_session_visibility_detection_like_cpp();
+}
+
+// Moved from the World `session/quest/state.rs` (#1363 slice 12c).
+#[cfg_attr(not(any(test, feature = "test-fixtures")), allow(unused_variables))]
+fn request_represented_battleground_leave_like_cpp<H: PlayerTeleportHostLikeCpp>(host: &mut H) {
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if let Some(fixtures) = host.test_fixtures_like_cpp() {
+        fixtures
+            .battleground
+            .represented_battleground_leave_requests_like_cpp = fixtures
+            .battleground
+            .represented_battleground_leave_requests_like_cpp
+            .saturating_add(1);
+    }
 }

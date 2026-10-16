@@ -45,18 +45,6 @@ impl WorldSession {
         self.inventory
             .represented_auction_replicate_requests_like_cpp()
     }
-    pub(crate) fn request_represented_battleground_leave_like_cpp(&mut self) {
-        #[cfg(test)]
-        {
-            self.fixtures
-                .battleground
-                .represented_battleground_leave_requests_like_cpp = self
-                .fixtures
-                .battleground
-                .represented_battleground_leave_requests_like_cpp
-                .saturating_add(1);
-        }
-    }
     #[cfg(test)]
     pub(crate) fn represented_resurrection_request_like_cpp(
         &self,

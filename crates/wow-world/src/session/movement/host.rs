@@ -108,10 +108,6 @@ impl wow_world_entities::PlayerTeleportHostLikeCpp for WorldSession {
         wow_world_spell::remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp(self)
     }
 
-    fn request_represented_battleground_leave_like_cpp(&mut self) {
-        WorldSession::request_represented_battleground_leave_like_cpp(self)
-    }
-
     fn sync_current_player_session_visibility_detection_like_cpp(&mut self) {
         wow_world_entities::sync_current_player_session_visibility_detection_like_cpp(self)
     }

@@ -59,7 +59,6 @@ pub trait PlayerTeleportHostLikeCpp: CombatSessionHostLikeCpp {
     fn interrupt_non_melee_spells_for_far_teleport_like_cpp(&mut self) -> bool;
     /// `wow_world_spell::remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp`.
     fn remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp(&mut self) -> usize;
-    fn request_represented_battleground_leave_like_cpp(&mut self);
     fn sync_current_player_session_visibility_detection_like_cpp(&mut self);
     fn pending_teleport_like_cpp(&self) -> Option<(u32, Position)>;
     fn set_pending_teleport_like_cpp(&mut self, destination: Option<(u32, Position)>) -> bool;
