@@ -1,0 +1,46 @@
+{
+ "slice": "#1363 slice 12b3 (the reputation and force-deselect effects -> wow-world-social over SocialSessionHostLikeCpp)",
+ "base": "85f5703dd",
+ "moved": [
+  "apply_reputation_effect_like_cpp",
+  "apply_force_deselect_effect_like_cpp"
+ ],
+ "rules": [
+  [
+   "pub\\(in crate::session\\) fn apply_reputation_effect_like_cpp\\(\\s*&mut self,",
+   "pub fn apply_reputation_effect_like_cpp<H: SocialSessionHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "pub\\(in crate::session\\) fn apply_force_deselect_effect_like_cpp\\(&mut self\\)",
+   "pub fn apply_force_deselect_effect_like_cpp<H: SocialSessionHostLikeCpp>(host: &mut H)"
+  ],
+  [
+   "wow_world_social::calculate_reputation_gain_like_cpp\\(\\s*self,",
+   "calculate_reputation_gain_like_cpp(host,"
+  ],
+  [
+   "\\bself\\s*\\.\\s*currency_types_store\\(\\)",
+   "host.hub_ref().catalogs.currency_types_store()"
+  ],
+  [
+   "\\bself\\s*\\.\\s*catalogs\\s*\\.",
+   "host.hub_ref().catalogs."
+  ],
+  [
+   "\\bself\\s*\\.\\s*config\\s*\\.",
+   "host.hub_ref().config."
+  ],
+  [
+   "crate::session::hub_ref\\(self\\)",
+   "host.hub_ref()"
+  ],
+  [
+   "crate::session::hub_mut\\(self\\)",
+   "host.hub_mut()"
+  ],
+  [
+   "\\bself\\s*\\.\\s*",
+   "host."
+  ]
+ ]
+}

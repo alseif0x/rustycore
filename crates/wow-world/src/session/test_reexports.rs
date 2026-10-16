@@ -23,7 +23,6 @@ pub(crate) use wow_data::{SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP, SpellAreaLikeCpp};
 pub(crate) use wow_entities::MAX_POWERS_PER_CLASS;
 pub(crate) use wow_packet::packets::spell::SpellTargetData;
 pub(crate) use wow_world_application::PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP;
-pub(crate) use wow_world_core::session::RepresentedGetReactionInputLikeCpp;
 pub(crate) use wow_world_core::session::battle_pet_adapter::{
     RepresentedBattlePetCageItemLikeCpp, RepresentedBattlePetCalculatedStatsLikeCpp,
     RepresentedBattlePetLevelCriteriaLikeCpp, RepresentedBattlePetQueryCompanionLikeCpp,
@@ -31,6 +30,9 @@ pub(crate) use wow_world_core::session::battle_pet_adapter::{
 };
 pub(crate) use wow_world_core::session::movement_protocol::{
     MoveTeleportAckActionLikeCpp, TELE_TO_SEAMLESS_LIKE_CPP,
+};
+pub(crate) use wow_world_core::session::{
+    RepresentedGetReactionInputLikeCpp, ReputationGainSourceLikeCpp,
 };
 pub(crate) use wow_world_entities::SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP;
 pub(crate) use wow_world_entities::spell_click_values::{
@@ -63,6 +65,6 @@ pub(crate) use wow_world_quest::{
     RepresentedQuestPushResultResponseLikeCpp,
 };
 pub(crate) use wow_world_spell::{
-    AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP, RepresentedSpellFocusObjectLikeCpp,
-    SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP,
+    AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP, RepresentedPlayerSpellLikeCpp,
+    RepresentedSpellFocusObjectLikeCpp, SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP,
 };

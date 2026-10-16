@@ -1,0 +1,2 @@
+crates/wow-world/src/session/spell_effects/effects_progress.rs	apply_reputation_effect_like_cpp	crates/wow-world-social/src/spell_effects.rs
+crates/wow-world/src/session/spell_effects/effects.rs	apply_force_deselect_effect_like_cpp	crates/wow-world-social/src/spell_effects.rs

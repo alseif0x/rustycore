@@ -215,7 +215,6 @@ pub(crate) use duel_contracts::{
 };
 mod faction_reactions;
 pub(crate) use faction_reactions::RepresentedFactionReactionInputLikeCpp;
-pub(crate) use faction_reactions::ReputationGainSourceLikeCpp;
 mod gameobject_interaction;
 pub(crate) use gameobject_interaction::RepresentedGameObjectUseEffect;
 pub(crate) use gameobject_interaction::RepresentedGameObjectUseState;
@@ -355,8 +354,7 @@ pub(crate) use player_spell_records::is_non_durable_skill_tombstone_like_cpp;
 use wow_world_spell::canonical_player_spell_runtime_like_cpp;
 use wow_world_spell::represented_player_spell_runtime_like_cpp;
 pub(crate) use wow_world_spell::{
-    RepresentedPlayerSpellLikeCpp, RepresentedPlayerSpellRuntimeLikeCpp,
-    RepresentedPlayerSpellStateLikeCpp,
+    RepresentedPlayerSpellRuntimeLikeCpp, RepresentedPlayerSpellStateLikeCpp,
 };
 mod player_vitals_adapter;
 mod progression_adapters;
@@ -466,10 +464,7 @@ use crate::session::directory::{
 };
 #[cfg(test)]
 use crate::session::mailbox::GameEventQuestCompleteClientOutcomeLikeCpp;
-use crate::session::mailbox::{
-    CreatureAttackStartLikeCppCommand, GameEventQuestCompleteCommandLikeCpp,
-    SendIfVisibleLikeCppCommand, SessionCommand,
-};
+use crate::session::mailbox::{GameEventQuestCompleteCommandLikeCpp, SessionCommand};
 use crate::session_policy::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
     LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, PlayerRegenerationRatesLikeCpp,

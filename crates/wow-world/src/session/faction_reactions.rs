@@ -4,9 +4,7 @@
 //! Faction reactions: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-pub(crate) use wow_world_core::session::{
-    RepresentedFactionReactionInputLikeCpp, ReputationGainSourceLikeCpp,
-};
+pub(crate) use wow_world_core::session::RepresentedFactionReactionInputLikeCpp;
 
 #[cfg(test)]
 #[path = "../../unit_tests/session/faction_reactions/f3_shims.rs"]
