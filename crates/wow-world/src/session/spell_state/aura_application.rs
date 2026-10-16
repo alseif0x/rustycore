@@ -81,24 +81,6 @@ impl WorldSession {
             effect_mask,
         )
     }
-    pub(in crate::session) fn apply_aura_with_effect_mask_without_update_like_cpp(
-        &mut self,
-        spell_id: i32,
-        caster_guid: ObjectGuid,
-        duration_ms: u32,
-        aura_flags: u32,
-        effect_mask: u32,
-    ) -> Result<(), &'static str> {
-        self.apply_aura_with_effect_mask_provenance_and_update_like_cpp(
-            spell_id,
-            caster_guid,
-            duration_ms,
-            aura_flags,
-            effect_mask,
-            wow_entities::AuraCastProvenanceLikeCpp::default(),
-            false,
-        )
-    }
     fn apply_aura_with_effect_mask_provenance_and_update_like_cpp(
         &mut self,
         spell_id: i32,

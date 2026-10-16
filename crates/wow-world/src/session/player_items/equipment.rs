@@ -6,13 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::session) fn apply_initial_item_equip_auras_like_cpp(
-        &mut self,
-        item_guid: ObjectGuid,
-    ) -> usize {
-        self.player_aura_application_cx_like_cpp()
-            .apply_initial_item_equip_auras_like_cpp(item_guid)
-    }
     pub(crate) fn record_represented_avg_equipped_item_level_update_like_cpp(&mut self) {
         #[cfg(test)]
         {

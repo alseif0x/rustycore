@@ -40,7 +40,7 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
         range: f32,
         implicit_conditions: Option<&[wow_data::Condition]>,
     ) -> Option<Position> {
-        WorldSession::represented_nearby_entry_destination_like_cpp(
+        wow_world_spell::represented_nearby_entry_destination_like_cpp(
             self,
             effect,
             caster_position,

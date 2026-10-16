@@ -79,6 +79,7 @@ pub use execution_session::{
     execute_spell_with_visual_and_target_data_and_generator_like_cpp,
     execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp,
     player_cast_publication_like_cpp, publish_player_cast_frame_like_cpp,
+    represented_nearby_entry_destination_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use execution_session::{

@@ -618,6 +618,14 @@
           "source_class": "test_fixture"
         },
         {
+          "module": "crate::handlers::item_mods_session_test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::item_test_shims",
           "trait_path": null,
           "cfg": [
@@ -1522,6 +1530,18 @@
         {
           "module": "crate::session",
           "trait_path": "WorldportHostLikeCpp",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_application :: CreatureDamageHostLikeCpp",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_application :: LoadedItemModsHostLikeCpp",
           "cfg": [],
           "source_class": "production"
         },
@@ -10257,6 +10277,134 @@
           "name": "send_pending_raid_lock_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn send_pending_raid_lock_like_cpp (& mut self , instance_id : u32 , completed_mask : u32 , extending : bool , warning_only : bool ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::item_mods_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_aura_with_effect_mask_without_update_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_aura_with_effect_mask_without_update_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid , duration_ms : u32 , aura_flags : u32 , effect_mask : u32 ,) -> Result < () , & 'static str >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::item_mods_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_enchantment_effect_refs",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_enchantment_effect_refs (& self , enchantment_id : u32 ,) -> Option < [ApplyEnchantmentEffectRef ; 3] >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::item_mods_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_enchantment_random_suffix_ref",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_enchantment_random_suffix_ref (& self , random_properties_id : i32 ,) -> Option < ApplyEnchantmentRandomSuffixRef >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::item_mods_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_initial_item_equip_auras_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_initial_item_equip_auras_like_cpp (& mut self , item_guid : ObjectGuid ,) -> usize",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::item_mods_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_initial_loaded_item_mods_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_initial_loaded_item_mods_like_cpp (& mut self , loaded_equipped_item_guids : & [ObjectGuid] ,) -> InitialLoadedItemModsOutcomeLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::item_mods_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_loaded_equipped_item_enchantments_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_loaded_equipped_item_enchantments_like_cpp (& mut self , item_guid : ObjectGuid ,) -> LoadedEquippedItemEnchantmentsOutcomeLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::item_mods_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_represented_item_bonus_action_state_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_represented_item_bonus_action_state_like_cpp (& mut self , action : ApplyEnchantmentEffectAction ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::item_mods_session_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_nearby_entry_destination_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_nearby_entry_destination_like_cpp (& self , effect : & wow_data :: SpellEffectInfo , caster_position : & Position , range : f32 , implicit_conditions : Option < & [wow_data :: Condition] > ,) -> Option < Position >",
           "cfg": [
             "cfg (test)"
           ],
@@ -22172,19 +22320,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_aura_with_effect_mask_without_update_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn apply_aura_with_effect_mask_without_update_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid , duration_ms : u32 , aura_flags : u32 , effect_mask : u32 ,) -> Result < () , & 'static str >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "apply_chat_away_mode_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn apply_chat_away_mode_like_cpp (& mut self , mode : PlayerAwayModeLikeCpp , text : String ,) -> bool",
@@ -22241,19 +22376,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_damage_from_caster_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "async fn apply_damage_from_caster_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , spell_id : Option < i32 > , caster_guid : ObjectGuid , target_guid : ObjectGuid , damage_amount : u32 , cast_id : ObjectGuid , spell_visual_id : u32 ,) -> Result < () , & 'static str >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "apply_deferred_player_visibility_refresh_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn apply_deferred_player_visibility_refresh_like_cpp (& mut self , catalogs : & CreatureSpawnCatalogsLikeCpp , intent : PlayerVisibilityRefreshIntentLikeCpp ,)",
@@ -22270,32 +22392,6 @@
           "name": "apply_duel_effect_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn apply_duel_effect_like_cpp (& mut self , spell_id : i32 , gameobject_entry : i32 , target_guid : ObjectGuid ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_enchantment_effect_refs",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_enchantment_effect_refs (& self , enchantment_id : u32 ,) -> Option < [ApplyEnchantmentEffectRef ; 3] >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_enchantment_random_suffix_ref",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_enchantment_random_suffix_ref (& self , random_properties_id : i32 ,) -> Option < ApplyEnchantmentRandomSuffixRef >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -22377,45 +22473,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_initial_item_equip_auras_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn apply_initial_item_equip_auras_like_cpp (& mut self , item_guid : ObjectGuid ,) -> usize",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_initial_item_set_auras_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn apply_initial_item_set_auras_like_cpp (& mut self , item_guid : ObjectGuid ,) -> usize",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_initial_loaded_item_mods_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_initial_loaded_item_mods_like_cpp (& mut self , loaded_equipped_item_guids : & [ObjectGuid] ,) -> InitialLoadedItemModsOutcomeLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "apply_inventory_item_object_updates_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn apply_inventory_item_object_updates_like_cpp (& mut self , item_guid : ObjectGuid , updates : & [ItemObjectUpdateLikeCpp] ,) -> bool",
@@ -22432,43 +22489,6 @@
           "name": "apply_learn_spell_effect_like_cpp",
           "visibility": "pub (super)",
           "signature": "async fn apply_learn_spell_effect_like_cpp (& mut self , spell : i32 , target : ObjectGuid ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_loaded_enchantment_spell_action_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn apply_loaded_enchantment_spell_action_like_cpp (& mut self , action : ApplyEnchantmentEffectAction ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_loaded_equipped_item_enchantment_effects_like_cpp",
-          "visibility": "private",
-          "signature": "fn apply_loaded_equipped_item_enchantment_effects_like_cpp (& mut self , item_guid : ObjectGuid , slot : EnchantmentSlot , enchantment_id : i32 , apply : bool ,) -> (bool , Vec < RepresentedItemBonusActionLikeCpp > , Vec < RepresentedItemBonusActionLikeCpp > ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_loaded_equipped_item_enchantments_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_loaded_equipped_item_enchantments_like_cpp (& mut self , item_guid : ObjectGuid ,) -> LoadedEquippedItemEnchantmentsOutcomeLikeCpp",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -22624,19 +22644,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_represented_item_bonus_action_state_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn apply_represented_item_bonus_action_state_like_cpp (& mut self , action : ApplyEnchantmentEffectAction ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -25155,19 +25162,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "initial_loaded_item_mods_can_apply_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn initial_loaded_item_mods_can_apply_like_cpp (& self , item_guid : ObjectGuid ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "initial_player_box_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn initial_player_box_like_cpp (& self , key : wow_map :: MapKey ,) -> Option < Box < Player > >",
@@ -26209,19 +26203,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "loaded_inventory_item_visible_update_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn loaded_inventory_item_visible_update_like_cpp (& self , item_guid : ObjectGuid ,) -> Option < (u8 , i32 , u16 , u16) >",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -31027,32 +31008,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_nearby_candidate_meets_implicit_conditions_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn represented_nearby_candidate_meets_implicit_conditions_like_cpp (& self , candidate : & WorldObject , candidate_unit_snapshot : Option < wow_conditions :: ConditionUnitSnapshot > , implicit_conditions : Option < & [wow_data :: Condition] > , caster_object : Option < & WorldObject > , player_unit_snapshot : wow_conditions :: ConditionUnitSnapshot , player_snapshot : wow_conditions :: ConditionPlayerSnapshot , player_condition_store : Option < & wow_data :: PlayerConditionStore > , player_condition_context : Option < & RepresentedPlayerConditionContextLikeCpp > , area_table_store : Option < & wow_data :: AreaTableStore > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_nearby_entry_destination_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn represented_nearby_entry_destination_like_cpp (& self , effect : & wow_data :: SpellEffectInfo , caster_position : & Position , range : f32 , implicit_conditions : Option < & [wow_data :: Condition] > ,) -> Option < Position >",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -42347,6 +42302,32 @@
           "name": "resume_deferred_player_save_with_generator_like_cpp",
           "visibility": "private",
           "signature": "fn resume_deferred_player_save_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator ,) -> impl Future < Output = Option < PlayerSaveOutcomeLikeCpp > > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_application :: CreatureDamageHostLikeCpp",
+          "kind": "method",
+          "name": "current_group_member_guids_for_tap_like_cpp",
+          "visibility": "private",
+          "signature": "fn current_group_member_guids_for_tap_like_cpp (& self , player_guid : ObjectGuid ,) -> Vec < ObjectGuid >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_application :: LoadedItemModsHostLikeCpp",
+          "kind": "method",
+          "name": "apply_current_player_item_enchantment_plan_like_cpp",
+          "visibility": "private",
+          "signature": "fn apply_current_player_item_enchantment_plan_like_cpp (& mut self , item_guid : ObjectGuid , slot : EnchantmentSlot , args : ApplyEnchantmentArgs ,) -> Option < ApplyEnchantmentPlan >",
           "cfg": [],
           "source_class": "production",
           "guards": [

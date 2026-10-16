@@ -77,7 +77,8 @@ pub trait SpellEffectHostLikeCpp: SpellClickHostLikeCpp {
         creature_guid: ObjectGuid,
     ) -> impl Future<Output = ()> + Send;
     /// The World spell damage to a creature with its kill cascade (loot, XP,
-    /// reputation and quest credit), which stays on the session.
+    /// reputation and quest credit); the World implements it with
+    /// `wow_world_application::apply_damage_from_caster_like_cpp` (#1363 slice 12b2b).
     fn apply_damage_from_caster_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,

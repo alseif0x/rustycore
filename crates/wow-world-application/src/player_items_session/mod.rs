@@ -17,6 +17,7 @@
 
 mod builders;
 mod committed;
+mod loaded_item_mods;
 mod planning;
 
 pub use builders::{
@@ -27,6 +28,11 @@ pub use builders::{
 pub use committed::{
     apply_committed_inventory_item_relocation_like_cpp,
     apply_committed_inventory_item_removal_like_cpp, apply_committed_inventory_item_swap_like_cpp,
+};
+pub use loaded_item_mods::{
+    LoadedItemModsHostLikeCpp, apply_initial_loaded_item_mods_like_cpp,
+    apply_loaded_equipped_item_enchantments_like_cpp,
+    apply_represented_item_bonus_action_state_like_cpp,
 };
 pub use planning::{
     plan_bank_existing_inventory_item_at_like_cpp, plan_equip_existing_inventory_item_like_cpp,
