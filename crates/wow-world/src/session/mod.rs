@@ -349,7 +349,6 @@ use wow_world_spell::canonical_player_spell_runtime_like_cpp;
 pub(crate) use wow_world_spell::{
     RepresentedPlayerSpellRuntimeLikeCpp, RepresentedPlayerSpellStateLikeCpp,
 };
-mod player_vitals_adapter;
 mod progression_adapters;
 mod quest_dialog;
 pub(crate) use quest_dialog::RepresentedAdventureMapStartQuestLikeCpp;
@@ -638,12 +637,12 @@ use wow_social::group::{
 };
 
 pub(crate) use wow_world_core::session::{
-    AFLAG_SCALABLE_LIKE_CPP, PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP, PLAYER_FLAGS_GHOST_LIKE_CPP,
-    SKILL_ENCHANTING_LIKE_CPP,
+    AFLAG_SCALABLE_LIKE_CPP, PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP, SKILL_ENCHANTING_LIKE_CPP,
 };
 #[cfg(test)]
 pub(crate) use wow_world_core::session::{
     BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP, PLAYER_FLAGS_AFK_LIKE_CPP, PLAYER_FLAGS_DND_LIKE_CPP,
+    PLAYER_FLAGS_GHOST_LIKE_CPP,
 };
 #[cfg(test)]
 pub(crate) use wow_world_entities::spell_click_values::MAX_GAMEOBJECT_SLOT_LIKE_CPP;

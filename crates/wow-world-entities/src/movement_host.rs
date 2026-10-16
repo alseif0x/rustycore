@@ -50,7 +50,6 @@ pub trait PlayerMovementHostLikeCpp: SessionHubHostLikeCpp {
         catalogs: &Self::AreaTriggerCatalogsLikeCpp,
     ) -> impl Future<Output = ()> + Send;
     fn sync_player_registry_state_like_cpp(&self);
-    fn set_player_alive_like_cpp(&mut self, alive: bool);
     fn apply_represented_durability_loss_all_like_cpp(
         &mut self,
         percent: f64,

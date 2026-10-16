@@ -51,9 +51,6 @@ impl wow_world_entities::VisibilitySessionHostLikeCpp for WorldSession {
     fn sync_represented_farsight_clear_from_canonical_like_cpp(&mut self) -> bool {
         WorldSession::sync_represented_farsight_clear_from_canonical_like_cpp(self)
     }
-    fn represented_visibility_source_position_like_cpp(&self) -> Option<Position> {
-        WorldSession::represented_visibility_source_position_like_cpp(self)
-    }
     fn current_seer_guid_like_cpp(&self) -> Option<ObjectGuid> {
         wow_world_entities::current_seer_guid_like_cpp(self)
     }

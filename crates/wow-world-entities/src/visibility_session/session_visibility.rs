@@ -171,6 +171,44 @@ pub fn resolved_visible_resting_like_cpp<H: VisibilitySessionHostLikeCpp>(
     }
     canonical
 }
+// The position visibility is evaluated from: the current seer's map object
+// when it is not the Player (C++ `Player::m_seer`), else the Player (#1363
+// slice 12d; moved from the World `session/movement/state.rs`).
+pub fn represented_visibility_source_position_like_cpp<H: VisibilitySessionHostLikeCpp>(
+    host: &H,
+) -> Option<Position> {
+    let player_position = host.hub_ref().player_position_like_cpp()?;
+    let Some(player_guid) = host.player_guid() else {
+        return Some(player_position);
+    };
+    let Some(seer_guid) = current_seer_guid_like_cpp(host) else {
+        return Some(player_position);
+    };
+    if seer_guid.is_empty() || seer_guid == player_guid {
+        return Some(player_position);
+    }
+
+    let Some(key) = host.core().current_canonical_player_map_key_like_cpp() else {
+        return Some(player_position);
+    };
+    let Some(manager) = host.core().canonical_map_manager.as_ref() else {
+        return Some(player_position);
+    };
+    let Ok(manager) = manager.lock() else {
+        return Some(player_position);
+    };
+    manager
+        .find_map(key.map_id, key.instance_id)
+        .and_then(|managed| {
+            managed.map().with_world_object_by_kinds_like_cpp(
+                seer_guid,
+                wow_entities::represented_seer_kinds_like_cpp(),
+                |object| object.position(),
+            )
+        })
+        .or(Some(player_position))
+}
+
 /// Resolve the current C++ `Player::m_seer` projection from the canonical
 /// Player. C++ keeps a pointer, but every Rust consumer in this boundary
 /// needs only its GUID; `ActivePlayerData::FarsightObject` is the durable

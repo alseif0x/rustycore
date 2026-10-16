@@ -17,7 +17,7 @@
 //! flags, the far-sight sync and the quest-state refresh request stay with
 //! the host.
 
-use wow_core::{ObjectGuid, Position};
+use wow_core::ObjectGuid;
 use wow_world_lifecycle::SessionLifecycleState;
 use wow_world_visibility::VisibilityState;
 
@@ -47,8 +47,8 @@ pub use queries::{
 pub use session_visibility::{
     apply_move_init_active_mover_complete_like_cpp, can_see_phase_shift_like_cpp,
     current_seer_guid_like_cpp, force_update_visibility_with_catalogs_like_cpp,
-    represented_player_phase_shift_like_cpp, resolved_visible_resting_like_cpp,
-    sync_current_player_session_visibility_detection_like_cpp,
+    represented_player_phase_shift_like_cpp, represented_visibility_source_position_like_cpp,
+    resolved_visible_resting_like_cpp, sync_current_player_session_visibility_detection_like_cpp,
     visible_other_players_from_registry_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -79,7 +79,6 @@ pub trait VisibilitySessionHostLikeCpp: WorldEntitiesHostLikeCpp {
         state: &RepresentedGameObjectUseState,
     ) -> u32;
     fn sync_represented_farsight_clear_from_canonical_like_cpp(&mut self) -> bool;
-    fn represented_visibility_source_position_like_cpp(&self) -> Option<Position>;
     /// The World's `current_seer_guid_like_cpp` (`Player::m_seer` as a GUID).
     fn current_seer_guid_like_cpp(&self) -> Option<ObjectGuid>;
 }

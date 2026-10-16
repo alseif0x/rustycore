@@ -1,0 +1,15 @@
+{
+ "slice": "#1363 slice 12d (the alive/ghost vitals writes -> wow-world-entities player_vitals.rs over PlayerMovementHostLikeCpp; the movement host's set_player_alive_like_cpp and the corpse host's set_player_ghost_flag_like_cpp retire)",
+ "base": "4cf327c8c",
+ "moved": ["set_player_alive_like_cpp", "set_player_ghost_flag_like_cpp"],
+ "comment": "set_player_alive reads the World test flag once (the 12b7/12c prologue); its #[cfg(test)] fixture block becomes cfg(any(test, feature = \"test-fixtures\")) guarded by that flag, and its cfg!(test) becomes the flag, so every build runs exactly what it ran before.",
+ "rules": [
+  ["pub\\(crate\\) fn {name}\\(&mut self,", "pub fn {name}<H: PlayerMovementHostLikeCpp + ?Sized>(host: &mut H,"],
+  ["let resolved = self\\.core\\.with_owned_player_mut_like_cpp\\(", "#[cfg(any(test, feature = \"test-fixtures\"))] let world_test = host.test_fixtures_ref_like_cpp().is_some(); #[cfg(not(any(test, feature = \"test-fixtures\")))] let world_test = false; let resolved = self.core.with_owned_player_mut_like_cpp("],
+  ["#\\[cfg\\(test\\)\\]\\s*\\{\\s*let \\(health, max_health, is_alive\\)", "#[cfg(any(test, feature = \"test-fixtures\"))] if world_test { let (health, max_health, is_alive)"],
+  ["cfg!\\(test\\)", "world_test"],
+  ["\\bself\\s*\\.\\s*fixtures\\s*\\.", "host.hub_mut().fixtures."],
+  ["\\bself\\s*\\.\\s*core\\s*\\.", "host.core()."],
+  ["\\bself\\.", "host."]
+ ]
+}

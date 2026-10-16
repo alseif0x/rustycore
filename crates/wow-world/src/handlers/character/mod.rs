@@ -59,7 +59,7 @@ use wow_constants::{InventoryType, ItemFieldFlags, ItemVendorType, PowerType};
 // reach these three names through `super::*`.
 #[cfg(test)]
 use wow_constants::ClientOpcodes;
-use wow_core::{ObjectGuid, Position};
+use wow_core::ObjectGuid;
 use wow_crypto::rsa_sign::rsa_sign_connect_to;
 #[cfg(test)]
 use wow_data::{PlayerCreateInfoLikeCpp, PlayerCreatePositionLikeCpp};
@@ -134,7 +134,7 @@ use {
         validate_persisted_transport_login_like_cpp,
     },
     wow_constants::character::RESPONSE_SUCCESS_LIKE_CPP,
-    wow_core::guid::HighGuid,
+    wow_core::{Position, guid::HighGuid},
     wow_entities::INVENTORY_DEFAULT_SIZE,
     wow_packet::packets::update::*,
     wow_packet::packets::{character::*, movement::TransportInfo},

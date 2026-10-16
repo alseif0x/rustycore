@@ -67,10 +67,6 @@ impl PlayerMovementHostLikeCpp for WorldSession {
         WorldSession::sync_player_registry_state_like_cpp(self)
     }
 
-    fn set_player_alive_like_cpp(&mut self, alive: bool) {
-        WorldSession::set_player_alive_like_cpp(self, alive)
-    }
-
     fn apply_represented_durability_loss_all_like_cpp(
         &mut self,
         percent: f64,

@@ -252,6 +252,37 @@ impl WorldSession {
             npc_flags,
         )
     }
+    // Visibility source (moved to `wow_world_entities`).
+    pub(crate) fn represented_visibility_source_position_like_cpp(&self) -> Option<Position> {
+        wow_world_entities::represented_visibility_source_position_like_cpp(self)
+    }
+    // Login transport position (moved to `wow_world_character`).
+    pub(crate) fn set_player_transport_position_like_cpp(&mut self, position: Option<Position>) {
+        wow_world_character::set_player_transport_position_like_cpp(self, position)
+    }
+    // Player vitals (moved to `wow_world_entities::player_vitals`), with the
+    // former `session/player_vitals_adapter` F3 entry points.
+    pub(crate) fn player_is_alive_like_cpp(&self) -> bool {
+        crate::session::hub_ref(self).player_is_alive_like_cpp()
+    }
+    pub(crate) fn set_player_game_master_like_cpp(&mut self, is_game_master: bool) {
+        crate::session::hub_mut(self).set_player_game_master_like_cpp(is_game_master)
+    }
+    pub(crate) fn set_player_mounted_like_cpp(&mut self, mounted: bool) {
+        crate::session::hub_mut(self).set_player_mounted_like_cpp(mounted)
+    }
+    pub(crate) fn player_mounted_like_cpp(&self) -> bool {
+        crate::session::hub_ref(self).player_mounted_like_cpp()
+    }
+    pub(crate) fn set_player_cheat_god_like_cpp(&mut self, enabled: bool) {
+        crate::session::hub_mut(self).set_player_cheat_god_like_cpp(enabled)
+    }
+    pub(crate) fn set_player_alive_like_cpp(&mut self, alive: bool) {
+        wow_world_entities::set_player_alive_like_cpp(self, alive)
+    }
+    pub(crate) fn set_player_ghost_flag_like_cpp(&mut self, ghost: bool) {
+        wow_world_entities::set_player_ghost_flag_like_cpp(self, ghost)
+    }
     // Taxi (the scenario-only edge distance, from `session/taxi/operations.rs`).
     pub(crate) fn represented_taxi_edge_distance_like_cpp(
         &self,

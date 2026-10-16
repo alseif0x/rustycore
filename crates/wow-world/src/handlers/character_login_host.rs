@@ -13,7 +13,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use wow_core::{ObjectGuid, Position};
+use wow_core::ObjectGuid;
 use wow_data::TalentTabStore;
 use wow_entities::{PhaseShift, PlayerCurrency, PlayerEnchantTimeUpdate, PlayerItemTimeUpdate};
 use wow_world_core::session::{HubMut, HubRef, SessionState};
@@ -354,9 +354,6 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
     }
     fn set_player_transport_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
         WorldSession::set_player_transport_guid_like_cpp(self, guid)
-    }
-    fn set_player_transport_position_like_cpp(&mut self, position: Option<Position>) {
-        WorldSession::set_player_transport_position_like_cpp(self, position)
     }
     fn set_player_zone_area_authority_complete_like_cpp(&mut self, complete: bool) {
         let (state, mut hub) = crate::session::split_instances_mut(self);

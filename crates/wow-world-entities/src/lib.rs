@@ -49,6 +49,7 @@ mod movement_host;
 mod movement_opcodes;
 mod pending_runtime;
 mod player_attack;
+mod player_vitals;
 mod spawn;
 mod spell_click;
 pub mod spell_click_values;
@@ -201,6 +202,7 @@ pub use player_attack::{
     handle_apply_player_melee_result_like_cpp_command_like_cpp, handle_attack_swing,
     start_player_attack_like_cpp,
 };
+pub use player_vitals::{set_player_alive_like_cpp, set_player_ghost_flag_like_cpp};
 pub use state::WorldEntitiesState;
 pub use teleport_session::{
     CLASS_DEATH_KNIGHT_LIKE_CPP, DEATH_KNIGHT_ESCAPE_SPELL_LIKE_CPP,
@@ -237,7 +239,8 @@ pub use visibility_session::{
     dynamic_object_create_data_from_canonical_like_cpp,
     force_update_visibility_with_catalogs_like_cpp,
     represented_gameobject_go_state_for_viewer_like_cpp, represented_player_phase_shift_like_cpp,
-    represented_visibility_source_combat_reach_like_cpp, resolved_visible_resting_like_cpp,
+    represented_visibility_source_combat_reach_like_cpp,
+    represented_visibility_source_position_like_cpp, resolved_visible_resting_like_cpp,
     send_nearby_creatures_with_catalogs_like_cpp, send_nearby_gameobjects,
     send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp,
     sync_current_player_session_visibility_detection_like_cpp,

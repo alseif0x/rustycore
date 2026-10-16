@@ -66,63 +66,6 @@ impl WorldSession {
         }
         true
     }
-
-    pub(crate) fn set_player_transport_position_like_cpp(&mut self, position: Option<Position>) {
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            if let (Some(state), Some(position)) = (
-                self.fixtures
-                    .vehicles
-                    .player_transport_login_state_like_cpp
-                    .as_mut(),
-                position,
-            ) {
-                state.info.x = position.x;
-                state.info.y = position.y;
-                state.info.z = position.z;
-                state.info.o = position.orientation;
-            }
-            return;
-        }
-        let _ = self.core.with_owned_player_mut_like_cpp(|player| {
-            if let Some(position) = position {
-                player.set_transport_position_like_cpp(position);
-            }
-        });
-    }
-
-    pub(crate) fn represented_visibility_source_position_like_cpp(&self) -> Option<Position> {
-        let player_position = crate::session::hub_ref(self).player_position_like_cpp()?;
-        let Some(player_guid) = self.player_guid() else {
-            return Some(player_position);
-        };
-        let Some(seer_guid) = wow_world_entities::current_seer_guid_like_cpp(self) else {
-            return Some(player_position);
-        };
-        if seer_guid.is_empty() || seer_guid == player_guid {
-            return Some(player_position);
-        }
-
-        let Some(key) = self.core.current_canonical_player_map_key_like_cpp() else {
-            return Some(player_position);
-        };
-        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
-            return Some(player_position);
-        };
-        let Ok(manager) = manager.lock() else {
-            return Some(player_position);
-        };
-        manager
-            .find_map(key.map_id, key.instance_id)
-            .and_then(|managed| {
-                managed.map().with_world_object_by_kinds_like_cpp(
-                    seer_guid,
-                    wow_entities::represented_seer_kinds_like_cpp(),
-                    |object| object.position(),
-                )
-            })
-            .or(Some(player_position))
-    }
 }
 
 #[cfg(test)]
