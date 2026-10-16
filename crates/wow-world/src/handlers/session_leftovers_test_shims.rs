@@ -131,4 +131,10 @@ impl WorldSession {
             area_trigger_db2_store,
         )
     }
+    pub(crate) fn represented_bag_contains_active_item_loot_like_cpp(
+        &self,
+        bag_guid: wow_core::ObjectGuid,
+    ) -> bool {
+        wow_world_loot_ops::represented_bag_contains_active_item_loot_like_cpp(self, bag_guid)
+    }
 }

@@ -14,6 +14,7 @@
 //! Each body takes the World session through [`LootSessionHostLikeCpp`]; the
 //! registrations and release stay with the host.
 
+mod active_item_loot;
 mod authority;
 mod claims;
 mod fanout;
@@ -31,6 +32,7 @@ mod sources;
 
 pub use host::LootSessionHostLikeCpp;
 
+pub use active_item_loot::*;
 pub use authority::*;
 pub use claims::*;
 pub use fanout::*;
