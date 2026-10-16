@@ -32,7 +32,11 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.represented_set_currency_flags_like_cpp(packet.currency_id, packet.flags);
+        wow_world_inventory::represented_set_currency_flags_like_cpp(
+            self,
+            packet.currency_id,
+            packet.flags,
+        );
     }
 }
 

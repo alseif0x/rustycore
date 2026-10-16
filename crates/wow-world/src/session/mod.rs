@@ -692,7 +692,6 @@ use wow_world_core::session::SPELL_PVP_RULES_ENABLED_LIKE_CPP;
 pub(crate) const TRADE_STATUS_PLAYER_BUSY_LIKE_CPP: u8 = 0;
 #[cfg(test)]
 use wow_world_core::session::PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP;
-const CURRENCY_DB_UNUSED_FLAGS_LIKE_CPP: u8 = 0x13;
 pub(crate) use wow_world_core::session::movement_protocol::TeleportToOptionsLikeCpp;
 pub(crate) use wow_world_entities::TELE_TO_NONE_LIKE_CPP;
 #[allow(dead_code)]

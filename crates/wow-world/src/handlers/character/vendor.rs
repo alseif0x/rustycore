@@ -81,17 +81,17 @@ impl VendorSessionHostLikeCpp for WorldSession {
         WorldSession::build_condition_creature_object_like_cpp(self, npc_guid)
     }
     fn has_currency(&self, currency_id: u32, amount: u32) -> bool {
-        WorldSession::has_currency(self, currency_id, amount)
+        wow_world_inventory::has_currency(self, currency_id, amount)
     }
     fn player_currency_quantity(&self, currency_id: u32) -> Option<u32> {
-        WorldSession::player_currency_quantity(self, currency_id)
+        wow_world_inventory::player_currency_quantity(self, currency_id)
     }
     fn add_currency_item_refund(
         &mut self,
         currency_id: u32,
         amount: u32,
     ) -> Result<Option<PlayerCurrencyDelta>, ()> {
-        WorldSession::add_currency_item_refund(self, currency_id, amount)
+        wow_world_inventory::add_currency_item_refund(self, currency_id, amount)
     }
     fn plan_add_currency_vendor_like_cpp(
         &self,

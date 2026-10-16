@@ -42,6 +42,7 @@ mod persistence_load;
 mod player_items_session;
 mod publication;
 pub use new_item_push::send_new_item_plan;
+mod currency_session;
 mod quest_reward;
 mod registry_sync;
 mod scaling;
@@ -54,6 +55,11 @@ mod storage_slots;
 mod toy_session;
 mod turnins;
 mod valuation;
+pub use currency_session::{
+    add_currency_item_refund, has_currency, player_currency_quantity,
+    represented_set_currency_flags_like_cpp, setup_currencies_packet_like_cpp,
+    stage_player_money_change_like_cpp,
+};
 mod vendor_session;
 mod void_storage;
 mod void_storage_handlers;

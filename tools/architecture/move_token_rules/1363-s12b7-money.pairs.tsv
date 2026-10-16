@@ -1,0 +1,6 @@
+crates/wow-world/src/session/money/operations.rs	player_currency_quantity	crates/wow-world-inventory/src/currency_session.rs
+crates/wow-world/src/session/money/operations.rs	has_currency	crates/wow-world-inventory/src/currency_session.rs
+crates/wow-world/src/session/money/operations.rs	represented_set_currency_flags_like_cpp	crates/wow-world-inventory/src/currency_session.rs
+crates/wow-world/src/session/money/operations.rs	add_currency_item_refund	crates/wow-world-inventory/src/currency_session.rs
+crates/wow-world/src/session/money/operations.rs	stage_player_money_change_like_cpp	crates/wow-world-inventory/src/currency_session.rs
+crates/wow-world/src/session/publication/operations.rs	setup_currencies_packet_like_cpp	crates/wow-world-inventory/src/currency_session.rs

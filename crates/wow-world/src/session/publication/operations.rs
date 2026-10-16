@@ -44,68 +44,6 @@ impl WorldSession {
             packet_update,
         )
     }
-    /// C++ `Player::SendCurrencies`.
-    pub(crate) fn setup_currencies_packet_like_cpp(&self) -> Option<SetupCurrency> {
-        let store = self.catalogs.currency_types_store.as_ref()?;
-        let currencies = self.player_currencies_like_cpp()?;
-
-        let player_team =
-            player_team_for_race_cpp(crate::session::hub_ref(self).player_race_like_cpp());
-        let mut records = Vec::with_capacity(currencies.len());
-        for (&currency_id, currency) in &currencies {
-            let Some(entry) = store.get(currency_id).copied() else {
-                continue;
-            };
-
-            if (entry.is_alliance() && player_team != Team::Alliance)
-                || (entry.is_horde() && player_team != Team::Horde)
-            {
-                continue;
-            }
-
-            if entry.award_condition_id != 0 {
-                if let Some(condition) = self
-                    .catalogs
-                    .player_condition_store
-                    .as_ref()
-                    .and_then(|store| store.get(entry.award_condition_id as u32))
-                {
-                    let Some(context) = self.represented_player_condition_context_like_cpp() else {
-                        continue;
-                    };
-                    if !context.as_context(self).is_some_and(|context| {
-                        is_player_meeting_condition_like_cpp(condition, &context)
-                    }) {
-                        continue;
-                    }
-                }
-            }
-
-            let scaler = entry.scaler().max(1) as u32;
-            let max_quantity = currency_max_quantity_cpp(&entry, currency);
-            records.push(SetupCurrencyRecord {
-                type_id: entry.id as i32,
-                quantity: currency.quantity as i32,
-                weekly_quantity: ((currency.weekly_quantity / scaler) > 0)
-                    .then_some(currency.weekly_quantity),
-                max_weekly_quantity: entry
-                    .has_max_earnable_per_week()
-                    .then_some(entry.max_earnable_per_week),
-                tracked_quantity: entry
-                    .is_tracking_quantity()
-                    .then_some(currency.tracked_quantity),
-                max_quantity: (max_quantity != 0).then_some(max_quantity as i32),
-                total_earned: entry
-                    .has_total_earned()
-                    .then_some(currency.earned_quantity as i32),
-                next_recharge_time: None,
-                recharge_cycle_start_time: None,
-                flags: currency.flags & !CURRENCY_DB_UNUSED_FLAGS_LIKE_CPP,
-            });
-        }
-
-        Some(SetupCurrency::from_records(records))
-    }
     pub(crate) fn player_values_update_snapshot(
         &self,
     ) -> Option<wow_world_core::session::InventoryPlayerProjectionLikeCpp> {

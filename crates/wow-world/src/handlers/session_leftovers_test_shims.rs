@@ -116,4 +116,31 @@ impl WorldSession {
     ) -> bool {
         wow_world_loot_ops::represented_bag_contains_active_item_loot_like_cpp(self, bag_guid)
     }
+    pub(crate) fn player_currency_quantity(&self, currency_id: u32) -> Option<u32> {
+        wow_world_inventory::player_currency_quantity(self, currency_id)
+    }
+    pub(crate) fn has_currency(&self, currency_id: u32, amount: u32) -> bool {
+        wow_world_inventory::has_currency(self, currency_id, amount)
+    }
+    pub(crate) fn represented_set_currency_flags_like_cpp(
+        &mut self,
+        currency_id: u32,
+        flags: u8,
+    ) -> bool {
+        wow_world_inventory::represented_set_currency_flags_like_cpp(self, currency_id, flags)
+    }
+    pub(crate) fn add_currency_item_refund(
+        &mut self,
+        currency_id: u32,
+        amount: u32,
+    ) -> Result<Option<wow_world_core::session::PlayerCurrencyDelta>, ()> {
+        wow_world_inventory::add_currency_item_refund(self, currency_id, amount)
+    }
+    pub(crate) fn stage_player_money_change_like_cpp(
+        &mut self,
+        old_money: u64,
+        new_money: u64,
+    ) -> bool {
+        wow_world_inventory::stage_player_money_change_like_cpp(self, old_money, new_money)
+    }
 }
