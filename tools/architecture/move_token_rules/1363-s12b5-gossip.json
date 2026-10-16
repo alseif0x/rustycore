@@ -1,0 +1,81 @@
+{
+ "slice": "#1363 slice 12b5 (the gossip-option operations -> wow-world-character over CharacterLoginHostLikeCpp; the creature gossip quest text -> wow-world-quest over QuestSessionHostLikeCpp)",
+ "base": "10bdca1a7",
+ "moved": [
+  "clear_player_gossip_options_like_cpp",
+  "replace_player_gossip_options_like_cpp",
+  "player_gossip_option_like_cpp",
+  "represented_creature_gossip_text_like_cpp",
+  "gossip_text_from_menu_item_like_cpp"
+ ],
+ "rules": [
+  [
+   "pub\\(crate\\) fn clear_player_gossip_options_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn clear_player_gossip_options_like_cpp<H: CharacterLoginHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn replace_player_gossip_options_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn replace_player_gossip_options_like_cpp<H: CharacterLoginHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn player_gossip_option_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "pub fn player_gossip_option_like_cpp<H: CharacterLoginHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn represented_creature_gossip_text_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "pub fn represented_creature_gossip_text_like_cpp<H: QuestSessionHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "fn gossip_text_from_menu_item_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "fn gossip_text_from_menu_item_like_cpp<H: QuestSessionHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "\\bClientGossipText\\b",
+   "wow_packet::packets::gossip::ClientGossipText"
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*if canonical \\|\\| self\\s*\\.\\s*core\\s*\\.\\s*player_handle_like_cpp\\s*\\.\\s*is_none\\(\\)\\s*\\{\\s*self\\s*\\.\\s*interaction\\s*\\.",
+   "#[cfg(any(test, feature = \"test-fixtures\"))] if host.test_fixtures_ref_like_cpp().is_some() && (canonical || host.core().player_handle_like_cpp.is_none()) { host.split_interaction().0 ."
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*let fixture_options",
+   "#[cfg(any(test, feature = \"test-fixtures\"))] let fixture_options"
+  ],
+  [
+   "cfg!\\(test\\)",
+   "world_test_consumer_like_cpp(host)"
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*if canonical\\s*\\.\\s*is_none\\(\\)\\s*&&\\s*self\\s*\\.\\s*core\\s*\\.\\s*player_handle_like_cpp\\s*\\.\\s*is_none\\(\\)\\s*\\{\\s*return self\\s*\\.\\s*interaction\\s*\\.",
+   "#[cfg(any(test, feature = \"test-fixtures\"))] if canonical.is_none() && host.core().player_handle_like_cpp.is_none() && let Some(interaction) = host.interaction_for_test_like_cpp() { return interaction."
+  ],
+  [
+   "\\bself\\s*\\.\\s*catalogs\\s*\\.",
+   "host.hub_ref().catalogs."
+  ],
+  [
+   "crate::session::hub_ref\\(self\\)",
+   "host.hub_ref()"
+  ],
+  [
+   "wow_world_quest::(\\w+)\\(\\s*self\\b",
+   "crate::\\1(host"
+  ],
+  [
+   "wow_world_quest::",
+   "crate::"
+  ],
+  [
+   "\\bself\\s*\\.\\s*gossip_text_from_menu_item_like_cpp\\(",
+   "gossip_text_from_menu_item_like_cpp(host, "
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "\\bself\\s*\\.\\s*",
+   "host."
+  ]
+ ]
+}

@@ -1,0 +1,49 @@
+{
+ "slice": "#1363 slice 12b5 (the group-membership queries and the group update-sequence reset -> wow-world-instances over InstanceSessionHostLikeCpp / GroupSessionHostLikeCpp)",
+ "base": "10bdca1a7",
+ "moved": [
+  "current_player_is_in_raid_group_like_cpp",
+  "represented_player_is_same_raid_with_like_cpp",
+  "current_group_member_guids_for_tap_like_cpp",
+  "authoritative_group_membership_like_cpp",
+  "reset_group_update_sequence_if_needed_like_cpp"
+ ],
+ "rules": [
+  [
+   "pub\\(in crate::session\\) fn current_player_is_in_raid_group_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "pub fn current_player_is_in_raid_group_like_cpp<H: InstanceSessionHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn represented_player_is_same_raid_with_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "pub fn represented_player_is_same_raid_with_like_cpp<H: InstanceSessionHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "pub\\(in crate::session\\) fn current_group_member_guids_for_tap_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "pub fn current_group_member_guids_for_tap_like_cpp<H: InstanceSessionHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn authoritative_group_membership_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "pub fn authoritative_group_membership_like_cpp<H: InstanceSessionHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn reset_group_update_sequence_if_needed_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn reset_group_update_sequence_if_needed_like_cpp<H: GroupSessionHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "\\bself\\s*\\.\\s*authoritative_group_membership_like_cpp\\(\\)",
+   "authoritative_group_membership_like_cpp(host)"
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*if canonical\\s*\\.\\s*is_none\\(\\)\\s*&&\\s*self\\s*\\.\\s*core\\s*\\.\\s*player_handle_like_cpp\\s*\\.\\s*is_none\\(\\)\\s*\\{\\s*let sequence\\s*=\\s*&mut self\\s*\\.\\s*social\\s*\\.",
+   "#[cfg(any(test, feature = \"test-fixtures\"))] if host.test_fixtures_ref_like_cpp().is_some() && canonical.is_none() && host.core().player_handle_like_cpp.is_none() { let sequence = &mut host.split_social_mut().0 ."
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "\\bself\\s*\\.\\s*",
+   "host."
+  ]
+ ]
+}

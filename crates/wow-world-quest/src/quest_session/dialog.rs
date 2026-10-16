@@ -462,9 +462,6 @@ pub(crate) fn quest_list_entry_from_menu_item_like_cpp<H: QuestSessionHostLikeCp
     }
 }
 
-/// The creature gossip's quest text (`PlayerMenu::SendGossipMenu` quest
-/// rows), moved from the World `session/chat/operations.rs` (#1363 slice
-/// 12b5).
 pub fn represented_creature_gossip_text_like_cpp<H: QuestSessionHostLikeCpp>(
     host: &H,
     creature_entry: u32,

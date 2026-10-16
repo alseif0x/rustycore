@@ -117,8 +117,6 @@ pub fn resolved_represented_guild_id_like_cpp(
         .then_some(state.guild_id.unwrap_or(0))
 }
 
-/// The represented guild-id install, moved from the World
-/// `session/social/guild.rs` (#1363 slice 12b5).
 pub fn set_represented_guild_id_like_cpp<H: crate::SocialSessionHostLikeCpp>(
     host: &mut H,
     guild_id: u64,

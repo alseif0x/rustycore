@@ -1,0 +1,5 @@
+crates/wow-world/src/session/social/group.rs	current_player_is_in_raid_group_like_cpp	crates/wow-world-instances/src/group_membership.rs
+crates/wow-world/src/session/social/group.rs	represented_player_is_same_raid_with_like_cpp	crates/wow-world-instances/src/group_membership.rs
+crates/wow-world/src/session/social/group.rs	current_group_member_guids_for_tap_like_cpp	crates/wow-world-instances/src/group_membership.rs
+crates/wow-world/src/session/social/group.rs	authoritative_group_membership_like_cpp	crates/wow-world-instances/src/group_membership.rs
+crates/wow-world/src/session/social/group.rs	reset_group_update_sequence_if_needed_like_cpp	crates/wow-world-instances/src/group_membership.rs

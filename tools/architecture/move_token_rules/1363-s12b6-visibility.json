@@ -1,0 +1,115 @@
+{
+ "slice": "#1363 slice 12b6 (the session visibility reads and steps -> wow-world-entities over VisibilitySessionHostLikeCpp)",
+ "base": "10bdca1a7",
+ "moved": [
+  "sync_current_player_session_visibility_detection_like_cpp",
+  "visible_other_players_from_registry_like_cpp",
+  "canonical_player_phase_visible_like_cpp",
+  "represented_player_phase_shift_like_cpp",
+  "can_see_phase_shift_like_cpp",
+  "resolved_visible_resting_like_cpp",
+  "current_seer_guid_like_cpp",
+  "force_update_visibility_with_catalogs_like_cpp",
+  "player_session_never_visible_for_seer_like_cpp",
+  "apply_player_session_visibility_detection_like_cpp",
+  "apply_move_init_active_mover_complete_like_cpp"
+ ],
+ "rules": [
+  [
+   "fn player_session_never_visible_for_seer_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "fn player_session_never_visible_for_seer_like_cpp<H: VisibilitySessionHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn sync_current_player_session_visibility_detection_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn sync_current_player_session_visibility_detection_like_cpp<H: VisibilitySessionHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn visible_other_players_from_registry_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "pub fn visible_other_players_from_registry_like_cpp<H: VisibilitySessionHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "fn canonical_player_phase_visible_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "fn canonical_player_phase_visible_like_cpp<H: VisibilitySessionHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn represented_player_phase_shift_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "pub fn represented_player_phase_shift_like_cpp<H: VisibilitySessionHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn can_see_phase_shift_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "pub fn can_see_phase_shift_like_cpp<H: VisibilitySessionHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn resolved_visible_resting_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "pub fn resolved_visible_resting_like_cpp<H: VisibilitySessionHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn current_seer_guid_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "pub fn current_seer_guid_like_cpp<H: VisibilitySessionHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "pub\\(crate\\) async fn force_update_visibility_with_catalogs_like_cpp\\(\\s*&mut self\\s*,",
+   "pub async fn force_update_visibility_with_catalogs_like_cpp<H: VisibilitySessionHostLikeCpp>(host: &mut H,"
+  ],
+  [
+   "pub\\(crate\\) fn apply_move_init_active_mover_complete_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn apply_move_init_active_mover_complete_like_cpp<H: VisibilitySessionHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "\\bself\\s*\\.\\s*(player_session_never_visible_for_seer_like_cpp|canonical_player_phase_visible_like_cpp|represented_player_phase_shift_like_cpp|sync_current_player_session_visibility_detection_like_cpp)\\(\\)",
+   "\\1(host)"
+  ],
+  [
+   "\\bself\\s*\\.\\s*(player_session_never_visible_for_seer_like_cpp|canonical_player_phase_visible_like_cpp)\\(",
+   "\\1(host, "
+  ],
+  [
+   "wow_world_entities::(\\w+)\\(\\s*self\\b",
+   "crate::\\1(host"
+  ],
+  [
+   "crate::session::hub_ref\\(self\\)",
+   "host.hub_ref()"
+  ],
+  [
+   "crate::session::hub_mut\\(self\\)",
+   "host.hub_mut()"
+  ],
+  [
+   "crate::session::game_time_ms_like_cpp",
+   "wow_world_core::session::game_time_ms_like_cpp"
+  ],
+  [
+   "\\bself\\s*\\.\\s*lifecycle\\s*\\.",
+   "host.lifecycle()."
+  ],
+  [
+   "self\\s*\\.\\s*visibility\\s*\\.\\s*clear_last",
+   "host.visibility_mut().clear_last"
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*if canonical\\s*\\.\\s*is_none\\(\\)\\s*&&\\s*self\\s*\\.\\s*core\\s*\\.\\s*player_handle_like_cpp\\s*\\.\\s*is_none\\(\\)",
+   "#[cfg(any(test, feature = \"test-fixtures\"))] if host.test_fixtures_ref_like_cpp().is_some() && canonical.is_none() && host.core().player_handle_like_cpp.is_none()"
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*if let Some\\(seer_guid\\)\\s*=\\s*self\\s*\\.\\s*visibility\\s*\\.",
+   "#[cfg(any(test, feature = \"test-fixtures\"))] if host.test_fixtures_ref_like_cpp().is_some() && let Some(seer_guid) = host.visibility()."
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*return self\\s*\\.\\s*visibility\\s*\\.\\s*represented_seer_guid_fixture_like_cpp\\(\\)\\s*;\\s*#\\[cfg\\(not\\(test\\)\\)\\]\\s*None",
+   "#[cfg(any(test, feature = \"test-fixtures\"))] if host.test_fixtures_ref_like_cpp().is_some() { return host.visibility().represented_seer_guid_fixture_like_cpp(); } None"
+  ],
+  [
+   "\\bself\\s*\\.\\s*visibility\\s*\\.",
+   "host.visibility()."
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "\\bself\\s*\\.\\s*",
+   "host."
+  ]
+ ]
+}
