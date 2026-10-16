@@ -13,20 +13,6 @@ impl WorldSession {
         wow_world_quest::player_quest_gameplay_snapshot_like_cpp(hub, state)
     }
 
-    pub(crate) fn clear_represented_resurrection_request_like_cpp(&mut self) -> bool {
-        let mut hub = crate::session::hub_mut(self);
-        let canonical = hub
-            .core
-            .with_owned_player_mut_like_cpp(Player::clear_resurrection_request_like_cpp)
-            .is_some();
-        #[cfg(test)]
-        if canonical || hub.core.player_handle_like_cpp.is_none() {
-            hub.fixtures
-                .combat
-                .represented_resurrection_request_like_cpp = None;
-        }
-        canonical || cfg!(test) && hub.core.player_handle_like_cpp.is_none()
-    }
     /// The retained projection.
     ///
     /// #756 moved the quest state and its invariants to the canonical Player
@@ -96,29 +82,6 @@ impl WorldSession {
                 .represented_battleground_leave_requests_like_cpp
                 .saturating_add(1);
         }
-    }
-    pub(crate) fn take_represented_resurrection_request_if_requested_by_like_cpp(
-        &mut self,
-        resurrecter: ObjectGuid,
-    ) -> Option<PlayerResurrectionRequestLikeCpp> {
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.take_resurrection_request_if_requested_by_like_cpp(resurrecter)
-            })
-            .flatten();
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            if !self.represented_resurrection_requested_by_like_cpp(resurrecter) {
-                return None;
-            }
-            return self
-                .fixtures
-                .combat
-                .represented_resurrection_request_like_cpp
-                .take();
-        }
-        canonical
     }
     #[cfg(test)]
     pub(crate) fn represented_resurrection_request_like_cpp(

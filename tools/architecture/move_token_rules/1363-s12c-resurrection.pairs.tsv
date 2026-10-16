@@ -1,0 +1,2 @@
+crates/wow-world/src/session/quest/state.rs	clear_represented_resurrection_request_like_cpp	crates/wow-world-entities/src/corpse_handlers.rs
+crates/wow-world/src/session/quest/state.rs	take_represented_resurrection_request_if_requested_by_like_cpp	crates/wow-world-entities/src/corpse_handlers.rs

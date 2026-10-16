@@ -11,13 +11,16 @@
 //! `register_corpse_handlers_like_cpp` registrar (`corpse_registrations`). The graveyard
 //! condition check, the resurrection request, the teleport and the ghost flag
 //! stay with the host; the former `#[cfg(test)]` fixture step runs through
-//! `SessionHubHostLikeCpp::test_fixtures_like_cpp`.
+//! `SessionHubHostLikeCpp::test_fixtures_like_cpp`. The resurrection-request
+//! clear and take (C++ `Player::ClearResurrectRequestData` and
+//! `IsResurrectRequestedBy`) moved here from the World `session/quest/state.rs`
+//! in #1363 slice 12c.
 
 use std::future::Future;
 
 use tracing::{info, warn};
 use wow_core::{ObjectGuid, Position};
-use wow_entities::PlayerResurrectionRequestLikeCpp;
+use wow_entities::{Player, PlayerResurrectionRequestLikeCpp};
 use wow_packet::ClientPacket;
 use wow_packet::packets::misc::{
     ReclaimCorpse, RepopRequest, RequestCemeteryListResponse, ResurrectResponse,
@@ -32,11 +35,14 @@ pub trait CorpseHostLikeCpp: PlayerMovementHostLikeCpp {
         &mut self,
         conditions_ref: &wow_data::ConditionsReference,
     ) -> bool;
-    fn clear_represented_resurrection_request_like_cpp(&mut self) -> bool;
-    fn take_represented_resurrection_request_if_requested_by_like_cpp(
-        &mut self,
-        resurrecter: ObjectGuid,
-    ) -> Option<PlayerResurrectionRequestLikeCpp>;
+    /// The World test build's resurrection-request match
+    /// (`WorldSession::represented_resurrection_requested_by_like_cpp`); the
+    /// take body calls it only when `test_fixtures_ref_like_cpp` is `Some`, so
+    /// this default is never reached (#1363 slice 12c).
+    #[cfg(any(test, feature = "test-fixtures"))]
+    fn represented_resurrection_requested_by_like_cpp(&self, _resurrecter: ObjectGuid) -> bool {
+        false
+    }
     fn schedule_represented_resurrection_after_teleport_like_cpp(
         &mut self,
         request: PlayerResurrectionRequestLikeCpp,
@@ -44,6 +50,53 @@ pub trait CorpseHostLikeCpp: PlayerMovementHostLikeCpp {
     fn teleport_to(&mut self, new_map: u32, new_pos: Position) -> impl Future<Output = ()> + Send;
     fn pending_teleport_like_cpp(&self) -> Option<(u32, Position)>;
     fn set_player_ghost_flag_like_cpp(&mut self, ghost: bool);
+}
+
+fn clear_represented_resurrection_request_like_cpp<H: CorpseHostLikeCpp>(host: &mut H) -> bool {
+    #[cfg(any(test, feature = "test-fixtures"))]
+    let world_test = host.test_fixtures_ref_like_cpp().is_some();
+    #[cfg(not(any(test, feature = "test-fixtures")))]
+    let world_test = false;
+    let mut hub = host.hub_mut();
+    let canonical = hub
+        .core
+        .with_owned_player_mut_like_cpp(Player::clear_resurrection_request_like_cpp)
+        .is_some();
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if world_test && (canonical || hub.core.player_handle_like_cpp.is_none()) {
+        hub.fixtures
+            .combat
+            .represented_resurrection_request_like_cpp = None;
+    }
+    canonical || world_test && hub.core.player_handle_like_cpp.is_none()
+}
+
+fn take_represented_resurrection_request_if_requested_by_like_cpp<H: CorpseHostLikeCpp>(
+    host: &mut H,
+    resurrecter: ObjectGuid,
+) -> Option<PlayerResurrectionRequestLikeCpp> {
+    let canonical = host
+        .core()
+        .with_owned_player_mut_like_cpp(|player| {
+            player.take_resurrection_request_if_requested_by_like_cpp(resurrecter)
+        })
+        .flatten();
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if host.test_fixtures_ref_like_cpp().is_some()
+        && canonical.is_none()
+        && host.core().player_handle_like_cpp.is_none()
+    {
+        if !host.represented_resurrection_requested_by_like_cpp(resurrecter) {
+            return None;
+        }
+        return host
+            .hub_mut()
+            .fixtures
+            .combat
+            .represented_resurrection_request_like_cpp
+            .take();
+    }
+    canonical
 }
 
 /// CMSG_REQUEST_CEMETERY_LIST — client asks for graveyards in zone.
@@ -145,12 +198,12 @@ pub async fn handle_resurrect_response<H: CorpseHostLikeCpp>(
     }
 
     if response.response != 0 {
-        host.clear_represented_resurrection_request_like_cpp();
+        clear_represented_resurrection_request_like_cpp(host);
         return;
     }
 
     let Some(request) =
-        host.take_represented_resurrection_request_if_requested_by_like_cpp(response.resurrecter)
+        take_represented_resurrection_request_if_requested_by_like_cpp(host, response.resurrecter)
     else {
         return;
     };

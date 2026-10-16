@@ -1,0 +1,47 @@
+{
+ "slice": "#1363 slice 12c (the resurrection-request clear and take -> wow-world-entities corpse_handlers.rs over CorpseHostLikeCpp, with the represented_resurrection_requested_by_like_cpp fixture accessor)",
+ "base": "fa3705c89",
+ "moved": [
+  "clear_represented_resurrection_request_like_cpp",
+  "take_represented_resurrection_request_if_requested_by_like_cpp"
+ ],
+ "comment": "The clear body reads the World test flag once before the hub borrow (a documented prologue, the 12b7 collision-height form); its #[cfg(test)] step and cfg!(test) become that flag.",
+ "rules": [
+  [
+   "pub\\(crate\\) fn {name}\\(\\s*&mut self\\s*(,|\\))",
+   "fn {name}<H: CorpseHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "let mut hub = crate::session::hub_mut\\(self\\);",
+   "#[cfg(any(test, feature = \"test-fixtures\"))] let world_test = host.test_fixtures_ref_like_cpp().is_some(); #[cfg(not(any(test, feature = \"test-fixtures\")))] let world_test = false; let mut hub = host.hub_mut();"
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*if canonical \\|\\| hub",
+   "#[cfg(any(test, feature = \"test-fixtures\"))] if world_test && (canonical || hub"
+  ],
+  [
+   "(hub\\s*\\.core\\s*\\.player_handle_like_cpp\\s*\\.is_none\\(\\))\\s*\\{\\s*hub\\s*\\.fixtures",
+   "\\1) { hub.fixtures"
+  ],
+  [
+   "cfg!\\(test\\)",
+   "world_test"
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*if canonical\\.is_none\\(\\)",
+   "#[cfg(any(test, feature = \"test-fixtures\"))] if host.test_fixtures_ref_like_cpp().is_some() && canonical.is_none()"
+  ],
+  [
+   "\\bself\\s*\\.\\s*fixtures\\s*\\.",
+   "host.hub_mut().fixtures."
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "\\bself\\s*\\.",
+   "host."
+  ]
+ ]
+}
