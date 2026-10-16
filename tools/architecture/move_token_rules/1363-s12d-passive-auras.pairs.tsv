@@ -1,0 +1,2 @@
+crates/wow-world/src/session/spell_state/aura_application.rs	apply_login_passive_known_spell_auras_like_cpp	crates/wow-world-application/src/continue_login/passive_auras.rs
+crates/wow-world/src/session/spell_state/aura_application.rs	apply_loaded_known_spell_previous_rank_passive_auras_like_cpp	crates/wow-world-application/src/continue_login/passive_auras.rs

@@ -67,6 +67,7 @@ use crate::SessionLifecycleHostLikeCpp;
 
 mod hydration;
 mod login;
+mod passive_auras;
 mod spell_reset;
 
 pub use hydration::{
@@ -76,6 +77,10 @@ pub use hydration::{
     login_known_spells_after_account_collections_like_cpp,
 };
 pub use login::handle_continue_player_login_with_module_registry_like_cpp;
+pub use passive_auras::{
+    apply_loaded_known_spell_previous_rank_passive_auras_like_cpp,
+    apply_login_passive_known_spell_auras_like_cpp,
+};
 pub use spell_reset::apply_represented_login_spell_reset_if_needed_like_cpp;
 
 /// The World operations the moved continue-login coordinator still calls.
@@ -86,12 +91,17 @@ pub trait ContinueLoginHostLikeCpp:
         &mut self,
         loaded_equipped_item_guids: &[ObjectGuid],
     ) -> InitialLoadedItemModsOutcomeLikeCpp;
-    fn apply_loaded_known_spell_previous_rank_passive_auras_like_cpp(
+    /// The World aura application (the aura-application context's
+    /// `apply_aura_with_effect_mask_like_cpp`) the moved passive-aura replays call.
+    fn apply_aura_with_effect_mask_like_cpp(
         &mut self,
-        known_spells: &[i32],
-    ) -> usize;
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        duration_ms: u32,
+        aura_flags: u32,
+        effect_mask: u32,
+    ) -> Result<(), &'static str>;
     fn apply_login_known_spell_proficiencies_like_cpp(&mut self, known_spells: &[i32]) -> usize;
-    fn apply_login_passive_known_spell_auras_like_cpp(&mut self) -> usize;
     fn apply_offline_xp_rest_bonus_with_policy_like_cpp(
         &mut self,
         policy: &PlayerRestRatePolicyLikeCpp,

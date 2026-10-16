@@ -590,7 +590,7 @@ pub async fn handle_continue_player_login_with_module_registry_like_cpp<
         host,
         favorite_spell_rows.clone(),
     );
-    let login_passive_auras = host.apply_login_passive_known_spell_auras_like_cpp();
+    let login_passive_auras = super::apply_login_passive_known_spell_auras_like_cpp(host);
     if login_passive_auras > 0 {
         info!(
             player_guid = guid.counter(),
@@ -599,7 +599,7 @@ pub async fn handle_continue_player_login_with_module_registry_like_cpp<
         );
     }
     let prev_rank_passive_auras =
-        host.apply_loaded_known_spell_previous_rank_passive_auras_like_cpp(&known_spells);
+        super::apply_loaded_known_spell_previous_rank_passive_auras_like_cpp(host, &known_spells);
     if prev_rank_passive_auras > 0 {
         info!(
             player_guid = guid.counter(),
@@ -733,8 +733,8 @@ pub async fn handle_continue_player_login_with_module_registry_like_cpp<
         host,
         &loaded_spell_side_effect_spells,
     );
-    host.apply_login_passive_known_spell_auras_like_cpp();
-    host.apply_loaded_known_spell_previous_rank_passive_auras_like_cpp(&known_spells);
+    super::apply_login_passive_known_spell_auras_like_cpp(host);
+    super::apply_loaded_known_spell_previous_rank_passive_auras_like_cpp(host, &known_spells);
     wow_world_spell::promote_loaded_character_mount_spells_like_cpp(host, &known_spells);
 
     let login_spell_map_authority_complete_like_cpp = loaded_player_spell_rows_complete_like_cpp

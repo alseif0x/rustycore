@@ -304,6 +304,19 @@ impl WorldSession {
             &self.social,
         )
     }
+    // Login passive-aura replays (moved to `wow_world_application`).
+    pub(crate) fn apply_login_passive_known_spell_auras_like_cpp(&mut self) -> usize {
+        wow_world_application::apply_login_passive_known_spell_auras_like_cpp(self)
+    }
+    pub(crate) fn apply_loaded_known_spell_previous_rank_passive_auras_like_cpp(
+        &mut self,
+        known_spells: &[i32],
+    ) -> usize {
+        wow_world_application::apply_loaded_known_spell_previous_rank_passive_auras_like_cpp(
+            self,
+            known_spells,
+        )
+    }
     // Taxi (the scenario-only edge distance, from `session/taxi/operations.rs`).
     pub(crate) fn represented_taxi_edge_distance_like_cpp(
         &self,

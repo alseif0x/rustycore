@@ -110,8 +110,6 @@ pub(crate) use auction_contracts::{
     RepresentedAuctionPlaceBidLikeCpp, RepresentedAuctionRemoveItemLikeCpp,
     RepresentedAuctionReplicateRequestLikeCpp, RepresentedAuctionSellItemLikeCpp,
 };
-mod aura_effect_values;
-use aura_effect_values::unit_owned_apply_aura_effect_mask_like_cpp;
 mod battle_pet_adapter;
 #[cfg(test)]
 pub(crate) use battle_pet_adapter::{
@@ -636,13 +634,13 @@ use wow_social::group::{
     GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry, PendingInvites,
 };
 
-pub(crate) use wow_world_core::session::{
-    AFLAG_SCALABLE_LIKE_CPP, PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP, SKILL_ENCHANTING_LIKE_CPP,
-};
 #[cfg(test)]
 pub(crate) use wow_world_core::session::{
-    BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP, PLAYER_FLAGS_AFK_LIKE_CPP, PLAYER_FLAGS_DND_LIKE_CPP,
-    PLAYER_FLAGS_GHOST_LIKE_CPP,
+    AFLAG_NOCASTER_LIKE_CPP, BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP, PLAYER_FLAGS_AFK_LIKE_CPP,
+    PLAYER_FLAGS_DND_LIKE_CPP, PLAYER_FLAGS_GHOST_LIKE_CPP,
+};
+pub(crate) use wow_world_core::session::{
+    AFLAG_SCALABLE_LIKE_CPP, PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP, SKILL_ENCHANTING_LIKE_CPP,
 };
 #[cfg(test)]
 pub(crate) use wow_world_entities::spell_click_values::MAX_GAMEOBJECT_SLOT_LIKE_CPP;
@@ -748,8 +746,6 @@ use wow_world_core::session::{
 
 pub use wow_entities::AuraApplicationLikeCpp as AuraApplication;
 pub use wow_entities::{RepresentedAuraEffectAmountLikeCpp, RepresentedAuraEffectLikeCpp};
-
-pub(crate) use wow_world_core::session::AFLAG_NOCASTER_LIKE_CPP;
 
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP: u32 = 0x0000_0800;
 #[cfg(test)]
