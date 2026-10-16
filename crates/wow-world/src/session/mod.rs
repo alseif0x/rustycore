@@ -262,7 +262,6 @@ use item_modifiers::player_class_mask_for_transmog_like_cpp;
 use item_modifiers::represented_player_stat_changes_like_cpp;
 #[cfg(test)]
 pub(crate) use item_modifiers::void_withdrawal_post_store_item_values_update_like_cpp;
-pub(crate) use player_items::item_push_result_from_send_new_item_plan;
 mod loot_delivery_contracts;
 pub(crate) use loot_delivery_contracts::DurableItemLootCompletionLikeCpp;
 pub(crate) use loot_delivery_contracts::DurableItemLootPersistenceGuardLikeCpp;

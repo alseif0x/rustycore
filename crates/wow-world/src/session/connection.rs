@@ -131,10 +131,6 @@ impl WorldSession {
         )
         .await;
     }
-
-    pub(crate) fn send_packet_realm(&self, pkt: &impl wow_packet::ServerPacket) {
-        self.core.send_packet_realm(pkt)
-    }
 }
 
 #[cfg(test)]

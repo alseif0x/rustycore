@@ -17,8 +17,7 @@ impl WorldSession {
         let Some(player_guid) = self.core.player_guid else {
             return false;
         };
-        let leader_guid = self
-            .resolved_group_guid_like_cpp()
+        let leader_guid = wow_world_instances::group_membership::resolved_group_guid_like_cpp(self)
             .and_then(|group_guid| {
                 self.core
                     .directory

@@ -193,7 +193,7 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
     }
 
     fn master_loot_resolved_group_guid_like_cpp(&self) -> Option<u64> {
-        WorldSession::resolved_group_guid_like_cpp(self)
+        wow_world_instances::group_membership::resolved_group_guid_like_cpp(self)
     }
 
     fn master_loot_local_fixture_allowed_like_cpp(&self) -> bool {

@@ -11,7 +11,7 @@ mod fixture_access;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod fixtures;
 mod group_handlers;
-mod group_membership;
+pub mod group_membership;
 mod group_session;
 mod handlers;
 mod instance;

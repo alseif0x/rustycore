@@ -55,6 +55,7 @@ pub(crate) use wow_world_instances::{
     create_map_instance_lock_token_like_cpp,
 };
 pub(crate) use wow_world_inventory::MAX_BATTLE_PET_LEVEL_LIKE_CPP;
+pub(crate) use wow_world_inventory::item_push_result_from_send_new_item_plan;
 pub(crate) use wow_world_quest::{
     QUEST_FLAGS_EX_RECAST_ACCEPT_SPELL_ON_LOGIN_LIKE_CPP, QUEST_FLAGS_PLAYER_CAST_ACCEPT_LIKE_CPP,
     ResetSeasonalQuestStatusReasonLikeCpp, SeasonalQuestStatusDbRowLikeCpp,

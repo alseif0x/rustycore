@@ -146,7 +146,7 @@ impl VendorSessionHostLikeCpp for WorldSession {
         WorldSession::apply_item_turnin_changes(self, player_guid, map_id, changes)
     }
     fn send_new_item_plan(&self, plan: &SendNewItemPlan) {
-        WorldSession::send_new_item_plan(self, plan)
+        wow_world_inventory::send_new_item_plan(self, plan)
     }
     fn send_stat_update(&mut self) -> bool {
         WorldSession::send_stat_update(self)

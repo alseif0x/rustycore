@@ -26,7 +26,7 @@ impl QuestHandlerSessionHostLikeCpp for WorldSession {
         crate::session::split_world_entities_mut(self)
     }
     fn resolved_group_guid_like_cpp(&self) -> Option<u64> {
-        WorldSession::resolved_group_guid_like_cpp(self)
+        wow_world_instances::group_membership::resolved_group_guid_like_cpp(self)
     }
     fn build_gossip_menu(
         &mut self,

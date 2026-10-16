@@ -62,7 +62,7 @@ impl QuestItemStorageHostLikeCpp for WorldSession {
         )
     }
     fn send_new_item_plan(&self, plan: &SendNewItemPlan) {
-        WorldSession::send_new_item_plan(self, plan)
+        wow_world_inventory::send_new_item_plan(self, plan)
     }
     fn send_player_values_update_from_entity_bridge(
         &self,

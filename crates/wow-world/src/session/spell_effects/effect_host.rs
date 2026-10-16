@@ -31,7 +31,7 @@ impl wow_world_spell::SpellEffectHostLikeCpp for WorldSession {
         WorldSession::add_transmog_set_like_cpp(self, transmog_set_id)
     }
     fn resolved_group_guid_like_cpp(&self) -> Option<u64> {
-        WorldSession::resolved_group_guid_like_cpp(self)
+        wow_world_instances::group_membership::resolved_group_guid_like_cpp(self)
     }
     fn on_creature_killed_with_generator_like_cpp(
         &mut self,

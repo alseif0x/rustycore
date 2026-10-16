@@ -116,4 +116,10 @@ impl WorldSession {
     ) -> Option<R> {
         wow_world_spell::with_player_spell_runtime_like_cpp(self, query)
     }
+    pub(crate) fn resolved_group_guid_like_cpp(&self) -> Option<u64> {
+        wow_world_instances::group_membership::resolved_group_guid_like_cpp(self)
+    }
+    pub(crate) fn send_new_item_plan(&self, plan: &wow_entities::SendNewItemPlan) {
+        wow_world_inventory::send_new_item_plan(self, plan)
+    }
 }

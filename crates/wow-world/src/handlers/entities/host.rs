@@ -266,7 +266,7 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
     }
 
     fn resolved_group_guid_like_cpp(&self) -> Option<u64> {
-        WorldSession::resolved_group_guid_like_cpp(self)
+        wow_world_instances::group_membership::resolved_group_guid_like_cpp(self)
     }
 
     fn send_represented_cinematic_start_like_cpp(&mut self, cinematic_id: u32) {
