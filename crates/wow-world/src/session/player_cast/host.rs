@@ -25,7 +25,11 @@ impl wow_world_spell::PlayerCastHostLikeCpp for WorldSession {
         &self,
         guid: ObjectGuid,
     ) -> Option<RepresentedSpellClickCreatureSnapshotLikeCpp> {
-        WorldSession::represented_spell_click_creature_snapshot_like_cpp(self, guid)
+        self.world_entities
+            .represented_spell_click_creature_snapshot_like_cpp(
+                &self.core.quest_objective_access_like_cpp(),
+                guid,
+            )
     }
     fn represented_player_condition_context_like_cpp(
         &self,

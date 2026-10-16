@@ -79,7 +79,7 @@ impl CharacterHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession
     }
 
     fn session_player_loading_like_cpp(&self) -> Option<ObjectGuid> {
-        self.player_loading()
+        self.lifecycle.player_loading()
     }
 
     fn set_player_loading_like_cpp(&mut self, guid: Option<ObjectGuid>) {

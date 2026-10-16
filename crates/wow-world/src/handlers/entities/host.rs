@@ -223,7 +223,8 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
     }
 
     fn remove_aura(&mut self, slot: u8) -> Result<(), &'static str> {
-        WorldSession::remove_aura(self, slot)
+        self.player_aura_application_cx_like_cpp()
+            .remove_aura_like_cpp(slot)
     }
 
     fn remove_represented_mounted_auras_by_type_like_cpp(&mut self) -> bool {

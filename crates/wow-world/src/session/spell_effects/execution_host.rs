@@ -14,13 +14,22 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
         wow_world_application::mutate_cast_execution_like_cpp(&mut hub, state, f)
     }
     fn has_represented_battle_pet_journal_lock_like_cpp(&self) -> bool {
-        WorldSession::has_represented_battle_pet_journal_lock_like_cpp(self)
+        wow_world_inventory::has_represented_battle_pet_journal_lock_like_cpp(
+            crate::session::hub_ref(self),
+            &self.lifecycle,
+            cfg!(test),
+        )
     }
     fn represented_battle_pet_like_cpp(
         &self,
         pet_guid: ObjectGuid,
     ) -> Option<RepresentedBattlePetDataLikeCpp> {
-        WorldSession::represented_battle_pet_like_cpp(self, pet_guid)
+        wow_world_inventory::represented_battle_pet_like_cpp(
+            crate::session::hub_ref(self),
+            &self.lifecycle,
+            cfg!(test),
+            pet_guid,
+        )
     }
     fn force_update_visibility_with_catalogs_like_cpp(
         &mut self,

@@ -100,9 +100,6 @@ impl WorldSession {
         self.lifecycle.set_player_loading(guid);
         wow_world_entities::sync_current_player_session_visibility_detection_like_cpp(self);
     }
-    pub(crate) fn player_loading(&self) -> Option<ObjectGuid> {
-        self.lifecycle.player_loading()
-    }
     pub async fn load_tutorials_data_like_cpp(&mut self) {
         self.lifecycle.begin_tutorials_load_like_cpp();
 

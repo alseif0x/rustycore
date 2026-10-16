@@ -72,7 +72,7 @@ impl InstanceSessionHostLikeCpp for WorldSession {
         wow_world_instances::authoritative_group_membership_like_cpp(self)
     }
     fn player_loading(&self) -> Option<ObjectGuid> {
-        WorldSession::player_loading(self)
+        self.lifecycle.player_loading()
     }
     fn ensure_canonical_player_owner_exists_like_cpp(&mut self, key: wow_map::MapKey) -> bool {
         WorldSession::ensure_canonical_player_owner_exists_like_cpp(self, key)

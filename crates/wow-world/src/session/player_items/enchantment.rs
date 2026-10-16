@@ -25,15 +25,6 @@ impl WorldSession {
             .spell_catalogs
             .spell_item_enchantment_condition_store = Some(store);
     }
-    pub(crate) fn apply_current_player_item_enchantment_plan_like_cpp(
-        &mut self,
-        item_guid: ObjectGuid,
-        slot: EnchantmentSlot,
-        args: ApplyEnchantmentArgs,
-    ) -> Option<ApplyEnchantmentPlan> {
-        self.build_item_enchantment_handler_cx_like_cpp()
-            .apply_current_player_item_enchantment_plan_like_cpp(item_guid, slot, args)
-    }
 }
 
 impl wow_world_application::LoadedItemModsHostLikeCpp for WorldSession {
@@ -43,9 +34,8 @@ impl wow_world_application::LoadedItemModsHostLikeCpp for WorldSession {
         slot: EnchantmentSlot,
         args: ApplyEnchantmentArgs,
     ) -> Option<ApplyEnchantmentPlan> {
-        WorldSession::apply_current_player_item_enchantment_plan_like_cpp(
-            self, item_guid, slot, args,
-        )
+        self.build_item_enchantment_handler_cx_like_cpp()
+            .apply_current_player_item_enchantment_plan_like_cpp(item_guid, slot, args)
     }
 }
 

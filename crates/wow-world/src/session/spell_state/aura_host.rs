@@ -14,7 +14,8 @@ impl wow_world_spell::AuraHostLikeCpp for WorldSession {
         crate::session::split_world_entities_mut(self)
     }
     fn remove_aura(&mut self, slot: u8) -> Result<(), &'static str> {
-        WorldSession::remove_aura(self, slot)
+        self.player_aura_application_cx_like_cpp()
+            .remove_aura_like_cpp(slot)
     }
     fn represented_mount_x_display_usable_like_cpp(&self, player_condition_id: u32) -> bool {
         self.represented_meets_player_condition_id_like_cpp(player_condition_id)

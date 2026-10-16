@@ -246,4 +246,41 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.resolved_inventory_item_objects_like_cpp(hub)
     }
+    // Retired one-call forwards whose host impls name the target (`session/persistence/load.rs`, `session/pets/battle_pet.rs`, `session/spell_state/aura_application.rs`, `session/player_items/enchantment.rs`).
+    pub(crate) fn player_loading(&self) -> Option<wow_core::ObjectGuid> {
+        self.lifecycle.player_loading()
+    }
+    /// C++ `BattlePetMgr::HasJournalLock`.
+    pub(crate) fn has_represented_battle_pet_journal_lock_like_cpp(&self) -> bool {
+        wow_world_inventory::has_represented_battle_pet_journal_lock_like_cpp(
+            crate::session::hub_ref(self),
+            &self.lifecycle,
+            cfg!(test),
+        )
+    }
+    pub(crate) fn represented_battle_pet_like_cpp(
+        &self,
+        pet_guid: wow_core::ObjectGuid,
+    ) -> Option<wow_world_core::session::RepresentedBattlePetDataLikeCpp> {
+        wow_world_inventory::represented_battle_pet_like_cpp(
+            crate::session::hub_ref(self),
+            &self.lifecycle,
+            cfg!(test),
+            pet_guid,
+        )
+    }
+    /// Remove an aura by slot and send SMSG_AURA_UPDATE.
+    pub(crate) fn remove_aura(&mut self, slot: u8) -> Result<(), &'static str> {
+        self.player_aura_application_cx_like_cpp()
+            .remove_aura_like_cpp(slot)
+    }
+    pub(crate) fn apply_current_player_item_enchantment_plan_like_cpp(
+        &mut self,
+        item_guid: wow_core::ObjectGuid,
+        slot: wow_constants::EnchantmentSlot,
+        args: wow_entities::ApplyEnchantmentArgs,
+    ) -> Option<wow_entities::ApplyEnchantmentPlan> {
+        self.build_item_enchantment_handler_cx_like_cpp()
+            .apply_current_player_item_enchantment_plan_like_cpp(item_guid, slot, args)
+    }
 }

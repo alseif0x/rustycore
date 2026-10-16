@@ -222,11 +222,6 @@ impl WorldSession {
 
         applied
     }
-    /// Remove an aura by slot and send SMSG_AURA_UPDATE.
-    pub(crate) fn remove_aura(&mut self, slot: u8) -> Result<(), &'static str> {
-        self.player_aura_application_cx_like_cpp()
-            .remove_aura_like_cpp(slot)
-    }
 }
 
 #[cfg(test)]
