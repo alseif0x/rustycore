@@ -41,15 +41,6 @@ impl WorldSession {
             .is_some_and(|handle| handle.guid() == player_guid)
             || cfg!(test) && self.player_bootstrap_attached_for_test_like_cpp()
     }
-    pub(in crate::session) fn reset_spells_notification_text_like_cpp(&self) -> String {
-        let text = self.trinity_string_like_cpp(LANG_RESET_SPELLS_LIKE_CPP);
-        if text == "<error>" {
-            LANG_RESET_SPELLS_TEXT_LIKE_CPP.to_string()
-        } else {
-            text.to_string()
-        }
-    }
-
     pub(crate) fn player_spell_runtime_snapshot_like_cpp(
         &self,
     ) -> Option<RepresentedPlayerSpellRuntimeLikeCpp> {

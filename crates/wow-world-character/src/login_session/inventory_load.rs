@@ -517,7 +517,7 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
     // already-loaded player flags say the vault is unlocked. A locked
     // character starts with coherent empty storage even if stale rows
     // exist in CharacterDB.
-    if host.prepare_represented_void_storage_login_load_like_cpp() {
+    if crate::prepare_represented_void_storage_login_load_like_cpp(host) {
         match player_lifecycle_port
             .load_login_auxiliary_like_cpp(
                 wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::VoidStorage {
@@ -537,7 +537,8 @@ pub async fn load_inventory_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(
                     } else {
                         ObjectGuid::create_player(realm_id, row.creator_guid as i64)
                     };
-                    let loaded = host.load_represented_void_storage_row_like_cpp(
+                    let loaded = crate::load_represented_void_storage_row_like_cpp(
+                        host,
                         row.slot,
                         RepresentedVoidStorageItemLikeCpp {
                             item_id: row.item_id,

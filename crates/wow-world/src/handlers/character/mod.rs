@@ -114,8 +114,7 @@ use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
 use crate::session::{
     CreatureSpawnCatalogsLikeCpp, PlayerBootstrapCatalogsLikeCpp, RepresentedBankItemMoveLikeCpp,
     RepresentedGameObjectUseState, RepresentedHomebindLikeCpp,
-    RepresentedQuestObjectiveProgressEventLikeCpp, RepresentedVoidStorageItemLikeCpp,
-    SpellCastMetadata, SupportFeaturePolicyLikeCpp,
+    RepresentedQuestObjectiveProgressEventLikeCpp, SpellCastMetadata, SupportFeaturePolicyLikeCpp,
 };
 // Test-only: its production caller moved to `wow-world-character` (#1263 F5, #1363 A5).
 #[cfg(test)]

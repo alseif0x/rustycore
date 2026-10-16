@@ -15,7 +15,6 @@ mod aura_publication;
 mod cast;
 mod catalog;
 mod cooldown;
-mod effects;
 
 mod spell;
 mod spell_click_host;

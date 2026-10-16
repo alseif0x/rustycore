@@ -62,6 +62,8 @@ mod item_test_shims;
 #[cfg(test)]
 mod login_data_gossip_test_shims;
 #[cfg(test)]
+mod login_load_test_shims;
+#[cfg(test)]
 mod login_test_shims;
 #[cfg(test)]
 mod loot_test_shims;

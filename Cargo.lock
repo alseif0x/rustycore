@@ -3546,6 +3546,7 @@ dependencies = [
  "wow-packet",
  "wow-persistence",
  "wow-progression",
+ "wow-social",
  "wow-world-character",
  "wow-world-core",
  "wow-world-entities",

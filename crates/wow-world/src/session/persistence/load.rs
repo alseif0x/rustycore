@@ -6,65 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn mark_represented_void_storage_loaded_like_cpp(&mut self) {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.mark_represented_void_storage_loaded_like_cpp(&mut hub)
-    }
-    /// Match C++ `Player::LoadFromDB`: locked characters do not consume the
-    /// prepared void-storage result, but still own a coherent empty vault that
-    /// can be unlocked and saved during this session.
-    pub(crate) fn prepare_represented_void_storage_login_load_like_cpp(&mut self) -> bool {
-        self.clear_represented_void_storage_like_cpp();
-        let should_load_rows = self.void_storage_is_unlocked_like_cpp();
-        if !should_load_rows {
-            self.mark_represented_void_storage_loaded_like_cpp();
-        }
-        should_load_rows
-    }
-    pub(crate) fn load_represented_void_storage_row_like_cpp(
-        &mut self,
-        slot: u8,
-        item: RepresentedVoidStorageItemLikeCpp,
-    ) -> bool {
-        let slot_index = usize::from(slot);
-        if item.item_id == 0
-            || slot_index >= wow_packet::packets::void_storage::VOID_STORAGE_MAX_SLOT_LIKE_CPP
-            || self.item_storage_template(item.item_entry).is_none()
-        {
-            return false;
-        }
-        let item_entry = item.item_entry;
-        let canonical = self.core.with_owned_player_mut_like_cpp(|player| {
-            player.load_void_storage_item_like_cpp(slot, item.clone())
-        });
-        let inserted = match canonical {
-            Some(inserted) => inserted,
-            None => {
-                #[cfg(test)]
-                {
-                    if self.core.player_handle_like_cpp.is_none() {
-                        self.inventory
-                            .insert_loaded_void_storage_item_for_test_like_cpp(slot_index, &item)
-                    } else {
-                        false
-                    }
-                }
-                #[cfg(not(test))]
-                {
-                    false
-                }
-            }
-        };
-        if !inserted {
-            return false;
-        }
-        // C++ `_LoadVoidStorage` initializes `BonusData` from the void item
-        // instance and calls `CollectionMgr::AddItemAppearance`; this DB shape
-        // only carries the fixed-level modifier, so the effective appearance
-        // modifier remains the template default zero.
-        let _ = wow_world_inventory::add_item_appearance_for_item_like_cpp(self, item_entry, 0);
-        true
-    }
     pub(crate) async fn load_instance_time_restrictions_like_cpp(&mut self) {
         crate::session::cx_lifecycle(self)
             .load_instance_time_restrictions_like_cpp()
@@ -76,70 +17,6 @@ impl WorldSession {
     ) -> bool {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);
         state.load_character_reputation_rows_like_cpp(&mut hub, rows)
-    }
-    /// C++ `Player::_LoadGroup` overwrites the loaded player difficulties with
-    /// the current group values because the leader may change them while the
-    /// member is offline.
-    pub(crate) fn load_represented_group_difficulties_like_cpp(&mut self) -> bool {
-        let (Some(group_guid), Some(group_registry)) = (
-            self.resolved_group_guid_like_cpp(),
-            self.core.directory.group_registry.as_ref(),
-        ) else {
-            return false;
-        };
-
-        let preferences = {
-            let Some(group) = group_registry.get(&group_guid) else {
-                return false;
-            };
-            (
-                group.dungeon_difficulty_id,
-                group.raid_difficulty_id,
-                group.legacy_raid_difficulty_id,
-            )
-        };
-
-        self.replace_player_difficulty_preferences_like_cpp(
-            preferences.0,
-            preferences.1,
-            preferences.2,
-        )
-    }
-    /// C++ `Player::_LoadGroup` resolves `CHAR_SEL_GROUP_MEMBER.guid` through
-    /// `sGroupMgr->GetGroupByDbStoreId` before attaching the player to the
-    /// already-loaded group.
-    pub(crate) fn load_represented_group_by_db_store_id_like_cpp(
-        &mut self,
-        db_store_id: u32,
-    ) -> bool {
-        let Some(group_registry) = self.core.directory.group_registry.as_ref() else {
-            let _ = self.set_owned_player_group_like_cpp(None);
-            return false;
-        };
-        let Some(group_guid) = group_guid_by_db_store_id_like_cpp(db_store_id) else {
-            let _ = self.set_owned_player_group_like_cpp(None);
-            return false;
-        };
-        if !group_registry.contains_key(&group_guid) {
-            let _ = self.set_owned_player_group_like_cpp(None);
-            return false;
-        }
-
-        let Some(player_guid) = self.player_guid() else {
-            return false;
-        };
-        let Some(subgroup) = group_registry.get(&group_guid).and_then(|group| {
-            group
-                .member_slot_like_cpp(player_guid)
-                .map(|slot| slot.subgroup)
-        }) else {
-            let _ = self.set_owned_player_group_like_cpp(None);
-            return false;
-        };
-        if !self.set_owned_player_group_like_cpp(Some((group_guid, subgroup))) {
-            return false;
-        }
-        self.load_represented_group_difficulties_like_cpp()
     }
     pub(crate) fn load_represented_xp_rest_bonus_like_cpp(
         &mut self,

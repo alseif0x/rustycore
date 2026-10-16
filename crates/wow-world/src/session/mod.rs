@@ -655,8 +655,7 @@ use wow_packet::packets::misc::{
 #[cfg(test)]
 use wow_packet::packets::misc::{BuyFailed, SellResponse};
 use wow_social::group::{
-    GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry,
-    PendingInvites, group_guid_by_db_store_id_like_cpp,
+    GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry, PendingInvites,
 };
 
 pub(crate) use wow_world_core::session::PLAYER_FLAGS_RESTING_LIKE_CPP;
@@ -698,8 +697,6 @@ use wow_world_core::session::PLAYER_FLAGS_IN_PVP_LIKE_CPP;
 #[cfg(test)]
 const PLAYER_FLAGS_PVP_TIMER_LIKE_CPP: u32 = 0x0004_0000;
 use wow_world_core::session::SPELL_PVP_RULES_ENABLED_LIKE_CPP;
-const LANG_RESET_SPELLS_LIKE_CPP: u32 = 215;
-const LANG_RESET_SPELLS_TEXT_LIKE_CPP: &str = "Your spells have been reset.";
 #[cfg(test)]
 pub(crate) const TRADE_STATUS_PLAYER_BUSY_LIKE_CPP: u8 = 0;
 #[cfg(test)]
@@ -763,7 +760,6 @@ pub(crate) use wow_entities::{
     PlayerEquipmentSetLikeCpp as RepresentedEquipmentSetLikeCpp,
     PlayerEquipmentSetTypeLikeCpp as RepresentedEquipmentSetTypeLikeCpp,
     PlayerEquipmentSetUpdateStateLikeCpp as RepresentedEquipmentSetUpdateStateLikeCpp,
-    PlayerVoidStorageItemLikeCpp as RepresentedVoidStorageItemLikeCpp,
 };
 
 use wow_world_core::session::WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP;

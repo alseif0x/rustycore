@@ -27,7 +27,6 @@ use std::future::Future;
 use wow_core::{ObjectGuid, Position};
 use wow_data::TalentTabStore;
 use wow_entities::PlayerHomebindLikeCpp as RepresentedHomebindLikeCpp;
-use wow_entities::PlayerVoidStorageItemLikeCpp as RepresentedVoidStorageItemLikeCpp;
 use wow_entities::{
     PhaseShift, PlayerCurrency, PlayerEnchantTimeUpdate, PlayerGossipOptionLikeCpp,
     PlayerItemTimeUpdate, SpellCastMetadata,
@@ -68,6 +67,7 @@ mod lifecycle;
 mod login_data;
 mod login_recovery;
 mod login_sequence;
+mod represented_load;
 mod reputation_loading;
 mod skill_loading;
 mod spell_loading;
@@ -118,6 +118,13 @@ pub use login_recovery::{
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use login_sequence::resolve_persisted_transport_login_like_cpp;
 pub use login_sequence::send_login_sequence;
+pub use represented_load::{
+    begin_represented_trait_config_authority_load_like_cpp,
+    complete_represented_trait_config_authority_load_like_cpp,
+    load_represented_group_by_db_store_id_like_cpp, load_represented_group_difficulties_like_cpp,
+    load_represented_void_storage_row_like_cpp, mark_represented_void_storage_loaded_like_cpp,
+    prepare_represented_void_storage_login_load_like_cpp,
+};
 pub use reputation_loading::load_character_reputation_for_login_like_cpp;
 pub use skill_loading::load_character_skill_rows_for_login_like_cpp;
 pub use spell_loading::{
@@ -220,7 +227,6 @@ pub trait CharacterLoginHostLikeCpp:
         assigned_spec_index: i32,
         pieces: [ObjectGuid; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
     ) -> bool;
-    fn load_represented_group_by_db_store_id_like_cpp(&mut self, db_store_id: u32) -> bool;
     fn load_represented_talent_row_with_spell_side_effects_like_cpp(
         &mut self,
         talent_tabs: &TalentTabStore,
@@ -230,12 +236,8 @@ pub trait CharacterLoginHostLikeCpp:
         known_spells: &mut Vec<i32>,
         dependent_spells: &mut HashSet<i32>,
     ) -> bool;
-    fn load_represented_void_storage_row_like_cpp(
-        &mut self,
-        slot: u8,
-        item: RepresentedVoidStorageItemLikeCpp,
-    ) -> bool;
     fn mark_represented_spell_acquisition_snapshot_complete_like_cpp(&mut self);
+    fn load_represented_group_by_db_store_id_like_cpp(&mut self, db_store_id: u32) -> bool;
     fn mark_represented_talents_loaded_like_cpp(&mut self);
     fn next_represented_spell_cast_guid_like_cpp(&self, spell_id: i32) -> Option<ObjectGuid>;
     fn notify_other_players_visibility_changed_like_cpp(&self);
@@ -246,7 +248,14 @@ pub trait CharacterLoginHostLikeCpp:
         gossip_option_id: i32,
     ) -> Option<PlayerGossipOptionLikeCpp>;
     fn player_interaction_source_guid_like_cpp(&self) -> Option<ObjectGuid>;
-    fn prepare_represented_void_storage_login_load_like_cpp(&mut self) -> bool;
+    /// The World `replace_player_difficulty_preferences_like_cpp` (the
+    /// instances split), for the group-difficulty restore (#1363 slice 12b4).
+    fn replace_player_difficulty_preferences_like_cpp(
+        &mut self,
+        dungeon: u32,
+        raid: u32,
+        legacy_raid: u32,
+    ) -> bool;
     fn quest_log_create_entries_like_cpp(&self) -> Vec<(u32, u32, i64, [u16; 24])>;
     fn register_in_player_registry(&self);
     fn replace_player_gossip_options_like_cpp(
@@ -276,6 +285,9 @@ pub trait CharacterLoginHostLikeCpp:
         rows: impl IntoIterator<Item = RepresentedPlayerSpellLikeCpp>,
     ) -> bool;
     fn set_owned_player_group_like_cpp(&mut self, membership: Option<(u64, u8)>) -> bool;
+    /// The World `void_storage_is_unlocked_like_cpp` (the canonical player
+    /// flag read), for the void-storage login load (#1363 slice 12b4).
+    fn void_storage_is_unlocked_like_cpp(&self) -> bool;
     fn set_player_currencies_like_cpp(&mut self, currencies: HashMap<u32, PlayerCurrency>) -> bool;
     fn set_player_aura_authority_complete_like_cpp(&mut self, complete: bool) -> bool;
     fn set_complete_represented_spell_trait_definition_ids_like_cpp(

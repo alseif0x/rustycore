@@ -12,7 +12,7 @@ impl WorldSession {
             .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.catalogs.difficulty_store = Some(store);
     }
-    pub(in crate::session) fn replace_player_difficulty_preferences_like_cpp(
+    pub(crate) fn replace_player_difficulty_preferences_like_cpp(
         &mut self,
         dungeon: u32,
         raid: u32,
