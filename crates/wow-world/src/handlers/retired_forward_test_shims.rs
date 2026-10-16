@@ -324,6 +324,13 @@ impl WorldSession {
     pub(crate) fn resolved_represented_at_login_flags_like_cpp(&self) -> Option<u16> {
         wow_world_spell::resolved_represented_at_login_flags_like_cpp(self)
     }
+    // Player-flag reads (moved to `wow_world_entities`).
+    pub(crate) fn represented_player_has_flag_like_cpp(&self, flag: u32) -> bool {
+        wow_world_entities::represented_player_has_flag_like_cpp(self, flag)
+    }
+    pub(crate) fn represented_player_flags_value_like_cpp(&self) -> Option<u32> {
+        wow_world_entities::represented_player_flags_value_like_cpp(self)
+    }
     // Taxi (the scenario-only edge distance, from `session/taxi/operations.rs`).
     pub(crate) fn represented_taxi_edge_distance_like_cpp(
         &self,

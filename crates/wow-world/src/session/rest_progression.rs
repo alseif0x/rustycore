@@ -12,39 +12,11 @@ use super::RepresentedAuraEffectLikeCpp;
 use super::WorldSession;
 
 impl WorldSession {
-    pub(crate) fn represented_player_has_flag_like_cpp(&self, flag: u32) -> bool {
-        let canonical = self.player_guid().and_then(|guid| {
-            self.core
-                .canonical_player_has_player_flag_like_cpp(guid, flag)
-        });
-        if let Some(value) = canonical {
-            return value;
-        }
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return self
-                .lifecycle
-                .represented_loaded_player_flags_for_test_like_cpp()
-                .is_some_and(|flags| (flags & flag) != 0);
-        }
-        false
-    }
-
-    pub(crate) fn represented_player_flags_value_like_cpp(&self) -> Option<u32> {
-        let canonical = self
-            .core
-            .canonical_player_snapshot_like_cpp(|player| player.data().player_flags);
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return self
-                .lifecycle
-                .represented_loaded_player_flags_for_test_like_cpp();
-        }
-        canonical
-    }
-
     pub(crate) fn void_storage_is_unlocked_like_cpp(&self) -> bool {
-        self.represented_player_has_flag_like_cpp(PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP)
+        wow_world_entities::represented_player_has_flag_like_cpp(
+            self,
+            PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP,
+        )
     }
 
     pub(crate) fn resolved_player_flags_for_create_like_cpp(&self) -> Option<(u32, u32)> {

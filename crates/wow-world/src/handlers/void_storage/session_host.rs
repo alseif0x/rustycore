@@ -25,7 +25,7 @@ impl VoidStorageSessionHostLikeCpp for WorldSession {
         WorldSession::void_storage_is_unlocked_like_cpp(self)
     }
     fn represented_player_flags_value_like_cpp(&self) -> Option<u32> {
-        WorldSession::represented_player_flags_value_like_cpp(self)
+        wow_world_entities::represented_player_flags_value_like_cpp(self)
     }
     fn player_values_update_snapshot(&self) -> Option<InventoryPlayerProjectionLikeCpp> {
         wow_world_inventory::player_values_update_snapshot(self)

@@ -47,6 +47,7 @@ pub use queries::{
 pub use session_visibility::{
     apply_move_init_active_mover_complete_like_cpp, can_see_phase_shift_like_cpp,
     current_seer_guid_like_cpp, force_update_visibility_with_catalogs_like_cpp,
+    represented_player_flags_value_like_cpp, represented_player_has_flag_like_cpp,
     represented_player_phase_shift_like_cpp, represented_visibility_source_position_like_cpp,
     resolved_visible_resting_like_cpp, sync_current_player_session_visibility_detection_like_cpp,
     visible_other_players_from_registry_like_cpp,
