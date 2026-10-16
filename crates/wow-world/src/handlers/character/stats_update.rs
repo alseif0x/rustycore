@@ -16,7 +16,9 @@ impl WorldSession {
             .send_stat_update_like_cpp()
     }
 
-    pub(super) fn send_login_stat_update_with_represented_item_bonuses_like_cpp(&mut self) {
+    pub(in crate::handlers) fn send_login_stat_update_with_represented_item_bonuses_like_cpp(
+        &mut self,
+    ) {
         self.stats_application_cx_like_cpp()
             .send_login_stat_update_with_represented_item_bonuses_like_cpp();
     }

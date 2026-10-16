@@ -14,10 +14,6 @@ impl WorldSession {
         self.interaction
             .set_vendor_buy_item_test_override_like_cpp(item);
     }
-    pub(crate) fn item_drop_rate_like_cpp(&self, item_id: u32) -> f32 {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.item_drop_rate_like_cpp(hub, item_id)
-    }
     #[cfg(test)]
     pub(crate) fn represented_trade_spell_cast_item_like_cpp(&self) -> Option<ObjectGuid> {
         self.player_trade_state_snapshot_like_cpp()

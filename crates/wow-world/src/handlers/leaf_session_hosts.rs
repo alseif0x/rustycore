@@ -79,7 +79,8 @@ impl GroupSessionHostLikeCpp for WorldSession {
         difficulty_id: u32,
         kind: GroupDifficultyKindLikeCpp,
     ) {
-        WorldSession::apply_group_difficulty_like_cpp(self, group_guid, difficulty_id, kind)
+        let mut cx = self.build_instance_difficulty_handler_cx_like_cpp();
+        cx.apply_group_difficulty_like_cpp(group_guid, difficulty_id, kind);
     }
 }
 

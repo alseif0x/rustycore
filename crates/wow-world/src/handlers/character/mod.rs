@@ -23,7 +23,6 @@ mod continue_login_host;
 #[cfg(test)]
 mod enumeration_support;
 mod items;
-mod login_host;
 mod login_transport_support;
 mod query;
 mod stats;
@@ -104,8 +103,7 @@ pub(crate) use wow_world_lifecycle::login_transport::{
 // application crate's explicit area registrar under #1263 F5, so this module no
 // longer needs the entry type in scope.
 use wow_packet::packets::auth::{ConnectTo, ConnectToAddress, ConnectToKey, ConnectToSerial};
-use wow_packet::packets::spell::{SpellCastVisual, SpellTargetData};
-use wow_packet::packets::{gossip::*, misc::*, quest::QuestGiverStatusMultiple};
+use wow_packet::packets::quest::QuestGiverStatusMultiple;
 // Explicit provenance for child modules that reach these names through `super::{}`:
 // a glob import leaves the ownership checker without a defining source.
 use wow_packet::WorldPacket;
@@ -113,8 +111,8 @@ use wow_packet::WorldPacket;
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
 use crate::session::{
     CreatureSpawnCatalogsLikeCpp, PlayerBootstrapCatalogsLikeCpp, RepresentedBankItemMoveLikeCpp,
-    RepresentedGameObjectUseState, RepresentedHomebindLikeCpp,
-    RepresentedQuestObjectiveProgressEventLikeCpp, SpellCastMetadata, SupportFeaturePolicyLikeCpp,
+    RepresentedGameObjectUseState, RepresentedQuestObjectiveProgressEventLikeCpp,
+    SupportFeaturePolicyLikeCpp,
 };
 // Test-only: its production caller moved to `wow-world-character` (#1263 F5, #1363 A5).
 #[cfg(test)]
@@ -126,7 +124,6 @@ use enumeration_support::{enum_character_flags_like_cpp, enum_character_pet_data
 use login_transport_support::{MapTransportCreateLikeCpp, TransportCreatePositionLikeCpp};
 #[cfg(test)]
 use wow_entities::GAMEOBJECT_TYPE_GOOBER;
-use wow_progression::mgr::CharacterReputationRowLikeCpp;
 
 // Test-only: the scenarios reach these through `super::*`; their production
 // readers moved to `wow-world-character` (#1363 slices 8d and 8e) and `-application` (13c).
@@ -232,7 +229,7 @@ fn initial_character_rest_state_like_cpp(is_a_recruiter: bool, recruiter_id: u32
 }
 
 #[cfg(test)]
-use wow_packet::packets::query::*;
+use wow_packet::packets::{gossip::*, misc::*, query::*, spell::SpellCastVisual};
 
 use crate::session::{InventoryItem, WorldSession};
 

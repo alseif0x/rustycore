@@ -200,7 +200,6 @@ mod creature_spell_planning;
 mod creature_spell_publication;
 use creature_spell_publication::CreatureSpellHitProfileLikeCpp;
 mod currency_adapter;
-pub(crate) use currency_adapter::PlayerCurrencyDelta;
 pub(crate) use currency_adapter::RepresentedQuestObjectiveProgressEventLikeCpp;
 pub(crate) use currency_adapter::player_team_for_race_cpp;
 mod duel_contracts;
@@ -306,7 +305,7 @@ use persistence_capabilities::empty_character_power_snapshot_like_cpp;
 use persistence_capabilities::loaded_character_power_snapshot_like_cpp;
 mod pet_dismissal;
 #[cfg(test)]
-pub(crate) use wow_world_core::session::CharacterPetStableRowLikeCpp;
+pub(crate) use wow_world_core::session::{CharacterPetStableRowLikeCpp, PlayerCurrencyDelta};
 #[cfg(test)]
 pub(crate) use wow_world_lifecycle::adjusted_represented_pet_aura_remain_time_like_cpp;
 #[cfg(test)]
@@ -585,17 +584,15 @@ use wow_data::{
     PlayerCreateInfoCastSpellStoreLikeCpp, PlayerCreateInfoCustomSpellStoreLikeCpp,
     SpellEquippedItemsEntry, SpellGroupStackRuleLikeCpp,
 };
-pub(crate) use wow_entities::PlayerCurrency;
 use wow_entities::{
     AccessorObjectKind, ApplyEnchantmentArgs, ApplyEnchantmentPlan, BANK_SLOT_BAG_END,
     BANK_SLOT_BAG_START, BUYBACK_SLOT_START, CreatureAddonLifecycleRecordLikeCpp,
     EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_RANGED,
     GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, Item,
-    PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInteractionDataLikeCpp,
-    PlayerInventoryRuntime, PlayerItemTimeUpdate, PlayerPetLifecycleStateLikeCpp,
-    PlayerQuestGameplayState, PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp,
-    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDisplayText, Vehicle,
-    VisibleItemValues,
+    PhaseShift, Player, PlayerInteractionDataLikeCpp, PlayerInventoryRuntime,
+    PlayerPetLifecycleStateLikeCpp, PlayerQuestGameplayState, PlayerResurrectionStateLikeCpp,
+    PlayerTeleportStateLikeCpp, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START,
+    SendNewItemDisplayText, Vehicle, VisibleItemValues,
 };
 #[cfg(test)]
 use wow_entities::{
@@ -603,12 +600,13 @@ use wow_entities::{
     ApplyEnchantmentTemplateRef, EQUIPMENT_SLOT_OFFHAND, INVENTORY_SLOT_BAG_0,
     ItemLimitCategoryTemplate, ItemPosCount, ItemStorageTemplate, MAX_MONEY_AMOUNT,
     MovementGeneratorKind, NULL_SLOT, PetAuraLikeCpp, PetSaveMode, PetStable, PetStableInfo,
-    PetType, PlayerResurrectionRequestLikeCpp, ReactState, SendNewItemDelivery, SendNewItemPlan,
-    TitanGripPenaltyAction, Unit, explored_zones_db_string_from_blocks_like_cpp,
+    PetType, PlayerEnchantTimeUpdate, PlayerItemTimeUpdate, PlayerResurrectionRequestLikeCpp,
+    ReactState, SendNewItemDelivery, SendNewItemPlan, TitanGripPenaltyAction, Unit,
+    explored_zones_db_string_from_blocks_like_cpp,
 };
 // Test-only: the session admission fixtures compare against the player slot end.
 #[cfg(test)]
-pub(crate) use wow_entities::{PLAYER_SLOT_END, PlayerCurrencyState};
+pub(crate) use wow_entities::{PLAYER_SLOT_END, PlayerCurrency, PlayerCurrencyState};
 use wow_handler::{PacketProcessing, SessionStatus};
 use wow_progression::reputation_to_rank_like_cpp;
 #[cfg(test)]
@@ -634,7 +632,7 @@ use wow_packet::packets::item::{
 };
 use wow_packet::packets::item::{ItemEnchantTimeUpdate, ItemTimeUpdate};
 use wow_packet::packets::misc::{
-    AccountHeirloom, AccountMount, AccountToy, DungeonDifficultySet, TRADE_SLOT_COUNT_LIKE_CPP,
+    AccountHeirloom, AccountMount, AccountToy, TRADE_SLOT_COUNT_LIKE_CPP,
 };
 #[cfg(test)]
 use wow_packet::packets::misc::{BuyFailed, SellResponse};

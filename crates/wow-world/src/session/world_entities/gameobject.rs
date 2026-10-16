@@ -6,14 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn mutate_canonical_gameobject_by_guid_like_cpp<R>(
-        &mut self,
-        guid: ObjectGuid,
-        f: impl FnOnce(&mut wow_entities::GameObject) -> R,
-    ) -> Option<R> {
-        let (state, mut hub) = crate::session::split_world_entities_mut(self);
-        state.mutate_canonical_gameobject_by_guid_like_cpp(&mut hub, guid, f)
-    }
     pub(crate) fn represented_gameobject_dynamic_flags_for_player_like_cpp(
         &self,
         gameobject_entry: u32,

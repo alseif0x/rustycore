@@ -97,7 +97,9 @@ impl WorldSession {
                 }
             }
 
-            let item_counts = self.represented_inventory_item_counts_like_cpp()?;
+            let item_counts = self
+                .inventory
+                .represented_inventory_item_counts_like_cpp(crate::session::hub_ref(self))?;
             if access_requirement.item != 0 {
                 if item_counts
                     .get(&access_requirement.item)

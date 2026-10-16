@@ -12,7 +12,7 @@ impl WorldSession {
     /// borrows. The context owns the mutable release participants; the fixture
     /// bundle stays a single mutable owner so its stats pass and readonly
     /// projections cannot alias.
-    pub(in crate::handlers::loot) fn loot_release_cx_like_cpp(
+    pub(in crate::handlers) fn loot_release_cx_like_cpp(
         &mut self,
     ) -> wow_world_loot_ops::LootReleaseCxLikeCpp<'_> {
         wow_world_loot_ops::LootReleaseCxLikeCpp::new(
@@ -44,7 +44,7 @@ impl WorldSession {
             .await;
     }
 
-    pub(in crate::handlers::loot) async fn do_loot_release_owner_like_cpp(
+    pub(in crate::handlers) async fn do_loot_release_owner_like_cpp(
         &mut self,
         owner_guid: ObjectGuid,
         player_guid: ObjectGuid,

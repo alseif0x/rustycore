@@ -4,51 +4,19 @@
 //! canonical Player remains the single owner of this state.
 
 use super::*;
-use wow_entities::ItemObjectUpdateLikeCpp;
 
 impl WorldSession {
-    pub(crate) fn insert_inventory_item_object(&mut self, item: Item) -> Option<Item> {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.insert_inventory_item_object(&mut hub, item)
-    }
-    pub(crate) fn apply_inventory_item_object_updates_like_cpp(
-        &mut self,
-        item_guid: ObjectGuid,
-        updates: &[ItemObjectUpdateLikeCpp],
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.apply_inventory_item_object_updates_like_cpp(&mut hub, item_guid, updates)
-    }
-    pub(crate) fn insert_inventory_item_like_cpp(
-        &mut self,
-        slot: u8,
-        item: InventoryItem,
-    ) -> Option<InventoryItem> {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.insert_inventory_item_like_cpp(&mut hub, slot, item)
-    }
-    pub(crate) fn represented_inventory_item_counts_like_cpp(&self) -> Option<HashMap<u32, u32>> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.represented_inventory_item_counts_like_cpp(hub)
-    }
     pub(crate) fn can_use_inventory_item_represented_like_cpp(
         &self,
         item: &InventoryItem,
         runtime_item: Option<&Item>,
     ) -> InventoryResult {
-        self.can_use_inventory_item_represented_with_loading_like_cpp(item, runtime_item, true)
-    }
-    pub(crate) fn resolved_inventory_items_like_cpp(&self) -> Option<HashMap<u8, InventoryItem>> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.resolved_inventory_items_like_cpp(hub)
-    }
-    pub(crate) fn resolved_inventory_item_like_cpp(&self, slot: u8) -> Option<InventoryItem> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.resolved_inventory_item_like_cpp(hub, slot)
-    }
-    pub(crate) fn resolved_inventory_item_object_like_cpp(&self, guid: ObjectGuid) -> Option<Item> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.resolved_inventory_item_object_like_cpp(hub, guid)
+        wow_world_player_conditions::can_use_inventory_item_represented_with_loading_like_cpp(
+            &self.player_condition_projection_cx_like_cpp(),
+            item,
+            runtime_item,
+            true,
+        )
     }
 }
 

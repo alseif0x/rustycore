@@ -5,12 +5,7 @@
 
 use super::*;
 
-impl WorldSession {
-    pub(crate) fn get_inventory_item_by_pos(&self, bag: u8, slot: u8) -> Option<InventoryItem> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.get_inventory_item_by_pos(hub, bag, slot)
-    }
-}
+impl WorldSession {}
 
 #[cfg(test)]
 #[path = "../../../unit_tests/session/player_items/storage_slots/f3_shims.rs"]

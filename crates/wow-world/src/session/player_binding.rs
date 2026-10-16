@@ -245,11 +245,6 @@ impl WorldSession {
         wow_world_quest::refresh_represented_talent_points_like_cpp(self);
     }
 
-    pub(crate) fn set_player_gold_like_cpp(&mut self, gold: u64) -> bool {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.set_player_gold_like_cpp(&mut hub, gold)
-    }
-
     #[inline]
     pub fn player_guid(&self) -> Option<ObjectGuid> {
         self.core.player_guid()

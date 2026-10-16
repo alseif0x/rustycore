@@ -6,28 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn load_represented_equipment_set_row_like_cpp(
-        &mut self,
-        guid: u64,
-        set_id: u32,
-        set_name: String,
-        set_icon: String,
-        ignore_mask: u32,
-        assigned_spec_index: i32,
-        pieces: [ObjectGuid; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.load_represented_equipment_set_row_like_cpp(
-            &mut hub,
-            guid,
-            set_id,
-            set_name,
-            set_icon,
-            ignore_mask,
-            assigned_spec_index,
-            pieces,
-        )
-    }
     /// Set `ItemChildEquipment.db2`, used by C++ `CanEquipChildItem` and
     /// `EquipChildItem` to move a linked child into its visible equipment slot.
     pub fn set_item_child_equipment_store(&mut self, store: Arc<ItemChildEquipmentStore>) {

@@ -43,7 +43,8 @@ impl QuestSessionHostLikeCpp for WorldSession {
         WorldSession::invalidate_player_quest_status_authority_like_cpp(self)
     }
     fn represented_inventory_item_counts_like_cpp(&self) -> Option<HashMap<u32, u32>> {
-        WorldSession::represented_inventory_item_counts_like_cpp(self)
+        self.inventory
+            .represented_inventory_item_counts_like_cpp(crate::session::hub_ref(self))
     }
     fn represented_gameobject_questgiver_can_interact_with_like_cpp(
         &self,

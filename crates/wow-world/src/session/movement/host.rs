@@ -118,7 +118,8 @@ impl wow_world_entities::PlayerTeleportHostLikeCpp for WorldSession {
     }
 
     fn set_pending_teleport_like_cpp(&mut self, destination: Option<(u32, Position)>) -> bool {
-        WorldSession::set_pending_teleport_like_cpp(self, destination)
+        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
+        state.set_pending_teleport_like_cpp(&mut hub, destination)
     }
 
     fn active_area_trigger_mut_like_cpp(&mut self) -> &mut Option<u32> {

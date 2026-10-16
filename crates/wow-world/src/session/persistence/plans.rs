@@ -6,15 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn plan_add_currency_vendor_like_cpp(
-        &self,
-        currencies: &mut HashMap<u32, PlayerCurrency>,
-        currency_id: u32,
-        amount: u32,
-    ) -> Result<Option<PlayerCurrencyDelta>, ()> {
-        let (state, hub) = crate::session::split_lifecycle_ref(self);
-        state.plan_add_currency_vendor_like_cpp(hub, currencies, currency_id, amount)
-    }
     /// Close detached-payout admission, wait for every previously admitted
     /// worker, apply its exact-once durable deltas, then acquire the character
     /// money mutation lock. Callers must derive old/new runtime values only

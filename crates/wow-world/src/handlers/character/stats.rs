@@ -19,7 +19,7 @@ use crate::session::hub_support::{
 };
 
 impl WorldSession {
-    pub(super) fn stats_application_cx_like_cpp(
+    pub(in crate::handlers) fn stats_application_cx_like_cpp(
         &mut self,
     ) -> wow_world_inventory::CharacterStatsApplicationCxLikeCpp<'_> {
         let (inventory, hub) = crate::session::split_inventory_mut(self);

@@ -16,24 +16,11 @@ use std::future::Future;
 use wow_entities::{ItemPosCount, PlayerCurrency};
 use wow_world_core::session::PlayerCurrencyDelta;
 use wow_world_interaction::InteractionState;
-use wow_world_inventory::{
-    InventoryState, PlayerConditionContextSourceLikeCpp, VendorSessionHostLikeCpp,
-};
+use wow_world_inventory::{InventoryState, VendorSessionHostLikeCpp};
 
 use crate::session::{
     ExclusivePlayerMoneyPersistenceLikeCpp, HubMut, RepresentedPlayerConditionContextLikeCpp,
 };
-
-impl PlayerConditionContextSourceLikeCpp<WorldSession>
-    for RepresentedPlayerConditionContextLikeCpp
-{
-    fn as_context<'a>(
-        &'a self,
-        host: &'a WorldSession,
-    ) -> Option<wow_data::PlayerConditionContextLikeCpp<'a>> {
-        RepresentedPlayerConditionContextLikeCpp::as_context(self, host)
-    }
-}
 
 impl VendorSessionHostLikeCpp for WorldSession {
     type PlayerConditionContext = RepresentedPlayerConditionContextLikeCpp;
@@ -51,7 +38,8 @@ impl VendorSessionHostLikeCpp for WorldSession {
         slot: u8,
         item: InventoryItem,
     ) -> Option<InventoryItem> {
-        WorldSession::insert_inventory_item_like_cpp(self, slot, item)
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.insert_inventory_item_like_cpp(&mut hub, slot, item)
     }
     fn is_active_loot_guid(&self, guid: ObjectGuid) -> bool {
         self.loot.is_active_loot_guid(guid)
@@ -99,7 +87,8 @@ impl VendorSessionHostLikeCpp for WorldSession {
         currency_id: u32,
         amount: u32,
     ) -> Result<Option<PlayerCurrencyDelta>, ()> {
-        WorldSession::plan_add_currency_vendor_like_cpp(self, currencies, currency_id, amount)
+        let (state, hub) = crate::session::split_lifecycle_ref(self);
+        state.plan_add_currency_vendor_like_cpp(hub, currencies, currency_id, amount)
     }
     fn plan_store_new_direct_inventory_item(
         &self,

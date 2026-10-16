@@ -20,20 +20,14 @@ mod handlers;
 mod loot_host;
 mod persistence;
 mod requests;
-mod session_loot_host;
 mod sources;
 mod visibility_commands;
 
-use std::sync::atomic::AtomicBool;
-
 use crate::session::mailbox::{
-    ApplyLootMoneyLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
-    SendAddonIfRegisteredLikeCppCommand, SendCreatureSpellCastIfVisibleLikeCppCommand,
-    SendIfVisibleLikeCppCommand, SessionCommand,
+    RefreshVisibleWorldCreaturesLikeCppCommand, SendAddonIfRegisteredLikeCppCommand,
+    SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand,
 };
-use wow_constants::{InventoryResult, ItemContext};
 use wow_core::ObjectGuid;
-use wow_entities::ItemPosCount;
 
 // Test-only represented GameObject/decay constants; production paths read the
 // same values through their own imports.
@@ -43,7 +37,7 @@ use wow_entities::{
     GAMEOBJECT_TYPE_DOOR, GAMEOBJECT_TYPE_GUILD_BANK, GAMEOBJECT_TYPE_QUESTGIVER,
 };
 #[cfg(test)]
-use wow_world_core::session::looted_corpse_decay_secs_like_cpp;
+use wow_world_core::session::{looted_corpse_decay_secs_like_cpp, mailbox::SessionCommand};
 
 #[cfg(test)]
 use wow_persistence::{
@@ -52,10 +46,7 @@ use wow_persistence::{
     stored_item_money_zero_without_source_outcome_like_cpp,
 };
 
-use crate::session::{
-    DurableItemLootCompletionLikeCpp, DurableItemLootPersistenceGuardLikeCpp, InventoryItem,
-    LootMoneyDeliveryAddressLikeCpp, LootMoneyViewerFanoutLikeCpp, WorldSession,
-};
+use crate::session::WorldSession;
 #[cfg(test)]
 const ROLL_ALL_TYPE_NO_DISENCHANT_LIKE_CPP: u8 = 0x07;
 #[cfg(test)]
@@ -77,7 +68,7 @@ pub(crate) use wow_world_entities::represented_gameobject_display_box_contains_l
 /// Unit fixtures that predate canonical map objects may exercise packet-cache
 /// behavior locally. This is a compile-time false branch in production: live
 /// Creature/GameObject claims fail closed without their map-owned authority.
-const fn represented_local_loot_fixture_allowed_like_cpp() -> bool {
+pub(super) const fn represented_local_loot_fixture_allowed_like_cpp() -> bool {
     cfg!(test)
 }
 
