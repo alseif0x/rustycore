@@ -14360,12 +14360,16 @@ Lines per destination: character 149, application 28.
   - Group and void-storage: `H: CharacterLoginHostLikeCpp`, which gains
     `replace_player_difficulty_preferences_like_cpp` and
     `void_storage_is_unlocked_like_cpp`; the World impl names the inherent
-    methods by `WorldSession::` path. The character loaders
-    (`group_loading.rs`, `inventory_load.rs`) now call the free functions
-    directly, so the three trait methods `load_represented_group_by_db_store_id_like_cpp`,
-    `prepare_represented_void_storage_login_load_like_cpp` and
+    methods by `WorldSession::` path. The character void-storage loader
+    (`inventory_load.rs`) now calls the free functions directly, so the two
+    trait methods `prepare_represented_void_storage_login_load_like_cpp` and
     `load_represented_void_storage_row_like_cpp` retire from the trait and the
-    World impl.
+    World impl. `load_represented_group_by_db_store_id_like_cpp` stays a trait
+    method (its World impl names the free function): the source-contract
+    scenario `group_membership_login_phase_resets_then_restores_represented_group`
+    pins the `host.…(db_store_id)` call text in `group_loading.rs`, and the
+    first `final` run caught the repoint, so it was reverted rather than the
+    test changed.
   - Spell reset: `H: TalentHostLikeCpp + QuestSessionHostLikeCpp +
     AuraHostLikeCpp`; no new host method (`TalentHostLikeCpp` already carries
     the at-login flag read/remove and `trinity_string_like_cpp`). The two
@@ -14402,8 +14406,8 @@ Lines per destination: character 149, application 28.
 
 Moved 177 function lines (base). New host: the two
 `CharacterLoginHostLikeCpp` declarations with docs (+11) and their World
-impls (+6) = 17; retired: three trait declarations (−7) and their World impls
-(−13). **Net host −3 lines (−1.7 %); gross new 17 lines, 9.6 %.** No adapter
+impls (+6) = 17; retired: two trait declarations (−6) and their World impls
+(−10). **Net host +1 line (0.6 %); gross new 17 lines, 9.6 %.** No adapter
 file merged; merged and unmerged figures are the same.
 
 ### Await counts (per function, base vs head; #169)
@@ -14416,8 +14420,8 @@ All moved bodies are synchronous; no future is spawned, reordered or held
 across a different borrow. The async persistence paths (money fences, tutorial
 and account-data loads, instance time restrictions) did not move. Save and
 load order is unchanged: the character loaders call the same steps at the
-same points (`login_data.rs` through the kept trait methods,
-`group_loading.rs` and `inventory_load.rs` through the free functions).
+same points (`login_data.rs` and `group_loading.rs` through the kept trait
+methods, `inventory_load.rs` through the free functions).
 
 ### Recursion
 
@@ -14470,7 +14474,7 @@ On the 12b3 basis `wow-world` production is therefore 25,991 − 207 =
   → 218 / 5,003, crate 300 / 7,586 → 290 / 7,405 (staying bound unchanged);
   hotspot `session/mod.rs` production 16,725 → 16,526, test 141,616 →
   141,616, total 158,341 → 158,142; hotspot `handlers/character/mod.rs`
-  production 2,229 → 2,221, total 17,884 → 17,876; physical
+  production 2,229 → 2,224, total 17,884 → 17,879; physical
   `session/mod.rs` 791 → 787.
 - New physical row `handlers/login_load_test_shims.rs` (58, shim convention).
 - `dependency-policy.json`: `wow-social` added to `wow-world-character`.

@@ -198,6 +198,9 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
             pieces,
         )
     }
+    fn load_represented_group_by_db_store_id_like_cpp(&mut self, db_store_id: u32) -> bool {
+        wow_world_character::load_represented_group_by_db_store_id_like_cpp(self, db_store_id)
+    }
     fn load_represented_talent_row_with_spell_side_effects_like_cpp(
         &mut self,
         talent_tabs: &TalentTabStore,

@@ -28,7 +28,7 @@ pub async fn load_group_membership_for_login_like_cpp<H: CharacterLoginHostLikeC
             wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::GroupMembership(rows),
         ) => {
             if let Some(db_store_id) = rows.into_iter().next() {
-                let _ = crate::load_represented_group_by_db_store_id_like_cpp(host, db_store_id);
+                let _ = host.load_represented_group_by_db_store_id_like_cpp(db_store_id);
                 let _ = host.reset_group_update_sequence_if_needed_like_cpp();
             }
         }

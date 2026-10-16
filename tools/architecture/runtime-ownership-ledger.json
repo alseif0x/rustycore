@@ -795,11 +795,11 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 2221,
+          "production_lines": 2224,
           "test_lines": 15655,
-          "total_lines": 17876,
+          "total_lines": 17879,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
-          "latest_growth_review": "2026-10-16 #1363 slice 12b4: tightened to the live values: production 2229 -> 2221 (-8), test 15655 -> 15655 (+0), total 17884 -> 17876 (-8). In the character login host adapter (login_host.rs) the group-membership and both void-storage trait methods retire because wow-world-character now calls the moved free functions directly (-13), and two host methods are added for them (replace_player_difficulty_preferences_like_cpp, void_storage_is_unlocked_like_cpp; +6); mod.rs drops one unused import name (-1). continue_login_host.rs only repoints the login spell reset to wow-world-application.",
+          "latest_growth_review": "2026-10-16 #1363 slice 12b4: tightened to the live values: production 2229 -> 2224 (-5), test 15655 -> 15655 (+0), total 17884 -> 17879 (-5). In the character login host adapter (login_host.rs) both void-storage trait methods retire because wow-world-character now calls the moved free functions directly (-10), and two host methods are added for the moved bodies (replace_player_difficulty_preferences_like_cpp, void_storage_is_unlocked_like_cpp; +6); mod.rs drops one unused import name (-1). continue_login_host.rs only repoints the login spell reset to wow-world-application.",
           "open_retirement_issues": [
             584
           ],
