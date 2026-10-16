@@ -1,0 +1,4 @@
+crates/wow-world/src/session/catalogs/operations.rs	apply_offline_xp_rest_bonus_with_policy_like_cpp	crates/wow-world-instances/src/instance_session/rest_bonus.rs
+crates/wow-world/src/session/catalogs/operations.rs	update_represented_online_xp_rest_bonus_with_policy_like_cpp	crates/wow-world-instances/src/instance_session/rest_bonus.rs
+crates/wow-world/src/session/catalogs/operations.rs	tick_represented_online_xp_rest_bonus_with_policy_like_cpp	crates/wow-world-instances/src/instance_session/rest_bonus.rs
+crates/wow-world/src/session/catalogs/operations.rs	tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp	crates/wow-world-instances/src/instance_session/rest_bonus.rs

@@ -1,0 +1,52 @@
+{
+ "slice": "#1363 slice 12c (the rest-bonus offline apply, online update and the two ticks -> wow-world-instances instance_session/rest_bonus.rs over InstanceSessionHostLikeCpp, with the recruit-a-friend host method and the two rest-bonus fixture accessors)",
+ "base": "fa3705c89",
+ "moved": [
+  "apply_offline_xp_rest_bonus_with_policy_like_cpp",
+  "update_represented_online_xp_rest_bonus_with_policy_like_cpp",
+  "tick_represented_online_xp_rest_bonus_with_policy_like_cpp",
+  "tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp"
+ ],
+ "rules": [
+  [
+   "pub\\((?:crate|in crate::session)\\) fn {name}\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn {name}<H: InstanceSessionHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*if self\\s*\\.core\\s*\\.with_owned_player_for_rest_like_cpp",
+   "#[cfg(any(test, feature = \"test-fixtures\"))] if host.test_fixtures_ref_like_cpp().is_some() && host.core().with_owned_player_for_rest_like_cpp"
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*if self\\.core\\.player_handle_like_cpp\\.is_none\\(\\)",
+   "#[cfg(any(test, feature = \"test-fixtures\"))] if host.test_fixtures_ref_like_cpp().is_some() && host.core().player_handle_like_cpp.is_none()"
+  ],
+  [
+   "crate::session::hub_ref\\(self\\)",
+   "host.hub_ref()"
+  ],
+  [
+   "self\\s*\\.with_owned_player_mut_for_rest_like_cpp\\(",
+   "with_owned_player_mut_for_rest_like_cpp(host, "
+  ],
+  [
+   "wow_world_instances::with_owned_player_mut_for_rest_like_cpp\\(self,",
+   "with_owned_player_mut_for_rest_like_cpp(host,"
+  ],
+  [
+   "self\\s*\\.\\s*core\\s*\\.\\s*represented_urand_u32_like_cpp",
+   "host.core_mut().represented_urand_u32_like_cpp"
+  ],
+  [
+   "self\\s*\\.\\s*({name})\\(",
+   "\\1(host, "
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "\\bself\\s*\\.",
+   "host."
+  ]
+ ]
+}

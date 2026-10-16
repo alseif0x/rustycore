@@ -670,10 +670,10 @@ pub type AreaTriggerScriptDispatcherLikeCpp =
 use wow_world_core::session::state::config::GivePlayerXpScriptDispatcherLikeCpp;
 
 #[cfg(test)]
-use wow_world_instances::REST_FLAG_IN_TAVERN_LIKE_CPP;
-const REST_OFFLINE_WILDERNESS_BUBBLE_LIKE_CPP: f32 = 0.031;
-const REST_OFFLINE_TAVERN_OR_CITY_BUBBLE_LIKE_CPP: f32 = 0.125;
-const REST_ONLINE_INGAME_BUBBLE_LIKE_CPP: f32 = 0.125;
+use wow_world_instances::{
+    REST_FLAG_IN_TAVERN_LIKE_CPP, REST_OFFLINE_TAVERN_OR_CITY_BUBBLE_LIKE_CPP,
+    REST_OFFLINE_WILDERNESS_BUBBLE_LIKE_CPP, REST_ONLINE_INGAME_BUBBLE_LIKE_CPP,
+};
 #[cfg(test)]
 const MAP_INSTANCE_LIKE_CPP: u8 = 1;
 #[cfg(test)]

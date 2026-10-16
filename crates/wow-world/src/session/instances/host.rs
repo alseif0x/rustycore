@@ -31,6 +31,33 @@ impl InstanceSessionHostLikeCpp for WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.send_represented_resting_player_flag_update_like_cpp(hub)
     }
+    fn represented_recruit_a_friend_xp_rest_state_applies_like_cpp(&self) -> bool {
+        self.gets_recruit_a_friend_xp_bonus_like_cpp()
+    }
+    #[cfg(test)]
+    fn fixture_apply_offline_xp_rest_bonus_like_cpp(
+        &mut self,
+        policy: &PlayerRestRatePolicyLikeCpp,
+        logout_time_secs: u64,
+        now_secs: u64,
+        was_logout_resting: bool,
+    ) -> f32 {
+        WorldSession::fixture_apply_offline_xp_rest_bonus_like_cpp(
+            self,
+            policy,
+            logout_time_secs,
+            now_secs,
+            was_logout_resting,
+        )
+    }
+    #[cfg(test)]
+    fn fixture_update_online_xp_rest_bonus_like_cpp(
+        &mut self,
+        policy: &PlayerRestRatePolicyLikeCpp,
+        now_secs: u64,
+    ) -> (f32, u8) {
+        WorldSession::fixture_update_online_xp_rest_bonus_like_cpp(self, policy, now_secs)
+    }
     fn access_requirement_abort_like_cpp(
         &self,
         map_id: u32,
