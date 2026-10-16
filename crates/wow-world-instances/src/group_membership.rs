@@ -10,11 +10,30 @@
 //! `Group::isRaidGroup`, `Group::IsMember`, `Player::IsInSameRaidWith`) and
 //! `Player::ResetGroupUpdateSequenceIfNeeded`. Each body resolves the group
 //! guid through the host and reads the shared group registry; the World
-//! session's host impls name these functions.
+//! session's host impls name these functions. The host-level group-guid
+//! resolution itself moved here in #1363 slice 12b7 (#1418 follow-up 1); it is
+//! reached by this module's path because the crate root already exports the
+//! hub-level function of the same name.
 
 use wow_core::ObjectGuid;
 
+use wow_world_core::session::SessionHubHostLikeCpp;
+
 use crate::{GroupSessionHostLikeCpp, InstanceSessionHostLikeCpp};
+
+/// `cfg!(test)` of the World crate, read through the host: `true` only in
+/// the World test build, whose session impl returns its fixtures (a private
+/// copy of the `wow-world-inventory` helper).
+fn world_test_consumer_like_cpp<H: SessionHubHostLikeCpp + ?Sized>(host: &H) -> bool {
+    #[cfg(any(test, feature = "test-fixtures"))]
+    let world_test = host.test_fixtures_ref_like_cpp().is_some();
+    #[cfg(not(any(test, feature = "test-fixtures")))]
+    let world_test = {
+        let _ = host;
+        false
+    };
+    world_test
+}
 
 pub fn current_player_is_in_raid_group_like_cpp<H: InstanceSessionHostLikeCpp>(host: &H) -> bool {
     let (Some(group_guid), Some(group_registry), Some(player_guid)) = (
@@ -131,4 +150,12 @@ pub fn reset_group_update_sequence_if_needed_like_cpp<H: GroupSessionHostLikeCpp
         return true;
     }
     canonical.unwrap_or(false)
+}
+
+/// Resolve C++ `Player::m_group` through this session incarnation's
+/// generation-checked canonical Player handle. An unresolved owner never
+/// falls back in production.
+pub fn resolved_group_guid_like_cpp<H: GroupSessionHostLikeCpp + ?Sized>(host: &H) -> Option<u64> {
+    let (state, hub) = host.split_social_ref();
+    crate::resolved_group_guid_like_cpp(hub, state, world_test_consumer_like_cpp(host))
 }

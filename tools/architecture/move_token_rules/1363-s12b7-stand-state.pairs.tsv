@@ -1,0 +1,3 @@
+crates/wow-world/src/session/stand_state_adapter.rs	apply_represented_live_intent_like_cpp	crates/wow-world-application/src/stand_state_session.rs
+crates/wow-world/src/session/stand_state_adapter.rs	apply_represented_stand_state_changed_live_like_cpp	crates/wow-world-application/src/stand_state_session.rs
+crates/wow-world/src/session/player_cast/publication.rs	publish_player_cast_interruption_like_cpp	crates/wow-world-application/src/stand_state_session.rs

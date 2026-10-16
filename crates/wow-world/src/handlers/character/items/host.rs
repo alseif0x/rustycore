@@ -234,7 +234,7 @@ impl ItemSessionHostLikeCpp for WorldSession {
         wow_world_application::publish_inventory_position_changes_like_cpp(self, positions)
     }
     fn represented_bag_contains_active_item_loot_like_cpp(&self, bag_guid: ObjectGuid) -> bool {
-        WorldSession::represented_bag_contains_active_item_loot_like_cpp(self, bag_guid)
+        wow_world_loot_ops::represented_bag_contains_active_item_loot_like_cpp(self, bag_guid)
     }
     fn do_loot_release_all_like_cpp(
         &mut self,

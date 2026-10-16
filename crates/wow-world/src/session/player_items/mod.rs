@@ -16,7 +16,6 @@ mod modifiers;
 mod persistence;
 mod persistence_load;
 mod publication;
-pub(crate) use publication::item_push_result_from_send_new_item_plan;
 mod storage;
 mod storage_bags;
 mod storage_move_host;

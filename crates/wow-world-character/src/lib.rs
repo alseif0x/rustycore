@@ -17,6 +17,8 @@ mod character_query_handlers;
 mod gossip_options;
 mod gossip_session;
 mod login_session;
+mod session_init;
+pub use session_init::send_session_init_packets_with_policy_like_cpp;
 mod worldport_session;
 
 // The exact `ApplicationCharacter` owner facade the handler-contract checker

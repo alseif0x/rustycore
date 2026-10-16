@@ -1,0 +1,1 @@
+crates/wow-world/src/session/catalogs/operations.rs	send_session_init_packets_with_policy_like_cpp	crates/wow-world-character/src/session_init.rs

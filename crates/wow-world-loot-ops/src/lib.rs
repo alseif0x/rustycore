@@ -24,6 +24,7 @@ pub use loot_release::{
     queue_chest_gameobject_state_refresh_for_same_map_like_cpp,
     represented_gameobject_can_autostore_loot_item_like_cpp,
 };
+pub use session_loot::represented_bag_contains_active_item_loot_like_cpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use session_loot::{
     DisenchantLootTemplateFrame, LOOT_MODE_DEFAULT_LIKE_CPP, LOOT_MODE_JUNK_FISH_LIKE_CPP,

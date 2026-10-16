@@ -1,0 +1,4 @@
+crates/wow-world/src/session/player_presentation.rs	represented_mount_capability_selection_for_type_like_cpp	crates/wow-world-spell/src/aura_session/mount.rs
+crates/wow-world/src/session/player_presentation.rs	update_player_collision_height_like_cpp	crates/wow-world-spell/src/aura_session/mount.rs
+crates/wow-world/src/session/spell_state/spell.rs	player_spell_runtime_snapshot_like_cpp	crates/wow-world-spell/src/spellbook_session/runtime.rs
+crates/wow-world/src/session/spell_state/spell.rs	with_player_spell_runtime_like_cpp	crates/wow-world-spell/src/spellbook_session/runtime.rs

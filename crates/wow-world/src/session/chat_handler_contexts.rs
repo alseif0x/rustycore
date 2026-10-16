@@ -91,7 +91,7 @@ impl SocialSessionHostLikeCpp for WorldSession {
     }
 
     fn resolved_group_guid_like_cpp(&self) -> Option<u64> {
-        WorldSession::resolved_group_guid_like_cpp(self)
+        wow_world_instances::group_membership::resolved_group_guid_like_cpp(self)
     }
 
     fn resolved_total_represented_aura_modifier_by_misc_value_like_cpp(

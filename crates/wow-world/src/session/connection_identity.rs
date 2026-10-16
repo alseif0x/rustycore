@@ -50,8 +50,6 @@ pub(in crate::session) fn trinity_sprintf_like_cpp(format: &str, args: &[&str]) 
     output
 }
 
-pub(in crate::session) use wow_world_core::session::connection_identity::unix_now;
-
 impl WorldSession {
     pub fn set_realm_handle_like_cpp(&mut self, region: u8, battlegroup: u8, realm_id: u16) {
         self.core.realm_policy.realm_region = region;
@@ -86,10 +84,6 @@ impl WorldSession {
 
     pub fn set_is_a_recruiter_like_cpp(&mut self, is_a_recruiter: bool) {
         self.core.account_state.is_a_recruiter_like_cpp = is_a_recruiter;
-    }
-
-    pub(crate) fn realm_id(&self) -> u16 {
-        self.core.realm_id()
     }
 
     /// Set the session manager for ConnectTo flow.

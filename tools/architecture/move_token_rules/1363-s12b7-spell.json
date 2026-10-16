@@ -1,0 +1,76 @@
+{
+ "slice": "#1363 slice 12b7 (the mount-capability selection and collision height -> wow-world-spell aura_session over AuraHostLikeCpp; the spell-runtime snapshot and spell-map read -> spellbook_session over SpellbookHostLikeCpp; the World cfg!(test) flag becomes world_test_consumer_like_cpp(host))",
+ "base": "8d5cb55a0",
+ "moved": [
+  "represented_mount_capability_selection_for_type_like_cpp",
+  "update_player_collision_height_like_cpp",
+  "player_spell_runtime_snapshot_like_cpp",
+  "with_player_spell_runtime_like_cpp"
+ ],
+ "rules": [
+  [
+   "\\|required_area_id\\|\\s*\\{\\s*(area_store\\s*\\.\\s*is_in_area_like_cpp\\([^{}]*\\))\\s*\\}",
+   "|required_area_id| \\1"
+  ],
+  [
+   "#\\[allow\\(dead_code\\)\\]\\s*pub\\(in crate::session\\) fn represented_mount_capability_selection_for_type_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "pub fn represented_mount_capability_selection_for_type_like_cpp<H: AuraHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "pub\\(in crate::session\\) fn update_player_collision_height_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn update_player_collision_height_like_cpp<H: AuraHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn player_spell_runtime_snapshot_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "pub fn player_spell_runtime_snapshot_like_cpp<H: SpellbookHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn with_player_spell_runtime_like_cpp<R>\\(\\s*&self\\s*(,|\\))",
+   "pub fn with_player_spell_runtime_like_cpp<H: SpellbookHostLikeCpp + ?Sized, R>(host: &H\\1"
+  ],
+  [
+   "let mut hub = crate::session::hub_mut\\(self\\);",
+   "let world_test = world_test_consumer_like_cpp(host); let mut hub = host.hub_mut();"
+  ],
+  [
+   "state\\.with_player_spell_runtime_like_cpp\\(\\s*hub\\s*,\\s*cfg!\\(test\\)",
+   "state.with_player_spell_runtime_like_cpp(hub, world_test_consumer_like_cpp(host)"
+  ],
+  [
+   "cfg!\\(test\\)",
+   "world_test"
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*if canonical",
+   "#[cfg(any(test, feature = \"test-fixtures\"))] if host.test_fixtures_ref_like_cpp().is_some() && canonical"
+  ],
+  [
+   "\\bself\\s*\\.\\s*spell_state\\s*\\.",
+   "host.spell_state()."
+  ],
+  [
+   "crate::session::split_spell_state_ref\\(self\\)",
+   "host.split_spell_state_ref()"
+  ],
+  [
+   "crate::session::hub_ref\\(self\\)",
+   "host.hub_ref()"
+  ],
+  [
+   "\\bself\\s*\\.\\s*catalogs\\s*\\.",
+   "host.hub_ref().catalogs."
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "wow_world_spell::known_spells_like_cpp\\(self\\)",
+   "crate::known_spells_like_cpp(host)"
+  ],
+  [
+   "\\bself\\s*\\.",
+   "host."
+  ]
+ ]
+}

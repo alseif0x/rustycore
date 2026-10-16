@@ -12321,7 +12321,7 @@ and unmerged, ≤ ~4.5k moved, closure simulated first, no ceiling raised).
 | 12b4 | `session/persistence`, `session/player_bootstrap`, `session/player_binding` → `wow-world-character`/`-lifecycle` | 24 / 934 | the login bootstrap (406) is one method; it moves only if its callers are domain crates |
 | 12b5 | `session/social`, `session/chat` → `wow-world-social` | 21 / 406; re-measured 22 / 412; **14 moved / 357 to instances, social, character and quest; 4 field-split forwards retired**, see the 12b5–12b6 result | the reputation and force-deselect effects of `session/spell_effects` went with 12b3; the trade context builder and the group-guid seam are staying candidates |
 | 12b6 | `session/quest`, `session/world_entities`, `session/visibility`, `session/deferred_visibility` → quest / entities / visibility | 26 / 644; re-measured 27 / 648; **9 moved / 179 (194 with the forward and module function) to entities; 1 field-split forward retired**, see the 12b5–12b6 result | the three context builders and the session-command visibility steps are staying candidates; the resurrection pair and the quest-state split seam wait for a fixture or 12c step |
-| 12b7 | leftovers: `session/player_cast` (220), `session/stand_state_adapter` (311), `session/canonical_access` (232), money/xp/presentation/publication (491) | ~41 / ~1.25k | each measured again first; anything whose callers are not yet domain crates is recorded as staying |
+| 12b7 | leftovers: `session/player_cast` (220), `session/stand_state_adapter` (311), `session/canonical_access` (232), money/xp/presentation/publication (491) | ~41 / ~1.25k; re-measured 57 / 1,565 with the catalog logic, the spell-runtime trio, the group-guid seam and the 12b1b leftovers; **30 moved / 1,085 to application, spell, instances, inventory, character and loot-ops; 2 / 23 reclassified to a shim**, see the 12b7 result | `canonical_access`, the rest-bonus and rest-flag fixture steps, the XP context, the unit-update pair and the 12c split forwards are recorded there as staying or deferred |
 | stays | runtime shell: `session/driver`, `session_commands.rs`, `session/map_admission.rs` | 23 / 1,273 | not moved by 12b |
 | stays | construction API: `session/catalogs` and the store/config setters across `session/**` | 10 / 253 + 37 forwards | world-server construction API |
 
@@ -14685,8 +14685,9 @@ quest 63, entities 194.
   `host.visibility().`; `wow_world_<dest>::f(self` → `crate::f(host`;
   `self.<moved>(` → `<moved>(host, `; `crate::session::mailbox::` and
   `crate::session::game_time_ms_like_cpp` → their `wow_world_core::session::`
-  paths; `cfg!(test)` → `world_test_consumer_like_cpp(host)` (the
-  `wow-world-inventory` helper, private to `gossip_options.rs`); the fixture
+  paths; `cfg!(test)` → `world_test_consumer_like_cpp(host)` (a private
+  copy in `gossip_options.rs` of the `wow-world-inventory` helper; corrected
+  after the #1418 review); the fixture
   steps `#[cfg(test)] if <cond> { … self.<state>.… }` →
   `#[cfg(any(test, feature = "test-fixtures"))] if host.test_fixtures_ref_like_cpp().is_some() && <cond> { … }`
   over the host split or accessor (the 12b4 precedent: the step runs exactly
@@ -14867,6 +14868,408 @@ allow-list, not to this one.
 - The resurrection pair (a fixture accessor for its test-only helper), the
   quest-state split seam and the field-split forwards above: 12c.
 - The viewer-dependent NPC flags with the spell-click builder: 12d.
+- Shims retire in the final cleanup.
+
+### Validation
+
+`VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+runs on the committed head that includes this section; manifest, dirty flag
+and duration are in the PR body. This section is not edited after that run.
+
+## Slice 12b7 result (cast, stand-state, currency, session-init and publication leftovers → application, spell, instances, inventory, character, loot-ops)
+
+Branch `1363-s12b7`, base `8d5cb55a0` (slices 12b5–12b6 merged). The last 12b
+sub-slice; one PR (1,085 base lines moved, under the ~4.5k bound, so no
+12b7a/12b7b split). Move-only (R2): cast state and its interruption frames,
+the stand-state order (canonical aura removal, channel interrupt, session
+cast interruption, represented aura removal, the realm `StandStateUpdate`,
+the values delta), currency and money math and their publication order
+(#169: the transactional callers still stage under their money guard and
+drain after it), the tavern-rest revalidation, the session init packet
+order, item push results (direct on the realm connection, group broadcast
+through the player registry) and persistence are unchanged; no registrar
+moved. Logical crate count only.
+
+### #1418 follow-ups
+
+1. **`resolved_group_guid_like_cpp` moved** (below), with the world-test
+   consumer read through the host. The spell-runtime trio was read the same
+   way: the snapshot and the spell-map read move (their only tie was the
+   `cfg!(test)` flag and a fixture step), but
+   `mutate_player_spell_runtime_like_cpp` **stays**: it is the #754 single
+   writer of the Player spell map. A free function in `wow-world-spell` over
+   `SpellbookHostLikeCpp` would let any spell body with that bound write the
+   map directly, changing the owner; the `SpellbookHostLikeCpp` declaration
+   now says so.
+2. **Doc nit:** the 12b5 rule text now calls `gossip_options.rs`'s helper a
+   private copy of the inventory helper.
+3. **PR body nit** (11 functions to entities): recorded here; the merged PR
+   body is not edited.
+4. **Log target:** noted; the gossip quest text `info!` logs under
+   `wow_world_quest::quest_session::dialog`. In this slice the session init
+   `info!` likewise logs under `wow_world_character::session_init`; no other
+   moved body logs.
+
+### Re-measure and the cut
+
+`session_method_index.py index --methods` on the base: `session/player_cast`
+14 / 232, `session/stand_state_adapter` 2 / 311, `session/canonical_access`
+9 / 232, `session/money` 6 / 140, `session/xp_grants` 2 / 31,
+`session/player_presentation` 3 / 109, `session/publication` 6 / 140, the six
+catalog logic methods 6 / 233, the 12b1b leftovers 5 / 90, the group-guid
+seam 1 / 7 and the spell-runtime trio 3 / 40: **57 / 1,565**. Each was read
+against its callers and what it reaches:
+
+- **Moved (30 functions, 1,085 base lines):**
+  - to `wow-world-application` (473): the represented->live stand-state
+    intent and its stand-state body (29 + 282) with the cast-interruption
+    publication it uses (7), over `wow_world_spell::SpellExecutionHostLikeCpp`
+    (`stand_state_session.rs`); the player-cast pending request
+    (`request_represented_spell_cast_like_cpp` 18, the pending-owner
+    dispatch 18, the tick 77, async), its queue reads (pending snapshot 6,
+    remaining GCD 7, remaining active cast 4) and the loot interrupt (25),
+    over `SpellbookHostLikeCpp` / `PlayerCastHostLikeCpp`
+    (`player_cast_session.rs`). Application already owns the cast-execution
+    and pending-cancel functions these bodies call.
+  - to `wow-world-spell` (164): the mount-capability selection (85) and
+    collision height (5) (`aura_session/mount.rs`, over `AuraHostLikeCpp`);
+    the spell-runtime snapshot (16) and spell-map read (7)
+    (`spellbook_session/runtime.rs`); the cast-GUID allocation (39) and
+    `next_represented_spell_cast_guid_like_cpp` (12)
+    (`player_cast_session/identity.rs`, over `SessionHubHostLikeCpp`, with
+    the handle-less fixture counter).
+  - to `wow-world-instances` (34): `resolved_group_guid_like_cpp` (7,
+    `group_membership.rs`, over `GroupSessionHostLikeCpp`) and the
+    tavern-resting revalidation (27, `instance_session/area_triggers.rs`, over
+    `InstanceSessionHostLikeCpp`).
+  - to `wow-world-inventory` (273): the currency quantity (6), has-currency
+    (5), currency flags (34) with the setup packet (62), the item-refund
+    currency add (68) and the staged money change (23) (`currency_session.rs`,
+    over `VendorSessionHostLikeCpp`, whose condition-context associated type
+    the setup packet already uses); the new-item push (15) and its group
+    broadcast (24) (`new_item_push.rs`, over `WorldEntitiesHostLikeCpp`,
+    whose `resolved_group_guid_like_cpp` the World impl now names in
+    instances); the values-update snapshot (13) and entity-bridge publication
+    (23) (`values_update_session.rs`, over `BattlePetSessionHostLikeCpp`).
+  - to `wow-world-character` (120): the session init packets
+    (`session_init.rs`, over `wow_world_entities::VisibilitySessionHostLikeCpp`).
+  - to `wow-world-loot-ops` (21): the bag active-item-loot query
+    (`session_loot/active_item_loot.rs`, over `LootSessionHostLikeCpp`).
+- **Reclassified to the shim (2 / 23):** the cancel split forward (4) and
+  `represented_mount_capability_for_type_from_session_like_cpp` (19) have
+  only scenario callers left; the latter's forward
+  `represented_mount_capability_for_type_like_cpp` (17) and the realm-id
+  forward (3) go with them.
+- **Not moved: staying-allow-list candidates** (recorded here only; the
+  allow-list is not changed by this PR):
+  - `ensure_canonical_player_owner_exists_like_cpp` (71) and
+    `install_detached_canonical_player_from_session_like_cpp` (41): the
+    canonical-owner install seam; both build the Player through the World
+    bootstrap (`initial_player_box_like_cpp`,
+    `build_initial_player_for_owner_like_cpp`), which stays.
+  - `quest_xp_gain_context_like_cpp` (16) and `give_xp` (15, async): the
+    `QuestRewardCx` construction seam over seven disjoint fields and the
+    fixtures (the 12b4 money-fence and 12b6 quest-objective reasoning).
+  - `mutate_player_spell_runtime_like_cpp` (17): the #754 single writer
+    (follow-up 1 above).
+- **Deferred (movable later), with the reason:**
+  - the six rest-flag operations (110) and `with_owned_player_mut_for_rest_like_cpp`
+    (10): each fixture step calls the World `#[cfg(test)]`
+    `mutate_player_rest_state_like_cpp`, whose write goes through the
+    progression shim; they need a rest-state fixture accessor first, then go
+    to instances with their instance-host callers;
+  - the rest-bonus offline apply (38), online update (18) and the two ticks
+    (15 + 15): the apply and update fixture steps call the World test-support
+    rest fixtures, and the update reads the recruit-a-friend bonus through
+    `QuestRewardCx`; a fixture accessor and one host method first (the ticks
+    follow the update);
+  - the unit values/packet update pair (15 + 23): it filters NPC flags
+    through `represented_viewer_dependent_creature_npc_flags_like_cpp`, which
+    waits for the spell-click builder (12d);
+  - `remove_fully_looted_runtime_item` (17): its open-item host has no
+    `split_inventory_mut`; either one host method or folding it into the
+    loot-release context's twin (a consolidation, not a move);
+  - `record_represented_avg_equipped_item_level_update_like_cpp` (13): its
+    body is entirely `#[cfg(test)]` over a test-only World read; a fixture
+    accessor first;
+  - 12c split forwards: `interrupt_player_cast_like_cpp`,
+    `mutate_cast_execution_like_cpp`, `spell_last_cast_time_like_cpp` (their
+    application counterparts share the name), `resolved_player_money_like_cpp`,
+    `send_represented_resting_player_flag_update_like_cpp`.
+
+**Moved: 30 functions, 1,085 base lines; 2 non-forward methods (23) and two
+forwards (20) reclassified to the shim.**
+
+### What moved
+
+| Destination file | Functions (base file) | Base lines |
+|---|---|---:|
+| `wow-world-application/src/stand_state_session.rs` | the live intent and stand-state body (`stand_state_adapter.rs`), the cast-interruption publication (`player_cast/publication.rs`) | 318 |
+| `wow-world-application/src/player_cast_session.rs` | the pending request, owner dispatch, tick, queue reads and loot interrupt (`player_cast/state.rs`) | 155 |
+| `wow-world-spell/src/aura_session/mount.rs` | the mount-capability selection and collision height (`player_presentation.rs`) | 90 |
+| `wow-world-spell/src/spellbook_session/runtime.rs` | the spell-runtime snapshot and spell-map read (`spell_state/spell.rs`) | 23 |
+| `wow-world-spell/src/player_cast_session/identity.rs` | the cast-GUID allocation pair (`player_cast/identity.rs`) | 51 |
+| `wow-world-instances/src/group_membership.rs` | `resolved_group_guid_like_cpp` (`social/group.rs`) | 7 |
+| `wow-world-instances/src/instance_session/area_triggers.rs` | the tavern-resting revalidation (`catalogs/operations.rs`) | 27 |
+| `wow-world-inventory/src/currency_session.rs` | five currency/money operations (`money/operations.rs`), the setup packet (`publication/operations.rs`) | 198 |
+| `wow-world-inventory/src/new_item_push.rs` | the new-item push (`player_items/persistence.rs`) and broadcast (`player_items/publication.rs`) | 39 |
+| `wow-world-inventory/src/values_update_session.rs` | the values-update snapshot and entity-bridge publication (`publication/operations.rs`) | 36 |
+| `wow-world-character/src/session_init.rs` | the session init packets (`catalogs/operations.rs`) | 120 |
+| `wow-world-loot-ops/src/session_loot/active_item_loot.rs` | the bag active-item-loot query (`player_items/storage_bags.rs`) | 21 |
+| **Total** | 30 functions | **1,085** |
+
+Lines per destination (base lines): application 473, spell 164, instances 34,
+inventory 273, character 120, loot-ops 21.
+
+- **Hosts.** No host trait gains a method. `AuraHostLikeCpp` retires three
+  (the mount-capability selection, the collision height, the spell-runtime
+  snapshot; the spell callers name the free functions). Trait methods kept,
+  their World impls now naming the free function: `PlayerHandlerHostLikeCpp`
+  (live intent), `PlayerCastHostLikeCpp` (tick), the cast `Runtime`
+  (`allocate`, `remaining`, `replace_pending`), `LootHandlerHostLikeCpp`
+  (loot interrupt, master-loot group guid), `SpellbookHostLikeCpp`
+  (spell-map read), `AuraHostLikeCpp` and `CharacterLoginHostLikeCpp`
+  (cast GUID), every `resolved_group_guid_like_cpp` impl
+  (`WorldEntitiesHostLikeCpp`, chat, effect, quest handler), the vendor and
+  quest item-storage hosts (`send_new_item_plan`, currency reads, refund),
+  `BattlePetPurchaseHostLikeCpp` (staged money change, values publication),
+  the void-storage host (values snapshot), the item host (bag query).
+  `resolved_group_guid_like_cpp` is reached as
+  `wow_world_instances::group_membership::…` (`group_membership` becomes a
+  `pub mod`): the crate root already exports the hub-level function of that
+  name, so a root export would clash; the name is not changed.
+- **Kept World forwards** (one call each; the index counts them as
+  forwards): `send_session_init_packets_with_policy_like_cpp` (the
+  `world-server` entry point), the pending-cast tick and the tavern
+  revalidation (the runtime-shell driver keeps its calls unchanged, so the
+  allow-listed driver bodies stay at their bound) and
+  `send_player_values_update_from_entity_bridge` (the loot host calls it by
+  method syntax inside its same-named trait method; repointing it grew the
+  `handlers/loot` hotspot by a line, so the forward was kept, the 12b6
+  precedent).
+- **Mechanical rules** (`move_token_rules/1363-s12b7-{stand-state,player-cast,spell,group,session-init,tavern,bag-loot,money,values,cast-identity}.json`
+  with pairs): the signatures; `self.core.` → `host.core().`;
+  `crate::session::hub_{ref,mut}(self)` → `host.hub_{ref,mut}()`;
+  `self.catalogs.` → `host.hub_ref().catalogs.`; the splits
+  `crate::session::split_*(self)` → `host.split_*()`; `self.inventory.` →
+  `host.split_inventory_ref().0 .`, `self.spell_state.` →
+  `host.split_spell_state_mut().0 .` / `host.spell_state().`, `self.loot.` →
+  `host.loot().`, `self.lifecycle.` → `host.lifecycle().`;
+  `self.<moved>(` → `<moved>(host, `; `wow_world_*::f(self` →
+  `crate::f(host` (or the crate path); `cfg!(test)` →
+  `world_test_consumer_like_cpp(host)` (private copies in
+  `spellbook_session/mod.rs` and `group_membership.rs`; the collision height
+  reads it once before the hub split, a documented prologue); the fixture
+  steps `#[cfg(test)] if <cond>` → `#[cfg(any(test, feature = "test-fixtures"))]
+  if host.test_fixtures_ref_like_cpp().is_some() && <cond>` (the 12b4
+  precedent), the stand-state record → `if let Some(fixtures) =
+  host.test_fixtures_like_cpp()`; the pending-owner dispatch keeps its
+  `cfg(any(test, feature = "test-fixtures"))` parameter and step verbatim
+  (application's feature is enabled exactly where World's is); one
+  rustfmt-only rule (the area-trigger closure braces); `self.` → `host.`.
+  Rules never touch string literals. **Result** (`move_token_compare.py
+  --base origin/3.4.3`): 3/3, 7/7, 4/4, 3/3, 1/1, 1/1, 1/1, 6/6, 2/2, 2/2
+  identical.
+- **Inlined one-line wrappers** (each verified identical to the World body):
+  `send_packet_realm` (`self.core.send_packet_realm(pkt)`; retired, no
+  production caller left), `realm_id` (`self.core.realm_id()`; moved to the
+  shim), `spell_store` (`self.catalogs.spell_store()`),
+  `cancel_pending_spell_cast_request_like_cpp` and
+  `interrupt_player_cast_like_cpp` (their `split_spell_state_mut` + the
+  application call), `pending_spell_cast_snapshot` /
+  `remaining_*` moved rather than inlined, `player_currencies_like_cpp`,
+  `set_player_currencies_like_cpp`, `set_player_gold_like_cpp`
+  (`split_inventory_{ref,mut}` + the state call),
+  `resolved_inventory_item_objects_like_cpp` (`split_inventory_ref` + the
+  state call), the money-changed objective enqueue (the
+  `VendorSessionHostLikeCpp` method whose World impl is the same
+  `quest_state` call), `publish_player_cast_interruption_like_cpp` (moved as a
+  private function), and the provided `player_guid`, `send_packet`,
+  `send_raw_packet`.
+- **Constants and statics:** the unused-currency-flags constant moves with
+  the setup packet; the handle-less cast counter moves with the allocation
+  (now `cfg(any(test, feature = "test-fixtures"))`, read only when the World
+  test fixtures are lent, i.e. in the World test build as before); the World
+  `SKILL_RIDING_LIKE_CPP` (762) retires, the scenarios read the `wow_data`
+  constant of the same value.
+- **Shims.** `handlers/session_leftovers_test_shims.rs` (`#![cfg(test)]`, 155
+  lines, physical row): one-call forwards for the moved names the scenarios
+  call, plus the two mount-capability wrappers, the cancel split forward and
+  the realm-id forward. No test file changed.
+- **Files retired:** `session/player_cast/publication.rs`,
+  `session/player_cast/identity.rs`. `session/player_items/publication.rs`
+  stays mounted with only its header: the source-contract scenario
+  `handlers/character_tests/loot.rs` includes it by path.
+
+### Host surface
+
+Moved 1,085 base lines. **New host trait surface: 0.** New World-side
+adapter lines: the four kept forwards (14 + 11 + 19 + 10 = 54) and the two
+`world_test_consumer_like_cpp` copies (13 + 13): **80 lines, 7.4 %**.
+Retired: the three `AuraHostLikeCpp` declarations (12) and their World impls
+(25), the realm-send forward (3) and the realm-id forward (3, to the shim):
+43. **Net +37 (3.4 %).** No adapter file merged; merged and unmerged figures
+are the same.
+
+### Await counts (per function, base vs head; #169)
+
+| Function | Base | Head |
+|---|---:|---:|
+| `tick_pending_spell_cast_request_with_generator_like_cpp` | 1 | 1 |
+| the other 29 moved functions | 0 | 0 |
+| the kept World tick forward | — | 1 (awaits the moved future) |
+| the driver tick call site | 1 | 1 (unchanged text) |
+
+No future is spawned, reordered or held across a different borrow. The money
+fences, `give_xp` and the quest-objective operation did not move.
+
+### Recursion
+
+- Every moved name was grepped in production (non-shim) `wow-world`: the
+  hits are trait-impl bodies naming `wow_world_*::<name>(self, …)`, the four
+  kept forwards (each naming the free function), and the loot host's
+  `self.send_player_values_update_from_entity_bridge(` inside its
+  same-named trait method, which resolves to the kept inherent forward
+  (inherent first). No `WorldSession::<moved>(` is left.
+- Destination crates: no moved body calls a host method of its own name;
+  moved-to-moved calls use the free function (the live intent → stand-state
+  body → publication, the request → owner dispatch, the tick → snapshot,
+  owner dispatch and queue reads, the cast GUID → allocation, the currency
+  flags → setup packet, has-currency → quantity, the push → broadcast). The
+  spell `with_player_spell_runtime_like_cpp` free function calls the
+  `SessionSpellState` method of that name, not the trait method.
+- `unconditional_recursion`: 0 in every unit of all three canonical builds.
+
+### Registration
+
+No registrar, opcode, `SessionStatus`, `PacketProcessing`, handler name or
+thunk changes; no `handler-module-policy.json` change.
+
+### Edges and closure
+
+No new production edge (every destination already depends on what its bodies
+call: application on spell, inventory on entities, instances on core and
+social, character on lifecycle, entities and `wow-data`). No manifest
+changed. `wow_world_closure.py check`: lock and metadata PASS (18 packages).
+
+### Accounting
+
+Logical crate count (`logical_hotspot_row(lib.rs, "crate")`):
+
+| Crate | Base `8d5cb55a0` | Head | Δ |
+|---|---:|---:|---:|
+| `wow-world` | 26,293 | 25,136 | **−1,157** |
+| `wow-world-application` | 16,181 | 16,744 | +563 |
+| `wow-world-spell` | 21,214 | 21,420 | +206 |
+| `wow-world-instances` | 8,128 | 8,191 | +63 |
+| `wow-world-inventory` | 25,265 | 25,632 | +367 |
+| `wow-world-character` | 9,692 | 9,832 | +140 |
+| `wow-world-loot-ops` | 13,949 | 13,986 | +37 |
+
+- `wow-world` −1,157: the 1,085 moved base lines, the 43 shim-reclassified
+  lines, the retired host impls, imports and the item-push wrapper, less the
+  kept forwards and the rustfmt wraps of repointed calls.
+- `net_move.py check --base origin/3.4.3`: S 1,001 (src tree), growth 1,382
+  within the 2,012.0 allowance, 0 duplicate bodies, PASS.
+- `session_method_index`:
+
+| Measure | Base `8d5cb55a0` | Head |
+|---|---:|---:|
+| Non-forward (crate) | 262 / 6,835 | **230 / 5,730** |
+| Forwards (crate) | 268 / 1,488 | 269 / 1,519 |
+| Staying | 44 / 1,190 | 44 / 1,190 |
+| Outside | 190 / 4,434 | **158 / 3,325** |
+
+  −32 non-forward methods: the 30 moved and the two reclassified to the
+  shim (1,085 + 23 = 1,108 lines; the outside delta is −1,109 because
+  `session/collections` loses one line where its repointed group-guid call
+  reflows, and the crate delta is −1,105 because the client-state handler,
+  outside `session/**`, grows by four lines of wrap at its repointed call). Forwards +1 / +31: the four kept forwards and the
+  session-init forward replacing its body, less the realm-send, realm-id,
+  mount-capability and cancel forwards. `session/stand_state_adapter` 2 / 311
+  → 0, `session/player_cast` 14 / 232 → 3 / 15, `session/money` 6 / 140 →
+  1 / 4, `session/publication` 6 / 140 → 3 / 42, `session/player_presentation`
+  3 / 109 → 0, `session/catalogs` 10 / 253 → 8 / 106, `session/player_items`
+  34 / 285 → 31 / 225, `session/spell_state` 15 / 353 → 13 / 330,
+  `session/social` 4 / 22 → 3 / 15; `session/canonical_access` (9 / 232) and
+  `session/xp_grants` (2 / 31) unchanged.
+
+### Policy and ceilings
+
+- **Tightened, none raised:** `session-method-index.json` outside 190 / 4,434
+  → 158 / 3,325, crate 262 / 6,835 → 230 / 5,730 (staying bound unchanged at
+  44 / 1,190); hotspot `session/mod.rs` production 15,937 → 14,776, test
+  141,615 → 141,614, total 157,552 → 156,390; physical `session/mod.rs`
+  780 → 769. `handlers/loot` and `handlers/character` hotspots unchanged.
+- New physical row `handlers/session_leftovers_test_shims.rs` (155, shim
+  convention).
+- `session-ownership-policy.json` reprinted with `print-baseline`;
+  `check --syntax-only` PASS.
+- Imports: the session-init, currency, cast-identity, spell-runtime,
+  item-push and tavern imports leave production; the names the scenarios
+  still read join existing `cfg(test)` groups (the three single-line
+  `cfg(test)` `wow_entities` groups merge into one), so the session-tree
+  test count does not grow (−1).
+
+### Warnings and tests
+
+Canonical recipe (`--locked`, `--jobs 1`), base `8d5cb55a0` vs head:
+
+| Build | `wow-world` lib | `wow-world` lib test | All `wow-world*` lib units |
+|---|---:|---:|---:|
+| production lib | 118 → 118 | — | 245 → 245 |
+| lib + `test-fixtures` | 127 → 127 | — | 209 → 209 |
+| `--lib --tests` | 127 → 127 | 178 → 178 | 209 → 209 |
+
+Compared by unit, lint, file and message: nothing only in the head in any
+build (the stand-state file keeps its pre-existing unused import, so that
+warning does not move). `wow-world` `dead_code` 0 in all three;
+`unconditional_recursion` 0. Tests: `#[test]`/`#[tokio::test]` lines under
+`crates/` 9,516 at base and head with an identical test-name multiset,
+`#[ignore` 5 and 5; no test file changed. Focused during the move:
+`cargo test -p wow-world --lib` 3,680 passed, 1 ignored; the six destination
+crates' lib suites pass.
+
+### Toward `check --done`
+
+After this slice the outside ratchet is **158 methods / 3,325 lines**. By
+the cut rules used so far (an estimate, not a per-method measurement):
+
+- **Staying candidates (≈ 60–75 methods, ≈ 1.6–2.0k lines):** the session
+  identity and bootstrap (`build_initial_player_for_owner` 406,
+  `set_player_guid` 95, `attach_player_controller` 47) with the
+  canonical-owner install pair (112); the persistence money fences; the
+  many-field context builders (`quest_objective_operation` 110, the
+  spell-click 92 and gameobject-flag 47 builders, the XP context with
+  `give_xp` 31, the aura-application and stats builders, the
+  `*_handler_contexts` builders); the session-command and mailbox-pump
+  steps (102); the #754 spell-map writer (17); the spell-hit authority proof
+  (115) and the passive-aura replays (134) unless a split host method makes
+  them movable. `session/map_admission.rs` (176) stays in the outside
+  ratchet, planned for `wow-world-instances`.
+- **Movable (≈ 85–100 methods, ≈ 1.3–1.7k lines):** **12c** — the field-split
+  forwards the index counts as non-forward (`player_items` 31 / 225 is mostly
+  these, the five named above, `instances` 11 / 83, `lifecycle_ops` 8 / 91)
+  and the kept one-call forwards; **fixture-accessor steps** — the rest-flag
+  group (120), the rest-bonus group (86), the resurrection pair (37), the
+  avg-item-level record (13), the xp-rest, identity and capability loads;
+  **12d** — the unit-update pair (38) and the viewer-dependent NPC flags with
+  the spell-click builder; `remove_fully_looted_runtime_item` (17); the
+  quest-state split seam (25).
+- **Allow-list:** adding the staying set takes it from 44 / 1,190 to roughly
+  105–120 / 2.8–3.2k, in the PR that records the final allow-list.
+- **Cleanup:** the shim files (those without `#![cfg(test)]` are a
+  classifier reclassification, ~1.7k lines at the 12a count), the kept
+  forwards, and the final ceilings.
+
+### Follow-ups
+
+- The deferred items above: the rest-flag and rest-bonus fixture accessors
+  (instances), the avg-item-level record, `remove_fully_looted_runtime_item`
+  and the 12c split forwards; the unit-update pair with the spell-click
+  builder (12d).
+- The kept forwards (driver, `world-server`, loot host) retire in 12c/12d
+  when their callers name the free functions.
 - Shims retire in the final cleanup.
 
 ### Validation

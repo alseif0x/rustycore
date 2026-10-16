@@ -28,7 +28,7 @@ impl VoidStorageSessionHostLikeCpp for WorldSession {
         WorldSession::represented_player_flags_value_like_cpp(self)
     }
     fn player_values_update_snapshot(&self) -> Option<InventoryPlayerProjectionLikeCpp> {
-        WorldSession::player_values_update_snapshot(self)
+        wow_world_inventory::player_values_update_snapshot(self)
     }
     fn get_inventory_item_by_guid_like_cpp(
         &self,

@@ -4,7 +4,8 @@
 
 //! C++ `Player::IsInAreaTriggerRadius`, the tavern area-trigger transition and
 //! the movement-driven area-trigger check (#1363 slice 11b; moved from the
-//! World `session/world_state/operations.rs`).
+//! World `session/world_state/operations.rs`), and the session-tick tavern
+//! revalidation (#1363 slice 12b7; moved from `session/catalogs/operations.rs`).
 
 use tracing::info;
 use wow_core::Position;
@@ -12,7 +13,10 @@ use wow_data::TavernAreaTriggerStoreLikeCpp;
 use wow_world_entities::TELE_TO_NONE_LIKE_CPP;
 
 use super::zone_area::set_represented_tavern_resting_like_cpp;
-use super::{AreaTriggerCatalogAccessLikeCpp, InstanceSessionHostLikeCpp};
+use super::{
+    AreaTriggerCatalogAccessLikeCpp, InstanceSessionHostLikeCpp, REST_FLAG_IN_TAVERN_LIKE_CPP,
+};
+use wow_data::AreaTriggerDb2Store;
 
 /// C++ `Player::IsInAreaTriggerRadius`.
 pub fn player_is_in_area_trigger_radius_like_cpp<H: InstanceSessionHostLikeCpp>(
@@ -182,5 +186,35 @@ pub async fn check_area_triggers_with_catalogs_like_cpp<
                 .await;
             }
         }
+    }
+}
+
+pub fn revalidate_represented_tavern_resting_with_catalog_like_cpp<
+    H: InstanceSessionHostLikeCpp,
+>(
+    host: &mut H,
+    area_trigger_db2_store: &AreaTriggerDb2Store,
+) {
+    let Some(rest) = host.hub_ref().player_rest_state_snapshot_like_cpp() else {
+        return;
+    };
+    if !rest.has_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP) {
+        return;
+    }
+
+    let Some(at_entry) = area_trigger_db2_store
+        .get(rest.inn_trigger_id_like_cpp())
+        .cloned()
+    else {
+        if host.remove_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP) {
+            host.send_represented_resting_player_flag_update_like_cpp();
+        }
+        return;
+    };
+
+    if !player_is_in_area_trigger_radius_like_cpp(host, &at_entry)
+        && host.remove_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP)
+    {
+        host.send_represented_resting_player_flag_update_like_cpp();
     }
 }

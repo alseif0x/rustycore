@@ -1,0 +1,34 @@
+{
+ "slice": "#1363 slice 12b7 (the player values-update snapshot and entity-bridge publication -> wow-world-inventory over BattlePetSessionHostLikeCpp)",
+ "base": "8d5cb55a0",
+ "moved": [
+  "player_values_update_snapshot",
+  "send_player_values_update_from_entity_bridge"
+ ],
+ "rules": [
+  [
+   "pub\\(crate\\) fn player_values_update_snapshot\\(\\s*&self\\s*(,|\\))",
+   "pub fn player_values_update_snapshot<H: BattlePetSessionHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn send_player_values_update_from_entity_bridge\\(\\s*&self\\s*(,|\\))",
+   "pub fn send_player_values_update_from_entity_bridge<H: BattlePetSessionHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "\\bself\\s*\\.\\s*inventory\\s*\\.",
+   "host.split_inventory_ref().0 ."
+  ],
+  [
+   "\\bself\\s*\\.\\s*catalogs\\s*\\.",
+   "host.hub_ref().catalogs."
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "\\bself\\s*\\.",
+   "host."
+  ]
+ ]
+}

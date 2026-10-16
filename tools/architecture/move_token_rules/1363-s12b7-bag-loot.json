@@ -1,0 +1,25 @@
+{
+ "slice": "#1363 slice 12b7 (the bag active-item-loot query -> wow-world-loot-ops session_loot over LootSessionHostLikeCpp)",
+ "base": "8d5cb55a0",
+ "moved": [
+  "represented_bag_contains_active_item_loot_like_cpp"
+ ],
+ "rules": [
+  [
+   "pub\\(crate\\) fn represented_bag_contains_active_item_loot_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "pub fn represented_bag_contains_active_item_loot_like_cpp<H: LootSessionHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "\\bself\\s*\\.\\s*resolved_inventory_item_objects_like_cpp\\(\\s*\\)",
+   "({ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_item_objects_like_cpp(hub) })"
+  ],
+  [
+   "\\bself\\s*\\.\\s*loot\\s*\\.",
+   "host.loot()."
+  ],
+  [
+   "\\bself\\s*\\.",
+   "host."
+  ]
+ ]
+}

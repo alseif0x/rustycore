@@ -34,6 +34,20 @@ pub use effects::*;
 pub use runtime::*;
 pub use spellbook::*;
 
+/// `cfg!(test)` of the World crate, read through the host: `true` only in
+/// the World test build, whose session impl returns its fixtures (a copy of
+/// the `wow-world-inventory` helper, #1363 slice 12b7).
+pub(crate) fn world_test_consumer_like_cpp<H: SessionHubHostLikeCpp + ?Sized>(host: &H) -> bool {
+    #[cfg(any(test, feature = "test-fixtures"))]
+    let world_test = host.test_fixtures_ref_like_cpp().is_some();
+    #[cfg(not(any(test, feature = "test-fixtures")))]
+    let world_test = {
+        let _ = host;
+        false
+    };
+    world_test
+}
+
 /// The World session as the spellbook's host. The supertrait lends the hub.
 pub trait SpellbookHostLikeCpp: SessionHubHostLikeCpp {
     /// The World `spell_state` field.
@@ -42,14 +56,14 @@ pub trait SpellbookHostLikeCpp: SessionHubHostLikeCpp {
     fn split_spell_state_ref(&self) -> (&SessionSpellState, HubRef<'_>);
     /// The World `split_spell_state_mut` split.
     fn split_spell_state_mut(&mut self) -> (&mut SessionSpellState, HubMut<'_>);
-    /// The World spell-map read (C++ `Player::GetSpellMap`). It stays on the
-    /// session because it passes the World `cfg!(test)` fixture flag.
+    /// The World spell-map read (C++ `Player::GetSpellMap`); the World impl
+    /// names [`with_player_spell_runtime_like_cpp`] (#1363 slice 12b7).
     fn with_player_spell_runtime_like_cpp<R>(
         &self,
         query: impl FnOnce(&wow_entities::PlayerSpellRuntimeState) -> R,
     ) -> Option<R>;
-    /// The World spell-map transition dispatch (#754), kept on the session
-    /// for the same reason.
+    /// The World spell-map transition dispatch (#754), kept on the session:
+    /// it is the single writer of the Player spell map.
     fn mutate_player_spell_runtime_like_cpp<R>(
         &mut self,
         f: impl FnOnce(&mut wow_entities::PlayerSpellRuntimeState) -> R,

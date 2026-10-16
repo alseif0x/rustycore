@@ -8,147 +8,17 @@
 use super::Player;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::RepresentedForceDeselectLikeCpp;
+use super::WorldSession;
 #[cfg(test)]
 use super::debug;
-use super::{SKILL_RIDING_LIKE_CPP, WorldSession};
 
 impl WorldSession {
-    pub(in crate::session) fn update_player_collision_height_like_cpp(&mut self) {
-        let mut hub = crate::session::hub_mut(self);
-        let (presentation, mut control) = hub.aura_removal_mount_accesses_like_cpp();
-        control.update_player_collision_height_like_cpp(&presentation, cfg!(test));
-    }
-
     #[allow(dead_code)]
     pub(crate) fn represented_mount_x_display_usable_like_cpp(
         &self,
         player_condition_id: u32,
     ) -> bool {
         self.represented_meets_player_condition_id_like_cpp(player_condition_id)
-    }
-
-    #[allow(dead_code)]
-    pub(in crate::session) fn represented_mount_capability_selection_for_type_like_cpp(
-        &self,
-        mount_type_id: u16,
-        riding_skill: u32,
-        mount_restriction_flags: Option<u8>,
-        is_submerged: bool,
-        is_in_water: bool,
-    ) -> Result<wow_data::MountCapabilityEntry, wow_data::MountCapabilityRejectLikeCpp> {
-        let capability_store = self
-            .catalogs
-            .mount_capability_store
-            .as_ref()
-            .ok_or(wow_data::MountCapabilityRejectLikeCpp::MissingCapabilityRow)?;
-        let type_store = self
-            .catalogs
-            .mount_type_x_capability_store
-            .as_ref()
-            .ok_or(wow_data::MountCapabilityRejectLikeCpp::MissingMountTypeCapabilities)?;
-        let area_store = self
-            .catalogs
-            .area_table_store
-            .as_ref()
-            .ok_or(wow_data::MountCapabilityRejectLikeCpp::Area)?;
-
-        let map_id = u32::from(self.core.player_map_id_like_cpp());
-        let map = self
-            .catalogs
-            .maps
-            .store
-            .as_ref()
-            .and_then(|store| store.get(map_id));
-        let (_, area_id) = crate::session::hub_ref(self)
-            .player_zone_area_like_cpp()
-            .ok_or(wow_data::MountCapabilityRejectLikeCpp::Area)?;
-        let mount_flags = mount_restriction_flags.unwrap_or_else(|| {
-            area_store
-                .get(area_id)
-                .map(|area| area.mount_flags as u8)
-                .unwrap_or_else(|| {
-                    if area_id == 0 {
-                        // C++ reaches this check after TerrainMgr resolved the
-                        // player's area. Until Rust has that full terrain bridge,
-                        // an area 0 placeholder should not make ordinary ground
-                        // mounts fail SPELL_FAILED_NOT_HERE.
-                        wow_data::AREA_MOUNT_FLAG_ALLOW_GROUND_MOUNTS
-                    } else {
-                        0
-                    }
-                })
-        });
-        let context = wow_data::MountCapabilityContextLikeCpp {
-            riding_skill,
-            mount_flags,
-            is_submerged,
-            is_in_water,
-            map_id: map_id as i32,
-            cosmetic_parent_map_id: map
-                .map(|entry| i32::from(entry.cosmetic_parent_map_id))
-                .unwrap_or(-1),
-            parent_map_id: map
-                .map(|entry| i32::from(entry.parent_map_id))
-                .unwrap_or(-1),
-        };
-        let visible_auras = crate::session::hub_ref(self)
-            .resolved_player_visible_auras_like_cpp()
-            .ok_or(wow_data::MountCapabilityRejectLikeCpp::Aura)?;
-
-        capability_store
-            .select_for_mount_type_with_reject_like_cpp(
-                type_store,
-                mount_type_id,
-                &context,
-                |required_area_id| {
-                    area_store.is_in_area_like_cpp(area_id, u32::from(required_area_id))
-                },
-                |aura_id| {
-                    visible_auras
-                        .values()
-                        .any(|aura| u32::try_from(aura.spell_id).ok() == Some(aura_id))
-                },
-                |spell_id| wow_world_spell::known_spells_like_cpp(self).contains(&spell_id),
-            )
-            .copied()
-    }
-
-    pub(crate) fn represented_mount_capability_for_type_like_cpp(
-        &self,
-        mount_type_id: u16,
-        riding_skill: u32,
-        mount_restriction_flags: Option<u8>,
-        is_submerged: bool,
-        is_in_water: bool,
-    ) -> Option<wow_data::MountCapabilityEntry> {
-        self.represented_mount_capability_selection_for_type_like_cpp(
-            mount_type_id,
-            riding_skill,
-            mount_restriction_flags,
-            is_submerged,
-            is_in_water,
-        )
-        .ok()
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn represented_mount_capability_for_type_from_session_like_cpp(
-        &self,
-        mount_type_id: u16,
-        mount_restriction_flags: Option<u8>,
-    ) -> Option<wow_data::MountCapabilityEntry> {
-        let (is_submerged, is_in_water) =
-            crate::session::hub_ref(self).represented_player_mount_liquid_state_like_cpp()?;
-        self.represented_mount_capability_for_type_like_cpp(
-            mount_type_id,
-            u32::from(
-                crate::session::hub_ref(self)
-                    .resolved_player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)?,
-            ),
-            mount_restriction_flags,
-            is_submerged,
-            is_in_water,
-        )
     }
 
     #[cfg(test)]

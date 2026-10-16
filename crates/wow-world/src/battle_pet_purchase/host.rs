@@ -21,7 +21,7 @@ impl BattlePetPurchaseHostLikeCpp for WorldSession {
         WorldSession::resolved_player_money_like_cpp(self)
     }
     fn stage_player_money_change_like_cpp(&mut self, old_money: u64, new_money: u64) -> bool {
-        WorldSession::stage_player_money_change_like_cpp(self, old_money, new_money)
+        wow_world_inventory::stage_player_money_change_like_cpp(self, old_money, new_money)
     }
     fn send_player_values_update_from_entity_bridge(
         &self,
@@ -31,7 +31,7 @@ impl BattlePetPurchaseHostLikeCpp for WorldSession {
         buyback_changes: &[(u8, u32, i64)],
         coinage: Option<u64>,
     ) -> bool {
-        WorldSession::send_player_values_update_from_entity_bridge(
+        wow_world_inventory::send_player_values_update_from_entity_bridge(
             self,
             inv_slot_changes,
             visible_item_changes,

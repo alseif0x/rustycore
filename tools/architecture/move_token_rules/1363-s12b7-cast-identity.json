@@ -1,0 +1,38 @@
+{
+ "slice": "#1363 slice 12b7 (the player-cast identity allocation -> wow-world-spell player_cast_session over SessionHubHostLikeCpp; the handle-less fixture counter moves with it)",
+ "base": "8d5cb55a0",
+ "moved": [
+  "next_represented_spell_cast_guid_like_cpp",
+  "allocate_player_cast_identity_like_cpp"
+ ],
+ "rules": [
+  [
+   "pub\\(crate\\) fn next_represented_spell_cast_guid_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "pub fn next_represented_spell_cast_guid_like_cpp<H: SessionHubHostLikeCpp + ?Sized>(host: &H\\1"
+  ],
+  [
+   "pub\\(in crate::session\\) fn allocate_player_cast_identity_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "pub fn allocate_player_cast_identity_like_cpp<H: SessionHubHostLikeCpp + ?Sized>(host: &H\\1"
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*if self\\s*\\.\\s*core\\s*\\.\\s*player_handle_like_cpp",
+   "#[cfg(any(test, feature = \"test-fixtures\"))] if host.test_fixtures_ref_like_cpp().is_some() && self.core.player_handle_like_cpp"
+  ],
+  [
+   "\\bself\\s*\\.\\s*realm_id\\(\\)",
+   "host.core().realm_id()"
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "\\bself\\s*\\.\\s*{name}\\(",
+   "{name}(host, "
+  ],
+  [
+   "\\bself\\s*\\.",
+   "host."
+  ]
+ ]
+}

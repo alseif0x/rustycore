@@ -15,6 +15,7 @@ pub(crate) use wow_constants::quest::{
     QUEST_OBJECTIVE_MAX_REPUTATION_LIKE_CPP, QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP,
     QUEST_OBJECTIVE_MONEY_LIKE_CPP, QUEST_OBJECTIVE_OBTAIN_CURRENCY_LIKE_CPP,
 };
+pub(crate) use wow_data::skill::SKILL_RIDING_LIKE_CPP;
 pub(crate) use wow_data::spell_click::{
     SPELL_CLICK_USER_PARTY_LIKE_CPP, SPELL_CLICK_USER_RAID_LIKE_CPP,
 };
@@ -54,6 +55,7 @@ pub(crate) use wow_world_instances::{
     create_map_instance_lock_token_like_cpp,
 };
 pub(crate) use wow_world_inventory::MAX_BATTLE_PET_LEVEL_LIKE_CPP;
+pub(crate) use wow_world_inventory::item_push_result_from_send_new_item_plan;
 pub(crate) use wow_world_quest::{
     QUEST_FLAGS_EX_RECAST_ACCEPT_SPELL_ON_LOGIN_LIKE_CPP, QUEST_FLAGS_PLAYER_CAST_ACCEPT_LIKE_CPP,
     ResetSeasonalQuestStatusReasonLikeCpp, SeasonalQuestStatusDbRowLikeCpp,
@@ -63,6 +65,7 @@ pub(crate) use wow_world_quest::{
     RepresentedQuestCompleteStatusUpdateLikeCpp, RepresentedQuestConfirmAcceptLikeCpp,
     RepresentedQuestPushResultResponseLikeCpp,
 };
+pub(crate) use wow_world_spell::spell_cast_adapter::represented_spell_cast_guid_for_map_like_cpp;
 pub(crate) use wow_world_spell::{
     AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP, RepresentedPlayerSpellLikeCpp,
     RepresentedSpellFocusObjectLikeCpp, SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP,

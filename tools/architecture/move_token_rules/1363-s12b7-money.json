@@ -1,0 +1,82 @@
+{
+ "slice": "#1363 slice 12b7 (the currency quantity, flags, item-refund and setup packet and the staged money change -> wow-world-inventory over VendorSessionHostLikeCpp)",
+ "base": "8d5cb55a0",
+ "moved": [
+  "player_currency_quantity",
+  "has_currency",
+  "represented_set_currency_flags_like_cpp",
+  "add_currency_item_refund",
+  "stage_player_money_change_like_cpp",
+  "setup_currencies_packet_like_cpp"
+ ],
+ "rules": [
+  [
+   "pub\\(crate\\) fn player_currency_quantity\\(\\s*&self\\s*(,|\\))",
+   "pub fn player_currency_quantity<H: VendorSessionHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn has_currency\\(\\s*&self\\s*(,|\\))",
+   "pub fn has_currency<H: VendorSessionHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn represented_set_currency_flags_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn represented_set_currency_flags_like_cpp<H: VendorSessionHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn add_currency_item_refund\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn add_currency_item_refund<H: VendorSessionHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn stage_player_money_change_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn stage_player_money_change_like_cpp<H: VendorSessionHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn setup_currencies_packet_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "pub fn setup_currencies_packet_like_cpp<H: VendorSessionHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "\\bself\\s*\\.\\s*player_currencies_like_cpp\\(\\s*\\)",
+   "({ let (state, hub) = host.split_inventory_ref(); state.player_currencies_like_cpp(hub) })"
+  ],
+  [
+   "\\bself\\s*\\.\\s*set_player_currencies_like_cpp\\(([^()]*)\\)",
+   "({ let (state, mut hub) = host.split_inventory_mut(); state.set_player_currencies_like_cpp(&mut hub, \\1) })"
+  ],
+  [
+   "\\bself\\s*\\.\\s*set_player_gold_like_cpp\\(([^()]*)\\)",
+   "({ let (state, mut hub) = host.split_inventory_mut(); state.set_player_gold_like_cpp(&mut hub, \\1) })"
+  ],
+  [
+   "\\bself\\s*\\.\\s*quest_state\\s*\\.\\s*enqueue_represented_quest_objective_progress_like_cpp\\(\\s*RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged\\s*\\{\\s*old_money\\s*,\\s*new_money\\s*,?\\s*\\}\\s*,?\\s*\\)",
+   "host.enqueue_represented_quest_objective_money_changed_like_cpp(old_money, new_money)"
+  ],
+  [
+   "\\bself\\s*\\.\\s*inventory\\s*\\.",
+   "host.split_inventory_ref().0 ."
+  ],
+  [
+   "crate::session::hub_ref\\(self\\)",
+   "host.hub_ref()"
+  ],
+  [
+   "\\bself\\s*\\.\\s*catalogs\\s*\\.",
+   "host.hub_ref().catalogs."
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "as_context\\(self\\)",
+   "as_context(host)"
+  ],
+  [
+   "\\bself\\s*\\.\\s*{name}\\(",
+   "{name}(host, "
+  ],
+  [
+   "\\bself\\s*\\.",
+   "host."
+  ]
+ ]
+}

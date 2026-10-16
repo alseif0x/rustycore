@@ -50,6 +50,7 @@ pub use area_triggers::{
     check_area_triggers_with_catalogs_like_cpp,
     handle_represented_tavern_area_trigger_with_catalog_like_cpp,
     player_is_in_area_trigger_radius_like_cpp,
+    revalidate_represented_tavern_resting_with_catalog_like_cpp,
 };
 pub use create_map::{
     CreateMapSideEffectApplySummaryLikeCpp, apply_create_map_side_effects_like_cpp,

@@ -1,0 +1,55 @@
+{
+ "slice": "#1363 slice 12b7 (#1418 follow-up 1: the resolved group guid -> wow-world-instances over GroupSessionHostLikeCpp with world_test_consumer_like_cpp; the new-item push result and its group broadcast -> wow-world-inventory over WorldEntitiesHostLikeCpp)",
+ "base": "8d5cb55a0",
+ "moved": [
+  "resolved_group_guid_like_cpp",
+  "send_new_item_plan",
+  "broadcast_item_push_result_to_group"
+ ],
+ "rules": [
+  [
+   "pub\\(crate\\) fn resolved_group_guid_like_cpp\\(\\s*&self\\s*(,|\\))",
+   "pub fn resolved_group_guid_like_cpp<H: GroupSessionHostLikeCpp + ?Sized>(host: &H\\1"
+  ],
+  [
+   "pub\\(crate\\) fn send_new_item_plan\\(\\s*&self\\s*(,|\\))",
+   "pub fn send_new_item_plan<H: WorldEntitiesHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "pub\\(in crate::session\\) fn broadcast_item_push_result_to_group\\(\\s*&self\\s*(,|\\))",
+   "fn broadcast_item_push_result_to_group<H: WorldEntitiesHostLikeCpp>(host: &H\\1"
+  ],
+  [
+   "crate::session::split_social_ref\\(self\\)",
+   "host.split_social_ref()"
+  ],
+  [
+   "wow_world_instances::resolved_group_guid_like_cpp\\(",
+   "crate::resolved_group_guid_like_cpp("
+  ],
+  [
+   "cfg!\\(test\\)",
+   "world_test_consumer_like_cpp(host)"
+  ],
+  [
+   "crate::session::item_push_result_from_send_new_item_plan\\(",
+   "crate::item_push_result_from_send_new_item_plan("
+  ],
+  [
+   "\\bself\\s*\\.\\s*broadcast_item_push_result_to_group\\(",
+   "broadcast_item_push_result_to_group(host, "
+  ],
+  [
+   "\\bself\\s*\\.\\s*send_packet_realm\\(",
+   "host.core().send_packet_realm("
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "\\bself\\s*\\.",
+   "host."
+  ]
+ ]
+}

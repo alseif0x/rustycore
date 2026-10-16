@@ -62,7 +62,7 @@ impl QuestItemStorageHostLikeCpp for WorldSession {
         )
     }
     fn send_new_item_plan(&self, plan: &SendNewItemPlan) {
-        WorldSession::send_new_item_plan(self, plan)
+        wow_world_inventory::send_new_item_plan(self, plan)
     }
     fn send_player_values_update_from_entity_bridge(
         &self,
@@ -72,7 +72,7 @@ impl QuestItemStorageHostLikeCpp for WorldSession {
         buyback_changes: &[(u8, u32, i64)],
         coinage: Option<u64>,
     ) -> bool {
-        WorldSession::send_player_values_update_from_entity_bridge(
+        wow_world_inventory::send_player_values_update_from_entity_bridge(
             self,
             inv_slot_changes,
             visible_item_changes,

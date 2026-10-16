@@ -6,8 +6,6 @@ use wire::PlayerCastPublicationPhaseLikeCpp;
 use wow_entities::{SpellCastState, SpellCastVisualLikeCpp};
 use wow_packet::packets::spell::{CastFailed, SpellPreparePkt, SpellStartPkt};
 mod host;
-mod identity;
-mod publication;
 mod state;
 pub(in crate::session) mod wire;
 
@@ -44,12 +42,12 @@ impl Runtime for WorldSession {
     }
 
     fn remaining(&self, spell: &wow_data::SpellInfo) -> Option<(u32, u32)> {
-        self.remaining_global_cooldown_ms_like_cpp(spell)
-            .zip(self.remaining_active_spell_cast_ms_like_cpp())
+        wow_world_application::remaining_global_cooldown_ms_like_cpp(self, spell)
+            .zip(wow_world_application::remaining_active_spell_cast_ms_like_cpp(self))
     }
 
     fn replace_pending(&mut self, request: RepresentedPendingSpellCastRequestLikeCpp) {
-        self.request_represented_spell_cast_like_cpp(request);
+        wow_world_application::request_represented_spell_cast_like_cpp(self, request);
     }
 
     fn failure(&mut self, id: ObjectGuid, spell: i32, visual: SpellCastVisualLikeCpp, reason: i32) {
@@ -64,7 +62,7 @@ impl Runtime for WorldSession {
     }
 
     fn allocate(&self, spell: i32) -> Option<(ObjectGuid, Option<u64>)> {
-        self.allocate_player_cast_identity_like_cpp(spell)
+        wow_world_spell::allocate_player_cast_identity_like_cpp(self, spell)
     }
 
     fn visual(&self, spell: &wow_data::SpellInfo) -> Option<SpellCastVisualLikeCpp> {

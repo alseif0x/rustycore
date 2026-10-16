@@ -106,7 +106,8 @@ pub(crate) fn calculate_represented_mounted_aura_amount_like_cpp<H: AuraHostLike
         if let Some((is_submerged, is_in_water)) = host
             .hub_ref()
             .represented_player_mount_liquid_state_like_cpp()
-            && let Ok(capability) = host.represented_mount_capability_selection_for_type_like_cpp(
+            && let Ok(capability) = crate::represented_mount_capability_selection_for_type_like_cpp(
+                host,
                 mount_type_id,
                 u32::from(riding_skill),
                 None,

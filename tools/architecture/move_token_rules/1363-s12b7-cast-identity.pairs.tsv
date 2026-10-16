@@ -1,0 +1,2 @@
+crates/wow-world/src/session/player_cast/identity.rs	next_represented_spell_cast_guid_like_cpp	crates/wow-world-spell/src/player_cast_session/identity.rs
+crates/wow-world/src/session/player_cast/identity.rs	allocate_player_cast_identity_like_cpp	crates/wow-world-spell/src/player_cast_session/identity.rs

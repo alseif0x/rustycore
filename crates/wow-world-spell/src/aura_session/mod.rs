@@ -18,10 +18,7 @@ use wow_entities::{AuraApplicationLikeCpp as AuraApplication, RepresentedAuraEff
 use wow_world_core::session::{HubMut, HubRef};
 use wow_world_entities::WorldEntitiesState;
 
-use crate::{
-    RepresentedPlayerSpellRuntimeLikeCpp, SpellbookHostLikeCpp,
-    represented_aura_effect_amounts_like_cpp,
-};
+use crate::{SpellbookHostLikeCpp, represented_aura_effect_amounts_like_cpp};
 
 mod application;
 mod aura_state;
@@ -92,20 +89,8 @@ pub trait AuraHostLikeCpp: SpellbookHostLikeCpp {
 
         Ok(())
     }
-    fn represented_mount_capability_selection_for_type_like_cpp(
-        &self,
-        mount_type_id: u16,
-        riding_skill: u32,
-        mount_restriction_flags: Option<u8>,
-        is_submerged: bool,
-        is_in_water: bool,
-    ) -> Result<wow_data::MountCapabilityEntry, wow_data::MountCapabilityRejectLikeCpp>;
     fn represented_mount_x_display_usable_like_cpp(&self, player_condition_id: u32) -> bool;
-    fn update_player_collision_height_like_cpp(&mut self);
     fn next_represented_spell_cast_guid_like_cpp(&self, spell_id: i32) -> Option<ObjectGuid>;
     fn tick_represented_creature_auras_like_cpp(&mut self);
     fn represented_spell_area_quest_status_like_cpp(&self, quest_id: u32) -> Option<u8>;
-    fn player_spell_runtime_snapshot_like_cpp(
-        &self,
-    ) -> Option<RepresentedPlayerSpellRuntimeLikeCpp>;
 }

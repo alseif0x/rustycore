@@ -7,7 +7,6 @@
 use super::{HashMap, PlayerCurrency, WorldSession};
 
 pub(crate) use wow_world_core::session::PlayerCurrencyDelta;
-pub(in crate::session) use wow_world_core::session::currency_max_quantity_cpp;
 
 pub(crate) use wow_world_quest::RepresentedQuestObjectiveProgressEventLikeCpp;
 
