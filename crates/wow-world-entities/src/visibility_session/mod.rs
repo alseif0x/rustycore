@@ -25,6 +25,7 @@ use crate::RepresentedGameObjectUseState;
 use crate::world_entities_host::WorldEntitiesHostLikeCpp;
 
 mod canonical_objects;
+mod deferred;
 mod dynamic_object_values;
 mod nearby;
 mod queries;
@@ -35,6 +36,11 @@ mod update;
 pub use canonical_objects::{
     dynamic_object_create_data_from_canonical_like_cpp,
     visible_dynamic_objects_from_canonical_map_like_cpp,
+};
+pub use deferred::{
+    apply_deferred_player_visibility_refresh_like_cpp,
+    flush_pending_visibility_refresh_with_catalogs_like_cpp,
+    handle_destroy_visible_object_like_cpp_command_like_cpp,
 };
 pub use dynamic_object_values::send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp;
 pub use nearby::{send_nearby_creatures_with_catalogs_like_cpp, send_nearby_gameobjects};

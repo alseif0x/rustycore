@@ -234,10 +234,12 @@ pub use vehicle_session::{
     represented_request_vehicle_switch_seat_like_cpp, represented_ride_vehicle_interact_like_cpp,
 };
 pub use visibility_session::{
-    VisibilitySessionHostLikeCpp, apply_move_init_active_mover_complete_like_cpp,
-    can_see_phase_shift_like_cpp, current_seer_guid_like_cpp,
-    dynamic_object_create_data_from_canonical_like_cpp,
+    VisibilitySessionHostLikeCpp, apply_deferred_player_visibility_refresh_like_cpp,
+    apply_move_init_active_mover_complete_like_cpp, can_see_phase_shift_like_cpp,
+    current_seer_guid_like_cpp, dynamic_object_create_data_from_canonical_like_cpp,
+    flush_pending_visibility_refresh_with_catalogs_like_cpp,
     force_update_visibility_with_catalogs_like_cpp,
+    handle_destroy_visible_object_like_cpp_command_like_cpp,
     represented_gameobject_go_state_for_viewer_like_cpp, represented_player_flags_value_like_cpp,
     represented_player_has_flag_like_cpp, represented_player_phase_shift_like_cpp,
     represented_visibility_source_combat_reach_like_cpp,

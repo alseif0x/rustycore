@@ -331,6 +331,17 @@ impl WorldSession {
     pub(crate) fn represented_player_flags_value_like_cpp(&self) -> Option<u32> {
         wow_world_entities::represented_player_flags_value_like_cpp(self)
     }
+    // Deferred visibility mailbox steps (moved to `wow_world_entities`).
+    pub(crate) async fn apply_deferred_player_visibility_refresh_like_cpp(
+        &mut self,
+        catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
+        intent: wow_map::PlayerVisibilityRefreshIntentLikeCpp,
+    ) {
+        wow_world_entities::apply_deferred_player_visibility_refresh_like_cpp(
+            self, catalogs, intent,
+        )
+        .await
+    }
     // Taxi (the scenario-only edge distance, from `session/taxi/operations.rs`).
     pub(crate) fn represented_taxi_edge_distance_like_cpp(
         &self,

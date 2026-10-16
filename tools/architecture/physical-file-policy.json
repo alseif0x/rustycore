@@ -888,8 +888,8 @@
     },
     {
       "path": "crates/wow-world/src/handlers/retired_forward_test_shims.rs",
-      "observed_lines": 351,
-      "ceiling_lines": 351,
+      "observed_lines": 362,
+      "ceiling_lines": 362,
       "split": "cfg(test) method-syntax entry points for the World split forwards and test-only bodies retired in #1363 slice 12d: the currency, instance, lifecycle, loot, interaction, player-item and gameobject split forwards whose production host impls now name the split or field, and the scenario-only taxi edge distance and map-difficulty condition reads, each kept verbatim because only the scenarios call them. Mounted from handlers/mod.rs outside the hotspot trees and marked #![cfg(test)], so its lines are not production. 2026-10-17 #1363 slice 12d: ratcheted at the live value from creation (shim physical-row convention); it retires with the other shims when the scenarios call the splits and fields directly.",
       "review_checkpoint": "584:C4"
     },

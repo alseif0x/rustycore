@@ -430,13 +430,13 @@ mod void_storage_adapter;
 mod xp_grants;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
-};
+use std::sync::Arc;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 #[cfg(test)]
-use std::{sync::atomic::AtomicUsize, time::Duration};
+use std::{
+    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
+    time::Duration,
+};
 
 #[cfg(test)]
 use rand::{Rng, SeedableRng, rngs::StdRng};

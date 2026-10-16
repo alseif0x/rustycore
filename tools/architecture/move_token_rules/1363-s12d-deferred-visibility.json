@@ -1,0 +1,13 @@
+{
+ "slice": "#1363 slice 12d (the deferred visibility mailbox steps: DestroyForNearbyPlayers, the deferred player visibility refresh and the pending-refresh flush -> wow-world-entities visibility_session/deferred.rs over VisibilitySessionHostLikeCpp)",
+ "base": "4cf327c8c",
+ "moved": ["handle_destroy_visible_object_like_cpp_command_like_cpp", "apply_deferred_player_visibility_refresh_like_cpp", "flush_pending_visibility_refresh_with_catalogs_like_cpp"],
+ "comment": "is_disconnecting() inlines the World wrapper (self.core.state == SessionState::Disconnecting, verified); state() and send_packet() are the SessionHubHostLikeCpp provided methods, which forward exactly as the World inherents do (self.core.state, self.core.send_packet); the farsight sync is the visibility host's method of that name.",
+ "rules": [
+  ["pub\\(crate\\) (async )?fn {name}\\(\\s*&mut self,", "pub \\1fn {name}<H: VisibilitySessionHostLikeCpp>(host: &mut H,"],
+  ["self\\.is_disconnecting\\(\\)", "host.core().state == SessionState::Disconnecting"],
+  ["wow_world_entities::(\\w+)\\(\\s*self\\b", "crate::\\1(host"],
+  ["\\bself\\s*\\.\\s*core\\s*\\.", "host.core()."],
+  ["\\bself\\s*\\.", "host."]
+ ]
+}
