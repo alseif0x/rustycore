@@ -41,8 +41,4 @@ impl WorldSession {
             loaded_equipped_item_guids,
         )
     }
-    pub(crate) fn player_equipment_inventory_authority_complete_like_cpp(&self) -> bool {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.player_equipment_inventory_authority_complete_like_cpp(hub)
-    }
 }

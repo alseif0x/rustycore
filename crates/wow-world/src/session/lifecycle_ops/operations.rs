@@ -12,12 +12,6 @@ impl WorldSession {
     pub(crate) fn battlenet_account_id(&self) -> u32 {
         self.core.battlenet_account_id()
     }
-    pub(in crate::session) fn represented_battle_pet_login_spell_source_is_empty_like_cpp(
-        &self,
-    ) -> bool {
-        let (state, hub) = crate::session::split_lifecycle_ref(self);
-        state.represented_battle_pet_login_spell_source_is_empty_like_cpp(hub)
-    }
     pub(crate) fn ensure_login_player_controller_like_cpp(
         &mut self,
         guid: ObjectGuid,

@@ -231,4 +231,19 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.refresh_inventory_item_enchantment_duration_refs_like_cpp(&mut hub, item_guid)
     }
+    // Session-tree `_ref` split forwards retired in favour of `self.<field>.<op>(hub_ref(self), ..)` at the callers.
+    pub(crate) fn pending_teleport_like_cpp(&self) -> Option<(u32, wow_core::Position)> {
+        let (state, hub) = crate::session::split_lifecycle_ref(self);
+        state.pending_teleport_like_cpp(hub)
+    }
+    pub(crate) fn player_equipment_inventory_authority_complete_like_cpp(&self) -> bool {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.player_equipment_inventory_authority_complete_like_cpp(hub)
+    }
+    pub(crate) fn resolved_inventory_item_objects_like_cpp(
+        &self,
+    ) -> Option<std::collections::HashMap<wow_core::ObjectGuid, wow_entities::Item>> {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.resolved_inventory_item_objects_like_cpp(hub)
+    }
 }

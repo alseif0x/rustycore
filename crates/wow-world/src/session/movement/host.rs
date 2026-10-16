@@ -117,7 +117,8 @@ impl wow_world_entities::PlayerTeleportHostLikeCpp for WorldSession {
     }
 
     fn pending_teleport_like_cpp(&self) -> Option<(u32, Position)> {
-        WorldSession::pending_teleport_like_cpp(self)
+        self.lifecycle
+            .pending_teleport_like_cpp(crate::session::hub_ref(self))
     }
 
     fn set_pending_teleport_like_cpp(&mut self, destination: Option<(u32, Position)>) -> bool {

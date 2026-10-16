@@ -18,10 +18,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.item_drop_rate_like_cpp(hub, item_id)
     }
-    pub(crate) fn resolved_buyback_items_like_cpp(&self) -> Option<HashMap<u8, InventoryItem>> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.resolved_buyback_items_like_cpp(hub)
-    }
     #[cfg(test)]
     pub(crate) fn represented_trade_spell_cast_item_like_cpp(&self) -> Option<ObjectGuid> {
         self.player_trade_state_snapshot_like_cpp()

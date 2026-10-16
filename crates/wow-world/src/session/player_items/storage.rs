@@ -42,12 +42,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.resolved_inventory_items_like_cpp(hub)
     }
-    pub(crate) fn resolved_inventory_item_objects_like_cpp(
-        &self,
-    ) -> Option<HashMap<ObjectGuid, Item>> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.resolved_inventory_item_objects_like_cpp(hub)
-    }
     pub(crate) fn resolved_inventory_item_like_cpp(&self, slot: u8) -> Option<InventoryItem> {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.resolved_inventory_item_like_cpp(hub, slot)

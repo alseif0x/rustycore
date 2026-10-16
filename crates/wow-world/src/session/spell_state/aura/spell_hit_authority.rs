@@ -26,7 +26,11 @@ impl WorldSession {
         if !self.player_spell_hit_source_identity_complete_like_cpp()
             || aura_subsystem.spell_hit_aura_authority_tombstoned_like_cpp()
             || !aura_subsystem.persisted_player_aura_authority_complete_like_cpp()
-            || !self.player_equipment_inventory_authority_complete_like_cpp()
+            || !self
+                .inventory
+                .player_equipment_inventory_authority_complete_like_cpp(crate::session::hub_ref(
+                    self,
+                ))
             || self
                 .resolved_represented_guild_id_like_cpp()
                 .is_none_or(|guild_id| guild_id != 0)
@@ -38,7 +42,11 @@ impl WorldSession {
                 .is_none_or(|traits| !traits.is_empty())
             || !wow_world_spell::represented_trait_config_aura_source_is_empty_like_cpp(self)
             || !wow_world_spell::represented_active_glyph_aura_source_is_empty_like_cpp(self)
-            || !self.represented_battle_pet_login_spell_source_is_empty_like_cpp()
+            || !self
+                .lifecycle
+                .represented_battle_pet_login_spell_source_is_empty_like_cpp(
+                    crate::session::hub_ref(self),
+                )
             || !wow_world_spell::represented_add_player_to_map_aura_source_is_empty_like_cpp(self)
             || !self
                 .catalogs
@@ -68,10 +76,12 @@ impl WorldSession {
                 .resolved_inventory_items_like_cpp()
                 .is_none_or(|items| !items.is_empty())
             || self
-                .resolved_buyback_items_like_cpp()
+                .inventory
+                .resolved_buyback_items_like_cpp(crate::session::hub_ref(self))
                 .is_none_or(|items| !items.is_empty())
             || self
-                .resolved_inventory_item_objects_like_cpp()
+                .inventory
+                .resolved_inventory_item_objects_like_cpp(crate::session::hub_ref(self))
                 .is_none_or(|items| !items.is_empty())
         {
             return false;
