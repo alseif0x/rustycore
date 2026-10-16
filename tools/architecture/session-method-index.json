@@ -1,5 +1,5 @@
 {
-  "comment": "#1363 done criterion (tools/architecture/session_method_index.py check). Non-forward inherent WorldSession methods in crates/wow-world/src/session/** may remain only in the runtime shell and the world-server construction API listed here; the staying set is bounded, the rest is a ratchet that must reach 0 (check --done), and crate_ceiling bounds the whole crate so logic cannot leave session/** for handlers/ unseen. Entries are paths relative to crates/wow-world/src: a trailing '/' is a directory, 'file::method' is one method; every entry must match a non-forward method. session/driver/phases.rs is runtime shell under session/driver/ (its two methods are cfg(test)); session/map_admission.rs is gameplay (AccessRequirement / Map::PlayerCannotEnter, planned for wow-world-instances) and counts in the outside ratchet.",
+  "comment": "#1363 done criterion (tools/architecture/session_method_index.py check). Non-forward inherent WorldSession methods in crates/wow-world/src/session/** may remain only when allow-listed here by name: the runtime shell and the world-server construction API (the original groups), and, since slice 12d, the bootstrap/identity steps, the #169 money fences, the #754 single writer, the mailbox pump, the many-field session seams (borrowed-context builders whose destination cannot reach the WorldSession fields) and the cfg(test) seams that await a fixture accessor; every entry outside the two original groups carries a one-line reason in `reasons`. The staying set is bounded, the outside ratchet is 0 (check --done), and crate_ceiling bounds the whole crate so logic cannot leave session/** for handlers/ unseen. Entries are paths relative to crates/wow-world/src: a trailing '/' is a directory, 'file::method' is one method; every entry must match a non-forward method.",
   "allow": {
     "runtime_shell": [
       "session/driver/",
@@ -9,7 +9,12 @@
       "session/dispatch.rs::dispatch_packet",
       "session/dispatch.rs::is_status_allowed",
       "session/admission.rs::evaluate_packet_spoof_like_cpp",
-      "session/admission.rs::flush_packet_spoof_ban_like_cpp"
+      "session/admission.rs::flush_packet_spoof_ban_like_cpp",
+      "session/lifecycle/finalization.rs::interrupt_finalization_like_cpp",
+      "session/world_state/operations.rs::dispatch_area_trigger_script_like_cpp",
+      "session/object_updates.rs::send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp",
+      "session/visibility/operations.rs::sync_represented_farsight_clear_from_canonical_like_cpp",
+      "session/world_entities/gameobject_state.rs::send_represented_gameobject_visibility_on_destroy_from_last_update_like_cpp"
     ],
     "construction_api": [
       "session/catalogs/operations.rs::set_chr_specialization_store",
@@ -33,19 +38,140 @@
       "session/spell_state/catalog.rs::set_spell_linked_store",
       "session/spell_state/catalog.rs::set_spell_area_store",
       "session/spell_state/spell.rs::set_spell_runtime_script_authority_like_cpp",
-      "session/world_state/operations.rs::set_area_table_store"
+      "session/world_state/operations.rs::set_area_table_store",
+      "session/progression/skills.rs::set_max_primary_trade_skills_like_cpp",
+      "session/pets/battle_pet.rs::set_battle_pet_account_attachment_like_cpp",
+      "session/persistence/load.rs::load_global_account_data_like_cpp",
+      "session/lifecycle_ops/operations.rs::expand_account_mount_faction_definitions_like_cpp"
+    ],
+    "bootstrap_identity": [
+      "session/canonical_access/operations.rs::ensure_canonical_player_owner_exists_like_cpp",
+      "session/canonical_access/operations.rs::install_detached_canonical_player_from_session_like_cpp",
+      "session/lifecycle_ops/operations.rs::ensure_login_player_controller_like_cpp",
+      "session/persistence/load.rs::set_player_loading",
+      "session/persistence/load.rs::set_loaded_player_name_like_cpp",
+      "session/persistence/load.rs::set_loaded_player_identity_like_cpp",
+      "session/player_binding.rs::set_player_guid",
+      "session/player_binding.rs::attach_player_controller_like_cpp",
+      "session/player_bootstrap.rs::build_initial_player_for_owner_like_cpp",
+      "session/player_registry_binding.rs::register_in_player_registry",
+      "session/progression/skills.rs::clear_player_skill_tombstones_like_cpp",
+      "session/spell_state/spell.rs::player_spell_hit_source_identity_complete_like_cpp",
+      "session/test_support/operations.rs::player_bootstrap_attached_for_test_like_cpp"
+    ],
+    "money_fence_169": [
+      "session/lifecycle/persistence.rs::await_exclusive_player_money_transaction_outcome_like_cpp",
+      "session/persistence/plans.rs::begin_exclusive_player_money_persistence_like_cpp",
+      "session/persistence/plans.rs::mutate_and_persist_player_gold_exclusive_like_cpp",
+      "session/loot/operations.rs::reconcile_durable_loot_money_before_save_like_cpp"
+    ],
+    "single_writer_754": [
+      "session/spell_state/spell.rs::mutate_player_spell_runtime_like_cpp"
+    ],
+    "mailbox_command_step": [
+      "session/mailbox/pump.rs::process_represented_session_commands_with_catalogs_like_cpp"
+    ],
+    "cfg_test_seam_awaiting_fixture_accessor": [
+      "session/catalogs/operations.rs::apply_offline_xp_rest_bonus_with_policy_like_cpp",
+      "session/catalogs/operations.rs::update_represented_online_xp_rest_bonus_with_policy_like_cpp",
+      "session/catalogs/operations.rs::tick_represented_online_xp_rest_bonus_with_policy_like_cpp",
+      "session/catalogs/operations.rs::tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp",
+      "session/persistence/load.rs::load_represented_xp_rest_bonus_like_cpp"
+    ],
+    "many_field_seam": [
+      "session/calendar_handler_contexts.rs::build_calendar_handler_cx_like_cpp",
+      "session/instance_handler_contexts.rs::build_instance_raid_info_handler_cx_like_cpp",
+      "session/instance_handler_contexts.rs::build_instance_lock_operations_handler_cx_like_cpp",
+      "session/instance_handler_contexts.rs::build_instance_difficulty_handler_cx_like_cpp",
+      "session/inventory_handler_contexts.rs::build_auction_handler_cx_like_cpp",
+      "session/inventory_handler_contexts.rs::build_bank_slot_flag_handler_cx_like_cpp",
+      "session/inventory_handler_contexts.rs::build_item_enchantment_handler_cx_like_cpp",
+      "session/inventory_handler_contexts.rs::build_equipment_sets_handler_cx_like_cpp",
+      "session/inventory_handler_contexts.rs::build_equipment_sets_save_handler_cx_like_cpp",
+      "session/reputation_handler_contexts.rs::build_reputation_handler_cx_like_cpp",
+      "session/social/trade.rs::trade_handler_cx_like_cpp",
+      "session/social_contacts_handler_contexts.rs::send_contact_list_like_cpp",
+      "session/pets/battle_pet.rs::send_battle_pet_journal_lock_status_like_cpp",
+      "session/spell_state/aura_application.rs::player_aura_application_cx_like_cpp",
+      "session/xp_grants.rs::quest_xp_gain_context_like_cpp",
+      "session/xp_grants.rs::give_xp",
+      "session/quest/objective_drain.rs::quest_objective_operation_like_cpp",
+      "session/world_entities/gameobject.rs::represented_gameobject_dynamic_flags_for_player_like_cpp",
+      "session/world_entities/spell_click.rs::represented_can_see_spell_click_on_creature_like_cpp",
+      "session/spell_state/aura/spell_hit_authority.rs::can_authorize_empty_player_spell_hit_aura_source_for_difficulty_like_cpp",
+      "session/spell_state/aura/spell_hit_authority.rs::sync_player_spell_hit_aura_authority_to_canonical_like_cpp",
+      "session/lifecycle_ops/operations.rs::account_mount_login_partial_rows_like_cpp",
+      "session/rest_progression.rs::resolved_player_flags_for_create_like_cpp"
     ]
   },
   "staying_bound": {
-    "methods": 44,
-    "lines": 1190
+    "methods": 100,
+    "lines": 3082
   },
   "outside_ceiling": {
-    "methods": 116,
-    "lines": 2949
+    "methods": 0,
+    "lines": 0
   },
   "crate_ceiling": {
-    "methods": 188,
-    "lines": 5356
+    "methods": 128,
+    "lines": 4312
+  },
+  "reasons": {
+    "session/lifecycle/finalization.rs::interrupt_finalization_like_cpp": "world-server session-factory finalization cancel (session_factory/finalization.rs): interrupts the lifecycle-owned in-flight finalization and returns its report; the session driver's own teardown API.",
+    "session/world_state/operations.rs::dispatch_area_trigger_script_like_cpp": "C++ ScriptMgr::OnAreaTrigger seam: hands the mutable WorldSession to the injected content-script dispatcher (Fn(&mut WorldSession, ..)), so it cannot leave the crate that owns WorldSession.",
+    "session/object_updates.rs::send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp": "driver phase step: called only by session/driver (and its cfg(test)/test-fixtures cross-crate fixture); the visibility split forward stays so the driver's staying lines do not grow.",
+    "session/visibility/operations.rs::sync_represented_farsight_clear_from_canonical_like_cpp": "driver phase step: called by session/driver and the visibility host impl; the visibility split forward stays so the driver's staying lines do not grow.",
+    "session/world_entities/gameobject_state.rs::send_represented_gameobject_visibility_on_destroy_from_last_update_like_cpp": "driver phase step: called only by session/driver; the world-entities split forward stays so the driver's staying lines do not grow.",
+    "session/progression/skills.rs::set_max_primary_trade_skills_like_cpp": "world-server construction setter (session_resources.rs): installs the clamped MaxPrimaryTradeSkill config value.",
+    "session/pets/battle_pet.rs::set_battle_pet_account_attachment_like_cpp": "world-server session-factory setter (session_factory.rs): attaches the canonical battle-pet journal owner and invalidates the spell-hit authority proof.",
+    "session/persistence/load.rs::load_global_account_data_like_cpp": "world-server session-factory login load (session_factory.rs): the global account-data load over the lifecycle split.",
+    "session/lifecycle_ops/operations.rs::expand_account_mount_faction_definitions_like_cpp": "construction step called only by the allow-listed mount-store setters (catalogs/operations.rs); inlining would grow those staying setters.",
+    "session/canonical_access/operations.rs::ensure_canonical_player_owner_exists_like_cpp": "canonical Player owner adoption/install under MapManager (C++ MapManager::CreateMap's live Player*): the session's single owner handle.",
+    "session/canonical_access/operations.rs::install_detached_canonical_player_from_session_like_cpp": "transitional login seam: builds the initial Player from the session bootstrap and installs it as the canonical owner.",
+    "session/lifecycle_ops/operations.rs::ensure_login_player_controller_like_cpp": "login identity attach: the controller attach or the identity/name/position refresh of the selected character.",
+    "session/persistence/load.rs::set_player_loading": "public ConnectTo-flow identity step (also the production integration tests' API): sets m_playerLoading and syncs visibility detection.",
+    "session/persistence/load.rs::set_loaded_player_name_like_cpp": "login identity write of the loaded character name (lifecycle split), reached from the identity attach and the continue-login load.",
+    "session/persistence/load.rs::set_loaded_player_identity_like_cpp": "login identity write: map, race, class, level, gender into the canonical Player or the session bootstrap, with the reputation and faction reset.",
+    "session/player_binding.rs::set_player_guid": "session identity boundary: switches the logged-in GUID and resets every Player-owned state that must not cross characters.",
+    "session/player_binding.rs::attach_player_controller_like_cpp": "session identity boundary: attaches the selected character's controller and installs the canonical Player.",
+    "session/player_bootstrap.rs::build_initial_player_for_owner_like_cpp": "construction of the initial canonical Player value from the session bootstrap before an owner handle exists.",
+    "session/player_registry_binding.rs::register_in_player_registry": "publishes this session's identity, placement and channels (send, realm, command, phase rails) into the player registry.",
+    "session/progression/skills.rs::clear_player_skill_tombstones_like_cpp": "identity-boundary step of set_player_guid (the _SaveSkills tombstones of the previous character); its handle-less fixture step is a World cfg(test) method.",
+    "session/spell_state/spell.rs::player_spell_hit_source_identity_complete_like_cpp": "identity-completeness predicate of the spell-hit authority proof: the owner handle matches the session GUID (or the test bootstrap is attached).",
+    "session/test_support/operations.rs::player_bootstrap_attached_for_test_like_cpp": "the World cfg(test) bootstrap-attached flag read by the identity steps (false in production).",
+    "session/lifecycle/persistence.rs::await_exclusive_player_money_transaction_outcome_like_cpp": "#169 exclusive money COMMIT await over the lifecycle split; the vendor host returns this future, so inlining needs an async block in the impl.",
+    "session/persistence/plans.rs::begin_exclusive_player_money_persistence_like_cpp": "#169 money fence: builds the lifecycle/inventory/quest/player participants and closes detached-payout admission before the money lock.",
+    "session/persistence/plans.rs::mutate_and_persist_player_gold_exclusive_like_cpp": "#169 money fence: the World-owned construction seam of the exclusive gold mutation coordinator.",
+    "session/loot/operations.rs::reconcile_durable_loot_money_before_save_like_cpp": "#169 money fence: reconciles durable loot money before the save over the same four participants.",
+    "session/spell_state/spell.rs::mutate_player_spell_runtime_like_cpp": "#754 single writer of the Player spell-runtime state (incarnation dispatch over the spell-state split).",
+    "session/mailbox/pump.rs::process_represented_session_commands_with_catalogs_like_cpp": "the session-command pump: durable loot completions, the creature-runtime overflow kick, the command dispatch and the visibility flush, in driver order.",
+    "session/catalogs/operations.rs::apply_offline_xp_rest_bonus_with_policy_like_cpp": "rest bonus (12c2): the handle-less fixture step calls the World cfg(test) fixture_apply_offline_xp_rest_bonus, whose chain reaches QuestRewardCx (instances cannot depend on quest); two accessors plus the RAF host method measured ~55 host lines for 86 moved (>60 %).",
+    "session/catalogs/operations.rs::update_represented_online_xp_rest_bonus_with_policy_like_cpp": "rest bonus (12c2): as above (fixture_update_online_xp_rest_bonus).",
+    "session/catalogs/operations.rs::tick_represented_online_xp_rest_bonus_with_policy_like_cpp": "rest bonus (12c2): the driver tick over the update above; moves with the group.",
+    "session/catalogs/operations.rs::tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp": "rest bonus (12c2): the rolled tick over the update above; moves with the group.",
+    "session/persistence/load.rs::load_represented_xp_rest_bonus_like_cpp": "its handle-less fixture step calls two World cfg(test) methods (the rest-flag clear and the rest-state mutation); a second accessor is ~12 host lines for 28 moved (>40 %).",
+    "session/calendar_handler_contexts.rs::build_calendar_handler_cx_like_cpp": "builds the borrowed calendar context from the social split (social state plus the hub's core, catalogs, config and fixtures); returned borrowing the session.",
+    "session/instance_handler_contexts.rs::build_instance_raid_info_handler_cx_like_cpp": "builds the borrowed raid-info context from core accessors, config and catalogs.",
+    "session/instance_handler_contexts.rs::build_instance_lock_operations_handler_cx_like_cpp": "builds the borrowed instance-lock context from instances, social, lifecycle, core accessors, catalogs and two fixture fields.",
+    "session/instance_handler_contexts.rs::build_instance_difficulty_handler_cx_like_cpp": "builds the borrowed difficulty context from instances, social, lifecycle, core accessors and catalogs.",
+    "session/inventory_handler_contexts.rs::build_auction_handler_cx_like_cpp": "builds the borrowed auction context from the inventory split (inventory plus the hub).",
+    "session/inventory_handler_contexts.rs::build_bank_slot_flag_handler_cx_like_cpp": "builds the borrowed bank-slot context from inventory, interaction, the NPC access with twelve fixture refs and catalogs.",
+    "session/inventory_handler_contexts.rs::build_item_enchantment_handler_cx_like_cpp": "builds the borrowed enchantment context from inventory, core accessors, a fixture ref and five catalogs.",
+    "session/inventory_handler_contexts.rs::build_equipment_sets_handler_cx_like_cpp": "builds the borrowed equipment-set context from inventory and the core owner access.",
+    "session/inventory_handler_contexts.rs::build_equipment_sets_save_handler_cx_like_cpp": "builds the borrowed equipment-set save context from inventory, core accessors, collection fixtures and catalogs.",
+    "session/reputation_handler_contexts.rs::build_reputation_handler_cx_like_cpp": "builds the borrowed reputation context from the hub and two cloned catalog handles.",
+    "session/social/trade.rs::trade_handler_cx_like_cpp": "builds the borrowed trade context from the trade split (social, inventory and spell state plus the hub).",
+    "session/social_contacts_handler_contexts.rs::send_contact_list_like_cpp": "async context seam (C++ PlayerSocial::SendSocialList): the returned future borrows the lifecycle split's persistence port and the hub.",
+    "session/pets/battle_pet.rs::send_battle_pet_journal_lock_status_like_cpp": "async context seam: the returned future borrows the battle-pet split (lifecycle plus the hub) and passes the World cfg!(test).",
+    "session/spell_state/aura_application.rs::player_aura_application_cx_like_cpp": "builds the borrowed aura-application context from spell, inventory, loot and quest state plus the hub.",
+    "session/xp_grants.rs::quest_xp_gain_context_like_cpp": "builds the borrowed QuestRewardCx from inventory, lifecycle, quest state, catalogs, config and social.",
+    "session/xp_grants.rs::give_xp": "runs the XP gain over the quest reward context (with its fixture split in test builds); the persistence boundary follows the publication phases.",
+    "session/quest/objective_drain.rs::quest_objective_operation_like_cpp": "builds the QuestRewardCx and QuestObjectiveProgressCx from nine session fields and the fixture refs, then runs one objective operation.",
+    "session/world_entities/gameobject.rs::represented_gameobject_dynamic_flags_for_player_like_cpp": "builds the quest eligibility over core accessors, five fixture refs, quest state, catalogs and the player-condition projection.",
+    "session/world_entities/spell_click.rs::represented_can_see_spell_click_on_creature_like_cpp": "builds the NPC and player-condition accesses (37 fixture refs) and the condition projection for the spell-click visibility; behind QuestSessionHostLikeCpp::represented_can_see_spell_click_on_creature_like_cpp.",
+    "session/spell_state/aura/spell_hit_authority.rs::can_authorize_empty_player_spell_hit_aura_source_for_difficulty_like_cpp": "the spell-hit authority proof: reads ~20 sources across inventory, lifecycle, catalogs, spell, quest and the canonical Player.",
+    "session/spell_state/aura/spell_hit_authority.rs::sync_player_spell_hit_aura_authority_to_canonical_like_cpp": "publishes the spell-hit authority proof above to the canonical Player.",
+    "session/lifecycle_ops/operations.rs::account_mount_login_partial_rows_like_cpp": "filters the account mounts through the World player-condition projection (hub, inventory, social and three fixture states); one condition host method measured ~9 host lines for 24 moved (>35 %).",
+    "session/rest_progression.rs::resolved_player_flags_for_create_like_cpp": "combines the canonical flags-ex with the rest-state-save flags, which the World resolves through QuestRewardCx over the XP-gain access, social and fixtures."
   }
 }

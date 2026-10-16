@@ -46,6 +46,10 @@ done scope (`crates/wow-world/src/session/**`):
     cannot leave `session/**` for `handlers/` or another module unseen;
   * an allow-list entry matches no non-forward method, or a source under
     `src` is not reached from `lib.rs`;
+  * an allow-list entry outside the `runtime_shell` and `construction_api`
+    groups has no one-line reason in `reasons`, or a reason names no
+    allow-list entry (#1363 slice 12d: every staying method is justified by
+    name);
   * a production `#[path]` mount resolves outside `src`, or a production
     alias of `WorldSession` (`type X = WorldSession;`, `use … WorldSession as
     X;`) exists, since either would hide methods from the index (`index`
@@ -476,6 +480,25 @@ def stale_entries(methods: list[dict], allow: dict) -> list[str]:
     return [entry for entries in allow.values() for entry in entries if entry not in used]
 
 
+# Groups whose entries predate the per-entry reasons (the runtime shell and the
+# world-server construction API); every other allow-list entry needs a reason.
+REASON_EXEMPT_GROUPS = ("runtime_shell", "construction_api")
+
+
+def reason_errors(policy: dict) -> list[str]:
+    reasons = policy.get("reasons", {})
+    entries = {entry for group in policy["allow"].values() for entry in group}
+    errors = [
+        f"allow-list entry without a reason: {group}: {entry}"
+        for group, group_entries in policy["allow"].items()
+        if group not in REASON_EXEMPT_GROUPS
+        for entry in group_entries
+        if not str(reasons.get(entry, "")).strip()
+    ]
+    errors.extend(f"reason for an entry not in the allow-list: {key}" for key in reasons if key not in entries)
+    return errors
+
+
 def evaluate(methods: list[dict], policy: dict, done: bool) -> tuple[list[str], dict]:
     staying = {"methods": 0, "lines": 0}
     outside = {"methods": 0, "lines": 0}
@@ -508,6 +531,7 @@ def evaluate(methods: list[dict], policy: dict, done: bool) -> tuple[list[str], 
         f"allow-list entry matches no non-forward method: {entry}"
         for entry in stale_entries(methods, policy["allow"])
     )
+    errors.extend(reason_errors(policy))
     if done and outside["methods"]:
         errors.append(f"done criterion: {outside['methods']} non-forward methods outside the allow-list")
         errors.extend(f"  {m['file']}:{m['start']} {m['name']} ({m['lines']})" for m in outside_rows)
@@ -836,6 +860,25 @@ def self_test() -> int:
     errors, _ = evaluate(rows, stale, done=False)
     assert errors == ["allow-list entry matches no non-forward method: session/gone.rs::old"], errors
     assert allowed("session/driverx/a.rs", "run", policy["allow"]) is None
+    reasoned = dict(policy, allow=dict(policy["allow"], many_field_seam=["session/z.rs::other"]))
+    errors, counts = evaluate(rows, reasoned, done=True)
+    assert errors == [
+        "staying non-forward methods 3 > bound 2",
+        "staying non-forward lines 14 > bound 10",
+        "allow-list entry without a reason: many_field_seam: session/z.rs::other",
+    ], errors
+    assert counts["outside"] == {"methods": 0, "lines": 0}, counts
+    reasoned["reasons"] = {"session/z.rs::other": "builds a borrowed context", "session/gone.rs::x": "stale"}
+    errors, _ = evaluate(rows, reasoned, done=True)
+    assert errors == [
+        "staying non-forward methods 3 > bound 2",
+        "staying non-forward lines 14 > bound 10",
+        "reason for an entry not in the allow-list: session/gone.rs::x",
+    ], errors
+    reasoned["reasons"] = {"session/z.rs::other": "builds a borrowed context"}
+    reasoned["staying_bound"] = {"methods": 3, "lines": 14}
+    errors, _ = evaluate(rows, reasoned, done=True)
+    assert errors == [], errors
     with tempfile.TemporaryDirectory() as tmp:
         repo = Path(tmp)
         _self_test_tree(repo)
