@@ -143,4 +143,21 @@ impl WorldSession {
     ) -> bool {
         wow_world_inventory::stage_player_money_change_like_cpp(self, old_money, new_money)
     }
+    pub(crate) fn send_player_values_update_from_entity_bridge(
+        &self,
+        inv_slot_changes: &[(u8, wow_core::ObjectGuid)],
+        visible_item_changes: &[(u8, i32, u16, u16)],
+        virtual_item_changes: &[(u8, i32, u16, u16)],
+        buyback_changes: &[(u8, u32, i64)],
+        coinage: Option<u64>,
+    ) -> bool {
+        wow_world_inventory::send_player_values_update_from_entity_bridge(
+            self,
+            inv_slot_changes,
+            visible_item_changes,
+            virtual_item_changes,
+            buyback_changes,
+            coinage,
+        )
+    }
 }

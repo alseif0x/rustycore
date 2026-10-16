@@ -1,0 +1,2 @@
+crates/wow-world/src/session/publication/operations.rs	player_values_update_snapshot	crates/wow-world-inventory/src/values_update_session.rs
+crates/wow-world/src/session/publication/operations.rs	send_player_values_update_from_entity_bridge	crates/wow-world-inventory/src/values_update_session.rs

@@ -60,6 +60,10 @@ pub use currency_session::{
     represented_set_currency_flags_like_cpp, setup_currencies_packet_like_cpp,
     stage_player_money_change_like_cpp,
 };
+mod values_update_session;
+pub use values_update_session::{
+    player_values_update_snapshot, send_player_values_update_from_entity_bridge,
+};
 mod vendor_session;
 mod void_storage;
 mod void_storage_handlers;

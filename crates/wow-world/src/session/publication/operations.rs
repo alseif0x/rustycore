@@ -44,42 +44,6 @@ impl WorldSession {
             packet_update,
         )
     }
-    pub(crate) fn player_values_update_snapshot(
-        &self,
-    ) -> Option<wow_world_core::session::InventoryPlayerProjectionLikeCpp> {
-        let access = self.core.owned_inventory_access_like_cpp();
-        let publication = self.core.packet_publication_access_like_cpp();
-        self.inventory
-            .player_values_update_snapshot_with_access_like_cpp(
-                &access,
-                &publication,
-                self.catalogs.items.store.as_ref(),
-                self.catalogs.items.stats_store.as_ref(),
-            )
-    }
-    pub(crate) fn send_player_values_update_from_entity_bridge(
-        &self,
-        inv_slot_changes: &[(u8, ObjectGuid)],
-        visible_item_changes: &[(u8, i32, u16, u16)],
-        virtual_item_changes: &[(u8, i32, u16, u16)],
-        buyback_changes: &[(u8, u32, i64)],
-        coinage: Option<u64>,
-    ) -> bool {
-        let access = self.core.owned_inventory_access_like_cpp();
-        let publication = self.core.packet_publication_access_like_cpp();
-        self.inventory
-            .send_player_values_update_from_entity_bridge_with_access_like_cpp(
-                &access,
-                &publication,
-                self.catalogs.items.store.as_ref(),
-                self.catalogs.items.stats_store.as_ref(),
-                inv_slot_changes,
-                visible_item_changes,
-                virtual_item_changes,
-                buyback_changes,
-                coinage,
-            )
-    }
     pub(crate) fn send_represented_cinematic_start_like_cpp(&mut self, cinematic_id: u32) {
         wow_world_character::send_represented_cinematic_start_like_cpp(
             &mut crate::session::hub_mut(self),
