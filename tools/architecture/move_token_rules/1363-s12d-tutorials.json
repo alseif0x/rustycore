@@ -1,0 +1,11 @@
+{
+ "slice": "#1363 slice 12d (the tutorials load -> a SessionLifecycleState method in wow-world-lifecycle state/load.rs; the World keeps the session-factory entry as a one-call forward)",
+ "base": "4cf327c8c",
+ "moved": ["load_tutorials_data_like_cpp"],
+ "comment": "The body reads only the lifecycle state and the session's account id, which the World forward passes.",
+ "rules": [
+  ["pub async fn load_tutorials_data_like_cpp\\(&mut self\\)", "pub async fn load_tutorials_data_like_cpp(&mut self, account_id: u32)"],
+  ["\\bself\\s*\\.\\s*lifecycle\\s*\\.", "self."],
+  ["\\bself\\s*\\.\\s*core\\s*\\.\\s*account_id\\b", "account_id"]
+ ]
+}

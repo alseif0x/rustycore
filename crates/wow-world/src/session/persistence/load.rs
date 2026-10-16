@@ -90,31 +90,9 @@ impl WorldSession {
         wow_world_entities::sync_current_player_session_visibility_detection_like_cpp(self);
     }
     pub async fn load_tutorials_data_like_cpp(&mut self) {
-        self.lifecycle.begin_tutorials_load_like_cpp();
-
-        let Some(port) = self
-            .lifecycle
-            .session_account_state_port_like_cpp()
-            .map(std::sync::Arc::clone)
-        else {
-            warn!(
-                account = self.core.account_id,
-                "LoadTutorialsData skipped: session account-state port unavailable"
-            );
-            return;
-        };
-
-        match port.load_tutorials_like_cpp(self.core.account_id).await {
-            wow_persistence::SessionTutorialsLoadOutcomeLikeCpp::Loaded(values) => {
-                self.lifecycle.load_tutorials_data_values_like_cpp(values);
-            }
-            wow_persistence::SessionTutorialsLoadOutcomeLikeCpp::Failed { reason } => {
-                warn!(
-                    account = self.core.account_id,
-                    "LoadTutorialsData query failed: {reason}"
-                );
-            }
-        }
+        self.lifecycle
+            .load_tutorials_data_like_cpp(self.core.account_id)
+            .await
     }
     pub async fn load_global_account_data_like_cpp(&mut self) {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);

@@ -181,6 +181,35 @@ impl SessionLifecycleState {
         self.tutorials_changed_like_cpp = false;
     }
 
+    // C++ `WorldSession::LoadTutorialsData` (#1363 slice 12d; moved from the
+    // World `session/persistence/load.rs`, which keeps the session-factory entry).
+    pub async fn load_tutorials_data_like_cpp(&mut self, account_id: u32) {
+        self.begin_tutorials_load_like_cpp();
+
+        let Some(port) = self
+            .session_account_state_port_like_cpp()
+            .map(std::sync::Arc::clone)
+        else {
+            warn!(
+                account = account_id,
+                "LoadTutorialsData skipped: session account-state port unavailable"
+            );
+            return;
+        };
+
+        match port.load_tutorials_like_cpp(account_id).await {
+            wow_persistence::SessionTutorialsLoadOutcomeLikeCpp::Loaded(values) => {
+                self.load_tutorials_data_values_like_cpp(values);
+            }
+            wow_persistence::SessionTutorialsLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!(
+                    account = account_id,
+                    "LoadTutorialsData query failed: {reason}"
+                );
+            }
+        }
+    }
+
     pub async fn load_player_account_data_like_cpp(
         &mut self,
         hub: &mut HubMut<'_>,
