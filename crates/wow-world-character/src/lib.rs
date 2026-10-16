@@ -14,6 +14,7 @@ mod character_handler_families;
 mod character_handlers;
 pub mod character_login_support;
 mod character_query_handlers;
+mod gossip_options;
 mod gossip_session;
 mod login_session;
 mod worldport_session;
@@ -36,6 +37,10 @@ pub use character_query_handlers::{
     register_character_query_handlers_like_cpp,
 };
 // The character login load (#1363 slice 8d).
+pub use gossip_options::{
+    clear_player_gossip_options_like_cpp, player_gossip_option_like_cpp,
+    replace_player_gossip_options_like_cpp,
+};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use gossip_session::{
     GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP, GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP,

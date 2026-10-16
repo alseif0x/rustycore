@@ -6,24 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn set_represented_guild_id_like_cpp(&mut self, guild_id: u64) -> bool {
-        self.core
-            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| player.set_guild_id_like_cpp(guild_id))
-            .is_some();
-        #[cfg(test)]
-        if !canonical && self.core.player_handle_like_cpp.is_none() {
-            return self
-                .mutate_player_guild_state_like_cpp(|state| {
-                    state.guild_id = (guild_id != 0).then_some(guild_id);
-                    state.authority_complete = true;
-                })
-                .is_some();
-        }
-        canonical
-    }
     pub(crate) fn resolved_represented_guild_id_like_cpp(&self) -> Option<u64> {
         wow_world_social::resolved_represented_guild_id_like_cpp(
             &crate::session::hub_ref(self),

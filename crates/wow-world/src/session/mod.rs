@@ -374,7 +374,6 @@ pub(crate) use quest_dialog::RepresentedQuestRewardTalentPointsLikeCpp;
 pub(crate) use quest_dialog::{
     RepresentedForceDeselectLikeCpp, RepresentedQuestRewardTitleLikeCpp,
 };
-use wow_world_quest::RepresentedPreparedQuestMenuItemLikeCpp;
 mod quest_interaction;
 mod raid_profile_values;
 use raid_profile_values::player_cuf_profile_from_packet_like_cpp;
@@ -641,7 +640,6 @@ use wow_network::SocketTimeoutsLikeCpp;
 use wow_network::session_mgr::SessionManager;
 #[cfg(test)]
 use wow_packet::packets::chat::{ChatMsg, ChatPkt, PrintNotification};
-use wow_packet::packets::gossip::ClientGossipText;
 #[cfg(test)]
 use wow_packet::packets::item::{
     InventoryChangeFailure, ItemInstance, ItemMod, ItemModList, ItemPushResult,

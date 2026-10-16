@@ -132,7 +132,7 @@ impl WorldSession {
                 let (s, h) = crate::session::split_interaction(self);
                 s.reset_player_interaction_data_like_cpp(h)
             };
-            self.clear_player_gossip_options_like_cpp();
+            wow_world_character::clear_player_gossip_options_like_cpp(self);
             #[cfg(test)]
             self.spell_state
                 .clear_spell_acquisition_post_commit_actions_for_test_like_cpp();

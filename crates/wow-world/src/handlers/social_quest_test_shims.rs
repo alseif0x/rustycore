@@ -34,4 +34,25 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_social_mut(self);
         wow_world_social::set_represented_duel_arbiter_guid_like_cpp(&mut hub, state, guid);
     }
+    pub(crate) fn set_represented_guild_id_like_cpp(&mut self, guild_id: u64) -> bool {
+        wow_world_social::set_represented_guild_id_like_cpp(self, guild_id)
+    }
+    pub(crate) fn replace_player_gossip_options_like_cpp(
+        &mut self,
+        options: Vec<crate::session::GossipOptionInfo>,
+    ) -> bool {
+        wow_world_character::replace_player_gossip_options_like_cpp(self, options)
+    }
+    pub(crate) fn player_gossip_option_like_cpp(
+        &self,
+        gossip_option_id: i32,
+    ) -> Option<crate::session::GossipOptionInfo> {
+        wow_world_character::player_gossip_option_like_cpp(self, gossip_option_id)
+    }
+    pub(crate) fn represented_creature_gossip_text_like_cpp(
+        &self,
+        creature_entry: u32,
+    ) -> Vec<wow_packet::packets::gossip::ClientGossipText> {
+        wow_world_quest::represented_creature_gossip_text_like_cpp(self, creature_entry)
+    }
 }
