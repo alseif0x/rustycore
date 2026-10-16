@@ -1,0 +1,42 @@
+{
+ "slice": "#1363 slice 12c (the titan-grip penalty record -> wow-world-inventory item_session over ItemSessionHostLikeCpp; no new host method)",
+ "base": "fa3705c89",
+ "moved": [
+  "record_represented_titan_grip_penalty_action_like_cpp"
+ ],
+ "comment": "The body is entirely #[cfg(test)] in World; the cfg_attr allow keeps the production build free of an unused host parameter. The World resolved_inventory_item_like_cpp (split_inventory_ref + the state call) and item_storage_template (self.catalogs.item_storage_template) forwards are inlined, each verified identical to its World body.",
+ "rules": [
+  [
+   "pub\\(crate\\) fn {name}\\(\\s*&mut self\\s*\\)",
+   "#[cfg_attr(not(any(test, feature = \"test-fixtures\")), allow(unused_variables))] pub fn {name}<H: ItemSessionHostLikeCpp>(host: &mut H)"
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*\\{",
+   "#[cfg(any(test, feature = \"test-fixtures\"))] if host.test_fixtures_ref_like_cpp().is_some() {"
+  ],
+  [
+   "self\\s*\\.resolved_inventory_item_like_cpp\\(([A-Z_]+)\\)",
+   "{ let (state, hub) = host.split_inventory_ref(); state.resolved_inventory_item_like_cpp(hub, \\1) }"
+  ],
+  [
+   "self\\s*\\.item_storage_template\\(",
+   "host.hub_ref().catalogs.item_storage_template("
+  ],
+  [
+   "\\bself\\s*\\.\\s*fixtures\\s*\\.",
+   "host.hub_ref().fixtures."
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "\\bself\\s*\\.\\s*inventory\\s*\\.",
+   "host.split_inventory_mut().0 ."
+  ],
+  [
+   "\\bself\\s*\\.",
+   "host."
+  ]
+ ]
+}

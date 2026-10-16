@@ -242,9 +242,6 @@ impl ItemSessionHostLikeCpp for WorldSession {
     ) -> impl Future<Output = ()> + Send {
         WorldSession::do_loot_release_all_like_cpp(self, player_guid)
     }
-    fn record_represented_titan_grip_penalty_action_like_cpp(&mut self) {
-        WorldSession::record_represented_titan_grip_penalty_action_like_cpp(self)
-    }
     #[cfg(test)]
     fn represented_avg_equipped_item_level_like_cpp(&self) -> Option<f32> {
         WorldSession::represented_avg_equipped_item_level_like_cpp(self)

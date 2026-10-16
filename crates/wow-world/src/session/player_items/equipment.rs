@@ -1,10 +1,6 @@
-//! Represented equipment: equip and unequip over the canonical Player.
-//!
-//! Moved out of the Session root under #597. Behaviour is preserved; the
-//! canonical Player remains the single owner of this state.
-
-#[cfg(test)]
-use super::*;
+//! Represented equipment (#597). Its average-item-level record moved to
+//! `wow_world_inventory::item_session` in #1363 slice 12c; the loot
+//! source-contract scenario still reads this file, and it mounts the F3 shims.
 
 #[cfg(test)]
 #[path = "../../../unit_tests/session/player_items/equipment/f3_shims.rs"]

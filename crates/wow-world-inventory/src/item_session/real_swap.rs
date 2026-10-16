@@ -505,7 +505,7 @@ pub(super) async fn execute_inventory_real_swap_like_cpp<H: ItemSessionHostLikeC
     if source_moved_bag_has_active_loot || destination_moved_bag_has_active_loot {
         host.do_loot_release_all_like_cpp(player_guid).await;
     }
-    host.record_represented_titan_grip_penalty_action_like_cpp();
+    super::record_represented_titan_grip_penalty_action_like_cpp(host);
     super::record_represented_avg_equipped_item_level_update_like_cpp(host);
     host.sync_player_registry_state_like_cpp();
     for plan in child_plans {

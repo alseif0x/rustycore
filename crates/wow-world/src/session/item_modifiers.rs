@@ -5,14 +5,10 @@
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
 use super::ShieldBlockRegularGameTableLikeCpp;
-#[cfg(test)]
-use super::TitanGripPenaltyAction;
+use super::WorldSession;
 use super::{Arc, BANK_SLOT_BAG_START};
 use super::{BANK_SLOT_BAG_END, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START};
-#[cfg(test)]
-use super::{EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND};
 use super::{PlayerStatsStore, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START};
-use super::{WorldSession, two_handed_in_one_hand_like_cpp};
 #[cfg(test)]
 pub(crate) use wow_world_inventory::RepresentedItemSetAuraRefreshEventLikeCpp;
 #[cfg(test)]
@@ -94,43 +90,6 @@ impl WorldSession {
     /// Set the player stats store for this session.
     pub fn set_player_stats(&mut self, store: Arc<PlayerStatsStore>) {
         self.catalogs.player_stats = Some(store);
-    }
-
-    pub(crate) fn record_represented_titan_grip_penalty_action_like_cpp(&mut self) {
-        #[cfg(test)]
-        {
-            let main_template = self
-                .resolved_inventory_item_like_cpp(EQUIPMENT_SLOT_MAINHAND)
-                .and_then(|item| self.item_storage_template(item.entry_id));
-            let off_template = self
-                .resolved_inventory_item_like_cpp(EQUIPMENT_SLOT_OFFHAND)
-                .and_then(|item| self.item_storage_template(item.entry_id));
-            let using_two_handed_weapon_in_one_hand =
-                two_handed_in_one_hand_like_cpp(main_template.as_ref(), off_template.as_ref());
-
-            let Some(action) = self.core.canonical_player_snapshot_like_cpp(|player| {
-                let penalty_spell_id = player.titan_grip_penalty_spell_id();
-                let has_penalty_aura = penalty_spell_id > 0
-                    && self
-                        .fixtures
-                        .auras
-                        .visible_auras
-                        .values()
-                        .any(|aura| aura.spell_id == penalty_spell_id as i32);
-
-                player.check_titan_grip_penalty_action(
-                    using_two_handed_weapon_in_one_hand,
-                    has_penalty_aura,
-                )
-            }) else {
-                return;
-            };
-
-            if action != TitanGripPenaltyAction::None {
-                self.inventory
-                    .record_represented_titan_grip_penalty_action_for_test_like_cpp(action);
-            }
-        }
     }
 }
 

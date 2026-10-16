@@ -133,4 +133,12 @@ impl WorldSession {
         let (state, hub) = crate::session::split_quest_state_mut(self);
         wow_world_quest::mutate_player_quest_gameplay_like_cpp(hub, state, mutate)
     }
+    // World entities (split forward retired from `session/world_entities/creature_query.rs`).
+    pub(crate) fn canonical_creature_access_like_cpp(
+        &self,
+        guid: wow_core::ObjectGuid,
+    ) -> Option<crate::session::RepresentedCreatureAccessLikeCpp> {
+        let (state, hub) = crate::session::split_world_entities_ref(self);
+        state.canonical_creature_access_like_cpp(hub, guid)
+    }
 }
