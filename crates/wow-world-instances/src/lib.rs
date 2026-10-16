@@ -97,11 +97,4 @@ pub use instance_session::{
     update_zone_represented_without_rest_update_packet_like_cpp,
     with_owned_player_mut_for_rest_like_cpp,
 };
-pub use instance_session::{
-    REST_OFFLINE_TAVERN_OR_CITY_BUBBLE_LIKE_CPP, REST_OFFLINE_WILDERNESS_BUBBLE_LIKE_CPP,
-    REST_ONLINE_INGAME_BUBBLE_LIKE_CPP, apply_offline_xp_rest_bonus_with_policy_like_cpp,
-    tick_represented_online_xp_rest_bonus_with_policy_like_cpp,
-    tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp,
-    update_represented_online_xp_rest_bonus_with_policy_like_cpp,
-};
 pub use state::InstanceState;

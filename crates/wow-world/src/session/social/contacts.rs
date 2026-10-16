@@ -9,6 +9,12 @@ impl WorldSession {
     pub fn set_friendship_rep_reaction_store(&mut self, store: Arc<FriendshipRepReactionStore>) {
         self.catalogs.friendship_rep_reaction_store = Some(store);
     }
+    pub(crate) fn represented_recruit_a_friend_xp_rest_state_applies_like_cpp(&self) -> bool {
+        self.gets_recruit_a_friend_xp_bonus_like_cpp()
+    }
+    pub(in crate::session) fn gets_recruit_a_friend_xp_bonus_like_cpp(&self) -> bool {
+        self.gets_recruit_a_friend_bonus_like_cpp(true)
+    }
     pub(in crate::session) fn gets_recruit_a_friend_bonus_like_cpp(&self, for_xp: bool) -> bool {
         wow_world_quest::QuestRewardCx::gets_recruit_a_friend_bonus_like_cpp(
             self.core

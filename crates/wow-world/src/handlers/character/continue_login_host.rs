@@ -76,7 +76,7 @@ impl ContinueLoginHostLikeCpp for WorldSession {
         now_secs: u64,
         was_logout_resting: bool,
     ) -> f32 {
-        wow_world_instances::apply_offline_xp_rest_bonus_with_policy_like_cpp(
+        WorldSession::apply_offline_xp_rest_bonus_with_policy_like_cpp(
             self,
             policy,
             logout_time_secs,

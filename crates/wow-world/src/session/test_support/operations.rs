@@ -268,10 +268,9 @@ impl WorldSession {
         }
 
         let bubble = if was_logout_resting {
-            wow_world_instances::REST_OFFLINE_TAVERN_OR_CITY_BUBBLE_LIKE_CPP
-                * policy.offline_tavern_or_city
+            REST_OFFLINE_TAVERN_OR_CITY_BUBBLE_LIKE_CPP * policy.offline_tavern_or_city
         } else {
-            wow_world_instances::REST_OFFLINE_WILDERNESS_BUBBLE_LIKE_CPP * policy.offline_wilderness
+            REST_OFFLINE_WILDERNESS_BUBBLE_LIKE_CPP * policy.offline_wilderness
         };
         let Some(extra_per_sec) = self.calc_represented_xp_rest_extra_per_sec_like_cpp(bubble)
         else {
@@ -309,7 +308,7 @@ impl WorldSession {
         {
             return (0.0, 0);
         }
-        let bubble = wow_world_instances::REST_ONLINE_INGAME_BUBBLE_LIKE_CPP * policy.ingame;
+        let bubble = REST_ONLINE_INGAME_BUBBLE_LIKE_CPP * policy.ingame;
         let Some(extra_per_sec) = self.calc_represented_xp_rest_extra_per_sec_like_cpp(bubble)
         else {
             return (0.0, 0);

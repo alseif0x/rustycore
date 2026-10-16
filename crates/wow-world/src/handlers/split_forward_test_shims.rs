@@ -8,7 +8,6 @@
 #![cfg(test)]
 
 use crate::session::WorldSession;
-use wow_world_core::session::PlayerRestRatePolicyLikeCpp;
 
 impl WorldSession {
     // Rest flags (moved to `wow_world_instances::instance_session::rest_flags`).
@@ -34,47 +33,6 @@ impl WorldSession {
     pub(crate) fn send_represented_resting_player_flag_update_like_cpp(&self) -> bool {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.send_represented_resting_player_flag_update_like_cpp(hub)
-    }
-    // Rest bonus (moved to `wow_world_instances::instance_session::rest_bonus`).
-    pub(crate) fn represented_recruit_a_friend_xp_rest_state_applies_like_cpp(&self) -> bool {
-        <Self as wow_world_instances::InstanceSessionHostLikeCpp>::represented_recruit_a_friend_xp_rest_state_applies_like_cpp(self)
-    }
-    pub(crate) fn apply_offline_xp_rest_bonus_with_policy_like_cpp(
-        &mut self,
-        policy: &PlayerRestRatePolicyLikeCpp,
-        logout_time_secs: u64,
-        now_secs: u64,
-        was_logout_resting: bool,
-    ) -> f32 {
-        wow_world_instances::apply_offline_xp_rest_bonus_with_policy_like_cpp(
-            self,
-            policy,
-            logout_time_secs,
-            now_secs,
-            was_logout_resting,
-        )
-    }
-    pub(crate) fn update_represented_online_xp_rest_bonus_with_policy_like_cpp(
-        &mut self,
-        policy: &PlayerRestRatePolicyLikeCpp,
-        now_secs: u64,
-    ) -> (f32, u8) {
-        wow_world_instances::update_represented_online_xp_rest_bonus_with_policy_like_cpp(
-            self, policy, now_secs,
-        )
-    }
-    pub(crate) fn tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp(
-        &mut self,
-        policy: &PlayerRestRatePolicyLikeCpp,
-        now_secs: u64,
-        update_roll_passed: bool,
-    ) {
-        wow_world_instances::tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp(
-            self,
-            policy,
-            now_secs,
-            update_roll_passed,
-        )
     }
     // Player items (the fully-looted removal moved to `wow_world_loot_ops`).
     pub(crate) fn remove_fully_looted_runtime_item(
@@ -151,10 +109,7 @@ impl WorldSession {
     pub(crate) fn item_template_inventory_type(&self, item_id: u32) -> Option<u8> {
         crate::session::hub_ref(self).item_template_inventory_type(item_id)
     }
-    // Retired one-call forwards (`session/social/contacts.rs`, `session/player_presentation.rs`, `session/publication/operations.rs`).
-    pub(crate) fn gets_recruit_a_friend_xp_bonus_like_cpp(&self) -> bool {
-        <Self as wow_world_instances::InstanceSessionHostLikeCpp>::represented_recruit_a_friend_xp_rest_state_applies_like_cpp(self)
-    }
+    // Retired one-call forwards (`session/player_presentation.rs`, `session/publication/operations.rs`).
     pub(crate) fn represented_mount_x_display_usable_like_cpp(
         &self,
         player_condition_id: u32,

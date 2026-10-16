@@ -152,16 +152,91 @@ impl WorldSession {
     pub fn set_chr_races_store(&mut self, store: Arc<ChrRacesStore>) {
         self.catalogs.chr.races_store = Some(store);
     }
-    /// The driver's entry to the rest-bonus tick, moved to
-    /// `wow_world_instances` (#1363 slice 12c).
+    pub(crate) fn apply_offline_xp_rest_bonus_with_policy_like_cpp(
+        &mut self,
+        policy: &PlayerRestRatePolicyLikeCpp,
+        logout_time_secs: u64,
+        now_secs: u64,
+        was_logout_resting: bool,
+    ) -> f32 {
+        #[cfg(test)]
+        if self
+            .core
+            .with_owned_player_for_rest_like_cpp(|_| ())
+            .is_none()
+        {
+            return self.fixture_apply_offline_xp_rest_bonus_like_cpp(
+                policy,
+                logout_time_secs,
+                now_secs,
+                was_logout_resting,
+            );
+        }
+        let bubble = if was_logout_resting {
+            REST_OFFLINE_TAVERN_OR_CITY_BUBBLE_LIKE_CPP * policy.offline_tavern_or_city
+        } else {
+            REST_OFFLINE_WILDERNESS_BUBBLE_LIKE_CPP * policy.offline_wilderness
+        };
+        let at_max = crate::session::hub_ref(self).player_is_at_configured_max_level_like_cpp();
+        let raf = self.represented_recruit_a_friend_xp_rest_state_applies_like_cpp();
+        wow_world_instances::with_owned_player_mut_for_rest_like_cpp(self, |player| {
+            player.apply_offline_xp_rest_bonus_like_cpp(
+                logout_time_secs,
+                now_secs,
+                bubble,
+                at_max,
+                raf,
+            )
+        })
+        .unwrap_or(0.0)
+    }
+    pub(crate) fn update_represented_online_xp_rest_bonus_with_policy_like_cpp(
+        &mut self,
+        policy: &PlayerRestRatePolicyLikeCpp,
+        now_secs: u64,
+    ) -> (f32, u8) {
+        #[cfg(test)]
+        if self.core.player_handle_like_cpp.is_none() {
+            return self.fixture_update_online_xp_rest_bonus_like_cpp(policy, now_secs);
+        }
+        let bubble = REST_ONLINE_INGAME_BUBBLE_LIKE_CPP * policy.ingame;
+        let at_max = crate::session::hub_ref(self).player_is_at_configured_max_level_like_cpp();
+        let raf = self.represented_recruit_a_friend_xp_rest_state_applies_like_cpp();
+        self.core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.update_online_xp_rest_bonus_like_cpp(now_secs, bubble, at_max, raf)
+            })
+            .unwrap_or((0.0, 0))
+    }
     pub(in crate::session) fn tick_represented_online_xp_rest_bonus_with_policy_like_cpp(
         &mut self,
         policy: &PlayerRestRatePolicyLikeCpp,
         now_secs: u64,
     ) {
-        wow_world_instances::tick_represented_online_xp_rest_bonus_with_policy_like_cpp(
-            self, policy, now_secs,
-        )
+        // C++ `RestMgr::Update` freezes the elapsed-time update behind
+        // `roll_chance_i(3)`. Use the session's runtime RNG so the gate is
+        // probabilistic in production and seedable in focused tests.
+        let update_roll_passed = self.core.represented_urand_u32_like_cpp(1, 100) <= 3;
+        self.tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp(
+            policy,
+            now_secs,
+            update_roll_passed,
+        );
+    }
+    pub(crate) fn tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp(
+        &mut self,
+        policy: &PlayerRestRatePolicyLikeCpp,
+        now_secs: u64,
+        update_roll_passed: bool,
+    ) {
+        if !update_roll_passed {
+            return;
+        }
+        let (_, nested_mask) =
+            self.update_represented_online_xp_rest_bonus_with_policy_like_cpp(policy, now_secs);
+        if nested_mask != 0 {
+            crate::session::hub_ref(self).send_represented_rest_info_update_like_cpp(nested_mask);
+        }
     }
     /// The driver's entry to the tavern revalidation, moved to
     /// `wow_world_instances` (#1363 slice 12b7).

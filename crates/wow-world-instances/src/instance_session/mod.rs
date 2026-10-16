@@ -36,7 +36,6 @@ mod create_map;
 mod exploration;
 mod login_load;
 mod map_entry;
-mod rest_bonus;
 mod rest_flags;
 mod zone_area;
 
@@ -69,13 +68,6 @@ pub use map_entry::{
     ensure_canonical_world_map_for_current_player_like_cpp, prepare_canonical_map_entry_like_cpp,
     try_attach_worldport_destination_like_cpp,
     try_attach_worldport_destination_with_publication_like_cpp,
-};
-pub use rest_bonus::{
-    REST_OFFLINE_TAVERN_OR_CITY_BUBBLE_LIKE_CPP, REST_OFFLINE_WILDERNESS_BUBBLE_LIKE_CPP,
-    REST_ONLINE_INGAME_BUBBLE_LIKE_CPP, apply_offline_xp_rest_bonus_with_policy_like_cpp,
-    tick_represented_online_xp_rest_bonus_with_policy_like_cpp,
-    tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp,
-    update_represented_online_xp_rest_bonus_with_policy_like_cpp,
 };
 pub use rest_flags::{
     remove_player_rest_flag_like_cpp, set_player_rest_flag_like_cpp,
@@ -131,28 +123,6 @@ pub trait InstanceSessionHostLikeCpp: PlayerTeleportHostLikeCpp + AuraHostLikeCp
         None
     }
     fn send_represented_resting_player_flag_update_like_cpp(&self) -> bool;
-    /// `WorldSession::gets_recruit_a_friend_xp_bonus_like_cpp` (`QuestRewardCx`).
-    fn represented_recruit_a_friend_xp_rest_state_applies_like_cpp(&self) -> bool;
-    /// The same-named `WorldSession` rest-bonus fixture steps (World test build;
-    /// called only when `test_fixtures_ref_like_cpp` is `Some`).
-    #[cfg(any(test, feature = "test-fixtures"))]
-    fn fixture_apply_offline_xp_rest_bonus_like_cpp(
-        &mut self,
-        _policy: &wow_world_core::session::PlayerRestRatePolicyLikeCpp,
-        _logout_time_secs: u64,
-        _now_secs: u64,
-        _was_logout_resting: bool,
-    ) -> f32 {
-        0.0
-    }
-    #[cfg(any(test, feature = "test-fixtures"))]
-    fn fixture_update_online_xp_rest_bonus_like_cpp(
-        &mut self,
-        _policy: &wow_world_core::session::PlayerRestRatePolicyLikeCpp,
-        _now_secs: u64,
-    ) -> (f32, u8) {
-        (0.0, 0)
-    }
     fn access_requirement_abort_like_cpp(
         &self,
         map_id: u32,

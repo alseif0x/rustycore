@@ -19806,22 +19806,6 @@
           "module": "crate::handlers::split_forward_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_offline_xp_rest_bonus_with_policy_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_offline_xp_rest_bonus_with_policy_like_cpp (& mut self , policy : & PlayerRestRatePolicyLikeCpp , logout_time_secs : u64 , now_secs : u64 , was_logout_resting : bool ,) -> f32",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::split_forward_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "begin_player_equipment_inventory_authority_load_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn begin_player_equipment_inventory_authority_load_like_cpp (& mut self)",
@@ -19873,22 +19857,6 @@
           "name": "get_inventory_item_by_guid_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn get_inventory_item_by_guid_like_cpp (& self , item_guid : wow_core :: ObjectGuid ,) -> Option < (u8 , u8 , wow_entities :: PlayerInventoryItem) >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::split_forward_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "gets_recruit_a_friend_xp_bonus_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn gets_recruit_a_friend_xp_bonus_like_cpp (& self) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -20206,22 +20174,6 @@
           "module": "crate::handlers::split_forward_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_recruit_a_friend_xp_rest_state_applies_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_recruit_a_friend_xp_rest_state_applies_like_cpp (& self) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::split_forward_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_talents_loaded_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_talents_loaded_like_cpp (& self) -> bool",
@@ -20338,38 +20290,6 @@
           "name": "take_deferred_rest_flag_update_dirty_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn take_deferred_rest_flag_update_dirty_like_cpp (& mut self) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::split_forward_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp (& mut self , policy : & PlayerRestRatePolicyLikeCpp , now_secs : u64 , update_roll_passed : bool ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::split_forward_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "update_represented_online_xp_rest_bonus_with_policy_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn update_represented_online_xp_rest_bonus_with_policy_like_cpp (& mut self , policy : & PlayerRestRatePolicyLikeCpp , now_secs : u64 ,) -> (f32 , u8)",
           "cfg": [
             "cfg (test)"
           ],
@@ -24000,6 +23920,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "apply_offline_xp_rest_bonus_with_policy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_offline_xp_rest_bonus_with_policy_like_cpp (& mut self , policy : & PlayerRestRatePolicyLikeCpp , logout_time_secs : u64 , now_secs : u64 , was_logout_resting : bool ,) -> f32",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "apply_player_money_change_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn apply_player_money_change_like_cpp (& mut self , old_money : u64 , new_money : u64 ,)",
@@ -25875,6 +25808,19 @@
           "name": "gets_recruit_a_friend_bonus_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn gets_recruit_a_friend_bonus_like_cpp (& self , for_xp : bool) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "gets_recruit_a_friend_xp_bonus_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn gets_recruit_a_friend_xp_bonus_like_cpp (& self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -31551,6 +31497,19 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_recruit_a_friend_xp_rest_state_applies_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn represented_recruit_a_friend_xp_rest_state_applies_like_cpp (& self) -> bool",
+          "cfg": [],
+          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -39388,6 +39347,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp (& mut self , policy : & PlayerRestRatePolicyLikeCpp , now_secs : u64 , update_roll_passed : bool ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "total_represented_aura_modifier_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn total_represented_aura_modifier_like_cpp (& self , effect : RepresentedAuraEffectLikeCpp ,) -> i32",
@@ -39584,6 +39556,19 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "update_represented_online_xp_rest_bonus_with_policy_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn update_represented_online_xp_rest_bonus_with_policy_like_cpp (& mut self , policy : & PlayerRestRatePolicyLikeCpp , now_secs : u64 ,) -> (f32 , u8)",
+          "cfg": [],
+          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -40290,36 +40275,6 @@
           "module": "crate::session",
           "trait_path": "InstanceSessionHostLikeCpp",
           "kind": "method",
-          "name": "fixture_apply_offline_xp_rest_bonus_like_cpp",
-          "visibility": "private",
-          "signature": "fn fixture_apply_offline_xp_rest_bonus_like_cpp (& mut self , policy : & PlayerRestRatePolicyLikeCpp , logout_time_secs : u64 , now_secs : u64 , was_logout_resting : bool ,) -> f32",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "InstanceSessionHostLikeCpp",
-          "kind": "method",
-          "name": "fixture_update_online_xp_rest_bonus_like_cpp",
-          "visibility": "private",
-          "signature": "fn fixture_update_online_xp_rest_bonus_like_cpp (& mut self , policy : & PlayerRestRatePolicyLikeCpp , now_secs : u64 ,) -> (f32 , u8)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "InstanceSessionHostLikeCpp",
-          "kind": "method",
           "name": "is_pvp_realm_like_cpp",
           "visibility": "private",
           "signature": "fn is_pvp_realm_like_cpp (& self) -> bool",
@@ -40351,19 +40306,6 @@
           "name": "player_loading",
           "visibility": "private",
           "signature": "fn player_loading (& self) -> Option < ObjectGuid >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "InstanceSessionHostLikeCpp",
-          "kind": "method",
-          "name": "represented_recruit_a_friend_xp_rest_state_applies_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_recruit_a_friend_xp_rest_state_applies_like_cpp (& self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
