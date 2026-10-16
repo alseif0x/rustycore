@@ -6,6 +6,6 @@
 //! Player request lifecycle: re-exported from `wow-world-spell` after the
 //! #1263 F5 move.
 
+pub(crate) use wow_world_spell::player_cast::Runtime;
 #[cfg(test)]
 pub(crate) use wow_world_spell::player_cast::request;
-pub(crate) use wow_world_spell::player_cast::{Runtime, prepare};

@@ -499,11 +499,9 @@ use wow_constants::ItemEnchantmentType;
 use wow_constants::creature::CreatureTypeFlags;
 use wow_constants::item::{CurrencyTypes, EnchantmentSlot, ItemFieldFlags2};
 use wow_constants::shared::DifficultyFlags;
-use wow_constants::unit::{
-    Gender, Team, UnitFlags, UnitPvpFlags, UnitStandStateType, WeaponAttackType,
-};
+use wow_constants::unit::{Gender, Team, UnitFlags, UnitPvpFlags, WeaponAttackType};
 #[cfg(test)]
-use wow_constants::unit::{PowerType, UnitFlags2};
+use wow_constants::unit::{PowerType, UnitFlags2, UnitStandStateType};
 #[cfg(test)]
 use wow_constants::{
     BuyResult, ItemFlags3, ItemQuality, ItemSubClassArmor, ItemSubClassWeapon, SellResult, TypeId,
