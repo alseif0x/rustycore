@@ -12317,9 +12317,9 @@ and unmerged, ≤ ~4.5k moved, closure simulated first, no ceiling raised).
 | **12b1** | `session/player_items` → `wow-world-inventory`: durability loss and repair, item mods and the item-bonus stat publication, offhand auto-unequip, item-set item records, appearance/collection gates | 31 / ~1.2k (measured in the 12b1 result) | this PR; only what inventory can own without reaching spell, application, quest or player-conditions |
 | 12b1b | `session/player_items` remainder: the application context builders and planning wrappers (equip, position publication, swap effects, committed relocation/swap/removal, storage/bank/equip planning: ~470) → `wow-world-application`; the inventory field-borrow builders (area-based scaling, average item level, equipment-set use context, ~190) → `wow-world-inventory` behind one split host method; loot/battle-pet leftovers (~100) | ~45 / ~1.0k planned; **21 functions / 659 lines moved** (10 non-forward / 483; 9 / 463 of them in `session/**`, the tenth in `handlers/character/items/host.rs`), see the 12b1b result | the aura/enchantment/obtain-spell paths below go with 12b2; the split wrappers go with 12c and the loot/publication leftovers with 12b7 |
 | 12b2 | `session/spell_effects` (1,110) plus the player-items spell paths (durability-damage effect 48, loaded enchantments 205, initial item mods and set auras 93, obtain spells 63) → `wow-world-spell` | 13 + ~8 / ~1.5k; **11 functions / 625 lines moved** (to spell, and quest complete to quest), see the 12b2 result | the damage kill cascade, the nearby-entry pair, reputation, force deselect and the item-enchantment / item-mod / set-aura family (917) are 12b2b and 12b5, by layering |
-| 12b3 | `session/spell_state` → `wow-world-spell` | 34 / 616 (+31 forwards, 196) | |
+| 12b3 | `session/spell_state` → `wow-world-spell` | 34 / 616 (+31 forwards, 196); re-measured 29 / 556 outside the setters; **16 moved / 198 lines, 2 / 51 reclassified to a shim**, plus the 12b5 effect pair (2 / 124) to social, see the 12b3 result | the spell-map dispatch (#754), the snapshot, the spell-hit authority pair, the aura-application builder, the two login passive-aura replays and the login spell reset stay (fixture seam or above spell) |
 | 12b4 | `session/persistence`, `session/player_bootstrap`, `session/player_binding` → `wow-world-character`/`-lifecycle` | 24 / 934 | the login bootstrap (406) is one method; it moves only if its callers are domain crates |
-| 12b5 | `session/social`, `session/chat` → `wow-world-social` | 21 / 406 | |
+| 12b5 | `session/social`, `session/chat` → `wow-world-social` | 21 / 406 | the reputation and force-deselect effects of `session/spell_effects` went with 12b3 |
 | 12b6 | `session/quest`, `session/world_entities`, `session/visibility`, `session/deferred_visibility` → quest / entities / visibility | 26 / 644 | |
 | 12b7 | leftovers: `session/player_cast` (220), `session/stand_state_adapter` (311), `session/canonical_access` (232), money/xp/presentation/publication (491) | ~41 / ~1.25k | each measured again first; anything whose callers are not yet domain crates is recorded as staying |
 | stays | runtime shell: `session/driver`, `session_commands.rs`, `session/map_admission.rs` | 23 / 1,273 | not moved by 12b |
@@ -13911,6 +13911,352 @@ compared with `warning_units.py`:
   carry one method; fold them when the adapters regroup. The reproduced
   aura-context builder can replace the World one once its remaining World
   callers move.
+- **Shims.** The `#![cfg(test)]` shims retire in the final cleanup.
+
+### Validation
+
+`VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+runs on the committed head that includes this section. The manifest path,
+dirty flag and duration are in the PR body. This section is not edited after
+that run, so the PR head is the validated SHA.
+
+## Slice 12b3 result (spell-state queries and operations → spell, the reputation and force-deselect effects → social)
+
+Branch `1363-s12b3-spell-state`, base `85f5703dd` (slice 12b2b merged).
+
+### #1415 follow-ups: the index tool
+
+Fixed in a separate commit, before anything moved; the measurement on the
+base is unchanged (staying 44 / 1,190, outside 248 / 5,547, crate 320 /
+7,949).
+
+- **Raw-identifier aliases (Codex P2).** `ALIAS_RE` accepts an optional `r#`
+  on the alias name and on `WorldSession` in both forms (`type r#S =
+  r#WorldSession;`, `use … WorldSession as r#S;`), and `IMPL_RE` matches
+  `impl r#WorldSession`. The self-test adds both alias lines (rejected at
+  `aliases.rs:3` and `:4`) and a raw `impl r#WorldSession` file that is
+  indexed (`raw_impl`).
+- **Mutation checks (review optional follow-up),** each run against the
+  self-test, 5 of 5 caught: `r#` dropped from `IMPL_RE`; from the `type`
+  alias form; from the `use … as` form; the alias rejection loop dropped; the
+  `#[path]`-outside-`src` error dropped.
+
+### Re-measure and the cut
+
+The index on the base lists `session/spell_state` at **35 non-forward / 620
+lines** (29 forwards / 174). Six of them are the world-server construction API
+already on the allow-list (`set_spell_store`, `set_spell_chain_store`,
+`set_spell_linked_store`, `set_spell_area_store`,
+`set_spell_acquisition_static_authority_like_cpp`,
+`set_spell_runtime_script_authority_like_cpp`; 64 lines), leaving **29 / 556**.
+Each was read against its callers and what it reaches:
+
+- **Moved to `wow-world-spell` (16 / 198):**
+  - twelve field-split queries over `SpellbookHostLikeCpp` (71):
+    `resolved_has_represented_aura_effect_like_cpp`,
+    `resolved_total_represented_aura_modifier_by_misc_value_like_cpp`,
+    `resolved_total_represented_aura_multiplier_like_cpp`,
+    `set_player_aura_authority_complete_like_cpp`,
+    `represented_active_glyph_aura_source_is_empty_like_cpp`,
+    `represented_add_player_to_map_aura_source_is_empty_like_cpp`,
+    `represented_cast_speed_multiplier_like_cpp`,
+    `represented_player_is_polymorphed_like_cpp`,
+    `represented_update_zone_script_aura_source_is_hit_inert_like_cpp`,
+    `represented_update_area_pvp_rule_aura_source_is_empty_like_cpp`,
+    `represented_login_passive_spell_cast_gate_like_cpp`,
+    `player_target_spell_is_hit_inert_like_cpp`;
+  - `has_represented_self_res_spell_like_cpp` (4),
+    `interrupt_non_melee_spells_for_far_teleport_like_cpp` (15),
+    `apply_login_known_spell_proficiencies_like_cpp` (46) and
+    `publish_spell_pull_attack_start_like_cpp` (62).
+- **Reclassified to a test shim (2 / 51):**
+  `represented_player_spell_rows_like_cpp` (38) and
+  `represented_mount_source_spell_usable_like_cpp` (13) were
+  `#[allow(dead_code)]` with no production caller; they move verbatim (minus
+  the attribute) into the `#![cfg(test)]` shim the scenarios already reach.
+- **Stay, with the reason (11 / 307):**
+  - `with_player_spell_runtime_like_cpp` (7),
+    `mutate_player_spell_runtime_like_cpp` (17, the #754 single-writer
+    dispatch) and `player_spell_runtime_snapshot_like_cpp` (16): the host's
+    own spell-map seam; each passes the World `cfg!(test)` flag or a
+    `#[cfg(test)]` fixture fallback, and the spellbook and aura hosts already
+    call them as host methods. Moving them changes the #754 owner and is not
+    a move-only step.
+  - `can_authorize_empty_player_spell_hit_aura_source_for_difficulty_like_cpp`
+    (85 at base), its `player_spell_hit_source_identity_complete_like_cpp`
+    (9, a `cfg!(test)` bootstrap term) and
+    `sync_player_spell_hit_aura_authority_to_canonical_like_cpp` (16): the
+    proof reads the quest login aura sources (`wow_world_quest`, which depends
+    on spell), the inventory and buyback item sets and the guild id, so it
+    sits above spell (application). It now names the moved queries by path.
+  - `player_aura_application_cx_like_cpp` (17),
+    `apply_login_passive_known_spell_auras_like_cpp` (58) and
+    `apply_loaded_known_spell_previous_rank_passive_auras_like_cpp` (54):
+    they build or use the `wow_world_application` aura-application context.
+  - `apply_represented_login_spell_reset_if_needed_like_cpp` (20, calls
+    `wow_world_quest`) and its only callee
+    `reset_spells_notification_text_like_cpp` (8).
+- **12b5 pair → `wow-world-social` (2 / 124):**
+  `apply_reputation_effect_like_cpp` (86) and
+  `apply_force_deselect_effect_like_cpp` (38), the last two non-forward
+  methods in `session/spell_effects`. The reputation effect needs the
+  `wow-world-social` → `wow-progression` edge (`SetReputationOptionsLikeCpp`),
+  simulated first: `wow_world_closure.py check --add
+  "wow-world-social->wow-progression"` PASS.
+
+**Moved: 18 functions, 322 base lines; reclassified 2 / 51.** Total 373 of
+the 620 + 124 measured lines leave `session/**`.
+
+### What moved
+
+| Destination file | Functions (base file) | Base lines |
+|---|---|---:|
+| `wow-world-spell/src/spell_state_session/queries.rs` | the twelve queries above (`spell_state/{aura/effect_queries,aura/spell_hit_authority,aura,aura_publication,cast,spell}.rs`) | 71 |
+| `wow-world-spell/src/spell_state_session/operations.rs` | `has_represented_self_res_spell_like_cpp` (4), `interrupt_non_melee_spells_for_far_teleport_like_cpp` (15) (`spell.rs`); `apply_login_known_spell_proficiencies_like_cpp` (46, `spellbook.rs`) | 65 |
+| `wow-world-spell/src/spell_state_session/pull_attack_start.rs` | `publish_spell_pull_attack_start_like_cpp` (62, `spell_publication.rs`) | 62 |
+| `wow-world-social/src/spell_effects.rs` | `apply_reputation_effect_like_cpp` (86, `spell_effects/effects_progress.rs`), `apply_force_deselect_effect_like_cpp` (38, `spell_effects/effects.rs`) | 124 |
+| **Total** | 18 functions | **322** |
+
+Lines per destination: spell 198, social 124.
+
+- **Hosts.**
+  - **Queries:** `H: SpellbookHostLikeCpp` (its `split_spell_state_ref/_mut`
+    are the World `crate::session::split_spell_state_ref/_mut`).
+  - **Self-res:** `H: SpellExecutionHostLikeCpp`
+    (`player_resurrection_state_snapshot_like_cpp`).
+  - **Interrupt and proficiencies:** `H: SpellStateHostLikeCpp`, a new spell
+    trait over `SpellExecutionHostLikeCpp` with two methods,
+    `interrupt_player_cast_like_cpp` (the World cast interrupt runs the
+    application request lifecycle, above spell) and
+    `player_persistent_capability_state_snapshot_like_cpp` (it carries a
+    `#[cfg(test)]` fixture fallback). The World impl names both inherent
+    methods by `WorldSession::` path.
+  - **Pull attack start:** `H: wow_world_entities::CombatSessionHostLikeCpp`
+    (it runs `handle_creature_attack_start_like_cpp_command_like_cpp`).
+  - **Reputation and force deselect:** `H: SocialSessionHostLikeCpp`, which
+    gains one provided fixture accessor,
+    `#[cfg(any(test, feature = "test-fixtures"))]
+    social_limits_for_test_like_cpp(&mut self) -> Option<&mut SessionSocialLimits>`
+    (default `None`; the World impl returns `Some(&mut self.social)` under
+    `#[cfg(test)]` only).
+  - **Trait methods kept, now naming the free function:** the World impls of
+    `PlayerMovementHostLikeCpp` (the two aura reads, the far-teleport
+    interrupt), `SocialSessionHostLikeCpp` (the modifier read),
+    `CombatSessionHostLikeCpp` (polymorph), the character login host (the
+    aura-authority setter), the quest host (hit-inert), `PlayerCastHostLikeCpp`
+    (self-res), `ContinueLoginHostLikeCpp` (proficiencies),
+    `SpellEffectHostLikeCpp` (pull attack start) and
+    `SpellExecutionHostLikeCpp` (reputation, force deselect). The World
+    `player_cast::Runtime::cast_time_multiplier` and the staying
+    spell-hit-authority and passive-aura bodies call the moved queries by
+    `wow_world_spell::` path.
+- **Mechanical rules** (`move_token_rules/1363-s12b3-{queries,operations,social}.json`
+  with pairs alongside): the signatures; `crate::session::split_spell_state_{ref,mut}(self)`
+  → `host.split_spell_state_{ref,mut}()`; `self.core.mutate_world_creature` →
+  `host.core_mut().…` (it takes `&mut`); `self.core.` → `host.core().`;
+  `self.catalogs.` / `self.config.` → `host.hub_ref().catalogs.` / `.config.`;
+  `crate::session::hub_{ref,mut}(self)` → `host.hub_{ref,mut}()`;
+  `<crate fn>(self,` → `(host,`; the inlined wrappers below; `self.` →
+  `host.`. Rules never touch string literals.
+  - **Result** (`move_token_compare.py --base origin/3.4.3`): queries 12 of
+    12, operations 4 of 4, social 1 of 2 identical. The force deselect differs
+    only by its fixture step: `#[cfg(test)] { …; self.social.record_…(…) }` →
+    `#[cfg(any(test, feature = "test-fixtures"))] if let Some(social) =
+    host.social_limits_for_test_like_cpp() { …; social.record_…(…) }`, the
+    `#[cfg(not(test))] let _ = caster_guid;` gate widened the same way, and
+    `RepresentedForceDeselectLikeCpp` named by `crate::` path. The step runs
+    exactly in the World test session, as before; in production builds it is
+    absent. Its `DEFAULT_VISIBILITY_DISTANCE_YARDS_LIKE_CPP` (100, a
+    `#[cfg(test)]` constant of the session root used only here) moves with it.
+- **Inlined one-line wrappers** (each verified identical to the World body):
+  - `WorldSession::spell_store` (`self.catalogs.spell_store()`) →
+    `host.hub_ref().catalogs.spell_store()` (proficiencies); stays for other
+    callers.
+  - `WorldSession::currency_types_store` (`self.catalogs.currency_types_store()`)
+    → the same over `host.hub_ref().catalogs` (reputation). Its last caller
+    moved and no scenario calls it, so it is **retired**.
+  - `WorldSession::player_guid` (`self.core.player_guid()`) and
+    `WorldSession::send_packet` (`self.core.send_packet(pkt)`) → the
+    `SessionHubHostLikeCpp` provided methods, which are the same bodies over
+    `self.core()`.
+- **Shims.** `handlers/spell_state_session_test_shims.rs` (`#![cfg(test)]`,
+  mounted from `handlers/mod.rs` outside the hotspot trees, 103 lines) holds
+  one-call forwards for the nine moved names the scenarios call and the two
+  reclassified reads. One unit-test file changes one line: the
+  `effect_queries` `f3_shims.rs` imports `crate::session::*` instead of
+  `super::*`, because the emptied `effect_queries.rs` no longer imports the
+  session root. No test function changed.
+- **Files retired:** `session/spell_effects/effects.rs` and
+  `session/spell_effects/effects_progress.rs`.
+- **Visibility.** The 18 free functions, `SpellStateHostLikeCpp` and the two
+  social functions are `pub` and re-exported from their crate roots (the
+  World calls each).
+
+### Host surface
+
+Moved: **322 function lines** (base).
+
+- **New host: 20 production lines, 6.2 %.** The `SpellStateHostLikeCpp`
+  declaration with docs (9) and its World impl (11).
+- **With the fixture accessor (13): 33 lines, 10.2 %.** The provided
+  declaration in social (7, compiled only with `test`/`test-fixtures`) and the
+  World `#[cfg(test)]` override (6; the classifier counts it as production
+  because it is nested in a production impl).
+- No adapter file was merged; merged and unmerged figures are the same. No
+  host method was retired.
+
+### Await counts (per function, base vs head)
+
+Every moved function is synchronous: 0 awaits at base and at head, 18 of 18.
+
+### Recursion
+
+- **Production grep.** Every moved name, both inlined wrappers and the three
+  new host methods were grepped in production (non-shim) `wow-world`. Each
+  remaining hit is a trait-impl declaration whose body names
+  `wow_world_spell::<name>(self, …)` / `wow_world_social::<name>(self, …)`,
+  or a call by that path; no `WorldSession::<moved>` or `self.<moved>(` is
+  left. The ten kept trait impls used to say `WorldSession::<name>(self, …)`;
+  all name the free function now.
+- **New host methods.** `interrupt_player_cast_like_cpp` and
+  `player_persistent_capability_state_snapshot_like_cpp` name existing
+  inherent methods by `WorldSession::` path, which resolve before any trait
+  method; `social_limits_for_test_like_cpp` returns the field.
+- **Free functions.** No moved body calls a host method of its own name.
+- `unconditional_recursion`: 0 in every unit of all three canonical builds.
+
+### Registration
+
+No registrar moved. Spell execution and effect dispatch, the login, the
+far teleport, the player cast, opcode registrations, their order,
+`SessionStatus`, `PacketProcessing`, handler names and thunks are unchanged.
+No checker constant or `handler-module-policy.json` change.
+
+### Edges and closure
+
+- **New edge `wow-world-social` → `wow-progression`** (`Cargo.toml`,
+  `Cargo.lock` one line, and the `wow-world-social` restricted direct-dependency
+  list in `dependency-policy.json`). `wow-progression` is domain-runtime and
+  already a dependency of core, entities, inventory, lifecycle, character and
+  quest; social reaches no new `wow-world-*` crate.
+- Spell's existing edges cover the rest (entities for the attack start).
+- Closure: simulated before the move (`--add`, lock) PASS; at head, lock and
+  metadata modes, PASS (18 packages).
+
+### Accounting
+
+| Crate `src` | Base physical | Head physical | Base production | Head production |
+|---|---:|---:|---:|---:|
+| `wow-world` | 36,648 (451 files) | 36,369 (450) | **26,375** | **25,991** |
+| `wow-world-spell` | 21,227 (98) | 21,532 (102) | 20,909 | 21,214 |
+| `wow-world-social` | 11,456 (30) | 11,616 (31) | 11,340 | 11,498 |
+
+- **`wow-world` production −384:**
+  - **Moved:** −322 function lines.
+  - **Reclassified production → test:** −51 (the two dead-code reads).
+  - **Retired:** −3 (the `currency_types_store` wrapper) and −24 (the two
+    retired files' headers, imports and impl shells beyond their bodies:
+    `effects.rs` −13, `effects_progress.rs` −11), −1 in
+    `spell_effects/mod.rs` (two `mod` lines out, one doc line in).
+  - **Imports:** −7 (the session root −5: the attack-start and
+    send-if-visible mailbox imports and the `RepresentedPlayerSpellLikeCpp`
+    and `ReputationGainSourceLikeCpp` re-exports leave production, the two
+    the scenarios still read joining existing groups in
+    `session/test_reexports.rs`; `faction_reactions.rs` −2).
+  - **Impl shells, doc headers and separators** in the emptied or shrunk
+    `spell_state` files: −6 (`effect_queries.rs`), −3 (`aura.rs`), +1 each in
+    `aura_publication.rs`, `cast.rs`, `spell_publication.rs` and
+    `spellbook.rs`, +3 (`spell.rs`): −2 together.
+  - **Repointed call sites (rustfmt):** +4 in `spell_hit_authority.rs` (the
+    six repoints wrap, net of the removed setter's separator lines) and +5
+    in `aura_application.rs`.
+  - **Host adapter:** +11 (the `SpellStateHostLikeCpp` impl) and +6 (the
+    `#[cfg(test)]` fixture accessor nested in the social host impl).
+  - −322 − 51 − 3 − 24 − 1 − 7 − 2 + 4 + 5 + 11 + 6 = −384.
+- **Destinations:** spell +305 (209 of it the moved bodies after rustfmt,
+  78 + 68 + 63; the rest the module root with the trait, headers, imports,
+  separators and the 16-line crate-root re-export); social +158 (the new
+  file's 151 lines less its 2-line `test`/`test-fixtures` constant, the two
+  crate-root lines and the 7-line accessor, which the classifier counts
+  because it is nested in the trait).
+- **`net_move.py check --base origin/3.4.3`:** growth 465 within the 1,254.0
+  allowance, 0 duplicate bodies, PASS.
+- **`session_method_index`:**
+
+| Measure | Base `85f5703dd` | Head |
+|---|---:|---:|
+| Non-forward (crate) | 320 / 7,949 | **300 / 7,586** |
+| Forwards (crate) | 270 / 1,494 | 269 / 1,491 |
+| Staying | 44 / 1,190 | 44 / 1,190 |
+| Outside | 248 / 5,547 | **228 / 5,184** |
+
+  −20 non-forward methods are the 18 moved and the 2 reclassified (−373
+  lines); the three staying bodies that now name the moved queries by path
+  grow by 10 lines (`can_authorize…` 85 → 90, the two passive-aura replays
+  58 → 60 and 54 → 57), so the line delta is −363. −1 / −3 forwards is the
+  retired `currency_types_store`. `session/spell_state` goes from 35 / 620 to
+  17 / 381 (the six setters and the eleven staying methods above);
+  `session/spell_effects` from 2 / 124 to 0.
+
+### Policy and ceilings
+
+- **Ceilings tightened, none raised:**
+  - **`session-method-index.json`:** `outside_ceiling` 248 / 5,547 → 228 /
+    5,184 and `crate_ceiling` 320 / 7,949 → 300 / 7,586; `staying_bound`
+    stays at 44 / 1,190.
+  - **Hotspot `session/mod.rs`:** production 17,109 → 16,725, test 141,616
+    → 141,616, total 158,725 → 158,341.
+  - **Physical `session/mod.rs`:** 798 → 791.
+- **New physical row:** `handlers/spell_state_session_test_shims.rs` at 103,
+  under the shim convention.
+- **`dependency-policy.json`:** `wow-progression` added to the
+  `wow-world-social` restricted direct-dependency list (the authorised edge
+  above); nothing else changes.
+- `session-ownership-policy.json` is reprinted with `print-baseline` (the
+  retired impl items, the shim items, the `SpellStateHostLikeCpp` impl and
+  the accessor, the registry-access row of the attack start now in spell);
+  `check --syntax-only` PASS.
+
+### Warnings and tests
+
+Canonical recipe (with `--locked`), base `85f5703dd` vs head, counted and
+compared with `warning_units.py`:
+
+| Build | `wow-world` lib | `wow-world` lib test | All `wow-world*` lib units |
+|---|---:|---:|---:|
+| production lib | 118 → 118 | — | 245 → 245 |
+| lib + `test-fixtures` | 127 → 127 | — | 209 → 209 |
+| `--lib --tests` | 127 → 127 | 178 → 178 | 209 → 209 |
+
+- **`compare`:** nothing appears only in the base or only in the head, in
+  any build. Before the import cleanup the head had the two mailbox imports,
+  the two re-exports and `faction_reactions`' gain-source import as new
+  unused imports, and `WorldSession::currency_types_store` as new dead code.
+- **`wow-world`:** `dead_code` 0 in all three builds. `unconditional_recursion`
+  is 0 in every unit of all three builds.
+- `cargo check --tests -p wow-world-spell -p wow-world-social`: no warning in
+  the new files.
+- **Tests.** The test-name multiset is identical: `git grep` of
+  `#[test]`/`#[tokio::test]` attributes under `crates/` counts 9,517 at base
+  and at head, and `#[ignore` 5 at both. No assertion changed; the only
+  test-tree change is the one import line above.
+- **Focused run during the move:** `cargo test -p wow-world --lib --
+  force_deselect reputation proficienc spell_hit_source self_res polymorph
+  pull far_teleport cast_speed`: 98 passed.
+
+### Follow-ups
+
+- **The spell-hit authority proof** (`can_authorize…`, its identity term and
+  the sync) and **the login passive-aura replays with the aura-application
+  builder and the login spell reset** move to `wow-world-application`, where
+  the quest, inventory and aura-application context are reachable; the
+  passive-aura replays can use the application's reproduced
+  `session_aura_application_cx_like_cpp`.
+- **The spell-map seam** (`with_`/`mutate_player_spell_runtime_like_cpp`,
+  the snapshot) stays until the `cfg!(test)` fixture flag is replaced by a
+  fixture accessor in a dedicated #754 step.
+- **12d:** `SpellStateHostLikeCpp` carries two methods; fold it when the
+  adapters regroup.
 - **Shims.** The `#![cfg(test)]` shims retire in the final cleanup.
 
 ### Validation
