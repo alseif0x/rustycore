@@ -198,9 +198,6 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
             pieces,
         )
     }
-    fn load_represented_group_by_db_store_id_like_cpp(&mut self, db_store_id: u32) -> bool {
-        wow_world_character::load_represented_group_by_db_store_id_like_cpp(self, db_store_id)
-    }
     fn load_represented_talent_row_with_spell_side_effects_like_cpp(
         &mut self,
         talent_tabs: &TalentTabStore,
@@ -219,13 +216,6 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
             known_spells,
             dependent_spells,
         )
-    }
-    fn load_represented_void_storage_row_like_cpp(
-        &mut self,
-        slot: u8,
-        item: RepresentedVoidStorageItemLikeCpp,
-    ) -> bool {
-        wow_world_character::load_represented_void_storage_row_like_cpp(self, slot, item)
     }
     fn mark_represented_spell_acquisition_snapshot_complete_like_cpp(&mut self) {
         wow_world_spell::mark_represented_spell_acquisition_snapshot_complete_like_cpp(self)
@@ -251,21 +241,8 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
     fn player_interaction_source_guid_like_cpp(&self) -> Option<ObjectGuid> {
         WorldSession::player_interaction_source_guid_like_cpp(self)
     }
-    fn prepare_represented_void_storage_login_load_like_cpp(&mut self) -> bool {
-        wow_world_character::prepare_represented_void_storage_login_load_like_cpp(self)
-    }
-    fn replace_player_difficulty_preferences_like_cpp(
-        &mut self,
-        dungeon: u32,
-        raid: u32,
-        legacy_raid: u32,
-    ) -> bool {
-        WorldSession::replace_player_difficulty_preferences_like_cpp(
-            self,
-            dungeon,
-            raid,
-            legacy_raid,
-        )
+    fn replace_player_difficulty_preferences_like_cpp(&mut self, d: u32, r: u32, l: u32) -> bool {
+        WorldSession::replace_player_difficulty_preferences_like_cpp(self, d, r, l)
     }
     fn quest_log_create_entries_like_cpp(&self) -> Vec<(u32, u32, i64, [u16; 24])> {
         WorldSession::quest_log_create_entries_like_cpp(self)

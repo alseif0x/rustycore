@@ -27,7 +27,6 @@ use std::future::Future;
 use wow_core::{ObjectGuid, Position};
 use wow_data::TalentTabStore;
 use wow_entities::PlayerHomebindLikeCpp as RepresentedHomebindLikeCpp;
-use wow_entities::PlayerVoidStorageItemLikeCpp as RepresentedVoidStorageItemLikeCpp;
 use wow_entities::{
     PhaseShift, PlayerCurrency, PlayerEnchantTimeUpdate, PlayerGossipOptionLikeCpp,
     PlayerItemTimeUpdate, SpellCastMetadata,
@@ -228,7 +227,6 @@ pub trait CharacterLoginHostLikeCpp:
         assigned_spec_index: i32,
         pieces: [ObjectGuid; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
     ) -> bool;
-    fn load_represented_group_by_db_store_id_like_cpp(&mut self, db_store_id: u32) -> bool;
     fn load_represented_talent_row_with_spell_side_effects_like_cpp(
         &mut self,
         talent_tabs: &TalentTabStore,
@@ -237,11 +235,6 @@ pub trait CharacterLoginHostLikeCpp:
         talent_group: u8,
         known_spells: &mut Vec<i32>,
         dependent_spells: &mut HashSet<i32>,
-    ) -> bool;
-    fn load_represented_void_storage_row_like_cpp(
-        &mut self,
-        slot: u8,
-        item: RepresentedVoidStorageItemLikeCpp,
     ) -> bool;
     fn mark_represented_spell_acquisition_snapshot_complete_like_cpp(&mut self);
     fn mark_represented_talents_loaded_like_cpp(&mut self);
@@ -254,7 +247,6 @@ pub trait CharacterLoginHostLikeCpp:
         gossip_option_id: i32,
     ) -> Option<PlayerGossipOptionLikeCpp>;
     fn player_interaction_source_guid_like_cpp(&self) -> Option<ObjectGuid>;
-    fn prepare_represented_void_storage_login_load_like_cpp(&mut self) -> bool;
     /// The World `replace_player_difficulty_preferences_like_cpp` (the
     /// instances split), for the group-difficulty restore (#1363 slice 12b4).
     fn replace_player_difficulty_preferences_like_cpp(

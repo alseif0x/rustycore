@@ -660,6 +660,14 @@
           "source_class": "test_fixture"
         },
         {
+          "module": "crate::handlers::login_load_test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::login_test_shims",
           "trait_path": null,
           "cfg": [
@@ -5058,37 +5066,9 @@
           "module": "crate::handlers::character::login_host",
           "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
           "kind": "method",
-          "name": "load_represented_group_by_db_store_id_like_cpp",
-          "visibility": "private",
-          "signature": "fn load_represented_group_by_db_store_id_like_cpp (& mut self , db_store_id : u32) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::login_host",
-          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
-          "kind": "method",
           "name": "load_represented_talent_row_with_spell_side_effects_like_cpp",
           "visibility": "private",
           "signature": "fn load_represented_talent_row_with_spell_side_effects_like_cpp (& mut self , talent_tabs : & TalentTabStore , talent_id : u32 , rank : u8 , talent_group : u8 , known_spells : & mut Vec < i32 > , dependent_spells : & mut HashSet < i32 > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::login_host",
-          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
-          "kind": "method",
-          "name": "load_represented_void_storage_row_like_cpp",
-          "visibility": "private",
-          "signature": "fn load_represented_void_storage_row_like_cpp (& mut self , slot : u8 , item : RepresentedVoidStorageItemLikeCpp ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -5240,20 +5220,6 @@
           "module": "crate::handlers::character::login_host",
           "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
           "kind": "method",
-          "name": "prepare_represented_void_storage_login_load_like_cpp",
-          "visibility": "private",
-          "signature": "fn prepare_represented_void_storage_login_load_like_cpp (& mut self) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::login_host",
-          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
-          "kind": "method",
           "name": "quest_log_create_entries_like_cpp",
           "visibility": "private",
           "signature": "fn quest_log_create_entries_like_cpp (& self) -> Vec < (u32 , u32 , i64 , [u16 ; 24]) >",
@@ -5285,6 +5251,20 @@
           "name": "register_loaded_inventory_item_duration_refs_like_cpp",
           "visibility": "private",
           "signature": "fn register_loaded_inventory_item_duration_refs_like_cpp (& mut self , loaded_item_guids : & [ObjectGuid] , loaded_equipped_item_guids : & [ObjectGuid] ,) -> (Vec < PlayerItemTimeUpdate > , Vec < PlayerEnchantTimeUpdate >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "replace_player_difficulty_preferences_like_cpp",
+          "visibility": "private",
+          "signature": "fn replace_player_difficulty_preferences_like_cpp (& mut self , d : u32 , r : u32 , l : u32) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -5786,6 +5766,20 @@
           "name": "visibility_mut",
           "visibility": "private",
           "signature": "fn visibility_mut (& mut self) -> & mut VisibilityState",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
+          "name": "void_storage_is_unlocked_like_cpp",
+          "visibility": "private",
+          "signature": "fn void_storage_is_unlocked_like_cpp (& self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -11014,6 +11008,150 @@
           "name": "skill_rewarded_spell_changes_for_login_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn skill_rewarded_spell_changes_for_login_like_cpp (& self , skill_id : u16 , skill_value : u16 , race : u8 , class : u8 , level : u8 ,) -> wow_data :: SkillRewardedSpellChangesLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_load_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_represented_login_spell_reset_if_needed_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_represented_login_spell_reset_if_needed_like_cpp (& mut self) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_load_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "begin_represented_trait_config_authority_load_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn begin_represented_trait_config_authority_load_like_cpp (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_load_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "clear_represented_void_storage_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn clear_represented_void_storage_like_cpp (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_load_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "complete_represented_trait_config_authority_load_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn complete_represented_trait_config_authority_load_like_cpp (& mut self , configs : impl IntoIterator < Item = (i32 , i32 , i32 , i32) > , entries_empty : bool ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_load_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "load_represented_group_by_db_store_id_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn load_represented_group_by_db_store_id_like_cpp (& mut self , db_store_id : u32 ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_load_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "load_represented_group_difficulties_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn load_represented_group_difficulties_like_cpp (& mut self) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_load_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "load_represented_void_storage_row_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn load_represented_void_storage_row_like_cpp (& mut self , slot : u8 , item : RepresentedVoidStorageItemLikeCpp ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_load_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "mark_represented_void_storage_loaded_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn mark_represented_void_storage_loaded_like_cpp (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::login_load_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "prepare_represented_void_storage_login_load_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn prepare_represented_void_storage_login_load_like_cpp (& mut self) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -22845,19 +22983,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_represented_login_spell_reset_if_needed_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_represented_login_spell_reset_if_needed_like_cpp (& mut self) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "apply_represented_player_instance_reset_result_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn apply_represented_player_instance_reset_result_like_cpp (& mut self , map_id : u32 , result : GroupInstanceResetResultLikeCpp , method : GroupInstanceResetMethodLikeCpp ,) -> bool",
@@ -23271,19 +23396,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "begin_represented_trait_config_authority_load_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn begin_represented_trait_config_authority_load_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -23995,19 +24107,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "clear_represented_void_storage_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn clear_represented_void_storage_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "client_sees_guid_for_test_like_cpp",
           "visibility": "pub",
           "signature": "fn client_sees_guid_for_test_like_cpp (& self , guid : ObjectGuid) -> bool",
@@ -24086,19 +24185,6 @@
           "name": "complete_represented_quest_after_objective_with_generator_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn complete_represented_quest_after_objective_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , quest : & wow_data :: quest :: QuestTemplate , ignored_objective_id : u32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "complete_represented_trait_config_authority_load_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn complete_represented_trait_config_authority_load_like_cpp (& mut self , configs : impl IntoIterator < Item = (i32 , i32 , i32 , i32) > , entries_empty : bool ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -26199,32 +26285,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "load_represented_group_by_db_store_id_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn load_represented_group_by_db_store_id_like_cpp (& mut self , db_store_id : u32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_represented_group_difficulties_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn load_represented_group_difficulties_like_cpp (& mut self) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "load_represented_pet_declined_names_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn load_represented_pet_declined_names_like_cpp (& mut self , pet_number : u32 , row : Option < CharacterPetDeclinedNamesRowLikeCpp > ,) -> bool",
@@ -26262,19 +26322,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_represented_void_storage_row_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn load_represented_void_storage_row_like_cpp (& mut self , slot : u8 , item : RepresentedVoidStorageItemLikeCpp ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -26514,19 +26561,6 @@
           "name": "mark_represented_talents_loaded_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn mark_represented_talents_loaded_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "mark_represented_void_storage_loaded_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn mark_represented_void_storage_loaded_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -28324,19 +28358,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "prepare_represented_void_storage_login_load_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn prepare_represented_void_storage_login_load_like_cpp (& mut self) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "process_pending",
           "visibility": "pub (crate)",
           "signature": "async fn process_pending (& mut self)",
@@ -29225,7 +29246,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "replace_player_difficulty_preferences_like_cpp",
-          "visibility": "pub (in crate :: session)",
+          "visibility": "pub (crate)",
           "signature": "fn replace_player_difficulty_preferences_like_cpp (& mut self , dungeon : u32 , raid : u32 , legacy_raid : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
@@ -32372,19 +32393,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "reset_spells_notification_text_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn reset_spells_notification_text_like_cpp (& self) -> String",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -55630,97 +55638,6 @@
         },
         {
           "package": "wow-world",
-          "module": "crate::session::persistence::load",
-          "source": "crates/wow-world/src/session/persistence/load.rs",
-          "enclosing": "impl WorldSession::load_represented_group_by_db_store_id_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "member",
-          "symbol": "group_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "self . core . directory . group_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::persistence::load",
-          "source": "crates/wow-world/src/session/persistence/load.rs",
-          "enclosing": "impl WorldSession::load_represented_group_by_db_store_id_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "local_alias",
-          "symbol": "group_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "group_registry:GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::persistence::load",
-          "source": "crates/wow-world/src/session/persistence/load.rs",
-          "enclosing": "impl WorldSession::load_represented_group_by_db_store_id_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "get",
-          "symbol": "get",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "get(& group_guid)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::persistence::load",
-          "source": "crates/wow-world/src/session/persistence/load.rs",
-          "enclosing": "impl WorldSession::load_represented_group_difficulties_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "member",
-          "symbol": "group_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "self . core . directory . group_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::persistence::load",
-          "source": "crates/wow-world/src/session/persistence/load.rs",
-          "enclosing": "impl WorldSession::load_represented_group_difficulties_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "local_alias",
-          "symbol": "group_guid",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "group_guid:GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::persistence::load",
-          "source": "crates/wow-world/src/session/persistence/load.rs",
-          "enclosing": "impl WorldSession::load_represented_group_difficulties_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "local_alias",
-          "symbol": "group_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "group_registry:GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::persistence::load",
-          "source": "crates/wow-world/src/session/persistence/load.rs",
-          "enclosing": "impl WorldSession::load_represented_group_difficulties_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "get",
-          "symbol": "get",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "get(& group_guid)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
           "module": "crate::session::player_items::publication",
           "source": "crates/wow-world/src/session/player_items/publication.rs",
           "enclosing": "impl WorldSession::broadcast_item_push_result_to_group",
@@ -56562,6 +56479,97 @@
           "visibility": "pub (super)",
           "cfg": [],
           "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-character",
+          "module": "crate::login_session::represented_load",
+          "source": "crates/wow-world-character/src/login_session/represented_load.rs",
+          "enclosing": "fn load_represented_group_by_db_store_id_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "member",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "host . core () . directory . group_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-character",
+          "module": "crate::login_session::represented_load",
+          "source": "crates/wow-world-character/src/login_session/represented_load.rs",
+          "enclosing": "fn load_represented_group_by_db_store_id_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-character",
+          "module": "crate::login_session::represented_load",
+          "source": "crates/wow-world-character/src/login_session/represented_load.rs",
+          "enclosing": "fn load_represented_group_by_db_store_id_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "get(& group_guid)",
+          "count": 1
+        },
+        {
+          "package": "wow-world-character",
+          "module": "crate::login_session::represented_load",
+          "source": "crates/wow-world-character/src/login_session/represented_load.rs",
+          "enclosing": "fn load_represented_group_difficulties_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "member",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "host . core () . directory . group_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-character",
+          "module": "crate::login_session::represented_load",
+          "source": "crates/wow-world-character/src/login_session/represented_load.rs",
+          "enclosing": "fn load_represented_group_difficulties_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "group_guid",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_guid:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-character",
+          "module": "crate::login_session::represented_load",
+          "source": "crates/wow-world-character/src/login_session/represented_load.rs",
+          "enclosing": "fn load_represented_group_difficulties_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-character",
+          "module": "crate::login_session::represented_load",
+          "source": "crates/wow-world-character/src/login_session/represented_load.rs",
+          "enclosing": "fn load_represented_group_difficulties_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "get(& group_guid)",
           "count": 1
         },
         {
