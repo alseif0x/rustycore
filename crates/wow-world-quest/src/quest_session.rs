@@ -159,7 +159,17 @@ pub trait QuestSessionHostLikeCpp: SessionHubHostLikeCpp {
         &mut self,
         mutate: impl FnOnce(&mut PlayerQuestGameplayState) -> R,
     ) -> Option<R>;
-    fn invalidate_player_quest_status_authority_like_cpp(&mut self);
+    // The quest-status authority reset with the spell-hit authority
+    // invalidation (#1363 slice 12d; the World inherent of that name, moved
+    // here as the provided method).
+    fn invalidate_player_quest_status_authority_like_cpp(&mut self) {
+        let (quest_state, hub) = self.split_quest_state_mut();
+        let _ = crate::mutate_player_quest_gameplay_like_cpp(hub, quest_state, |state| {
+            state.set_status_authority_complete_like_cpp(false);
+        });
+        self.core()
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+    }
     fn represented_inventory_item_counts_like_cpp(&self) -> Option<HashMap<u32, u32>>;
     /// C++ `Player::CanInteractWithQuestGiver(TYPEID_GAMEOBJECT)`, over the
     /// World quest-state context.

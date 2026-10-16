@@ -13,7 +13,6 @@ mod equipment_sets;
 mod items;
 mod modifiers;
 mod persistence;
-mod persistence_load;
 mod publication;
 mod storage;
 mod storage_move_host;

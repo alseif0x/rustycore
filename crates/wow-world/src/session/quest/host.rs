@@ -39,9 +39,6 @@ impl QuestSessionHostLikeCpp for WorldSession {
         let (state, hub) = crate::session::split_quest_state_mut(self);
         wow_world_quest::mutate_player_quest_gameplay_like_cpp(hub, state, mutate)
     }
-    fn invalidate_player_quest_status_authority_like_cpp(&mut self) {
-        WorldSession::invalidate_player_quest_status_authority_like_cpp(self)
-    }
     fn represented_can_see_spell_click_on_creature_like_cpp(
         &self,
         creature_guid: ObjectGuid,

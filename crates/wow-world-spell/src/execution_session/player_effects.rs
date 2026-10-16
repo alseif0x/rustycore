@@ -38,7 +38,8 @@ pub async fn apply_stuck_effect_like_cpp<H: SpellExecutionHostLikeCpp>(host: &mu
     match host.hub_ref().resolved_player_is_alive_like_cpp() {
         None => return,
         Some(false) => {
-            let Some(resurrection) = host.player_resurrection_state_snapshot_like_cpp() else {
+            let Some(resurrection) = crate::player_resurrection_state_snapshot_like_cpp(host)
+            else {
                 return;
             };
             if !resurrection.death_timer_active {

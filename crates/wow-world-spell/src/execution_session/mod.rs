@@ -165,9 +165,6 @@ pub trait SpellExecutionHostLikeCpp:
     fn apply_force_deselect_effect_like_cpp(&mut self) -> bool;
     /// The World resurrection snapshot, ghost flag and alive state the moved
     /// stuck effect reads and writes (#1363 slice 12b2).
-    fn player_resurrection_state_snapshot_like_cpp(
-        &self,
-    ) -> Option<wow_entities::PlayerResurrectionStateLikeCpp>;
     fn set_player_ghost_flag_like_cpp(&mut self, ghost: bool);
     fn set_player_alive_like_cpp(&mut self, alive: bool);
     /// The World test session's handle-less capability owner for the moved

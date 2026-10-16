@@ -117,8 +117,9 @@ pub use trade_handlers::{
     TradeHandlerCxLikeCpp, TradeHandlerHostLikeCpp, register_trade_handlers_like_cpp,
 };
 pub use trade_handlers::{
-    player_trade_state_snapshot_like_cpp, resolved_represented_duel_arbiter_guid_like_cpp,
-    set_represented_duel_arbiter_guid_like_cpp, set_represented_duel_state_like_cpp,
+    player_trade_state_snapshot_like_cpp, resolved_represented_active_trade_partner_like_cpp,
+    resolved_represented_duel_arbiter_guid_like_cpp, set_represented_duel_arbiter_guid_like_cpp,
+    set_represented_duel_state_like_cpp,
 };
 
 pub const GROUP_XP_DISTANCE_LIKE_CPP: f32 = 74.0;

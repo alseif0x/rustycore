@@ -131,7 +131,6 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         include_str!("../../../src/session/player_items/items.rs"),
         include_str!("../../../src/session/player_items/modifiers.rs"),
         include_str!("../../../src/session/player_items/persistence.rs"),
-        include_str!("../../../src/session/player_items/persistence_load.rs"),
         include_str!("../../../src/session/player_items/publication.rs"),
         include_str!("../../../src/session/player_items/storage.rs"),
         include_str!("../../../src/session/player_items/storage_slots.rs"),

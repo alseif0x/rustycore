@@ -166,7 +166,8 @@ pub use spell_click_session::{
 pub use spell_state_session::{
     SpellStateHostLikeCpp, apply_login_known_spell_proficiencies_like_cpp,
     has_represented_self_res_spell_like_cpp, interrupt_non_melee_spells_for_far_teleport_like_cpp,
-    player_target_spell_is_hit_inert_like_cpp, publish_spell_pull_attack_start_like_cpp,
+    player_resurrection_state_snapshot_like_cpp, player_target_spell_is_hit_inert_like_cpp,
+    publish_spell_pull_attack_start_like_cpp,
     represented_active_glyph_aura_source_is_empty_like_cpp,
     represented_add_player_to_map_aura_source_is_empty_like_cpp,
     represented_cast_speed_multiplier_like_cpp, represented_login_passive_spell_cast_gate_like_cpp,

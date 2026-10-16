@@ -7,13 +7,58 @@
 //! proficiency replay (#1363 slice 12b3), moved from the World
 //! `session/spell_state` spell and spellbook files.
 
+use wow_entities::PlayerResurrectionStateLikeCpp;
+
 use crate::{SpellExecutionHostLikeCpp, SpellStateHostLikeCpp, apply_proficiency_effect_like_cpp};
+
+// The resurrection-state snapshot (#1363 slice 12d; moved from the World
+// `session/combat/death.rs`).
+pub fn player_resurrection_state_snapshot_like_cpp<H: SpellExecutionHostLikeCpp + ?Sized>(
+    host: &H,
+) -> Option<PlayerResurrectionStateLikeCpp> {
+    let canonical = host
+        .core()
+        .with_owned_player_like_cpp(|player| player.resurrection_state_like_cpp().clone());
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if host.test_fixtures_ref_like_cpp().is_some()
+        && canonical.is_none()
+        && host.core().player_handle_like_cpp.is_none()
+    {
+        return Some(PlayerResurrectionStateLikeCpp {
+            request: host
+                .hub_ref()
+                .fixtures
+                .combat
+                .represented_resurrection_request_like_cpp,
+            delayed_after_teleport: host
+                .hub_ref()
+                .fixtures
+                .combat
+                .represented_delayed_resurrection_after_teleport_like_cpp,
+            self_res_spells: host
+                .spell_state()
+                .represented_self_res_spells_for_test_like_cpp()
+                .clone(),
+            death_timer_active: host
+                .hub_ref()
+                .fixtures
+                .combat
+                .represented_death_timer_active_like_cpp,
+            area_spirit_healer_guid: host
+                .hub_ref()
+                .fixtures
+                .combat
+                .area_spirit_healer_guid_like_cpp,
+        });
+    }
+    canonical
+}
 
 pub fn has_represented_self_res_spell_like_cpp<H: SpellExecutionHostLikeCpp>(
     host: &H,
     spell_id: i32,
 ) -> bool {
-    host.player_resurrection_state_snapshot_like_cpp()
+    player_resurrection_state_snapshot_like_cpp(host)
         .is_some_and(|state| state.self_res_spells.contains(&spell_id))
 }
 

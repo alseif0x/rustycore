@@ -283,6 +283,27 @@ impl WorldSession {
     pub(crate) fn set_player_ghost_flag_like_cpp(&mut self, ghost: bool) {
         wow_world_entities::set_player_ghost_flag_like_cpp(self, ghost)
     }
+    // Resurrection snapshot (moved to `wow_world_spell`).
+    pub(crate) fn player_resurrection_state_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerResurrectionStateLikeCpp> {
+        wow_world_spell::player_resurrection_state_snapshot_like_cpp(self)
+    }
+    // Quest-status authority reset (the provided quest host method).
+    pub(crate) fn invalidate_player_quest_status_authority_like_cpp(&mut self) {
+        wow_world_quest::QuestSessionHostLikeCpp::invalidate_player_quest_status_authority_like_cpp(
+            self,
+        )
+    }
+    // Active trade partner (moved to `wow_world_social`).
+    pub(crate) fn resolved_represented_active_trade_partner_like_cpp(
+        &self,
+    ) -> Option<Option<ObjectGuid>> {
+        wow_world_social::resolved_represented_active_trade_partner_like_cpp(
+            &self.core,
+            &self.social,
+        )
+    }
     // Taxi (the scenario-only edge distance, from `session/taxi/operations.rs`).
     pub(crate) fn represented_taxi_edge_distance_like_cpp(
         &self,

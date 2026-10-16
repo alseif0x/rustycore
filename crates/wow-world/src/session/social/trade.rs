@@ -15,17 +15,11 @@ impl WorldSession {
         TradeHandlerCxLikeCpp::new(hub, social, inventory, spell_state)
     }
 
+    #[cfg(test)]
     pub(in crate::session) fn player_trade_state_snapshot_like_cpp(
         &self,
     ) -> Option<Option<wow_entities::PlayerTradeStateLikeCpp>> {
         wow_world_social::player_trade_state_snapshot_like_cpp(&self.core, &self.social)
-    }
-
-    pub(crate) fn resolved_represented_active_trade_partner_like_cpp(
-        &self,
-    ) -> Option<Option<ObjectGuid>> {
-        self.player_trade_state_snapshot_like_cpp()
-            .map(|state| state.map(|state| state.partner_guid))
     }
 
     pub(crate) fn clear_represented_active_trade_partner_like_cpp(&mut self) -> bool {
@@ -58,8 +52,11 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn represented_active_trade_partner_like_cpp(&self) -> Option<ObjectGuid> {
-        self.resolved_represented_active_trade_partner_like_cpp()
-            .expect("test Player trade owner must resolve")
+        wow_world_social::resolved_represented_active_trade_partner_like_cpp(
+            &self.core,
+            &self.social,
+        )
+        .expect("test Player trade owner must resolve")
     }
 
     #[cfg(test)]
