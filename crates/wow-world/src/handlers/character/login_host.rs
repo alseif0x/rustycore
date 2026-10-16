@@ -283,7 +283,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         wow_world_spell::represented_homebind_like_cpp(self)
     }
     fn reset_group_update_sequence_if_needed_like_cpp(&mut self) -> bool {
-        WorldSession::reset_group_update_sequence_if_needed_like_cpp(self)
+        wow_world_instances::reset_group_update_sequence_if_needed_like_cpp(self)
     }
     fn reset_represented_talents_like_cpp(&mut self) {
         wow_world_spell::reset_represented_talents_like_cpp(self)
@@ -307,7 +307,8 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         wow_world_spell::set_complete_represented_player_spell_rows_like_cpp(self, rows)
     }
     fn set_owned_player_group_like_cpp(&mut self, membership: Option<(u64, u8)>) -> bool {
-        WorldSession::set_owned_player_group_like_cpp(self, membership)
+        let (state, mut hub) = crate::session::split_social_mut(self);
+        state.set_owned_player_group_like_cpp(&mut hub, membership)
     }
     fn void_storage_is_unlocked_like_cpp(&self) -> bool {
         WorldSession::void_storage_is_unlocked_like_cpp(self)

@@ -5,12 +5,16 @@
 //! The represented reputation and force-deselect spell effects (#1363 slice
 //! 12b3, the 12b5 pair), moved from the World `session/spell_effects`: the
 //! reputation change through the Player's `ReputationMgr`, and the
-//! force-deselect evidence recorded into the social state.
+//! force-deselect evidence recorded into the social state. The duel effect
+//! and its two duel-state steps followed from the World `session/social/duel.rs`
+//! in slice 12b5.
 
 use std::sync::Arc;
 
 use wow_core::ObjectGuid;
+use wow_core::guid::HighGuid;
 use wow_world_core::session::ReputationGainSourceLikeCpp;
+use wow_world_core::session::mailbox::SessionCommand;
 
 use crate::{SocialSessionHostLikeCpp, calculate_reputation_gain_like_cpp};
 
@@ -147,5 +151,122 @@ pub fn apply_force_deselect_effect_like_cpp<H: SocialSessionHostLikeCpp>(host: &
     }
     #[cfg(not(any(test, feature = "test-fixtures")))]
     let _ = caster_guid;
+    true
+}
+
+fn set_represented_duel_arbiter_guid_like_cpp<H: SocialSessionHostLikeCpp>(
+    host: &mut H,
+    guid: Option<ObjectGuid>,
+) {
+    let (state, mut hub) = host.split_social_mut();
+    crate::set_represented_duel_arbiter_guid_like_cpp(&mut hub, state, guid);
+}
+fn set_represented_duel_state_like_cpp<H: SocialSessionHostLikeCpp>(
+    host: &mut H,
+    player_guid: ObjectGuid,
+    opponent_guid: ObjectGuid,
+    state: wow_entities::PlayerDuelStateLikeCpp,
+) {
+    let mut hub = host.hub_mut();
+    crate::set_represented_duel_state_like_cpp(&mut hub, player_guid, opponent_guid, state);
+}
+/// C++ `Spell::EffectDuel`.
+///
+/// Represented boundary: canonical connected players only. This creates the
+/// duel request packet, represented arbiter GUID and challenged duel state;
+/// the actual duel-flag GameObject, area/social ignore checks, phasing,
+/// script hook and full duel lifecycle remain outside this bounded slice.
+pub fn apply_duel_effect_like_cpp<H: SocialSessionHostLikeCpp>(
+    host: &mut H,
+    spell_id: i32,
+    gameobject_entry: i32,
+    target_guid: ObjectGuid,
+) -> bool {
+    let Some(player_guid) = host.player_guid() else {
+        return false;
+    };
+    if target_guid == player_guid {
+        return false;
+    }
+    if gameobject_entry <= 0 {
+        return false;
+    }
+    if host
+        .core()
+        .mutate_canonical_player_by_guid_like_cpp(player_guid, |player| player.duel_info_like_cpp())
+        .flatten()
+        .is_some()
+    {
+        return false;
+    }
+    let Some(target_duel) = host
+        .core()
+        .mutate_canonical_player_by_guid_like_cpp(target_guid, |player| {
+            player.duel_info_like_cpp()
+        })
+    else {
+        return false;
+    };
+    if target_duel.is_some() {
+        return false;
+    }
+
+    let map_id = host.core().player_map_id_like_cpp();
+    let arbiter_guid = ObjectGuid::create_world_object(
+        HighGuid::GameObject,
+        0,
+        1,
+        map_id,
+        0,
+        gameobject_entry as u32,
+        i64::from(spell_id.max(0) as u32),
+    );
+    let requested_by_wow_account =
+        ObjectGuid::create_global(HighGuid::WowAccount, 0, host.core().account_id as i64);
+
+    set_represented_duel_state_like_cpp(
+        host,
+        player_guid,
+        target_guid,
+        wow_entities::PlayerDuelStateLikeCpp::Challenged,
+    );
+    set_represented_duel_state_like_cpp(
+        host,
+        target_guid,
+        player_guid,
+        wow_entities::PlayerDuelStateLikeCpp::Challenged,
+    );
+    set_represented_duel_arbiter_guid_like_cpp(host, Some(arbiter_guid));
+
+    use wow_packet::ServerPacket;
+    let packet = wow_packet::packets::misc::DuelRequested {
+        arbiter_guid,
+        requested_by_guid: player_guid,
+        requested_by_wow_account,
+        to_the_death: false,
+    };
+    let packet_bytes = packet.to_bytes();
+    host.send_raw_packet(&packet_bytes);
+    host.core().try_send_connected_player_command_like_cpp(
+        target_guid,
+        SessionCommand::SendRepresentedDuelRequestedLikeCpp(
+            wow_world_core::session::mailbox::SendRepresentedDuelRequestedLikeCppCommand {
+                arbiter_guid,
+                packet_bytes,
+            },
+        ),
+    );
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if let Some(social) = host.social_limits_for_test_like_cpp() {
+        social.record_represented_duel_request_for_test_like_cpp(
+            crate::RepresentedDuelRequestedLikeCpp {
+                target_guid,
+                arbiter_guid,
+                gameobject_entry: gameobject_entry as u32,
+                to_the_death: false,
+            },
+        );
+    }
     true
 }

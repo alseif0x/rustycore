@@ -50,6 +50,14 @@ impl ChatHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
 }
 
 impl SocialSessionHostLikeCpp for WorldSession {
+    fn split_social_mut(
+        &mut self,
+    ) -> (
+        &mut wow_world_social::SessionSocialLimits,
+        wow_world_core::session::HubMut<'_>,
+    ) {
+        crate::session::split_social_mut(self)
+    }
     fn remove_auras_with_interrupt_flags_like_cpp(&mut self, flags: u32, flags2: u32) -> usize {
         wow_world_spell::remove_auras_with_interrupt_flags_like_cpp(self, flags, flags2)
     }

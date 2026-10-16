@@ -120,7 +120,7 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
         gameobject_entry: i32,
         target_guid: ObjectGuid,
     ) -> bool {
-        WorldSession::apply_duel_effect_like_cpp(self, spell_id, gameobject_entry, target_guid)
+        wow_world_social::apply_duel_effect_like_cpp(self, spell_id, gameobject_entry, target_guid)
     }
     fn apply_learn_spell_effect_like_cpp(
         &mut self,

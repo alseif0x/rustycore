@@ -46,10 +46,10 @@ impl InstanceSessionHostLikeCpp for WorldSession {
         WorldSession::access_requirement_abort_like_cpp(self, map_id, requested_difficulty)
     }
     fn current_player_is_in_raid_group_like_cpp(&self) -> bool {
-        WorldSession::current_player_is_in_raid_group_like_cpp(self)
+        wow_world_instances::current_player_is_in_raid_group_like_cpp(self)
     }
     fn authoritative_group_membership_like_cpp(&self) -> Option<u64> {
-        WorldSession::authoritative_group_membership_like_cpp(self)
+        wow_world_instances::authoritative_group_membership_like_cpp(self)
     }
     fn player_loading(&self) -> Option<ObjectGuid> {
         WorldSession::player_loading(self)

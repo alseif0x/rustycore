@@ -464,7 +464,7 @@ use crate::session::directory::{
 };
 #[cfg(test)]
 use crate::session::mailbox::GameEventQuestCompleteClientOutcomeLikeCpp;
-use crate::session::mailbox::{GameEventQuestCompleteCommandLikeCpp, SessionCommand};
+use crate::session::mailbox::GameEventQuestCompleteCommandLikeCpp;
 use crate::session_policy::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
     LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, PlayerRegenerationRatesLikeCpp,

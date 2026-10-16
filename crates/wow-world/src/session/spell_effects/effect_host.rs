@@ -93,6 +93,6 @@ impl wow_world_application::CreatureDamageHostLikeCpp for WorldSession {
         &self,
         player_guid: ObjectGuid,
     ) -> Vec<ObjectGuid> {
-        WorldSession::current_group_member_guids_for_tap_like_cpp(self, player_guid)
+        wow_world_instances::current_group_member_guids_for_tap_like_cpp(self, player_guid)
     }
 }
