@@ -1,0 +1,30 @@
+{
+ "slice": "#1363 slice 12c (remove_fully_looted_runtime_item -> wow-world-loot-ops session_loot/sources/open_item.rs over OpenItemHostLikeCpp, with one split_inventory_mut host method)",
+ "base": "fa3705c89",
+ "moved": [
+  "remove_fully_looted_runtime_item"
+ ],
+ "comment": "The three World inventory split forwards the body called are inlined at their call points, each verified identical to its World body (split_inventory_ref is the inventory field with the session hub: host.inventory() with host.hub_ref()). It is pub for the cfg(test)/test-fixtures crate-root re-export the World scenario shim calls.",
+ "rules": [
+  [
+   "pub\\(crate\\) fn {name}\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn {name}<H: OpenItemHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "self\\s*\\.resolved_inventory_item_like_cpp\\(slot\\)",
+   "host.inventory().resolved_inventory_item_like_cpp(host.hub_ref(), slot)"
+  ],
+  [
+   "self\\s*\\.remove_inventory_item_like_cpp\\(slot\\);",
+   "let (state, mut hub) = host.split_inventory_mut(); state.remove_inventory_item_like_cpp(&mut hub, slot);"
+  ],
+  [
+   "self\\s*\\.remove_inventory_item_object\\(item_guid\\);",
+   "let (state, mut hub) = host.split_inventory_mut(); state.remove_inventory_item_object(&mut hub, item_guid);"
+  ],
+  [
+   "\\bself\\s*\\.",
+   "host."
+  ]
+ ]
+}

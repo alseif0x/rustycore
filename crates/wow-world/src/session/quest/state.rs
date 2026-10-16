@@ -6,46 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn player_quest_gameplay_snapshot_like_cpp(
-        &self,
-    ) -> Option<PlayerQuestGameplayState> {
-        let (state, hub) = crate::session::split_quest_state_ref(self);
-        wow_world_quest::player_quest_gameplay_snapshot_like_cpp(hub, state)
-    }
-
-    pub(crate) fn clear_represented_resurrection_request_like_cpp(&mut self) -> bool {
-        let mut hub = crate::session::hub_mut(self);
-        let canonical = hub
-            .core
-            .with_owned_player_mut_like_cpp(Player::clear_resurrection_request_like_cpp)
-            .is_some();
-        #[cfg(test)]
-        if canonical || hub.core.player_handle_like_cpp.is_none() {
-            hub.fixtures
-                .combat
-                .represented_resurrection_request_like_cpp = None;
-        }
-        canonical || cfg!(test) && hub.core.player_handle_like_cpp.is_none()
-    }
-    /// The retained projection.
-    ///
-    /// #756 moved the quest state and its invariants to the canonical Player
-    /// and replaced every single-transition caller with the named operations
-    /// above. What remains are the catalog-driven walks over the whole quest
-    /// log — objective progress and quest-slot compaction — which C++ performs
-    /// in `Player::AdjustQuestObjectiveProgress` (`Player.cpp:15874`) and
-    /// `SetQuestObjectiveData` (`:16426`) while holding the Player. Their rules
-    /// need quest templates and objectives, which may not enter `wow-entities`,
-    /// so they keep this borrow rather than gaining a differently named generic
-    /// closure. **Exit condition:** they retire with the objective-progress
-    /// operation contract of #41, which owns that complete operation.
-    pub(crate) fn mutate_player_quest_gameplay_like_cpp<R>(
-        &mut self,
-        mutate: impl FnOnce(&mut PlayerQuestGameplayState) -> R,
-    ) -> Option<R> {
-        let (state, hub) = crate::session::split_quest_state_mut(self);
-        wow_world_quest::mutate_player_quest_gameplay_like_cpp(hub, state, mutate)
-    }
     /// Set the quest store shared reference.
     pub fn set_quest_store(&mut self, store: Arc<wow_data::quest::QuestStore>) {
         self.core
@@ -84,41 +44,6 @@ impl WorldSession {
     ) -> &[RepresentedAuctionReplicateRequestLikeCpp] {
         self.inventory
             .represented_auction_replicate_requests_like_cpp()
-    }
-    pub(crate) fn request_represented_battleground_leave_like_cpp(&mut self) {
-        #[cfg(test)]
-        {
-            self.fixtures
-                .battleground
-                .represented_battleground_leave_requests_like_cpp = self
-                .fixtures
-                .battleground
-                .represented_battleground_leave_requests_like_cpp
-                .saturating_add(1);
-        }
-    }
-    pub(crate) fn take_represented_resurrection_request_if_requested_by_like_cpp(
-        &mut self,
-        resurrecter: ObjectGuid,
-    ) -> Option<PlayerResurrectionRequestLikeCpp> {
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.take_resurrection_request_if_requested_by_like_cpp(resurrecter)
-            })
-            .flatten();
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            if !self.represented_resurrection_requested_by_like_cpp(resurrecter) {
-                return None;
-            }
-            return self
-                .fixtures
-                .combat
-                .represented_resurrection_request_like_cpp
-                .take();
-        }
-        canonical
     }
     #[cfg(test)]
     pub(crate) fn represented_resurrection_request_like_cpp(

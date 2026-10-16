@@ -18,7 +18,9 @@ impl WorldSession {
 
         for guid in guids {
             if guid.is_any_type_creature() {
-                let Some(access) = self.canonical_creature_access_like_cpp(guid) else {
+                let (world_entities, hub) = crate::session::split_world_entities_ref(self);
+                let Some(access) = world_entities.canonical_creature_access_like_cpp(hub, guid)
+                else {
                     continue;
                 };
                 if (access.npc_flags & NPCFlags1::QUEST_GIVER.bits()) == 0 {

@@ -387,6 +387,7 @@ pub(crate) use social_requests::RepresentedSilencePartyTalkerLikeCpp;
 pub(crate) use social_requests::RepresentedWargameInviteAcceptanceLikeCpp;
 mod spell_click_values;
 pub(crate) use spell_click_values::RepresentedCanSeeSpellClickOutcomeLikeCpp;
+#[cfg(test)]
 pub(crate) use spell_click_values::RepresentedCreatureAccessLikeCpp;
 pub(crate) use spell_click_values::RepresentedGameObjectAccessLikeCpp;
 use spell_click_values::RepresentedSpellClickCreatureSnapshotLikeCpp;
@@ -540,17 +541,16 @@ use wow_data::{
     ShieldBlockRegularGameTableLikeCpp, SkillLineStore, SkillStore, SkillTiersStoreLikeCpp,
     SpellAcquisitionCatalogLikeCpp, SpellAreaStoreLikeCpp, SpellAuraOptionsStore,
     SpellAuraRestrictionsStore, SpellCategoryStore, SpellChainStoreLikeCpp,
-    SpellCustomAttributeStoreLikeCpp, SpellDurationStore, SpellEquippedItemsEntry,
-    SpellEquippedItemsStore, SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp,
-    SpellItemEnchantmentConditionStore, SpellItemEnchantmentStore, SpellLearnSkillStoreLikeCpp,
-    SpellLearnSpellStoreLikeCpp, SpellLevelsStore, SpellLinkedStoreLikeCpp, SpellMiscStore,
-    SpellPetAuraStoreLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore,
-    SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore, SpellStore,
-    SpellTargetPositionStoreLikeCpp, SpellTargetRestrictionsStore, SpellThreatEntryLikeCpp,
-    SpellThreatStoreLikeCpp, TactKeyStore, TalentStore, TavernAreaTriggerStoreLikeCpp, ToyStore,
-    TrainerStoreLikeCpp, TransmogSetItemStore, TrinityStringStoreLikeCpp,
-    VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, WorldSafeLocStore,
-    is_player_meeting_condition_like_cpp,
+    SpellCustomAttributeStoreLikeCpp, SpellDurationStore, SpellEquippedItemsStore,
+    SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp, SpellItemEnchantmentConditionStore,
+    SpellItemEnchantmentStore, SpellLearnSkillStoreLikeCpp, SpellLearnSpellStoreLikeCpp,
+    SpellLevelsStore, SpellLinkedStoreLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp,
+    SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp,
+    SpellShapeshiftFormStore, SpellStore, SpellTargetPositionStoreLikeCpp,
+    SpellTargetRestrictionsStore, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp, TactKeyStore,
+    TalentStore, TavernAreaTriggerStoreLikeCpp, ToyStore, TrainerStoreLikeCpp,
+    TransmogSetItemStore, TrinityStringStoreLikeCpp, VehicleAccessoryStoreLikeCpp,
+    VehicleSeatStore, VehicleStore, WorldSafeLocStore, is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, CurvePointStore, CurveStore, FactionEntry, FactionStore,
         FactionTemplateStore, FriendshipRepReactionStore, NumTalentsAtLevelStore,
@@ -583,31 +583,30 @@ use wow_data::{
 #[cfg(test)]
 use wow_data::{
     PlayerCreateInfoCastSpellStoreLikeCpp, PlayerCreateInfoCustomSpellStoreLikeCpp,
-    SpellGroupStackRuleLikeCpp,
+    SpellEquippedItemsEntry, SpellGroupStackRuleLikeCpp,
 };
-use wow_entities::player_rules::is_using_two_handed_weapon_in_one_hand_template as two_handed_in_one_hand_like_cpp;
-// Test-only: the session admission fixtures compare against the player slot end.
 pub(crate) use wow_entities::PlayerCurrency;
 use wow_entities::{
     AccessorObjectKind, ApplyEnchantmentArgs, ApplyEnchantmentPlan, BANK_SLOT_BAG_END,
     BANK_SLOT_BAG_START, BUYBACK_SLOT_START, CreatureAddonLifecycleRecordLikeCpp,
     EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_RANGED,
-    GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
-    INVENTORY_SLOT_BAG_START, Item, ItemStorageTemplate, PhaseShift, Player,
-    PlayerEnchantTimeUpdate, PlayerInteractionDataLikeCpp, PlayerInventoryRuntime,
-    PlayerItemTimeUpdate, PlayerPetLifecycleStateLikeCpp, PlayerQuestGameplayState,
-    PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp,
+    GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, Item,
+    PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInteractionDataLikeCpp,
+    PlayerInventoryRuntime, PlayerItemTimeUpdate, PlayerPetLifecycleStateLikeCpp,
+    PlayerQuestGameplayState, PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp,
     REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDisplayText, Vehicle,
     VisibleItemValues,
 };
 #[cfg(test)]
 use wow_entities::{
     ActiveState, ApplyEnchantmentEffectAction, ApplyEnchantmentEffectRef,
-    ApplyEnchantmentTemplateRef, EQUIPMENT_SLOT_OFFHAND, ItemLimitCategoryTemplate, ItemPosCount,
-    MAX_MONEY_AMOUNT, MovementGeneratorKind, NULL_SLOT, PetAuraLikeCpp, PetSaveMode, PetStable,
-    PetStableInfo, PetType, ReactState, SendNewItemDelivery, SendNewItemPlan,
+    ApplyEnchantmentTemplateRef, EQUIPMENT_SLOT_OFFHAND, INVENTORY_SLOT_BAG_0,
+    ItemLimitCategoryTemplate, ItemPosCount, ItemStorageTemplate, MAX_MONEY_AMOUNT,
+    MovementGeneratorKind, NULL_SLOT, PetAuraLikeCpp, PetSaveMode, PetStable, PetStableInfo,
+    PetType, PlayerResurrectionRequestLikeCpp, ReactState, SendNewItemDelivery, SendNewItemPlan,
     TitanGripPenaltyAction, Unit, explored_zones_db_string_from_blocks_like_cpp,
 };
+// Test-only: the session admission fixtures compare against the player slot end.
 #[cfg(test)]
 pub(crate) use wow_entities::{PLAYER_SLOT_END, PlayerCurrencyState};
 use wow_handler::{PacketProcessing, SessionStatus};

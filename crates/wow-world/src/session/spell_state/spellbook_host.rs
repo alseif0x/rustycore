@@ -42,7 +42,8 @@ impl wow_world_spell::SpellbookHostLikeCpp for WorldSession {
 
 impl wow_world_spell::SpellStateHostLikeCpp for WorldSession {
     fn interrupt_player_cast_like_cpp(&mut self, spell_id: Option<i32>) -> bool {
-        WorldSession::interrupt_player_cast_like_cpp(self, spell_id)
+        let (state, mut hub) = crate::session::split_spell_state_mut(self);
+        wow_world_application::interrupt_player_cast_like_cpp(&mut hub, state, spell_id)
     }
     fn player_persistent_capability_state_snapshot_like_cpp(
         &self,

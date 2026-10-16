@@ -226,6 +226,8 @@ pub use item_session::{
     handle_autobank_item_with_generator_like_cpp,
     handle_autostore_bank_item_with_generator_like_cpp, handle_destroy_item,
     handle_swap_inv_item_with_generator_like_cpp, handle_swap_item_with_generator_like_cpp,
+    record_represented_avg_equipped_item_level_update_like_cpp,
+    record_represented_titan_grip_penalty_action_like_cpp,
 };
 pub use toy_session::{AddToyHostLikeCpp, handle_add_toy};
 pub use void_transfer_contracts::{

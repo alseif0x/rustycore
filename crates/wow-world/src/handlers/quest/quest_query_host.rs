@@ -49,7 +49,7 @@ impl QuestGiverCompleteQuestHostLikeCpp for WorldSession {
     fn complete_quest_player_quest_gameplay_snapshot_like_cpp(
         &self,
     ) -> Option<PlayerQuestGameplayState> {
-        WorldSession::player_quest_gameplay_snapshot_like_cpp(self)
+        wow_world_quest::QuestSessionHostLikeCpp::player_quest_gameplay_snapshot_like_cpp(self)
     }
 
     fn complete_quest_represented_involved_source_allows_like_cpp(

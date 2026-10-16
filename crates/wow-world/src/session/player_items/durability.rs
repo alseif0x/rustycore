@@ -26,7 +26,4 @@ impl WorldSession {
     pub fn set_stats_limits_like_cpp(&mut self, limits: wow_data::StatsLimitsLikeCpp) {
         self.config.stats_limits_like_cpp = limits;
     }
-    pub(crate) fn item_template_max_durability(&self, item_id: u32) -> u32 {
-        self.catalogs.item_template_max_durability(item_id)
-    }
 }

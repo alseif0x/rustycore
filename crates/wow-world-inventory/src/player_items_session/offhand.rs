@@ -157,8 +157,8 @@ pub fn represented_auto_unequip_offhand_if_need_like_cpp<H: ItemSessionHostLikeC
         }
     }
 
-    host.record_represented_titan_grip_penalty_action_like_cpp();
-    host.record_represented_avg_equipped_item_level_update_like_cpp();
+    crate::item_session::record_represented_titan_grip_penalty_action_like_cpp(host);
+    crate::item_session::record_represented_avg_equipped_item_level_update_like_cpp(host);
 
     #[cfg(any(test, feature = "test-fixtures"))]
     if world_test {

@@ -57,18 +57,12 @@ impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
         WorldSession::graveyard_conditions_meet_like_cpp(self, conditions_ref)
     }
 
-    fn clear_represented_resurrection_request_like_cpp(&mut self) -> bool {
-        WorldSession::clear_represented_resurrection_request_like_cpp(self)
-    }
-
-    fn take_represented_resurrection_request_if_requested_by_like_cpp(
-        &mut self,
+    #[cfg(test)]
+    fn represented_resurrection_requested_by_like_cpp(
+        &self,
         resurrecter: wow_core::ObjectGuid,
-    ) -> Option<wow_entities::PlayerResurrectionRequestLikeCpp> {
-        WorldSession::take_represented_resurrection_request_if_requested_by_like_cpp(
-            self,
-            resurrecter,
-        )
+    ) -> bool {
+        WorldSession::represented_resurrection_requested_by_like_cpp(self, resurrecter)
     }
 
     fn schedule_represented_resurrection_after_teleport_like_cpp(
@@ -87,7 +81,8 @@ impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
     }
 
     fn pending_teleport_like_cpp(&self) -> Option<(u32, wow_core::Position)> {
-        WorldSession::pending_teleport_like_cpp(self)
+        self.lifecycle
+            .pending_teleport_like_cpp(crate::session::hub_ref(self))
     }
 
     fn set_player_ghost_flag_like_cpp(&mut self, ghost: bool) {

@@ -17,7 +17,8 @@ impl WorldSession {
         // stale session incarnation.
         let powers = self.resolved_player_power_snapshot_like_cpp()?;
         let xp = crate::session::hub_ref(self).resolved_player_xp_like_cpp()?;
-        let money = self.resolved_player_money_like_cpp()?;
+        let (inventory, hub) = crate::session::split_inventory_ref(self);
+        let money = inventory.resolved_player_money_like_cpp(hub)?;
         // Resolve every session-owned input before taking the manager lock:
         // `player_level_like_cpp` re-enters it and would self-deadlock.
         let level = crate::session::hub_ref(self).player_level_like_cpp();

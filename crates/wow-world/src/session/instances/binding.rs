@@ -15,14 +15,6 @@ impl WorldSession {
         state.player_is_locked_to_dungeon_encounter_like_cpp(hub, player_guid, dungeon_encounter_id)
     }
 
-    pub(crate) fn lfg_has_active_instance_lock_like_cpp(
-        &self,
-        map_id: u32,
-        difficulty_id: wow_map::Difficulty,
-    ) -> bool {
-        let (state, hub) = crate::session::split_instances_ref(self);
-        state.lfg_has_active_instance_lock_like_cpp(hub, map_id, difficulty_id)
-    }
     /// Inject the shared C++ `InstanceLockMgr` analogue.
     pub fn set_instance_lock_mgr(
         &mut self,

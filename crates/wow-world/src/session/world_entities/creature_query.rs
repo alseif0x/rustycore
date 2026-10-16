@@ -6,14 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    #[allow(dead_code)]
-    pub(crate) fn canonical_creature_access_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) -> Option<RepresentedCreatureAccessLikeCpp> {
-        let (state, hub) = crate::session::split_world_entities_ref(self);
-        state.canonical_creature_access_like_cpp(hub, guid)
-    }
     pub fn set_creature_onkill_reputation_store(
         &mut self,
         store: Arc<CreatureOnKillReputationStoreLikeCpp>,

@@ -7,9 +7,6 @@ use super::*;
 use wow_entities::ItemObjectUpdateLikeCpp;
 
 impl WorldSession {
-    pub(crate) fn item_template_inventory_type(&self, item_id: u32) -> Option<u8> {
-        crate::session::hub_ref(self).item_template_inventory_type(item_id)
-    }
     pub(crate) fn insert_inventory_item_object(&mut self, item: Item) -> Option<Item> {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.insert_inventory_item_object(&mut hub, item)
@@ -22,10 +19,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.apply_inventory_item_object_updates_like_cpp(&mut hub, item_guid, updates)
     }
-    pub(crate) fn remove_inventory_item_object(&mut self, item_guid: ObjectGuid) -> Option<Item> {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.remove_inventory_item_object(&mut hub, item_guid)
-    }
     pub(crate) fn insert_inventory_item_like_cpp(
         &mut self,
         slot: u8,
@@ -34,20 +27,9 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.insert_inventory_item_like_cpp(&mut hub, slot, item)
     }
-    pub(crate) fn remove_inventory_item_like_cpp(&mut self, slot: u8) -> Option<InventoryItem> {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.remove_inventory_item_like_cpp(&mut hub, slot)
-    }
     pub(crate) fn represented_inventory_item_counts_like_cpp(&self) -> Option<HashMap<u32, u32>> {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.represented_inventory_item_counts_like_cpp(hub)
-    }
-    pub(crate) fn get_inventory_item_by_guid_like_cpp(
-        &self,
-        item_guid: ObjectGuid,
-    ) -> Option<(u8, u8, InventoryItem)> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.get_inventory_item_by_guid_like_cpp(hub, item_guid)
     }
     pub(crate) fn can_use_inventory_item_represented_like_cpp(
         &self,
@@ -59,12 +41,6 @@ impl WorldSession {
     pub(crate) fn resolved_inventory_items_like_cpp(&self) -> Option<HashMap<u8, InventoryItem>> {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.resolved_inventory_items_like_cpp(hub)
-    }
-    pub(crate) fn resolved_inventory_item_objects_like_cpp(
-        &self,
-    ) -> Option<HashMap<ObjectGuid, Item>> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.resolved_inventory_item_objects_like_cpp(hub)
     }
     pub(crate) fn resolved_inventory_item_like_cpp(&self, slot: u8) -> Option<InventoryItem> {
         let (state, hub) = crate::session::split_inventory_ref(self);

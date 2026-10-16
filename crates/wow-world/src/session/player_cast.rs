@@ -9,13 +9,6 @@ mod host;
 mod state;
 pub(in crate::session) mod wire;
 
-impl WorldSession {
-    pub(crate) fn interrupt_player_cast_like_cpp(&mut self, spell_id: Option<i32>) -> bool {
-        let (state, mut hub) = crate::session::split_spell_state_mut(self);
-        wow_world_application::interrupt_player_cast_like_cpp(&mut hub, state, spell_id)
-    }
-}
-
 impl Runtime for WorldSession {
     fn cast_time_multiplier(&self) -> f32 {
         wow_world_spell::represented_cast_speed_multiplier_like_cpp(self)
@@ -130,8 +123,10 @@ impl Runtime for WorldSession {
         if spell.recovery_time_ms == 0 {
             return Some(false);
         }
+        let (state, hub) = crate::session::split_spell_state_ref(self);
         Some(
-            self.spell_last_cast_time_like_cpp(spell.spell_id)?
+            state
+                .spell_last_cast_time_like_cpp(hub, spell.spell_id)?
                 .is_some_and(|at| at.elapsed().as_millis() < u128::from(spell.recovery_time_ms)),
         )
     }

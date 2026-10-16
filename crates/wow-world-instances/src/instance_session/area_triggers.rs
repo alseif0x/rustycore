@@ -12,6 +12,7 @@ use wow_core::Position;
 use wow_data::TavernAreaTriggerStoreLikeCpp;
 use wow_world_entities::TELE_TO_NONE_LIKE_CPP;
 
+use super::rest_flags::remove_player_rest_flag_like_cpp;
 use super::zone_area::set_represented_tavern_resting_like_cpp;
 use super::{
     AreaTriggerCatalogAccessLikeCpp, InstanceSessionHostLikeCpp, REST_FLAG_IN_TAVERN_LIKE_CPP,
@@ -206,14 +207,14 @@ pub fn revalidate_represented_tavern_resting_with_catalog_like_cpp<
         .get(rest.inn_trigger_id_like_cpp())
         .cloned()
     else {
-        if host.remove_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP) {
+        if remove_player_rest_flag_like_cpp(host, REST_FLAG_IN_TAVERN_LIKE_CPP) {
             host.send_represented_resting_player_flag_update_like_cpp();
         }
         return;
     };
 
     if !player_is_in_area_trigger_radius_like_cpp(host, &at_entry)
-        && host.remove_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP)
+        && remove_player_rest_flag_like_cpp(host, REST_FLAG_IN_TAVERN_LIKE_CPP)
     {
         host.send_represented_resting_player_flag_update_like_cpp();
     }

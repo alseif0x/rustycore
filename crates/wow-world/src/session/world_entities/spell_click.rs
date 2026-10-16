@@ -6,16 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::session) fn represented_spell_click_creature_snapshot_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) -> Option<RepresentedSpellClickCreatureSnapshotLikeCpp> {
-        self.world_entities
-            .represented_spell_click_creature_snapshot_like_cpp(
-                &self.core.quest_objective_access_like_cpp(),
-                guid,
-            )
-    }
     pub(crate) fn represented_can_see_spell_click_on_creature_like_cpp(
         &self,
         creature_guid: ObjectGuid,

@@ -18,13 +18,6 @@ impl WorldSession {
     pub fn set_transmog_set_item_store(&mut self, store: Arc<TransmogSetItemStore>) {
         self.catalogs.transmog_set_item_store = Some(store);
     }
-    pub(crate) fn add_transmog_set_like_cpp(
-        &mut self,
-        transmog_set_id: u32,
-    ) -> Option<wow_entities::PlayerValuesUpdate> {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.add_transmog_set_like_cpp(&mut hub, transmog_set_id)
-    }
     #[cfg(test)]
     pub(crate) fn represented_alter_appearance_requests_like_cpp(
         &self,

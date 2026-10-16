@@ -1,0 +1,22 @@
+{
+ "slice": "#1363 slice 12c (the represented battleground-leave request record -> wow-world-entities teleport_session over PlayerTeleportHostLikeCpp; no new host method)",
+ "base": "fa3705c89",
+ "moved": [
+  "request_represented_battleground_leave_like_cpp"
+ ],
+ "comment": "The body is entirely #[cfg(test)] in World; the fixture step runs through test_fixtures_like_cpp (the 12b7 stand-state record form) and the cfg_attr allow keeps the production build free of an unused host parameter.",
+ "rules": [
+  [
+   "pub\\(crate\\) fn {name}\\(\\s*&mut self\\s*\\)",
+   "#[cfg_attr(not(any(test, feature = \"test-fixtures\")), allow(unused_variables))] fn {name}<H: PlayerTeleportHostLikeCpp>(host: &mut H)"
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*\\{",
+   "#[cfg(any(test, feature = \"test-fixtures\"))] if let Some(fixtures) = host.test_fixtures_like_cpp() {"
+  ],
+  [
+   "\\bself\\s*\\.\\s*fixtures\\s*\\.",
+   "fixtures."
+  ]
+ ]
+}

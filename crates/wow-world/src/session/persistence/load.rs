@@ -52,16 +52,17 @@ impl WorldSession {
             .core
             .canonical_player_snapshot_like_cpp(|player| player.data().player_flags)
             .is_some_and(|flags| (flags & PLAYER_FLAGS_RESTING_LIKE_CPP) != 0);
-        let _canonical = self.with_owned_player_mut_for_rest_like_cpp(|player| {
-            let mut state = player.rest_state_like_cpp().clone();
-            state.reset_location_tracking_like_cpp();
-            player.replace_rest_state_like_cpp(state);
-            if loaded_resting {
-                player.set_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
-            } else {
-                player.remove_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
-            }
-        });
+        let _canonical =
+            wow_world_instances::with_owned_player_mut_for_rest_like_cpp(self, |player| {
+                let mut state = player.rest_state_like_cpp().clone();
+                state.reset_location_tracking_like_cpp();
+                player.replace_rest_state_like_cpp(state);
+                if loaded_resting {
+                    player.set_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
+                } else {
+                    player.remove_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
+                }
+            });
         #[cfg(test)]
         if _canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             self.fixtures
@@ -94,17 +95,10 @@ impl WorldSession {
         let _ = crate::session::hub_mut(self).mark_talents_loaded_like_cpp();
         wow_world_quest::refresh_represented_talent_points_like_cpp(self);
     }
-    pub(crate) fn represented_talents_loaded_like_cpp(&self) -> bool {
-        let (state, hub) = crate::session::split_lifecycle_ref(self);
-        state.represented_talents_loaded_like_cpp(hub)
-    }
     /// Set the player loading GUID (ConnectTo flow).
     pub fn set_player_loading(&mut self, guid: Option<ObjectGuid>) {
         self.lifecycle.set_player_loading(guid);
         wow_world_entities::sync_current_player_session_visibility_detection_like_cpp(self);
-    }
-    pub(crate) fn player_loading(&self) -> Option<ObjectGuid> {
-        self.lifecycle.player_loading()
     }
     pub async fn load_tutorials_data_like_cpp(&mut self) {
         self.lifecycle.begin_tutorials_load_like_cpp();

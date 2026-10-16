@@ -29,13 +29,15 @@ impl QuestSessionHostLikeCpp for WorldSession {
         &mut self.world_entities
     }
     fn player_quest_gameplay_snapshot_like_cpp(&self) -> Option<PlayerQuestGameplayState> {
-        WorldSession::player_quest_gameplay_snapshot_like_cpp(self)
+        let (state, hub) = crate::session::split_quest_state_ref(self);
+        wow_world_quest::player_quest_gameplay_snapshot_like_cpp(hub, state)
     }
     fn mutate_player_quest_gameplay_like_cpp<R>(
         &mut self,
         mutate: impl FnOnce(&mut PlayerQuestGameplayState) -> R,
     ) -> Option<R> {
-        WorldSession::mutate_player_quest_gameplay_like_cpp(self, mutate)
+        let (state, hub) = crate::session::split_quest_state_mut(self);
+        wow_world_quest::mutate_player_quest_gameplay_like_cpp(hub, state, mutate)
     }
     fn invalidate_player_quest_status_authority_like_cpp(&mut self) {
         WorldSession::invalidate_player_quest_status_authority_like_cpp(self)

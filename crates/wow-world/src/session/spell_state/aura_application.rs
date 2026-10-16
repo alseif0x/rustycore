@@ -137,7 +137,10 @@ impl WorldSession {
                 .filter(|entry| entry.equipped_item_class >= 0)
                 .cloned()
             {
-                if !self.represented_has_item_fit_to_spell_requirements_like_cpp(&equipped) {
+                let (inventory, hub) = crate::session::split_inventory_ref(self);
+                if !inventory
+                    .represented_has_item_fit_to_spell_requirements_like_cpp(hub, &equipped)
+                {
                     continue;
                 }
             } else if !wow_world_spell::represented_login_passive_spell_cast_gate_like_cpp(
@@ -218,11 +221,6 @@ impl WorldSession {
         }
 
         applied
-    }
-    /// Remove an aura by slot and send SMSG_AURA_UPDATE.
-    pub(crate) fn remove_aura(&mut self, slot: u8) -> Result<(), &'static str> {
-        self.player_aura_application_cx_like_cpp()
-            .remove_aura_like_cpp(slot)
     }
 }
 

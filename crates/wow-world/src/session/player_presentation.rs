@@ -13,14 +13,6 @@ use super::WorldSession;
 use super::debug;
 
 impl WorldSession {
-    #[allow(dead_code)]
-    pub(crate) fn represented_mount_x_display_usable_like_cpp(
-        &self,
-        player_condition_id: u32,
-    ) -> bool {
-        self.represented_meets_player_condition_id_like_cpp(player_condition_id)
-    }
-
     #[cfg(test)]
     pub(crate) fn represented_force_deselects_like_cpp(
         &self,

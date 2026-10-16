@@ -30,18 +30,6 @@ impl WorldSession {
     pub fn set_item_effect_store(&mut self, store: Arc<ItemEffectStore>) {
         self.catalogs.items.effect_store = Some(store);
     }
-    pub(crate) fn item_stats_store(&self) -> Option<&Arc<ItemStatsStore>> {
-        self.catalogs.item_stats_store()
-    }
-    pub(crate) fn item_template_flags2(&self, item_id: u32) -> Option<u32> {
-        self.catalogs.item_template_flags2(item_id)
-    }
-    pub(crate) fn item_template_start_quest_id(&self, item_id: u32) -> Option<i32> {
-        self.catalogs.item_template_start_quest_id(item_id)
-    }
-    pub(crate) fn item_storage_template(&self, item_id: u32) -> Option<ItemStorageTemplate> {
-        self.catalogs.item_storage_template(item_id)
-    }
     /// Set the item random suffix store for this session.
     pub fn set_item_random_suffix_store(&mut self, store: Arc<ItemRandomSuffixStore>) {
         self.catalogs.items.random_suffix_store = Some(store);

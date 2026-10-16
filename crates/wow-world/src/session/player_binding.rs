@@ -107,7 +107,8 @@ impl WorldSession {
                     auras.reset_player_aura_source_authority_like_cpp();
                 });
             }
-            self.begin_player_equipment_inventory_authority_load_like_cpp();
+            let (inventory, mut hub) = crate::session::split_inventory_mut(self);
+            inventory.begin_player_equipment_inventory_authority_load_like_cpp(&mut hub);
             #[cfg(test)]
             {
                 self.quest_state

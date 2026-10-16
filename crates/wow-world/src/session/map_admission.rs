@@ -20,8 +20,12 @@ impl WorldSession {
         map_id: u32,
         requested_difficulty: u8,
     ) -> Option<(u32, u8, i32)> {
-        let downscaled_entries = self
-            .create_map_db2_entries_like_cpp(map_id, requested_difficulty as wow_map::Difficulty)?;
+        let (instances, hub) = crate::session::split_instances_ref(self);
+        let downscaled_entries = instances.create_map_db2_entries_like_cpp(
+            hub,
+            map_id,
+            requested_difficulty as wow_map::Difficulty,
+        )?;
         let map_difficulty_id = self
             .catalogs
             .maps
@@ -119,7 +123,9 @@ impl WorldSession {
                 missing_item = access_requirement.item2;
             }
 
-            let quests = self.player_quest_gameplay_snapshot_like_cpp()?;
+            let (quest_state, hub) = crate::session::split_quest_state_ref(self);
+            let quests =
+                wow_world_quest::player_quest_gameplay_snapshot_like_cpp(hub, quest_state)?;
             match player_team_for_race_cpp(crate::session::hub_ref(self).player_race_like_cpp()) {
                 Team::Alliance
                     if access_requirement.quest_done_a != 0

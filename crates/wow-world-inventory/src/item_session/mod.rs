@@ -31,6 +31,11 @@
 
 use std::future::Future;
 
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_entities::player_rules::is_using_two_handed_weapon_in_one_hand_template as two_handed_in_one_hand_like_cpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_entities::{EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, TitanGripPenaltyAction};
+
 use wow_constants::{EnchantmentSlot, InventoryResult};
 use wow_core::ObjectGuid;
 use wow_entities::{InventoryStorageMovePlanLikeCpp, ItemPosCount, PlayerQuestStatusRecord};
@@ -176,8 +181,79 @@ pub trait ItemSessionHostLikeCpp: VendorSessionHostLikeCpp {
         &mut self,
         player_guid: ObjectGuid,
     ) -> impl Future<Output = ()> + Send;
-    fn record_represented_titan_grip_penalty_action_like_cpp(&mut self);
-    fn record_represented_avg_equipped_item_level_update_like_cpp(&mut self);
+    /// The same-named `WorldSession` fixture read (World test build; called only
+    /// when `test_fixtures_ref_like_cpp` is `Some`, so never this default).
+    #[cfg(any(test, feature = "test-fixtures"))]
+    fn represented_avg_equipped_item_level_like_cpp(&self) -> Option<f32> {
+        None
+    }
+}
+
+// The titan-grip penalty and equipped-item-level records of the represented
+// equip paths (#1363 slice 12c; moved from the World `session/item_modifiers.rs`
+// and `session/player_items/equipment.rs`).
+#[cfg_attr(not(any(test, feature = "test-fixtures")), allow(unused_variables))]
+pub fn record_represented_titan_grip_penalty_action_like_cpp<H: ItemSessionHostLikeCpp>(
+    host: &mut H,
+) {
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if host.test_fixtures_ref_like_cpp().is_some() {
+        let main_template = {
+            let (state, hub) = host.split_inventory_ref();
+            state.resolved_inventory_item_like_cpp(hub, EQUIPMENT_SLOT_MAINHAND)
+        }
+        .and_then(|item| host.hub_ref().catalogs.item_storage_template(item.entry_id));
+        let off_template = {
+            let (state, hub) = host.split_inventory_ref();
+            state.resolved_inventory_item_like_cpp(hub, EQUIPMENT_SLOT_OFFHAND)
+        }
+        .and_then(|item| host.hub_ref().catalogs.item_storage_template(item.entry_id));
+        let using_two_handed_weapon_in_one_hand =
+            two_handed_in_one_hand_like_cpp(main_template.as_ref(), off_template.as_ref());
+
+        let Some(action) = host.core().canonical_player_snapshot_like_cpp(|player| {
+            let penalty_spell_id = player.titan_grip_penalty_spell_id();
+            let has_penalty_aura = penalty_spell_id > 0
+                && host
+                    .hub_ref()
+                    .fixtures
+                    .auras
+                    .visible_auras
+                    .values()
+                    .any(|aura| aura.spell_id == penalty_spell_id as i32);
+
+            player.check_titan_grip_penalty_action(
+                using_two_handed_weapon_in_one_hand,
+                has_penalty_aura,
+            )
+        }) else {
+            return;
+        };
+
+        if action != TitanGripPenaltyAction::None {
+            host.split_inventory_mut()
+                .0
+                .record_represented_titan_grip_penalty_action_for_test_like_cpp(action);
+        }
+    }
+}
+
+#[cfg_attr(not(any(test, feature = "test-fixtures")), allow(unused_variables))]
+pub fn record_represented_avg_equipped_item_level_update_like_cpp<H: ItemSessionHostLikeCpp>(
+    host: &mut H,
+) {
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if host.test_fixtures_ref_like_cpp().is_some() {
+        let Some(avg_equipped_item_level) = host.represented_avg_equipped_item_level_like_cpp()
+        else {
+            return;
+        };
+        host.split_inventory_mut()
+            .0
+            .record_represented_avg_equipped_item_level_update_for_test_like_cpp(
+                avg_equipped_item_level,
+            );
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

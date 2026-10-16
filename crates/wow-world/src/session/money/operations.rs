@@ -49,10 +49,6 @@ impl WorldSession {
         self.drain_represented_quest_objective_progress_like_cpp()
             .await;
     }
-    pub(crate) fn resolved_player_money_like_cpp(&self) -> Option<u64> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.resolved_player_money_like_cpp(hub)
-    }
 }
 
 #[cfg(test)]

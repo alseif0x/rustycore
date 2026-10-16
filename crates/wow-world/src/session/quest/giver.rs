@@ -7,7 +7,8 @@ use super::*;
 
 impl WorldSession {
     pub(crate) fn invalidate_player_quest_status_authority_like_cpp(&mut self) {
-        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
+        let (quest_state, hub) = crate::session::split_quest_state_mut(self);
+        let _ = wow_world_quest::mutate_player_quest_gameplay_like_cpp(hub, quest_state, |state| {
             state.set_status_authority_complete_like_cpp(false);
         });
         self.core

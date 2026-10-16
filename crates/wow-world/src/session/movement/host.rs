@@ -88,7 +88,8 @@ impl PlayerMovementHostLikeCpp for WorldSession {
 
 impl wow_world_entities::PlayerTeleportHostLikeCpp for WorldSession {
     fn is_map_disabled_for_player_like_cpp(&self, map_id: u32) -> bool {
-        WorldSession::is_map_disabled_for_player_like_cpp(self, map_id)
+        let (state, hub) = crate::session::split_instances_ref(self);
+        state.is_map_disabled_for_player_like_cpp(hub, map_id)
     }
 
     fn player_cannot_enter_target_map_like_cpp(&self, map_id: u32) -> Option<(u32, u8, i32)> {
@@ -107,16 +108,13 @@ impl wow_world_entities::PlayerTeleportHostLikeCpp for WorldSession {
         wow_world_spell::remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp(self)
     }
 
-    fn request_represented_battleground_leave_like_cpp(&mut self) {
-        WorldSession::request_represented_battleground_leave_like_cpp(self)
-    }
-
     fn sync_current_player_session_visibility_detection_like_cpp(&mut self) {
         wow_world_entities::sync_current_player_session_visibility_detection_like_cpp(self)
     }
 
     fn pending_teleport_like_cpp(&self) -> Option<(u32, Position)> {
-        WorldSession::pending_teleport_like_cpp(self)
+        self.lifecycle
+            .pending_teleport_like_cpp(crate::session::hub_ref(self))
     }
 
     fn set_pending_teleport_like_cpp(&mut self, destination: Option<(u32, Position)>) -> bool {

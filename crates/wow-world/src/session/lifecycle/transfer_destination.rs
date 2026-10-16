@@ -5,11 +5,6 @@ use crate::session::WorldSession;
 use wow_core::Position;
 
 impl WorldSession {
-    pub(crate) fn pending_teleport_like_cpp(&self) -> Option<(u32, Position)> {
-        let (state, hub) = crate::session::split_lifecycle_ref(self);
-        state.pending_teleport_like_cpp(hub)
-    }
-
     pub(crate) fn set_pending_teleport_like_cpp(
         &mut self,
         destination: Option<(u32, Position)>,

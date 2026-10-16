@@ -25,30 +25,6 @@ impl WorldSession {
             .spell_catalogs
             .spell_item_enchantment_condition_store = Some(store);
     }
-    pub(crate) fn apply_current_player_item_enchantment_plan_like_cpp(
-        &mut self,
-        item_guid: ObjectGuid,
-        slot: EnchantmentSlot,
-        args: ApplyEnchantmentArgs,
-    ) -> Option<ApplyEnchantmentPlan> {
-        self.build_item_enchantment_handler_cx_like_cpp()
-            .apply_current_player_item_enchantment_plan_like_cpp(item_guid, slot, args)
-    }
-    pub(crate) fn refresh_inventory_item_enchantment_duration_refs_like_cpp(
-        &mut self,
-        item_guid: ObjectGuid,
-    ) {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.refresh_inventory_item_enchantment_duration_refs_like_cpp(&mut hub, item_guid)
-    }
-    pub(crate) fn inventory_remove_enchantment_persistence_like_cpp(
-        &self,
-        item_guid: ObjectGuid,
-        clear_mainhand_only: bool,
-    ) -> Option<(String, Vec<EnchantmentSlot>)> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.inventory_remove_enchantment_persistence_like_cpp(hub, item_guid, clear_mainhand_only)
-    }
 }
 
 impl wow_world_application::LoadedItemModsHostLikeCpp for WorldSession {
@@ -58,9 +34,8 @@ impl wow_world_application::LoadedItemModsHostLikeCpp for WorldSession {
         slot: EnchantmentSlot,
         args: ApplyEnchantmentArgs,
     ) -> Option<ApplyEnchantmentPlan> {
-        WorldSession::apply_current_player_item_enchantment_plan_like_cpp(
-            self, item_guid, slot, args,
-        )
+        self.build_item_enchantment_handler_cx_like_cpp()
+            .apply_current_player_item_enchantment_plan_like_cpp(item_guid, slot, args)
     }
 }
 

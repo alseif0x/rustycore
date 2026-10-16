@@ -67,11 +67,12 @@ impl SocialSessionHostLikeCpp for WorldSession {
     }
 
     fn lfg_has_active_instance_lock_like_cpp(&self, map_id: u32, difficulty_id: u8) -> bool {
-        WorldSession::lfg_has_active_instance_lock_like_cpp(self, map_id, difficulty_id)
+        let (state, hub) = crate::session::split_instances_ref(self);
+        state.lfg_has_active_instance_lock_like_cpp(hub, map_id, difficulty_id)
     }
 
     fn player_quest_gameplay_snapshot_like_cpp(&self) -> Option<PlayerQuestGameplayState> {
-        WorldSession::player_quest_gameplay_snapshot_like_cpp(self)
+        wow_world_quest::QuestSessionHostLikeCpp::player_quest_gameplay_snapshot_like_cpp(self)
     }
 
     fn quest_money_reward_like_cpp(&self, quest: &wow_data::quest::QuestTemplate) -> u32 {
@@ -87,7 +88,8 @@ impl SocialSessionHostLikeCpp for WorldSession {
     }
 
     fn represented_has_item_count_like_cpp(&self, item_entry: u32, count: u32) -> bool {
-        WorldSession::represented_has_item_count_like_cpp(self, item_entry, count)
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.represented_has_item_count_like_cpp(hub, item_entry, count)
     }
 
     fn resolved_group_guid_like_cpp(&self) -> Option<u64> {

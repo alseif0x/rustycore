@@ -1,0 +1,26 @@
+{
+ "slice": "#1363 slice 12c (the average-equipped-item-level record -> wow-world-inventory item_session over ItemSessionHostLikeCpp, with the represented_avg_equipped_item_level_like_cpp fixture accessor)",
+ "base": "fa3705c89",
+ "moved": [
+  "record_represented_avg_equipped_item_level_update_like_cpp"
+ ],
+ "comment": "The body is entirely #[cfg(test)] in World; the cfg_attr allow keeps the production build free of an unused host parameter.",
+ "rules": [
+  [
+   "pub\\(crate\\) fn {name}\\(\\s*&mut self\\s*\\)",
+   "#[cfg_attr(not(any(test, feature = \"test-fixtures\")), allow(unused_variables))] pub fn {name}<H: ItemSessionHostLikeCpp>(host: &mut H)"
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*\\{",
+   "#[cfg(any(test, feature = \"test-fixtures\"))] if host.test_fixtures_ref_like_cpp().is_some() {"
+  ],
+  [
+   "\\bself\\s*\\.\\s*inventory\\s*\\.",
+   "host.split_inventory_mut().0 ."
+  ],
+  [
+   "\\bself\\s*\\.",
+   "host."
+  ]
+ ]
+}

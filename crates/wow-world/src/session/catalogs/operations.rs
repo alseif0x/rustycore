@@ -179,7 +179,7 @@ impl WorldSession {
         };
         let at_max = crate::session::hub_ref(self).player_is_at_configured_max_level_like_cpp();
         let raf = self.represented_recruit_a_friend_xp_rest_state_applies_like_cpp();
-        self.with_owned_player_mut_for_rest_like_cpp(|player| {
+        wow_world_instances::with_owned_player_mut_for_rest_like_cpp(self, |player| {
             player.apply_offline_xp_rest_bonus_like_cpp(
                 logout_time_secs,
                 now_secs,

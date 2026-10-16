@@ -1,25 +1,6 @@
-//! Represented equipment: equip and unequip over the canonical Player.
-//!
-//! Moved out of the Session root under #597. Behaviour is preserved; the
-//! canonical Player remains the single owner of this state.
-
-use super::*;
-
-impl WorldSession {
-    pub(crate) fn record_represented_avg_equipped_item_level_update_like_cpp(&mut self) {
-        #[cfg(test)]
-        {
-            let Some(avg_equipped_item_level) = self.represented_avg_equipped_item_level_like_cpp()
-            else {
-                return;
-            };
-            self.inventory
-                .record_represented_avg_equipped_item_level_update_for_test_like_cpp(
-                    avg_equipped_item_level,
-                );
-        }
-    }
-}
+//! Represented equipment (#597). Its average-item-level record moved to
+//! `wow_world_inventory::item_session` in #1363 slice 12c; the loot
+//! source-contract scenario still reads this file, and it mounts the F3 shims.
 
 #[cfg(test)]
 #[path = "../../../unit_tests/session/player_items/equipment/f3_shims.rs"]

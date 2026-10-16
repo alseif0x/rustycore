@@ -47,14 +47,6 @@ impl WorldSession {
         self.represented_player_has_flag_like_cpp(PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP)
     }
 
-    pub(crate) fn set_represented_rest_flag_like_cpp(
-        &mut self,
-        rest_flag: u32,
-        trigger_id: u32,
-    ) -> bool {
-        self.set_player_rest_flag_like_cpp(rest_flag, trigger_id)
-    }
-
     pub(crate) fn resolved_player_flags_for_create_like_cpp(&self) -> Option<(u32, u32)> {
         let player_flags = self.resolved_player_flags_for_rest_state_save_like_cpp()?;
         let canonical_flags_ex = self
@@ -71,10 +63,6 @@ impl WorldSession {
             };
         let player_flags_ex = canonical_flags_ex?;
         Some((player_flags, player_flags_ex))
-    }
-
-    pub(crate) fn take_deferred_rest_flag_update_dirty_like_cpp(&mut self) -> bool {
-        self.take_player_deferred_rest_flag_update_dirty_like_cpp()
     }
 }
 

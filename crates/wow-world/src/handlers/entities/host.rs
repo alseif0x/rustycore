@@ -223,7 +223,8 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
     }
 
     fn remove_aura(&mut self, slot: u8) -> Result<(), &'static str> {
-        WorldSession::remove_aura(self, slot)
+        self.player_aura_application_cx_like_cpp()
+            .remove_aura_like_cpp(slot)
     }
 
     fn remove_represented_mounted_auras_by_type_like_cpp(&mut self) -> bool {
@@ -270,7 +271,10 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
     }
 
     fn send_represented_cinematic_start_like_cpp(&mut self, cinematic_id: u32) {
-        WorldSession::send_represented_cinematic_start_like_cpp(self, cinematic_id)
+        wow_world_character::send_represented_cinematic_start_like_cpp(
+            &mut crate::session::hub_mut(self),
+            cinematic_id,
+        );
     }
 
     fn use_represented_gameobject_questgiver_like_cpp(

@@ -9,10 +9,6 @@ use super::*;
 mod spline_progression;
 
 impl WorldSession {
-    pub(crate) fn remove_represented_rest_flag_like_cpp(&mut self, rest_flag: u32) -> bool {
-        self.remove_player_rest_flag_like_cpp(rest_flag)
-    }
-
     pub(crate) fn remove_represented_feign_death_if_needed_like_cpp(&mut self) -> bool {
         self.player_aura_application_cx_like_cpp()
             .remove_represented_feign_death_if_needed_like_cpp()

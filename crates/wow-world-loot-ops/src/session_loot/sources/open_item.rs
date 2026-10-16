@@ -15,6 +15,8 @@ use wow_packet::ClientPacket;
 use wow_packet::packets::item::{ItemExpirePurchaseRefund, ItemInstance};
 use wow_packet::packets::loot::{LOOT_TYPE_ITEM_LIKE_CPP, LootEntry, LootItemData, LootResponse};
 use wow_packet::packets::spell::OpenItem;
+use wow_world_core::session::HubMut;
+use wow_world_inventory::InventoryState;
 use wow_world_lifecycle::loot_template_rules::{
     ItemTemplateAddonLootMetadataLikeCpp, LOOT_MODE_DEFAULT_LIKE_CPP, LootTemplateFrame,
     MAX_LOOT_REFERENCE_FRAMES_LIKE_CPP, add_loot_template_row_item_like_cpp,
@@ -38,7 +40,8 @@ pub trait OpenItemHostLikeCpp: LootSessionHostLikeCpp {
         entry: u32,
         flags: u32,
     ) -> Option<u32>;
-    fn remove_fully_looted_runtime_item(&mut self, bag: u8, slot: u8, item_guid: ObjectGuid);
+    /// `crate::session::split_inventory_mut` (#1363 slice 12c).
+    fn split_inventory_mut(&mut self) -> (&mut InventoryState, HubMut<'_>);
     fn send_stat_update(&mut self) -> bool;
 }
 
@@ -324,7 +327,7 @@ pub(crate) async fn destroy_stale_wrapped_gift_like_cpp<H: OpenItemHostLikeCpp>(
         }
     }
 
-    host.remove_fully_looted_runtime_item(bag, slot, item.guid);
+    remove_fully_looted_runtime_item(host, bag, slot, item.guid);
 
     if should_expire_refund {
         host.send_packet(&ItemExpirePurchaseRefund {
@@ -674,4 +677,26 @@ pub(crate) async fn load_item_template_addon_loot_metadata_for_rows_like_cpp<
     }
 
     metadata
+}
+
+// Moved from the World `session/player_items/items.rs` (#1363 slice 12c).
+/// Remove a fully-looted runtime item after its DB rows were deleted.
+pub fn remove_fully_looted_runtime_item<H: OpenItemHostLikeCpp>(
+    host: &mut H,
+    bag: u8,
+    slot: u8,
+    item_guid: ObjectGuid,
+) {
+    if bag == INVENTORY_SLOT_BAG_0
+        && host
+            .inventory()
+            .resolved_inventory_item_like_cpp(host.hub_ref(), slot)
+            .is_some_and(|item| item.guid == item_guid)
+    {
+        let (state, mut hub) = host.split_inventory_mut();
+        state.remove_inventory_item_like_cpp(&mut hub, slot);
+    }
+    let (state, mut hub) = host.split_inventory_mut();
+    state.remove_inventory_item_object(&mut hub, item_guid);
+    host.sync_player_registry_state_like_cpp();
 }
