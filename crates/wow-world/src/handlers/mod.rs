@@ -68,6 +68,8 @@ mod loot_test_shims;
 #[cfg(test)]
 mod open_item_test_shims;
 #[cfg(test)]
+mod persistence_load_test_shims;
+#[cfg(test)]
 mod player_cast_test_shims;
 #[cfg(test)]
 mod player_item_builders_test_shims;

@@ -66,7 +66,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         WorldSession::cleanup_shared_runtime_state(self)
     }
     fn begin_represented_trait_config_authority_load_like_cpp(&mut self) {
-        WorldSession::begin_represented_trait_config_authority_load_like_cpp(self)
+        wow_world_character::begin_represented_trait_config_authority_load_like_cpp(self)
     }
     fn clear_player_currencies_like_cpp(&mut self) -> bool {
         WorldSession::clear_player_currencies_like_cpp(self)
@@ -79,7 +79,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         configs: impl IntoIterator<Item = (i32, i32, i32, i32)>,
         entries_empty: bool,
     ) -> bool {
-        WorldSession::complete_represented_trait_config_authority_load_like_cpp(
+        wow_world_character::complete_represented_trait_config_authority_load_like_cpp(
             self,
             configs,
             entries_empty,
@@ -199,7 +199,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         )
     }
     fn load_represented_group_by_db_store_id_like_cpp(&mut self, db_store_id: u32) -> bool {
-        WorldSession::load_represented_group_by_db_store_id_like_cpp(self, db_store_id)
+        wow_world_character::load_represented_group_by_db_store_id_like_cpp(self, db_store_id)
     }
     fn load_represented_talent_row_with_spell_side_effects_like_cpp(
         &mut self,
@@ -225,7 +225,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         slot: u8,
         item: RepresentedVoidStorageItemLikeCpp,
     ) -> bool {
-        WorldSession::load_represented_void_storage_row_like_cpp(self, slot, item)
+        wow_world_character::load_represented_void_storage_row_like_cpp(self, slot, item)
     }
     fn mark_represented_spell_acquisition_snapshot_complete_like_cpp(&mut self) {
         wow_world_spell::mark_represented_spell_acquisition_snapshot_complete_like_cpp(self)
@@ -252,7 +252,20 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         WorldSession::player_interaction_source_guid_like_cpp(self)
     }
     fn prepare_represented_void_storage_login_load_like_cpp(&mut self) -> bool {
-        WorldSession::prepare_represented_void_storage_login_load_like_cpp(self)
+        wow_world_character::prepare_represented_void_storage_login_load_like_cpp(self)
+    }
+    fn replace_player_difficulty_preferences_like_cpp(
+        &mut self,
+        dungeon: u32,
+        raid: u32,
+        legacy_raid: u32,
+    ) -> bool {
+        WorldSession::replace_player_difficulty_preferences_like_cpp(
+            self,
+            dungeon,
+            raid,
+            legacy_raid,
+        )
     }
     fn quest_log_create_entries_like_cpp(&self) -> Vec<(u32, u32, i64, [u16; 24])> {
         WorldSession::quest_log_create_entries_like_cpp(self)
@@ -315,6 +328,9 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
     }
     fn set_owned_player_group_like_cpp(&mut self, membership: Option<(u64, u8)>) -> bool {
         WorldSession::set_owned_player_group_like_cpp(self, membership)
+    }
+    fn void_storage_is_unlocked_like_cpp(&self) -> bool {
+        WorldSession::void_storage_is_unlocked_like_cpp(self)
     }
     fn set_player_currencies_like_cpp(&mut self, currencies: HashMap<u32, PlayerCurrency>) -> bool {
         WorldSession::set_player_currencies_like_cpp(self, currencies)

@@ -5,15 +5,8 @@
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 //! The void-storage reads and writes the handlers used moved to
 //! `wow_world_application::void_storage_session` with them (#1363 slice 4c).
-
-use super::WorldSession;
-
-impl WorldSession {
-    pub(crate) fn clear_represented_void_storage_like_cpp(&mut self) {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.clear_represented_void_storage_like_cpp(&mut hub)
-    }
-}
+//! The vault clear, whose last production caller (the login void-storage
+//! load) moved to `wow-world-character`, is a test shim since slice 12b4.
 
 #[cfg(test)]
 #[path = "../../unit_tests/session/void_storage_adapter/f3_shims.rs"]
