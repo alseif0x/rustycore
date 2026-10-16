@@ -15,6 +15,8 @@ use wow_packet::ClientPacket;
 use wow_packet::packets::item::{ItemExpirePurchaseRefund, ItemInstance};
 use wow_packet::packets::loot::{LOOT_TYPE_ITEM_LIKE_CPP, LootEntry, LootItemData, LootResponse};
 use wow_packet::packets::spell::OpenItem;
+use wow_world_core::session::HubMut;
+use wow_world_inventory::InventoryState;
 use wow_world_lifecycle::loot_template_rules::{
     ItemTemplateAddonLootMetadataLikeCpp, LOOT_MODE_DEFAULT_LIKE_CPP, LootTemplateFrame,
     MAX_LOOT_REFERENCE_FRAMES_LIKE_CPP, add_loot_template_row_item_like_cpp,
@@ -39,12 +41,7 @@ pub trait OpenItemHostLikeCpp: LootSessionHostLikeCpp {
         flags: u32,
     ) -> Option<u32>;
     /// `crate::session::split_inventory_mut` (#1363 slice 12c).
-    fn split_inventory_mut(
-        &mut self,
-    ) -> (
-        &mut wow_world_inventory::InventoryState,
-        wow_world_core::session::HubMut<'_>,
-    );
+    fn split_inventory_mut(&mut self) -> (&mut InventoryState, HubMut<'_>);
     fn send_stat_update(&mut self) -> bool;
 }
 
