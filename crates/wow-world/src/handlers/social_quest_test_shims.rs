@@ -85,4 +85,12 @@ impl WorldSession {
     pub(crate) fn apply_move_init_active_mover_complete_like_cpp(&mut self, ticks: u32) {
         wow_world_entities::apply_move_init_active_mover_complete_like_cpp(self, ticks)
     }
+    pub(crate) fn mutate_canonical_gameobject_by_guid_like_cpp<R>(
+        &mut self,
+        guid: ObjectGuid,
+        f: impl FnOnce(&mut wow_entities::GameObject) -> R,
+    ) -> Option<R> {
+        let (state, mut hub) = crate::session::split_world_entities_mut(self);
+        state.mutate_canonical_gameobject_by_guid_like_cpp(&mut hub, guid, f)
+    }
 }

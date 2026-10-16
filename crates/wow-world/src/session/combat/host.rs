@@ -10,7 +10,8 @@ use super::WorldSession;
 
 impl wow_world_entities::CombatSessionHostLikeCpp for WorldSession {
     fn broadcast_player_packet_to_visible_set_realm_like_cpp(&self, bytes: Vec<u8>) {
-        WorldSession::broadcast_player_packet_to_visible_set_realm_like_cpp(self, bytes)
+        let (state, hub) = crate::session::split_world_entities_ref(self);
+        state.broadcast_player_packet_to_visible_set_realm_like_cpp(hub, bytes)
     }
     fn last_presented_creature_melee_health_state_revision_like_cpp(&mut self) -> &mut u64 {
         &mut self

@@ -13,10 +13,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_social_ref(self);
         wow_world_instances::resolved_group_guid_like_cpp(hub, state, cfg!(test))
     }
-    pub(crate) fn sync_player_registry_party_member_party_type_like_cpp(&self) {
-        let (state, hub) = crate::session::split_social_ref(self);
-        state.sync_player_registry_party_member_party_type_like_cpp(hub)
-    }
     pub fn set_phase_group_store(&mut self, store: Arc<PhaseGroupStore>) {
         self.catalogs.phase_group_store = Some(store);
     }
