@@ -238,33 +238,6 @@ impl WorldSession {
             crate::session::hub_ref(self).send_represented_rest_info_update_like_cpp(nested_mask);
         }
     }
-    pub(crate) fn revalidate_represented_tavern_resting_with_catalog_like_cpp(
-        &mut self,
-        area_trigger_db2_store: &AreaTriggerDb2Store,
-    ) {
-        let Some(rest) = crate::session::hub_ref(self).player_rest_state_snapshot_like_cpp() else {
-            return;
-        };
-        if !rest.has_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP) {
-            return;
-        }
-
-        let Some(at_entry) = area_trigger_db2_store
-            .get(rest.inn_trigger_id_like_cpp())
-            .cloned()
-        else {
-            if self.remove_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP) {
-                self.send_represented_resting_player_flag_update_like_cpp();
-            }
-            return;
-        };
-
-        if !wow_world_instances::player_is_in_area_trigger_radius_like_cpp(self, &at_entry)
-            && self.remove_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP)
-        {
-            self.send_represented_resting_player_flag_update_like_cpp();
-        }
-    }
     pub fn set_max_player_level_config_like_cpp(&mut self, max_player_level_config: u32) {
         self.config.max_player_level_config_like_cpp = max_player_level_config;
     }
@@ -290,125 +263,15 @@ impl WorldSession {
             .rest_mgr_test_fixture_like_cpp
             .rest_ingame_rate_like_cpp = rest_ingame_rate;
     }
-    /// Send session initialization packets (first encrypted packets after
-    /// EnterEncryptedModeAck). Matches C++ `WorldSession::InitializeSessionCallback`.
-    ///
-    /// These packets are sent immediately when the session starts, before any
-    /// client packets are processed. They tell the client that auth succeeded
-    /// and provide the initial glue screen data (character select).
-    ///
-    /// Exact C++ order:
-    /// 1. AuthResponse
-    /// 2. SetTimeZoneInformation
-    /// 3. FeatureSystemStatusGlueScreen (NOT the in-game FeatureSystemStatus!)
-    /// 4. ClientCacheVersion
-    /// 5. AvailableHotfixes
-    /// 6. AccountDataTimes (global)
-    /// 7. TutorialFlags
-    /// 8. ConnectionStatus (State=1)
+    /// Send the session init packets (C++ `WorldSession::InitializeSessionCallback`);
+    /// the body is `wow_world_character::send_session_init_packets_with_policy_like_cpp`
+    /// (#1363 slice 12b7). The `world-server` entry point.
     pub fn send_session_init_packets_with_policy_like_cpp(
         &self,
         policy: &SupportFeaturePolicyLikeCpp,
         hotfixes: &HotfixBlobCache,
     ) {
-        use wow_packet::packets::auth::*;
-        use wow_packet::packets::misc::*;
-
-        let vra = self.core.virtual_realm_address();
-        let (realm_name_actual, realm_name_normalized) = self
-            .core
-            .realm_names_for_address_like_cpp(vra)
-            .unwrap_or(("RustyCore", "RustyCore"));
-
-        // 1. AuthResponse (OK) — tells the client authentication succeeded
-        let auth_response = AuthResponse {
-            result: 0, // OK
-            success_info: Some(AuthSuccessInfo {
-                virtual_realm_address: vra,
-                virtual_realms: vec![VirtualRealmInfo {
-                    realm_address: vra,
-                    is_local: true,
-                    is_internal_realm: false,
-                    realm_name_actual: realm_name_actual.to_string(),
-                    realm_name_normalized: realm_name_normalized.to_string(),
-                }],
-                time_rested: 0,
-                active_expansion_level: self.core.expansion,
-                account_expansion_level: self.core.account_expansion,
-                time_seconds_until_pc_kick: 0,
-                available_classes: default_available_classes(),
-                templates: vec![],
-                currency_id: 0,
-                time: unix_now(),
-                game_time_info: GameTimeInfo {
-                    billing_plan: 0,
-                    time_remain: 0,
-                    unknown735: 0,
-                    in_game_room: false,
-                },
-                is_expansion_trial: false,
-                force_character_template: false,
-                num_players_horde: None,
-                num_players_alliance: None,
-                expansion_trial_expiration: None,
-            }),
-            wait_info: None,
-        };
-        self.send_packet(&auth_response);
-
-        // 2. SetTimeZoneInformation
-        self.send_packet(&SetTimeZoneInformation::utc());
-
-        // 3. FeatureSystemStatusGlueScreen (character select version, NOT in-game)
-        self.send_packet(
-            &self
-                .core
-                .feature_system_status_glue_screen_with_policy_like_cpp(policy),
-        );
-
-        // 4. ClientCacheVersion (from world DB version.cache_id = 24081)
-        self.send_packet(&ClientCacheVersion {
-            cache_version: 24081,
-        });
-
-        let hotfixes = hotfixes
-            .available_hotfix_ids(&self.core.locale)
-            .into_iter()
-            .map(|id| HotfixId {
-                push_id: id.push_id,
-                unique_id: id.unique_id,
-            })
-            .collect();
-
-        // 5. AvailableHotfixes
-        self.send_packet(&AvailableHotfixes {
-            virtual_realm_address: vra,
-            hotfixes,
-        });
-
-        // 6. AccountDataTimes (global)
-        self.send_packet(
-            &self
-                .lifecycle
-                .account_data_times_like_cpp(ObjectGuid::EMPTY, GLOBAL_CACHE_MASK_LIKE_CPP),
-        );
-
-        // 7. TutorialFlags
-        self.send_packet(&self.lifecycle.tutorial_flags_packet_like_cpp());
-
-        // 8. ConnectionStatus (State=1, SuppressNotification=true)
-        // This compatibility packet has no ConnectionType override,
-        // so it's sent on the realm socket. State uses 2 bits, SuppressNotification
-        // defaults to true.
-        self.send_packet(&ConnectionStatus {
-            state: 1,
-            suppress_notification: true,
-        });
-
-        info!(
-            "Session init packets sent for account {} (8 packets: AuthResponse → ConnectionStatus)",
-            self.core.account_id
-        );
+        wow_world_character::send_session_init_packets_with_policy_like_cpp(self, policy, hotfixes)
     }
 }
 

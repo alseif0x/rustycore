@@ -122,4 +122,13 @@ impl WorldSession {
     pub(crate) fn send_new_item_plan(&self, plan: &wow_entities::SendNewItemPlan) {
         wow_world_inventory::send_new_item_plan(self, plan)
     }
+    pub(crate) fn revalidate_represented_tavern_resting_with_catalog_like_cpp(
+        &mut self,
+        area_trigger_db2_store: &wow_data::AreaTriggerDb2Store,
+    ) {
+        wow_world_instances::revalidate_represented_tavern_resting_with_catalog_like_cpp(
+            self,
+            area_trigger_db2_store,
+        )
+    }
 }

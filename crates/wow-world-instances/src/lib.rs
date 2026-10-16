@@ -90,6 +90,7 @@ pub use instance_session::{
     load_represented_explored_zones_like_cpp, load_represented_player_difficulties_like_cpp,
     player_cannot_enter_target_map_like_cpp, player_explored_zones_snapshot_like_cpp,
     player_is_in_area_trigger_radius_like_cpp, prepare_canonical_map_entry_like_cpp,
+    revalidate_represented_tavern_resting_with_catalog_like_cpp,
     try_attach_worldport_destination_like_cpp,
     try_attach_worldport_destination_with_publication_like_cpp, update_zone_represented_like_cpp,
     update_zone_represented_without_rest_update_packet_like_cpp,

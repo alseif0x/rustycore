@@ -176,7 +176,8 @@ impl WorldSession {
                 wow_world_spell::tick_auras(self);
             }
             self.lifecycle.update_player_save_timer_like_cpp(diff_ms);
-            self.revalidate_represented_tavern_resting_with_catalog_like_cpp(
+            wow_world_instances::revalidate_represented_tavern_resting_with_catalog_like_cpp(
+                self,
                 catalogs.area_triggers.db2.as_ref(),
             );
             self.tick_represented_online_xp_rest_bonus_with_policy_like_cpp(
