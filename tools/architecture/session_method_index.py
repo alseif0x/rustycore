@@ -89,7 +89,7 @@ def _nested_angles(levels: int) -> bytes:
 
 _GENERICS = _nested_angles(4)
 IMPL_RE = re.compile(
-    rb"(?m)^[ \t]*impl(?:[ \t]*" + _GENERICS + rb")?\s+(?:::\s*)?(?:\w+\s*::\s*)*(?:r#)?WorldSession\b"
+    rb"(?m)^[ \t]*impl(?:[ \t]*" + _GENERICS + rb")?\s+(?:::\s*)?(?:(?:r#)?\w+\s*::\s*)*(?:r#)?WorldSession\b"
     rb"(?:\s*" + _GENERICS + rb")?\s*(?:where\b[^{;]*)?\{"
 )
 # Same-line outer attributes (`#[inline] fn`) and every qualifier, `extern "C"`
@@ -102,7 +102,7 @@ FN_RE = re.compile(
 # alias (`type S = WorldSession;`, `use … WorldSession as S;`) is rejected,
 # raw identifiers (`r#S`, `r#WorldSession`) included.
 ALIAS_RE = re.compile(
-    rb"\btype\s+(?:r#)?\w+\s*(?:<[^=;]*>)?\s*=\s*(?:::\s*)?(?:\w+\s*::\s*)*(?:r#)?WorldSession\b"
+    rb"\btype\s+(?:r#)?\w+\s*(?:<[^=;]*>)?\s*=\s*(?:::\s*)?(?:(?:r#)?\w+\s*::\s*)*(?:r#)?WorldSession\b"
     rb"|(?:\br#|\b)WorldSession\s+as\s+(?:r#)?\w+\s*[;,}]"
 )
 LOGIC_RE = re.compile(rb"\b(let|if|match|for|while|loop|return)\b")
@@ -736,6 +736,7 @@ def _self_test_tree(repo: Path) -> None:
             "use crate::session::WorldSession as Renamed;\n"
             "type r#Raw = crate::session::r#WorldSession;\n"
             "use crate::session::WorldSession as r#RawRenamed;\n"
+            "type SegRaw = crate::r#session::WorldSession;\n"
             "#[cfg(test)]\ntype TestAlias = WorldSession;\n"
             "fn qualified() { <WorldSession as Tr>::g(); }\n"
         ),
@@ -746,6 +747,10 @@ def _self_test_tree(repo: Path) -> None:
             "#[path = \"elsewhere/b.rs\"]\nmod b;\n"
             "#[cfg(not(test))]\nmod c;\n"
             "mod raw;\n"
+            "mod raw_segment;\n"
+        ),
+        "session/raw_segment.rs": method.replace("{name}", "raw_segment_impl").replace(
+            "super::WorldSession", "crate::r#session::WorldSession"
         ),
         "session/raw.rs": method.replace("{name}", "raw_impl").replace("super::WorldSession", "super::r#WorldSession"),
         "session/a.rs": "#![cfg(test)]\n" + method.replace("{name}", "inner_attr_gated"),
@@ -836,7 +841,7 @@ def self_test() -> int:
         _self_test_tree(repo)
         unreached: list[str] = []
         names = sorted(m["name"] for m in repo_methods(repo, unreached))
-        assert names == ["nested_inline", "not_test_gated", "path_mounted", "raw_impl", "ungated_shim"], names
+        assert names == ["nested_inline", "not_test_gated", "path_mounted", "raw_impl", "raw_segment_impl", "ungated_shim"], names
         assert unreached == ["session/commented_out.rs"], unreached
         for outside in ("unit_tests/ok.rs", "escaped.rs"):
             (repo / SRC / ".." / outside).resolve().parent.mkdir(parents=True, exist_ok=True)
@@ -851,6 +856,7 @@ def self_test() -> int:
             "WorldSession alias (rejected): aliases.rs:2",
             "WorldSession alias (rejected): aliases.rs:3",
             "WorldSession alias (rejected): aliases.rs:4",
+            "WorldSession alias (rejected): aliases.rs:5",
         ], errors
         (repo / PHYSICAL_POLICY).parent.mkdir(parents=True)
         (repo / PHYSICAL_POLICY).write_text(json.dumps({"legacy": []}))

@@ -14005,7 +14005,9 @@ Each was read against its callers and what it reaches:
   "wow-world-social->wow-progression"` PASS.
 
 **Moved: 18 functions, 322 base lines; reclassified 2 / 51.** Total 373 of
-the 620 + 124 measured lines leave `session/**`.
+the 620 + 124 measured lines leave `session/**`. (Reconciliation, #1416 follow-up 2: the
+index's outside delta is −363, not −373, because three staying bodies grow by
+10 lines when they name the moved queries by path; see the index table below.)
 
 ### What moved
 
