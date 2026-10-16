@@ -18,20 +18,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.item_drop_rate_like_cpp(hub, item_id)
     }
-    pub(crate) fn represented_has_item_count_like_cpp(&self, item_entry: u32, count: u32) -> bool {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.represented_has_item_count_like_cpp(hub, item_entry, count)
-    }
-    pub(crate) fn has_active_non_item_loot_views_like_cpp(&self) -> bool {
-        self.loot.has_active_non_item_loot_views_like_cpp()
-    }
-    pub(in crate::session) fn represented_has_item_fit_to_spell_requirements_like_cpp(
-        &self,
-        equipped: &SpellEquippedItemsEntry,
-    ) -> bool {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.represented_has_item_fit_to_spell_requirements_like_cpp(hub, equipped)
-    }
     pub(crate) fn resolved_buyback_items_like_cpp(&self) -> Option<HashMap<u8, InventoryItem>> {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.resolved_buyback_items_like_cpp(hub)

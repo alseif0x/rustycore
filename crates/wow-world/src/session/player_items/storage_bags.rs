@@ -5,9 +5,4 @@
 
 use super::*;
 
-impl WorldSession {
-    pub(crate) fn send_bag_slot_values_update_like_cpp(&self, bag_slot: u8, changed_slot: u8) {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.send_bag_slot_values_update_like_cpp(hub, bag_slot, changed_slot)
-    }
-}
+impl WorldSession {}

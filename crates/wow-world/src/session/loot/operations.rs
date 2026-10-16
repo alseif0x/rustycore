@@ -21,15 +21,9 @@ impl WorldSession {
     pub fn set_enable_ae_loot_like_cpp(&mut self, enabled: bool) {
         self.config.enable_ae_loot_like_cpp = enabled;
     }
-    pub(crate) fn loot_drop_rates_like_cpp(&self) -> LootDropRatesLikeCpp {
-        self.config.loot_drop_rates_like_cpp()
-    }
     /// Set the C++ LootTemplates_* foundation stores for this session.
     pub fn set_loot_stores(&mut self, stores: Arc<LootStores>) {
         self.catalogs.loot_stores = Some(stores);
-    }
-    pub(crate) fn loot_stores(&self) -> Option<&Arc<LootStores>> {
-        self.catalogs.loot_stores()
     }
     pub(crate) fn resolved_pass_on_group_loot_like_cpp(&self) -> Option<bool> {
         let (state, hub) = crate::session::split_loot_ref(self);

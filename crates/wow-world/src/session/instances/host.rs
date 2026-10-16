@@ -32,7 +32,7 @@ impl InstanceSessionHostLikeCpp for WorldSession {
         state.send_represented_resting_player_flag_update_like_cpp(hub)
     }
     fn represented_recruit_a_friend_xp_rest_state_applies_like_cpp(&self) -> bool {
-        self.gets_recruit_a_friend_xp_bonus_like_cpp()
+        self.gets_recruit_a_friend_bonus_like_cpp(true)
     }
     #[cfg(test)]
     fn fixture_apply_offline_xp_rest_bonus_like_cpp(

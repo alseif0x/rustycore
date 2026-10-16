@@ -21,10 +21,6 @@ impl WorldSession {
         state.set_player_currencies_like_cpp(&mut hub, currencies)
     }
 
-    pub(crate) fn clear_player_currencies_like_cpp(&mut self) -> bool {
-        self.set_player_currencies_like_cpp(HashMap::new())
-    }
-
     pub(crate) fn player_currencies_like_cpp(&self) -> Option<HashMap<u32, PlayerCurrency>> {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.player_currencies_like_cpp(hub)

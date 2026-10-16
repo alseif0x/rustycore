@@ -67,13 +67,13 @@ impl LootSessionHostLikeCpp for WorldSession {
         self.group_registry()
     }
     fn has_active_non_item_loot_views_like_cpp(&self) -> bool {
-        self.has_active_non_item_loot_views_like_cpp()
+        self.loot.has_active_non_item_loot_views_like_cpp()
     }
     fn item_drop_rate_like_cpp(&self, item_id: u32) -> f32 {
         self.item_drop_rate_like_cpp(item_id)
     }
     fn item_storage_template(&self, item_id: u32) -> Option<wow_entities::ItemStorageTemplate> {
-        self.item_storage_template(item_id)
+        self.catalogs.item_storage_template(item_id)
     }
     fn item_template_addon_catalog_persistence_port_like_cpp(
         &self,
@@ -82,19 +82,19 @@ impl LootSessionHostLikeCpp for WorldSession {
             .item_template_addon_catalog_persistence_port_like_cpp()
     }
     fn item_template_start_quest_id(&self, item_id: u32) -> Option<i32> {
-        self.item_template_start_quest_id(item_id)
+        self.catalogs.item_template_start_quest_id(item_id)
     }
     fn known_spells_like_cpp(&self) -> Vec<i32> {
         wow_world_spell::known_spells_like_cpp(self)
     }
     fn loot_drop_rates_like_cpp(&self) -> LootDropRatesLikeCpp {
-        self.loot_drop_rates_like_cpp()
+        self.config.loot_drop_rates_like_cpp()
     }
     fn loot_release_cx_like_cpp(&mut self) -> wow_world_loot_ops::LootReleaseCxLikeCpp<'_> {
         self.loot_release_cx_like_cpp()
     }
     fn loot_stores(&self) -> Option<&Arc<LootStores>> {
-        self.loot_stores()
+        self.catalogs.loot_stores()
     }
     fn mutate_canonical_gameobject_by_guid_like_cpp<R>(
         &mut self,
@@ -208,16 +208,16 @@ impl LootSessionHostLikeCpp for WorldSession {
         self.insert_inventory_item_object(item)
     }
     fn item_stats_store(&self) -> Option<&Arc<ItemStatsStore>> {
-        self.item_stats_store()
+        self.catalogs.item_stats_store()
     }
     fn item_template_flags2(&self, item_id: u32) -> Option<u32> {
-        self.item_template_flags2(item_id)
+        self.catalogs.item_template_flags2(item_id)
     }
     fn item_template_inventory_type(&self, item_id: u32) -> Option<u8> {
-        self.item_template_inventory_type(item_id)
+        crate::session::hub_ref(self).item_template_inventory_type(item_id)
     }
     fn item_template_max_durability(&self, item_id: u32) -> u32 {
-        self.item_template_max_durability(item_id)
+        self.catalogs.item_template_max_durability(item_id)
     }
     fn make_inventory_item_object(
         &self,

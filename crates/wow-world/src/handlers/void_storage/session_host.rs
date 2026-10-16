@@ -34,21 +34,20 @@ impl VoidStorageSessionHostLikeCpp for WorldSession {
         &self,
         item_guid: ObjectGuid,
     ) -> Option<(u8, u8, InventoryItem)> {
-        WorldSession::get_inventory_item_by_guid_like_cpp(self, item_guid)
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.get_inventory_item_by_guid_like_cpp(hub, item_guid)
     }
     fn represented_empty_inventory_positions_like_cpp(&self) -> Option<Vec<(u8, u8)>> {
-        WorldSession::represented_empty_inventory_positions_like_cpp(self)
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.represented_empty_inventory_positions_like_cpp(hub)
     }
     fn inventory_remove_enchantment_persistence_like_cpp(
         &self,
         item_guid: ObjectGuid,
         clear_mainhand_only: bool,
     ) -> Option<(String, Vec<EnchantmentSlot>)> {
-        WorldSession::inventory_remove_enchantment_persistence_like_cpp(
-            self,
-            item_guid,
-            clear_mainhand_only,
-        )
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.inventory_remove_enchantment_persistence_like_cpp(hub, item_guid, clear_mainhand_only)
     }
     fn plan_store_new_direct_inventory_item_with_overlays_like_cpp(
         &self,
@@ -81,9 +80,11 @@ impl VoidStorageSessionHostLikeCpp for WorldSession {
         )
     }
     fn refresh_inventory_item_enchantment_duration_refs_like_cpp(&mut self, item_guid: ObjectGuid) {
-        WorldSession::refresh_inventory_item_enchantment_duration_refs_like_cpp(self, item_guid)
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.refresh_inventory_item_enchantment_duration_refs_like_cpp(&mut hub, item_guid)
     }
     fn send_bag_slot_values_update_like_cpp(&self, bag_slot: u8, changed_slot: u8) {
-        WorldSession::send_bag_slot_values_update_like_cpp(self, bag_slot, changed_slot)
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.send_bag_slot_values_update_like_cpp(hub, bag_slot, changed_slot)
     }
 }

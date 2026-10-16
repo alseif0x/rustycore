@@ -88,7 +88,8 @@ impl PlayerMovementHostLikeCpp for WorldSession {
 
 impl wow_world_entities::PlayerTeleportHostLikeCpp for WorldSession {
     fn is_map_disabled_for_player_like_cpp(&self, map_id: u32) -> bool {
-        WorldSession::is_map_disabled_for_player_like_cpp(self, map_id)
+        let (state, hub) = crate::session::split_instances_ref(self);
+        state.is_map_disabled_for_player_like_cpp(hub, map_id)
     }
 
     fn player_cannot_enter_target_map_like_cpp(&self, map_id: u32) -> Option<(u32, u8, i32)> {

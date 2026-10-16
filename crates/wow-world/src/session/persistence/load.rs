@@ -95,10 +95,6 @@ impl WorldSession {
         let _ = crate::session::hub_mut(self).mark_talents_loaded_like_cpp();
         wow_world_quest::refresh_represented_talent_points_like_cpp(self);
     }
-    pub(crate) fn represented_talents_loaded_like_cpp(&self) -> bool {
-        let (state, hub) = crate::session::split_lifecycle_ref(self);
-        state.represented_talents_loaded_like_cpp(hub)
-    }
     /// Set the player loading GUID (ConnectTo flow).
     pub fn set_player_loading(&mut self, guid: Option<ObjectGuid>) {
         self.lifecycle.set_player_loading(guid);

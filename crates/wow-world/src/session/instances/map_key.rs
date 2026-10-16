@@ -6,14 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn create_map_db2_entries_like_cpp(
-        &self,
-        map_id: u32,
-        difficulty_id: wow_map::Difficulty,
-    ) -> Option<wow_instances::MapDb2Entries> {
-        let (state, hub) = crate::session::split_instances_ref(self);
-        state.create_map_db2_entries_like_cpp(hub, map_id, difficulty_id)
-    }
     pub fn set_vmap_indoor_check_like_cpp(&mut self, enabled: bool) {
         self.config.vmap_indoor_check_like_cpp = enabled;
     }
@@ -29,10 +21,6 @@ impl WorldSession {
     /// `Player::IsLockedToDungeonEncounter`.
     pub fn set_dungeon_encounter_store(&mut self, store: Arc<DungeonEncounterStore>) {
         self.catalogs.dungeon_encounter_store = Some(store);
-    }
-    pub(in crate::session) fn is_map_disabled_for_player_like_cpp(&self, map_id: u32) -> bool {
-        let (state, hub) = crate::session::split_instances_ref(self);
-        state.is_map_disabled_for_player_like_cpp(hub, map_id)
     }
     #[cfg(test)]
     pub(crate) fn under_map_damage_events_like_cpp(&self) -> &[MovementUnderMapDamageEvent] {

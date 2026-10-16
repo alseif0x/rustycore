@@ -72,7 +72,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         wow_world_character::begin_represented_trait_config_authority_load_like_cpp(self)
     }
     fn clear_player_currencies_like_cpp(&mut self) -> bool {
-        WorldSession::clear_player_currencies_like_cpp(self)
+        WorldSession::set_player_currencies_like_cpp(self, HashMap::new())
     }
     fn complete_represented_trait_config_authority_load_like_cpp(
         &mut self,

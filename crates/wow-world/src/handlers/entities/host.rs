@@ -270,7 +270,10 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
     }
 
     fn send_represented_cinematic_start_like_cpp(&mut self, cinematic_id: u32) {
-        WorldSession::send_represented_cinematic_start_like_cpp(self, cinematic_id)
+        wow_world_character::send_represented_cinematic_start_like_cpp(
+            &mut crate::session::hub_mut(self),
+            cinematic_id,
+        );
     }
 
     fn use_represented_gameobject_questgiver_like_cpp(

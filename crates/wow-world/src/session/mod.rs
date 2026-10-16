@@ -541,17 +541,16 @@ use wow_data::{
     ShieldBlockRegularGameTableLikeCpp, SkillLineStore, SkillStore, SkillTiersStoreLikeCpp,
     SpellAcquisitionCatalogLikeCpp, SpellAreaStoreLikeCpp, SpellAuraOptionsStore,
     SpellAuraRestrictionsStore, SpellCategoryStore, SpellChainStoreLikeCpp,
-    SpellCustomAttributeStoreLikeCpp, SpellDurationStore, SpellEquippedItemsEntry,
-    SpellEquippedItemsStore, SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp,
-    SpellItemEnchantmentConditionStore, SpellItemEnchantmentStore, SpellLearnSkillStoreLikeCpp,
-    SpellLearnSpellStoreLikeCpp, SpellLevelsStore, SpellLinkedStoreLikeCpp, SpellMiscStore,
-    SpellPetAuraStoreLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore,
-    SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore, SpellStore,
-    SpellTargetPositionStoreLikeCpp, SpellTargetRestrictionsStore, SpellThreatEntryLikeCpp,
-    SpellThreatStoreLikeCpp, TactKeyStore, TalentStore, TavernAreaTriggerStoreLikeCpp, ToyStore,
-    TrainerStoreLikeCpp, TransmogSetItemStore, TrinityStringStoreLikeCpp,
-    VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, WorldSafeLocStore,
-    is_player_meeting_condition_like_cpp,
+    SpellCustomAttributeStoreLikeCpp, SpellDurationStore, SpellEquippedItemsStore,
+    SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp, SpellItemEnchantmentConditionStore,
+    SpellItemEnchantmentStore, SpellLearnSkillStoreLikeCpp, SpellLearnSpellStoreLikeCpp,
+    SpellLevelsStore, SpellLinkedStoreLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp,
+    SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp,
+    SpellShapeshiftFormStore, SpellStore, SpellTargetPositionStoreLikeCpp,
+    SpellTargetRestrictionsStore, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp, TactKeyStore,
+    TalentStore, TavernAreaTriggerStoreLikeCpp, ToyStore, TrainerStoreLikeCpp,
+    TransmogSetItemStore, TrinityStringStoreLikeCpp, VehicleAccessoryStoreLikeCpp,
+    VehicleSeatStore, VehicleStore, WorldSafeLocStore, is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, CurvePointStore, CurveStore, FactionEntry, FactionStore,
         FactionTemplateStore, FriendshipRepReactionStore, NumTalentsAtLevelStore,
@@ -584,7 +583,7 @@ use wow_data::{
 #[cfg(test)]
 use wow_data::{
     PlayerCreateInfoCastSpellStoreLikeCpp, PlayerCreateInfoCustomSpellStoreLikeCpp,
-    SpellGroupStackRuleLikeCpp,
+    SpellEquippedItemsEntry, SpellGroupStackRuleLikeCpp,
 };
 pub(crate) use wow_entities::PlayerCurrency;
 use wow_entities::{
@@ -592,7 +591,7 @@ use wow_entities::{
     BANK_SLOT_BAG_START, BUYBACK_SLOT_START, CreatureAddonLifecycleRecordLikeCpp,
     EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_RANGED,
     GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, Item,
-    ItemStorageTemplate, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInteractionDataLikeCpp,
+    PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInteractionDataLikeCpp,
     PlayerInventoryRuntime, PlayerItemTimeUpdate, PlayerPetLifecycleStateLikeCpp,
     PlayerQuestGameplayState, PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp,
     REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDisplayText, Vehicle,
@@ -602,9 +601,9 @@ use wow_entities::{
 use wow_entities::{
     ActiveState, ApplyEnchantmentEffectAction, ApplyEnchantmentEffectRef,
     ApplyEnchantmentTemplateRef, EQUIPMENT_SLOT_OFFHAND, INVENTORY_SLOT_BAG_0,
-    ItemLimitCategoryTemplate, ItemPosCount, MAX_MONEY_AMOUNT, MovementGeneratorKind, NULL_SLOT,
-    PetAuraLikeCpp, PetSaveMode, PetStable, PetStableInfo, PetType,
-    PlayerResurrectionRequestLikeCpp, ReactState, SendNewItemDelivery, SendNewItemPlan,
+    ItemLimitCategoryTemplate, ItemPosCount, ItemStorageTemplate, MAX_MONEY_AMOUNT,
+    MovementGeneratorKind, NULL_SLOT, PetAuraLikeCpp, PetSaveMode, PetStable, PetStableInfo,
+    PetType, PlayerResurrectionRequestLikeCpp, ReactState, SendNewItemDelivery, SendNewItemPlan,
     TitanGripPenaltyAction, Unit, explored_zones_db_string_from_blocks_like_cpp,
 };
 // Test-only: the session admission fixtures compare against the player slot end.

@@ -137,7 +137,10 @@ impl WorldSession {
                 .filter(|entry| entry.equipped_item_class >= 0)
                 .cloned()
             {
-                if !self.represented_has_item_fit_to_spell_requirements_like_cpp(&equipped) {
+                let (inventory, hub) = crate::session::split_inventory_ref(self);
+                if !inventory
+                    .represented_has_item_fit_to_spell_requirements_like_cpp(hub, &equipped)
+                {
                     continue;
                 }
             } else if !wow_world_spell::represented_login_passive_spell_cast_gate_like_cpp(

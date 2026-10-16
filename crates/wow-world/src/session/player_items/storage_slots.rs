@@ -6,10 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn represented_empty_inventory_positions_like_cpp(&self) -> Option<Vec<(u8, u8)>> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.represented_empty_inventory_positions_like_cpp(hub)
-    }
     pub(crate) fn get_inventory_item_by_pos(&self, bag: u8, slot: u8) -> Option<InventoryItem> {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.get_inventory_item_by_pos(hub, bag, slot)

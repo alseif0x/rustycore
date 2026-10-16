@@ -141,4 +141,94 @@ impl WorldSession {
         let (state, hub) = crate::session::split_world_entities_ref(self);
         state.canonical_creature_access_like_cpp(hub, guid)
     }
+    // Player-item catalog reads (field forwards retired from `session/player_items`).
+    pub(crate) fn item_storage_template(
+        &self,
+        item_id: u32,
+    ) -> Option<wow_entities::ItemStorageTemplate> {
+        self.catalogs.item_storage_template(item_id)
+    }
+    pub(crate) fn item_template_inventory_type(&self, item_id: u32) -> Option<u8> {
+        crate::session::hub_ref(self).item_template_inventory_type(item_id)
+    }
+    // Retired one-call forwards (`session/social/contacts.rs`, `session/player_presentation.rs`, `session/publication/operations.rs`).
+    pub(crate) fn gets_recruit_a_friend_xp_bonus_like_cpp(&self) -> bool {
+        <Self as wow_world_instances::InstanceSessionHostLikeCpp>::represented_recruit_a_friend_xp_rest_state_applies_like_cpp(self)
+    }
+    pub(crate) fn represented_mount_x_display_usable_like_cpp(
+        &self,
+        player_condition_id: u32,
+    ) -> bool {
+        self.represented_meets_player_condition_id_like_cpp(player_condition_id)
+    }
+    pub(crate) fn send_represented_cinematic_start_like_cpp(&mut self, cinematic_id: u32) {
+        wow_world_character::send_represented_cinematic_start_like_cpp(
+            &mut crate::session::hub_mut(self),
+            cinematic_id,
+        );
+    }
+    // Retired split forwards with scenario callers (`session/persistence/load.rs`, `session/lifecycle_ops`, `session/player_items`, `session/instances/map_key.rs`).
+    pub(crate) fn represented_talents_loaded_like_cpp(&self) -> bool {
+        let (state, hub) = crate::session::split_lifecycle_ref(self);
+        state.represented_talents_loaded_like_cpp(hub)
+    }
+    pub(crate) fn upgrade_account_heirloom_like_cpp(
+        &mut self,
+        item_id: u32,
+        cast_item: i32,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
+        state.upgrade_account_heirloom_like_cpp(&mut hub, item_id, cast_item)
+    }
+    pub(crate) fn account_mount_rows_like_cpp(
+        &self,
+    ) -> Vec<wow_packet::packets::misc::AccountMount> {
+        let (state, hub) = crate::session::split_lifecycle_ref(self);
+        state.account_mount_rows_like_cpp(hub)
+    }
+    pub(crate) fn add_transmog_set_like_cpp(
+        &mut self,
+        transmog_set_id: u32,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.add_transmog_set_like_cpp(&mut hub, transmog_set_id)
+    }
+    pub(crate) fn begin_player_equipment_inventory_authority_load_like_cpp(&mut self) {
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.begin_player_equipment_inventory_authority_load_like_cpp(&mut hub)
+    }
+    pub(crate) fn create_map_db2_entries_like_cpp(
+        &self,
+        map_id: u32,
+        difficulty_id: wow_map::Difficulty,
+    ) -> Option<wow_instances::MapDb2Entries> {
+        let (state, hub) = crate::session::split_instances_ref(self);
+        state.create_map_db2_entries_like_cpp(hub, map_id, difficulty_id)
+    }
+    pub(crate) fn get_inventory_item_by_guid_like_cpp(
+        &self,
+        item_guid: wow_core::ObjectGuid,
+    ) -> Option<(u8, u8, wow_entities::PlayerInventoryItem)> {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.get_inventory_item_by_guid_like_cpp(hub, item_guid)
+    }
+    pub(crate) fn represented_empty_inventory_positions_like_cpp(&self) -> Option<Vec<(u8, u8)>> {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.represented_empty_inventory_positions_like_cpp(hub)
+    }
+    pub(crate) fn inventory_remove_enchantment_persistence_like_cpp(
+        &self,
+        item_guid: wow_core::ObjectGuid,
+        clear_mainhand_only: bool,
+    ) -> Option<(String, Vec<wow_constants::EnchantmentSlot>)> {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.inventory_remove_enchantment_persistence_like_cpp(hub, item_guid, clear_mainhand_only)
+    }
+    pub(crate) fn refresh_inventory_item_enchantment_duration_refs_like_cpp(
+        &mut self,
+        item_guid: wow_core::ObjectGuid,
+    ) {
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.refresh_inventory_item_enchantment_duration_refs_like_cpp(&mut hub, item_guid)
+    }
 }

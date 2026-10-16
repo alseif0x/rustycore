@@ -63,12 +63,6 @@ impl WorldSession {
             coinage,
         )
     }
-    pub(crate) fn send_represented_cinematic_start_like_cpp(&mut self, cinematic_id: u32) {
-        wow_world_character::send_represented_cinematic_start_like_cpp(
-            &mut crate::session::hub_mut(self),
-            cinematic_id,
-        );
-    }
     pub(crate) fn send_tx(&self) -> &flume::Sender<Vec<u8>> {
         self.core.send_tx()
     }

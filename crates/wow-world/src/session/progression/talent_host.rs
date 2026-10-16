@@ -15,7 +15,8 @@ impl wow_world_spell::TalentHostLikeCpp for WorldSession {
         WorldSession::remove_represented_at_login_flag_like_cpp(self, flags, persist)
     }
     fn represented_talents_loaded_like_cpp(&self) -> bool {
-        WorldSession::represented_talents_loaded_like_cpp(self)
+        let (state, hub) = crate::session::split_lifecycle_ref(self);
+        state.represented_talents_loaded_like_cpp(hub)
     }
     fn trinity_string_like_cpp(&self, entry: u32) -> &str {
         WorldSession::trinity_string_like_cpp(self, entry)

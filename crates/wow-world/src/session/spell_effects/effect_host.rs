@@ -28,7 +28,8 @@ impl wow_world_spell::SpellEffectHostLikeCpp for WorldSession {
         &mut self,
         transmog_set_id: u32,
     ) -> Option<wow_entities::PlayerValuesUpdate> {
-        WorldSession::add_transmog_set_like_cpp(self, transmog_set_id)
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.add_transmog_set_like_cpp(&mut hub, transmog_set_id)
     }
     fn resolved_group_guid_like_cpp(&self) -> Option<u64> {
         wow_world_instances::group_membership::resolved_group_guid_like_cpp(self)
@@ -75,7 +76,8 @@ impl wow_world_spell::SpellEffectHostLikeCpp for WorldSession {
         item_id: u32,
         cast_item: i32,
     ) -> Option<wow_entities::PlayerValuesUpdate> {
-        WorldSession::upgrade_account_heirloom_like_cpp(self, item_id, cast_item)
+        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
+        state.upgrade_account_heirloom_like_cpp(&mut hub, item_id, cast_item)
     }
     fn persist_player_homebind_like_cpp(&mut self, homebind: RepresentedHomebindLikeCpp) {
         wow_world_spell::persist_player_homebind_like_cpp(self, homebind)

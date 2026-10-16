@@ -20,8 +20,12 @@ impl WorldSession {
         map_id: u32,
         requested_difficulty: u8,
     ) -> Option<(u32, u8, i32)> {
-        let downscaled_entries = self
-            .create_map_db2_entries_like_cpp(map_id, requested_difficulty as wow_map::Difficulty)?;
+        let (instances, hub) = crate::session::split_instances_ref(self);
+        let downscaled_entries = instances.create_map_db2_entries_like_cpp(
+            hub,
+            map_id,
+            requested_difficulty as wow_map::Difficulty,
+        )?;
         let map_difficulty_id = self
             .catalogs
             .maps

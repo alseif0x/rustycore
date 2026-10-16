@@ -12,14 +12,6 @@ impl WorldSession {
     pub(crate) fn battlenet_account_id(&self) -> u32 {
         self.core.battlenet_account_id()
     }
-    pub(crate) fn upgrade_account_heirloom_like_cpp(
-        &mut self,
-        item_id: u32,
-        cast_item: i32,
-    ) -> Option<wow_entities::PlayerValuesUpdate> {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.upgrade_account_heirloom_like_cpp(&mut hub, item_id, cast_item)
-    }
     pub(in crate::session) fn represented_battle_pet_login_spell_source_is_empty_like_cpp(
         &self,
     ) -> bool {
@@ -61,15 +53,13 @@ impl WorldSession {
     pub(crate) fn account_mounts_like_cpp(&self) -> &HashMap<i32, u8> {
         &self.fixtures.collections.account_mounts_like_cpp
     }
-    pub(crate) fn account_mount_rows_like_cpp(&self) -> Vec<AccountMount> {
-        let (state, hub) = crate::session::split_lifecycle_ref(self);
-        state.account_mount_rows_like_cpp(hub)
-    }
     /// Account mounts for the per-mount `CollectionMgr::LoadMounts` login
     /// publications. C++ keeps every valid DB2 row in the collection, but
     /// suppresses this partial update when the mount's PlayerCondition fails.
     pub(crate) fn account_mount_login_partial_rows_like_cpp(&self) -> Vec<AccountMount> {
-        self.account_mount_rows_like_cpp()
+        let (lifecycle, hub) = crate::session::split_lifecycle_ref(self);
+        lifecycle
+            .account_mount_rows_like_cpp(hub)
             .into_iter()
             .filter(|mount| {
                 let Ok(spell_id) = u32::try_from(mount.spell_id) else {
