@@ -41,29 +41,6 @@ impl WorldSession {
             .is_some_and(|handle| handle.guid() == player_guid)
             || cfg!(test) && self.player_bootstrap_attached_for_test_like_cpp()
     }
-    pub(crate) fn player_spell_runtime_snapshot_like_cpp(
-        &self,
-    ) -> Option<RepresentedPlayerSpellRuntimeLikeCpp> {
-        let canonical = self
-            .core
-            .owned_spell_acquisition_access_like_cpp()
-            .with_player_spell_runtime_like_cpp(represented_player_spell_runtime_like_cpp);
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.spell_state
-                    .represented_spell_runtime_fixture_like_cpp(),
-            );
-        }
-        canonical
-    }
-    pub(crate) fn with_player_spell_runtime_like_cpp<R>(
-        &self,
-        query: impl FnOnce(&wow_entities::PlayerSpellRuntimeState) -> R,
-    ) -> Option<R> {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.with_player_spell_runtime_like_cpp(hub, cfg!(test), query)
-    }
     /// Incarnation dispatch for one named spell-runtime transition (#754).
     ///
     /// The transitions themselves are the named operations on

@@ -16,6 +16,7 @@ use super::{
     select_represented_mount_aura_display_like_cpp, send_aura_update_applied,
 };
 use crate::represented_aura_effect_amounts_like_cpp;
+use crate::spellbook_session::world_test_consumer_like_cpp;
 
 pub fn apply_represented_mounted_aura_like_cpp<H: AuraHostLikeCpp>(
     host: &mut H,
@@ -113,7 +114,7 @@ pub fn apply_represented_mounted_aura_like_cpp<H: AuraHostLikeCpp>(
             .mount_collision_height_update_requests_like_cpp
             .saturating_add(1);
     }
-    host.update_player_collision_height_like_cpp();
+    crate::update_player_collision_height_like_cpp(host);
     host.hub_mut().send_movement_set_collision_height_like_cpp(
         wow_packet::packets::movement::UPDATE_COLLISION_HEIGHT_REASON_MOUNT_LIKE_CPP,
     );
@@ -242,4 +243,100 @@ pub fn remove_represented_mounted_auras_by_type_like_cpp<H: AuraHostLikeCpp>(hos
         }
     }
     true
+}
+
+pub fn represented_mount_capability_selection_for_type_like_cpp<H: AuraHostLikeCpp>(
+    host: &H,
+    mount_type_id: u16,
+    riding_skill: u32,
+    mount_restriction_flags: Option<u8>,
+    is_submerged: bool,
+    is_in_water: bool,
+) -> Result<wow_data::MountCapabilityEntry, wow_data::MountCapabilityRejectLikeCpp> {
+    let capability_store = host
+        .hub_ref()
+        .catalogs
+        .mount_capability_store
+        .as_ref()
+        .ok_or(wow_data::MountCapabilityRejectLikeCpp::MissingCapabilityRow)?;
+    let type_store = host
+        .hub_ref()
+        .catalogs
+        .mount_type_x_capability_store
+        .as_ref()
+        .ok_or(wow_data::MountCapabilityRejectLikeCpp::MissingMountTypeCapabilities)?;
+    let area_store = host
+        .hub_ref()
+        .catalogs
+        .area_table_store
+        .as_ref()
+        .ok_or(wow_data::MountCapabilityRejectLikeCpp::Area)?;
+
+    let map_id = u32::from(host.core().player_map_id_like_cpp());
+    let map = host
+        .hub_ref()
+        .catalogs
+        .maps
+        .store
+        .as_ref()
+        .and_then(|store| store.get(map_id));
+    let (_, area_id) = host
+        .hub_ref()
+        .player_zone_area_like_cpp()
+        .ok_or(wow_data::MountCapabilityRejectLikeCpp::Area)?;
+    let mount_flags = mount_restriction_flags.unwrap_or_else(|| {
+        area_store
+            .get(area_id)
+            .map(|area| area.mount_flags as u8)
+            .unwrap_or_else(|| {
+                if area_id == 0 {
+                    // C++ reaches this check after TerrainMgr resolved the
+                    // player's area. Until Rust has that full terrain bridge,
+                    // an area 0 placeholder should not make ordinary ground
+                    // mounts fail SPELL_FAILED_NOT_HERE.
+                    wow_data::AREA_MOUNT_FLAG_ALLOW_GROUND_MOUNTS
+                } else {
+                    0
+                }
+            })
+    });
+    let context = wow_data::MountCapabilityContextLikeCpp {
+        riding_skill,
+        mount_flags,
+        is_submerged,
+        is_in_water,
+        map_id: map_id as i32,
+        cosmetic_parent_map_id: map
+            .map(|entry| i32::from(entry.cosmetic_parent_map_id))
+            .unwrap_or(-1),
+        parent_map_id: map
+            .map(|entry| i32::from(entry.parent_map_id))
+            .unwrap_or(-1),
+    };
+    let visible_auras = host
+        .hub_ref()
+        .resolved_player_visible_auras_like_cpp()
+        .ok_or(wow_data::MountCapabilityRejectLikeCpp::Aura)?;
+
+    capability_store
+        .select_for_mount_type_with_reject_like_cpp(
+            type_store,
+            mount_type_id,
+            &context,
+            |required_area_id| area_store.is_in_area_like_cpp(area_id, u32::from(required_area_id)),
+            |aura_id| {
+                visible_auras
+                    .values()
+                    .any(|aura| u32::try_from(aura.spell_id).ok() == Some(aura_id))
+            },
+            |spell_id| crate::known_spells_like_cpp(host).contains(&spell_id),
+        )
+        .copied()
+}
+
+pub fn update_player_collision_height_like_cpp<H: AuraHostLikeCpp>(host: &mut H) {
+    let world_test = world_test_consumer_like_cpp(host);
+    let mut hub = host.hub_mut();
+    let (presentation, mut control) = hub.aura_removal_mount_accesses_like_cpp();
+    control.update_player_collision_height_like_cpp(&presentation, world_test);
 }

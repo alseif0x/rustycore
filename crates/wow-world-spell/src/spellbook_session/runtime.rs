@@ -7,6 +7,7 @@
 //! slice 9a).
 
 use super::*;
+use crate::{RepresentedPlayerSpellRuntimeLikeCpp, represented_player_spell_runtime_like_cpp};
 
 pub fn represented_talent_spell_id_like_cpp<H: SpellbookHostLikeCpp>(
     host: &H,
@@ -272,4 +273,32 @@ pub fn represented_cast_spell_info_like_cpp<H: SpellbookHostLikeCpp>(
     }
 
     spell_info.clone()
+}
+
+pub fn player_spell_runtime_snapshot_like_cpp<H: SpellbookHostLikeCpp>(
+    host: &H,
+) -> Option<RepresentedPlayerSpellRuntimeLikeCpp> {
+    let canonical = host
+        .core()
+        .owned_spell_acquisition_access_like_cpp()
+        .with_player_spell_runtime_like_cpp(represented_player_spell_runtime_like_cpp);
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if host.test_fixtures_ref_like_cpp().is_some()
+        && canonical.is_none()
+        && host.core().player_handle_like_cpp.is_none()
+    {
+        return Some(
+            host.spell_state()
+                .represented_spell_runtime_fixture_like_cpp(),
+        );
+    }
+    canonical
+}
+
+pub fn with_player_spell_runtime_like_cpp<H: SpellbookHostLikeCpp + ?Sized, R>(
+    host: &H,
+    query: impl FnOnce(&wow_entities::PlayerSpellRuntimeState) -> R,
+) -> Option<R> {
+    let (state, hub) = host.split_spell_state_ref();
+    state.with_player_spell_runtime_like_cpp(hub, world_test_consumer_like_cpp(host), query)
 }

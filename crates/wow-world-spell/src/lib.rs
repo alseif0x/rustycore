@@ -37,8 +37,10 @@ pub use aura_session::{
     remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp,
     remove_represented_auras_due_to_spell_like_cpp,
     remove_represented_mounted_auras_by_type_like_cpp,
+    represented_mount_capability_selection_for_type_like_cpp,
     represented_spell_area_autocast_source_is_empty_like_cpp,
     represented_trait_config_aura_source_is_empty_like_cpp, send_aura_update_applied, tick_auras,
+    update_player_collision_height_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use aura_session::{
@@ -195,14 +197,15 @@ pub use spellbook_session::{
     invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp, known_spells_like_cpp,
     learn_account_mount_spells_like_cpp, learn_dependent_known_spell_like_cpp,
     learn_known_spell_like_cpp, load_represented_talent_row_with_spell_side_effects_like_cpp,
-    mark_represented_spell_acquisition_snapshot_complete_like_cpp, remove_known_spell_like_cpp,
+    mark_represented_spell_acquisition_snapshot_complete_like_cpp,
+    player_spell_runtime_snapshot_like_cpp, remove_known_spell_like_cpp,
     remove_represented_override_spell_like_cpp, represented_cast_spell_info_like_cpp,
     represented_dependent_known_spells_like_cpp, represented_direct_learn_spell_triggers_like_cpp,
     represented_override_spells_like_cpp, represented_spell_valid_for_learning_like_cpp,
     represented_talent_override_spell_pair_like_cpp, represented_talent_spell_id_like_cpp,
     set_complete_represented_player_spell_rows_like_cpp,
     set_complete_represented_spell_trait_definition_ids_like_cpp,
-    take_represented_trait_definition_id_like_cpp,
+    take_represented_trait_definition_id_like_cpp, with_player_spell_runtime_like_cpp,
 };
 pub use state::SessionSpellState;
 #[cfg(any(test, feature = "test-fixtures"))]

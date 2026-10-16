@@ -16,28 +16,8 @@ impl wow_world_spell::AuraHostLikeCpp for WorldSession {
     fn remove_aura(&mut self, slot: u8) -> Result<(), &'static str> {
         WorldSession::remove_aura(self, slot)
     }
-    fn represented_mount_capability_selection_for_type_like_cpp(
-        &self,
-        mount_type_id: u16,
-        riding_skill: u32,
-        mount_restriction_flags: Option<u8>,
-        is_submerged: bool,
-        is_in_water: bool,
-    ) -> Result<wow_data::MountCapabilityEntry, wow_data::MountCapabilityRejectLikeCpp> {
-        WorldSession::represented_mount_capability_selection_for_type_like_cpp(
-            self,
-            mount_type_id,
-            riding_skill,
-            mount_restriction_flags,
-            is_submerged,
-            is_in_water,
-        )
-    }
     fn represented_mount_x_display_usable_like_cpp(&self, player_condition_id: u32) -> bool {
         WorldSession::represented_mount_x_display_usable_like_cpp(self, player_condition_id)
-    }
-    fn update_player_collision_height_like_cpp(&mut self) {
-        WorldSession::update_player_collision_height_like_cpp(self)
     }
     fn next_represented_spell_cast_guid_like_cpp(&self, spell_id: i32) -> Option<ObjectGuid> {
         WorldSession::next_represented_spell_cast_guid_like_cpp(self, spell_id)
@@ -47,10 +27,5 @@ impl wow_world_spell::AuraHostLikeCpp for WorldSession {
     }
     fn represented_spell_area_quest_status_like_cpp(&self, quest_id: u32) -> Option<u8> {
         wow_world_quest::represented_spell_area_quest_status_like_cpp(self, quest_id)
-    }
-    fn player_spell_runtime_snapshot_like_cpp(
-        &self,
-    ) -> Option<RepresentedPlayerSpellRuntimeLikeCpp> {
-        WorldSession::player_spell_runtime_snapshot_like_cpp(self)
     }
 }

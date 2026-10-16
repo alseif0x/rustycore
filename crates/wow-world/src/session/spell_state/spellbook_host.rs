@@ -21,7 +21,7 @@ impl wow_world_spell::SpellbookHostLikeCpp for WorldSession {
         &self,
         query: impl FnOnce(&wow_entities::PlayerSpellRuntimeState) -> R,
     ) -> Option<R> {
-        WorldSession::with_player_spell_runtime_like_cpp(self, query)
+        wow_world_spell::with_player_spell_runtime_like_cpp(self, query)
     }
     fn mutate_player_spell_runtime_like_cpp<R>(
         &mut self,

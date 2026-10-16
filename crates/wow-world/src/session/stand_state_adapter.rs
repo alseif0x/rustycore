@@ -9,10 +9,11 @@ use super::{RepresentedGameObjectUseEffect, WorldSession};
 use super::{TitanGripPenaltyAction, UnitStandStateType};
 
 #[cfg(test)]
+pub(crate) use wow_world_core::session::RepresentedLiveApplicationLikeCpp;
 pub(crate) use wow_world_core::session::{
-    RepresentedLiveApplicationLikeCpp, RepresentedLiveIntentAppliedLikeCpp,
-    RepresentedLiveIntentApplyOutcomeLikeCpp, RepresentedLiveIntentLikeCpp,
-    RepresentedStandChannelCancellationBoundary, RepresentedStandStateChangedLikeCpp,
+    RepresentedLiveIntentAppliedLikeCpp, RepresentedLiveIntentApplyOutcomeLikeCpp,
+    RepresentedLiveIntentLikeCpp, RepresentedStandChannelCancellationBoundary,
+    RepresentedStandStateChangedLikeCpp,
 };
 
 impl WorldSession {

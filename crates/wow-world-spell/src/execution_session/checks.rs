@@ -235,8 +235,9 @@ fn check_represented_mount_spell_like_cpp<H: SpellExecutionHostLikeCpp>(
                     .hub_ref()
                     .resolved_player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)?;
                 if form.mount_type_id != 0
-                    && let Err(reject_reason) = host
-                        .represented_mount_capability_selection_for_type_like_cpp(
+                    && let Err(reject_reason) =
+                        crate::represented_mount_capability_selection_for_type_like_cpp(
+                            host,
                             form.mount_type_id,
                             u32::from(riding_skill),
                             None,
@@ -319,8 +320,9 @@ fn check_represented_mount_spell_like_cpp<H: SpellExecutionHostLikeCpp>(
             let riding_skill = host
                 .hub_ref()
                 .resolved_player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)?;
-            if let Err(reject_reason) = host
-                .represented_mount_capability_selection_for_type_like_cpp(
+            if let Err(reject_reason) =
+                crate::represented_mount_capability_selection_for_type_like_cpp(
+                    host,
                     mount_type_id,
                     u32::from(riding_skill),
                     None,

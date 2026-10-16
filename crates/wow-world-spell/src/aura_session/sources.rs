@@ -118,7 +118,7 @@ pub fn represented_spell_area_autocast_source_is_empty_like_cpp<H: AuraHostLikeC
 pub fn represented_trait_config_aura_source_is_empty_like_cpp<H: AuraHostLikeCpp>(
     host: &H,
 ) -> bool {
-    let Some(runtime) = host.player_spell_runtime_snapshot_like_cpp() else {
+    let Some(runtime) = crate::player_spell_runtime_snapshot_like_cpp(host) else {
         return false;
     };
     if !runtime.trait_config_rows_complete

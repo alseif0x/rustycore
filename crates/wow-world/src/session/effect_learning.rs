@@ -59,7 +59,7 @@ impl EffectLearningRuntimeLikeCpp for WorldSession {
     }
 
     fn fallback_snapshot(&self) -> Option<wow_entities::PlayerSpellRuntimeState> {
-        self.with_player_spell_runtime_like_cpp(Clone::clone)
+        wow_world_spell::with_player_spell_runtime_like_cpp(self, Clone::clone)
     }
 
     fn fallback_chains(&self) -> Option<&SpellChainStoreLikeCpp> {

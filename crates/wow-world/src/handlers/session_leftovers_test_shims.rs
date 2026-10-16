@@ -7,7 +7,7 @@
 //! functions the scenarios call, so no scenario call site changes.
 #![cfg(test)]
 
-use crate::session::WorldSession;
+use crate::session::{SKILL_RIDING_LIKE_CPP, WorldSession};
 
 impl WorldSession {
     pub(crate) fn apply_represented_live_intent_like_cpp(
@@ -48,5 +48,72 @@ impl WorldSession {
     pub(crate) fn cancel_pending_spell_cast_request_like_cpp(&mut self) -> bool {
         let (state, mut hub) = crate::session::split_spell_state_mut(self);
         wow_world_application::cancel_pending_spell_cast_request_like_cpp(&mut hub, state)
+    }
+    pub(crate) fn update_player_collision_height_like_cpp(&mut self) {
+        wow_world_spell::update_player_collision_height_like_cpp(self)
+    }
+    pub(crate) fn represented_mount_capability_selection_for_type_like_cpp(
+        &self,
+        mount_type_id: u16,
+        riding_skill: u32,
+        mount_restriction_flags: Option<u8>,
+        is_submerged: bool,
+        is_in_water: bool,
+    ) -> Result<wow_data::MountCapabilityEntry, wow_data::MountCapabilityRejectLikeCpp> {
+        wow_world_spell::represented_mount_capability_selection_for_type_like_cpp(
+            self,
+            mount_type_id,
+            riding_skill,
+            mount_restriction_flags,
+            is_submerged,
+            is_in_water,
+        )
+    }
+    pub(crate) fn represented_mount_capability_for_type_like_cpp(
+        &self,
+        mount_type_id: u16,
+        riding_skill: u32,
+        mount_restriction_flags: Option<u8>,
+        is_submerged: bool,
+        is_in_water: bool,
+    ) -> Option<wow_data::MountCapabilityEntry> {
+        self.represented_mount_capability_selection_for_type_like_cpp(
+            mount_type_id,
+            riding_skill,
+            mount_restriction_flags,
+            is_submerged,
+            is_in_water,
+        )
+        .ok()
+    }
+    #[allow(dead_code)]
+    pub(crate) fn represented_mount_capability_for_type_from_session_like_cpp(
+        &self,
+        mount_type_id: u16,
+        mount_restriction_flags: Option<u8>,
+    ) -> Option<wow_data::MountCapabilityEntry> {
+        let (is_submerged, is_in_water) =
+            crate::session::hub_ref(self).represented_player_mount_liquid_state_like_cpp()?;
+        self.represented_mount_capability_for_type_like_cpp(
+            mount_type_id,
+            u32::from(
+                crate::session::hub_ref(self)
+                    .resolved_player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)?,
+            ),
+            mount_restriction_flags,
+            is_submerged,
+            is_in_water,
+        )
+    }
+    pub(crate) fn player_spell_runtime_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_world_spell::RepresentedPlayerSpellRuntimeLikeCpp> {
+        wow_world_spell::player_spell_runtime_snapshot_like_cpp(self)
+    }
+    pub(crate) fn with_player_spell_runtime_like_cpp<R>(
+        &self,
+        query: impl FnOnce(&wow_entities::PlayerSpellRuntimeState) -> R,
+    ) -> Option<R> {
+        wow_world_spell::with_player_spell_runtime_like_cpp(self, query)
     }
 }

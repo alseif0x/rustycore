@@ -408,11 +408,12 @@ use wow_world_spell::spell_cast_adapter::represented_spell_cast_guid_for_map_lik
 mod spell_pet_catalogs;
 mod stand_state_adapter;
 #[cfg(test)]
-pub(crate) use stand_state_adapter::{
-    RepresentedLiveApplicationLikeCpp, RepresentedLiveIntentAppliedLikeCpp,
-    RepresentedLiveIntentApplyOutcomeLikeCpp, RepresentedLiveIntentLikeCpp,
-    RepresentedStandChannelCancellationBoundary, RepresentedStandStateChangedLikeCpp,
-};
+pub(crate) use stand_state_adapter::RepresentedLiveApplicationLikeCpp;
+pub(crate) use stand_state_adapter::RepresentedLiveIntentAppliedLikeCpp;
+pub(crate) use stand_state_adapter::RepresentedLiveIntentApplyOutcomeLikeCpp;
+pub(crate) use stand_state_adapter::RepresentedLiveIntentLikeCpp;
+pub(crate) use stand_state_adapter::RepresentedStandChannelCancellationBoundary;
+pub(crate) use stand_state_adapter::RepresentedStandStateChangedLikeCpp;
 mod state;
 pub use state::WorldSession;
 pub(crate) use state::{
@@ -729,7 +730,6 @@ pub(crate) const BATTLE_PET_BREED_QUALITY_RARE_LIKE_CPP: u8 = 3;
 #[cfg(test)]
 pub(crate) use wow_world_inventory::BATTLE_PET_SPELL_VISUAL_UNCAGE_PET_LIKE_CPP;
 
-pub(crate) const SKILL_RIDING_LIKE_CPP: u16 = 762;
 pub use wow_world_core::session::SharedCanonicalMapManager;
 pub use wow_world_core::session::{LIQUID_MAP_IN_WATER_LIKE_CPP, LIQUID_MAP_UNDER_WATER_LIKE_CPP};
 pub(crate) use wow_world_social::DUEL_COUNTDOWN_MS_LIKE_CPP;
