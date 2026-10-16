@@ -89,7 +89,7 @@ pub async fn update_visibility_with_catalogs_like_cpp<H: VisibilitySessionHostLi
         super::canonical_objects::visible_transports_from_canonical_map_like_cpp(host, map_id);
     let transports_visibility_available = canonical_transports.is_some();
     let visible_other_players =
-        host.visible_other_players_from_registry_like_cpp(map_id, &pos, range);
+        super::visible_other_players_from_registry_like_cpp(host, map_id, &pos, range);
     if host.core().has_world_map_manager_like_cpp()
         || canonical_gameobjects.is_some()
         || canonical_dynamic_objects.is_some()

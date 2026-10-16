@@ -33,8 +33,11 @@ impl PlayerHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         catalogs: &'a SessionHandlerCatalogsLikeCpp,
     ) -> wow_handler::HandlerFuture<'a, ()> {
         Box::pin(async move {
-            self.force_update_visibility_with_catalogs_like_cpp(catalogs.creature_spawns.as_ref())
-                .await;
+            wow_world_entities::force_update_visibility_with_catalogs_like_cpp(
+                self,
+                catalogs.creature_spawns.as_ref(),
+            )
+            .await;
         })
     }
 

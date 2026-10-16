@@ -45,7 +45,7 @@ impl WorldSession {
         transport_phase_shift: &PhaseShift,
     ) -> bool {
         crate::session::hub_ref(self).player_transport_guid_like_cpp() != Some(transport_guid)
-            && self.can_see_phase_shift_like_cpp(transport_phase_shift)
+            && wow_world_entities::can_see_phase_shift_like_cpp(self, transport_phase_shift)
     }
 }
 

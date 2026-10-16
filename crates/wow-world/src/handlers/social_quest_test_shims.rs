@@ -55,4 +55,34 @@ impl WorldSession {
     ) -> Vec<wow_packet::packets::gossip::ClientGossipText> {
         wow_world_quest::represented_creature_gossip_text_like_cpp(self, creature_entry)
     }
+    pub(crate) fn visible_other_players_from_registry_like_cpp(
+        &self,
+        map_id: u16,
+        position: &wow_core::Position,
+        visibility_radius: f32,
+    ) -> Vec<(
+        ObjectGuid,
+        wow_world_core::session::directory::PlayerVisibilityCreateSnapshot,
+    )> {
+        wow_world_entities::visible_other_players_from_registry_like_cpp(
+            self,
+            map_id,
+            position,
+            visibility_radius,
+        )
+    }
+    pub(crate) fn represented_player_phase_shift_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PhaseShift> {
+        wow_world_entities::represented_player_phase_shift_like_cpp(self)
+    }
+    pub(crate) fn can_see_phase_shift_like_cpp(&self, other: &wow_entities::PhaseShift) -> bool {
+        wow_world_entities::can_see_phase_shift_like_cpp(self, other)
+    }
+    pub(crate) fn resolved_visible_resting_like_cpp(&self) -> Option<bool> {
+        wow_world_entities::resolved_visible_resting_like_cpp(self)
+    }
+    pub(crate) fn apply_move_init_active_mover_complete_like_cpp(&mut self, ticks: u32) {
+        wow_world_entities::apply_move_init_active_mover_complete_like_cpp(self, ticks)
+    }
 }

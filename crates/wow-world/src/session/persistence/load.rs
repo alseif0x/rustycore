@@ -101,7 +101,7 @@ impl WorldSession {
     /// Set the player loading GUID (ConnectTo flow).
     pub fn set_player_loading(&mut self, guid: Option<ObjectGuid>) {
         self.lifecycle.set_player_loading(guid);
-        self.sync_current_player_session_visibility_detection_like_cpp();
+        wow_world_entities::sync_current_player_session_visibility_detection_like_cpp(self);
     }
     pub(crate) fn player_loading(&self) -> Option<ObjectGuid> {
         self.lifecycle.player_loading()

@@ -136,7 +136,10 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         &mut self,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
     ) -> impl Future<Output = ()> + Send {
-        WorldSession::force_update_visibility_with_catalogs_like_cpp(self, creature_spawn_catalogs)
+        wow_world_entities::force_update_visibility_with_catalogs_like_cpp(
+            self,
+            creature_spawn_catalogs,
+        )
     }
     fn handle_trainer_list(&mut self, hello: Hello) -> impl Future<Output = ()> + Send {
         wow_world_application::handle_trainer_list(self, hello)
@@ -354,7 +357,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         WorldSession::stats_application_cx_like_cpp(self)
     }
     fn sync_current_player_session_visibility_detection_like_cpp(&mut self) {
-        WorldSession::sync_current_player_session_visibility_detection_like_cpp(self)
+        wow_world_entities::sync_current_player_session_visibility_detection_like_cpp(self)
     }
     fn take_deferred_rest_flag_update_dirty_like_cpp(&mut self) -> bool {
         WorldSession::take_deferred_rest_flag_update_dirty_like_cpp(self)

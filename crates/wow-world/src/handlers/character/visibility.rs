@@ -7,7 +7,6 @@
 //! `wow_world_entities::visibility_session` (#1363 slice 8a). Every method is a
 //! pure forward to the same-named inherent `WorldSession` method or field.
 
-use wow_world_core::session::directory::PlayerVisibilityCreateSnapshot;
 use wow_world_lifecycle::SessionLifecycleState;
 use wow_world_visibility::VisibilityState;
 
@@ -56,19 +55,6 @@ impl wow_world_entities::VisibilitySessionHostLikeCpp for WorldSession {
         WorldSession::represented_visibility_source_position_like_cpp(self)
     }
     fn current_seer_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        WorldSession::current_seer_guid_like_cpp(self)
-    }
-    fn visible_other_players_from_registry_like_cpp(
-        &self,
-        map_id: u16,
-        position: &Position,
-        visibility_radius: f32,
-    ) -> Vec<(ObjectGuid, PlayerVisibilityCreateSnapshot)> {
-        WorldSession::visible_other_players_from_registry_like_cpp(
-            self,
-            map_id,
-            position,
-            visibility_radius,
-        )
+        wow_world_entities::current_seer_guid_like_cpp(self)
     }
 }

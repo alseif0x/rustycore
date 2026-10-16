@@ -7,7 +7,15 @@ license.workspace = true
 publish = false
 
 [features]
-test-fixtures = ["wow-world-core/test-fixtures"]
+# Forwards to the fixture-bearing wow-world dependencies the moved session
+# visibility reads use, and the self dev-dependency below turns it on for this
+# crate's own test build, so a standalone `cargo check -p wow-world-entities
+# --tests` builds them cfg-aligned (#1363 slice 12b6; the instances pattern).
+test-fixtures = [
+    "wow-world-core/test-fixtures",
+    "wow-world-lifecycle/test-fixtures",
+    "wow-world-visibility/test-fixtures",
+]
 
 [dependencies]
 wow-ai = { workspace = true }
@@ -36,6 +44,7 @@ wow-world-visibility = { workspace = true }
 
 [dev-dependencies]
 wow-world-core = { workspace = true, features = ["test-fixtures"] }
+wow-world-entities = { workspace = true, features = ["test-fixtures"] }
 
 [lints]
 workspace = true

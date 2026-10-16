@@ -12,7 +12,7 @@ impl WorldSession {
         let _ = crate::session::hub_mut(self).mutate_active_player_update_state_like_cpp(|state| {
             state.active_local_flags = flags;
         });
-        self.sync_current_player_session_visibility_detection_like_cpp();
+        wow_world_entities::sync_current_player_session_visibility_detection_like_cpp(self);
     }
 }
 

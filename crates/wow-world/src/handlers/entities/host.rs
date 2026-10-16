@@ -106,7 +106,7 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
     }
 
     fn represented_player_phase_shift_like_cpp(&self) -> Option<PhaseShift> {
-        WorldSession::represented_player_phase_shift_like_cpp(self)
+        wow_world_entities::represented_player_phase_shift_like_cpp(self)
     }
 
     fn ensure_canonical_world_map_for_current_player_like_cpp(
@@ -125,7 +125,7 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
     }
 
     fn can_see_phase_shift_like_cpp(&self, other: &PhaseShift) -> bool {
-        WorldSession::can_see_phase_shift_like_cpp(self, other)
+        wow_world_entities::can_see_phase_shift_like_cpp(self, other)
     }
 
     fn remove_cached_loot_for_owner_like_cpp(&mut self, owner: ObjectGuid) {
