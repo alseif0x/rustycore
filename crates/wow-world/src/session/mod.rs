@@ -446,7 +446,6 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 use tracing::{debug, info, warn};
 
 use crate::battle_pet_account::BattlePetAccountAttachmentLikeCpp;
-use crate::entity_update_bridge::unit_values_update_to_packet;
 use crate::loot_persistence::DurableLootMoneyCompletionLikeCpp;
 #[cfg(test)]
 use crate::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp;
@@ -559,7 +558,6 @@ use wow_data::{
         CreatureOnKillReputationStoreLikeCpp, RepSpilloverTemplateStoreLikeCpp,
         ReputationRewardRateStoreLikeCpp,
     },
-    spell_click::UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP,
 };
 #[cfg(test)]
 use wow_data::{
@@ -569,7 +567,7 @@ use wow_data::{
 #[cfg(test)]
 use wow_data::{
     ExplorationBaseXpStoreLikeCpp, ImportPriceStores, ItemClassStore, ItemCurrencyCostStore,
-    ItemDisenchantLootStore, ItemPriceBaseStore,
+    ItemDisenchantLootStore, ItemPriceBaseStore, spell_click::UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP,
 };
 #[cfg(test)]
 use wow_data::{

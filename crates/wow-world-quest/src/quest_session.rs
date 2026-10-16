@@ -41,6 +41,7 @@ mod sharing;
 mod source_items;
 mod spell_effect;
 mod state;
+pub mod unit_update_publication;
 
 pub use accept_handlers::*;
 pub use dialog::*;
@@ -179,6 +180,12 @@ pub trait QuestSessionHostLikeCpp: SessionHubHostLikeCpp {
     fn send_represented_quest_log_slot_update_like_cpp(&mut self, slot: u8);
     fn player_condition_projection_cx_like_cpp(&self) -> PlayerConditionProjectionCxLikeCpp<'_>;
     fn player_target_spell_is_hit_inert_like_cpp(&self, spell_id: u32, difficulty_id: u8) -> bool;
+    /// The World spell-click visibility of one creature for this viewer (the
+    /// many-field condition builder the moved viewer-dependent NPC flags call).
+    fn represented_can_see_spell_click_on_creature_like_cpp(
+        &self,
+        creature_guid: ObjectGuid,
+    ) -> wow_world_entities::spell_click_values::RepresentedCanSeeSpellClickOutcomeLikeCpp;
 }
 
 /// The World inventory and item operations the moved item-objective, source-item

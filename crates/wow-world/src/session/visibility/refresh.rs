@@ -66,6 +66,11 @@ impl VisibilityRefreshHostLikeCpp for WorldSession {
         map_id: u16,
         packet_update: wow_packet::packets::update::UnitDataValuesDeltaUpdate,
     ) -> wow_packet::packets::update::UpdateObject {
-        self.represented_unit_packet_update_to_update_object_like_cpp(guid, map_id, packet_update)
+        wow_world_quest::unit_update_publication::represented_unit_packet_update_to_update_object_like_cpp(
+            self,
+            guid,
+            map_id,
+            packet_update,
+        )
     }
 }

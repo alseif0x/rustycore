@@ -31,7 +31,7 @@ impl wow_world_entities::VisibilitySessionHostLikeCpp for WorldSession {
         creature_guid: ObjectGuid,
         npc_flags: u64,
     ) -> u64 {
-        WorldSession::represented_viewer_dependent_creature_npc_flags_like_cpp(
+        wow_world_quest::unit_update_publication::represented_viewer_dependent_creature_npc_flags_like_cpp(
             self,
             creature_guid,
             npc_flags,

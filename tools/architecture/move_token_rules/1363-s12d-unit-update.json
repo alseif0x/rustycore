@@ -1,0 +1,16 @@
+{
+ "slice": "#1363 slice 12d (the unit values-update publication pair and the viewer-dependent NPC flags -> wow-world-quest quest_session/unit_update_publication.rs over QuestSessionHostLikeCpp)",
+ "base": "4cf327c8c",
+ "moved": [
+  "represented_unit_values_update_to_update_object_like_cpp",
+  "represented_unit_packet_update_to_update_object_like_cpp",
+  "represented_viewer_dependent_creature_npc_flags_like_cpp"
+ ],
+ "comment": "The spell-click visibility builder stays in the World (a many-field session seam) behind the new QuestSessionHostLikeCpp::represented_can_see_spell_click_on_creature_like_cpp; the quest crate's pure flag filter is the crate-root function of the same name.",
+ "rules": [
+  ["pub\\(crate\\) fn {name}\\(\\s*&self,", "pub fn {name}<H: QuestSessionHostLikeCpp + ?Sized>(host: &H,"],
+  ["wow_world_quest::represented_viewer_dependent_creature_npc_flags_like_cpp\\(", "crate::represented_viewer_dependent_creature_npc_flags_like_cpp("],
+  ["self\\.{name}\\(", "{name}(host, "],
+  ["\\bself\\.", "host."]
+ ]
+}

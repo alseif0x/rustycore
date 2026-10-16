@@ -42,6 +42,12 @@ impl QuestSessionHostLikeCpp for WorldSession {
     fn invalidate_player_quest_status_authority_like_cpp(&mut self) {
         WorldSession::invalidate_player_quest_status_authority_like_cpp(self)
     }
+    fn represented_can_see_spell_click_on_creature_like_cpp(
+        &self,
+        creature_guid: ObjectGuid,
+    ) -> wow_world_entities::spell_click_values::RepresentedCanSeeSpellClickOutcomeLikeCpp {
+        WorldSession::represented_can_see_spell_click_on_creature_like_cpp(self, creature_guid)
+    }
     fn represented_inventory_item_counts_like_cpp(&self) -> Option<HashMap<u32, u32>> {
         self.inventory
             .represented_inventory_item_counts_like_cpp(crate::session::hub_ref(self))

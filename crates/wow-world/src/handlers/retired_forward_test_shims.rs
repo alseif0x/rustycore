@@ -213,6 +213,45 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_world_entities_mut(self);
         state.mutate_canonical_gameobject_by_guid_like_cpp(&mut hub, guid, f)
     }
+    // Unit values-update publication (moved to
+    // `wow_world_quest::unit_update_publication`).
+    pub(crate) fn represented_unit_values_update_to_update_object_like_cpp(
+        &self,
+        unit_guid: ObjectGuid,
+        map_id: u16,
+        values_update: &wow_entities::UnitValuesUpdate,
+    ) -> Option<wow_packet::packets::update::UpdateObject> {
+        wow_world_quest::unit_update_publication::represented_unit_values_update_to_update_object_like_cpp(
+            self,
+            unit_guid,
+            map_id,
+            values_update,
+        )
+    }
+    pub(crate) fn represented_unit_packet_update_to_update_object_like_cpp(
+        &self,
+        unit_guid: ObjectGuid,
+        map_id: u16,
+        packet_update: wow_packet::packets::update::UnitDataValuesDeltaUpdate,
+    ) -> wow_packet::packets::update::UpdateObject {
+        wow_world_quest::unit_update_publication::represented_unit_packet_update_to_update_object_like_cpp(
+            self,
+            unit_guid,
+            map_id,
+            packet_update,
+        )
+    }
+    pub(crate) fn represented_viewer_dependent_creature_npc_flags_like_cpp(
+        &self,
+        creature_guid: ObjectGuid,
+        npc_flags: u64,
+    ) -> u64 {
+        wow_world_quest::unit_update_publication::represented_viewer_dependent_creature_npc_flags_like_cpp(
+            self,
+            creature_guid,
+            npc_flags,
+        )
+    }
     // Taxi (the scenario-only edge distance, from `session/taxi/operations.rs`).
     pub(crate) fn represented_taxi_edge_distance_like_cpp(
         &self,
