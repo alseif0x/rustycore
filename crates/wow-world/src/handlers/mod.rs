@@ -10,6 +10,7 @@ pub mod battlegrounds;
 pub mod battlenet;
 pub mod calendar;
 pub mod character;
+mod character_login_host;
 #[cfg(test)]
 pub mod chat;
 pub mod collections;
@@ -23,6 +24,7 @@ pub mod guild;
 pub mod instances;
 mod leaf_session_hosts;
 pub mod loot;
+mod loot_ops_session_host;
 pub mod movement;
 mod movement_host;
 mod npc_host;
@@ -30,6 +32,7 @@ mod open_item_host;
 pub mod pets;
 pub mod progression;
 pub mod quest;
+mod quest_item_storage_host;
 pub mod social;
 pub mod spell;
 pub mod support;
@@ -85,6 +88,8 @@ mod quest_handler_test_shims;
 mod quest_item_test_shims;
 #[cfg(test)]
 mod quest_session_test_shims;
+#[cfg(test)]
+mod retired_forward_test_shims;
 #[cfg(test)]
 mod session_leftovers_test_shims;
 #[cfg(test)]

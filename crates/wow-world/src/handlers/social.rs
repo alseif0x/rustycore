@@ -33,7 +33,10 @@ impl WorldSession {
         command: CancelRepresentedTradeLikeCppCommand,
     ) {
         if !matches!(
-            self.resolved_represented_active_trade_partner_like_cpp(),
+            wow_world_social::resolved_represented_active_trade_partner_like_cpp(
+                &self.core,
+                &self.social
+            ),
             Some(Some(_))
         ) {
             return;
@@ -52,7 +55,10 @@ impl WorldSession {
         command: SendRepresentedTradeStatusLikeCppCommand,
     ) {
         if !matches!(
-            self.resolved_represented_active_trade_partner_like_cpp(),
+            wow_world_social::resolved_represented_active_trade_partner_like_cpp(
+                &self.core,
+                &self.social
+            ),
             Some(Some(_))
         ) {
             return;
@@ -66,7 +72,10 @@ impl WorldSession {
         command: UnacceptRepresentedTradeLikeCppCommand,
     ) {
         if !matches!(
-            self.resolved_represented_active_trade_partner_like_cpp(),
+            wow_world_social::resolved_represented_active_trade_partner_like_cpp(
+                &self.core,
+                &self.social
+            ),
             Some(Some(_))
         ) {
             return;

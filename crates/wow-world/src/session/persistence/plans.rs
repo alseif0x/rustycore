@@ -6,15 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn plan_add_currency_vendor_like_cpp(
-        &self,
-        currencies: &mut HashMap<u32, PlayerCurrency>,
-        currency_id: u32,
-        amount: u32,
-    ) -> Result<Option<PlayerCurrencyDelta>, ()> {
-        let (state, hub) = crate::session::split_lifecycle_ref(self);
-        state.plan_add_currency_vendor_like_cpp(hub, currencies, currency_id, amount)
-    }
     /// Close detached-payout admission, wait for every previously admitted
     /// worker, apply its exact-once durable deltas, then acquire the character
     /// money mutation lock. Callers must derive old/new runtime values only
@@ -70,36 +61,13 @@ impl WorldSession {
         )
         .await
     }
-    pub(in crate::session) fn player_persistent_capability_state_snapshot_like_cpp(
-        &self,
-    ) -> Option<wow_entities::PlayerPersistentCapabilityStateLikeCpp> {
-        let canonical = self
-            .core
-            .with_owned_player_like_cpp(|player| player.persistent_capability_state_like_cpp());
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(wow_entities::PlayerPersistentCapabilityStateLikeCpp {
-                at_login_flags: self
-                    .lifecycle
-                    .represented_at_login_flags_for_test_like_cpp(),
-                weapon_proficiency: self
-                    .fixtures
-                    .progression
-                    .represented_weapon_proficiency_like_cpp,
-                armor_proficiency: self
-                    .fixtures
-                    .progression
-                    .represented_armor_proficiency_like_cpp,
-            });
-        }
-        canonical
-    }
     #[cfg(test)]
     pub(in crate::session) fn mutate_player_persistent_capability_state_like_cpp<R>(
         &mut self,
         mutate: impl FnOnce(&mut wow_entities::PlayerPersistentCapabilityStateLikeCpp) -> R,
     ) -> Option<R> {
-        let mut state = self.player_persistent_capability_state_snapshot_like_cpp()?;
+        let mut state =
+            wow_world_spell::player_persistent_capability_state_snapshot_like_cpp(self)?;
         let result = mutate(&mut state);
         self.lifecycle
             .set_represented_at_login_flags_for_test_like_cpp(state.at_login_flags);

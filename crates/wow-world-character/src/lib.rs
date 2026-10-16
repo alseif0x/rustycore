@@ -74,7 +74,8 @@ pub use login_session::{
     restore_persisted_transport_for_login_like_cpp, retry_login_at_homebind_like_cpp,
     seed_login_location_zone_area_like_cpp,
     send_initial_packets_after_add_to_map_with_catalogs_like_cpp, send_login_sequence,
-    skill_rewarded_spell_changes_for_login_like_cpp, update_realm_characters,
+    set_player_transport_position_like_cpp, skill_rewarded_spell_changes_for_login_like_cpp,
+    update_realm_characters,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use login_session::{

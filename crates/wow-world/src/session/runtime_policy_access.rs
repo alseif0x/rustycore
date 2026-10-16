@@ -29,14 +29,6 @@ impl WorldSession {
     pub fn set_disable_mgr(&mut self, store: Arc<DisableMgrLikeCpp>) {
         self.catalogs.disable_mgr = Some(store);
     }
-
-    pub(in crate::session) fn trinity_string_like_cpp(&self, entry: u32) -> &str {
-        self.catalogs
-            .trinity_string_store
-            .as_ref()
-            .map(|store| store.get_like_cpp(entry, &self.core.locale))
-            .unwrap_or("<error>")
-    }
 }
 
 #[cfg(test)]

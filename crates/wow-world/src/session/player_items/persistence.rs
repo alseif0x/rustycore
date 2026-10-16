@@ -6,22 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn apply_committed_new_inventory_item_at_like_cpp(
-        &mut self,
-        bag: u8,
-        slot: u8,
-        inventory_item: InventoryItem,
-        item_object: Item,
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.apply_committed_new_inventory_item_at_like_cpp(
-            &mut hub,
-            bag,
-            slot,
-            inventory_item,
-            item_object,
-        )
-    }
     #[cfg(test)]
     pub(crate) fn set_loot_item_store_test_commit_gate_like_cpp(
         &mut self,

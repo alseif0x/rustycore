@@ -1,0 +1,1 @@
+crates/wow-world/src/session/movement/state.rs	set_player_transport_position_like_cpp	crates/wow-world-character/src/login_session/transport_restore.rs

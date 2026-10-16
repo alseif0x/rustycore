@@ -51,6 +51,19 @@ impl RepresentedPlayerConditionContextLikeCpp {
     }
 }
 
+// The vendor host's condition-context source (moved beside its type from
+// `handlers/character/vendor.rs` in #1363 slice 12d).
+impl wow_world_inventory::PlayerConditionContextSourceLikeCpp<WorldSession>
+    for RepresentedPlayerConditionContextLikeCpp
+{
+    fn as_context<'a>(
+        &'a self,
+        host: &'a WorldSession,
+    ) -> Option<wow_data::PlayerConditionContextLikeCpp<'a>> {
+        RepresentedPlayerConditionContextLikeCpp::as_context(self, host)
+    }
+}
+
 impl WorldSession {
     pub(crate) fn represented_player_condition_context_like_cpp(
         &self,

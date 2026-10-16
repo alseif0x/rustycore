@@ -13,26 +13,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_visibility_mut(self);
         state.sync_represented_farsight_clear_from_canonical_like_cpp(&mut hub)
     }
-    pub(crate) async fn flush_pending_visibility_refresh_with_catalogs_like_cpp(
-        &mut self,
-        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
-    ) {
-        if self.state() != SessionState::LoggedIn {
-            return;
-        }
-        if self
-            .core
-            .flags
-            .visibility_refresh_pending_like_cpp
-            .swap(false, Ordering::AcqRel)
-        {
-            wow_world_entities::force_update_visibility_with_catalogs_like_cpp(
-                self,
-                creature_spawn_catalogs,
-            )
-            .await;
-        }
-    }
     #[cfg(test)]
     pub(crate) async fn force_update_visibility_like_cpp(&mut self) {
         let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();

@@ -28,6 +28,7 @@ use wow_world_spell::AuraHostLikeCpp;
 
 use crate::InstanceState;
 
+mod access_requirement;
 mod activate_taxi;
 mod admission;
 mod area_trigger_opcode;
@@ -39,6 +40,9 @@ mod map_entry;
 mod rest_flags;
 mod zone_area;
 
+pub use access_requirement::{
+    access_requirement_abort_like_cpp, access_requirement_leader_has_achievement_like_cpp,
+};
 pub use activate_taxi::handle_activate_taxi;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use activate_taxi::represented_taxi_usable_mount_displays_like_cpp;
@@ -87,6 +91,7 @@ pub const REST_FLAG_IN_FACTION_AREA_LIKE_CPP: u32 = 0x4;
 pub const AREA_FLAG_ENEMIES_PVP_FLAGGED_LIKE_CPP: u32 = 0x0000_0010;
 const AREA_FLAG_CONTESTED_LIKE_CPP: u32 = 0x0004_0000;
 const AREA_FLAG_COMBAT_ZONE_LIKE_CPP: u32 = 0x0100_0000;
+pub const TRANSFER_ABORT_ERROR_LIKE_CPP: u32 = 1;
 pub const TRANSFER_ABORT_DIFFICULTY_LIKE_CPP: u32 = 8;
 pub const TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP: u32 = 2;
 pub const TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP: u32 = 4;
@@ -123,6 +128,17 @@ pub trait InstanceSessionHostLikeCpp: PlayerTeleportHostLikeCpp + AuraHostLikeCp
         None
     }
     fn send_represented_resting_player_flag_update_like_cpp(&self) -> bool;
+    /// The inventory item counts the access-requirement item check reads (the
+    /// World split forward of that name, retired in #1363 slice 12d).
+    fn represented_inventory_item_counts_like_cpp(
+        &self,
+    ) -> Option<std::collections::HashMap<u32, u32>>;
+    /// Whether the World player meets one `PlayerCondition` row (the
+    /// map-difficulty condition closure of the moved access-requirement step).
+    fn represented_player_meets_condition_like_cpp(
+        &self,
+        condition: &wow_data::PlayerConditionEntry,
+    ) -> bool;
     fn access_requirement_abort_like_cpp(
         &self,
         map_id: u32,

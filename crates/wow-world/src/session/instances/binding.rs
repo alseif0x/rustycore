@@ -6,15 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn player_is_locked_to_dungeon_encounter_like_cpp(
-        &self,
-        player_guid: ObjectGuid,
-        dungeon_encounter_id: u32,
-    ) -> Option<bool> {
-        let (state, hub) = crate::session::split_instances_ref(self);
-        state.player_is_locked_to_dungeon_encounter_like_cpp(hub, player_guid, dungeon_encounter_id)
-    }
-
     /// Inject the shared C++ `InstanceLockMgr` analogue.
     pub fn set_instance_lock_mgr(
         &mut self,

@@ -39,11 +39,15 @@ impl QuestSessionHostLikeCpp for WorldSession {
         let (state, hub) = crate::session::split_quest_state_mut(self);
         wow_world_quest::mutate_player_quest_gameplay_like_cpp(hub, state, mutate)
     }
-    fn invalidate_player_quest_status_authority_like_cpp(&mut self) {
-        WorldSession::invalidate_player_quest_status_authority_like_cpp(self)
+    fn represented_can_see_spell_click_on_creature_like_cpp(
+        &self,
+        creature_guid: ObjectGuid,
+    ) -> wow_world_entities::spell_click_values::RepresentedCanSeeSpellClickOutcomeLikeCpp {
+        WorldSession::represented_can_see_spell_click_on_creature_like_cpp(self, creature_guid)
     }
     fn represented_inventory_item_counts_like_cpp(&self) -> Option<HashMap<u32, u32>> {
-        WorldSession::represented_inventory_item_counts_like_cpp(self)
+        self.inventory
+            .represented_inventory_item_counts_like_cpp(crate::session::hub_ref(self))
     }
     fn represented_gameobject_questgiver_can_interact_with_like_cpp(
         &self,

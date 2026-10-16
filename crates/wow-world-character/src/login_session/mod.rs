@@ -24,7 +24,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
-use wow_core::{ObjectGuid, Position};
+use wow_core::ObjectGuid;
 use wow_data::TalentTabStore;
 use wow_entities::PlayerHomebindLikeCpp as RepresentedHomebindLikeCpp;
 use wow_entities::{
@@ -132,7 +132,9 @@ pub use spell_loading::{
 };
 pub use spell_map_finalization::finalize_player_spell_map_for_login_like_cpp;
 pub use talent_loading::load_character_talents_for_login_like_cpp;
-pub use transport_restore::restore_persisted_transport_for_login_like_cpp;
+pub use transport_restore::{
+    restore_persisted_transport_for_login_like_cpp, set_player_transport_position_like_cpp,
+};
 pub use world_entry::{
     fallback_direct_login, handle_logout_request_with_generator_like_cpp,
     player_login_combat_stats_like_cpp,
@@ -294,7 +296,6 @@ pub trait CharacterLoginHostLikeCpp:
     fn set_player_guid(&mut self, guid: Option<ObjectGuid>);
     fn set_player_moved_unit_guid_like_cpp(&mut self, guid: ObjectGuid);
     fn set_player_transport_guid_like_cpp(&mut self, guid: Option<ObjectGuid>);
-    fn set_player_transport_position_like_cpp(&mut self, position: Option<Position>);
     fn set_player_zone_area_authority_complete_like_cpp(&mut self, complete: bool);
     fn set_state(&mut self, state: SessionState);
     fn should_send_init_transport_like_cpp(

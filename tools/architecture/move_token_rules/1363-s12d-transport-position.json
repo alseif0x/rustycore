@@ -1,0 +1,13 @@
+{
+ "slice": "#1363 slice 12d (the login transport-position write -> wow-world-character login_session/transport_restore.rs over CharacterLoginHostLikeCpp; the host method of that name retires)",
+ "base": "4cf327c8c",
+ "moved": ["set_player_transport_position_like_cpp"],
+ "comment": "The #[cfg(test)] fixture step becomes cfg(any(test, feature = \"test-fixtures\")) guarded by test_fixtures_ref_like_cpp().is_some() (the 12c form), so it runs exactly where it ran before: in the World lib test build only.",
+ "rules": [
+  ["pub\\(crate\\) fn {name}\\(&mut self,", "pub fn {name}<H: CharacterLoginHostLikeCpp + ?Sized>(host: &mut H,"],
+  ["#\\[cfg\\(test\\)\\]\\s*if self\\.core\\.player_handle_like_cpp\\.is_none\\(\\)", "#[cfg(any(test, feature = \"test-fixtures\"))] if host.test_fixtures_ref_like_cpp().is_some() && host.core().player_handle_like_cpp.is_none()"],
+  ["\\bself\\s*\\.\\s*fixtures\\s*\\.", "host.hub_mut().fixtures."],
+  ["\\bself\\s*\\.\\s*core\\s*\\.", "host.core()."],
+  ["\\bself\\.", "host."]
+ ]
+}

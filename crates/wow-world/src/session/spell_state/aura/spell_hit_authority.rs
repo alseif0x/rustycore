@@ -73,7 +73,8 @@ impl WorldSession {
                     s.player_visible_aura_is_spell_hit_inert_like_cpp(h, aura)
                 })
             || self
-                .resolved_inventory_items_like_cpp()
+                .inventory
+                .resolved_inventory_items_like_cpp(crate::session::hub_ref(self))
                 .is_none_or(|items| !items.is_empty())
             || self
                 .inventory

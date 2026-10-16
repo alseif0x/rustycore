@@ -59,6 +59,16 @@ pub fn player_trade_state_snapshot_like_cpp(
     canonical
 }
 
+// The active trade partner projection (#1363 slice 12d; moved from the World
+// `session/social/trade.rs`).
+pub fn resolved_represented_active_trade_partner_like_cpp(
+    core: &SessionCore,
+    social: &SessionSocialLimits,
+) -> Option<Option<ObjectGuid>> {
+    player_trade_state_snapshot_like_cpp(core, social)
+        .map(|state| state.map(|state| state.partner_guid))
+}
+
 /// Canonical `Player::SetDuelInfo` through the hub's canonical-player access.
 pub fn set_represented_duel_state_like_cpp(
     hub: &mut HubMut<'_>,

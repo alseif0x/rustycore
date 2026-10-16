@@ -25,7 +25,7 @@ impl VoidStorageSessionHostLikeCpp for WorldSession {
         WorldSession::void_storage_is_unlocked_like_cpp(self)
     }
     fn represented_player_flags_value_like_cpp(&self) -> Option<u32> {
-        WorldSession::represented_player_flags_value_like_cpp(self)
+        wow_world_entities::represented_player_flags_value_like_cpp(self)
     }
     fn player_values_update_snapshot(&self) -> Option<InventoryPlayerProjectionLikeCpp> {
         wow_world_inventory::player_values_update_snapshot(self)
@@ -71,8 +71,9 @@ impl VoidStorageSessionHostLikeCpp for WorldSession {
         inventory_item: InventoryItem,
         item_object: Item,
     ) -> bool {
-        WorldSession::apply_committed_new_inventory_item_at_like_cpp(
-            self,
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.apply_committed_new_inventory_item_at_like_cpp(
+            &mut hub,
             bag,
             slot,
             inventory_item,

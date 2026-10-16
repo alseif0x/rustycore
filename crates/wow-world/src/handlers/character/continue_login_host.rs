@@ -54,20 +54,25 @@ impl ContinueLoginHostLikeCpp for WorldSession {
     ) -> InitialLoadedItemModsOutcomeLikeCpp {
         apply_initial_loaded_item_mods_like_cpp(self, loaded_equipped_item_guids)
     }
-    fn apply_loaded_known_spell_previous_rank_passive_auras_like_cpp(
+    fn apply_aura_with_effect_mask_like_cpp(
         &mut self,
-        known_spells: &[i32],
-    ) -> usize {
-        WorldSession::apply_loaded_known_spell_previous_rank_passive_auras_like_cpp(
-            self,
-            known_spells,
-        )
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        duration_ms: u32,
+        aura_flags: u32,
+        effect_mask: u32,
+    ) -> Result<(), &'static str> {
+        self.player_aura_application_cx_like_cpp()
+            .apply_aura_with_effect_mask_like_cpp(
+                spell_id,
+                caster_guid,
+                duration_ms,
+                aura_flags,
+                effect_mask,
+            )
     }
     fn apply_login_known_spell_proficiencies_like_cpp(&mut self, known_spells: &[i32]) -> usize {
         wow_world_spell::apply_login_known_spell_proficiencies_like_cpp(self, known_spells)
-    }
-    fn apply_login_passive_known_spell_auras_like_cpp(&mut self) -> usize {
-        WorldSession::apply_login_passive_known_spell_auras_like_cpp(self)
     }
     fn apply_offline_xp_rest_bonus_with_policy_like_cpp(
         &mut self,
@@ -105,9 +110,6 @@ impl ContinueLoginHostLikeCpp for WorldSession {
         gender: u8,
     ) {
         WorldSession::set_loaded_player_identity_like_cpp(self, map_id, race, class, level, gender)
-    }
-    fn set_represented_at_login_flags_like_cpp(&mut self, flags: u16) -> bool {
-        WorldSession::set_represented_at_login_flags_like_cpp(self, flags)
     }
     fn set_represented_guild_id_like_cpp(&mut self, guild_id: u64) -> bool {
         wow_world_social::set_represented_guild_id_like_cpp(self, guild_id)

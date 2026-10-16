@@ -16,7 +16,8 @@ use crate::session::WorldSession;
 
 impl OpenItemHostLikeCpp for WorldSession {
     fn get_inventory_item_by_pos(&self, bag: u8, slot: u8) -> Option<InventoryItem> {
-        WorldSession::get_inventory_item_by_pos(self, bag, slot)
+        self.inventory
+            .get_inventory_item_by_pos(crate::session::hub_ref(self), bag, slot)
     }
     fn apply_wrapped_gift_row_to_runtime_item_like_cpp(
         &mut self,

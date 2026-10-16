@@ -116,10 +116,13 @@ impl WorldSession {
                 .await;
             }
             SessionCommand::DestroyVisibleObjectLikeCpp(command) => {
-                self.handle_destroy_visible_object_like_cpp_command_like_cpp(command);
+                wow_world_entities::handle_destroy_visible_object_like_cpp_command_like_cpp(
+                    self, command,
+                );
             }
             SessionCommand::RefreshDeferredPlayerVisibilityLikeCpp(intent) => {
-                self.apply_deferred_player_visibility_refresh_like_cpp(
+                wow_world_entities::apply_deferred_player_visibility_refresh_like_cpp(
+                    self,
                     catalogs.creature_spawns.as_ref(),
                     intent,
                 )

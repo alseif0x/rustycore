@@ -12,15 +12,6 @@ impl WorldSession {
             .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.catalogs.difficulty_store = Some(store);
     }
-    pub(crate) fn replace_player_difficulty_preferences_like_cpp(
-        &mut self,
-        dungeon: u32,
-        raid: u32,
-        legacy_raid: u32,
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_instances_mut(self);
-        state.replace_player_difficulty_preferences_like_cpp(&mut hub, dungeon, raid, legacy_raid)
-    }
     #[cfg(test)]
     pub(crate) fn represented_raid_difficulty_id_like_cpp(&self) -> u32 {
         self.resolved_raid_difficulty_id_like_cpp()
@@ -31,21 +22,6 @@ impl WorldSession {
         self.resolved_legacy_raid_difficulty_id_like_cpp()
             .expect("test Player legacy raid difficulty owner must resolve")
     }
-    pub(crate) fn represented_dungeon_difficulty_packet_like_cpp(
-        &self,
-    ) -> Option<DungeonDifficultySet> {
-        let (state, hub) = crate::session::split_instances_ref(self);
-        state.represented_dungeon_difficulty_packet_like_cpp(hub)
-    }
-    pub(crate) fn apply_group_difficulty_like_cpp(
-        &mut self,
-        group_guid: u64,
-        difficulty_id: u32,
-        kind: wow_social::group::GroupDifficultyKindLikeCpp,
-    ) {
-        let mut cx = self.build_instance_difficulty_handler_cx_like_cpp();
-        cx.apply_group_difficulty_like_cpp(group_guid, difficulty_id, kind);
-    }
     pub fn set_map_difficulty_store(&mut self, store: Arc<MapDifficultyStore>) {
         self.catalogs.maps.difficulty_store = Some(store);
     }
@@ -54,20 +30,6 @@ impl WorldSession {
         store: Arc<MapDifficultyXConditionStore>,
     ) {
         self.catalogs.maps.difficulty_x_condition_store = Some(store);
-    }
-    #[allow(dead_code)]
-    pub(crate) fn represented_failed_map_difficulty_x_condition_like_cpp(
-        &self,
-        map_difficulty_id: u32,
-    ) -> Option<u32> {
-        let store = self.catalogs.maps.difficulty_x_condition_store.as_ref()?;
-        let player_conditions = self.catalogs.player_condition_store.as_ref()?;
-        let context = self.represented_player_condition_context_like_cpp()?;
-        store.failed_condition_like_cpp(map_difficulty_id, player_conditions, |condition| {
-            context
-                .as_context(self)
-                .is_some_and(|context| is_player_meeting_condition_like_cpp(condition, &context))
-        })
     }
 }
 

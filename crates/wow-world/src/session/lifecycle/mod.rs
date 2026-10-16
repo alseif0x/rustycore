@@ -18,7 +18,6 @@ mod persistence;
 pub use persistence::PlayerSaveOutcomeLikeCpp;
 mod pet_load;
 mod transfer_completion;
-mod transfer_destination;
 mod worldport_host;
 
 pub(super) use pet_load::PetLoadQueryHolderRowsLikeCpp;

@@ -4,7 +4,6 @@
 
 use super::*;
 mod aggro;
-mod creature_interaction;
 mod creature_kill;
 mod creature_publication;
 mod creature_query;

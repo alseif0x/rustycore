@@ -10,13 +10,14 @@
 //! dispatcher arm are unchanged; this module keeps the shared constants,
 //! helper types and free functions the features build on.
 
-mod item_storage_host;
 mod quest_handler_host;
 mod quest_query_host;
 mod rewards;
 mod state;
 
-use wow_constants::InventoryResult;
+// The quest item-storage adapter (`handlers/quest_item_storage_host.rs`, moved
+// out of this tree in #1363 slice 12d) and the scenarios read it from here.
+pub(super) use wow_constants::InventoryResult;
 // Test-only: its production readers were the eleven quest-giver registrations
 // that moved to the quest crate's `quest_handlers` area registrar under
 // #1263 F5; the quest test shims and scenarios still reach it through

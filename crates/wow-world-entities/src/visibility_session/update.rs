@@ -43,7 +43,7 @@ pub async fn update_visibility_with_catalogs_like_cpp<H: VisibilitySessionHostLi
 
     // ── Position & threshold check ──────────────────────────────────
     host.sync_represented_farsight_clear_from_canonical_like_cpp();
-    let pos = match host.represented_visibility_source_position_like_cpp() {
+    let pos = match super::represented_visibility_source_position_like_cpp(host) {
         Some(p) => p,
         None => return,
     };

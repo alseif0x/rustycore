@@ -47,7 +47,6 @@ pub trait CorpseHostLikeCpp: PlayerMovementHostLikeCpp {
     ) -> bool;
     fn teleport_to(&mut self, new_map: u32, new_pos: Position) -> impl Future<Output = ()> + Send;
     fn pending_teleport_like_cpp(&self) -> Option<(u32, Position)>;
-    fn set_player_ghost_flag_like_cpp(&mut self, ghost: bool);
 }
 
 fn clear_represented_resurrection_request_like_cpp<H: CorpseHostLikeCpp>(host: &mut H) -> bool {
@@ -246,8 +245,8 @@ pub async fn handle_repop_request<H: CorpseHostLikeCpp>(
     // promotion through KillPlayer, removes the pet, builds the corpse, and
     // teleports to the graveyard. Rust has only the represented death/ghost
     // seam here; full corpse/graveyard runtime remains open.
-    host.set_player_alive_like_cpp(false);
-    host.set_player_ghost_flag_like_cpp(true);
+    crate::set_player_alive_like_cpp(host, false);
+    crate::set_player_ghost_flag_like_cpp(host, true);
     #[cfg(any(test, feature = "test-fixtures"))]
     if let Some(fixtures) = host.test_fixtures_like_cpp() {
         fixtures.combat.represented_repop_at_graveyard_count = fixtures
@@ -286,7 +285,7 @@ pub async fn handle_reclaim_corpse<H: CorpseHostLikeCpp>(
     // before `ResurrectPlayer(0.5f)` + `SpawnCorpseBones`. Those require the
     // full player-corpse runtime; this represented slice only clears the
     // ghost/dead state when the already-known C++ gates pass.
-    host.set_player_ghost_flag_like_cpp(false);
+    crate::set_player_ghost_flag_like_cpp(host, false);
     let restore_percent = if host.hub_ref().player_in_represented_battleground_like_cpp() {
         1.0
     } else {

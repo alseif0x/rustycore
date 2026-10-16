@@ -1,0 +1,14 @@
+{
+ "slice": "#1363 slice 12d (the resurrection-state snapshot -> wow-world-spell spell_state_session/operations.rs over SpellExecutionHostLikeCpp; the host method of that name retires)",
+ "base": "4cf327c8c",
+ "moved": ["player_resurrection_state_snapshot_like_cpp"],
+ "comment": "The #[cfg(test)] fixture step becomes cfg(any(test, feature = \"test-fixtures\")) guarded by test_fixtures_ref_like_cpp().is_some() (the 12c form).",
+ "rules": [
+  ["pub\\(crate\\) fn {name}\\(\\s*&self,?\\s*\\)", "pub fn {name}<H: SpellExecutionHostLikeCpp + ?Sized>(host: &H)"],
+  ["#\\[cfg\\(test\\)\\]\\s*if canonical\\.is_none\\(\\)", "#[cfg(any(test, feature = \"test-fixtures\"))] if host.test_fixtures_ref_like_cpp().is_some() && canonical.is_none()"],
+  ["\\bself\\s*\\.\\s*fixtures\\s*\\.", "host.hub_ref().fixtures."],
+  ["\\bself\\s*\\.\\s*spell_state\\s*\\.", "host.spell_state()."],
+  ["\\bself\\s*\\.\\s*core\\s*\\.", "host.core()."],
+  ["\\bself\\.", "host."]
+ ]
+}

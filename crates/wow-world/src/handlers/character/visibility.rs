@@ -31,7 +31,7 @@ impl wow_world_entities::VisibilitySessionHostLikeCpp for WorldSession {
         creature_guid: ObjectGuid,
         npc_flags: u64,
     ) -> u64 {
-        WorldSession::represented_viewer_dependent_creature_npc_flags_like_cpp(
+        wow_world_quest::unit_update_publication::represented_viewer_dependent_creature_npc_flags_like_cpp(
             self,
             creature_guid,
             npc_flags,
@@ -50,9 +50,6 @@ impl wow_world_entities::VisibilitySessionHostLikeCpp for WorldSession {
     }
     fn sync_represented_farsight_clear_from_canonical_like_cpp(&mut self) -> bool {
         WorldSession::sync_represented_farsight_clear_from_canonical_like_cpp(self)
-    }
-    fn represented_visibility_source_position_like_cpp(&self) -> Option<Position> {
-        WorldSession::represented_visibility_source_position_like_cpp(self)
     }
     fn current_seer_guid_like_cpp(&self) -> Option<ObjectGuid> {
         wow_world_entities::current_seer_guid_like_cpp(self)

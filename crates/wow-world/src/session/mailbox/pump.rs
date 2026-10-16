@@ -58,7 +58,8 @@ impl WorldSession {
             self.apply_session_command_with_catalogs_like_cpp(catalogs, command)
                 .await;
         }
-        self.flush_pending_visibility_refresh_with_catalogs_like_cpp(
+        wow_world_entities::flush_pending_visibility_refresh_with_catalogs_like_cpp(
+            self,
             catalogs.creature_spawns.as_ref(),
         )
         .await;

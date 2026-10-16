@@ -10,8 +10,11 @@ impl WorldSession {
     pub(in crate::session) fn represented_war_mode_update_zone_aura_source_is_empty_like_cpp(
         &self,
     ) -> bool {
-        self.represented_player_flags_value_like_cpp().is_some()
-            && !self.represented_player_has_flag_like_cpp(PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP)
+        wow_world_entities::represented_player_flags_value_like_cpp(self).is_some()
+            && !wow_world_entities::represented_player_has_flag_like_cpp(
+                self,
+                PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP,
+            )
     }
 }
 

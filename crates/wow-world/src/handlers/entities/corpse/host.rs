@@ -84,8 +84,4 @@ impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
         self.lifecycle
             .pending_teleport_like_cpp(crate::session::hub_ref(self))
     }
-
-    fn set_player_ghost_flag_like_cpp(&mut self, ghost: bool) {
-        WorldSession::set_player_ghost_flag_like_cpp(self, ghost)
-    }
 }

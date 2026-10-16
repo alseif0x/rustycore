@@ -6,15 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn represented_money_loot_with_rate_like_cpp(
-        &mut self,
-        min_amount: u32,
-        max_amount: u32,
-        rate: f32,
-    ) -> u32 {
-        let (state, mut hub) = crate::session::split_loot_mut(self);
-        state.represented_money_loot_with_rate_like_cpp(&mut hub, min_amount, max_amount, rate)
-    }
     pub fn set_loot_drop_rates_like_cpp(&mut self, rates: LootDropRatesLikeCpp) {
         self.config.loot_drop_rates = rates;
     }
@@ -24,10 +15,6 @@ impl WorldSession {
     /// Set the C++ LootTemplates_* foundation stores for this session.
     pub fn set_loot_stores(&mut self, stores: Arc<LootStores>) {
         self.catalogs.loot_stores = Some(stores);
-    }
-    pub(crate) fn resolved_pass_on_group_loot_like_cpp(&self) -> Option<bool> {
-        let (state, hub) = crate::session::split_loot_ref(self);
-        state.resolved_pass_on_group_loot_like_cpp(hub)
     }
     pub(in crate::session) async fn reconcile_durable_loot_money_before_save_like_cpp(
         &mut self,

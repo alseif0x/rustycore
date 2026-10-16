@@ -1,0 +1,2 @@
+crates/wow-world/src/session/quest/giver.rs	invalidate_player_quest_status_authority_like_cpp	crates/wow-world-quest/src/quest_session.rs
+crates/wow-world/src/session/social/trade.rs	resolved_represented_active_trade_partner_like_cpp	crates/wow-world-social/src/trade_handlers.rs

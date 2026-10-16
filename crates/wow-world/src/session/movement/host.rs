@@ -67,10 +67,6 @@ impl PlayerMovementHostLikeCpp for WorldSession {
         WorldSession::sync_player_registry_state_like_cpp(self)
     }
 
-    fn set_player_alive_like_cpp(&mut self, alive: bool) {
-        WorldSession::set_player_alive_like_cpp(self, alive)
-    }
-
     fn apply_represented_durability_loss_all_like_cpp(
         &mut self,
         percent: f64,
@@ -118,7 +114,8 @@ impl wow_world_entities::PlayerTeleportHostLikeCpp for WorldSession {
     }
 
     fn set_pending_teleport_like_cpp(&mut self, destination: Option<(u32, Position)>) -> bool {
-        WorldSession::set_pending_teleport_like_cpp(self, destination)
+        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
+        state.set_pending_teleport_like_cpp(&mut hub, destination)
     }
 
     fn active_area_trigger_mut_like_cpp(&mut self) -> &mut Option<u32> {

@@ -77,6 +77,7 @@ pub use quest_query_handlers::{
 // moved from the World session with their host trait (#1363 slice 6a), and the
 // item-objective, source-item, reward-inventory and eligibility bodies with the
 // item-storage host (slice 6b).
+pub use quest_session::unit_update_publication;
 pub use quest_session::{
     ItemTransferQuestPersistencePlanLikeCpp, LoadSeasonalQuestStatusOutcomeLikeCpp,
     QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP, QUEST_FLAGS_EX_RECAST_ACCEPT_SPELL_ON_LOGIN_LIKE_CPP,

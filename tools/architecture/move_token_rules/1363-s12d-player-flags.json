@@ -1,0 +1,14 @@
+{
+ "slice": "#1363 slice 12d (the represented player-flag reads -> wow-world-entities visibility_session/session_visibility.rs over VisibilitySessionHostLikeCpp)",
+ "base": "4cf327c8c",
+ "moved": ["represented_player_has_flag_like_cpp", "represented_player_flags_value_like_cpp"],
+ "comment": "Each former #[cfg(test)] fixture step becomes cfg(any(test, feature = \"test-fixtures\")) guarded by test_fixtures_ref_like_cpp().is_some(); the lifecycle fixture read is the visibility host's lifecycle() (the World lifecycle field).",
+ "rules": [
+  ["pub\\(crate\\) fn {name}\\(&self", "pub fn {name}<H: VisibilitySessionHostLikeCpp + ?Sized>(host: &H"],
+  ["#\\[cfg\\(test\\)\\]\\s*if self\\.core\\.player_handle_like_cpp\\.is_none\\(\\)", "#[cfg(any(test, feature = \"test-fixtures\"))] if host.test_fixtures_ref_like_cpp().is_some() && self.core.player_handle_like_cpp.is_none()"],
+  ["#\\[cfg\\(test\\)\\]\\s*if canonical\\.is_none\\(\\)", "#[cfg(any(test, feature = \"test-fixtures\"))] if host.test_fixtures_ref_like_cpp().is_some() && canonical.is_none()"],
+  ["\\bself\\s*\\.\\s*lifecycle\\s*\\.", "host.lifecycle()."],
+  ["\\bself\\s*\\.\\s*core\\s*\\.", "host.core()."],
+  ["\\bself\\s*\\.", "host."]
+ ]
+}

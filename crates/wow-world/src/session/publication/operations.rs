@@ -6,44 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn represented_unit_values_update_to_update_object_like_cpp(
-        &self,
-        unit_guid: ObjectGuid,
-        map_id: u16,
-        values_update: &wow_entities::UnitValuesUpdate,
-    ) -> Option<wow_packet::packets::update::UpdateObject> {
-        let packet_update = unit_values_update_to_packet(values_update)?;
-        Some(
-            self.represented_unit_packet_update_to_update_object_like_cpp(
-                unit_guid,
-                map_id,
-                packet_update,
-            ),
-        )
-    }
-    pub(crate) fn represented_unit_packet_update_to_update_object_like_cpp(
-        &self,
-        unit_guid: ObjectGuid,
-        map_id: u16,
-        mut packet_update: wow_packet::packets::update::UnitDataValuesDeltaUpdate,
-    ) -> wow_packet::packets::update::UpdateObject {
-        if unit_guid.is_any_type_creature()
-            && (packet_update.npc_flags[0] & UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32) != 0
-        {
-            let npc_flags = u64::from(packet_update.npc_flags[0])
-                | (u64::from(packet_update.npc_flags[1]) << 32);
-            let filtered =
-                self.represented_viewer_dependent_creature_npc_flags_like_cpp(unit_guid, npc_flags);
-            packet_update.npc_flags[0] = filtered as u32;
-            packet_update.npc_flags[1] = (filtered >> 32) as u32;
-        }
-
-        wow_packet::packets::update::UpdateObject::unit_values_update(
-            unit_guid,
-            map_id,
-            packet_update,
-        )
-    }
     /// The loot host's entry to the entity-bridge values publication, moved
     /// to `wow_world_inventory` (#1363 slice 12b7).
     pub(crate) fn send_player_values_update_from_entity_bridge(

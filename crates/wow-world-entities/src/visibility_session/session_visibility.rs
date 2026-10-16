@@ -171,6 +171,85 @@ pub fn resolved_visible_resting_like_cpp<H: VisibilitySessionHostLikeCpp>(
     }
     canonical
 }
+// The represented PLAYER_FLAGS reads (#1363 slice 12d; moved from the World
+// `session/rest_progression.rs`).
+pub fn represented_player_has_flag_like_cpp<H: VisibilitySessionHostLikeCpp + ?Sized>(
+    host: &H,
+    flag: u32,
+) -> bool {
+    let canonical = host.player_guid().and_then(|guid| {
+        host.core()
+            .canonical_player_has_player_flag_like_cpp(guid, flag)
+    });
+    if let Some(value) = canonical {
+        return value;
+    }
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if host.test_fixtures_ref_like_cpp().is_some() && host.core().player_handle_like_cpp.is_none() {
+        return host
+            .lifecycle()
+            .represented_loaded_player_flags_for_test_like_cpp()
+            .is_some_and(|flags| (flags & flag) != 0);
+    }
+    false
+}
+
+pub fn represented_player_flags_value_like_cpp<H: VisibilitySessionHostLikeCpp + ?Sized>(
+    host: &H,
+) -> Option<u32> {
+    let canonical = host
+        .core()
+        .canonical_player_snapshot_like_cpp(|player| player.data().player_flags);
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if host.test_fixtures_ref_like_cpp().is_some()
+        && canonical.is_none()
+        && host.core().player_handle_like_cpp.is_none()
+    {
+        return host
+            .lifecycle()
+            .represented_loaded_player_flags_for_test_like_cpp();
+    }
+    canonical
+}
+
+// The position visibility is evaluated from: the current seer's map object
+// when it is not the Player (C++ `Player::m_seer`), else the Player (#1363
+// slice 12d; moved from the World `session/movement/state.rs`).
+pub fn represented_visibility_source_position_like_cpp<H: VisibilitySessionHostLikeCpp>(
+    host: &H,
+) -> Option<Position> {
+    let player_position = host.hub_ref().player_position_like_cpp()?;
+    let Some(player_guid) = host.player_guid() else {
+        return Some(player_position);
+    };
+    let Some(seer_guid) = current_seer_guid_like_cpp(host) else {
+        return Some(player_position);
+    };
+    if seer_guid.is_empty() || seer_guid == player_guid {
+        return Some(player_position);
+    }
+
+    let Some(key) = host.core().current_canonical_player_map_key_like_cpp() else {
+        return Some(player_position);
+    };
+    let Some(manager) = host.core().canonical_map_manager.as_ref() else {
+        return Some(player_position);
+    };
+    let Ok(manager) = manager.lock() else {
+        return Some(player_position);
+    };
+    manager
+        .find_map(key.map_id, key.instance_id)
+        .and_then(|managed| {
+            managed.map().with_world_object_by_kinds_like_cpp(
+                seer_guid,
+                wow_entities::represented_seer_kinds_like_cpp(),
+                |object| object.position(),
+            )
+        })
+        .or(Some(player_position))
+}
+
 /// Resolve the current C++ `Player::m_seer` projection from the canonical
 /// Player. C++ keeps a pointer, but every Rust consumer in this boundary
 /// needs only its GUID; `ActivePlayerData::FarsightObject` is the durable

@@ -5,47 +5,58 @@
 //! World-side adapter for the item-objective, source-item and reward-inventory
 //! quest bodies that moved to `wow_world_quest` (#1363 slice 6b). Each method
 //! forwards to the same-named session operation or field
-//! (`make_inventory_item_object` to the World inventory context's).
+//! (`make_inventory_item_object` to the World inventory context's). Moved out
+//! of `handlers/quest` in #1363 slice 12d (one adapter file per destination
+//! crate, outside the hotspot trees), where the retired split forwards' bodies
+//! now sit.
 
 use wow_constants::ItemContext;
+use wow_core::ObjectGuid;
 use wow_entities::{Item, ItemObjectUpdateLikeCpp, ItemPosCount, SendNewItemPlan};
 use wow_world_quest::QuestItemStorageHostLikeCpp;
 
-use super::*;
-use crate::session::InventoryItem;
+use super::quest::InventoryResult;
+use crate::session::{InventoryItem, WorldSession};
 
 impl QuestItemStorageHostLikeCpp for WorldSession {
     fn catalogs_mut(&mut self) -> &mut wow_world_core::session::SessionCatalogs {
         &mut self.catalogs
     }
     fn get_inventory_item_by_pos(&self, bag: u8, slot: u8) -> Option<InventoryItem> {
-        WorldSession::get_inventory_item_by_pos(self, bag, slot)
+        self.inventory
+            .get_inventory_item_by_pos(crate::session::hub_ref(self), bag, slot)
     }
     fn resolved_inventory_item_like_cpp(&self, slot: u8) -> Option<InventoryItem> {
-        WorldSession::resolved_inventory_item_like_cpp(self, slot)
+        self.inventory
+            .resolved_inventory_item_like_cpp(crate::session::hub_ref(self), slot)
     }
     fn resolved_inventory_item_object_like_cpp(&self, guid: ObjectGuid) -> Option<Item> {
-        WorldSession::resolved_inventory_item_object_like_cpp(self, guid)
+        self.inventory
+            .resolved_inventory_item_object_like_cpp(crate::session::hub_ref(self), guid)
     }
     fn represented_non_bank_item_count_like_cpp(&self, entry_id: u32) -> Option<u32> {
-        WorldSession::represented_non_bank_item_count_like_cpp(self, entry_id)
+        self.inventory
+            .represented_non_bank_item_count_like_cpp(crate::session::hub_ref(self), entry_id)
     }
     fn apply_inventory_item_object_updates_like_cpp(
         &mut self,
         item_guid: ObjectGuid,
         updates: &[ItemObjectUpdateLikeCpp],
     ) -> bool {
-        WorldSession::apply_inventory_item_object_updates_like_cpp(self, item_guid, updates)
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.apply_inventory_item_object_updates_like_cpp(&mut hub, item_guid, updates)
     }
     fn insert_inventory_item_like_cpp(
         &mut self,
         slot: u8,
         item: InventoryItem,
     ) -> Option<InventoryItem> {
-        WorldSession::insert_inventory_item_like_cpp(self, slot, item)
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.insert_inventory_item_like_cpp(&mut hub, slot, item)
     }
     fn insert_inventory_item_object(&mut self, item: Item) -> Option<Item> {
-        WorldSession::insert_inventory_item_object(self, item)
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.insert_inventory_item_object(&mut hub, item)
     }
     fn make_inventory_item_object(
         &self,

@@ -10,10 +10,12 @@
 //! as free functions; each host method is the same-named `WorldSession`
 //! operation, called at the exact point the body called it before the move.
 
+mod capability;
 mod operations;
 mod pull_attack_start;
 mod queries;
 
+pub use capability::*;
 pub use operations::*;
 pub use pull_attack_start::*;
 pub use queries::*;
@@ -22,8 +24,4 @@ pub use queries::*;
 pub trait SpellStateHostLikeCpp: crate::SpellExecutionHostLikeCpp {
     /// The World cast interrupt (it runs the application request lifecycle).
     fn interrupt_player_cast_like_cpp(&mut self, spell_id: Option<i32>) -> bool;
-    /// The World persistent-capability read, with its test fixture fallback.
-    fn player_persistent_capability_state_snapshot_like_cpp(
-        &self,
-    ) -> Option<wow_entities::PlayerPersistentCapabilityStateLikeCpp>;
 }

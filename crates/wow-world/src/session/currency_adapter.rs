@@ -4,25 +4,6 @@
 //! Currency adapter: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{HashMap, PlayerCurrency, WorldSession};
-
-pub(crate) use wow_world_core::session::PlayerCurrencyDelta;
-
 pub(crate) use wow_world_quest::RepresentedQuestObjectiveProgressEventLikeCpp;
 
 pub(crate) use wow_world_core::session::state::hub_support::player_team_for_race_cpp;
-
-impl WorldSession {
-    pub(crate) fn set_player_currencies_like_cpp(
-        &mut self,
-        currencies: HashMap<u32, PlayerCurrency>,
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.set_player_currencies_like_cpp(&mut hub, currencies)
-    }
-
-    pub(crate) fn player_currencies_like_cpp(&self) -> Option<HashMap<u32, PlayerCurrency>> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.player_currencies_like_cpp(hub)
-    }
-}

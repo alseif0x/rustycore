@@ -48,7 +48,7 @@ pub async fn restore_persisted_transport_for_login_like_cpp<H: CharacterLoginHos
             host.hub_mut()
                 .set_player_map_position_like_cpp(transport.map_id, transport.world_position);
             host.set_player_transport_guid_like_cpp(Some(transport.guid));
-            host.set_player_transport_position_like_cpp(Some(transport.offset));
+            set_player_transport_position_like_cpp(host, Some(transport.offset));
             if attached_controller {
                 let _ = host.ensure_canonical_world_map_for_current_player_like_cpp();
             }
@@ -71,7 +71,7 @@ pub async fn restore_persisted_transport_for_login_like_cpp<H: CharacterLoginHos
             host.hub_mut()
                 .set_player_map_position_like_cpp(homebind_map_id, login_homebind.position);
             host.set_player_transport_guid_like_cpp(None);
-            host.set_player_transport_position_like_cpp(None);
+            set_player_transport_position_like_cpp(host, None);
             if attached_controller {
                 let _ = host.ensure_canonical_world_map_for_current_player_like_cpp();
             }
@@ -79,7 +79,37 @@ pub async fn restore_persisted_transport_for_login_like_cpp<H: CharacterLoginHos
         }
     } else {
         host.set_player_transport_guid_like_cpp(None);
-        host.set_player_transport_position_like_cpp(None);
+        set_player_transport_position_like_cpp(host, None);
         None
     }
+}
+
+// The login transport-offset write (#1363 slice 12d; moved from the World
+// `session/movement/state.rs`).
+pub fn set_player_transport_position_like_cpp<H: CharacterLoginHostLikeCpp + ?Sized>(
+    host: &mut H,
+    position: Option<Position>,
+) {
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if host.test_fixtures_ref_like_cpp().is_some() && host.core().player_handle_like_cpp.is_none() {
+        if let (Some(state), Some(position)) = (
+            host.hub_mut()
+                .fixtures
+                .vehicles
+                .player_transport_login_state_like_cpp
+                .as_mut(),
+            position,
+        ) {
+            state.info.x = position.x;
+            state.info.y = position.y;
+            state.info.z = position.z;
+            state.info.o = position.orientation;
+        }
+        return;
+    }
+    let _ = host.core().with_owned_player_mut_like_cpp(|player| {
+        if let Some(position) = position {
+            player.set_transport_position_like_cpp(position);
+        }
+    });
 }

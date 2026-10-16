@@ -801,7 +801,7 @@ pub fn handle_under_map_like_cpp<H: PlayerMovementHostLikeCpp>(
 
     // C++ calls KillPlayer if EnvironmentalDamage did not kill due to GM/immunity.
     if host.hub_ref().resolved_player_is_alive_like_cpp() == Some(true) {
-        host.set_player_alive_like_cpp(false);
+        crate::set_player_alive_like_cpp(host, false);
     } else {
         host.sync_player_registry_state_like_cpp();
     }

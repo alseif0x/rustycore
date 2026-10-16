@@ -17,7 +17,7 @@
 //! flags, the far-sight sync and the quest-state refresh request stay with
 //! the host.
 
-use wow_core::{ObjectGuid, Position};
+use wow_core::ObjectGuid;
 use wow_world_lifecycle::SessionLifecycleState;
 use wow_world_visibility::VisibilityState;
 
@@ -25,6 +25,7 @@ use crate::RepresentedGameObjectUseState;
 use crate::world_entities_host::WorldEntitiesHostLikeCpp;
 
 mod canonical_objects;
+mod deferred;
 mod dynamic_object_values;
 mod nearby;
 mod queries;
@@ -35,6 +36,11 @@ mod update;
 pub use canonical_objects::{
     dynamic_object_create_data_from_canonical_like_cpp,
     visible_dynamic_objects_from_canonical_map_like_cpp,
+};
+pub use deferred::{
+    apply_deferred_player_visibility_refresh_like_cpp,
+    flush_pending_visibility_refresh_with_catalogs_like_cpp,
+    handle_destroy_visible_object_like_cpp_command_like_cpp,
 };
 pub use dynamic_object_values::send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp;
 pub use nearby::{send_nearby_creatures_with_catalogs_like_cpp, send_nearby_gameobjects};
@@ -47,8 +53,9 @@ pub use queries::{
 pub use session_visibility::{
     apply_move_init_active_mover_complete_like_cpp, can_see_phase_shift_like_cpp,
     current_seer_guid_like_cpp, force_update_visibility_with_catalogs_like_cpp,
-    represented_player_phase_shift_like_cpp, resolved_visible_resting_like_cpp,
-    sync_current_player_session_visibility_detection_like_cpp,
+    represented_player_flags_value_like_cpp, represented_player_has_flag_like_cpp,
+    represented_player_phase_shift_like_cpp, represented_visibility_source_position_like_cpp,
+    resolved_visible_resting_like_cpp, sync_current_player_session_visibility_detection_like_cpp,
     visible_other_players_from_registry_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -79,7 +86,6 @@ pub trait VisibilitySessionHostLikeCpp: WorldEntitiesHostLikeCpp {
         state: &RepresentedGameObjectUseState,
     ) -> u32;
     fn sync_represented_farsight_clear_from_canonical_like_cpp(&mut self) -> bool;
-    fn represented_visibility_source_position_like_cpp(&self) -> Option<Position>;
     /// The World's `current_seer_guid_like_cpp` (`Player::m_seer` as a GUID).
     fn current_seer_guid_like_cpp(&self) -> Option<ObjectGuid>;
 }

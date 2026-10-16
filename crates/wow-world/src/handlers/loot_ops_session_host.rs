@@ -6,9 +6,16 @@
 //! field or inherent operation (the durable item-loot persistence ones through
 //! the inventory context; `Loot::NotifyMoneyRemoved` and four of the 5c money
 //! operations through the loot handler owner's default methods); the fixture
-//! predicate keeps this crate's `cfg!(test)`.
+//! predicate keeps this crate's `cfg!(test)`. Moved out of `handlers/loot` in
+//! #1363 slice 12d (one adapter file per destination crate, outside the
+//! hotspot trees), where the retired split forwards' bodies now sit.
 
+use std::sync::atomic::AtomicBool;
 use std::{collections::HashMap, future::Future, sync::Arc};
+
+use wow_constants::{InventoryResult, ItemContext};
+use wow_core::ObjectGuid;
+use wow_entities::ItemPosCount;
 
 use wow_social::group::GroupRegistry;
 use wow_world_core::session::directory::PlayerRegistry;
@@ -16,7 +23,11 @@ use wow_world_core::session::{HubMut, HubRef};
 use wow_world_lifecycle::SessionLifecycleState;
 use wow_world_loot_ops::{LootHandlerHostLikeCpp, LootSessionHostLikeCpp};
 
-use super::*;
+use crate::session::mailbox::{ApplyLootMoneyLikeCppCommand, SessionCommand};
+use crate::session::{
+    DurableItemLootCompletionLikeCpp, DurableItemLootPersistenceGuardLikeCpp, InventoryItem,
+    LootMoneyDeliveryAddressLikeCpp, LootMoneyViewerFanoutLikeCpp, WorldSession,
+};
 use wow_loot::LootStores;
 use wow_world_core::session_policy::LootDropRatesLikeCpp;
 use wow_world_inventory::InventoryState;
@@ -49,7 +60,7 @@ impl LootSessionHostLikeCpp for WorldSession {
         &self.inventory
     }
     fn represented_local_loot_fixture_allowed_like_cpp(&self) -> bool {
-        represented_local_loot_fixture_allowed_like_cpp()
+        crate::handlers::loot::represented_local_loot_fixture_allowed_like_cpp()
     }
     fn current_map_dungeon_state_like_cpp(&self) -> Option<bool> {
         wow_world_spell::current_map_dungeon_state_like_cpp(self)
@@ -70,7 +81,8 @@ impl LootSessionHostLikeCpp for WorldSession {
         self.loot.has_active_non_item_loot_views_like_cpp()
     }
     fn item_drop_rate_like_cpp(&self, item_id: u32) -> f32 {
-        self.item_drop_rate_like_cpp(item_id)
+        self.inventory
+            .item_drop_rate_like_cpp(crate::session::hub_ref(self), item_id)
     }
     fn item_storage_template(&self, item_id: u32) -> Option<wow_entities::ItemStorageTemplate> {
         self.catalogs.item_storage_template(item_id)
@@ -101,7 +113,8 @@ impl LootSessionHostLikeCpp for WorldSession {
         guid: ObjectGuid,
         f: impl FnOnce(&mut wow_entities::GameObject) -> R,
     ) -> Option<R> {
-        self.mutate_canonical_gameobject_by_guid_like_cpp(guid, f)
+        let (state, mut hub) = crate::session::split_world_entities_mut(self);
+        state.mutate_canonical_gameobject_by_guid_like_cpp(&mut hub, guid, f)
     }
     fn plan_store_new_direct_inventory_item(
         &self,
@@ -119,7 +132,8 @@ impl LootSessionHostLikeCpp for WorldSession {
         self.player_registry()
     }
     fn represented_inventory_item_counts_like_cpp(&self) -> Option<HashMap<u32, u32>> {
-        self.represented_inventory_item_counts_like_cpp()
+        self.inventory
+            .represented_inventory_item_counts_like_cpp(crate::session::hub_ref(self))
     }
     fn represented_money_loot_with_rate_like_cpp(
         &mut self,
@@ -127,7 +141,8 @@ impl LootSessionHostLikeCpp for WorldSession {
         max_amount: u32,
         rate: f32,
     ) -> u32 {
-        self.represented_money_loot_with_rate_like_cpp(min_amount, max_amount, rate)
+        let (state, mut hub) = crate::session::split_loot_mut(self);
+        state.represented_money_loot_with_rate_like_cpp(&mut hub, min_amount, max_amount, rate)
     }
     fn update_visible_gameobjects_or_spell_clicks_like_cpp(&self) -> usize {
         self.update_visible_gameobjects_or_spell_clicks_like_cpp()
@@ -147,7 +162,8 @@ impl LootSessionHostLikeCpp for WorldSession {
         item_guid: ObjectGuid,
         updates: &[ItemObjectUpdateLikeCpp],
     ) -> bool {
-        self.apply_inventory_item_object_updates_like_cpp(item_guid, updates)
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.apply_inventory_item_object_updates_like_cpp(&mut hub, item_guid, updates)
     }
     fn apply_quest_source_item_added_non_bound_objective_progress_with_generator_like_cpp(
         &mut self,
@@ -202,10 +218,12 @@ impl LootSessionHostLikeCpp for WorldSession {
         slot: u8,
         item: InventoryItem,
     ) -> Option<InventoryItem> {
-        self.insert_inventory_item_like_cpp(slot, item)
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.insert_inventory_item_like_cpp(&mut hub, slot, item)
     }
     fn insert_inventory_item_object(&mut self, item: Item) -> Option<Item> {
-        self.insert_inventory_item_object(item)
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.insert_inventory_item_object(&mut hub, item)
     }
     fn item_stats_store(&self) -> Option<&Arc<ItemStatsStore>> {
         self.catalogs.item_stats_store()
@@ -254,7 +272,8 @@ impl LootSessionHostLikeCpp for WorldSession {
         player_guid: ObjectGuid,
         dungeon_encounter_id: u32,
     ) -> Option<bool> {
-        self.player_is_locked_to_dungeon_encounter_like_cpp(player_guid, dungeon_encounter_id)
+        let (state, hub) = crate::session::split_instances_ref(self);
+        state.player_is_locked_to_dungeon_encounter_like_cpp(hub, player_guid, dungeon_encounter_id)
     }
     fn represented_can_receive_creature_message_to_set_by_guid_like_cpp(
         &self,
@@ -277,16 +296,20 @@ impl LootSessionHostLikeCpp for WorldSession {
         )
     }
     fn resolved_inventory_item_like_cpp(&self, slot: u8) -> Option<InventoryItem> {
-        self.resolved_inventory_item_like_cpp(slot)
+        self.inventory
+            .resolved_inventory_item_like_cpp(crate::session::hub_ref(self), slot)
     }
     fn resolved_inventory_item_object_like_cpp(&self, guid: ObjectGuid) -> Option<Item> {
-        self.resolved_inventory_item_object_like_cpp(guid)
+        self.inventory
+            .resolved_inventory_item_object_like_cpp(crate::session::hub_ref(self), guid)
     }
     fn resolved_inventory_items_like_cpp(&self) -> Option<HashMap<u8, InventoryItem>> {
-        self.resolved_inventory_items_like_cpp()
+        self.inventory
+            .resolved_inventory_items_like_cpp(crate::session::hub_ref(self))
     }
     fn resolved_pass_on_group_loot_like_cpp(&self) -> Option<bool> {
-        self.resolved_pass_on_group_loot_like_cpp()
+        self.loot
+            .resolved_pass_on_group_loot_like_cpp(crate::session::hub_ref(self))
     }
     fn resolved_player_money_like_cpp(&self) -> Option<u64> {
         wow_world_inventory::BattlePetPurchaseHostLikeCpp::resolved_player_money_like_cpp(self)
@@ -317,7 +340,8 @@ impl LootSessionHostLikeCpp for WorldSession {
         self.session_command_tx()
     }
     fn set_player_gold_like_cpp(&mut self, gold: u64) -> bool {
-        self.set_player_gold_like_cpp(gold)
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.set_player_gold_like_cpp(&mut hub, gold)
     }
     fn sync_player_registry_state_like_cpp(&self) {
         self.sync_player_registry_state_like_cpp()

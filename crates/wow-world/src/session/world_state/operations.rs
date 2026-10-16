@@ -63,10 +63,6 @@ impl WorldSession {
             )
         }
     }
-    pub(crate) fn set_player_zone_area_authority_complete_like_cpp(&mut self, complete: bool) {
-        let (state, mut hub) = crate::session::split_instances_mut(self);
-        state.set_player_zone_area_authority_complete_like_cpp(&mut hub, complete)
-    }
 }
 
 impl crate::session::state::SessionWorldView {

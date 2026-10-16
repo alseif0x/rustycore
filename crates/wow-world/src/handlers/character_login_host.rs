@@ -7,8 +7,13 @@
 //! data and gossip operations since slice 8e). Every
 //! method names the inherent `WorldSession` operation by path, so none
 //! resolves to its own trait method; a future is the session's own future,
-//! returned unchanged.
+//! returned unchanged. Moved out of `handlers/character` in #1363 slice 12d
+//! (one adapter file per destination crate, outside the hotspot trees), where
+//! the retired split forwards' bodies now sit.
 
+use std::collections::{HashMap, HashSet};
+
+use wow_core::ObjectGuid;
 use wow_data::TalentTabStore;
 use wow_entities::{PhaseShift, PlayerCurrency, PlayerEnchantTimeUpdate, PlayerItemTimeUpdate};
 use wow_world_core::session::{HubMut, HubRef, SessionState};
@@ -24,7 +29,14 @@ use wow_world_spell::{
 };
 use wow_world_visibility::VisibilityState;
 
-use super::*;
+use wow_packet::packets::gossip::{ClientGossipText, Hello};
+use wow_packet::packets::misc::{AccountMount, DungeonDifficultySet};
+use wow_packet::packets::spell::{SpellCastVisual, SpellTargetData};
+use wow_progression::mgr::CharacterReputationRowLikeCpp;
+
+use crate::session::{
+    CreatureSpawnCatalogsLikeCpp, RepresentedHomebindLikeCpp, SpellCastMetadata, WorldSession,
+};
 
 impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
     fn lifecycle_mut(&mut self) -> &mut SessionLifecycleState {
@@ -63,7 +75,9 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         WorldSession::account_mount_login_partial_rows_like_cpp(self)
     }
     fn apply_loaded_inventory_item_collection_hooks_like_cpp(&mut self, item: &wow_entities::Item) {
-        WorldSession::apply_loaded_inventory_item_collection_hooks_like_cpp(self, item)
+        let _ = crate::session::cx_lifecycle(self)
+            .check_account_heirloom_upgrades_like_cpp(item.object().entry());
+        let _ = wow_world_inventory::add_item_appearance_for_runtime_item_like_cpp(self, item);
     }
     fn cleanup_shared_runtime_state(&mut self) -> FinalizationOutcome {
         WorldSession::cleanup_shared_runtime_state(self)
@@ -72,7 +86,8 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         wow_world_character::begin_represented_trait_config_authority_load_like_cpp(self)
     }
     fn clear_player_currencies_like_cpp(&mut self) -> bool {
-        WorldSession::set_player_currencies_like_cpp(self, HashMap::new())
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.set_player_currencies_like_cpp(&mut hub, HashMap::new())
     }
     fn complete_represented_trait_config_authority_load_like_cpp(
         &mut self,
@@ -164,7 +179,8 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         &mut self,
         rows: impl IntoIterator<Item = CharacterReputationRowLikeCpp>,
     ) -> bool {
-        WorldSession::load_character_reputation_rows_like_cpp(self, rows)
+        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
+        state.load_character_reputation_rows_like_cpp(&mut hub, rows)
     }
     fn load_represented_character_auras_like_cpp(
         &mut self,
@@ -190,8 +206,9 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         assigned_spec_index: i32,
         pieces: [ObjectGuid; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
     ) -> bool {
-        WorldSession::load_represented_equipment_set_row_like_cpp(
-            self,
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.load_represented_equipment_set_row_like_cpp(
+            &mut hub,
             guid,
             set_id,
             set_name,
@@ -227,7 +244,8 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         wow_world_spell::mark_represented_spell_acquisition_snapshot_complete_like_cpp(self)
     }
     fn mark_represented_talents_loaded_like_cpp(&mut self) {
-        WorldSession::mark_represented_talents_loaded_like_cpp(self)
+        let _ = crate::session::hub_mut(self).mark_talents_loaded_like_cpp();
+        wow_world_quest::refresh_represented_talent_points_like_cpp(self);
     }
     fn next_represented_spell_cast_guid_like_cpp(&self, spell_id: i32) -> Option<ObjectGuid> {
         wow_world_spell::next_represented_spell_cast_guid_like_cpp(self, spell_id)
@@ -236,16 +254,19 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         wow_world_spell::notify_other_players_visibility_changed_like_cpp(self)
     }
     fn player_currencies_like_cpp(&self) -> Option<HashMap<u32, PlayerCurrency>> {
-        WorldSession::player_currencies_like_cpp(self)
+        self.inventory
+            .player_currencies_like_cpp(crate::session::hub_ref(self))
     }
     fn player_current_map_instanceable_like_cpp(&self) -> bool {
         wow_world_spell::player_current_map_instanceable_like_cpp(self)
     }
     fn player_interaction_source_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        WorldSession::player_interaction_source_guid_like_cpp(self)
+        let (state, hub) = crate::session::split_interaction_ref(self);
+        state.player_interaction_source_guid_like_cpp(hub)
     }
     fn replace_player_difficulty_preferences_like_cpp(&mut self, d: u32, r: u32, l: u32) -> bool {
-        WorldSession::replace_player_difficulty_preferences_like_cpp(self, d, r, l)
+        let (state, mut hub) = crate::session::split_instances_mut(self);
+        state.replace_player_difficulty_preferences_like_cpp(&mut hub, d, r, l)
     }
     fn quest_log_create_entries_like_cpp(&self) -> Vec<(u32, u32, i64, [u16; 24])> {
         WorldSession::quest_log_create_entries_like_cpp(self)
@@ -258,8 +279,9 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         loaded_item_guids: &[ObjectGuid],
         loaded_equipped_item_guids: &[ObjectGuid],
     ) -> (Vec<PlayerItemTimeUpdate>, Vec<PlayerEnchantTimeUpdate>) {
-        WorldSession::register_loaded_inventory_item_duration_refs_like_cpp(
-            self,
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.register_loaded_inventory_item_duration_refs_like_cpp(
+            &mut hub,
             loaded_item_guids,
             loaded_equipped_item_guids,
         )
@@ -274,7 +296,8 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         wow_world_spell::represented_dependent_known_spells_like_cpp(self)
     }
     fn represented_dungeon_difficulty_packet_like_cpp(&self) -> Option<DungeonDifficultySet> {
-        WorldSession::represented_dungeon_difficulty_packet_like_cpp(self)
+        self.instances
+            .represented_dungeon_difficulty_packet_like_cpp(crate::session::hub_ref(self))
     }
     fn represented_homebind_like_cpp(&self) -> Option<RepresentedHomebindLikeCpp> {
         wow_world_spell::represented_homebind_like_cpp(self)
@@ -311,7 +334,8 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         WorldSession::void_storage_is_unlocked_like_cpp(self)
     }
     fn set_player_currencies_like_cpp(&mut self, currencies: HashMap<u32, PlayerCurrency>) -> bool {
-        WorldSession::set_player_currencies_like_cpp(self, currencies)
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.set_player_currencies_like_cpp(&mut hub, currencies)
     }
     fn set_player_aura_authority_complete_like_cpp(&mut self, complete: bool) -> bool {
         wow_world_spell::set_player_aura_authority_complete_like_cpp(self, complete)
@@ -331,11 +355,9 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
     fn set_player_transport_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
         WorldSession::set_player_transport_guid_like_cpp(self, guid)
     }
-    fn set_player_transport_position_like_cpp(&mut self, position: Option<Position>) {
-        WorldSession::set_player_transport_position_like_cpp(self, position)
-    }
     fn set_player_zone_area_authority_complete_like_cpp(&mut self, complete: bool) {
-        WorldSession::set_player_zone_area_authority_complete_like_cpp(self, complete)
+        let (state, mut hub) = crate::session::split_instances_mut(self);
+        state.set_player_zone_area_authority_complete_like_cpp(&mut hub, complete)
     }
     fn set_state(&mut self, state: SessionState) {
         WorldSession::set_state(self, state)

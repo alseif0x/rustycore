@@ -5,12 +5,7 @@
 
 use super::*;
 
-impl WorldSession {
-    pub(crate) fn represented_non_bank_item_count_like_cpp(&self, entry_id: u32) -> Option<u32> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.represented_non_bank_item_count_like_cpp(hub, entry_id)
-    }
-}
+impl WorldSession {}
 
 #[cfg(test)]
 #[path = "../../../unit_tests/session/player_items/bank/f3_shims.rs"]

@@ -166,16 +166,11 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
     fn apply_force_deselect_effect_like_cpp(&mut self) -> bool {
         wow_world_social::apply_force_deselect_effect_like_cpp(self)
     }
-    fn player_resurrection_state_snapshot_like_cpp(
-        &self,
-    ) -> Option<PlayerResurrectionStateLikeCpp> {
-        WorldSession::player_resurrection_state_snapshot_like_cpp(self)
-    }
     fn set_player_ghost_flag_like_cpp(&mut self, ghost: bool) {
-        WorldSession::set_player_ghost_flag_like_cpp(self, ghost)
+        wow_world_entities::set_player_ghost_flag_like_cpp(self, ghost)
     }
     fn set_player_alive_like_cpp(&mut self, alive: bool) {
-        WorldSession::set_player_alive_like_cpp(self, alive)
+        wow_world_entities::set_player_alive_like_cpp(self, alive)
     }
     #[cfg(test)]
     fn mutate_player_persistent_capability_state_like_cpp<R>(

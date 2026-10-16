@@ -97,7 +97,7 @@ impl WorldEntitiesHostLikeCpp for WorldSession {
         map_id: u16,
         values_update: &wow_entities::UnitValuesUpdate,
     ) -> Option<wow_packet::packets::update::UpdateObject> {
-        WorldSession::represented_unit_values_update_to_update_object_like_cpp(
+        wow_world_quest::unit_update_publication::represented_unit_values_update_to_update_object_like_cpp(
             self,
             unit_guid,
             map_id,

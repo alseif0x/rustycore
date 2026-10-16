@@ -11,13 +11,6 @@ impl WorldSession {
             .load_instance_time_restrictions_like_cpp()
             .await
     }
-    pub(crate) fn load_character_reputation_rows_like_cpp(
-        &mut self,
-        rows: impl IntoIterator<Item = wow_progression::mgr::CharacterReputationRowLikeCpp>,
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.load_character_reputation_rows_like_cpp(&mut hub, rows)
-    }
     pub(crate) fn load_represented_xp_rest_bonus_like_cpp(
         &mut self,
         rest_state: u8,
@@ -91,49 +84,21 @@ impl WorldSession {
                 .represented_rest_time_secs_like_cpp = 0;
         }
     }
-    pub(crate) fn mark_represented_talents_loaded_like_cpp(&mut self) {
-        let _ = crate::session::hub_mut(self).mark_talents_loaded_like_cpp();
-        wow_world_quest::refresh_represented_talent_points_like_cpp(self);
-    }
     /// Set the player loading GUID (ConnectTo flow).
     pub fn set_player_loading(&mut self, guid: Option<ObjectGuid>) {
         self.lifecycle.set_player_loading(guid);
         wow_world_entities::sync_current_player_session_visibility_detection_like_cpp(self);
     }
     pub async fn load_tutorials_data_like_cpp(&mut self) {
-        self.lifecycle.begin_tutorials_load_like_cpp();
-
-        let Some(port) = self
-            .lifecycle
-            .session_account_state_port_like_cpp()
-            .map(std::sync::Arc::clone)
-        else {
-            warn!(
-                account = self.core.account_id,
-                "LoadTutorialsData skipped: session account-state port unavailable"
-            );
-            return;
-        };
-
-        match port.load_tutorials_like_cpp(self.core.account_id).await {
-            wow_persistence::SessionTutorialsLoadOutcomeLikeCpp::Loaded(values) => {
-                self.lifecycle.load_tutorials_data_values_like_cpp(values);
-            }
-            wow_persistence::SessionTutorialsLoadOutcomeLikeCpp::Failed { reason } => {
-                warn!(
-                    account = self.core.account_id,
-                    "LoadTutorialsData query failed: {reason}"
-                );
-            }
-        }
+        self.lifecycle
+            .load_tutorials_data_like_cpp(self.core.account_id)
+            .await
     }
     pub async fn load_global_account_data_like_cpp(&mut self) {
-        self.load_account_data_like_cpp(ObjectGuid::EMPTY, GLOBAL_CACHE_MASK_LIKE_CPP)
-            .await;
-    }
-    async fn load_account_data_like_cpp(&mut self, guid: ObjectGuid, mask: u32) {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.load_account_data_like_cpp(&mut hub, guid, mask).await
+        state
+            .load_account_data_like_cpp(&mut hub, ObjectGuid::EMPTY, GLOBAL_CACHE_MASK_LIKE_CPP)
+            .await;
     }
     pub(crate) fn set_loaded_player_name_like_cpp(&mut self, name: String) {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);

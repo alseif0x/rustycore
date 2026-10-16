@@ -69,7 +69,8 @@ impl WorldSession {
         }
 
         if let Some(unit_values_update) = command.unit_values_update {
-            let update = self.represented_unit_packet_update_to_update_object_like_cpp(
+            let update = wow_world_quest::unit_update_publication::represented_unit_packet_update_to_update_object_like_cpp(
+                self,
                 command.object_guid,
                 command.map_id,
                 unit_values_update,

@@ -9,16 +9,20 @@ impl wow_world_spell::TalentHostLikeCpp for WorldSession {
         wow_world_quest::refresh_represented_talent_points_like_cpp(self)
     }
     fn resolved_represented_at_login_flags_like_cpp(&self) -> Option<u16> {
-        WorldSession::resolved_represented_at_login_flags_like_cpp(self)
+        wow_world_spell::resolved_represented_at_login_flags_like_cpp(self)
     }
     fn remove_represented_at_login_flag_like_cpp(&mut self, flags: u16, persist: bool) -> bool {
-        WorldSession::remove_represented_at_login_flag_like_cpp(self, flags, persist)
+        wow_world_spell::remove_represented_at_login_flag_like_cpp(self, flags, persist)
     }
     fn represented_talents_loaded_like_cpp(&self) -> bool {
         let (state, hub) = crate::session::split_lifecycle_ref(self);
         state.represented_talents_loaded_like_cpp(hub)
     }
     fn trinity_string_like_cpp(&self, entry: u32) -> &str {
-        WorldSession::trinity_string_like_cpp(self, entry)
+        self.catalogs
+            .trinity_string_store
+            .as_ref()
+            .map(|store| store.get_like_cpp(entry, &self.core.locale))
+            .unwrap_or("<error>")
     }
 }

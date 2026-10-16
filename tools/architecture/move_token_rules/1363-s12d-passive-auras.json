@@ -1,0 +1,43 @@
+{
+ "slice": "#1363 slice 12d (the login passive-aura replays -> wow-world-application continue_login/passive_auras.rs over ContinueLoginHostLikeCpp; the two host methods of those names retire)",
+ "base": "4cf327c8c",
+ "moved": [
+  "apply_login_passive_known_spell_auras_like_cpp",
+  "apply_loaded_known_spell_previous_rank_passive_auras_like_cpp"
+ ],
+ "comment": "spell_store() inlines the World catalog forward (self.catalogs.spell_store(), verified); the aura application is the new ContinueLoginHostLikeCpp::apply_aura_with_effect_mask_like_cpp, whose World impl is the retired-scope World inherent's body (the aura-application context call) verbatim; the inventory split is the lifecycle host's LootSessionHostLikeCpp::split_inventory_ref (crate::session::split_inventory_ref, verified). One rustfmt-only rule: the prev-spell closure gains braces once its path lengthens.",
+ "rules": [
+  [
+   "pub\\(crate\\) fn {name}\\(\\s*&mut self",
+   "pub fn {name}<H: ContinueLoginHostLikeCpp>(host: &mut H"
+  ],
+  [
+   "\\.map\\(\\|spell_id\\| self\\.catalogs\\.prev_spell_in_chain_like_cpp\\(spell_id\\)\\)",
+   ".map(|spell_id| { self.catalogs.prev_spell_in_chain_like_cpp(spell_id) })"
+  ],
+  [
+   "self\\.spell_store\\(\\)",
+   "host.hub_ref().catalogs.spell_store()"
+  ],
+  [
+   "crate::session::split_inventory_ref\\(self\\)",
+   "LootSessionHostLikeCpp::split_inventory_ref(host)"
+  ],
+  [
+   "crate::session::hub_ref\\(self\\)",
+   "host.hub_ref()"
+  ],
+  [
+   "\\bself\\s*\\.\\s*catalogs\\b",
+   "host.hub_ref().catalogs"
+  ],
+  [
+   "wow_world_spell::(\\w+)\\(\\s*self\\b",
+   "wow_world_spell::\\1(host"
+  ],
+  [
+   "\\bself\\s*\\.",
+   "host."
+  ]
+ ]
+}

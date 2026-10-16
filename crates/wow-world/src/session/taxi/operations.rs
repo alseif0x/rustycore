@@ -19,23 +19,6 @@ impl WorldSession {
     pub fn set_vehicle_accessory_store(&mut self, store: Arc<VehicleAccessoryStoreLikeCpp>) {
         self.catalogs.vehicle_accessory_store = Some(store);
     }
-    #[allow(dead_code)]
-    pub(crate) fn represented_taxi_edge_distance_like_cpp(
-        &self,
-        destination_has_required_team_flag: bool,
-        destination_condition_id: u32,
-        distance: u32,
-    ) -> u32 {
-        if !destination_has_required_team_flag {
-            return u16::MAX as u32;
-        }
-
-        if !self.represented_meets_player_condition_id_like_cpp(destination_condition_id) {
-            return u16::MAX as u32;
-        }
-
-        distance
-    }
     pub(crate) fn set_player_transport_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
         crate::session::hub_mut(self).set_player_transport_guid_like_cpp(guid)
     }
