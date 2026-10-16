@@ -3,7 +3,8 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! Test-only method entry points for the represented login-load bodies moved
-//! to `wow-world-character` in #1363 slice 12b4: one-call forwards to the
+//! to `wow-world-character` and the login spell reset moved to
+//! `wow-world-application` in #1363 slice 12b4: one-call forwards to the
 //! moved functions the scenarios call, so no scenario call site changes, and
 //! the vault clear, which has no production caller left.
 #![cfg(test)]
@@ -50,5 +51,8 @@ impl WorldSession {
             configs,
             entries_empty,
         )
+    }
+    pub(crate) fn apply_represented_login_spell_reset_if_needed_like_cpp(&mut self) -> bool {
+        wow_world_application::apply_represented_login_spell_reset_if_needed_like_cpp(self)
     }
 }

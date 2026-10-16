@@ -85,7 +85,7 @@ impl ContinueLoginHostLikeCpp for WorldSession {
         )
     }
     fn apply_represented_login_spell_reset_if_needed_like_cpp(&mut self) -> bool {
-        WorldSession::apply_represented_login_spell_reset_if_needed_like_cpp(self)
+        wow_world_application::apply_represented_login_spell_reset_if_needed_like_cpp(self)
     }
     fn load_instance_time_restrictions_like_cpp(&mut self) -> impl Future<Output = ()> + Send {
         WorldSession::load_instance_time_restrictions_like_cpp(self)

@@ -14,6 +14,7 @@ mod session_lifecycle;
 pub use continue_login::{
     ContinueLoginHostLikeCpp, PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP,
     apply_represented_group_leader_flag_like_cpp,
+    apply_represented_login_spell_reset_if_needed_like_cpp,
     handle_continue_player_login_with_module_registry_like_cpp,
     load_represented_character_titles_like_cpp,
     loaded_inventory_slot_count_with_legacy_rust_compat,

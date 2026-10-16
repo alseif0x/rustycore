@@ -698,8 +698,6 @@ use wow_world_core::session::PLAYER_FLAGS_IN_PVP_LIKE_CPP;
 #[cfg(test)]
 const PLAYER_FLAGS_PVP_TIMER_LIKE_CPP: u32 = 0x0004_0000;
 use wow_world_core::session::SPELL_PVP_RULES_ENABLED_LIKE_CPP;
-const LANG_RESET_SPELLS_LIKE_CPP: u32 = 215;
-const LANG_RESET_SPELLS_TEXT_LIKE_CPP: &str = "Your spells have been reset.";
 #[cfg(test)]
 pub(crate) const TRADE_STATUS_PLAYER_BUSY_LIKE_CPP: u8 = 0;
 #[cfg(test)]

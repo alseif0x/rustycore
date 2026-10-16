@@ -67,6 +67,7 @@ use crate::SessionLifecycleHostLikeCpp;
 
 mod hydration;
 mod login;
+mod spell_reset;
 
 pub use hydration::{
     PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP, apply_represented_group_leader_flag_like_cpp,
@@ -75,6 +76,7 @@ pub use hydration::{
     login_known_spells_after_account_collections_like_cpp,
 };
 pub use login::handle_continue_player_login_with_module_registry_like_cpp;
+pub use spell_reset::apply_represented_login_spell_reset_if_needed_like_cpp;
 
 /// The World operations the moved continue-login coordinator still calls.
 pub trait ContinueLoginHostLikeCpp:

@@ -1,0 +1,42 @@
+{
+ "slice": "#1363 slice 12b4 (the login spell reset and its notification text -> wow-world-application over TalentHostLikeCpp + QuestSessionHostLikeCpp + AuraHostLikeCpp)",
+ "base": "ef33829da",
+ "moved": [
+  "apply_represented_login_spell_reset_if_needed_like_cpp",
+  "reset_spells_notification_text_like_cpp"
+ ],
+ "rules": [
+  [
+   "pub\\(crate\\) fn apply_represented_login_spell_reset_if_needed_like_cpp\\(&mut self\\)",
+   "pub fn apply_represented_login_spell_reset_if_needed_like_cpp<H: TalentHostLikeCpp + QuestSessionHostLikeCpp + AuraHostLikeCpp>(host: &mut H)"
+  ],
+  [
+   "pub\\(in crate::session\\) fn reset_spells_notification_text_like_cpp\\(&self\\)",
+   "fn reset_spells_notification_text_like_cpp<H: TalentHostLikeCpp>(host: &H)"
+  ],
+  [
+   "\\bself\\s*\\.\\s*reset_spells_notification_text_like_cpp\\(\\)",
+   "reset_spells_notification_text_like_cpp(host)"
+  ],
+  [
+   "wow_world_spell::known_spells_like_cpp\\(self\\)",
+   "wow_world_spell::known_spells_like_cpp(host)"
+  ],
+  [
+   "wow_world_spell::remove_known_spell_like_cpp\\(self,",
+   "wow_world_spell::remove_known_spell_like_cpp(host,"
+  ],
+  [
+   "wow_world_quest::apply_represented_quest_rewarded_spells_like_cpp\\(self\\)",
+   "wow_world_quest::apply_represented_quest_rewarded_spells_like_cpp(host)"
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "\\bself\\s*\\.\\s*",
+   "host."
+  ]
+ ]
+}

@@ -1,0 +1,2 @@
+crates/wow-world/src/session/spell_state/effects.rs	apply_represented_login_spell_reset_if_needed_like_cpp	crates/wow-world-application/src/continue_login/spell_reset.rs
+crates/wow-world/src/session/spell_state/spell.rs	reset_spells_notification_text_like_cpp	crates/wow-world-application/src/continue_login/spell_reset.rs
