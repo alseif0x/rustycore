@@ -305,8 +305,7 @@ impl LootSessionHostLikeCpp for WorldSession {
         buyback_changes: &[(u8, u32, i64)],
         coinage: Option<u64>,
     ) -> bool {
-        wow_world_inventory::send_player_values_update_from_entity_bridge(
-            self,
+        self.send_player_values_update_from_entity_bridge(
             inv_slot_changes,
             visible_item_changes,
             virtual_item_changes,

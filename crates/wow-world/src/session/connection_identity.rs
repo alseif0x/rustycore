@@ -50,8 +50,6 @@ pub(in crate::session) fn trinity_sprintf_like_cpp(format: &str, args: &[&str]) 
     output
 }
 
-pub(in crate::session) use wow_world_core::session::connection_identity::unix_now;
-
 impl WorldSession {
     pub fn set_realm_handle_like_cpp(&mut self, region: u8, battlegroup: u8, realm_id: u16) {
         self.core.realm_policy.realm_region = region;

@@ -142,7 +142,6 @@ pub use catalog_capabilities::{PlayerBootstrapCatalogsLikeCpp, PlayerRestRatePol
 pub use catalog_capabilities::{SessionHandlerCatalogsLikeCpp, SessionIdGeneratorsLikeCpp};
 pub use wow_world_core::session::ChatPolicyCatalogsLikeCpp;
 pub use wow_world_core::session::SupportFeaturePolicyLikeCpp;
-use wow_world_core::session::character_availability::default_available_classes;
 mod character_customization;
 #[cfg(test)]
 pub(crate) use character_customization::{
@@ -166,10 +165,10 @@ pub(crate) use connection_identity::PER_CHARACTER_CACHE_MASK_LIKE_CPP;
 use connection_identity::PacketSpoofPendingBanLikeCpp;
 use connection_identity::PacketSpoofPendingBanTargetLikeCpp;
 pub use connection_identity::SessionState;
+use connection_identity::trinity_sprintf_like_cpp;
 pub(crate) use connection_identity::{AccountDataLikeCpp, GLOBAL_CACHE_MASK_LIKE_CPP};
 #[cfg(test)]
 pub(crate) use connection_identity::{ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp};
-use connection_identity::{trinity_sprintf_like_cpp, unix_now};
 mod construction;
 mod creature_aggro_contracts;
 pub use creature_aggro_contracts::CreatureAggroCandidateLikeCpp;
@@ -203,7 +202,6 @@ use creature_spell_publication::CreatureSpellHitProfileLikeCpp;
 mod currency_adapter;
 pub(crate) use currency_adapter::PlayerCurrencyDelta;
 pub(crate) use currency_adapter::RepresentedQuestObjectiveProgressEventLikeCpp;
-use currency_adapter::currency_max_quantity_cpp;
 pub(crate) use currency_adapter::player_team_for_race_cpp;
 mod duel_contracts;
 #[cfg(test)]
@@ -350,7 +348,6 @@ pub(crate) use player_spell_records::RepresentedPlayerSkillStateLikeCpp;
 pub(crate) use player_spell_records::is_non_durable_skill_tombstone_like_cpp;
 #[cfg(test)]
 use wow_world_spell::canonical_player_spell_runtime_like_cpp;
-use wow_world_spell::represented_player_spell_runtime_like_cpp;
 pub(crate) use wow_world_spell::{
     RepresentedPlayerSpellRuntimeLikeCpp, RepresentedPlayerSpellStateLikeCpp,
 };
@@ -496,7 +493,7 @@ use wow_ai::CreatureAiKindLikeCpp;
 use wow_constants::ItemEnchantmentType;
 #[cfg(test)]
 use wow_constants::creature::CreatureTypeFlags;
-use wow_constants::item::{CurrencyTypes, EnchantmentSlot, ItemFieldFlags2};
+use wow_constants::item::{EnchantmentSlot, ItemFieldFlags2};
 use wow_constants::shared::DifficultyFlags;
 use wow_constants::unit::{Gender, Team, UnitFlags, UnitPvpFlags, WeaponAttackType};
 #[cfg(test)]
@@ -507,7 +504,7 @@ use wow_constants::{
     UnitState, item::ItemBonusType, movement::MovementFlag,
 };
 use wow_constants::{ClientOpcodes, InventoryResult, ItemContext, ItemModifier};
-use wow_core::{EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, Position, guid::HighGuid};
+use wow_core::{EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, Position};
 #[cfg(test)]
 use wow_data::CinematicSequencesStore;
 #[cfg(test)]
@@ -590,8 +587,7 @@ use wow_data::{
 };
 use wow_entities::player_rules::is_using_two_handed_weapon_in_one_hand_template as two_handed_in_one_hand_like_cpp;
 // Test-only: the session admission fixtures compare against the player slot end.
-#[cfg(test)]
-pub(crate) use wow_entities::PLAYER_SLOT_END;
+pub(crate) use wow_entities::PlayerCurrency;
 use wow_entities::{
     AccessorObjectKind, ApplyEnchantmentArgs, ApplyEnchantmentPlan, BANK_SLOT_BAG_END,
     BANK_SLOT_BAG_START, BUYBACK_SLOT_START, CreatureAddonLifecycleRecordLikeCpp,
@@ -601,20 +597,19 @@ use wow_entities::{
     PlayerEnchantTimeUpdate, PlayerInteractionDataLikeCpp, PlayerInventoryRuntime,
     PlayerItemTimeUpdate, PlayerPetLifecycleStateLikeCpp, PlayerQuestGameplayState,
     PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp,
-    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText,
-    SendNewItemPlan, Vehicle, VisibleItemValues,
+    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDisplayText, Vehicle,
+    VisibleItemValues,
 };
 #[cfg(test)]
 use wow_entities::{
     ActiveState, ApplyEnchantmentEffectAction, ApplyEnchantmentEffectRef,
-    ApplyEnchantmentTemplateRef, ItemLimitCategoryTemplate, PetStable, PetType,
+    ApplyEnchantmentTemplateRef, EQUIPMENT_SLOT_OFFHAND, ItemLimitCategoryTemplate, ItemPosCount,
+    MAX_MONEY_AMOUNT, MovementGeneratorKind, NULL_SLOT, PetAuraLikeCpp, PetSaveMode, PetStable,
+    PetStableInfo, PetType, ReactState, SendNewItemDelivery, SendNewItemPlan,
     TitanGripPenaltyAction, Unit, explored_zones_db_string_from_blocks_like_cpp,
 };
 #[cfg(test)]
-use wow_entities::{EQUIPMENT_SLOT_OFFHAND, ItemPosCount, MAX_MONEY_AMOUNT, NULL_SLOT};
-#[cfg(test)]
-use wow_entities::{MovementGeneratorKind, PetAuraLikeCpp, PetSaveMode, PetStableInfo, ReactState};
-pub(crate) use wow_entities::{PlayerCurrency, PlayerCurrencyState};
+pub(crate) use wow_entities::{PLAYER_SLOT_END, PlayerCurrencyState};
 use wow_handler::{PacketProcessing, SessionStatus};
 use wow_progression::reputation_to_rank_like_cpp;
 #[cfg(test)]
@@ -640,8 +635,7 @@ use wow_packet::packets::item::{
 };
 use wow_packet::packets::item::{ItemEnchantTimeUpdate, ItemTimeUpdate};
 use wow_packet::packets::misc::{
-    AccountHeirloom, AccountMount, AccountToy, DungeonDifficultySet, SetupCurrency,
-    SetupCurrencyRecord, TRADE_SLOT_COUNT_LIKE_CPP,
+    AccountHeirloom, AccountMount, AccountToy, DungeonDifficultySet, TRADE_SLOT_COUNT_LIKE_CPP,
 };
 #[cfg(test)]
 use wow_packet::packets::misc::{BuyFailed, SellResponse};
@@ -675,6 +669,7 @@ pub type AreaTriggerScriptDispatcherLikeCpp =
 #[cfg(test)]
 use wow_world_core::session::state::config::GivePlayerXpScriptDispatcherLikeCpp;
 
+#[cfg(test)]
 use wow_world_instances::REST_FLAG_IN_TAVERN_LIKE_CPP;
 const REST_OFFLINE_WILDERNESS_BUBBLE_LIKE_CPP: f32 = 0.031;
 const REST_OFFLINE_TAVERN_OR_CITY_BUBBLE_LIKE_CPP: f32 = 0.125;
@@ -755,7 +750,7 @@ use wow_world_core::session::WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP;
 use wow_world_core::session::{
     FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP,
     FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP,
-    FIRST_LOGIN_START_REPUTATION_HORDE_FACTIONS_LIKE_CPP,
+    FIRST_LOGIN_START_REPUTATION_HORDE_FACTIONS_LIKE_CPP, connection_identity::unix_now,
 };
 
 pub use wow_entities::AuraApplicationLikeCpp as AuraApplication;

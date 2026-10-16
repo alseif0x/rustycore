@@ -44,6 +44,25 @@ impl WorldSession {
             packet_update,
         )
     }
+    /// The loot host's entry to the entity-bridge values publication, moved
+    /// to `wow_world_inventory` (#1363 slice 12b7).
+    pub(crate) fn send_player_values_update_from_entity_bridge(
+        &self,
+        inv_slot_changes: &[(u8, wow_core::ObjectGuid)],
+        visible_item_changes: &[(u8, i32, u16, u16)],
+        virtual_item_changes: &[(u8, i32, u16, u16)],
+        buyback_changes: &[(u8, u32, i64)],
+        coinage: Option<u64>,
+    ) -> bool {
+        wow_world_inventory::send_player_values_update_from_entity_bridge(
+            self,
+            inv_slot_changes,
+            visible_item_changes,
+            virtual_item_changes,
+            buyback_changes,
+            coinage,
+        )
+    }
     pub(crate) fn send_represented_cinematic_start_like_cpp(&mut self, cinematic_id: u32) {
         wow_world_character::send_represented_cinematic_start_like_cpp(
             &mut crate::session::hub_mut(self),
