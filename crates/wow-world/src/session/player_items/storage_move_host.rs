@@ -227,7 +227,7 @@ impl InventoryStorageMoveHostLikeCpp for WorldSession {
     }
 
     fn storage_move_record_avg_equipped_item_level_update_like_cpp(&mut self) {
-        WorldSession::record_represented_avg_equipped_item_level_update_like_cpp(self);
+        wow_world_inventory::record_represented_avg_equipped_item_level_update_like_cpp(self);
     }
 }
 

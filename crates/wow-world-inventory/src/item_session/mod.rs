@@ -177,7 +177,34 @@ pub trait ItemSessionHostLikeCpp: VendorSessionHostLikeCpp {
         player_guid: ObjectGuid,
     ) -> impl Future<Output = ()> + Send;
     fn record_represented_titan_grip_penalty_action_like_cpp(&mut self);
-    fn record_represented_avg_equipped_item_level_update_like_cpp(&mut self);
+    /// The World test build's average equipped item level
+    /// (`WorldSession::represented_avg_equipped_item_level_like_cpp`); the record
+    /// below calls it only when `test_fixtures_ref_like_cpp` is `Some`, so this
+    /// default is never reached (#1363 slice 12c).
+    #[cfg(any(test, feature = "test-fixtures"))]
+    fn represented_avg_equipped_item_level_like_cpp(&self) -> Option<f32> {
+        None
+    }
+}
+
+// The equipped-item-level record of the represented equip paths (#1363 slice
+// 12c; moved from the World `session/player_items/equipment.rs`).
+#[cfg_attr(not(any(test, feature = "test-fixtures")), allow(unused_variables))]
+pub fn record_represented_avg_equipped_item_level_update_like_cpp<H: ItemSessionHostLikeCpp>(
+    host: &mut H,
+) {
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if host.test_fixtures_ref_like_cpp().is_some() {
+        let Some(avg_equipped_item_level) = host.represented_avg_equipped_item_level_like_cpp()
+        else {
+            return;
+        };
+        host.split_inventory_mut()
+            .0
+            .record_represented_avg_equipped_item_level_update_for_test_like_cpp(
+                avg_equipped_item_level,
+            );
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
