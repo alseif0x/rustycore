@@ -408,12 +408,11 @@ use wow_world_spell::spell_cast_adapter::represented_spell_cast_guid_for_map_lik
 mod spell_pet_catalogs;
 mod stand_state_adapter;
 #[cfg(test)]
-pub(crate) use stand_state_adapter::RepresentedLiveApplicationLikeCpp;
-pub(crate) use stand_state_adapter::RepresentedLiveIntentAppliedLikeCpp;
-pub(crate) use stand_state_adapter::RepresentedLiveIntentApplyOutcomeLikeCpp;
-pub(crate) use stand_state_adapter::RepresentedLiveIntentLikeCpp;
-pub(crate) use stand_state_adapter::RepresentedStandChannelCancellationBoundary;
-pub(crate) use stand_state_adapter::RepresentedStandStateChangedLikeCpp;
+pub(crate) use stand_state_adapter::{
+    RepresentedLiveApplicationLikeCpp, RepresentedLiveIntentAppliedLikeCpp,
+    RepresentedLiveIntentApplyOutcomeLikeCpp, RepresentedLiveIntentLikeCpp,
+    RepresentedStandChannelCancellationBoundary, RepresentedStandStateChangedLikeCpp,
+};
 mod state;
 pub use state::WorldSession;
 pub(crate) use state::{

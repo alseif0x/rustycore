@@ -1,0 +1,59 @@
+{
+ "slice": "#1363 slice 12b7 (the represented->live stand-state intent and its cast-interruption publication -> wow-world-application over wow_world_spell::SpellExecutionHostLikeCpp)",
+ "base": "8d5cb55a0",
+ "moved": [
+  "apply_represented_live_intent_like_cpp",
+  "apply_represented_stand_state_changed_live_like_cpp",
+  "publish_player_cast_interruption_like_cpp"
+ ],
+ "rules": [
+  [
+   "pub\\(crate\\) fn apply_represented_live_intent_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn apply_represented_live_intent_like_cpp<H: SpellExecutionHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "pub\\(in crate::session\\) fn apply_represented_stand_state_changed_live_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "fn apply_represented_stand_state_changed_live_like_cpp<H: SpellExecutionHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "pub\\(in crate::session\\) fn publish_player_cast_interruption_like_cpp\\(\\s*&mut self\\s*(,|\\))",
+   "fn publish_player_cast_interruption_like_cpp<H: SpellExecutionHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*self\\s*\\.\\s*fixtures\\s*\\.\\s*presentation\\s*\\.\\s*represented_live_applications_like_cpp\\s*\\.\\s*push\\(\\s*RepresentedLiveApplicationLikeCpp\\s*\\{([^}]*)\\}\\s*\\)\\s*;",
+   "#[cfg(any(test, feature = \"test-fixtures\"))] if let Some(fixtures) = host.test_fixtures_like_cpp() { fixtures.presentation.represented_live_applications_like_cpp.push(wow_world_core::session::RepresentedLiveApplicationLikeCpp {\\1}); }"
+  ],
+  [
+   "crate::session::split_spell_state_mut\\(self\\)",
+   "host.split_spell_state_mut()"
+  ],
+  [
+   "crate::session::hub_ref\\(self\\)",
+   "host.hub_ref()"
+  ],
+  [
+   "crate::session::hub_mut\\(self\\)",
+   "host.hub_mut()"
+  ],
+  [
+   "\\bself\\s*\\.\\s*catalogs\\s*\\.",
+   "host.hub_ref().catalogs."
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "\\bself\\s*\\.\\s*send_packet_realm\\(",
+   "host.core().send_packet_realm("
+  ],
+  [
+   "\\bself\\s*\\.\\s*{name}\\(",
+   "{name}(host, "
+  ],
+  [
+   "\\bself\\s*\\.",
+   "host."
+  ]
+ ]
+}

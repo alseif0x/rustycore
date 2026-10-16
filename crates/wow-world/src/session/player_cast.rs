@@ -7,7 +7,6 @@ use wow_entities::{SpellCastState, SpellCastVisualLikeCpp};
 use wow_packet::packets::spell::{CastFailed, SpellPreparePkt, SpellStartPkt};
 mod host;
 mod identity;
-mod publication;
 mod state;
 pub(in crate::session) mod wire;
 

@@ -33,6 +33,8 @@ pub use session_lifecycle::{
     resume_deferred_player_save_with_generator_like_cpp,
 };
 mod spell_handlers;
+mod stand_state_session;
+pub use stand_state_session::apply_represented_live_intent_like_cpp;
 mod talent_handlers;
 pub use player_handlers::item_purchase_contents_from_extended_cost;
 pub use player_handlers::{
