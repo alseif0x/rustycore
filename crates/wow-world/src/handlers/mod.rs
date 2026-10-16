@@ -102,6 +102,8 @@ mod spell_state_session_test_shims;
 #[cfg(test)]
 mod spellbook_test_shims;
 #[cfg(test)]
+mod split_forward_test_shims;
+#[cfg(test)]
 mod talent_test_shims;
 #[cfg(test)]
 mod teleport_test_shims;

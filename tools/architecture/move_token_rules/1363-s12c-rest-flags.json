@@ -1,0 +1,40 @@
+{
+ "slice": "#1363 slice 12c (the rest-flag operations and the rest owner access -> wow-world-instances instance_session/rest_flags.rs over InstanceSessionHostLikeCpp / SessionHubHostLikeCpp, with the mutate_player_rest_state_like_cpp fixture accessor)",
+ "base": "fa3705c89",
+ "moved": [
+  "set_player_rest_flag_like_cpp",
+  "remove_player_rest_flag_like_cpp",
+  "defer_player_rest_flag_sync_like_cpp",
+  "end_player_rest_flag_sync_like_cpp",
+  "clear_player_deferred_rest_flag_update_like_cpp",
+  "take_player_deferred_rest_flag_update_dirty_like_cpp",
+  "with_owned_player_mut_for_rest_like_cpp"
+ ],
+ "rules": [
+  [
+   "pub\\(crate\\) fn with_owned_player_mut_for_rest_like_cpp<R>\\(\\s*&self\\s*,",
+   "pub fn with_owned_player_mut_for_rest_like_cpp<H: SessionHubHostLikeCpp + ?Sized, R>(host: &H,"
+  ],
+  [
+   "pub\\(in crate::session\\) fn {name}\\(\\s*&mut self\\s*(,|\\))",
+   "pub fn {name}<H: InstanceSessionHostLikeCpp>(host: &mut H\\1"
+  ],
+  [
+   "#\\[cfg\\(test\\)\\]\\s*if self\\.core\\.player_handle_like_cpp\\.is_none\\(\\)",
+   "#[cfg(any(test, feature = \"test-fixtures\"))] if host.test_fixtures_ref_like_cpp().is_some() && host.core().player_handle_like_cpp.is_none()"
+  ],
+  [
+   "\\|(state|player)\\|\\s*\\{\\s*((?:state\\.(?:clear_deferred_flag_update_like_cpp|take_deferred_flag_update_like_cpp)|player\\.clear_deferred_rest_flag_update_like_cpp)\\(\\))\\s*\\}",
+   "|\\1| \\2"
+  ],
+  [
+   "\\bself\\s*\\.\\s*core\\s*\\.",
+   "host.core()."
+  ],
+  [
+   "\\bself\\s*\\.",
+   "host."
+  ]
+ ],
+ "comment": "The closure-brace rule is rustfmt-only: the moved one-call closures fit one line after the rewrite, so rustfmt drops their braces."
+}

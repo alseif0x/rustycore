@@ -360,7 +360,7 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         wow_world_entities::sync_current_player_session_visibility_detection_like_cpp(self)
     }
     fn take_deferred_rest_flag_update_dirty_like_cpp(&mut self) -> bool {
-        WorldSession::take_deferred_rest_flag_update_dirty_like_cpp(self)
+        wow_world_instances::take_player_deferred_rest_flag_update_dirty_like_cpp(self)
     }
     fn update_represented_item_level_area_based_scaling_with_publication_like_cpp(
         &mut self,

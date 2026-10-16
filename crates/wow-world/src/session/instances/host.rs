@@ -20,23 +20,16 @@ impl InstanceSessionHostLikeCpp for WorldSession {
     fn is_pvp_realm_like_cpp(&self) -> bool {
         self.view.is_pvp_realm_like_cpp
     }
-    fn set_represented_rest_flag_like_cpp(&mut self, rest_flag: u32, trigger_id: u32) -> bool {
-        WorldSession::set_represented_rest_flag_like_cpp(self, rest_flag, trigger_id)
-    }
-    fn remove_represented_rest_flag_like_cpp(&mut self, rest_flag: u32) -> bool {
-        WorldSession::remove_represented_rest_flag_like_cpp(self, rest_flag)
-    }
-    fn defer_player_rest_flag_sync_like_cpp(&mut self) -> bool {
-        WorldSession::defer_player_rest_flag_sync_like_cpp(self)
-    }
-    fn end_player_rest_flag_sync_like_cpp(&mut self) -> bool {
-        WorldSession::end_player_rest_flag_sync_like_cpp(self)
-    }
-    fn clear_player_deferred_rest_flag_update_like_cpp(&mut self) -> bool {
-        WorldSession::clear_player_deferred_rest_flag_update_like_cpp(self)
+    #[cfg(test)]
+    fn mutate_player_rest_state_like_cpp<R>(
+        &mut self,
+        f: impl FnOnce(&mut wow_entities::PlayerRestState) -> R,
+    ) -> Option<R> {
+        WorldSession::mutate_player_rest_state_like_cpp(self, f)
     }
     fn send_represented_resting_player_flag_update_like_cpp(&self) -> bool {
-        WorldSession::send_represented_resting_player_flag_update_like_cpp(self)
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.send_represented_resting_player_flag_update_like_cpp(hub)
     }
     fn access_requirement_abort_like_cpp(
         &self,

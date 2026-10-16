@@ -13,6 +13,11 @@ use wow_world_spell::AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP;
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::RepresentedAreaZoneCriteriaLikeCpp;
 
+use super::rest_flags::{
+    clear_player_deferred_rest_flag_update_like_cpp, defer_player_rest_flag_sync_like_cpp,
+    end_player_rest_flag_sync_like_cpp, remove_player_rest_flag_like_cpp,
+    set_player_rest_flag_like_cpp,
+};
 use super::{
     AREA_FLAG_COMBAT_ZONE_LIKE_CPP, AREA_FLAG_CONTESTED_LIKE_CPP,
     AREA_FLAG_ENEMIES_PVP_FLAGGED_LIKE_CPP, InstanceSessionHostLikeCpp, REST_FLAG_IN_CITY_LIKE_CPP,
@@ -74,9 +79,9 @@ fn update_represented_rest_flag_like_cpp<H: InstanceSessionHostLikeCpp>(
     active: bool,
 ) -> bool {
     if active {
-        host.set_represented_rest_flag_like_cpp(rest_flag, 0)
+        set_player_rest_flag_like_cpp(host, rest_flag, 0)
     } else {
-        host.remove_represented_rest_flag_like_cpp(rest_flag)
+        remove_player_rest_flag_like_cpp(host, rest_flag)
     }
 }
 
@@ -86,9 +91,9 @@ pub fn set_represented_tavern_resting_like_cpp<H: InstanceSessionHostLikeCpp>(
     entered: bool,
 ) -> bool {
     if entered {
-        host.set_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP, trigger_id)
+        set_player_rest_flag_like_cpp(host, REST_FLAG_IN_TAVERN_LIKE_CPP, trigger_id)
     } else {
-        host.remove_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP)
+        remove_player_rest_flag_like_cpp(host, REST_FLAG_IN_TAVERN_LIKE_CPP)
     }
 }
 pub fn update_area_represented_with_rest_update_like_cpp<H: InstanceSessionHostLikeCpp>(
@@ -209,7 +214,7 @@ fn update_zone_represented_with_rest_update_like_cpp<H: InstanceSessionHostLikeC
             .set_zone_and_area(new_zone, area_id);
     });
     // Pending publication survives same-zone reentry after a cancelled post-add.
-    if !host.defer_player_rest_flag_sync_like_cpp() {
+    if !defer_player_rest_flag_sync_like_cpp(host) {
         return false;
     }
     update_area_represented_with_rest_update_like_cpp(host, new_area, false);
@@ -221,12 +226,12 @@ fn update_zone_represented_with_rest_update_like_cpp<H: InstanceSessionHostLikeC
         .as_ref()
         .and_then(|store| store.get(new_zone).copied());
     let Some(zone) = zone_entry else {
-        let rest_flag_update_dirty = host.end_player_rest_flag_sync_like_cpp();
+        let rest_flag_update_dirty = end_player_rest_flag_sync_like_cpp(host);
         if send_rest_update
             && rest_flag_update_dirty
             && host.send_represented_resting_player_flag_update_like_cpp()
         {
-            let _ = host.clear_player_deferred_rest_flag_update_like_cpp();
+            let _ = clear_player_deferred_rest_flag_update_like_cpp(host);
         }
         return true;
     };
@@ -240,17 +245,17 @@ fn update_zone_represented_with_rest_update_like_cpp<H: InstanceSessionHostLikeC
     // branch; the hostile inner branch performs no RestMgr mutation.
     if zone.linked_chat_like_cpp() {
         if !world_local.is_pvp_hostile_like_cpp() || zone.is_sanctuary_like_cpp() {
-            host.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0);
+            set_player_rest_flag_like_cpp(host, REST_FLAG_IN_CITY_LIKE_CPP, 0);
         }
     } else {
-        host.remove_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP);
+        remove_player_rest_flag_like_cpp(host, REST_FLAG_IN_CITY_LIKE_CPP);
     }
-    let rest_flag_update_dirty = host.end_player_rest_flag_sync_like_cpp();
+    let rest_flag_update_dirty = end_player_rest_flag_sync_like_cpp(host);
     if send_rest_update
         && rest_flag_update_dirty
         && host.send_represented_resting_player_flag_update_like_cpp()
     {
-        let _ = host.clear_player_deferred_rest_flag_update_like_cpp();
+        let _ = clear_player_deferred_rest_flag_update_like_cpp(host);
     }
 
     if old_zone == new_zone {
