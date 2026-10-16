@@ -238,6 +238,17 @@ impl WorldSession {
             crate::session::hub_ref(self).send_represented_rest_info_update_like_cpp(nested_mask);
         }
     }
+    /// The driver's entry to the tavern revalidation, moved to
+    /// `wow_world_instances` (#1363 slice 12b7).
+    pub(crate) fn revalidate_represented_tavern_resting_with_catalog_like_cpp(
+        &mut self,
+        area_trigger_db2_store: &AreaTriggerDb2Store,
+    ) {
+        wow_world_instances::revalidate_represented_tavern_resting_with_catalog_like_cpp(
+            self,
+            area_trigger_db2_store,
+        )
+    }
     pub fn set_max_player_level_config_like_cpp(&mut self, max_player_level_config: u32) {
         self.config.max_player_level_config_like_cpp = max_player_level_config;
     }

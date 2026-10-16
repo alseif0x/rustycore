@@ -33,18 +33,6 @@ impl WorldSession {
     ) {
         wow_world_application::request_represented_spell_cast_like_cpp(self, request)
     }
-    pub(crate) async fn tick_pending_spell_cast_request_with_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        creature_spawn_catalogs: &wow_world_entities::CreatureSpawnCatalogsLikeCpp,
-    ) {
-        wow_world_application::tick_pending_spell_cast_request_with_generator_like_cpp(
-            self,
-            item_guid_generator,
-            creature_spawn_catalogs,
-        )
-        .await
-    }
     pub(crate) fn cancel_pending_spell_cast_request_like_cpp(&mut self) -> bool {
         let (state, mut hub) = crate::session::split_spell_state_mut(self);
         wow_world_application::cancel_pending_spell_cast_request_like_cpp(&mut hub, state)
@@ -121,15 +109,6 @@ impl WorldSession {
     }
     pub(crate) fn send_new_item_plan(&self, plan: &wow_entities::SendNewItemPlan) {
         wow_world_inventory::send_new_item_plan(self, plan)
-    }
-    pub(crate) fn revalidate_represented_tavern_resting_with_catalog_like_cpp(
-        &mut self,
-        area_trigger_db2_store: &wow_data::AreaTriggerDb2Store,
-    ) {
-        wow_world_instances::revalidate_represented_tavern_resting_with_catalog_like_cpp(
-            self,
-            area_trigger_db2_store,
-        )
     }
     pub(crate) fn represented_bag_contains_active_item_loot_like_cpp(
         &self,
