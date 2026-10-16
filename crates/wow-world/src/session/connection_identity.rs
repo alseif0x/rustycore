@@ -20,36 +20,6 @@ pub(crate) use wow_world_lifecycle::{
     AccountDataLikeCpp, GLOBAL_CACHE_MASK_LIKE_CPP, PER_CHARACTER_CACHE_MASK_LIKE_CPP,
 };
 
-pub(in crate::session) fn trinity_sprintf_like_cpp(format: &str, args: &[&str]) -> String {
-    let mut output = String::with_capacity(format.len());
-    let mut chars = format.chars().peekable();
-    let mut arg_idx = 0usize;
-
-    while let Some(ch) = chars.next() {
-        if ch != '%' {
-            output.push(ch);
-            continue;
-        }
-
-        match chars.next() {
-            Some('%') => output.push('%'),
-            Some('u' | 'd' | 's') => {
-                if let Some(arg) = args.get(arg_idx) {
-                    output.push_str(arg);
-                    arg_idx += 1;
-                }
-            }
-            Some(other) => {
-                output.push('%');
-                output.push(other);
-            }
-            None => output.push('%'),
-        }
-    }
-
-    output
-}
-
 impl WorldSession {
     pub fn set_realm_handle_like_cpp(&mut self, region: u8, battlegroup: u8, realm_id: u16) {
         self.core.realm_policy.realm_region = region;

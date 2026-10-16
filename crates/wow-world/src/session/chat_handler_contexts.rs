@@ -63,7 +63,10 @@ impl SocialSessionHostLikeCpp for WorldSession {
     }
 
     fn access_requirement_leader_has_achievement_like_cpp(&self, achievement_id: u32) -> bool {
-        WorldSession::access_requirement_leader_has_achievement_like_cpp(self, achievement_id)
+        wow_world_instances::access_requirement_leader_has_achievement_like_cpp(
+            self,
+            achievement_id,
+        )
     }
 
     fn lfg_has_active_instance_lock_like_cpp(&self, map_id: u32, difficulty_id: u8) -> bool {

@@ -19,6 +19,10 @@ impl wow_world_spell::TalentHostLikeCpp for WorldSession {
         state.represented_talents_loaded_like_cpp(hub)
     }
     fn trinity_string_like_cpp(&self, entry: u32) -> &str {
-        WorldSession::trinity_string_like_cpp(self, entry)
+        self.catalogs
+            .trinity_string_store
+            .as_ref()
+            .map(|store| store.get_like_cpp(entry, &self.core.locale))
+            .unwrap_or("<error>")
     }
 }

@@ -165,7 +165,6 @@ pub(crate) use connection_identity::PER_CHARACTER_CACHE_MASK_LIKE_CPP;
 use connection_identity::PacketSpoofPendingBanLikeCpp;
 use connection_identity::PacketSpoofPendingBanTargetLikeCpp;
 pub use connection_identity::SessionState;
-use connection_identity::trinity_sprintf_like_cpp;
 pub(crate) use connection_identity::{AccountDataLikeCpp, GLOBAL_CACHE_MASK_LIKE_CPP};
 #[cfg(test)]
 pub(crate) use connection_identity::{ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp};
@@ -495,9 +494,9 @@ use wow_constants::ItemEnchantmentType;
 use wow_constants::creature::CreatureTypeFlags;
 use wow_constants::item::{EnchantmentSlot, ItemFieldFlags2};
 use wow_constants::shared::DifficultyFlags;
-use wow_constants::unit::{Gender, Team, UnitFlags, UnitPvpFlags, WeaponAttackType};
+use wow_constants::unit::{Gender, UnitFlags, UnitPvpFlags, WeaponAttackType};
 #[cfg(test)]
-use wow_constants::unit::{PowerType, UnitFlags2, UnitStandStateType};
+use wow_constants::unit::{PowerType, Team, UnitFlags2, UnitStandStateType};
 #[cfg(test)]
 use wow_constants::{
     BuyResult, ItemFlags3, ItemQuality, ItemSubClassArmor, ItemSubClassWeapon, SellResult, TypeId,
@@ -667,7 +666,9 @@ pub type AreaTriggerScriptDispatcherLikeCpp =
 use wow_world_core::session::state::config::GivePlayerXpScriptDispatcherLikeCpp;
 
 #[cfg(test)]
-use wow_world_instances::REST_FLAG_IN_TAVERN_LIKE_CPP;
+use wow_world_instances::{
+    REST_FLAG_IN_TAVERN_LIKE_CPP, TRANSFER_ABORT_DIFFICULTY_LIKE_CPP, TRANSFER_ABORT_ERROR_LIKE_CPP,
+};
 const REST_OFFLINE_WILDERNESS_BUBBLE_LIKE_CPP: f32 = 0.031;
 const REST_OFFLINE_TAVERN_OR_CITY_BUBBLE_LIKE_CPP: f32 = 0.125;
 const REST_ONLINE_INGAME_BUBBLE_LIKE_CPP: f32 = 0.125;
@@ -703,8 +704,6 @@ const PACKET_SPOOF_BAN_AUTHOR_LIKE_CPP: &str = "Server: AutoDOS";
 
 use wow_packet::WorldPacket;
 
-const TRANSFER_ABORT_ERROR_LIKE_CPP: u32 = 1;
-use wow_world_instances::TRANSFER_ABORT_DIFFICULTY_LIKE_CPP;
 // C++ `SpellCastSource::Normal` is encoded in the six-bit Cast GUID subtype.
 // The capture contract validates this field rather than treating it as a runtime counter, so keep the canonical numeric value here.
 

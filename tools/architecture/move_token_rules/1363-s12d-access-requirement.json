@@ -1,0 +1,26 @@
+{
+ "slice": "#1363 slice 12d (Map::PlayerCannotEnter access requirement -> wow-world-instances instance_session/access_requirement.rs over the instance, social and talent hosts)",
+ "base": "4cf327c8c",
+ "moved": [
+  "access_requirement_abort_like_cpp",
+  "access_requirement_leader_has_achievement_like_cpp",
+  "trinity_sprintf_like_cpp"
+ ],
+ "comment": "The quest-state split plus the quest snapshot call is the social host's player_quest_gameplay_snapshot_like_cpp (whose World impl is that split and call, verified); the map-difficulty condition closure's body is the new InstanceSessionHostLikeCpp::represented_player_meets_condition_like_cpp (whose World impl is the closure body verbatim); the inventory-count split forward retired in unit A is the new InstanceSessionHostLikeCpp::represented_inventory_item_counts_like_cpp; trinity_string_like_cpp is the talent host's (whose World impl is now the retired inherent's body verbatim).",
+ "rules": [
+  ["pub\\(in crate::session\\) fn access_requirement_abort_like_cpp\\(\\s*&self,", "pub fn access_requirement_abort_like_cpp<H>(host: &H,"],
+  ["\\) -> Option<\\(u32, u8, i32\\)> \\{", ") -> Option<(u32, u8, i32)> where H: GroupSessionHostLikeCpp + SocialSessionHostLikeCpp + TalentHostLikeCpp + ?Sized, {"],
+  ["pub\\(crate\\) fn access_requirement_leader_has_achievement_like_cpp\\(\\s*&self,", "pub fn access_requirement_leader_has_achievement_like_cpp<H: GroupSessionHostLikeCpp + ?Sized>(host: &H,"],
+  ["pub\\(in crate::session\\) fn trinity_sprintf_like_cpp", "fn trinity_sprintf_like_cpp"],
+  ["crate::session::split_instances_ref\\(self\\)", "host.split_instances_ref()"],
+  ["let \\(quest_state, hub\\) = crate::session::split_quest_state_ref\\(self\\);\\s*let quests\\s*=\\s*wow_world_quest::player_quest_gameplay_snapshot_like_cpp\\(hub, quest_state\\)\\?;", "let quests = SocialSessionHostLikeCpp::player_quest_gameplay_snapshot_like_cpp(host)?;"],
+  ["\\|condition\\| \\{\\s*self\\.represented_player_condition_context_like_cpp\\(\\)\\s*\\.as_ref\\(\\)\\s*\\.and_then\\(\\|context\\| context\\.as_context\\(self\\)\\)\\s*\\.is_some_and\\(\\|context\\| \\{\\s*is_player_meeting_condition_like_cpp\\(condition, &context\\)\\s*\\}\\)\\s*\\}", "|condition| host.represented_player_meets_condition_like_cpp(condition)"],
+  ["self\\.trinity_string_like_cpp\\(", "TalentHostLikeCpp::trinity_string_like_cpp(host, "],
+  ["self\\.access_requirement_leader_has_achievement_like_cpp\\(", "access_requirement_leader_has_achievement_like_cpp(host, "],
+  ["wow_world_instances::group_membership::resolved_group_guid_like_cpp\\(self\\)", "crate::group_membership::resolved_group_guid_like_cpp(host)"],
+  ["crate::session::hub_ref\\(self\\)", "host.hub_ref()"],
+  ["\\bself\\s*\\.\\s*catalogs\\b", "host.hub_ref().catalogs"],
+  ["\\bself\\s*\\.\\s*core\\s*\\.", "host.core()."],
+  ["\\bself\\.", "host."]
+ ]
+}

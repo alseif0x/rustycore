@@ -31,12 +31,25 @@ impl InstanceSessionHostLikeCpp for WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.send_represented_resting_player_flag_update_like_cpp(hub)
     }
+    fn represented_inventory_item_counts_like_cpp(&self) -> Option<HashMap<u32, u32>> {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.represented_inventory_item_counts_like_cpp(hub)
+    }
+    fn represented_player_meets_condition_like_cpp(
+        &self,
+        condition: &wow_data::PlayerConditionEntry,
+    ) -> bool {
+        self.represented_player_condition_context_like_cpp()
+            .as_ref()
+            .and_then(|context| context.as_context(self))
+            .is_some_and(|context| is_player_meeting_condition_like_cpp(condition, &context))
+    }
     fn access_requirement_abort_like_cpp(
         &self,
         map_id: u32,
         requested_difficulty: u8,
     ) -> Option<(u32, u8, i32)> {
-        WorldSession::access_requirement_abort_like_cpp(self, map_id, requested_difficulty)
+        wow_world_instances::access_requirement_abort_like_cpp(self, map_id, requested_difficulty)
     }
     fn current_player_is_in_raid_group_like_cpp(&self) -> bool {
         wow_world_instances::current_player_is_in_raid_group_like_cpp(self)
