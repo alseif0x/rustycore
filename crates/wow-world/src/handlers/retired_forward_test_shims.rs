@@ -317,6 +317,13 @@ impl WorldSession {
             known_spells,
         )
     }
+    // Persistent capability state (moved to `wow_world_spell`).
+    pub(crate) fn set_represented_at_login_flags_like_cpp(&mut self, flags: u16) -> bool {
+        wow_world_spell::set_represented_at_login_flags_like_cpp(self, flags)
+    }
+    pub(crate) fn resolved_represented_at_login_flags_like_cpp(&self) -> Option<u16> {
+        wow_world_spell::resolved_represented_at_login_flags_like_cpp(self)
+    }
     // Taxi (the scenario-only edge distance, from `session/taxi/operations.rs`).
     pub(crate) fn represented_taxi_edge_distance_like_cpp(
         &self,

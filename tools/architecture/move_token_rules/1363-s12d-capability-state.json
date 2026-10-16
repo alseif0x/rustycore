@@ -1,0 +1,24 @@
+{
+ "slice": "#1363 slice 12d (the persistent-capability snapshot and the at-login flag set/remove/read -> wow-world-spell spell_state_session/capability.rs over SpellExecutionHostLikeCpp)",
+ "base": "4cf327c8c",
+ "moved": ["player_persistent_capability_state_snapshot_like_cpp", "set_represented_at_login_flags_like_cpp", "remove_represented_at_login_flag_like_cpp", "resolved_represented_at_login_flags_like_cpp"],
+ "comment": "Each former #[cfg(test)] fixture step becomes cfg(any(test, feature = \"test-fixtures\")) guarded by test_fixtures_ref_like_cpp().is_some() (read once as world_test where the step spans two statements); the handle-less capability owner is the existing SpellExecutionHostLikeCpp::mutate_player_persistent_capability_state_like_cpp accessor, whose World impl is the World cfg(test) method of that name (verified); the lifecycle reads and the removal record use the battle-pet host's lifecycle() and split_lifecycle_mut() (the World lifecycle field).",
+ "rules": [
+  ["#\\[cfg_attr\\(not\\(test\\), allow\\(unused_variables\\)\\)\\]", "#[cfg_attr(not(any(test, feature = \"test-fixtures\")), allow(unused_variables))]"],
+  ["pub\\(in crate::session\\) fn player_persistent_capability_state_snapshot_like_cpp\\(\\s*&self,?\\s*\\)", "pub fn player_persistent_capability_state_snapshot_like_cpp<H: SpellExecutionHostLikeCpp + ?Sized>(host: &H)"],
+  ["pub\\(crate\\) fn resolved_represented_at_login_flags_like_cpp\\(&self\\)", "pub fn resolved_represented_at_login_flags_like_cpp<H: SpellExecutionHostLikeCpp + ?Sized>(host: &H)"],
+  ["pub\\(crate\\) fn set_represented_at_login_flags_like_cpp\\(&mut self,", "pub fn set_represented_at_login_flags_like_cpp<H: SpellExecutionHostLikeCpp + ?Sized>(host: &mut H,"],
+  ["pub\\(crate\\) fn remove_represented_at_login_flag_like_cpp\\(\\s*&mut self,", "pub fn remove_represented_at_login_flag_like_cpp<H: SpellExecutionHostLikeCpp + ?Sized>(host: &mut H,"],
+  ["#\\[cfg\\(test\\)\\]\\s*if canonical\\.is_none\\(\\)", "#[cfg(any(test, feature = \"test-fixtures\"))] if host.test_fixtures_ref_like_cpp().is_some() && canonical.is_none()"],
+  ["#\\[cfg\\(test\\)\\]\\s*if !canonical &&", "#[cfg(any(test, feature = \"test-fixtures\"))] if host.test_fixtures_ref_like_cpp().is_some() && !canonical &&"],
+  ["let canonical = self\\s*\\.core\\s*\\.with_owned_player_mut_like_cpp\\(\\|player\\| player\\.remove_at_login_flags_like_cpp\\(flags\\)\\);", "#[cfg(any(test, feature = \"test-fixtures\"))] let world_test = host.test_fixtures_ref_like_cpp().is_some(); let canonical = self.core.with_owned_player_mut_like_cpp(|player| player.remove_at_login_flags_like_cpp(flags));"],
+  ["#\\[cfg\\(test\\)\\]\\s*let removed = canonical\\.or_else\\(\\|\\| \\{\\s*self\\.core\\.player_handle_like_cpp\\.is_none\\(\\)\\.then\\(", "#[cfg(any(test, feature = \"test-fixtures\"))] let removed = canonical.or_else(|| { (world_test && self.core.player_handle_like_cpp.is_none()).then("],
+  ["#\\[cfg\\(not\\(test\\)\\)\\]\\s*let removed = canonical;", "#[cfg(not(any(test, feature = \"test-fixtures\")))] let removed = canonical;"],
+  ["#\\[cfg\\(test\\)\\]\\s*self\\s*\\.lifecycle\\s*\\.record_at_login_flag_removal_for_test_like_cpp\\(([^;]*)\\);", "#[cfg(any(test, feature = \"test-fixtures\"))] if world_test { host.split_lifecycle_mut().0 .record_at_login_flag_removal_for_test_like_cpp(\\1); }"],
+  ["self\\.player_persistent_capability_state_snapshot_like_cpp\\(\\)", "player_persistent_capability_state_snapshot_like_cpp(host)"],
+  ["\\bself\\s*\\.\\s*lifecycle\\s*\\.", "host.lifecycle()."],
+  ["\\bself\\s*\\.\\s*fixtures\\s*\\.", "host.hub_ref().fixtures."],
+  ["\\bself\\s*\\.\\s*core\\s*\\.", "host.core()."],
+  ["\\bself\\s*\\.", "host."]
+ ]
+}

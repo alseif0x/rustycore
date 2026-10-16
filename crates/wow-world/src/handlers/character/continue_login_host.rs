@@ -111,9 +111,6 @@ impl ContinueLoginHostLikeCpp for WorldSession {
     ) {
         WorldSession::set_loaded_player_identity_like_cpp(self, map_id, race, class, level, gender)
     }
-    fn set_represented_at_login_flags_like_cpp(&mut self, flags: u16) -> bool {
-        WorldSession::set_represented_at_login_flags_like_cpp(self, flags)
-    }
     fn set_represented_guild_id_like_cpp(&mut self, guild_id: u64) -> bool {
         wow_world_social::set_represented_guild_id_like_cpp(self, guild_id)
     }

@@ -121,7 +121,6 @@ pub trait ContinueLoginHostLikeCpp:
         level: u8,
         gender: u8,
     );
-    fn set_represented_at_login_flags_like_cpp(&mut self, flags: u16) -> bool;
     fn set_represented_guild_id_like_cpp(&mut self, guild_id: u64) -> bool;
     fn sync_player_spell_hit_aura_authority_to_canonical_like_cpp(&mut self) -> Option<bool>;
 }

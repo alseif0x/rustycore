@@ -45,9 +45,4 @@ impl wow_world_spell::SpellStateHostLikeCpp for WorldSession {
         let (state, mut hub) = crate::session::split_spell_state_mut(self);
         wow_world_application::interrupt_player_cast_like_cpp(&mut hub, state, spell_id)
     }
-    fn player_persistent_capability_state_snapshot_like_cpp(
-        &self,
-    ) -> Option<wow_entities::PlayerPersistentCapabilityStateLikeCpp> {
-        WorldSession::player_persistent_capability_state_snapshot_like_cpp(self)
-    }
 }

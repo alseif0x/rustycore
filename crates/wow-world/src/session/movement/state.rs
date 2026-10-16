@@ -25,47 +25,6 @@ impl WorldSession {
     pub(crate) fn set_player_moved_unit_guid_like_cpp(&mut self, guid: ObjectGuid) {
         crate::session::hub_mut(self).set_player_moved_unit_guid_like_cpp(guid)
     }
-
-    pub(crate) fn remove_represented_at_login_flag_like_cpp(
-        &mut self,
-        flags: u16,
-        persist: bool,
-    ) -> bool {
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| player.remove_at_login_flags_like_cpp(flags));
-        #[cfg(test)]
-        let removed = canonical.or_else(|| {
-            self.core.player_handle_like_cpp.is_none().then(|| {
-                self.mutate_player_persistent_capability_state_like_cpp(|state| {
-                    let removed = (state.at_login_flags & flags) != 0;
-                    state.at_login_flags &= !flags;
-                    removed
-                })
-                .expect("handle-less fixture capability owner")
-            })
-        });
-        #[cfg(not(test))]
-        let removed = canonical;
-        let Some(removed) = removed else {
-            return false;
-        };
-        if !removed {
-            return false;
-        }
-        if persist {
-            #[cfg(test)]
-            self.lifecycle
-                .record_at_login_flag_removal_for_test_like_cpp(
-                    RepresentedAtLoginFlagRemovalLikeCpp {
-                        flags,
-                        persist,
-                        db_statement_unrepresented: true,
-                    },
-                );
-        }
-        true
-    }
 }
 
 #[cfg(test)]

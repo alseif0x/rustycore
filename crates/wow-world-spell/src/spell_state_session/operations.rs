@@ -9,7 +9,10 @@
 
 use wow_entities::PlayerResurrectionStateLikeCpp;
 
-use crate::{SpellExecutionHostLikeCpp, SpellStateHostLikeCpp, apply_proficiency_effect_like_cpp};
+use crate::{
+    SpellExecutionHostLikeCpp, SpellStateHostLikeCpp, apply_proficiency_effect_like_cpp,
+    player_persistent_capability_state_snapshot_like_cpp,
+};
 
 // The resurrection-state snapshot (#1363 slice 12d; moved from the World
 // `session/combat/death.rs`).
@@ -85,9 +88,7 @@ pub fn apply_login_known_spell_proficiencies_like_cpp<H: SpellStateHostLikeCpp>(
     known_spells: &[i32],
 ) -> usize {
     if host.player_guid().is_none()
-        || host
-            .player_persistent_capability_state_snapshot_like_cpp()
-            .is_none()
+        || player_persistent_capability_state_snapshot_like_cpp(host).is_none()
     {
         return 0;
     }
@@ -107,16 +108,14 @@ pub fn apply_login_known_spell_proficiencies_like_cpp<H: SpellStateHostLikeCpp>(
             continue;
         }
 
-        let Some(before) = host.player_persistent_capability_state_snapshot_like_cpp() else {
+        let Some(before) = player_persistent_capability_state_snapshot_like_cpp(host) else {
             return applied;
         };
         if apply_proficiency_effect_like_cpp(host, spell_id).is_ok()
-            && host
-                .player_persistent_capability_state_snapshot_like_cpp()
-                .is_some_and(|after| {
-                    after.weapon_proficiency != before.weapon_proficiency
-                        || after.armor_proficiency != before.armor_proficiency
-                })
+            && player_persistent_capability_state_snapshot_like_cpp(host).is_some_and(|after| {
+                after.weapon_proficiency != before.weapon_proficiency
+                    || after.armor_proficiency != before.armor_proficiency
+            })
         {
             applied += 1;
         }

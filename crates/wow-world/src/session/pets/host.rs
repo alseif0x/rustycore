@@ -23,7 +23,7 @@ impl wow_world_lifecycle::PetSessionHostLikeCpp for WorldSession {
         crate::session::split_lifecycle_mut(self)
     }
     fn resolved_represented_at_login_flags_like_cpp(&self) -> Option<u16> {
-        WorldSession::resolved_represented_at_login_flags_like_cpp(self)
+        wow_world_spell::resolved_represented_at_login_flags_like_cpp(self)
     }
 }
 

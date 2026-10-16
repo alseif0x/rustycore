@@ -235,7 +235,7 @@ pub async fn handle_continue_player_login_with_module_registry_like_cpp<
         return;
     }
     host.hub_mut().set_player_create_mode_like_cpp(create_mode);
-    if !host.set_represented_at_login_flags_like_cpp(at_login_flags) {
+    if !wow_world_spell::set_represented_at_login_flags_like_cpp(host, at_login_flags) {
         host.core_mut().kick(
             "canonical Player persistent-capability owner unavailable during login hydration",
         );
