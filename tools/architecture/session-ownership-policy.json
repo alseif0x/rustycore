@@ -55542,7 +55542,7 @@
           "symbol": "GroupRegistry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "wow_social::group::{GroupInstanceResetMethodLikeCpp,GroupInstanceResetResultLikeCpp,GroupRegistry,PendingInvites,group_guid_by_db_store_id_like_cpp}",
+          "fingerprint": "wow_social::group::{GroupInstanceResetMethodLikeCpp,GroupInstanceResetResultLikeCpp,GroupRegistry,PendingInvites}",
           "count": 1
         },
         {
@@ -55555,7 +55555,7 @@
           "symbol": "PendingInvites",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "wow_social::group::{GroupInstanceResetMethodLikeCpp,GroupInstanceResetResultLikeCpp,GroupRegistry,PendingInvites,group_guid_by_db_store_id_like_cpp}",
+          "fingerprint": "wow_social::group::{GroupInstanceResetMethodLikeCpp,GroupInstanceResetResultLikeCpp,GroupRegistry,PendingInvites}",
           "count": 1
         },
         {

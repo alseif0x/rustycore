@@ -14267,3 +14267,245 @@ compared with `warning_units.py`:
 runs on the committed head that includes this section. The manifest path,
 dirty flag and duration are in the PR body. This section is not edited after
 that run, so the PR head is the validated SHA.
+
+## Slice 12b4 result (represented login-load steps → character, login spell reset → application)
+
+Branch `1363-s12b4-persistence`, base `ef33829da` (slice 12b3 merged).
+
+### #1416 follow-ups 1–2
+
+Separate commit `bcb086f90`, before anything moved; the measurement on the
+base is unchanged (staying 44 / 1,190, outside 228 / 5,184, crate 300 / 7,586).
+
+- **`r#` on any path segment.** `IMPL_RE` and the `type` form of `ALIAS_RE`
+  accept `(?:(?:r#)?\w+\s*::\s*)*` before `WorldSession`. The self-test adds
+  `type SegRaw = crate::r#session::WorldSession;` (rejected at `aliases.rs:5`)
+  and a `session/raw_segment.rs` with `impl crate::r#session::WorldSession`
+  (indexed as `raw_segment_impl`). Mutation check: dropping the segment `r#`
+  from `IMPL_RE`, then from `ALIAS_RE`, each fails the self-test (2 of 2).
+- **12b3 line totals.** One sentence in the 12b3 result now reconciles the
+  373 moved and reclassified lines with the index's −363 (the three staying
+  bodies grew by 10).
+
+### Re-measure and the cut
+
+`session_method_index.py index --methods` on the base: `session/persistence`
+20 / 382, `session/player_binding` 3 / 146, `session/player_bootstrap` 1 / 406
+(24 / 934, as planned). Each was read against its callers:
+
+- **Moved to `wow-world-character` (7 / 149):** the trait-config authority
+  load pair `begin_…` (5) and `complete_represented_trait_config_authority_load_like_cpp`
+  (21) (`persistence/load_authority.rs`); the group restore
+  `load_represented_group_by_db_store_id_like_cpp` (36) and
+  `load_represented_group_difficulties_like_cpp` (28); the void-storage load
+  `mark_represented_void_storage_loaded_like_cpp` (4),
+  `prepare_represented_void_storage_login_load_like_cpp` (11) and
+  `load_represented_void_storage_row_like_cpp` (44) (`persistence/load.rs`).
+  Their only production callers are the character login loaders.
+- **12b3 deferral moved to `wow-world-application` (2 / 28):**
+  `apply_represented_login_spell_reset_if_needed_like_cpp` (20,
+  `spell_state/effects.rs`) and its only callee
+  `reset_spells_notification_text_like_cpp` (8, `spell_state/spell.rs`).
+- **Reclassified to a test shim (1 / 4):** `clear_represented_void_storage_like_cpp`
+  (`void_storage_adapter.rs`), inlined into the moved prepare step, has no
+  production caller left.
+- **Stay, with the reason:**
+  - `build_initial_player_for_owner_like_cpp` (406): its callers are the World
+    canonical-access operations and test support, not domain crates (the
+    plan's condition).
+  - `set_player_guid` (95) and `attach_player_controller_like_cpp` (47): the
+    session identity boundary; they reset `view`, `quest_state`, `social`,
+    `spell_state`, `visibility`, `lifecycle` and fixtures together. A host
+    for them would expose most of the session; they stay with the runtime
+    shell until 12d.
+  - The persistence money fences `begin_exclusive_player_money_persistence_like_cpp`
+    and `mutate_and_persist_player_gold_exclusive_like_cpp` (async, #169):
+    they are World construction seams that pass four disjoint field borrows
+    to the quest coordinator; moving them changes no logic and would need a
+    four-way split host method. Not moved, so their awaits are untouched.
+  - `load_tutorials_data_like_cpp` (async, world-server caller),
+    `load_represented_xp_rest_bonus_like_cpp`, `set_loaded_player_identity_like_cpp`,
+    `mark_represented_talents_loaded_like_cpp` (quest reach),
+    `player_persistent_capability_state_snapshot_like_cpp` (`cfg(test)`
+    fixture fallback), `set_player_loading`, the split forwards
+    (`load_character_reputation_rows_like_cpp`, `represented_talents_loaded_like_cpp`,
+    `set_loaded_player_name_like_cpp`, `plan_add_currency_vendor_like_cpp`,
+    `set_player_gold_like_cpp`): each is either a field-split forward (12c/12d)
+    or carries a `cfg(test)` fixture branch that needs its own accessor step.
+  - **12b3 deferrals not moved:** the spell-hit authority proof (90 + 9 + 16)
+    reads seven World-only sources (equipment authority, guild id, battle-pet
+    and war-mode sources, inventory, buyback and item objects) and the
+    passive-aura replays (60 + 57) with the aura-application builder (17)
+    need a five-way `split_aura_application_mut` host method; either would
+    add more host than it moves at this size. They stay for a dedicated
+    application step.
+
+**Moved: 9 functions, 177 base lines; reclassified 1 / 4.**
+
+### What moved
+
+| Destination file | Functions (base file) | Base lines |
+|---|---|---:|
+| `wow-world-character/src/login_session/represented_load.rs` | the trait-config pair (`load_authority.rs`), the group pair and the void-storage trio (`load.rs`) | 149 |
+| `wow-world-application/src/continue_login/spell_reset.rs` | the login spell reset (`effects.rs`) and its text (`spell.rs`) | 28 |
+| **Total** | 9 functions | **177** |
+
+Lines per destination: character 149, application 28.
+
+- **Hosts.**
+  - Trait-config pair: `H: wow_world_spell::SpellbookHostLikeCpp` (the core
+    invalidation through `host.core()`). The two
+    `CharacterLoginHostLikeCpp` methods stay (their caller's `H` has no
+    spellbook bound); the World impls name the free functions.
+  - Group and void-storage: `H: CharacterLoginHostLikeCpp`, which gains
+    `replace_player_difficulty_preferences_like_cpp` and
+    `void_storage_is_unlocked_like_cpp`; the World impl names the inherent
+    methods by `WorldSession::` path. The character loaders
+    (`group_loading.rs`, `inventory_load.rs`) now call the free functions
+    directly, so the three trait methods `load_represented_group_by_db_store_id_like_cpp`,
+    `prepare_represented_void_storage_login_load_like_cpp` and
+    `load_represented_void_storage_row_like_cpp` retire from the trait and the
+    World impl.
+  - Spell reset: `H: TalentHostLikeCpp + QuestSessionHostLikeCpp +
+    AuraHostLikeCpp`; no new host method (`TalentHostLikeCpp` already carries
+    the at-login flag read/remove and `trinity_string_like_cpp`). The two
+    `LANG_RESET_SPELLS*` constants move with it.
+- **Mechanical rules** (`move_token_rules/1363-s12b4-{login-load,spell-reset}.json`
+  with pairs): the signatures; `crate::session::split_inventory_mut(self)` →
+  `host.split_inventory_mut()`; `self.core.` → `host.core().`; `<crate fn>(self`
+  → `(host`; the inlined wrappers below; the void-row fixture step
+  `#[cfg(test)] { if self.core.player_handle_like_cpp.is_none() { self.inventory.…`
+  → `#[cfg(any(test, feature = "test-fixtures"))] { if host.test_fixtures_ref_like_cpp().is_some()
+  && host.core().player_handle_like_cpp.is_none() { host.split_inventory_mut().0.…`
+  with its `#[cfg(not(test))]` widened the same way (the precedent of
+  `wow-world-instances` `login_load.rs`: the step runs exactly in the World
+  test build); `self.` → `host.`. Rules never touch string literals.
+  **Result** (`move_token_compare.py --base origin/3.4.3`): 7 of 7 and 2 of 2
+  identical.
+- **Inlined one-line wrappers** (each verified identical to the World body):
+  `clear_represented_void_storage_like_cpp` (`split_inventory_mut` + the state
+  call; retired to the shim), `item_storage_template`
+  (`self.catalogs.item_storage_template` → `host.hub_ref().catalogs.…`; stays
+  for other callers), `player_guid` (the `SessionHubHostLikeCpp` provided
+  method, same body). `resolved_group_guid_like_cpp` resolves to
+  `WorldEntitiesHostLikeCpp`, whose World impl names the inherent method.
+- **Shims.** `handlers/login_load_test_shims.rs` (`#![cfg(test)]`, 58 lines):
+  one-call forwards for the eight moved names the scenarios call, and the
+  vault clear. No test file changed.
+- **Files retired:** `session/spell_state/effects.rs`.
+- **New edge `wow-world-character` → `wow-social`** (`group_guid_by_db_store_id_like_cpp`;
+  `Cargo.toml`, `Cargo.lock`, `dependency-policy.json`). Simulated first:
+  `wow_world_closure.py check --add "wow-world-character->wow-social"` PASS
+  (19 packages). `wow-social` is domain; lifecycle and core already depend on it.
+
+### Host surface
+
+Moved 177 function lines (base). New host: the two
+`CharacterLoginHostLikeCpp` declarations with docs (+11) and their World
+impls (+6) = 17; retired: three trait declarations (−7) and their World impls
+(−13). **Net host −3 lines (−1.7 %); gross new 17 lines, 9.6 %.** No adapter
+file merged; merged and unmerged figures are the same.
+
+### Await counts (per function, base vs head; #169)
+
+| Function | Base | Head |
+|---|---:|---:|
+| the 9 moved functions | 0 | 0 |
+
+All moved bodies are synchronous; no future is spawned, reordered or held
+across a different borrow. The async persistence paths (money fences, tutorial
+and account-data loads, instance time restrictions) did not move. Save and
+load order is unchanged: the character loaders call the same steps at the
+same points (`login_data.rs` through the kept trait methods,
+`group_loading.rs` and `inventory_load.rs` through the free functions).
+
+### Recursion
+
+- Every moved name and both new host methods were grepped in production
+  (non-shim) `wow-world`: the only hits are the kept trait-impl methods whose
+  body names `wow_world_character::<name>(self, …)` /
+  `wow_world_application::<name>(self)`, and the two new impl methods naming
+  `WorldSession::<name>(self, …)` (inherent first). No moved body calls a host
+  method of its own name.
+- `unconditional_recursion`: 0 in every unit of all three canonical builds.
+
+### Registration
+
+No registrar, opcode, `SessionStatus`, `PacketProcessing`, handler name or
+thunk changes; no `handler-module-policy.json` change.
+
+### Accounting
+
+Crate production by the hotspot classifier over each crate's `src` tree
+(`logical_hotspot_row(lib.rs, "crate")`; it counts 27,101 for `wow-world` at
+base, 1,110 more than the 25,991 recorded with the 12b3 figures, which used
+the shim-aware count; the deltas are what this slice changes):
+
+| Crate | Base | Head | Δ |
+|---|---:|---:|---:|
+| `wow-world` | 27,101 | 26,894 | **−207** |
+| `wow-world-character` | 9,398 | 9,598 | +200 |
+| `wow-world-application` | 16,130 | 16,181 | +51 |
+
+On the 12b3 basis `wow-world` production is therefore 25,991 − 207 =
+**25,784**.
+
+- `net_move.py check --base origin/3.4.3`: PASS (0 duplicate bodies).
+- `session_method_index`:
+
+| Measure | Base `ef33829da` | Head |
+|---|---:|---:|
+| Non-forward (crate) | 300 / 7,586 | **290 / 7,405** |
+| Forwards (crate) | 269 / 1,491 | 269 / 1,491 |
+| Staying | 44 / 1,190 | 44 / 1,190 |
+| Outside | 228 / 5,184 | **218 / 5,003** |
+
+  −10 / −181 = the 9 moved (177) and the reclassified vault clear (4).
+  `session/persistence` 20 / 382 → 13 / 233; `session/spell_state` 17 / 381 →
+  15 / 353.
+
+### Policy and ceilings
+
+- **Tightened, none raised:** `session-method-index.json` outside 228 / 5,184
+  → 218 / 5,003, crate 300 / 7,586 → 290 / 7,405 (staying bound unchanged);
+  hotspot `session/mod.rs` production 16,725 → 16,526, test 141,616 →
+  141,616, total 158,341 → 158,142; hotspot `handlers/character/mod.rs`
+  production 2,229 → 2,221, total 17,884 → 17,876; physical
+  `session/mod.rs` 791 → 787.
+- New physical row `handlers/login_load_test_shims.rs` (58, shim convention).
+- `dependency-policy.json`: `wow-social` added to `wow-world-character`.
+- `session-ownership-policy.json` reprinted with `print-baseline`.
+- Imports: the group-id import and the void-storage alias leave production;
+  the alias joins `session/test_reexports.rs` (its three-line header is
+  reflowed so the test count stays equal).
+
+### Warnings and tests
+
+Canonical recipe (`--locked`, `--jobs 1`), base `ef33829da` vs head:
+
+| Build | `wow-world` lib | `wow-world` lib test | All `wow-world*` lib units |
+|---|---:|---:|---:|
+| production lib | 118 → 118 | — | 245 → 245 |
+| lib + `test-fixtures` | 127 → 127 | — | 209 → 209 |
+| `--lib --tests` | 127 → 127 | 178 → 178 | 209 → 209 |
+
+Compared by unit, lint, file and message: nothing only in base or head in
+any build. `wow-world` `dead_code` 0 in all three; `unconditional_recursion`
+0. Tests: `#[test]`/`#[tokio::test]` 9,517 at base and head, `#[ignore` 5 and
+5; no test file changed.
+
+### Follow-ups
+
+- The spell-hit authority proof and the passive-aura replays with the
+  aura-application builder (application, with a split host method).
+- The persistence money fences, `set_player_guid`/`attach_player_controller`
+  and the bootstrap: 12d / runtime shell.
+- The `cfg(test)` fixture branches of the xp-rest load, identity load and
+  capability snapshot need fixture accessors before they can move.
+- Shims retire in the final cleanup.
+
+### Validation
+
+`VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+runs on the committed head that includes this section; manifest, dirty flag
+and duration are in the PR body. This section is not edited after that run.

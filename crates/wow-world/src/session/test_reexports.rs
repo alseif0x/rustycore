@@ -1,7 +1,6 @@
-//! Names only the session scenarios read through the session root (#1363 slices 6a-13c): the
-//! player cast, cast-check, spell-click, battle-pet, aura-interrupt, area-flag, capture-point,
-//! spell-area autocast, dynamic-object VALUES, teleport, rest-flag, create-map, transfer-abort,
-//! login and quest names. `#![cfg(test)]`; mounted and glob-imported in cfg(test) (#1395/#1396).
+//! Names only the session scenarios read through the session root (#1363 6a-13c, 12b4): cast,
+//! spell-click, battle-pet, aura, area, capture-point, autocast, VALUES, teleport, rest, map,
+//! login, quest, void-storage. `#![cfg(test)]`; mounted and glob-imported in cfg(test) (#1395/6).
 
 #![cfg(test)]
 
@@ -21,6 +20,7 @@ pub(crate) use wow_data::spell_click::{
 };
 pub(crate) use wow_data::{SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP, SpellAreaLikeCpp};
 pub(crate) use wow_entities::MAX_POWERS_PER_CLASS;
+pub(crate) use wow_entities::PlayerVoidStorageItemLikeCpp as RepresentedVoidStorageItemLikeCpp;
 pub(crate) use wow_packet::packets::spell::SpellTargetData;
 pub(crate) use wow_world_application::PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP;
 pub(crate) use wow_world_core::session::battle_pet_adapter::{

@@ -771,11 +771,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 16528,
+          "production_lines": 16526,
           "test_lines": 141616,
-          "total_lines": 158144,
+          "total_lines": 158142,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "2026-10-16 #1363 slice 12b4: tightened to the live values: production 16725 -> 16528 (-197), test 141616 -> 141616 (+0), total 158341 -> 158144 (-197). The represented login-load steps (the trait-config authority load pair in session/persistence/load_authority.rs; the group membership and difficulty restore and the void-storage load in session/persistence/load.rs) moved to wow-world-character (login_session/represented_load.rs) over CharacterLoginHostLikeCpp and SpellbookHostLikeCpp; the login spell reset and its notification text (session/spell_state/effects.rs, retired, and spell.rs) to wow-world-application (continue_login/spell_reset.rs) over TalentHostLikeCpp, QuestSessionHostLikeCpp and AuraHostLikeCpp. The vault-clear wrapper (session/void_storage_adapter.rs), now without a production caller, and one-call forwards for the moved names the scenarios call live in the #![cfg(test)] handlers/login_load_test_shims.rs outside this tree. Bodies are token-identical after the documented rules; no await, lock, save/load order or packet changes.",
+          "latest_growth_review": "2026-10-16 #1363 slice 12b4: tightened to the live values: production 16725 -> 16526 (-199), test 141616 -> 141616 (+0), total 158341 -> 158142 (-199). The represented login-load steps (the trait-config authority load pair in session/persistence/load_authority.rs; the group membership and difficulty restore and the void-storage load in session/persistence/load.rs) moved to wow-world-character (login_session/represented_load.rs) over CharacterLoginHostLikeCpp and SpellbookHostLikeCpp; the login spell reset and its notification text (session/spell_state/effects.rs, retired, and spell.rs) to wow-world-application (continue_login/spell_reset.rs) over TalentHostLikeCpp, QuestSessionHostLikeCpp and AuraHostLikeCpp. The vault-clear wrapper (session/void_storage_adapter.rs), now without a production caller, and one-call forwards for the moved names the scenarios call live in the #![cfg(test)] handlers/login_load_test_shims.rs outside this tree. The group-id import and the void-storage item alias leave production (the alias joins session/test_reexports.rs, whose header is reflowed so the test count does not grow). Bodies are token-identical after the documented rules; no await, lock, save/load order or packet changes.",
           "open_retirement_issues": [
             584
           ],

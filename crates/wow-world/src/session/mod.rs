@@ -655,8 +655,7 @@ use wow_packet::packets::misc::{
 #[cfg(test)]
 use wow_packet::packets::misc::{BuyFailed, SellResponse};
 use wow_social::group::{
-    GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry,
-    PendingInvites, group_guid_by_db_store_id_like_cpp,
+    GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry, PendingInvites,
 };
 
 pub(crate) use wow_world_core::session::PLAYER_FLAGS_RESTING_LIKE_CPP;
@@ -761,7 +760,6 @@ pub(crate) use wow_entities::{
     PlayerEquipmentSetLikeCpp as RepresentedEquipmentSetLikeCpp,
     PlayerEquipmentSetTypeLikeCpp as RepresentedEquipmentSetTypeLikeCpp,
     PlayerEquipmentSetUpdateStateLikeCpp as RepresentedEquipmentSetUpdateStateLikeCpp,
-    PlayerVoidStorageItemLikeCpp as RepresentedVoidStorageItemLikeCpp,
 };
 
 use wow_world_core::session::WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP;
