@@ -58,6 +58,7 @@ mod destinations;
 mod execution;
 mod farsight;
 mod item_effects;
+mod nearby_entry;
 mod overloads;
 mod player_effects;
 mod post_spell_go;
@@ -71,6 +72,7 @@ pub use destinations::*;
 pub use execution::*;
 pub use farsight::*;
 pub use item_effects::*;
+pub use nearby_entry::*;
 pub use overloads::*;
 pub use player_effects::*;
 

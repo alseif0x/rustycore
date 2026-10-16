@@ -13,7 +13,7 @@
 
 use std::future::Future;
 
-use wow_world_application::ContinueLoginHostLikeCpp;
+use wow_world_application::{ContinueLoginHostLikeCpp, apply_initial_loaded_item_mods_like_cpp};
 use wow_world_inventory::InitialLoadedItemModsOutcomeLikeCpp;
 
 use super::*;
@@ -52,7 +52,7 @@ impl ContinueLoginHostLikeCpp for WorldSession {
         &mut self,
         loaded_equipped_item_guids: &[ObjectGuid],
     ) -> InitialLoadedItemModsOutcomeLikeCpp {
-        WorldSession::apply_initial_loaded_item_mods_like_cpp(self, loaded_equipped_item_guids)
+        apply_initial_loaded_item_mods_like_cpp(self, loaded_equipped_item_guids)
     }
     fn apply_loaded_known_spell_previous_rank_passive_auras_like_cpp(
         &mut self,

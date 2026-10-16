@@ -3,8 +3,6 @@
 //! Separated from the Session root under #621.
 
 use super::*;
-mod destinations;
-mod effect_combat;
 mod effect_host;
 mod effects;
 #[cfg(test)]

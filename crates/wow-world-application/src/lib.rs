@@ -37,7 +37,9 @@ pub use player_handlers::item_purchase_contents_from_extended_cost;
 pub use player_handlers::{
     PlayerHandlerCxLikeCpp, PlayerHandlerHostLikeCpp, register_player_handlers_like_cpp,
 };
+mod creature_damage;
 mod inventory_move_planning;
+pub use creature_damage::{CreatureDamageHostLikeCpp, apply_damage_from_caster_like_cpp};
 mod player_items_session;
 pub use player_items_session::*;
 mod trainer_handlers;

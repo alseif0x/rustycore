@@ -13,7 +13,6 @@ use super::{BANK_SLOT_BAG_END, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START}
 use super::{EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND};
 use super::{PlayerStatsStore, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START};
 use super::{WorldSession, two_handed_in_one_hand_like_cpp};
-pub(crate) use wow_world_inventory::RepresentedItemBonusActionLikeCpp;
 #[cfg(test)]
 pub(crate) use wow_world_inventory::RepresentedItemSetAuraRefreshEventLikeCpp;
 #[cfg(test)]
@@ -80,11 +79,6 @@ pub(crate) use wow_world_inventory::item_storage_fields_values_update_like_cpp;
 pub(in crate::session) use wow_world_inventory::represented_player_stat_changes_like_cpp;
 
 pub(in crate::session) use wow_world_core::session::RepresentedScalingStatContextLikeCpp;
-
-pub(crate) use wow_world_inventory::LoadedEquippedItemEnchantmentsOutcomeLikeCpp;
-
-// Moved to `wow_world_inventory` with the continue-login coordinator (#1363 slice 13c).
-pub(crate) use wow_world_inventory::InitialLoadedItemModsOutcomeLikeCpp;
 
 #[cfg(test)]
 pub(crate) use wow_world_core::session::player_class_mask_for_transmog_like_cpp;

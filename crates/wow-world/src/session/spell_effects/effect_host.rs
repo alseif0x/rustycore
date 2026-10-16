@@ -56,7 +56,7 @@ impl wow_world_spell::SpellEffectHostLikeCpp for WorldSession {
         cast_id: ObjectGuid,
         spell_visual_id: u32,
     ) -> impl Future<Output = Result<(), &'static str>> + Send {
-        WorldSession::apply_damage_from_caster_like_cpp(
+        wow_world_application::apply_damage_from_caster_like_cpp(
             self,
             item_guid_generator,
             spell_id,
@@ -85,5 +85,14 @@ impl wow_world_spell::SpellEffectHostLikeCpp for WorldSession {
     }
     fn represented_visibility_source_combat_reach_like_cpp(&self) -> f32 {
         wow_world_entities::represented_visibility_source_combat_reach_like_cpp(self)
+    }
+}
+
+impl wow_world_application::CreatureDamageHostLikeCpp for WorldSession {
+    fn current_group_member_guids_for_tap_like_cpp(
+        &self,
+        player_guid: ObjectGuid,
+    ) -> Vec<ObjectGuid> {
+        WorldSession::current_group_member_guids_for_tap_like_cpp(self, player_guid)
     }
 }

@@ -13,7 +13,9 @@ follow-ups F1-F4):
 
   * every inherent `WorldSession` impl in the production modules of
     `crates/wow-world/src`, also path-qualified (`impl super::WorldSession`,
-    `impl crate::session::WorldSession`) or generic (`impl<'a> WorldSession`);
+    `impl crate::session::WorldSession`, `impl ::wow_world::session::WorldSession`)
+    or generic (`impl<'a> WorldSession`, nested `<>` up to four levels);
+    methods may carry same-line attributes (`#[inline] fn`) and `extern "C"`;
     trait impls (`impl Trait for WorldSession`) are not inherent methods;
   * production is decided by cfg, never by file name: the walk starts at
     `lib.rs` and follows `mod x;` (with `#[path]` and inline-module nesting);
@@ -26,7 +28,8 @@ follow-ups F1-F4):
     closing brace;
   * a **forward** is a method whose body has at most one `;`, none of the
     keywords `let`, `if`, `match`, `for`, `while`, `loop`, `return`, no
-    closure, no `async`/`unsafe` block and at most one `?`; every other method
+    closure (also `&|x|`, `&mut ||`), no `async`/`unsafe` block and at most
+    one `?`; every other method
     is **non-forward** (it holds logic).
 
 `index` prints the totals and one row per module (`session/<dir>` or
@@ -43,6 +46,13 @@ done scope (`crates/wow-world/src/session/**`):
     cannot leave `session/**` for `handlers/` or another module unseen;
   * an allow-list entry matches no non-forward method, or a source under
     `src` is not reached from `lib.rs`;
+  * a production `#[path]` mount resolves outside `src`, or a production
+    alias of `WorldSession` (`type X = WorldSession;`, `use … WorldSession as
+    X;`) exists, since either would hide methods from the index (`index`
+    also exits 1 on these);
+  * a `handlers/*_test_shims.rs` file has no row in
+    `physical-file-policy.json` (the shim physical-row convention: every such
+    shim carries a ratcheting row at its live value from creation);
   * with `--done` (the #1363 done criterion): any non-forward method remains
     outside the allow-list.
 """
@@ -63,17 +73,36 @@ from hotspot_metrics import mask_rust_noncode  # noqa: E402
 REPO = Path(__file__).resolve().parents[2]
 SRC = Path("crates/wow-world/src")
 POLICY = Path("tools/architecture/session-method-index.json")
+PHYSICAL_POLICY = Path("tools/architecture/physical-file-policy.json")
 DONE_SCOPE = "session/"
 
 # An inherent impl of `WorldSession`, also path-qualified (`impl super::WorldSession`,
 # `impl crate::session::WorldSession`) and generic (`impl<'a> WorldSession<'a>`);
 # never `impl Trait for WorldSession` (the trait name is not followed by `::`).
+# Generic parameters with up to four levels of `<>` (`impl<T: A<B<C<D>>>>`).
+def _nested_angles(levels: int) -> bytes:
+    inner = rb"[^<>{;]*"
+    for _ in range(levels - 1):
+        inner = rb"(?:[^<>{;]|<" + inner + rb">)*"
+    return rb"<" + inner + rb">"
+
+
+_GENERICS = _nested_angles(4)
 IMPL_RE = re.compile(
-    rb"(?m)^[ \t]*impl(?:[ \t]*<[^>{;]*>)?\s+(?:\w+\s*::\s*)*WorldSession\b"
-    rb"(?:\s*<[^>{;]*>)?\s*(?:where\b[^{;]*)?\{"
+    rb"(?m)^[ \t]*impl(?:[ \t]*" + _GENERICS + rb")?\s+(?:::\s*)?(?:\w+\s*::\s*)*WorldSession\b"
+    rb"(?:\s*" + _GENERICS + rb")?\s*(?:where\b[^{;]*)?\{"
 )
+# Same-line outer attributes (`#[inline] fn`) and every qualifier, `extern "C"`
+# included (masking blanks the ABI string, leaving `extern` and spaces).
 FN_RE = re.compile(
-    rb"(?m)^[ \t]+(?:pub(?:\s*\([^)]*\))?\s+)?(?:default\s+)?(?:const\s+)?(?:async\s+)?(?:unsafe\s+)?fn\s+(\w+)"
+    rb"(?m)^[ \t]+(?:#\s*\[[^\]\n]*\]\s*)*(?:pub(?:\s*\([^)]*\))?\s+)?(?:default\s+)?(?:const\s+)?"
+    rb"(?:async\s+)?(?:unsafe\s+)?(?:extern\s+)?fn\s+(\w+)"
+)
+# A second name for `WorldSession` would hide its impls from `IMPL_RE`, so an
+# alias (`type S = WorldSession;`, `use … WorldSession as S;`) is rejected.
+ALIAS_RE = re.compile(
+    rb"\btype\s+\w+\s*(?:<[^=;]*>)?\s*=\s*(?:::\s*)?(?:\w+\s*::\s*)*WorldSession\b"
+    rb"|\bWorldSession\s+as\s+\w+\s*[;,}]"
 )
 LOGIC_RE = re.compile(rb"\b(let|if|match|for|while|loop|return)\b")
 BLOCK_EXPR_RE = re.compile(rb"\b(?:async(?:\s+move)?|unsafe)\s*\{")
@@ -82,7 +111,8 @@ MOD_RE = re.compile(rb"(?m)^[ \t]*(?:pub(?:\s*\([^)]*\))?\s+)?mod\s+(?:r#)?(\w+)
 PATH_ATTR_RE = re.compile(r'#\s*\[\s*path\s*=\s*"([^"]+)"\s*\]')
 # A closure's opening `|` follows an argument/assignment position or `move`;
 # a boolean `||` follows an operand.
-CLOSURE_LEAD = b"(,={:"
+CLOSURE_LEAD = b"(,={:&"
+CLOSURE_KEYWORDS = (b"move", b"mut")
 
 # The production configuration the done criterion measures: no `test`, and no
 # `test-fixtures` (enabled only through dev-dependencies). Any other cfg is
@@ -232,6 +262,13 @@ def _attribute_start(lines: list[str], line_index: int) -> int:
     return start
 
 
+def _ends_with_word(text: bytes, word: bytes) -> bool:
+    if not text.endswith(word):
+        return False
+    before = text[:-len(word)][-1:]
+    return not (before.isalnum() or before == b"_")
+
+
 def closure_count(body: bytes) -> int:
     count = 0
     for index, char in enumerate(body):
@@ -240,7 +277,7 @@ def closure_count(body: bytes) -> int:
         back = index - 1
         while back >= 0 and chr(body[back]).isspace():
             back -= 1
-        if back < 0 or body[back] in CLOSURE_LEAD or body[max(0, back - 3):back + 1] == b"move":
+        if back < 0 or body[back] in CLOSURE_LEAD or any(_ends_with_word(body[:back + 1], word) for word in CLOSURE_KEYWORDS):
             count += 1
     return count
 
@@ -318,7 +355,7 @@ def _first_body_brace(masked: bytes, fn_index: int) -> int:
     raise ValueError("fn without body")
 
 
-def module_files(root: Path) -> dict[Path, bool]:
+def module_files(root: Path, problems: list[str] | None = None) -> dict[Path, bool]:
     """Every file the crate mounts from `lib.rs`, and whether any mount chain is production.
 
     Follows `mod x;` (with `#[path]` and inline `mod m { mod x; }` nesting) and
@@ -358,16 +395,22 @@ def module_files(root: Path) -> dict[Path, bool]:
                 child, child_mod_rs = parent / f"{name}.rs", False
                 if not child.exists():
                     child, child_mod_rs = parent / name / "mod.rs", True
-            if not child.exists() or not child.resolve().is_relative_to(root.resolve()):
-                continue
             child_production = production and not _inside(gated, decl.start() + len(decl.group(0)) - len(decl.group(0).lstrip()))
+            if not child.exists():
+                continue
+            if not child.resolve().is_relative_to(root.resolve()):
+                # A test-only mount of `unit_tests/` is fine; production code
+                # outside `src` would escape the index, so it fails loudly.
+                if child_production and problems is not None:
+                    problems.append(f"production #[path] mount outside src: {path.relative_to(root).as_posix()} -> {name}")
+                continue
             pending.append((child.resolve(), child_production, child_mod_rs))
     return seen
 
 
-def repo_methods(repo: Path, unreached: list[str] | None = None) -> list[dict]:
+def repo_methods(repo: Path, unreached: list[str] | None = None, problems: list[str] | None = None) -> list[dict]:
     root = (repo / SRC).resolve()
-    mounted = module_files(root)
+    mounted = module_files(root, problems)
     methods = []
     for path in sorted(root.rglob("*.rs")):
         rel = path.relative_to(root).as_posix()
@@ -377,7 +420,15 @@ def repo_methods(repo: Path, unreached: list[str] | None = None) -> list[dict]:
             continue
         if not mounted[path.resolve()]:
             continue
-        methods.extend(file_methods(path.read_text(encoding="utf-8"), rel))
+        source = path.read_text(encoding="utf-8")
+        if problems is not None:
+            gated = nonproduction_spans(source)
+            masked = mask_rust_noncode(source)
+            for alias in ALIAS_RE.finditer(masked):
+                if not _inside(gated, alias.start()):
+                    line = masked.count(b"\n", 0, alias.start()) + 1
+                    problems.append(f"WorldSession alias (rejected): {rel}:{line}")
+        methods.extend(file_methods(source, rel))
     return methods
 
 
@@ -462,6 +513,32 @@ def evaluate(methods: list[dict], policy: dict, done: bool) -> tuple[list[str], 
     return errors, {"staying": staying, "outside": outside, "crate": crate}
 
 
+def shim_row_errors(repo: Path) -> list[str]:
+    """The shim physical-row convention: every `handlers/*_test_shims.rs` has a ratcheting row."""
+    policy_path = repo / PHYSICAL_POLICY
+    if not policy_path.exists():
+        return []
+    rows = {row["path"] for row in json.loads(policy_path.read_text(encoding="utf-8"))["legacy"]}
+    return [
+        f"shim without a physical-file-policy row: {path.relative_to(repo).as_posix()}"
+        for path in sorted((repo / SRC / "handlers").glob("*_test_shims.rs"))
+        if path.relative_to(repo).as_posix() not in rows
+    ]
+
+
+def check_errors(repo: Path, policy: dict, done: bool) -> tuple[list[str], dict]:
+    unreached: list[str] = []
+    problems: list[str] = []
+    methods = repo_methods(repo, unreached, problems)
+    errors, counts = evaluate(methods, policy, done)
+    # A source the module walk cannot reach is either dead or mounted in a way
+    # the walk does not follow; both must be resolved, not silently skipped.
+    errors.extend(f"source not reached from lib.rs: {rel}" for rel in unreached)
+    errors.extend(problems)
+    errors.extend(shim_row_errors(repo))
+    return errors, counts
+
+
 def print_index(methods: list[dict], list_methods: bool) -> None:
     summary = summarize(methods)
     total = summary["total"]
@@ -527,6 +604,33 @@ impl WorldSession {
     fn string_has_let(&self) -> &str {
         "let if match;; |x| async {"
     }
+
+    #[inline] fn same_line_attr(&self) { let _ = 1; }
+
+    #[cfg(test)] fn same_line_gated(&self) { let _ = 1; }
+
+    pub extern "C" fn extern_c(&self) { let _ = 1; }
+
+    fn ref_closure(&self) -> u32 {
+        self.a(&|x| x + 1)
+    }
+
+    fn ref_mut_closure(&self) -> u32 {
+        self.a(&mut || 1)
+    }
+
+    fn with_nested_fn(&self) -> u32 {
+        fn helper(&self) -> u32 { let x = 1; x }
+        helper()
+    }
+}
+
+impl<T: Into<Vec<Option<u8>>>> WorldSession {
+    fn nested_generics(&self) { let _ = 1; }
+}
+
+impl ::wow_world::session::WorldSession {
+    fn absolute_path(&self) { let _ = 1; }
 }
 
 impl super::WorldSession {
@@ -595,6 +699,13 @@ SELF_TEST_EXPECTED = [
     ("try_chain", False, 3),
     ("boolean_or", True, 3),
     ("string_has_let", True, 3),
+    ("same_line_attr", False, 1),
+    ("extern_c", False, 1),
+    ("ref_closure", False, 3),
+    ("ref_mut_closure", False, 3),
+    ("with_nested_fn", False, 4),
+    ("nested_generics", False, 1),
+    ("absolute_path", False, 1),
     ("qualified_super", False, 1),
     ("qualified_super_super", False, 1),
     ("qualified_crate", False, 1),
@@ -614,7 +725,18 @@ def _self_test_tree(repo: Path) -> None:
             "mod plain_shims;\n"
             "#[cfg(test)]\nmod tests {\n    mod nested_in_test;\n}\n"
             "mod inline {\n    mod nested_inline;\n}\n"
+            "mod aliases;\n"
+            "#[cfg(test)]\n#[path = \"../unit_tests/ok.rs\"]\nmod test_outside;\n"
+            "#[path = \"../escaped.rs\"]\nmod escaped;\n"
+            "mod handlers {\n    mod rowless_test_shims;\n}\n"
         ),
+        "aliases.rs": (
+            "type Alias = crate::session::WorldSession;\n"
+            "use crate::session::WorldSession as Renamed;\n"
+            "#[cfg(test)]\ntype TestAlias = WorldSession;\n"
+            "fn qualified() { <WorldSession as Tr>::g(); }\n"
+        ),
+        "handlers/rowless_test_shims.rs": "#![cfg(test)]\n",
         "session/mod.rs": (
             "// mod commented_out;\n"
             "mod a;\n"
@@ -650,6 +772,10 @@ def self_test() -> int:
         ("unix", True),
         ('any(test, feature = "other")', True),
         ("not(unix)", True),
+        ("not(not(test))", False),
+        ("any(not(test), test)", True),
+        ("not(any(not(test), test))", False),
+        ('all(not(test), not(feature = "test-fixtures"))', True),
     ):
         assert cfg_is_production(predicate) is production, predicate
     policy = {
@@ -707,6 +833,24 @@ def self_test() -> int:
         names = sorted(m["name"] for m in repo_methods(repo, unreached))
         assert names == ["nested_inline", "not_test_gated", "path_mounted", "ungated_shim"], names
         assert unreached == ["session/commented_out.rs"], unreached
+        for outside in ("unit_tests/ok.rs", "escaped.rs"):
+            (repo / SRC / ".." / outside).resolve().parent.mkdir(parents=True, exist_ok=True)
+            (repo / SRC / ".." / outside).resolve().write_text("impl super::WorldSession {\n    fn outside(&self) { let _ = 1; }\n}\n")
+        empty = {"allow": {}, **{key: {"methods": 99, "lines": 999}
+                                 for key in ("staying_bound", "outside_ceiling", "crate_ceiling")}}
+        errors, _ = check_errors(repo, empty, done=False)
+        assert errors == [
+            "source not reached from lib.rs: session/commented_out.rs",
+            "production #[path] mount outside src: lib.rs -> escaped",
+            "WorldSession alias (rejected): aliases.rs:1",
+            "WorldSession alias (rejected): aliases.rs:2",
+        ], errors
+        (repo / PHYSICAL_POLICY).parent.mkdir(parents=True)
+        (repo / PHYSICAL_POLICY).write_text(json.dumps({"legacy": []}))
+        errors, _ = check_errors(repo, empty, done=False)
+        assert errors[-1] == (
+            "shim without a physical-file-policy row: crates/wow-world/src/handlers/rowless_test_shims.rs"
+        ), errors
     print("session_method_index self-test: PASS")
     return 0
 
@@ -726,18 +870,17 @@ def main() -> int:
     args = parser.parse_args()
     if args.command == "self-test":
         return self_test()
-    unreached: list[str] = []
-    methods = repo_methods(args.repo, unreached)
     if args.command == "index":
+        problems: list[str] = []
+        methods = repo_methods(args.repo, problems=problems)
         print_index(methods, args.methods)
         if args.json:
             args.json.write_text(json.dumps(methods, indent=1) + "\n", encoding="utf-8")
-        return 0
+        for problem in problems:
+            print(problem, file=sys.stderr)
+        return 1 if problems else 0
     policy = json.loads((args.policy or args.repo / POLICY).read_text(encoding="utf-8"))
-    errors, counts = evaluate(methods, policy, args.done)
-    # A source the module walk cannot reach is either dead or mounted in a way
-    # the walk does not follow; both must be resolved, not silently skipped.
-    errors.extend(f"source not reached from lib.rs: {rel}" for rel in unreached)
+    errors, counts = check_errors(args.repo, policy, args.done)
     print(
         "session_method_index: "
         + ", ".join(

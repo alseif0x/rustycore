@@ -124,7 +124,8 @@ pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePet
 pub(crate) use wow_world_inventory::{
     RepresentedAutoUnequipOffhandLikeCpp, RepresentedBattlePetGrantExperienceOutcomeLikeCpp,
     RepresentedBattlePetGrantLevelOutcomeLikeCpp, RepresentedBattlePetQualityOutcomeLikeCpp,
-    RepresentedBattlePetXpSourceLikeCpp, apply_battle_pet_calculated_stats_like_cpp,
+    RepresentedBattlePetXpSourceLikeCpp, RepresentedItemBonusActionLikeCpp,
+    apply_battle_pet_calculated_stats_like_cpp,
 };
 mod battleground_adapter;
 #[cfg(test)]
@@ -245,11 +246,8 @@ pub(crate) use inventory_request_contracts::RepresentedAutoUnequipOffhandReasonL
 pub(crate) use inventory_request_contracts::VendorBuyItemTestOverrideLikeCpp;
 mod item_modifiers;
 use item_modifiers::ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP;
-pub(crate) use item_modifiers::InitialLoadedItemModsOutcomeLikeCpp;
-pub(crate) use item_modifiers::LoadedEquippedItemEnchantmentsOutcomeLikeCpp;
 #[cfg(test)]
 pub(crate) use item_modifiers::RepresentedCombatStatRecalculationLikeCpp;
-pub(crate) use item_modifiers::RepresentedItemBonusActionLikeCpp;
 #[cfg(test)]
 pub(crate) use item_modifiers::RepresentedItemBonusStateLikeCpp;
 #[cfg(test)]
@@ -603,24 +601,12 @@ use wow_data::{
     PlayerCreateInfoCastSpellStoreLikeCpp, PlayerCreateInfoCustomSpellStoreLikeCpp,
     SpellGroupStackRuleLikeCpp,
 };
-#[cfg(test)]
-use wow_entities::PetStable;
-#[cfg(test)]
-use wow_entities::TitanGripPenaltyAction;
-#[cfg(test)]
-use wow_entities::Unit;
 use wow_entities::player_rules::is_using_two_handed_weapon_in_one_hand_template as two_handed_in_one_hand_like_cpp;
 // Test-only: the session admission fixtures compare against the player slot end.
 #[cfg(test)]
-use wow_entities::ApplyEnchantmentTemplateRef;
-#[cfg(test)]
-use wow_entities::ItemLimitCategoryTemplate;
-#[cfg(test)]
 pub(crate) use wow_entities::PLAYER_SLOT_END;
 use wow_entities::{
-    AccessorObjectKind, ApplyEnchantmentArgs, ApplyEnchantmentDurationAction,
-    ApplyEnchantmentEffectAction, ApplyEnchantmentEffectRef, ApplyEnchantmentPlan,
-    ApplyEnchantmentRandomSuffixRef, ApplyEnchantmentResult, BANK_SLOT_BAG_END,
+    AccessorObjectKind, ApplyEnchantmentArgs, ApplyEnchantmentPlan, BANK_SLOT_BAG_END,
     BANK_SLOT_BAG_START, BUYBACK_SLOT_START, CreatureAddonLifecycleRecordLikeCpp,
     EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_RANGED,
     GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
@@ -629,10 +615,14 @@ use wow_entities::{
     PlayerItemTimeUpdate, PlayerPetLifecycleStateLikeCpp, PlayerQuestGameplayState,
     PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp,
     REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText,
-    SendNewItemPlan, Vehicle, VisibleItemValues, WorldObject,
+    SendNewItemPlan, Vehicle, VisibleItemValues,
 };
 #[cfg(test)]
-use wow_entities::{ActiveState, PetType, explored_zones_db_string_from_blocks_like_cpp};
+use wow_entities::{
+    ActiveState, ApplyEnchantmentEffectAction, ApplyEnchantmentEffectRef,
+    ApplyEnchantmentTemplateRef, ItemLimitCategoryTemplate, PetStable, PetType,
+    TitanGripPenaltyAction, Unit, explored_zones_db_string_from_blocks_like_cpp,
+};
 #[cfg(test)]
 use wow_entities::{EQUIPMENT_SLOT_OFFHAND, ItemPosCount, MAX_MONEY_AMOUNT, NULL_SLOT};
 #[cfg(test)]

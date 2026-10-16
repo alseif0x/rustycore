@@ -29,13 +29,6 @@ impl WorldSession {
             .check_account_heirloom_upgrades_like_cpp(item.object().entry());
         let _ = wow_world_inventory::add_item_appearance_for_runtime_item_like_cpp(self, item);
     }
-    pub(in crate::session) fn loaded_inventory_item_visible_update_like_cpp(
-        &self,
-        item_guid: ObjectGuid,
-    ) -> Option<(u8, i32, u16, u16)> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.loaded_inventory_item_visible_update_like_cpp(hub, item_guid)
-    }
     pub(crate) fn register_loaded_inventory_item_duration_refs_like_cpp(
         &mut self,
         loaded_item_guids: &[ObjectGuid],
