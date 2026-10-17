@@ -111,12 +111,22 @@ Use implemented, production-integrated and parity-proven as distinct evidence le
 ## Architecture and skills
 
 Use [orchestrate-rustycore](.agents/skills/orchestrate-rustycore/SKILL.md) for development
-coordination. Only two models take part: Claude Opus 5.5 as the parent (started with
-`ocx claude`, opencodex), which decides, reviews and integrates but does not implement, and
-DeepSeek v4.1 flash on the native DeepSeek API as the worker that implements
-(`.claude/agents/deepseek-worker.md`). Opus implements only through
-`.claude/agents/rustycore-worker.md` when the DeepSeek API fails. Agent definitions do
-not override runtime permissions.
+coordination. The native Codex parent uses GPT-6.1 Sol at high effort and owns decisions,
+review and integration; it does not implement. GPT-6 Luna at max effort implements assigned
+work. Claude-compatible sessions use `ocx claude`, `.claude/settings.json` and
+`.claude/agents/rustycore-worker.md` for the same roles. These settings are defaults: confirm
+the effective session and worker runtime before claiming a model or effort. Agent definitions
+do not override runtime permissions.
+
+For the user-selected DSH Web `go-mix` preset, coordination uses OpenCode Go
+DeepSeek V4.1 Flash at `high` effort, with MiniMax M3 at `high` as its bounded
+availability fallback and paid DeepSeek API as the last resort if both Go routes
+fail on quota or availability. This parent owns the same decisions, review, integration
+and validation scheduling and delegates implementation. Luna `max` remains the
+implementer; Opus `low` is its availability fallback, and Opus `medium` provides
+an optional concrete second opinion. The orchestration skill owns the exact routes
+and handoff rules. Native Codex/`ocx claude` defaults above remain separate entry
+points; inspect effective runtime evidence before claiming which route ran.
 
 Use the existing architecture skill for boundary/design questions and the safe-refactor skill
 for approved behavior-preserving restructuring. They apply the maintained project documents;

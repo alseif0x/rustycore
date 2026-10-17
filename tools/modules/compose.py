@@ -237,6 +237,9 @@ tokio = {{ workspace = true }}
 world-server = {{ workspace = true }}
 wow-module-api = {{ workspace = true }}
 {deps}
+
+[lints]
+workspace = true
 '''.replace("\n\n\n", "\n\n").rstrip("\n") + "\n"
 
 

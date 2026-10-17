@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 import unittest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -179,6 +180,23 @@ class ModuleManagerTests(unittest.TestCase):
             manifest,
             "the generated launcher has no unit tests and must not link a libtest harness",
         )
+
+    def test_workspace_lint_inheritance_is_checked_and_restored(self) -> None:
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        manifest_path = self.ws.root / "crates/world-modules/Cargo.toml"
+        manifest_text = manifest_path.read_text(encoding="utf-8")
+        self.assertIs(tomllib.loads(manifest_text)["lints"]["workspace"], True)
+
+        without_lints = manifest_text.replace("\n[lints]\nworkspace = true\n", "\n", 1)
+        self.assertNotEqual(without_lints, manifest_text)
+        manifest_path.write_text(without_lints, encoding="utf-8")
+        stale = self.ws.run("check")
+        self.assertNotEqual(stale.returncode, 0)
+        self.assertIn("crates/world-modules/Cargo.toml", stale.stderr)
+
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        restored = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertIs(restored["lints"]["workspace"], True)
 
 
 if __name__ == "__main__":

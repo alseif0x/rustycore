@@ -1,5 +1,18 @@
 # RustyCore — Honest Current State (single source of truth)
 
+**Continuación de distribución wow-world — 2026-10-02:** #1263 conserva el trabajo
+pendiente de #1241 bajo #584. Integración remota contrastada: `ec5d6071` (PR #1262);
+F0–F3 y F4a P1/P2 integradas. P3 tiene aceptación acotada verde en `002ff5e46`
+(movimiento `6f0660ab0`), con publicación/integración posterior registrada en #1263;
+F4a P4a/P4b, F4b, F5 y F6 siguen pendientes. #1241 ya está
+cerrada en GitHub, sin que eso pruebe cierre técnico. La revisión del plan y la
+consulta de estado no revalidaron las fases anteriores ni reclaman nueva paridad.
+Campaña P3 de código 09:30:05–10:20:07 UTC, 3.002 s de pared; final inicial 622,487 s,
+final tras reparar compose 122,093 s. El objetivo completo de 600 s no se cumplió.
+El alcance, secuencia y aceptación corregida viven en
+[wow-world-distribution-plan.md](../architecture/wow-world-distribution-plan.md);
+las entradas fechadas anteriores conservan sus propios límites de evidencia.
+
 **Integration head — 2026-09-19:** the current integration head on `3.4.3` is
 `a82f4b2f` (PR #1226, following PR #1225's #29 creature-victim damage-immunity
 slice and PR #1224's school-absorb slice). The older #31

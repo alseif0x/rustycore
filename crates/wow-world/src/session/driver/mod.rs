@@ -35,7 +35,6 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use tracing::{debug, info};
-use wow_packet::WorldPacket;
 
 use super::{
     ClientOpcodes, RuntimeTickOwner, SessionHandlerCatalogsLikeCpp, SessionState, WorldSession,

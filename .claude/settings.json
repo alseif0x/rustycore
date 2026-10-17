@@ -1,4 +1,4 @@
 {
-  "model": "claude-opus-5-5",
-  "effortLevel": "low"
+  "model": "ocx-claude-native--gpt-6.1-sol",
+  "effortLevel": "high"
 }
