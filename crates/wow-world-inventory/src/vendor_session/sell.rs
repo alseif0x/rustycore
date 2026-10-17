@@ -6,7 +6,7 @@
 //! Vendor sale transaction, buyback creation and publication.
 
 use tracing::{debug, info, warn};
-use wow_constants::SellResult;
+use wow_constants::{CreatureFlagsExtra, NPCFlags1, SellResult};
 use wow_core::ObjectGuid;
 use wow_entities::PlayerInventoryItem as InventoryItem;
 use wow_packet::packets::misc::SellItem;
@@ -17,7 +17,9 @@ use super::{
     player_money_gain_like_cpp,
 };
 use crate::item_spell_charges_db_string;
-use crate::vendor::{SellItemAmountAction, sell_item_amount_action};
+use crate::vendor::{
+    ItemSellPriceLikeCpp, SellItemAmountAction, item_sell_price_like_cpp, sell_item_amount_action,
+};
 
 /// Handle CMSG_SELL_ITEM — player sells an item to a vendor.
 ///
@@ -41,6 +43,42 @@ pub async fn handle_sell_item_with_generator_like_cpp<H: VendorSessionHostLikeCp
     };
     let map_id = host.core().player_map_id_like_cpp();
 
+    if sell.item_guid.is_empty() {
+        return;
+    }
+
+    // C++ `GetNPCIfCanInteractWith(VendorGUID, UNIT_NPC_FLAG_VENDOR, ...)`.
+    if host
+        .hub_ref()
+        .represented_npc_can_interact_with_like_cpp(sell.vendor_guid, NPCFlags1::VENDOR.bits(), 0)
+        .is_none()
+    {
+        debug!(
+            vendor_guid = ?sell.vendor_guid,
+            "SellItem rejected: vendor missing, out of range, dead, or lacks VENDOR flag"
+        );
+        host.core()
+            .send_sell_error(SellResult::CantFindVendor, None, sell.item_guid);
+        return;
+    }
+    let no_sell_vendor = host
+        .core()
+        .read_world_creature_like_cpp(sell.vendor_guid, |creature| {
+            creature.lifecycle_metadata().flags_extra & CreatureFlagsExtra::NO_SELL_VENDOR.bits()
+                != 0
+        })
+        .unwrap_or(false);
+    if no_sell_vendor {
+        host.core().send_sell_error(
+            SellResult::CantSellToThisMerchant,
+            Some(sell.vendor_guid),
+            sell.item_guid,
+        );
+        return;
+    }
+
+    host.remove_represented_feign_death_if_needed_like_cpp();
+
     // ── Find item in inventory by GUID ──
     let Some(inventory_items) = ({
         let (state, hub) = host.split_inventory_ref();
@@ -55,9 +93,10 @@ pub async fn handle_sell_item_with_generator_like_cpp<H: VendorSessionHostLikeCp
     {
         Some(pair) => pair,
         None => {
+            // C++ `GetItemByGuid` miss falls through to `SELL_ERR_CANT_FIND_ITEM`.
             warn!("SellItem: item {:?} not in inventory", sell.item_guid);
             host.core().send_sell_error(
-                SellResult::YouDontOwnThatItem,
+                SellResult::CantFindItem,
                 Some(sell.vendor_guid),
                 sell.item_guid,
             );
@@ -135,25 +174,50 @@ pub async fn handle_sell_item_with_generator_like_cpp<H: VendorSessionHostLikeCp
         SellItemAmountAction::Invalid => unreachable!(),
     };
 
-    // ── Get sell price from item_sparse directly ──
-    let sell_price: u64 = {
+    // ── C++ `pProto->GetSellPrice()`: effective ItemSparse record ──
+    let hotfix_sell_price = {
         let port = match host.lifecycle().vendor_catalog_persistence_port_like_cpp() {
             Some(port) => port,
             None => return,
         };
-        match port.load_item_sell_price_like_cpp(item.entry_id).await {
-            wow_persistence::VendorCatalogOutcomeLikeCpp::Loaded(price) => price,
-            _ => 0,
+        port.load_item_sell_price_like_cpp(item.entry_id).await
+    };
+    let db2_sell_price = host
+        .hub_ref()
+        .catalogs
+        .item_storage_template(item.entry_id)
+        .map(|template| template.sell_price);
+    let sell_price = match item_sell_price_like_cpp(&hotfix_sell_price, db2_sell_price) {
+        ItemSellPriceLikeCpp::Price(price) if price > 0 => price,
+        ItemSellPriceLikeCpp::Price(_) => {
+            host.core().send_sell_error(
+                SellResult::CantSellItem,
+                Some(sell.vendor_guid),
+                sell.item_guid,
+            );
+            return;
+        }
+        ItemSellPriceLikeCpp::NoTemplate => {
+            host.core().send_sell_error(
+                SellResult::CantFindItem,
+                Some(sell.vendor_guid),
+                sell.item_guid,
+            );
+            return;
+        }
+        ItemSellPriceLikeCpp::Unavailable => {
+            warn!(
+                "SellItem: hotfix ItemSparse sell price unavailable for item {}: {:?}",
+                item.entry_id, hotfix_sell_price
+            );
+            host.core().send_sell_error(
+                SellResult::CantSellItem,
+                Some(sell.vendor_guid),
+                sell.item_guid,
+            );
+            return;
         }
     };
-    if sell_price == 0 {
-        host.core().send_sell_error(
-            SellResult::CantSellItem,
-            Some(sell.vendor_guid),
-            sell.item_guid,
-        );
-        return;
-    }
 
     let money = sell_price.saturating_mul(u64::from(sold_count));
     let Some(money_persistence) = host

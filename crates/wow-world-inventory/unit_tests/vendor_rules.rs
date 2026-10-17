@@ -1,15 +1,15 @@
 //! Unit tests for pure vendor admission, listing, pricing, and purchase rules.
 
 use super::{
-    SellItemAmountAction, VendorBuyTemplateBlock, VendorExtendedCostBlock, sell_item_amount_action,
-    vendor_buy_coinage_update_like_cpp, vendor_buy_currency_packet_quantity_to_cpp_count,
-    vendor_buy_currency_quantity_block_result, vendor_buy_direct_inventory_destination,
-    vendor_buy_direct_store_block_result, vendor_buy_extended_cost_block_result,
-    vendor_buy_extended_cost_currency_costs, vendor_buy_extended_cost_item_costs,
-    vendor_buy_muid_to_cpp_slot, vendor_buy_packet_quantity_to_cpp_count,
-    vendor_buy_player_condition_block_result_like_cpp, vendor_buy_quantity_and_price,
-    vendor_buy_required_reputation_block_result, vendor_buy_template_block_result,
-    vendor_conditions_block_result, vendor_list_item_refundable,
+    ItemSellPriceLikeCpp, SellItemAmountAction, VendorBuyTemplateBlock, VendorExtendedCostBlock,
+    item_sell_price_like_cpp, sell_item_amount_action, vendor_buy_coinage_update_like_cpp,
+    vendor_buy_currency_packet_quantity_to_cpp_count, vendor_buy_currency_quantity_block_result,
+    vendor_buy_direct_inventory_destination, vendor_buy_direct_store_block_result,
+    vendor_buy_extended_cost_block_result, vendor_buy_extended_cost_currency_costs,
+    vendor_buy_extended_cost_item_costs, vendor_buy_muid_to_cpp_slot,
+    vendor_buy_packet_quantity_to_cpp_count, vendor_buy_player_condition_block_result_like_cpp,
+    vendor_buy_quantity_and_price, vendor_buy_required_reputation_block_result,
+    vendor_buy_template_block_result, vendor_conditions_block_result, vendor_list_item_refundable,
     vendor_list_reaches_cpp_item_limit, vendor_list_should_skip_allowed_class,
     vendor_list_should_skip_currency_row, vendor_list_should_skip_faction_flags,
     vendor_list_should_skip_sold_out, vendor_player_condition_failed_id_like_cpp,
@@ -419,6 +419,46 @@ fn sell_item_amount_action_matches_cpp_amount_branch() {
     assert_eq!(
         sell_item_amount_action(5, -1),
         SellItemAmountAction::Invalid
+    );
+}
+
+/// #1429: C++ `ItemTemplate::GetSellPrice()` reads the ItemSparse DB2 store,
+/// in which a `hotfixes.item_sparse` row replaces the DB2 file record.
+#[test]
+fn item_sell_price_uses_db2_record_unless_a_hotfix_row_replaces_it_like_cpp() {
+    use wow_persistence::VendorCatalogOutcomeLikeCpp as Outcome;
+
+    // Linen Cloth (2589) has no hotfix row: the DB2 file price applies.
+    assert_eq!(
+        item_sell_price_like_cpp(&Outcome::Missing, Some(13)),
+        ItemSellPriceLikeCpp::Price(13)
+    );
+    // A hotfix row (33081 sells for 5) replaces the DB2 record.
+    assert_eq!(
+        item_sell_price_like_cpp(&Outcome::Loaded(5), Some(1)),
+        ItemSellPriceLikeCpp::Price(5)
+    );
+    assert_eq!(
+        item_sell_price_like_cpp(&Outcome::Loaded(0), Some(7)),
+        ItemSellPriceLikeCpp::Price(0)
+    );
+    assert_eq!(
+        item_sell_price_like_cpp(&Outcome::Missing, Some(0)),
+        ItemSellPriceLikeCpp::Price(0)
+    );
+    // No ItemTemplate at all: C++ `pProto == nullptr` -> CANT_FIND_ITEM.
+    assert_eq!(
+        item_sell_price_like_cpp(&Outcome::Missing, None),
+        ItemSellPriceLikeCpp::NoTemplate
+    );
+    assert_eq!(
+        item_sell_price_like_cpp(
+            &Outcome::Failed {
+                reason: "lost connection".into()
+            },
+            Some(13)
+        ),
+        ItemSellPriceLikeCpp::Unavailable
     );
 }
 

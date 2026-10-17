@@ -505,6 +505,39 @@ pub fn loaded_item_refund_decision(
     }
 }
 
+/// Effective `ItemTemplate::GetSellPrice()` for `HandleSellItemOpcode`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ItemSellPriceLikeCpp {
+    /// No `ItemTemplate` (`pProto == nullptr`): C++ falls through to
+    /// `SELL_ERR_CANT_FIND_ITEM`.
+    NoTemplate,
+    /// `ExtendedData->SellPrice` of the effective ItemSparse record.
+    Price(u64),
+    /// The hotfix overlay could not be read; the effective record is unknown.
+    Unavailable,
+}
+
+/// C++ `ItemTemplate::GetSellPrice()` returns `ExtendedData->SellPrice`, the
+/// ItemSparse DB2 store record. `DB2StorageBase::LoadFromDB` replaces the
+/// ItemSparse.db2 record with a `hotfixes.item_sparse` row when one exists,
+/// so a hotfix row wins and every other item keeps its DB2 file price.
+pub fn item_sell_price_like_cpp(
+    hotfix_row: &wow_persistence::VendorCatalogOutcomeLikeCpp<u64>,
+    db2_sell_price: Option<u32>,
+) -> ItemSellPriceLikeCpp {
+    match hotfix_row {
+        wow_persistence::VendorCatalogOutcomeLikeCpp::Loaded(price) => {
+            ItemSellPriceLikeCpp::Price(*price)
+        }
+        wow_persistence::VendorCatalogOutcomeLikeCpp::Missing => db2_sell_price
+            .map(|price| ItemSellPriceLikeCpp::Price(u64::from(price)))
+            .unwrap_or(ItemSellPriceLikeCpp::NoTemplate),
+        wow_persistence::VendorCatalogOutcomeLikeCpp::Failed { .. } => {
+            ItemSellPriceLikeCpp::Unavailable
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SellItemAmountAction {
     Invalid,
