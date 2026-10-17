@@ -28,8 +28,7 @@ async fn far_transfer_writer_fence_retains_native_authority_on_cancel_and_failur
             let mut transfer = Box::pin(async {
                 if delayed {
                     assert!(
-                        session
-                            .process_represented_delayed_teleport_after_update_like_cpp()
+                        wow_world_entities::process_represented_delayed_teleport_after_update_like_cpp(&mut session)
                             .await
                     );
                 } else {
@@ -213,7 +212,7 @@ async fn recovery_is_bounded_and_terminal_save_requires_coherent_source() {
     assert!(session.set_pending_teleport_like_cpp(Some((1, Position::default()))));
     assert!(session.set_represented_far_teleport_pending_like_cpp(true));
     session.core.state = SessionState::Transfer;
-    session.recover_rejected_worldport_like_cpp().await;
+    wow_world_character::recover_rejected_worldport_like_cpp(&mut session).await;
     assert_eq!(
         session
             .player_teleport_state_snapshot_like_cpp()
@@ -226,7 +225,7 @@ async fn recovery_is_bounded_and_terminal_save_requires_coherent_source() {
     session.set_map_store(crate::teleport_test_fixtures::world_maps([]));
     assert!(!session.try_attach_worldport_destination_like_cpp(0, home));
     for _ in 0..2 {
-        session.recover_rejected_worldport_like_cpp().await;
+        wow_world_character::recover_rejected_worldport_like_cpp(&mut session).await;
         assert_eq!(session.core.state, SessionState::Disconnecting);
         let state = session.player_teleport_state_snapshot_like_cpp().unwrap();
         assert_eq!(state.recovery, PlayerTransferRecovery::Terminal);
@@ -271,7 +270,7 @@ async fn recovery_missing_or_invalid_homebind_terminates_without_replacing_sourc
                 })
             );
         }
-        session.recover_rejected_worldport_like_cpp().await;
+        wow_world_character::recover_rejected_worldport_like_cpp(&mut session).await;
         assert_eq!(session.core.state, SessionState::Disconnecting);
         assert_eq!(
             session.pending_teleport_like_cpp(),
@@ -347,9 +346,10 @@ async fn detached_return_keeps_incarnation_through_immediate_and_delayed_entry()
         if delayed {
             assert!(output.is_empty());
             assert!(
-                session
-                    .process_represented_delayed_teleport_after_update_like_cpp()
-                    .await
+                wow_world_entities::process_represented_delayed_teleport_after_update_like_cpp(
+                    &mut session
+                )
+                .await
             );
         }
         assert_eq!(

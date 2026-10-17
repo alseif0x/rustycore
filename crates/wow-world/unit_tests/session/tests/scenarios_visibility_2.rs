@@ -30,7 +30,7 @@ async fn force_update_visibility_repopulates_client_guids_after_login_clear_like
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("canonical viewer map");
-    session.apply_move_init_active_mover_complete_like_cpp(0);
+    wow_world_entities::apply_move_init_active_mover_complete_like_cpp(&mut session, 0);
     let _ = drain_server_packet_bytes(&send_rx);
 
     let creature_position = Position::new(20.0, 20.0, 0.0, 0.0);
@@ -157,10 +157,10 @@ async fn far_sight_update_visibility_uses_represented_seer_position_like_cpp() {
     session
         .visibility
         .set_represented_seer_guid_fixture_like_cpp(Some(seer_guid));
-    session.apply_move_init_active_mover_complete_like_cpp(0);
+    wow_world_entities::apply_move_init_active_mover_complete_like_cpp(&mut session, 0);
 
     assert_eq!(
-        session.represented_visibility_source_position_like_cpp(),
+        wow_world_entities::represented_visibility_source_position_like_cpp(&session),
         Some(seer_position)
     );
 
@@ -438,7 +438,7 @@ fn player_entry_visibility_refresh_skips_out_of_range_sessions_like_cpp() {
     );
     registry.register_or_replace(far_guid, far_info, Default::default());
 
-    session.notify_other_players_visibility_changed_like_cpp();
+    wow_world_spell::notify_other_players_visibility_changed_like_cpp(&session);
 
     let command = nearby_command_rx
         .try_recv()
@@ -487,7 +487,7 @@ async fn player_visibility_refresh_survives_full_command_queue_like_cpp() {
         Arc::clone(&receiver.core.flags.visibility_refresh_pending_like_cpp);
     source_registry.register_or_replace(receiver_guid, receiver_info, Default::default());
 
-    source.notify_other_players_visibility_changed_like_cpp();
+    wow_world_spell::notify_other_players_visibility_changed_like_cpp(&source);
 
     assert!(
         receiver

@@ -335,7 +335,7 @@ fn send_new_item_plan_group_broadcasts_to_group_members_including_self() {
     let plan = send_new_item_plan(SendNewItemDelivery::GroupBroadcast);
     let expected = crate::session::item_push_result_from_send_new_item_plan(&plan).to_bytes();
 
-    session.send_new_item_plan(&plan);
+    wow_world_inventory::send_new_item_plan(&session, &plan);
 
     assert_eq!(self_realm_rx.try_recv().unwrap(), expected);
     assert_eq!(other_realm_rx.try_recv().unwrap(), expected);

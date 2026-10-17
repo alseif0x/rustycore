@@ -94,11 +94,11 @@ async fn far_teleport_self_create_preserves_current_xp_like_cpp() {
     crate::session::hub_mut(&mut session).set_player_xp_like_cpp(1_234_567);
     crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(2_345_678);
     assert_eq!(
-        session
-            .send_player_self_create_for_teleport_like_cpp(
-                &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
-            )
-            .await,
+        wow_world_character::send_player_self_create_for_teleport_like_cpp(
+            &mut session,
+            &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
+        )
+        .await,
         None
     );
     assert!(
@@ -106,18 +106,17 @@ async fn far_teleport_self_create_preserves_current_xp_like_cpp() {
         "unloaded traits are not an authoritative empty CREATE"
     );
     assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
-    let prepared = session
-        .prepare_player_self_create_for_teleport_like_cpp()
+    let prepared = wow_world_character::prepare_player_self_create_for_teleport_like_cpp(&session)
         .unwrap()
         .to_bytes();
     assert!(send_rx.is_empty(), "building a CREATE must not publish it");
 
     assert_eq!(
-        session
-            .send_player_self_create_for_teleport_like_cpp(
-                &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
-            )
-            .await,
+        wow_world_character::send_player_self_create_for_teleport_like_cpp(
+            &mut session,
+            &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
+        )
+        .await,
         Some(true)
     );
 
@@ -138,18 +137,17 @@ async fn far_teleport_self_create_preserves_current_xp_like_cpp() {
     );
     drop(send_rx);
     assert_eq!(
-        session
-            .prepare_player_self_create_for_teleport_like_cpp()
+        wow_world_character::prepare_player_self_create_for_teleport_like_cpp(&session)
             .unwrap()
             .to_bytes(),
         prepared
     );
     assert_eq!(
-        session
-            .send_player_self_create_for_teleport_like_cpp(
-                &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
-            )
-            .await,
+        wow_world_character::send_player_self_create_for_teleport_like_cpp(
+            &mut session,
+            &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
+        )
+        .await,
         Some(false),
         "closed delivery is separate from successful construction"
     );
@@ -457,14 +455,22 @@ async fn world_port_response_recomputes_destination_rest_state_post_add_like_cpp
         if disconnected {
             drop(send_rx.take());
         }
-        assert!(session.apply_post_add_zone_from_terrain_like_cpp(571, &destination));
+        assert!(
+            wow_world_character::apply_post_add_zone_from_terrain_like_cpp(
+                &mut session,
+                571,
+                &destination
+            )
+        );
         assert_eq!(
             crate::session::hub_ref(&session).player_zone_area_like_cpp(),
             Some((200, 300))
         );
         assert!(!session.represented_is_resting_like_cpp());
         assert!(zone_authority_complete());
-        assert!(session.take_deferred_rest_flag_update_dirty_like_cpp());
+        assert!(
+            wow_world_instances::take_player_deferred_rest_flag_update_dirty_like_cpp(&mut session)
+        );
         if let Some(receiver) = &send_rx {
             assert!(
                 receiver.try_recv().is_err(),
@@ -483,7 +489,13 @@ async fn world_port_response_recomputes_destination_rest_state_post_add_like_cpp
         b"truncated",
     )
     .expect("corrupt only this test's terrain fixture");
-    assert!(session.apply_post_add_zone_from_terrain_like_cpp(571, &destination));
+    assert!(
+        wow_world_character::apply_post_add_zone_from_terrain_like_cpp(
+            &mut session,
+            571,
+            &destination
+        )
+    );
     assert_eq!(
         crate::session::hub_ref(&session).player_zone_area_like_cpp(),
         Some((200, 300))
@@ -491,7 +503,13 @@ async fn world_port_response_recomputes_destination_rest_state_post_add_like_cpp
     assert!(!zone_authority_complete());
 
     // Missing tiles instead use MapStore's fallback (zero here), not the I/O-error branch.
-    assert!(session.apply_post_add_zone_from_terrain_like_cpp(9999, &destination));
+    assert!(
+        wow_world_character::apply_post_add_zone_from_terrain_like_cpp(
+            &mut session,
+            9999,
+            &destination
+        )
+    );
     assert_eq!(
         crate::session::hub_ref(&session).player_zone_area_like_cpp(),
         Some((0, 0))
@@ -597,9 +615,11 @@ async fn activate_taxi_without_interactable_flight_master_replies_too_far_like_c
     let (mut session, send_rx) = make_session();
     let vendor = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9, 77);
 
-    session
-        .handle_activate_taxi(activate_taxi_packet(vendor, 12, 101, 202))
-        .await;
+    wow_world_instances::handle_activate_taxi(
+        &mut session,
+        activate_taxi_packet(vendor, 12, 101, 202),
+    )
+    .await;
 
     let encoded = send_rx.try_recv().unwrap();
     let mut packet = WorldPacket::new_client(encoded.as_slice().into());
@@ -630,7 +650,7 @@ async fn activate_taxi_records_represented_request_for_flight_master_like_cpp() 
 
     session.set_player_guid(Some(player_guid));
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
-    session.set_player_alive_like_cpp(true);
+    wow_world_entities::set_player_alive_like_cpp(&mut session, true);
     session.set_player_faction_template_like_cpp(35);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
@@ -646,9 +666,11 @@ async fn activate_taxi_records_represented_request_for_flight_master_like_cpp() 
     add_canonical_test_player_on_map_for_misc_test(&canonical, player_guid, position, 571, 0);
     add_canonical_flight_master_for_misc_test(&canonical, vendor, position);
 
-    session
-        .handle_activate_taxi(activate_taxi_packet(vendor, 12, 101, 202))
-        .await;
+    wow_world_instances::handle_activate_taxi(
+        &mut session,
+        activate_taxi_packet(vendor, 12, 101, 202),
+    )
+    .await;
 
     assert!(send_rx.try_recv().is_err());
     assert_eq!(

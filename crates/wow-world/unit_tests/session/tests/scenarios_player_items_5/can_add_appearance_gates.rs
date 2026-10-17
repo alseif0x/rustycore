@@ -65,10 +65,10 @@ fn can_add_item_appearance_uses_learned_weapon_proficiency_like_cpp() {
     // `Player::GetWeaponProficiency` mask, so the warrior class default is not
     // enough to collect a sword appearance.
     assert!(
-        !session.can_add_item_appearance_represented_like_cpp(65),
+        !wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 65),
         "an unlearned sword subclass must be rejected"
     );
-    assert!(session.can_add_item_appearance_represented_like_cpp(66));
+    assert!(wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 66));
 }
 
 #[test]
@@ -208,31 +208,31 @@ fn can_add_item_appearance_applies_can_use_item_template_gates_like_cpp() {
     session.set_known_spells_like_cpp(vec![12_345]);
 
     assert!(
-        session.can_add_item_appearance_represented_like_cpp(65),
+        wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 65),
         "a plain usable weapon appearance is collectable"
     );
     assert!(
-        !session.can_add_item_appearance_represented_like_cpp(66),
+        !wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 66),
         "ITEM_FLAG2_INTERNAL_ITEM is rejected"
     );
     assert!(
-        !session.can_add_item_appearance_represented_like_cpp(67),
+        !wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 67),
         "an opposite-faction item is rejected"
     );
     assert!(
-        !session.can_add_item_appearance_represented_like_cpp(68),
+        !wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 68),
         "an item above the player level is rejected"
     );
     assert!(
-        session.can_add_item_appearance_represented_like_cpp(69),
+        wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 69),
         "a known required ability passes"
     );
     assert!(
-        !session.can_add_item_appearance_represented_like_cpp(70),
+        !wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 70),
         "an unknown required ability is rejected"
     );
     assert!(
-        !session.can_add_item_appearance_represented_like_cpp(71),
+        !wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 71),
         "an item restricted to another race is rejected"
     );
 }
@@ -407,13 +407,13 @@ fn can_add_item_appearance_applies_can_use_item_learning_effect_gate_like_cpp() 
     );
     session.set_known_spells_like_cpp(vec![12_345]);
 
-    assert!(session.can_add_item_appearance_represented_like_cpp(65));
+    assert!(wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 65));
     assert!(
-        !session.can_add_item_appearance_represented_like_cpp(66),
+        !wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 66),
         "an already known learned spell blocks the item"
     );
     assert!(
-        session.can_add_item_appearance_represented_like_cpp(67),
+        wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 67),
         "an unknown learned spell leaves the item usable"
     );
 }
@@ -541,13 +541,13 @@ fn can_add_item_appearance_applies_can_use_item_reputation_gate_like_cpp() {
         faction_template_entry(1, 1, 0, 0, 0),
     ])));
 
-    assert!(session.can_add_item_appearance_represented_like_cpp(65));
+    assert!(wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 65));
     assert!(
-        session.can_add_item_appearance_represented_like_cpp(66),
+        wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 66),
         "a zero-rank faction requirement is satisfied"
     );
     assert!(
-        !session.can_add_item_appearance_represented_like_cpp(67),
+        !wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 67),
         "an Exalted requirement is not satisfied by the unloaded reputation"
     );
 }
@@ -723,16 +723,16 @@ fn can_add_item_appearance_represented_applies_cpp_gates() {
         ],
     );
 
-    assert!(session.can_add_item_appearance_represented_like_cpp(65));
-    assert!(!session.can_add_item_appearance_represented_like_cpp(66));
-    assert!(!session.can_add_item_appearance_represented_like_cpp(67));
-    assert!(!session.can_add_item_appearance_represented_like_cpp(68));
-    assert!(!session.can_add_item_appearance_represented_like_cpp(69));
-    assert!(session.can_add_item_appearance_represented_like_cpp(70));
-    assert!(!session.can_add_item_appearance_represented_like_cpp(71));
-    assert!(!session.can_add_item_appearance_represented_like_cpp(72));
+    assert!(wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 65));
+    assert!(!wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 66));
+    assert!(!wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 67));
+    assert!(!wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 68));
+    assert!(!wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 69));
+    assert!(wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 70));
+    assert!(!wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 71));
+    assert!(!wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 72));
     // The canonical Player owns the collection; the session mirror is only the
     // handle-less fixture path.
     assert!(session.add_item_appearance_like_cpp(65).is_some());
-    assert!(!session.can_add_item_appearance_represented_like_cpp(65));
+    assert!(!wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 65));
 }

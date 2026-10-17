@@ -9,18 +9,6 @@ impl WorldSession {
     pub fn set_reputation_rates_like_cpp(&mut self, rates: ReputationRatesLikeCpp) {
         self.config.reputation_rates = rates;
     }
-    #[allow(dead_code)]
-    pub(crate) fn reputation_rank_like_cpp(
-        &self,
-        faction_entry: &FactionEntry,
-        standing: i32,
-    ) -> wow_data::reputation::ReputationRankLikeCpp {
-        reputation_to_rank_like_cpp(
-            faction_entry,
-            standing,
-            self.catalogs.friendship_rep_reaction_store.as_deref(),
-        )
-    }
     pub fn set_paragon_reputation_store(&mut self, store: Arc<ParagonReputationStore>) {
         self.catalogs.paragon_reputation_store = Some(store);
         crate::session::hub_mut(self).initialize_reputation_mgr_like_cpp();

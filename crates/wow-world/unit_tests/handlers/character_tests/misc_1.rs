@@ -168,12 +168,10 @@ async fn initial_world_state_port_preserves_independent_read_failures_like_cpp()
     let (mut session, _) = make_session_with_send_capacity(1);
     session.set_player_lifecycle_port_like_cpp(port);
 
-    let values_failed = session
-        .test_load_initial_world_states_for_login_like_cpp(571, 0)
-        .await;
-    let templates_failed = session
-        .test_load_initial_world_states_for_login_like_cpp(571, 0)
-        .await;
+    let values_failed =
+        wow_world_character::load_initial_world_states_for_login_like_cpp(&session, 571, 0).await;
+    let templates_failed =
+        wow_world_character::load_initial_world_states_for_login_like_cpp(&session, 571, 0).await;
 
     assert!(values_failed.contains(&(10, 1)));
     assert!(!templates_failed.iter().any(|(id, _)| *id == 10));
@@ -335,8 +333,7 @@ fn default_homebind_reads_primary_then_neutral_pandaren_from_startup_store_like_
     assert_eq!(report.loaded, 2);
     session.set_world_safe_loc_store_like_cpp(Arc::new(store));
     assert_eq!(
-        session
-            .load_default_graveyard_homebind_like_cpp(24)
+        wow_world_character::load_default_graveyard_homebind_like_cpp(&session, 24)
             .expect("neutral Pandaren uses faction primary first"),
         CharacterLoginLocationLikeCpp {
             map_id: 1,
@@ -350,8 +347,7 @@ fn default_homebind_reads_primary_then_neutral_pandaren_from_startup_store_like_
     assert_eq!(report.loaded, 1);
     session.set_world_safe_loc_store_like_cpp(Arc::new(fallback_only));
     assert_eq!(
-        session
-            .load_default_graveyard_homebind_like_cpp(24)
+        wow_world_character::load_default_graveyard_homebind_like_cpp(&session, 24)
             .expect("neutral Pandaren keeps C++ 3295 fallback")
             .map_id,
         870
@@ -738,7 +734,7 @@ fn rejected_child_redirect_restores_validation_overlay_before_error_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 42);
     let entry_id = 122;
     session.set_player_guid(Some(player_guid));
-    session.set_player_alive_like_cpp(false);
+    wow_world_entities::set_player_alive_like_cpp(&mut session, false);
     install_equippable_item_fixture(&mut session, entry_id, InventoryType::Weapon, None);
 
     let source_guid = insert_equippable_test_item(

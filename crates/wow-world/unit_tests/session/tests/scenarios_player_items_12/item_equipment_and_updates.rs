@@ -219,7 +219,7 @@ fn send_new_item_plan_direct_routes_item_push_result_to_realm_like_cpp() {
     let plan = send_new_item_plan(SendNewItemDelivery::Direct);
     let expected = crate::session::item_push_result_from_send_new_item_plan(&plan).to_bytes();
 
-    session.send_new_item_plan(&plan);
+    wow_world_inventory::send_new_item_plan(&session, &plan);
 
     assert_eq!(realm_rx.try_recv().unwrap(), expected);
     assert!(send_rx.try_recv().is_err());

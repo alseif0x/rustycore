@@ -37,9 +37,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_spell_state_mut(self);
         wow_world_application::cancel_pending_spell_cast_request_like_cpp(&mut hub, state)
     }
-    pub(crate) fn update_player_collision_height_like_cpp(&mut self) {
-        wow_world_spell::update_player_collision_height_like_cpp(self)
-    }
     pub(crate) fn represented_mount_capability_selection_for_type_like_cpp(
         &self,
         mount_type_id: u16,
@@ -93,11 +90,6 @@ impl WorldSession {
             is_in_water,
         )
     }
-    pub(crate) fn player_spell_runtime_snapshot_like_cpp(
-        &self,
-    ) -> Option<wow_world_spell::RepresentedPlayerSpellRuntimeLikeCpp> {
-        wow_world_spell::player_spell_runtime_snapshot_like_cpp(self)
-    }
     pub(crate) fn with_player_spell_runtime_like_cpp<R>(
         &self,
         query: impl FnOnce(&wow_entities::PlayerSpellRuntimeState) -> R,
@@ -107,9 +99,6 @@ impl WorldSession {
     pub(crate) fn resolved_group_guid_like_cpp(&self) -> Option<u64> {
         wow_world_instances::group_membership::resolved_group_guid_like_cpp(self)
     }
-    pub(crate) fn send_new_item_plan(&self, plan: &wow_entities::SendNewItemPlan) {
-        wow_world_inventory::send_new_item_plan(self, plan)
-    }
     pub(crate) fn represented_bag_contains_active_item_loot_like_cpp(
         &self,
         bag_guid: wow_core::ObjectGuid,
@@ -118,16 +107,6 @@ impl WorldSession {
     }
     pub(crate) fn player_currency_quantity(&self, currency_id: u32) -> Option<u32> {
         wow_world_inventory::player_currency_quantity(self, currency_id)
-    }
-    pub(crate) fn has_currency(&self, currency_id: u32, amount: u32) -> bool {
-        wow_world_inventory::has_currency(self, currency_id, amount)
-    }
-    pub(crate) fn represented_set_currency_flags_like_cpp(
-        &mut self,
-        currency_id: u32,
-        flags: u8,
-    ) -> bool {
-        wow_world_inventory::represented_set_currency_flags_like_cpp(self, currency_id, flags)
     }
     pub(crate) fn add_currency_item_refund(
         &mut self,
@@ -142,12 +121,6 @@ impl WorldSession {
         new_money: u64,
     ) -> bool {
         wow_world_inventory::stage_player_money_change_like_cpp(self, old_money, new_money)
-    }
-    pub(crate) fn next_represented_spell_cast_guid_like_cpp(
-        &self,
-        spell_id: i32,
-    ) -> Option<wow_core::ObjectGuid> {
-        wow_world_spell::next_represented_spell_cast_guid_like_cpp(self, spell_id)
     }
     pub(crate) fn realm_id(&self) -> u16 {
         self.core.realm_id()

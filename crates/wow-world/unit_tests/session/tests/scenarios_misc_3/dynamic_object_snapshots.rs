@@ -44,7 +44,7 @@ async fn dynamic_object_values_snapshot_direct_player_vertical_only_separation_s
         .insert(dynamic_guid);
 
     assert_eq!(
-        session.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(),
+        wow_world_entities::send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(&mut session),
         1
     );
     assert_eq!(
@@ -114,7 +114,7 @@ async fn dynamic_object_values_snapshot_player_shared_vision_no_seer_gate_sends_
         .insert(dynamic_guid);
 
     assert_eq!(
-        session.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(),
+        wow_world_entities::send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(&mut session),
         1
     );
     assert_eq!(
@@ -128,7 +128,7 @@ async fn dynamic_object_values_snapshot_player_shared_vision_no_seer_gate_sends_
             .contains(&dynamic_guid)
     );
     assert_eq!(
-        session.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(),
+        wow_world_entities::send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(&mut session),
         0
     );
 }
@@ -184,7 +184,7 @@ async fn dynamic_object_values_snapshot_shared_vision_requires_source_lists_view
         .insert(dynamic_guid);
 
     assert_eq!(
-        session.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(),
+        wow_world_entities::send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(&mut session),
         0
     );
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());

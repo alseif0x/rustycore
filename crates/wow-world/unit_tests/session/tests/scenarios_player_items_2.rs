@@ -353,7 +353,7 @@ fn represented_item_level_area_scaling_raw_fallback_requires_publication_and_tar
     session.set_player_map_position_like_cpp(489, Position::ZERO);
     let _ = drain_server_opcodes(&send_rx);
     assert_eq!(
-        session.update_represented_item_level_area_based_scaling_with_publication_like_cpp(true),
+        wow_world_inventory::update_represented_item_level_area_based_scaling_with_publication_like_cpp(&mut session, true),
         Some(true),
     );
     assert_eq!(
@@ -364,7 +364,7 @@ fn represented_item_level_area_scaling_raw_fallback_requires_publication_and_tar
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     let _ = drain_server_opcodes(&send_rx);
     assert_eq!(
-        session.update_represented_item_level_area_based_scaling_with_publication_like_cpp(false),
+        wow_world_inventory::update_represented_item_level_area_based_scaling_with_publication_like_cpp(&mut session, false),
         Some(true),
     );
     assert!(drain_server_opcodes(&send_rx).is_empty());
@@ -379,8 +379,7 @@ fn represented_item_level_area_scaling_raw_fallback_requires_publication_and_tar
     empty_session.set_player_map_position_like_cpp(489, Position::ZERO);
     let _ = drain_server_opcodes(&empty_rx);
     assert_eq!(
-        empty_session
-            .update_represented_item_level_area_based_scaling_with_publication_like_cpp(true),
+        wow_world_inventory::update_represented_item_level_area_based_scaling_with_publication_like_cpp(&mut empty_session, true),
         Some(true),
     );
     assert!(
@@ -440,7 +439,7 @@ fn represented_item_level_area_scaling_rejects_stale_owner_without_mutation_or_p
         .expect("replacement state");
 
     assert_eq!(
-        session.update_represented_item_level_area_based_scaling_with_publication_like_cpp(true),
+        wow_world_inventory::update_represented_item_level_area_based_scaling_with_publication_like_cpp(&mut session, true),
         None,
     );
     assert_eq!(
@@ -507,7 +506,7 @@ fn represented_item_level_area_scaling_without_publication_still_reapplies_and_r
     let _ = drain_server_opcodes(&send_rx);
 
     assert_eq!(
-        session.update_represented_item_level_area_based_scaling_with_publication_like_cpp(false),
+        wow_world_inventory::update_represented_item_level_area_based_scaling_with_publication_like_cpp(&mut session, false),
         Some(true),
     );
     assert!(session.represented_using_pvp_item_levels_like_cpp());
@@ -535,7 +534,7 @@ fn represented_item_level_area_scaling_without_publication_still_reapplies_and_r
     );
     assert!(drain_server_opcodes(&send_rx).is_empty());
     assert_eq!(
-        session.update_represented_item_level_area_based_scaling_with_publication_like_cpp(true),
+        wow_world_inventory::update_represented_item_level_area_based_scaling_with_publication_like_cpp(&mut session, true),
         Some(false),
     );
     assert_eq!(

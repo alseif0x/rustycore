@@ -14,8 +14,6 @@
 #![cfg(test)]
 
 use crate::session::*;
-use wow_data::TalentTabStore;
-use wow_packet::WorldPacket;
 
 impl WorldSession {
     #[cfg(test)]
@@ -81,34 +79,5 @@ impl WorldSession {
     ) -> bool {
         crate::session::hub_mut(self)
             .set_represented_talent_reset_state_like_cpp(reset_cost, reset_time_secs)
-    }
-}
-
-impl WorldSession {
-    pub(crate) async fn handle_learn_talent(
-        &mut self,
-        talent_tabs: &TalentTabStore,
-        packet: WorldPacket,
-    ) {
-        wow_world_spell::handle_learn_talent(self, talent_tabs, packet).await
-    }
-    pub(crate) fn reset_represented_talents_like_cpp(&mut self) {
-        wow_world_spell::reset_represented_talents_like_cpp(self)
-    }
-    pub(crate) fn apply_represented_login_talent_reset_if_needed_like_cpp(&mut self) -> bool {
-        wow_world_spell::apply_represented_login_talent_reset_if_needed_like_cpp(self)
-    }
-    pub(crate) fn learn_represented_talent_like_cpp(
-        &mut self,
-        talent_tabs: &TalentTabStore,
-        talent_id: u32,
-        requested_rank: u16,
-    ) -> bool {
-        wow_world_spell::learn_represented_talent_like_cpp(
-            self,
-            talent_tabs,
-            talent_id,
-            requested_rank,
-        )
     }
 }

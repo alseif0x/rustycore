@@ -18,7 +18,6 @@ use crate::session::*;
 use std::sync::Arc;
 use wow_core::ObjectGuid;
 use wow_packet::packets::spell::SpellTargetData;
-use wow_world_spell::ApplyEffectSummonObjectWildSessionOutcomeLikeCpp;
 
 impl WorldSession {
     pub(crate) async fn apply_damage(
@@ -47,19 +46,6 @@ impl WorldSession {
         heal_amount: u32,
     ) -> Result<(), &'static str> {
         wow_world_spell::apply_heal(self, spell_id, target_guid, heal_amount).await
-    }
-    pub(crate) fn apply_effect_summon_object_wild_like_cpp(
-        &mut self,
-        spell_id: i32,
-        effect: &wow_data::SpellEffectInfo,
-        target_data: &SpellTargetData,
-    ) -> Option<ApplyEffectSummonObjectWildSessionOutcomeLikeCpp> {
-        wow_world_spell::apply_effect_summon_object_wild_like_cpp(
-            self,
-            spell_id,
-            effect,
-            target_data,
-        )
     }
     pub(crate) fn represented_homebind_like_cpp(&self) -> Option<RepresentedHomebindLikeCpp> {
         wow_world_spell::represented_homebind_like_cpp(self)
@@ -95,9 +81,6 @@ impl WorldSession {
         target_guid: ObjectGuid,
     ) -> u32 {
         wow_world_spell::represented_target_aura_state_mask_like_cpp(self, target_guid)
-    }
-    pub(crate) fn notify_other_players_visibility_changed_like_cpp(&self) {
-        wow_world_spell::notify_other_players_visibility_changed_like_cpp(self)
     }
     pub(crate) fn implicit_target_conditions_like_cpp(
         &self,

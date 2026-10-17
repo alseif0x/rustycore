@@ -301,7 +301,7 @@ fn remove_known_spell_downgrades_learned_skill_language_range_like_cpp() {
         75,
     );
 
-    session.remove_known_spell_like_cpp(20);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, 20);
 
     assert_eq!(
         session.player_skill_records_like_cpp().get(&777),
@@ -330,7 +330,7 @@ fn remove_known_spell_downgrades_learned_skill_level_range_like_cpp() {
         100,
     );
 
-    session.remove_known_spell_like_cpp(20);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, 20);
 
     assert_eq!(
         session.player_skill_records_like_cpp().get(&778),
@@ -359,7 +359,7 @@ fn remove_known_spell_downgrades_learned_skill_always_max_level_range_like_cpp()
         100,
     );
 
-    session.remove_known_spell_like_cpp(20);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, 20);
 
     assert_eq!(
         session.player_skill_records_like_cpp().get(&779),
@@ -388,7 +388,7 @@ fn remove_known_spell_downgrades_learned_skill_mono_range_like_cpp() {
         100,
     );
 
-    session.remove_known_spell_like_cpp(20);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, 20);
 
     assert_eq!(
         session.player_skill_records_like_cpp().get(&780),
@@ -420,7 +420,7 @@ fn remove_known_spell_downgrades_learned_skill_rank_range_like_cpp() {
         225,
     );
 
-    session.remove_known_spell_like_cpp(20);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, 20);
 
     assert_eq!(
         session.player_skill_records_like_cpp().get(&781),
@@ -472,7 +472,7 @@ fn remove_known_spell_downgrades_learned_skill_without_race_class_info_to_zero_l
     )]));
     session.set_known_spells_like_cpp(vec![20]);
 
-    session.remove_known_spell_like_cpp(20);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, 20);
 
     assert_eq!(
         session.player_skill_records_like_cpp().get(&782),
@@ -751,7 +751,7 @@ fn serverside_spell_lookup_uses_exact_difficulty_like_cpp() {
 fn spell_learn_skill_query_returns_none_without_store_like_cpp() {
     let (session, _, _) = make_session();
 
-    assert!(session.spell_learn_skill_like_cpp(10).is_none());
+    assert!(wow_world_spell::spell_learn_skill_like_cpp(&session, 10).is_none());
     assert_eq!(
         session.catalogs.spell_learn_skill_lookup_like_cpp(10),
         wow_data::SpellLearnSkillLookupLikeCpp::MissingCoverage
@@ -763,7 +763,7 @@ fn spell_learn_skill_query_matches_loaded_effects_like_cpp() {
     session.set_spell_learn_skill_store(Arc::new(test_spell_learn_skill_store_like_cpp()));
 
     assert_eq!(
-        session.spell_learn_skill_like_cpp(10),
+        wow_world_spell::spell_learn_skill_like_cpp(&session, 10),
         Some(&wow_data::SpellLearnSkillNodeLikeCpp {
             skill: 755,
             step: 4,
@@ -772,7 +772,7 @@ fn spell_learn_skill_query_matches_loaded_effects_like_cpp() {
         })
     );
     assert_eq!(
-        session.spell_learn_skill_like_cpp(20),
+        wow_world_spell::spell_learn_skill_like_cpp(&session, 20),
         Some(&wow_data::SpellLearnSkillNodeLikeCpp {
             skill: wow_data::SKILL_DUAL_WIELD_LIKE_CPP,
             step: 1,
@@ -780,7 +780,7 @@ fn spell_learn_skill_query_matches_loaded_effects_like_cpp() {
             maxvalue: 1,
         })
     );
-    assert!(session.spell_learn_skill_like_cpp(21).is_none());
+    assert!(wow_world_spell::spell_learn_skill_like_cpp(&session, 21).is_none());
     assert_eq!(
         session.catalogs.spell_learn_skill_lookup_like_cpp(21),
         wow_data::SpellLearnSkillLookupLikeCpp::MissingCoverage

@@ -73,7 +73,7 @@ fn remove_known_spell_clears_titan_grip_and_penalty_aura_like_cpp() {
     session.set_spell_store(Arc::new(spell_store));
     session.set_known_spells_like_cpp(vec![spell_id]);
 
-    session.remove_known_spell_like_cpp(spell_id);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, spell_id);
 
     assert_eq!(
         session.mutate_canonical_player_like_cpp(|player| {
@@ -157,7 +157,7 @@ fn remove_known_spell_clears_dual_wield_like_cpp() {
     session.set_spell_store(Arc::new(spell_store));
     session.set_known_spells_like_cpp(vec![spell_id]);
 
-    session.remove_known_spell_like_cpp(spell_id);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, spell_id);
 
     assert_eq!(
         session
@@ -256,7 +256,7 @@ fn remove_known_spell_records_offhand_auto_unequip_after_losing_dual_wield_like_
     session.set_spell_store(Arc::new(spell_store));
     session.set_known_spells_like_cpp(vec![spell_id]);
 
-    session.remove_known_spell_like_cpp(spell_id);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, spell_id);
 
     assert_eq!(
         session.represented_auto_unequip_offhand_requests_like_cpp(),
@@ -369,7 +369,7 @@ fn remove_known_spell_honors_offhand_unlearn_config_and_always_allow_flag_like_c
     session.set_spell_store(Arc::new(spell_store));
     session.set_known_spells_like_cpp(vec![spell_id]);
 
-    session.remove_known_spell_like_cpp(spell_id);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, spell_id);
 
     assert!(
         session
@@ -414,7 +414,7 @@ fn remove_known_spell_honors_offhand_unlearn_config_and_always_allow_flag_like_c
         },
     )])));
 
-    session.remove_known_spell_like_cpp(spell_id);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, spell_id);
 
     assert!(
         session

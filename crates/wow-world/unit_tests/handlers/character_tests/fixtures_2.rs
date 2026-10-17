@@ -736,7 +736,7 @@ pub(super) fn make_area_spirit_healer_session(
         80,
         0,
     ));
-    session.set_player_alive_like_cpp(false);
+    wow_world_entities::set_player_alive_like_cpp(&mut session, false);
     (session, send_rx, canonical)
 }
 

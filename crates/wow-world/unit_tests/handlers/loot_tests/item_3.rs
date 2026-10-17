@@ -299,11 +299,9 @@ async fn item_loot_releases_ae_view_and_tracks_multiple_items_like_cpp() {
             .has_active_loot_view_owner_like_cpp(secondary_guid)
     );
 
-    session
-        .open_active_item_loot_view_like_cpp(player_guid, first_item)
+    wow_world_loot_ops::open_active_item_loot_view_like_cpp(&mut session, player_guid, first_item)
         .await;
-    session
-        .open_active_item_loot_view_like_cpp(player_guid, second_item)
+    wow_world_loot_ops::open_active_item_loot_view_like_cpp(&mut session, player_guid, second_item)
         .await;
 
     assert!(session.loot.is_active_loot_guid(first_item));

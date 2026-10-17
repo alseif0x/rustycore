@@ -4,14 +4,12 @@
 
 //! Test-only entry points for the vehicle handlers moved to
 //! `wow-world-entities` (#1263 F5; #1363 slice A1).
-
+#![cfg(test)]
 use wow_world_entities::VehicleHandlerCxLikeCpp;
 
 use wow_core::ObjectGuid;
 use wow_packet::packets::movement::MovementInfo;
-use wow_packet::packets::vehicle::{
-    MoveChangeVehicleSeats, MoveDismissVehicle, RequestVehicleSwitchSeat, RideVehicleInteract,
-};
+use wow_packet::packets::vehicle::{MoveChangeVehicleSeats, MoveDismissVehicle};
 
 use crate::session::WorldSession;
 
@@ -69,17 +67,6 @@ impl WorldSession {
         packet: MoveChangeVehicleSeats,
     ) {
         wow_world_entities::handle_move_change_vehicle_seats(self, packet).await
-    }
-
-    pub(crate) async fn handle_request_vehicle_switch_seat(
-        &mut self,
-        packet: RequestVehicleSwitchSeat,
-    ) {
-        wow_world_entities::handle_request_vehicle_switch_seat(self, packet).await
-    }
-
-    pub(crate) async fn handle_ride_vehicle_interact(&mut self, packet: RideVehicleInteract) {
-        wow_world_entities::handle_ride_vehicle_interact(self, packet).await
     }
 
     pub(crate) fn represented_move_dismiss_vehicle_like_cpp(

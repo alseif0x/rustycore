@@ -54,7 +54,8 @@ pub use gossip_session::{
 pub use login_session::{
     CharacterLoginHostLikeCpp, LoginAdmissionDataLikeCpp, LoginInventorySnapshotLikeCpp,
     LoginSpellRowsLikeCpp, abort_partial_login_sequence_like_cpp,
-    apply_default_skills_for_login_like_cpp, apply_post_add_zone_from_terrain_like_cpp,
+    account_mount_login_partial_rows_like_cpp, apply_default_skills_for_login_like_cpp,
+    apply_post_add_zone_from_terrain_like_cpp,
     begin_represented_trait_config_authority_load_like_cpp,
     complete_represented_trait_config_authority_load_like_cpp,
     delete_invalid_character_homebind_like_cpp, enqueue_character_rename_like_cpp,

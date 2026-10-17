@@ -16,7 +16,6 @@ use wow_loot::ROLL_FLAG_TYPE_NEED_LIKE_CPP;
 mod authority;
 mod claims;
 mod fanout;
-mod handlers;
 mod loot_host;
 mod persistence;
 mod requests;

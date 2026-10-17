@@ -81,7 +81,7 @@ fn tavern_rest_revalidation_clears_stale_trigger_like_cpp() {
     ])));
     session.set_player_map_position_like_cpp(1, Position::new(11.0, 20.0, 30.0, 0.0));
 
-    assert!(session.set_represented_tavern_resting_like_cpp(42, true));
+    assert!(wow_world_instances::set_represented_tavern_resting_like_cpp(&mut session, 42, true));
     assert!(session.represented_is_resting_like_cpp());
     assert_eq!(
         session
@@ -503,7 +503,7 @@ fn give_xp_runtime_rejects_dead_player_outside_battleground_like_cpp() {
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
     crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 70.0);
-    session.set_player_alive_like_cpp(false);
+    wow_world_entities::set_player_alive_like_cpp(&mut session, false);
 
     assert!(!session.give_xp_runtime_like_cpp(50, ObjectGuid::EMPTY, 1.0));
     assert_eq!(session.player_xp_like_cpp(), 0);

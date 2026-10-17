@@ -4,7 +4,7 @@
 
 //! Test-only entry points for the player handlers moved to
 //! `wow-world-application` (#1263 F5).
-
+#![cfg(test)]
 use wow_packet::WorldPacket;
 use wow_world_application::PlayerHandlerCxLikeCpp;
 

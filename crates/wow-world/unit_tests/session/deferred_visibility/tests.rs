@@ -150,8 +150,7 @@ impl Fixture {
     }
 
     fn acknowledge(&mut self) -> PlayerVisibilityRefreshIntentLikeCpp {
-        self.session
-            .apply_move_init_active_mover_complete_like_cpp(25);
+        wow_world_entities::apply_move_init_active_mover_complete_like_cpp(&mut self.session, 25);
         let handle = self.session.core.player_handle_like_cpp.unwrap();
         assert_eq!(
             self.canonical
@@ -592,9 +591,7 @@ fn detached_ack_does_not_mark_map_visibility_notification() {
         .unwrap()
         .detach_player_like_cpp(handle)
         .unwrap();
-    fixture
-        .session
-        .apply_move_init_active_mover_complete_like_cpp(25);
+    wow_world_entities::apply_move_init_active_mover_complete_like_cpp(&mut fixture.session, 25);
     assert_eq!(
         fixture
             .canonical

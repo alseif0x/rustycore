@@ -21,17 +21,6 @@ impl WorldSession {
     ) -> Option<[u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP]> {
         wow_world_instances::player_explored_zones_snapshot_like_cpp(self)
     }
-    pub(crate) fn update_area_represented_with_rest_update_like_cpp(
-        &mut self,
-        new_area: u32,
-        send_rest_update: bool,
-    ) -> bool {
-        wow_world_instances::update_area_represented_with_rest_update_like_cpp(
-            self,
-            new_area,
-            send_rest_update,
-        )
-    }
     pub(crate) fn update_zone_represented_like_cpp(
         &mut self,
         new_zone: u32,
@@ -47,13 +36,6 @@ impl WorldSession {
         wow_world_instances::update_zone_represented_without_rest_update_packet_like_cpp(
             self, new_zone, new_area,
         )
-    }
-    pub(crate) fn set_represented_tavern_resting_like_cpp(
-        &mut self,
-        trigger_id: u32,
-        entered: bool,
-    ) -> bool {
-        wow_world_instances::set_represented_tavern_resting_like_cpp(self, trigger_id, entered)
     }
     pub(crate) fn apply_create_map_side_effects_like_cpp(
         &mut self,
@@ -74,23 +56,6 @@ impl WorldSession {
             map_entry,
             player_guid,
         )
-    }
-    pub(crate) fn create_map_active_instance_lock_context_like_cpp(
-        &self,
-        map_id: u32,
-        difficulty_id: wow_map::Difficulty,
-    ) -> Option<wow_map::CreateMapInstanceLockContext> {
-        wow_world_instances::create_map_active_instance_lock_context_like_cpp(
-            self,
-            map_id,
-            difficulty_id,
-        )
-    }
-    pub(crate) fn create_map_instance_owner_guid_like_cpp(
-        &self,
-        map_id: u32,
-    ) -> Option<ObjectGuid> {
-        wow_world_instances::create_map_instance_owner_guid_like_cpp(self, map_id)
     }
     pub(crate) fn resolved_player_recent_instance_id_like_cpp(&self, map_id: u32) -> Option<u32> {
         let (state, hub) = crate::session::split_instances_ref(self);

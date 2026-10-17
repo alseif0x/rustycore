@@ -128,7 +128,7 @@ async fn loot_unit_dead_player_returns_silently_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 42);
     let loot_guid = test_creature_guid(19_033);
     session.set_player_guid(Some(player_guid));
-    session.set_player_alive_like_cpp(false);
+    wow_world_entities::set_player_alive_like_cpp(&mut session, false);
     install_active_spell_cast(&mut session, player_guid);
     install_visible_aura_with_interrupt_flags(
         &mut session,

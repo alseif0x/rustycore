@@ -27,9 +27,6 @@ impl WorldSession {
     pub(crate) fn remove_represented_rest_flag_like_cpp(&mut self, rest_flag: u32) -> bool {
         wow_world_instances::remove_player_rest_flag_like_cpp(self, rest_flag)
     }
-    pub(crate) fn take_deferred_rest_flag_update_dirty_like_cpp(&mut self) -> bool {
-        wow_world_instances::take_player_deferred_rest_flag_update_dirty_like_cpp(self)
-    }
     pub(crate) fn send_represented_resting_player_flag_update_like_cpp(&self) -> bool {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.send_represented_resting_player_flag_update_like_cpp(hub)

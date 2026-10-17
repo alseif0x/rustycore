@@ -410,7 +410,7 @@ async fn update_visibility_uses_map_sources_without_world_db_like_cpp() {
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("visibility fixture should install its canonical Player owner");
-    session.apply_move_init_active_mover_complete_like_cpp(0);
+    wow_world_entities::apply_move_init_active_mover_complete_like_cpp(&mut session, 0);
     let _ = drain_server_packet_bytes(&send_rx);
 
     let creature_position = Position::new(20.0, 20.0, 0.0, 0.0);
@@ -548,7 +548,7 @@ async fn send_initial_packets_after_add_to_map_rebuilds_visibility_after_login_c
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("canonical viewer map");
-    session.apply_move_init_active_mover_complete_like_cpp(0);
+    wow_world_entities::apply_move_init_active_mover_complete_like_cpp(&mut session, 0);
     let _ = drain_server_packet_bytes(&send_rx);
 
     let creature_position = Position::new(20.0, 20.0, 0.0, 0.0);

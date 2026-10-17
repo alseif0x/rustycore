@@ -363,9 +363,7 @@ pub(crate) fn saga_durable_pet_row_like_cpp(
 }
 
 pub(crate) fn owner_of(fixture: &SagaFixtureLikeCpp) -> Arc<BattlePetAccountOwnerLikeCpp> {
-    fixture
-        .session
-        .battle_pet_account_owner_lease_like_cpp()
+    wow_world_inventory::battle_pet_account_owner_lease_like_cpp(&fixture.session)
         .expect("attached owner")
         .0
 }

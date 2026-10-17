@@ -45,9 +45,7 @@ async fn hearth_and_resurrect_allowed_area_resurrects_and_teleports_home_like_cp
         wow_data::AREA_FLAG_ALLOW_HEARTH_AND_RESURRECT_FROM_AREA_LIKE_CPP,
     );
 
-    session
-        .handle_hearth_and_resurrect(WorldPacket::new_empty())
-        .await;
+    wow_world_character::handle_hearth_and_resurrect(&mut session, WorldPacket::new_empty()).await;
 
     assert!(session.player_is_alive_like_cpp());
     assert_eq!(

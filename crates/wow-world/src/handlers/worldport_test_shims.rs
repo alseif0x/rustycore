@@ -15,7 +15,6 @@
 
 use crate::session::*;
 use wow_core::Position;
-use wow_packet::packets::update::UpdateObject;
 
 impl WorldSession {
     pub(crate) fn try_attach_worldport_destination_like_cpp(
@@ -50,9 +49,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_instances_ref(self);
         state.create_map_difficulty_context_like_cpp(hub, map_id, difficulty_id)
     }
-    pub(crate) async fn recover_rejected_worldport_like_cpp(&mut self) {
-        wow_world_character::recover_rejected_worldport_like_cpp(self).await
-    }
     pub(crate) fn finish_worldport_native_before_disconnect_like_cpp(&mut self) -> bool {
         wow_world_character::finish_worldport_native_before_disconnect_like_cpp(self)
     }
@@ -62,16 +58,6 @@ impl WorldSession {
         position: Position,
     ) -> bool {
         wow_world_character::begin_worldport_post_add_like_cpp(self, map_id, position)
-    }
-    pub(crate) async fn send_player_self_create_for_teleport_like_cpp(
-        &mut self,
-        trait_node_entries: &wow_data::trait_tree::TraitNodeEntryStore,
-    ) -> Option<bool> {
-        wow_world_character::send_player_self_create_for_teleport_like_cpp(self, trait_node_entries)
-            .await
-    }
-    pub(crate) fn prepare_player_self_create_for_teleport_like_cpp(&self) -> Option<UpdateObject> {
-        wow_world_character::prepare_player_self_create_for_teleport_like_cpp(self)
     }
     pub(crate) fn account_heirloom_active_player_rows_like_cpp(&self) -> Vec<(i32, u32)> {
         let (state, hub) = crate::session::split_lifecycle_ref(self);

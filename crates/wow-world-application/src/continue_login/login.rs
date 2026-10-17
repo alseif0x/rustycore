@@ -255,7 +255,7 @@ pub async fn handle_continue_player_login_with_module_registry_like_cpp<
         let (state, mut hub) = host.split_lifecycle_mut();
         state.set_loaded_player_flags_ex_like_cpp(&mut hub, base_row.player_flags_ex.unwrap_or(0))
     };
-    host.set_loaded_player_identity_like_cpp(map_id as u16, race, class, level, gender);
+    set_loaded_player_identity_like_cpp(host, map_id as u16, race, class, level, gender);
     // C++ recalculates zone/area from terrain after AddToMap
     // (`Player::SendInitialPacketsAfterAddToMap`). Seed from DB until
     // that post-add terrain pass runs.
@@ -351,7 +351,11 @@ pub async fn handle_continue_player_login_with_module_registry_like_cpp<
         }
         let _ = apply_represented_group_leader_flag_like_cpp(host);
     }
-    host.load_represented_xp_rest_bonus_like_cpp(saved_rest_state, saved_rest_bonus);
+    wow_world_instances::load_represented_xp_rest_bonus_like_cpp(
+        host,
+        saved_rest_state,
+        saved_rest_bonus,
+    );
     let applied_rest_bonus = host.apply_offline_xp_rest_bonus_with_policy_like_cpp(
         player_rest_rates,
         saved_logout_time_secs,
@@ -627,7 +631,7 @@ pub async fn handle_continue_player_login_with_module_registry_like_cpp<
     };
 
     // Store current map and character info for VALUES updates + stat recalculation
-    host.set_loaded_player_identity_like_cpp(map_id as u16, race, class, level, gender);
+    set_loaded_player_identity_like_cpp(host, map_id as u16, race, class, level, gender);
     let validated_persisted_transport_login = restore_persisted_transport_for_login_like_cpp(
         host,
         guid,

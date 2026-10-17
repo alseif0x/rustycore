@@ -208,8 +208,7 @@ fn add_item_appearance_for_item_resolves_modified_appearance_like_cpp() {
     );
     session.mutate_canonical_player_like_cpp(|player| player.clear_data_changes());
 
-    let update = session
-        .add_item_appearance_for_item_like_cpp(777, 2)
+    let update = wow_world_inventory::add_item_appearance_for_item_like_cpp(&mut session, 777, 2)
         .expect("represented item appearance should resolve by item/modifier");
     let active = update
         .active_player_data
@@ -218,14 +217,10 @@ fn add_item_appearance_for_item_resolves_modified_appearance_like_cpp() {
     assert!(session.represented_has_item_appearance_like_cpp(65));
     assert_eq!(active.values.transmog, vec![0, 0, 1 << 1]);
     assert!(
-        session
-            .add_item_appearance_for_item_like_cpp(777, 2)
-            .is_none()
+        wow_world_inventory::add_item_appearance_for_item_like_cpp(&mut session, 777, 2).is_none()
     );
     assert!(
-        session
-            .add_item_appearance_for_item_like_cpp(778, 2)
-            .is_none()
+        wow_world_inventory::add_item_appearance_for_item_like_cpp(&mut session, 778, 2).is_none()
     );
 }
 #[test]
@@ -287,7 +282,7 @@ fn on_item_added_adds_heirloom_and_permanent_appearance_like_cpp() {
     );
     item.set_item_flag(ItemFieldFlags::SOULBOUND);
 
-    let updates = session.on_item_added_to_collection_like_cpp(&item);
+    let updates = wow_world_inventory::on_item_added_to_collection_like_cpp(&mut session, &item);
 
     assert_eq!(updates.len(), 2);
     assert_eq!(session.account_heirloom_rows_like_cpp(), vec![(44_000, 0)]);
@@ -353,7 +348,7 @@ fn on_item_added_records_refundable_appearance_as_temporary_like_cpp() {
     );
     item.set_item_flag(ItemFieldFlags::SOULBOUND | ItemFieldFlags::REFUNDABLE);
 
-    let updates = session.on_item_added_to_collection_like_cpp(&item);
+    let updates = wow_world_inventory::on_item_added_to_collection_like_cpp(&mut session, &item);
 
     assert_eq!(updates.len(), 1);
     assert_eq!(session.has_item_appearance_like_cpp(96), (true, true));

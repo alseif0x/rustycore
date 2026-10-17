@@ -124,7 +124,7 @@ fn talent_points_refresh_reads_active_group_and_rewards_from_active_and_detached
                 player.gameplay_state_mut().quest_rewarded_talent_points = 5;
             })
             .unwrap();
-        session.refresh_represented_talent_points_like_cpp();
+        wow_world_quest::refresh_represented_talent_points_like_cpp(&mut session);
         assert_eq!(session.player_character_points_like_cpp(), 73);
         assert!(
             manager.try_lock().is_ok(),
@@ -155,7 +155,7 @@ fn talent_points_refresh_without_level_catalog_saturates_and_clamps_canonical_re
                 player.gameplay_state_mut().quest_rewarded_talent_points = rewarded;
             })
             .unwrap();
-        session.refresh_represented_talent_points_like_cpp();
+        wow_world_quest::refresh_represented_talent_points_like_cpp(&mut session);
         assert_eq!(session.player_character_points_like_cpp(), expected);
     }
 }
@@ -178,7 +178,7 @@ fn talent_points_refresh_rejects_stale_and_missing_owner_without_fixture_fallbac
         .fixtures
         .progression
         .player_character_points_like_cpp = 456;
-    session.refresh_represented_talent_points_like_cpp();
+    wow_world_quest::refresh_represented_talent_points_like_cpp(&mut session);
     assert_eq!(
         session
             .fixtures
@@ -187,7 +187,7 @@ fn talent_points_refresh_rejects_stale_and_missing_owner_without_fixture_fallbac
         456
     );
     session.core.canonical_map_manager = None;
-    session.refresh_represented_talent_points_like_cpp();
+    wow_world_quest::refresh_represented_talent_points_like_cpp(&mut session);
     assert_eq!(
         session
             .fixtures

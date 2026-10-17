@@ -9,7 +9,7 @@
 //! social owner's context from the session's disjoint borrows. They are the
 //! only chat code left in `wow-world` besides the imports, the module mounts
 //! and the text-emote registration that was not part of the move.
-
+#![cfg(test)]
 use wow_packet::packets::chat::ChatMsg;
 use wow_world_core::session::ChatPolicyCatalogsLikeCpp;
 

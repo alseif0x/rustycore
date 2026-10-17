@@ -5,6 +5,7 @@
 
 #[allow(unused_imports)]
 use super::*;
+use wow_world_core::session::movement_protocol::TeleportToOptionsLikeCpp;
 
 impl crate::session::WorldSession {
     #[cfg(test)]

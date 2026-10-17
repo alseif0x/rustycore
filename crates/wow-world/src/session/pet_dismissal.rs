@@ -3,7 +3,3 @@
 
 //! Pet dismissal: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
-
-use super::WorldSession;
-
-impl WorldSession {}

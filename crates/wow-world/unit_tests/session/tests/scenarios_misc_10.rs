@@ -646,7 +646,7 @@ fn update_pvp_flag_expires_timer_after_five_minutes_like_cpp() {
     session.fixtures.combat.player_pvp_hostile_like_cpp = false;
     session.fixtures.combat.player_pvp_end_timer_like_cpp = Some(1_000);
 
-    session.update_pvp_flag_like_cpp(1_300);
+    wow_world_entities::update_pvp_flag_like_cpp(&mut session, 1_300);
 
     let manager = canonical.lock().unwrap();
     let player = manager
@@ -673,7 +673,7 @@ fn update_pvp_flag_keeps_timer_before_five_minutes_like_cpp() {
     session.fixtures.combat.player_pvp_hostile_like_cpp = false;
     session.fixtures.combat.player_pvp_end_timer_like_cpp = Some(1_000);
 
-    session.update_pvp_flag_like_cpp(1_299);
+    wow_world_entities::update_pvp_flag_like_cpp(&mut session, 1_299);
 
     let manager = canonical.lock().unwrap();
     let player = manager

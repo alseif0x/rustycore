@@ -303,8 +303,7 @@ fn base_learn_spell_fallback_clears_trait_override_before_reactivation_like_cpp(
             .contains_key(&spell_id)
     );
     assert!(
-        !session
-            .represented_override_spells_like_cpp()
+        !wow_world_spell::represented_override_spells_like_cpp(&session)
             .get(&overridden_spell_id)
             .is_some_and(|spells| spells.contains(&spell_id))
     );

@@ -29,13 +29,13 @@ async fn recorded_raw_equip(outcome: PersistenceOutcomeLikeCpp, applied: bool) {
     session.set_player_inventory_persistence_port_like_cpp(port);
     while send_rx.try_recv().is_ok() {}
 
-    session
-        .execute_inventory_equip_to_empty_raw_like_cpp(
-            INVENTORY_SLOT_BAG_0,
-            INVENTORY_SLOT_ITEM_START,
-            wow_entities::make_item_pos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND),
-        )
-        .await;
+    wow_world_application::execute_inventory_equip_to_empty_raw_like_cpp(
+        &mut session,
+        INVENTORY_SLOT_BAG_0,
+        INVENTORY_SLOT_ITEM_START,
+        wow_entities::make_item_pos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND),
+    )
+    .await;
 
     let recorded = requests.lock().unwrap();
     assert_eq!(recorded.len(), 1);

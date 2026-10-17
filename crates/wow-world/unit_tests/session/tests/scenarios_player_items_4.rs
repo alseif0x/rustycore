@@ -704,7 +704,7 @@ fn canonical_player_saved_equipment_and_void_storage_follow_handle_generation_li
             context: 0,
         },
     ));
-    session.mark_represented_void_storage_loaded_like_cpp();
+    wow_world_character::mark_represented_void_storage_loaded_like_cpp(&mut session);
     assert_eq!(
         session
             .represented_load_equipment_set_packet_like_cpp()
@@ -714,7 +714,7 @@ fn canonical_player_saved_equipment_and_void_storage_follow_handle_generation_li
         "Tank"
     );
     assert_eq!(
-        session.represented_void_storage_free_slots_like_cpp(),
+        wow_world_application::represented_void_storage_free_slots_like_cpp(&session),
         Some(159)
     );
 
@@ -727,8 +727,7 @@ fn canonical_player_saved_equipment_and_void_storage_follow_handle_generation_li
         Some(wow_map::PlayerResidenceLikeCpp::Detached)
     );
     assert_eq!(
-        session
-            .represented_void_storage_item_by_id_like_cpp(900)
+        wow_world_application::represented_void_storage_item_by_id_like_cpp(&session, 900)
             .map(|(slot, item)| (slot, item.item_entry)),
         Some((3, 19_019))
     );
@@ -778,14 +777,11 @@ fn canonical_player_saved_equipment_and_void_storage_follow_handle_generation_li
             .is_none()
     );
     assert!(
-        session
-            .represented_void_storage_free_slots_like_cpp()
-            .is_none()
+        wow_world_application::represented_void_storage_free_slots_like_cpp(&session).is_none()
     );
     assert!(!session.delete_represented_equipment_set_like_cpp(701));
     assert!(
-        session
-            .delete_represented_void_storage_item_like_cpp(4)
+        wow_world_application::delete_represented_void_storage_item_like_cpp(&mut session, 4)
             .is_none()
     );
     assert_eq!(

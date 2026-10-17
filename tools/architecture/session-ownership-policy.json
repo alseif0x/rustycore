@@ -550,12 +550,6 @@
           "source_class": "test_fixture"
         },
         {
-          "module": "crate::handlers::group::ops_1",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "module": "crate::handlers::group::ops_1::f3_shims",
           "trait_path": null,
           "cfg": [
@@ -714,14 +708,6 @@
           "source_class": "test_fixture"
         },
         {
-          "module": "crate::handlers::loot::handlers::test_shims",
-          "trait_path": null,
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
           "module": "crate::handlers::loot::loot_host",
           "trait_path": "LootHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
@@ -782,6 +768,14 @@
           "trait_path": null,
           "cfg": [],
           "source_class": "production"
+        },
+        {
+          "module": "crate::handlers::loot_handler_test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "module": "crate::handlers::loot_ops_session_host",
@@ -1035,14 +1029,6 @@
         },
         {
           "module": "crate::handlers::social_quest_test_shims",
-          "trait_path": null,
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "module": "crate::handlers::spell::f3_shims",
           "trait_path": null,
           "cfg": [
             "cfg (test)"
@@ -1322,12 +1308,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "module": "crate::player::quest_persistence_projection",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "module": "crate::player::quest_persistence_projection::f3_shims",
@@ -2498,86 +2478,6 @@
           ]
         },
         {
-          "module": "crate::handlers::aura_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_mount_aura_display_candidates_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_mount_aura_display_candidates_like_cpp (& self , spell_id : u32 ,) -> Vec < i32 >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::aura_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_player_aura_state_mask_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_player_aura_state_mask_like_cpp (& self) -> Option < u32 >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::aura_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_spell_area_autocast_source_is_empty_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_spell_area_autocast_source_is_empty_like_cpp (& self) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::aura_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "tick_auras",
-          "visibility": "pub (crate)",
-          "signature": "fn tick_auras (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::battle_pet_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "battle_pet_account_owner_lease_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn battle_pet_account_owner_lease_like_cpp (& self ,) -> Option < (std :: sync :: Arc < crate :: battle_pet_account :: BattlePetAccountOwnerLikeCpp > , crate :: battle_pet_account :: BattlePetLeaseIdLikeCpp ,) >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::battle_pet_test_shims",
           "trait_path": null,
           "kind": "method",
@@ -2600,22 +2500,6 @@
           "name": "battle_pet_cage_battle_pet_represented_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battle_pet_cage_battle_pet_represented_like_cpp (& mut self , pet_guid : ObjectGuid , inventory_can_store : bool , item_stored : bool ,) -> RepresentedBattlePetCageOutcomeLikeCpp",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::battle_pet_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "battle_pet_calculate_stats_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn battle_pet_calculate_stats_like_cpp (& self , breed : u16 , species : u32 , quality : u8 , level : u16 ,) -> Option < RepresentedBattlePetCalculatedStatsLikeCpp >",
           "cfg": [
             "cfg (test)"
           ],
@@ -2709,22 +2593,6 @@
           "module": "crate::handlers::battle_pet_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "battle_pet_has_max_pet_count_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn battle_pet_has_max_pet_count_like_cpp (& self , species : u32 , owner_guid : Option < ObjectGuid > ,) -> Option < bool >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::battle_pet_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "battle_pet_max_pet_level_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battle_pet_max_pet_level_like_cpp (& self) -> Option < u16 >",
@@ -2760,22 +2628,6 @@
           "name": "battle_pet_remove_pet_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battle_pet_remove_pet_like_cpp (& mut self , pet_guid : ObjectGuid) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::battle_pet_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "battle_pet_try_acquire_journal_lease_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn battle_pet_try_acquire_journal_lease_like_cpp (& self) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -3515,22 +3367,6 @@
           "name": "handle_calendar_update_event",
           "visibility": "pub (crate)",
           "signature": "async fn handle_calendar_update_event (& mut self , _query : CalendarUpdateEvent)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::canonical_objects_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp (& mut self ,) -> usize",
           "cfg": [
             "cfg (test)"
           ],
@@ -4369,9 +4205,9 @@
           "module": "crate::handlers::character::continue_login_host",
           "trait_path": "ContinueLoginHostLikeCpp",
           "kind": "method",
-          "name": "load_represented_xp_rest_bonus_like_cpp",
+          "name": "player_spell_hit_source_identity_complete_like_cpp",
           "visibility": "private",
-          "signature": "fn load_represented_xp_rest_bonus_like_cpp (& mut self , rest_state : u8 , rest_bonus : f32)",
+          "signature": "fn player_spell_hit_source_identity_complete_like_cpp (& self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -4383,14 +4219,13 @@
           "module": "crate::handlers::character::continue_login_host",
           "trait_path": "ContinueLoginHostLikeCpp",
           "kind": "method",
-          "name": "set_loaded_player_identity_like_cpp",
+          "name": "resolved_represented_guild_id_like_cpp",
           "visibility": "private",
-          "signature": "fn set_loaded_player_identity_like_cpp (& mut self , map_id : u16 , race : u8 , class : u8 , level : u8 , gender : u8 ,)",
+          "signature": "fn resolved_represented_guild_id_like_cpp (& self) -> Option < u64 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
             "external_impl",
-            "setter",
             "trait_impl"
           ]
         },
@@ -4406,20 +4241,6 @@
           "guards": [
             "external_impl",
             "setter",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::continue_login_host",
-          "trait_path": "ContinueLoginHostLikeCpp",
-          "kind": "method",
-          "name": "sync_player_spell_hit_aura_authority_to_canonical_like_cpp",
-          "visibility": "private",
-          "signature": "fn sync_player_spell_hit_aura_authority_to_canonical_like_cpp (& mut self) -> Option < bool >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
             "trait_impl"
           ]
         },
@@ -4892,19 +4713,6 @@
           ]
         },
         {
-          "module": "crate::handlers::character::query",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_quest_giver_status",
-          "visibility": "private",
-          "signature": "fn send_quest_giver_status (& self , guid : ObjectGuid , status : u32)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
           "module": "crate::handlers::character::query::test_only",
           "trait_path": null,
           "kind": "method",
@@ -4961,20 +4769,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::stats_update",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_login_stat_update_with_represented_item_bonuses_like_cpp",
-          "visibility": "pub (in crate :: handlers)",
-          "signature": "fn send_login_stat_update_with_represented_item_bonuses_like_cpp (& mut self ,)",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "external_impl",
             "visible"
@@ -5511,20 +5305,6 @@
           "name": "visibility_mut",
           "visibility": "private",
           "signature": "fn visibility_mut (& mut self) -> & mut VisibilityState",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::character_login_host",
-          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
-          "kind": "method",
-          "name": "account_mount_login_partial_rows_like_cpp",
-          "visibility": "private",
-          "signature": "fn account_mount_login_partial_rows_like_cpp (& self) -> Vec < AccountMount >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -7094,22 +6874,6 @@
           "module": "crate::handlers::collections_session_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_add_toy",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_add_toy (& mut self , pkt : wow_packet :: WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::collections_session_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_use_toy",
           "visibility": "pub (crate)",
           "signature": "async fn handle_use_toy (& mut self , pkt : wow_packet :: WorldPacket)",
@@ -7223,22 +6987,6 @@
           "module": "crate::handlers::continue_login_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_login_known_spell_combat_capabilities_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_login_known_spell_combat_capabilities_like_cpp (& mut self , known_spells : & [i32] ,) -> usize",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::continue_login_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "apply_represented_first_login_cast_spells_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn apply_represented_first_login_cast_spells_like_cpp (& mut self) -> usize",
@@ -7258,38 +7006,6 @@
           "name": "apply_represented_first_login_cast_spells_with_catalogs_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn apply_represented_first_login_cast_spells_with_catalogs_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , player_bootstrap : & PlayerBootstrapCatalogsLikeCpp ,) -> usize",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::continue_login_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_represented_first_login_flag_if_needed_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_represented_first_login_flag_if_needed_like_cpp (& mut self) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::continue_login_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_represented_group_leader_flag_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_represented_group_leader_flag_like_cpp (& mut self) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -7367,57 +7083,9 @@
           "module": "crate::handlers::continue_login_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "load_account_item_appearances_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn load_account_item_appearances_like_cpp (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::continue_login_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_account_mounts_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn load_account_mounts_like_cpp (& mut self) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::continue_login_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "load_account_toys_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn load_account_toys_like_cpp (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::continue_login_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_account_transmog_illusions_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn load_account_transmog_illusions_like_cpp (& mut self)",
           "cfg": [
             "cfg (test)"
           ],
@@ -7514,22 +7182,6 @@
           "name": "load_represented_explored_zones_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn load_represented_explored_zones_like_cpp (& mut self , input : & str) -> usize",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::continue_login_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_represented_player_difficulties_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn load_represented_player_difficulties_like_cpp (& mut self , dungeon_difficulty_id : u32 , raid_difficulty_id : u32 , legacy_raid_difficulty_id : u32 ,)",
           "cfg": [
             "cfg (test)"
           ],
@@ -9631,41 +9283,9 @@
           "module": "crate::handlers::group_session_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_group_publication_tail_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn apply_group_publication_tail_like_cpp (& mut self , tail : GroupPublicationTailLikeCpp ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::group_session_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "next_group_update_sequence_number_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn next_group_update_sequence_number_like_cpp (& mut self , category : u8 ,) -> Option < i32 >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::group_session_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "reconcile_group_state_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn reconcile_group_state_like_cpp (& mut self) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -9965,38 +9585,6 @@
           "module": "crate::handlers::instance_session_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "create_map_active_instance_lock_context_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn create_map_active_instance_lock_context_like_cpp (& self , map_id : u32 , difficulty_id : wow_map :: Difficulty ,) -> Option < wow_map :: CreateMapInstanceLockContext >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::instance_session_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "create_map_instance_owner_guid_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn create_map_instance_owner_guid_like_cpp (& self , map_id : u32 ,) -> Option < ObjectGuid >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::instance_session_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "create_map_player_context_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn create_map_player_context_like_cpp (& self , map_id : u32 , map_entry : wow_data :: map :: MapEntry , player_guid : ObjectGuid ,) -> Option < wow_map :: CreateMapPlayerContext >",
@@ -10055,39 +9643,6 @@
           "guards": [
             "external_impl",
             "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::instance_session_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_represented_tavern_resting_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn set_represented_tavern_resting_like_cpp (& mut self , trigger_id : u32 , entered : bool ,) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::instance_session_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "update_area_represented_with_rest_update_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn update_area_represented_with_rest_update_like_cpp (& mut self , new_area : u32 , send_rest_update : bool ,) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
             "visible"
           ]
         },
@@ -10335,22 +9890,6 @@
           "module": "crate::handlers::item_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "destroy_inventory_full_stack_by_pos_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn destroy_inventory_full_stack_by_pos_like_cpp (& mut self , bag : u8 , slot : u8 , item : InventoryItem , runtime_item : Option < Item > , context : & str ,) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::item_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "direct_item_contains_items",
           "visibility": "pub (crate)",
           "signature": "fn direct_item_contains_items (& self , item_guid : ObjectGuid) -> bool",
@@ -10514,22 +10053,6 @@
           "name": "plan_inventory_equip_child_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn plan_inventory_equip_child_like_cpp (& self , parent_bag : u8 , parent_slot : u8 , parent_guid : ObjectGuid ,) -> Result < Option < InventoryEquipChildPlanLikeCpp > , InventoryResult >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::item_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "plan_inventory_real_swap_children_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn plan_inventory_real_swap_children_like_cpp (& self , source_bag : u8 , source_slot : u8 , source_guid : ObjectGuid , destination_bag : u8 , destination_slot : u8 , destination_guid : ObjectGuid ,) -> Result < Vec < InventoryEquipChildPlanLikeCpp > , InventoryResult >",
           "cfg": [
             "cfg (test)"
           ],
@@ -10721,22 +10244,6 @@
           "module": "crate::handlers::login_data_gossip_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "build_gossip_menu",
-          "visibility": "pub (crate)",
-          "signature": "async fn build_gossip_menu (& mut self , entry : u32 , npc_flags : u32 , npc_guid : ObjectGuid ,) -> Option < GossipMessage >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::login_data_gossip_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_binder_activate",
           "visibility": "pub (crate)",
           "signature": "async fn handle_binder_activate (& mut self , hello : Hello)",
@@ -10898,41 +10405,9 @@
           "module": "crate::handlers::login_data_gossip_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "skill_rewarded_quest_fallback_allowed_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn skill_rewarded_quest_fallback_allowed_like_cpp (& self , spell_id : i32) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::login_data_gossip_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "skill_rewarded_spell_changes_for_login_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn skill_rewarded_spell_changes_for_login_like_cpp (& self , skill_id : u16 , skill_value : u16 , race : u8 , class : u8 , level : u8 ,) -> wow_data :: SkillRewardedSpellChangesLikeCpp",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::login_load_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_represented_login_spell_reset_if_needed_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_represented_login_spell_reset_if_needed_like_cpp (& mut self) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -11010,89 +10485,9 @@
           "module": "crate::handlers::login_load_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "load_represented_group_difficulties_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn load_represented_group_difficulties_like_cpp (& mut self) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::login_load_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "load_represented_void_storage_row_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn load_represented_void_storage_row_like_cpp (& mut self , slot : u8 , item : RepresentedVoidStorageItemLikeCpp ,) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::login_load_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "mark_represented_void_storage_loaded_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn mark_represented_void_storage_loaded_like_cpp (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::login_load_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "prepare_represented_void_storage_login_load_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn prepare_represented_void_storage_login_load_like_cpp (& mut self) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::login_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "abort_partial_login_sequence_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn abort_partial_login_sequence_like_cpp (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::login_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_post_add_zone_from_terrain_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_post_add_zone_from_terrain_like_cpp (& mut self , map_id : i32 , position : & Position ,) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -11138,38 +10533,6 @@
           "module": "crate::handlers::login_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "delete_invalid_character_homebind_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn delete_invalid_character_homebind_like_cpp (& self , guid : ObjectGuid)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::login_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_hearth_and_resurrect",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_hearth_and_resurrect (& mut self , pkt : wow_packet :: WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::login_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_logout_request",
           "visibility": "pub (crate)",
           "signature": "async fn handle_logout_request (& mut self , req : LogoutRequest)",
@@ -11189,54 +10552,6 @@
           "name": "insert_buyback_item_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn insert_buyback_item_like_cpp (& mut self , slot : u8 , item : InventoryItem ,) -> Option < InventoryItem >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::login_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_default_graveyard_homebind_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn load_default_graveyard_homebind_like_cpp (& self , race : u8 ,) -> Option < CharacterLoginLocationLikeCpp >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::login_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_map_corpse_data_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn load_map_corpse_data_like_cpp (& self , map_id : u16 , instance_id : u32 ,) -> MapCorpseLoadOutcomeLikeCpp",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::login_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_player_customizations_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn load_player_customizations_like_cpp (& self , guid : ObjectGuid ,) -> Vec < ChrCustomizationChoiceValuesUpdate >",
           "cfg": [
             "cfg (test)"
           ],
@@ -11285,22 +10600,6 @@
           "name": "player_login_combat_stats_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_login_combat_stats_like_cpp (& mut self , race : u8 , class : u8 , level : u8 , saved_health : Option < u32 > , saved_power0 : i32 ,) -> Option < (PlayerCombatStats , i32 , i32) >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::login_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "repair_character_homebind_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn repair_character_homebind_like_cpp (& self , guid : ObjectGuid , race : u8 , player_create_info : PlayerCreateInfoLikeCpp , create_mode : u8 , first_login : bool ,) -> Option < CharacterLoginLocationLikeCpp >",
           "cfg": [
             "cfg (test)"
           ],
@@ -11410,22 +10709,6 @@
           "module": "crate::handlers::login_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "send_handle_player_login_packets_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn send_handle_player_login_packets_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , feature_policy : & SupportFeaturePolicyLikeCpp , guid : ObjectGuid , position : & Position , map_id : i32 , account_mounts : & [AccountMount] , motd : & str ,) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::login_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "send_initial_packets_after_add_to_map",
           "visibility": "pub (crate)",
           "signature": "async fn send_initial_packets_after_add_to_map (& mut self , guid : ObjectGuid , position : & Position , map_id : i32 , updateobject_trace_enabled : bool ,)",
@@ -11458,22 +10741,6 @@
           "module": "crate::handlers::login_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "send_login_sequence",
-          "visibility": "pub (crate)",
-          "signature": "async fn send_login_sequence (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , trait_node_entries : & wow_data :: trait_tree :: TraitNodeEntryStore , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , feature_policy : & SupportFeaturePolicyLikeCpp , player_grid_loader : & crate :: session :: PlayerGridLoadResolverLikeCpp , guid : ObjectGuid , race : u8 , class : u8 , sex : u8 , level : u8 , display_id : u32 , position : & Position , map_id : i32 , zone_id : i32 , homebind : CharacterLoginLocationLikeCpp , persisted_transport_login : Option < PersistedTransportLoginLikeCpp > , visible_items : [(i32 , u16 , u16) ; 19] , inv_slots : [ObjectGuid ; 141] , item_creates : Vec < wow_packet :: packets :: update :: ItemCreateData > , combat : PlayerCombatStats , current_power0 : i32 , base_mana : i32 , known_spells : Vec < i32 > , favorite_spells : Vec < i32 > , spell_history_entries : Vec < SpellHistoryEntry > , spell_charge_entries : Vec < SpellChargeEntry > , action_buttons : [i64 ; 180] , skill_info : Vec < (u16 , u16 , u16 , u16 , u16 , i16 , u16) > , account_mounts : Vec < AccountMount > ,) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::login_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "set_loaded_player_customizations_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn set_loaded_player_customizations_like_cpp (& mut self , customizations : Vec < wow_packet :: packets :: update :: ChrCustomizationChoiceValuesUpdate > ,)",
@@ -11484,38 +10751,6 @@
           "guards": [
             "external_impl",
             "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::login_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "test_load_initial_world_states_for_login_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn test_load_initial_world_states_for_login_like_cpp (& self , map_id : i32 , player_area_id : u32 ,) -> Vec < (i32 , i32) >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::login_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "update_realm_characters",
-          "visibility": "pub (crate)",
-          "signature": "async fn update_realm_characters (& self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
             "visible"
           ]
         },
@@ -11639,117 +10874,6 @@
           "guards": [
             "external_impl",
             "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::handlers::test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_loot_item",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_loot_item (& mut self , pkt : WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::handlers::test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_loot_release",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_loot_release (& mut self , pkt : WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::handlers::test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_loot_roll",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_loot_roll (& mut self , roll : LootRoll)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::handlers::test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_loot_unit",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_loot_unit (& mut self , pkt : WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::handlers::test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_master_loot_item",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_master_loot_item (& mut self , master_loot_item : MasterLootItem)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::handlers::test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_set_loot_specialization",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_set_loot_specialization (& mut self , packet : SetLootSpecialization)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::handlers::test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "loot_test_cx_like_cpp",
-          "visibility": "private",
-          "signature": "fn loot_test_cx_like_cpp (& mut self) -> LootHandlerCxLikeCpp < '_ >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl"
           ]
         },
         {
@@ -12488,6 +11612,117 @@
           "guards": [
             "external_impl",
             "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_loot_item",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_loot_item (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_loot_release",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_loot_release (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_loot_roll",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_loot_roll (& mut self , roll : LootRoll)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_loot_unit",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_loot_unit (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_master_loot_item",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_master_loot_item (& mut self , master_loot_item : MasterLootItem)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_set_loot_specialization",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_set_loot_specialization (& mut self , packet : SetLootSpecialization)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot_handler_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "loot_test_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn loot_test_cx_like_cpp (& mut self) -> LootHandlerCxLikeCpp < '_ >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl"
           ]
         },
         {
@@ -13611,22 +12846,6 @@
           "module": "crate::handlers::loot_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "next_canonical_loot_object_guid_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn next_canonical_loot_object_guid_like_cpp (& mut self , owner_guid : ObjectGuid ,) -> Option < ObjectGuid >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "next_represented_loot_object_guid_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn next_represented_loot_object_guid_like_cpp (& mut self , owner_guid : ObjectGuid ,) -> Option < ObjectGuid >",
@@ -13936,22 +13155,6 @@
           "signature": "async fn handle_movement_speed_ack (& mut self , opcode : ClientOpcodes , mut pkt : MovementSpeedAck ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::movement::test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_fall_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_fall_like_cpp (& mut self , movement_info : & wow_packet :: packets :: movement :: MovementInfo ,) -> Option < crate :: session :: MovementFallDamageEvent >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -14352,22 +13555,6 @@
           ]
         },
         {
-          "module": "crate::handlers::open_item_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "open_active_item_loot_view_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn open_active_item_loot_view_like_cpp (& mut self , player_guid : ObjectGuid , item_guid : ObjectGuid ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::pets::battle_pet_host",
           "trait_path": "BattlePetHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
@@ -14689,22 +13876,6 @@
           "module": "crate::handlers::player_cast_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "take_ready_player_cast_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn take_ready_player_cast_like_cpp (& mut self) -> Option < SpellCastState >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::player_cast_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "tick_active_spell_cast",
           "visibility": "pub (crate)",
           "signature": "async fn tick_active_spell_cast (& mut self)",
@@ -14785,57 +13956,9 @@
           "module": "crate::handlers::player_item_builders_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "build_equipment_set_use_context_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_equipment_set_use_context_like_cpp (& mut self ,) -> wow_world_inventory :: EquipmentSetUseContextLikeCpp < '_ >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::player_item_builders_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "execute_inventory_equip_to_empty_raw_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn execute_inventory_equip_to_empty_raw_like_cpp (& mut self , source_bag : u8 , source_slot : u8 , destination : u16 ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::player_item_builders_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "plan_bank_existing_inventory_item_at_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn plan_bank_existing_inventory_item_at_like_cpp (& self , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 , swap : bool ,) -> Option < (InventoryResult , Vec < ItemPosCount >) >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::player_item_builders_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "plan_equip_existing_inventory_item_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn plan_equip_existing_inventory_item_like_cpp (& self , source_bag : u8 , source_slot : u8 , requested_slot : u8 , swap : bool ,) -> Option < (InventoryResult , u16) >",
           "cfg": [
             "cfg (test)"
           ],
@@ -14865,22 +13988,6 @@
           "module": "crate::handlers::player_item_builders_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "plan_store_new_direct_inventory_item",
-          "visibility": "pub (crate)",
-          "signature": "fn plan_store_new_direct_inventory_item (& self , entry_id : u32 , count : u32 ,) -> Option < (InventoryResult , Vec < ItemPosCount > , Option < u32 >) >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::player_item_builders_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "plan_store_new_direct_inventory_item_at",
           "visibility": "pub (crate)",
           "signature": "fn plan_store_new_direct_inventory_item_at (& self , entry_id : u32 , count : u32 , bag : u8 , slot : u8 ,) -> Option < (InventoryResult , Vec < ItemPosCount > , Option < u32 >) >",
@@ -14897,57 +14004,9 @@
           "module": "crate::handlers::player_item_builders_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "plan_store_new_direct_inventory_item_with_overlays_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn plan_store_new_direct_inventory_item_with_overlays_like_cpp (& self , entry_id : u32 , count : u32 , overlays : & [DirectInventoryStorageOverlayLikeCpp] , vacated_positions : & [(u8 , u8)] ,) -> Option < (InventoryResult , Vec < ItemPosCount > , Option < u32 >) >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::player_item_builders_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "publish_inventory_position_changes_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn publish_inventory_position_changes_like_cpp (& mut self , positions : & [(u8 , u8)])",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::player_item_builders_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "uncage_item_state_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn uncage_item_state_like_cpp (& self , player_db_guid : u64 , item_db_guid : u64 ,) -> wow_persistence :: PlayerUncageItemStateLoadOutcomeLikeCpp",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::player_item_builders_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "update_represented_item_level_area_based_scaling_with_publication_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn update_represented_item_level_area_based_scaling_with_publication_like_cpp (& mut self , publish : bool ,) -> Option < bool >",
           "cfg": [
             "cfg (test)"
           ],
@@ -14980,22 +14039,6 @@
           "name": "add_account_heirloom_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn add_account_heirloom_like_cpp (& mut self , item_id : u32 , flags : u32) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::player_items_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "add_item_appearance_for_item_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn add_item_appearance_for_item_like_cpp (& mut self , item_id : u32 , appearance_mod_id : u32 ,) -> Option < wow_entities :: PlayerValuesUpdate >",
           "cfg": [
             "cfg (test)"
           ],
@@ -15057,22 +14100,6 @@
           "module": "crate::handlers::player_items_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "can_add_item_appearance_represented_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn can_add_item_appearance_represented_like_cpp (& self , item_modified_appearance_id : u32 ,) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::player_items_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "item_modified_appearance_for_item",
           "visibility": "pub (crate)",
           "signature": "fn item_modified_appearance_for_item (& self , item_id : u32 , appearance_mod_id : u32 ,) -> Option < u32 >",
@@ -15092,22 +14119,6 @@
           "name": "item_modified_appearance_ref",
           "visibility": "pub (crate)",
           "signature": "fn item_modified_appearance_ref (& self , id : u32) -> Option < (u32 , u16) >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::player_items_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "on_item_added_to_collection_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn on_item_added_to_collection_like_cpp (& mut self , item : & wow_entities :: Item ,) -> Vec < wow_entities :: PlayerValuesUpdate >",
           "cfg": [
             "cfg (test)"
           ],
@@ -15252,22 +14263,6 @@
           "name": "send_represented_item_bonus_player_stat_update_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn send_represented_item_bonus_player_stat_update_like_cpp (& mut self) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::player_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_represented_login_pet_talent_reset_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_represented_login_pet_talent_reset_like_cpp (& mut self) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -15445,22 +14440,6 @@
           "name": "tick_player_regeneration_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn tick_player_regeneration_like_cpp (& mut self , diff_ms : u32 , power_types : & wow_data :: character_progression :: PowerTypeStore , regen_game_tables : Option < & wow_data :: RegenGameTablesLikeCpp > , rates : & PlayerRegenerationRatesLikeCpp ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::player_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "update_pvp_flag_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn update_pvp_flag_like_cpp (& mut self , curr_time : i64)",
           "cfg": [
             "cfg (test)"
           ],
@@ -16385,22 +15364,6 @@
           "module": "crate::handlers::quest_handler_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_quest_giver_hello",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_quest_giver_hello (& mut self , pkt : WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest_handler_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_quest_giver_request_reward",
           "visibility": "pub (crate)",
           "signature": "async fn handle_quest_giver_request_reward (& mut self , pkt : wow_packet :: WorldPacket)",
@@ -16484,38 +15447,6 @@
           "name": "handle_request_world_quest_update",
           "visibility": "pub (crate)",
           "signature": "async fn handle_request_world_quest_update (& mut self , pkt : WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest_handler_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "quest_poi_store_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn quest_poi_store_like_cpp (& mut self ,) -> std :: sync :: Arc < std :: collections :: HashMap < i32 , wow_packet :: packets :: query :: QuestPoiData > >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest_handler_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "quest_source_item_quest_log_item_id_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn quest_source_item_quest_log_item_id_like_cpp (& mut self , entry_id : u32 ,) -> u32",
           "cfg": [
             "cfg (test)"
           ],
@@ -16778,22 +15709,6 @@
           "module": "crate::handlers::quest_item_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_quest_item_removed_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_quest_item_removed_like_cpp (& mut self , entry_id : u32) -> Option < Vec < u32 > >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest_item_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "apply_quest_source_item_added_non_bound_objective_progress_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn apply_quest_source_item_added_non_bound_objective_progress_like_cpp (& mut self , entry_id : u32 , quest_log_item_id : u32 , count : u32 ,) -> Vec < u32 >",
@@ -16813,22 +15728,6 @@
           "name": "apply_quest_source_item_bound_objective_progress_for_object_like_cpp",
           "visibility": "pub (super)",
           "signature": "async fn apply_quest_source_item_bound_objective_progress_for_object_like_cpp (& mut self , quest_store : & QuestStore , object_id : i32 , count_i32 : i32 ,) -> Vec < (u32 , i32) >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest_item_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "can_take_quest",
-          "visibility": "pub (crate)",
-          "signature": "fn can_take_quest (& self , quest : & wow_data :: quest :: QuestTemplate) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -16874,22 +15773,6 @@
           "module": "crate::handlers::quest_session_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "begin_player_quest_status_authority_load_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn begin_player_quest_status_authority_load_like_cpp (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest_session_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "can_complete_repeatable_quest_represented_bounded_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn can_complete_repeatable_quest_represented_bounded_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate ,) -> bool",
@@ -16922,41 +15805,9 @@
           "module": "crate::handlers::quest_session_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "finish_item_transfer_quest_persistence_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn finish_item_transfer_quest_persistence_like_cpp (& self , plan : ItemTransferQuestPersistencePlanLikeCpp ,) -> Vec < PlayerQuestStatus >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest_session_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "first_free_quest_slot_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn first_free_quest_slot_like_cpp (& self) -> Option < u8 >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest_session_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_player_quests",
-          "visibility": "pub (crate)",
-          "signature": "async fn load_player_quests (& mut self)",
           "cfg": [
             "cfg (test)"
           ],
@@ -17050,57 +15901,9 @@
           "module": "crate::handlers::quest_session_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "remove_represented_active_rewarded_duplicates_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn remove_represented_active_rewarded_duplicates_like_cpp (& mut self) -> Vec < u32 >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest_session_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_quest_statuses_for_save_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_quest_statuses_for_save_like_cpp (& self) -> Vec < (u32 , u8) >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest_session_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "reset_seasonal_quest_status_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn reset_seasonal_quest_status_like_cpp (& mut self , event_id : u16 , event_start_time : u64 ,) -> ResetSeasonalQuestStatusOutcomeLikeCpp",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest_session_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "save_quest_to_db",
-          "visibility": "pub (crate)",
-          "signature": "async fn save_quest_to_db (& self , quest_id : u32 , status : u8)",
           "cfg": [
             "cfg (test)"
           ],
@@ -17342,6 +16145,22 @@
           "name": "load_represented_equipment_set_row_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn load_represented_equipment_set_row_like_cpp (& mut self , guid : u64 , set_id : u32 , set_name : String , set_icon : String , ignore_mask : u32 , assigned_spec_index : i32 , pieces : [ObjectGuid ; wow_packet :: packets :: misc :: EQUIPMENT_SET_SLOTS_LIKE_CPP] ,) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::retired_forward_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "load_represented_xp_rest_bonus_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn load_represented_xp_rest_bonus_like_cpp (& mut self , rest_state : u8 , rest_bonus : f32 ,)",
           "cfg": [
             "cfg (test)"
           ],
@@ -17659,41 +16478,9 @@
           "module": "crate::handlers::retired_forward_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_unit_values_update_to_update_object_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_unit_values_update_to_update_object_like_cpp (& self , unit_guid : ObjectGuid , map_id : u16 , values_update : & wow_entities :: UnitValuesUpdate ,) -> Option < wow_packet :: packets :: update :: UpdateObject >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::retired_forward_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_viewer_dependent_creature_npc_flags_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_viewer_dependent_creature_npc_flags_like_cpp (& self , creature_guid : ObjectGuid , npc_flags : u64 ,) -> u64",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::retired_forward_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_visibility_source_position_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_visibility_source_position_like_cpp (& self) -> Option < Position >",
           "cfg": [
             "cfg (test)"
           ],
@@ -17803,9 +16590,9 @@
           "module": "crate::handlers::retired_forward_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "set_pending_teleport_like_cpp",
+          "name": "set_loaded_player_identity_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_pending_teleport_like_cpp (& mut self , destination : Option < (u32 , Position) > ,) -> bool",
+          "signature": "fn set_loaded_player_identity_like_cpp (& mut self , map_id : u16 , race : u8 , class : u8 , level : u8 , gender : u8 ,)",
           "cfg": [
             "cfg (test)"
           ],
@@ -17820,9 +16607,26 @@
           "module": "crate::handlers::retired_forward_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "set_player_alive_like_cpp",
+          "name": "set_loaded_player_name_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_player_alive_like_cpp (& mut self , alive : bool)",
+          "signature": "fn set_loaded_player_name_like_cpp (& mut self , name : String)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::retired_forward_test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_pending_teleport_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn set_pending_teleport_like_cpp (& mut self , destination : Option < (u32 , Position) > ,) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -17874,23 +16678,6 @@
           "name": "set_player_game_master_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn set_player_game_master_like_cpp (& mut self , is_game_master : bool)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::retired_forward_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_player_ghost_flag_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn set_player_ghost_flag_like_cpp (& mut self , ghost : bool)",
           "cfg": [
             "cfg (test)"
           ],
@@ -18038,41 +16825,9 @@
           "module": "crate::handlers::session_leftovers_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "has_currency",
-          "visibility": "pub (crate)",
-          "signature": "fn has_currency (& self , currency_id : u32 , amount : u32) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::session_leftovers_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "interrupt_non_melee_spell_cast_for_loot_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn interrupt_non_melee_spell_cast_for_loot_like_cpp (& mut self) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::session_leftovers_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "next_represented_spell_cast_guid_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn next_represented_spell_cast_guid_like_cpp (& self , spell_id : i32 ,) -> Option < wow_core :: ObjectGuid >",
           "cfg": [
             "cfg (test)"
           ],
@@ -18105,22 +16860,6 @@
           "name": "player_currency_quantity",
           "visibility": "pub (crate)",
           "signature": "fn player_currency_quantity (& self , currency_id : u32) -> Option < u32 >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::session_leftovers_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "player_spell_runtime_snapshot_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn player_spell_runtime_snapshot_like_cpp (& self ,) -> Option < wow_world_spell :: RepresentedPlayerSpellRuntimeLikeCpp >",
           "cfg": [
             "cfg (test)"
           ],
@@ -18230,22 +16969,6 @@
           "module": "crate::handlers::session_leftovers_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_set_currency_flags_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_set_currency_flags_like_cpp (& mut self , currency_id : u32 , flags : u8 ,) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::session_leftovers_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "request_represented_spell_cast_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn request_represented_spell_cast_like_cpp (& mut self , request : crate :: session :: RepresentedPendingSpellCastRequestLikeCpp ,)",
@@ -18278,41 +17001,9 @@
           "module": "crate::handlers::session_leftovers_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "send_new_item_plan",
-          "visibility": "pub (crate)",
-          "signature": "fn send_new_item_plan (& self , plan : & wow_entities :: SendNewItemPlan)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::session_leftovers_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "stage_player_money_change_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn stage_player_money_change_like_cpp (& mut self , old_money : u64 , new_money : u64 ,) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::session_leftovers_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "update_player_collision_height_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn update_player_collision_height_like_cpp (& mut self)",
           "cfg": [
             "cfg (test)"
           ],
@@ -18645,20 +17336,6 @@
           "module": "crate::handlers::social",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_send_represented_duel_countdown_command_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_send_represented_duel_countdown_command_like_cpp (& mut self , command : SendRepresentedDuelCountdownLikeCppCommand ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::social",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_send_represented_trade_status_command_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn handle_send_represented_trade_status_command_like_cpp (& mut self , command : SendRepresentedTradeStatusLikeCppCommand ,)",
@@ -18751,41 +17428,9 @@
           "module": "crate::handlers::social_quest_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_move_init_active_mover_complete_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_move_init_active_mover_complete_like_cpp (& mut self , ticks : u32)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::social_quest_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "can_see_phase_shift_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn can_see_phase_shift_like_cpp (& self , other : & wow_entities :: PhaseShift) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::social_quest_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "current_group_member_guids_for_tap_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn current_group_member_guids_for_tap_like_cpp (& self , player_guid : ObjectGuid ,) -> Vec < ObjectGuid >",
           "cfg": [
             "cfg (test)"
           ],
@@ -18850,22 +17495,6 @@
           "name": "represented_player_phase_shift_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_player_phase_shift_like_cpp (& self ,) -> Option < wow_entities :: PhaseShift >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::social_quest_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "reset_group_update_sequence_if_needed_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn reset_group_update_sequence_if_needed_like_cpp (& mut self) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -18949,38 +17578,6 @@
           "name": "visible_other_players_from_registry_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn visible_other_players_from_registry_like_cpp (& self , map_id : u16 , position : & wow_core :: Position , visibility_radius : f32 ,) -> Vec < (ObjectGuid , wow_world_core :: session :: directory :: PlayerVisibilityCreateSnapshot ,) >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::f3_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_item_template_addon_loot_metadata_like_cpp",
-          "visibility": "pub (in crate :: handlers :: spell)",
-          "signature": "async fn load_item_template_addon_loot_metadata_like_cpp (& self , item_entry : u32 ,) -> ItemTemplateAddonLootMetadataLikeCpp",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::f3_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "load_item_template_addon_money_loot_like_cpp",
-          "visibility": "pub (in crate :: handlers :: spell)",
-          "signature": "async fn load_item_template_addon_money_loot_like_cpp (& self , item_entry : u32 ,) -> (u32 , u32)",
           "cfg": [
             "cfg (test)"
           ],
@@ -19299,22 +17896,6 @@
           "module": "crate::handlers::spell_effect_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_effect_summon_object_wild_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_effect_summon_object_wild_like_cpp (& mut self , spell_id : i32 , effect : & wow_data :: SpellEffectInfo , target_data : & SpellTargetData ,) -> Option < ApplyEffectSummonObjectWildSessionOutcomeLikeCpp >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell_effect_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "apply_heal",
           "visibility": "pub (crate)",
           "signature": "async fn apply_heal (& mut self , spell_id : Option < i32 > , target_guid : ObjectGuid , heal_amount : u32 ,) -> Result < () , & 'static str >",
@@ -19350,22 +17931,6 @@
           "name": "implicit_target_conditions_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn implicit_target_conditions_like_cpp (& self , spell_id : i32 , effect_index : u32 ,) -> Option < Arc < wow_data :: ConditionContainer > >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell_effect_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "notify_other_players_visibility_changed_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn notify_other_players_visibility_changed_like_cpp (& self)",
           "cfg": [
             "cfg (test)"
           ],
@@ -19430,22 +17995,6 @@
           "name": "represented_target_mechanic_mask_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_target_mechanic_mask_like_cpp (& self , target_guid : ObjectGuid) -> u64",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell_execution_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_effect_summon_object_slot_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_effect_summon_object_slot_like_cpp (& mut self , spell_id : i32 , effect : & wow_data :: SpellEffectInfo , target_data : & SpellTargetData ,) -> Option < ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp >",
           "cfg": [
             "cfg (test)"
           ],
@@ -19526,22 +18075,6 @@
           "name": "execute_spell_with_visual_and_target_data",
           "visibility": "pub (crate)",
           "signature": "async fn execute_spell_with_visual_and_target_data (& mut self , spell_id : i32 , target_guid : ObjectGuid , cast_id : ObjectGuid , spell_visual : wow_packet :: packets :: spell :: SpellCastVisual , target_data : SpellTargetData ,) -> Result < () , & 'static str >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell_execution_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "execute_spell_with_visual_and_target_data_and_generator_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn execute_spell_with_visual_and_target_data_and_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , spell_id : i32 , target_guid : ObjectGuid , cast_id : ObjectGuid , spell_visual : wow_packet :: packets :: spell :: SpellCastVisual , target_data : SpellTargetData ,) -> Result < () , & 'static str >",
           "cfg": [
             "cfg (test)"
           ],
@@ -19648,22 +18181,6 @@
           ]
         },
         {
-          "module": "crate::handlers::spell_execution_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "update_represented_flight_flags_for_flight_aura_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn update_represented_flight_flags_for_flight_aura_like_cpp (& mut self , apply : bool)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::spell_execution_test_shims::execution_overloads_test_only",
           "trait_path": null,
           "kind": "method",
@@ -19715,22 +18232,6 @@
           "module": "crate::handlers::spell_state_session_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_login_known_spell_proficiencies_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_login_known_spell_proficiencies_like_cpp (& mut self , known_spells : & [i32] ,) -> usize",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell_state_session_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "has_represented_self_res_spell_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn has_represented_self_res_spell_like_cpp (& self , spell_id : i32) -> bool",
@@ -19763,22 +18264,6 @@
           "module": "crate::handlers::spell_state_session_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_cast_speed_multiplier_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_cast_speed_multiplier_like_cpp (& self) -> f32",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell_state_session_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_login_passive_spell_cast_gate_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_login_passive_spell_cast_gate_like_cpp (& self , spell_id : i32) -> bool",
@@ -19798,22 +18283,6 @@
           "name": "represented_mount_source_spell_usable_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_mount_source_spell_usable_like_cpp (& self , spell_id : u32) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell_state_session_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_player_is_polymorphed_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_player_is_polymorphed_like_cpp (& self) -> Option < bool >",
           "cfg": [
             "cfg (test)"
           ],
@@ -19872,109 +18341,12 @@
           ]
         },
         {
-          "module": "crate::handlers::spell_state_session_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_player_aura_authority_complete_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn set_player_aura_authority_complete_like_cpp (& mut self , complete : bool) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spellbook_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "add_represented_override_spell_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn add_represented_override_spell_like_cpp (& mut self , overriden_spell_id : i32 , new_spell_id : i32 ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::spellbook_test_shims",
           "trait_path": null,
           "kind": "method",
           "name": "apply_represented_start_all_spells_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn apply_represented_start_all_spells_like_cpp (& mut self , known_spells : & mut Vec < i32 > ,) -> usize",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spellbook_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "clear_represented_fallback_spell_rows_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn clear_represented_fallback_spell_rows_like_cpp (& mut self) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spellbook_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "complete_represented_override_spells_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn complete_represented_override_spells_like_cpp (& self ,) -> Option < HashMap < i32 , BTreeSet < i32 > > >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spellbook_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "complete_represented_player_spell_rows_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn complete_represented_player_spell_rows_like_cpp (& self ,) -> Option < BTreeMap < i32 , RepresentedPlayerSpellLikeCpp > >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spellbook_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "complete_represented_spell_trait_definition_ids_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn complete_represented_spell_trait_definition_ids_like_cpp (& self ,) -> Option < HashMap < i32 , i32 > >",
           "cfg": [
             "cfg (test)"
           ],
@@ -20084,38 +18456,6 @@
           "module": "crate::handlers::spellbook_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "invalidate_represented_player_spell_rows_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn invalidate_represented_player_spell_rows_like_cpp (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spellbook_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spellbook_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "is_spell_learn_spell_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn is_spell_learn_spell_like_cpp (& self , spell_id : u32) -> bool",
@@ -20164,41 +18504,9 @@
           "module": "crate::handlers::spellbook_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "learn_account_mount_spells_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn learn_account_mount_spells_like_cpp (& mut self) -> usize",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spellbook_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "learn_dependent_known_spell_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn learn_dependent_known_spell_like_cpp (& mut self , spell_id : i32)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spellbook_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "learn_known_spell_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn learn_known_spell_like_cpp (& mut self , spell_id : i32)",
           "cfg": [
             "cfg (test)"
           ],
@@ -20228,73 +18536,9 @@
           "module": "crate::handlers::spellbook_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "mark_represented_spell_acquisition_snapshot_complete_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn mark_represented_spell_acquisition_snapshot_complete_like_cpp (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spellbook_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "mutate_player_spell_runtime_for_test_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn mutate_player_spell_runtime_for_test_like_cpp < R > (& mut self , apply : impl FnOnce (& mut wow_entities :: PlayerSpellRuntimeState) -> R ,) -> Option < R >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spellbook_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "remove_known_spell_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn remove_known_spell_like_cpp (& mut self , spell_id : i32)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spellbook_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "remove_known_spell_with_suppress_messaging_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn remove_known_spell_with_suppress_messaging_like_cpp (& mut self , spell_id : i32 , suppress_messaging : bool ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spellbook_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "remove_represented_override_spell_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn remove_represented_override_spell_like_cpp (& mut self , overriden_spell_id : i32 , new_spell_id : i32 ,)",
           "cfg": [
             "cfg (test)"
           ],
@@ -20324,41 +18568,9 @@
           "module": "crate::handlers::spellbook_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_dependent_known_spells_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_dependent_known_spells_like_cpp (& self) -> HashSet < i32 >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spellbook_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_favorite_known_spells_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_favorite_known_spells_like_cpp (& self) -> HashSet < i32 >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spellbook_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_override_spells_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_override_spells_like_cpp (& self) -> HashMap < i32 , BTreeSet < i32 > >",
           "cfg": [
             "cfg (test)"
           ],
@@ -20465,22 +18677,6 @@
           "guards": [
             "external_impl",
             "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spellbook_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "spell_learn_skill_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn spell_learn_skill_like_cpp (& self , spell_id : u32 ,) -> Option < & SpellLearnSkillNodeLikeCpp >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
             "visible"
           ]
         },
@@ -21017,22 +19213,6 @@
           "module": "crate::handlers::split_forward_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "take_deferred_rest_flag_update_dirty_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn take_deferred_rest_flag_update_dirty_like_cpp (& mut self) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::split_forward_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "upgrade_account_heirloom_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn upgrade_account_heirloom_like_cpp (& mut self , item_id : u32 , cast_item : i32 ,) -> Option < wow_entities :: PlayerValuesUpdate >",
@@ -21301,54 +19481,6 @@
           "module": "crate::handlers::talent_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "apply_represented_login_talent_reset_if_needed_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_represented_login_talent_reset_if_needed_like_cpp (& mut self) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::talent_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_learn_talent",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_learn_talent (& mut self , talent_tabs : & TalentTabStore , packet : WorldPacket ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::talent_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "learn_represented_talent_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn learn_represented_talent_like_cpp (& mut self , talent_tabs : & TalentTabStore , talent_id : u32 , requested_rank : u16 ,) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::talent_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "mutate_player_talent_runtime_for_test_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn mutate_player_talent_runtime_for_test_like_cpp < R > (& mut self , apply : impl FnOnce (& mut wow_entities :: PlayerTalentRuntimeState) -> R ,) -> Option < R >",
@@ -21509,22 +19641,6 @@
           "module": "crate::handlers::talent_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "reset_represented_talents_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn reset_represented_talents_like_cpp (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::talent_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "set_represented_talent_reset_state_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn set_represented_talent_reset_state_like_cpp (& mut self , reset_cost : u32 , reset_time_secs : u64 ,) -> bool",
@@ -21542,57 +19658,9 @@
           "module": "crate::handlers::teleport_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_move_teleport_ack_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_move_teleport_ack_like_cpp (& mut self , mover_guid : ObjectGuid , ack_index : i32 , move_time : i32 ,) -> MoveTeleportAckActionLikeCpp",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::teleport_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "move_teleport_ack_events_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn move_teleport_ack_events_like_cpp (& self) -> & [MoveTeleportAckEventLikeCpp]",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::teleport_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "pending_teleport_save_destination_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn pending_teleport_save_destination_like_cpp (& self ,) -> Option < (u16 , wow_core :: Position) >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::teleport_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "process_represented_delayed_teleport_after_update_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn process_represented_delayed_teleport_after_update_like_cpp (& mut self ,) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -21640,7 +19708,7 @@
           "kind": "method",
           "name": "teleport_to_with_options",
           "visibility": "pub (crate)",
-          "signature": "async fn teleport_to_with_options (& mut self , new_map : u32 , new_pos : wow_core :: Position , options : TeleportToOptionsLikeCpp ,)",
+          "signature": "async fn teleport_to_with_options (& mut self , new_map : u32 , new_pos : wow_core :: Position , options : wow_world_core :: session :: movement_protocol :: TeleportToOptionsLikeCpp ,)",
           "cfg": [
             "cfg (test)"
           ],
@@ -21884,54 +19952,6 @@
           ]
         },
         {
-          "module": "crate::handlers::trainer_talent_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_trainer_list",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_trainer_list (& mut self , hello : wow_packet :: packets :: gossip :: Hello)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::trainer_talent_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "refresh_represented_talent_points_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn refresh_represented_talent_points_like_cpp (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::trainer_talent_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "trainer_offer_decision_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn trainer_offer_decision_like_cpp (& mut self , trainer_id : u32 , trainer_spell : & wow_data :: TrainerSpellLikeCpp , faction_template_id : u32 ,) -> TrainerOfferDecisionLikeCpp",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::travel::travel",
           "trait_path": null,
           "kind": "method",
@@ -22028,41 +20048,9 @@
           "module": "crate::handlers::travel_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_activate_taxi",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_activate_taxi (& mut self , pkt : WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::travel_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_area_trigger",
           "visibility": "pub (crate)",
           "signature": "async fn handle_area_trigger (& mut self , pkt : WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::travel_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_taxi_usable_mount_displays_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_taxi_usable_mount_displays_like_cpp (& self , flying_mount_id : u32 ,) -> Vec < i32 >",
           "cfg": [
             "cfg (test)"
           ],
@@ -22127,38 +20115,6 @@
           "name": "handle_request_vehicle_prev_seat",
           "visibility": "pub (crate)",
           "signature": "async fn handle_request_vehicle_prev_seat (& mut self , packet : wow_packet :: packets :: vehicle :: RequestVehiclePrevSeat ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::vehicle::test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_request_vehicle_switch_seat",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_request_vehicle_switch_seat (& mut self , packet : RequestVehicleSwitchSeat ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::vehicle::test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_ride_vehicle_interact",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_ride_vehicle_interact (& mut self , packet : RideVehicleInteract)",
           "cfg": [
             "cfg (test)"
           ],
@@ -22799,54 +20755,6 @@
           "module": "crate::handlers::void_storage_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "add_represented_void_storage_item_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn add_represented_void_storage_item_like_cpp (& mut self , item : RepresentedVoidStorageItemLikeCpp ,) -> Option < u8 >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_committed_void_storage_destroyed_items_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_committed_void_storage_destroyed_items_like_cpp (& mut self , destroyed_items : & [PlannedVoidDestroyedInventoryItemLikeCpp] ,) -> Option < (Vec < ObjectGuid > , Vec < u32 >) >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "apply_committed_void_storage_unlock_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn apply_committed_void_storage_unlock_like_cpp (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "apply_effective_void_storage_random_properties_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn apply_effective_void_storage_random_properties_like_cpp (item : & mut Item , random_properties : & EffectiveVoidStorageRandomPropertiesLikeCpp ,)",
@@ -22866,54 +20774,6 @@
           "name": "clear_item_publication_changes_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn clear_item_publication_changes_like_cpp (item : & mut Item)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "delete_represented_void_storage_item_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn delete_represented_void_storage_item_like_cpp (& mut self , slot : u8 ,) -> Option < RepresentedVoidStorageItemLikeCpp >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "effective_void_storage_random_properties_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn effective_void_storage_random_properties_like_cpp (& self , random_properties_id : i32 , random_properties_seed : i32 ,) -> EffectiveVoidStorageRandomPropertiesLikeCpp",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_void_storage_swap_item",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_void_storage_swap_item (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
           ],
@@ -22991,86 +20851,6 @@
           "module": "crate::handlers::void_storage_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "plan_void_storage_destroyed_items_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn plan_void_storage_destroyed_items_like_cpp (& self , bag : u8 , slot : u8 , inventory_item : InventoryItem , cleared_mainhand_enchantments : Vec < wow_constants :: EnchantmentSlot > ,) -> Option < Vec < PlannedVoidDestroyedInventoryItemLikeCpp > >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "publish_void_storage_item_lifecycle_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn publish_void_storage_item_lifecycle_like_cpp (& self , map_id : u16 , destroyed_deposit_items : Vec < ((u8 , u8) , Vec < ObjectGuid >) > , withdrawal_item_publications : Vec < VoidWithdrawalItemPublicationLikeCpp > ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_void_storage_free_slots_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_void_storage_free_slots_like_cpp (& self) -> Option < usize >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_void_storage_item_at_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_void_storage_item_at_like_cpp (& self , slot : u8 ,) -> Option < RepresentedVoidStorageItemLikeCpp >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_void_storage_item_by_id_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_void_storage_item_by_id_like_cpp (& self , item_id : u64 ,) -> Option < (u8 , RepresentedVoidStorageItemLikeCpp) >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "void_storage_enchantments_db_string_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn void_storage_enchantments_db_string_like_cpp (enchantment_ids : & [i32 ; wow_entities :: MAX_ENCHANTMENT_SLOT] ,) -> String",
@@ -23087,57 +20867,9 @@
           "module": "crate::handlers::void_storage_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "void_storage_merged_item_write_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn void_storage_merged_item_write_like_cpp (& self , inventory_item : & InventoryItem , item : & Item , enchantments : & str ,) -> wow_persistence :: VoidStorageMergedInventoryItemWriteLikeCpp",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "void_storage_swap_destination_slot_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn void_storage_swap_destination_slot_like_cpp (dst_slot : u32) -> u8",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "void_storage_withdrawal_container_db_guid_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn void_storage_withdrawal_container_db_guid_like_cpp (& self , bag : u8 , planned_container_db_guids : & HashMap < u8 , u64 > ,) -> Option < u64 >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "void_storage_withdrawal_container_item_guid_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn void_storage_withdrawal_container_item_guid_like_cpp (& self , bag : u8 , planned_container_item_guids : & HashMap < u8 , ObjectGuid > ,) -> Option < ObjectGuid >",
           "cfg": [
             "cfg (test)"
           ],
@@ -23679,54 +21411,6 @@
           "module": "crate::handlers::worldport_test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "prepare_player_self_create_for_teleport_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn prepare_player_self_create_for_teleport_like_cpp (& self) -> Option < UpdateObject >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::worldport_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "recover_rejected_worldport_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn recover_rejected_worldport_like_cpp (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::worldport_test_shims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_player_self_create_for_teleport_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn send_player_self_create_for_teleport_like_cpp (& mut self , trait_node_entries : & wow_data :: trait_tree :: TraitNodeEntryStore ,) -> Option < bool >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::worldport_test_shims",
-          "trait_path": null,
-          "kind": "method",
           "name": "try_attach_worldport_destination_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn try_attach_worldport_destination_like_cpp (& mut self , map_id : u32 , position : wow_core :: Position ,) -> bool",
@@ -23896,19 +21580,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "account_mount_login_partial_rows_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn account_mount_login_partial_rows_like_cpp (& self) -> Vec < AccountMount >",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -25191,47 +22862,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "calculate_reputation_gain_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn calculate_reputation_gain_like_cpp (& self , source : ReputationGainSourceLikeCpp , creature_or_quest_level : u32 , rep : i32 , faction_id : u32 , no_quest_bonus : bool ,) -> i32",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "can_authorize_empty_player_spell_hit_aura_source_for_difficulty_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn can_authorize_empty_player_spell_hit_aura_source_for_difficulty_like_cpp (& self , difficulty_id : u8 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "can_authorize_empty_player_spell_hit_aura_source_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn can_authorize_empty_player_spell_hit_aura_source_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "can_destroy_direct_item_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn can_destroy_direct_item_like_cpp (& self , slot : u8 , source_item : Option < & Item > , proto : Option < & ItemStorageTemplate > , source_is_not_empty_bag : bool ,) -> InventoryResult",
@@ -25539,19 +23169,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "clear_represented_rest_flags_for_character_load_like_cpp",
-          "visibility": "private",
-          "signature": "fn clear_represented_rest_flags_for_character_load_like_cpp (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "client_sees_guid_for_test_like_cpp",
           "visibility": "pub",
           "signature": "fn client_sees_guid_for_test_like_cpp (& self , guid : ObjectGuid) -> bool",
@@ -25619,19 +23236,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "complete_represented_quest_after_objective_with_generator_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn complete_represented_quest_after_objective_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , quest : & wow_data :: quest :: QuestTemplate , ignored_objective_id : u32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -27337,19 +24941,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "load_represented_xp_rest_bonus_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn load_represented_xp_rest_bonus_like_cpp (& mut self , rest_state : u8 , rest_bonus : f32 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "load_tutorials_data_like_cpp",
           "visibility": "pub",
           "signature": "async fn load_tutorials_data_like_cpp (& mut self)",
@@ -27539,19 +25130,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "max_primary_trade_skills_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn max_primary_trade_skills_like_cpp (& self) -> u8",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "model_for_totem_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn model_for_totem_like_cpp (& self , spell_id : u32 , race_id : u8) -> u32",
@@ -27574,45 +25152,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "mount_capability_store",
-          "visibility": "pub (crate)",
-          "signature": "fn mount_capability_store (& self) -> Option < & Arc < MountCapabilityStore > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "mount_type_x_capability_store",
-          "visibility": "pub (crate)",
-          "signature": "fn mount_type_x_capability_store (& self) -> Option < & Arc < MountTypeXCapabilityStore > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "mount_x_display_store",
-          "visibility": "pub (crate)",
-          "signature": "fn mount_x_display_store (& self) -> Option < & Arc < MountXDisplayStore > >",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -28850,7 +26389,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_spell_hit_source_identity_complete_like_cpp",
-          "visibility": "pub (in crate :: session)",
+          "visibility": "pub (crate)",
           "signature": "fn player_spell_hit_source_identity_complete_like_cpp (& self) -> bool",
           "cfg": [],
           "source_class": "production",
@@ -29556,19 +27095,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "remove_auras_with_looting_interrupt_flags_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn remove_auras_with_looting_interrupt_flags_like_cpp (& mut self) -> usize",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "remove_currency",
           "visibility": "pub (crate)",
           "signature": "fn remove_currency (& mut self , currency_id : u32 , amount : u32) -> bool",
@@ -30024,19 +27550,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_average_item_level_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_average_item_level_like_cpp (& self) -> Option < f32 >",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -31537,36 +29050,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_quest_giver_accept_source_allows_quest_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_quest_giver_accept_source_allows_quest_like_cpp (& self , source_guid : ObjectGuid , quest_id : u32 , quest_store : & wow_data :: quest :: QuestStore ,) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_quest_giver_involved_source_allows_quest_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_quest_giver_involved_source_allows_quest_like_cpp (& self , source_guid : ObjectGuid , quest_id : u32 , quest_store : & wow_data :: quest :: QuestStore ,) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_quest_push_result_responses_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_quest_push_result_responses_like_cpp (& self ,) -> & [RepresentedQuestPushResultResponseLikeCpp]",
@@ -32285,19 +29768,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_war_mode_update_zone_aura_source_is_empty_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn represented_war_mode_update_zone_aura_source_is_empty_like_cpp (& self ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_wargame_invite_acceptances_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_wargame_invite_acceptances_like_cpp (& self ,) -> & [RepresentedWargameInviteAcceptanceLikeCpp]",
@@ -32395,19 +29865,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "reputation_rank_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn reputation_rank_like_cpp (& self , faction_entry : & FactionEntry , standing : i32 ,) -> wow_data :: reputation :: ReputationRankLikeCpp",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -32788,21 +30245,6 @@
           "name": "resolved_watched_faction_index_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_watched_faction_index_like_cpp (& self) -> Option < i32 >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "resummon_pet_temporary_unsummoned_if_any_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn resummon_pet_temporary_unsummoned_if_any_like_cpp (& mut self)",
           "cfg": [
             "cfg (test)"
           ],
@@ -35086,34 +32528,6 @@
           "name": "set_live_terrain_like_cpp",
           "visibility": "pub",
           "signature": "fn set_live_terrain_like_cpp (& mut self , terrain : Arc < crate :: terrain :: LiveTerrainHeights >)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_loaded_player_identity_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn set_loaded_player_identity_like_cpp (& mut self , map_id : u16 , race : u8 , class : u8 , level : u8 , gender : u8 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_loaded_player_name_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn set_loaded_player_name_like_cpp (& mut self , name : String)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -39018,19 +36432,6 @@
           "name": "sync_player_registry_state_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn sync_player_registry_state_like_cpp (& self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "sync_player_spell_hit_aura_authority_to_canonical_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn sync_player_spell_hit_aura_authority_to_canonical_like_cpp (& mut self ,) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -43104,20 +40505,6 @@
           "module": "crate::spell_acquisition::adapter",
           "trait_path": null,
           "kind": "method",
-          "name": "project_player_spell_acquisition_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn project_player_spell_acquisition_like_cpp (& self , root : SpellAcquisitionRootLikeCpp ,) -> SpellAcquisitionOutcomeLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::spell_acquisition::adapter",
-          "trait_path": null,
-          "kind": "method",
           "name": "project_player_spell_acquisition_with_policy_like_cpp",
           "visibility": "private",
           "signature": "fn project_player_spell_acquisition_with_policy_like_cpp (& self , root : SpellAcquisitionRootLikeCpp , defer_unavailable_cast_side_effects : bool ,) -> SpellAcquisitionOutcomeLikeCpp",
@@ -43125,20 +40512,6 @@
           "source_class": "production",
           "guards": [
             "external_impl"
-          ]
-        },
-        {
-          "module": "crate::spell_acquisition::adapter",
-          "trait_path": null,
-          "kind": "method",
-          "name": "project_trainer_spell_acquisition_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn project_trainer_spell_acquisition_like_cpp (& self , root : SpellAcquisitionRootLikeCpp ,) -> SpellAcquisitionOutcomeLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
           ]
         },
         {

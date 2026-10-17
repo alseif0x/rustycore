@@ -78,7 +78,7 @@ fn reset_group_update_sequence_does_not_reset_same_group_like_cpp() {
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
 
-    assert!(session.reset_group_update_sequence_if_needed_like_cpp());
+    assert!(wow_world_instances::reset_group_update_sequence_if_needed_like_cpp(&mut session));
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
@@ -92,7 +92,7 @@ fn reset_group_update_sequence_does_not_reset_same_group_like_cpp() {
         Some(2)
     );
 
-    assert!(!session.reset_group_update_sequence_if_needed_like_cpp());
+    assert!(!wow_world_instances::reset_group_update_sequence_if_needed_like_cpp(&mut session));
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
@@ -117,7 +117,7 @@ fn reset_group_update_sequence_resets_when_group_changes_like_cpp() {
     session
         .social
         .set_group_guid_for_test_like_cpp(Some(first_group_guid));
-    assert!(session.reset_group_update_sequence_if_needed_like_cpp());
+    assert!(wow_world_instances::reset_group_update_sequence_if_needed_like_cpp(&mut session));
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
@@ -134,7 +134,7 @@ fn reset_group_update_sequence_resets_when_group_changes_like_cpp() {
     session
         .social
         .set_group_guid_for_test_like_cpp(Some(second_group_guid));
-    assert!(session.reset_group_update_sequence_if_needed_like_cpp());
+    assert!(wow_world_instances::reset_group_update_sequence_if_needed_like_cpp(&mut session));
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
@@ -146,7 +146,7 @@ fn reset_group_update_sequence_resets_when_group_changes_like_cpp() {
 fn reset_group_update_sequence_without_group_is_noop_like_cpp() {
     let (mut session, _, _) = make_session();
 
-    assert!(!session.reset_group_update_sequence_if_needed_like_cpp());
+    assert!(!wow_world_instances::reset_group_update_sequence_if_needed_like_cpp(&mut session));
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
@@ -168,7 +168,7 @@ async fn party_update_command_consumes_receiver_sequence_like_cpp() {
     session.set_player_guid(Some(player_guid));
     session.core.state = SessionState::LoggedIn;
 
-    assert!(session.reset_group_update_sequence_if_needed_like_cpp());
+    assert!(wow_world_instances::reset_group_update_sequence_if_needed_like_cpp(&mut session));
 
     for _ in 0..2 {
         session
@@ -400,7 +400,7 @@ fn represented_group_leader_flag_is_removed_for_non_leader_like_cpp() {
         .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
-    assert!(session.apply_represented_group_leader_flag_like_cpp());
+    assert!(wow_world_application::apply_represented_group_leader_flag_like_cpp(&mut session));
 
     assert_eq!(
         session.canonical_player_has_player_flag_like_cpp(
@@ -607,7 +607,7 @@ fn canonical_player_group_reference_follows_detached_and_stale_ownership_like_cp
         .expect("canonical handle");
 
     assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
-    assert!(session.reset_group_update_sequence_if_needed_like_cpp());
+    assert!(wow_world_instances::reset_group_update_sequence_if_needed_like_cpp(&mut session));
     assert_eq!(session.resolved_group_guid_like_cpp(), Some(group_guid));
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(0),

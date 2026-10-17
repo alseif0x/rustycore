@@ -12,7 +12,8 @@ fn quest_reputation_gain_respects_no_quest_bonus_aura_gate_like_cpp() {
     );
 
     assert_eq!(
-        session.calculate_reputation_gain_like_cpp(
+        wow_world_social::calculate_reputation_gain_like_cpp(
+            &session,
             ReputationGainSourceLikeCpp::Quest,
             80,
             100,
@@ -22,7 +23,8 @@ fn quest_reputation_gain_respects_no_quest_bonus_aura_gate_like_cpp() {
         125
     );
     assert_eq!(
-        session.calculate_reputation_gain_like_cpp(
+        wow_world_social::calculate_reputation_gain_like_cpp(
+            &session,
             ReputationGainSourceLikeCpp::Quest,
             80,
             100,
@@ -69,7 +71,8 @@ fn reputation_gain_applies_recruit_a_friend_bonus_for_non_spell_sources_like_cpp
     session.set_state(SessionState::LoggedIn);
 
     assert_eq!(
-        session.calculate_reputation_gain_like_cpp(
+        wow_world_social::calculate_reputation_gain_like_cpp(
+            &session,
             ReputationGainSourceLikeCpp::Quest,
             80,
             100,
@@ -79,7 +82,8 @@ fn reputation_gain_applies_recruit_a_friend_bonus_for_non_spell_sources_like_cpp
         110
     );
     assert_eq!(
-        session.calculate_reputation_gain_like_cpp(
+        wow_world_social::calculate_reputation_gain_like_cpp(
+            &session,
             ReputationGainSourceLikeCpp::Spell,
             80,
             100,

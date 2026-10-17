@@ -48,7 +48,7 @@ impl WorldSession {
     /// the C++ area rest flag side effects. PvP flags, phasing, aura checks, quest push, mount
     /// capability refresh, and chat-channel updates remain runtime gaps.
     pub(crate) fn update_area_represented_like_cpp(&mut self, new_area: u32) -> bool {
-        self.update_area_represented_with_rest_update_like_cpp(new_area, true)
+        wow_world_instances::update_area_represented_with_rest_update_like_cpp(self, new_area, true)
     }
     pub(crate) fn set_area_spirit_healer_guid_like_cpp(&mut self, healer_guid: ObjectGuid) -> bool {
         let (state, mut hub) = crate::session::split_instances_mut(self);

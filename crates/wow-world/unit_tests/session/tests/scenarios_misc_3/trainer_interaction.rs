@@ -213,7 +213,7 @@ fn npc_interaction_resolves_canonical_trainer_like_cpp() {
     );
     assert!(session.replace_player_taxi_state_like_cpp(Default::default()));
 
-    session.set_player_alive_like_cpp(false);
+    wow_world_entities::set_player_alive_like_cpp(&mut session, false);
     assert_eq!(
         session.represented_npc_can_interact_with_like_cpp(
             trainer_guid,
@@ -222,7 +222,7 @@ fn npc_interaction_resolves_canonical_trainer_like_cpp() {
         ),
         None
     );
-    session.set_player_alive_like_cpp(true);
+    wow_world_entities::set_player_alive_like_cpp(&mut session, true);
 
     {
         let mut canonical = canonical.lock().unwrap();

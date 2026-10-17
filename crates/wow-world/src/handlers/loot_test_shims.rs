@@ -164,13 +164,6 @@ impl WorldSession {
         )
     }
 
-    pub(crate) fn next_canonical_loot_object_guid_like_cpp(
-        &mut self,
-        owner_guid: ObjectGuid,
-    ) -> Option<ObjectGuid> {
-        wow_world_loot_ops::next_canonical_loot_object_guid_like_cpp(self, owner_guid)
-    }
-
     pub(crate) fn next_represented_loot_object_guid_like_cpp(
         &mut self,
         owner_guid: ObjectGuid,

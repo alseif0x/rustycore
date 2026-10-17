@@ -455,16 +455,15 @@ fn represented_mount_aura_display_candidates_match_cpp_filter() {
     ])));
 
     assert_eq!(
-        session.represented_mount_aura_display_candidates_like_cpp(100),
+        wow_world_spell::represented_mount_aura_display_candidates_like_cpp(&session, 100),
         vec![1000, 1002]
     );
     assert_eq!(
-        session.represented_mount_aura_display_candidates_like_cpp(101),
+        wow_world_spell::represented_mount_aura_display_candidates_like_cpp(&session, 101),
         vec![wow_data::DISPLAYID_HIDDEN_MOUNT]
     );
     assert!(
-        session
-            .represented_mount_aura_display_candidates_like_cpp(999)
+        wow_world_spell::represented_mount_aura_display_candidates_like_cpp(&session, 999)
             .is_empty()
     );
 }
@@ -489,13 +488,13 @@ fn summon_object_wild_session_resolver_uses_caster_close_point_when_dst_missing_
     session
         .set_gameobject_template_lifecycle_store(summon_go_template_store_like_cpp(template_entry));
 
-    let outcome = session
-        .apply_effect_summon_object_wild_like_cpp(
-            i32::try_from(spell_id).unwrap(),
-            &summon_object_wild_effect_like_cpp(i32::try_from(template_entry).unwrap()),
-            &SpellTargetData::default(),
-        )
-        .expect("wild effect should return represented outcome");
+    let outcome = wow_world_spell::apply_effect_summon_object_wild_like_cpp(
+        &mut session,
+        i32::try_from(spell_id).unwrap(),
+        &summon_object_wild_effect_like_cpp(i32::try_from(template_entry).unwrap()),
+        &SpellTargetData::default(),
+    )
+    .expect("wild effect should return represented outcome");
 
     assert_eq!(
         outcome.status,

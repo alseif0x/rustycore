@@ -84,7 +84,7 @@ fn player_spell_hit_source_authority_gates_update_zone_aura_producers_like_cpp()
     assert!(!session.represented_player_has_flag_like_cpp(PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP));
     assert_eq!(
         (
-            session.represented_spell_area_autocast_source_is_empty_like_cpp(),
+            wow_world_spell::represented_spell_area_autocast_source_is_empty_like_cpp(&session),
             session.represented_war_mode_update_zone_aura_source_is_empty_like_cpp(),
             session.represented_update_area_pvp_rule_aura_source_is_empty_like_cpp(),
             session.represented_update_zone_script_aura_source_is_hit_inert_like_cpp(),

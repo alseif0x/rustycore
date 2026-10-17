@@ -553,7 +553,7 @@ async fn canonical_player_money_follows_active_detached_and_stale_handle_ownersh
 fn player_currency_helpers_match_cpp_storage_lookup() {
     let (mut session, _, _) = make_session();
     assert_eq!(session.player_currency_quantity(395), Some(0));
-    assert!(!session.has_currency(395, 1));
+    assert!(!wow_world_inventory::has_currency(&session, 395, 1));
 
     session.inventory.insert_player_currency_for_test_like_cpp(
         395,
@@ -569,8 +569,8 @@ fn player_currency_helpers_match_cpp_storage_lookup() {
     );
 
     assert_eq!(session.player_currency_quantity(395), Some(42));
-    assert!(session.has_currency(395, 42));
-    assert!(!session.has_currency(395, 43));
+    assert!(wow_world_inventory::has_currency(&session, 395, 42));
+    assert!(!wow_world_inventory::has_currency(&session, 395, 43));
 }
 #[test]
 fn set_currency_flags_preserves_new_state_like_cpp() {
@@ -591,7 +591,7 @@ fn set_currency_flags_preserves_new_state_like_cpp() {
         },
     );
 
-    assert!(session.represented_set_currency_flags_like_cpp(395, 0x04));
+    assert!(wow_world_inventory::represented_set_currency_flags_like_cpp(&mut session, 395, 0x04));
 
     let currency = session
         .inventory

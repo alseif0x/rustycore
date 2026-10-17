@@ -21,7 +21,7 @@ fn persisted_transport_restore_stays_between_identity_and_reputation_loading_lik
     let transport_restore =
         include_str!("../../../../wow-world-character/src/login_session/transport_restore.rs");
     let identity_offset = login
-        .rfind("set_loaded_player_identity_like_cpp(map_id as u16, race, class, level, gender);")
+        .rfind("_loaded_player_identity_like_cpp(host, map_id as u16, race, class, level, gender);")
         .expect("login stores the loaded identity before restoring persisted transport");
     let restore_offset = login
         .find("restore_persisted_transport_for_login_like_cpp(")
@@ -547,7 +547,7 @@ fn action_button_login_phase_keeps_active_configuration_and_packet_projection() 
         .find("load_action_buttons_for_login_like_cpp")
         .expect("login delegates action-button hydration");
     let identity_offset = login
-        .rfind("set_loaded_player_identity_like_cpp(map_id as u16, race, class, level, gender);")
+        .rfind("_loaded_player_identity_like_cpp(host, map_id as u16, race, class, level, gender);")
         .expect("login stores identity after action-button hydration");
     assert!(glyph_offset < action_button_offset);
     assert!(action_button_offset < identity_offset);
@@ -636,17 +636,17 @@ async fn handle_player_login_prelude_resends_account_state_and_orders_packets_li
     let generators = session.id_generators_for_test_like_cpp();
     let feature_policy = session.support_feature_policy_for_test_like_cpp();
     assert!(
-        session
-            .send_handle_player_login_packets_like_cpp(
-                generators.item.as_ref(),
-                &feature_policy,
-                guid,
-                &Position::new(1.0, 2.0, 3.0, 4.0),
-                571,
-                &mounts,
-                "first@second",
-            )
-            .await
+        wow_world_character::send_handle_player_login_packets_like_cpp(
+            &mut session,
+            generators.item.as_ref(),
+            &feature_policy,
+            guid,
+            &Position::new(1.0, 2.0, 3.0, 4.0),
+            571,
+            &mounts,
+            "first@second",
+        )
+        .await
     );
 
     let packets = send_rx.try_iter().collect::<Vec<_>>();
@@ -1161,10 +1161,10 @@ fn login_passive_parry_and_block_capabilities_feed_first_stat_projection_like_cp
         (false, false)
     );
     assert_eq!(
-        session.apply_login_known_spell_combat_capabilities_like_cpp(&[
-            parry_spell_id,
-            block_spell_id,
-        ]),
+        wow_world_spell::apply_login_known_spell_combat_capabilities_like_cpp(
+            &mut session,
+            &[parry_spell_id, block_spell_id,]
+        ),
         2
     );
     assert_eq!(

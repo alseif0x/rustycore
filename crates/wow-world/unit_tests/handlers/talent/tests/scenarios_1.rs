@@ -151,8 +151,7 @@ async fn login_at_login_reset_talents_resets_without_cost_like_cpp() {
     session.mark_represented_talents_loaded_like_cpp();
     session.set_player_gold_like_cpp(9_999);
 
-    session
-        .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
+    wow_world_spell::handle_learn_talent(&mut session, &talent_tabs, learn_talent_packet(101, 0))
         .await;
     assert!(
         drain_sent_packets(&send_rx).iter().any(|packet| *packet
@@ -168,7 +167,7 @@ async fn login_at_login_reset_talents_resets_without_cost_like_cpp() {
     );
 
     assert!(
-        session.apply_represented_login_talent_reset_if_needed_like_cpp(),
+        wow_world_spell::apply_represented_login_talent_reset_if_needed_like_cpp(&mut session),
         "C++ CharacterHandler applies AT_LOGIN_RESET_TALENTS through ResetTalents(true)"
     );
 
@@ -241,7 +240,7 @@ async fn login_at_login_reset_spells_removes_known_spells_and_notifies_like_cpp(
     );
 
     assert!(
-        session.apply_represented_login_spell_reset_if_needed_like_cpp(),
+        wow_world_application::apply_represented_login_spell_reset_if_needed_like_cpp(&mut session),
         "C++ CharacterHandler applies AT_LOGIN_RESET_SPELLS through Player::ResetSpells"
     );
 
@@ -313,7 +312,7 @@ async fn login_spell_reset_relearns_quest_rewarded_spells_like_cpp() {
     session.set_represented_at_login_flags_like_cpp(AT_LOGIN_RESET_SPELLS_LIKE_CPP);
 
     assert!(
-        session.apply_represented_login_spell_reset_if_needed_like_cpp(),
+        wow_world_application::apply_represented_login_spell_reset_if_needed_like_cpp(&mut session),
         "C++ ResetSpells calls LearnQuestRewardedSpells after removing the copied PlayerSpellMap"
     );
     let _notification = send_rx
@@ -357,7 +356,9 @@ async fn login_spell_reset_skips_quest_reward_spell_without_rewarded_skill_abili
     session.set_known_spells_like_cpp(vec![learned_spell_id]);
     session.set_represented_at_login_flags_like_cpp(AT_LOGIN_RESET_SPELLS_LIKE_CPP);
 
-    assert!(session.apply_represented_login_spell_reset_if_needed_like_cpp());
+    assert!(
+        wow_world_application::apply_represented_login_spell_reset_if_needed_like_cpp(&mut session)
+    );
     let _notification = send_rx
         .try_recv()
         .expect("C++ still notifies after ResetSpells");
@@ -405,7 +406,7 @@ async fn login_spell_reset_reward_spell_minus_one_removes_source_spell_auras_lik
     session.set_represented_at_login_flags_like_cpp(AT_LOGIN_RESET_SPELLS_LIKE_CPP);
 
     assert!(
-        session.apply_represented_login_spell_reset_if_needed_like_cpp(),
+        wow_world_application::apply_represented_login_spell_reset_if_needed_like_cpp(&mut session),
         "C++ ResetSpells calls LearnQuestRewardedSpells after removing spells"
     );
     let _aura_remove_1 = send_rx
@@ -450,8 +451,7 @@ async fn learn_talent_updates_represented_active_group_and_sends_talents_like_cp
     crate::session::hub_mut(&mut session).set_represented_active_talent_group_like_cpp(1);
     crate::session::hub_mut(&mut session).set_represented_bonus_talent_groups_like_cpp(1);
 
-    session
-        .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 2))
+    wow_world_spell::handle_learn_talent(&mut session, &talent_tabs, learn_talent_packet(101, 2))
         .await;
 
     let sent = send_rx
@@ -560,8 +560,7 @@ async fn learn_talent_rejects_zero_character_points_like_cpp() {
     session.mark_represented_talents_loaded_like_cpp();
     session.set_player_character_points_like_cpp(0);
 
-    session
-        .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
+    wow_world_spell::handle_learn_talent(&mut session, &talent_tabs, learn_talent_packet(101, 0))
         .await;
 
     assert!(send_rx.try_recv().is_err());
@@ -585,8 +584,7 @@ async fn learn_talent_rejects_unloaded_snapshot_without_sending_like_cpp() {
     let (mut session, send_rx) = make_session_with_send_capacity(1);
     let talent_tabs = install_test_talent_store(&mut session, &[(101, 0, 50_101)]);
 
-    session
-        .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
+    wow_world_spell::handle_learn_talent(&mut session, &talent_tabs, learn_talent_packet(101, 0))
         .await;
 
     assert!(send_rx.try_recv().is_err());
@@ -606,8 +604,7 @@ async fn learn_talent_rejects_missing_talent_tab_like_cpp() {
     let talent_tabs = install_test_talent_store_without_tab(&mut session, &[(101, 0, 50_101)]);
     session.mark_represented_talents_loaded_like_cpp();
 
-    session
-        .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
+    wow_world_spell::handle_learn_talent(&mut session, &talent_tabs, learn_talent_packet(101, 0))
         .await;
 
     assert!(send_rx.try_recv().is_err());
@@ -627,8 +624,7 @@ async fn learn_talent_rejects_wrong_class_talent_tab_like_cpp() {
         install_test_talent_store_with_tab_class_mask(&mut session, &[(101, 0, 50_101)], 1 << 1);
     session.mark_represented_talents_loaded_like_cpp();
 
-    session
-        .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
+    wow_world_spell::handle_learn_talent(&mut session, &talent_tabs, learn_talent_packet(101, 0))
         .await;
 
     assert!(send_rx.try_recv().is_err());
@@ -647,8 +643,7 @@ async fn learn_talent_rejects_rank_outside_cpp_max_like_cpp() {
     let talent_tabs = install_test_talent_store(&mut session, &[(101, 0, 50_101)]);
     session.mark_represented_talents_loaded_like_cpp();
 
-    session
-        .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 9))
+    wow_world_spell::handle_learn_talent(&mut session, &talent_tabs, learn_talent_packet(101, 9))
         .await;
 
     assert!(send_rx.try_recv().is_err());
@@ -668,8 +663,7 @@ async fn learn_talent_rejects_known_or_higher_rank_like_cpp() {
     session.mark_represented_talents_loaded_like_cpp();
     assert!(session.load_represented_talent_row_like_cpp(&talent_tabs, 101, 1, 0));
 
-    session
-        .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
+    wow_world_spell::handle_learn_talent(&mut session, &talent_tabs, learn_talent_packet(101, 0))
         .await;
 
     assert!(send_rx.try_recv().is_err());
@@ -696,14 +690,12 @@ async fn learn_talent_enforces_prereq_rank_like_cpp() {
         install_test_talent_entries_with_tab_class_mask(&mut session, vec![prereq, dependent], 1);
     session.mark_represented_talents_loaded_like_cpp();
 
-    session
-        .handle_learn_talent(&talent_tabs, learn_talent_packet(202, 0))
+    wow_world_spell::handle_learn_talent(&mut session, &talent_tabs, learn_talent_packet(202, 0))
         .await;
     assert!(send_rx.try_recv().is_err());
 
     assert!(session.load_represented_talent_row_like_cpp(&talent_tabs, 101, 1, 0));
-    session
-        .handle_learn_talent(&talent_tabs, learn_talent_packet(202, 0))
+    wow_world_spell::handle_learn_talent(&mut session, &talent_tabs, learn_talent_packet(202, 0))
         .await;
 
     let sent = send_rx
@@ -732,14 +724,12 @@ async fn learn_talent_enforces_tier_spent_points_like_cpp() {
         install_test_talent_entries_with_tab_class_mask(&mut session, vec![filler, tier_one], 1);
     session.mark_represented_talents_loaded_like_cpp();
 
-    session
-        .handle_learn_talent(&talent_tabs, learn_talent_packet(202, 0))
+    wow_world_spell::handle_learn_talent(&mut session, &talent_tabs, learn_talent_packet(202, 0))
         .await;
     assert!(send_rx.try_recv().is_err());
 
     assert!(session.load_represented_talent_row_like_cpp(&talent_tabs, 101, 4, 0));
-    session
-        .handle_learn_talent(&talent_tabs, learn_talent_packet(202, 0))
+    wow_world_spell::handle_learn_talent(&mut session, &talent_tabs, learn_talent_packet(202, 0))
         .await;
 
     let sent = send_rx
@@ -771,8 +761,7 @@ async fn learn_talent_rejects_invalid_learn_spell_trigger_like_cpp() {
     );
     session.mark_represented_talents_loaded_like_cpp();
 
-    session
-        .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
+    wow_world_spell::handle_learn_talent(&mut session, &talent_tabs, learn_talent_packet(101, 0))
         .await;
 
     assert!(send_rx.try_recv().is_err());
@@ -801,8 +790,7 @@ async fn learn_talent_learns_active_talent_spell_and_trigger_like_cpp() {
     );
     session.mark_represented_talents_loaded_like_cpp();
 
-    session
-        .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
+    wow_world_spell::handle_learn_talent(&mut session, &talent_tabs, learn_talent_packet(101, 0))
         .await;
 
     assert!(
@@ -835,15 +823,13 @@ async fn learn_talent_upgrade_removes_previous_rank_spell_and_trigger_like_cpp()
     );
     session.mark_represented_talents_loaded_like_cpp();
 
-    session
-        .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
+    wow_world_spell::handle_learn_talent(&mut session, &talent_tabs, learn_talent_packet(101, 0))
         .await;
     assert!(!send_rx.try_recv().expect("rank 0 learn sends").is_empty());
     assert!(session.known_spells_like_cpp().contains(&50_101));
     assert!(session.known_spells_like_cpp().contains(&60_101));
 
-    session
-        .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 1))
+    wow_world_spell::handle_learn_talent(&mut session, &talent_tabs, learn_talent_packet(101, 1))
         .await;
 
     assert!(!send_rx.try_recv().expect("rank 1 learn sends").is_empty());
@@ -874,8 +860,7 @@ async fn learn_talent_removes_change_talent_interrupt_auras_like_cpp() {
         .visible_auras
         .insert(2, visible_aura(2, 0));
 
-    session
-        .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
+    wow_world_spell::handle_learn_talent(&mut session, &talent_tabs, learn_talent_packet(101, 0))
         .await;
 
     assert!(

@@ -10,10 +10,6 @@
 //! path — completion, a failed ConnectTo, or disconnect — so a dropped
 //! instance socket cannot leave a character permanently unloggable.
 
-use super::super::{ObjectGuid, WorldSession};
-
-impl WorldSession {}
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/lifecycle/login/f3_shims.rs"]
 mod f3_shims;

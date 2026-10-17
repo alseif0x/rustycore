@@ -47,11 +47,11 @@ fn login_load_rejects_invalid_rows_and_identity_collisions() {
         !session.load_represented_void_storage_row_like_cpp(4, represented_void_item(80, 99999),)
     );
     assert_eq!(
-        session.represented_void_storage_item_at_like_cpp(3),
+        wow_world_application::represented_void_storage_item_at_like_cpp(&session, 3),
         Some(item)
     );
     assert_eq!(
-        session.represented_void_storage_free_slots_like_cpp(),
+        wow_world_application::represented_void_storage_free_slots_like_cpp(&session),
         Some(159)
     );
 }
@@ -182,7 +182,7 @@ fn login_load_adds_default_void_item_appearance_like_cpp() {
             transmog_source_type_enum: 0,
         }]),
     ));
-    assert!(session.can_add_item_appearance_represented_like_cpp(65));
+    assert!(wow_world_inventory::can_add_item_appearance_represented_like_cpp(&session, 65));
 
     session.clear_represented_void_storage_like_cpp();
     assert!(
@@ -202,29 +202,34 @@ fn locked_login_discards_residual_void_rows_and_initializes_empty_storage_like_c
     let (mut session, _, _) = make_void_storage_session();
     install_void_test_item_template(&mut session, 19019);
     assert_eq!(
-        session.add_represented_void_storage_item_like_cpp(represented_void_item(77, 19019)),
+        wow_world_application::add_represented_void_storage_item_like_cpp(
+            &mut session,
+            represented_void_item(77, 19019)
+        ),
         Some(0)
     );
 
     session.set_loaded_player_flags_like_cpp(0);
-    assert!(!session.prepare_represented_void_storage_login_load_like_cpp());
+    assert!(
+        !wow_world_character::prepare_represented_void_storage_login_load_like_cpp(&mut session)
+    );
     assert_eq!(
         wow_world_application::represented_void_storage_loaded_like_cpp(&session),
         Some(true)
     );
     assert_eq!(
-        session.represented_void_storage_free_slots_like_cpp(),
+        wow_world_application::represented_void_storage_free_slots_like_cpp(&session),
         Some(160)
     );
 
-    session.apply_committed_void_storage_unlock_like_cpp();
+    wow_world_application::apply_committed_void_storage_unlock_like_cpp(&mut session);
     assert!(session.void_storage_is_unlocked_like_cpp());
     assert_eq!(
         wow_world_application::represented_void_storage_loaded_like_cpp(&session),
         Some(true)
     );
     assert_eq!(
-        session.represented_void_storage_free_slots_like_cpp(),
+        wow_world_application::represented_void_storage_free_slots_like_cpp(&session),
         Some(160)
     );
 }
@@ -623,7 +628,8 @@ fn mixed_transfer_publishes_deposit_destroy_before_withdrawal_create_like_cpp() 
     )
     .to_bytes();
 
-    session.publish_void_storage_item_lifecycle_like_cpp(
+    wow_world_application::publish_void_storage_item_lifecycle_like_cpp(
+        &session,
         571,
         vec![(
             (INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START),
@@ -711,7 +717,12 @@ fn planned_stack_merge_publishes_store_then_post_store_values_like_cpp() {
             571,
         ),
     );
-    session.publish_void_storage_item_lifecycle_like_cpp(571, Vec::new(), publications);
+    wow_world_application::publish_void_storage_item_lifecycle_like_cpp(
+        &session,
+        571,
+        Vec::new(),
+        publications,
+    );
 
     let packets = send_rx.try_iter().collect::<Vec<_>>();
     let create_index = packets
@@ -751,31 +762,42 @@ fn nested_withdrawal_resolves_planned_bag_database_and_item_guids_like_cpp() {
     let planned_item_guids = std::collections::HashMap::from([(bag_slot, planned_bag_guid)]);
 
     assert_eq!(
-        session.void_storage_withdrawal_container_db_guid_like_cpp(INVENTORY_SLOT_BAG_0, &planned,),
+        wow_world_application::void_storage_withdrawal_container_db_guid_like_cpp(
+            &session,
+            INVENTORY_SLOT_BAG_0,
+            &planned,
+        ),
         Some(0)
     );
     assert_eq!(
-        session.void_storage_withdrawal_container_db_guid_like_cpp(bag_slot, &planned,),
+        wow_world_application::void_storage_withdrawal_container_db_guid_like_cpp(
+            &session, bag_slot, &planned,
+        ),
         Some(700),
         "the planned bag must beat the stale runtime bag being replaced in the transaction"
     );
     assert_eq!(
-        session.void_storage_withdrawal_container_db_guid_like_cpp(
+        wow_world_application::void_storage_withdrawal_container_db_guid_like_cpp(
+            &session,
             wow_entities::INVENTORY_SLOT_BAG_START + 1,
             &planned,
         ),
         None
     );
     assert_eq!(
-        session.void_storage_withdrawal_container_item_guid_like_cpp(
+        wow_world_application::void_storage_withdrawal_container_item_guid_like_cpp(
+            &session,
             INVENTORY_SLOT_BAG_0,
             &planned_item_guids,
         ),
         session.player_guid()
     );
     assert_eq!(
-        session
-            .void_storage_withdrawal_container_item_guid_like_cpp(bag_slot, &planned_item_guids,),
+        wow_world_application::void_storage_withdrawal_container_item_guid_like_cpp(
+            &session,
+            bag_slot,
+            &planned_item_guids,
+        ),
         Some(planned_bag_guid),
         "the planned bag object must beat the stale runtime bag in the same slot"
     );
@@ -799,7 +821,8 @@ fn withdrawal_restores_and_persists_effective_random_property_enchantments_like_
         },
     ])));
 
-    let positive = session.effective_void_storage_random_properties_like_cpp(17, 29);
+    let positive =
+        wow_world_application::effective_void_storage_random_properties_like_cpp(&session, 17, 29);
     assert_eq!(positive.id, 17);
     assert_eq!(positive.seed, 0);
     assert_eq!(
@@ -815,7 +838,8 @@ fn withdrawal_restores_and_persists_effective_random_property_enchantments_like_
         103
     );
 
-    let suffix = session.effective_void_storage_random_properties_like_cpp(-13, 29);
+    let suffix =
+        wow_world_application::effective_void_storage_random_properties_like_cpp(&session, -13, 29);
     assert_eq!(suffix.id, -13);
     assert_eq!(suffix.seed, 29);
     assert_eq!(
@@ -831,7 +855,9 @@ fn withdrawal_restores_and_persists_effective_random_property_enchantments_like_
         203
     );
     assert_eq!(
-        session.effective_void_storage_random_properties_like_cpp(-999, 29),
+        wow_world_application::effective_void_storage_random_properties_like_cpp(
+            &session, -999, 29
+        ),
         EffectiveVoidStorageRandomPropertiesLikeCpp::default()
     );
 

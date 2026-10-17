@@ -8,7 +8,7 @@
 //! The scenario suites still build a `WorldSession` here, so these bounded
 //! delegates construct the social owner's context from the session's
 //! lifecycle state and hub.
-
+#![cfg(test)]
 use wow_world_social::SocialContactsHandlerCxLikeCpp;
 
 use super::*;

@@ -532,7 +532,7 @@ fn resummon_pet_temporary_unsummoned_loads_represented_stable_pet_like_cpp() {
         }),
     );
 
-    session.resummon_pet_temporary_unsummoned_if_any_like_cpp();
+    wow_world_lifecycle::resummon_pet_temporary_unsummoned_like_cpp(&mut session);
 
     assert_eq!(session.temporary_pet_resummon_requests_like_cpp(), 1);
     assert_eq!(
@@ -679,7 +679,7 @@ fn resummon_pet_zero_health_hunter_pet_loads_just_died_like_cpp() {
     stable.active_pets[0].as_mut().unwrap().health = 0;
     session.set_represented_pet_stable_like_cpp(stable);
 
-    session.resummon_pet_temporary_unsummoned_if_any_like_cpp();
+    wow_world_lifecycle::resummon_pet_temporary_unsummoned_like_cpp(&mut session);
 
     let pet_guid = session
         .represented_pet_guid_like_cpp()
@@ -730,7 +730,7 @@ fn resummon_pet_temporary_unsummoned_skips_declined_names_for_non_hunter_pet_lik
         }),
     );
 
-    session.resummon_pet_temporary_unsummoned_if_any_like_cpp();
+    wow_world_lifecycle::resummon_pet_temporary_unsummoned_like_cpp(&mut session);
 
     let pet_guid = session
         .represented_pet_guid_like_cpp()
@@ -753,9 +753,9 @@ fn resummon_pet_temporary_unsummoned_waits_while_player_dead_like_cpp() {
         .pets
         .represented_temporary_unsummoned_pet_number_like_cpp = 42;
     session.set_represented_pet_stable_like_cpp(represented_hunter_pet_stable_like_cpp(42, 500));
-    session.set_player_alive_like_cpp(false);
+    wow_world_entities::set_player_alive_like_cpp(&mut session, false);
 
-    session.resummon_pet_temporary_unsummoned_if_any_like_cpp();
+    wow_world_lifecycle::resummon_pet_temporary_unsummoned_like_cpp(&mut session);
 
     assert_eq!(session.temporary_pet_resummon_requests_like_cpp(), 1);
     assert_eq!(
@@ -774,7 +774,7 @@ fn resummon_pet_temporary_unsummoned_waits_while_player_flying_like_cpp() {
     session.set_represented_pet_stable_like_cpp(represented_hunter_pet_stable_like_cpp(42, 500));
     session.set_player_movement_flags_like_cpp(MovementFlag::FLYING);
 
-    session.resummon_pet_temporary_unsummoned_if_any_like_cpp();
+    wow_world_lifecycle::resummon_pet_temporary_unsummoned_like_cpp(&mut session);
 
     assert_eq!(session.temporary_pet_resummon_requests_like_cpp(), 1);
     assert_eq!(
@@ -807,7 +807,7 @@ fn resummon_pet_temporary_unsummoned_failed_load_clears_number_like_cpp() {
         .represented_temporary_unsummoned_pet_number_like_cpp = 42;
     session.set_represented_pet_stable_like_cpp(represented_hunter_pet_stable_like_cpp(99, 500));
 
-    session.resummon_pet_temporary_unsummoned_if_any_like_cpp();
+    wow_world_lifecycle::resummon_pet_temporary_unsummoned_like_cpp(&mut session);
 
     assert_eq!(session.temporary_pet_resummon_requests_like_cpp(), 1);
     assert_eq!(
@@ -831,7 +831,7 @@ fn resummon_pet_temporary_unsummoned_skips_when_pet_already_active_like_cpp() {
         wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
     );
 
-    session.resummon_pet_temporary_unsummoned_if_any_like_cpp();
+    wow_world_lifecycle::resummon_pet_temporary_unsummoned_like_cpp(&mut session);
 
     assert_eq!(session.temporary_pet_resummon_requests_like_cpp(), 1);
     assert_eq!(

@@ -308,9 +308,9 @@ fn spell_acquisition_snapshot_adapter_is_exact_or_fails_closed() {
         .represented_override_spell_fixture_mut_like_cpp()
         .remove(&-2);
 
-    session.reset_represented_talents_like_cpp();
+    wow_world_spell::reset_represented_talents_like_cpp(&mut session);
     assert!(
-        session.represented_override_spells_like_cpp().is_empty(),
+        wow_world_spell::represented_override_spells_like_cpp(&session).is_empty(),
         "a fresh character load cannot retain the previous C++ Player's runtime override edges"
     );
     assert!(
@@ -344,7 +344,7 @@ fn spell_acquisition_snapshot_adapter_is_exact_or_fails_closed() {
             .iter()
             .all(|spell| spell.trait_definition_id.is_none())
     );
-    assert!(session.represented_override_spells_like_cpp().is_empty());
+    assert!(wow_world_spell::represented_override_spells_like_cpp(&session).is_empty());
     assert!(
         session
             .represented_spell_trait_definition_ids_like_cpp()
@@ -361,15 +361,10 @@ fn spell_acquisition_snapshot_adapter_is_exact_or_fails_closed() {
         Err(SpellAcquisitionSnapshotAdapterErrorLikeCpp::IncompleteSpellRows)
     );
     assert!(
-        session
-            .complete_represented_spell_trait_definition_ids_like_cpp()
+        wow_world_spell::complete_represented_spell_trait_definition_ids_like_cpp(&session)
             .is_none()
     );
-    assert!(
-        session
-            .complete_represented_override_spells_like_cpp()
-            .is_none()
-    );
+    assert!(wow_world_spell::complete_represented_override_spells_like_cpp(&session).is_none());
 }
 #[test]
 fn represented_favorite_known_spells_are_retained_only_for_known_spells_like_cpp() {
@@ -382,7 +377,7 @@ fn represented_favorite_known_spells_are_retained_only_for_known_spells_like_cpp
         HashSet::from([100])
     );
 
-    session.remove_known_spell_like_cpp(100);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, 100);
     assert!(
         session
             .represented_favorite_known_spells_like_cpp()
@@ -457,8 +452,7 @@ fn character_talent_load_applies_active_spell_side_effects_like_cpp() {
     assert!(known_spells.contains(&60_100));
     assert_eq!(dependent_spells, HashSet::from([14_908, 60_100]));
     assert!(
-        session
-            .represented_override_spells_like_cpp()
+        wow_world_spell::represented_override_spells_like_cpp(&session)
             .get(&50_000)
             .is_some_and(|spells| spells.contains(&14_908))
     );

@@ -89,7 +89,7 @@ async fn cancelled_post_add_retains_rest_update_through_reentry() {
         "the pending rest update must survive both cancellation and same-zone reentry"
     );
     assert!(
-        !session.take_deferred_rest_flag_update_dirty_like_cpp(),
+        !wow_world_instances::take_player_deferred_rest_flag_update_dirty_like_cpp(&mut session),
         "accepted publication retires the marker"
     );
 

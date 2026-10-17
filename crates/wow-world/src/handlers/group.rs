@@ -47,7 +47,7 @@ use wow_social::group::{
     MEMBER_FLAG_ASSISTANT_LIKE_CPP, ReadyCheckEventLikeCpp,
 };
 
-use crate::session::{GroupInvitePolicyLikeCpp, WorldSession, player_team_for_race_cpp};
+use crate::session::{GroupInvitePolicyLikeCpp, player_team_for_race_cpp};
 
 mod ops_1;
 #[cfg(test)]

@@ -99,9 +99,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.search_spell_focus_like_cpp(hub, focus_id)
     }
-    pub(crate) fn take_ready_player_cast_like_cpp(&mut self) -> Option<SpellCastState> {
-        wow_world_spell::take_ready_player_cast_like_cpp(self)
-    }
     pub(crate) fn handle_player_cast_publication_like_cpp(
         &mut self,
         command: SendPlayerSpellIfVisibleLikeCppCommand,

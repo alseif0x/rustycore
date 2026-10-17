@@ -5,7 +5,7 @@
 //! Test-only entry points for the arena-team handlers moved to
 //! `wow-world-social` and the battleground handlers moved to
 //! `wow-world-instances` (#1263 F5; #1363 slice A2).
-
+#![cfg(test)]
 use wow_constants::ClientOpcodes;
 use wow_packet::WorldPacket;
 use wow_world_instances::BattlegroundHandlerCxLikeCpp;

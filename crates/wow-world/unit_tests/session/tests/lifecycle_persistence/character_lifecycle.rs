@@ -256,7 +256,7 @@ async fn realm_character_count_refresh_reaches_the_lifecycle_port_without_databa
     let (mut session, port) = session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
     session.set_realm_id(12);
 
-    session.update_realm_characters().await;
+    wow_world_character::update_realm_characters(&session).await;
 
     assert_eq!(
         port.realm_character_count_refreshes(),
@@ -270,7 +270,7 @@ async fn realm_character_count_refresh_reaches_the_lifecycle_port_without_databa
 #[tokio::test]
 async fn realm_character_count_refresh_without_port_does_not_fabricate_a_request() {
     let (session, _, _) = make_session();
-    session.update_realm_characters().await;
+    wow_world_character::update_realm_characters(&session).await;
 }
 
 /// Each offline mark reaches the port as its own request, naming the logical

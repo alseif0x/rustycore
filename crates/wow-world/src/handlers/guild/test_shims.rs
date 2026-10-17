@@ -6,7 +6,7 @@
 //! `wow-world-social` and the guild-bank handlers moved to
 //! `wow-world-application` (#1263 F5). The guild-bank entry points dispatch
 //! through the registered production thunks.
-
+#![cfg(test)]
 use wow_constants::ClientOpcodes;
 use wow_packet::WorldPacket;
 use wow_world_social::GuildHandlerCxLikeCpp;

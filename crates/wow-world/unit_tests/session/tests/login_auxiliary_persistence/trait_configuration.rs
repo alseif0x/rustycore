@@ -40,8 +40,7 @@ async fn trait_config_load_does_not_authorize_stale_or_missing_player_owner() {
                 .is_empty()
         );
         assert!(
-            session
-                .complete_represented_spell_trait_definition_ids_like_cpp()
+            wow_world_spell::complete_represented_spell_trait_definition_ids_like_cpp(&session)
                 .is_none()
         );
         assert_eq!(
@@ -132,7 +131,9 @@ async fn trait_config_load_borrows_catalog_and_preserves_fail_closed_active_and_
                 assert_eq!(configs[0].entries[0].rank, 2);
                 assert_eq!(configs[0].entries[0].granted_ranks, 1);
                 assert_eq!(
-                    session.complete_represented_spell_trait_definition_ids_like_cpp(),
+                    wow_world_spell::complete_represented_spell_trait_definition_ids_like_cpp(
+                        &session
+                    ),
                     (valid_node && valid_definition).then(|| HashMap::from([(500, 400)]))
                 );
                 assert_eq!(

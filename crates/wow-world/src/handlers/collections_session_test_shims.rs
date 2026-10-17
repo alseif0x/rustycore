@@ -19,10 +19,6 @@ use wow_core::ObjectGuid;
 use crate::session::{SpellCastState, WorldSession};
 
 impl WorldSession {
-    pub(crate) async fn handle_add_toy(&mut self, pkt: wow_packet::WorldPacket) {
-        wow_world_inventory::handle_add_toy(self, pkt).await
-    }
-
     pub(crate) async fn handle_use_toy(&mut self, pkt: wow_packet::WorldPacket) {
         let generators = self.id_generators_for_test_like_cpp();
         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();

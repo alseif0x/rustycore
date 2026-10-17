@@ -347,15 +347,11 @@ async fn item_template_addon_port_preserves_found_rows_and_request_order() {
     session.set_item_template_addon_catalog_persistence_port_like_cpp(fixture.clone());
 
     assert_eq!(
-        session
-            .load_item_template_addon_money_loot_like_cpp(1001)
-            .await,
+        wow_world_loot_ops::load_item_template_addon_money_loot_like_cpp(&session, 1001).await,
         (100, 120)
     );
     assert_eq!(
-        session
-            .load_item_template_addon_loot_metadata_like_cpp(1002)
-            .await,
+        wow_world_loot_ops::load_item_template_addon_loot_metadata_like_cpp(&session, 1002).await,
         ItemTemplateAddonLootMetadataLikeCpp {
             flags_cu: ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP,
             quest_log_item_id: 77,
@@ -397,32 +393,36 @@ async fn item_template_addon_port_preserves_absent_malformed_and_failed_defaults
 
     for item_entry in [2001, 2002, 2003] {
         assert_eq!(
-            session
-                .load_item_template_addon_money_loot_like_cpp(item_entry)
+            wow_world_loot_ops::load_item_template_addon_money_loot_like_cpp(&session, item_entry)
                 .await,
             (0, 0)
         );
     }
     for item_entry in [2004, 2005] {
         assert_eq!(
-            session
-                .load_item_template_addon_loot_metadata_like_cpp(item_entry)
-                .await,
+            wow_world_loot_ops::load_item_template_addon_loot_metadata_like_cpp(
+                &session, item_entry
+            )
+            .await,
             ItemTemplateAddonLootMetadataLikeCpp::default()
         );
     }
 
     let (session_without_port, _send_rx) = make_session();
     assert_eq!(
-        session_without_port
-            .load_item_template_addon_money_loot_like_cpp(2006)
-            .await,
+        wow_world_loot_ops::load_item_template_addon_money_loot_like_cpp(
+            &session_without_port,
+            2006
+        )
+        .await,
         (0, 0)
     );
     assert_eq!(
-        session_without_port
-            .load_item_template_addon_loot_metadata_like_cpp(2007)
-            .await,
+        wow_world_loot_ops::load_item_template_addon_loot_metadata_like_cpp(
+            &session_without_port,
+            2007
+        )
+        .await,
         ItemTemplateAddonLootMetadataLikeCpp::default()
     );
 }

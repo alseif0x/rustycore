@@ -24,34 +24,15 @@ use crate::session::{
     BATTLE_PET_BREED_QUALITY_RARE_LIKE_CPP, BATTLE_PET_CAGE_ITEM_ID_LIKE_CPP,
     MAX_BATTLE_PET_LEVEL_LIKE_CPP, RepresentedAuraEffectLikeCpp,
     RepresentedBattlePetCageItemLikeCpp, RepresentedBattlePetCageOutcomeLikeCpp,
-    RepresentedBattlePetCalculatedStatsLikeCpp, RepresentedBattlePetDataLikeCpp,
-    RepresentedBattlePetGrantExperienceOutcomeLikeCpp,
+    RepresentedBattlePetDataLikeCpp, RepresentedBattlePetGrantExperienceOutcomeLikeCpp,
     RepresentedBattlePetGrantLevelOutcomeLikeCpp, RepresentedBattlePetLevelCriteriaLikeCpp,
     RepresentedBattlePetQualityOutcomeLikeCpp, RepresentedBattlePetSaveInfoLikeCpp,
     RepresentedBattlePetXpSourceLikeCpp, WorldSession,
 };
 
 impl WorldSession {
-    pub(crate) fn battle_pet_calculate_stats_like_cpp(
-        &self,
-        breed: u16,
-        species: u32,
-        quality: u8,
-        level: u16,
-    ) -> Option<RepresentedBattlePetCalculatedStatsLikeCpp> {
-        wow_world_inventory::battle_pet_calculate_stats_like_cpp(
-            self, breed, species, quality, level,
-        )
-    }
     pub(crate) fn battle_pet_max_pet_level_like_cpp(&self) -> Option<u16> {
         wow_world_inventory::battle_pet_max_pet_level_like_cpp(self)
-    }
-    pub(crate) fn battle_pet_has_max_pet_count_like_cpp(
-        &self,
-        species: u32,
-        owner_guid: Option<ObjectGuid>,
-    ) -> Option<bool> {
-        wow_world_inventory::battle_pet_has_max_pet_count_like_cpp(self, species, owner_guid)
     }
     pub(crate) fn battle_pet_count_like_cpp(
         &self,
@@ -64,17 +45,6 @@ impl WorldSession {
             species,
             owner_guid,
         )
-    }
-    pub(crate) fn battle_pet_account_owner_lease_like_cpp(
-        &self,
-    ) -> Option<(
-        std::sync::Arc<crate::battle_pet_account::BattlePetAccountOwnerLikeCpp>,
-        crate::battle_pet_account::BattlePetLeaseIdLikeCpp,
-    )> {
-        wow_world_inventory::battle_pet_account_owner_lease_like_cpp(self)
-    }
-    pub(crate) async fn battle_pet_try_acquire_journal_lease_like_cpp(&self) -> bool {
-        wow_world_inventory::battle_pet_try_acquire_journal_lease_like_cpp(self).await
     }
 
     /// CMSG_CAGE_BATTLE_PET — represented cage body.
@@ -220,8 +190,9 @@ impl WorldSession {
             return None;
         }
 
-        let calculated_stats =
-            self.battle_pet_calculate_stats_like_cpp(breed, species, quality, level);
+        let calculated_stats = wow_world_inventory::battle_pet_calculate_stats_like_cpp(
+            self, breed, species, quality, level,
+        );
         let pet_guid = crate::session::next_represented_battle_pet_guid_like_cpp();
         let owner_info = if species_entry
             .has_flag_like_cpp(wow_data::BATTLE_PET_SPECIES_FLAG_NOT_ACCOUNT_WIDE_LIKE_CPP)
@@ -368,8 +339,9 @@ impl WorldSession {
             }
         }
 
-        let calculated_stats =
-            self.battle_pet_calculate_stats_like_cpp(breed, species, quality, level);
+        let calculated_stats = wow_world_inventory::battle_pet_calculate_stats_like_cpp(
+            self, breed, species, quality, level,
+        );
 
         let pet = self
             .fixtures
@@ -434,8 +406,9 @@ impl WorldSession {
         let breed = pet.breed;
         let species = pet.species;
         let level = pet.level;
-        let calculated_stats =
-            self.battle_pet_calculate_stats_like_cpp(breed, species, quality, level);
+        let calculated_stats = wow_world_inventory::battle_pet_calculate_stats_like_cpp(
+            self, breed, species, quality, level,
+        );
 
         let pet = self
             .fixtures
@@ -508,8 +481,9 @@ impl WorldSession {
                 .push(RepresentedBattlePetLevelCriteriaLikeCpp { species, level });
         }
 
-        let calculated_stats =
-            self.battle_pet_calculate_stats_like_cpp(breed, species, quality, level);
+        let calculated_stats = wow_world_inventory::battle_pet_calculate_stats_like_cpp(
+            self, breed, species, quality, level,
+        );
 
         let pet = self
             .fixtures

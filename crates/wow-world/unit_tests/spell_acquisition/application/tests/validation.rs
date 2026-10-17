@@ -193,9 +193,7 @@ fn prepared_acquisition_cannot_cross_character_boundaries() {
         Err(PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp::InvalidPreparedRuntime)
     );
     assert!(
-        other_session
-            .complete_represented_player_spell_rows_like_cpp()
-            .is_none(),
+        wow_world_spell::complete_represented_player_spell_rows_like_cpp(&other_session).is_none(),
         "cross-character rejection occurs before installing runtime state"
     );
     assert!(send_rx.is_empty());

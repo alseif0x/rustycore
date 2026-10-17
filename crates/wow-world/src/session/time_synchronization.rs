@@ -4,10 +4,6 @@
 //! Time synchronization: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::WorldSession;
-
-impl WorldSession {}
-
 #[cfg(test)]
 #[path = "../../unit_tests/session/time_synchronization/f3_shims.rs"]
 mod f3_shims;

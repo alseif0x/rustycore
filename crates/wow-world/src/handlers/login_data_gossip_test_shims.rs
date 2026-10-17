@@ -17,7 +17,7 @@
 #![cfg(test)]
 
 use wow_core::ObjectGuid;
-use wow_packet::packets::gossip::{GossipMessage, GossipSelectOption, Hello};
+use wow_packet::packets::gossip::{GossipSelectOption, Hello};
 use wow_packet::packets::misc::{SpellChargeEntry, SpellHistoryEntry};
 use wow_packet::packets::update::TraitConfigCreateData;
 
@@ -42,19 +42,6 @@ impl WorldSession {
 
     pub(crate) async fn handle_gossip_select_option(&mut self, select: GossipSelectOption) {
         wow_world_character::handle_gossip_select_option(self, select).await
-    }
-
-    pub(crate) async fn build_gossip_menu(
-        &mut self,
-        entry: u32,
-        npc_flags: u32,
-        npc_guid: ObjectGuid,
-    ) -> Option<GossipMessage> {
-        wow_world_character::build_gossip_menu(self, entry, npc_flags, npc_guid).await
-    }
-
-    pub(crate) fn skill_rewarded_quest_fallback_allowed_like_cpp(&self, spell_id: i32) -> bool {
-        wow_world_character::skill_rewarded_quest_fallback_allowed_like_cpp(self, spell_id)
     }
 
     pub(crate) fn skill_rewarded_spell_changes_for_login_like_cpp(

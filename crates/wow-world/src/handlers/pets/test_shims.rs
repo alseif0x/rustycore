@@ -7,7 +7,7 @@
 //! (#1363 slice 7b). Every entry point dispatches
 //! through the registered production thunk, so the release context built by
 //! [`super::battle_pet_host`] is exercised by each caller.
-
+#![cfg(test)]
 use wow_constants::ClientOpcodes;
 use wow_packet::WorldPacket;
 

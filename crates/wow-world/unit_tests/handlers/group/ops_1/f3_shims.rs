@@ -4,7 +4,7 @@
 //! #1241 F3 test shims: WorldSession entry points kept only for unit_tests callers.
 
 #[allow(unused_imports)]
-use super::*;
+use super::super::*;
 
 impl crate::session::WorldSession {
     pub(in crate::handlers::group) async fn persist_group_intents_like_cpp(

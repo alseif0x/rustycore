@@ -46,10 +46,6 @@ impl WorldSession {
         )
     }
 
-    pub(crate) fn update_pvp_flag_like_cpp(&mut self, curr_time: i64) {
-        wow_world_entities::update_pvp_flag_like_cpp(self, curr_time)
-    }
-
     pub(crate) fn send_player_power_update_like_cpp(
         &self,
         guid: ObjectGuid,
@@ -91,10 +87,6 @@ impl WorldSession {
             command_state,
             created_by_spell,
         )
-    }
-
-    pub(crate) fn apply_represented_login_pet_talent_reset_like_cpp(&mut self) -> bool {
-        wow_world_lifecycle::apply_represented_login_pet_talent_reset_like_cpp(self)
     }
 
     pub(crate) fn load_represented_pet_aura_rows_with_timediff_like_cpp(

@@ -506,7 +506,7 @@ async fn dynamic_object_values_snapshot_direct_player_out_of_range_keeps_visible
         .insert(dynamic_guid);
 
     assert_eq!(
-        session.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(),
+        wow_world_entities::send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(&mut session),
         0
     );
 
@@ -574,7 +574,7 @@ async fn dynamic_object_values_snapshot_dynamic_object_seer_near_same_phase_send
         .insert(dynamic_guid);
 
     assert_eq!(
-        session.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(),
+        wow_world_entities::send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(&mut session),
         1
     );
 
@@ -662,7 +662,7 @@ async fn dynamic_object_values_snapshot_shared_vision_phase_mismatch_no_send_lik
         .insert(dynamic_guid);
 
     assert_eq!(
-        session.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(),
+        wow_world_entities::send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(&mut session),
         0
     );
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());

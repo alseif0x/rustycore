@@ -46,12 +46,6 @@ impl WorldSession {
     ) -> usize {
         wow_world_spell::apply_loaded_known_spell_dependencies_like_cpp(self, known_spells)
     }
-    pub(crate) fn apply_login_known_spell_combat_capabilities_like_cpp(
-        &mut self,
-        known_spells: &[i32],
-    ) -> usize {
-        wow_world_spell::apply_login_known_spell_combat_capabilities_like_cpp(self, known_spells)
-    }
     pub(crate) fn apply_represented_start_all_spells_with_catalogs_like_cpp(
         &mut self,
         player_bootstrap: &PlayerBootstrapCatalogsLikeCpp,
@@ -99,26 +93,14 @@ impl WorldSession {
         )
         .await
     }
-    pub(crate) fn apply_represented_first_login_flag_if_needed_like_cpp(&mut self) -> bool {
-        wow_world_spell::apply_represented_first_login_flag_if_needed_like_cpp(self)
-    }
     pub(crate) fn promote_loaded_character_mount_spells_like_cpp(
         &mut self,
         spells: &[i32],
     ) -> usize {
         wow_world_spell::promote_loaded_character_mount_spells_like_cpp(self, spells)
     }
-    pub(crate) async fn load_account_mounts_like_cpp(&mut self) -> bool {
-        wow_world_spell::load_account_mounts_like_cpp(self).await
-    }
     pub(crate) fn set_account_mounts_like_cpp(&mut self, mounts: Vec<AccountMount>) {
         wow_world_spell::set_account_mounts_like_cpp(self, mounts)
-    }
-    pub(crate) async fn load_account_item_appearances_like_cpp(&mut self) {
-        wow_world_inventory::load_account_item_appearances_like_cpp(self).await
-    }
-    pub(crate) async fn load_account_transmog_illusions_like_cpp(&mut self) {
-        wow_world_inventory::load_account_transmog_illusions_like_cpp(self).await
     }
     pub(crate) fn load_represented_explored_zones_like_cpp(&mut self, input: &str) -> usize {
         wow_world_instances::load_represented_explored_zones_like_cpp(self, input)
@@ -133,9 +115,6 @@ impl WorldSession {
             known_titles,
             chosen_title,
         )
-    }
-    pub(crate) fn apply_represented_group_leader_flag_like_cpp(&mut self) -> bool {
-        wow_world_application::apply_represented_group_leader_flag_like_cpp(self)
     }
     pub(crate) fn login_known_spells_after_account_collections_like_cpp(&self) -> Vec<i32> {
         wow_world_application::login_known_spells_after_account_collections_like_cpp(self)
@@ -236,19 +215,6 @@ impl WorldSession {
     pub(crate) fn tombstone_player_spell_hit_aura_authority_like_cpp(&mut self) {
         let (state, mut hub) = crate::session::split_spell_state_mut(self);
         state.tombstone_player_spell_hit_aura_authority_like_cpp(&mut hub)
-    }
-    pub(crate) fn load_represented_player_difficulties_like_cpp(
-        &mut self,
-        dungeon_difficulty_id: u32,
-        raid_difficulty_id: u32,
-        legacy_raid_difficulty_id: u32,
-    ) {
-        wow_world_instances::load_represented_player_difficulties_like_cpp(
-            self,
-            dungeon_difficulty_id,
-            raid_difficulty_id,
-            legacy_raid_difficulty_id,
-        )
     }
     #[cfg(test)]
     pub(crate) async fn apply_represented_first_login_cast_spells_like_cpp(&mut self) -> usize {

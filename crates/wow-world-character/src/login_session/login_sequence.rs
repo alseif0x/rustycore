@@ -371,7 +371,7 @@ pub async fn send_login_sequence<H: CharacterLoginHostLikeCpp>(
 
     // ── Phase 1: HandlePlayerLogin packets ──
     let motd = wow_config::get_value_default::<String>("Motd", DEFAULT_MOTD_LIKE_CPP.to_string());
-    let account_mount_login_partials = host.account_mount_login_partial_rows_like_cpp();
+    let account_mount_login_partials = crate::account_mount_login_partial_rows_like_cpp(host);
     if !send_handle_player_login_packets_like_cpp(
         host,
         item_guid_generator,

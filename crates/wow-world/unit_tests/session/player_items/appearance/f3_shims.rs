@@ -103,7 +103,9 @@ impl WorldSession {
                 continue;
             }
 
-            if let Some(update) = self.add_item_appearance_for_item_like_cpp(item_id, 0) {
+            if let Some(update) =
+                wow_world_inventory::add_item_appearance_for_item_like_cpp(self, item_id, 0)
+            {
                 last_update = Some(update);
             }
         }
@@ -130,7 +132,9 @@ impl WorldSession {
 
         let mut last_update = None;
         for item_id in reward_item_ids {
-            if let Some(update) = self.add_item_appearance_for_item_like_cpp(item_id, 0) {
+            if let Some(update) =
+                wow_world_inventory::add_item_appearance_for_item_like_cpp(self, item_id, 0)
+            {
                 last_update = Some(update);
             }
         }

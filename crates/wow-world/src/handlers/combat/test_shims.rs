@@ -4,7 +4,7 @@
 
 //! Test-only entry points for the combat handlers moved to
 //! `wow-world-entities` (#1263 F5; #1363 slice A3).
-
+#![cfg(test)]
 use wow_packet::WorldPacket;
 use wow_world_entities::CombatHandlerCxLikeCpp;
 

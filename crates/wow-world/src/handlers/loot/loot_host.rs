@@ -54,7 +54,9 @@ use wow_world_core::session::{
 use wow_world_loot::{LootState, RepresentedCreatureLootStateLikeCpp};
 use wow_world_loot_ops::{LootHandlerCxLikeCpp, LootHandlerHostLikeCpp, LootReleaseCxLikeCpp};
 
-use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
+use crate::session::{
+    SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP, SessionHandlerCatalogsLikeCpp, WorldSession,
+};
 
 impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
     fn loot_handler_cx_like_cpp<'a>(
@@ -103,7 +105,11 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
     }
 
     fn loot_unit_remove_auras_with_looting_interrupt_flags_like_cpp(&mut self) {
-        let _ = WorldSession::remove_auras_with_looting_interrupt_flags_like_cpp(self);
+        let _ = wow_world_spell::remove_auras_with_interrupt_flags_like_cpp(
+            self,
+            SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP,
+            0,
+        );
     }
 
     fn loot_unit_ae_loot_creature_targets_like_cpp<'a>(

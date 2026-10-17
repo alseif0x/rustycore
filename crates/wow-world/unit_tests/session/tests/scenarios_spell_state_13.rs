@@ -588,7 +588,7 @@ fn login_pet_talent_reset_clears_pet_spells_and_specs_without_clearing_flag_like
         }],
     );
 
-    assert!(session.apply_represented_login_pet_talent_reset_like_cpp());
+    assert!(wow_world_lifecycle::apply_represented_login_pet_talent_reset_like_cpp(&mut session));
 
     assert!(
         session
@@ -719,11 +719,7 @@ fn start_all_spells_applies_custom_player_create_spells_like_cpp() {
         "C++ Player::LearnCustomSpells is gated by CONFIG_START_ALL_SPELLS"
     );
     assert_eq!(known_spells, vec![80_001]);
-    assert!(
-        session
-            .represented_dependent_known_spells_like_cpp()
-            .is_empty()
-    );
+    assert!(wow_world_spell::represented_dependent_known_spells_like_cpp(&session).is_empty());
 
     let mut player_bootstrap = session.player_bootstrap_catalogs_for_test_like_cpp();
     player_bootstrap.start_all_spells = true;
@@ -737,15 +733,11 @@ fn start_all_spells_applies_custom_player_create_spells_like_cpp() {
     );
     assert_eq!(known_spells, vec![80_001, 80_002]);
     assert!(
-        session
-            .represented_dependent_known_spells_like_cpp()
-            .contains(&80_001),
+        wow_world_spell::represented_dependent_known_spells_like_cpp(&session).contains(&80_001),
         "C++ AddSpell(... dependent=true) marks even an already-known custom spell as dependent"
     );
     assert!(
-        session
-            .represented_dependent_known_spells_like_cpp()
-            .contains(&80_002)
+        wow_world_spell::represented_dependent_known_spells_like_cpp(&session).contains(&80_002)
     );
 }
 #[test]
@@ -764,9 +756,7 @@ fn start_all_spells_uses_loaded_race_class_like_cpp() {
     );
     assert_eq!(known_spells, vec![80_003]);
     assert!(
-        session
-            .represented_dependent_known_spells_like_cpp()
-            .contains(&80_003)
+        wow_world_spell::represented_dependent_known_spells_like_cpp(&session).contains(&80_003)
     );
 }
 #[test]

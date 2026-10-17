@@ -17,16 +17,12 @@ use wow_data::progression_rewards::QuestV2Store;
 use wow_entities::PlayerQuestStatusRecord as PlayerQuestStatus;
 use wow_world_quest::{
     ItemTransferQuestPersistencePlanLikeCpp, LoadSeasonalQuestStatusOutcomeLikeCpp,
-    QuestSourceItemBoundPersistencePlanLikeCpp, ResetSeasonalQuestStatusOutcomeLikeCpp,
-    SeasonalQuestStatusDbRowLikeCpp,
+    QuestSourceItemBoundPersistencePlanLikeCpp, SeasonalQuestStatusDbRowLikeCpp,
 };
 
 use crate::session::WorldSession;
 
 impl WorldSession {
-    pub(crate) fn begin_player_quest_status_authority_load_like_cpp(&mut self) {
-        wow_world_quest::begin_player_quest_status_authority_load_like_cpp(self)
-    }
     pub(crate) fn load_seasonal_quest_status_like_cpp(
         &mut self,
         rows: impl IntoIterator<Item = SeasonalQuestStatusDbRowLikeCpp>,
@@ -39,13 +35,6 @@ impl WorldSession {
             quest_store,
             quest_v2_store,
         )
-    }
-    pub(crate) fn reset_seasonal_quest_status_like_cpp(
-        &mut self,
-        event_id: u16,
-        event_start_time: u64,
-    ) -> ResetSeasonalQuestStatusOutcomeLikeCpp {
-        wow_world_quest::reset_seasonal_quest_status_like_cpp(self, event_id, event_start_time)
     }
     pub(crate) fn send_represented_quest_giver_query_quest_like_cpp(
         &mut self,
@@ -96,17 +85,8 @@ impl WorldSession {
     ) -> bool {
         wow_world_quest::can_complete_repeatable_quest_represented_bounded_like_cpp(self, quest)
     }
-    pub(crate) fn remove_represented_active_rewarded_duplicates_like_cpp(&mut self) -> Vec<u32> {
-        wow_world_quest::remove_represented_active_rewarded_duplicates_like_cpp(self)
-    }
     pub(crate) fn first_free_quest_slot_like_cpp(&self) -> Option<u8> {
         wow_world_quest::first_free_quest_slot_like_cpp(self)
-    }
-    pub(crate) async fn save_quest_to_db(&self, quest_id: u32, status: u8) {
-        wow_world_quest::save_quest_to_db(self, quest_id, status).await
-    }
-    pub(crate) async fn load_player_quests(&mut self) {
-        wow_world_quest::load_player_quests(self).await
     }
     pub(crate) fn plan_bank_item_quest_persistence_like_cpp(
         &self,
@@ -163,12 +143,6 @@ impl WorldSession {
             post_removal_non_bank_counts,
             added_items_in_order,
         )
-    }
-    pub(crate) fn finish_item_transfer_quest_persistence_like_cpp(
-        &self,
-        plan: ItemTransferQuestPersistencePlanLikeCpp,
-    ) -> Vec<PlayerQuestStatus> {
-        wow_world_quest::finish_item_transfer_quest_persistence_like_cpp(self, plan)
     }
     pub(crate) fn plan_quest_source_item_bound_objective_persistence_like_cpp(
         &self,

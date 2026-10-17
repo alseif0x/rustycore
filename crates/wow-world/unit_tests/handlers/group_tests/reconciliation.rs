@@ -201,7 +201,9 @@ async fn saturated_kick_reconciles_the_target_group_state_like_cpp() {
         Some(fixture.group_guid)
     );
 
-    assert!(fixture.target_session.reconcile_group_state_like_cpp());
+    assert!(wow_world_instances::reconcile_group_state_like_cpp(
+        &mut fixture.target_session
+    ));
 
     assert_eq!(fixture.target_session.resolved_group_guid_like_cpp(), None);
     assert!(
@@ -229,10 +231,14 @@ async fn reconciliation_runs_once_per_recorded_obligation_like_cpp() {
         .leader_session
         .handle_party_uninvite(party_uninvite_packet(fixture.target, None, "bye"))
         .await;
-    assert!(fixture.target_session.reconcile_group_state_like_cpp());
+    assert!(wow_world_instances::reconcile_group_state_like_cpp(
+        &mut fixture.target_session
+    ));
     let _ = drain_opcodes(&fixture.target_send_rx);
 
-    assert!(!fixture.target_session.reconcile_group_state_like_cpp());
+    assert!(!wow_world_instances::reconcile_group_state_like_cpp(
+        &mut fixture.target_session
+    ));
     assert!(drain_opcodes(&fixture.target_send_rx).is_empty());
 }
 
@@ -245,7 +251,9 @@ async fn delivered_removal_after_reconciliation_does_not_publish_twice_like_cpp(
         .leader_session
         .handle_party_uninvite(party_uninvite_packet(fixture.target, None, "bye"))
         .await;
-    assert!(fixture.target_session.reconcile_group_state_like_cpp());
+    assert!(wow_world_instances::reconcile_group_state_like_cpp(
+        &mut fixture.target_session
+    ));
     let _ = drain_opcodes(&fixture.target_send_rx);
 
     fixture
@@ -293,7 +301,9 @@ async fn saturated_disband_reconciles_the_remaining_member_like_cpp() {
             .group_state_reconciliation_pending_like_cpp(fixture.target)
     );
 
-    assert!(fixture.target_session.reconcile_group_state_like_cpp());
+    assert!(wow_world_instances::reconcile_group_state_like_cpp(
+        &mut fixture.target_session
+    ));
 
     assert_eq!(fixture.target_session.resolved_group_guid_like_cpp(), None);
     let opcodes = drain_opcodes(&fixture.target_send_rx);
@@ -427,7 +437,9 @@ async fn replaced_session_incarnation_reconciles_group_state_like_cpp() {
         )
         .expect("authority removal");
 
-    assert!(fixture.target_session.reconcile_group_state_like_cpp());
+    assert!(wow_world_instances::reconcile_group_state_like_cpp(
+        &mut fixture.target_session
+    ));
     assert_eq!(fixture.target_session.resolved_group_guid_like_cpp(), None);
     // The successor publishes the teardown on its own socket; the retired
     // incarnation's address received nothing.
@@ -530,7 +542,9 @@ async fn group_command_dropped_before_login_defers_reconciliation_like_cpp() {
         "an ineligible phase must defer the change, not discard it"
     );
     // The mark survives a reconciliation attempt that is still ineligible.
-    assert!(!fixture.target_session.reconcile_group_state_like_cpp());
+    assert!(!wow_world_instances::reconcile_group_state_like_cpp(
+        &mut fixture.target_session
+    ));
     assert!(
         fixture
             .player_registry
@@ -547,7 +561,9 @@ async fn group_command_dropped_before_login_defers_reconciliation_like_cpp() {
             &[],
         )
         .expect("authority removal");
-    assert!(fixture.target_session.reconcile_group_state_like_cpp());
+    assert!(wow_world_instances::reconcile_group_state_like_cpp(
+        &mut fixture.target_session
+    ));
     assert_eq!(fixture.target_session.resolved_group_guid_like_cpp(), None);
 }
 
@@ -569,7 +585,9 @@ async fn saturated_subgroup_change_reconciles_like_cpp() {
         .player_registry
         .mark_group_state_reconciliation_like_cpp(fixture.target);
 
-    assert!(fixture.target_session.reconcile_group_state_like_cpp());
+    assert!(wow_world_instances::reconcile_group_state_like_cpp(
+        &mut fixture.target_session
+    ));
 
     assert_eq!(
         fixture.target_session.resolved_group_guid_like_cpp(),
@@ -631,7 +649,9 @@ async fn reconciliation_converges_group_difficulty_like_cpp() {
         .player_registry
         .mark_group_state_reconciliation_like_cpp(fixture.target);
 
-    assert!(fixture.target_session.reconcile_group_state_like_cpp());
+    assert!(wow_world_instances::reconcile_group_state_like_cpp(
+        &mut fixture.target_session
+    ));
     assert_eq!(
         fixture
             .target_session

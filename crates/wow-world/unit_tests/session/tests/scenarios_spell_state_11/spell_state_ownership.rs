@@ -50,8 +50,7 @@ fn represented_unit_values_update_preserves_unrepresented_spellclick_delta_like_
         unit_data: Some(UnitDataUpdate { mask, values }),
     };
 
-    let packet = session
-        .represented_unit_values_update_to_update_object_like_cpp(creature_guid, 571, &update)
+    let packet = wow_world_quest::unit_update_publication::represented_unit_values_update_to_update_object_like_cpp(&session, creature_guid, 571, &update)
         .expect("delta packet");
     let wow_packet::packets::update::UpdateBlock::UnitValuesUpdate { data, .. } = &packet.blocks[0]
     else {
@@ -100,17 +99,16 @@ fn canonical_player_spells_and_metadata_follow_active_detached_and_stale_ownersh
     assert!(session.set_complete_represented_override_spells_like_cpp([(600, 635)]));
     assert_eq!(session.resolved_known_spells_like_cpp(), Some(vec![635]));
     assert_eq!(
-        session
-            .complete_represented_player_spell_rows_like_cpp()
+        wow_world_spell::complete_represented_player_spell_rows_like_cpp(&session)
             .and_then(|rows| rows.get(&635).copied()),
         Some(owned_row)
     );
     assert_eq!(
-        session.complete_represented_spell_trait_definition_ids_like_cpp(),
+        wow_world_spell::complete_represented_spell_trait_definition_ids_like_cpp(&session),
         Some(HashMap::from([(635, 7)]))
     );
     assert_eq!(
-        session.complete_represented_override_spells_like_cpp(),
+        wow_world_spell::complete_represented_override_spells_like_cpp(&session),
         Some(HashMap::from([(600, BTreeSet::from([635]))]))
     );
     session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
@@ -147,7 +145,7 @@ fn canonical_player_spells_and_metadata_follow_active_detached_and_stale_ownersh
     );
     assert_eq!(session.resolved_known_spells_like_cpp(), Some(vec![635]));
     assert_eq!(
-        session.complete_represented_spell_trait_definition_ids_like_cpp(),
+        wow_world_spell::complete_represented_spell_trait_definition_ids_like_cpp(&session),
         Some(HashMap::from([(635, 7)]))
     );
     assert_eq!(
@@ -210,15 +208,15 @@ fn canonical_player_spells_and_metadata_follow_active_detached_and_stale_ownersh
 
     assert_eq!(session.resolved_known_spells_like_cpp(), None);
     assert_eq!(
-        session.complete_represented_player_spell_rows_like_cpp(),
+        wow_world_spell::complete_represented_player_spell_rows_like_cpp(&session),
         None
     );
     assert_eq!(
-        session.complete_represented_spell_trait_definition_ids_like_cpp(),
+        wow_world_spell::complete_represented_spell_trait_definition_ids_like_cpp(&session),
         None
     );
     assert_eq!(
-        session.complete_represented_override_spells_like_cpp(),
+        wow_world_spell::complete_represented_override_spells_like_cpp(&session),
         None
     );
     assert_eq!(session.player_spell_history_snapshot_like_cpp(), None);
@@ -296,7 +294,7 @@ fn canonical_player_aura_authority_metadata_follows_detached_and_stale_ownership
         .player_handle_like_cpp
         .expect("canonical handle");
 
-    assert!(session.set_player_aura_authority_complete_like_cpp(true));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true));
     assert!(
         session.insert_player_visible_aura_like_cpp(AuraApplication {
             spell_id: 43_621,
@@ -389,7 +387,7 @@ fn canonical_player_aura_authority_metadata_follows_detached_and_stale_ownership
         session.resolved_player_aura_authority_complete_like_cpp(),
         None
     );
-    assert!(!session.set_player_aura_authority_complete_like_cpp(true));
+    assert!(!wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true));
     assert!(
         session
             .mutate_player_aura_subsystem_like_cpp(|auras| {

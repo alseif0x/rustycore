@@ -4,6 +4,7 @@
 //! canonical owner of this state is unchanged.
 
 use super::*;
+use wow_world_application::set_loaded_player_identity_like_cpp;
 
 impl WorldSession {
     pub fn set_battlenet_account_id(&mut self, battlenet_account_id: u32) {
@@ -32,8 +33,9 @@ impl WorldSession {
             true
         } else {
             self.set_player_guid(Some(guid));
-            self.set_loaded_player_name_like_cpp(name);
-            self.set_loaded_player_identity_like_cpp(map_id, race, class, level, gender);
+            let (state, mut hub) = crate::session::split_lifecycle_mut(self);
+            state.set_loaded_player_name_like_cpp(&mut hub, name);
+            set_loaded_player_identity_like_cpp(self, map_id, race, class, level, gender);
             crate::session::hub_mut(self).set_player_map_position_like_cpp(map_id, position);
             crate::session::hub_mut(self).set_fall_information_like_cpp(0, position.z);
             false
@@ -46,30 +48,6 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn account_mounts_like_cpp(&self) -> &HashMap<i32, u8> {
         &self.fixtures.collections.account_mounts_like_cpp
-    }
-    /// Account mounts for the per-mount `CollectionMgr::LoadMounts` login
-    /// publications. C++ keeps every valid DB2 row in the collection, but
-    /// suppresses this partial update when the mount's PlayerCondition fails.
-    pub(crate) fn account_mount_login_partial_rows_like_cpp(&self) -> Vec<AccountMount> {
-        let (lifecycle, hub) = crate::session::split_lifecycle_ref(self);
-        lifecycle
-            .account_mount_rows_like_cpp(hub)
-            .into_iter()
-            .filter(|mount| {
-                let Ok(spell_id) = u32::try_from(mount.spell_id) else {
-                    return false;
-                };
-                self.catalogs
-                    .mount_store
-                    .as_ref()
-                    .and_then(|store| store.get_by_source_spell_id_like_cpp(spell_id))
-                    .is_none_or(|entry| {
-                        self.represented_meets_player_condition_id_like_cpp(
-                            entry.player_condition_id,
-                        )
-                    })
-            })
-            .collect()
     }
     #[cfg(test)]
     pub(crate) fn represented_at_login_flags_like_cpp(&self) -> u16 {

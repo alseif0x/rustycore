@@ -110,9 +110,9 @@ async fn account_collection_loads_cross_the_typed_port_in_login_order_like_cpp()
 
     session.load_account_toys_like_cpp().await;
     session.load_account_heirlooms_like_cpp().await;
-    session.load_account_item_appearances_like_cpp().await;
-    session.load_account_transmog_illusions_like_cpp().await;
-    assert!(session.load_account_mounts_like_cpp().await);
+    wow_world_inventory::load_account_item_appearances_like_cpp(&mut session).await;
+    wow_world_inventory::load_account_transmog_illusions_like_cpp(&mut session).await;
+    assert!(wow_world_spell::load_account_mounts_like_cpp(&mut session).await);
 
     assert_eq!(session.account_toy_rows_like_cpp(), vec![(42, true, false)]);
     assert_eq!(session.account_heirloom_rows_like_cpp(), vec![(43, 2)]);
@@ -279,7 +279,7 @@ async fn typed_map_corpse_empty_load_marks_the_map_once_like_cpp() {
             customizations: MapCorpseAuxiliaryLoadOutcomeLikeCpp::Loaded(Vec::new()),
         });
 
-    let outcome = session.load_map_corpse_data_like_cpp(571, 9).await;
+    let outcome = wow_world_character::load_map_corpse_data_like_cpp(&session, 571, 9).await;
 
     assert_eq!(outcome, MapCorpseLoadOutcomeLikeCpp::default());
     assert_eq!(
@@ -359,9 +359,8 @@ async fn initial_world_state_port_applies_saved_overlay_after_templates_like_cpp
     let (mut session, _) = make_session_with_send_capacity(1);
     session.set_player_lifecycle_port_like_cpp(port);
 
-    let states = session
-        .test_load_initial_world_states_for_login_like_cpp(571, 0)
-        .await;
+    let states =
+        wow_world_character::load_initial_world_states_for_login_like_cpp(&session, 571, 0).await;
 
     assert!(states.contains(&(10, 22)));
     assert!(!states.contains(&(10, 1)));

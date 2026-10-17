@@ -213,21 +213,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_world_entities_mut(self);
         state.mutate_canonical_gameobject_by_guid_like_cpp(&mut hub, guid, f)
     }
-    // Unit values-update publication (moved to
-    // `wow_world_quest::unit_update_publication`).
-    pub(crate) fn represented_unit_values_update_to_update_object_like_cpp(
-        &self,
-        unit_guid: ObjectGuid,
-        map_id: u16,
-        values_update: &wow_entities::UnitValuesUpdate,
-    ) -> Option<wow_packet::packets::update::UpdateObject> {
-        wow_world_quest::unit_update_publication::represented_unit_values_update_to_update_object_like_cpp(
-            self,
-            unit_guid,
-            map_id,
-            values_update,
-        )
-    }
     pub(crate) fn represented_unit_packet_update_to_update_object_like_cpp(
         &self,
         unit_guid: ObjectGuid,
@@ -252,16 +237,11 @@ impl WorldSession {
             npc_flags,
         )
     }
-    // Visibility source (moved to `wow_world_entities`).
-    pub(crate) fn represented_visibility_source_position_like_cpp(&self) -> Option<Position> {
-        wow_world_entities::represented_visibility_source_position_like_cpp(self)
-    }
     // Login transport position (moved to `wow_world_character`).
     pub(crate) fn set_player_transport_position_like_cpp(&mut self, position: Option<Position>) {
         wow_world_character::set_player_transport_position_like_cpp(self, position)
     }
-    // Player vitals (moved to `wow_world_entities::player_vitals`), with the
-    // former `session/player_vitals_adapter` F3 entry points.
+    // Player vitals (`wow_world_entities::player_vitals`) and their former F3 entries.
     pub(crate) fn player_is_alive_like_cpp(&self) -> bool {
         crate::session::hub_ref(self).player_is_alive_like_cpp()
     }
@@ -276,12 +256,6 @@ impl WorldSession {
     }
     pub(crate) fn set_player_cheat_god_like_cpp(&mut self, enabled: bool) {
         crate::session::hub_mut(self).set_player_cheat_god_like_cpp(enabled)
-    }
-    pub(crate) fn set_player_alive_like_cpp(&mut self, alive: bool) {
-        wow_world_entities::set_player_alive_like_cpp(self, alive)
-    }
-    pub(crate) fn set_player_ghost_flag_like_cpp(&mut self, ghost: bool) {
-        wow_world_entities::set_player_ghost_flag_like_cpp(self, ghost)
     }
     // Resurrection snapshot (moved to `wow_world_spell`).
     pub(crate) fn player_resurrection_state_snapshot_like_cpp(
@@ -358,5 +332,30 @@ impl WorldSession {
         }
 
         distance
+    }
+    // Loaded identity (final cleanup: name write retired, identity to application).
+    pub(crate) fn set_loaded_player_name_like_cpp(&mut self, name: String) {
+        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
+        state.set_loaded_player_name_like_cpp(&mut hub, name)
+    }
+    pub(crate) fn set_loaded_player_identity_like_cpp(
+        &mut self,
+        map_id: u16,
+        race: u8,
+        class: u8,
+        level: u8,
+        gender: u8,
+    ) {
+        wow_world_application::set_loaded_player_identity_like_cpp(
+            self, map_id, race, class, level, gender,
+        )
+    }
+    // The login rest-bonus load (moved to `wow_world_instances`).
+    pub(crate) fn load_represented_xp_rest_bonus_like_cpp(
+        &mut self,
+        rest_state: u8,
+        rest_bonus: f32,
+    ) {
+        wow_world_instances::load_represented_xp_rest_bonus_like_cpp(self, rest_state, rest_bonus)
     }
 }

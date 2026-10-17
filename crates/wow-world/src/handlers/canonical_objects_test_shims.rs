@@ -25,11 +25,4 @@ impl WorldSession {
             visibility_radius,
         )
     }
-    pub(crate) fn send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(
-        &mut self,
-    ) -> usize {
-        wow_world_entities::send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(
-            self,
-        )
-    }
 }

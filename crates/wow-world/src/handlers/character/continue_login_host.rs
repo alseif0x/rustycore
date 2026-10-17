@@ -98,23 +98,13 @@ impl ContinueLoginHostLikeCpp for WorldSession {
     fn load_player_quests(&mut self) -> impl Future<Output = ()> + Send {
         wow_world_quest::load_player_quests(self)
     }
-    fn load_represented_xp_rest_bonus_like_cpp(&mut self, rest_state: u8, rest_bonus: f32) {
-        WorldSession::load_represented_xp_rest_bonus_like_cpp(self, rest_state, rest_bonus)
-    }
-    fn set_loaded_player_identity_like_cpp(
-        &mut self,
-        map_id: u16,
-        race: u8,
-        class: u8,
-        level: u8,
-        gender: u8,
-    ) {
-        WorldSession::set_loaded_player_identity_like_cpp(self, map_id, race, class, level, gender)
-    }
     fn set_represented_guild_id_like_cpp(&mut self, guild_id: u64) -> bool {
         wow_world_social::set_represented_guild_id_like_cpp(self, guild_id)
     }
-    fn sync_player_spell_hit_aura_authority_to_canonical_like_cpp(&mut self) -> Option<bool> {
-        WorldSession::sync_player_spell_hit_aura_authority_to_canonical_like_cpp(self)
+    fn player_spell_hit_source_identity_complete_like_cpp(&self) -> bool {
+        WorldSession::player_spell_hit_source_identity_complete_like_cpp(self)
+    }
+    fn resolved_represented_guild_id_like_cpp(&self) -> Option<u64> {
+        WorldSession::resolved_represented_guild_id_like_cpp(self)
     }
 }

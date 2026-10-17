@@ -11,22 +11,9 @@
 
 #![cfg(test)]
 
-use wow_world_instances::GroupPublicationTailLikeCpp;
-
 use crate::session::WorldSession;
 
 impl WorldSession {
-    pub(crate) fn reconcile_group_state_like_cpp(&mut self) -> bool {
-        wow_world_instances::reconcile_group_state_like_cpp(self)
-    }
-
-    pub(crate) async fn apply_group_publication_tail_like_cpp(
-        &mut self,
-        tail: GroupPublicationTailLikeCpp,
-    ) {
-        wow_world_instances::apply_group_publication_tail_like_cpp(self, tail).await
-    }
-
     pub(crate) fn next_group_update_sequence_number_like_cpp(
         &mut self,
         category: u8,

@@ -19,7 +19,7 @@
 
 use wow_constants::{EnchantmentSlot, InventoryResult};
 use wow_core::ObjectGuid;
-use wow_entities::{Item, SwapItemPreflightPlan};
+use wow_entities::SwapItemPreflightPlan;
 use wow_packet::packets::item::{AutoEquipItem, AutoEquipItemSlot, SwapInvItem};
 use wow_packet::packets::misc::{AutoBankItem, AutoStoreBankItem};
 use wow_world_inventory::{DestroyQuestItemLikeCpp, InventoryEquipChildPlanLikeCpp};
@@ -125,25 +125,6 @@ impl WorldSession {
         )
     }
 
-    pub(crate) async fn destroy_inventory_full_stack_by_pos_like_cpp(
-        &mut self,
-        bag: u8,
-        slot: u8,
-        item: InventoryItem,
-        runtime_item: Option<Item>,
-        context: &str,
-    ) -> bool {
-        wow_world_inventory::destroy_inventory_full_stack_by_pos_like_cpp(
-            self,
-            bag,
-            slot,
-            item,
-            runtime_item,
-            context,
-        )
-        .await
-    }
-
     pub(crate) fn plan_inventory_child_redirect_like_cpp(
         &mut self,
         child_bag: u8,
@@ -169,26 +150,6 @@ impl WorldSession {
             parent_bag,
             parent_slot,
             parent_guid,
-        )
-    }
-
-    pub(crate) fn plan_inventory_real_swap_children_like_cpp(
-        &self,
-        source_bag: u8,
-        source_slot: u8,
-        source_guid: ObjectGuid,
-        destination_bag: u8,
-        destination_slot: u8,
-        destination_guid: ObjectGuid,
-    ) -> Result<Vec<InventoryEquipChildPlanLikeCpp>, InventoryResult> {
-        wow_world_inventory::plan_inventory_real_swap_children_like_cpp(
-            self,
-            source_bag,
-            source_slot,
-            source_guid,
-            destination_bag,
-            destination_slot,
-            destination_guid,
         )
     }
 

@@ -31,8 +31,14 @@ async fn withdrawal_store_plan_merges_before_empty_slots_with_atomic_overlays_li
         },
     );
 
-    let (result, destinations, _) = session
-        .plan_store_new_direct_inventory_item_with_overlays_like_cpp(19019, 1, &[], &[])
+    let (result, destinations, _) =
+        wow_world_application::plan_store_new_direct_inventory_item_with_overlays_like_cpp(
+            &session,
+            19019,
+            1,
+            &[],
+            &[],
+        )
         .expect("represented inventory planner");
     assert_eq!(result, wow_constants::InventoryResult::Ok);
     assert_eq!(
@@ -57,8 +63,14 @@ async fn withdrawal_store_plan_merges_before_empty_slots_with_atomic_overlays_li
             count: 1,
         },
     ];
-    let (result, destinations, _) = session
-        .plan_store_new_direct_inventory_item_with_overlays_like_cpp(19019, 1, &overlays, &[])
+    let (result, destinations, _) =
+        wow_world_application::plan_store_new_direct_inventory_item_with_overlays_like_cpp(
+            &session,
+            19019,
+            1,
+            &overlays,
+            &[],
+        )
         .expect("represented inventory planner with detached reservations");
     assert_eq!(result, wow_constants::InventoryResult::Ok);
     assert_eq!(
@@ -78,7 +90,8 @@ async fn withdrawal_store_plan_merges_before_empty_slots_with_atomic_overlays_li
     merged_item.set_creator(ObjectGuid::create_player(1, 7));
     merged_item.set_binding(true);
     let enchantments = WorldSession::void_storage_enchantments_db_string_like_cpp(&[0; 13]);
-    let write = session.void_storage_merged_item_write_like_cpp(
+    let write = wow_world_application::void_storage_merged_item_write_like_cpp(
+        &session,
         &InventoryItem {
             guid: existing_guid,
             entry_id: 19019,
@@ -93,15 +106,22 @@ async fn withdrawal_store_plan_merges_before_empty_slots_with_atomic_overlays_li
     assert_eq!(write.item_db_guid, 501);
 
     session.update_inventory_item_object_like_cpp(existing_guid, |item| item.set_count(20));
-    let (_, destinations, _) = session
-        .plan_store_new_direct_inventory_item_with_overlays_like_cpp(19019, 1, &[], &[])
+    let (_, destinations, _) =
+        wow_world_application::plan_store_new_direct_inventory_item_with_overlays_like_cpp(
+            &session,
+            19019,
+            1,
+            &[],
+            &[],
+        )
         .expect("full stack must force the next empty slot");
     assert_eq!(
         destinations[0].pos,
         (u16::from(INVENTORY_SLOT_BAG_0) << 8) | u16::from(INVENTORY_SLOT_ITEM_START + 1)
     );
-    let (_, destinations, _) = session
-        .plan_store_new_direct_inventory_item_with_overlays_like_cpp(
+    let (_, destinations, _) =
+        wow_world_application::plan_store_new_direct_inventory_item_with_overlays_like_cpp(
+            &session,
             19019,
             1,
             &[],
@@ -180,8 +200,9 @@ fn withdrawal_planner_excludes_slots_from_a_deposited_equipped_bag_like_cpp() {
     child_item.set_container_guid_and_slot(bag_guid, bag_slot);
     session.insert_inventory_item_object(child_item);
 
-    let (_, child_only_destinations, _) = session
-        .plan_store_new_direct_inventory_item_with_overlays_like_cpp(
+    let (_, child_only_destinations, _) =
+        wow_world_application::plan_store_new_direct_inventory_item_with_overlays_like_cpp(
+            &session,
             item_entry,
             1,
             &[],
@@ -194,14 +215,14 @@ fn withdrawal_planner_excludes_slots_from_a_deposited_equipped_bag_like_cpp() {
         "the adversarial fixture must expose the orphan-container risk"
     );
 
-    let destroyed = session
-        .plan_void_storage_destroyed_items_like_cpp(
-            INVENTORY_SLOT_BAG_0,
-            bag_slot,
-            bag_inventory,
-            Vec::new(),
-        )
-        .expect("fixture canonical inventory owner");
+    let destroyed = wow_world_application::plan_void_storage_destroyed_items_like_cpp(
+        &session,
+        INVENTORY_SLOT_BAG_0,
+        bag_slot,
+        bag_inventory,
+        Vec::new(),
+    )
+    .expect("fixture canonical inventory owner");
     let vacated_positions = destroyed
         .iter()
         .map(|destroyed| (destroyed.bag, destroyed.slot))
@@ -211,8 +232,9 @@ fn withdrawal_planner_excludes_slots_from_a_deposited_equipped_bag_like_cpp() {
         vec![(bag_slot, 5), (INVENTORY_SLOT_BAG_0, bag_slot)]
     );
 
-    let (result, destinations, no_space_count) = session
-        .plan_store_new_direct_inventory_item_with_overlays_like_cpp(
+    let (result, destinations, no_space_count) =
+        wow_world_application::plan_store_new_direct_inventory_item_with_overlays_like_cpp(
+            &session,
             item_entry,
             1,
             &[],
@@ -265,14 +287,14 @@ async fn nonempty_bag_deposit_plan_destroys_children_before_parent_atomically() 
     child_item.set_container_guid_and_slot(bag_guid, bag_slot);
     session.insert_inventory_item_object(child_item);
 
-    let destroyed = session
-        .plan_void_storage_destroyed_items_like_cpp(
-            INVENTORY_SLOT_BAG_0,
-            bag_slot,
-            bag_inventory,
-            Vec::new(),
-        )
-        .expect("fixture canonical inventory owner");
+    let destroyed = wow_world_application::plan_void_storage_destroyed_items_like_cpp(
+        &session,
+        INVENTORY_SLOT_BAG_0,
+        bag_slot,
+        bag_inventory,
+        Vec::new(),
+    )
+    .expect("fixture canonical inventory owner");
     assert_eq!(
         destroyed
             .iter()
@@ -289,8 +311,11 @@ async fn nonempty_bag_deposit_plan_destroys_children_before_parent_atomically() 
         vec![502, 501]
     );
 
-    let (destroyed_guids, changed_quest_ids) = session
-        .apply_committed_void_storage_destroyed_items_like_cpp(&destroyed)
+    let (destroyed_guids, changed_quest_ids) =
+        wow_world_application::apply_committed_void_storage_destroyed_items_like_cpp(
+            &mut session,
+            &destroyed,
+        )
         .expect("fixture canonical inventory owner");
     assert_eq!(destroyed_guids, vec![child_guid, bag_guid]);
     assert!(changed_quest_ids.is_empty());
@@ -319,7 +344,10 @@ async fn swap_definite_rollback_keeps_void_slots_unchanged() {
     insert_vault_keeper(&canonical, vault_keeper, 1918);
     let item = represented_void_item(77, 19019);
     assert_eq!(
-        session.add_represented_void_storage_item_like_cpp(item.clone()),
+        wow_world_application::add_represented_void_storage_item_like_cpp(
+            &mut session,
+            item.clone()
+        ),
         Some(0)
     );
 
@@ -334,16 +362,14 @@ async fn swap_definite_rollback_keeps_void_slots_unchanged() {
     packet.write_packed_guid(&vault_keeper);
     packet.write_packed_guid(&ObjectGuid::create_item(1, 77));
     packet.write_uint32(4);
-    session.handle_void_storage_swap_item(packet).await;
+    wow_world_application::handle_void_storage_swap_item(&mut session, packet).await;
 
     assert_eq!(
-        session.represented_void_storage_item_at_like_cpp(0),
+        wow_world_application::represented_void_storage_item_at_like_cpp(&session, 0),
         Some(item)
     );
     assert!(
-        session
-            .represented_void_storage_item_at_like_cpp(4)
-            .is_none()
+        wow_world_application::represented_void_storage_item_at_like_cpp(&session, 4).is_none()
     );
     assert_eq!(
         send_rx
@@ -369,7 +395,10 @@ async fn swap_unknown_commit_with_unchanged_money_quarantines_session() {
     insert_vault_keeper(&canonical, vault_keeper, 1918);
     let item = represented_void_item(77, 19019);
     assert_eq!(
-        session.add_represented_void_storage_item_like_cpp(item.clone()),
+        wow_world_application::add_represented_void_storage_item_like_cpp(
+            &mut session,
+            item.clone()
+        ),
         Some(0)
     );
     let port = Arc::new(RecordingVoidStoragePersistencePortLikeCpp::new(
@@ -384,7 +413,7 @@ async fn swap_unknown_commit_with_unchanged_money_quarantines_session() {
     packet.write_packed_guid(&vault_keeper);
     packet.write_packed_guid(&ObjectGuid::create_item(1, 77));
     packet.write_uint32(4);
-    session.handle_void_storage_swap_item(packet).await;
+    wow_world_application::handle_void_storage_swap_item(&mut session, packet).await;
 
     assert_eq!(session.state(), SessionState::Disconnecting);
     assert!(
@@ -393,13 +422,11 @@ async fn swap_unknown_commit_with_unchanged_money_quarantines_session() {
             .is_indeterminate_like_cpp()
     );
     assert_eq!(
-        session.represented_void_storage_item_at_like_cpp(0),
+        wow_world_application::represented_void_storage_item_at_like_cpp(&session, 0),
         Some(item)
     );
     assert!(
-        session
-            .represented_void_storage_item_at_like_cpp(4)
-            .is_none()
+        wow_world_application::represented_void_storage_item_at_like_cpp(&session, 4).is_none()
     );
 }
 
@@ -454,7 +481,7 @@ async fn deposit_definite_rollback_keeps_money_inventory_and_void_state_unchange
     assert_eq!(inventory_item.entry_id, 19019);
     assert_eq!(inventory_item.db_guid, 501);
     assert_eq!(
-        session.represented_void_storage_free_slots_like_cpp(),
+        wow_world_application::represented_void_storage_free_slots_like_cpp(&session),
         Some(160)
     );
     assert_eq!(
@@ -493,8 +520,7 @@ async fn deposit_commits_typed_plan_before_runtime_publication_like_cpp() {
             .is_none()
     );
     assert_eq!(
-        session
-            .represented_void_storage_item_at_like_cpp(0)
+        wow_world_application::represented_void_storage_item_at_like_cpp(&session, 0)
             .map(|item| item.item_entry),
         Some(19019)
     );
@@ -553,7 +579,7 @@ async fn deposit_indeterminate_commit_quarantines_without_runtime_publication_li
             .is_some()
     );
     assert_eq!(
-        session.represented_void_storage_free_slots_like_cpp(),
+        wow_world_application::represented_void_storage_free_slots_like_cpp(&session),
         Some(160)
     );
     assert_eq!(session.state(), SessionState::Disconnecting);
@@ -652,7 +678,7 @@ async fn deposit_definite_rollback_retains_active_item_loot_view_atomically() {
         "the release runs before planning, while definite DB rollback still preserves inventory"
     );
     assert_eq!(
-        session.represented_void_storage_free_slots_like_cpp(),
+        wow_world_application::represented_void_storage_free_slots_like_cpp(&session),
         Some(160)
     );
     assert_eq!(
@@ -754,7 +780,10 @@ async fn mixed_transfer_validation_failure_publishes_no_partial_deposit() {
 
     let unstoreable_void_item = represented_void_item(77, 99999);
     assert_eq!(
-        session.add_represented_void_storage_item_like_cpp(unstoreable_void_item.clone()),
+        wow_world_application::add_represented_void_storage_item_like_cpp(
+            &mut session,
+            unstoreable_void_item.clone()
+        ),
         Some(0)
     );
     let port = Arc::new(RecordingVoidStoragePersistencePortLikeCpp::new(
@@ -778,7 +807,7 @@ async fn mixed_transfer_validation_failure_publishes_no_partial_deposit() {
         "the deposit remains visible when a later withdrawal cannot be planned"
     );
     assert_eq!(
-        session.represented_void_storage_item_at_like_cpp(0),
+        wow_world_application::represented_void_storage_item_at_like_cpp(&session, 0),
         Some(unstoreable_void_item)
     );
     assert_eq!(

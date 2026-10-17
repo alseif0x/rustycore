@@ -4,7 +4,6 @@
 
 use super::*;
 
-mod giver;
 mod host;
 mod objective_drain;
 pub(crate) use objective_drain::QuestObjectiveOperationLikeCpp;

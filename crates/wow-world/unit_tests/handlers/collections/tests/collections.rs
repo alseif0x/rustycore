@@ -291,7 +291,7 @@ async fn add_toy_finds_nested_bag_item_by_guid_like_cpp() {
     pkt.write_uint16(ClientOpcodes::AddToy as u16);
     pkt.write_packed_guid(&toy_guid);
 
-    session.handle_add_toy(pkt).await;
+    wow_world_inventory::handle_add_toy(&mut session, pkt).await;
 
     assert_eq!(
         session.account_toy_rows_like_cpp(),
@@ -354,7 +354,7 @@ async fn add_toy_uses_can_use_item_faction_gate_like_cpp() {
     pkt.write_uint16(ClientOpcodes::AddToy as u16);
     pkt.write_packed_guid(&toy_guid);
 
-    session.handle_add_toy(pkt).await;
+    wow_world_inventory::handle_add_toy(&mut session, pkt).await;
 
     assert!(session.account_toy_rows_like_cpp().is_empty());
     assert!(
@@ -453,7 +453,7 @@ async fn add_toy_rolls_back_without_player_toys_update_when_destroy_fails_like_c
     pkt.write_uint16(ClientOpcodes::AddToy as u16);
     pkt.write_packed_guid(&toy_guid);
 
-    session.handle_add_toy(pkt).await;
+    wow_world_inventory::handle_add_toy(&mut session, pkt).await;
 
     let first_packet = send_rx.try_recv().ok();
     assert!(session.account_toy_rows_like_cpp().is_empty());

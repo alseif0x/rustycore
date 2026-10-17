@@ -43,7 +43,8 @@ impl WorldSession {
     ) -> Result<(), &'static str> {
         use wow_packet::packets::spell::SpellCastVisual;
 
-        self.execute_spell_with_visual_and_target_data_and_generator_like_cpp(
+        wow_world_spell::execute_spell_with_visual_and_target_data_and_generator_like_cpp(
+            self,
             item_guid_generator,
             creature_spawn_catalogs,
             spell_id,
@@ -70,7 +71,8 @@ impl WorldSession {
         cast_id: ObjectGuid,
         spell_visual: wow_packet::packets::spell::SpellCastVisual,
     ) -> Result<(), &'static str> {
-        self.execute_spell_with_visual_and_target_data_and_generator_like_cpp(
+        wow_world_spell::execute_spell_with_visual_and_target_data_and_generator_like_cpp(
+            self,
             item_guid_generator,
             creature_spawn_catalogs,
             spell_id,

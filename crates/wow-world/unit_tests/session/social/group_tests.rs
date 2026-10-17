@@ -123,7 +123,7 @@ fn tap_members_follow_the_group_authority_not_the_owned_snapshot_like_cpp() {
     let (session, group_registry, group_guid, owner, mate) = reader_session_like_cpp();
 
     assert_eq!(
-        session.current_group_member_guids_for_tap_like_cpp(owner),
+        wow_world_instances::current_group_member_guids_for_tap_like_cpp(&session, owner),
         vec![mate]
     );
 
@@ -140,8 +140,7 @@ fn tap_members_follow_the_group_authority_not_the_owned_snapshot_like_cpp() {
     // a lost `ApplyGroupRemovalLikeCpp` leaves open.
     assert_eq!(session.resolved_group_guid_like_cpp(), Some(group_guid));
     assert!(
-        session
-            .current_group_member_guids_for_tap_like_cpp(owner)
+        wow_world_instances::current_group_member_guids_for_tap_like_cpp(&session, owner)
             .is_empty(),
         "a removed member must not keep sharing creature tap rights"
     );
@@ -152,7 +151,7 @@ fn instance_owner_follows_the_group_authority_like_cpp() {
     let (session, group_registry, group_guid, owner, mate) = reader_session_like_cpp();
 
     assert_eq!(
-        session.create_map_instance_owner_guid_like_cpp(571),
+        wow_world_instances::create_map_instance_owner_guid_like_cpp(&session, 571),
         Some(mate),
         "C++ `Group::GetRecentInstanceOwner` falls back to the group leader"
     );
@@ -167,7 +166,7 @@ fn instance_owner_follows_the_group_authority_like_cpp() {
         .expect("authority removal");
 
     assert_eq!(
-        session.create_map_instance_owner_guid_like_cpp(571),
+        wow_world_instances::create_map_instance_owner_guid_like_cpp(&session, 571),
         Some(owner),
         "a removed member owns its own instance, not the group's"
     );

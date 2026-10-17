@@ -128,7 +128,7 @@ fn represented_aura_state_unions_health_and_aura_bits_like_cpp() {
     // 50% health keeps every `Unit::Update` wounded/healthy bit clear.
     session.set_player_health_like_cpp(50, 100);
     assert_eq!(
-        session.represented_player_aura_state_mask_like_cpp(),
+        wow_world_spell::represented_player_aura_state_mask_like_cpp(&session),
         Some(0)
     );
     assert!(!session.represented_has_aura_state_like_cpp(u32::from(
@@ -136,8 +136,7 @@ fn represented_aura_state_unions_health_and_aura_bits_like_cpp() {
     )));
 
     session.set_player_health_like_cpp(10, 100);
-    let mask = session
-        .represented_player_aura_state_mask_like_cpp()
+    let mask = wow_world_spell::represented_player_aura_state_mask_like_cpp(&session)
         .expect("canonical player aura state mask");
     assert!(
         mask & (1 << (wow_entities::AURA_STATE_WOUNDED_20_PERCENT - 1)) != 0,

@@ -14,12 +14,11 @@ async fn learn_talent_adds_override_spell_pair_like_cpp() {
         install_test_talent_entries_with_tab_class_mask(&mut session, vec![talent], 1);
     session.mark_represented_talents_loaded_like_cpp();
 
-    session
-        .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
+    wow_world_spell::handle_learn_talent(&mut session, &talent_tabs, learn_talent_packet(101, 0))
         .await;
 
     assert!(send_rx.try_recv().is_ok());
-    let override_spells = session.represented_override_spells_like_cpp();
+    let override_spells = wow_world_spell::represented_override_spells_like_cpp(&session);
     let overrides = override_spells
         .get(&60_101)
         .expect("C++ Player::AddTalent calls AddOverrideSpell when OverridesSpellID is set");
@@ -42,8 +41,7 @@ async fn confirm_respec_wipe_resets_active_talents_and_removes_overrides_like_cp
     session.mark_represented_talents_loaded_like_cpp();
     session.set_player_gold_like_cpp(20_000);
 
-    session
-        .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
+    wow_world_spell::handle_learn_talent(&mut session, &talent_tabs, learn_talent_packet(101, 0))
         .await;
     assert!(
         drain_sent_packets(&send_rx).iter().any(|packet| *packet
@@ -54,8 +52,7 @@ async fn confirm_respec_wipe_resets_active_talents_and_removes_overrides_like_cp
     );
     assert!(session.known_spells_like_cpp().contains(&50_101));
     assert!(
-        session
-            .represented_override_spells_like_cpp()
+        wow_world_spell::represented_override_spells_like_cpp(&session)
             .get(&60_101)
             .is_some_and(|overrides| overrides.contains(&70_101))
     );
@@ -86,7 +83,7 @@ async fn confirm_respec_wipe_resets_active_talents_and_removes_overrides_like_cp
         "C++ RemoveTalent removes the active talent spell"
     );
     assert!(
-        session.represented_override_spells_like_cpp().is_empty(),
+        wow_world_spell::represented_override_spells_like_cpp(&session).is_empty(),
         "C++ RemoveTalent calls RemoveOverrideSpell for OverridesSpellID"
     );
     let packet = session.represented_update_talent_data_packet_like_cpp();
@@ -200,8 +197,7 @@ async fn confirm_respec_wipe_rejects_without_money_before_removing_talents_like_
         install_test_talent_entries_with_tab_class_mask(&mut session, vec![talent], 1);
     session.mark_represented_talents_loaded_like_cpp();
 
-    session
-        .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
+    wow_world_spell::handle_learn_talent(&mut session, &talent_tabs, learn_talent_packet(101, 0))
         .await;
     let _learn_update = send_rx
         .try_recv()
@@ -294,8 +290,7 @@ async fn confirm_respec_wipe_rejects_without_money_before_removing_talents_like_
         "C++ leaves the current pet slot untouched when ResetTalents returns false"
     );
     assert!(
-        session
-            .represented_override_spells_like_cpp()
+        wow_world_spell::represented_override_spells_like_cpp(&session)
             .get(&60_101)
             .is_some_and(|overrides| overrides.contains(&70_101)),
         "C++ keeps override spells when ResetTalents returns false"
@@ -315,8 +310,7 @@ async fn confirm_respec_wipe_definite_rollback_publishes_no_covered_runtime_or_p
         install_test_talent_entries_with_tab_class_mask(&mut session, vec![talent], 1);
     session.mark_represented_talents_loaded_like_cpp();
 
-    session
-        .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
+    wow_world_spell::handle_learn_talent(&mut session, &talent_tabs, learn_talent_packet(101, 0))
         .await;
     let _ = drain_sent_packets(&send_rx);
     session.set_represented_pet_mode_state_like_cpp(

@@ -4,7 +4,7 @@
 //! #1241 F3 test shims: WorldSession entry points kept only for unit_tests callers.
 
 #[allow(unused_imports)]
-use super::*;
+use crate::session::ObjectGuid;
 
 impl crate::session::WorldSession {
     pub(crate) fn try_claim_character_login_like_cpp(&mut self, guid: ObjectGuid) -> bool {

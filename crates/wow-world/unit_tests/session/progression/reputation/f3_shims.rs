@@ -7,23 +7,6 @@
 use super::*;
 
 impl crate::session::WorldSession {
-    pub(crate) fn calculate_reputation_gain_like_cpp(
-        &self,
-        source: ReputationGainSourceLikeCpp,
-        creature_or_quest_level: u32,
-        rep: i32,
-        faction_id: u32,
-        no_quest_bonus: bool,
-    ) -> i32 {
-        wow_world_social::calculate_reputation_gain_like_cpp(
-            self,
-            source,
-            creature_or_quest_level,
-            rep,
-            faction_id,
-            no_quest_bonus,
-        )
-    }
     #[cfg(test)]
     pub fn set_start_all_reputation_like_cpp(&mut self, enabled: bool) {
         self.catalogs.set_start_all_reputation_like_cpp(enabled)

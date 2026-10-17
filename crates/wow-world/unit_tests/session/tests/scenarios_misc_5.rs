@@ -510,8 +510,7 @@ fn canonical_player_trait_config_authority_follows_detached_and_stale_ownership_
             .player_residence_like_cpp(old_handle),
         Some(wow_map::PlayerResidenceLikeCpp::Detached)
     );
-    let detached = session
-        .player_spell_runtime_snapshot_like_cpp()
+    let detached = wow_world_spell::player_spell_runtime_snapshot_like_cpp(&session)
         .expect("detached canonical trait-config owner");
     assert!(detached.trait_config_rows_complete);
     assert!(detached.trait_entry_rows_complete);
@@ -530,7 +529,7 @@ fn canonical_player_trait_config_authority_follows_detached_and_stale_ownership_
         .install_detached_player_like_cpp(replacement)
         .expect("replacement owner");
 
-    assert!(session.player_spell_runtime_snapshot_like_cpp().is_none());
+    assert!(wow_world_spell::player_spell_runtime_snapshot_like_cpp(&session).is_none());
     assert!(
         !session.complete_represented_trait_config_authority_load_like_cpp(
             [(9, 1, 71, 1), (10, 1, 72, 1), (11, 1, 73, 1)],
@@ -835,9 +834,9 @@ fn initial_canonical_player_sets_display_mount_collision_shape_like_cpp() {
         0,
     ));
     configure_player_shape_mount_collision_stores_like_cpp(&mut session);
-    session.update_player_collision_height_like_cpp();
+    wow_world_spell::update_player_collision_height_like_cpp(&mut session);
     session.fixtures.vehicles.player_mount_display_id_like_cpp = 4321;
-    session.update_player_collision_height_like_cpp();
+    wow_world_spell::update_player_collision_height_like_cpp(&mut session);
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("canonical map");

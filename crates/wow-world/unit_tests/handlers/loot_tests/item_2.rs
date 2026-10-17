@@ -726,7 +726,7 @@ fn banked_quest_item_recomputes_objective_and_reopens_quest_like_cpp() {
         crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
     );
     assert_eq!(
-        session.apply_quest_item_removed_like_cpp(item_id),
+        wow_world_quest::apply_quest_item_removed_like_cpp(&mut session, item_id),
         Some(vec![quest_id])
     );
     let status = session

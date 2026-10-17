@@ -159,7 +159,7 @@ fn player_attack_can_always_see_unit_being_moved_like_cpp() {
         0,
     ));
     let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
-    session.apply_move_init_active_mover_complete_like_cpp(0);
+    wow_world_entities::apply_move_init_active_mover_complete_like_cpp(&mut session, 0);
     session.register_world_creature(
         571,
         Position::new(11.0, 20.0, 30.0, 0.0),

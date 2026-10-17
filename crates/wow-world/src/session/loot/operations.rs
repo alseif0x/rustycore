@@ -34,13 +34,6 @@ impl WorldSession {
         )
         .await
     }
-    pub(crate) fn remove_auras_with_looting_interrupt_flags_like_cpp(&mut self) -> usize {
-        wow_world_spell::remove_auras_with_interrupt_flags_like_cpp(
-            self,
-            SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP,
-            0,
-        )
-    }
 }
 
 #[cfg(test)]

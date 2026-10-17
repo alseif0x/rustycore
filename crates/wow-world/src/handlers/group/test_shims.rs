@@ -8,7 +8,7 @@
 //! The group scenario suites still build a `WorldSession` here, so these
 //! bounded delegates construct the social owner's context from the session's
 //! social state and hub.
-
+#![cfg(test)]
 use wow_packet::WorldPacket;
 use wow_world_social::SocialGroupHandlerCxLikeCpp;
 
@@ -147,7 +147,7 @@ impl WorldSession {
                 .handle_change_sub_group(pkt)
                 .await
         };
-        self.apply_group_publication_tail_like_cpp(tail).await;
+        wow_world_instances::apply_group_publication_tail_like_cpp(self, tail).await;
     }
 
     pub(crate) async fn handle_swap_sub_groups(&mut self, pkt: WorldPacket) {
@@ -157,7 +157,7 @@ impl WorldSession {
                 .handle_swap_sub_groups(pkt)
                 .await
         };
-        self.apply_group_publication_tail_like_cpp(tail).await;
+        wow_world_instances::apply_group_publication_tail_like_cpp(self, tail).await;
     }
 
     pub(crate) async fn handle_leave_group(&mut self, pkt: WorldPacket) {
@@ -167,7 +167,7 @@ impl WorldSession {
                 .handle_leave_group(pkt)
                 .await
         };
-        self.apply_group_publication_tail_like_cpp(tail).await;
+        wow_world_instances::apply_group_publication_tail_like_cpp(self, tail).await;
     }
 
     pub(crate) async fn handle_convert_raid(&mut self, pkt: WorldPacket) {
@@ -177,7 +177,7 @@ impl WorldSession {
                 .handle_convert_raid(pkt)
                 .await
         };
-        self.apply_group_publication_tail_like_cpp(tail).await;
+        wow_world_instances::apply_group_publication_tail_like_cpp(self, tail).await;
     }
 
     pub(crate) async fn handle_party_invite_response(&mut self, pkt: WorldPacket) {
@@ -187,7 +187,7 @@ impl WorldSession {
                 .handle_party_invite_response(pkt)
                 .await
         };
-        self.apply_group_publication_tail_like_cpp(tail).await;
+        wow_world_instances::apply_group_publication_tail_like_cpp(self, tail).await;
     }
 
     pub(crate) async fn handle_party_invite_with_policy_like_cpp(
@@ -228,6 +228,6 @@ impl WorldSession {
                 .handle_party_uninvite(pkt)
                 .await
         };
-        self.apply_group_publication_tail_like_cpp(tail).await;
+        wow_world_instances::apply_group_publication_tail_like_cpp(self, tail).await;
     }
 }

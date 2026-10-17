@@ -8,7 +8,7 @@
 //! Handler entry points dispatch through the registered production thunks;
 //! the cancellation helpers the scenarios drive directly build the context
 //! through the production host trait.
-
+#![cfg(test)]
 use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
 use wow_packet::WorldPacket;

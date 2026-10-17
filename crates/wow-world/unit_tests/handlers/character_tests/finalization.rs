@@ -25,7 +25,7 @@ fn late_login_sequence_failure_releases_claim_and_partial_player_like_cpp() {
     ));
 
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut failed, 1, 0);
-    failed.abort_partial_login_sequence_like_cpp();
+    wow_world_character::abort_partial_login_sequence_like_cpp(&mut failed);
 
     assert_eq!(failed.state(), crate::session::SessionState::Disconnecting);
     assert!(failed.player_guid().is_none());
@@ -62,43 +62,43 @@ async fn unavailable_login_grid_aborts_before_success_login_packets_like_cpp() {
     let feature_policy = session.support_feature_policy_for_test_like_cpp();
 
     assert!(
-        !session
-            .send_login_sequence(
-                generators.item.as_ref(),
-                &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
-                &creature_spawn_catalogs,
-                &feature_policy,
-                &player_grid_loader,
-                guid,
-                1,
-                1,
-                0,
-                10,
-                49,
-                &Position::ZERO,
-                1,
-                0,
-                CharacterLoginLocationLikeCpp {
-                    map_id: 1,
-                    bind_area_id: Some(0),
-                    position: Position::ZERO,
-                },
-                None,
-                [(0, 0, 0); 19],
-                [ObjectGuid::EMPTY; 141],
-                Vec::new(),
-                PlayerCombatStats::default(),
-                0,
-                0,
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-                [0; 180],
-                Vec::new(),
-                Vec::new(),
-            )
-            .await
+        !wow_world_character::send_login_sequence(
+            &mut session,
+            generators.item.as_ref(),
+            &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
+            &creature_spawn_catalogs,
+            &feature_policy,
+            &player_grid_loader,
+            guid,
+            1,
+            1,
+            0,
+            10,
+            49,
+            &Position::ZERO,
+            1,
+            0,
+            CharacterLoginLocationLikeCpp {
+                map_id: 1,
+                bind_area_id: Some(0),
+                position: Position::ZERO,
+            },
+            None,
+            [(0, 0, 0); 19],
+            [ObjectGuid::EMPTY; 141],
+            Vec::new(),
+            PlayerCombatStats::default(),
+            0,
+            0,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            [0; 180],
+            Vec::new(),
+            Vec::new(),
+        )
+        .await
     );
 
     assert_eq!(session.state(), crate::session::SessionState::Disconnecting);

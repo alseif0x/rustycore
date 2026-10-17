@@ -158,7 +158,7 @@ fn player_bootstrap_is_consumed_without_a_second_runtime_owner_like_cpp() {
     session.set_player_level_like_cpp(71);
     session.set_player_gold_like_cpp(2000);
     crate::session::hub_mut(&mut session).set_player_xp_like_cpp(66);
-    session.learn_known_spell_like_cpp(116);
+    wow_world_spell::learn_known_spell_like_cpp(&mut session, 116);
     session.remove_inventory_item_like_cpp(23);
 
     assert_eq!(session.player_position_like_cpp(), Some(moved));
@@ -535,14 +535,14 @@ async fn vehicle_switch_handlers_record_same_vehicle_change_seat_like_cpp() {
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
     session.set_player_moved_unit_guid_like_cpp(base);
 
-    session
-        .handle_request_vehicle_switch_seat(
-            wow_packet::packets::vehicle::RequestVehicleSwitchSeat {
-                vehicle: base,
-                seat_index: 2,
-            },
-        )
-        .await;
+    wow_world_entities::handle_request_vehicle_switch_seat(
+        &mut session,
+        wow_packet::packets::vehicle::RequestVehicleSwitchSeat {
+            vehicle: base,
+            seat_index: 2,
+        },
+    )
+    .await;
     session
         .handle_move_change_vehicle_seats(wow_packet::packets::vehicle::MoveChangeVehicleSeats {
             status: wow_packet::packets::movement::MovementInfo {
@@ -661,11 +661,11 @@ async fn ride_vehicle_interact_handler_records_enter_vehicle_plan_like_cpp() {
         wow_data::map::MAP_COMMON,
     );
 
-    session
-        .handle_ride_vehicle_interact(wow_packet::packets::vehicle::RideVehicleInteract {
-            vehicle: target,
-        })
-        .await;
+    wow_world_entities::handle_ride_vehicle_interact(
+        &mut session,
+        wow_packet::packets::vehicle::RideVehicleInteract { vehicle: target },
+    )
+    .await;
 
     assert_eq!(
         session.represented_vehicle_enter_requests_like_cpp(),

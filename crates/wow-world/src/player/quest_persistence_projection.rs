@@ -5,10 +5,6 @@
 
 //! SQLx-free projection of represented Player quest state for atomic workflows.
 
-use crate::WorldSession;
-
-impl WorldSession {}
-
 #[cfg(test)]
 #[path = "../../unit_tests/player/quest_persistence_projection/f3_shims.rs"]
 mod f3_shims;
