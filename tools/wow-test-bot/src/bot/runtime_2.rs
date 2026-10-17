@@ -478,39 +478,36 @@ pub(crate) async fn run_homebind_smoke_phase(
     result: &mut BotRunResult,
 ) -> Result<()> {
     if options.phase == HomebindSmokePhase::Bind {
-        let mut runtime_components = (!options.discover_runtime_guid).then(|| {
+        let explicit_components = (!options.discover_runtime_guid).then(|| {
             let (_, low, high) = parse_packed_guid(&options.innkeeper.packed_guid)
                 .expect("fixture packed GUID was built locally");
             (low, high)
         });
-        let drain_deadline = tokio::time::Instant::now() + Duration::from_secs(5);
-        while tokio::time::Instant::now() < drain_deadline {
-            match tokio::time::timeout(
-                Duration::from_millis(250),
-                read_encrypted_packet(stream, crypt, server_inflater),
-            )
-            .await
-            {
-                Ok(Ok((opcode, payload))) => {
-                    result.seen_opcodes.push(format!("0x{opcode:04X}"));
-                    if opcode == SMSG_UPDATE_OBJECT {
-                        if let Some((low, high)) = find_creature_guid_in_update_object(
-                            &payload,
-                            options.innkeeper.map_id,
-                            options.innkeeper.entry,
-                        ) {
-                            runtime_components = Some((low, high));
-                            result.homebind_innkeeper_guid_counter = Some(low & 0xFF_FFFF_FFFF);
-                        }
-                    }
+        // #1423: C++ Player::CanNeverSee hides the innkeeper until the client
+        // sends CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE, so a login-only drain
+        // never sees its CREATE. Send the ACK, then search the whole window.
+        let (map_id, entry) = (options.innkeeper.map_id, options.innkeeper.entry);
+        let discovered = discover_creature_after_active_mover_ack(
+            stream,
+            crypt,
+            server_inflater,
+            Duration::from_secs(5),
+            "homebind innkeeper discovery",
+            result,
+            |payload| {
+                if explicit_components.is_some() {
+                    return None;
                 }
-                Ok(Err(error)) => return Err(error),
-                Err(_) => break,
-            }
+                find_creature_guid_in_update_object(payload, map_id, entry)
+            },
+        )
+        .await?;
+        if let Some((low, _)) = discovered {
+            result.homebind_innkeeper_guid_counter = Some(low & 0xFF_FFFF_FFFF);
         }
-        let (runtime_low, runtime_high) = runtime_components.ok_or_else(|| {
+        let (runtime_low, runtime_high) = explicit_components.or(discovered).ok_or_else(|| {
             anyhow!(
-                "innkeeper entry {} was not discovered in login SMSG_UPDATE_OBJECT packets",
+                "innkeeper entry {} was not discovered in SMSG_UPDATE_OBJECT packets after CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE",
                 options.innkeeper.entry
             )
         })?;
