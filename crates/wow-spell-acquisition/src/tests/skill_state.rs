@@ -226,6 +226,39 @@ fn profession_association_slot_above_cpp_range_is_an_invalid_snapshot() {
     );
 }
 
+/// #1431: a LEVEL-range skill keeps a stored value above the level maximum
+/// (C++ `Player::_LoadSkills`), and C++ `Trainer::GetSpellState` never reads
+/// it, so it must not make an unrelated trainer purchase indeterminate.
+#[test]
+fn skill_value_above_level_maximum_is_a_valid_cpp_snapshot() {
+    const ROOT_SPELL: u32 = 1494;
+    const DEFENSE: u32 = 95;
+    let metadata = MetadataFixture::new(FixtureInput {
+        spell_ids: vec![ROOT_SPELL],
+        ..Default::default()
+    });
+    let mut input = snapshot();
+    input.skills.push(PlayerSkillAcquisitionRowLikeCpp {
+        skill_id: DEFENSE,
+        step: 0,
+        value: 300,
+        maximum: 15,
+        profession_association: ProfessionAssociationInputLikeCpp::Unassigned,
+        state: PlayerSkillPersistenceStateLikeCpp::Unchanged,
+    });
+    input.occupied_skill_slots = 1;
+
+    let outcome = project_spell_acquisition_like_cpp(
+        &input,
+        metadata.metadata(),
+        SpellAcquisitionRootLikeCpp::DirectLearn(ROOT_SPELL),
+    );
+    assert!(
+        matches!(outcome, SpellAcquisitionOutcomeLikeCpp::Deterministic(_)),
+        "{outcome:?}"
+    );
+}
+
 #[test]
 fn deleted_skill_line_id_still_requires_an_occupied_snapshot_slot() {
     const ROOT_SPELL: u32 = 500;

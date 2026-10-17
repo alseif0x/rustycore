@@ -225,12 +225,10 @@ impl<'a> SpellAcquisitionPlannerLikeCpp<'a> {
                     value: i128::from(row.skill_id),
                 });
             }
-            if row.value > row.maximum && row.maximum != 0 {
-                return Err(SpellAcquisitionIndeterminateLikeCpp::InvalidSnapshot {
-                    field: "skill_value_above_maximum",
-                    value: i128::from(row.skill_id),
-                });
-            }
+            // No value <= maximum invariant: C++ `Player::_LoadSkills`
+            // (Player.cpp:25767-25768) re-derives a SKILL_RANGE_LEVEL maximum
+            // from the level and keeps the stored value, so value > maximum
+            // is a legal C++ skill state (#1431).
             if skills.insert(row.skill_id, *row).is_some() {
                 return Err(
                     SpellAcquisitionIndeterminateLikeCpp::DuplicateSnapshotSkill {
