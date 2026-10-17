@@ -1,5 +1,5 @@
 {
-  "comment": "#1363 done criterion (tools/architecture/session_method_index.py check). Non-forward inherent WorldSession methods in crates/wow-world/src/session/** may remain only when allow-listed here by name: the runtime shell and the world-server construction API (the original groups), and, since slice 12d, the bootstrap/identity steps, the #169 money fences, the #754 single writer, the mailbox pump, the many-field session seams (borrowed-context builders whose destination cannot reach the WorldSession fields) and the cfg(test) seams that await a fixture accessor; every entry outside the two original groups carries a one-line reason in `reasons`. The staying set is bounded, the outside ratchet is 0 (check --done), and crate_ceiling bounds the whole crate so logic cannot leave session/** for handlers/ unseen. Entries are paths relative to crates/wow-world/src: a trailing '/' is a directory, 'file::method' is one method; every entry must match a non-forward method.",
+  "comment": "#1363 done criterion (tools/architecture/session_method_index.py check). Non-forward inherent WorldSession methods in crates/wow-world/src/session/** may remain only when allow-listed here by name: the runtime shell and the world-server construction API (the original groups), and, since slice 12d, the bootstrap/identity steps, the #169 money fences, the #754 single writer, the mailbox pump, the session context builders (split, hub-field and many-field, each labelled by what it reads), the session logic over the quest reward context, and the rest-bonus cfg(test) fixture seams that stay for good (measured in the final cleanup); every entry outside the two original groups carries a one-line reason in `reasons`. The staying set is bounded, the outside ratchet is 0 (check --done), and crate_ceiling bounds the whole crate so logic cannot leave session/** for handlers/ unseen. Entries are paths relative to crates/wow-world/src: a trailing '/' is a directory, 'file::method' is one method; every entry must match a non-forward method.",
   "allow": {
     "runtime_shell": [
       "session/driver/",
@@ -69,34 +69,38 @@
     "mailbox_command_step": [
       "session/mailbox/pump.rs::process_represented_session_commands_with_catalogs_like_cpp"
     ],
-    "cfg_test_seam_awaiting_fixture_accessor": [
+    "cfg_test_fixture_seam_staying": [
       "session/catalogs/operations.rs::apply_offline_xp_rest_bonus_with_policy_like_cpp",
       "session/catalogs/operations.rs::update_represented_online_xp_rest_bonus_with_policy_like_cpp",
       "session/catalogs/operations.rs::tick_represented_online_xp_rest_bonus_with_policy_like_cpp",
       "session/catalogs/operations.rs::tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp"
     ],
-    "many_field_seam": [
+    "split_context_builder": [
       "session/calendar_handler_contexts.rs::build_calendar_handler_cx_like_cpp",
-      "session/instance_handler_contexts.rs::build_instance_raid_info_handler_cx_like_cpp",
-      "session/instance_handler_contexts.rs::build_instance_lock_operations_handler_cx_like_cpp",
-      "session/instance_handler_contexts.rs::build_instance_difficulty_handler_cx_like_cpp",
       "session/inventory_handler_contexts.rs::build_auction_handler_cx_like_cpp",
-      "session/inventory_handler_contexts.rs::build_bank_slot_flag_handler_cx_like_cpp",
-      "session/inventory_handler_contexts.rs::build_item_enchantment_handler_cx_like_cpp",
       "session/inventory_handler_contexts.rs::build_equipment_sets_handler_cx_like_cpp",
-      "session/inventory_handler_contexts.rs::build_equipment_sets_save_handler_cx_like_cpp",
       "session/reputation_handler_contexts.rs::build_reputation_handler_cx_like_cpp",
       "session/social/trade.rs::trade_handler_cx_like_cpp",
       "session/social_contacts_handler_contexts.rs::send_contact_list_like_cpp",
-      "session/pets/battle_pet.rs::send_battle_pet_journal_lock_status_like_cpp",
+      "session/pets/battle_pet.rs::send_battle_pet_journal_lock_status_like_cpp"
+    ],
+    "hub_field_context_builder": [
+      "session/instance_handler_contexts.rs::build_instance_raid_info_handler_cx_like_cpp"
+    ],
+    "many_field_seam": [
+      "session/instance_handler_contexts.rs::build_instance_lock_operations_handler_cx_like_cpp",
+      "session/instance_handler_contexts.rs::build_instance_difficulty_handler_cx_like_cpp",
+      "session/inventory_handler_contexts.rs::build_bank_slot_flag_handler_cx_like_cpp",
+      "session/inventory_handler_contexts.rs::build_item_enchantment_handler_cx_like_cpp",
+      "session/inventory_handler_contexts.rs::build_equipment_sets_save_handler_cx_like_cpp",
       "session/spell_state/aura_application.rs::player_aura_application_cx_like_cpp",
-      "session/xp_grants.rs::quest_xp_gain_context_like_cpp",
+      "session/xp_grants.rs::quest_xp_gain_context_like_cpp"
+    ],
+    "session_logic_over_quest_reward_context": [
       "session/xp_grants.rs::give_xp",
       "session/quest/objective_drain.rs::quest_objective_operation_like_cpp",
       "session/world_entities/gameobject.rs::represented_gameobject_dynamic_flags_for_player_like_cpp",
       "session/world_entities/spell_click.rs::represented_can_see_spell_click_on_creature_like_cpp",
-      "session/spell_state/aura/spell_hit_authority.rs::can_authorize_empty_player_spell_hit_aura_source_for_difficulty_like_cpp",
-      "session/spell_state/aura/spell_hit_authority.rs::sync_player_spell_hit_aura_authority_to_canonical_like_cpp",
       "session/rest_progression.rs::resolved_player_flags_for_create_like_cpp"
     ]
   },
@@ -139,31 +143,29 @@
     "session/loot/operations.rs::reconcile_durable_loot_money_before_save_like_cpp": "#169 money fence: reconciles durable loot money before the save over the same four participants.",
     "session/spell_state/spell.rs::mutate_player_spell_runtime_like_cpp": "#754 single writer of the Player spell-runtime state (incarnation dispatch over the spell-state split).",
     "session/mailbox/pump.rs::process_represented_session_commands_with_catalogs_like_cpp": "the session-command pump: durable loot completions, the creature-runtime overflow kick, the command dispatch and the visibility flush, in driver order.",
-    "session/catalogs/operations.rs::apply_offline_xp_rest_bonus_with_policy_like_cpp": "rest bonus (12c2): the handle-less fixture step calls the World cfg(test) fixture_apply_offline_xp_rest_bonus, whose chain reaches QuestRewardCx (instances cannot depend on quest); two accessors plus the RAF host method measured ~55 host lines for 86 moved (>60 %).",
-    "session/catalogs/operations.rs::update_represented_online_xp_rest_bonus_with_policy_like_cpp": "rest bonus (12c2): as above (fixture_update_online_xp_rest_bonus).",
-    "session/catalogs/operations.rs::tick_represented_online_xp_rest_bonus_with_policy_like_cpp": "rest bonus (12c2): the driver tick over the update above; moves with the group.",
-    "session/catalogs/operations.rs::tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp": "rest bonus (12c2): the rolled tick over the update above; moves with the group.",
-    "session/calendar_handler_contexts.rs::build_calendar_handler_cx_like_cpp": "builds the borrowed calendar context from the social split (social state plus the hub's core, catalogs, config and fixtures); returned borrowing the session.",
-    "session/instance_handler_contexts.rs::build_instance_raid_info_handler_cx_like_cpp": "builds the borrowed raid-info context from core accessors, config and catalogs.",
+    "session/catalogs/operations.rs::apply_offline_xp_rest_bonus_with_policy_like_cpp": "rest bonus (12c2): the handle-less fixture step calls the World cfg(test) fixture_apply_offline_xp_rest_bonus_like_cpp. Re-measured in the #1363 final cleanup (destination wow-world-instances, which owns the rest flags and depends on social): the recruit-a-friend read is now free (SocialSessionHostLikeCpp::gets_recruit_a_friend_bonus_like_cpp), but the handle-less fixture steps (fixture_apply_offline_xp_rest_bonus_like_cpp, fixture_update_online_xp_rest_bonus_like_cpp) are World cfg(test) chains that reach QuestRewardCx through fixture_set_xp_rest_bonus_like_cpp, so the move needs two cfg(test-fixtures) host accessors with default bodies (~20 declaration lines) and their World impls (~23 lines): ~43 host lines for 86 moved (50 %, over the 15 % rule). Stays permanently.",
+    "session/catalogs/operations.rs::update_represented_online_xp_rest_bonus_with_policy_like_cpp": "rest bonus (12c2): the handle-less fixture step calls the World cfg(test) fixture_update_online_xp_rest_bonus_like_cpp; stays with the group above for the same measured reason.",
+    "session/catalogs/operations.rs::tick_represented_online_xp_rest_bonus_with_policy_like_cpp": "rest bonus (12c2): the driver tick over the update above; stays with the group (measured above).",
+    "session/catalogs/operations.rs::tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp": "rest bonus (12c2): the rolled tick over the update above; stays with the group (measured above).",
+    "session/calendar_handler_contexts.rs::build_calendar_handler_cx_like_cpp": "2-field builder (the social split, then the constructor); returned borrowing the session. Two callers (the calendar host impl and the handler module) would each name the split, so retiring it saves two lines.",
+    "session/instance_handler_contexts.rs::build_instance_raid_info_handler_cx_like_cpp": "hub-field builder: three core accessors (player, instance-lock manager with the config, packets) and two catalogs; a move would destructure HubMut (not a mechanical self->host rewrite).",
     "session/instance_handler_contexts.rs::build_instance_lock_operations_handler_cx_like_cpp": "builds the borrowed instance-lock context from instances, social, lifecycle, core accessors, catalogs and two fixture fields.",
     "session/instance_handler_contexts.rs::build_instance_difficulty_handler_cx_like_cpp": "builds the borrowed difficulty context from instances, social, lifecycle, core accessors and catalogs.",
-    "session/inventory_handler_contexts.rs::build_auction_handler_cx_like_cpp": "builds the borrowed auction context from the inventory split (inventory plus the hub).",
+    "session/inventory_handler_contexts.rs::build_auction_handler_cx_like_cpp": "2-field builder (the inventory split, then the constructor); returned borrowing the session. Nine callers (the eight auction handler thunks and the host impl) would each name the split.",
     "session/inventory_handler_contexts.rs::build_bank_slot_flag_handler_cx_like_cpp": "builds the borrowed bank-slot context from inventory, interaction, the NPC access with twelve fixture refs and catalogs.",
     "session/inventory_handler_contexts.rs::build_item_enchantment_handler_cx_like_cpp": "builds the borrowed enchantment context from inventory, core accessors, a fixture ref and five catalogs.",
-    "session/inventory_handler_contexts.rs::build_equipment_sets_handler_cx_like_cpp": "builds the borrowed equipment-set context from inventory and the core owner access.",
+    "session/inventory_handler_contexts.rs::build_equipment_sets_handler_cx_like_cpp": "2-field builder (inventory and the core equipment-set owner access, then the constructor); returned borrowing the session. Called by its host impl and two test_only entries.",
     "session/inventory_handler_contexts.rs::build_equipment_sets_save_handler_cx_like_cpp": "builds the borrowed equipment-set save context from inventory, core accessors, collection fixtures and catalogs.",
-    "session/reputation_handler_contexts.rs::build_reputation_handler_cx_like_cpp": "builds the borrowed reputation context from the hub and two cloned catalog handles.",
-    "session/social/trade.rs::trade_handler_cx_like_cpp": "builds the borrowed trade context from the trade split (social, inventory and spell state plus the hub).",
-    "session/social_contacts_handler_contexts.rs::send_contact_list_like_cpp": "async context seam (C++ PlayerSocial::SendSocialList): the returned future borrows the lifecycle split's persistence port and the hub.",
-    "session/pets/battle_pet.rs::send_battle_pet_journal_lock_status_like_cpp": "async context seam: the returned future borrows the battle-pet split (lifecycle plus the hub) and passes the World cfg!(test).",
+    "session/reputation_handler_contexts.rs::build_reputation_handler_cx_like_cpp": "hub builder: the mutable hub plus two catalog handles cloned per call (the previous in-tree handlers' behaviour); two callers (the host impl and the handler module).",
+    "session/social/trade.rs::trade_handler_cx_like_cpp": "split builder (the four-way trade split: social, inventory and spell state plus the hub, then the constructor); five callers (four host methods and the F3 shim) would each name the split.",
+    "session/social_contacts_handler_contexts.rs::send_contact_list_like_cpp": "async 2-field seam (C++ PlayerSocial::SendSocialList): the lifecycle split's persistence port and the hub, awaited once; called by the character login host and the social host.",
+    "session/pets/battle_pet.rs::send_battle_pet_journal_lock_status_like_cpp": "async split seam: the battle-pet split (lifecycle plus the hub) into the moved wow_world_inventory body with the World cfg!(test); called by the character login host and 23 scenario calls.",
     "session/spell_state/aura_application.rs::player_aura_application_cx_like_cpp": "builds the borrowed aura-application context from spell, inventory, loot and quest state plus the hub.",
     "session/xp_grants.rs::quest_xp_gain_context_like_cpp": "builds the borrowed QuestRewardCx from inventory, lifecycle, quest state, catalogs, config and social.",
-    "session/xp_grants.rs::give_xp": "runs the XP gain over the quest reward context (with its fixture split in test builds); the persistence boundary follows the publication phases.",
-    "session/quest/objective_drain.rs::quest_objective_operation_like_cpp": "builds the QuestRewardCx and QuestObjectiveProgressCx from nine session fields and the fixture refs, then runs one objective operation.",
-    "session/world_entities/gameobject.rs::represented_gameobject_dynamic_flags_for_player_like_cpp": "builds the quest eligibility over core accessors, five fixture refs, quest state, catalogs and the player-condition projection.",
-    "session/world_entities/spell_click.rs::represented_can_see_spell_click_on_creature_like_cpp": "builds the NPC and player-condition accesses (37 fixture refs) and the condition projection for the spell-click visibility; behind QuestSessionHostLikeCpp::represented_can_see_spell_click_on_creature_like_cpp.",
-    "session/spell_state/aura/spell_hit_authority.rs::can_authorize_empty_player_spell_hit_aura_source_for_difficulty_like_cpp": "the spell-hit authority proof: reads ~20 sources across inventory, lifecycle, catalogs, spell, quest and the canonical Player.",
-    "session/spell_state/aura/spell_hit_authority.rs::sync_player_spell_hit_aura_authority_to_canonical_like_cpp": "publishes the spell-hit authority proof above to the canonical Player.",
-    "session/rest_progression.rs::resolved_player_flags_for_create_like_cpp": "combines the canonical flags-ex with the rest-state-save flags, which the World resolves through QuestRewardCx over the XP-gain access, social and fixtures."
+    "session/xp_grants.rs::give_xp": "session logic: runs the XP gain over the quest reward context (with its fixture split in test builds); the persistence boundary follows the publication phases. QuestRewardCx is built from inventory, lifecycle, quest state, catalogs, config, social and the fixtures.",
+    "session/quest/objective_drain.rs::quest_objective_operation_like_cpp": "session logic: builds QuestRewardCx and QuestObjectiveProgressCx from nine session fields and the fixture refs, then dispatches one objective operation (extracting the dispatch match and its enum to wow-world-quest is follow-up E: the cfg(test) StoringFlag variant would need a test-fixtures cfg).",
+    "session/world_entities/gameobject.rs::represented_gameobject_dynamic_flags_for_player_like_cpp": "session logic: the gameobject quest-activation flags over core accessors, five fixture refs, quest state, catalogs and the player-condition projection.",
+    "session/world_entities/spell_click.rs::represented_can_see_spell_click_on_creature_like_cpp": "session logic: the spell-click visibility over the NPC and player-condition accesses (37 fixture refs) and the condition projection; behind QuestSessionHostLikeCpp::represented_can_see_spell_click_on_creature_like_cpp.",
+    "session/rest_progression.rs::resolved_player_flags_for_create_like_cpp": "session logic: combines the canonical flags-ex with the rest-state-save flags, which the World resolves through QuestRewardCx over the XP-gain access, social and fixtures."
   }
 }

@@ -32,7 +32,7 @@ impl WorldSession {
                 rejected_linked_trigger_spell_ids,
             );
     }
-    pub(in crate::session) fn player_spell_hit_source_identity_complete_like_cpp(&self) -> bool {
+    pub(crate) fn player_spell_hit_source_identity_complete_like_cpp(&self) -> bool {
         let Some(player_guid) = self.core.player_guid else {
             return false;
         };

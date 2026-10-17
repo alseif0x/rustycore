@@ -23,7 +23,10 @@ pub(crate) use wow_data::{SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP, SpellAreaLikeCpp};
 pub(crate) use wow_entities::MAX_POWERS_PER_CLASS;
 pub(crate) use wow_entities::PlayerVoidStorageItemLikeCpp as RepresentedVoidStorageItemLikeCpp;
 pub(crate) use wow_packet::packets::spell::SpellTargetData;
-pub(crate) use wow_world_application::PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP;
+pub(crate) use wow_world_application::{
+    ContinueLoginHostLikeCpp, PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP,
+    PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP,
+};
 pub(crate) use wow_world_core::session::battle_pet_adapter::{
     RepresentedBattlePetCageItemLikeCpp, RepresentedBattlePetCalculatedStatsLikeCpp,
     RepresentedBattlePetLevelCriteriaLikeCpp, RepresentedBattlePetQueryCompanionLikeCpp,

@@ -14,6 +14,7 @@ mod player_handlers;
 mod session_lifecycle;
 pub use continue_login::{
     ContinueLoginHostLikeCpp, PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP,
+    PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP,
     apply_loaded_known_spell_previous_rank_passive_auras_like_cpp,
     apply_login_passive_known_spell_auras_like_cpp, apply_represented_group_leader_flag_like_cpp,
     apply_represented_login_spell_reset_if_needed_like_cpp, gender_from_u8,

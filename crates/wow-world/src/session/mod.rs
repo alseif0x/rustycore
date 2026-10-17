@@ -629,6 +629,11 @@ use wow_social::group::{
 };
 
 #[cfg(test)]
+pub(crate) use wow_constants::rest::REST_STATE_NORMAL_LIKE_CPP;
+pub(crate) use wow_constants::rest::{REST_STATE_RAF_LINKED_LIKE_CPP, REST_STATE_RESTED_LIKE_CPP};
+pub(crate) use wow_world_core::session::PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP;
+pub(crate) use wow_world_core::session::PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP;
+#[cfg(test)]
 pub(crate) use wow_world_core::session::{
     AFLAG_NOCASTER_LIKE_CPP, BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP, PLAYER_FLAGS_AFK_LIKE_CPP,
     PLAYER_FLAGS_DND_LIKE_CPP, PLAYER_FLAGS_GHOST_LIKE_CPP,
@@ -640,12 +645,6 @@ pub(crate) use wow_world_core::session::{
 pub(crate) use wow_world_entities::spell_click_values::MAX_GAMEOBJECT_SLOT_LIKE_CPP;
 #[cfg(test)]
 pub(crate) use wow_world_spell::spell_cast_adapter::SPELL_CAST_SOURCE_NORMAL_LIKE_CPP;
-const PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP: u32 = 0x0000_0800;
-#[cfg(test)]
-pub(crate) use wow_constants::rest::REST_STATE_NORMAL_LIKE_CPP;
-pub(crate) use wow_constants::rest::{REST_STATE_RAF_LINKED_LIKE_CPP, REST_STATE_RESTED_LIKE_CPP};
-pub(crate) use wow_world_core::session::PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP;
-pub(crate) use wow_world_core::session::PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP;
 
 /// Live seam for C++ `ScriptMgr::OnAreaTrigger`: a ported content script receives the mutable session and returns the same consumed/not-consumed boolean that controls C++ handler continuation.
 pub type AreaTriggerScriptDispatcherLikeCpp =
