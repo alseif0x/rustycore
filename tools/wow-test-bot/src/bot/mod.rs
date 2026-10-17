@@ -19,7 +19,9 @@ mod misc_4;
 mod misc_5;
 mod misc_6;
 mod movement;
+mod movement_smoke;
 mod packets;
+mod post_login_smoke;
 mod quest;
 mod runtime_1;
 mod runtime_2;
@@ -28,6 +30,7 @@ mod runtime_4;
 mod social;
 mod spell;
 mod sql_fixtures;
+mod vendor_sell;
 mod void_storage_1;
 mod void_storage_2;
 mod void_storage_3;
@@ -62,7 +65,11 @@ pub(crate) use misc_6::*;
 #[allow(unused_imports)]
 pub(crate) use movement::*;
 #[allow(unused_imports)]
+pub(crate) use movement_smoke::*;
+#[allow(unused_imports)]
 pub(crate) use packets::*;
+#[allow(unused_imports)]
+pub(crate) use post_login_smoke::*;
 #[allow(unused_imports)]
 pub(crate) use quest::*;
 #[allow(unused_imports)]
@@ -79,6 +86,8 @@ pub(crate) use social::*;
 pub(crate) use spell::*;
 #[allow(unused_imports)]
 pub(crate) use sql_fixtures::*;
+#[allow(unused_imports)]
+pub(crate) use vendor_sell::*;
 #[allow(unused_imports)]
 pub(crate) use void_storage_1::*;
 #[allow(unused_imports)]

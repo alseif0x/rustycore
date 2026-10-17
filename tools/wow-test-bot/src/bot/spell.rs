@@ -206,6 +206,7 @@ pub(crate) async fn run_bot_with_creature_spell_capture(
         None,
         Some(creature_spell_options),
         None,
+        None,
     )
     .await
 }

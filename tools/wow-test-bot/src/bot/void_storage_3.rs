@@ -48,6 +48,7 @@ pub(crate) async fn run_void_storage_smoke_workflow(
             None,
             None,
             None,
+            None,
         )
         .await?;
         if !combined.void_storage_smoke_passed.unwrap_or(false) {
@@ -91,6 +92,7 @@ pub(crate) async fn run_void_storage_smoke_workflow(
                 None,
                 None,
                 Some(options),
+                None,
                 None,
                 None,
                 None,
@@ -185,6 +187,7 @@ pub(crate) async fn run_void_storage_query_capture_workflow(
         None,
         None,
         Some(fixture.options.clone()),
+        None,
         None,
         None,
         None,

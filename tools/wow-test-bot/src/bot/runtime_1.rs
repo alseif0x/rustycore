@@ -337,6 +337,7 @@ pub(crate) async fn run_bot(
         None,
         None,
         None,
+        None,
     )
     .await
 }
@@ -374,6 +375,7 @@ pub(crate) async fn run_bot_with_detour_chase(
         None,
         None,
         Some(detour_chase_options),
+        None,
         None,
         None,
     )

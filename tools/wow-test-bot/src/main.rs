@@ -68,6 +68,8 @@ async fn main() -> Result<()> {
             || cli.homebind_smoke
             || cli.inventory_swap_smoke
             || cli.vendor_smoke
+            || cli.vendor_sell_smoke
+            || cli.movement_smoke
             || cli.equipment_set_race_smoke
             || cli.rested_xp_smoke
             || cli.detour_chase_capture
@@ -219,6 +221,8 @@ async fn main() -> Result<()> {
         cli.homebind_smoke,
         cli.inventory_swap_smoke,
         cli.vendor_smoke,
+        cli.vendor_sell_smoke,
+        cli.movement_smoke,
         cli.equipment_set_race_smoke,
         cli.rested_xp_smoke,
         cli.detour_chase_capture,
@@ -234,7 +238,7 @@ async fn main() -> Result<()> {
     .count();
     if post_login_mode_count > 1 {
         bail!(
-            "stand-state, bank, void-storage, homebind, inventory-swap, vendor, equipment-set-race, rested-xp, detour-chase-capture, creature-spell-capture, cast-lifecycle, loot-race, loot-item-capture, group-capacity-race, and quest smoke are separate post-login modes"
+            "stand-state, bank, void-storage, homebind, inventory-swap, vendor, vendor-sell, movement, equipment-set-race, rested-xp, detour-chase-capture, creature-spell-capture, cast-lifecycle, loot-race, loot-item-capture, group-capacity-race, and quest smoke are separate post-login modes"
         );
     }
     if cli.bank_smoke && bots.len() != 1 {
@@ -290,6 +294,7 @@ async fn main() -> Result<()> {
     {
         bail!("vendor smoke requires nonzero fixture identifiers/cost and a seeded currency quantity greater than one purchase cost");
     }
+    validate_post_login_smoke_cli(&cli, bots.len())?;
     if cli.equipment_set_race_smoke {
         if bots.len() != 2 {
             bail!("--equipment-set-race-smoke requires exactly its two configured bots");
@@ -395,43 +400,7 @@ async fn main() -> Result<()> {
     }
     info!(
         "Mode: {}; client_build={}; LFG timeout: {}s; auto_teleport={}; require_proposal={}; require_group={}",
-        if cli.stand_state_smoke {
-            "stand-state-smoke"
-        } else if cli.bank_smoke {
-            "bank-smoke"
-        } else if cli.void_storage_smoke {
-            "void-storage-smoke"
-        } else if cli.void_storage_query_capture {
-            "void-storage-query-capture"
-        } else if cli.homebind_smoke {
-            "homebind-smoke"
-        } else if cli.inventory_swap_smoke {
-            "inventory-swap-smoke"
-        } else if cli.vendor_smoke {
-            "vendor-smoke"
-        } else if cli.equipment_set_race_smoke {
-            "equipment-set-race-smoke"
-        } else if cli.rested_xp_smoke {
-            "rested-xp-smoke"
-        } else if cli.detour_chase_capture {
-            "detour-chase-capture"
-        } else if cli.creature_spell_capture {
-            "creature-spell-capture"
-        } else if cli.cast_lifecycle {
-            "cast-lifecycle"
-        } else if cli.loot_race_smoke {
-            "loot-race-smoke"
-        } else if cli.loot_item_capture {
-            "loot-item-capture"
-        } else if cli.group_capacity_race_smoke {
-            "group-capacity-race-smoke"
-        } else if cli.quest_smoke {
-            "quest-smoke"
-        } else if cli.login_only {
-            "login-only"
-        } else {
-            "lfg"
-        },
+        run_mode_label(&cli),
         client_build(),
         timeout_secs,
         auto_teleport,
@@ -448,6 +417,8 @@ async fn main() -> Result<()> {
         && !cli.homebind_smoke
         && !cli.inventory_swap_smoke
         && !cli.vendor_smoke
+        && !cli.vendor_sell_smoke
+        && !cli.movement_smoke
         && !cli.equipment_set_race_smoke
         && !cli.rested_xp_smoke
         && !cli.detour_chase_capture
@@ -601,6 +572,8 @@ async fn main() -> Result<()> {
                     cli.vendor_timeout_secs,
                 )
                 .await
+            } else if cli.vendor_sell_smoke || cli.movement_smoke {
+                run_post_login_smoke(&cli, bot, dungeon_id, timeout_secs, auto_teleport).await
             } else if cli.rested_xp_smoke {
                 run_rested_xp_smoke_workflow(
                     bot,

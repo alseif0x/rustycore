@@ -346,6 +346,43 @@ Setup and cleanup are restricted to `@bot.local` accounts.
 `WOW_BOT_INVENTORY_SWAP_ITEM_ENTRY_A/B` (defaults `2589`/`2592`) and
 `WOW_BOT_INVENTORY_SWAP_TIMEOUT_SECS` are optional.
 
+## Vendor sell persistence smoke
+
+```bash
+WOW_BOT_VENDOR_SELL_SMOKE=1 \
+./run_rustycore_login_smoke.sh
+```
+
+Setup is restricted to an offline `@bot.local` character with no item of the
+fixture entry (default `2589`). It seeds one item into an empty backpack slot
+and relocates beside the default vendor spawn (`18525`/`96654`, the same SQL
+spawn selection and ambiguity guard as the buy smoke). The pass requires the
+live vendor GUID discovered from `SMSG_UPDATE_OBJECT`, `CMSG_SELL_ITEM`, no
+`SMSG_SELL_RESPONSE` (C++ only sends it as an error, realm-routed), and after
+the routed logout: no `character_inventory`/`item_instance` row for the item
+(C++ `Player::_SaveInventory` deletes buyback-slot items) and a money gain,
+equal to `WOW_BOT_VENDOR_SELL_EXPECTED_MONEY` when set. A fresh relogin must
+see the same state. Cleanup restores the original money and position.
+`WOW_BOT_VENDOR_SELL_ITEM_ENTRY`, `WOW_BOT_VENDOR_ENTRY`,
+`WOW_BOT_VENDOR_SPAWN_GUID`, `WOW_BOT_VENDOR_RUNTIME_COUNTER` and
+`WOW_BOT_VENDOR_TIMEOUT_SECS` are optional.
+
+## Basic movement persistence smoke
+
+```bash
+WOW_BOT_MOVEMENT_SMOKE=1 \
+./run_rustycore_login_smoke.sh
+```
+
+Use an offline `@bot.local` character on open, flat ground; the bot does not
+relocate it. On the instance socket it sends `CMSG_MOVE_START_FORWARD`, two
+forward `CMSG_MOVE_HEARTBEAT`s and `CMSG_MOVE_STOP` (C++ `MovementInfo` layout,
+7 yd/s, 200 ms steps, 4.2 yards along the login facing, login Z kept). The pass
+requires `characters.map/position_x/y/z` within 0.1 yards of the final sent
+position after the routed logout, and the relogin `SMSG_LOGIN_VERIFY_WORLD`
+publishing the same position. Cleanup restores the original position after the
+character is offline.
+
 ## Rested XP accrual and consumption smoke
 
 Run the complete offline-accrual, kill-consumption, DB-persistence, and relog
