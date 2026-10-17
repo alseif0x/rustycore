@@ -332,10 +332,13 @@ elif ((stand_state_requested)); then
     mode_args=(--stand-state "$WOW_BOT_STAND_STATE" --stand-state-timeout "$stand_state_timeout_secs")
   fi
 elif ((bank_requested)); then
-  : "${WOW_BOT_BANK_RUNTIME_COUNTER:?Set WOW_BOT_BANK_RUNTIME_COUNTER for the live banker ObjectGuid}"
   report_path="${WOW_BOT_REPORT:-/tmp/rustycore-bot-bank-smoke-report.json}"
   log_path="${WOW_BOT_LOG:-/tmp/rustycore-bot-bank-smoke.log}"
-  mode_args=(--bank-smoke --bank-runtime-counter "$WOW_BOT_BANK_RUNTIME_COUNTER" --bank-timeout "$bank_timeout_secs")
+  # Without an override the bot discovers the banker's live ObjectGuid.
+  mode_args=(--bank-smoke --bank-timeout "$bank_timeout_secs")
+  if [[ -n "${WOW_BOT_BANK_RUNTIME_COUNTER:-}" ]]; then
+    mode_args+=(--bank-runtime-counter "$WOW_BOT_BANK_RUNTIME_COUNTER")
+  fi
   if [[ -n "${WOW_BOT_BANK_ITEM_ENTRY:-}" ]]; then
     mode_args+=(--bank-item-entry "$WOW_BOT_BANK_ITEM_ENTRY")
   fi

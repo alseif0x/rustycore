@@ -658,7 +658,7 @@ pub(crate) fn print_help() {
         "  --bank-smoke             Deposit, logout/relogin, withdraw, logout, and verify DB persistence"
     );
     println!("  --bank-item-entry <id>   Controlled fixture item (default: 2589)");
-    println!("  --bank-runtime-counter <n> Live ObjectGuid low counter for the banker");
+    println!("  --bank-runtime-counter <n> Optional live banker ObjectGuid low counter (default: discover)");
     println!("  --bank-timeout <secs>    Per bank phase timeout (default: 8)");
     println!(
         "                           Env: WOW_BOT_BANK_SMOKE, WOW_BOT_BANK_ITEM_ENTRY, WOW_BOT_BANK_RUNTIME_COUNTER, WOW_BOT_BANK_TIMEOUT_SECS"
