@@ -113,12 +113,18 @@ Use implemented, production-integrated and parity-proven as distinct evidence le
 ## Architecture and skills
 
 Use [orchestrate-rustycore](.agents/skills/orchestrate-rustycore/SKILL.md) for development
-coordination. Only two models take part: Claude Opus 5.5 as the parent (started with
-`ocx claude`, opencodex), which decides, reviews and integrates but does not implement, and
-DeepSeek v4.1 flash on the native DeepSeek API as the worker that implements
-(`.claude/agents/deepseek-worker.md`). Opus implements only through
-`.claude/agents/rustycore-worker.md` when the DeepSeek API fails. Agent definitions do
-not override runtime permissions.
+coordination: one parent integrator decides, reviews and integrates but does not implement
+routine units; one bounded worker at a time implements. The skill owns the exact routes:
+
+| Runtime | Route file | Client defaults |
+|---|---|---|
+| Claude Code / `ocx claude` (default) | `routes/claude.md` (Opus parent, Opus `rustycore-worker`) | `.claude/settings.json`, `.claude/agents/` |
+| OpenCode Go | `routes/go-mix.md` (DeepSeek orchestrator, Luna builder) | `opencode.json`, `.opencode/` |
+| DSH Web `go-mix` (only if the user chooses it) | `routes/go-mix.md` | preset `go-mix` in `~/.dsh` |
+| Codex | `routes/codex.md` (Sol parent, Luna worker) | `.codex/config.toml`, `.codex/agents/` |
+
+A session applies only its own runtime's route. Client defaults do not override runtime
+permissions; inspect effective runtime evidence before claiming which route ran.
 
 The orchestration skill also owns the **decision authority** rule: substantive technical
 decisions (parity and behaviour contracts, intentional departures from the reference, slice
