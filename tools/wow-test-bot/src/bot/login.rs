@@ -572,16 +572,27 @@ pub(crate) async fn observe_instance_after_realm_xp(
 pub(crate) fn prepare_quest_smoke_before_login(
     bot: &config::BotConfig,
     quest_options: &QuestSmokeOptions,
-) -> Result<()> {
+) -> Result<Option<QuestCharacterSnapshot>> {
     use mysql::prelude::Queryable;
 
-    let target = resolve_quest_target_for_bot(bot, quest_options)?;
+    let (target, _) = resolve_quest_target_for_bot(bot, quest_options)?;
 
     let characters_url = characters_db_url()?;
     let opts = mysql::Opts::from_url(&characters_url)
         .map_err(|e| anyhow!("Bad characters DB URL: {}", e))?;
     let mut conn =
         mysql::Conn::new(opts).map_err(|e| anyhow!("Connect to characters DB failed: {}", e))?;
+
+    // Taken before any write below so the run can put these columns back.
+    let snapshot = quest_smoke_mutates_character(quest_options)
+        .then(|| {
+            snapshot_quest_character(
+                &mut conn,
+                bot.character_guid,
+                quest_options.expected_quest_id,
+            )
+        })
+        .transpose()?;
 
     if quest_options.reset_before_run {
         let quest_id = quest_options
@@ -668,7 +679,7 @@ pub(crate) fn prepare_quest_smoke_before_login(
         );
     }
 
-    Ok(())
+    Ok(snapshot)
 }
 /// Resolve the WoW account for a battle.net email, write `K_64` into
 /// account.session_key_bnet, and load the same build auth seed the worldserver

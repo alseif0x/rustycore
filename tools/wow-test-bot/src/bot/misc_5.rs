@@ -582,9 +582,9 @@ pub(crate) fn prepare_bank_smoke_fixture(
     // cross faction boundaries on continent maps (for example Exodar vs.
     // Silvermoon), and C++ `GetNPCIfCanInteractWith` correctly rejects hostile
     // NPCs even when their BANKER flag and distance are valid.
-    let neutral: Option<(u64, u32, u32, f64, f64, f64, f32)> = world
+    let neutral: Option<(u64, u32, u32, f64, f64, f64, f32, f32)> = world
         .exec_first(
-            "SELECT c.guid, c.id, c.map, c.position_x, c.position_y, c.position_z, c.orientation \
+            "SELECT c.guid, c.id, c.map, c.position_x, c.position_y, c.position_z, c.orientation, c.wander_distance \
              FROM creature c JOIN creature_template ct ON ct.entry = c.id \
              WHERE ct.faction = 35 \
                AND ((IF(c.npcflag <> 0, c.npcflag, ct.npcflag) & ?) <> 0) \
@@ -599,7 +599,7 @@ pub(crate) fn prepare_bank_smoke_fixture(
         Some(row) => row,
         None => world
             .exec_first(
-                "SELECT c.guid, c.id, c.map, c.position_x, c.position_y, c.position_z, c.orientation \
+                "SELECT c.guid, c.id, c.map, c.position_x, c.position_y, c.position_z, c.orientation, c.wander_distance \
                  FROM creature c JOIN creature_template ct ON ct.entry = c.id \
                  WHERE ((IF(c.npcflag <> 0, c.npcflag, ct.npcflag) & ?) <> 0) \
                  ORDER BY c.guid LIMIT 1",
@@ -608,16 +608,27 @@ pub(crate) fn prepare_bank_smoke_fixture(
             .map_err(|e| anyhow!("Resolve fallback banker: {e}"))?
             .ok_or_else(|| anyhow!("No banker creature spawn exists in world DB"))?,
     };
-    let (spawn_guid, entry, banker_map, banker_x, banker_y, banker_z, banker_orientation) =
-        banker_row;
+    let (
+        spawn_guid,
+        entry,
+        banker_map,
+        banker_x,
+        banker_y,
+        banker_z,
+        banker_orientation,
+        banker_wander_distance,
+    ) = banker_row;
     let banker_map = u16::try_from(banker_map)
         .map_err(|_| anyhow!("banker map id does not fit protocol: {banker_map}"))?;
-    let guid_counter = runtime_counter.ok_or_else(|| {
-        anyhow!(
-            "banker entry {entry} resolved world.creature guid {spawn_guid}, but needs the live ObjectGuid low counter"
-        )
-    })?;
-    let (low, high) = create_creature_guid_raw(banker_map, entry, guid_counter);
+    // Without an explicit counter the phase discovers the live ObjectGuid
+    // after its active-mover ACK (counter 0 = discover, as for vendors).
+    let guid_counter = runtime_counter.unwrap_or(0);
+    let packed_guid = runtime_counter
+        .map(|counter| {
+            let (low, high) = create_creature_guid_raw(banker_map, entry, counter);
+            build_packed_guid(low, high)
+        })
+        .unwrap_or_default();
     let banker = ResolvedCreatureTarget {
         entry,
         spawn_guid,
@@ -627,7 +638,12 @@ pub(crate) fn prepare_bank_smoke_fixture(
         y: banker_y,
         z: banker_z,
         orientation: banker_orientation,
-        packed_guid: build_packed_guid(low, high),
+        packed_guid,
+    };
+    let target_match_radius = if runtime_counter.is_none() {
+        discovery_match_radius_for_spawn(&mut world, "banker", &banker, banker_wander_distance)?
+    } else {
+        banker_wander_distance.max(0.0) + 2.0
     };
 
     let mut transaction = characters
@@ -681,6 +697,7 @@ pub(crate) fn prepare_bank_smoke_fixture(
         options: BankSmokeOptions {
             phase: BankSmokePhase::Deposit,
             banker,
+            target_match_radius,
             item_guid,
             item_entry,
             inventory_slot,

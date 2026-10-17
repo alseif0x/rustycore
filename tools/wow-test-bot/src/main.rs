@@ -247,11 +247,6 @@ async fn main() -> Result<()> {
     if cli.bank_smoke && cli.bank_timeout_secs == 0 {
         bail!("--bank-timeout must be greater than zero");
     }
-    if cli.bank_smoke && cli.bank_runtime_counter.is_none() {
-        bail!(
-            "--bank-smoke requires --bank-runtime-counter or WOW_BOT_BANK_RUNTIME_COUNTER for the live banker ObjectGuid"
-        );
-    }
     if (cli.void_storage_smoke || cli.void_storage_query_capture) && bots.len() != 1 {
         bail!("void-storage modes require exactly one bot; select it with --single");
     }

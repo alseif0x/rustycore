@@ -8,12 +8,14 @@
 //! nearby creature CREATE blocks, however long it waits.
 
 use super::{
-    build_move_init_active_mover_complete_payload, build_time_sync_response_payload,
+    build_move_init_active_mover_complete_payload, build_packed_guid,
+    build_time_sync_response_payload, find_creature_guid_near_position_in_update_object,
     parse_time_sync_request_sequence, read_encrypted_packet_if_ready, send_encrypted_packet,
-    BotRunResult, ServerPacketInflater, WorldCrypt, CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE,
-    CMSG_TIME_SYNC_RESPONSE, SMSG_TIME_SYNC_REQUEST, SMSG_UPDATE_OBJECT,
+    BotRunResult, ResolvedCreatureTarget, ServerPacketInflater, WorldCrypt,
+    CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE, CMSG_TIME_SYNC_RESPONSE, OBJECT_GUID_COUNTER_MASK,
+    SMSG_TIME_SYNC_REQUEST, SMSG_UPDATE_OBJECT,
 };
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use std::time::Duration;
 use tokio::net::TcpStream;
 
@@ -68,6 +70,98 @@ where
             }
         }
     }
+}
+
+/// Window for a SQL-resolved target whose live counter is unknown.
+pub(crate) const RESOLVED_TARGET_DISCOVERY_WINDOW: Duration = Duration::from_secs(10);
+
+/// Link a SQL spawn (`guid_counter == 0`) to its live ObjectGuid: the CREATE
+/// must carry the same map/entry and lie within `match_radius` of the SQL
+/// position. A target with an explicit counter is left untouched.
+pub(crate) async fn discover_resolved_creature_target(
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    inflater: &mut ServerPacketInflater,
+    target: &mut ResolvedCreatureTarget,
+    match_radius: f32,
+    context: &str,
+    result: &mut BotRunResult,
+) -> Result<()> {
+    if target.guid_counter != 0 {
+        return Ok(());
+    }
+    let (map_id, entry) = (target.map_id, target.entry);
+    let (x, y, z) = (target.x as f32, target.y as f32, target.z as f32);
+    let found = discover_creature_after_active_mover_ack(
+        stream,
+        crypt,
+        inflater,
+        RESOLVED_TARGET_DISCOVERY_WINDOW,
+        context,
+        result,
+        |payload| {
+            find_creature_guid_near_position_in_update_object(
+                payload,
+                map_id,
+                entry,
+                x,
+                y,
+                z,
+                match_radius,
+                None,
+            )
+            .map(|found| (found.low, found.high))
+        },
+    )
+    .await?;
+    let (low, high) = found.ok_or_else(|| {
+        anyhow!(
+            "{context}: entry {entry} spawn {} was not discovered near its SQL position after CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE",
+            target.spawn_guid
+        )
+    })?;
+    target.guid_counter = low & OBJECT_GUID_COUNTER_MASK;
+    target.packed_guid = build_packed_guid(low, high);
+    Ok(())
+}
+
+/// Match radius for a SQL spawn whose live counter will be discovered, with
+/// the vendor/rested-XP fixture guard: position matching is only sound when
+/// no other same-entry spawn's movement radius overlaps this one.
+pub(crate) fn discovery_match_radius_for_spawn(
+    world: &mut mysql::Conn,
+    label: &str,
+    target: &ResolvedCreatureTarget,
+    wander_distance: f32,
+) -> Result<f32> {
+    use mysql::prelude::Queryable;
+
+    let radius = wander_distance.max(0.0) + 2.0;
+    let overlapping: Option<u64> = world
+        .exec_first(
+            "SELECT guid FROM creature \
+             WHERE id = ? AND map = ? AND guid <> ? \
+               AND SQRT(POW(position_x - ?, 2) + POW(position_y - ?, 2) + POW(position_z - ?, 2)) \
+                   <= ? + GREATEST(wander_distance, 0) \
+             ORDER BY guid LIMIT 1",
+            (
+                target.entry,
+                u32::from(target.map_id),
+                target.spawn_guid,
+                target.x,
+                target.y,
+                target.z,
+                radius,
+            ),
+        )
+        .map_err(|error| anyhow!("Check {label} spawn ambiguity: {error}"))?;
+    if let Some(overlapping) = overlapping {
+        return Err(anyhow!(
+            "{label} SQL spawn {} overlaps same-entry spawn {overlapping}; supply a trusted live runtime counter or choose an isolated spawn",
+            target.spawn_guid
+        ));
+    }
+    Ok(radius)
 }
 
 #[cfg(test)]

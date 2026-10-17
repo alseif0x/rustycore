@@ -331,6 +331,9 @@ pub(crate) async fn run_bot_with_void_storage(
         quest_objective_db_before: Vec::new(),
         quest_objective_db_after: Vec::new(),
         quest_objective_db_verified: false,
+        quest_character_before: None,
+        quest_character_restored: None,
+        quest_restore_failure: None,
         quest_objective_update_seen: false,
         quest_objective_update_has_expected: false,
         quest_ids_seen: Vec::new(),
@@ -454,7 +457,7 @@ pub(crate) async fn run_bot_with_void_storage(
         if quest_smoke_needs_prelogin_db_setup(quest_options) {
             let bot_for_db = bot.clone();
             let options_for_db = quest_options.clone();
-            tokio::task::spawn_blocking(move || {
+            result.quest_character_before = tokio::task::spawn_blocking(move || {
                 prepare_quest_smoke_before_login(&bot_for_db, &options_for_db)
             })
             .await
@@ -1103,6 +1106,19 @@ pub(crate) async fn run_bot_with_void_storage(
             } else {
                 result.quest_smoke_passed = Some(quest_smoke_passes(&quest_options, &mut result));
             }
+        }
+        if let Some(snapshot) = result.quest_character_before {
+            restore_quest_character_after_run(
+                bot_index,
+                &bot,
+                &mut stream,
+                &mut crypt,
+                &mut server_inflater,
+                &quest_options,
+                snapshot,
+                &mut result,
+            )
+            .await;
         }
         return Ok(result);
     }

@@ -458,6 +458,10 @@ pub(crate) struct BotRunResult {
     pub(crate) quest_objective_db_before: Vec<QuestObjectiveDbRow>,
     pub(crate) quest_objective_db_after: Vec<QuestObjectiveDbRow>,
     pub(crate) quest_objective_db_verified: bool,
+    /// Character columns before the quest smoke's own pre-login writes.
+    pub(crate) quest_character_before: Option<QuestCharacterSnapshot>,
+    pub(crate) quest_character_restored: Option<bool>,
+    pub(crate) quest_restore_failure: Option<String>,
     pub(crate) quest_objective_update_seen: bool,
     pub(crate) quest_objective_update_has_expected: bool,
     pub(crate) quest_ids_seen: Vec<u32>,
@@ -752,6 +756,8 @@ pub(crate) struct VoidStorageDbState {
 pub(crate) struct BankSmokeOptions {
     pub(crate) phase: BankSmokePhase,
     pub(crate) banker: ResolvedCreatureTarget,
+    /// Position match radius used when `banker.guid_counter` is 0 (discover).
+    pub(crate) target_match_radius: f32,
     pub(crate) item_guid: u64,
     pub(crate) item_entry: u32,
     pub(crate) inventory_slot: u8,

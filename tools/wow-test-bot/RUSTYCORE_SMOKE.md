@@ -271,12 +271,14 @@ migration gate until the server-side LFG port is explicitly ready.
 
 ## Personal bank persistence smoke
 
-Use the live low counter announced for the selected neutral banker; it is not
-the persistent `world.creature.guid` spawn id:
+After each login the bot sends `CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE` and
+discovers the selected neutral banker's live ObjectGuid (not the persistent
+`world.creature.guid` spawn id) in `SMSG_UPDATE_OBJECT` near its SQL position.
+Setup refuses a banker whose movement radius overlaps another same-entry spawn.
+`WOW_BOT_BANK_RUNTIME_COUNTER=<live-banker-counter>` remains an optional override:
 
 ```bash
 WOW_BOT_BANK_SMOKE=1 \
-WOW_BOT_BANK_RUNTIME_COUNTER=<live-banker-counter> \
 ./run_rustycore_login_smoke.sh
 ```
 
@@ -627,6 +629,14 @@ WOW_BOT_PASSWORD='local-password' \
 ./run_rustycore_login_smoke.sh
 ```
 
+When relocation or a race/class/level override is used, the bot snapshots those
+`characters` columns (and whether the expected quest's status row existed)
+before writing them, reports the snapshot as `quest_character_before`, and after
+logout restores them (`quest_character_restored`, `quest_restore_failure`). A
+quest status row the run created is removed only if none existed before. State
+the server derives during the mutated session (spells/skills learned for the
+temporary race/class) is not reverted, so use a disposable bot character.
+
 For objective load/save QA, seed an active quest with objective counters, then
 force a real logout and compare `character_queststatus_objectives` after the
 server save:
@@ -646,7 +656,7 @@ Useful quest overrides:
 
 - `WOW_BOT_QUEST_CREATURE_ENTRY`: required creature template entry.
 - `WOW_BOT_QUEST_CREATURE_GUID`: optional exact `world.creature.guid` spawn.
-- `WOW_BOT_QUEST_GUID_COUNTER`: optional live `ObjectGuid` low counter. C++ `Creature::LoadFromDB` uses a map-generated lowguid for the live creature and keeps the DB spawn guid separately.
+- `WOW_BOT_QUEST_RUNTIME_COUNTER`: optional live `ObjectGuid` low counter. C++ `Creature::LoadFromDB` uses a map-generated lowguid for the live creature and keeps the DB spawn guid separately. Without it the bot sends `CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE` after login and discovers the questgiver's live ObjectGuid near its SQL position (refusing a spawn whose movement radius overlaps another same-entry spawn).
 - `WOW_BOT_QUEST_MAP_ID`: optional map override used for GUID construction.
 - `WOW_BOT_QUEST_EXPECT_ID`: require this quest id in list/details.
 - `WOW_BOT_QUEST_FORBID_ID`: fail if this quest id is offered.

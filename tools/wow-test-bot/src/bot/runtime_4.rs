@@ -244,16 +244,23 @@ pub(crate) async fn run_bank_smoke_phase(
         result.bank_relogin_after_deposit = true;
     }
 
-    send_encrypted_packet(
+    let mut banker = options.banker.clone();
+    discover_resolved_creature_target(
         stream,
         crypt,
-        CMSG_BANKER_ACTIVATE,
-        &options.banker.packed_guid,
+        server_inflater,
+        &mut banker,
+        options.target_match_radius,
+        "bank banker discovery",
+        result,
     )
     .await?;
+    result.bank_banker_guid_counter = Some(banker.guid_counter);
+
+    send_encrypted_packet(stream, crypt, CMSG_BANKER_ACTIVATE, &banker.packed_guid).await?;
     info!(
-        "[Bot {}] ✅ CMSG_BANKER_ACTIVATE sent to entry={} spawn={}",
-        bot_index, options.banker.entry, options.banker.spawn_guid
+        "[Bot {}] ✅ CMSG_BANKER_ACTIVATE sent to entry={} spawn={} counter={}",
+        bot_index, banker.entry, banker.spawn_guid, banker.guid_counter
     );
 
     wait_for_bank_open(

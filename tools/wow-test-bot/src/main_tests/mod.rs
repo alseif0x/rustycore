@@ -166,7 +166,7 @@ fn bind_spell_go_fixture(
     payload.push(0);
     payload
 }
-fn rested_xp_create_object_fixture(
+pub(crate) fn rested_xp_create_object_fixture(
     map_id: u16,
     entry: u32,
     counter: u64,
