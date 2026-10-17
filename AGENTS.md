@@ -119,7 +119,8 @@ routine units; one bounded worker at a time implements. The skill owns the exact
 | Runtime | Route file | Client defaults |
 |---|---|---|
 | Claude Code / `ocx claude` (default) | `routes/claude.md` (Opus parent, Opus `rustycore-worker`) | `.claude/settings.json`, `.claude/agents/` |
-| DSH Web `go-mix` / OpenCode Go (only if the user chooses it) | `routes/go-mix.md` | DSH profile preset; `opencode.json` |
+| OpenCode Go | `routes/go-mix.md` (DeepSeek orchestrator, Luna builder) | `opencode.json`, `.opencode/` |
+| DSH Web `go-mix` (only if the user chooses it) | `routes/go-mix.md` | preset `go-mix` in `~/.dsh` |
 | Codex | `routes/codex.md` (Sol parent, Luna worker) | `.codex/config.toml`, `.codex/agents/` |
 
 A session applies only its own runtime's route. Client defaults do not override runtime
