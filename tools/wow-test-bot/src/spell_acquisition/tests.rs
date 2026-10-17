@@ -63,3 +63,16 @@ fn typed_plan_accepts_each_action_and_rejects_unknown_action_fields() {
     )
     .is_err());
 }
+
+#[test]
+fn trainer_buy_failed_decodes_cpp_layout() {
+    let mut payload = build_packed_guid(55, 0x2000_0000_0000_0001);
+    payload.extend(1494i32.to_le_bytes());
+    payload.extend(1i32.to_le_bytes());
+    assert_eq!(trainer_buy_failed(&payload).unwrap(), (1494, 1));
+    payload.push(0);
+    assert!(
+        trainer_buy_failed(&payload).is_err(),
+        "trailing bytes are rejected"
+    );
+}

@@ -223,3 +223,58 @@ async fn login_drain_restarts_quiet_period_for_traffic_on_either_socket() {
     assert_eq!(result.seen_opcodes, vec!["0x304E"; 3]);
     assert!(result.login_stream_drained);
 }
+
+/// A populated spawn area: creature splines keep arriving faster than the
+/// quiet period. They are recorded, but only significant traffic restarts it.
+#[tokio::test]
+async fn login_drain_settles_under_continuous_monster_movement() {
+    let (mut instance, mut instance_server) = socket_pair().await;
+    let (realm, _realm_server) = socket_pair().await;
+    let mut connection = Some(encrypted_connection(realm));
+    let mut result = BotRunResult::default();
+    observe_login_packet(true, SMSG_UPDATE_OBJECT, &mut result);
+    let mut crypt = WorldCrypt::new(&[0; 16]);
+    let mut inflater = ServerPacketInflater::default();
+    let mut server_crypt = WorldCrypt::new(&[0; 16]);
+    let started = tokio::time::Instant::now();
+    let noise = async {
+        for _ in 0..40 {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            publish(
+                &mut instance_server,
+                &mut server_crypt,
+                SMSG_ON_MONSTER_MOVE,
+            )
+            .await;
+        }
+    };
+    let drain = tokio::time::timeout(
+        Duration::from_secs(5),
+        drain_login_streams(
+            &mut instance,
+            &mut crypt,
+            &mut inflater,
+            &mut connection,
+            &mut result,
+        ),
+    );
+    let drained = tokio::select! {
+        drained = drain => drained,
+        _ = noise => panic!("the noise outlasted the drain"),
+    };
+    drained.unwrap().unwrap();
+    assert!(started.elapsed() >= Duration::from_secs(1));
+    assert!(result.login_stream_drained);
+    assert!(!result.seen_opcodes.is_empty());
+    assert!(result
+        .seen_opcodes
+        .iter()
+        .all(|opcode| opcode == &format!("0x{SMSG_ON_MONSTER_MOVE:04X}")));
+}
+
+#[test]
+fn only_monster_movement_is_quiet_period_noise() {
+    assert!(login_drain_ignores_for_quiet(SMSG_ON_MONSTER_MOVE));
+    assert!(!login_drain_ignores_for_quiet(SMSG_UPDATE_OBJECT));
+    assert!(!login_drain_ignores_for_quiet(SMSG_TIME_SYNC_REQUEST));
+}
