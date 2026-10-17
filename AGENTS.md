@@ -120,6 +120,11 @@ DeepSeek v4.1 flash on the native DeepSeek API as the worker that implements
 `.claude/agents/rustycore-worker.md` when the DeepSeek API fails. Agent definitions do
 not override runtime permissions.
 
+Per-runtime routing (roles are the same everywhere; each client reads only its own defaults):
+Claude Code / `ocx claude` → the Opus configuration above (`.claude/`), nothing else;
+DSH Web `go-mix` and OpenCode / OpenCode Go → the go-mix routes below (`opencode.json` for
+OpenCode, the DSH profile preset for DSH); native Codex → Sol/Luna (`.codex/`, local) if chosen.
+
 **Opción DSH / go-mix, usar solo si el usuario la elige.** Si la sesión es DSH Web con el
 preset `go-mix` o una sesión OpenCode / OpenCode Go, aplica estas rutas/roles/handoffs en lugar del default Opus de arriba; en Claude Code / `ocx claude` solo
 aplica el default Opus de arriba y nada de este párrafo. In those sessions coordination uses OpenCode Go DeepSeek V4.1

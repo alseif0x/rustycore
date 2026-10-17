@@ -62,6 +62,16 @@ Record the model that actually ran.
 
 ## Opción DSH / go-mix, usar solo si el usuario la elige
 
+**Enrutado por runtime.** Los roles (parent decide/revisa/integra y no implementa; un
+worker acotado implementa) son los mismos en todos los runtimes; solo cambian los modelos:
+
+| Runtime | Rutas que aplica | Defaults de cliente |
+|---|---|---|
+| Claude Code / `ocx claude` | Solo **Models** de arriba (Opus parent + sus subagentes); nada de DSH/GPT/Luna | `.claude/settings.json`, `.claude/agents/` (sin cambios) |
+| DSH Web `go-mix` | Esta sección (coordinador Go DeepSeek, Luna `max`, handoffs) | preset `go-mix` del perfil DSH (fuera del repo) |
+| OpenCode / OpenCode Go | Esta sección | `opencode.json` (raíz del repo) |
+| Codex nativo (si el usuario lo elige) | Párrafo "Native Codex entry point" | `.codex/config.toml` local, ignorado |
+
 **Condición de selección (léela primero).**
 - **Si la sesión es DSH Web con el preset `go-mix`** (persona "Go Mix subscription
   harness") **o una sesión OpenCode / OpenCode Go** (coordinador
