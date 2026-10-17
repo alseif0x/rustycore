@@ -80,6 +80,60 @@ async fn discovery_sends_active_mover_ack_and_outlasts_a_quiet_gap() {
     assert_eq!(result.seen_opcodes, ["0x27CB"]);
 }
 
+/// A time-sync request during discovery is answered with the same sequence
+/// before the CREATE is matched; the session must stay healthy meanwhile.
+#[tokio::test]
+async fn discovery_answers_time_sync_request_with_time_sync_response() {
+    let (mut client, mut server) = socket_pair().await;
+    let (low, high) = create_creature_guid_raw(0, 12_196, 143);
+    let server_task = tokio::spawn(async move {
+        let mut crypt = WorldCrypt::new(&[0; 16]);
+        let ack = read_client_opcode(&mut server, &mut crypt).await;
+        publish(
+            &mut server,
+            &mut crypt,
+            SMSG_TIME_SYNC_REQUEST,
+            &7u32.to_le_bytes(),
+        )
+        .await;
+        let mut header = [0u8; 16];
+        server.read_exact(&mut header).await.unwrap();
+        let size = u32::from_le_bytes(header[0..4].try_into().unwrap()) as usize;
+        let tag: [u8; 12] = header[4..16].try_into().unwrap();
+        let mut ciphertext = vec![0u8; size];
+        server.read_exact(&mut ciphertext).await.unwrap();
+        let reply = crypt.decrypt_client(&ciphertext, &tag, &[]).unwrap();
+        publish(
+            &mut server,
+            &mut crypt,
+            SMSG_UPDATE_OBJECT,
+            &innkeeper_create(low, high),
+        )
+        .await;
+        (ack, reply, server)
+    });
+    let mut result = BotRunResult::default();
+    let found = discover_creature_after_active_mover_ack(
+        &mut client,
+        &mut WorldCrypt::new(&[0; 16]),
+        &mut ServerPacketInflater::default(),
+        Duration::from_secs(5),
+        "test discovery",
+        &mut result,
+        |payload| find_creature_guid_in_update_object(payload, 0, 12_196),
+    )
+    .await
+    .unwrap();
+    let (ack, reply, _server) = server_task.await.unwrap();
+    assert_eq!(ack, CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE);
+    assert_eq!(
+        u16::from_le_bytes([reply[0], reply[1]]),
+        CMSG_TIME_SYNC_RESPONSE
+    );
+    assert_eq!(&reply[2..6], &7u32.to_le_bytes());
+    assert_eq!(found, Some((low, high)));
+}
+
 #[tokio::test]
 async fn discovery_ignores_other_creatures_and_reports_absence_at_the_window() {
     let (mut client, mut server) = socket_pair().await;

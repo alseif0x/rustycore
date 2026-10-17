@@ -594,89 +594,106 @@ pub(crate) fn prepare_quest_smoke_before_login(
         })
         .transpose()?;
 
-    if quest_options.reset_before_run {
-        let quest_id = quest_options
-            .expected_quest_id
-            .ok_or_else(|| anyhow!("Quest reset requested without expected quest id"))?;
-        reset_bot_quest_state(&mut conn, bot.character_guid, quest_id)?;
-        info!(
-            "Quest smoke reset character {} quest {}",
-            bot.character_guid, quest_id
-        );
-    }
+    let mut apply_setup = || -> Result<()> {
+        if quest_options.reset_before_run {
+            let quest_id = quest_options
+                .expected_quest_id
+                .ok_or_else(|| anyhow!("Quest reset requested without expected quest id"))?;
+            reset_bot_quest_state(&mut conn, bot.character_guid, quest_id)?;
+            info!(
+                "Quest smoke reset character {} quest {}",
+                bot.character_guid, quest_id
+            );
+        }
 
-    if quest_options.relocate_before_login {
-        let offset_x = 2.0_f64;
-        conn.exec_drop(
-            "UPDATE characters \
+        if quest_options.relocate_before_login {
+            let offset_x = 2.0_f64;
+            conn.exec_drop(
+                "UPDATE characters \
              SET map = ?, position_x = ?, position_y = ?, position_z = ?, orientation = ? \
              WHERE guid = ?",
-            (
-                u32::from(target.map_id),
+                (
+                    u32::from(target.map_id),
+                    target.x + offset_x,
+                    target.y,
+                    target.z,
+                    target.orientation,
+                    bot.character_guid,
+                ),
+            )
+            .map_err(|e| {
+                anyhow!(
+                    "Relocate character {} near quest target: {}",
+                    bot.character_guid,
+                    e
+                )
+            })?;
+            info!(
+                "Quest smoke relocated character {} near creature {} ({}, {}, {})",
+                bot.character_guid,
+                target.spawn_guid,
                 target.x + offset_x,
                 target.y,
-                target.z,
-                target.orientation,
+                target.z
+            );
+        }
+
+        if let Some(level) = quest_options.set_level_before_login {
+            set_bot_character_level(&mut conn, bot.character_guid, level)?;
+            info!(
+                "Quest smoke set character {} level to {}",
+                bot.character_guid, level
+            );
+        }
+
+        if quest_options.set_race_before_login.is_some()
+            || quest_options.set_class_before_login.is_some()
+        {
+            set_bot_character_race_class(
+                &mut conn,
                 bot.character_guid,
-            ),
-        )
-        .map_err(|e| {
-            anyhow!(
-                "Relocate character {} near quest target: {}",
+                quest_options.set_race_before_login,
+                quest_options.set_class_before_login,
+            )?;
+            info!(
+                "Quest smoke set character {} race={:?} class={:?}",
                 bot.character_guid,
-                e
-            )
-        })?;
-        info!(
-            "Quest smoke relocated character {} near creature {} ({}, {}, {})",
-            bot.character_guid,
-            target.spawn_guid,
-            target.x + offset_x,
-            target.y,
-            target.z
-        );
-    }
+                quest_options.set_race_before_login,
+                quest_options.set_class_before_login
+            );
+        }
 
-    if let Some(level) = quest_options.set_level_before_login {
-        set_bot_character_level(&mut conn, bot.character_guid, level)?;
-        info!(
-            "Quest smoke set character {} level to {}",
-            bot.character_guid, level
-        );
-    }
+        if quest_options.objective_persist {
+            let quest_id = quest_options
+                .expected_quest_id
+                .ok_or_else(|| anyhow!("Quest objective persistence requested without quest id"))?;
+            seed_bot_quest_objective_state(
+                &mut conn,
+                bot.character_guid,
+                quest_id,
+                quest_options.objective_status,
+                &quest_options.objective_seed,
+            )?;
+            info!(
+                "Quest smoke seeded character {} quest {} objectives {:?}",
+                bot.character_guid, quest_id, quest_options.objective_seed
+            );
+        }
 
-    if quest_options.set_race_before_login.is_some()
-        || quest_options.set_class_before_login.is_some()
-    {
-        set_bot_character_race_class(
-            &mut conn,
-            bot.character_guid,
-            quest_options.set_race_before_login,
-            quest_options.set_class_before_login,
-        )?;
-        info!(
-            "Quest smoke set character {} race={:?} class={:?}",
-            bot.character_guid,
-            quest_options.set_race_before_login,
-            quest_options.set_class_before_login
-        );
-    }
-
-    if quest_options.objective_persist {
-        let quest_id = quest_options
-            .expected_quest_id
-            .ok_or_else(|| anyhow!("Quest objective persistence requested without quest id"))?;
-        seed_bot_quest_objective_state(
-            &mut conn,
-            bot.character_guid,
-            quest_id,
-            quest_options.objective_status,
-            &quest_options.objective_seed,
-        )?;
-        info!(
-            "Quest smoke seeded character {} quest {} objectives {:?}",
-            bot.character_guid, quest_id, quest_options.objective_seed
-        );
+        Ok(())
+    };
+    if let Err(error) = apply_setup() {
+        // A partial setup must not outlive the failed run.
+        if let Some(snapshot) = &snapshot {
+            if let Err(restore_error) =
+                restore_quest_character(bot, snapshot, quest_options.expected_quest_id)
+            {
+                return Err(error.context(format!(
+                    "quest character restore after the failed setup also failed: {restore_error:#}"
+                )));
+            }
+        }
+        return Err(error);
     }
 
     Ok(snapshot)

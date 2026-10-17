@@ -491,7 +491,12 @@ pub(crate) async fn run_homebind_smoke_phase(
             stream,
             crypt,
             server_inflater,
-            Duration::from_secs(5),
+            // An explicit counter matches nothing: send the ACK, skip the wait.
+            if explicit_components.is_some() {
+                Duration::ZERO
+            } else {
+                Duration::from_secs(5)
+            },
             "homebind innkeeper discovery",
             result,
             |payload| {
@@ -710,7 +715,7 @@ pub(crate) async fn run_homebind_smoke_phase(
 
     // C++ Opcodes.cpp routes SMSG_LOGOUT_COMPLETE on CONNECTION_TYPE_REALM;
     // an instance-only wait never sees it from a C++-routed server.
-    let logout_complete_seen = loot_race::logout_and_wait_routed_like_cpp(
+    let logout_route = loot_race::logout_and_wait_route_like_cpp(
         bot_index,
         stream,
         crypt,
@@ -720,8 +725,10 @@ pub(crate) async fn run_homebind_smoke_phase(
         result,
     )
     .await?;
-    if !logout_complete_seen {
-        bail!("SMSG_LOGOUT_COMPLETE was not observed on either connection");
+    if logout_route != Some(loot_race::LogoutCompletionRoute::Realm) {
+        bail!(
+            "SMSG_LOGOUT_COMPLETE was not observed on the C++ realm route (observed: {logout_route:?})"
+        );
     }
     result.homebind_smoke_passed = Some(true);
     Ok(())

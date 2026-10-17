@@ -21,7 +21,7 @@ pub(super) fn log_bot_summary(
         }
         if result.quest_smoke {
             info!(
-                "✅ Bot {}: SUCCESS quest_smoke target={:?}/{:?} ids={:?} details={} request_items={} accept_sent={} db_verified={} db_status={:?} obj_verified={} obj_before={:?} obj_after={:?} failure={:?}",
+                "✅ Bot {}: SUCCESS quest_smoke target={:?}/{:?} ids={:?} details={} request_items={} accept_sent={} db_verified={} db_status={:?} obj_verified={} obj_before={:?} obj_after={:?} restored={:?} restore_failure={:?} failure={:?}",
                 result.account,
                 result.quest_target_entry,
                 result.quest_target_spawn_guid,
@@ -34,6 +34,8 @@ pub(super) fn log_bot_summary(
                 result.quest_objective_db_verified,
                 result.quest_objective_db_before,
                 result.quest_objective_db_after,
+                result.quest_character_restored,
+                result.quest_restore_failure,
                 result.quest_failure
             );
             return;
@@ -295,7 +297,7 @@ pub(super) fn log_bot_summary(
         }
         if result.quest_smoke {
             error!(
-                "❌ Bot {}: FAILED quest_smoke target={:?}/{:?} ids={:?} details={} request_items={} accept_sent={} db_verified={} db_status={:?} obj_verified={} obj_before={:?} obj_after={:?} failure={:?}",
+                "❌ Bot {}: FAILED quest_smoke target={:?}/{:?} ids={:?} details={} request_items={} accept_sent={} db_verified={} db_status={:?} obj_verified={} obj_before={:?} obj_after={:?} restored={:?} restore_failure={:?} failure={:?}",
                 result.account,
                 result.quest_target_entry,
                 result.quest_target_spawn_guid,
@@ -308,6 +310,8 @@ pub(super) fn log_bot_summary(
                 result.quest_objective_db_verified,
                 result.quest_objective_db_before,
                 result.quest_objective_db_after,
+                result.quest_character_restored,
+                result.quest_restore_failure,
                 result.quest_failure
             );
             return;

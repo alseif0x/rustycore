@@ -650,7 +650,7 @@ async fn main() -> Result<()> {
                         log_bot_summary(&result, require_proposal, require_group, cli.login_only);
                         results.push(result);
                     } else {
-                        error!("❌ Bot run ERROR: {}", error);
+                        error!("❌ Bot run ERROR: {:#}", error);
                     }
                 }
             }
@@ -697,7 +697,7 @@ async fn main() -> Result<()> {
                     log_bot_summary(&result, require_proposal, require_group, cli.login_only);
                     results.push(result);
                 }
-                Ok((account, Err(e))) => error!("❌ Bot {} ERROR: {}", account, e),
+                Ok((account, Err(e))) => error!("❌ Bot {} ERROR: {:#}", account, e),
                 Err(e) => error!("❌ Bot task join error: {}", e),
             }
         }

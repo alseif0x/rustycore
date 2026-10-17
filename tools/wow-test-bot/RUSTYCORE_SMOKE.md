@@ -636,6 +636,11 @@ logout restores them (`quest_character_restored`, `quest_restore_failure`). A
 quest status row the run created is removed only if none existed before. State
 the server derives during the mutated session (spells/skills learned for the
 temporary race/class) is not reverted, so use a disposable bot character.
+The restore runs on every exit after the setup, including a failed setup and
+early errors (world auth, character enumeration, login verification): those
+paths drop the world connection, wait for the disconnect save, restore, and
+return the original error. `quest_character_restored=false` fails the run (exit
+status non-zero) and the wrapper prints the restore fields for quest mode.
 
 For objective load/save QA, seed an active quest with objective counters, then
 force a real logout and compare `character_queststatus_objectives` after the

@@ -552,6 +552,9 @@ if command -v jq >/dev/null 2>&1; then
   if ((vendor_sell_requested)); then
     jq '{vendor_sell_smoke, results: [.results[] | {account, world_auth, enum_characters, player_login_verified, vendor_sell_smoke, vendor_sell_smoke_passed, vendor_sell_entry, vendor_sell_spawn_guid, vendor_sell_runtime_counter, vendor_sell_item_entry, vendor_sell_item_guid, vendor_sell_money_before, vendor_sell_money_after, vendor_sell_money_delta, vendor_sell_expected_money_delta, vendor_sell_item_sent, vendor_sell_response_seen, vendor_sell_response_reason, vendor_sell_db_persisted, vendor_sell_relogin_verified, vendor_sell_failure}]}' "$report_path"
   fi
+  if ((quest_requested)); then
+    jq '{quest_smoke, results: [.results[] | {account, quest_smoke_passed, quest_character_before, quest_character_restored, quest_restore_failure}]}' "$report_path"
+  fi
   if ((movement_requested)); then
     jq '{movement_smoke, results: [.results[] | {account, world_auth, enum_characters, player_login_verified, movement_smoke, movement_smoke_passed, movement_login_position, movement_final_position, movement_opcodes_sent, movement_db_position, movement_db_persisted, movement_relogin_position, movement_relogin_verified, movement_failure}]}' "$report_path"
   fi

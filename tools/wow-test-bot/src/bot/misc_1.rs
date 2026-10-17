@@ -486,7 +486,9 @@ impl BotRunResult {
             return self.world_auth
                 && self.enum_characters
                 && self.player_login_verified
-                && self.quest_smoke_passed.unwrap_or(false);
+                && self.quest_smoke_passed.unwrap_or(false)
+                // A mutated bot that was not put back fails the run loudly.
+                && self.quest_character_restored != Some(false);
         }
         if self.bank_smoke {
             return self.world_auth

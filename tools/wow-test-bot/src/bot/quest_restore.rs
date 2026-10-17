@@ -178,19 +178,82 @@ pub(crate) async fn restore_quest_character_after_run(
             );
         }
     }
-    let bot_for_db = bot.clone();
-    let quest_id = quest_options.expected_quest_id;
-    let restored = tokio::task::spawn_blocking(move || {
-        restore_quest_character(&bot_for_db, &snapshot, quest_id)
-    })
-    .await
-    .map_err(|e| anyhow!("Quest restore DB worker join failed: {e}"))
-    .and_then(|restored| restored);
+    let restored =
+        restore_quest_character_blocking(bot.clone(), snapshot, quest_options.expected_quest_id)
+            .await;
+    record_quest_restore(bot_index, result, restored);
+}
+
+/// `restore_quest_character` on the blocking pool.
+pub(crate) async fn restore_quest_character_blocking(
+    bot: config::BotConfig,
+    snapshot: QuestCharacterSnapshot,
+    quest_id: Option<u32>,
+) -> Result<()> {
+    tokio::task::spawn_blocking(move || restore_quest_character(&bot, &snapshot, quest_id))
+        .await
+        .map_err(|e| anyhow!("Quest restore DB worker join failed: {e}"))?
+}
+
+fn record_quest_restore(bot_index: usize, result: &mut BotRunResult, restored: Result<()>) {
     match restored {
         Ok(()) => result.quest_character_restored = Some(true),
         Err(error) => {
+            error!("[Bot {bot_index}] ❌ quest character restore FAILED: {error:#}");
             result.quest_character_restored = Some(false);
-            result.quest_restore_failure = Some(error.to_string());
+            result.quest_restore_failure = Some(format!("{error:#}"));
         }
     }
 }
+
+/// Guard for everything that runs after `prepare_quest_smoke_before_login`.
+///
+/// The in-band restore at the end of the quest branch logs out first; any
+/// other exit (an early `?`/`bail!` in world auth, character enumeration or
+/// login verification, or a branch that returns before the quest phase)
+/// reaches here with the snapshot still unrestored. The world connection was
+/// dropped with the run future, so `restore` waits for the disconnect save
+/// before writing. An error outcome is returned as the original error; a
+/// failed restore is added as context, never in place of it.
+pub(crate) async fn finish_quest_run_with_restore<F, Fut>(
+    bot_index: usize,
+    outcome: Result<BotRunResult>,
+    snapshot: Option<QuestCharacterSnapshot>,
+    restore: F,
+) -> Result<BotRunResult>
+where
+    F: FnOnce(QuestCharacterSnapshot) -> Fut,
+    Fut: std::future::Future<Output = Result<()>>,
+{
+    let Some(snapshot) = snapshot else {
+        return outcome;
+    };
+    match outcome {
+        Ok(result) if result.quest_character_restored.is_some() => Ok(result),
+        Ok(mut result) => {
+            warn!(
+                "[Bot {bot_index}] run ended before the quest restore; restoring after disconnect"
+            );
+            let restored = restore(snapshot).await;
+            record_quest_restore(bot_index, &mut result, restored);
+            Ok(result)
+        }
+        Err(error) => match restore(snapshot).await {
+            Ok(()) => {
+                warn!("[Bot {bot_index}] quest character restored after run error: {error:#}");
+                Err(error)
+            }
+            Err(restore_error) => {
+                error!(
+                    "[Bot {bot_index}] ❌ quest character restore FAILED after run error ({error:#}): {restore_error:#}"
+                );
+                Err(error.context(format!(
+                    "quest character restore also failed, character left mutated: {restore_error:#}"
+                )))
+            }
+        },
+    }
+}
+
+#[cfg(test)]
+mod tests;
