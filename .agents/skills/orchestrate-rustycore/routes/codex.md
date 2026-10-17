@@ -3,7 +3,7 @@
 Applies only to a native Codex session. Defaults: `.codex/config.toml` and
 `.codex/agents/luna-worker.toml`.
 
-- **Parent: GPT-6.1 Sol** (`gpt-6.1-sol`) at `high`. It owns architecture,
+- **Parent: GPT-6.1 Sol** (`gpt-6.1-sol`) at `medium` (forever's default; raise only when the effective session confirms it). It owns architecture,
   decomposition, contracts, coordination, review, Git, integration and final acceptance;
   it does not implement routine units.
 - **Worker: `luna_worker`**, GPT-6 Luna (`gpt-6-luna`) at `max`, for a bounded

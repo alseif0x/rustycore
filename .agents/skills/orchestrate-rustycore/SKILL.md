@@ -1,6 +1,6 @@
 ---
 name: orchestrate-rustycore
-description: "Route RustyCore development work between one parent integrator and bounded workers, per runtime (Claude Code: Opus; DSH Web / OpenCode Go: go-mix; Codex: Sol/Luna). Use for implementation coordination or adapting this workflow, not ordinary factual answers."
+description: "Route RustyCore development work between one parent integrator and bounded workers, per runtime (Claude Code: Opus; OpenCode Go: DeepSeek + Luna builder; DSH Web: go-mix; Codex: Sol/Luna). Use for implementation coordination or adapting this workflow, not ordinary factual answers."
 ---
 
 # RustyCore orchestration
@@ -16,9 +16,10 @@ human operator**. This is the rule that keeps a round from stalling.
 
 - **Who decides.** Parity and behaviour contracts, intentional departures from the
   reference, the scope and cut points of a slice, ownership boundaries and design choices
-  are decided at high effort: in DSH `go-mix`/OpenCode Go the coordinator decides at
-  `high`, consulting GPT-6.1 Sol `high` or Claude Opus 5.5 `medium` for a concrete
-  uncertainty; in Claude Code the Opus parent itself. If the reviewer route is unavailable,
+  are decided at high effort: in DSH `go-mix` the coordinator decides at `high`, consulting
+  GPT-6.1 Sol `high` or Claude Opus 5.5 `medium` for a concrete uncertainty; in OpenCode
+  Go the DeepSeek orchestrator decides, with review on a model family different from the
+  builder and never Sol; in Claude Code the Opus parent itself. If the reviewer route is unavailable,
   state that it failed, decide from the recorded evidence, and label the decision as
   taken without that second opinion.
 - **Who executes.** The coordinator/parent owns review, validation, Git, integration and
@@ -66,7 +67,8 @@ own defaults.
 | Runtime | Route | Client defaults |
 |---|---|---|
 | Claude Code / `ocx claude` (default) | [routes/claude.md](routes/claude.md): Opus parent, Opus `rustycore-worker` | `.claude/settings.json`, `.claude/agents/` |
-| DSH Web `go-mix` / OpenCode Go (if the user chooses it) | [routes/go-mix.md](routes/go-mix.md): Go DeepSeek coordinator, Luna `max` worker | DSH profile preset `go-mix`; `opencode.json` |
+| OpenCode Go | [routes/go-mix.md](routes/go-mix.md#opencode-go): DeepSeek orchestrator/scout/reviewer, Luna `max` builder | `opencode.json`, `.opencode/` |
+| DSH Web `go-mix` (if the user chooses it) | [routes/go-mix.md](routes/go-mix.md#dsh-web-go-mix): Go DeepSeek coordinator, Luna `max` worker | preset `go-mix` in `~/.dsh` |
 | Codex | [routes/codex.md](routes/codex.md): Sol parent, `luna_worker` | `.codex/config.toml`, `.codex/agents/` |
 
 ## Sizing the work

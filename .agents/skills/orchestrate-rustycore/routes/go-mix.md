@@ -1,8 +1,31 @@
-# Route: DSH Web `go-mix` / OpenCode Go
+# Routes: OpenCode Go and DSH Web `go-mix`
 
-Applies only when the session is DSH Web with the `go-mix` preset or OpenCode / OpenCode
-Go, and only if the user chose it. DSH takes its models from the `go-mix` preset in the
-user's DSH profile and OpenCode from `opencode.json`; neither reads `.claude/`.
+Two related but different runtimes. Each applies only in its own session; neither reads
+`.claude/`. Claude Code uses only [claude.md](claude.md).
+
+## OpenCode Go
+
+Source: `forever` b8330b1b5 (2026-10-17), adapted to 3.4.3. Defaults: `opencode.json`,
+`.opencode/` (see `.opencode/README.md`). OpenCode injects `AGENTS.md` itself.
+
+- `orchestrator` (primary, DeepSeek V4.1 Flash via OpenCode Go) coordinates, integrates,
+  owns Git and final-validation scheduling; small inseparable edits only.
+- `scout` (DeepSeek V4.1 Flash), `explore` (DeepSeek V4.1 Flash `#high`) and `general`
+  (DeepSeek V4 Pro `#high`) locate, design and review; read-only.
+- `builder` (GPT-6 Luna `#max`, OpenAI/Codex account) implements.
+- The reviewer stays on a model family different from the builder. **Never Sol.**
+- At most one child at a time. Step limits: scout 40, general 60, explore 80, builder 200.
+- Quota fallback: no automatic provider fallback. When the Go quota is exhausted,
+  `.opencode/model-route api` moves the DeepSeek agents to the direct DeepSeek API (paid
+  balance) and `.opencode/model-route go` returns them; Luna is not changed.
+- Hard-deny `policies` (force push, `reset --hard`, `clean -f`, stash drop/clear, `.env`
+  and OpenCode API-key files) stay.
+
+## DSH Web go-mix
+
+Applies only when the session is DSH Web with the `go-mix` preset (installed in the
+user's DSH profile, `~/.dsh/.agent-presets/go-mix`), and only if the user chose it. DSH
+takes its models from that preset.
 
 **Concurrency on this route:** at most one worker by default; parallel only on explicit
 per-task user authorization, with disjoint write scopes. This replaces the WIP's
@@ -14,7 +37,7 @@ select Sol/Luna for `ocx claude`, that is historical: Claude Code uses only
 
 The text below is preserved verbatim from `dsh-orquestacion-wip` (2026-09-28..10-06).
 
-## Models (WIP, verbatim)
+### Models (WIP, verbatim)
 
 
 The user-selected **DSH Web Go Mix** (`go-mix`) uses OpenCode Go
@@ -78,7 +101,7 @@ uncertainty. It is separate from the implementing fallback and is not required f
 every unit.
 
 
-## Running the worker (WIP, verbatim; concurrency as scoped above)
+### Running the worker (WIP, verbatim; concurrency as scoped above)
 
 
 Start one Luna worker by default. When the user authorizes parallel implementation,
@@ -89,7 +112,7 @@ the previous diff) without duplicating worker edits. Worker concurrency does not
 authorize concurrent validation or shared target directories.
 
 
-## Acceptance (WIP, verbatim; deferred-check instruction is historical)
+### Acceptance (WIP, verbatim; deferred-check instruction is historical)
 
 
 Where authorized, implementation checks stay crate-scoped and sequential (`cargo
