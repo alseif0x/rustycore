@@ -4,8 +4,6 @@
 //! Movement protocol: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::WorldSession;
-
 #[cfg(test)]
 pub(crate) use wow_world_core::session::movement_protocol::UnitMoveTypeLikeCpp;
 #[cfg(test)]
@@ -18,8 +16,6 @@ pub(crate) use wow_world_core::session::movement_protocol::{
 
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use wow_world_instances::RepresentedAreaZoneCriteriaLikeCpp;
-
-impl WorldSession {}
 
 #[cfg(test)]
 #[path = "../../unit_tests/session/movement_protocol/f3_shims.rs"]

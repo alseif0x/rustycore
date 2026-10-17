@@ -6,7 +6,7 @@
 #[allow(unused_imports)]
 use super::*;
 
-impl WorldSession {
+impl crate::session::WorldSession {
     /// CMSG_CLEAR_RAID_MARKER.
     ///
     /// C++ `WorldSession::HandleClearRaidMarker` resolves the player's current

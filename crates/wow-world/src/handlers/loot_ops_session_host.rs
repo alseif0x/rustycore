@@ -103,7 +103,7 @@ impl LootSessionHostLikeCpp for WorldSession {
         self.config.loot_drop_rates_like_cpp()
     }
     fn loot_release_cx_like_cpp(&mut self) -> wow_world_loot_ops::LootReleaseCxLikeCpp<'_> {
-        self.loot_release_cx_like_cpp()
+        WorldSession::loot_release_cx_like_cpp(self)
     }
     fn loot_stores(&self) -> Option<&Arc<LootStores>> {
         self.catalogs.loot_stores()
@@ -205,7 +205,7 @@ impl LootSessionHostLikeCpp for WorldSession {
         owner_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) -> impl Future<Output = bool> + Send {
-        self.do_loot_release_owner_like_cpp(owner_guid, player_guid)
+        WorldSession::do_loot_release_owner_like_cpp(self, owner_guid, player_guid)
     }
     fn drain_represented_quest_objective_progress_with_generator_like_cpp(
         &mut self,

@@ -1,13 +1,10 @@
 //! Login hydration and CREATE projection share one Player-owned configuration map.
-use super::WorldSession;
 #[cfg(test)]
 use wow_core::ObjectGuid;
 #[cfg(test)]
 use wow_data::trait_tree::TraitNodeEntryStore;
 #[cfg(test)]
 use wow_packet::packets::update::{TraitConfigCreateData, TraitEntryCreateData};
-
-impl WorldSession {}
 
 #[cfg(test)]
 mod tests {
@@ -20,7 +17,7 @@ mod tests {
     fn generic_trait_configs_require_a_loaded_trait_system_like_cpp() {
         let (_packet_tx, packet_rx) = flume::unbounded();
         let (send_tx, _send_rx) = flume::unbounded();
-        let mut session = WorldSession::new(
+        let mut session = crate::session::WorldSession::new(
             1,
             "traits".into(),
             0,
@@ -83,7 +80,7 @@ mod tests {
     fn combat_trait_configs_resolve_specialization_class_like_cpp() {
         let (_packet_tx, packet_rx) = flume::unbounded();
         let (send_tx, _send_rx) = flume::unbounded();
-        let mut session = WorldSession::new(
+        let mut session = crate::session::WorldSession::new(
             1,
             "combat-traits".into(),
             0,
@@ -163,7 +160,7 @@ mod tests {
     fn trait_entries_require_known_node_entry_and_fit_max_ranks_like_cpp() {
         let (_packet_tx, packet_rx) = flume::unbounded();
         let (send_tx, _send_rx) = flume::unbounded();
-        let session = WorldSession::new(
+        let session = crate::session::WorldSession::new(
             1,
             "trait-entry-authority".into(),
             0,
@@ -222,7 +219,7 @@ mod tests {
     fn production_trait_authority_rejects_node_entry_from_another_tree_like_cpp() {
         let (_packet_tx, packet_rx) = flume::unbounded();
         let (send_tx, _send_rx) = flume::unbounded();
-        let mut session = WorldSession::new(
+        let mut session = crate::session::WorldSession::new(
             1,
             "trait-topology".into(),
             0,

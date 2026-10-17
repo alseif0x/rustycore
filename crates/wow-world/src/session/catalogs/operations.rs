@@ -107,18 +107,6 @@ impl WorldSession {
     pub fn set_mount_x_display_store(&mut self, store: Arc<MountXDisplayStore>) {
         self.catalogs.mount_x_display_store = Some(store);
     }
-    #[allow(dead_code)]
-    pub(crate) fn mount_capability_store(&self) -> Option<&Arc<MountCapabilityStore>> {
-        self.catalogs.mount_capability_store.as_ref()
-    }
-    #[allow(dead_code)]
-    pub(crate) fn mount_type_x_capability_store(&self) -> Option<&Arc<MountTypeXCapabilityStore>> {
-        self.catalogs.mount_type_x_capability_store.as_ref()
-    }
-    #[allow(dead_code)]
-    pub(crate) fn mount_x_display_store(&self) -> Option<&Arc<MountXDisplayStore>> {
-        self.catalogs.mount_x_display_store.as_ref()
-    }
     pub fn set_terrain_swap_store(&mut self, store: Arc<wow_data::TerrainSwapStore>) {
         self.catalogs.terrain_swap_store = Some(store);
     }

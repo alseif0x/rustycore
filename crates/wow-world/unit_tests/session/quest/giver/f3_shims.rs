@@ -4,7 +4,7 @@
 //! #1241 F3 test shims: WorldSession entry points kept only for unit_tests callers.
 
 #[allow(unused_imports)]
-use super::*;
+use super::super::*;
 
 impl crate::session::WorldSession {
     pub(crate) fn represented_quest_giver_accept_source_allows_quest_like_cpp(

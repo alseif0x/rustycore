@@ -66,16 +66,6 @@ impl WorldSession {
         statuses
     }
 
-    /// Send SMSG_QUEST_GIVER_STATUS for a single NPC.
-    #[allow(dead_code)]
-    fn send_quest_giver_status(&self, guid: ObjectGuid, status: u32) {
-        use wow_constants::ServerOpcodes;
-        let mut pkt = wow_packet::WorldPacket::new_server(ServerOpcodes::QuestGiverStatus);
-        pkt.write_packed_guid(&guid);
-        pkt.write_uint32(status);
-        self.send_raw_packet(&pkt.into_data());
-    }
-
     /// Handle CMSG_DB_QUERY_BULK — client requests DB2 records.
     ///
     /// TrinityCore only sends a Valid `DBReply` when `sDB2Manager.GetStorage`

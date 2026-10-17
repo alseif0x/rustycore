@@ -35,14 +35,12 @@ mod player;
 mod player_cast;
 #[path = "session/directory.rs"]
 pub mod player_directory;
-#[allow(dead_code)] // Private prerequisite seam consumed by trainer issue #157.
 pub(crate) mod profession;
 pub mod session;
 mod session_commands;
 mod session_persistence_capabilities;
 mod session_policy;
 mod session_rules;
-#[allow(dead_code)] // Private prerequisite seam consumed by trainer issue #157.
 pub(crate) mod spell_acquisition;
 mod spell_cast_adapter;
 #[cfg(test)]

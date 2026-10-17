@@ -30,7 +30,7 @@ impl WorldSession {
         &mut self,
         new_map: u32,
         new_pos: wow_core::Position,
-        options: TeleportToOptionsLikeCpp,
+        options: wow_world_core::session::movement_protocol::TeleportToOptionsLikeCpp,
     ) {
         wow_world_entities::teleport_to_with_options(self, new_map, new_pos, options).await
     }

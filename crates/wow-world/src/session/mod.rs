@@ -543,10 +543,10 @@ use wow_data::{
     TransmogSetItemStore, TrinityStringStoreLikeCpp, VehicleAccessoryStoreLikeCpp,
     VehicleSeatStore, VehicleStore, WorldSafeLocStore, is_player_meeting_condition_like_cpp,
     progression_rewards::{
-        ContentTuningStore, CurvePointStore, CurveStore, FactionEntry, FactionStore,
-        FactionTemplateStore, FriendshipRepReactionStore, NumTalentsAtLevelStore,
-        ParagonReputationStore, QuestFactionRewardStore, QuestInfoStore, QuestMoneyRewardStore,
-        QuestPackageItemStore, QuestV2Store, ScalingStatDistributionStore, ScalingStatValuesStore,
+        ContentTuningStore, CurvePointStore, CurveStore, FactionStore, FactionTemplateStore,
+        FriendshipRepReactionStore, NumTalentsAtLevelStore, ParagonReputationStore,
+        QuestFactionRewardStore, QuestInfoStore, QuestMoneyRewardStore, QuestPackageItemStore,
+        QuestV2Store, ScalingStatDistributionStore, ScalingStatValuesStore,
     },
     reputation::{
         CreatureOnKillReputationStoreLikeCpp, RepSpilloverTemplateStoreLikeCpp,
@@ -599,7 +599,6 @@ use wow_entities::{
 #[cfg(test)]
 pub(crate) use wow_entities::{PLAYER_SLOT_END, PlayerCurrency, PlayerCurrencyState};
 use wow_handler::{PacketProcessing, SessionStatus};
-use wow_progression::reputation_to_rank_like_cpp;
 #[cfg(test)]
 use wow_progression::{ReputationMgrMutLikeCpp, ReputationMgrRefLikeCpp};
 
@@ -674,14 +673,7 @@ use wow_world_core::session::SPELL_PVP_RULES_ENABLED_LIKE_CPP;
 pub(crate) const TRADE_STATUS_PLAYER_BUSY_LIKE_CPP: u8 = 0;
 #[cfg(test)]
 use wow_world_core::session::PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP;
-pub(crate) use wow_world_core::session::movement_protocol::TeleportToOptionsLikeCpp;
 pub(crate) use wow_world_entities::TELE_TO_NONE_LIKE_CPP;
-#[allow(dead_code)]
-pub(crate) const TELE_TO_GM_MODE_LIKE_CPP: TeleportToOptionsLikeCpp = 0x01;
-#[allow(dead_code)]
-pub(crate) const TELE_TO_NOT_LEAVE_TRANSPORT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x02;
-#[allow(dead_code)]
-pub(crate) const TELE_TO_TRANSPORT_TELEPORT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x20;
 #[cfg(test)]
 const SUMMON_PROPERTIES_ONLY_VISIBLE_TO_SUMMONER_LIKE_CPP: u32 = 0x0000_0010;
 #[cfg(test)]

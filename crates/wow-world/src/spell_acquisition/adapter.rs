@@ -13,29 +13,6 @@ static FAIL_CLOSED_CRAFT_AUTHORITY_LIKE_CPP: std::sync::LazyLock<
 > = std::sync::LazyLock::new(Default::default);
 
 impl crate::session::WorldSession {
-    /// Projects one trainer product from the complete current player snapshot.
-    ///
-    /// Static cast/craft safety and the current player's exact immediate/
-    /// hit-target mask are both mandatory. Direct ordinary learns do not
-    /// consult those authorities; wrapper paths fail closed if either proof is
-    /// absent.
-    pub(crate) fn project_trainer_spell_acquisition_like_cpp(
-        &self,
-        root: SpellAcquisitionRootLikeCpp,
-    ) -> SpellAcquisitionOutcomeLikeCpp {
-        self.project_player_spell_acquisition_like_cpp(root)
-    }
-
-    /// Projects any represented durable player acquisition from the same
-    /// complete authority used by trainer offers. The root selects semantics;
-    /// this adapter never grants a shallower fallback.
-    pub(crate) fn project_player_spell_acquisition_like_cpp(
-        &self,
-        root: SpellAcquisitionRootLikeCpp,
-    ) -> SpellAcquisitionOutcomeLikeCpp {
-        self.project_player_spell_acquisition_with_policy_like_cpp(root, false)
-    }
-
     /// C++ `Spell::EffectLearnSpell` always reaches `Player::LearnSpell` even
     /// when AddSpell's subsequent triggered cast cannot yet be represented by
     /// this immutable planner. Preserve that base mutation while recording a
