@@ -230,8 +230,15 @@ not come back clean is reported as the run's outcome even when the smoke passed.
 Until #331 this was driven by `pr-preflight.sh qa-loot-race` against PM2, which
 this host no longer runs.
 
-The current systemd `loot-race` command requires chest spawn `9106001` to exist
-before the swap; it does not install/remove the capture wrapper's chest fixture.
+The systemd `loot-race` command installs chest spawn `9106001` itself through
+the same shared guard as the capture wrapper
+(`crates/capture-diff/scripts/loot-fixture-common.sh`): after stopping the world
+and confirming no character is online it validates the pinned template, loot and
+addon, refuses a pre-existing spawn or spawn-scoped metadata, sets the addon money
+to `10/10` and inserts the exact spawn, then starts the candidate. Its EXIT trap
+stops the world, removes the generated respawn row and the unchanged spawn and
+restores the `0/0` money bounds before the original build starts; a cleanup that
+cannot prove those postconditions fails the run with status `70` (#373).
 It reports a surviving bot journal as failure but still enters build restoration;
 it does not provide the PM2 capture wrapper's journal-gated restart guarantee.
 `SIGKILL` and host failure also bypass shell traps. Preserve recovery evidence and
