@@ -139,6 +139,10 @@ pub(super) fn log_bot_summary(
             );
             return;
         }
+        if let Some(summary) = post_login_smoke_summary(result) {
+            info!("✅ Bot {}: SUCCESS {}", result.account, summary);
+            return;
+        }
         if result.equipment_set_smoke {
             info!(
                 "✅ Bot {}: SUCCESS equipment_set_smoke type={:?} set_id={:?} guid={:?} login_count={:?} load={} db={} relog={} failure={:?}",
@@ -409,6 +413,10 @@ pub(super) fn log_bot_summary(
             );
             return;
         }
+        if let Some(summary) = post_login_smoke_summary(result) {
+            error!("❌ Bot {}: FAILED {}", result.account, summary);
+            return;
+        }
         if result.equipment_set_smoke {
             error!(
                 "❌ Bot {}: FAILED equipment_set_smoke type={:?} set_id={:?} guid={:?} login_count={:?} load={} db={} relog={} failure={:?}",
@@ -600,6 +608,8 @@ pub(super) fn write_report_if_requested(
         homebind_smoke,
         inventory_swap_smoke,
         vendor_smoke,
+        vendor_sell_smoke: cli.vendor_sell_smoke,
+        movement_smoke: cli.movement_smoke,
         equipment_set_race_smoke,
         rested_xp_smoke,
         detour_chase_capture,

@@ -24,6 +24,7 @@ pub(crate) async fn run_bot_with_void_storage(
     detour_chase_options: Option<DetourChaseCaptureOptions>,
     creature_spell_options: Option<CreatureSpellCaptureOptions>,
     cast_lifecycle_options: Option<cast_lifecycle::Options>,
+    post_login_smoke: Option<PostLoginSmokeOptions>,
 ) -> Result<BotRunResult> {
     let bot_index = bot.account_id as usize;
     let void_storage_query_capture = void_storage_options
@@ -165,6 +166,8 @@ pub(crate) async fn run_bot_with_void_storage(
         vendor_item_push_seen: false,
         vendor_relogin_verified: false,
         vendor_failure: None,
+        vendor_sell: VendorSellEvidence::for_options(post_login_smoke.as_ref()),
+        movement: MovementSmokeEvidence::for_options(post_login_smoke.as_ref()),
         equipment_set_smoke: equipment_set_options.is_some(),
         equipment_set_smoke_passed: None,
         equipment_set_type: equipment_set_options
@@ -694,6 +697,7 @@ pub(crate) async fn run_bot_with_void_storage(
     let mut void_storage_target_seen: Option<DiscoveredCreatureGuid> = None;
     let mut detour_chase_target_seen: Option<DiscoveredCreatureGuid> = None;
     let mut creature_spell_target_seen: Option<DiscoveredCreatureGuid> = None;
+    let mut post_login_smoke_login = PostLoginSmokeLoginState::default();
     let login_budget = LoginVerifyBudget::new(LOGIN_VERIFY_TIMEOUT);
     while let Some(read_timeout) = login_budget.next_read_timeout() {
         match tokio::time::timeout(
@@ -767,6 +771,12 @@ pub(crate) async fn run_bot_with_void_storage(
                         }
                     }
                 }
+                observe_post_login_smoke_login_packet(
+                    post_login_smoke.as_ref(),
+                    op,
+                    &payload,
+                    &mut post_login_smoke_login,
+                )?;
                 if let Some(options) = void_storage_options.as_ref() {
                     let expected_counter = (!options.discover_runtime_guid)
                         .then_some(options.vault_keeper.guid_counter & OBJECT_GUID_COUNTER_MASK);
@@ -1029,6 +1039,22 @@ pub(crate) async fn run_bot_with_void_storage(
             &mut crypt,
             &mut server_inflater,
             &mut realm_connection,
+            &mut result,
+        )
+        .await;
+        return Ok(result);
+    }
+
+    if let Some(options) = post_login_smoke.as_ref() {
+        run_post_login_smoke_phase(
+            bot_index,
+            &bot,
+            &mut stream,
+            &mut crypt,
+            &mut server_inflater,
+            &mut realm_connection,
+            options,
+            post_login_smoke_login,
             &mut result,
         )
         .await;

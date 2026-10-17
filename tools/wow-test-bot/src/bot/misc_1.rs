@@ -324,6 +324,10 @@ pub(crate) struct BotRunResult {
     pub(crate) vendor_item_push_seen: bool,
     pub(crate) vendor_relogin_verified: bool,
     pub(crate) vendor_failure: Option<String>,
+    #[serde(flatten)]
+    pub(crate) vendor_sell: VendorSellEvidence,
+    #[serde(flatten)]
+    pub(crate) movement: MovementSmokeEvidence,
     pub(crate) equipment_set_smoke: bool,
     pub(crate) equipment_set_smoke_passed: Option<bool>,
     pub(crate) equipment_set_type: Option<i32>,
@@ -529,6 +533,18 @@ impl BotRunResult {
                 && self.vendor_smoke_passed.unwrap_or(false)
                 && self.vendor_relogin_verified;
         }
+        if self.vendor_sell.vendor_sell_smoke {
+            return self.world_auth
+                && self.enum_characters
+                && self.player_login_verified
+                && self.vendor_sell.passed();
+        }
+        if self.movement.movement_smoke {
+            return self.world_auth
+                && self.enum_characters
+                && self.player_login_verified
+                && self.movement.passed();
+        }
         if self.equipment_set_smoke {
             return self.world_auth
                 && self.enum_characters
@@ -625,6 +641,8 @@ pub(crate) struct RunReport {
     pub(crate) homebind_smoke: bool,
     pub(crate) inventory_swap_smoke: bool,
     pub(crate) vendor_smoke: bool,
+    pub(crate) vendor_sell_smoke: bool,
+    pub(crate) movement_smoke: bool,
     pub(crate) equipment_set_race_smoke: bool,
     pub(crate) rested_xp_smoke: bool,
     pub(crate) detour_chase_capture: bool,

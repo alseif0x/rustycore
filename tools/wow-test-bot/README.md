@@ -98,6 +98,33 @@ position. Optional fixture overrides are `WOW_BOT_VENDOR_ENTRY`,
 `WOW_BOT_VENDOR_EXTENDED_COST`, `WOW_BOT_VENDOR_CURRENCY_ID`,
 `WOW_BOT_VENDOR_CURRENCY_COST`, and `WOW_BOT_VENDOR_CURRENCY_QUANTITY`.
 
+For a vendor SELL round-trip, set `WOW_BOT_VENDOR_SELL_SMOKE=1` and select
+exactly one offline `@bot.local` account. The fixture seeds one isolated item
+(default `2589` Linen Cloth, override `WOW_BOT_VENDOR_SELL_ITEM_ENTRY`) into an
+empty backpack slot, snapshots money and position, and relocates beside the
+same vendor spawn as the buy smoke (`WOW_BOT_VENDOR_ENTRY`,
+`WOW_BOT_VENDOR_SPAWN_GUID`, optional checked `WOW_BOT_VENDOR_RUNTIME_COUNTER`;
+the spawn must carry the vendor npcflag and not `NO_SELL_VENDOR`). After
+login and `CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE` it discovers the live vendor
+GUID, sends `CMSG_SELL_ITEM` (C++ `SellItem::Read` order) and requires that no
+`SMSG_SELL_RESPONSE` arrives: C++ `HandleSellItemOpcode` sends nothing on
+success and `SendSellError` only for failures. After the routed logout the
+item's `character_inventory` and `item_instance` rows must both be gone (C++
+`_SaveInventory` deletes buyback-slot items instead of saving them) and money
+must have increased; `WOW_BOT_VENDOR_SELL_EXPECTED_MONEY` asserts the exact
+`SellPrice` gain, which lives in DB2 data the bot cannot read. A fresh relogin
+re-checks the same state, then cleanup removes leftover rows and restores the
+original money and position.
+
+For a basic movement round-trip, set `WOW_BOT_MOVEMENT_SMOKE=1` with one
+offline `@bot.local` character standing on open, flat ground. The bot reads the
+login position from `SMSG_LOGIN_VERIFY_WORLD`, sends
+`CMSG_MOVE_START_FORWARD`, two `CMSG_MOVE_HEARTBEAT`s and `CMSG_MOVE_STOP`
+200 ms apart at run speed along its facing (4.2 yards, login Z kept), logs out,
+and requires `characters.map/position_*` within 0.1 yards of the final sent
+position; a relogin must publish the same position. Cleanup restores the
+original position once the character is offline.
+
 For the two-session equipment-set GUID and relog smoke, use two existing
 disposable local identities:
 

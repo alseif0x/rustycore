@@ -695,6 +695,23 @@ pub(crate) fn print_help() {
         "                           Env: WOW_BOT_VENDOR_SMOKE, WOW_BOT_VENDOR_ENTRY, WOW_BOT_VENDOR_SPAWN_GUID, WOW_BOT_VENDOR_RUNTIME_COUNTER, WOW_BOT_VENDOR_ITEM_ENTRY, WOW_BOT_VENDOR_EXTENDED_COST, WOW_BOT_VENDOR_CURRENCY_ID, WOW_BOT_VENDOR_CURRENCY_COST, WOW_BOT_VENDOR_CURRENCY_QUANTITY, WOW_BOT_VENDOR_TIMEOUT_SECS"
     );
     println!(
+        "  --vendor-sell-smoke      Sell one isolated backpack item to the vendor, relog, verify the C++ buyback-save deletion and money gain, and restore the fixture"
+    );
+    println!("  --vendor-sell-item-entry <id> Item to seed and sell (default: 2589 Linen Cloth)");
+    println!(
+        "  --vendor-sell-expected-money <copper> Exact SellPrice*Amount gain (default: only require a gain > 0)"
+    );
+    println!(
+        "                           Reuses --vendor-entry/--vendor-spawn-guid/--vendor-runtime-counter/--vendor-timeout"
+    );
+    println!(
+        "                           Env: WOW_BOT_VENDOR_SELL_SMOKE, WOW_BOT_VENDOR_SELL_ITEM_ENTRY, WOW_BOT_VENDOR_SELL_EXPECTED_MONEY"
+    );
+    println!(
+        "  --movement-smoke         Run START_FORWARD/HEARTBEAT/STOP a few yards, relog, verify the persisted and republished position, and restore it"
+    );
+    println!("                           Env: WOW_BOT_MOVEMENT_SMOKE");
+    println!(
         "  --equipment-set-race-smoke  Concurrently save equipment/transmog sets, logout, relog, and verify shared GUID persistence"
     );
     println!(
