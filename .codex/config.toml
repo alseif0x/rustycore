@@ -1,0 +1,10 @@
+# Project defaults for Codex sessions only; do not override operator permissions,
+# credentials or providers. Claude Code, DSH and OpenCode do not read this file.
+model = "gpt-6.1-sol"
+model_reasoning_effort = "high"
+
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 1
+default_subagent_model = "gpt-6-luna"
+default_subagent_reasoning_effort = "max"

@@ -1,5 +1,8 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "model": "opencode-go/deepseek-v4.1-flash",
-  "instructions": [".agents/skills/orchestrate-rustycore/SKILL.md"]
+  "instructions": [
+    ".agents/skills/orchestrate-rustycore/SKILL.md",
+    ".agents/skills/orchestrate-rustycore/routes/go-mix.md"
+  ]
 }
