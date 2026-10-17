@@ -53,9 +53,10 @@ QA_LOOT_FIXTURE_DB_CONF="${QA_LOOT_FIXTURE_DB_CONF:-/home/server/trinity-legacy-
 QA_LOOT_FIXTURE_ENTRY="${QA_LOOT_FIXTURE_ENTRY:-21779}"
 QA_LOOT_FIXTURE_EXPECTED_HEALTH_MODIFIER="${QA_LOOT_FIXTURE_EXPECTED_HEALTH_MODIFIER:-1}"
 QA_LOOT_FIXTURE_TEMP_HEALTH_MODIFIER="${QA_LOOT_FIXTURE_TEMP_HEALTH_MODIFIER:-0.0001}"
-# The chest scenario's guard still lives inside the PM2-driven capture wrapper
-# and was never extracted (#373). Checked before anything is stopped.
-QA_LOOT_RACE_CHEST_SPAWN="${QA_LOOT_RACE_CHEST_SPAWN:-9106001}"
+# The chest scenario's wrapper-owned spawn. The shared guard pins this exact
+# spawn row (position, template 2846, loot 2278 / item 38), so it is a fixed
+# identity rather than a knob: the bot and the capture wrapper use the same id.
+QA_LOOT_RACE_CHEST_SPAWN=9106001
 
 DRY_RUN=0
 ALLOW_RUNTIME_QA=0
@@ -76,6 +77,17 @@ LOOT_FIXTURE_EXPECTED_HEALTH_MODIFIER=""
 LOOT_FIXTURE_TEMP_HEALTH_MODIFIER=""
 LOOT_FIXTURE_SNAPSHOT_READY=0
 LOOT_FIXTURE_CLEANUP_MARKER=""
+LOOT_FIXTURE_CHEST_TEMPLATE_ENTRY=2846
+LOOT_FIXTURE_CHEST_LOOT_ENTRY=2278
+LOOT_FIXTURE_CHEST_ITEM=38
+LOOT_FIXTURE_CHEST_GUID="$QA_LOOT_RACE_CHEST_SPAWN"
+LOOT_FIXTURE_CHEST_ADDON_FACTION=101
+LOOT_FIXTURE_CHEST_ADDON_RESTORE_READY=0
+LOOT_FIXTURE_CHEST_SPAWN_DELETE_READY=0
+LOOT_FIXTURE_CHEST_RESPAWN_DELETE_READY=0
+# Set before the chest guard's first write; the restore trap then runs the
+# guard's fail-closed cleanup while the world is stopped (#373).
+LOOT_FIXTURE_CHEST_ARMED=0
 
 usage() {
   cat <<'USAGE'
@@ -88,7 +100,9 @@ Commands:
   self-test     Exercise every guard and the restore path against fake services.
   snapshot      Print the live world build identity and exit. Touches nothing.
   login         Swap in a build, verify login/world entry, restore. No fixture setup.
-  loot-race     Swap in a build, run the destructive two-session chest smoke, restore.
+  loot-race     Swap in a build, install the chest fixture with the world stopped,
+                run the destructive two-session chest smoke, then restore the
+                fixture (world stopped) and the build.
   loot-item     Swap in a build, guard one creature's health, run the destructive
                 creature-kill capture, restore both the fixture and the build.
 
@@ -210,6 +224,18 @@ restore_live_build() {
   local restore_status=0
   # shellcheck disable=SC2086
   $QA_SYSTEMCTL stop "$QA_SERVICE" || restore_status=1
+  # A GameObject spawn is loaded at world start, so the chest fixture is
+  # removed while no world runs: the restored build must not load it (#373).
+  if ((LOOT_FIXTURE_CHEST_ARMED == 1)); then
+    log "Restoring the chest fixture with the world stopped"
+    if restore_shared_chest_fixture_guard; then
+      LOOT_FIXTURE_CHEST_ARMED=0
+      log "Chest fixture restored"
+    else
+      restore_status=1
+      warn "the chest fixture was NOT restored; spawn ${LOOT_FIXTURE_CHEST_GUID} or its addon money may still be installed"
+    fi
+  fi
   cp -- "$RESTORE_FROM" "$LIVE_PATH" || restore_status=1
   # shellcheck disable=SC2086
   $QA_SYSTEMCTL start "$QA_SERVICE" || restore_status=1
@@ -251,16 +277,6 @@ restore_live_build() {
 
 # Load the shared fixture guard. It is source-only and documents the globals a
 # caller must define; this sets them from the QA knobs above.
-assert_chest_fixture_present() {
-  arm_loot_fixture_guard
-  local chest_rows
-  chest_rows="$(loot_fixture_world_mysql -e \
-    "SELECT COUNT(*) FROM gameobject WHERE guid = ${QA_LOOT_RACE_CHEST_SPAWN}")" \
-    || die "could not query the chest fixture spawn"
-  [[ "$chest_rows" == "1" ]] || die \
-    "chest fixture spawn ${QA_LOOT_RACE_CHEST_SPAWN} is absent, and this harness cannot install it: that guard still lives in crates/capture-diff/scripts/capture-rust.sh, which drives PM2 (#373). Use the loot-item command for a creature kill, or install the chest fixture first."
-}
-
 arm_loot_fixture_guard() {
   [[ -r "$QA_FIXTURE_GUARD" ]] || die "fixture guard is missing: $QA_FIXTURE_GUARD"
   [[ -r "$QA_LOOT_FIXTURE_DB_CONF" ]] \
@@ -415,6 +431,7 @@ run_loot_race() {
   require_clean_worktree
   have_bot_credentials || die \
     "no bot credentials: set WOW_BOT_PASSWORD or provide $QA_ENV_FILE before swapping a build"
+  arm_loot_fixture_guard
 
   local candidate_sha
   candidate_sha="$(sha256_of "$candidate")"
@@ -423,16 +440,13 @@ run_loot_race() {
     log "Dry run: nothing is stopped, copied or started"
     printf 'would snapshot  %s\n' "$LIVE_PATH"
     printf 'would install   %s (%s)\n' "$candidate" "$candidate_sha"
+    printf 'would guard     chest spawn %s (template %s, loot %s) with the world stopped\n' \
+      "$LOOT_FIXTURE_CHEST_GUID" "$LOOT_FIXTURE_CHEST_TEMPLATE_ENTRY" "$LOOT_FIXTURE_CHEST_LOOT_ENTRY"
     printf 'would run       %s with WOW_BOT_LOOT_RACE_SMOKE=1\n' "$QA_SMOKE"
     printf 'would journal   a fresh path under %s\n' "$QA_JOURNAL_DIR"
     printf 'would restore   the snapshot on every exit path\n'
     return 0
   fi
-
-  # This scenario needs a wrapper-installed chest spawn, and the guard that
-  # installs it was never extracted from the PM2-driven capture wrapper (#373).
-  # Checked before the service is stopped, not after the swap.
-  assert_chest_fixture_present
 
   local identity
   identity="$(live_identity)"
@@ -450,9 +464,19 @@ run_loot_race() {
   trap restore_live_build EXIT
   trap 'exit 130' HUP INT TERM
 
-  log "Installing the candidate build $candidate_sha"
+  # The chest spawn must exist before the world starts: a GameObject spawn is
+  # loaded with its map. The shared guard (also used by the PM2 capture
+  # wrapper) fails closed on template/loot/addon drift or a pre-existing spawn,
+  # and the EXIT trap removes exactly what it installed, world stopped (#373).
   # shellcheck disable=SC2086
   $QA_SYSTEMCTL stop "$QA_SERVICE"
+  log "Installing the chest fixture"
+  loot_fixture_wait_until_all_characters_offline \
+    || die "characters are still online after stopping $QA_SERVICE"
+  LOOT_FIXTURE_CHEST_ARMED=1
+  apply_shared_chest_fixture_guard || die "could not install the chest fixture"
+
+  log "Installing the candidate build $candidate_sha"
   cp -- "$candidate" "$LIVE_PATH"
   [[ "$(sha256_of "$LIVE_PATH")" == "$candidate_sha" ]] || die "candidate did not install"
   # shellcheck disable=SC2086
@@ -464,6 +488,7 @@ run_loot_race() {
   load_bot_environment
   [[ -d "$QA_BOT_DIR" ]] || die "bot directory is missing: $QA_BOT_DIR"
   mkdir -p "$QA_JOURNAL_DIR"
+  chmod 700 "$QA_JOURNAL_DIR"
   [[ -d "$QA_JOURNAL_DIR" && ! -L "$QA_JOURNAL_DIR" ]] \
     || die "fixture-journal directory must be a real directory: $QA_JOURNAL_DIR"
   local journal="$QA_JOURNAL_DIR/fixture-$$-$(date -u +%Y%m%dT%H%M%SZ).journal"

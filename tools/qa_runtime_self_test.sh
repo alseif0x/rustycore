@@ -113,6 +113,26 @@ restore_creature_health_fixture_guard() {
   [[ "${QA_FAKE_FIXTURE_RESTORE_FAILS:-0}" == 1 ]] && return 1
   return 0
 }
+loot_fixture_wait_until_all_characters_offline() {
+  printf 'offline-checked\n' >>"${QA_FAKE_STATE:?}.fixture"
+}
+# The chest guard records the service state it ran under: both its install
+# and its cleanup must happen while no world is running (#373).
+fake_world_state() {
+  if [[ -f "${QA_FAKE_STATE:?}.log" ]]; then tail -1 "${QA_FAKE_STATE}.log"; else printf 'running\n'; fi
+}
+apply_shared_chest_fixture_guard() {
+  printf 'chest-armed %s %s world=%s\n' "${LOOT_FIXTURE_CHEST_GUID:?}" \
+    "${LOOT_FIXTURE_CHEST_TEMPLATE_ENTRY:?}" "$(fake_world_state)" >>"${QA_FAKE_STATE:?}.fixture"
+  [[ "${QA_FAKE_CHEST_APPLY_FAILS:-0}" == 1 ]] && return 1
+  return 0
+}
+restore_shared_chest_fixture_guard() {
+  printf 'chest-restored %s world=%s\n' "${LOOT_FIXTURE_CHEST_GUID:?}" \
+    "$(fake_world_state)" >>"${QA_FAKE_STATE:?}.fixture"
+  [[ "${QA_FAKE_CHEST_RESTORE_FAILS:-0}" == 1 ]] && return 1
+  return 0
+}
 FAKE
 touch "$WORK/fixture-conf"
 
@@ -278,17 +298,43 @@ check "a second run is refused while the lock is held" grep -q "another runtime 
 check "the refused run swapped nothing" live_is_original
 
 
-# 10. The chest scenario refuses before it stops anything (#373). Its fixture
-# guard was never extracted from the PM2 capture wrapper, so a missing spawn is
-# a precondition, not a post-swap failure.
+# 10. The chest scenario installs its fixture with the world stopped, before
+# the candidate starts, and removes it with the world stopped before the
+# original build starts again (#373).
 reset_state
+rm -f "$WORK/state.fixture"
+run_qa --allow-runtime-qa --ack-disposable-overworld-loot-race \
+  --world-exec "$WORK/candidate" loot-race >/dev/null 2>&1
+check "the chest scenario checks that nobody is online first" \
+  grep -q "offline-checked" "$WORK/state.fixture"
+check "the chest is installed while the world is stopped" \
+  grep -q "chest-armed 9106001 2846 world=stopped" "$WORK/state.fixture"
+check "the chest is removed while the world is stopped" \
+  grep -q "chest-restored 9106001 world=stopped" "$WORK/state.fixture"
+check "the chest is armed before the candidate starts" bash -c '
+  [[ "$(head -1 "'"$WORK"'/state.log")" == stopped && "$(sed -n 2p "'"$WORK"'/state.log")" == started ]]'
+check "the chest scenario restored the build" live_is_original
+
+# 10b. A chest install that fails still runs the cleanup and restores the build.
+reset_state
+rm -f "$WORK/state.fixture"
 status=0
-output="$(QA_FAKE_CHEST_ROWS=0 run_qa --allow-runtime-qa \
+output="$(QA_FAKE_CHEST_APPLY_FAILS=1 run_qa --allow-runtime-qa \
   --ack-disposable-overworld-loot-race --world-exec "$WORK/candidate" loot-race 2>&1)" || status=$?
-check "refuses an absent chest fixture" grep -q "chest fixture spawn" <<<"$output"
-check "the chest refusal points at the creature scenario" grep -q "loot-item" <<<"$output"
-check "the chest refusal stopped nothing" bash -c '[[ ! -f "'"$WORK"'/state.log" ]]'
-check "the chest refusal swapped nothing" live_is_original
+check "a failed chest install fails the run" bash -c "(( $status != 0 ))"
+check "a failed chest install never ran the bot" test ! -f "$WORK/state.bot-saw"
+check "a failed chest install still runs the cleanup" \
+  grep -q "chest-restored 9106001 world=stopped" "$WORK/state.fixture"
+check "a failed chest install restored the build" live_is_original
+
+# 10c. A chest that cannot be removed is the run's outcome, not a warning.
+reset_state
+rm -f "$WORK/state.fixture"
+status=0
+output="$(QA_FAKE_CHEST_RESTORE_FAILS=1 run_qa --allow-runtime-qa \
+  --ack-disposable-overworld-loot-race --world-exec "$WORK/candidate" loot-race 2>&1)" || status=$?
+check "a failed chest cleanup is reported" grep -q "chest fixture was NOT restored" <<<"$output"
+check "a failed chest cleanup fails the run" bash -c "(( $status == 70 ))"
 
 # 11. The creature scenario arms the fixture before the candidate starts and
 # restores it afterwards, under the same trap as the build.
