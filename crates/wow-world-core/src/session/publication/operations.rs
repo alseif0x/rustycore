@@ -203,13 +203,15 @@ impl SessionCore {
         });
     }
 
+    /// C++ `Player::SendSellError`; `SMSG_SELL_RESPONSE` is registered on
+    /// `CONNECTION_TYPE_REALM` (`Server/Protocol/Opcodes.cpp:2050`).
     pub fn send_sell_error(
         &self,
         result: SellResult,
         creature_guid: Option<ObjectGuid>,
         item_guid: ObjectGuid,
     ) {
-        self.send_packet(&SellResponse::error(
+        self.send_packet_realm(&SellResponse::error(
             creature_guid.unwrap_or(ObjectGuid::EMPTY),
             item_guid,
             result,

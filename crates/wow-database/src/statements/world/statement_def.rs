@@ -516,9 +516,15 @@ impl StatementDef for WorldStatements {
                 "LEFT JOIN hotfixes.item_sparse isp ON nv.item = isp.ID ",
                 "WHERE nv.entry = ? AND nv.item = ? LIMIT 1",
             ),
-            Self::SEL_ITEM_SELL_PRICE => {
-                "SELECT COALESCE(SellPrice, 0) FROM hotfixes.item_sparse WHERE ID = ? LIMIT 1"
-            }
+            // C++ `DB2StorageBase::LoadFromDB` loads official rows
+            // (`VerifiedBuild > 0`) first and custom rows second, each in
+            // primary-key order, so the effective ItemSparse record is the
+            // last one loaded. `SellPrice` stays `INT UNSIGNED`; a `COALESCE`
+            // with a literal widens it to DECIMAL, which the u64 reader rejects.
+            Self::SEL_ITEM_SELL_PRICE => concat!(
+                "SELECT SellPrice FROM hotfixes.item_sparse WHERE ID = ? ",
+                "ORDER BY (VerifiedBuild > 0) ASC, VerifiedBuild DESC LIMIT 1",
+            ),
             Self::SEL_ITEM_TEMPLATE_ADDON_MONEY_LOOT => concat!(
                 "SELECT MinMoneyLoot, MaxMoneyLoot ",
                 "FROM item_template_addon WHERE Id = ? LIMIT 1",

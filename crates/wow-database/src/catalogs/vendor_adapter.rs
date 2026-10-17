@@ -128,6 +128,20 @@ mod tests {
     use super::*;
     use crate::{SqlParam, StatementDef};
 
+    /// #1429: the effective ItemSparse record is the last row C++
+    /// `DB2StorageBase::LoadFromDB` loads (official, then custom), and the
+    /// unsigned price must reach the u64 reader without a DECIMAL widening.
+    #[test]
+    fn item_sell_price_reads_effective_hotfix_row_as_unsigned_like_cpp() {
+        let sql = WorldStatements::SEL_ITEM_SELL_PRICE.sql();
+        assert!(!sql.contains("COALESCE"), "{sql}");
+        assert!(sql.starts_with("SELECT SellPrice FROM hotfixes.item_sparse WHERE ID = ?"));
+        assert!(
+            sql.ends_with("ORDER BY (VerifiedBuild > 0) ASC, VerifiedBuild DESC LIMIT 1"),
+            "{sql}"
+        );
+    }
+
     #[test]
     fn vendor_expansion_preserves_root_then_reference_bind_order_like_cpp() {
         let statement = vendor_rows_statement_like_cpp(2456, 9000);

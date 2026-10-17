@@ -931,7 +931,7 @@ fn player_currency_remove_and_save_state_match_cpp() {
 }
 #[test]
 fn send_buy_and_sell_error_mirror_cpp_empty_vendor_fallback() {
-    let (session, _, send_rx) = make_session();
+    let (mut session, _, send_rx) = make_session();
     let vendor_guid = ObjectGuid::new(0, 0x0102);
     let item_guid = ObjectGuid::new(0, 0x0506);
 
@@ -944,9 +944,9 @@ fn send_buy_and_sell_error_mirror_cpp_empty_vendor_fallback() {
     session.send_buy_error(BuyResult::CantFindItem, Some(vendor_guid), 6948);
     assert_eq!(send_rx.try_recv().unwrap(), expected);
 
-    let expected =
-        SellResponse::error(ObjectGuid::EMPTY, item_guid, SellResult::YouDontOwnThatItem)
-            .to_bytes();
-    session.send_sell_error(SellResult::YouDontOwnThatItem, None, item_guid);
-    assert_eq!(send_rx.try_recv().unwrap(), expected);
+    let (realm_tx, realm_rx) = flume::unbounded();
+    session.install_realm_send_channel_for_test(realm_tx);
+    session.send_sell_error(SellResult::CantSellItem, None, item_guid);
+    let expected = SellResponse::error(ObjectGuid::EMPTY, item_guid, SellResult::CantSellItem);
+    assert_eq!(realm_rx.try_recv().unwrap(), expected.to_bytes()); // Opcodes.cpp:2050 REALM
 }
