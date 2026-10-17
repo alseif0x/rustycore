@@ -228,7 +228,7 @@ fn default_skill_login_phase_follows_quests_and_returns_learned_entries() {
     let default_skills_core =
         include_str!("../../../../wow-world-core/src/session/progression/default_skills.rs");
     let quests_offset = login
-        .find("wow_world_quest::load_player_quests(&mut host).await;")
+        .find("host.load_player_quests().await;")
         .expect("quest loading precedes default skills");
     let count_offset = login
         .find("let persisted_skill_count = skill_info_by_id.len();")

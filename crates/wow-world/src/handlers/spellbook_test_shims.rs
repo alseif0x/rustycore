@@ -182,7 +182,10 @@ impl WorldSession {
     ) -> bool {
         // A replacement can describe another logical PlayerSpellMap. Existing
         // trait/override mirrors must be re-authorized even when spell IDs happen
-        // to overlap, otherwise residual state can be attributed to the new wow_world_spell::invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp(&mut map.self);
+        // to overlap, otherwise residual state can be attributed to the new map.
+        wow_world_spell::invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp(
+            self,
+        );
         let mut exact_rows = BTreeMap::new();
         for row in rows {
             if row.spell_id <= 0 || exact_rows.insert(row.spell_id, row).is_some() {
