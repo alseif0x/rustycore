@@ -49,8 +49,6 @@
       "session/canonical_access/operations.rs::install_detached_canonical_player_from_session_like_cpp",
       "session/lifecycle_ops/operations.rs::ensure_login_player_controller_like_cpp",
       "session/persistence/load.rs::set_player_loading",
-      "session/persistence/load.rs::set_loaded_player_name_like_cpp",
-      "session/persistence/load.rs::set_loaded_player_identity_like_cpp",
       "session/player_binding.rs::set_player_guid",
       "session/player_binding.rs::attach_player_controller_like_cpp",
       "session/player_bootstrap.rs::build_initial_player_for_owner_like_cpp",
@@ -75,8 +73,7 @@
       "session/catalogs/operations.rs::apply_offline_xp_rest_bonus_with_policy_like_cpp",
       "session/catalogs/operations.rs::update_represented_online_xp_rest_bonus_with_policy_like_cpp",
       "session/catalogs/operations.rs::tick_represented_online_xp_rest_bonus_with_policy_like_cpp",
-      "session/catalogs/operations.rs::tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp",
-      "session/persistence/load.rs::load_represented_xp_rest_bonus_like_cpp"
+      "session/catalogs/operations.rs::tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp"
     ],
     "many_field_seam": [
       "session/calendar_handler_contexts.rs::build_calendar_handler_cx_like_cpp",
@@ -100,7 +97,6 @@
       "session/world_entities/spell_click.rs::represented_can_see_spell_click_on_creature_like_cpp",
       "session/spell_state/aura/spell_hit_authority.rs::can_authorize_empty_player_spell_hit_aura_source_for_difficulty_like_cpp",
       "session/spell_state/aura/spell_hit_authority.rs::sync_player_spell_hit_aura_authority_to_canonical_like_cpp",
-      "session/lifecycle_ops/operations.rs::account_mount_login_partial_rows_like_cpp",
       "session/rest_progression.rs::resolved_player_flags_for_create_like_cpp"
     ]
   },
@@ -130,8 +126,6 @@
     "session/canonical_access/operations.rs::install_detached_canonical_player_from_session_like_cpp": "transitional login seam: builds the initial Player from the session bootstrap and installs it as the canonical owner.",
     "session/lifecycle_ops/operations.rs::ensure_login_player_controller_like_cpp": "login identity attach: the controller attach or the identity/name/position refresh of the selected character.",
     "session/persistence/load.rs::set_player_loading": "public ConnectTo-flow identity step (also the production integration tests' API): sets m_playerLoading and syncs visibility detection.",
-    "session/persistence/load.rs::set_loaded_player_name_like_cpp": "login identity write of the loaded character name (lifecycle split), reached from the identity attach and the continue-login load.",
-    "session/persistence/load.rs::set_loaded_player_identity_like_cpp": "login identity write: map, race, class, level, gender into the canonical Player or the session bootstrap, with the reputation and faction reset.",
     "session/player_binding.rs::set_player_guid": "session identity boundary: switches the logged-in GUID and resets every Player-owned state that must not cross characters.",
     "session/player_binding.rs::attach_player_controller_like_cpp": "session identity boundary: attaches the selected character's controller and installs the canonical Player.",
     "session/player_bootstrap.rs::build_initial_player_for_owner_like_cpp": "construction of the initial canonical Player value from the session bootstrap before an owner handle exists.",
@@ -149,7 +143,6 @@
     "session/catalogs/operations.rs::update_represented_online_xp_rest_bonus_with_policy_like_cpp": "rest bonus (12c2): as above (fixture_update_online_xp_rest_bonus).",
     "session/catalogs/operations.rs::tick_represented_online_xp_rest_bonus_with_policy_like_cpp": "rest bonus (12c2): the driver tick over the update above; moves with the group.",
     "session/catalogs/operations.rs::tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp": "rest bonus (12c2): the rolled tick over the update above; moves with the group.",
-    "session/persistence/load.rs::load_represented_xp_rest_bonus_like_cpp": "its handle-less fixture step calls two World cfg(test) methods (the rest-flag clear and the rest-state mutation); a second accessor is ~12 host lines for 28 moved (>40 %).",
     "session/calendar_handler_contexts.rs::build_calendar_handler_cx_like_cpp": "builds the borrowed calendar context from the social split (social state plus the hub's core, catalogs, config and fixtures); returned borrowing the session.",
     "session/instance_handler_contexts.rs::build_instance_raid_info_handler_cx_like_cpp": "builds the borrowed raid-info context from core accessors, config and catalogs.",
     "session/instance_handler_contexts.rs::build_instance_lock_operations_handler_cx_like_cpp": "builds the borrowed instance-lock context from instances, social, lifecycle, core accessors, catalogs and two fixture fields.",
@@ -171,7 +164,6 @@
     "session/world_entities/spell_click.rs::represented_can_see_spell_click_on_creature_like_cpp": "builds the NPC and player-condition accesses (37 fixture refs) and the condition projection for the spell-click visibility; behind QuestSessionHostLikeCpp::represented_can_see_spell_click_on_creature_like_cpp.",
     "session/spell_state/aura/spell_hit_authority.rs::can_authorize_empty_player_spell_hit_aura_source_for_difficulty_like_cpp": "the spell-hit authority proof: reads ~20 sources across inventory, lifecycle, catalogs, spell, quest and the canonical Player.",
     "session/spell_state/aura/spell_hit_authority.rs::sync_player_spell_hit_aura_authority_to_canonical_like_cpp": "publishes the spell-hit authority proof above to the canonical Player.",
-    "session/lifecycle_ops/operations.rs::account_mount_login_partial_rows_like_cpp": "filters the account mounts through the World player-condition projection (hub, inventory, social and three fixture states); one condition host method measured ~9 host lines for 24 moved (>35 %).",
     "session/rest_progression.rs::resolved_player_flags_for_create_like_cpp": "combines the canonical flags-ex with the rest-state-save flags, which the World resolves through QuestRewardCx over the XP-gain access, social and fixtures."
   }
 }

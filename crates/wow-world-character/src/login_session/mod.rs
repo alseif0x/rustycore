@@ -31,7 +31,7 @@ use wow_entities::{
     PhaseShift, PlayerCurrency, PlayerEnchantTimeUpdate, PlayerItemTimeUpdate, SpellCastMetadata,
 };
 use wow_packet::packets::gossip::{ClientGossipText, Hello};
-use wow_packet::packets::misc::{AccountMount, DungeonDifficultySet};
+use wow_packet::packets::misc::DungeonDifficultySet;
 use wow_packet::packets::spell::{SpellCastVisual, SpellTargetData};
 use wow_progression::mgr::CharacterReputationRowLikeCpp;
 use wow_world_core::session::SessionState;
@@ -51,6 +51,7 @@ use wow_world_visibility::VisibilityState;
 use wow_world_core::session::{HubMut, HubRef};
 use wow_world_entities::{CorpseHostLikeCpp, WorldEntitiesHostLikeCpp};
 
+mod account_mounts;
 mod action_buttons;
 mod admission;
 mod aura_loading;
@@ -75,6 +76,7 @@ mod talent_loading;
 mod transport_restore;
 mod world_entry;
 
+pub use account_mounts::account_mount_login_partial_rows_like_cpp;
 pub use action_buttons::load_action_buttons_for_login_like_cpp;
 pub use admission::{LoginAdmissionDataLikeCpp, load_login_admission_data_like_cpp};
 pub use aura_loading::load_character_auras_for_login_like_cpp;
@@ -162,7 +164,6 @@ pub trait CharacterLoginHostLikeCpp:
     fn loot(&self) -> &LootState;
     fn loot_mut(&mut self) -> &mut LootState;
 
-    fn account_mount_login_partial_rows_like_cpp(&self) -> Vec<AccountMount>;
     fn apply_loaded_inventory_item_collection_hooks_like_cpp(&mut self, item: &wow_entities::Item);
     fn cleanup_shared_runtime_state(&mut self) -> FinalizationOutcome;
     fn begin_represented_trait_config_authority_load_like_cpp(&mut self);

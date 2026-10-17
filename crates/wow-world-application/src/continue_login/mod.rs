@@ -66,6 +66,7 @@ use wow_world_spell::{SpellExecutionHostLikeCpp, SpellbookHostLikeCpp};
 use crate::SessionLifecycleHostLikeCpp;
 
 mod hydration;
+mod identity;
 mod login;
 mod passive_auras;
 mod spell_reset;
@@ -76,6 +77,7 @@ pub use hydration::{
     loaded_inventory_slot_count_with_legacy_rust_compat,
     login_known_spells_after_account_collections_like_cpp,
 };
+pub use identity::{gender_from_u8, set_loaded_player_identity_like_cpp};
 pub use login::handle_continue_player_login_with_module_registry_like_cpp;
 pub use passive_auras::{
     apply_loaded_known_spell_previous_rank_passive_auras_like_cpp,
@@ -112,15 +114,6 @@ pub trait ContinueLoginHostLikeCpp:
     fn apply_represented_login_spell_reset_if_needed_like_cpp(&mut self) -> bool;
     fn load_instance_time_restrictions_like_cpp(&mut self) -> impl Future<Output = ()> + Send;
     fn load_player_quests(&mut self) -> impl Future<Output = ()> + Send;
-    fn load_represented_xp_rest_bonus_like_cpp(&mut self, rest_state: u8, rest_bonus: f32);
-    fn set_loaded_player_identity_like_cpp(
-        &mut self,
-        map_id: u16,
-        race: u8,
-        class: u8,
-        level: u8,
-        gender: u8,
-    );
     fn set_represented_guild_id_like_cpp(&mut self, guild_id: u64) -> bool;
     fn sync_player_spell_hit_aura_authority_to_canonical_like_cpp(&mut self) -> Option<bool>;
 }

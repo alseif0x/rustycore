@@ -74,8 +74,9 @@ pub use map_entry::{
     try_attach_worldport_destination_with_publication_like_cpp,
 };
 pub use rest_flags::{
-    remove_player_rest_flag_like_cpp, set_player_rest_flag_like_cpp,
-    take_player_deferred_rest_flag_update_dirty_like_cpp, with_owned_player_mut_for_rest_like_cpp,
+    load_represented_xp_rest_bonus_like_cpp, remove_player_rest_flag_like_cpp,
+    set_player_rest_flag_like_cpp, take_player_deferred_rest_flag_update_dirty_like_cpp,
+    with_owned_player_mut_for_rest_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use zone_area::{

@@ -9,8 +9,13 @@
 //! The former `#[cfg(test)]` handle-less steps run only when
 //! `SessionHubHostLikeCpp::test_fixtures_ref_like_cpp` is `Some`, through the
 //! `InstanceSessionHostLikeCpp::mutate_player_rest_state_like_cpp` fixture accessor.
+//! The login rest-bonus load and its handle-less fixture step moved here from
+//! the World `session/persistence/load.rs` (#1363 final cleanup).
 
+use wow_constants::rest::REST_STATE_NORMAL_LIKE_CPP;
 use wow_entities::Player;
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_world_core::session::PLAYER_FLAGS_RESTING_LIKE_CPP;
 use wow_world_core::session::SessionHubHostLikeCpp;
 
 use super::InstanceSessionHostLikeCpp;
@@ -139,4 +144,88 @@ pub fn take_player_deferred_rest_flag_update_dirty_like_cpp<H: InstanceSessionHo
             .unwrap_or(false);
     }
     false
+}
+
+pub fn load_represented_xp_rest_bonus_like_cpp<H: InstanceSessionHostLikeCpp>(
+    host: &mut H,
+    rest_state: u8,
+    rest_bonus: f32,
+) {
+    // C++ `RestMgr::LoadRestBonus` restores both DB values verbatim. It does
+    // not clamp or recompute the state until a later `AddRestBonus` reaches
+    // `SetRestBonus` (for example when offline time is applied).
+    // C++-created rows only contain the declared PlayerRestState values.
+    // Normalize legacy Rust rows that persisted the old invalid value 0,
+    // while preserving every valid DB state verbatim like LoadRestBonus.
+    let rest_state = if wow_entities::valid_player_rest_state_like_cpp(rest_state) {
+        rest_state
+    } else {
+        REST_STATE_NORMAL_LIKE_CPP
+    };
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if host.test_fixtures_ref_like_cpp().is_some() && host.core().player_handle_like_cpp.is_none() {
+        clear_represented_rest_flags_for_character_load_like_cpp(host);
+        let _ = host.mutate_player_rest_state_like_cpp(|state| {
+            state.install_loaded_rest_like_cpp(rest_state, rest_bonus);
+        });
+        return;
+    }
+    let _ = host.core().with_owned_player_mut_like_cpp(|player| {
+        player.load_xp_rest_bonus_like_cpp(rest_state, rest_bonus);
+    });
+}
+#[cfg(any(test, feature = "test-fixtures"))]
+fn clear_represented_rest_flags_for_character_load_like_cpp<H: InstanceSessionHostLikeCpp>(
+    host: &mut H,
+) {
+    let loaded_resting = host
+        .core()
+        .canonical_player_snapshot_like_cpp(|player| player.data().player_flags)
+        .is_some_and(|flags| (flags & PLAYER_FLAGS_RESTING_LIKE_CPP) != 0);
+    let _canonical = with_owned_player_mut_for_rest_like_cpp(host, |player| {
+        let mut state = player.rest_state_like_cpp().clone();
+        state.reset_location_tracking_like_cpp();
+        player.replace_rest_state_like_cpp(state);
+        if loaded_resting {
+            player.set_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
+        } else {
+            player.remove_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
+        }
+    });
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if host.test_fixtures_ref_like_cpp().is_some()
+        && _canonical.is_none()
+        && host.core().player_handle_like_cpp.is_none()
+    {
+        host.hub_mut()
+            .fixtures
+            .progression
+            .rest_mgr_test_fixture_like_cpp
+            .represented_rest_flag_mask_like_cpp = 0;
+        host.hub_mut()
+            .fixtures
+            .progression
+            .rest_mgr_test_fixture_like_cpp
+            .represented_rest_location_initialized_like_cpp = false;
+        host.hub_mut()
+            .fixtures
+            .progression
+            .rest_mgr_test_fixture_like_cpp
+            .represented_defer_rest_flag_sync_like_cpp = false;
+        host.hub_mut()
+            .fixtures
+            .progression
+            .rest_mgr_test_fixture_like_cpp
+            .represented_deferred_rest_flag_update_dirty_like_cpp = false;
+        host.hub_mut()
+            .fixtures
+            .progression
+            .rest_mgr_test_fixture_like_cpp
+            .represented_inn_area_trigger_id_like_cpp = 0;
+        host.hub_mut()
+            .fixtures
+            .progression
+            .rest_mgr_test_fixture_like_cpp
+            .represented_rest_time_secs_like_cpp = 0;
+    }
 }

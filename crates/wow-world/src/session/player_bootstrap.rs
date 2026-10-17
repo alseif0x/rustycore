@@ -12,7 +12,8 @@ use super::{
     PlayerTeleportStateLikeCpp, Position, RepresentedPlayerSpellRuntimeLikeCpp, UnitFlags,
 };
 use super::{UnitPvpFlags, WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP, WeaponAttackType};
-use super::{WorldSession, gender_from_u8, player_cuf_profile_from_packet_like_cpp};
+use super::{WorldSession, player_cuf_profile_from_packet_like_cpp};
+use wow_world_application::gender_from_u8;
 
 impl WorldSession {
     /// Build the initial canonical Player value before a generation-checked

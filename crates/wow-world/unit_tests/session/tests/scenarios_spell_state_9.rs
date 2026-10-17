@@ -156,7 +156,7 @@ fn account_mount_load_learns_mount_spells_before_use_condition_like_cpp() {
         },
     ]);
     assert_eq!(
-        session.account_mount_login_partial_rows_like_cpp(),
+        wow_world_character::account_mount_login_partial_rows_like_cpp(&session),
         vec![wow_packet::packets::misc::AccountMount {
             spell_id: 100,
             flags: 0,

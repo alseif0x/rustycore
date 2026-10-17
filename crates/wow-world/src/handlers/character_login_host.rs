@@ -30,7 +30,7 @@ use wow_world_spell::{
 use wow_world_visibility::VisibilityState;
 
 use wow_packet::packets::gossip::{ClientGossipText, Hello};
-use wow_packet::packets::misc::{AccountMount, DungeonDifficultySet};
+use wow_packet::packets::misc::DungeonDifficultySet;
 use wow_packet::packets::spell::{SpellCastVisual, SpellTargetData};
 use wow_progression::mgr::CharacterReputationRowLikeCpp;
 
@@ -71,9 +71,6 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         &mut self.loot
     }
 
-    fn account_mount_login_partial_rows_like_cpp(&self) -> Vec<AccountMount> {
-        WorldSession::account_mount_login_partial_rows_like_cpp(self)
-    }
     fn apply_loaded_inventory_item_collection_hooks_like_cpp(&mut self, item: &wow_entities::Item) {
         let _ = crate::session::cx_lifecycle(self)
             .check_account_heirloom_upgrades_like_cpp(item.object().entry());

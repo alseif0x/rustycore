@@ -314,15 +314,12 @@ pub(crate) use wow_world_lifecycle::{
 #[cfg(test)]
 pub(crate) use wow_world_spell::{CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp};
 mod player_binding;
-use player_binding::PlayerIdentityBootstrapLikeCpp;
 pub(crate) use player_binding::SessionPlayerController;
 mod player_bootstrap;
 mod player_condition_values;
 #[cfg(test)]
 pub(crate) use player_condition_values::RepresentedItemLevelCapsLikeCpp;
 pub(crate) use player_condition_values::RepresentedPlayerConditionContextLikeCpp;
-mod player_load_values;
-use player_load_values::gender_from_u8;
 // #1363 slice 3: the player melee phase moved to `wow-world-creature`;
 // world-server and the unit tests keep these Session paths.
 pub use wow_world_creature::PlayerMeleeAttackerSnapshotLikeCpp;
@@ -490,9 +487,9 @@ use wow_constants::ItemEnchantmentType;
 use wow_constants::creature::CreatureTypeFlags;
 use wow_constants::item::{EnchantmentSlot, ItemFieldFlags2};
 use wow_constants::shared::DifficultyFlags;
-use wow_constants::unit::{Gender, UnitFlags, UnitPvpFlags, WeaponAttackType};
 #[cfg(test)]
 use wow_constants::unit::{PowerType, Team, UnitFlags2, UnitStandStateType};
+use wow_constants::unit::{UnitFlags, UnitPvpFlags, WeaponAttackType};
 #[cfg(test)]
 use wow_constants::{
     BuyResult, ItemFlags3, ItemQuality, ItemSubClassArmor, ItemSubClassWeapon, SellResult, TypeId,
@@ -625,9 +622,7 @@ use wow_packet::packets::item::{
     ItemPushResultDisplayType,
 };
 use wow_packet::packets::item::{ItemEnchantTimeUpdate, ItemTimeUpdate};
-use wow_packet::packets::misc::{
-    AccountHeirloom, AccountMount, AccountToy, TRADE_SLOT_COUNT_LIKE_CPP,
-};
+use wow_packet::packets::misc::{AccountHeirloom, AccountToy, TRADE_SLOT_COUNT_LIKE_CPP};
 #[cfg(test)]
 use wow_packet::packets::misc::{BuyFailed, SellResponse};
 use wow_social::group::{
@@ -647,9 +642,9 @@ pub(crate) use wow_world_entities::spell_click_values::MAX_GAMEOBJECT_SLOT_LIKE_
 #[cfg(test)]
 pub(crate) use wow_world_spell::spell_cast_adapter::SPELL_CAST_SOURCE_NORMAL_LIKE_CPP;
 const PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP: u32 = 0x0000_0800;
-pub(crate) use wow_constants::rest::{
-    REST_STATE_NORMAL_LIKE_CPP, REST_STATE_RAF_LINKED_LIKE_CPP, REST_STATE_RESTED_LIKE_CPP,
-};
+#[cfg(test)]
+pub(crate) use wow_constants::rest::REST_STATE_NORMAL_LIKE_CPP;
+pub(crate) use wow_constants::rest::{REST_STATE_RAF_LINKED_LIKE_CPP, REST_STATE_RESTED_LIKE_CPP};
 pub(crate) use wow_world_core::session::PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP;
 pub(crate) use wow_world_core::session::PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP;
 

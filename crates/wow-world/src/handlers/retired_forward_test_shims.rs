@@ -359,4 +359,30 @@ impl WorldSession {
 
         distance
     }
+    // Loaded identity (the final cleanup: the name write retired, the identity
+    // write moved to `wow_world_application`).
+    pub(crate) fn set_loaded_player_name_like_cpp(&mut self, name: String) {
+        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
+        state.set_loaded_player_name_like_cpp(&mut hub, name)
+    }
+    pub(crate) fn set_loaded_player_identity_like_cpp(
+        &mut self,
+        map_id: u16,
+        race: u8,
+        class: u8,
+        level: u8,
+        gender: u8,
+    ) {
+        wow_world_application::set_loaded_player_identity_like_cpp(
+            self, map_id, race, class, level, gender,
+        )
+    }
+    // The login rest-bonus load (moved to `wow_world_instances`).
+    pub(crate) fn load_represented_xp_rest_bonus_like_cpp(
+        &mut self,
+        rest_state: u8,
+        rest_bonus: f32,
+    ) {
+        wow_world_instances::load_represented_xp_rest_bonus_like_cpp(self, rest_state, rest_bonus)
+    }
 }

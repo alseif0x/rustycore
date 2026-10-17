@@ -1,0 +1,17 @@
+{
+ "slice": "#1363 final cleanup (allow-list fix F: the login rest-bonus load and its cfg(test) rest-flag clear -> wow-world-instances instance_session/rest_flags.rs over InstanceSessionHostLikeCpp; the ContinueLoginHostLikeCpp method of that name retires)",
+ "base": "f27b315ea",
+ "moved": ["load_represented_xp_rest_bonus_like_cpp", "clear_represented_rest_flags_for_character_load_like_cpp"],
+ "comment": "Every former #[cfg(test)] fixture step becomes cfg(any(test, feature = \"test-fixtures\")) guarded by test_fixtures_ref_like_cpp().is_some() (the 12c form): compiled out of production, skipped in the test-fixtures lib, taken in the World lib test build as before. The rest-state mutation is the existing InstanceSessionHostLikeCpp fixture accessor, whose World impl is WorldSession::mutate_player_rest_state_like_cpp(self, f). No new host method.",
+ "rules": [
+  ["pub\\(crate\\) fn {name}\\(\\s*&mut self,", "pub fn {name}<H: InstanceSessionHostLikeCpp>(host: &mut H,"],
+  ["#\\[cfg\\(test\\)\\]\\s*fn clear_represented_rest_flags_for_character_load_like_cpp\\(&mut self\\)", "#[cfg(any(test, feature = \"test-fixtures\"))] fn clear_represented_rest_flags_for_character_load_like_cpp<H: InstanceSessionHostLikeCpp>(host: &mut H)"],
+  ["#\\[cfg\\(test\\)\\]\\s*if self\\.core\\.player_handle_like_cpp\\.is_none\\(\\)", "#[cfg(any(test, feature = \"test-fixtures\"))] if host.test_fixtures_ref_like_cpp().is_some() && host.core().player_handle_like_cpp.is_none()"],
+  ["#\\[cfg\\(test\\)\\]\\s*if _canonical\\.is_none\\(\\)", "#[cfg(any(test, feature = \"test-fixtures\"))] if host.test_fixtures_ref_like_cpp().is_some() && _canonical.is_none()"],
+  ["self\\.clear_represented_rest_flags_for_character_load_like_cpp\\(\\)", "clear_represented_rest_flags_for_character_load_like_cpp(host)"],
+  ["wow_world_instances::with_owned_player_mut_for_rest_like_cpp\\(self,", "with_owned_player_mut_for_rest_like_cpp(host,"],
+  ["\\bself\\s*\\.\\s*fixtures\\s*\\.", "host.hub_mut().fixtures."],
+  ["\\bself\\s*\\.\\s*core\\s*\\.", "host.core()."],
+  ["\\bself\\.", "host."]
+ ]
+}
