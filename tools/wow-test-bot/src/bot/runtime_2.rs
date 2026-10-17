@@ -708,7 +708,21 @@ pub(crate) async fn run_homebind_smoke_phase(
         }
     }
 
-    logout_and_wait(bot_index, stream, crypt, server_inflater, result).await?;
+    // C++ Opcodes.cpp routes SMSG_LOGOUT_COMPLETE on CONNECTION_TYPE_REALM;
+    // an instance-only wait never sees it from a C++-routed server.
+    let logout_complete_seen = loot_race::logout_and_wait_routed_like_cpp(
+        bot_index,
+        stream,
+        crypt,
+        server_inflater,
+        realm_connection.as_mut(),
+        bot.character_guid,
+        result,
+    )
+    .await?;
+    if !logout_complete_seen {
+        bail!("SMSG_LOGOUT_COMPLETE was not observed on either connection");
+    }
     result.homebind_smoke_passed = Some(true);
     Ok(())
 }
