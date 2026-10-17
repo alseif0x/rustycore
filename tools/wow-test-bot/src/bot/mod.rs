@@ -7,6 +7,7 @@ use super::*;
 
 mod character;
 mod cli;
+mod creature_discovery;
 mod items_1;
 mod items_2;
 mod items_3;
@@ -37,6 +38,8 @@ mod void_storage_4;
 pub(crate) use character::*;
 #[allow(unused_imports)]
 pub(crate) use cli::*;
+#[allow(unused_imports)]
+pub(crate) use creature_discovery::*;
 #[allow(unused_imports)]
 pub(crate) use items_1::*;
 #[allow(unused_imports)]

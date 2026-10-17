@@ -19,7 +19,6 @@ mod cast_lifecycle;
 mod run_report;
 use run_report::{log_bot_summary, write_report_if_requested};
 mod config;
-mod creature_discovery;
 mod login_save;
 mod login_stream;
 mod loot_race;
@@ -29,7 +28,6 @@ mod spell_acquisition;
 mod srp6_auth;
 mod wow_crypto;
 
-use creature_discovery::discover_creature_after_active_mover_ack;
 use login_stream::drain_login_streams;
 use packet_parser::*;
 use protocol::*;
