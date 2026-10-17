@@ -104,7 +104,13 @@ Validation does not review code and does not start servers.
 
 These guards are not crash-proof rollback. `SIGKILL`, host failure or failed restoration requires
 operator recovery from retained evidence. `loot-race` installs and removes the chest fixture through
-the capture wrapper's shared guard, with the world stopped for both writes (#373).
+the capture wrapper's shared guard, with the world stopped for both writes (#373). "Stopped" is
+verified, not assumed: the unit must be inactive with no main PID, the PID it served from gone and
+no listener on the world/instance ports. If that cannot be proven during the restore, the chest
+cleanup and the build copy are skipped, the fixture stays armed and the run exits 70. Every
+swapping command (`login`, `loot-race`, `loot-item`) writes its report from the restore trap, so
+the outcome is `passed-restored`, `failed-restored` or `restore-failed`, never a pass that hides a
+failed restore.
 It does not inherit that capture wrapper's journal-gated restart guarantee. Do not use
 the systemd smoke as proof of complete fixture recovery or as a fresh capture replacement.
 

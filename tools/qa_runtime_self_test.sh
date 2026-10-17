@@ -42,17 +42,32 @@ cat >"$WORK/bin/systemctl" <<'FAKE'
 set -euo pipefail
 state="${QA_FAKE_STATE:?}"
 printf '%s\n' "$*" >>"${state}.calls"
+# The world is up until a stop succeeds. A stop can be told to fail, or to
+# "succeed" while the unit stays active, on its Nth call (#1427).
+world_up() {
+  [[ -f "${state}.still-active" ]] && return 0
+  [[ ! -f "${state}.log" || "$(tail -1 "${state}.log")" != stopped ]]
+}
 case "${1:-}" in
   show)
     case "$*" in
-      *ActiveState*) printf 'active\n' ;;
-      *MainPID*) printf '4242\n' ;;
+      *ActiveState*) if world_up; then printf 'active\n'; else printf 'inactive\n'; fi ;;
+      *MainPID*) if world_up; then printf '4242\n'; else printf '0\n'; fi ;;
       *NRestarts*) printf '7\n' ;;
       *Environment*) printf '%s\n' "${QA_FAKE_ENVIRONMENT:-}" ;;
       *) printf '\n' ;;
     esac
     ;;
-  stop) printf 'stopped\n' >>"${state}.log" ;;
+  stop)
+    stops=$(( $(cat "${state}.stops" 2>/dev/null || echo 0) + 1 ))
+    printf '%s\n' "$stops" >"${state}.stops"
+    if [[ "${QA_FAKE_FAIL_STOP_AT:-0}" == "$stops" ]]; then
+      printf 'refusing to stop\n' >&2
+      exit 1
+    fi
+    [[ "${QA_FAKE_STILL_ACTIVE_AT:-0}" == "$stops" ]] && : >"${state}.still-active"
+    printf 'stopped\n' >>"${state}.log"
+    ;;
   start)
     if [[ "${QA_FAKE_FAIL_START:-0}" == "1" && -f "${state}.swapped" ]]; then
       printf 'refusing to start\n' >&2
@@ -87,6 +102,13 @@ fi
 exit "${QA_FAKE_BOT_STATUS:-0}"
 FAKE
 chmod +x "$WORK/bin/bot"
+
+# The fake world PID is a real process only when a case says so.
+cat >"$WORK/bin/alive" <<'FAKE'
+#!/usr/bin/env bash
+[[ "${QA_FAKE_PROCESS_ALIVE:-0}" == 1 ]]
+FAKE
+chmod +x "$WORK/bin/alive"
 
 cat >"$WORK/bin/resolver" <<'FAKE'
 #!/usr/bin/env bash
@@ -158,6 +180,7 @@ run_qa() {
     QA_BOT="$WORK/bin/bot" \
     QA_LOCK="$WORK/lock" \
     QA_EXE_RESOLVER="$WORK/bin/resolver" \
+    QA_PROCESS_ALIVE="$WORK/bin/alive" \
     QA_SKIP_PORT_GUARD=1 \
     QA_READY_TIMEOUT_SECONDS=5 \
     QA_FAKE_STATE="$WORK/state" \
@@ -213,7 +236,7 @@ run_qa --allow-runtime-qa --ack-disposable-overworld-loot-race \
   --world-exec "$WORK/candidate" --report "$WORK/report.json" loot-race >/dev/null
 check "the bot ran against the candidate build" bot_saw_candidate
 check "the original build was restored" live_is_original
-check "the report records a pass" grep -q '"outcome":"passed"' "$WORK/report.json"
+check "the report records a pass after the restore" grep -q '"outcome":"passed-restored"' "$WORK/report.json"
 check "the smoke received its credentials" test -f "$WORK/state.bot-env"
 check "the smoke was asked for loot-race mode" \
   bash -c '[[ "$(cat "'"$WORK"'/state.bot-mode")" == "1" ]]'
@@ -244,7 +267,7 @@ run_qa --allow-runtime-qa --ack-disposable-overworld-loot-race \
   --world-exec "$WORK/candidate" --report "$WORK/report.json" loot-race >/dev/null 2>&1 || status=$?
 check "a failing smoke fails the run" test "$status" -eq 3
 check "a failing smoke still restores" live_is_original
-check "the report records the failure" grep -q '"outcome":"failed"' "$WORK/report.json"
+check "the report records the failure" grep -q '"outcome":"failed-restored"' "$WORK/report.json"
 
 # 5b. A run that leaves its journal behind is a pending fixture recovery.
 reset_state
@@ -335,6 +358,63 @@ output="$(QA_FAKE_CHEST_RESTORE_FAILS=1 run_qa --allow-runtime-qa \
   --ack-disposable-overworld-loot-race --world-exec "$WORK/candidate" loot-race 2>&1)" || status=$?
 check "a failed chest cleanup is reported" grep -q "chest fixture was NOT restored" <<<"$output"
 check "a failed chest cleanup fails the run" bash -c "(( $status == 70 ))"
+
+# 10d. A restore whose stop fails, or leaves the unit active, must not clean
+# the chest under a possibly running candidate: the chest stays armed, the
+# build is not copied, the run exits 70 and the report cannot say passed.
+for mode in QA_FAKE_FAIL_STOP_AT QA_FAKE_STILL_ACTIVE_AT; do
+  reset_state
+  rm -f "$WORK/state.fixture" "$WORK/report.json"
+  status=0
+  EXTRA_ENV=("$mode=2")
+  output="$(run_qa --allow-runtime-qa --ack-disposable-overworld-loot-race \
+    --world-exec "$WORK/candidate" --report "$WORK/report.json" loot-race 2>&1)" || status=$?
+  check "$mode: the bot ran and passed before the restore" bot_saw_candidate
+  check "$mode: an unverified stop exits 70" test "$status" -eq 70
+  check "$mode: an unverified stop skips the chest cleanup" \
+    bash -c '! grep -q "chest-restored" "'"$WORK"'/state.fixture"'
+  check "$mode: an unverified stop says the chest is still installed" \
+    grep -q "chest fixture was NOT restored" <<<"$output"
+  check "$mode: an unverified stop does not copy over the candidate" \
+    bash -c '[[ "$(cat "'"$WORK"'/live/world-server")" == CANDIDATE-BUILD ]]'
+  check "$mode: an unverified stop keeps the original copy" grep -q "Original kept at" <<<"$output"
+  check "$mode: the report records the failed restore" \
+    grep -q '"outcome":"restore-failed"' "$WORK/report.json"
+  check "$mode: the report keeps the bot status" grep -q '"bot_status":0' "$WORK/report.json"
+done
+rm -f "$WORK/state.still-active"
+
+# 10e. On the run path no database write happens until the world is proven
+# stopped: a failed stop, a unit still active, or a surviving process.
+for mode in QA_FAKE_FAIL_STOP_AT=1 QA_FAKE_STILL_ACTIVE_AT=1 QA_FAKE_PROCESS_ALIVE=1; do
+  reset_state
+  rm -f "$WORK/state.fixture"
+  EXTRA_ENV=("$mode")
+  status=0
+  output="$(run_qa --allow-runtime-qa --ack-disposable-overworld-loot-race \
+    --world-exec "$WORK/candidate" loot-race 2>&1)" || status=$?
+  check "$mode: an unproven stop fails the run" bash -c "(( $status != 0 ))"
+  check "$mode: an unproven stop writes no fixture" \
+    bash -c '[[ ! -f "'"$WORK"'/state.fixture" ]] || ! grep -q "chest-armed" "'"$WORK"'/state.fixture"'
+  check "$mode: an unproven stop never ran the bot" test ! -f "$WORK/state.bot-saw"
+  check "$mode: an unproven stop installs no candidate" live_is_original
+  rm -f "$WORK/state.still-active"
+done
+
+# 10f. The journal directory is never chmod-ed through a symlink.
+reset_state
+mkdir -p "$WORK/elsewhere"
+chmod 755 "$WORK/elsewhere"
+ln -s "$WORK/elsewhere" "$WORK/journal-link"
+EXTRA_ENV=(QA_JOURNAL_DIR="$WORK/journal-link")
+status=0
+output="$(run_qa --allow-runtime-qa \
+  --ack-disposable-overworld-loot-race --world-exec "$WORK/candidate" loot-race 2>&1)" || status=$?
+check "a symlinked journal directory is refused" grep -q "must be a real directory" <<<"$output"
+check "a symlinked journal directory's target keeps its mode" \
+  bash -c '[[ "$(stat -c %a "'"$WORK"'/elsewhere")" == 755 ]]'
+check "a symlinked journal directory never ran the bot" test ! -f "$WORK/state.bot-saw"
+rm -f "$WORK/journal-link"
 
 # 11. The creature scenario arms the fixture before the candidate starts and
 # restores it afterwards, under the same trap as the build.

@@ -38,6 +38,9 @@ QA_SKIP_PORT_GUARD="${QA_SKIP_PORT_GUARD:-0}"
 # How the running executable of a PID is resolved. Overridden only by the
 # self-test, which has no /proc entry pointing at its fake build.
 QA_EXE_RESOLVER="${QA_EXE_RESOLVER:-realpath -e --}"
+# Whether a PID still exists. Overridden only by the self-test, whose fake
+# service PID is not a real process.
+QA_PROCESS_ALIVE="${QA_PROCESS_ALIVE:-pid_exists}"
 # Which worktree must be clean for the swapped build to be identifiable. The
 # self-test points this at its own clean fixture repository.
 QA_GIT_DIR="${QA_GIT_DIR:-$REPO_ROOT}"
@@ -68,6 +71,12 @@ RESTORE_PENDING=0
 RESTORE_FROM=""
 ORIGINAL_SHA=""
 LIVE_PATH=""
+# The last world PID this run saw serving; a stop is verified against it.
+WORLD_PID=""
+# The final report is written by the restore trap, after the restore, so a
+# run whose restore failed can never be reported as passed.
+RUN_CANDIDATE_SHA=""
+RUN_BOT_STATUS=null
 
 # Globals the shared fixture guard reads. It restores only what it armed, so a
 # run that never reached the mutation leaves these alone.
@@ -139,8 +148,39 @@ service_property() {
   $QA_SYSTEMCTL show "$QA_SERVICE" --property="$1" --value 2>/dev/null || true
 }
 
+# /proc, not kill -0: a live world owned by another user answers EPERM.
+pid_exists() {
+  [[ -e "/proc/$1" ]]
+}
+
 service_active() {
   [[ "$(service_property ActiveState)" == "active" ]]
+}
+
+# Stopped means: systemd reports the unit inactive (or failed) with no main
+# PID, the PID it last served from is gone, and nothing listens on the world
+# or instance port - the same absence capture-rust.sh requires before it
+# touches the database. An unreadable state is not stopped.
+world_stopped() {
+  local pid="${1:-}" state main_pid sockets
+  state="$(service_property ActiveState)"
+  [[ "$state" == inactive || "$state" == failed ]] || return 1
+  main_pid="$(service_property MainPID)"
+  [[ -z "$main_pid" || "$main_pid" == 0 ]] || return 1
+  if [[ "$pid" =~ ^[1-9][0-9]*$ ]]; then
+    # shellcheck disable=SC2086
+    ! $QA_PROCESS_ALIVE "$pid" 2>/dev/null || return 1
+  fi
+  ((QA_SKIP_PORT_GUARD == 1)) && return 0
+  sockets="$(ss -H -ltn)" || return 1
+  ! grep -Eq ":(${QA_WORLD_PORT}|${QA_INSTANCE_PORT})([^0-9]|$)" <<<"$sockets"
+}
+
+# Stop the service and prove it stopped. Returns non-zero without retrying.
+stop_world_verified() {
+  # shellcheck disable=SC2086
+  $QA_SYSTEMCTL stop "$QA_SERVICE" || return 1
+  world_stopped "$WORLD_PID"
 }
 
 service_main_pid() {
@@ -222,8 +262,22 @@ restore_live_build() {
   RESTORE_PENDING=0
   log "Restoring the original live build"
   local restore_status=0
-  # shellcheck disable=SC2086
-  $QA_SYSTEMCTL stop "$QA_SERVICE" || restore_status=1
+  if ! stop_world_verified; then
+    # The candidate may still be running. Removing the chest under a live map,
+    # or copying over a running build, would leave a state nobody chose, so
+    # nothing else is touched: the chest stays armed and the run fails loudly.
+    warn "$QA_SERVICE did not stop (or is still active/listening); the candidate may still be running"
+    if ((LOOT_FIXTURE_CHEST_ARMED == 1)); then
+      warn "the chest fixture was NOT restored; spawn ${LOOT_FIXTURE_CHEST_GUID} is still installed (cleanup skipped while the world may run)"
+    fi
+    if ((LOOT_FIXTURE_SNAPSHOT_READY == 1)); then
+      warn "the loot fixture was NOT restored; creature ${LOOT_FIXTURE_ENTRY} may still have HealthModifier ${LOOT_FIXTURE_TEMP_HEALTH_MODIFIER}"
+    fi
+    write_final_report restore-failed
+    printf 'error: THE LIVE BUILD OR FIXTURE WAS NOT RESTORED CLEANLY. Original kept at %s\n' \
+      "$RESTORE_FROM" >&2
+    exit 70
+  fi
   # A GameObject spawn is loaded at world start, so the chest fixture is
   # removed while no world runs: the restored build must not load it (#373).
   if ((LOOT_FIXTURE_CHEST_ARMED == 1)); then
@@ -260,17 +314,12 @@ restore_live_build() {
     fi
   fi
   if ((restore_status != 0)); then
-    if [[ "${COMMAND:-}" == login && -n "$REPORT" ]]; then
-      write_report login restore-failed "${LOGIN_CANDIDATE_SHA:-}" "${LOGIN_BOT_STATUS:-null}"
-    fi
+    write_final_report restore-failed
     printf 'error: THE LIVE BUILD OR FIXTURE WAS NOT RESTORED CLEANLY. Original kept at %s\n' \
       "$RESTORE_FROM" >&2
     exit 70
   fi
-  if [[ "${COMMAND:-}" == login && -n "$REPORT" ]]; then
-    write_report login "$([[ $status -eq 0 ]] && echo passed-restored || echo failed-restored)" \
-      "${LOGIN_CANDIDATE_SHA:-}" "${LOGIN_BOT_STATUS:-null}"
-  fi
+  write_final_report "$([[ $status -eq 0 ]] && echo passed-restored || echo failed-restored)"
   log "Original build restored and serving"
   exit "$status"
 }
@@ -295,6 +344,25 @@ write_report() {
   [[ -n "$REPORT" ]] || return 0
   printf '{"command":"%s","outcome":"%s","service":"%s","original_sha256":"%s","candidate_sha256":"%s","bot_status":%s}\n' \
     "$1" "$2" "$QA_SERVICE" "$ORIGINAL_SHA" "${3:-}" "${4:-null}" >"$REPORT"
+}
+
+# The outcome every swapping command reports, written from the restore trap.
+write_final_report() {
+  case "${COMMAND:-}" in
+    login|loot-race|loot-item)
+      write_report "$COMMAND" "$1" "${RUN_CANDIDATE_SHA:-}" "${RUN_BOT_STATUS:-null}" ;;
+  esac
+}
+
+# The fixture-journal directory must be a real directory owned by this run's
+# rules before its mode is changed: chmod follows a symlink.
+prepare_journal_dir() {
+  [[ ! -L "$QA_JOURNAL_DIR" ]] \
+    || die "fixture-journal directory must be a real directory: $QA_JOURNAL_DIR"
+  mkdir -p -m 700 -- "$QA_JOURNAL_DIR"
+  [[ -d "$QA_JOURNAL_DIR" && ! -L "$QA_JOURNAL_DIR" ]] \
+    || die "fixture-journal directory must be a real directory: $QA_JOURNAL_DIR"
+  chmod 700 -- "$QA_JOURNAL_DIR"
 }
 
 # Values are exported, never echoed: this file holds passwords.
@@ -345,11 +413,11 @@ run_login() {
   [[ -x "$QA_SMOKE" ]] || die "smoke wrapper is missing: $QA_SMOKE"
   require_clean_worktree
   have_bot_credentials || die "no bot credentials before swapping a build"
-  LOGIN_CANDIDATE_SHA="$(sha256_of "$candidate")"
-  LOGIN_BOT_STATUS=null
+  RUN_CANDIDATE_SHA="$(sha256_of "$candidate")"
+  RUN_BOT_STATUS=null
   if ((DRY_RUN == 1)); then
     log "Dry run: nothing is stopped, copied or started"
-    printf 'would install   %s (%s)\n' "$candidate" "$LOGIN_CANDIDATE_SHA"
+    printf 'would install   %s (%s)\n' "$candidate" "$RUN_CANDIDATE_SHA"
     printf 'would run       login-only with account provisioning and fixture modes disabled\n'
     printf 'would restore   the snapshot on every exit path\n'
     return 0
@@ -360,6 +428,7 @@ run_login() {
   packet_dump_absent || die "a packet dump directory is configured; refusing to run QA"
   ORIGINAL_SHA="$(cut -f3 <<<"$identity")"
   pid="$(cut -f1 <<<"$identity")"
+  WORLD_PID="$pid"
   ports_ready "$pid" || die "ports $QA_WORLD_PORT/$QA_INSTANCE_PORT are not owned by PID $pid"
   bot_sha="$(sha256_of "$QA_BOT")"
   evidence_dir="$(mktemp -d "${TMPDIR:-/tmp}/rustycore-login-qa.XXXXXX")"
@@ -367,21 +436,21 @@ run_login() {
   RESTORE_FROM="$evidence_dir/original-world-server"
   cp -- "$LIVE_PATH" "$RESTORE_FROM"
   [[ "$(sha256_of "$RESTORE_FROM")" == "$ORIGINAL_SHA" ]] || die "snapshot copy does not match"
-  write_report login running "$LOGIN_CANDIDATE_SHA"
+  write_report login running "$RUN_CANDIDATE_SHA"
   RESTORE_PENDING=1
   trap restore_live_build EXIT
   trap 'exit 130' HUP INT TERM
-  log "Installing the candidate build $LOGIN_CANDIDATE_SHA"
-  # shellcheck disable=SC2086
-  $QA_SYSTEMCTL stop "$QA_SERVICE"
+  log "Installing the candidate build $RUN_CANDIDATE_SHA"
+  stop_world_verified || die "$QA_SERVICE did not stop (still active, running or listening); refusing to swap the build"
   cp -- "$candidate" "$LIVE_PATH"
-  [[ "$(sha256_of "$LIVE_PATH")" == "$LOGIN_CANDIDATE_SHA" ]] || die "candidate did not install"
+  [[ "$(sha256_of "$LIVE_PATH")" == "$RUN_CANDIDATE_SHA" ]] || die "candidate did not install"
   # shellcheck disable=SC2086
   $QA_SYSTEMCTL start "$QA_SERVICE"
   pid="$(wait_until_serving)" || die "the candidate build did not start serving"
+  WORLD_PID="$pid"
   log "Candidate serving on PID $pid"
 
-  LOGIN_BOT_STATUS=0
+  RUN_BOT_STATUS=0
   (
     # Load credentials once, then pin the maintained wrapper's mode and binary.
     # Do not allow ignored defaults to silently turn this into fixture QA.
@@ -404,16 +473,16 @@ run_login() {
       INSTANCE_HOST=127.0.0.1 INSTANCE_PORT="$QA_INSTANCE_PORT" \
       WOW_BOT_REPORT="$evidence_dir/bot.json" WOW_BOT_LOG="$evidence_dir/bot.log" \
       "$QA_SMOKE"
-  ) >"$evidence_dir/wrapper.log" 2>&1 || LOGIN_BOT_STATUS=$?
-  if ((LOGIN_BOT_STATUS == 0)) && ! jq -e \
+  ) >"$evidence_dir/wrapper.log" 2>&1 || RUN_BOT_STATUS=$?
+  if ((RUN_BOT_STATUS == 0)) && ! jq -e \
     '.login_only == true and (.results | length == 1) and
      all(.results[]; .world_auth == true and .enum_characters == true and .player_login_verified == true and .login_stream_drained == true)' \
     "$evidence_dir/bot.json" >/dev/null 2>&1; then
     warn "login wrapper returned success without verified world-entry evidence"
-    LOGIN_BOT_STATUS=65
+    RUN_BOT_STATUS=65
   fi
-  log "Login bot status: $LOGIN_BOT_STATUS; evidence: $evidence_dir/bot.json"
-  return "$LOGIN_BOT_STATUS"
+  log "Login bot status: $RUN_BOT_STATUS; evidence: $evidence_dir/bot.json"
+  return "$RUN_BOT_STATUS"
 }
 
 run_loot_race() {
@@ -435,6 +504,7 @@ run_loot_race() {
 
   local candidate_sha
   candidate_sha="$(sha256_of "$candidate")"
+  RUN_CANDIDATE_SHA="$candidate_sha"
 
   if ((DRY_RUN == 1)); then
     log "Dry run: nothing is stopped, copied or started"
@@ -454,6 +524,7 @@ run_loot_race() {
   ORIGINAL_SHA="$(cut -f3 <<<"$identity")"
   local pid
   pid="$(cut -f1 <<<"$identity")"
+  WORLD_PID="$pid"
   ports_ready "$pid" || die "ports $QA_WORLD_PORT/$QA_INSTANCE_PORT are not owned by PID $pid"
   log "Live build $ORIGINAL_SHA serving on PID $pid"
 
@@ -463,13 +534,14 @@ run_loot_race() {
   RESTORE_PENDING=1
   trap restore_live_build EXIT
   trap 'exit 130' HUP INT TERM
+  write_report loot-race running "$candidate_sha"
 
   # The chest spawn must exist before the world starts: a GameObject spawn is
   # loaded with its map. The shared guard (also used by the PM2 capture
   # wrapper) fails closed on template/loot/addon drift or a pre-existing spawn,
   # and the EXIT trap removes exactly what it installed, world stopped (#373).
-  # shellcheck disable=SC2086
-  $QA_SYSTEMCTL stop "$QA_SERVICE"
+  # No database write happens until the world is proven stopped.
+  stop_world_verified || die "$QA_SERVICE did not stop (still active, running or listening); refusing to install the chest fixture"
   log "Installing the chest fixture"
   loot_fixture_wait_until_all_characters_offline \
     || die "characters are still online after stopping $QA_SERVICE"
@@ -482,15 +554,13 @@ run_loot_race() {
   # shellcheck disable=SC2086
   $QA_SYSTEMCTL start "$QA_SERVICE"
   pid="$(wait_until_serving)" || die "the candidate build did not start serving"
+  WORLD_PID="$pid"
   log "Candidate serving on PID $pid"
 
   local bot_status=0
   load_bot_environment
   [[ -d "$QA_BOT_DIR" ]] || die "bot directory is missing: $QA_BOT_DIR"
-  mkdir -p "$QA_JOURNAL_DIR"
-  chmod 700 "$QA_JOURNAL_DIR"
-  [[ -d "$QA_JOURNAL_DIR" && ! -L "$QA_JOURNAL_DIR" ]] \
-    || die "fixture-journal directory must be a real directory: $QA_JOURNAL_DIR"
+  prepare_journal_dir
   local journal="$QA_JOURNAL_DIR/fixture-$$-$(date -u +%Y%m%dT%H%M%SZ).journal"
   [[ ! -e "$journal" && ! -e "${journal}.cleanup-complete" ]] \
     || die "fixture journal path is not fresh: $journal"
@@ -513,8 +583,8 @@ run_loot_race() {
   else
     warn "loot-race smoke failed with status $bot_status"
   fi
-  write_report loot-race "$([[ $bot_status -eq 0 ]] && echo passed || echo failed)" \
-    "$candidate_sha" "$bot_status"
+  # The final outcome is reported by the restore trap, after the restore.
+  RUN_BOT_STATUS="$bot_status"
   return "$bot_status"
 }
 
@@ -543,6 +613,7 @@ run_loot_item() {
 
   local candidate_sha
   candidate_sha="$(sha256_of "$candidate")"
+  RUN_CANDIDATE_SHA="$candidate_sha"
 
   if ((DRY_RUN == 1)); then
     log "Dry run: nothing is stopped, copied, mutated or started"
@@ -562,6 +633,7 @@ run_loot_item() {
   ORIGINAL_SHA="$(cut -f3 <<<"$identity")"
   local pid
   pid="$(cut -f1 <<<"$identity")"
+  WORLD_PID="$pid"
   ports_ready "$pid" || die "ports $QA_WORLD_PORT/$QA_INSTANCE_PORT are not owned by PID $pid"
   log "Live build $ORIGINAL_SHA serving on PID $pid"
 
@@ -571,11 +643,11 @@ run_loot_item() {
   RESTORE_PENDING=1
   trap restore_live_build EXIT
   trap 'exit 130' HUP INT TERM
+  write_report loot-item running "$candidate_sha"
 
   # The fixture must be in place before the world starts: the map generates the
   # creature's health from the template at load time.
-  # shellcheck disable=SC2086
-  $QA_SYSTEMCTL stop "$QA_SERVICE"
+  stop_world_verified || die "$QA_SERVICE did not stop (still active, running or listening); refusing to arm the loot fixture"
   log "Arming the loot fixture"
   apply_creature_health_fixture_guard || die "could not arm the loot fixture"
 
@@ -585,15 +657,13 @@ run_loot_item() {
   $QA_SYSTEMCTL start "$QA_SERVICE"
   local candidate_pid
   candidate_pid="$(wait_until_serving)" || die "$QA_SERVICE did not come up with the candidate"
+  WORLD_PID="$candidate_pid"
   log "Candidate serving on PID $candidate_pid"
 
   local bot_status=0
   load_bot_environment
   [[ -d "$QA_BOT_DIR" ]] || die "bot directory is missing: $QA_BOT_DIR"
-  mkdir -p "$QA_JOURNAL_DIR"
-  chmod 700 "$QA_JOURNAL_DIR"
-  [[ -d "$QA_JOURNAL_DIR" && ! -L "$QA_JOURNAL_DIR" ]] \
-    || die "fixture-journal directory must be a real directory: $QA_JOURNAL_DIR"
+  prepare_journal_dir
   local journal="$QA_JOURNAL_DIR/fixture-$$-$(date -u +%Y%m%dT%H%M%SZ).journal"
   [[ ! -e "$journal" && ! -e "${journal}.cleanup-complete" ]] \
     || die "fixture journal path is not fresh: $journal"
@@ -615,8 +685,8 @@ run_loot_item() {
   else
     warn "loot-item capture failed with status $bot_status"
   fi
-  write_report loot-item "$([[ $bot_status -eq 0 ]] && echo passed || echo failed)" \
-    "$candidate_sha" "$bot_status"
+  # The final outcome is reported by the restore trap, after the restore.
+  RUN_BOT_STATUS="$bot_status"
   return "$bot_status"
 }
 
