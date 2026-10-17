@@ -592,44 +592,6 @@ pub(crate) async fn wait_for_bank_open(
     }
     bail!("timed out waiting for SMSG_NPC_INTERACTION_OPEN_RESULT")
 }
-pub(crate) async fn logout_and_wait(
-    bot_index: usize,
-    stream: &mut TcpStream,
-    crypt: &mut WorldCrypt,
-    server_inflater: &mut ServerPacketInflater,
-    result: &mut BotRunResult,
-) -> Result<()> {
-    send_encrypted_packet(stream, crypt, CMSG_LOGOUT_REQUEST, &[0]).await?;
-    info!("[Bot {}] ✅ CMSG_LOGOUT_REQUEST sent", bot_index);
-    let deadline =
-        tokio::time::Instant::now() + Duration::from_secs(NORMAL_LOGOUT_COMPLETE_WAIT_SECS);
-    while tokio::time::Instant::now() < deadline {
-        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
-        match tokio::time::timeout(
-            remaining,
-            read_encrypted_packet(stream, crypt, server_inflater),
-        )
-        .await
-        {
-            Ok(Ok((opcode, payload))) => {
-                result.seen_opcodes.push(format!("0x{opcode:04X}"));
-                if opcode == SMSG_LOGOUT_COMPLETE {
-                    if !payload.is_empty() {
-                        bail!(
-                            "SMSG_LOGOUT_COMPLETE carried {} bytes; C++ 3.4.3 writes an empty body",
-                            payload.len()
-                        );
-                    }
-                    info!("[Bot {}] ✅ SMSG_LOGOUT_COMPLETE received", bot_index);
-                    return Ok(());
-                }
-            }
-            Ok(Err(error)) => return Err(error),
-            Err(_) => break,
-        }
-    }
-    bail!("timed out waiting for SMSG_LOGOUT_COMPLETE")
-}
 pub(crate) async fn wait_for_vendor_purchase_result(
     bot_index: usize,
     stream: &mut TcpStream,

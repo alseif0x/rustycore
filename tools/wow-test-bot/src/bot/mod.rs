@@ -24,6 +24,7 @@ mod movement_smoke;
 mod packets;
 mod post_login_smoke;
 mod quest;
+mod quest_restore;
 mod runtime_1;
 mod runtime_2;
 mod runtime_3;
@@ -75,6 +76,8 @@ pub(crate) use packets::*;
 pub(crate) use post_login_smoke::*;
 #[allow(unused_imports)]
 pub(crate) use quest::*;
+#[allow(unused_imports)]
+pub(crate) use quest_restore::*;
 #[allow(unused_imports)]
 pub(crate) use runtime_1::*;
 #[allow(unused_imports)]

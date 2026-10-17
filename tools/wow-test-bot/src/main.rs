@@ -247,11 +247,6 @@ async fn main() -> Result<()> {
     if cli.bank_smoke && cli.bank_timeout_secs == 0 {
         bail!("--bank-timeout must be greater than zero");
     }
-    if cli.bank_smoke && cli.bank_runtime_counter.is_none() {
-        bail!(
-            "--bank-smoke requires --bank-runtime-counter or WOW_BOT_BANK_RUNTIME_COUNTER for the live banker ObjectGuid"
-        );
-    }
     if (cli.void_storage_smoke || cli.void_storage_query_capture) && bots.len() != 1 {
         bail!("void-storage modes require exactly one bot; select it with --single");
     }
@@ -655,7 +650,7 @@ async fn main() -> Result<()> {
                         log_bot_summary(&result, require_proposal, require_group, cli.login_only);
                         results.push(result);
                     } else {
-                        error!("❌ Bot run ERROR: {}", error);
+                        error!("❌ Bot run ERROR: {:#}", error);
                     }
                 }
             }
@@ -702,7 +697,7 @@ async fn main() -> Result<()> {
                     log_bot_summary(&result, require_proposal, require_group, cli.login_only);
                     results.push(result);
                 }
-                Ok((account, Err(e))) => error!("❌ Bot {} ERROR: {}", account, e),
+                Ok((account, Err(e))) => error!("❌ Bot {} ERROR: {:#}", account, e),
                 Err(e) => error!("❌ Bot task join error: {}", e),
             }
         }

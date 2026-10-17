@@ -32,8 +32,11 @@ quest as active in `character_queststatus`, seeds nonzero
 `character_queststatus_objectives` rows, logs in, sends logout, and verifies the
 objective rows survived the server's logout save.
 
-For a full personal-bank persistence round-trip, set `WOW_BOT_BANK_SMOKE=1`
-and `WOW_BOT_BANK_RUNTIME_COUNTER=<live-counter>`. The bot creates one isolated
+For a full personal-bank persistence round-trip, set `WOW_BOT_BANK_SMOKE=1`.
+After each login the bot sends `CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE` (C++
+`Player::CanNeverSee` hides world objects until then) and discovers the
+banker's live ObjectGuid near its SQL position; `WOW_BOT_BANK_RUNTIME_COUNTER`
+is an optional override. The bot creates one isolated
 test item for the local bot character, opens a neutral banker, deposits the
 item, logs out and authenticates again, withdraws it, logs out again, verifies
 both DB transitions, then deletes the item and restores the original position.
