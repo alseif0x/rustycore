@@ -218,6 +218,7 @@ pub(crate) async fn run_bank_smoke_phase(
     stream: &mut TcpStream,
     crypt: &mut WorldCrypt,
     server_inflater: &mut ServerPacketInflater,
+    realm_connection: &mut Option<EncryptedWorldConnection>,
     options: &BankSmokeOptions,
     result: &mut BotRunResult,
 ) -> Result<()> {
@@ -307,7 +308,20 @@ pub(crate) async fn run_bank_smoke_phase(
         options.timeout_secs,
     )
     .await?;
-    logout_and_wait(bot_index, stream, crypt, server_inflater, result).await?;
+    // C++ Opcodes.cpp routes SMSG_LOGOUT_COMPLETE on CONNECTION_TYPE_REALM.
+    let logout_complete_seen = loot_race::logout_and_wait_routed_like_cpp(
+        bot_index,
+        stream,
+        crypt,
+        server_inflater,
+        realm_connection.as_mut(),
+        bot.character_guid,
+        result,
+    )
+    .await?;
+    if !logout_complete_seen {
+        bail!("SMSG_LOGOUT_COMPLETE was not observed on either connection");
+    }
 
     let bot_for_after = bot.clone();
     let item_guid = options.item_guid;

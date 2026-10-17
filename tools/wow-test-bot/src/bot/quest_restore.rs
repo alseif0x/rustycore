@@ -156,12 +156,22 @@ pub(crate) async fn restore_quest_character_after_run(
     stream: &mut TcpStream,
     crypt: &mut WorldCrypt,
     server_inflater: &mut ServerPacketInflater,
+    realm_connection: &mut Option<EncryptedWorldConnection>,
     quest_options: &QuestSmokeOptions,
     snapshot: QuestCharacterSnapshot,
     result: &mut BotRunResult,
 ) {
     if !quest_options.objective_persist {
-        if let Err(error) = logout_and_wait(bot_index, stream, crypt, server_inflater, result).await
+        if let Err(error) = loot_race::logout_and_wait_routed_like_cpp(
+            bot_index,
+            stream,
+            crypt,
+            server_inflater,
+            realm_connection.as_mut(),
+            bot.character_guid,
+            result,
+        )
+        .await
         {
             warn!(
                 "[Bot {bot_index}] quest restore logout: {error}; waiting for the disconnect save"

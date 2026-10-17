@@ -1114,6 +1114,7 @@ pub(crate) async fn run_bot_with_void_storage(
                 &mut stream,
                 &mut crypt,
                 &mut server_inflater,
+                &mut realm_connection,
                 &quest_options,
                 snapshot,
                 &mut result,
@@ -1130,6 +1131,7 @@ pub(crate) async fn run_bot_with_void_storage(
             &mut stream,
             &mut crypt,
             &mut server_inflater,
+            &mut realm_connection,
             &bank_options,
             &mut result,
         )
