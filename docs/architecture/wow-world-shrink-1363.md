@@ -15907,3 +15907,261 @@ an identical test-name multiset, `#[ignore` 5 and 5. Focused: `cargo test
 `VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
 runs on the committed head that includes this section; manifest, dirty flag
 and duration are in the PR body. This section is not edited after that run.
+
+## Final cleanup result (allow-list honesty fixes, shim retirement, dead code, forwards, final ceilings)
+
+Branch `1363-final-cleanup`, base `f27b315ea` (12d #1421 merged). One PR.
+Move-only (R2) for the moved bodies plus test-side call-site rewrites:
+persistence (#169), money, packets, registration, opcodes,
+`SessionStatus`, handler names and thunks are unchanged. Logical crate count
+only.
+
+**Size.** 4.9k changed lines outside the reprinted
+`session-ownership-policy.json`, of which 3.3k (1.1k added, 2.2k deleted)
+is one mechanical commit: the shim retirement below, produced and
+line-checked by a tool. The remaining units are about 1.6k. The PR is not
+split: the first half alone would leave the session hotspot's test row 6
+lines over its ceiling (the scenario-only imports the moves need), and the
+shim retirement is what pays for them. Each unit is its own commit.
+
+### Allow-list fixes from the #1421 review
+
+- **A. `account_mount_login_partial_rows_like_cpp` (24) →
+  `wow-world-character` `login_session/account_mounts.rs`.** Over
+  `CharacterLoginHostLikeCpp`; the player-condition read is the existing
+  `WorldEntitiesHostLikeCpp` supertrait method, whose World impl is
+  `WorldSession::represented_meets_player_condition_id_like_cpp(self, id)`,
+  the call the base body made. The host method of that name retires (−4
+  host lines, 0 new); the scenario calls the free function.
+- **B. `set_loaded_player_identity_like_cpp` (62) and `gender_from_u8` (7)
+  → `wow-world-application` `continue_login/identity.rs`.** Over
+  `TalentHostLikeCpp`; the talent-point refresh is
+  `TalentHostLikeCpp::refresh_represented_talent_points_like_cpp`, whose World
+  impl is the `wow_world_quest` call the base made. The `#[cfg(not(test))]`
+  early return takes the World-test form (`world_test` is
+  `test_fixtures_ref_like_cpp().is_some()` under
+  `cfg(any(test, feature = "test-fixtures"))`, `false` otherwise): taken in
+  production and in the `test-fixtures` lib, skipped in the World lib test
+  build, as before. The `ContinueLoginHostLikeCpp` method retires (−18 host
+  lines). The allow-listed identity attach and the continue-login coordinator
+  call the free function at the same points (#169 login order unchanged).
+- **C. `set_loaded_player_name_like_cpp` (4) retires** (unit-A pattern): its
+  only production caller, the allow-listed identity attach, names the
+  lifecycle split (+1 line there). Scenarios keep a `cfg(test)` shim.
+- **D. Relabel and measure.** The spell-hit authority proof was re-measured:
+  its sources are reachable from `wow-world-application` through existing
+  host traits except the identity-completeness predicate and the guild-id
+  read, so the move costs 11 new host lines for 131 moved. It moved: the
+  proof, its current-difficulty entry, its canonical publication and the
+  war-mode zone-aura source (with its flag constant) are provided
+  `ContinueLoginHostLikeCpp` methods (`where Self: Sized`;
+  `QuestSessionHostLikeCpp` joins the supertraits), so `self` stays `self`
+  and the scenarios keep their method calls; the required sync method
+  becomes the provided one (−4 host lines). Field reads name the World host
+  impls of the same split (`LootSessionHostLikeCpp::split_inventory_ref`,
+  `CharacterLoginHostLikeCpp::split_lifecycle_ref`,
+  `SpellbookHostLikeCpp::split_spell_state_ref`, each
+  `crate::session::split_*_ref(self)`). The old `many_field_seam` group is
+  split by what each entry reads: `split_context_builder` (7: a split or one
+  state plus the hub, then the constructor), `hub_field_context_builder` (1:
+  core accessors, config and catalogs only), `many_field_seam` (7: genuinely
+  multi-state) and `session_logic_over_quest_reward_context` (5: logic, not
+  builders), each with a reason naming its callers.
+- **E. Not done (follow-up).** Extracting the `quest_objective_operation`
+  dispatch match and its enum to `wow-world-quest` is not a move: the
+  `#[cfg(test)]` `StoringFlag` variant would become a `test-fixtures`
+  variant of a public enum. Recorded in the entry's reason.
+- **F. The five cfg(test) seams.** `load_represented_xp_rest_bonus_like_cpp`
+  (28) and its `#[cfg(test)]` rest-flag clear (45) moved to
+  `wow-world-instances` `rest_flags.rs` at 0 host cost (the rest-state
+  mutation is the existing `InstanceSessionHostLikeCpp` fixture accessor);
+  the `ContinueLoginHostLikeCpp` method retires (−4 host lines). The four
+  rest-bonus methods (86) were re-measured with `wow-world-instances` as the
+  destination: the recruit-a-friend read is now free
+  (`SocialSessionHostLikeCpp::gets_recruit_a_friend_bonus_like_cpp`), but the
+  handle-less fixture steps are World `cfg(test)` chains that reach
+  `QuestRewardCx` through `fixture_set_xp_rest_bonus_like_cpp`, so the move
+  needs two `cfg(test-fixtures)` accessors with default bodies and their
+  World impls, about 43 host lines (50 %). They stay permanently
+  (`cfg_test_fixture_seam_staying`).
+- **Other review follow-ups.** `loot_ops_session_host.rs` names
+  `WorldSession::` for its two same-named inherent calls. The fifteen empty
+  `impl WorldSession {}` blocks are removed (quest giver, bank,
+  storage slots, appearance, trait configs, collection adapter, pet
+  dismissal, movement protocol, time sync, raid profile, the battle-pet
+  publication and slots, the lifecycle login, the quest persistence
+  projection and group ops 1); F3 shim files that read their parent's glob
+  import it one level up.
+
+Token compare (`move_token_compare.py --base origin/3.4.3`, rules
+`move_token_rules/1363-fc-{account-mounts,loaded-identity,xp-rest-load,spell-hit-authority}.json`):
+1/1, 2/2, 2/2, 4/4 identical. Two tokenizer-only spellings in the last rule
+set (rustfmt's trailing comma after `where Self: Sized`, and `.0 .` so the
+tuple index and the method stay separate tokens) are documented in it.
+Host surface: 297 base lines moved; **new host 11 lines (3.7 %)**, retired
+host 30 lines, net −19.
+
+### Shims
+
+- **Reclassified (19 files).** The `handlers/**/test_shims.rs` files whose
+  mounts are `cfg(test)` carry `#![cfg(test)]` (the blank line after the
+  header becomes the attribute; no file grows). The logical crate count
+  charged 1,666 of their lines to `wow-world` production; that is a
+  reclassification, not a move. The loot one sat inside the loot hotspot
+  tree, where the marker would have moved its 104 lines to the loot test row;
+  it moves to `handlers/loot_handler_test_shims.rs` (shim convention, new
+  physical row 105) and the emptied `handlers/loot/handlers.rs` is deleted.
+- **Retired (146 entry points, 624 call sites).** Every shim method whose
+  body is one call to a domain-crate free function with the session and its
+  own parameters in order (353 such methods in the 180 shim files) was
+  tried: all its call sites become the free-function call
+  (`session.f(a)` → `wow_world_x::f(&mut session, a)`; receivers that are
+  already references pass as-is), the method is deleted, and the change is
+  kept only if no site was skipped and no hotspot tree (session, character,
+  loot, quest) gains a line after rustfmt. 146 qualified; 197 would grow a
+  hotspot test row and 10 more were not taken (2 had a site the rewrite could
+  not take, 4 had no rewritable site, 4 kept a remaining reference); those stay.
+  Two F3 shim files emptied and are deleted (quest giver, spell ops 1),
+  with `session/quest/giver.rs` that only mounted one. Two rewrite misses
+  were caught by the lib suite and restored (a comment word read as part of
+  a receiver, a source-contract string literal); no other rewritten site is
+  in a comment or literal.
+- **Kept.** The remaining `#![cfg(test)]` shim files stay as the scenarios'
+  method-syntax entry points: their methods are split forwards, fixture
+  bodies or registry dispatchers (not one-call forwards), or their call-site
+  rewrite would grow a hotspot test row. Every one has a physical row
+  tightened to its live value.
+
+### Dead code and forwards
+
+- **Dead in all three canonical builds** (checked by dropping the
+  module-level `#[allow(dead_code)]` on `profession` and `spell_acquisition`
+  and reading the `dead_code` warnings of the three builds): the trainer and
+  player spell-acquisition projections, `reputation_rank_like_cpp`, the three
+  mount-store getters, `send_quest_giver_status` and the three unused
+  `TELE_TO_*` constants are deleted, and the two module allows go.
+  `set_represented_pet_mode_state_like_cpp` and the breed-quality constant
+  keep their `allow`: the scenarios use them.
+- **Forwards retired (6):** the duel-countdown command arm sends
+  `command.packet_bytes`; the loot host's looting-interrupt removal calls
+  `wow_world_spell::remove_auras_with_interrupt_flags_like_cpp` with the
+  looting flag; `profession.rs` reads `config.max_primary_trade_skills_like_cpp()`;
+  the social host's average item level carries the valuation body; the
+  quest host's objective completion returns the
+  `quest_objective_operation_like_cpp(Complete)` future (the wrapper only
+  awaited it: 1 await before, the same single await inside the operation
+  after); the character login host's stat update names the stats context.
+  Kept: the gameobject kill credit (the operation enum lives in a private
+  session module), the aura-provenance entry (its callee is private to the
+  aura module), the driver's entries and the world-server construction API.
+
+### Accounting
+
+| Crate | Base `f27b315ea` | Head | Δ |
+|---|---:|---:|---:|
+| `wow-world` | 23,509 | **21,340** | **−2,169** |
+| `wow-world-application` | 16,900 | 17,130 | +230 |
+| `wow-world-character` | 9,864 | 9,902 | +38 |
+| `wow-world-instances` | 8,639 | 8,673 | +34 |
+
+`wow-world` −2,169 is −1,666 reclassified (the shim markers), −457 moved,
+retired or deleted (allow-list fixes, dead code, empty impls) and −46 from
+the forwards and the emptied loot handler module. `net_move.py check`: growth 359 within 2,573.8, 0 duplicate
+bodies, PASS. `wow_world_closure.py check`: PASS (18 packages). No manifest
+or edge change.
+
+| `session_method_index` | Base | Head |
+|---|---:|---:|
+| Non-forward (crate) | 128 / 4,312 | **121 / 4,069** |
+| Forwards (crate) | 245 / 1,385 | 231 / 1,273 |
+| Staying | 100 / 3,082 | **94 / 2,848** |
+| Outside | 0 / 0 | 0 / 0 |
+
+### Policy, ceilings, warnings, tests
+
+- `session-method-index.json`: staying bound 100 / 3,082 → **94 / 2,848**,
+  crate ceiling 128 / 4,312 → **121 / 4,069**, outside 0 / 0; the groups
+  and reasons above. `check --done` PASS.
+- Hotspots (live values): `session/mod.rs` production 13,092 → 12,650, test
+  141,585 → 141,459, total 154,677 → 154,109; `handlers/character`
+  1,802 → 1,775 / 15,652 → 15,633; `handlers/loot` 984 → 874 /
+  18,929 → 18,925; `handlers/quest` test 11,252 → 11,242. Physical: every
+  `crates/wow-world*` row tightened to its live value (39 rows; the largest
+  falls are the login, void-storage and spellbook shims, 386 → 214, 231 → 97,
+  433 → 337); the `handlers/loot/handlers.rs` row retires and
+  `handlers/loot_handler_test_shims.rs` gets one (105). No ceiling was raised.
+- `session-ownership-policy.json` reprinted with `print-baseline`;
+  `check --syntax-only` PASS.
+- Warnings (canonical recipe, base vs head): `wow-world` lib 115 → 114,
+  `test-fixtures` lib 124 → 123, lib test 177 → 177; all `wow-world*` lib
+  units 243 → 242, 207 → 206, 384 → 383. Nothing only in the head; gone is
+  the lifecycle login module's unused `ObjectGuid`. `wow-world` `dead_code` 0
+  and `unconditional_recursion` 0 in all three builds.
+- Tests: 9,492 `#[test]`/`#[tokio::test]` attributes at base and head with an
+  identical name multiset, `#[ignore` 5 and 5. `cargo test -p wow-world
+  --lib`: 3,680 passed, 1 ignored. Assertions are unchanged; the one
+  source-contract marker for the identity call names its free-function form
+  (same ordering checks). Destination crates: `cargo check --locked --tests`
+  for application, character, instances, quest, spell, entities, social and
+  loot-ops exit 0.
+
+## Phase 2 summary (#1363)
+
+**Done criterion met.** `session_method_index.py check --done` passes: no
+non-forward method remains in `session/**` outside the named allow-list
+(outside 0 / 0, ratchet enforced), and every staying entry carries a reason.
+Every ceiling is at its live value.
+
+**`wow-world` production** (logical crate count; at the phase 1 base and the
+phase 2 start it equals the src-tree classifier figure, since no production
+`#[path]` mount existed yet):
+
+| Point | `wow-world` | All `wow-world*` |
+|---|---:|---:|
+| Phase 1 base `d7e2fa2d5` | 104,326 | 242,242 |
+| Phase 2 start `fba425ad1` (3b merged) | 87,998 | 238,450 |
+| 12d merged `f27b315ea` | 23,509 | 247,857 |
+| Final cleanup head | **21,340** | 245,990 |
+
+`wow-world` fell by 83.0k in total (−79.5 %), 66.7k of it in phase 2.
+`wow-world-application` went 49,162 → 17,130 as the domain bodies left it for
+the new crates.
+
+- **Crates created in phase 2:** `wow-world-quest` (18,745),
+  `wow-world-character` (9,902), `wow-world-loot-ops` (14,011),
+  `wow-world-player-conditions` (2,025). Phase 1 created
+  `wow-world-creature` and `wow-world-test-support`.
+- **What stays in `wow-world`:** the allow-listed staying set (94 methods /
+  2,848 lines below), the World host impls and context builders that
+  implement the domain traits, the world-server construction API, the
+  forwards that host impls, the driver and scenarios call, and the
+  registrars. The 12b floor estimate was 10–13k for those four groups; the
+  21.3k includes the session root and state, the handler registrars and the
+  module roots the estimate did not count.
+- **Allow-list (final, 94 / 2,848):** runtime shell 27 / 1,074;
+  construction API 26 / 182; bootstrap and identity 11 / 815; #169 money
+  fences 4 / 96; #754 single writer 1 / 17; mailbox command step 1 / 28;
+  rest-bonus `cfg(test)` fixture seams 4 / 86; split context builders
+  7 / 55; hub-field context builder 1 / 18; many-field seams 7 / 196; session
+  logic over the quest reward context 5 / 281.
+- **Tools added in phase 2:** `wow_world_closure.py` (production closure
+  check), `session_method_index.py` (the done criterion: index, ratchets,
+  named allow-list with reasons, `--done`), `warning_units.py` (per-unit
+  warning count and compare for the canonical recipe),
+  `move_token_compare.py` (token comparison of moved bodies under documented
+  rules) and the validation-v2 triggers that run their self-tests in
+  `final`.
+- **Open follow-ups:** #1412 (guild-bank repair never runs in production),
+  #1367 (`Loot::NotifyLootList` divergence), #1368 (quest objective and
+  completion parity gaps); E above (the objective-operation dispatch); the
+  remaining `#![cfg(test)]` shims (their entry points retire when a slice can
+  afford the hotspot test lines their call sites would add); the kill-credit
+  and aura-provenance forwards (their targets are private to their session
+  modules).
+
+### Validation
+
+`VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`
+runs on the committed head that includes these sections; manifest, dirty
+flag and duration are in the PR body. These sections are not edited after
+that run.
