@@ -41,7 +41,7 @@ fn player_spell_hit_source_authority_requires_one_complete_identity_like_cpp() {
             RepresentedPlayerSpellLikeCpp,
         >(),)
     );
-    session.set_player_aura_authority_complete_like_cpp(true);
+    wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true);
     session.complete_player_equipment_inventory_authority_load_like_cpp();
     complete_empty_player_dynamic_spell_hit_aura_sources_like_cpp(&mut session);
     assert!(session.player_aura_authority_complete_like_cpp());
@@ -126,7 +126,7 @@ fn player_spell_hit_source_authority_is_fail_closed_for_sources_and_passives_lik
         1,
         0,
     ));
-    session.set_player_aura_authority_complete_like_cpp(true);
+    wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true);
 
     assert!(!session.can_authorize_empty_player_spell_hit_aura_source_like_cpp());
     session.complete_player_equipment_inventory_authority_load_like_cpp();

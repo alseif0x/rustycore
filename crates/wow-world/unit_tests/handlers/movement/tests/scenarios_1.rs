@@ -545,7 +545,7 @@ fn move_init_active_mover_complete_sets_cpp_transport_state() {
     let mut session = make_session();
     let before = crate::session::game_time_ms_like_cpp();
 
-    session.apply_move_init_active_mover_complete_like_cpp(25);
+    wow_world_entities::apply_move_init_active_mover_complete_like_cpp(&mut session, 25);
 
     assert!(
         session.active_player_local_flags_like_cpp()
@@ -907,7 +907,8 @@ fn move_teleport_ack_applies_near_teleport_cpp_side_effects() {
     session.set_player_pvp_state_like_cpp(true, false, false);
     session.set_near_teleport_pending_like_cpp(true, Some((0, destination)), Some((20, 21)));
 
-    let action = session.handle_move_teleport_ack_like_cpp(guid, 77, 1_234);
+    let action =
+        wow_world_entities::handle_move_teleport_ack_like_cpp(&mut session, guid, 77, 1_234);
     assert_eq!(action, MoveTeleportAckActionLikeCpp::Accepted);
     assert!(!crate::session::hub_ref(&session).near_teleport_pending_like_cpp());
     assert_eq!(session.player_position_like_cpp(), Some(destination));
@@ -938,7 +939,7 @@ fn move_teleport_ack_ignores_wrong_or_missing_near_teleport_like_cpp() {
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(0, original_position);
 
-    let action = session.handle_move_teleport_ack_like_cpp(guid, 1, 2);
+    let action = wow_world_entities::handle_move_teleport_ack_like_cpp(&mut session, guid, 1, 2);
     assert_eq!(action, MoveTeleportAckActionLikeCpp::NotBeingTeleportedNear);
     assert_eq!(session.player_position_like_cpp(), Some(original_position));
 
@@ -947,7 +948,8 @@ fn move_teleport_ack_ignores_wrong_or_missing_near_teleport_like_cpp() {
         Some((0, wow_core::Position::new(9.0, 9.0, 9.0, 0.0))),
         Some((30, 31)),
     );
-    let action = session.handle_move_teleport_ack_like_cpp(other_guid, 3, 4);
+    let action =
+        wow_world_entities::handle_move_teleport_ack_like_cpp(&mut session, other_guid, 3, 4);
     assert_eq!(action, MoveTeleportAckActionLikeCpp::WrongMover);
     assert!(crate::session::hub_ref(&session).near_teleport_pending_like_cpp());
     assert_eq!(session.player_position_like_cpp(), Some(original_position));

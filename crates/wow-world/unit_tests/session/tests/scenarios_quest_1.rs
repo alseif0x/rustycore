@@ -129,7 +129,7 @@ fn reset_seasonal_clears_quest_v2_completed_bit_from_canonical_player_like_cpp()
     session.set_quest_v2_store(Arc::new(seasonal_quest_v2_store_like_cpp([(1001, 65)])));
     assert!(session.set_loaded_quest_completed_bit_like_cpp(65));
 
-    let outcome = session.reset_seasonal_quest_status_like_cpp(7, 100);
+    let outcome = wow_world_quest::reset_seasonal_quest_status_like_cpp(&mut session, 7, 100);
 
     assert_eq!(outcome.removed_quest_ids, vec![1001]);
     assert_eq!(outcome.completed_bit_cleared, 1);
@@ -152,7 +152,7 @@ fn reset_seasonal_missing_quest_v2_store_removes_without_inventing_bit_like_cpp(
     let (mut session, _, _) = make_session();
     session.seed_seasonal_quest_status_like_cpp(7, 1001, 99);
 
-    let outcome = session.reset_seasonal_quest_status_like_cpp(7, 100);
+    let outcome = wow_world_quest::reset_seasonal_quest_status_like_cpp(&mut session, 7, 100);
 
     assert_eq!(outcome.removed_quest_ids, vec![1001]);
     assert_eq!(outcome.completed_bit_cleared, 0);
@@ -171,7 +171,7 @@ fn can_take_quest_rejects_completed_seasonal_bucket_quest_like_cpp() {
     let quest = seasonal_test_quest_template(12_345, -376, 9);
     session.seed_seasonal_quest_status_like_cpp(9, 12_345, 100);
 
-    assert!(!session.can_take_quest(&quest));
+    assert!(!wow_world_quest::can_take_quest(&session, &quest));
 }
 #[test]
 fn can_take_quest_allows_seasonal_when_only_other_event_bucket_has_quest_like_cpp() {
@@ -179,17 +179,17 @@ fn can_take_quest_allows_seasonal_when_only_other_event_bucket_has_quest_like_cp
     let quest = seasonal_test_quest_template(12_345, -376, 9);
     session.seed_seasonal_quest_status_like_cpp(10, 12_345, 100);
 
-    assert!(session.can_take_quest(&quest));
+    assert!(wow_world_quest::can_take_quest(&session, &quest));
 }
 #[test]
 fn can_take_quest_allows_seasonal_when_bucket_missing_or_empty_like_cpp() {
     let (mut session, _, _) = make_session();
     let quest = seasonal_test_quest_template(12_345, -376, 9);
 
-    assert!(session.can_take_quest(&quest));
+    assert!(wow_world_quest::can_take_quest(&session, &quest));
 
     session.seed_empty_seasonal_event_bucket_like_cpp(9);
-    assert!(session.can_take_quest(&quest));
+    assert!(wow_world_quest::can_take_quest(&session, &quest));
 }
 #[test]
 fn can_take_quest_allows_non_seasonal_even_when_same_bucket_has_quest_like_cpp() {
@@ -197,7 +197,7 @@ fn can_take_quest_allows_non_seasonal_even_when_same_bucket_has_quest_like_cpp()
     let quest = seasonal_test_quest_template(12_345, -101, 9);
     session.seed_seasonal_quest_status_like_cpp(9, 12_345, 100);
 
-    assert!(session.can_take_quest(&quest));
+    assert!(wow_world_quest::can_take_quest(&session, &quest));
 }
 #[test]
 fn canonical_player_quest_rewarded_talent_points_follow_detached_and_stale_ownership_like_cpp() {
@@ -684,14 +684,16 @@ fn quest_giver_accept_missing_or_player_source_rejects_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 123);
 
     assert!(
-        !session.represented_quest_giver_accept_source_allows_quest_like_cpp(
+        !wow_world_quest::represented_quest_giver_accept_source_allows_quest_like_cpp(
+            &session,
             missing_guid,
             9_213,
             &quest_store,
         )
     );
     assert!(
-        !session.represented_quest_giver_accept_source_allows_quest_like_cpp(
+        !wow_world_quest::represented_quest_giver_accept_source_allows_quest_like_cpp(
+            &session,
             player_guid,
             9_213,
             &quest_store,
@@ -715,14 +717,16 @@ fn quest_giver_reward_missing_or_player_source_rejects_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 123);
 
     assert!(
-        !session.represented_quest_giver_involved_source_allows_quest_like_cpp(
+        !wow_world_quest::represented_quest_giver_involved_source_allows_quest_like_cpp(
+            &session,
             missing_guid,
             9_217,
             &quest_store,
         )
     );
     assert!(
-        !session.represented_quest_giver_involved_source_allows_quest_like_cpp(
+        !wow_world_quest::represented_quest_giver_involved_source_allows_quest_like_cpp(
+            &session,
             player_guid,
             9_217,
             &quest_store,

@@ -360,11 +360,11 @@ fn battle_pet_has_max_pet_count_uses_cpp_default_species_limit() {
 
     assert_eq!(session.battle_pet_count_like_cpp(11, None), 3);
     assert_eq!(
-        session.battle_pet_has_max_pet_count_like_cpp(11, None),
+        wow_world_inventory::battle_pet_has_max_pet_count_like_cpp(&session, 11, None),
         Some(true)
     );
     assert_eq!(
-        session.battle_pet_has_max_pet_count_like_cpp(12, None),
+        wow_world_inventory::battle_pet_has_max_pet_count_like_cpp(&session, 12, None),
         Some(false)
     );
 }
@@ -391,7 +391,7 @@ fn battle_pet_has_max_pet_count_honors_legacy_account_unique_like_cpp() {
 
     assert_eq!(session.battle_pet_count_like_cpp(11, None), 1);
     assert_eq!(
-        session.battle_pet_has_max_pet_count_like_cpp(11, None),
+        wow_world_inventory::battle_pet_has_max_pet_count_like_cpp(&session, 11, None),
         Some(true)
     );
 }
@@ -751,14 +751,14 @@ async fn battle_pet_change_quality_does_not_abort_when_calculate_stats_returns_e
 fn battle_pet_calculate_stats_uses_cpp_db2_state_stores() {
     let (mut session, _, _) = make_session();
     assert_eq!(
-        session.battle_pet_calculate_stats_like_cpp(7, 11, 3, 2),
+        wow_world_inventory::battle_pet_calculate_stats_like_cpp(&session, 7, 11, 3, 2),
         None
     );
 
     install_represented_battle_pet_stat_stores_like_cpp(&mut session);
 
     assert_eq!(
-        session.battle_pet_calculate_stats_like_cpp(7, 11, 3, 2),
+        wow_world_inventory::battle_pet_calculate_stats_like_cpp(&session, 7, 11, 3, 2),
         Some(RepresentedBattlePetCalculatedStatsLikeCpp {
             max_health: 190,
             power: 11,
@@ -766,7 +766,7 @@ fn battle_pet_calculate_stats_uses_cpp_db2_state_stores() {
         })
     );
     assert_eq!(
-        session.battle_pet_calculate_stats_like_cpp(8, 11, 3, 2),
+        wow_world_inventory::battle_pet_calculate_stats_like_cpp(&session, 8, 11, 3, 2),
         None
     );
 }

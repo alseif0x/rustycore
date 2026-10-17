@@ -445,7 +445,7 @@ fn resummon_pet_validates_action_bar_spells_like_cpp() {
     assert!(!spell_misc_store.is_autocastable_like_cpp(2_222));
     assert!(spell_misc_store.is_autocastable_like_cpp(4_444));
 
-    session.resummon_pet_temporary_unsummoned_if_any_like_cpp();
+    wow_world_lifecycle::resummon_pet_temporary_unsummoned_like_cpp(&mut session);
 
     let pet_guid = session
         .represented_pet_guid_like_cpp()

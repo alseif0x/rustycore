@@ -718,9 +718,9 @@ fn direct_inventory_store_plan_uses_cpp_can_store_merge_then_empty_order() {
     );
     session.insert_inventory_item_object(item);
 
-    let (result, dest, no_space) = session
-        .plan_store_new_direct_inventory_item(700, 5)
-        .expect("player snapshot should exist");
+    let (result, dest, no_space) =
+        wow_world_application::plan_store_new_direct_inventory_item(&session, 700, 5)
+            .expect("player snapshot should exist");
 
     assert_eq!(result, InventoryResult::Ok);
     assert_eq!(no_space, None);

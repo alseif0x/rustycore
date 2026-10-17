@@ -117,7 +117,7 @@ fn make_void_storage_session() -> (
     session.set_void_storage_item_id_generator_like_cpp(Arc::new(
         VoidStorageItemIdGeneratorLikeCpp::new(100),
     ));
-    session.mark_represented_void_storage_loaded_like_cpp();
+    wow_world_character::mark_represented_void_storage_loaded_like_cpp(&mut session);
     let canonical = Arc::new(Mutex::new(wow_map::MapManager::new(60_000, 10)));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     (session, send_rx, canonical)

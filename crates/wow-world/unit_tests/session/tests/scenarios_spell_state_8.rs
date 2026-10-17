@@ -784,7 +784,7 @@ fn represented_fly_aura_removal_unsets_can_fly_and_resets_fall_info_like_cpp() {
             30_000,
         )
         .unwrap();
-    session.update_represented_flight_flags_for_flight_aura_like_cpp(true);
+    wow_world_spell::update_represented_flight_flags_for_flight_aura_like_cpp(&mut session, true);
     let slot = session
         .fixtures
         .auras
@@ -846,7 +846,7 @@ fn represented_fly_aura_removal_skips_move_fall_when_gravity_disabled_like_cpp()
             30_000,
         )
         .unwrap();
-    session.update_represented_flight_flags_for_flight_aura_like_cpp(true);
+    wow_world_spell::update_represented_flight_flags_for_flight_aura_like_cpp(&mut session, true);
     let slot = session
         .fixtures
         .auras
@@ -915,7 +915,7 @@ fn represented_fly_aura_removal_preserves_flags_when_mounted_flight_remains_like
             30_000,
         )
         .unwrap();
-    session.update_represented_flight_flags_for_flight_aura_like_cpp(true);
+    wow_world_spell::update_represented_flight_flags_for_flight_aura_like_cpp(&mut session, true);
     let fly_slot = session
         .fixtures
         .auras

@@ -140,9 +140,9 @@ fn direct_inventory_store_plan_counts_represented_bag_contents_for_limit_categor
     child.set_container_guid_and_slot(bag_guid, 0);
     session.insert_inventory_item_object(child);
 
-    let (result, dest, no_space) = session
-        .plan_store_new_direct_inventory_item(700, 1)
-        .expect("player snapshot should exist");
+    let (result, dest, no_space) =
+        wow_world_application::plan_store_new_direct_inventory_item(&session, 700, 1)
+            .expect("player snapshot should exist");
 
     assert_eq!(result, InventoryResult::ItemMaxLimitCategoryCountExceededIs);
     assert!(dest.is_empty());
@@ -275,9 +275,9 @@ fn direct_inventory_store_plan_allocates_represented_bag_slot_like_cpp() {
         session.insert_inventory_item_object(item);
     }
 
-    let (result, dest, no_space) = session
-        .plan_store_new_direct_inventory_item(700, 3)
-        .expect("player snapshot should exist");
+    let (result, dest, no_space) =
+        wow_world_application::plan_store_new_direct_inventory_item(&session, 700, 3)
+            .expect("player snapshot should exist");
 
     assert_eq!(result, InventoryResult::Ok);
     assert_eq!(no_space, None);

@@ -187,7 +187,8 @@ fn quest_giver_accept_creature_starter_relation_allows_source_like_cpp() {
     quest_store.starter_quests.insert(782, vec![9_208]);
 
     assert!(
-        session.represented_quest_giver_accept_source_allows_quest_like_cpp(
+        wow_world_quest::represented_quest_giver_accept_source_allows_quest_like_cpp(
+            &session,
             source_guid,
             9_208,
             &quest_store,
@@ -218,7 +219,8 @@ fn quest_giver_accept_creature_ender_only_relation_rejects_like_cpp() {
     quest_store.ender_quests.insert(783, vec![9_209]);
 
     assert!(
-        !session.represented_quest_giver_accept_source_allows_quest_like_cpp(
+        !wow_world_quest::represented_quest_giver_accept_source_allows_quest_like_cpp(
+            &session,
             source_guid,
             9_209,
             &quest_store,
@@ -252,7 +254,8 @@ fn quest_giver_accept_gameobject_starter_relation_allows_source_like_cpp() {
     assert!(quest_store.insert_gameobject_starter_relation_like_cpp(784, 9_210));
 
     assert!(
-        session.represented_quest_giver_accept_source_allows_quest_like_cpp(
+        wow_world_quest::represented_quest_giver_accept_source_allows_quest_like_cpp(
+            &session,
             source_guid,
             9_210,
             &quest_store,
@@ -274,7 +277,8 @@ fn quest_giver_accept_gameobject_starter_relation_without_interaction_rejects_li
     assert!(quest_store.insert_gameobject_starter_relation_like_cpp(784, 9_210));
 
     assert!(
-        !session.represented_quest_giver_accept_source_allows_quest_like_cpp(
+        !wow_world_quest::represented_quest_giver_accept_source_allows_quest_like_cpp(
+            &session,
             source_guid,
             9_210,
             &quest_store,
@@ -311,14 +315,16 @@ fn quest_giver_accept_gameobject_ender_only_or_unrelated_rejects_like_cpp() {
     assert!(quest_store.insert_gameobject_ender_relation_like_cpp(785, 9_211));
 
     assert!(
-        !session.represented_quest_giver_accept_source_allows_quest_like_cpp(
+        !wow_world_quest::represented_quest_giver_accept_source_allows_quest_like_cpp(
+            &session,
             source_guid,
             9_211,
             &quest_store,
         )
     );
     assert!(
-        !session.represented_quest_giver_accept_source_allows_quest_like_cpp(
+        !wow_world_quest::represented_quest_giver_accept_source_allows_quest_like_cpp(
+            &session,
             source_guid,
             9_212,
             &quest_store,
@@ -355,7 +361,8 @@ fn quest_giver_reward_creature_ender_relation_allows_source_like_cpp() {
     quest_store.ender_quests.insert(786, vec![9_214]);
 
     assert!(
-        session.represented_quest_giver_involved_source_allows_quest_like_cpp(
+        wow_world_quest::represented_quest_giver_involved_source_allows_quest_like_cpp(
+            &session,
             source_guid,
             9_214,
             &quest_store,
@@ -386,7 +393,8 @@ fn quest_giver_reward_creature_starter_only_relation_rejects_like_cpp() {
     quest_store.starter_quests.insert(787, vec![9_215]);
 
     assert!(
-        !session.represented_quest_giver_involved_source_allows_quest_like_cpp(
+        !wow_world_quest::represented_quest_giver_involved_source_allows_quest_like_cpp(
+            &session,
             source_guid,
             9_215,
             &quest_store,
@@ -415,7 +423,8 @@ fn quest_giver_reward_gameobject_ender_relation_allows_source_like_cpp() {
     assert!(quest_store.insert_gameobject_ender_relation_like_cpp(788, 9_216));
 
     assert!(
-        session.represented_quest_giver_involved_source_allows_quest_like_cpp(
+        wow_world_quest::represented_quest_giver_involved_source_allows_quest_like_cpp(
+            &session,
             source_guid,
             9_216,
             &quest_store,
@@ -445,7 +454,8 @@ fn quest_giver_reward_gameobject_ender_relation_out_of_range_rejects_like_cpp() 
     assert!(quest_store.insert_gameobject_ender_relation_like_cpp(790, 9_221));
 
     assert!(
-        !session.represented_quest_giver_involved_source_allows_quest_like_cpp(
+        !wow_world_quest::represented_quest_giver_involved_source_allows_quest_like_cpp(
+            &session,
             source_guid,
             9_221,
             &quest_store,
@@ -479,7 +489,8 @@ fn quest_giver_reward_gameobject_ender_relation_wrong_type_rejects_like_cpp() {
     assert!(quest_store.insert_gameobject_ender_relation_like_cpp(791, 9_222));
 
     assert!(
-        !session.represented_quest_giver_involved_source_allows_quest_like_cpp(
+        !wow_world_quest::represented_quest_giver_involved_source_allows_quest_like_cpp(
+            &session,
             source_guid,
             9_222,
             &quest_store,

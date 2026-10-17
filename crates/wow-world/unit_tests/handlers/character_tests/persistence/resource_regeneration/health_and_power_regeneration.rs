@@ -227,7 +227,7 @@ fn polymorph_transform_aura_allows_in_combat_health_regeneration_like_cpp() {
             .is_ok()
     );
     assert_eq!(
-        session.represented_player_is_polymorphed_like_cpp(),
+        wow_world_spell::represented_player_is_polymorphed_like_cpp(&session),
         Some(true)
     );
 
@@ -250,7 +250,7 @@ fn polymorph_transform_aura_allows_in_combat_health_regeneration_like_cpp() {
         .expect("polymorph aura slot");
     session.remove_aura(slot).expect("remove polymorph aura");
     assert_eq!(
-        session.represented_player_is_polymorphed_like_cpp(),
+        wow_world_spell::represented_player_is_polymorphed_like_cpp(&session),
         Some(false)
     );
     session.tick_player_regeneration_like_cpp(

@@ -22,27 +22,19 @@ async fn quest_source_item_addon_port_preserves_lookup_and_zero_cache_like_cpp()
     session.set_item_template_addon_catalog_persistence_port_like_cpp(port.clone());
 
     assert_eq!(
-        session
-            .quest_source_item_quest_log_item_id_like_cpp(1001)
-            .await,
+        wow_world_quest::quest_source_item_quest_log_item_id_like_cpp(&mut session, 1001).await,
         9101
     );
     assert_eq!(
-        session
-            .quest_source_item_quest_log_item_id_like_cpp(1001)
-            .await,
+        wow_world_quest::quest_source_item_quest_log_item_id_like_cpp(&mut session, 1001).await,
         9101
     );
     assert_eq!(
-        session
-            .quest_source_item_quest_log_item_id_like_cpp(1002)
-            .await,
+        wow_world_quest::quest_source_item_quest_log_item_id_like_cpp(&mut session, 1002).await,
         0
     );
     assert_eq!(
-        session
-            .quest_source_item_quest_log_item_id_like_cpp(1002)
-            .await,
+        wow_world_quest::quest_source_item_quest_log_item_id_like_cpp(&mut session, 1002).await,
         0
     );
     assert_eq!(
@@ -165,7 +157,7 @@ fn quest_bound_withdrawal_plan_consumes_credit_without_physical_item() {
             1,
         )
     );
-    let planned = session.finish_item_transfer_quest_persistence_like_cpp(plan);
+    let planned = wow_world_quest::finish_item_transfer_quest_persistence_like_cpp(&session, plan);
     assert_eq!(planned.len(), 1);
     assert_eq!(planned[0].status, QUEST_STATUS_COMPLETE_LIKE_CPP);
     assert_eq!(planned[0].objective_counts, vec![1]);

@@ -197,12 +197,13 @@ async fn missing_trainer_mapping_preserves_binding_and_feign_like_cpp() {
         .set_player_trainer_interaction_like_cpp(fixture.other_trainer, 17);
     seed_feign_death(&mut fixture.session, 6);
 
-    fixture
-        .session
-        .handle_trainer_list(wow_packet::packets::gossip::Hello {
+    wow_world_application::handle_trainer_list(
+        &mut fixture.session,
+        wow_packet::packets::gossip::Hello {
             unit: fixture.trainer,
-        })
-        .await;
+        },
+    )
+    .await;
 
     assert!(
         fixture
@@ -226,12 +227,13 @@ async fn valid_trainer_list_uses_store_states_and_publishes_exact_binding_like_c
     let mut fixture = trainer_fixture();
     seed_feign_death(&mut fixture.session, 6);
 
-    fixture
-        .session
-        .handle_trainer_list(wow_packet::packets::gossip::Hello {
+    wow_world_application::handle_trainer_list(
+        &mut fixture.session,
+        wow_packet::packets::gossip::Hello {
             unit: fixture.trainer,
-        })
-        .await;
+        },
+    )
+    .await;
 
     assert!(
         fixture.send_rx.try_recv().is_ok(),
@@ -310,9 +312,12 @@ async fn trainer_list_evaluates_wrapper_offer_after_full_feign_removal() {
     };
     assert!(
         matches!(
-            fixture
-                .session
-                .trainer_offer_decision_like_cpp(DEFAULT_TRAINER_ID, &trainer_spell, 1,),
+            wow_world_application::trainer_offer_decision_like_cpp(
+                &mut fixture.session,
+                DEFAULT_TRAINER_ID,
+                &trainer_spell,
+                1,
+            ),
             TrainerOfferDecisionLikeCpp::Unavailable(_)
         ),
         "the active aura without cast metadata must fail the fresh wrapper proof"
@@ -320,12 +325,13 @@ async fn trainer_list_evaluates_wrapper_offer_after_full_feign_removal() {
     assert!(canonical_player_has_died_state(&mut fixture.session));
     assert!(fixture.send_rx.try_recv().is_err());
 
-    fixture
-        .session
-        .handle_trainer_list(wow_packet::packets::gossip::Hello {
+    wow_world_application::handle_trainer_list(
+        &mut fixture.session,
+        wow_packet::packets::gossip::Hello {
             unit: fixture.trainer,
-        })
-        .await;
+        },
+    )
+    .await;
 
     assert_eq!(
         fixture.send_rx.try_recv().unwrap(),
@@ -383,12 +389,13 @@ async fn trainer_list_invalid_npc_preserves_feign_binding_and_sends_nothing() {
         .set_player_trainer_interaction_like_cpp(fixture.other_trainer, 17);
     seed_feign_death(&mut fixture.session, 6);
 
-    fixture
-        .session
-        .handle_trainer_list(wow_packet::packets::gossip::Hello {
+    wow_world_application::handle_trainer_list(
+        &mut fixture.session,
+        wow_packet::packets::gossip::Hello {
             unit: fixture.vendor,
-        })
-        .await;
+        },
+    )
+    .await;
 
     assert!(canonical_player_has_died_state(&mut fixture.session));
     assert!(
@@ -431,9 +438,7 @@ async fn trainer_buy_requires_exact_active_provenance_before_known_spell_like_cp
         } else {
             trainer_fixture()
         };
-        fixture
-            .session
-            .learn_known_spell_like_cpp(KNOWN_TRAINER_SPELL);
+        wow_world_spell::learn_known_spell_like_cpp(&mut fixture.session, KNOWN_TRAINER_SPELL);
         match case {
             "unbound" => {}
             "wrong-guid" | "wrong-id" => {
@@ -475,9 +480,7 @@ async fn trainer_buy_requires_exact_active_provenance_before_known_spell_like_cp
 #[tokio::test]
 async fn generic_source_with_zero_trainer_id_is_silent_before_known_spell_like_cpp() {
     let mut fixture = trainer_fixture();
-    fixture
-        .session
-        .learn_known_spell_like_cpp(KNOWN_TRAINER_SPELL);
+    wow_world_spell::learn_known_spell_like_cpp(&mut fixture.session, KNOWN_TRAINER_SPELL);
     fixture
         .session
         .set_player_interaction_source_like_cpp(fixture.trainer);
@@ -502,9 +505,7 @@ async fn generic_source_with_zero_trainer_id_is_silent_before_known_spell_like_c
 async fn trainer_buy_signed_id_bits_and_binding_survive_repeated_failures_like_cpp() {
     let store = standard_trainer_store(u32::MAX);
     let mut fixture = trainer_fixture_with_store(store);
-    fixture
-        .session
-        .learn_known_spell_like_cpp(KNOWN_TRAINER_SPELL);
+    wow_world_spell::learn_known_spell_like_cpp(&mut fixture.session, KNOWN_TRAINER_SPELL);
     fixture
         .session
         .set_player_trainer_interaction_like_cpp(fixture.trainer, u32::MAX);

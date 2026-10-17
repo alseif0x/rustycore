@@ -59,15 +59,15 @@ fn skill_rewarded_quest_fallback_uses_future_player_condition_like_cpp() {
         },
     ])));
 
-    assert!(session.skill_rewarded_quest_fallback_allowed_like_cpp(900));
+    assert!(wow_world_character::skill_rewarded_quest_fallback_allowed_like_cpp(&session, 900));
     assert!(
-        !session.skill_rewarded_quest_fallback_allowed_like_cpp(901),
+        !wow_world_character::skill_rewarded_quest_fallback_allowed_like_cpp(&session, 901),
         "C++ MeetsFutureSpellPlayerCondition returns false when the condition id is zero"
     );
 
     session.set_loaded_player_identity_like_cpp(0, 1, 2, 10, 0);
     assert!(
-        !session.skill_rewarded_quest_fallback_allowed_like_cpp(900),
+        !wow_world_character::skill_rewarded_quest_fallback_allowed_like_cpp(&session, 900),
         "the fallback must evaluate the real PlayerCondition against the current player"
     );
 }
@@ -85,27 +85,25 @@ async fn homebind_repair_writes_typed_delete_and_insert_requests_nonfatally_like
     session.set_player_lifecycle_port_like_cpp(port.clone());
     let guid = ObjectGuid::create_player(1, 77);
 
-    session
-        .delete_invalid_character_homebind_like_cpp(guid)
-        .await;
+    wow_world_character::delete_invalid_character_homebind_like_cpp(&session, guid).await;
     let create_position = PlayerCreatePositionLikeCpp {
         map_id: 0,
         position: Position::new(1.0, 2.0, 3.0, 4.0),
         transport_guid: None,
     };
-    let repaired = session
-        .repair_character_homebind_like_cpp(
-            guid,
-            1,
-            PlayerCreateInfoLikeCpp {
-                create_position,
-                create_position_npe: None,
-            },
-            wow_data::PLAYER_CREATE_MODE_NORMAL_LIKE_CPP,
-            true,
-        )
-        .await
-        .expect("nonfatal persistence failure does not discard selected homebind");
+    let repaired = wow_world_character::repair_character_homebind_like_cpp(
+        &session,
+        guid,
+        1,
+        PlayerCreateInfoLikeCpp {
+            create_position,
+            create_position_npe: None,
+        },
+        wow_data::PLAYER_CREATE_MODE_NORMAL_LIKE_CPP,
+        true,
+    )
+    .await
+    .expect("nonfatal persistence failure does not discard selected homebind");
     assert_eq!(repaired.map_id, 0);
     assert_eq!(
         port.requests(),
@@ -365,9 +363,7 @@ async fn quest_giver_hello_trainer_questgiver_sends_mixed_gossip_like_cpp() {
             | NPCFlags1::TRAINER_CLASS.bits(),
     );
 
-    session
-        .handle_quest_giver_hello(quest_giver_hello_packet(guid))
-        .await;
+    wow_world_quest::handle_quest_giver_hello(&mut session, quest_giver_hello_packet(guid)).await;
 
     let bytes = send_rx.try_recv().expect("mixed prepared gossip menu");
     assert_eq!(gossip_message_counts(&bytes, guid), (1, 1));
@@ -405,9 +401,7 @@ async fn quest_giver_hello_plain_questgiver_keeps_direct_quest_open_like_cpp() {
         NPCFlags1::GOSSIP.bits() | NPCFlags1::QUEST_GIVER.bits(),
     );
 
-    session
-        .handle_quest_giver_hello(quest_giver_hello_packet(guid))
-        .await;
+    wow_world_quest::handle_quest_giver_hello(&mut session, quest_giver_hello_packet(guid)).await;
 
     assert_eq!(
         drain_server_opcodes(&send_rx),

@@ -431,7 +431,7 @@ fn player_attack_waits_for_active_mover_visibility_flag_like_cpp() {
     );
     assert_eq!(session.fixtures.combat.combat_target, None);
 
-    session.apply_move_init_active_mover_complete_like_cpp(0);
+    wow_world_entities::apply_move_init_active_mover_complete_like_cpp(&mut session, 0);
     assert_eq!(
         wow_world_entities::start_player_attack_like_cpp(&mut session, victim),
         PlayerAttackStartLikeCppResult::Accepted {

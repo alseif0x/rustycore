@@ -213,21 +213,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_world_entities_mut(self);
         state.mutate_canonical_gameobject_by_guid_like_cpp(&mut hub, guid, f)
     }
-    // Unit values-update publication (moved to
-    // `wow_world_quest::unit_update_publication`).
-    pub(crate) fn represented_unit_values_update_to_update_object_like_cpp(
-        &self,
-        unit_guid: ObjectGuid,
-        map_id: u16,
-        values_update: &wow_entities::UnitValuesUpdate,
-    ) -> Option<wow_packet::packets::update::UpdateObject> {
-        wow_world_quest::unit_update_publication::represented_unit_values_update_to_update_object_like_cpp(
-            self,
-            unit_guid,
-            map_id,
-            values_update,
-        )
-    }
     pub(crate) fn represented_unit_packet_update_to_update_object_like_cpp(
         &self,
         unit_guid: ObjectGuid,
@@ -252,10 +237,6 @@ impl WorldSession {
             npc_flags,
         )
     }
-    // Visibility source (moved to `wow_world_entities`).
-    pub(crate) fn represented_visibility_source_position_like_cpp(&self) -> Option<Position> {
-        wow_world_entities::represented_visibility_source_position_like_cpp(self)
-    }
     // Login transport position (moved to `wow_world_character`).
     pub(crate) fn set_player_transport_position_like_cpp(&mut self, position: Option<Position>) {
         wow_world_character::set_player_transport_position_like_cpp(self, position)
@@ -276,12 +257,6 @@ impl WorldSession {
     }
     pub(crate) fn set_player_cheat_god_like_cpp(&mut self, enabled: bool) {
         crate::session::hub_mut(self).set_player_cheat_god_like_cpp(enabled)
-    }
-    pub(crate) fn set_player_alive_like_cpp(&mut self, alive: bool) {
-        wow_world_entities::set_player_alive_like_cpp(self, alive)
-    }
-    pub(crate) fn set_player_ghost_flag_like_cpp(&mut self, ghost: bool) {
-        wow_world_entities::set_player_ghost_flag_like_cpp(self, ghost)
     }
     // Resurrection snapshot (moved to `wow_world_spell`).
     pub(crate) fn player_resurrection_state_snapshot_like_cpp(

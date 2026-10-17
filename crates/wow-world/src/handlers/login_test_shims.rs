@@ -20,16 +20,12 @@
 #![cfg(test)]
 
 use wow_core::{ObjectGuid, Position};
-use wow_data::PlayerCreateInfoLikeCpp;
 use wow_packet::packets::misc::{AccountMount, LogoutRequest, SpellChargeEntry, SpellHistoryEntry};
-use wow_packet::packets::update::{ChrCustomizationChoiceValuesUpdate, PlayerCombatStats};
+use wow_packet::packets::update::PlayerCombatStats;
 use wow_world_character::character_login_support::CharacterLoginLocationLikeCpp;
-use wow_world_core::corpse_load::MapCorpseLoadOutcomeLikeCpp;
 use wow_world_lifecycle::login_transport::PersistedTransportLoginLikeCpp;
 
-use crate::session::{
-    CreatureSpawnCatalogsLikeCpp, InventoryItem, SupportFeaturePolicyLikeCpp, WorldSession,
-};
+use crate::session::{InventoryItem, WorldSession};
 
 impl WorldSession {
     pub(crate) async fn handle_logout_request(&mut self, req: LogoutRequest) {
@@ -40,19 +36,6 @@ impl WorldSession {
             req,
         )
         .await;
-    }
-
-    pub(crate) async fn test_load_initial_world_states_for_login_like_cpp(
-        &self,
-        map_id: i32,
-        player_area_id: u32,
-    ) -> Vec<(i32, i32)> {
-        wow_world_character::load_initial_world_states_for_login_like_cpp(
-            self,
-            map_id,
-            player_area_id,
-        )
-        .await
     }
 
     pub(crate) async fn send_initial_packets_after_add_to_map(
@@ -74,10 +57,6 @@ impl WorldSession {
         .await;
     }
 
-    pub(crate) fn abort_partial_login_sequence_like_cpp(&mut self) {
-        wow_world_character::abort_partial_login_sequence_like_cpp(self)
-    }
-
     pub(crate) fn continue_login_after_grid_load_like_cpp(
         &mut self,
         guid: ObjectGuid,
@@ -92,36 +71,6 @@ impl WorldSession {
             instance_id,
             outcome,
         )
-    }
-
-    pub(crate) async fn delete_invalid_character_homebind_like_cpp(&self, guid: ObjectGuid) {
-        wow_world_character::delete_invalid_character_homebind_like_cpp(self, guid).await
-    }
-
-    pub(crate) async fn handle_hearth_and_resurrect(&mut self, pkt: wow_packet::WorldPacket) {
-        wow_world_character::handle_hearth_and_resurrect(self, pkt).await
-    }
-
-    pub(crate) fn load_default_graveyard_homebind_like_cpp(
-        &self,
-        race: u8,
-    ) -> Option<CharacterLoginLocationLikeCpp> {
-        wow_world_character::load_default_graveyard_homebind_like_cpp(self, race)
-    }
-
-    pub(crate) async fn load_map_corpse_data_like_cpp(
-        &self,
-        map_id: u16,
-        instance_id: u32,
-    ) -> MapCorpseLoadOutcomeLikeCpp {
-        wow_world_character::load_map_corpse_data_like_cpp(self, map_id, instance_id).await
-    }
-
-    pub(crate) async fn load_player_customizations_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) -> Vec<ChrCustomizationChoiceValuesUpdate> {
-        wow_world_character::load_player_customizations_like_cpp(self, guid).await
     }
 
     pub(crate) fn player_login_combat_stats_like_cpp(
@@ -140,25 +89,6 @@ impl WorldSession {
             saved_health,
             saved_power0,
         )
-    }
-
-    pub(crate) async fn repair_character_homebind_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        race: u8,
-        player_create_info: PlayerCreateInfoLikeCpp,
-        create_mode: u8,
-        first_login: bool,
-    ) -> Option<CharacterLoginLocationLikeCpp> {
-        wow_world_character::repair_character_homebind_like_cpp(
-            self,
-            guid,
-            race,
-            player_create_info,
-            create_mode,
-            first_login,
-        )
-        .await
     }
 
     pub(crate) async fn resolve_persisted_transport_login_like_cpp(
@@ -186,29 +116,6 @@ impl WorldSession {
         wow_world_character::retry_login_at_homebind_like_cpp(
             self, map_id, zone_id, position, homebind,
         )
-    }
-
-    pub(crate) async fn send_handle_player_login_packets_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        feature_policy: &SupportFeaturePolicyLikeCpp,
-        guid: ObjectGuid,
-        position: &Position,
-        map_id: i32,
-        account_mounts: &[AccountMount],
-        motd: &str,
-    ) -> bool {
-        wow_world_character::send_handle_player_login_packets_like_cpp(
-            self,
-            item_guid_generator,
-            feature_policy,
-            guid,
-            position,
-            map_id,
-            account_mounts,
-            motd,
-        )
-        .await
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -243,85 +150,6 @@ impl WorldSession {
             updateobject_trace_enabled,
         )
         .await
-    }
-
-    pub(crate) async fn send_login_sequence(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        trait_node_entries: &wow_data::trait_tree::TraitNodeEntryStore,
-        creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
-        feature_policy: &SupportFeaturePolicyLikeCpp,
-        player_grid_loader: &crate::session::PlayerGridLoadResolverLikeCpp,
-        guid: ObjectGuid,
-        race: u8,
-        class: u8,
-        sex: u8,
-        level: u8,
-        display_id: u32,
-        position: &Position,
-        map_id: i32,
-        zone_id: i32,
-        homebind: CharacterLoginLocationLikeCpp,
-        persisted_transport_login: Option<PersistedTransportLoginLikeCpp>,
-        visible_items: [(i32, u16, u16); 19],
-        inv_slots: [ObjectGuid; 141],
-        item_creates: Vec<wow_packet::packets::update::ItemCreateData>,
-        combat: PlayerCombatStats,
-        current_power0: i32,
-        base_mana: i32,
-        known_spells: Vec<i32>,
-        favorite_spells: Vec<i32>,
-        spell_history_entries: Vec<SpellHistoryEntry>,
-        spell_charge_entries: Vec<SpellChargeEntry>,
-        action_buttons: [i64; 180],
-        skill_info: Vec<(u16, u16, u16, u16, u16, i16, u16)>,
-        account_mounts: Vec<AccountMount>,
-    ) -> bool {
-        wow_world_character::send_login_sequence(
-            self,
-            item_guid_generator,
-            trait_node_entries,
-            creature_spawn_catalogs,
-            feature_policy,
-            player_grid_loader,
-            guid,
-            race,
-            class,
-            sex,
-            level,
-            display_id,
-            position,
-            map_id,
-            zone_id,
-            homebind,
-            persisted_transport_login,
-            visible_items,
-            inv_slots,
-            item_creates,
-            combat,
-            current_power0,
-            base_mana,
-            known_spells,
-            favorite_spells,
-            spell_history_entries,
-            spell_charge_entries,
-            action_buttons,
-            skill_info,
-            account_mounts,
-        )
-        .await
-    }
-
-    pub(crate) async fn update_realm_characters(&self) {
-        wow_world_character::update_realm_characters(self).await
-    }
-
-    pub(crate) fn apply_post_add_zone_from_terrain_like_cpp(
-        &mut self,
-        map_id: i32,
-        position: &Position,
-    ) -> bool {
-        wow_world_character::apply_post_add_zone_from_terrain_like_cpp(self, map_id, position)
     }
 
     pub(crate) fn send_account_heirlooms_like_cpp(&self) {

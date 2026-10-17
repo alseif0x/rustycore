@@ -54,7 +54,7 @@ impl WorldSession {
         state.resolved_using_pvp_item_levels_like_cpp(hub)
     }
     pub(crate) fn update_represented_item_level_area_based_scaling_like_cpp(&mut self) -> bool {
-        self.update_represented_item_level_area_based_scaling_with_publication_like_cpp(true)
+        wow_world_inventory::update_represented_item_level_area_based_scaling_with_publication_like_cpp(self, true)
             .unwrap_or(false)
     }
     pub(in crate::session) fn represented_item_level_like_cpp(

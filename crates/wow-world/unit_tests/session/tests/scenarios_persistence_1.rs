@@ -82,7 +82,7 @@ fn load_represented_player_difficulties_accepts_selectable_cpp_types() {
         ),
     ])));
 
-    session.load_represented_player_difficulties_like_cpp(2, 15, 4);
+    wow_world_instances::load_represented_player_difficulties_like_cpp(&mut session, 2, 15, 4);
 
     assert_eq!(session.represented_dungeon_difficulty_id_like_cpp(), 2);
     assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 15);
@@ -108,7 +108,7 @@ fn load_represented_player_difficulties_normalizes_invalid_values_like_cpp() {
         difficulty_entry(4, MAP_RAID_LIKE_CPP, DifficultyFlags::CAN_SELECT),
     ])));
 
-    session.load_represented_player_difficulties_like_cpp(2, 15, 4);
+    wow_world_instances::load_represented_player_difficulties_like_cpp(&mut session, 2, 15, 4);
 
     assert_eq!(
         session.represented_dungeon_difficulty_id_like_cpp(),
@@ -127,7 +127,7 @@ fn load_represented_player_difficulties_normalizes_invalid_values_like_cpp() {
 fn load_represented_player_difficulties_without_store_uses_cpp_defaults() {
     let (mut session, _, _) = make_session();
 
-    session.load_represented_player_difficulties_like_cpp(2, 15, 4);
+    wow_world_instances::load_represented_player_difficulties_like_cpp(&mut session, 2, 15, 4);
 
     assert_eq!(
         session.represented_dungeon_difficulty_id_like_cpp(),
@@ -163,13 +163,13 @@ fn load_represented_group_difficulties_overrides_player_values_like_cpp() {
             DifficultyFlags::CAN_SELECT | DifficultyFlags::LEGACY,
         ),
     ])));
-    session.load_represented_player_difficulties_like_cpp(1, 14, 3);
+    wow_world_instances::load_represented_player_difficulties_like_cpp(&mut session, 1, 14, 3);
     session
         .social
         .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
-    assert!(session.load_represented_group_difficulties_like_cpp());
+    assert!(wow_world_character::load_represented_group_difficulties_like_cpp(&mut session));
 
     assert_eq!(session.represented_dungeon_difficulty_id_like_cpp(), 2);
     assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 15);
@@ -187,9 +187,9 @@ fn load_represented_group_difficulties_without_group_preserves_player_values_lik
             DifficultyFlags::CAN_SELECT | DifficultyFlags::LEGACY,
         ),
     ])));
-    session.load_represented_player_difficulties_like_cpp(2, 15, 4);
+    wow_world_instances::load_represented_player_difficulties_like_cpp(&mut session, 2, 15, 4);
 
-    assert!(!session.load_represented_group_difficulties_like_cpp());
+    assert!(!wow_world_character::load_represented_group_difficulties_like_cpp(&mut session));
 
     assert_eq!(session.represented_dungeon_difficulty_id_like_cpp(), 2);
     assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 15);
@@ -207,14 +207,14 @@ fn load_represented_group_difficulties_missing_registry_entry_preserves_values_l
             DifficultyFlags::CAN_SELECT | DifficultyFlags::LEGACY,
         ),
     ])));
-    session.load_represented_player_difficulties_like_cpp(2, 15, 4);
+    wow_world_instances::load_represented_player_difficulties_like_cpp(&mut session, 2, 15, 4);
     session.social.set_group_guid_for_test_like_cpp(Some(77));
     session.set_group_registry(
         Arc::new(GroupRegistry::default()),
         Arc::new(PendingInvites::default()),
     );
 
-    assert!(!session.load_represented_group_difficulties_like_cpp());
+    assert!(!wow_world_character::load_represented_group_difficulties_like_cpp(&mut session));
 
     assert_eq!(session.represented_dungeon_difficulty_id_like_cpp(), 2);
     assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 15);
@@ -244,7 +244,7 @@ fn load_represented_group_by_db_store_id_sets_group_and_difficulties_like_cpp() 
             DifficultyFlags::CAN_SELECT | DifficultyFlags::LEGACY,
         ),
     ])));
-    session.load_represented_player_difficulties_like_cpp(1, 14, 3);
+    wow_world_instances::load_represented_player_difficulties_like_cpp(&mut session, 1, 14, 3);
     session.set_player_guid(Some(leader));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -283,7 +283,7 @@ fn reset_group_update_sequence_starts_loaded_group_at_one_like_cpp() {
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
 
-    assert!(session.reset_group_update_sequence_if_needed_like_cpp());
+    assert!(wow_world_instances::reset_group_update_sequence_if_needed_like_cpp(&mut session));
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
@@ -307,7 +307,7 @@ fn represented_group_leader_flag_is_set_for_loaded_leader_like_cpp() {
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
 
-    assert!(session.apply_represented_group_leader_flag_like_cpp());
+    assert!(wow_world_application::apply_represented_group_leader_flag_like_cpp(&mut session));
 
     assert_eq!(
         session.canonical_player_has_player_flag_like_cpp(
@@ -395,7 +395,7 @@ fn load_seasonal_quest_status_valid_row_populates_and_blocks_can_take_like_cpp()
             .fixture_seasonal_quest_time_like_cpp(9, 12_345),
         Some(100)
     );
-    assert!(!session.can_take_quest(&quest));
+    assert!(!wow_world_quest::can_take_quest(&session, &quest));
 }
 #[test]
 fn load_seasonal_quest_status_missing_quest_v2_store_inserts_but_skips_bit_like_cpp() {

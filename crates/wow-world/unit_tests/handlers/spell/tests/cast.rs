@@ -139,7 +139,11 @@ async fn cast_spell_uses_represented_override_spell_info_like_cpp() {
     session.set_player_guid(Some(player_guid));
     session.set_known_spells_like_cpp(vec![original_spell_id]);
     session.set_spell_store(basic_spell_store([original_spell_id, override_spell_id]));
-    session.add_represented_override_spell_like_cpp(original_spell_id, override_spell_id);
+    wow_world_spell::add_represented_override_spell_like_cpp(
+        &mut session,
+        original_spell_id,
+        override_spell_id,
+    );
 
     session
         .handle_cast_spell(cast_spell_packet(original_spell_id, player_guid))
@@ -171,7 +175,11 @@ async fn cast_spell_falls_back_when_represented_override_missing_like_cpp() {
     session.set_player_guid(Some(player_guid));
     session.set_known_spells_like_cpp(vec![original_spell_id]);
     session.set_spell_store(basic_spell_store([original_spell_id]));
-    session.add_represented_override_spell_like_cpp(original_spell_id, missing_override_spell_id);
+    wow_world_spell::add_represented_override_spell_like_cpp(
+        &mut session,
+        original_spell_id,
+        missing_override_spell_id,
+    );
 
     session
         .handle_cast_spell(cast_spell_packet(original_spell_id, player_guid))

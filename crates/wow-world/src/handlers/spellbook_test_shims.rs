@@ -19,7 +19,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use crate::session::*;
-use wow_data::{SpellLearnSkillNodeLikeCpp, TalentTabStore};
+use wow_data::TalentTabStore;
 use wow_world_spell::canonical_player_spell_record_like_cpp;
 
 impl WorldSession {
@@ -51,12 +51,12 @@ impl WorldSession {
     pub(crate) fn fixture_set_known_spells_like_cpp(&mut self, spells: Vec<i32>) {
         self.core
             .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.invalidate_represented_player_spell_rows_like_cpp();
+        wow_world_spell::invalidate_represented_player_spell_rows_like_cpp(self);
         let known_spells = spells.clone();
         let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
             runtime.replace_known_spells_and_prune_derived_like_cpp(spells);
         });
-        self.learn_account_mount_spells_like_cpp();
+        wow_world_spell::learn_account_mount_spells_like_cpp(self);
     }
     #[cfg(test)]
     pub(crate) fn fixture_learn_known_spell_like_cpp(&mut self, spell_id: i32) {
@@ -64,7 +64,7 @@ impl WorldSession {
             self.core
                 .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
-        self.invalidate_represented_player_spell_rows_like_cpp();
+        wow_world_spell::invalidate_represented_player_spell_rows_like_cpp(self);
         let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
             runtime.learn_known_spell_id_unless_known_like_cpp(spell_id);
         });
@@ -182,12 +182,11 @@ impl WorldSession {
     ) -> bool {
         // A replacement can describe another logical PlayerSpellMap. Existing
         // trait/override mirrors must be re-authorized even when spell IDs happen
-        // to overlap, otherwise residual state can be attributed to the new map.
-        self.invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp();
+        // to overlap, otherwise residual state can be attributed to the new wow_world_spell::invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp(&mut map.self);
         let mut exact_rows = BTreeMap::new();
         for row in rows {
             if row.spell_id <= 0 || exact_rows.insert(row.spell_id, row).is_some() {
-                self.invalidate_represented_player_spell_rows_like_cpp();
+                wow_world_spell::invalidate_represented_player_spell_rows_like_cpp(self);
                 return false;
             }
         }
@@ -197,8 +196,7 @@ impl WorldSession {
         // unavailable. Reconcile it against the newly authoritative row using
         // C++ `Player::LearnSpell`: disabled rows preserve active, other rows
         // become active, and favorite/dependent state comes from the load.
-        let fallback_rows = self
-            .player_spell_runtime_snapshot_like_cpp()
+        let fallback_rows = wow_world_spell::player_spell_runtime_snapshot_like_cpp(self)
             .map(|runtime| runtime.fallback_rows)
             .unwrap_or_default();
         for (&spell_id, &fallback) in &fallback_rows {
@@ -280,39 +278,8 @@ impl WorldSession {
 }
 
 impl WorldSession {
-    pub(crate) fn spell_learn_skill_like_cpp(
-        &self,
-        spell_id: u32,
-    ) -> Option<&SpellLearnSkillNodeLikeCpp> {
-        wow_world_spell::spell_learn_skill_like_cpp(self, spell_id)
-    }
-
-    pub(crate) fn learn_account_mount_spells_like_cpp(&mut self) -> usize {
-        wow_world_spell::learn_account_mount_spells_like_cpp(self)
-    }
-
-    pub(crate) fn learn_known_spell_like_cpp(&mut self, spell_id: i32) {
-        wow_world_spell::learn_known_spell_like_cpp(self, spell_id)
-    }
-
     pub(crate) fn learn_dependent_known_spell_like_cpp(&mut self, spell_id: i32) {
         wow_world_spell::learn_dependent_known_spell_like_cpp(self, spell_id)
-    }
-
-    pub(crate) fn remove_known_spell_like_cpp(&mut self, spell_id: i32) {
-        wow_world_spell::remove_known_spell_like_cpp(self, spell_id)
-    }
-
-    pub(crate) fn remove_known_spell_with_suppress_messaging_like_cpp(
-        &mut self,
-        spell_id: i32,
-        suppress_messaging: bool,
-    ) {
-        wow_world_spell::remove_known_spell_with_suppress_messaging_like_cpp(
-            self,
-            spell_id,
-            suppress_messaging,
-        )
     }
 
     pub(crate) fn resolved_known_spells_like_cpp(&self) -> Option<Vec<i32>> {
@@ -321,18 +288,6 @@ impl WorldSession {
 
     pub(crate) fn known_spells_like_cpp(&self) -> Vec<i32> {
         wow_world_spell::known_spells_like_cpp(self)
-    }
-
-    pub(crate) fn represented_dependent_known_spells_like_cpp(&self) -> HashSet<i32> {
-        wow_world_spell::represented_dependent_known_spells_like_cpp(self)
-    }
-
-    pub(crate) fn clear_represented_fallback_spell_rows_like_cpp(&mut self) -> bool {
-        wow_world_spell::clear_represented_fallback_spell_rows_like_cpp(self)
-    }
-
-    pub(crate) fn invalidate_represented_player_spell_rows_like_cpp(&mut self) {
-        wow_world_spell::invalidate_represented_player_spell_rows_like_cpp(self)
     }
 
     pub(crate) fn set_complete_represented_player_spell_rows_like_cpp(
@@ -350,57 +305,11 @@ impl WorldSession {
         wow_world_spell::replace_loaded_represented_player_spell_rows_like_cpp(self, rows, complete)
     }
 
-    pub(crate) fn add_represented_override_spell_like_cpp(
-        &mut self,
-        overriden_spell_id: i32,
-        new_spell_id: i32,
-    ) {
-        wow_world_spell::add_represented_override_spell_like_cpp(
-            self,
-            overriden_spell_id,
-            new_spell_id,
-        )
-    }
-
-    pub(crate) fn remove_represented_override_spell_like_cpp(
-        &mut self,
-        overriden_spell_id: i32,
-        new_spell_id: i32,
-    ) {
-        wow_world_spell::remove_represented_override_spell_like_cpp(
-            self,
-            overriden_spell_id,
-            new_spell_id,
-        )
-    }
-
-    pub(crate) fn represented_override_spells_like_cpp(&self) -> HashMap<i32, BTreeSet<i32>> {
-        wow_world_spell::represented_override_spells_like_cpp(self)
-    }
-
-    pub(crate) fn complete_represented_override_spells_like_cpp(
-        &self,
-    ) -> Option<HashMap<i32, BTreeSet<i32>>> {
-        wow_world_spell::complete_represented_override_spells_like_cpp(self)
-    }
-
-    pub(crate) fn complete_represented_spell_trait_definition_ids_like_cpp(
-        &self,
-    ) -> Option<HashMap<i32, i32>> {
-        wow_world_spell::complete_represented_spell_trait_definition_ids_like_cpp(self)
-    }
-
     pub(crate) fn set_complete_represented_spell_trait_definition_ids_like_cpp(
         &mut self,
         traits: impl IntoIterator<Item = (i32, i32)>,
     ) -> bool {
         wow_world_spell::set_complete_represented_spell_trait_definition_ids_like_cpp(self, traits)
-    }
-
-    pub(crate) fn complete_represented_player_spell_rows_like_cpp(
-        &self,
-    ) -> Option<BTreeMap<i32, RepresentedPlayerSpellLikeCpp>> {
-        wow_world_spell::complete_represented_player_spell_rows_like_cpp(self)
     }
 
     pub(crate) fn load_represented_talent_row_with_spell_side_effects_like_cpp(
@@ -421,13 +330,5 @@ impl WorldSession {
             known_spells,
             dependent_spells,
         )
-    }
-
-    pub(crate) fn invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp(&mut self) {
-        wow_world_spell::invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp(self)
-    }
-
-    pub(crate) fn mark_represented_spell_acquisition_snapshot_complete_like_cpp(&mut self) {
-        wow_world_spell::mark_represented_spell_acquisition_snapshot_complete_like_cpp(self)
     }
 }

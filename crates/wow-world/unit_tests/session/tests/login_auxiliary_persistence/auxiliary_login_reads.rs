@@ -40,7 +40,8 @@ async fn auxiliary_login_reads_preserve_cpp_row_and_publication_rules() {
     let guid = ObjectGuid::create_player(1, 42);
     session.set_player_guid(Some(guid));
 
-    let customizations = session.load_player_customizations_like_cpp(guid).await;
+    let customizations =
+        wow_world_character::load_player_customizations_like_cpp(&session, guid).await;
     session.load_completed_achievements_like_cpp().await;
     session.load_instance_time_restrictions_like_cpp().await;
 
@@ -108,8 +109,7 @@ async fn empty_auxiliary_login_rows_clear_stale_represented_state() {
         .insert_represented_instance_reset_time_for_test_like_cpp(8, 9);
 
     assert!(
-        session
-            .load_player_customizations_like_cpp(guid)
+        wow_world_character::load_player_customizations_like_cpp(&session, guid)
             .await
             .is_empty()
     );
@@ -151,8 +151,7 @@ async fn failed_auxiliary_login_reads_do_not_publish_or_preserve_stale_values() 
         .insert_represented_instance_reset_time_for_test_like_cpp(8, 9);
 
     assert!(
-        session
-            .load_player_customizations_like_cpp(guid)
+        wow_world_character::load_player_customizations_like_cpp(&session, guid)
             .await
             .is_empty()
     );
@@ -189,8 +188,7 @@ async fn missing_auxiliary_login_port_means_unknown_and_clears_session_caches() 
         .insert_represented_instance_reset_time_for_test_like_cpp(8, 9);
 
     assert!(
-        session
-            .load_player_customizations_like_cpp(guid)
+        wow_world_character::load_player_customizations_like_cpp(&session, guid)
             .await
             .is_empty()
     );

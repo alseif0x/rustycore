@@ -134,14 +134,14 @@ fn inventory_move_planning_rejects_missing_source_and_non_equippable_item() {
     );
     install_bank_move_item_fixture(&mut session, 120, 20);
     insert_bank_move_test_item(&mut session, INVENTORY_SLOT_ITEM_START, 120, 9003, 1);
-    let (result, _) = session
-        .plan_equip_existing_inventory_item_like_cpp(
-            INVENTORY_SLOT_BAG_0,
-            INVENTORY_SLOT_ITEM_START,
-            EQUIPMENT_SLOT_MAINHAND,
-            false,
-        )
-        .unwrap();
+    let (result, _) = wow_world_application::plan_equip_existing_inventory_item_like_cpp(
+        &session,
+        INVENTORY_SLOT_BAG_0,
+        INVENTORY_SLOT_ITEM_START,
+        EQUIPMENT_SLOT_MAINHAND,
+        false,
+    )
+    .unwrap();
     assert_eq!(result, InventoryResult::NotEquippable);
     assert_eq!(
         session
@@ -246,14 +246,14 @@ fn inventory_move_planning_does_not_fall_back_after_same_guid_owner_replacement(
             .is_none()
     );
     assert!(
-        session
-            .plan_equip_existing_inventory_item_like_cpp(
-                INVENTORY_SLOT_BAG_0,
-                INVENTORY_SLOT_ITEM_START,
-                EQUIPMENT_SLOT_MAINHAND,
-                false,
-            )
-            .is_none()
+        wow_world_application::plan_equip_existing_inventory_item_like_cpp(
+            &session,
+            INVENTORY_SLOT_BAG_0,
+            INVENTORY_SLOT_ITEM_START,
+            EQUIPMENT_SLOT_MAINHAND,
+            false,
+        )
+        .is_none()
     );
     assert_eq!(
         manager
@@ -1057,16 +1057,16 @@ fn real_swap_plans_child_for_item_entering_source_equipment_slot_like_cpp() {
         child.set_creator(destination_parent_guid);
     });
 
-    let plans = session
-        .plan_inventory_real_swap_children_like_cpp(
-            INVENTORY_SLOT_BAG_0,
-            EQUIPMENT_SLOT_MAINHAND,
-            source_guid,
-            INVENTORY_SLOT_BAG_0,
-            INVENTORY_SLOT_ITEM_START,
-            destination_parent_guid,
-        )
-        .expect("reverse-direction child preflight");
+    let plans = wow_world_inventory::plan_inventory_real_swap_children_like_cpp(
+        &session,
+        INVENTORY_SLOT_BAG_0,
+        EQUIPMENT_SLOT_MAINHAND,
+        source_guid,
+        INVENTORY_SLOT_BAG_0,
+        INVENTORY_SLOT_ITEM_START,
+        destination_parent_guid,
+    )
+    .expect("reverse-direction child preflight");
 
     assert_eq!(
         plans,

@@ -143,7 +143,7 @@ async fn spell_apply_aura_on_creature_target_lands_on_the_creature_like_cpp() {
         .set_represented_creature_auras_applied_at_for_test_like_cpp(|| {
             std::time::Instant::now() - std::time::Duration::from_secs(60)
         });
-    session.tick_auras();
+    wow_world_spell::tick_auras(&mut session);
     let remaining = session
         .mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| {
             creature
@@ -289,7 +289,7 @@ async fn spell_apply_aura_on_creature_keeps_each_effect_slot_amount_like_cpp() {
         .set_represented_creature_auras_applied_at_for_test_like_cpp(|| {
             std::time::Instant::now() - std::time::Duration::from_secs(60)
         });
-    session.tick_auras();
+    wow_world_spell::tick_auras(&mut session);
     let remaining = session
         .mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| {
             creature

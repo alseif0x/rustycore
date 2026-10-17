@@ -36,12 +36,14 @@ fn map_owned_loot_guid_sequence_is_shared_across_owner_kinds_like_cpp() {
     );
     attach_loot_guid_allocator_for_owner(&mut session, creature_owner);
 
-    let creature_loot = session
-        .next_canonical_loot_object_guid_like_cpp(creature_owner)
-        .expect("the creature owner map should allocate a LootObject");
-    let gameobject_loot = session
-        .next_canonical_loot_object_guid_like_cpp(gameobject_owner)
-        .expect("the gameobject owner map should share the LootObject sequence");
+    let creature_loot =
+        wow_world_loot_ops::next_canonical_loot_object_guid_like_cpp(&mut session, creature_owner)
+            .expect("the creature owner map should allocate a LootObject");
+    let gameobject_loot = wow_world_loot_ops::next_canonical_loot_object_guid_like_cpp(
+        &mut session,
+        gameobject_owner,
+    )
+    .expect("the gameobject owner map should share the LootObject sequence");
 
     assert_ne!(creature_loot, gameobject_loot);
     assert_eq!(creature_loot.counter(), 1);
@@ -73,15 +75,14 @@ fn loot_guid_allocator_without_canonical_map_fails_without_advancing_like_cpp() 
     let owner_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 9, 571, 7, 303, 19_701);
 
     assert!(
-        session
-            .next_canonical_loot_object_guid_like_cpp(owner_guid)
+        wow_world_loot_ops::next_canonical_loot_object_guid_like_cpp(&mut session, owner_guid)
             .is_none()
     );
 
     attach_loot_guid_allocator_for_owner(&mut session, owner_guid);
-    let first_allocated = session
-        .next_canonical_loot_object_guid_like_cpp(owner_guid)
-        .expect("the first allocation after attaching the map should succeed");
+    let first_allocated =
+        wow_world_loot_ops::next_canonical_loot_object_guid_like_cpp(&mut session, owner_guid)
+            .expect("the first allocation after attaching the map should succeed");
     assert_eq!(first_allocated.counter(), 1);
 }
 #[test]
@@ -94,14 +95,13 @@ fn loot_guid_allocator_refuses_different_owner_map_without_advancing_like_cpp() 
     attach_loot_guid_allocator_for_owner(&mut session, canonical_owner);
 
     assert!(
-        session
-            .next_canonical_loot_object_guid_like_cpp(other_map_owner)
+        wow_world_loot_ops::next_canonical_loot_object_guid_like_cpp(&mut session, other_map_owner)
             .is_none()
     );
 
-    let first_allocated = session
-        .next_canonical_loot_object_guid_like_cpp(canonical_owner)
-        .expect("the rejected owner must not consume the canonical map sequence");
+    let first_allocated =
+        wow_world_loot_ops::next_canonical_loot_object_guid_like_cpp(&mut session, canonical_owner)
+            .expect("the rejected owner must not consume the canonical map sequence");
     assert_eq!(first_allocated.counter(), 1);
 }
 #[test]
@@ -115,9 +115,9 @@ fn personal_loot_pools_receive_distinct_map_owned_guids_like_cpp() {
     attach_loot_guid_allocator_for_owner(&mut session, owner_guid);
 
     let mut loot = authoritative_test_loot_like_cpp(0, true);
-    loot.loot_guid = session
-        .next_canonical_loot_object_guid_like_cpp(owner_guid)
-        .expect("the base personal pool should receive a map-owned LootObject");
+    loot.loot_guid =
+        wow_world_loot_ops::next_canonical_loot_object_guid_like_cpp(&mut session, owner_guid)
+            .expect("the base personal pool should receive a map-owned LootObject");
     loot.allowed_looters = vec![second_player, first_player];
 
     let (shared, personal) = session

@@ -398,7 +398,7 @@ async fn creature_cast_target_dest_home_keeps_creature_destination_like_cpp() {
         Position::new(home_position.x, home_position.y, home_position.z, 0.0)
     );
     assert_eq!(
-        session.pending_teleport_save_destination_like_cpp(),
+        wow_world_entities::pending_teleport_save_destination_like_cpp(&session),
         Some((0_u16, creature_position)),
         "effect execution keeps the global SpellDestination position"
     );
@@ -616,7 +616,7 @@ async fn dynamic_object_values_snapshot_creature_shared_vision_sends_like_cpp() 
         .insert(dynamic_guid);
 
     assert_eq!(
-        session.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(),
+        wow_world_entities::send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(&mut session),
         1
     );
     assert_eq!(

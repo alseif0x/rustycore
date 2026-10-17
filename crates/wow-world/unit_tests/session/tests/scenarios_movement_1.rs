@@ -228,13 +228,13 @@ fn summon_object_slot_session_resolver_cleans_old_slot_and_creates_with_fallback
         },
     ])));
 
-    let outcome = session
-        .apply_effect_summon_object_slot_like_cpp(
-            i32::try_from(spell_id).unwrap(),
-            &summon_object_slot_effect_like_cpp(i32::try_from(template_entry).unwrap(), 0),
-            &SpellTargetData::default(),
-        )
-        .expect("slot effect should return represented outcome");
+    let outcome = wow_world_spell::apply_effect_summon_object_slot_like_cpp(
+        &mut session,
+        i32::try_from(spell_id).unwrap(),
+        &summon_object_slot_effect_like_cpp(i32::try_from(template_entry).unwrap(), 0),
+        &SpellTargetData::default(),
+    )
+    .expect("slot effect should return represented outcome");
 
     assert_eq!(
         outcome.status,

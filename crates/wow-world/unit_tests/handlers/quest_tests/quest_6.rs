@@ -155,7 +155,7 @@ async fn push_quest_to_party_grouped_receiver_dead_emits_dead_pair_like_cpp() {
     add_active_quest(&mut session, 7114);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.set_player_alive_like_cpp(false);
+    wow_world_entities::set_player_alive_like_cpp(&mut receiver_session, false);
 
     run_push_quest_to_party(&mut session, 7114).await;
 

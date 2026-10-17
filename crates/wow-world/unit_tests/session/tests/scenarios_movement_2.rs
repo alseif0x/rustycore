@@ -91,7 +91,7 @@ fn represented_mounted_flight_speed_removal_unsets_can_fly_when_last_source_like
             30_000,
         )
         .unwrap();
-    session.update_represented_flight_flags_for_flight_aura_like_cpp(true);
+    wow_world_spell::update_represented_flight_flags_for_flight_aura_like_cpp(&mut session, true);
     let slot = session
         .fixtures
         .auras

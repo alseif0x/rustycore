@@ -355,9 +355,9 @@ fn create_map_active_instance_lock_context_uses_solo_owner_like_cpp() {
     let expected_token =
         install_active_instance_lock_mgr_like_cpp(&mut session, player_guid, 631, 3, 9001);
 
-    let context = session
-        .create_map_active_instance_lock_context_like_cpp(631, 3)
-        .unwrap();
+    let context =
+        wow_world_instances::create_map_active_instance_lock_context_like_cpp(&session, 631, 3)
+            .unwrap();
 
     assert_eq!(
         context,
@@ -392,9 +392,9 @@ fn create_map_active_instance_lock_context_uses_group_recent_owner_like_cpp() {
     let expected_token =
         install_active_instance_lock_mgr_like_cpp(&mut session, owner, 631, 3, 9001);
 
-    let context = session
-        .create_map_active_instance_lock_context_like_cpp(631, 3)
-        .unwrap();
+    let context =
+        wow_world_instances::create_map_active_instance_lock_context_like_cpp(&session, 631, 3)
+            .unwrap();
 
     assert_eq!(context.instance_id, 9001);
     assert_eq!(context.difficulty_id, 3);
@@ -422,8 +422,7 @@ fn create_map_active_instance_lock_context_rejects_missing_lock_inputs_like_cpp(
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
 
     assert!(
-        session
-            .create_map_active_instance_lock_context_like_cpp(631, 3)
+        wow_world_instances::create_map_active_instance_lock_context_like_cpp(&session, 631, 3)
             .is_none()
     );
 
@@ -443,8 +442,7 @@ fn create_map_active_instance_lock_context_rejects_missing_lock_inputs_like_cpp(
     session.set_instance_lock_mgr(Arc::new(std::sync::RwLock::new(mgr)));
 
     assert!(
-        session
-            .create_map_active_instance_lock_context_like_cpp(631, 3)
+        wow_world_instances::create_map_active_instance_lock_context_like_cpp(&session, 631, 3)
             .is_none()
     );
 }
@@ -539,9 +537,9 @@ fn create_map_side_effects_create_instance_lock_for_new_instance_like_cpp() {
     };
 
     let summary = session.apply_create_map_side_effects_like_cpp(631, &decision);
-    let context = session
-        .create_map_active_instance_lock_context_like_cpp(631, 3)
-        .unwrap();
+    let context =
+        wow_world_instances::create_map_active_instance_lock_context_like_cpp(&session, 631, 3)
+            .unwrap();
 
     assert_eq!(
         summary,
@@ -573,9 +571,9 @@ fn create_map_side_effects_set_instance_lock_instance_id_like_cpp() {
     };
 
     let summary = session.apply_create_map_side_effects_like_cpp(631, &decision);
-    let context = session
-        .create_map_active_instance_lock_context_like_cpp(631, 3)
-        .unwrap();
+    let context =
+        wow_world_instances::create_map_active_instance_lock_context_like_cpp(&session, 631, 3)
+            .unwrap();
 
     assert_eq!(
         summary,

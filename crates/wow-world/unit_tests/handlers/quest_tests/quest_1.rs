@@ -290,16 +290,16 @@ async fn quest_poi_cache_consumes_typed_port_rows_and_caches_the_result() {
         },
     )));
 
-    let first = session.quest_poi_store_like_cpp().await;
-    let second = session.quest_poi_store_like_cpp().await;
+    let first = wow_world_quest::quest_poi_store_like_cpp(&mut session).await;
+    let second = wow_world_quest::quest_poi_store_like_cpp(&mut session).await;
     assert_eq!(first[&77].blobs.len(), 1);
     assert!(Arc::ptr_eq(&first, &second));
 }
 #[tokio::test]
 async fn missing_or_failed_quest_poi_port_caches_the_existing_empty_result() {
     let (mut missing, _) = make_session();
-    let missing_first = missing.quest_poi_store_like_cpp().await;
-    let missing_second = missing.quest_poi_store_like_cpp().await;
+    let missing_first = wow_world_quest::quest_poi_store_like_cpp(&mut missing).await;
+    let missing_second = wow_world_quest::quest_poi_store_like_cpp(&mut missing).await;
     assert!(missing_first.is_empty());
     assert!(Arc::ptr_eq(&missing_first, &missing_second));
 
@@ -310,7 +310,7 @@ async fn missing_or_failed_quest_poi_port_caches_the_existing_empty_result() {
             reason: "world DB unavailable".to_owned(),
         },
     )));
-    let failed_store = failed.quest_poi_store_like_cpp().await;
+    let failed_store = wow_world_quest::quest_poi_store_like_cpp(&mut failed).await;
     assert!(failed_store.is_empty());
 }
 #[tokio::test]

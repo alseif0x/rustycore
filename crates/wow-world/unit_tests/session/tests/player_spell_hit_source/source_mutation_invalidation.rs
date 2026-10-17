@@ -18,7 +18,7 @@ fn player_spell_hit_source_sync_sets_and_mutations_invalidate_canonical_auras_li
     ));
     assert!(session.install_detached_canonical_player_for_test_like_cpp());
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
-    session.set_player_aura_authority_complete_like_cpp(true);
+    wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true);
     session.complete_player_equipment_inventory_authority_load_like_cpp();
     assert!(
         session.set_complete_represented_player_spell_rows_like_cpp(std::iter::empty::<
@@ -63,7 +63,7 @@ fn player_spell_hit_source_sync_sets_and_mutations_invalidate_canonical_auras_li
         Some(true)
     );
 
-    session.learn_known_spell_like_cpp(90_003);
+    wow_world_spell::learn_known_spell_like_cpp(&mut session, 90_003);
     assert_eq!(
         session.canonical_player_snapshot_like_cpp(|player| player
             .unit()

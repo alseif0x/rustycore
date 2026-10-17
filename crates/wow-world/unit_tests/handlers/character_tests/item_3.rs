@@ -101,15 +101,15 @@ async fn recursive_destroy_commit_failure_keeps_bag_and_children_like_cpp() {
         .expect("bag metadata");
 
     assert!(
-        !session
-            .destroy_inventory_full_stack_by_pos_like_cpp(
-                INVENTORY_SLOT_BAG_0,
-                INVENTORY_SLOT_ITEM_START,
-                item,
-                Some(bag),
-                "recursive destroy test",
-            )
-            .await
+        !wow_world_inventory::destroy_inventory_full_stack_by_pos_like_cpp(
+            &mut session,
+            INVENTORY_SLOT_BAG_0,
+            INVENTORY_SLOT_ITEM_START,
+            item,
+            Some(bag),
+            "recursive destroy test",
+        )
+        .await
     );
     assert!(
         session
@@ -761,7 +761,7 @@ async fn autobank_item_without_persistence_keeps_runtime_unchanged_like_cpp() {
 fn bank_authorization_reads_the_single_interaction_source_like_cpp() {
     let (mut session, _send_rx, canonical) = make_bank_slot_session(2);
     insert_bank_test_player_in_world(&session, &canonical);
-    session.set_player_alive_like_cpp(true);
+    wow_world_entities::set_player_alive_like_cpp(&mut session, true);
     session.set_player_faction_template_like_cpp(1);
     let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 140);
     let vendor = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 141);

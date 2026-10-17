@@ -52,8 +52,7 @@ fn runtime_state_is_complete_before_ordered_publication() {
         Err(PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp::PublicationInterrupted)
     );
     assert!(
-        interrupted_session
-            .complete_represented_player_spell_rows_like_cpp()
+        wow_world_spell::complete_represented_player_spell_rows_like_cpp(&interrupted_session)
             .is_some(),
         "committed runtime state is installed before publication can be interrupted"
     );
@@ -67,8 +66,7 @@ fn runtime_state_is_complete_before_ordered_publication() {
     apply_prepared_player_spell_acquisition_before_save_like_cpp(&mut pre_save_session, &prepared)
         .expect("validated C++-timed snapshot applies");
     assert_eq!(
-        pre_save_session
-            .complete_represented_player_spell_rows_like_cpp()
+        wow_world_spell::complete_represented_player_spell_rows_like_cpp(&pre_save_session)
             .and_then(|rows| rows.get(&100).copied())
             .map(|row| row.state),
         Some(crate::session::RepresentedPlayerSpellStateLikeCpp::New),
@@ -80,13 +78,11 @@ fn runtime_state_is_complete_before_ordered_publication() {
     apply_prepared_player_spell_acquisition_like_cpp(&mut session, &prepared)
         .expect("validated snapshot applies");
 
-    let rows = session
-        .complete_represented_player_spell_rows_like_cpp()
+    let rows = wow_world_spell::complete_represented_player_spell_rows_like_cpp(&session)
         .expect("complete rows installed");
     assert_eq!(rows.get(&100).map(|row| row.favorite), Some(true));
     assert_eq!(
-        session
-            .complete_represented_spell_trait_definition_ids_like_cpp()
+        wow_world_spell::complete_represented_spell_trait_definition_ids_like_cpp(&session)
             .and_then(|traits| traits.get(&100).copied()),
         Some(7)
     );
@@ -202,8 +198,7 @@ fn dual_wield_missing_owner_stops_before_any_publication() {
         "money and trainer visuals must not start before every runtime owner preflights"
     );
     assert!(
-        session
-            .complete_represented_player_spell_rows_like_cpp()
+        wow_world_spell::complete_represented_player_spell_rows_like_cpp(&session)
             .is_none_or(|rows| !rows.contains_key(&100)),
         "a missing required runtime owner is rejected before replacing spell authority"
     );

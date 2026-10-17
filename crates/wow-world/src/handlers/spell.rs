@@ -35,9 +35,6 @@ mod test_shims;
 pub use state::*;
 
 #[cfg(test)]
-#[path = "../../unit_tests/handlers/spell/ops_1/f3_shims.rs"]
-mod f3_shims;
-#[cfg(test)]
 #[path = "../../unit_tests/handlers/spell/ops_2/test_only.rs"]
 mod test_only;
 

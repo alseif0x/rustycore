@@ -19,7 +19,7 @@ async fn account_item_appearance_load_preserves_independent_query_failure_like_c
     session.set_battlenet_account_id(77);
     session.set_player_lifecycle_port_like_cpp(port);
 
-    session.load_account_item_appearances_like_cpp().await;
+    wow_world_inventory::load_account_item_appearances_like_cpp(&mut session).await;
 
     assert!(
         session

@@ -142,7 +142,7 @@ fn battleground_object_use_guard_matches_cpp_faction_and_player_state() {
     session
         .world_entities
         .clear_represented_gameobject_use_effects_for_test_like_cpp();
-    session.set_player_alive_like_cpp(false);
+    wow_world_entities::set_player_alive_like_cpp(&mut session, false);
     assert!(
         !wow_world_entities::represented_player_can_use_battleground_object_like_cpp(
             &mut session,

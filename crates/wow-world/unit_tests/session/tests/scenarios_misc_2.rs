@@ -893,7 +893,7 @@ async fn dynamic_object_values_snapshot_not_in_world_player_no_send_like_cpp() {
         .insert(dynamic_guid);
 
     assert_eq!(
-        session.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(),
+        wow_world_entities::send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(&mut session),
         0
     );
 

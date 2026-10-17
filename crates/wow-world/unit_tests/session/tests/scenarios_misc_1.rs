@@ -175,7 +175,7 @@ fn reset_seasonal_removes_older_than_start_and_erases_emptied_bucket_like_cpp() 
     session.seed_seasonal_quest_status_like_cpp(7, 1001, 99);
     session.set_seasonal_quest_changed_like_cpp_for_test(true);
 
-    let outcome = session.reset_seasonal_quest_status_like_cpp(7, 100);
+    let outcome = wow_world_quest::reset_seasonal_quest_status_like_cpp(&mut session, 7, 100);
 
     assert_eq!(
         outcome.reason,
@@ -203,7 +203,7 @@ fn reset_seasonal_keeps_equal_and_newer_completions_like_cpp() {
     assert!(session.set_loaded_quest_completed_bit_like_cpp(66));
     session.set_seasonal_quest_changed_like_cpp_for_test(true);
 
-    let outcome = session.reset_seasonal_quest_status_like_cpp(7, 100);
+    let outcome = wow_world_quest::reset_seasonal_quest_status_like_cpp(&mut session, 7, 100);
 
     assert_eq!(
         outcome.reason,
@@ -231,7 +231,7 @@ fn reset_seasonal_zero_or_missing_unique_bit_removes_without_inventing_bit_like_
     session.seed_seasonal_quest_status_like_cpp(7, 1002, 98);
     session.set_quest_v2_store(Arc::new(seasonal_quest_v2_store_like_cpp([(1001, 0)])));
 
-    let outcome = session.reset_seasonal_quest_status_like_cpp(7, 100);
+    let outcome = wow_world_quest::reset_seasonal_quest_status_like_cpp(&mut session, 7, 100);
 
     assert_eq!(outcome.removed_quest_ids, vec![1001, 1002]);
     assert_eq!(outcome.completed_bit_cleared, 0);
@@ -250,7 +250,7 @@ fn reset_seasonal_missing_event_leaves_changed_false_like_cpp() {
     let (mut session, _, _) = make_session();
     session.set_seasonal_quest_changed_like_cpp_for_test(true);
 
-    let outcome = session.reset_seasonal_quest_status_like_cpp(7, 100);
+    let outcome = wow_world_quest::reset_seasonal_quest_status_like_cpp(&mut session, 7, 100);
 
     assert_eq!(
         outcome.reason,
@@ -266,7 +266,7 @@ fn reset_seasonal_preexisting_empty_bucket_is_preserved_like_cpp() {
     session.seed_empty_seasonal_event_bucket_like_cpp(7);
     session.set_seasonal_quest_changed_like_cpp_for_test(true);
 
-    let outcome = session.reset_seasonal_quest_status_like_cpp(7, 100);
+    let outcome = wow_world_quest::reset_seasonal_quest_status_like_cpp(&mut session, 7, 100);
 
     assert_eq!(
         outcome.reason,
@@ -601,17 +601,15 @@ fn represented_taxi_usable_mount_displays_match_cpp_filter() {
     ])));
 
     assert_eq!(
-        session.represented_taxi_usable_mount_displays_like_cpp(7),
+        wow_world_instances::represented_taxi_usable_mount_displays_like_cpp(&session, 7),
         vec![1000, 1002]
     );
     assert!(
-        session
-            .represented_taxi_usable_mount_displays_like_cpp(8)
+        wow_world_instances::represented_taxi_usable_mount_displays_like_cpp(&session, 8)
             .is_empty()
     );
     assert!(
-        session
-            .represented_taxi_usable_mount_displays_like_cpp(99)
+        wow_world_instances::represented_taxi_usable_mount_displays_like_cpp(&session, 99)
             .is_empty()
     );
 }
@@ -624,13 +622,13 @@ fn summon_object_wild_session_resolver_ignores_other_effects_like_cpp() {
     };
 
     assert!(
-        session
-            .apply_effect_summon_object_wild_like_cpp(
-                700,
-                &effect,
-                &target_data_with_destination_like_cpp(Position::ZERO),
-            )
-            .is_none()
+        wow_world_spell::apply_effect_summon_object_wild_like_cpp(
+            &mut session,
+            700,
+            &effect,
+            &target_data_with_destination_like_cpp(Position::ZERO),
+        )
+        .is_none()
     );
 }
 #[test]
@@ -640,13 +638,13 @@ fn summon_object_wild_session_resolver_rejects_missing_template_like_cpp() {
         wow_data::GameObjectTemplateLifecycleStoreLikeCpp::default(),
     ));
 
-    let outcome = session
-        .apply_effect_summon_object_wild_like_cpp(
-            700,
-            &summon_object_wild_effect_like_cpp(9001),
-            &target_data_with_destination_like_cpp(Position::new(1.0, 2.0, 3.0, 0.5)),
-        )
-        .expect("wild effect should return represented outcome");
+    let outcome = wow_world_spell::apply_effect_summon_object_wild_like_cpp(
+        &mut session,
+        700,
+        &summon_object_wild_effect_like_cpp(9001),
+        &target_data_with_destination_like_cpp(Position::new(1.0, 2.0, 3.0, 0.5)),
+    )
+    .expect("wild effect should return represented outcome");
 
     assert_eq!(
         outcome.status,
@@ -688,13 +686,13 @@ fn summon_object_wild_session_resolver_creates_go_with_explicit_destination_like
         },
     ])));
 
-    let outcome = session
-        .apply_effect_summon_object_wild_like_cpp(
-            i32::try_from(spell_id).unwrap(),
-            &summon_object_wild_effect_like_cpp(i32::try_from(template_entry).unwrap()),
-            &target_data_with_destination_like_cpp(destination),
-        )
-        .expect("wild effect should return represented outcome");
+    let outcome = wow_world_spell::apply_effect_summon_object_wild_like_cpp(
+        &mut session,
+        i32::try_from(spell_id).unwrap(),
+        &summon_object_wild_effect_like_cpp(i32::try_from(template_entry).unwrap()),
+        &target_data_with_destination_like_cpp(destination),
+    )
+    .expect("wild effect should return represented outcome");
 
     assert_eq!(
         outcome.status,
@@ -731,13 +729,13 @@ fn summon_object_slot_session_resolver_ignores_other_effects_like_cpp() {
     };
 
     assert!(
-        session
-            .apply_effect_summon_object_slot_like_cpp(
-                700,
-                &effect,
-                &target_data_with_destination_like_cpp(Position::ZERO),
-            )
-            .is_none()
+        wow_world_spell::apply_effect_summon_object_slot_like_cpp(
+            &mut session,
+            700,
+            &effect,
+            &target_data_with_destination_like_cpp(Position::ZERO),
+        )
+        .is_none()
     );
 }
 #[test]
@@ -745,13 +743,13 @@ fn summon_object_slot_session_resolver_rejects_invalid_slot_like_cpp() {
     let (mut session, _, _) = make_session();
     let effect = summon_object_slot_effect_like_cpp(9001, MAX_GAMEOBJECT_SLOT_LIKE_CPP as u32);
 
-    let outcome = session
-        .apply_effect_summon_object_slot_like_cpp(
-            700,
-            &effect,
-            &target_data_with_destination_like_cpp(Position::ZERO),
-        )
-        .expect("slot effect should return represented outcome");
+    let outcome = wow_world_spell::apply_effect_summon_object_slot_like_cpp(
+        &mut session,
+        700,
+        &effect,
+        &target_data_with_destination_like_cpp(Position::ZERO),
+    )
+    .expect("slot effect should return represented outcome");
 
     assert_eq!(
         outcome.status,

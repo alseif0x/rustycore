@@ -63,7 +63,7 @@ fn known_spell_commands_match_previous_active_and_detached_owner() {
                         0 => session.set_known_spells_like_cpp(spells.clone()),
                         1 => {
                             for &id in &spells {
-                                session.learn_known_spell_like_cpp(id);
+                                wow_world_spell::learn_known_spell_like_cpp(&mut session, id);
                             }
                         }
                         _ => {
@@ -104,7 +104,7 @@ fn known_spell_commands_leave_replacement_untouched_for_stale_and_missing_owner(
             session.core.canonical_map_manager = None;
         }
         session.set_known_spells_like_cpp(vec![]);
-        session.learn_known_spell_like_cpp(20);
+        wow_world_spell::learn_known_spell_like_cpp(&mut session, 20);
         session.learn_dependent_known_spell_like_cpp(30);
         assert_eq!(
             manager
@@ -156,14 +156,15 @@ fn narrow_spell_queries_match_full_snapshot_for_active_and_detached_owner() {
                     player.replace_spell_runtime_like_cpp(runtime);
                 })
                 .unwrap();
-            let expected = session.player_spell_runtime_snapshot_like_cpp().unwrap();
+            let expected =
+                wow_world_spell::player_spell_runtime_snapshot_like_cpp(&session).unwrap();
             assert_eq!(
                 session.resolved_known_spells_like_cpp(),
                 Some(expected.known_spells.clone())
             );
             assert_eq!(session.known_spells_like_cpp(), expected.known_spells);
             assert_eq!(
-                session.represented_dependent_known_spells_like_cpp(),
+                wow_world_spell::represented_dependent_known_spells_like_cpp(&session),
                 expected.dependent_known_spells
             );
             assert_eq!(
@@ -171,7 +172,7 @@ fn narrow_spell_queries_match_full_snapshot_for_active_and_detached_owner() {
                 expected.favorite_known_spells
             );
             assert_eq!(
-                session.represented_override_spells_like_cpp(),
+                wow_world_spell::represented_override_spells_like_cpp(&session),
                 expected.override_spells
             );
             assert_eq!(
@@ -179,13 +180,13 @@ fn narrow_spell_queries_match_full_snapshot_for_active_and_detached_owner() {
                 expected.trait_definition_ids
             );
             assert_eq!(
-                session.complete_represented_override_spells_like_cpp(),
+                wow_world_spell::complete_represented_override_spells_like_cpp(&session),
                 expected
                     .override_spells_complete
                     .then_some(expected.override_spells)
             );
             assert_eq!(
-                session.complete_represented_spell_trait_definition_ids_like_cpp(),
+                wow_world_spell::complete_represented_spell_trait_definition_ids_like_cpp(&session),
                 expected
                     .trait_definition_ids_complete
                     .then_some(expected.trait_definition_ids)
@@ -195,7 +196,7 @@ fn narrow_spell_queries_match_full_snapshot_for_active_and_detached_owner() {
                 expected.rows_loaded
             );
             assert_eq!(
-                session.complete_represented_player_spell_rows_like_cpp(),
+                wow_world_spell::complete_represented_player_spell_rows_like_cpp(&session),
                 (expected.rows_loaded && expected.rows_complete).then_some(expected.rows)
             );
             let calls = std::cell::Cell::new(0);
@@ -242,29 +243,25 @@ fn narrow_spell_queries_reject_stale_and_missing_owner_without_fabricated_author
         );
         assert_eq!(session.resolved_known_spells_like_cpp(), None);
         assert_eq!(
-            session.complete_represented_player_spell_rows_like_cpp(),
+            wow_world_spell::complete_represented_player_spell_rows_like_cpp(&session),
             None
         );
         assert_eq!(
-            session.complete_represented_override_spells_like_cpp(),
+            wow_world_spell::complete_represented_override_spells_like_cpp(&session),
             None
         );
         assert_eq!(
-            session.complete_represented_spell_trait_definition_ids_like_cpp(),
+            wow_world_spell::complete_represented_spell_trait_definition_ids_like_cpp(&session),
             None
         );
         assert!(session.known_spells_like_cpp().is_empty());
-        assert!(
-            session
-                .represented_dependent_known_spells_like_cpp()
-                .is_empty()
-        );
+        assert!(wow_world_spell::represented_dependent_known_spells_like_cpp(&session).is_empty());
         assert!(
             session
                 .represented_favorite_known_spells_like_cpp()
                 .is_empty()
         );
-        assert!(session.represented_override_spells_like_cpp().is_empty());
+        assert!(wow_world_spell::represented_override_spells_like_cpp(&session).is_empty());
         assert!(
             session
                 .represented_spell_trait_definition_ids_like_cpp()
@@ -708,17 +705,17 @@ fn spell_metadata_transitions_preserve_active_and_detached_owner_contracts() {
                 session.with_owned_player_like_cpp(|p| p.spell_runtime_like_cpp().clone()),
                 expected
             );
-            session.add_represented_override_spell_like_cpp(50, 70);
-            session.add_represented_override_spell_like_cpp(50, 70);
-            session.add_represented_override_spell_like_cpp(0, 70);
-            session.remove_represented_override_spell_like_cpp(50, 60);
+            wow_world_spell::add_represented_override_spell_like_cpp(&mut session, 50, 70);
+            wow_world_spell::add_represented_override_spell_like_cpp(&mut session, 50, 70);
+            wow_world_spell::add_represented_override_spell_like_cpp(&mut session, 0, 70);
+            wow_world_spell::remove_represented_override_spell_like_cpp(&mut session, 50, 60);
             assert_eq!(
-                session.represented_override_spells_like_cpp(),
+                wow_world_spell::represented_override_spells_like_cpp(&session),
                 HashMap::from([(50, BTreeSet::from([70]))])
             );
-            session.remove_represented_override_spell_like_cpp(50, 70);
-            session.remove_represented_override_spell_like_cpp(50, 70);
-            assert!(session.represented_override_spells_like_cpp().is_empty());
+            wow_world_spell::remove_represented_override_spell_like_cpp(&mut session, 50, 70);
+            wow_world_spell::remove_represented_override_spell_like_cpp(&mut session, 50, 70);
+            assert!(wow_world_spell::represented_override_spells_like_cpp(&session).is_empty());
             assert!(
                 session
                     .with_owned_player_like_cpp(|p| p
@@ -755,8 +752,8 @@ fn spell_metadata_rejects_stale_and_missing_owner_without_mutating_replacement()
             session.core.canonical_map_manager = None;
         }
         assert!(!session.set_complete_represented_spell_trait_definition_ids_like_cpp([(10, 20)]));
-        session.add_represented_override_spell_like_cpp(50, 70);
-        session.remove_represented_override_spell_like_cpp(50, 60);
+        wow_world_spell::add_represented_override_spell_like_cpp(&mut session, 50, 70);
+        wow_world_spell::remove_represented_override_spell_like_cpp(&mut session, 50, 60);
         assert_eq!(
             manager
                 .lock()
@@ -809,7 +806,7 @@ fn spellbook_mutation_uses_native_active_and_detached_owner_once() {
         assert!(manager.try_lock().is_ok());
         // A normal adapter write preserves unrelated native fields and vector order.
         session.set_represented_favorite_known_spells_like_cpp(HashSet::from([9]));
-        let state = session.player_spell_runtime_snapshot_like_cpp().unwrap();
+        let state = wow_world_spell::player_spell_runtime_snapshot_like_cpp(&session).unwrap();
         assert_eq!(state.known_spells, vec![9, 3]);
         assert_eq!(state.trait_definition_ids.get(&9), Some(&17));
         assert_eq!(state.override_spells.get(&3), Some(&BTreeSet::from([9])));
@@ -819,7 +816,7 @@ fn spellbook_mutation_uses_native_active_and_detached_owner_once() {
             RepresentedPlayerSpellStateLikeCpp::New
         );
         session.mark_player_spells_saved_like_cpp();
-        let saved = session.player_spell_runtime_snapshot_like_cpp().unwrap();
+        let saved = wow_world_spell::player_spell_runtime_snapshot_like_cpp(&session).unwrap();
         assert_eq!(
             saved.rows[&9].state,
             RepresentedPlayerSpellStateLikeCpp::Unchanged

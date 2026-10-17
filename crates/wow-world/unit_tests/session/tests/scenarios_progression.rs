@@ -422,7 +422,8 @@ fn reputation_low_level_rate_uses_script_adjusted_gray_level_like_cpp() {
     });
 
     assert_eq!(
-        session.calculate_reputation_gain_like_cpp(
+        wow_world_social::calculate_reputation_gain_like_cpp(
+            &session,
             ReputationGainSourceLikeCpp::Quest,
             75,
             100,
@@ -434,7 +435,8 @@ fn reputation_low_level_rate_uses_script_adjusted_gray_level_like_cpp() {
 
     session.set_represented_gray_level_script_override_like_cpp(80, 79);
     assert_eq!(
-        session.calculate_reputation_gain_like_cpp(
+        wow_world_social::calculate_reputation_gain_like_cpp(
+            &session,
             ReputationGainSourceLikeCpp::Quest,
             75,
             100,
@@ -480,7 +482,8 @@ fn reputation_gain_recruit_a_friend_bonus_requires_configured_distance_like_cpp(
     session.set_state(SessionState::LoggedIn);
 
     assert_eq!(
-        session.calculate_reputation_gain_like_cpp(
+        wow_world_social::calculate_reputation_gain_like_cpp(
+            &session,
             ReputationGainSourceLikeCpp::Quest,
             80,
             100,

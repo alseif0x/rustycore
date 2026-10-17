@@ -448,7 +448,7 @@ async fn far_sight_update_visibility_falls_back_for_unsupported_seer_like_cpp() 
         .set_represented_seer_guid_fixture_like_cpp(Some(gameobject_seer_guid));
 
     assert_eq!(
-        session.represented_visibility_source_position_like_cpp(),
+        wow_world_entities::represented_visibility_source_position_like_cpp(&session),
         Some(player_position)
     );
 

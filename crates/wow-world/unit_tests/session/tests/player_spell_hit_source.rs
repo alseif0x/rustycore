@@ -64,7 +64,7 @@ fn complete_empty_player_dynamic_spell_hit_aura_sources_like_cpp(session: &mut W
     );
     assert!(session.set_complete_player_skill_records_like_cpp(HashMap::new(), 0));
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::default()));
-    session.begin_player_quest_status_authority_load_like_cpp();
+    wow_world_quest::begin_player_quest_status_authority_load_like_cpp(session);
     session.complete_player_quest_status_authority_load_like_cpp();
     session.set_represented_guild_id_like_cpp(0);
     session.reset_represented_glyphs_like_cpp();
@@ -170,7 +170,7 @@ fn complete_empty_player_spell_hit_authority_fixture_like_cpp() -> WorldSession 
         80,
         0,
     ));
-    session.set_player_aura_authority_complete_like_cpp(true);
+    wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true);
     session.complete_player_equipment_inventory_authority_load_like_cpp();
     assert!(session.set_complete_represented_player_spell_rows_like_cpp([]));
     complete_empty_player_dynamic_spell_hit_aura_sources_like_cpp(&mut session);

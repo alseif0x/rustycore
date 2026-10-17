@@ -219,7 +219,7 @@ fn canonical_instance_count_allows_dead_player_like_cpp() {
     session
         .instances
         .set_fixture_raid_difficulty_for_test_like_cpp(3);
-    session.set_player_alive_like_cpp(false);
+    wow_world_entities::set_player_alive_like_cpp(&mut session, false);
     session.set_max_instances_per_hour_like_cpp(1);
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     session
@@ -374,9 +374,9 @@ fn canonical_player_dungeon_create_map_creates_temporary_lock_like_cpp() {
     let decision = session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .unwrap();
-    let lock_context = session
-        .create_map_active_instance_lock_context_like_cpp(631, 3)
-        .unwrap();
+    let lock_context =
+        wow_world_instances::create_map_active_instance_lock_context_like_cpp(&session, 631, 3)
+            .unwrap();
 
     assert_eq!(
         decision,
@@ -619,9 +619,9 @@ fn canonical_player_dungeon_create_map_regenerates_conflicting_encounter_lock_in
     let decision = session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .unwrap();
-    let lock_context = session
-        .create_map_active_instance_lock_context_like_cpp(631, 3)
-        .unwrap();
+    let lock_context =
+        wow_world_instances::create_map_active_instance_lock_context_like_cpp(&session, 631, 3)
+            .unwrap();
 
     assert_eq!(
         decision,

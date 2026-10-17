@@ -14,15 +14,6 @@ use crate::session::WorldSession;
 use wow_core::ObjectGuid;
 
 impl WorldSession {
-    pub(crate) fn current_group_member_guids_for_tap_like_cpp(
-        &self,
-        player_guid: ObjectGuid,
-    ) -> Vec<ObjectGuid> {
-        wow_world_instances::current_group_member_guids_for_tap_like_cpp(self, player_guid)
-    }
-    pub(crate) fn reset_group_update_sequence_if_needed_like_cpp(&mut self) -> bool {
-        wow_world_instances::reset_group_update_sequence_if_needed_like_cpp(self)
-    }
     pub(crate) fn set_owned_player_group_like_cpp(
         &mut self,
         membership: Option<(u64, u8)>,
@@ -81,8 +72,5 @@ impl WorldSession {
     }
     pub(crate) fn resolved_visible_resting_like_cpp(&self) -> Option<bool> {
         wow_world_entities::resolved_visible_resting_like_cpp(self)
-    }
-    pub(crate) fn apply_move_init_active_mover_complete_like_cpp(&mut self, ticks: u32) {
-        wow_world_entities::apply_move_init_active_mover_complete_like_cpp(self, ticks)
     }
 }

@@ -15,7 +15,7 @@ async fn uncage_item_state_read_routes_typed_ids_and_preserves_failure_distincti
     ));
 
     assert_eq!(
-        session.uncage_item_state_like_cpp(42, 71).await,
+        wow_world_inventory::uncage_item_state_like_cpp(&session, 42, 71).await,
         PlayerUncageItemStateLoadOutcomeLikeCpp::Loaded(PlayerUncageItemStateLikeCpp {
             owner_guid: Some(42),
             inventory_linked: true,
@@ -31,9 +31,7 @@ async fn uncage_item_state_read_routes_typed_ids_and_preserves_failure_distincti
 
     let (session_without_port, _, _) = make_session();
     assert!(matches!(
-        session_without_port
-            .uncage_item_state_like_cpp(42, 71)
-            .await,
+        wow_world_inventory::uncage_item_state_like_cpp(&session_without_port, 42, 71).await,
         PlayerUncageItemStateLoadOutcomeLikeCpp::Failed { .. }
     ));
 }

@@ -82,11 +82,4 @@ impl WorldSession {
         )
         .await
     }
-
-    pub(crate) fn can_take_quest(&self, quest: &wow_data::quest::QuestTemplate) -> bool {
-        wow_world_quest::can_take_quest(self, quest)
-    }
-    pub(crate) fn apply_quest_item_removed_like_cpp(&mut self, entry_id: u32) -> Option<Vec<u32>> {
-        wow_world_quest::apply_quest_item_removed_like_cpp(self, entry_id)
-    }
 }

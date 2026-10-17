@@ -151,7 +151,7 @@ fn remove_known_spell_removes_non_talent_higher_ranks_like_cpp() {
     ));
     session.set_known_spells_like_cpp(vec![10, 20, 30, 40]);
 
-    session.remove_known_spell_like_cpp(10);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, 10);
 
     assert_eq!(
         session.known_spells_like_cpp(),
@@ -232,7 +232,7 @@ fn remove_known_spell_preserves_talent_higher_rank_like_cpp() {
     session.set_spell_custom_attribute_store(Arc::new(outcome.store));
     session.set_known_spells_like_cpp(vec![10, 20]);
 
-    session.remove_known_spell_like_cpp(10);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, 10);
 
     assert_eq!(
         session.known_spells_like_cpp(),
@@ -272,7 +272,7 @@ fn remove_known_spell_removes_spells_requiring_it_like_cpp() {
     session.set_spell_required_store(Arc::new(test_spell_required_store_like_cpp()));
     session.set_known_spells_like_cpp(vec![10, 100, 101, 200]);
 
-    session.remove_known_spell_like_cpp(10);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, 10);
 
     assert_eq!(
         session.known_spells_like_cpp(),
@@ -290,7 +290,7 @@ fn remove_known_spell_removes_spells_requiring_it_like_cpp() {
         "C++ marks the removed required spell and its non-dependent known dependants as PLAYERSPELL_REMOVED"
     );
 
-    session.remove_known_spell_like_cpp(11);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, 11);
     assert_eq!(
         session.known_spells_like_cpp(),
         &[200],
@@ -312,9 +312,9 @@ fn remove_known_spell_removes_learned_dependent_spells_and_overrides_like_cpp() 
         )]),
     }));
     session.set_known_spells_like_cpp(vec![10, 20, 30]);
-    session.add_represented_override_spell_like_cpp(100, 20);
+    wow_world_spell::add_represented_override_spell_like_cpp(&mut session, 100, 20);
 
-    session.remove_known_spell_like_cpp(10);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, 10);
 
     assert_eq!(
         session.known_spells_like_cpp(),
@@ -322,7 +322,7 @@ fn remove_known_spell_removes_learned_dependent_spells_and_overrides_like_cpp() 
         "C++ Player::RemoveSpell removes spells returned by GetSpellLearnSpellMapBounds"
     );
     assert!(
-        session.represented_override_spells_like_cpp().is_empty(),
+        wow_world_spell::represented_override_spells_like_cpp(&session).is_empty(),
         "C++ removes OverridesSpell pairs for learned dependent spells"
     );
     assert_eq!(
@@ -357,8 +357,8 @@ fn loaded_known_spell_dependencies_rebuild_all_active_override_edges_like_cpp() 
             ],
         )]),
     }));
-    session.add_represented_override_spell_like_cpp(999, 888);
-    session.reset_represented_talents_like_cpp();
+    wow_world_spell::add_represented_override_spell_like_cpp(&mut session, 999, 888);
+    wow_world_spell::reset_represented_talents_like_cpp(&mut session);
 
     let mut known_spells = vec![10, 20];
     assert_eq!(
@@ -368,12 +368,12 @@ fn loaded_known_spell_dependencies_rebuild_all_active_override_edges_like_cpp() 
     );
     assert_eq!(known_spells, vec![10, 20]);
     assert_eq!(
-        session.represented_override_spells_like_cpp(),
+        wow_world_spell::represented_override_spells_like_cpp(&session),
         HashMap::from([(100, BTreeSet::from([20])), (200, BTreeSet::from([30])),]),
         "C++ AddSpell rebuilds active OverridesSpell edges outside the AutoLearned branch"
     );
 
-    session.reset_represented_talents_like_cpp();
+    wow_world_spell::reset_represented_talents_like_cpp(&mut session);
     let mut active_projection = Vec::new();
     assert_eq!(
         session.apply_loaded_spell_dependencies_from_roots_like_cpp(&[10], &mut active_projection,),
@@ -382,7 +382,7 @@ fn loaded_known_spell_dependencies_rebuild_all_active_override_edges_like_cpp() 
     );
     assert_eq!(active_projection, vec![20]);
     assert_eq!(
-        session.represented_override_spells_like_cpp(),
+        wow_world_spell::represented_override_spells_like_cpp(&session),
         HashMap::from([(100, BTreeSet::from([20])), (200, BTreeSet::from([30])),])
     );
 }
@@ -451,7 +451,7 @@ fn remove_known_spell_removes_first_rank_learned_skill_like_cpp() {
     assert!(!session.player_skill_records_loaded_like_cpp());
     session.set_known_spells_like_cpp(vec![10, 30]);
 
-    session.remove_known_spell_like_cpp(10);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, 10);
 
     assert_eq!(
         session.known_spells_like_cpp(),
@@ -538,7 +538,7 @@ fn remove_known_spell_downgrades_to_previous_learned_skill_with_explicit_max_lik
     )]));
     session.set_known_spells_like_cpp(vec![20]);
 
-    session.remove_known_spell_like_cpp(20);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, 20);
 
     assert_eq!(
         session.player_skill_records_like_cpp().get(&755),
@@ -590,7 +590,7 @@ fn remove_known_spell_resets_skill_when_previous_learned_skill_missing_like_cpp(
     )]));
     session.set_known_spells_like_cpp(vec![20]);
 
-    session.remove_known_spell_like_cpp(20);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, 20);
 
     assert_eq!(
         session.player_skill_records_like_cpp().get(&755),
@@ -620,13 +620,11 @@ fn remove_known_spell_marks_previous_rank_dependent_like_cpp() {
     session.set_known_spells_like_cpp(vec![10, 20]);
     session.learn_dependent_known_spell_like_cpp(20);
 
-    session.remove_known_spell_like_cpp(20);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, 20);
 
     assert_eq!(session.known_spells_like_cpp(), &[10]);
     assert!(
-        session
-            .represented_dependent_known_spells_like_cpp()
-            .contains(&10),
+        wow_world_spell::represented_dependent_known_spells_like_cpp(&session).contains(&10),
         "C++ RemoveSpell copies cur_dependent to the previous rank before AddSpell reactivates it"
     );
     assert!(
@@ -654,13 +652,11 @@ fn remove_known_spell_clears_previous_rank_dependent_when_current_is_independent
     session.set_known_spells_like_cpp(vec![10, 20]);
     session.learn_dependent_known_spell_like_cpp(10);
 
-    session.remove_known_spell_like_cpp(20);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, 20);
 
     assert_eq!(session.known_spells_like_cpp(), &[10]);
     assert!(
-        !session
-            .represented_dependent_known_spells_like_cpp()
-            .contains(&10),
+        !wow_world_spell::represented_dependent_known_spells_like_cpp(&session).contains(&10),
         "C++ RemoveSpell updates previous-rank dependent state when it differs from the removed rank"
     );
     assert!(
@@ -687,7 +683,7 @@ fn remove_known_spell_does_not_create_missing_previous_rank_like_cpp() {
     ));
     session.set_known_spells_like_cpp(vec![20]);
 
-    session.remove_known_spell_like_cpp(20);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, 20);
 
     assert!(
         session.known_spells_like_cpp().is_empty(),
@@ -698,20 +694,17 @@ fn remove_known_spell_does_not_create_missing_previous_rank_like_cpp() {
 fn remove_known_spell_erases_override_source_like_cpp() {
     let (mut session, _, _) = make_session();
     session.set_known_spells_like_cpp(vec![10, 30]);
-    session.add_represented_override_spell_like_cpp(10, 20);
-    session.add_represented_override_spell_like_cpp(30, 40);
+    wow_world_spell::add_represented_override_spell_like_cpp(&mut session, 10, 20);
+    wow_world_spell::add_represented_override_spell_like_cpp(&mut session, 30, 40);
 
-    session.remove_known_spell_like_cpp(10);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, 10);
 
     assert!(
-        !session
-            .represented_override_spells_like_cpp()
-            .contains_key(&10),
+        !wow_world_spell::represented_override_spells_like_cpp(&session).contains_key(&10),
         "C++ Player::RemoveSpell erases m_overrideSpells[spell_id] after removing the spell"
     );
     assert_eq!(
-        session
-            .represented_override_spells_like_cpp()
+        wow_world_spell::represented_override_spells_like_cpp(&session)
             .get(&30)
             .cloned()
             .unwrap_or_default()
@@ -737,22 +730,20 @@ fn remove_known_spell_removes_trait_definition_override_like_cpp() {
             visible_spell_id: 0,
         },
     ])));
-    session.add_represented_override_spell_like_cpp(10, 20);
-    session.add_represented_override_spell_like_cpp(30, 40);
+    wow_world_spell::add_represented_override_spell_like_cpp(&mut session, 10, 20);
+    wow_world_spell::add_represented_override_spell_like_cpp(&mut session, 30, 40);
     session.set_represented_spell_trait_definition_id_like_cpp(20, 7);
 
-    session.remove_known_spell_like_cpp(20);
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, 20);
 
     assert!(
-        !session
-            .represented_override_spells_like_cpp()
+        !wow_world_spell::represented_override_spells_like_cpp(&session)
             .get(&10)
             .is_some_and(|spells| spells.contains(&20)),
         "C++ Player::RemoveSpell removes TraitDefinition OverridesSpellID -> spell_id pairs"
     );
     assert_eq!(
-        session
-            .represented_override_spells_like_cpp()
+        wow_world_spell::represented_override_spells_like_cpp(&session)
             .get(&30)
             .cloned()
             .unwrap_or_default()
@@ -775,7 +766,7 @@ fn remove_known_spell_sends_unlearned_spells_with_suppress_flag_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     session.set_known_spells_like_cpp(vec![20, 40]);
 
-    session.remove_known_spell_with_suppress_messaging_like_cpp(20, true);
+    wow_world_spell::remove_known_spell_with_suppress_messaging_like_cpp(&mut session, 20, true);
 
     let packets = drain_server_packet_bytes(&send_rx);
     assert_eq!(packets.len(), 1);
@@ -804,7 +795,7 @@ fn remove_known_spell_sends_superceded_packet_when_previous_rank_reactivates_lik
     ));
     session.set_known_spells_like_cpp(vec![10, 20]);
 
-    session.remove_known_spell_with_suppress_messaging_like_cpp(20, true);
+    wow_world_spell::remove_known_spell_with_suppress_messaging_like_cpp(&mut session, 20, true);
 
     let packets = drain_server_packet_bytes(&send_rx);
     assert_eq!(packets.len(), 1);

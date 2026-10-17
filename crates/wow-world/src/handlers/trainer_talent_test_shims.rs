@@ -13,7 +13,6 @@
 use std::sync::Arc;
 
 use crate::session::WorldSession;
-use wow_world_application::TrainerOfferDecisionLikeCpp;
 
 impl WorldSession {
     pub(crate) async fn handle_trainer_buy_spell(&mut self, pkt: wow_packet::WorldPacket) {
@@ -31,27 +30,5 @@ impl WorldSession {
             pkt,
         )
         .await;
-    }
-
-    pub(crate) async fn handle_trainer_list(&mut self, hello: wow_packet::packets::gossip::Hello) {
-        wow_world_application::handle_trainer_list(self, hello).await;
-    }
-
-    pub(crate) fn trainer_offer_decision_like_cpp(
-        &mut self,
-        trainer_id: u32,
-        trainer_spell: &wow_data::TrainerSpellLikeCpp,
-        faction_template_id: u32,
-    ) -> TrainerOfferDecisionLikeCpp {
-        wow_world_application::trainer_offer_decision_like_cpp(
-            self,
-            trainer_id,
-            trainer_spell,
-            faction_template_id,
-        )
-    }
-
-    pub(crate) fn refresh_represented_talent_points_like_cpp(&mut self) {
-        wow_world_quest::refresh_represented_talent_points_like_cpp(self)
     }
 }

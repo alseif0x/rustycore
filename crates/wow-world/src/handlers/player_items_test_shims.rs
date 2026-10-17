@@ -129,31 +129,6 @@ impl WorldSession {
             .represented_auto_unequip_offhand_requests_like_cpp()
     }
 
-    pub(crate) fn on_item_added_to_collection_like_cpp(
-        &mut self,
-        item: &wow_entities::Item,
-    ) -> Vec<wow_entities::PlayerValuesUpdate> {
-        wow_world_inventory::on_item_added_to_collection_like_cpp(self, item)
-    }
-
-    pub(crate) fn add_item_appearance_for_item_like_cpp(
-        &mut self,
-        item_id: u32,
-        appearance_mod_id: u32,
-    ) -> Option<wow_entities::PlayerValuesUpdate> {
-        wow_world_inventory::add_item_appearance_for_item_like_cpp(self, item_id, appearance_mod_id)
-    }
-
-    pub(crate) fn can_add_item_appearance_represented_like_cpp(
-        &self,
-        item_modified_appearance_id: u32,
-    ) -> bool {
-        wow_world_inventory::can_add_item_appearance_represented_like_cpp(
-            self,
-            item_modified_appearance_id,
-        )
-    }
-
     pub(crate) fn add_item_appearance_like_cpp(
         &mut self,
         item_modified_appearance_id: u32,

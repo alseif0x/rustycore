@@ -79,8 +79,10 @@ impl WorldSession {
             legacy_raid_difficulty,
         };
 
-        let spell_runtime = self.player_spell_runtime_snapshot_like_cpp();
-        let spells = if let Some(spells) = self.complete_represented_player_spell_rows_like_cpp() {
+        let spell_runtime = wow_world_spell::player_spell_runtime_snapshot_like_cpp(self);
+        let spells = if let Some(spells) =
+            wow_world_spell::complete_represented_player_spell_rows_like_cpp(self)
+        {
             Some(PlayerSpellSaveGroupLikeCpp::Complete {
                 rows: spells
                     .values()
@@ -562,7 +564,7 @@ impl WorldSession {
             self.mark_player_spells_saved_like_cpp();
         }
         if committed.fallback_player_spells {
-            let _ = self.clear_represented_fallback_spell_rows_like_cpp();
+            let _ = wow_world_spell::clear_represented_fallback_spell_rows_like_cpp(self);
         }
         if committed.player_skills {
             self.mark_player_skills_saved_like_cpp();

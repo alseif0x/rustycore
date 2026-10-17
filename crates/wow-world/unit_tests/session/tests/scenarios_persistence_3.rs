@@ -355,8 +355,7 @@ fn player_save_plan_marks_dirty_state_only_after_commit_like_cpp() {
     assert!(session.lifecycle.tutorials_changed_like_cpp());
     assert!(!session.lifecycle.tutorials_loaded_from_db_like_cpp());
     assert_eq!(
-        session
-            .complete_represented_player_spell_rows_like_cpp()
+        wow_world_spell::complete_represented_player_spell_rows_like_cpp(&session)
             .and_then(|rows| rows.get(&13_337).copied())
             .map(|spell| spell.state),
         Some(RepresentedPlayerSpellStateLikeCpp::New),
@@ -383,8 +382,7 @@ fn player_save_plan_marks_dirty_state_only_after_commit_like_cpp() {
 
     assert!(!session.lifecycle.tutorials_changed_like_cpp());
     assert_eq!(
-        session
-            .complete_represented_player_spell_rows_like_cpp()
+        wow_world_spell::complete_represented_player_spell_rows_like_cpp(&session)
             .and_then(|rows| rows.get(&13_337).copied())
             .map(|spell| spell.state),
         Some(RepresentedPlayerSpellStateLikeCpp::Unchanged),

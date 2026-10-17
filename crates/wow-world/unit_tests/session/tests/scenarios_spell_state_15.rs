@@ -179,7 +179,7 @@ async fn teleport_to_allows_death_knight_after_escape_spell_like_cpp() {
         58,
         0,
     ));
-    session.learn_known_spell_like_cpp(DEATH_KNIGHT_ESCAPE_SPELL_LIKE_CPP);
+    wow_world_spell::learn_known_spell_like_cpp(&mut session, DEATH_KNIGHT_ESCAPE_SPELL_LIKE_CPP);
 
     session.teleport_to(571, destination).await;
 

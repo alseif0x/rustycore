@@ -168,15 +168,9 @@ fn account_mount_load_learns_mount_spells_before_use_condition_like_cpp() {
         session.known_spells_like_cpp().contains(&101),
         "C++ CollectionMgr::AddMount stores/learns mounts before PlayerCondition; that condition applies to using the mount"
     );
+    assert!(wow_world_spell::represented_dependent_known_spells_like_cpp(&session).contains(&100));
     assert!(
-        session
-            .represented_dependent_known_spells_like_cpp()
-            .contains(&100)
-    );
-    assert!(
-        session
-            .represented_dependent_known_spells_like_cpp()
-            .contains(&101),
+        wow_world_spell::represented_dependent_known_spells_like_cpp(&session).contains(&101),
         "C++ CollectionMgr::AddMount calls Player::LearnSpell(spellId, true), which creates dependent spells skipped by _SaveSpells"
     );
 
@@ -184,21 +178,9 @@ fn account_mount_load_learns_mount_spells_before_use_condition_like_cpp() {
     assert!(session.known_spells_like_cpp().contains(&635));
     assert!(session.known_spells_like_cpp().contains(&100));
     assert!(session.known_spells_like_cpp().contains(&101));
-    assert!(
-        !session
-            .represented_dependent_known_spells_like_cpp()
-            .contains(&635)
-    );
-    assert!(
-        session
-            .represented_dependent_known_spells_like_cpp()
-            .contains(&100)
-    );
-    assert!(
-        session
-            .represented_dependent_known_spells_like_cpp()
-            .contains(&101)
-    );
+    assert!(!wow_world_spell::represented_dependent_known_spells_like_cpp(&session).contains(&635));
+    assert!(wow_world_spell::represented_dependent_known_spells_like_cpp(&session).contains(&100));
+    assert!(wow_world_spell::represented_dependent_known_spells_like_cpp(&session).contains(&101));
 }
 #[test]
 fn loaded_character_mount_spells_promote_to_account_collection_like_cpp() {
@@ -397,7 +379,7 @@ async fn dynamic_object_values_snapshot_dynamic_object_seer_wrong_caster_no_send
         .insert(dynamic_guid);
 
     assert_eq!(
-        session.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(),
+        wow_world_entities::send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(&mut session),
         0
     );
 

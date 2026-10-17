@@ -233,7 +233,7 @@ pub(crate) async fn saga_handler_fixture_like_cpp(
         },
     ])));
     session.set_disable_mgr(Arc::new(wow_data::DisableMgrLikeCpp::default()));
-    session.set_player_aura_authority_complete_like_cpp(true);
+    wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true);
     session.set_condition_store(Arc::new(wow_data::ConditionEntriesByTypeStore::default()));
     session.set_skill_store(Arc::new(
         wow_data::SkillStore::from_skill_line_abilities_and_race_class_like_cpp([], []),

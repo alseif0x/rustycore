@@ -954,8 +954,7 @@ fn represented_unit_values_update_filters_spellclick_npc_flags_delta_like_cpp() 
         unit_data: Some(UnitDataUpdate { mask, values }),
     };
 
-    let packet = session
-        .represented_unit_values_update_to_update_object_like_cpp(creature_guid, 571, &update)
+    let packet = wow_world_quest::unit_update_publication::represented_unit_values_update_to_update_object_like_cpp(&session, creature_guid, 571, &update)
         .expect("delta packet");
     let wow_packet::packets::update::UpdateBlock::UnitValuesUpdate { data, .. } = &packet.blocks[0]
     else {

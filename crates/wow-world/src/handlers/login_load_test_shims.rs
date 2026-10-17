@@ -16,21 +16,12 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.clear_represented_void_storage_like_cpp(&mut hub)
     }
-    pub(crate) fn mark_represented_void_storage_loaded_like_cpp(&mut self) {
-        wow_world_character::mark_represented_void_storage_loaded_like_cpp(self)
-    }
-    pub(crate) fn prepare_represented_void_storage_login_load_like_cpp(&mut self) -> bool {
-        wow_world_character::prepare_represented_void_storage_login_load_like_cpp(self)
-    }
     pub(crate) fn load_represented_void_storage_row_like_cpp(
         &mut self,
         slot: u8,
         item: RepresentedVoidStorageItemLikeCpp,
     ) -> bool {
         wow_world_character::load_represented_void_storage_row_like_cpp(self, slot, item)
-    }
-    pub(crate) fn load_represented_group_difficulties_like_cpp(&mut self) -> bool {
-        wow_world_character::load_represented_group_difficulties_like_cpp(self)
     }
     pub(crate) fn load_represented_group_by_db_store_id_like_cpp(
         &mut self,
@@ -51,8 +42,5 @@ impl WorldSession {
             configs,
             entries_empty,
         )
-    }
-    pub(crate) fn apply_represented_login_spell_reset_if_needed_like_cpp(&mut self) -> bool {
-        wow_world_application::apply_represented_login_spell_reset_if_needed_like_cpp(self)
     }
 }

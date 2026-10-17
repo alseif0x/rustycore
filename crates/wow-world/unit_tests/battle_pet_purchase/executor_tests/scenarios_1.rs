@@ -70,9 +70,7 @@ async fn purchase_success_charges_once_creates_one_pet_completes_and_publishes_o
 
     // C++ `LearnSpell(dependent=true)`: runtime-known, never durable.
     assert!(
-        fixture
-            .session
-            .represented_dependent_known_spells_like_cpp()
+        wow_world_spell::represented_dependent_known_spells_like_cpp(&fixture.session)
             .contains(&(SAGA_SPELL_ID as i32))
     );
 }
@@ -533,10 +531,7 @@ async fn journal_lock_held_elsewhere_is_structured_unavailable_and_wire_silent_l
     let registry = Arc::clone(&first.registry);
     // First session holds the journal lease.
     assert!(
-        first
-            .session
-            .battle_pet_try_acquire_journal_lease_like_cpp()
-            .await
+        wow_world_inventory::battle_pet_try_acquire_journal_lease_like_cpp(&first.session).await
     );
     let (mut second_session, _second_rx) =
         make_saga_session_like_cpp(OTHER_PLAYER_COUNTER, SAGA_MONEY);
@@ -568,12 +563,7 @@ async fn journal_lock_held_elsewhere_is_structured_unavailable_and_wire_silent_l
     assert!(store.commands_snapshot().is_empty());
     assert_eq!(persistence.pet_count(), 0);
     // The first session keeps its lease and can still use the journal.
-    assert!(
-        first
-            .session
-            .battle_pet_account_owner_lease_like_cpp()
-            .is_some()
-    );
+    assert!(wow_world_inventory::battle_pet_account_owner_lease_like_cpp(&first.session).is_some());
 }
 
 #[tokio::test]

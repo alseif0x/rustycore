@@ -13,15 +13,6 @@ use wow_world_spell::{RepresentedPlayerSpellLikeCpp, RepresentedPlayerSpellState
 use crate::session::WorldSession;
 
 impl WorldSession {
-    pub(crate) fn set_player_aura_authority_complete_like_cpp(&mut self, complete: bool) -> bool {
-        wow_world_spell::set_player_aura_authority_complete_like_cpp(self, complete)
-    }
-    pub(crate) fn represented_cast_speed_multiplier_like_cpp(&self) -> f32 {
-        wow_world_spell::represented_cast_speed_multiplier_like_cpp(self)
-    }
-    pub(crate) fn represented_player_is_polymorphed_like_cpp(&self) -> Option<bool> {
-        wow_world_spell::represented_player_is_polymorphed_like_cpp(self)
-    }
     pub(crate) fn represented_update_zone_script_aura_source_is_hit_inert_like_cpp(&self) -> bool {
         wow_world_spell::represented_update_zone_script_aura_source_is_hit_inert_like_cpp(self)
     }
@@ -41,18 +32,12 @@ impl WorldSession {
     pub(crate) fn has_represented_self_res_spell_like_cpp(&self, spell_id: i32) -> bool {
         wow_world_spell::has_represented_self_res_spell_like_cpp(self, spell_id)
     }
-    pub(crate) fn apply_login_known_spell_proficiencies_like_cpp(
-        &mut self,
-        known_spells: &[i32],
-    ) -> usize {
-        wow_world_spell::apply_login_known_spell_proficiencies_like_cpp(self, known_spells)
-    }
     /// Moved verbatim from `session/spell_state/spell.rs` (no production
     /// caller; it was `#[allow(dead_code)]` there).
     pub(crate) fn represented_player_spell_rows_like_cpp(
         &self,
     ) -> Vec<RepresentedPlayerSpellLikeCpp> {
-        let Some(runtime) = self.player_spell_runtime_snapshot_like_cpp() else {
+        let Some(runtime) = wow_world_spell::player_spell_runtime_snapshot_like_cpp(self) else {
             return Vec::new();
         };
         let mut rows = runtime

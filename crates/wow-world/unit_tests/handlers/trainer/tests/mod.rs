@@ -400,7 +400,7 @@ fn trainer_fixture_with_store_and_map_difficulty(
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("canonical player map");
-    assert!(session.set_player_aura_authority_complete_like_cpp(true));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true));
     // The production login path hydrates `Player::SetFactionForRace`
     // before publishing the Player. This synthetic fixture has no
     // ChrRaces store, so install the exact canonical prerequisite here.
@@ -521,7 +521,7 @@ fn seed_feign_death(session: &mut WorldSession, slot: u8) {
             applied_at: Instant::now(),
         })
     );
-    assert!(session.set_player_aura_authority_complete_like_cpp(true));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(session, true));
 }
 
 fn seed_unclassified_active_aura(session: &mut WorldSession, slot: u8) {
@@ -547,7 +547,7 @@ fn seed_unclassified_active_aura(session: &mut WorldSession, slot: u8) {
             applied_at: Instant::now(),
         })
     );
-    assert!(session.set_player_aura_authority_complete_like_cpp(true));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(session, true));
 }
 
 fn install_wrapper_and_aura_catalog(

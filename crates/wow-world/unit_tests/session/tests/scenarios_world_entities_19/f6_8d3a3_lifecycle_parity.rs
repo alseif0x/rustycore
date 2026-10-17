@@ -93,7 +93,7 @@ async fn d3a3_world_like_cpp(base: i64) -> D3a3WorldLikeCpp {
     observer
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("the observer enters the canonical map");
-    observer.apply_move_init_active_mover_complete_like_cpp(0);
+    wow_world_entities::apply_move_init_active_mover_complete_like_cpp(&mut observer, 0);
     observer.set_state(SessionState::LoggedIn);
     observer.force_update_visibility_like_cpp().await;
     assert!(

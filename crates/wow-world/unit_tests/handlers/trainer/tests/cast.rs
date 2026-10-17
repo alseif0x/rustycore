@@ -507,9 +507,7 @@ async fn definite_target_failure_precedes_unsupported_pet_aura_hook_like_cpp() {
 #[tokio::test]
 async fn incomplete_persisted_aura_authority_stops_before_charge_like_cpp() {
     let mut fixture = trainer_wrapper_fixture();
-    fixture
-        .session
-        .set_player_aura_authority_complete_like_cpp(false);
+    wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut fixture.session, false);
 
     fixture
         .session

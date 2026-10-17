@@ -28,7 +28,12 @@ impl WorldSession {
         };
 
         for talent_id in request.talent_ids {
-            if self.learn_represented_talent_like_cpp(talent_tabs, u32::from(talent_id), 0) {
+            if wow_world_spell::learn_represented_talent_like_cpp(
+                self,
+                talent_tabs,
+                u32::from(talent_id),
+                0,
+            ) {
                 if let Some(talent_data) =
                     crate::session::hub_ref(self).resolved_update_talent_data_packet_like_cpp()
                 {

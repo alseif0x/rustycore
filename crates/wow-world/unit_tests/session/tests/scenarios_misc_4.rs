@@ -43,7 +43,7 @@ fn npc_interaction_preserves_dead_and_ghost_exceptions_like_cpp() {
     session.set_canonical_map_manager(Arc::clone(&manager));
     session.set_player_faction_template_like_cpp(1);
 
-    session.set_player_alive_like_cpp(false);
+    wow_world_entities::set_player_alive_like_cpp(&mut session, false);
     assert_eq!(
         session.represented_npc_can_interact_with_like_cpp(
             questgiver_guid,
@@ -72,7 +72,7 @@ fn npc_interaction_preserves_dead_and_ghost_exceptions_like_cpp() {
         "C++ allows dead players to interact with creatures visible to ghosts"
     );
 
-    session.set_player_alive_like_cpp(true);
+    wow_world_entities::set_player_alive_like_cpp(&mut session, true);
     {
         let mut manager = manager.lock().unwrap();
         let mut creature = manager.find_creature_mut(571, 0, questgiver_guid).unwrap();

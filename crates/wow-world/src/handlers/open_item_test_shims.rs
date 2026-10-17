@@ -9,7 +9,6 @@
 
 #![cfg(test)]
 
-use wow_core::ObjectGuid;
 use wow_packet::WorldPacket;
 
 use crate::session::WorldSession;
@@ -17,13 +16,6 @@ use crate::session::WorldSession;
 impl WorldSession {
     pub(crate) async fn handle_open_item(&mut self, pkt: WorldPacket) {
         wow_world_loot_ops::handle_open_item(self, pkt).await
-    }
-    pub(crate) async fn open_active_item_loot_view_like_cpp(
-        &mut self,
-        player_guid: ObjectGuid,
-        item_guid: ObjectGuid,
-    ) {
-        wow_world_loot_ops::open_active_item_loot_view_like_cpp(self, player_guid, item_guid).await
     }
     pub(crate) fn item_template_lock_id(&self, item_id: u32) -> Option<u16> {
         self.catalogs.item_template_lock_id(item_id)

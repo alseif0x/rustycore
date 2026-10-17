@@ -117,8 +117,7 @@ fn player_and_map_cast_generators_share_one_map_sequence_like_cpp() {
     let guid = ObjectGuid::create_player(1, 58_901);
     install_canonical_player(&mut session, &canonical, guid, 571, 0, Position::ZERO);
 
-    let first = session
-        .next_represented_spell_cast_guid_like_cpp(TEST_SPELL_ID)
+    let first = wow_world_spell::next_represented_spell_cast_guid_like_cpp(&session, TEST_SPELL_ID)
         .expect("active canonical Player admits a cast identity");
     assert_eq!(first.high_type(), HighGuid::Cast);
     assert_eq!(first.sub_type(), 3, "SPELL_CAST_SOURCE_NORMAL");
@@ -136,9 +135,9 @@ fn player_and_map_cast_generators_share_one_map_sequence_like_cpp() {
         .expect("the same map owns the cast sequence");
     assert_eq!(creature_stand_in, 2);
 
-    let second = session
-        .next_represented_spell_cast_guid_like_cpp(TEST_SPELL_ID)
-        .expect("the Player remains active after the direct map check");
+    let second =
+        wow_world_spell::next_represented_spell_cast_guid_like_cpp(&session, TEST_SPELL_ID)
+            .expect("the Player remains active after the direct map check");
     assert_eq!(second.counter(), 3);
 }
 
@@ -152,12 +151,12 @@ fn map_cast_generators_are_independent_per_instance_like_cpp() {
     install_canonical_player(&mut session_a, &canonical, guid_a, 571, 0, Position::ZERO);
     install_canonical_player(&mut session_b, &canonical, guid_b, 571, 1, Position::ZERO);
 
-    let cast_a = session_a
-        .next_represented_spell_cast_guid_like_cpp(TEST_SPELL_ID)
-        .unwrap();
-    let cast_b = session_b
-        .next_represented_spell_cast_guid_like_cpp(TEST_SPELL_ID)
-        .unwrap();
+    let cast_a =
+        wow_world_spell::next_represented_spell_cast_guid_like_cpp(&session_a, TEST_SPELL_ID)
+            .unwrap();
+    let cast_b =
+        wow_world_spell::next_represented_spell_cast_guid_like_cpp(&session_b, TEST_SPELL_ID)
+            .unwrap();
     assert_eq!(cast_a.counter(), 1);
     assert_eq!(
         cast_b.counter(),
@@ -176,8 +175,7 @@ fn detached_or_stale_player_handles_consume_no_cast_ids_like_cpp() {
 
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     assert!(
-        session
-            .next_represented_spell_cast_guid_like_cpp(TEST_SPELL_ID)
+        wow_world_spell::next_represented_spell_cast_guid_like_cpp(&session, TEST_SPELL_ID)
             .is_none(),
         "detached admission fails before touching Map::GenerateLowGuid"
     );
@@ -194,8 +192,7 @@ fn detached_or_stale_player_handles_consume_no_cast_ids_like_cpp() {
     };
     assert_ne!(replacement, session.core.player_handle_like_cpp.unwrap());
     assert!(
-        session
-            .next_represented_spell_cast_guid_like_cpp(TEST_SPELL_ID)
+        wow_world_spell::next_represented_spell_cast_guid_like_cpp(&session, TEST_SPELL_ID)
             .is_none(),
         "a stale generation fails closed before allocation"
     );
@@ -249,7 +246,7 @@ fn reentry_changes_residence_revision_and_denies_prepared_cast_like_cpp() {
         "old residence cannot publish after reentry"
     );
     assert!(
-        session.take_ready_player_cast_like_cpp().is_none(),
+        wow_world_spell::take_ready_player_cast_like_cpp(&mut session).is_none(),
         "a prepared cast cannot cross an away-and-back residence"
     );
     assert!(session.active_spell_cast_snapshot_like_cpp().is_none());
@@ -447,7 +444,7 @@ async fn canonical_prepare_applies_cast_speed_auras_like_cpp() {
         .apply_aura(haste_spell_id, guid, 30_000, 1)
         .expect("apply cast speed aura");
     assert_eq!(
-        session.represented_cast_speed_multiplier_like_cpp(),
+        wow_world_spell::represented_cast_speed_multiplier_like_cpp(&session),
         100.0 / 150.0
     );
 
@@ -889,7 +886,7 @@ fn reentry_denies_a_residence_stamped_server_triggered_cast_like_cpp() {
     assert!(session.set_active_spell_cast_like_cpp(Some(cast)));
 
     assert!(
-        session.take_ready_player_cast_like_cpp().is_none(),
+        wow_world_spell::take_ready_player_cast_like_cpp(&mut session).is_none(),
         "a cast stamped with a previous residence cannot launch after reentry"
     );
     assert!(

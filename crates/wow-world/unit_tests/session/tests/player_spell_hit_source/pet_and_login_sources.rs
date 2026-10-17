@@ -167,7 +167,7 @@ fn player_spell_hit_source_authority_requires_login_skill_guild_and_quest_source
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [rewarded],
     )));
-    session.begin_player_quest_status_authority_load_like_cpp();
+    wow_world_quest::begin_player_quest_status_authority_load_like_cpp(&mut session);
     session.record_represented_rewarded_quest_row_like_cpp(10_046);
     session.complete_player_quest_status_authority_load_like_cpp();
     assert!(
@@ -182,7 +182,7 @@ fn player_spell_hit_source_authority_requires_login_skill_guild_and_quest_source
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [recast.clone()],
     )));
-    session.begin_player_quest_status_authority_load_like_cpp();
+    wow_world_quest::begin_player_quest_status_authority_load_like_cpp(&mut session);
     session
         .quest_state
         .fixture_clear_player_quest_statuses_like_cpp();

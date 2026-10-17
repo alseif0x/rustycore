@@ -222,7 +222,7 @@ async fn creature_attack_start_command_rejects_dead_victim_like_cpp() {
         .core
         .client_visible_guids_like_cpp
         .insert(attacker_guid);
-    session.set_player_alive_like_cpp(false);
+    wow_world_entities::set_player_alive_like_cpp(&mut session, false);
 
     session
         .session_command_tx()

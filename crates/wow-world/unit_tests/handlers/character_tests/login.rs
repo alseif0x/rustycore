@@ -228,7 +228,7 @@ fn default_skill_login_phase_follows_quests_and_returns_learned_entries() {
     let default_skills_core =
         include_str!("../../../../wow-world-core/src/session/progression/default_skills.rs");
     let quests_offset = login
-        .find("host.load_player_quests().await;")
+        .find("wow_world_quest::load_player_quests(&mut host).await;")
         .expect("quest loading precedes default skills");
     let count_offset = login
         .find("let persisted_skill_count = skill_info_by_id.len();")
@@ -636,17 +636,17 @@ async fn handle_player_login_prelude_resends_account_state_and_orders_packets_li
     let generators = session.id_generators_for_test_like_cpp();
     let feature_policy = session.support_feature_policy_for_test_like_cpp();
     assert!(
-        session
-            .send_handle_player_login_packets_like_cpp(
-                generators.item.as_ref(),
-                &feature_policy,
-                guid,
-                &Position::new(1.0, 2.0, 3.0, 4.0),
-                571,
-                &mounts,
-                "first@second",
-            )
-            .await
+        wow_world_character::send_handle_player_login_packets_like_cpp(
+            &mut session,
+            generators.item.as_ref(),
+            &feature_policy,
+            guid,
+            &Position::new(1.0, 2.0, 3.0, 4.0),
+            571,
+            &mounts,
+            "first@second",
+        )
+        .await
     );
 
     let packets = send_rx.try_iter().collect::<Vec<_>>();
@@ -1161,10 +1161,10 @@ fn login_passive_parry_and_block_capabilities_feed_first_stat_projection_like_cp
         (false, false)
     );
     assert_eq!(
-        session.apply_login_known_spell_combat_capabilities_like_cpp(&[
-            parry_spell_id,
-            block_spell_id,
-        ]),
+        wow_world_spell::apply_login_known_spell_combat_capabilities_like_cpp(
+            &mut session,
+            &[parry_spell_id, block_spell_id,]
+        ),
         2
     );
     assert_eq!(

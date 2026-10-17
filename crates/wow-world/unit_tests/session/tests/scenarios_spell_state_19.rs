@@ -226,7 +226,7 @@ async fn login_known_spell_proficiencies_send_without_spell_cast_packets_like_cp
     ])));
 
     assert_eq!(
-        session.apply_login_known_spell_proficiencies_like_cpp(&[890]),
+        wow_world_spell::apply_login_known_spell_proficiencies_like_cpp(&mut session, &[890]),
         1
     );
     assert_eq!(
@@ -700,9 +700,7 @@ fn exact_player_spell_rows_preserve_flags_and_active_only_updates_fail_closed() 
     let (mut session, _, _) = make_session();
     session.set_known_spells_like_cpp(vec![100]);
     assert!(
-        session
-            .complete_represented_player_spell_rows_like_cpp()
-            .is_none(),
+        wow_world_spell::complete_represented_player_spell_rows_like_cpp(&session).is_none(),
         "known_spells has no inactive, disabled, favorite or persistence-state authority"
     );
 
@@ -745,31 +743,25 @@ fn exact_player_spell_rows_preserve_flags_and_active_only_updates_fail_closed() 
     );
     assert!(session.represented_player_spell_rows_loaded_like_cpp());
     assert!(
-        session
-            .complete_represented_player_spell_rows_like_cpp()
-            .is_none(),
+        wow_world_spell::complete_represented_player_spell_rows_like_cpp(&session).is_none(),
         "lossless retained rows are not automatically a complete post-AddSpell snapshot"
     );
 
     assert!(session.set_complete_represented_player_spell_rows_like_cpp(exact_rows.clone()));
     assert_eq!(
-        session
-            .complete_represented_player_spell_rows_like_cpp()
+        wow_world_spell::complete_represented_player_spell_rows_like_cpp(&session)
             .map(|rows| rows.values().copied().collect::<Vec<_>>()),
         Some(exact_rows.clone())
     );
     assert!(
-        session
-            .complete_represented_player_spell_rows_like_cpp()
+        wow_world_spell::complete_represented_player_spell_rows_like_cpp(&session)
             .is_some_and(|rows| rows[&200].active && rows[&200].disabled),
         "disabled rows retain their persisted active bit; it is not inferred from the client projection"
     );
 
-    session.learn_known_spell_like_cpp(200);
+    wow_world_spell::learn_known_spell_like_cpp(&mut session, 200);
     assert!(
-        session
-            .complete_represented_player_spell_rows_like_cpp()
-            .is_none(),
+        wow_world_spell::complete_represented_player_spell_rows_like_cpp(&session).is_none(),
         "a low-level runtime learn cannot preserve authority without the full AddSpell closure"
     );
 
@@ -777,37 +769,26 @@ fn exact_player_spell_rows_preserve_flags_and_active_only_updates_fail_closed() 
     assert!(session.set_complete_represented_override_spells_like_cpp([]));
     assert!(session.set_complete_represented_player_spell_rows_like_cpp(exact_rows));
     assert!(
-        session
-            .complete_represented_spell_trait_definition_ids_like_cpp()
+        wow_world_spell::complete_represented_spell_trait_definition_ids_like_cpp(&session)
             .is_none()
     );
     assert!(
-        session
-            .complete_represented_override_spells_like_cpp()
-            .is_none(),
+        wow_world_spell::complete_represented_override_spells_like_cpp(&session).is_none(),
         "replacing PlayerSpellMap rows must not attribute an older auxiliary snapshot to the new map"
     );
 
-    session.mark_represented_spell_acquisition_snapshot_complete_like_cpp();
-    session.learn_known_spell_like_cpp(400);
+    wow_world_spell::mark_represented_spell_acquisition_snapshot_complete_like_cpp(&mut session);
+    wow_world_spell::learn_known_spell_like_cpp(&mut session, 400);
     assert!(
-        session
-            .complete_represented_player_spell_rows_like_cpp()
-            .is_none(),
+        wow_world_spell::complete_represented_player_spell_rows_like_cpp(&session).is_none(),
         "partial runtime learns must fail closed instead of retaining stale auxiliary authority"
     );
-    session.remove_known_spell_like_cpp(400);
-    assert!(
-        session
-            .complete_represented_player_spell_rows_like_cpp()
-            .is_none()
-    );
+    wow_world_spell::remove_known_spell_like_cpp(&mut session, 400);
+    assert!(wow_world_spell::complete_represented_player_spell_rows_like_cpp(&session).is_none());
 
     session.set_known_spells_like_cpp(vec![100, 400]);
     assert!(
-        session
-            .complete_represented_player_spell_rows_like_cpp()
-            .is_none(),
+        wow_world_spell::complete_represented_player_spell_rows_like_cpp(&session).is_none(),
         "a bulk active-only replacement must invalidate rather than fabricate exact row flags"
     );
 }

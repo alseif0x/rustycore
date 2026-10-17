@@ -28,9 +28,6 @@ impl WorldSession {
 }
 
 impl WorldSession {
-    pub(crate) fn represented_player_aura_state_mask_like_cpp(&self) -> Option<u32> {
-        wow_world_spell::represented_player_aura_state_mask_like_cpp(self)
-    }
     pub(crate) fn load_represented_character_auras_like_cpp(
         &mut self,
         aura_rows: impl IntoIterator<Item = CharacterAuraRowLikeCpp>,
@@ -43,12 +40,6 @@ impl WorldSession {
             effect_rows,
             timediff_secs,
         )
-    }
-    pub(crate) fn represented_mount_aura_display_candidates_like_cpp(
-        &self,
-        spell_id: u32,
-    ) -> Vec<i32> {
-        wow_world_spell::represented_mount_aura_display_candidates_like_cpp(self, spell_id)
     }
     pub(crate) fn apply_represented_mounted_aura_like_cpp(
         &mut self,
@@ -63,13 +54,7 @@ impl WorldSession {
             effect,
         )
     }
-    pub(crate) fn tick_auras(&mut self) {
-        wow_world_spell::tick_auras(self)
-    }
     pub(crate) fn insert_player_visible_aura_like_cpp(&mut self, aura: AuraApplication) -> bool {
         wow_world_spell::insert_player_visible_aura_like_cpp(self, aura)
-    }
-    pub(crate) fn represented_spell_area_autocast_source_is_empty_like_cpp(&self) -> bool {
-        wow_world_spell::represented_spell_area_autocast_source_is_empty_like_cpp(self)
     }
 }

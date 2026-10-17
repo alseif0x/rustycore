@@ -410,7 +410,7 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
         Some((1, 2)),
     ));
     assert_eq!(
-        session.handle_move_teleport_ack_like_cpp(player_guid, 1, 2),
+        wow_world_entities::handle_move_teleport_ack_like_cpp(&mut session, player_guid, 1, 2),
         MoveTeleportAckActionLikeCpp::MissingPlayerOwner
     );
     assert!(!crate::session::hub_ref(&session).near_teleport_pending_like_cpp());
@@ -744,7 +744,7 @@ fn first_login_flag_removal_is_not_persisted_like_cpp() {
 
     session.set_represented_at_login_flags_like_cpp(AT_LOGIN_FIRST_LIKE_CPP);
 
-    assert!(session.apply_represented_first_login_flag_if_needed_like_cpp());
+    assert!(wow_world_spell::apply_represented_first_login_flag_if_needed_like_cpp(&mut session));
     assert_eq!(
         session.represented_at_login_flags_like_cpp() & AT_LOGIN_FIRST_LIKE_CPP,
         0,

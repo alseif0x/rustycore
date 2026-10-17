@@ -71,9 +71,7 @@ async fn area_spirit_healer_queue_records_valid_healer_like_cpp() {
 async fn hearth_and_resurrect_rejects_area_without_cpp_flag() {
     let (mut session, send_rx) = make_hearth_and_resurrect_session(0);
 
-    session
-        .handle_hearth_and_resurrect(WorldPacket::new_empty())
-        .await;
+    wow_world_character::handle_hearth_and_resurrect(&mut session, WorldPacket::new_empty()).await;
 
     assert!(!session.player_is_alive_like_cpp());
     assert!(send_rx.try_recv().is_err());
@@ -92,9 +90,7 @@ async fn hearth_and_resurrect_rejects_player_in_flight_like_cpp() {
         None,
     );
 
-    session
-        .handle_hearth_and_resurrect(WorldPacket::new_empty())
-        .await;
+    wow_world_character::handle_hearth_and_resurrect(&mut session, WorldPacket::new_empty()).await;
 
     assert!(!session.player_is_alive_like_cpp());
     assert!(send_rx.try_recv().is_err());
@@ -348,8 +344,7 @@ async fn gossip_catalog_port_preserves_read_order_and_localized_projection_like_
     );
     session.set_gossip_catalog_persistence_port_like_cpp(port.clone());
 
-    let message = session
-        .build_gossip_menu(9001, 0, npc_guid)
+    let message = wow_world_character::build_gossip_menu(&mut session, 9001, 0, npc_guid)
         .await
         .expect("typed catalog produces gossip message");
 
@@ -402,8 +397,7 @@ async fn gossip_catalog_required_read_failure_stops_before_locale_like_cpp() {
     session.set_gossip_catalog_persistence_port_like_cpp(port.clone());
 
     assert!(
-        session
-            .build_gossip_menu(9002, 0, creature_guid(9002, 702))
+        wow_world_character::build_gossip_menu(&mut session, 9002, 0, creature_guid(9002, 702))
             .await
             .is_none()
     );
@@ -445,10 +439,10 @@ async fn gossip_catalog_optional_reads_fail_to_existing_fallbacks_like_cpp() {
     );
     session.set_gossip_catalog_persistence_port_like_cpp(port);
 
-    let message = session
-        .build_gossip_menu(9003, 0, creature_guid(9003, 703))
-        .await
-        .expect("optional catalog failures retain the menu");
+    let message =
+        wow_world_character::build_gossip_menu(&mut session, 9003, 0, creature_guid(9003, 703))
+            .await
+            .expect("optional catalog failures retain the menu");
     assert_eq!(message.broadcast_text_id, None);
     assert_eq!(message.gossip_options[0].text, "Original option");
 }

@@ -121,9 +121,7 @@ async fn quest_status_save_uses_the_sqlx_free_player_quest_port_like_cpp() {
     let requests = Arc::clone(&fixture.status_requests);
     session.set_player_quest_persistence_port_like_cpp(Arc::new(fixture));
 
-    session
-        .save_quest_to_db(quest_id, QUEST_STATUS_COMPLETE_LIKE_CPP)
-        .await;
+    wow_world_quest::save_quest_to_db(&session, quest_id, QUEST_STATUS_COMPLETE_LIKE_CPP).await;
 
     assert_eq!(
         requests.lock().unwrap().as_slice(),
@@ -207,7 +205,7 @@ async fn quest_load_keeps_the_seven_stage_order_behind_the_typed_port_like_cpp()
     let stages = Arc::clone(&fixture.stages);
     session.set_player_quest_persistence_port_like_cpp(Arc::new(fixture));
 
-    session.load_player_quests().await;
+    wow_world_quest::load_player_quests(&mut session).await;
 
     assert_eq!(
         stages.lock().unwrap().as_slice(),
@@ -309,7 +307,7 @@ fn quest_load_removes_active_rewarded_duplicate_and_compacts_slots_like_cpp() {
         .fixture_set_rewarded_quest_like_cpp(duplicate_quest_id, true);
 
     assert_eq!(
-        session.remove_represented_active_rewarded_duplicates_like_cpp(),
+        wow_world_quest::remove_represented_active_rewarded_duplicates_like_cpp(&mut session),
         vec![duplicate_quest_id]
     );
     assert!(
@@ -434,7 +432,7 @@ fn can_take_quest_blocks_when_quest_available_condition_not_met_like_cpp() {
 
     // Sin la condición la quest sería aceptable (nivel 1, min_level 1, raza/clase sin filtro).
     // Con la condición de nivel 90, el jugador (80) no la cumple.
-    assert!(!session.can_take_quest(&quest));
+    assert!(!wow_world_quest::can_take_quest(&session, &quest));
 
     // POSITIVA: nivel requerido 80 (alcanzable para el jugador en nivel 80).
     let quest_id2 = 7571u32;
@@ -452,7 +450,7 @@ fn can_take_quest_blocks_when_quest_available_condition_not_met_like_cpp() {
         }]),
     ));
 
-    assert!(session.can_take_quest(&quest2));
+    assert!(wow_world_quest::can_take_quest(&session, &quest2));
 }
 #[test]
 fn can_take_quest_blocks_when_session_expansion_below_required_like_cpp() {
@@ -463,7 +461,7 @@ fn can_take_quest_blocks_when_session_expansion_below_required_like_cpp() {
     let store = QuestStore::from_quests_like_cpp([quest.clone()]);
     session.set_quest_store(Arc::new(store));
     session.core.expansion = 1;
-    assert!(!session.can_take_quest(&quest));
+    assert!(!wow_world_quest::can_take_quest(&session, &quest));
 
     // POSITIVA límite: expansión de sesión == expansión requerida → acepta.
     let (mut session2, _send_rx2) = make_session();
@@ -472,7 +470,7 @@ fn can_take_quest_blocks_when_session_expansion_below_required_like_cpp() {
     let store2 = QuestStore::from_quests_like_cpp([quest2.clone()]);
     session2.set_quest_store(Arc::new(store2));
     session2.core.expansion = 2;
-    assert!(session2.can_take_quest(&quest2));
+    assert!(wow_world_quest::can_take_quest(&session2, &quest2));
 }
 #[test]
 fn can_take_quest_blocks_daily_already_completed_like_cpp() {
@@ -487,7 +485,7 @@ fn can_take_quest_blocks_daily_already_completed_like_cpp() {
         .quest_state
         .fixture_record_daily_quest_like_cpp(quest.id);
 
-    assert!(!session.can_take_quest(&quest));
+    assert!(!wow_world_quest::can_take_quest(&session, &quest));
 }
 #[test]
 fn can_take_quest_allows_daily_not_yet_completed_like_cpp() {
@@ -498,7 +496,7 @@ fn can_take_quest_allows_daily_not_yet_completed_like_cpp() {
     let store = QuestStore::from_quests_like_cpp([quest.clone()]);
     session.set_quest_store(Arc::new(store));
 
-    assert!(session.can_take_quest(&quest));
+    assert!(wow_world_quest::can_take_quest(&session, &quest));
 }
 #[test]
 fn can_take_quest_blocks_df_quest_already_completed_like_cpp() {
@@ -513,7 +511,7 @@ fn can_take_quest_blocks_df_quest_already_completed_like_cpp() {
         .quest_state
         .fixture_set_df_quest_like_cpp(quest.id, true);
 
-    assert!(!session.can_take_quest(&quest));
+    assert!(!wow_world_quest::can_take_quest(&session, &quest));
 }
 #[test]
 fn can_take_quest_blocks_weekly_already_completed_like_cpp() {
@@ -528,7 +526,7 @@ fn can_take_quest_blocks_weekly_already_completed_like_cpp() {
         .quest_state
         .fixture_record_weekly_quest_like_cpp(quest.id);
 
-    assert!(!session.can_take_quest(&quest));
+    assert!(!wow_world_quest::can_take_quest(&session, &quest));
 }
 #[test]
 fn can_take_quest_allows_weekly_not_yet_completed_like_cpp() {
@@ -539,7 +537,7 @@ fn can_take_quest_allows_weekly_not_yet_completed_like_cpp() {
     let store = QuestStore::from_quests_like_cpp([quest.clone()]);
     session.set_quest_store(Arc::new(store));
 
-    assert!(session.can_take_quest(&quest));
+    assert!(wow_world_quest::can_take_quest(&session, &quest));
 }
 #[test]
 fn can_take_quest_blocks_monthly_already_completed_like_cpp() {
@@ -554,7 +552,7 @@ fn can_take_quest_blocks_monthly_already_completed_like_cpp() {
         .quest_state
         .fixture_record_monthly_quest_like_cpp(quest.id);
 
-    assert!(!session.can_take_quest(&quest));
+    assert!(!wow_world_quest::can_take_quest(&session, &quest));
 }
 #[test]
 fn can_take_quest_allows_monthly_not_yet_completed_like_cpp() {
@@ -565,7 +563,7 @@ fn can_take_quest_allows_monthly_not_yet_completed_like_cpp() {
     let store = QuestStore::from_quests_like_cpp([quest.clone()]);
     session.set_quest_store(Arc::new(store));
 
-    assert!(session.can_take_quest(&quest));
+    assert!(wow_world_quest::can_take_quest(&session, &quest));
 }
 #[test]
 fn can_take_quest_exclusive_group_blocks_when_peer_rewarded_non_repeatable_like_cpp() {
@@ -589,7 +587,7 @@ fn can_take_quest_exclusive_group_blocks_when_peer_rewarded_non_repeatable_like_
         .fixture_set_rewarded_quest_like_cpp(peer.id, true);
 
     // La quest objetivo no está ni activa ni rewarded.
-    assert!(!session.can_take_quest(&quest));
+    assert!(!wow_world_quest::can_take_quest(&session, &quest));
 }
 #[test]
 fn can_take_quest_exclusive_group_blocks_when_peer_active_like_cpp() {
@@ -610,7 +608,7 @@ fn can_take_quest_exclusive_group_blocks_when_peer_active_like_cpp() {
     add_active_quest(&mut session, peer.id);
 
     // La quest objetivo aún no ha sido aceptada.
-    assert!(!session.can_take_quest(&quest));
+    assert!(!wow_world_quest::can_take_quest(&session, &quest));
 }
 #[test]
 fn can_take_quest_exclusive_group_positive_no_conflicting_peer_allows_like_cpp() {
@@ -627,7 +625,7 @@ fn can_take_quest_exclusive_group_positive_no_conflicting_peer_allows_like_cpp()
     session.set_quest_store(Arc::new(store));
 
     // Ningún peer activo ni rewarded → debe permitir.
-    assert!(session.can_take_quest(&quest));
+    assert!(wow_world_quest::can_take_quest(&session, &quest));
 }
 #[test]
 fn can_take_quest_exclusive_group_zero_never_blocks_like_cpp() {
@@ -640,7 +638,7 @@ fn can_take_quest_exclusive_group_zero_never_blocks_like_cpp() {
     let store = QuestStore::from_quests_like_cpp([quest.clone()]);
     session.set_quest_store(Arc::new(store));
 
-    assert!(session.can_take_quest(&quest));
+    assert!(wow_world_quest::can_take_quest(&session, &quest));
 
     // También verifica group negativo.
     let (mut session2, _send_rx2) = make_session();
@@ -650,7 +648,7 @@ fn can_take_quest_exclusive_group_zero_never_blocks_like_cpp() {
     let store2 = QuestStore::from_quests_like_cpp([quest2.clone()]);
     session2.set_quest_store(Arc::new(store2));
 
-    assert!(session2.can_take_quest(&quest2));
+    assert!(wow_world_quest::can_take_quest(&session2, &quest2));
 }
 #[test]
 fn can_take_quest_dependent_previous_not_rewarded_blocks_like_cpp() {
@@ -676,7 +674,7 @@ fn can_take_quest_dependent_previous_not_rewarded_blocks_like_cpp() {
     session.set_quest_store(Arc::clone(&store));
 
     // prev NO en rewarded_quests → el gate debe bloquear.
-    assert!(!session.can_take_quest(&quest));
+    assert!(!wow_world_quest::can_take_quest(&session, &quest));
 }
 #[test]
 fn can_take_quest_dependent_previous_rewarded_allows_like_cpp() {
@@ -702,7 +700,7 @@ fn can_take_quest_dependent_previous_rewarded_allows_like_cpp() {
     session
         .quest_state
         .fixture_set_rewarded_quest_like_cpp(prev_id, true);
-    assert!(session.can_take_quest(&quest));
+    assert!(wow_world_quest::can_take_quest(&session, &quest));
 }
 #[test]
 fn can_take_quest_reputation_blocks_when_below_min_rep_like_cpp() {
@@ -730,7 +728,7 @@ fn can_take_quest_reputation_blocks_when_below_min_rep_like_cpp() {
     let store = QuestStore::from_quests_like_cpp([quest.clone()]);
     session.set_quest_store(Arc::new(store));
 
-    assert!(!session.can_take_quest(&quest));
+    assert!(!wow_world_quest::can_take_quest(&session, &quest));
 }
 #[test]
 fn can_take_quest_reputation_blocks_when_at_or_above_max_rep_like_cpp() {
@@ -756,7 +754,7 @@ fn can_take_quest_reputation_blocks_when_at_or_above_max_rep_like_cpp() {
     let store = QuestStore::from_quests_like_cpp([quest.clone()]);
     session.set_quest_store(Arc::new(store));
 
-    assert!(!session.can_take_quest(&quest));
+    assert!(!wow_world_quest::can_take_quest(&session, &quest));
 }
 #[test]
 fn can_take_quest_reputation_allows_when_in_valid_range_like_cpp() {
@@ -783,7 +781,7 @@ fn can_take_quest_reputation_allows_when_in_valid_range_like_cpp() {
     let store = QuestStore::from_quests_like_cpp([quest.clone()]);
     session.set_quest_store(Arc::new(store));
 
-    assert!(session.can_take_quest(&quest));
+    assert!(wow_world_quest::can_take_quest(&session, &quest));
 }
 #[test]
 fn can_take_quest_skill_blocks_when_skill_below_required_like_cpp() {
@@ -804,7 +802,7 @@ fn can_take_quest_skill_blocks_when_skill_below_required_like_cpp() {
     let store = QuestStore::from_quests_like_cpp([quest.clone()]);
     session.set_quest_store(Arc::new(store));
 
-    assert!(!session.can_take_quest(&quest));
+    assert!(!wow_world_quest::can_take_quest(&session, &quest));
 }
 #[test]
 fn can_take_quest_skill_allows_when_skill_at_or_above_required_like_cpp() {
@@ -823,7 +821,7 @@ fn can_take_quest_skill_allows_when_skill_at_or_above_required_like_cpp() {
     let store = QuestStore::from_quests_like_cpp([quest.clone()]);
     session.set_quest_store(Arc::new(store));
 
-    assert!(session.can_take_quest(&quest));
+    assert!(wow_world_quest::can_take_quest(&session, &quest));
 }
 #[test]
 fn can_take_quest_blocks_when_dependent_breadcrumb_in_log_like_cpp() {
@@ -838,7 +836,7 @@ fn can_take_quest_blocks_when_dependent_breadcrumb_in_log_like_cpp() {
     let store = QuestStore::from_quests_like_cpp([quest.clone()]);
     session.set_quest_store(Arc::new(store));
     add_active_quest(&mut session, breadcrumb_quest_id);
-    assert!(!session.can_take_quest(&quest));
+    assert!(!wow_world_quest::can_take_quest(&session, &quest));
 
     // POSITIVA: breadcrumb no está en el log → no bloquea.
     let (mut session2, _send_rx2) = make_session();
@@ -847,5 +845,5 @@ fn can_take_quest_blocks_when_dependent_breadcrumb_in_log_like_cpp() {
     let store2 = QuestStore::from_quests_like_cpp([quest2.clone()]);
     session2.set_quest_store(Arc::new(store2));
     // breadcrumb_quest_id no insertado en player_quests
-    assert!(session2.can_take_quest(&quest2));
+    assert!(wow_world_quest::can_take_quest(&session2, &quest2));
 }

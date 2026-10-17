@@ -165,10 +165,6 @@ impl WorldSession {
         wow_world_quest::represented_pending_quest_sharing_like_cpp(hub, state)
     }
 
-    pub(crate) async fn handle_quest_giver_hello(&mut self, pkt: WorldPacket) {
-        wow_world_quest::handle_quest_giver_hello(self, pkt).await
-    }
-
     pub(crate) async fn handle_quest_poi_query(
         &mut self,
         query: wow_packet::packets::query::QuestPoiQuery,
@@ -178,20 +174,6 @@ impl WorldSession {
 
     pub(crate) async fn handle_push_quest_to_party(&mut self, pkt: WorldPacket) {
         wow_world_quest::handle_push_quest_to_party(self, pkt).await
-    }
-
-    pub(crate) async fn quest_poi_store_like_cpp(
-        &mut self,
-    ) -> std::sync::Arc<std::collections::HashMap<i32, wow_packet::packets::query::QuestPoiData>>
-    {
-        wow_world_quest::quest_poi_store_like_cpp(self).await
-    }
-
-    pub(crate) async fn quest_source_item_quest_log_item_id_like_cpp(
-        &mut self,
-        entry_id: u32,
-    ) -> u32 {
-        wow_world_quest::quest_source_item_quest_log_item_id_like_cpp(self, entry_id).await
     }
 
     pub(crate) fn set_represented_pending_quest_sharing_like_cpp(

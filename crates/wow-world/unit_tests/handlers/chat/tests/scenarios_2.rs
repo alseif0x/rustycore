@@ -69,7 +69,7 @@ async fn dead_player_cannot_send_say_like_cpp() {
         broadcast_info(nearby, nearby_tx),
         Default::default(),
     );
-    session.set_player_alive_like_cpp(false);
+    wow_world_entities::set_player_alive_like_cpp(&mut session, false);
 
     session
         .handle_chat_message(
@@ -226,7 +226,7 @@ async fn dead_player_party_chat_is_not_rejected_by_say_alive_gate_like_cpp() {
         .social
         .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
-    session.set_player_alive_like_cpp(false);
+    wow_world_entities::set_player_alive_like_cpp(&mut session, false);
 
     session
         .handle_chat_message(
@@ -256,7 +256,7 @@ async fn dead_player_cannot_send_chat_emote_like_cpp() {
         broadcast_info(nearby, nearby_tx),
         Default::default(),
     );
-    session.set_player_alive_like_cpp(false);
+    wow_world_entities::set_player_alive_like_cpp(&mut session, false);
 
     session
         .handle_chat_emote(chat_emote_packet("dead emote"))

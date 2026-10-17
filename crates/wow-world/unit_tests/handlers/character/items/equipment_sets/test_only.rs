@@ -44,7 +44,7 @@ impl WorldSession {
     ///
     /// Decode and delegate CMSG_USE_EQUIPMENT_SET to its Application owner.
     pub(crate) async fn handle_use_equipment_set(&mut self, pkt: WorldPacket) {
-        self.build_equipment_set_use_context_like_cpp()
+        wow_world_inventory::build_equipment_set_use_context_like_cpp(self)
             .handle_use_equipment_set_like_cpp(pkt);
     }
 }
