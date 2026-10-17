@@ -241,8 +241,7 @@ impl WorldSession {
     pub(crate) fn set_player_transport_position_like_cpp(&mut self, position: Option<Position>) {
         wow_world_character::set_player_transport_position_like_cpp(self, position)
     }
-    // Player vitals (moved to `wow_world_entities::player_vitals`), with the
-    // former `session/player_vitals_adapter` F3 entry points.
+    // Player vitals (`wow_world_entities::player_vitals`) and their former F3 entries.
     pub(crate) fn player_is_alive_like_cpp(&self) -> bool {
         crate::session::hub_ref(self).player_is_alive_like_cpp()
     }
@@ -334,8 +333,7 @@ impl WorldSession {
 
         distance
     }
-    // Loaded identity (the final cleanup: the name write retired, the identity
-    // write moved to `wow_world_application`).
+    // Loaded identity (final cleanup: name write retired, identity to application).
     pub(crate) fn set_loaded_player_name_like_cpp(&mut self, name: String) {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);
         state.set_loaded_player_name_like_cpp(&mut hub, name)
