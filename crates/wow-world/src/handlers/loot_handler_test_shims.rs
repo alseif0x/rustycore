@@ -3,8 +3,9 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! Test-only entry points for the loot handlers moved to
-//! `wow-world-loot-ops` (#1263 F5; #1363 A7).
-
+//! `wow-world-loot-ops` (#1263 F5; #1363 A7); moved out of the loot hotspot
+//! tree (formerly `loot/handlers/test_shims.rs`) when marked `#![cfg(test)]`.
+#![cfg(test)]
 use wow_constants::ClientOpcodes;
 use wow_packet::WorldPacket;
 use wow_packet::packets::loot::{LootRoll, MasterLootItem, SetLootSpecialization};

@@ -4,7 +4,7 @@
 
 //! Test-only entry points for the mount/toy collection handlers moved to
 //! `wow-world-inventory` (#1263 F5; #1363 A4).
-
+#![cfg(test)]
 use wow_packet::WorldPacket;
 use wow_world_inventory::CollectionsHandlerCxLikeCpp;
 

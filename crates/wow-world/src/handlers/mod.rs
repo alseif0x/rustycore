@@ -71,6 +71,8 @@ mod login_test_shims;
 #[cfg(test)]
 mod loot_test_shims;
 #[cfg(test)]
+mod loot_handler_test_shims;
+#[cfg(test)]
 mod open_item_test_shims;
 #[cfg(test)]
 mod player_cast_test_shims;

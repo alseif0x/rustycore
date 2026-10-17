@@ -8,7 +8,7 @@
 //! The group scenario suites still build a `WorldSession` here, so these
 //! bounded delegates construct the social owner's context from the session's
 //! social state and hub.
-
+#![cfg(test)]
 use wow_packet::WorldPacket;
 use wow_world_social::SocialGroupHandlerCxLikeCpp;
 

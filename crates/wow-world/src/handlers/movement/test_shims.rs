@@ -9,7 +9,7 @@
 //! `SetActiveMover` and `MoveSetCollisionHeightAck` have no test caller and
 //! therefore no entry point here; the knock-back and movement-force ACK trio
 //! does, so each rebuilds its client wire body from the parsed packet.
-
+#![cfg(test)]
 use wow_constants::ClientOpcodes;
 use wow_packet::WorldPacket;
 use wow_packet::packets::movement::{

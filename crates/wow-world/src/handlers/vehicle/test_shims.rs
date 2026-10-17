@@ -4,7 +4,7 @@
 
 //! Test-only entry points for the vehicle handlers moved to
 //! `wow-world-entities` (#1263 F5; #1363 slice A1).
-
+#![cfg(test)]
 use wow_world_entities::VehicleHandlerCxLikeCpp;
 
 use wow_core::ObjectGuid;

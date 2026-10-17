@@ -7,7 +7,7 @@
 //! registered production thunk, so the release context built by
 //! [`super::npc_host`] is exercised by each caller. `TabardVendorActivate` has
 //! no test caller and therefore no entry point here.
-
+#![cfg(test)]
 use wow_constants::ClientOpcodes;
 use wow_packet::WorldPacket;
 

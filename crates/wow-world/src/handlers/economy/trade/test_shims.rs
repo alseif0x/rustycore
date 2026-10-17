@@ -4,7 +4,7 @@
 
 //! Test-only entry points for the trade handlers moved to
 //! `wow-world-social::trade_handlers` (#1263 F5; #1363 slice A2).
-
+#![cfg(test)]
 use wow_packet::WorldPacket;
 use wow_world_social::TradeHandlerCxLikeCpp;
 

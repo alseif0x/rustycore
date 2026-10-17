@@ -21,7 +21,7 @@ fn persisted_transport_restore_stays_between_identity_and_reputation_loading_lik
     let transport_restore =
         include_str!("../../../../wow-world-character/src/login_session/transport_restore.rs");
     let identity_offset = login
-        .rfind("set_loaded_player_identity_like_cpp(map_id as u16, race, class, level, gender);")
+        .rfind("set_loaded_player_identity_like_cpp(host, map_id as u16, race, class, level, gender);")
         .expect("login stores the loaded identity before restoring persisted transport");
     let restore_offset = login
         .find("restore_persisted_transport_for_login_like_cpp(")
@@ -547,7 +547,7 @@ fn action_button_login_phase_keeps_active_configuration_and_packet_projection() 
         .find("load_action_buttons_for_login_like_cpp")
         .expect("login delegates action-button hydration");
     let identity_offset = login
-        .rfind("set_loaded_player_identity_like_cpp(map_id as u16, race, class, level, gender);")
+        .rfind("set_loaded_player_identity_like_cpp(host, map_id as u16, race, class, level, gender);")
         .expect("login stores identity after action-button hydration");
     assert!(glyph_offset < action_button_offset);
     assert!(action_button_offset < identity_offset);
