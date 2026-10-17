@@ -315,7 +315,8 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         WorldSession::send_contact_list_like_cpp(self, flags)
     }
     fn send_login_stat_update_with_represented_item_bonuses_like_cpp(&mut self) {
-        WorldSession::send_login_stat_update_with_represented_item_bonuses_like_cpp(self)
+        WorldSession::stats_application_cx_like_cpp(self)
+            .send_login_stat_update_with_represented_item_bonuses_like_cpp();
     }
     fn set_complete_represented_player_spell_rows_like_cpp(
         &mut self,

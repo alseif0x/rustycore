@@ -30,9 +30,6 @@ impl WorldSession {
                 crate::profession::DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP
             };
     }
-    pub(crate) fn max_primary_trade_skills_like_cpp(&self) -> u8 {
-        self.config.max_primary_trade_skills_like_cpp()
-    }
     pub(in crate::session) fn clear_player_skill_tombstones_like_cpp(&mut self) {
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {

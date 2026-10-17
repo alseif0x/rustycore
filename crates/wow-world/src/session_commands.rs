@@ -208,7 +208,7 @@ impl WorldSession {
                 self.handle_unaccept_represented_trade_command_like_cpp(command);
             }
             SessionCommand::SendRepresentedDuelCountdownLikeCpp(command) => {
-                self.handle_send_represented_duel_countdown_command_like_cpp(command);
+                self.send_raw_packet(&command.packet_bytes);
             }
             SessionCommand::SendRepresentedDuelRequestedLikeCpp(command) => {
                 {

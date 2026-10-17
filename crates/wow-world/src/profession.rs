@@ -49,7 +49,7 @@ impl WorldSession {
                 });
 
         let analysis = analyze_primary_professions_like_cpp(
-            self.max_primary_trade_skills_like_cpp(),
+            self.config.max_primary_trade_skills_like_cpp(),
             skill_lines,
             current_skills,
         )?;
@@ -113,13 +113,13 @@ mod tests {
         );
 
         assert_eq!(
-            session.max_primary_trade_skills_like_cpp(),
+            session.config.max_primary_trade_skills_like_cpp(),
             DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP
         );
         for (configured, expected) in [(0, 0), (1, 1), (2, 2), (11, 11), (12, 2)] {
             session.set_max_primary_trade_skills_like_cpp(configured);
             assert_eq!(
-                session.max_primary_trade_skills_like_cpp(),
+                session.config.max_primary_trade_skills_like_cpp(),
                 expected,
                 "runtime value {configured}"
             );
@@ -177,6 +177,6 @@ mod tests {
         assert_eq!(session.player_character_points_like_cpp(), 0);
 
         session.set_max_primary_trade_skills_like_cpp(12);
-        assert_eq!(session.max_primary_trade_skills_like_cpp(), 2);
+        assert_eq!(session.config.max_primary_trade_skills_like_cpp(), 2);
     }
 }

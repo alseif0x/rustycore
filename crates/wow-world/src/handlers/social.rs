@@ -13,8 +13,8 @@
 
 use crate::session::WorldSession;
 use crate::session::mailbox::{
-    CancelRepresentedTradeLikeCppCommand, SendRepresentedDuelCountdownLikeCppCommand,
-    SendRepresentedTradeStatusLikeCppCommand, UnacceptRepresentedTradeLikeCppCommand,
+    CancelRepresentedTradeLikeCppCommand, SendRepresentedTradeStatusLikeCppCommand,
+    UnacceptRepresentedTradeLikeCppCommand,
 };
 
 #[cfg(test)]
@@ -84,13 +84,6 @@ impl WorldSession {
         if !self.set_represented_trade_accepted_like_cpp_for_command(false) {
             return;
         }
-        self.send_raw_packet(&command.packet_bytes);
-    }
-
-    pub(crate) fn handle_send_represented_duel_countdown_command_like_cpp(
-        &mut self,
-        command: SendRepresentedDuelCountdownLikeCppCommand,
-    ) {
         self.send_raw_packet(&command.packet_bytes);
     }
 }

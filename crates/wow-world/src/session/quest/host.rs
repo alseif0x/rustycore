@@ -62,11 +62,12 @@ impl QuestSessionHostLikeCpp for WorldSession {
         quest: &wow_data::quest::QuestTemplate,
         ignored_objective_id: u32,
     ) -> impl Future<Output = bool> + Send {
-        WorldSession::complete_represented_quest_after_objective_with_generator_like_cpp(
-            self,
+        self.quest_objective_operation_like_cpp(
             item_guid_generator,
-            quest,
-            ignored_objective_id,
+            crate::session::quest::QuestObjectiveOperationLikeCpp::Complete {
+                quest,
+                ignored_objective_id,
+            },
         )
     }
     fn sync_player_registry_state_like_cpp(&self) {

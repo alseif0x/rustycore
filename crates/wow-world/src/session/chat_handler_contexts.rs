@@ -86,8 +86,19 @@ impl SocialSessionHostLikeCpp for WorldSession {
         wow_world_quest::quest_xp_reward_like_cpp(self, quest)
     }
 
+    /// C++ `Player::GetAverageItemLevel`.
     fn represented_average_item_level_like_cpp(&self) -> Option<f32> {
-        WorldSession::represented_average_item_level_like_cpp(self)
+        self.inventory
+            .represented_average_item_level_with_access_like_cpp(
+                &self.core.owned_inventory_access_like_cpp(),
+                &self.core.inventory_valuation_access_like_cpp(),
+                &self.core.owned_item_modifiers_access_like_cpp(),
+                &self.catalogs.inventory_valuation_catalog_view_like_cpp(),
+                Self::MIN_ITEM_LEVEL_LIKE_CPP,
+                Self::MAX_ITEM_LEVEL_LIKE_CPP,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &self.fixtures.identity.player_level,
+            )
     }
 
     fn represented_has_item_count_like_cpp(&self, item_entry: u32, count: u32) -> bool {
