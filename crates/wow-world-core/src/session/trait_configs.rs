@@ -292,8 +292,13 @@ impl crate::session::HubRef<'_> {
                                 .and_then(|(present, ids)| present.then_some(ids)),
                             _ => Some(&[] as &[u32]),
                         };
+                        // C++ `Player::_LoadTraits` (Player.cpp:26691-26698) keeps a
+                        // config whose trees do not resolve (`GetTreesForConfig` is
+                        // null, e.g. another class's spec): `ValidateConfig` fails,
+                        // its entries become the (empty) granted set and loading goes
+                        // on. Only such an emptied config is complete (#1431).
                         let Some(tree_ids) = tree_ids else {
-                            return false;
+                            return config.entries.is_empty();
                         };
                         if !index.graph_loaded_like_cpp() {
                             return true;

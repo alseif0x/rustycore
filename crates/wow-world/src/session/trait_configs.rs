@@ -14,7 +14,7 @@ mod tests {
     use wow_data::trait_tree::{TraitTreeEntry, TraitTreeSkillLineIndexLikeCpp, TraitTreeStore};
 
     #[test]
-    fn generic_trait_configs_require_a_loaded_trait_system_like_cpp() {
+    fn unresolved_generic_trait_config_is_kept_emptied_like_cpp() {
         let (_packet_tx, packet_rx) = flume::unbounded();
         let (send_tx, _send_rx) = flume::unbounded();
         let mut session = crate::session::WorldSession::new(
@@ -68,7 +68,7 @@ mod tests {
             )
         );
         assert!(
-            !crate::session::hub_ref(&session).trait_authority_complete_like_cpp(
+            crate::session::hub_ref(&session).trait_authority_complete_like_cpp(
                 &[config(8)],
                 &nodes,
                 player
@@ -77,7 +77,7 @@ mod tests {
     }
 
     #[test]
-    fn combat_trait_configs_resolve_specialization_class_like_cpp() {
+    fn unresolved_combat_trait_config_is_kept_emptied_like_cpp() {
         let (_packet_tx, packet_rx) = flume::unbounded();
         let (send_tx, _send_rx) = flume::unbounded();
         let mut session = crate::session::WorldSession::new(
@@ -148,7 +148,7 @@ mod tests {
             )
         );
         assert!(
-            !crate::session::hub_ref(&session).trait_authority_complete_like_cpp(
+            crate::session::hub_ref(&session).trait_authority_complete_like_cpp(
                 &[config(43)],
                 &nodes,
                 player
