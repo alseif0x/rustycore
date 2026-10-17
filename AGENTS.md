@@ -113,29 +113,17 @@ Use implemented, production-integrated and parity-proven as distinct evidence le
 ## Architecture and skills
 
 Use [orchestrate-rustycore](.agents/skills/orchestrate-rustycore/SKILL.md) for development
-coordination. Only two models take part: Claude Opus 5.5 as the parent (started with
-`ocx claude`, opencodex), which decides, reviews and integrates but does not implement, and
-DeepSeek v4.1 flash on the native DeepSeek API as the worker that implements
-(`.claude/agents/deepseek-worker.md`). Opus implements only through
-`.claude/agents/rustycore-worker.md` when the DeepSeek API fails. Agent definitions do
-not override runtime permissions.
+coordination: one parent integrator decides, reviews and integrates but does not implement
+routine units; one bounded worker at a time implements. The skill owns the exact routes:
 
-Per-runtime routing (roles are the same everywhere; each client reads only its own defaults):
-Claude Code / `ocx claude` → the Opus configuration above (`.claude/`), nothing else;
-DSH Web `go-mix` and OpenCode / OpenCode Go → the go-mix routes below (`opencode.json` for
-OpenCode, the DSH profile preset for DSH); native Codex → Sol/Luna (`.codex/`, local) if chosen.
+| Runtime | Route file | Client defaults |
+|---|---|---|
+| Claude Code / `ocx claude` (default) | `routes/claude.md` (Opus parent, Opus `rustycore-worker`) | `.claude/settings.json`, `.claude/agents/` |
+| DSH Web `go-mix` / OpenCode Go (only if the user chooses it) | `routes/go-mix.md` | DSH profile preset; `opencode.json` |
+| Codex | `routes/codex.md` (Sol parent, Luna worker) | `.codex/config.toml`, `.codex/agents/` |
 
-**Opción DSH / go-mix, usar solo si el usuario la elige.** Si la sesión es DSH Web con el
-preset `go-mix` o una sesión OpenCode / OpenCode Go, aplica estas rutas/roles/handoffs en lugar del default Opus de arriba; en Claude Code / `ocx claude` solo
-aplica el default Opus de arriba y nada de este párrafo. In those sessions coordination uses OpenCode Go DeepSeek V4.1
-Flash at `high` effort, with MiniMax M3 at `high` as its bounded availability fallback and
-paid DeepSeek API as the last resort if both Go routes fail on quota or availability. This
-parent owns the same decisions, review, integration and validation scheduling and delegates
-implementation. GPT-6 Luna `max` is the implementer (DSH `subagent`, `provider: openai-codex`; a native
-Codex session uses a GPT-6.1 Sol `high` parent); Opus `low` is its availability
-fallback, and Opus `medium` provides an optional concrete second opinion. The orchestration
-skill owns the exact routes and handoff rules. Inspect effective runtime evidence before
-claiming which route ran.
+A session applies only its own runtime's route. Client defaults do not override runtime
+permissions; inspect effective runtime evidence before claiming which route ran.
 
 The orchestration skill also owns the **decision authority** rule: substantive technical
 decisions (parity and behaviour contracts, intentional departures from the reference, slice
