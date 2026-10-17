@@ -208,7 +208,15 @@ pub async fn handle_trainer_buy_spell_with_generator_like_cpp<H>(
             .await;
             return;
         }
-        _ => {
+        rejected => {
+            // C++ `Trainer::TeachSpell` logs the CanTeachSpell refusal
+            // (Trainer.cpp:89-94); name the Rust decision that maps to it.
+            tracing::warn!(
+                trainer_id,
+                spell_id,
+                decision = ?rejected,
+                "Trainer buy rejected: offer not available"
+            );
             host.trainer_buy_spell_hub_mut_like_cpp()
                 .core
                 .send_packet_realm(&TrainerBuyFailed {
