@@ -13,8 +13,13 @@ It includes seven reviewed test-only prerequisites: explicit persistence/SQL
 imports, correctly typed literals, current serialized fixture expectations,
 complete table-fixture cleanup and the existing binary-effect fixture scaling
 correction/regression. Their original development files remain intact.
-Renewed committed-candidate acceptance is pending; earlier
-scoped evidence does not establish acceptance of the revised tree. The server
+Code candidate `1bf5ee4b` passes workspace all-target compilation, 5,933 tests
+across the four affected libraries (three ignored), ten public consumer tests,
+one feature-disabled regression and SDK Clippy. This is composed acceptance
+with failed attempts retained. Its general final still fails unchanged inherited
+hotspot/Session debt; the SDK physical-size failure is repaired without changing
+a ceiling. Experimental branch publication retains only that inherited-debt
+exception. No merge, runtime activation or deployment follows from it. The server
 does not instantiate the optional capability. Full-world resources, complete
 geometry, movement/gameplay and server runtime acceptance remain open; creation
 and world entry stay paused. See the owning navigation candidate section in

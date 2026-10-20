@@ -20,7 +20,7 @@ correctly typed literals, current serialized fixture expectations, complete
 table-fixture cleanup and the existing binary-effect fixture scaling
 correction/regression. No spell production behavior changes. The existing
 checkout and its original test files remain intact.
-Renewed committed-candidate validation is pending in a separate source tree with the
+Committed-candidate validation uses a separate source tree with the
 extractor pinned to `3baac307329bd0391cd7f083a55e03b982081b27`. Earlier acceptance
 of a mixed development tree is retained at its actual scope and is not
 transferred to this isolated candidate.
@@ -35,6 +35,36 @@ three synthetic-fixture FFI declarations into one private module, preserving
 symbols, cfgs and call sites, and includes the reviewed test prerequisites.
 This cold isolated run does not reset the earlier ordinary campaign or its
 failed 600-second performance target.
+
+The revised code candidate `1bf5ee4b48d8f729e806f7acddfdebad01025b58` passes
+workspace all-target compilation (495.889s), whitespace/formatting, the focused
+dependency-policy fixtures and actual all-feature metadata graph, and SDK
+Clippy. Its four affected libraries pass 971 data, 392 database, 77 SDK and
+4,493 world tests (three ignored in total). The public consumer passes ten
+additional cases and the feature-disabled regression passes one. These 5,944
+passes are composed from retained exact-candidate evidence, not one green
+general final invocation.
+
+The first combined library invocation retained the 971 data passes but failed
+five database comparisons because the isolated runner omitted its SQL reference
+environment. The resumed invocation supplies `RUSTYCORE_CPP_REFERENCE_ROOT`
+with the existing partial source reference pinned by CI to TrinityCoreLegacy
+`92796557f9b0ba3d2d1c7c770f535153154cf83e`; both SQL files match CI's exact
+checksums before and after the run. Nothing was downloaded or changed. The
+database, SDK and world suites then pass, followed by the consumer/disabled
+cases and Clippy. No source changed between the retained and resumed evidence.
+
+Code qualification receipt:
+`fe9f725ff4de50441ace06613be4b028bb723cbab4a1cbde9cdbc75107ea8e41`.
+The three isolated attempts total 1,345.029 seconds through that checkpoint;
+closing documentation/publication validation adds cost. Failed attempts and
+the earlier ordinary campaign are not reset. The general final now passes the
+physical gate and fails the unchanged inherited logical hotspot/Session debt.
+The four affected legacy Session source files are byte-identical to the earlier
+waived `3c56508e` candidate; Session totals remain 95,306 production / 128,635
+test / 223,941 total lines. No baseline or ceiling changes. Experimental branch
+publication may use only the existing inherited-debt exception; this is not a
+green general final, merge approval or server/runtime acceptance.
 
 The server does not instantiate this capability. This is library integration,
 without full-world, complete geometry, movement/gameplay or server runtime
