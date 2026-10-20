@@ -208,13 +208,18 @@ pub async fn complete_represented_quest_after_add_with_generator_like_cpp<
     .await
 }
 
+/// Add a shared quest to the log, check its completion and save it. `None`
+/// when the log is full; otherwise the slot it took and whether the accept is
+/// known durable (its status save applied, or a completion reward already
+/// committed and settled it). The caller raises `player.quest_accepted` once
+/// its own remaining accept steps ran (#1444).
 pub async fn add_quest_confirm_accept_local_state_like_cpp<H: QuestSessionHostLikeCpp>(
     host: &mut H,
     item_guid_generator: &wow_core::ObjectGuidGenerator,
     quest: &wow_data::quest::QuestTemplate,
-) -> bool {
+) -> Option<(u8, bool)> {
     let Some(slot) = crate::first_free_quest_slot_like_cpp(host) else {
-        return false;
+        return None;
     };
 
     let (accept_time_secs, end_time_secs) =
@@ -231,13 +236,15 @@ pub async fn add_quest_confirm_accept_local_state_like_cpp<H: QuestSessionHostLi
         slot,
     };
     if crate::insert_represented_quest_status_like_cpp(host, quest.id, status) == false {
-        return false;
+        return None;
     }
     complete_represented_quest_after_add_with_generator_like_cpp(host, item_guid_generator, quest)
         .await;
-    crate::save_represented_quest_status_like_cpp(host, quest.id).await;
+    let durable = crate::save_represented_quest_status_like_cpp(host, quest.id)
+        .await
+        .unwrap_or(true);
     host.sync_player_registry_state_like_cpp();
-    true
+    Some((slot, durable))
 }
 
 pub fn represented_quest_login_aura_sources_are_hit_inert_like_cpp<H: QuestSessionHostLikeCpp>(

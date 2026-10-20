@@ -24,10 +24,17 @@ use std::sync::Arc;
 
 use tracing::{debug, warn};
 use wow_module_api::{
-    HookFamily, HookOutcome, ModuleRegistry, NotificationEffect, PlayerLoginSnapshot,
+    HookFamily, HookOutcome, LogoutReason, ModuleRegistry, NotificationEffect,
+    PlayerLevelChangedSnapshot, PlayerLoginSnapshot, PlayerLogoutSnapshot,
+    PlayerMoneyChangedSnapshot, QuestAcceptedSnapshot, QuestRewardedSnapshot,
 };
-use wow_world_application::PlayerLoginHookEventLikeCpp;
-use wow_world_core::session::SessionCore;
+use wow_world_application::{PlayerLoginHookEventLikeCpp, PlayerLogoutHookEventLikeCpp};
+use wow_world_core::session::PacketPublicationAccessLikeCpp;
+use wow_world_lifecycle::FinalizationMode;
+use wow_world_quest::{
+    PlayerLevelChangedHookEventLikeCpp, PlayerMoneyChangedHookEventLikeCpp,
+    QuestAcceptedHookEventLikeCpp, QuestModuleHookPortLikeCpp, QuestRewardedHookEventLikeCpp,
+};
 
 /// The session's handle on the linked-module registry.
 pub(crate) struct SessionModuleHooksLikeCpp {
@@ -83,7 +90,7 @@ impl SessionModuleHooksLikeCpp {
     /// be able to fail a player's login.
     pub(crate) fn player_login_like_cpp(
         &self,
-        core: &SessionCore,
+        publication: PacketPublicationAccessLikeCpp<'_>,
         event: &PlayerLoginHookEventLikeCpp,
     ) {
         if !self.registry.handles(HookFamily::PlayerLogin) {
@@ -99,7 +106,108 @@ impl SessionModuleHooksLikeCpp {
             first_login: event.first_login,
         };
         let outcome = self.registry.dispatch_player_login_outcome(&snapshot);
-        apply_notifications_like_cpp(core, "player.login", outcome);
+        apply_notifications_like_cpp(publication, "player.login", outcome);
+    }
+
+    /// `player.logout`: C++ `ScriptMgr::OnPlayerLogout`
+    /// (`WorldSession.cpp:655`); AzerothCore `PlayerScript::OnPlayerLogout`
+    /// (`PlayerScript.h:338`). The session is closing, so modules observe
+    /// only; the outcome can carry no effect to apply.
+    pub(crate) fn player_logout_like_cpp(&self, event: &PlayerLogoutHookEventLikeCpp) {
+        if !self.registry.handles(HookFamily::Player) {
+            return;
+        }
+        let reason = match event.mode {
+            FinalizationMode::CharacterSelection => LogoutReason::CharacterSelection,
+            FinalizationMode::TimedLogout => LogoutReason::TimedLogout,
+            FinalizationMode::Disconnect => LogoutReason::Disconnect,
+        };
+        let snapshot = PlayerLogoutSnapshot::new(event.guid, event.account_id, reason);
+        let outcome = self.registry.dispatch_player_logout(&snapshot);
+        log_disabled_like_cpp("player.logout", &outcome.disabled);
+    }
+
+    /// `player.quest_accepted`: AzerothCore `OnPlayerQuestAccept`
+    /// (`PlayerQuest.cpp:426`, `PlayerScript.h:750`).
+    pub(crate) fn quest_accepted_like_cpp(
+        &self,
+        publication: PacketPublicationAccessLikeCpp<'_>,
+        event: &QuestAcceptedHookEventLikeCpp,
+    ) {
+        if !self.registry.handles(HookFamily::Player) {
+            return;
+        }
+        let snapshot = QuestAcceptedSnapshot::new(event.guid, event.quest_id, event.slot);
+        let outcome = self.registry.dispatch_quest_accepted(&snapshot);
+        apply_notifications_like_cpp(publication, "player.quest_accepted", outcome);
+    }
+}
+
+/// The quest and progression context port (#1444 H1).
+impl QuestModuleHookPortLikeCpp for SessionModuleHooksLikeCpp {
+    fn player_hooks_wanted_like_cpp(&self) -> bool {
+        self.wants_like_cpp(HookFamily::Player)
+    }
+
+    /// `player.level_changed`: AzerothCore `OnPlayerLevelChanged`
+    /// (`Player.cpp:2585`, `PlayerScript.h:263`).
+    fn player_level_changed_like_cpp(
+        &self,
+        publication: PacketPublicationAccessLikeCpp<'_>,
+        event: &PlayerLevelChangedHookEventLikeCpp,
+    ) {
+        if !self.registry.handles(HookFamily::Player) {
+            return;
+        }
+        let snapshot =
+            PlayerLevelChangedSnapshot::new(event.guid, event.old_level, event.new_level);
+        let outcome = self.registry.dispatch_player_level_changed(&snapshot);
+        apply_notifications_like_cpp(publication, "player.level_changed", outcome);
+    }
+
+    /// `player.money_changed`: AzerothCore `OnPlayerMoneyChanged`
+    /// (`Player.cpp:11688`, `PlayerScript.h:282`), observation only.
+    fn player_money_changed_like_cpp(
+        &self,
+        publication: PacketPublicationAccessLikeCpp<'_>,
+        event: &PlayerMoneyChangedHookEventLikeCpp,
+    ) {
+        if !self.registry.handles(HookFamily::Player) {
+            return;
+        }
+        let snapshot =
+            PlayerMoneyChangedSnapshot::new(event.guid, event.old_money, event.new_money);
+        let outcome = self.registry.dispatch_player_money_changed(&snapshot);
+        apply_notifications_like_cpp(publication, "player.money_changed", outcome);
+    }
+
+    /// `player.quest_rewarded`: AzerothCore `OnPlayerCompleteQuest`
+    /// (`PlayerQuest.cpp:903`, `PlayerScript.h:245`).
+    fn quest_rewarded_like_cpp(
+        &self,
+        publication: PacketPublicationAccessLikeCpp<'_>,
+        event: &QuestRewardedHookEventLikeCpp,
+    ) {
+        if !self.registry.handles(HookFamily::Player) {
+            return;
+        }
+        let snapshot = QuestRewardedSnapshot::new(
+            event.guid,
+            event.quest_id,
+            event.quest_giver,
+            event.choice_item_id,
+            event.reward_xp,
+            event.money_before,
+            event.money_after,
+        );
+        let outcome = self.registry.dispatch_quest_rewarded(&snapshot);
+        apply_notifications_like_cpp(publication, "player.quest_rewarded", outcome);
+    }
+}
+
+fn log_disabled_like_cpp(hook: &'static str, disabled: &[wow_module_api::ModuleId]) {
+    for module in disabled {
+        warn!(%module, hook, "linked module panicked; disabled for the rest of the process");
     }
 }
 
@@ -108,20 +216,18 @@ impl SessionModuleHooksLikeCpp {
 /// The batch is all or nothing: a validation error applies none of it. A
 /// module a panic disabled is logged once, here, with the hook that hit it.
 fn apply_notifications_like_cpp(
-    core: &SessionCore,
+    publication: PacketPublicationAccessLikeCpp<'_>,
     hook: &'static str,
     outcome: HookOutcome<NotificationEffect>,
 ) {
-    for module in &outcome.disabled {
-        warn!(%module, hook, "linked module panicked; disabled for the rest of the process");
-    }
+    log_disabled_like_cpp(hook, &outcome.disabled);
     match outcome.effects {
         Ok(effects) => {
             for (module, effect) in effects.iter() {
                 match effect {
                     NotificationEffect::SendSystemMessageSelf { text } => {
                         debug!(%module, hook, "module system message");
-                        core.send_system_message_like_cpp(text);
+                        publication.send_system_message_like_cpp(text);
                     }
                 }
             }

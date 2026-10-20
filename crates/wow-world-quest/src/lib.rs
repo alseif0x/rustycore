@@ -7,6 +7,11 @@
 //! valuation and trainer admission proof moved down to
 //! `wow-world-player-conditions` (#1363 slice Q).
 
+mod module_hooks;
+pub use module_hooks::{
+    PlayerLevelChangedHookEventLikeCpp, PlayerMoneyChangedHookEventLikeCpp,
+    QuestAcceptedHookEventLikeCpp, QuestModuleHookPortLikeCpp, QuestRewardedHookEventLikeCpp,
+};
 mod quest;
 mod quest_handlers;
 mod quest_query_handlers;

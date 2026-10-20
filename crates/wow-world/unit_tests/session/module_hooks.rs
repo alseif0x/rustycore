@@ -286,3 +286,201 @@ fn a_second_registry_install_is_refused() {
     session.player_login_hook_like_cpp(&event(false));
     assert_eq!(system_texts(&send_rx, &session), vec!["ok"]);
 }
+
+// ── The `player.*` ports (#1444 H1) ───────────────────────────────────────
+
+use wow_module_api::{
+    LogoutReason, PlayerLevelChangedSnapshot, PlayerLogoutSnapshot, PlayerModule,
+    PlayerMoneyChangedSnapshot, QuestAcceptedSnapshot, QuestRewardedSnapshot,
+};
+use wow_world_application::{PlayerLogoutHookEventLikeCpp, SessionLifecycleHostLikeCpp};
+use wow_world_quest::{
+    PlayerLevelChangedHookEventLikeCpp, PlayerMoneyChangedHookEventLikeCpp,
+    QuestAcceptedHookEventLikeCpp, QuestModuleHookPortLikeCpp, QuestRewardedHookEventLikeCpp,
+    QuestSessionHostLikeCpp,
+};
+
+/// Records each `player.*` hook with whether the canonical map lock was free.
+struct PlayerProbe {
+    seen: Arc<Mutex<Vec<(String, bool)>>>,
+    map: SharedCanonicalMapManager,
+}
+
+impl PlayerProbe {
+    fn record(&self, what: String) {
+        let free = self.map.try_lock().is_ok();
+        self.seen.lock().expect("probe").push((what, free));
+    }
+}
+
+impl PlayerModule for PlayerProbe {
+    fn on_logout(&self, s: &PlayerLogoutSnapshot) {
+        self.record(format!("logout {:?} {}", s.reason, s.account_id));
+    }
+    fn on_level_changed(&self, s: &PlayerLevelChangedSnapshot, e: &mut ScopedEffects<'_>) {
+        self.record(format!("level {} {}", s.old_level, s.new_level));
+        e.send_system_message_self("first");
+    }
+    fn on_money_changed(&self, s: &PlayerMoneyChangedSnapshot, e: &mut ScopedEffects<'_>) {
+        self.record(format!("money {} {}", s.old_money, s.new_money));
+        e.send_system_message_self("second");
+    }
+    fn on_quest_accepted(&self, s: &QuestAcceptedSnapshot, e: &mut ScopedEffects<'_>) {
+        self.record(format!("accepted {} {}", s.quest_id, s.slot));
+        e.send_system_message_self("ok");
+    }
+    fn on_quest_rewarded(&self, s: &QuestRewardedSnapshot, e: &mut ScopedEffects<'_>) {
+        self.record(format!(
+            "rewarded {} {} {} {} {}",
+            s.quest_id, s.choice_item_id, s.reward_xp, s.money_before, s.money_after
+        ));
+        e.send_system_message_self("ok");
+    }
+}
+
+fn player_probe_session() -> (
+    WorldSession,
+    flume::Receiver<Vec<u8>>,
+    Arc<Mutex<Vec<(String, bool)>>>,
+) {
+    let (mut session, send_rx) = make_session();
+    let canonical: SharedCanonicalMapManager = Arc::new(Mutex::new(wow_map::MapManager::default()));
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let mut registry = ModuleRegistry::new();
+    registry
+        .register_module(
+            ModuleDescriptor::new("alpha.player", version(), "Player").expect("descriptor"),
+            ModuleHooks::new().player(Arc::new(PlayerProbe {
+                seen: Arc::clone(&seen),
+                map: canonical,
+            })),
+        )
+        .expect("registration");
+    session.install_module_hooks_like_cpp(Arc::new(registry));
+    (session, send_rx, seen)
+}
+
+#[test]
+fn every_player_port_converts_its_event_and_runs_with_no_map_lock() {
+    let (mut session, send_rx, seen) = player_probe_session();
+    let guid = ObjectGuid::create_player(1, 42);
+
+    QuestModuleHookPortLikeCpp::player_level_changed_like_cpp(
+        &session.module_hooks,
+        session.core.packet_publication_access_like_cpp(),
+        &PlayerLevelChangedHookEventLikeCpp {
+            guid,
+            old_level: 9,
+            new_level: 10,
+        },
+    );
+    QuestModuleHookPortLikeCpp::player_money_changed_like_cpp(
+        &session.module_hooks,
+        session.core.packet_publication_access_like_cpp(),
+        &PlayerMoneyChangedHookEventLikeCpp {
+            guid,
+            old_money: 5,
+            new_money: 7,
+        },
+    );
+    assert_eq!(system_texts(&send_rx, &session), vec!["first", "second"]);
+    session.quest_accepted_hook_like_cpp(&QuestAcceptedHookEventLikeCpp {
+        guid,
+        quest_id: 7201,
+        slot: 0,
+    });
+    QuestModuleHookPortLikeCpp::quest_rewarded_like_cpp(
+        &session.module_hooks,
+        session.core.packet_publication_access_like_cpp(),
+        &QuestRewardedHookEventLikeCpp {
+            guid,
+            quest_id: 7201,
+            quest_giver: guid,
+            choice_item_id: 3,
+            reward_xp: 120,
+            money_before: 10,
+            money_after: 60,
+        },
+    );
+    assert_eq!(system_texts(&send_rx, &session), vec!["ok", "ok"]);
+    session.player_logout_hook_like_cpp(&PlayerLogoutHookEventLikeCpp {
+        guid,
+        account_id: 1,
+        mode: wow_world_lifecycle::FinalizationMode::TimedLogout,
+    });
+    assert!(send_rx.is_empty(), "logout carries no effect");
+
+    let seen = seen.lock().expect("probe").clone();
+    assert_eq!(
+        seen.iter()
+            .map(|(what, _)| what.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "level 9 10",
+            "money 5 7",
+            "accepted 7201 0",
+            "rewarded 7201 3 120 10 60",
+            "logout TimedLogout 1"
+        ]
+    );
+    assert!(
+        seen.iter().all(|(_, free)| *free),
+        "no player hook may run under the canonical map lock: {seen:?}"
+    );
+}
+
+#[test]
+fn logout_reasons_map_one_to_one() {
+    for (mode, reason) in [
+        (
+            wow_world_lifecycle::FinalizationMode::CharacterSelection,
+            LogoutReason::CharacterSelection,
+        ),
+        (
+            wow_world_lifecycle::FinalizationMode::TimedLogout,
+            LogoutReason::TimedLogout,
+        ),
+        (
+            wow_world_lifecycle::FinalizationMode::Disconnect,
+            LogoutReason::Disconnect,
+        ),
+    ] {
+        let (mut session, _send_rx, seen) = player_probe_session();
+        session.player_logout_hook_like_cpp(&PlayerLogoutHookEventLikeCpp {
+            guid: ObjectGuid::create_player(1, 42),
+            account_id: 9,
+            mode,
+        });
+        assert_eq!(
+            seen.lock().expect("probe")[0].0,
+            format!("logout {reason:?} 9")
+        );
+    }
+}
+
+#[test]
+fn zero_modules_make_every_player_port_a_no_op() {
+    let (mut session, send_rx) = make_session();
+    let guid = ObjectGuid::create_player(1, 42);
+    QuestModuleHookPortLikeCpp::player_level_changed_like_cpp(
+        &session.module_hooks,
+        session.core.packet_publication_access_like_cpp(),
+        &PlayerLevelChangedHookEventLikeCpp {
+            guid,
+            old_level: 1,
+            new_level: 2,
+        },
+    );
+    session.quest_accepted_hook_like_cpp(&QuestAcceptedHookEventLikeCpp {
+        guid,
+        quest_id: 1,
+        slot: 0,
+    });
+    session.player_logout_hook_like_cpp(&PlayerLogoutHookEventLikeCpp {
+        guid,
+        account_id: 1,
+        mode: wow_world_lifecycle::FinalizationMode::Disconnect,
+    });
+    assert!(send_rx.is_empty());
+}

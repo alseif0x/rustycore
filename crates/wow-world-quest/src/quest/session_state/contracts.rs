@@ -27,6 +27,14 @@ pub enum RepresentedQuestObjectiveProgressEventLikeCpp {
         old_money: u64,
         new_money: u64,
     },
+    /// A quest reward's committed money change. Objective progress treats it
+    /// exactly like `MoneyChanged`; the reward already raised its
+    /// `player.money_changed` hook in AzerothCore's order (GiveXP, ModifyMoney,
+    /// OnPlayerCompleteQuest), so the drain does not raise it again (#1444).
+    RewardMoneyChanged {
+        old_money: u64,
+        new_money: u64,
+    },
     #[allow(dead_code)]
     CurrencyChanged {
         currency_id: u32,

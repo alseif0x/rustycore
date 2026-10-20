@@ -246,8 +246,11 @@ impl QuestRewardCx<'_> {
             );
             return false;
         }
+        let committed_money_change = committed_money
+            .as_ref()
+            .map(|money| (money.money_before, money.money_after));
         if let Some(committed_money) = committed_money {
-            self.enqueue_money_changed_like_cpp(
+            self.enqueue_reward_money_changed_like_cpp(
                 committed_money.money_before,
                 committed_money.money_after,
             );
@@ -330,6 +333,49 @@ impl QuestRewardCx<'_> {
             teleport_fixture,
             false,
         );
+
+        // AzerothCore `Player::RewardQuest` runs `GiveXP` (the level hooks,
+        // raised inside `give_xp_like_cpp` above), then `ModifyMoney`
+        // (`OnPlayerMoneyChanged`), and ends with `OnPlayerCompleteQuest`
+        // (`PlayerQuest.cpp:903`) after its `SaveToDB`. The reward plan is
+        // durable (commit above), so modules see the reward's money change and
+        // then the reward, in that order, once per reward, auto rewards
+        // included. The queued `RewardMoneyChanged` feeds objective progress
+        // only; it does not raise the money hook again (#1444).
+        if self.module_hooks.player_hooks_wanted_like_cpp() {
+            let (money_before, money_after) = match committed_money_change {
+                Some((before, after)) => {
+                    self.module_hooks.player_money_changed_like_cpp(
+                        self.player.packet_publication_access_like_cpp(),
+                        &crate::PlayerMoneyChangedHookEventLikeCpp {
+                            guid: player_guid,
+                            old_money: before,
+                            new_money: after,
+                        },
+                    );
+                    (before, after)
+                }
+                None => {
+                    let balance = self
+                        .inventory
+                        .resolved_player_money_with_quest_reward_access_like_cpp(&self.player)
+                        .unwrap_or(0);
+                    (balance, balance)
+                }
+            };
+            self.module_hooks.quest_rewarded_like_cpp(
+                self.player.packet_publication_access_like_cpp(),
+                &crate::QuestRewardedHookEventLikeCpp {
+                    guid: player_guid,
+                    quest_id,
+                    quest_giver: quest_giver_guid,
+                    choice_item_id,
+                    reward_xp: xp,
+                    money_before,
+                    money_after,
+                },
+            );
+        }
 
         true
     }

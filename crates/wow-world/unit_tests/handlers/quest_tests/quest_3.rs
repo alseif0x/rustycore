@@ -912,3 +912,49 @@ async fn push_quest_to_party_shareable_sender_without_pool_store_still_blocks_be
     );
     assert!(send_rx.try_recv().is_err());
 }
+
+/// `player.quest_accepted` on the shared-quest confirmation path (#1444
+/// review F5): once, after the status save applied; nothing when it failed.
+#[tokio::test]
+async fn quest_confirm_accept_raises_the_quest_accepted_hook_after_the_save_like_cpp() {
+    for (outcome, expect_hook) in [
+        (
+            wow_persistence::PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+            true,
+        ),
+        (
+            wow_persistence::PersistenceOutcomeLikeCpp::Failed {
+                reason: "rolled back".to_owned(),
+            },
+            false,
+        ),
+    ] {
+        let (mut session, _send_rx) = make_session();
+        let sender_guid = ObjectGuid::create_player(1, 91);
+        let quest_id = 7013;
+        session.set_quest_store(Arc::new(store_with_sharable_timed_quest_objectives(
+            quest_id, 3, 600,
+        )));
+        session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+        let (_sender_session, _sender_rx) = install_confirm_accept_sender_snapshot(
+            &mut session,
+            sender_guid,
+            quest_id,
+            true,
+            Some(QUEST_STATUS_INCOMPLETE_LIKE_CPP),
+        );
+        let probe = super::quest_1::install_accept_probe(&mut session, outcome);
+
+        run_quest_confirm_accept(&mut session, quest_id as i32).await;
+
+        let calls = probe.calls.lock().unwrap().clone();
+        if expect_hook {
+            assert_eq!(calls.len(), 1);
+            let (accepted_quest, slot, saves, map_free) = calls[0];
+            assert_eq!((accepted_quest, slot, saves), (quest_id, 0, 1));
+            assert!(map_free);
+        } else {
+            assert!(calls.is_empty(), "{calls:?}");
+        }
+    }
+}

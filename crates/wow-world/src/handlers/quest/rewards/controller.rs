@@ -38,6 +38,7 @@ impl WorldSession {
             self.catalogs.currency_types_store.as_deref(),
             self.catalogs.quests.xp_store.as_deref(),
             cfg!(test),
+            &self.module_hooks,
         );
         operation
             .reward_quest_with_generator_like_cpp(

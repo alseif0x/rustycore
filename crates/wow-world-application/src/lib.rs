@@ -37,8 +37,9 @@ pub use session_lifecycle::{
     execute_finalization_step,
 };
 pub use session_lifecycle::{
-    SessionAccountSaveCxLikeCpp, SessionLifecycleHostLikeCpp, cleanup_shared_runtime_state,
-    finalize_session_with_generator_like_cpp, handle_confirm_respec_wipe_with_generator_like_cpp,
+    PlayerLogoutHookEventLikeCpp, SessionAccountSaveCxLikeCpp, SessionLifecycleHostLikeCpp,
+    cleanup_shared_runtime_state, finalize_session_with_generator_like_cpp,
+    handle_confirm_respec_wipe_with_generator_like_cpp,
     process_pending_periodic_player_save_with_generator_like_cpp,
     resume_deferred_player_save_with_generator_like_cpp,
 };

@@ -1,8 +1,9 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! A module the way an external repository writes it: a separate crate that
-//! depends on `wow-module-api` alone (an integration test links nothing else).
+//! A module the way an external repository writes it: a separate crate whose
+//! only server dependency is `wow-module-api` (this integration test links that
+//! crate and what it depends on, and `wow-module-api` has no dev-dependencies).
 //! It is a source API 1 module, so it also proves API 2 kept API 1 working,
 //! and it names `ObjectGuid` through the re-export, never through `wow-core`
 //! (#1445 review).

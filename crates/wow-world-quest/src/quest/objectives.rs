@@ -242,10 +242,32 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             .pop_represented_quest_objective_progress_like_cpp()
         {
             match event {
+                RepresentedQuestObjectiveProgressEventLikeCpp::RewardMoneyChanged {
+                    old_money,
+                    new_money,
+                } => {
+                    self.update_money_quest_objective_progress_like_cpp(old_money, new_money)
+                        .await;
+                }
                 RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
                     old_money,
                     new_money,
                 } => {
+                    // AzerothCore `OnPlayerMoneyChanged` (`Player.cpp:11688`),
+                    // observed at the one post-commit point every money path
+                    // feeds: each queued change is drained exactly once (#1444).
+                    if self.reward.module_hooks.player_hooks_wanted_like_cpp()
+                        && let Some(guid) = self.reward.player.player_guid_like_cpp()
+                    {
+                        self.reward.module_hooks.player_money_changed_like_cpp(
+                            self.reward.player.packet_publication_access_like_cpp(),
+                            &crate::PlayerMoneyChangedHookEventLikeCpp {
+                                guid,
+                                old_money,
+                                new_money,
+                            },
+                        );
+                    }
                     self.update_money_quest_objective_progress_like_cpp(old_money, new_money)
                         .await;
                 }

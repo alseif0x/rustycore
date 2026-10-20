@@ -145,6 +145,20 @@ pub trait QuestSessionHostLikeCpp: SessionHubHostLikeCpp {
     fn lifecycle(&self) -> &SessionLifecycleState;
     /// The World `world_entities` field.
     fn world_entities_mut(&mut self) -> &mut WorldEntitiesState;
+    /// Hook port for `player.quest_accepted` (#1444 H1): AzerothCore
+    /// `OnPlayerQuestAccept` (`PlayerQuest.cpp:426`). The World adapter
+    /// dispatches it to the trusted linked modules; the default does nothing.
+    /// Called after the accepted status was saved, outside any split borrow.
+    fn quest_accepted_hook_like_cpp(
+        &mut self,
+        _event: &crate::module_hooks::QuestAcceptedHookEventLikeCpp,
+    ) {
+    }
+    /// Whether any linked module wants `player.quest_accepted`; asked before
+    /// the event is built. The default, used by every test host, wants nothing.
+    fn quest_accepted_hook_wanted_like_cpp(&self) -> bool {
+        false
+    }
     /// The World crate's `cfg!(test)`: only the World test build's session
     /// returns its fixtures from `test_fixtures_ref_like_cpp` (#1404 review).
     fn world_test_consumer_like_cpp(&self) -> bool {

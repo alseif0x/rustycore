@@ -243,6 +243,7 @@ impl WorldSession {
             self.catalogs.currency_types_store.as_deref(),
             self.catalogs.quests.xp_store.as_deref(),
             cfg!(test),
+            &self.module_hooks,
         );
         let mut progress = wow_world_quest::QuestObjectiveProgressCx::new(
             &mut reward,

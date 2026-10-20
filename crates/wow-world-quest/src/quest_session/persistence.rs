@@ -8,21 +8,22 @@
 
 use super::*;
 
+/// Save the quest's current status row. `None` when the player has no status
+/// for it any more (a quest the completion check already rewarded and
+/// settled), otherwise whether the save is known durable.
 pub async fn save_represented_quest_status_like_cpp<H: QuestSessionHostLikeCpp>(
     host: &H,
     quest_id: u32,
-) {
-    if let Some(status) = host
+) -> Option<bool> {
+    let status = host
         .player_quest_gameplay_snapshot_like_cpp()
         .and_then(|state| {
             state
                 .statuses_like_cpp()
                 .get(&quest_id)
                 .map(|status| status.status)
-        })
-    {
-        save_quest_to_db(host, quest_id, status).await;
-    }
+        })?;
+    Some(save_quest_to_db(host, quest_id, status).await)
 }
 
 pub async fn save_changed_represented_quest_statuses_like_cpp<H: QuestSessionHostLikeCpp>(
@@ -60,7 +61,12 @@ pub async fn save_represented_quest_statuses_completed_after_like_cpp<
     }
 }
 
-pub async fn save_quest_to_db<H: QuestSessionHostLikeCpp>(host: &H, quest_id: u32, status: u8) {
+/// Save one quest status row; `true` only when the save is known durable.
+pub async fn save_quest_to_db<H: QuestSessionHostLikeCpp>(
+    host: &H,
+    quest_id: u32,
+    status: u8,
+) -> bool {
     let owner = host.core().quest_objective_access_like_cpp();
     crate::save_quest_to_db_like_cpp(
         &owner,
@@ -71,7 +77,7 @@ pub async fn save_quest_to_db<H: QuestSessionHostLikeCpp>(host: &H, quest_id: u3
         status,
         host.world_test_consumer_like_cpp(),
     )
-    .await;
+    .await
 }
 
 /// Load all active quests for this player from the characters DB.

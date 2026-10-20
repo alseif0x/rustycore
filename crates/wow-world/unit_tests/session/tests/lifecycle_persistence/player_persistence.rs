@@ -430,3 +430,135 @@ async fn represented_xp_reaches_the_port_for_every_classified_outcome_like_cpp()
         assert_eq!(session.player_xp_like_cpp(), 100);
     }
 }
+
+/// Records each `player.level_changed` with the XP saves already requested.
+struct LevelProbe {
+    port: Arc<RecordingPortLikeCpp>,
+    calls: Mutex<Vec<(u8, u8, usize)>>,
+}
+
+impl wow_module_api::PlayerModule for LevelProbe {
+    fn on_level_changed(
+        &self,
+        snapshot: &wow_module_api::PlayerLevelChangedSnapshot,
+        effects: &mut wow_module_api::ScopedEffects<'_>,
+    ) {
+        self.calls.lock().unwrap().push((
+            snapshot.old_level,
+            snapshot.new_level,
+            self.port.xp_saves().len(),
+        ));
+        effects.send_system_message_self(format!("Level {}!", snapshot.new_level));
+    }
+}
+
+fn install_level_probe(
+    session: &mut WorldSession,
+    port: &Arc<RecordingPortLikeCpp>,
+) -> Arc<LevelProbe> {
+    let probe = Arc::new(LevelProbe {
+        port: Arc::clone(port),
+        calls: Mutex::new(Vec::new()),
+    });
+    let mut registry = wow_module_api::ModuleRegistry::new();
+    registry
+        .register_module(
+            wow_module_api::ModuleDescriptor::new(
+                "alpha.level",
+                wow_module_api::ModuleVersion {
+                    major: 1,
+                    minor: 0,
+                    patch: 0,
+                },
+                "Level",
+            )
+            .unwrap(),
+            wow_module_api::ModuleHooks::new().player(Arc::clone(&probe) as _),
+        )
+        .unwrap();
+    session.install_module_hooks_like_cpp(Arc::new(registry));
+    probe
+}
+
+fn level_session(
+    outcome: PersistenceOutcomeLikeCpp,
+    counter: i64,
+) -> (
+    WorldSession,
+    Arc<RecordingPortLikeCpp>,
+    Arc<LevelProbe>,
+    ObjectGuid,
+) {
+    let (mut session, port) = session_with_port(outcome);
+    let probe = install_level_probe(&mut session, &port);
+    let guid = ObjectGuid::create_player(1, counter);
+    let victim = test_creature_guid(counter + 1);
+    session.set_player_guid(Some(guid));
+    session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+    install_tapped_xp_victim_like_cpp(&mut session, victim);
+    (session, port, probe, victim)
+}
+
+/// `player.level_changed` (#1444 H1): AzerothCore `GiveLevel` ->
+/// `OnPlayerLevelChanged` (`Player.cpp:2585`). Once per level-up, after the XP
+/// save applied; XP that does not change the level raises nothing.
+#[tokio::test]
+async fn level_changed_hook_runs_once_after_the_xp_save_like_cpp() {
+    let (mut session, port, probe, victim) =
+        level_session(PersistenceOutcomeLikeCpp::Applied { rows: 2 }, 0x7500_0311);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
+
+    session.give_xp(50, victim, 1.0).await;
+    assert!(
+        probe.calls.lock().unwrap().is_empty(),
+        "XP below the next level raises no level hook"
+    );
+
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(60);
+    session.give_xp(50, victim, 1.0).await;
+    assert_eq!(
+        *probe.calls.lock().unwrap(),
+        vec![(10, 11, port.xp_saves().len())],
+        "one level-up, one hook, after its XP save was requested"
+    );
+}
+
+/// A failed or unknown XP save is not a durable level: no hook (#1444 review
+/// F1). The level was still published to the client, as before.
+#[tokio::test]
+async fn an_unsaved_level_up_raises_no_level_changed_hook_like_cpp() {
+    for outcome in [
+        PersistenceOutcomeLikeCpp::Failed {
+            reason: "rolled back".to_owned(),
+        },
+        PersistenceOutcomeLikeCpp::Unknown {
+            reason: "commit reply lost".to_owned(),
+        },
+    ] {
+        let (mut session, port, probe, victim) = level_session(outcome, 0x7500_0321);
+        crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(60);
+        session.give_xp(100, victim, 1.0).await;
+        assert_eq!(port.xp_saves().len(), 1, "the level-up attempted its save");
+        assert!(probe.calls.lock().unwrap().is_empty());
+    }
+}
+
+/// TrinityCore `GiveXP` calls `GiveLevel` once per level gained
+/// (`Player.cpp:2231-2236`), so a multi-level grant reports every step in
+/// order (#1444 review F2).
+#[tokio::test]
+async fn a_multi_level_grant_reports_every_level_step_like_cpp() {
+    let (mut session, _port, probe, victim) =
+        level_session(PersistenceOutcomeLikeCpp::Applied { rows: 2 }, 0x7500_0331);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(10);
+    session.give_xp(1_000_000, victim, 1.0).await;
+    let calls = probe.calls.lock().unwrap().clone();
+    assert!(
+        calls.len() >= 2,
+        "a large grant gains several levels: {calls:?}"
+    );
+    for (index, (old, new, _)) in calls.iter().enumerate() {
+        assert_eq!(*old, 10 + index as u8);
+        assert_eq!(*new, old + 1);
+    }
+}

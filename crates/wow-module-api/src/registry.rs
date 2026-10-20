@@ -16,6 +16,10 @@ use crate::effect::{
     ScopedEffects, validated,
 };
 use crate::hook::{PlayerLoginModule, PlayerLoginSnapshot};
+use crate::player::{
+    PlayerLevelChangedSnapshot, PlayerLogoutSnapshot, PlayerModule, PlayerMoneyChangedSnapshot,
+    QuestAcceptedSnapshot, QuestRewardedSnapshot,
+};
 
 /// A validated module identifier.
 ///
@@ -163,7 +167,9 @@ thread_local! {
 ///
 /// A panic there is caught at the module boundary and only disables that
 /// module, so the process panic hook can report it as contained instead of
-/// fatal (`world-server` wires this into `wow-logging`'s hook).
+/// fatal (`world-server` wires this into `wow-logging`'s hook). Host plumbing,
+/// not part of the module-facing contract.
+#[doc(hidden)]
 #[must_use]
 pub fn module_callback_in_progress() -> bool {
     IN_MODULE_CALLBACK.with(std::cell::Cell::get)
@@ -197,6 +203,9 @@ pub enum HookFamily {
     /// `player.login`, source API 1. AzerothCore `PlayerScript::OnPlayerLogin`
     /// (`PlayerScript.h:332`); TrinityCore `PlayerScript::OnLogin`.
     PlayerLogin,
+    /// The `player.*` notifications of [`PlayerModule`] (#1444): logout,
+    /// level, money and quest progress. AzerothCore `PlayerScript`.
+    Player,
 }
 
 /// The hook families one module offers (source API 2).
@@ -206,6 +215,7 @@ pub enum HookFamily {
 #[derive(Clone, Default)]
 pub struct ModuleHooks {
     player_login: Option<Arc<dyn PlayerLoginModule>>,
+    player: Option<Arc<dyn PlayerModule>>,
 }
 
 impl ModuleHooks {
@@ -221,17 +231,25 @@ impl ModuleHooks {
         self
     }
 
+    /// Offer the `player.*` family.
+    #[must_use]
+    pub fn player(mut self, module: Arc<dyn PlayerModule>) -> Self {
+        self.player = Some(module);
+        self
+    }
+
     /// Whether this set offers `family`.
     #[must_use]
     pub fn offers(&self, family: HookFamily) -> bool {
         match family {
             HookFamily::PlayerLogin => self.player_login.is_some(),
+            HookFamily::Player => self.player.is_some(),
         }
     }
 
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.player_login.is_none()
+        self.player_login.is_none() && self.player.is_none()
     }
 }
 
@@ -356,6 +374,61 @@ impl ModuleRegistry {
         self.dispatch_notifications(
             |hooks| hooks.player_login.as_ref(),
             |module, effects| module.on_player_login(snapshot, effects),
+        )
+    }
+
+    /// `player.logout`. Observation only: the outcome never carries effects.
+    pub fn dispatch_player_logout(
+        &self,
+        snapshot: &PlayerLogoutSnapshot,
+    ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_notifications(
+            |hooks| hooks.player.as_ref(),
+            |module, _effects| module.on_logout(snapshot),
+        )
+    }
+
+    /// `player.level_changed`.
+    pub fn dispatch_player_level_changed(
+        &self,
+        snapshot: &PlayerLevelChangedSnapshot,
+    ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_notifications(
+            |hooks| hooks.player.as_ref(),
+            |module, effects| module.on_level_changed(snapshot, effects),
+        )
+    }
+
+    /// `player.money_changed`.
+    pub fn dispatch_player_money_changed(
+        &self,
+        snapshot: &PlayerMoneyChangedSnapshot,
+    ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_notifications(
+            |hooks| hooks.player.as_ref(),
+            |module, effects| module.on_money_changed(snapshot, effects),
+        )
+    }
+
+    /// `player.quest_accepted`.
+    pub fn dispatch_quest_accepted(
+        &self,
+        snapshot: &QuestAcceptedSnapshot,
+    ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_notifications(
+            |hooks| hooks.player.as_ref(),
+            |module, effects| module.on_quest_accepted(snapshot, effects),
+        )
+    }
+
+    /// `player.quest_rewarded`.
+    pub fn dispatch_quest_rewarded(
+        &self,
+        snapshot: &QuestRewardedSnapshot,
+    ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_notifications(
+            |hooks| hooks.player.as_ref(),
+            |module, effects| module.on_quest_rewarded(snapshot, effects),
         )
     }
 

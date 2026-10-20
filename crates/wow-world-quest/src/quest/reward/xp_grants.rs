@@ -387,13 +387,39 @@ impl QuestRewardCx<'_> {
         ) else {
             return;
         };
-        match port.persist_xp_like_cpp(request).await {
-            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
+        let persisted = match port.persist_xp_like_cpp(request).await {
+            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => true,
             wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
             | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
                 tracing::warn!(
                     guid = guid.counter(),
                     "Failed to atomically persist represented XP/rest state: {reason}"
+                );
+                false
+            }
+        };
+
+        // AzerothCore `Player::GiveLevel` ends with `OnPlayerLevelChanged`
+        // (`Player.cpp:2585`), and `GiveXP` calls `GiveLevel` once per level
+        // gained (TrinityCore `Player.cpp:2231-2236`). Modules observe each
+        // level step, in order, only once the XP save applied: a failed or
+        // unknown save is not a durable level (#1444).
+        if level_changed && persisted && self.module_hooks.player_hooks_wanted_like_cpp() {
+            let new_level = {
+                let player = self.xp_gain_access_like_cpp();
+                player.player_level_like_cpp(
+                    #[cfg(any(test, feature = "test-fixtures"))]
+                    &*self.player_level,
+                )
+            };
+            for old_level in old_level..new_level {
+                self.module_hooks.player_level_changed_like_cpp(
+                    self.player.packet_publication_access_like_cpp(),
+                    &crate::PlayerLevelChangedHookEventLikeCpp {
+                        guid,
+                        old_level,
+                        new_level: old_level + 1,
+                    },
                 );
             }
         }

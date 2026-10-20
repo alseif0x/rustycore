@@ -31,6 +31,7 @@ mod config;
 mod decision;
 mod effect;
 mod hook;
+mod player;
 mod registry;
 
 pub use config::{ModuleConfig, ModuleConfigError, ModuleConfigValue};
@@ -40,6 +41,10 @@ pub use effect::{
     PlayerLoginEffects, ScopedEffects,
 };
 pub use hook::{PlayerLoginModule, PlayerLoginSnapshot};
+pub use player::{
+    LogoutReason, PlayerLevelChangedSnapshot, PlayerLogoutSnapshot, PlayerModule,
+    PlayerMoneyChangedSnapshot, QuestAcceptedSnapshot, QuestRewardedSnapshot,
+};
 pub use registry::{
     HookFamily, ModuleDescriptor, ModuleHooks, ModuleId, ModuleRegistrationError, ModuleRegistry,
     ModuleVersion, module_callback_in_progress,

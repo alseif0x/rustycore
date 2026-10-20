@@ -121,6 +121,20 @@ impl DurableLootMoneyPersistenceTrackerLikeCpp {
         state.permanently_closed = true;
     }
 
+    /// Whether no exclusive player-money fence is held right now: payout
+    /// admission is open and the money-mutation lock is free. Lets tests prove
+    /// that module hooks never run under the #169 money fence (#1444).
+    #[cfg(any(test, feature = "test-fixtures"))]
+    #[must_use]
+    pub fn exclusive_money_fence_is_free_like_cpp(&self) -> bool {
+        let admission_open = !self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .admission_closed;
+        admission_open && self.money_mutation_serial.try_lock().is_ok()
+    }
+
     pub async fn wait_until_idle_like_cpp(&self) {
         let mut changed = self.changed.subscribe();
         loop {
