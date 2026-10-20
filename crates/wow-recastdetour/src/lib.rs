@@ -171,7 +171,9 @@ unsafe extern "C" {
         path_count: *mut i32,
         max_path: i32,
     ) -> DetourStatus;
+    #[cfg(any(test, feature = "test-fixtures"))]
     fn rustycore_dt_free(ptr: *mut std::ffi::c_void);
+    #[cfg(test)]
     fn rustycore_dt_create_square_tile_data(
         tile_x: i32,
         tile_y: i32,

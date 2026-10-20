@@ -9,6 +9,7 @@ from check_shared import *  # noqa: F401,F403
 from check_policy import *  # noqa: F401,F403
 from check_dependencies import *  # noqa: F401,F403
 from check_runtime import *  # noqa: F401,F403
+from external_path_fixtures import run_external_path_self_tests
 
 def synthetic_metadata(
     package_names: set[str], edges: set[tuple[str, str, str]]
@@ -145,6 +146,7 @@ def fixture_policy(
 
 
 def run_fixture_self_tests(policy: dict[str, Any]) -> None:
+    run_external_path_self_tests()
     expected_metadata_command = (
         "cargo",
         "metadata",

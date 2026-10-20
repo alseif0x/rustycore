@@ -539,10 +539,10 @@ pub fn build_raycast_poly_path_like_cpp(
     let start_far_from_poly = dist_to_start_poly > 7.0;
     let end_far_from_poly = dist_to_end_poly > 7.0;
 
-    if start_far_from_poly || end_far_from_poly {
-        if let Ok((closest, _)) = query.closest_point_on_poly(end_poly, end_point) {
-            end_point = closest;
-        }
+    if (start_far_from_poly || end_far_from_poly)
+        && let Ok((closest, _)) = query.closest_point_on_poly(end_poly, end_point)
+    {
+        end_point = closest;
     }
 
     let raycast = match query.raycast(

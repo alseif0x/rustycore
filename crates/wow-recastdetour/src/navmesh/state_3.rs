@@ -72,10 +72,10 @@ pub fn find_smooth_path_like_cpp(
         polys = fixup_corridor_like_cpp(&polys, MAX_PATH_LENGTH_LIKE_CPP, &moved.visited);
 
         let mut result = moved.result_position;
-        if let Some(first_poly) = polys.first().copied() {
-            if let Ok(height) = query.get_poly_height(first_poly, result) {
-                result[1] = height;
-            }
+        if let Some(first_poly) = polys.first().copied()
+            && let Ok(height) = query.get_poly_height(first_poly, result)
+        {
+            result[1] = height;
         }
         result[1] += 0.5;
         iter_pos = result;
@@ -196,6 +196,19 @@ pub enum DetourTileError {
 pub enum DetourNavMeshQueryError {
     #[error("Detour navmesh query allocation failed")]
     AllocationFailed,
+    #[error(
+        "Detour navmesh query node limit is outside the supported range 4..=65535: {max_nodes}"
+    )]
+    InvalidNodeLimit { max_nodes: i32 },
+    #[error(
+        "instance query ({instance_map_id}, {instance_id}) already retains node limit {existing}, cannot replace it with {requested}; unload it first"
+    )]
+    ConflictingNodeLimit {
+        instance_map_id: u32,
+        instance_id: u32,
+        existing: i32,
+        requested: i32,
+    },
     #[error("Detour navmesh query initialization failed with status 0x{status:08x}")]
     InitFailed { status: DetourStatus },
     #[error("Detour findNearestPoly failed with status 0x{status:08x}")]
@@ -340,12 +353,34 @@ impl MMapData {
         instance_map_id: u32,
         instance_id: u32,
     ) -> Result<bool, DetourNavMeshQueryError> {
+        self.load_nav_mesh_query_with_max_nodes(instance_map_id, instance_id, 1024)
+    }
+
+    /// Loads one retained instance query with a caller-selected Detour node
+    /// budget, constrained to the node-pool range supported by this build.
+    /// Repeating the same budget is a no-op; changing it requires unloading
+    /// the retained query first.
+    pub fn load_nav_mesh_query_with_max_nodes(
+        &mut self,
+        instance_map_id: u32,
+        instance_id: u32,
+        max_nodes: i32,
+    ) -> Result<bool, DetourNavMeshQueryError> {
+        super::state_1::validate_detour_query_node_limit(max_nodes)?;
         let key = (instance_map_id, instance_id);
-        if self.nav_mesh_queries.contains_key(&key) {
-            return Ok(true);
+        if let Some(existing) = self.nav_mesh_queries.get(&key) {
+            if existing.max_nodes == max_nodes {
+                return Ok(true);
+            }
+            return Err(DetourNavMeshQueryError::ConflictingNodeLimit {
+                instance_map_id,
+                instance_id,
+                existing: existing.max_nodes,
+                requested: max_nodes,
+            });
         }
 
-        let query = MMapNavMeshQuery::new(&self.nav_mesh, 1024)?;
+        let query = MMapNavMeshQuery::new(&self.nav_mesh, max_nodes)?;
         self.nav_mesh_queries.insert(key, query);
         Ok(true)
     }
@@ -641,6 +676,25 @@ impl MMapManager {
         instance_map_id: u32,
         instance_id: u32,
     ) -> Result<bool, MMapManagerError> {
+        self.load_map_instance_with_max_nodes(
+            base_path,
+            mesh_map_id,
+            instance_map_id,
+            instance_id,
+            1024,
+        )
+    }
+
+    pub fn load_map_instance_with_max_nodes(
+        &mut self,
+        base_path: impl AsRef<Path>,
+        mesh_map_id: u32,
+        instance_map_id: u32,
+        instance_id: u32,
+        max_nodes: i32,
+    ) -> Result<bool, MMapManagerError> {
+        super::state_1::validate_detour_query_node_limit(max_nodes)
+            .map_err(MMapManagerError::NavMeshQuery)?;
         self.load_map_data(base_path, mesh_map_id)?;
 
         let Some(data) = self
@@ -651,7 +705,7 @@ impl MMapManager {
             return Ok(false);
         };
 
-        data.load_nav_mesh_query(instance_map_id, instance_id)
+        data.load_nav_mesh_query_with_max_nodes(instance_map_id, instance_id, max_nodes)
             .map_err(MMapManagerError::NavMeshQuery)
     }
 

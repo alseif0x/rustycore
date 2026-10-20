@@ -1,5 +1,30 @@
 # WoW Forever 1.60.1 login-only runbook
 
+## Selected Linux navigation library candidate — 2026-10-20
+
+Extractor issue 104 supplies the shared Linux V23 package admission API. The
+optional `wow-world/forever-navigation` adapter binds exact expected identity,
+checks Detour v7 ground payloads and reuses the existing `MMapManager` and owner
+thread. Native state remains authoritative; batch preflight, rollback, retained
+query budgets and explicit unload fence its lifecycle. The worker preserves raw
+corridor status, including partial results, and bounds paths to 256 polygons.
+The lower-level SDK permits up to 4,096; these are separate bounds.
+
+The candidate uses an exact sibling-library dependency policy. It does not
+include the pending terrain adapter, spell-fixture repairs or local operator
+configuration. The existing checkout and its other work remain intact.
+Committed-candidate validation is pending in a separate source tree with the
+extractor pinned to `3baac307329bd0391cd7f083a55e03b982081b27`. Earlier acceptance
+of a mixed development tree is retained at its actual scope and is not
+transferred to this isolated candidate.
+
+The server does not instantiate this capability. This is library integration,
+without full-world, complete geometry, movement/gameplay or server runtime
+acceptance. No key recovery, client/launcher operation, server activation,
+Windows delivery or release publication is established. Creation/world entry
+remain paused. The existing experimental publication exception covers only
+unchanged inherited architecture debt, never new failures or a green final.
+
 The target branch is **`forever`**, renamed from `1.60.1` on 2026-10-02.
 This is an independent version line based on `3.4.3`, not a feature branch to
 merge back wholesale. Historical acceptance names below refer to the old name.

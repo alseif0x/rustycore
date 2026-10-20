@@ -1,5 +1,21 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## Selected Linux navigation library candidate — 2026-10-20
+
+The optional `wow-world/forever-navigation` feature admits the extractor's
+versioned selected navigation package through its shared library API. It uses
+the existing native mesh/query owner and pathfinder worker with explicit
+prepare, query and unload operations. Checked ground-payload admission precedes
+native loading; query budgets and raw partial-path status remain explicit.
+
+This candidate is isolated from pending terrain, spell-fixture and operator
+configuration changes. Its committed-candidate acceptance is pending; earlier
+scoped evidence does not establish acceptance of this isolated tree. The server
+does not instantiate the optional capability. Full-world resources, complete
+geometry, movement/gameplay and server runtime acceptance remain open; creation
+and world entry stay paused. See the owning navigation candidate section in
+the [runbook](../operations/forever-login.md).
+
 Branch naming, 2026-10-02: the experimental target branch is now **`forever`**
 (renamed from `1.60.1`, with the same published commit `4d3c029a`). Client target
 remains `1.60.1.70170`; `3.4.3` is a separate development line, not the merge
