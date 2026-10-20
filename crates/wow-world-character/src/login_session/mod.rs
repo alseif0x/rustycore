@@ -19,7 +19,7 @@
 //! same-named `WorldSession` operation, called at the exact point the body
 //! called it before the move, and a method returning a future returns the
 //! session's own future unchanged. The continue-login coordinator
-//! (`WorldSession::handle_continue_player_login_with_module_registry_like_cpp`)
+//! (`WorldSession::handle_continue_player_login_with_catalogs_like_cpp`)
 //! stays in the World and calls these functions.
 
 use std::collections::{HashMap, HashSet};

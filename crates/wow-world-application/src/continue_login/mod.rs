@@ -70,6 +70,7 @@ use crate::SessionLifecycleHostLikeCpp;
 mod hydration;
 mod identity;
 mod login;
+mod login_hook;
 mod passive_auras;
 mod spell_reset;
 
@@ -80,7 +81,8 @@ pub use hydration::{
     login_known_spells_after_account_collections_like_cpp,
 };
 pub use identity::{gender_from_u8, set_loaded_player_identity_like_cpp};
-pub use login::handle_continue_player_login_with_module_registry_like_cpp;
+pub use login::handle_continue_player_login_with_catalogs_like_cpp;
+pub use login_hook::PlayerLoginHookEventLikeCpp;
 pub use passive_auras::{
     apply_loaded_known_spell_previous_rank_passive_auras_like_cpp,
     apply_login_passive_known_spell_auras_like_cpp,
@@ -94,6 +96,18 @@ pub const PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP: u32 = 0x0000_0800;
 pub trait ContinueLoginHostLikeCpp:
     SessionLifecycleHostLikeCpp + SpellExecutionHostLikeCpp + QuestSessionHostLikeCpp
 {
+    /// Hook port for `player.login` (#1445): C++ `ScriptMgr::OnPlayerLogin`
+    /// after a completed login. The World adapter dispatches it to the
+    /// trusted linked modules; the default, used by every test host, does
+    /// nothing. Called with no split borrow, map guard or await in scope.
+    fn player_login_hook_like_cpp(&mut self, _event: &PlayerLoginHookEventLikeCpp) {}
+    /// Whether any linked module wants `player.login`. The login reads the
+    /// event (name, race, class, level: canonical Player reads that take the
+    /// map lock) only when this is true, so the zero-module login does no
+    /// extra work. The default, used by every test host, wants nothing.
+    fn player_login_hook_wanted_like_cpp(&self) -> bool {
+        false
+    }
     fn apply_initial_loaded_item_mods_like_cpp(
         &mut self,
         loaded_equipped_item_guids: &[ObjectGuid],

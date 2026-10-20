@@ -22,10 +22,14 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 MODULES_DIR = REPO_ROOT / "modules"
 LOCK_PATH = REPO_ROOT / "modules.lock.toml"
 COMPOSITOR = REPO_ROOT / "crates" / "world-modules"
-SUPPORTED_SOURCE_API = "1"
+# Mirrors `wow_module_api::SOURCE_API` / `COMPATIBLE_SOURCE_APIS`; the module
+# manager tests assert both sides agree. API 2 (#1445) is additive over API 1.
+SUPPORTED_SOURCE_API = "2"
 # Source APIs this server still accepts. A module asking for anything else
 # fails at composition, long before a player logs in.
-COMPATIBLE_SOURCE_APIS = {"1"}
+COMPATIBLE_SOURCE_APIS = {"1", "2"}
+# The one workspace crate a module may depend on (ADR-002, #1445 S0).
+MODULE_API_PACKAGE = "wow-module-api"
 CONFIG_OVERRIDE_DIR = REPO_ROOT / "conf" / "modules"
 
 ID_RE = re.compile(r"^[a-z][a-z0-9_.]{0,63}$")
@@ -94,6 +98,7 @@ def parse_manifest(root: pathlib.Path, manifest: pathlib.Path) -> dict:
     _require((resolved / "Cargo.toml").is_file(), f"{where}: {crate_path} has no Cargo.toml")
     registrar = build.get("registrar", "")
     _require(bool(REGISTRAR_RE.match(registrar)), f"{where}: invalid registrar {registrar!r}")
+    reject_server_dependencies(root, resolved, where)
 
     source_api = str(compat.get("source_api", ""))
     _require(
@@ -119,6 +124,99 @@ def parse_manifest(root: pathlib.Path, manifest: pathlib.Path) -> dict:
         "config_digest": config_digest(config),
         "order": module.get("order", 0),
     }
+
+
+def workspace_packages() -> dict[str, pathlib.Path]:
+    """Every package the server workspace provides, by name, with its directory.
+
+    Reads the root `[workspace] members` and, so a partial checkout is still
+    covered, every `crates/*/Cargo.toml`.
+    """
+    found: dict[str, pathlib.Path] = {}
+    candidates: list[pathlib.Path] = []
+    root_manifest = REPO_ROOT / "Cargo.toml"
+    if root_manifest.is_file():
+        members = tomllib.loads(root_manifest.read_text(encoding="utf-8"))
+        candidates += [
+            REPO_ROOT / member
+            for member in members.get("workspace", {}).get("members", [])
+            if "*" not in member
+        ]
+    candidates += sorted(p.parent for p in (REPO_ROOT / "crates").glob("*/Cargo.toml"))
+    for directory in candidates:
+        manifest = directory / "Cargo.toml"
+        if not manifest.is_file():
+            continue
+        name = tomllib.loads(manifest.read_text(encoding="utf-8")).get("package", {}).get("name")
+        if name:
+            found.setdefault(name, directory.resolve())
+    return found
+
+
+def _normal_dependency_tables(cargo: dict) -> list[dict]:
+    """`[dependencies]` plus every `[target.<cfg>.dependencies]`."""
+    tables = [cargo.get("dependencies", {})]
+    tables += [t.get("dependencies", {}) for t in cargo.get("target", {}).values()]
+    return tables
+
+
+def reject_server_dependencies(root: pathlib.Path, crate_dir: pathlib.Path, where) -> None:
+    """A module may depend on no workspace crate except `wow-module-api`.
+
+    This is ADR-002's real invariant (#1445 S0): the public contract is the
+    only server surface a module compiles against, so it cannot obtain a
+    session, a map or a packet writer through a type. The rule follows every
+    path dependency that stays inside the module checkout, so a helper crate
+    there cannot carry a server dependency in on the module's behalf.
+    Development dependencies are not checked; `wow-module-api` re-exports
+    `ObjectGuid`, so a module's tests need no other server crate either.
+    """
+    workspace = workspace_packages()
+    api_dir = workspace.get(MODULE_API_PACKAGE)
+    root_deps = {}
+    root_manifest = REPO_ROOT / "Cargo.toml"
+    if root_manifest.is_file():
+        root_deps = (
+            tomllib.loads(root_manifest.read_text(encoding="utf-8"))
+            .get("workspace", {})
+            .get("dependencies", {})
+        )
+    module_root = root.resolve()
+    pending = [crate_dir.resolve()]
+    visited: set[pathlib.Path] = set()
+    while pending:
+        current = pending.pop()
+        if current in visited:
+            continue
+        visited.add(current)
+        manifest = current / "Cargo.toml"
+        if not manifest.is_file():
+            continue
+        cargo = tomllib.loads(manifest.read_text(encoding="utf-8"))
+        for table in _normal_dependency_tables(cargo):
+            for key, spec in table.items():
+                spec = spec if isinstance(spec, dict) else {}
+                package = spec.get("package", key)
+                base = current
+                if spec.get("workspace") is True:
+                    inherited = root_deps.get(key, {})
+                    spec = inherited if isinstance(inherited, dict) else {}
+                    package = spec.get("package", key)
+                    base = REPO_ROOT
+                target = (base / spec["path"]).resolve() if "path" in spec else None
+                inside_server = target is not None and target.is_relative_to(REPO_ROOT.resolve())
+                inside_module = target is not None and target.is_relative_to(module_root)
+                is_api = package == MODULE_API_PACKAGE and (target is None or target == api_dir)
+                if is_api:
+                    continue
+                _require(
+                    package not in workspace and not (inside_server and not inside_module),
+                    f"{where}: the module crate depends on server crate {package!r}; a module "
+                    f"may depend only on {MODULE_API_PACKAGE} among the server's crates "
+                    f"(ADR-002)",
+                )
+                if inside_module:
+                    pending.append(target)
 
 
 CONFIG_KEY_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")

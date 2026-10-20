@@ -300,9 +300,8 @@ impl WorldSession {
         // Check for instance link delivery (ConnectTo flow)
         self.core
             .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PollInstanceLink);
-        self.poll_instance_link_with_module_registry_like_cpp(
+        self.poll_instance_link_with_catalogs_like_cpp(
             catalogs.id_generators.item.as_ref(),
-            catalogs.modules.as_ref(),
             catalogs.creature_spawns.as_ref(),
             catalogs.player_bootstrap.as_ref(),
             catalogs.player_rest_rates.as_ref(),
@@ -442,11 +441,7 @@ impl WorldSession {
                 .clone()
                 .unwrap_or(empty_catalogs.tact_keys),
             hotfixes: empty_catalogs.hotfixes,
-            modules: self
-                .core
-                .module_registry_like_cpp
-                .clone()
-                .unwrap_or(empty_catalogs.modules),
+            modules: Arc::clone(self.module_hooks.registry_like_cpp()),
             id_generators: Arc::new(self.id_generators_for_test_like_cpp()),
         };
         catalogs

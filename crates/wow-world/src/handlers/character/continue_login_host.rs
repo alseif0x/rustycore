@@ -13,7 +13,9 @@
 
 use std::future::Future;
 
-use wow_world_application::{ContinueLoginHostLikeCpp, apply_initial_loaded_item_mods_like_cpp};
+use wow_world_application::{
+    ContinueLoginHostLikeCpp, PlayerLoginHookEventLikeCpp, apply_initial_loaded_item_mods_like_cpp,
+};
 use wow_world_inventory::InitialLoadedItemModsOutcomeLikeCpp;
 
 use super::*;
@@ -21,10 +23,9 @@ use crate::session::PlayerRestRatePolicyLikeCpp;
 
 impl WorldSession {
     /// Continue the player login after the instance socket is connected.
-    pub async fn handle_continue_player_login_with_module_registry_like_cpp(
+    pub async fn handle_continue_player_login_with_catalogs_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
-        modules: &wow_module_api::ModuleRegistry,
         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
         player_bootstrap: &PlayerBootstrapCatalogsLikeCpp,
         player_rest_rates: &PlayerRestRatePolicyLikeCpp,
@@ -32,10 +33,9 @@ impl WorldSession {
         feature_policy: &SupportFeaturePolicyLikeCpp,
         player_grid_loader: &crate::session::PlayerGridLoadResolverLikeCpp,
     ) {
-        wow_world_application::handle_continue_player_login_with_module_registry_like_cpp(
+        wow_world_application::handle_continue_player_login_with_catalogs_like_cpp(
             self,
             item_guid_generator,
-            modules,
             creature_spawn_catalogs,
             player_bootstrap,
             player_rest_rates,
@@ -48,6 +48,14 @@ impl WorldSession {
 }
 
 impl ContinueLoginHostLikeCpp for WorldSession {
+    /// The `player.login` hook port, dispatched by the World module adapter.
+    fn player_login_hook_like_cpp(&mut self, event: &PlayerLoginHookEventLikeCpp) {
+        self.module_hooks.player_login_like_cpp(&self.core, event);
+    }
+    fn player_login_hook_wanted_like_cpp(&self) -> bool {
+        self.module_hooks
+            .wants_like_cpp(wow_module_api::HookFamily::PlayerLogin)
+    }
     fn apply_initial_loaded_item_mods_like_cpp(
         &mut self,
         loaded_equipped_item_guids: &[ObjectGuid],

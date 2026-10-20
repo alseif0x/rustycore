@@ -15,6 +15,10 @@ use crate::effect::ScopedEffects;
 /// (`ScriptMgr.h:764`). A trusted-but-external module gets a copy instead: it
 /// can decide, but it cannot mutate the player, reach the session, or retain a
 /// reference that outlives the hook.
+///
+/// Source API 1 modules build this with a struct literal in their tests, so
+/// it stays exhaustive. Snapshots added by source API 2 are
+/// `#[non_exhaustive]` and come with a constructor instead.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PlayerLoginSnapshot {
     pub guid: ObjectGuid,
@@ -27,7 +31,11 @@ pub struct PlayerLoginSnapshot {
     pub first_login: bool,
 }
 
-/// A module that wants to observe completed logins.
+/// A module that wants to observe completed logins: the `player.login` family.
+///
+/// AzerothCore `PlayerScript::OnPlayerLogin` (`PlayerScript.h:332`), called
+/// from `ScriptMgr::OnPlayerLogin` after `WorldSession::HandlePlayerLogin`
+/// finished entering the world.
 pub trait PlayerLoginModule: Send + Sync {
     /// Mirrors C++ `PlayerScript::OnLogin`, invoked once per completed login.
     ///

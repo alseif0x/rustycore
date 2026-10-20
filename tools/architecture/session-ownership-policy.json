@@ -84,6 +84,13 @@
           "source_class": "production"
         },
         {
+          "name": "module_hooks",
+          "type": "crate :: session :: SessionModuleHooksLikeCpp",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "name": "phase",
           "type": "SessionPhaseRail",
           "visibility": "pub (in crate :: session)",
@@ -4093,9 +4100,9 @@
           "module": "crate::handlers::character::continue_login_host",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_continue_player_login_with_module_registry_like_cpp",
+          "name": "handle_continue_player_login_with_catalogs_like_cpp",
           "visibility": "pub",
-          "signature": "async fn handle_continue_player_login_with_module_registry_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , modules : & wow_module_api :: ModuleRegistry , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , player_bootstrap : & PlayerBootstrapCatalogsLikeCpp , player_rest_rates : & PlayerRestRatePolicyLikeCpp , progression : & crate :: session :: ProgressionCatalogsLikeCpp , feature_policy : & SupportFeaturePolicyLikeCpp , player_grid_loader : & crate :: session :: PlayerGridLoadResolverLikeCpp ,)",
+          "signature": "async fn handle_continue_player_login_with_catalogs_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , player_bootstrap : & PlayerBootstrapCatalogsLikeCpp , player_rest_rates : & PlayerRestRatePolicyLikeCpp , progression : & crate :: session :: ProgressionCatalogsLikeCpp , feature_policy : & SupportFeaturePolicyLikeCpp , player_grid_loader : & crate :: session :: PlayerGridLoadResolverLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -4194,6 +4201,34 @@
           "name": "load_player_quests",
           "visibility": "private",
           "signature": "fn load_player_quests (& mut self) -> impl Future < Output = () > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::continue_login_host",
+          "trait_path": "ContinueLoginHostLikeCpp",
+          "kind": "method",
+          "name": "player_login_hook_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_login_hook_like_cpp (& mut self , event : & PlayerLoginHookEventLikeCpp)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::continue_login_host",
+          "trait_path": "ContinueLoginHostLikeCpp",
+          "kind": "method",
+          "name": "player_login_hook_wanted_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_login_hook_wanted_like_cpp (& self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -24288,6 +24323,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "install_module_hooks_like_cpp",
+          "visibility": "pub",
+          "signature": "fn install_module_hooks_like_cpp (& mut self , registry : Arc < wow_module_api :: ModuleRegistry >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "install_realm_packet_channel",
           "visibility": "pub (crate)",
           "signature": "fn install_realm_packet_channel (& mut self , rx : flume :: Receiver < wow_packet :: WorldPacket > ,)",
@@ -26551,9 +26599,9 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "poll_instance_link_with_module_registry_like_cpp",
+          "name": "poll_instance_link_with_catalogs_like_cpp",
           "visibility": "pub (super)",
-          "signature": "async fn poll_instance_link_with_module_registry_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , modules : & wow_module_api :: ModuleRegistry , creature_spawn_catalogs : & super :: CreatureSpawnCatalogsLikeCpp , player_bootstrap : & super :: PlayerBootstrapCatalogsLikeCpp , player_rest_rates : & super :: PlayerRestRatePolicyLikeCpp , progression : & super :: ProgressionCatalogsLikeCpp , feature_policy : & super :: SupportFeaturePolicyLikeCpp , player_grid_loader : & super :: PlayerGridLoadResolverLikeCpp ,)",
+          "signature": "async fn poll_instance_link_with_catalogs_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & super :: CreatureSpawnCatalogsLikeCpp , player_bootstrap : & super :: PlayerBootstrapCatalogsLikeCpp , player_rest_rates : & super :: PlayerRestRatePolicyLikeCpp , progression : & super :: ProgressionCatalogsLikeCpp , feature_policy : & super :: SupportFeaturePolicyLikeCpp , player_grid_loader : & super :: PlayerGridLoadResolverLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -40756,24 +40804,6 @@
           "package": "wow-world-core",
           "module": "crate::session::state::session_core",
           "availability": {
-            "production": false,
-            "test": true
-          },
-          "declaration_ordinal": 34,
-          "field": {
-            "name": "module_registry_like_cpp",
-            "type": "Option < Arc < wow_module_api :: ModuleRegistry > >",
-            "visibility": "pub",
-            "cfg": [
-              "cfg (any (test , feature = \"test-fixtures\"))"
-            ],
-            "source_class": "test_fixture"
-          }
-        },
-        {
-          "package": "wow-world-core",
-          "module": "crate::session::state::session_core",
-          "availability": {
             "production": true,
             "test": true
           },
@@ -41225,7 +41255,7 @@
             "production": true,
             "test": true
           },
-          "declaration_ordinal": 35,
+          "declaration_ordinal": 34,
           "field": {
             "name": "client_visible_guids_like_cpp",
             "type": "SharedClientVisibleGuidsLikeCpp",
@@ -46515,7 +46545,7 @@
         "source_class": "production"
       },
       "signature": "async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , live_terrain : Arc < wow_world :: terrain :: LiveTerrainHeights > , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , creature_aggro_config : wow_world :: session :: CreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)",
-      "body_fingerprint": "fnv1a64x2:baacba308c275ff1690a118b9436c408:len=4052",
+      "body_fingerprint": "fnv1a64x2:7c336e8b39b8da56e794a5601ebf36e9:len=4159",
       "session_helper_bodies": [
         {
           "module": "crate::session_factory",
@@ -46776,6 +46806,16 @@
           "count": 1
         },
         {
+          "module": "crate::session::module_hooks::tests",
+          "callee": "WorldSession::new",
+          "argument_count": 11,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "count": 1
+        },
+        {
           "module": "crate::session::social::group_tests",
           "callee": "WorldSession::new",
           "argument_count": 11,
@@ -46904,6 +46944,14 @@
         {
           "module": "crate::session_factory",
           "callee": "resources . world.install_into_session_like_cpp",
+          "argument_count": 1,
+          "cfg": [],
+          "source_class": "production",
+          "count": 1
+        },
+        {
+          "module": "crate::session_factory",
+          "callee": "session.install_module_hooks_like_cpp",
           "argument_count": 1,
           "cfg": [],
           "source_class": "production",

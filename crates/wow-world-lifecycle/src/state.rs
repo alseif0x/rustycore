@@ -28,7 +28,6 @@ mod load;
 mod login_claims;
 mod login_load;
 mod logout;
-mod module_login;
 mod money_persistence;
 mod money_plans;
 mod persistence_ports;

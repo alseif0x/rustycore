@@ -40,6 +40,9 @@ async fn run_inner(
         )
         .init();
     wow_logging::install_panic_hook_like_cpp();
+    // A panic inside a linked-module callback is caught at the module boundary
+    // and only disables that module (#1445): log it as contained, not fatal.
+    wow_logging::set_contained_panic_probe_like_cpp(wow_module_api::module_callback_in_progress);
 
     let cli = WorldServerCliLikeCpp::parse_from(args);
     if cli.show_help {

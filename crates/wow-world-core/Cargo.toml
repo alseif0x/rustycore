@@ -8,7 +8,7 @@ publish = false
 
 [features]
 # Preserve the World fixture gate and its kernel test-support dependency.
-test-fixtures = ["dep:wow-module-api", "dep:wow-script", "wow-session/test-support"]
+test-fixtures = ["dep:wow-script", "wow-session/test-support"]
 
 [dependencies]
 dashmap = { workspace = true }
@@ -30,7 +30,6 @@ wow-instances = { workspace = true }
 wow-loot = { workspace = true }
 wow-map = { workspace = true }
 wow-movement = { workspace = true }
-wow-module-api = { workspace = true, optional = true }
 wow-network = { workspace = true }
 wow-persistence = { workspace = true }
 wow-progression = { workspace = true }
@@ -41,7 +40,6 @@ wow-script = { workspace = true, optional = true }
 
 [dev-dependencies]
 wow-recastdetour = { workspace = true, features = ["test-fixtures"] }
-wow-module-api = { workspace = true }
 wow-session = { workspace = true, features = ["test-support"] }
 wow-script = { workspace = true }
 

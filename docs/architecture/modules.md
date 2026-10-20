@@ -65,18 +65,25 @@ Git installation/update workflow; no compositor `build.rs` discovers or rewrites
 source tree implicitly. Ordinary dependency downloads still follow Cargo's configuration.
 
 The compositor invokes registrars in the operator's `order`, then module id
-(`tools/modules/compose.py::ordered` / `render_main`). Current login callbacks instead run
-in `ModuleId` order, because `ModuleRegistry` stores them in a `BTreeMap`. These are two
-distinct deterministic orders, neither inferred from linker inventory. Operator composition
-order does not currently set callback order; future modifying hooks need an explicit
-composition/conflict contract rather than inheriting this distinction accidentally.
+(`tools/modules/compose.py::ordered` / `render_main`). Hook callbacks of every family instead
+run in `ModuleId` order, because `ModuleRegistry` stores modules in a `BTreeMap`. These are two
+distinct deterministic orders, neither inferred from linker inventory: `modules.lock.toml`'s
+`enabled_order` records the registration order only. Operator composition order does not set
+callback order; a pre-decision family states its own composition rule (for `chat.message`, the
+first `Deny` wins and `ReplaceText` chains in `ModuleId` order).
 
 ## What the compositor refuses before compiling
 
 - an id, version, package, crate path or registrar that fails its format rule;
 - a `crate_path` that escapes the module checkout;
 - a duplicate module id or duplicate Cargo package across checkouts;
-- a `source_api` this server does not provide.
+- a `source_api` this server does not provide;
+- a module crate with a normal dependency (`[dependencies]` or `[target.*.dependencies]`) on
+  any server workspace crate other than `wow-module-api`, whether by name, by a `path` into
+  the server tree or by `workspace = true`, including through a helper crate inside the module
+  checkout (#1445, ADR-002). `wow-module-api` re-exports `ObjectGuid`, so neither a module nor
+  its tests need `wow-core`; development dependencies are not checked.
+  `tools/modules/fixtures/forbidden_dependency/` is the refusal fixture.
 
 ## `modules.lock.toml`
 
@@ -88,8 +95,9 @@ It holds no credentials and no URLs with secrets.
 
 With nothing under `modules/`, the compositor is a no-op that calls
 `world_server::run_with_modules` with an empty registry, and `world-server`'s own
-binary still calls `world_server::run`. That entry creates an empty registry; the login adapter
-checks `registry.is_empty()` and returns before constructing a snapshot or invoking callbacks.
+binary still calls `world_server::run`. That entry creates an empty registry; each World
+adapter entry checks `registry.handles(<family>)` and returns before constructing a snapshot
+or invoking callbacks, and the domain hook ports default to doing nothing.
 This is the current zero-module source path, not fresh capture proof for every server action.
 
 ## The module manager
@@ -200,9 +208,66 @@ its options.
 server does not provide, with an actionable message, before a single line is compiled:
 
 ```
-modules/incompatible_api/module.toml: source_api '2' is not supported;
-this server provides ['1']. Update the module or pin an older server.
+modules/incompatible_api/module.toml: source_api '3' is not supported;
+this server provides ['1', '2']. Update the module or pin an older server.
 ```
+
+`wow_module_api::SOURCE_API` and `COMPATIBLE_SOURCE_APIS` are the Rust side of the same
+numbers; `test_rustycore_module.py` asserts the composer agrees with them.
+
+## Source API 2: hook families, ports and the World adapter (#1445)
+
+API 2 is **additive**. An API 1 module (the skeleton, `register_player_login_module`,
+`PlayerLoginSnapshot` built with a struct literal, an exhaustive match on `PlayerLoginEffect`)
+compiles and runs unchanged; the server records `source_api = "2"` and each module keeps its own.
+
+**Registry by capability.** A module registers one `ModuleHooks` set with `register_module`,
+offering one `Arc` per hook family it implements, so one value can serve several families and
+keep one in-memory state. `register_player_login_module` is that call with only `player.login`.
+A set with no family is refused. Families follow AzerothCore's script classes
+(`src/server/game/Scripting/ScriptDefines/*.h`); `HookFamily` names them and
+`registry.handles(family)` lets an owner skip building a snapshot nobody receives.
+
+**Contract shape.** `wow-module-api` re-exports `ObjectGuid`, so a module names every type it
+needs through that one crate. Snapshots are owned copies; API 2 snapshots are `#[non_exhaustive]` with a
+constructor, so fields can be added without breaking modules. Effects are per family and
+validated as one batch, all or nothing (`EffectBatch`). Confirmed-result hooks return
+`NotificationEffect::SendSystemMessageSelf`; the pre-decision type `ChatDecision`
+(`Allow`/`Deny`/`ReplaceText`) is declared for `chat.message`.
+
+**Failure isolation.** Each callback runs under `catch_unwind` with `AssertUnwindSafe`: what a
+panicking callback queued is discarded, and the module is disabled for every family for the rest
+of the process (`HookOutcome::disabled`, `registry.is_disabled`). The other modules' batch still
+applies. Native modules are trusted code; this is isolation from bugs, not a sandbox. It needs
+unwinding panics, so no workspace profile may set `panic = "abort"` (a `wow-module-api` test
+checks it). `world-server` registers `wow_module_api::module_callback_in_progress` with the
+`wow-logging` panic hook, which then logs such a panic as contained instead of
+`Trinity::Fatal`-like.
+
+**Ports, not dependencies.** Domain crates never depend on `wow-module-api`. A hook point is a
+provided method on the domain's existing host trait with an empty default body, taking a plain
+domain event (for login, `ContinueLoginHostLikeCpp::player_login_hook_like_cpp` with
+`PlayerLoginHookEventLikeCpp`). Where building the event costs anything (canonical Player reads
+take the map lock), the port has a provided interest query too
+(`player_login_hook_wanted_like_cpp`, default `false`, answered by the World from
+`registry.handles`), so a zero-module server builds nothing. `WorldSession` overrides the port and calls the World adapter,
+`crates/wow-world/src/session/module_hooks.rs`, the one place that converts the event to the
+public snapshot, dispatches and applies the validated effects through the canonical owner. Test
+hosts implement nothing. No `wow-world*` dependency edge is added, so `wow_world_closure.py` and
+`dependency-policy.json` are unchanged; `wow-world-application`, `wow-world-lifecycle` and
+`wow-world-core` no longer depend on the module API at all.
+
+**Registry ownership.** The compositor's `Arc<ModuleRegistry>` is process-owned and immutable.
+The session factory installs the same `Arc` the dispatch catalogs carry into each session once,
+through `WorldSession::install_module_hooks_like_cpp` (a second install is refused and asserted
+in debug builds); it replaces the former test-only
+`SessionCore::module_registry_like_cpp`. Nothing else is installed into the session this way.
+
+**Ordering and locks.** A port is called where C++ calls `sScriptMgr`, after the transition and
+its persistence boundary (#169), and never with a split borrow, map guard, money guard or
+respawn-order guard held, nor across an `.await` with a guard. World and map hooks dispatch from
+`world-server` after the map lock is released. Modules never mutate the player spell map (#754):
+no effect can.
 
 `tools/modules/fixtures/incompatible_api/` is that fixture, and `doctor --json` reports
 `supported_source_apis` alongside each module's own.

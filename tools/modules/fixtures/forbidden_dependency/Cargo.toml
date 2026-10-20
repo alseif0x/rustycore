@@ -1,0 +1,10 @@
+[package]
+name = "fixture-forbidden-dependency"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+
+[dependencies]
+wow-module-api = { path = "../../crates/wow-module-api" }
+# A module must never reach the server's storage or protocol crates.
+wow-core = { path = "../../crates/wow-core" }

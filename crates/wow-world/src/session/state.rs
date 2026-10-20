@@ -170,4 +170,7 @@ pub struct WorldSession {
     /// Immutable opcode registry shared by the session's dispatch readers.
     pub(in crate::session) dispatch_table:
         Arc<crate::session::registry::WorldPacketHandlerRegistry>,
+    /// The process-owned linked-module registry the hook ports dispatch to (#1445). Installed once
+    /// by the session factory and never mutated; with no modules every port returns at once.
+    pub(crate) module_hooks: crate::session::SessionModuleHooksLikeCpp,
 }

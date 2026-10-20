@@ -329,3 +329,179 @@ fn unknown_keys_wrong_types_and_blank_values_are_rejected_with_the_module_named(
         .expect_err("a string is not a boolean");
     assert!(error.to_string().contains("must be a boolean"), "{error}");
 }
+
+// ── Source API 2: the registry by capability (#1445) ─────────────────────
+
+#[test]
+fn the_source_api_constants_are_additive() {
+    assert_eq!(SOURCE_API, "2");
+    assert_eq!(COMPATIBLE_SOURCE_APIS, &["1", "2"]);
+}
+
+#[test]
+fn api_one_registration_is_the_login_family_of_api_two() {
+    let mut registry = ModuleRegistry::new();
+    assert!(!registry.handles(HookFamily::PlayerLogin));
+    registry
+        .register_player_login_module(
+            ModuleDescriptor::new("alpha.greeter", version(), "Greeter").expect("descriptor"),
+            Box::new(Greeter {
+                text: "api one".to_owned(),
+            }),
+        )
+        .expect("api 1 registration");
+    registry
+        .register_module(
+            ModuleDescriptor::new("beta.greeter", version(), "Greeter").expect("descriptor"),
+            ModuleHooks::new().player_login(std::sync::Arc::new(Greeter {
+                text: "api two".to_owned(),
+            })),
+        )
+        .expect("api 2 registration");
+    assert!(registry.handles(HookFamily::PlayerLogin));
+    let effects = registry
+        .dispatch_player_login(&snapshot(false))
+        .expect("valid");
+    let texts: Vec<_> = effects
+        .iter()
+        .map(|(module, effect)| match effect {
+            NotificationEffect::SendSystemMessageSelf { text } => {
+                (module.as_str().to_owned(), text.clone())
+            }
+        })
+        .collect();
+    assert_eq!(
+        texts,
+        vec![
+            ("alpha.greeter".to_owned(), "api one".to_owned()),
+            ("beta.greeter".to_owned(), "api two".to_owned()),
+        ]
+    );
+}
+
+#[test]
+fn a_module_with_no_hook_family_is_refused() {
+    let mut registry = ModuleRegistry::new();
+    let refused = registry.register_module(
+        ModuleDescriptor::new("alpha.empty", version(), "Empty").expect("descriptor"),
+        ModuleHooks::new(),
+    );
+    assert_eq!(
+        refused,
+        Err(ModuleRegistrationError::NoHooks {
+            id: "alpha.empty".to_owned()
+        })
+    );
+    assert!(registry.is_empty());
+}
+
+/// Queues a message, then panics: the queued message must not survive.
+struct Panicking;
+
+impl PlayerLoginModule for Panicking {
+    fn on_player_login(&self, _snapshot: &PlayerLoginSnapshot, effects: &mut ScopedEffects<'_>) {
+        effects.send_system_message_self("queued before the panic");
+        panic!("module bug");
+    }
+}
+
+#[test]
+fn a_panicking_module_is_isolated_and_disabled_for_the_rest_of_the_process() {
+    let mut registry = registry_with(&[("alpha.greeter", "a"), ("zulu.greeter", "z")]);
+    registry
+        .register_player_login_module(
+            ModuleDescriptor::new("mike.panics", version(), "Panics").expect("descriptor"),
+            Box::new(Panicking),
+        )
+        .expect("registration");
+    let id = ModuleId::new("mike.panics").expect("id");
+
+    let outcome = registry.dispatch_player_login_outcome(&snapshot(false));
+    assert_eq!(outcome.disabled, vec![id.clone()]);
+    let effects = outcome
+        .effects
+        .expect("the healthy modules' batch is valid");
+    let authors: Vec<_> = effects.iter().map(|(m, _)| m.as_str()).collect();
+    assert_eq!(
+        authors,
+        vec!["alpha.greeter", "zulu.greeter"],
+        "the panicking module's queued effect is discarded; the others still run in order"
+    );
+    assert!(registry.is_disabled(&id));
+
+    let again = registry.dispatch_player_login_outcome(&snapshot(false));
+    assert!(
+        again.disabled.is_empty(),
+        "a disabled module is not called again"
+    );
+    assert_eq!(again.effects.expect("valid").len(), 2);
+}
+
+#[test]
+fn a_family_whose_only_module_was_disabled_is_no_longer_handled() {
+    let mut registry = ModuleRegistry::new();
+    registry
+        .register_player_login_module(
+            ModuleDescriptor::new("mike.panics", version(), "Panics").expect("descriptor"),
+            Box::new(Panicking),
+        )
+        .expect("registration");
+    assert!(registry.handles(HookFamily::PlayerLogin));
+    let _ = registry.dispatch_player_login_outcome(&snapshot(true));
+    assert!(
+        !registry.handles(HookFamily::PlayerLogin),
+        "owners skip building snapshots nobody can receive"
+    );
+    assert!(!registry.is_empty(), "the descriptor stays registered");
+}
+
+#[test]
+fn the_chat_decision_defaults_to_allow() {
+    assert_eq!(ChatDecision::default(), ChatDecision::Allow);
+}
+
+#[test]
+fn the_callback_scope_is_visible_inside_and_cleared_after_a_panic() {
+    struct Observe(std::sync::Arc<std::sync::atomic::AtomicBool>);
+    impl PlayerLoginModule for Observe {
+        fn on_player_login(&self, _s: &PlayerLoginSnapshot, _e: &mut ScopedEffects<'_>) {
+            self.0.store(
+                module_callback_in_progress(),
+                std::sync::atomic::Ordering::SeqCst,
+            );
+        }
+    }
+    let seen = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let mut registry = ModuleRegistry::new();
+    registry
+        .register_player_login_module(
+            ModuleDescriptor::new("alpha.observe", version(), "Observe").expect("descriptor"),
+            Box::new(Observe(std::sync::Arc::clone(&seen))),
+        )
+        .expect("registration");
+    registry
+        .register_player_login_module(
+            ModuleDescriptor::new("mike.panics", version(), "Panics").expect("descriptor"),
+            Box::new(Panicking),
+        )
+        .expect("registration");
+    assert!(!module_callback_in_progress());
+    let _ = registry.dispatch_player_login_outcome(&snapshot(false));
+    assert!(seen.load(std::sync::atomic::Ordering::SeqCst));
+    assert!(
+        !module_callback_in_progress(),
+        "the scope must be cleared on unwind too"
+    );
+}
+
+/// `catch_unwind` isolates a module only while panics unwind. No profile of
+/// the workspace may switch to `panic = "abort"` (#1445 review).
+#[test]
+fn every_profile_keeps_panics_unwinding() {
+    let manifest = include_str!("../../../Cargo.toml");
+    let compact: String = manifest.chars().filter(|c| !c.is_whitespace()).collect();
+    assert!(
+        !compact.contains("panic=\"abort\""),
+        "a profile sets panic = \"abort\"; module failure isolation needs unwinding"
+    );
+}

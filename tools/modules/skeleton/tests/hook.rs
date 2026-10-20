@@ -3,11 +3,13 @@
 
 use std::collections::BTreeMap;
 
-use wow_module_api::{ModuleConfig, ModuleConfigValue, ModuleId, ModuleRegistry, PlayerLoginSnapshot};
+use wow_module_api::{
+    ModuleConfig, ModuleConfigValue, ModuleId, ModuleRegistry, ObjectGuid, PlayerLoginSnapshot,
+};
 
 fn snapshot(first_login: bool) -> PlayerLoginSnapshot {
     PlayerLoginSnapshot {
-        guid: wow_core::ObjectGuid::create_player(1, 1),
+        guid: ObjectGuid::create_player(1, 1),
         name: "Tester".to_owned(),
         race: 1,
         class: 1,
