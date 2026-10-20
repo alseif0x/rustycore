@@ -704,3 +704,211 @@ fn a_player_hook_panic_disables_the_module_for_login_too() {
             .is_empty()
     );
 }
+
+// ── The `world.*` family (#1444 H2) ──────────────────────────────────────
+
+#[derive(Default)]
+struct WorldRecorder {
+    seen: std::sync::Mutex<Vec<String>>,
+}
+
+impl WorldModule for WorldRecorder {
+    fn on_config_loaded(&self, s: &ConfigLoadedSnapshot, e: &mut WorldEffects<'_>) {
+        self.seen
+            .lock()
+            .unwrap()
+            .push(format!("config {}", s.reload));
+        e.log("configured");
+    }
+    fn on_startup(&self, s: &WorldStartupSnapshot, e: &mut WorldEffects<'_>) {
+        self.seen
+            .lock()
+            .unwrap()
+            .push(format!("startup {}", s.module_count));
+        e.announce_world("The world is up.");
+    }
+    fn on_shutdown(&self, s: &WorldShutdownSnapshot, e: &mut WorldEffects<'_>) {
+        self.seen
+            .lock()
+            .unwrap()
+            .push(format!("shutdown {}", s.exit_code));
+        e.log("bye");
+    }
+    fn on_update(&self, s: &WorldUpdateSnapshot, _e: &mut WorldEffects<'_>) {
+        self.seen
+            .lock()
+            .unwrap()
+            .push(format!("update {} {}", s.tick, s.diff_ms));
+    }
+}
+
+fn world_registry(modules: &[(&str, std::sync::Arc<dyn WorldModule>)]) -> ModuleRegistry {
+    let mut registry = ModuleRegistry::new();
+    for (id, module) in modules {
+        registry
+            .register_module(
+                ModuleDescriptor::new(id, version(), "World").expect("descriptor"),
+                ModuleHooks::new().world(std::sync::Arc::clone(module)),
+            )
+            .expect("registration");
+    }
+    registry
+}
+
+#[test]
+fn the_world_family_dispatches_each_hook_with_typed_world_effects() {
+    let zulu = std::sync::Arc::new(WorldRecorder::default());
+    let alpha = std::sync::Arc::new(WorldRecorder::default());
+    let registry = world_registry(&[
+        ("zulu.world", zulu.clone() as _),
+        ("alpha.world", alpha.clone() as _),
+    ]);
+    assert!(registry.handles(HookFamily::World));
+    assert!(!registry.handles(HookFamily::Player));
+
+    let config = registry
+        .dispatch_config_loaded(&ConfigLoadedSnapshot::new(false, 1, 80, 2))
+        .effects
+        .expect("valid");
+    let seen: Vec<_> = config
+        .iter()
+        .map(|(m, e)| (m.as_str(), e.clone()))
+        .collect();
+    assert_eq!(
+        seen,
+        vec![
+            (
+                "alpha.world",
+                WorldEffect::Log {
+                    text: "configured".to_owned()
+                }
+            ),
+            (
+                "zulu.world",
+                WorldEffect::Log {
+                    text: "configured".to_owned()
+                }
+            ),
+        ]
+    );
+    let startup = registry
+        .dispatch_world_startup(&WorldStartupSnapshot::new("RustyCore", 1, 2))
+        .effects
+        .expect("valid");
+    assert!(
+        startup
+            .iter()
+            .all(|(_, e)| matches!(e, WorldEffect::AnnounceWorld { .. }))
+    );
+    assert!(
+        registry
+            .dispatch_world_update(&WorldUpdateSnapshot::new(50, 7))
+            .effects
+            .expect("valid")
+            .is_empty()
+    );
+    let _ = registry.dispatch_world_shutdown(&WorldShutdownSnapshot::new(0));
+    assert_eq!(
+        *alpha.seen.lock().unwrap(),
+        vec!["config false", "startup 2", "update 7 50", "shutdown 0"]
+    );
+}
+
+#[test]
+fn an_invalid_world_announcement_rejects_the_whole_batch() {
+    struct Bad;
+    impl WorldModule for Bad {
+        fn on_startup(&self, _s: &WorldStartupSnapshot, e: &mut WorldEffects<'_>) {
+            e.announce_world("x".repeat(300));
+        }
+    }
+    let good = std::sync::Arc::new(WorldRecorder::default());
+    let registry = world_registry(&[
+        ("alpha.world", good as _),
+        ("zulu.bad", std::sync::Arc::new(Bad) as _),
+    ]);
+    let outcome = registry.dispatch_world_startup(&WorldStartupSnapshot::new("RustyCore", 1, 2));
+    let error = outcome
+        .effects
+        .expect_err("an over-long announcement rejects the batch");
+    assert!(error.to_string().contains("zulu.bad"), "{error}");
+}
+
+#[test]
+fn a_panicking_world_update_disables_only_that_module() {
+    struct Boom;
+    impl WorldModule for Boom {
+        fn on_update(&self, _s: &WorldUpdateSnapshot, _e: &mut WorldEffects<'_>) {
+            panic!("tick bug");
+        }
+    }
+    let good = std::sync::Arc::new(WorldRecorder::default());
+    let registry = world_registry(&[
+        ("alpha.world", good.clone() as _),
+        ("mike.boom", std::sync::Arc::new(Boom) as _),
+    ]);
+    let first = registry.dispatch_world_update(&WorldUpdateSnapshot::new(50, 1));
+    assert_eq!(first.disabled.len(), 1);
+    let second = registry.dispatch_world_update(&WorldUpdateSnapshot::new(50, 2));
+    assert!(second.disabled.is_empty());
+    assert_eq!(
+        *good.seen.lock().unwrap(),
+        vec!["update 1 50", "update 2 50"]
+    );
+}
+
+#[test]
+fn the_timed_world_update_reports_each_module_callback_in_order() {
+    struct Slow;
+    impl WorldModule for Slow {
+        fn on_update(&self, _s: &WorldUpdateSnapshot, _e: &mut WorldEffects<'_>) {
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+    }
+    let quick = std::sync::Arc::new(WorldRecorder::default());
+    let registry = world_registry(&[
+        ("zulu.slow", std::sync::Arc::new(Slow) as _),
+        ("alpha.quick", quick as _),
+    ]);
+    let (outcome, timings) = registry.dispatch_world_update_timed(&WorldUpdateSnapshot::new(50, 1));
+    assert!(outcome.effects.expect("valid").is_empty());
+    let ids: Vec<_> = timings.iter().map(|(id, _)| id.as_str()).collect();
+    assert_eq!(ids, vec!["alpha.quick", "zulu.slow"]);
+    assert!(timings[1].1 >= std::time::Duration::from_millis(2));
+}
+
+/// #1444 acceptance: the registry's share of the `world.update` tick cost
+/// with zero modules and with one trivial module. Run in release with
+/// `cargo test --release -p wow-module-api -- --ignored --nocapture
+/// world_update_registry_cost`.
+#[test]
+#[ignore = "measurement, run explicitly"]
+fn world_update_registry_cost_with_zero_and_one_trivial_module() {
+    struct Trivial;
+    impl WorldModule for Trivial {}
+    const TICKS: u64 = 1_000_000;
+    let measure = |registry: &ModuleRegistry| {
+        let start = std::time::Instant::now();
+        for tick in 1..=TICKS {
+            if registry.handles(HookFamily::World) {
+                std::hint::black_box(
+                    registry.dispatch_world_update_timed(&WorldUpdateSnapshot::new(10, tick)),
+                );
+            }
+        }
+        start.elapsed().as_nanos() as f64 / TICKS as f64
+    };
+    let zero = ModuleRegistry::new();
+    let one = world_registry(&[("trivial.world", std::sync::Arc::new(Trivial) as _)]);
+    let zero_ns = measure(&zero);
+    let one_ns = measure(&one);
+    println!(
+        "world.update registry cost ({}): zero modules {zero_ns:.1} ns/tick, one trivial module {one_ns:.1} ns/tick, over {TICKS} ticks",
+        if cfg!(debug_assertions) {
+            "debug"
+        } else {
+            "release"
+        }
+    );
+    assert!(zero_ns < one_ns);
+}

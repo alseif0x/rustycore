@@ -258,3 +258,32 @@ fn quest_sharing_snapshot_reports_unknown_standings_without_an_owner_like_cpp() 
         "an absent canonical owner must make the gameplay result unknown"
     );
 }
+
+/// C++ `World::SendWorldText` addresses every session whose player is in the
+/// world (`World.cpp:2989-2994`); a player still loading is skipped (#1444 H2).
+#[test]
+fn in_world_registrations_list_only_players_in_the_world_like_cpp() {
+    let registry = PlayerRegistry::new();
+    let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
+    let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(1);
+    let in_world = ObjectGuid::create_player(1, 7_101);
+    let loading = ObjectGuid::create_player(1, 7_102);
+    registry.register_or_replace(
+        in_world,
+        registration_for_test(0, 0, send_tx.clone(), command_tx.clone()),
+        Default::default(),
+    );
+    let mut loading_registration = registration_for_test(0, 0, send_tx, command_tx);
+    loading_registration.placement.is_in_world = false;
+    registry.register_or_replace(loading, loading_registration, Default::default());
+
+    let registrations = registry.in_world_registrations_like_cpp();
+
+    assert_eq!(
+        registrations
+            .iter()
+            .map(|registration| registration.guid)
+            .collect::<Vec<_>>(),
+        vec![in_world]
+    );
+}

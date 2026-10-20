@@ -289,6 +289,10 @@ wants it (the port's interest query).
 | `player.money_changed` | `PlayerModule::on_money_changed` | `PlayerScript.h:282`, `Player.cpp:11688` | `wow-world-quest` `quest/objectives.rs`, the post-commit `MoneyChanged` drain every money path feeds (outside the exclusive money fence); a quest reward raises its own, see below | self message; the amount cannot be changed (#583) |
 | `player.quest_accepted` | `PlayerModule::on_quest_accepted` | `PlayerScript.h:750`, `PlayerQuest.cpp:426` | `wow-world-quest` `quest_session/accept_handlers.rs`, quest giver and shared-quest confirmation (after its source-item step, TrinityCore `Player.cpp:14436`), only once the status save applied or a completion reward committed it | self message |
 | `player.quest_rewarded` | `PlayerModule::on_quest_rewarded` | `PlayerScript.h:245`, `PlayerQuest.cpp:903` | `wow-world-quest` `quest/reward/coordinator.rs`, last step of the reward, after its single commit, the reward XP's level hooks and the reward's own money hook (AzerothCore order: `GiveXP`, `ModifyMoney`, `OnPlayerCompleteQuest`); carries the committed balances and the offered XP | self message |
+| `world.config_loaded` | `WorldModule::on_config_loaded` | `WorldScript.h:53`, `World.cpp:300` (`OnAfterConfigLoad(false)`) | `world-server` `app.rs`, `WorldModuleHooksLikeCpp::after_config_load_like_cpp`, after the databases are started, the online accounts cleared and the realm marked offline, before the realm list is read (C++ reaches `LoadConfigSettings` only after `StartDB`); `reload` is always `false` (no reload exists) | log, world announcement |
+| `world.startup` | `WorldModule::on_startup` | `WorldScript.h:74`, `Main.cpp:395` (TrinityCore `Main.cpp:413`) | `world-server` `app.rs`, after both listeners are bound and the realm is marked online, beside the internal `on_startup_like_cpp`; the already spawned map loop dispatches no `world.update` before it | log, world announcement |
+| `world.update` | `WorldModule::on_update` | `WorldScript.h:71`, `World.cpp:1342` (TrinityCore `World.cpp:2862`) | `world-server` `runtime/map/update_loop.rs`, once per completed canonical tick, at its end, after the map manager, spawn metadata and respawn-order guards were released and after game events; only after `world.startup`; `diff_ms` is the time since the previous dispatch | log, world announcement; 5 ms budget per module, throttled warning and per-module metric |
+| `world.shutdown` | `WorldModule::on_shutdown` | `WorldScript.h:77`, `Main.cpp:419` (TrinityCore `Main.cpp:440`) | `world-server` `app.rs`, after the session flush and the respawn-writer drain, beside the internal `on_shutdown_like_cpp`, before the realm is marked offline. C++ runs it before `KickAll`/`UpdateSessions(1)`/`StopNetwork`; RustyCore's later point is an intentional deviation, so no module runs while sessions are still being finalized | log, world announcement |
 
 An operation that runs on the session host raises its hook through a provided host-trait method;
 one that runs inside a borrowed context (`QuestRewardCx` and the objective drain on it) raises it
@@ -296,6 +300,25 @@ through the `QuestModuleHookPortLikeCpp` the World hands the context. Both reach
 adapter. A quest that completes and auto-rewards on accept reports `quest_rewarded` before
 `quest_accepted`, because the accept only becomes durable through that reward's commit. A hook
 whose persistence failed or is unknown is not raised: modules only observe durable results.
+The reward's hooks run at the end of the reward future: if that future is cancelled after the
+commit, its `money_changed` and `quest_rewarded` are lost together (the reward itself stays
+committed); modules must not treat a missing notification as a missing reward.
+
+**World family (#1444 H2).** `world.*` hooks have no session. `world-server`
+`module_hooks.rs` (`WorldModuleHooksLikeCpp`) dispatches them on the composition root's own
+tasks, asks `registry.handles(World)` first, and applies `WorldEffect`s: `Log` writes one line
+attributed to the module; `AnnounceWorld` is the port of C++ `World::SendWorldText`
+(`World.cpp:2982`): each non-empty line (TrinityCore `LineFromMessage` skips empty ones) as a
+`CHAT_MSG_SYSTEM` to every registered session whose player is in the world
+(`PlayerRegistry::in_world_registrations_like_cpp`), addressed with the realm's virtual address
+(`virtual_realm_address_like_cpp`, the formula the sessions use). Texts follow the system-message
+rules, and one dispatch sends at most 8 lines across its announcements; the rest is cut and logged,
+so a module cannot fill the players' socket queues. `world.update` runs on the map loop: each
+module's callback is timed apart from effect application against a 5 ms budget, the first
+overrun of each module is logged at once and later ones are summarized every 10 s, and calls,
+total, maximum and overruns are kept per module. A tick the loop skips (map timer not passed,
+barrier held, abandoned tick, shutdown, or before `world.startup`) dispatches nothing, and the
+next dispatch's `diff_ms` covers it.
 
 ## Approved next direction — #583 under #99, not implemented yet
 

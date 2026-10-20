@@ -86,6 +86,7 @@ mod gameobject_loaded_grid;
 mod handler_registry;
 mod hotfix;
 mod hotfix_delivery_metadata;
+mod module_hooks;
 mod player;
 mod session_resources;
 mod spawn_store_loader;

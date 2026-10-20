@@ -216,6 +216,11 @@ async fn run_inner(
     clear_online_accounts_like_cpp(&login_db, &char_db, realm_id).await?;
     verify_world_db_version_like_cpp(world_db.as_ref()).await?;
     set_realm_offline(&login_db, realm_id).await?;
+    let world_module_hooks = module_hooks::WorldModuleHooksLikeCpp::after_config_load_like_cpp(
+        Arc::clone(&modules),
+        &world_configs,
+        realm_id,
+    );
     let realm_list = Arc::new(Mutex::new(RealmListSnapshotLikeCpp::default()));
     let realm_list_summary = update_realm_list_once_like_cpp(&login_db, &realm_list)
         .await
@@ -5320,6 +5325,11 @@ async fn run_inner(
     let respawn_db_producer_stop = Arc::new(AtomicBool::new(false));
     let (respawn_db_writer_tx, mut respawn_db_writer_handle) =
         spawn_respawn_db_writer_like_cpp(Arc::clone(&respawn_persistence));
+    let world_module_hooks = world_module_hooks.with_realm_announcer_like_cpp(
+        &player_registry,
+        &active_realm.id,
+        realm_id,
+    );
     let mut map_update_handle = spawn_canonical_map_update_loop(
         Arc::clone(&canonical_map_manager),
         map_update_interval_ms,
@@ -5345,6 +5355,7 @@ async fn run_inner(
             Some(Arc::clone(&group_registry)),
             Some(Arc::clone(&live_terrain)),
         )),
+        world_module_hooks.clone(),
     );
 
     let mut ready_check_tick_handle = spawn_group_ready_check_tick_loop(
@@ -5360,6 +5371,7 @@ async fn run_inner(
     );
 
     let startup_script_summary = wow_script::lifecycle::on_startup_like_cpp();
+    world_module_hooks.startup_like_cpp(&worldserver_full_version_like_cpp(), u32::from(realm_id));
     info!(
         callbacks = startup_script_summary.callbacks,
         "Ran ScriptMgr::OnStartup-style lifecycle hooks"
@@ -5602,6 +5614,7 @@ async fn run_inner(
     }
 
     let shutdown_script_summary = wow_script::lifecycle::on_shutdown_like_cpp();
+    world_module_hooks.shutdown_like_cpp(world_runtime_state.get_exit_code_like_cpp());
     info!(
         callbacks = shutdown_script_summary.callbacks,
         "Ran ScriptMgr::OnShutdown-style lifecycle hooks"

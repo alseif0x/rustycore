@@ -702,7 +702,9 @@ pub(crate) const BATTLE_PET_BREED_QUALITY_RARE_LIKE_CPP: u8 = 3;
 pub(crate) use wow_world_inventory::BATTLE_PET_SPELL_VISUAL_UNCAGE_PET_LIKE_CPP;
 
 pub use wow_world_core::session::SharedCanonicalMapManager;
-pub use wow_world_core::session::{LIQUID_MAP_IN_WATER_LIKE_CPP, LIQUID_MAP_UNDER_WATER_LIKE_CPP};
+pub use wow_world_core::session::{
+    LIQUID_MAP_IN_WATER_LIKE_CPP, LIQUID_MAP_UNDER_WATER_LIKE_CPP, virtual_realm_address_like_cpp,
+};
 pub(crate) use wow_world_social::DUEL_COUNTDOWN_MS_LIKE_CPP;
 #[cfg(test)]
 pub(crate) use wow_world_social::SPELL_DUEL_BEG_LIKE_CPP;

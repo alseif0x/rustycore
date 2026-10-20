@@ -24,6 +24,9 @@ use crate::runtime::canonical_creature_runtime::{
 // #1263 F6-8D3b-3: chase and the first creature swing, end to end.
 #[path = "scenarios_16/chase.rs"]
 mod chase;
+// #1444 H2: `world.update` on the booted loop, every tick guard released.
+#[path = "scenarios_16/world_hook.rs"]
+mod world_hook;
 
 const D3B_TICK_MS_LIKE_CPP: u32 = 20;
 const D3B_CREATURE_HP_LIKE_CPP: u32 = 20;
@@ -374,23 +377,58 @@ fn d3b_spawn_canonical_loop_like_cpp(
     tokio::task::JoinHandle<()>,
     Arc<CanonicalCreatureRuntimeProbeLikeCpp>,
 ) {
+    d3b_spawn_canonical_loop_with_like_cpp(
+        world,
+        &D3bLoopGuardsLikeCpp::default(),
+        crate::module_hooks::WorldModuleHooksLikeCpp::new(Arc::new(
+            wow_module_api::ModuleRegistry::new(),
+        )),
+    )
+}
+
+/// The loop's own guards, shared so a test can probe them (#1444 H2).
+#[derive(Clone)]
+struct D3bLoopGuardsLikeCpp {
+    spawn_metadata: Arc<Mutex<spawn_store_loader::CanonicalSpawnMetadataLikeCpp>>,
+    respawn_db_mutation_order: Arc<Mutex<()>>,
+    world_state_mgr: crate::SharedWorldStateMgrLikeCpp,
+}
+
+impl Default for D3bLoopGuardsLikeCpp {
+    fn default() -> Self {
+        Self {
+            spawn_metadata: Arc::new(Mutex::new(
+                spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(
+                    SpawnStore::new(),
+                    BTreeMap::new(),
+                ),
+            )),
+            respawn_db_mutation_order: Arc::new(Mutex::new(())),
+            world_state_mgr: Arc::new(Mutex::new(Default::default())),
+        }
+    }
+}
+
+fn d3b_spawn_canonical_loop_with_like_cpp(
+    world: &D3bWorldLikeCpp,
+    guards: &D3bLoopGuardsLikeCpp,
+    world_module_hooks: crate::module_hooks::WorldModuleHooksLikeCpp,
+) -> (
+    tokio::task::JoinHandle<()>,
+    Arc<CanonicalCreatureRuntimeProbeLikeCpp>,
+) {
     let runtime = d3b_canonical_runtime_like_cpp();
     let probe = Arc::clone(&runtime.probe);
     let canonical_handle = crate::runtime::spawn_canonical_map_update_loop(
         Arc::clone(&world.canonical),
         D3B_TICK_MS_LIKE_CPP,
         60_000,
-        Arc::new(Mutex::new(
-            spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(
-                SpawnStore::new(),
-                BTreeMap::new(),
-            ),
-        )),
+        Arc::clone(&guards.spawn_metadata),
         Arc::new(wow_data::ConditionEntriesByTypeStore::default()),
         Arc::clone(&world.map_store),
         Arc::new(FakeGameEventPersistencePortLikeCpp::default()),
         world.writer.clone(),
-        Arc::new(Mutex::new(())),
+        Arc::clone(&guards.respawn_db_mutation_order),
         Arc::new(std::sync::atomic::AtomicBool::new(false)),
         empty_loaded_grid_creature_respawn_caches_like_cpp(),
         Arc::new(wow_data::AreaTriggerTemplateStore::default()),
@@ -398,8 +436,9 @@ fn d3b_spawn_canonical_loop_like_cpp(
         Arc::clone(&world.registry),
         Arc::new(ActiveWorldSessionRegistryLikeCpp::new()),
         Arc::new(wow_data::BattlemasterListStore::from_entries([])),
-        Arc::new(Mutex::new(Default::default())),
+        Arc::clone(&guards.world_state_mgr),
         Some(runtime),
+        world_module_hooks,
     );
     (canonical_handle, probe)
 }
