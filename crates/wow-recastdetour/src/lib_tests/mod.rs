@@ -1,14 +1,6 @@
-//! Navmesh FFI regressions.
+//! Navmesh FFI regressions, separated from `lib_tests.rs` under #658.
 //!
-//! Separated from the lib_tests.rs root under #658.
-
-//! Behaviour tests for [`super`].
-//!
-//! Extracted from `lib.rs`, which was 5,664 lines of which
-//! 2,470 — 44% — were this one `mod tests`. The production code and its
-//! module boundaries are untouched: moving tests moves no invariant. Dedenting by
-//! one level lets rustfmt collapse some argument lists onto a single line, which
-//! drops their trailing commas; that is the only difference from the original text.
+//! Extracted from `lib.rs`; moving tests leaves production code and invariants unchanged.
 
 #![cfg(test)]
 
@@ -137,6 +129,8 @@ fn write_mmap_tile_blob(path: &std::path::Path, tile: &MmapTileBlob) {
     std::fs::write(path, bytes).unwrap();
 }
 
+mod checked_ground;
+mod checked_manager;
 mod path_status;
 mod scenarios_1;
 mod scenarios_2;

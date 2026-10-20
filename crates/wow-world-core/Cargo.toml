@@ -7,6 +7,7 @@ license.workspace = true
 publish = false
 
 [features]
+forever-navigation = ["dep:forever-navigation"]
 # Preserve the World fixture gate and its kernel test-support dependency.
 test-fixtures = ["dep:wow-script", "wow-session/test-support"]
 
@@ -37,6 +38,9 @@ wow-social = { workspace = true }
 wow-recastdetour = { workspace = true }
 wow-session = { workspace = true }
 wow-script = { workspace = true, optional = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+forever-navigation = { path = "../../../rustycore-extractors/crates/forever-navigation", version = "=0.1.0", optional = true, default-features = false }
 
 [dev-dependencies]
 wow-recastdetour = { workspace = true, features = ["test-fixtures"] }

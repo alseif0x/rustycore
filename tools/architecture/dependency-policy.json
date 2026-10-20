@@ -842,6 +842,16 @@
         ]
       }
     },
+    "allowed_paths": [
+      {
+        "from": "wow-world",
+        "to": "forever-navigation",
+        "kind": "normal",
+        "path": "../rustycore-extractors/crates/forever-navigation",
+        "version": "0.1.0",
+        "reason": "Explicit optional selected navigation package admission at the existing native manager/worker adapter, extractor issue 104; no gameplay activation."
+      }
+    ],
     "exceptions": [
       {
         "from": "wow-world-core",

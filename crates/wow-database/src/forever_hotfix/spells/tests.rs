@@ -1,4 +1,5 @@
 use super::*;
+use crate::SqlResult;
 
 #[test]
 fn value_input_decoders_require_complete_sql_rows() {

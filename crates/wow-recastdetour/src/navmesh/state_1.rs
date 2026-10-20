@@ -320,15 +320,26 @@ impl DetourNavMesh {
     }
 
     pub fn add_tile(&mut self, tile: &MmapTileBlob) -> Result<DetourTileRef, DetourTileError> {
-        let data_size =
-            i32::try_from(tile.data.len()).map_err(|_| DetourTileError::TileDataTooLarge {
-                size: tile.data.len(),
-            })?;
+        self.add_data_copy(&tile.data)
+    }
+
+    /// Adds an immutable checked Detour7 ground payload through the same
+    /// native copy path as the legacy tile entrypoint.
+    pub fn add_checked_ground_tile(
+        &mut self,
+        tile: &CheckedDetour7GroundPayload<'_>,
+    ) -> Result<DetourTileRef, DetourTileError> {
+        self.add_data_copy(tile.bytes())
+    }
+
+    fn add_data_copy(&mut self, data: &[u8]) -> Result<DetourTileRef, DetourTileError> {
+        let data_size = i32::try_from(data.len())
+            .map_err(|_| DetourTileError::TileDataTooLarge { size: data.len() })?;
         let mut tile_ref = 0;
         let status = unsafe {
             rustycore_dt_nav_mesh_add_tile_copy(
                 self.raw.as_ptr(),
-                tile.data.as_ptr(),
+                data.as_ptr(),
                 data_size,
                 DT_TILE_FREE_DATA_LIKE_CPP,
                 &mut tile_ref,
@@ -428,7 +439,9 @@ pub struct DetourNavMeshQuery<'mesh> {
 /// as `dtNextPow2(maxNodes / 4)`. Values below four produce a zero-sized hash
 /// table, while `dtNodePool` indexes nodes with the 16-bit `DT_NULL_IDX` bound.
 /// The supported range is therefore `4..=65_535`.
-fn validate_detour_query_node_limit(max_nodes: i32) -> Result<(), DetourNavMeshQueryError> {
+pub(super) fn validate_detour_query_node_limit(
+    max_nodes: i32,
+) -> Result<(), DetourNavMeshQueryError> {
     if (MIN_DETOUR_QUERY_NODES_LIKE_CPP..=MAX_DETOUR_QUERY_NODES_LIKE_CPP).contains(&max_nodes) {
         Ok(())
     } else {
@@ -759,6 +772,7 @@ impl Drop for DetourNavMeshQuery<'_> {
 pub struct MMapNavMeshQuery {
     pub(crate) raw: NonNull<RawDetourNavMeshQuery>,
     pub(crate) _not_send_or_sync: PhantomData<Rc<()>>,
+    pub(crate) max_nodes: i32,
 }
 
 impl MMapNavMeshQuery {
@@ -776,6 +790,7 @@ impl MMapNavMeshQuery {
         Ok(Self {
             raw,
             _not_send_or_sync: PhantomData,
+            max_nodes,
         })
     }
 
@@ -952,9 +967,8 @@ pub fn update_path_query_filter_like_cpp(
         in_evade_mode,
         ..
     } = context.owner
+        && (in_combat || in_evade_mode)
     {
-        if in_combat || in_evade_mode {
-            filter.set_include_flags(filter.include_flags() | NavTerrainFlag::GROUND_STEEP.bits());
-        }
+        filter.set_include_flags(filter.include_flags() | NavTerrainFlag::GROUND_STEEP.bits());
     }
 }

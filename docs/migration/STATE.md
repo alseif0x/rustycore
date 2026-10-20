@@ -8273,6 +8273,31 @@ El alcance, secuencia y aceptación corregida viven en
 [wow-world-distribution-plan.md](../architecture/wow-world-distribution-plan.md);
 las entradas fechadas anteriores conservan sus propios límites de evidencia.
 
+## Selected Linux navigation library candidate — 2026-10-20
+
+The optional `wow-world/forever-navigation` feature admits the extractor's
+versioned selected navigation package through its shared library API. It uses
+the existing native mesh/query owner and pathfinder worker with explicit
+prepare, query and unload operations. Checked ground-payload admission precedes
+native loading; query budgets and raw partial-path status remain explicit.
+
+This candidate preserves pending terrain and operator configuration changes.
+It includes seven reviewed test-only prerequisites: explicit persistence/SQL
+imports, correctly typed literals, current serialized fixture expectations,
+complete table-fixture cleanup and the existing binary-effect fixture scaling
+correction/regression. Their original development files remain intact.
+Code candidate `1bf5ee4b` passes workspace all-target compilation, 5,933 tests
+across the four affected libraries (three ignored), ten public consumer tests,
+one feature-disabled regression and SDK Clippy. This is composed acceptance
+with failed attempts retained. Its general final still fails unchanged inherited
+hotspot/Session debt; the SDK physical-size failure is repaired without changing
+a ceiling. Experimental branch publication retains only that inherited-debt
+exception. No merge, runtime activation or deployment follows from it. The server
+does not instantiate the optional capability. Full-world resources, complete
+geometry, movement/gameplay and server runtime acceptance remain open; creation
+and world entry stay paused. See the owning navigation candidate section in
+the [runbook](../operations/forever-login.md).
+
 Branch naming, 2026-10-02: the experimental target branch is now **`forever`**
 (renamed from `1.60.1`, with the same published commit `4d3c029a`). Client target
 remains `1.60.1.70170`; `3.4.3` is a separate development line, not the merge

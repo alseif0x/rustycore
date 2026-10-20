@@ -174,7 +174,7 @@ resolved package IDs with all features enabled and no platform filter rather tha
 equality. It validates package/source/version identity for every resolved external edge and
 globally rejects duplicate JSON keys, duplicate Cargo package/node/member IDs, and multiple direct
 package IDs collapsing to the same package/source/kind identity. On a protected surface, the
-allowlist additionally requires the exact canonical crates.io registry source recorded in the
+registry allowlist additionally requires the exact canonical crates.io source recorded in the
 policy; a same-named path, Git, or alternate-registry package is a different edge and fails. Thus
 renames, source substitution, malformed or ambiguous metadata, and inactive target-specific
 dependencies cannot bypass the boundary. Workspace members themselves must be source-null
@@ -183,6 +183,16 @@ mislabelled as internal members. The self-test pins the exact
 `cargo metadata --locked --all-features --format-version 1` command, and the checker also fails
 closed if Cargo's `workspace.default-members` stops covering every member, because
 `--all-features` would no longer prove optional dependencies of omitted packages.
+
+Reviewed sibling-library adapters use the separate `allowed_paths` array. Each allowance
+names one source package, target package, dependency kind, exact release version and
+canonical repository-relative sibling path, with its architectural reason. The checker
+matches Cargo's source-null package ID and manifest path against that exact directory,
+rejects symlinked components, and uses a portable reviewed-path identity for the existing
+unused-allowance ratchet. This grants neither a name wildcard nor permission to substitute
+a registry, Git, different-version or different-directory package. The current optional
+Linux navigation edge preserves package admission and the existing native
+manager/worker adapter in `wow-world`; it does not activate a server consumer.
 
 The policy's workspace and external `exceptions` are a **ratchet, not an endorsement of
 unfinished authority**. A coarse package category can also require an exception for a legitimate
