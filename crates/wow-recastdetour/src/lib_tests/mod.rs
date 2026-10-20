@@ -137,6 +137,7 @@ fn write_mmap_tile_blob(path: &std::path::Path, tile: &MmapTileBlob) {
     std::fs::write(path, bytes).unwrap();
 }
 
+mod path_status;
 mod scenarios_1;
 mod scenarios_2;
 mod scenarios_3;

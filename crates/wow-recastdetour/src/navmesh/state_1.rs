@@ -1,6 +1,8 @@
 //! Navmesh FFI wrapper state definitions, part 1 of 4.
 //!
 //! Separated from the lib.rs root under #658. Behaviour is preserved.
+//!
+//! Modified 2026-10-20: expose raw Detour path-query detail status bits.
 
 use super::*;
 
@@ -46,9 +48,17 @@ pub const DT_IN_PROGRESS_LIKE_CPP: DetourStatus = 1_u32 << 29;
 
 pub const DT_BUFFER_TOO_SMALL_LIKE_CPP: DetourStatus = 1_u32 << 4;
 
+pub const DT_OUT_OF_NODES_LIKE_CPP: DetourStatus = 1_u32 << 5;
+
+pub const DT_PARTIAL_RESULT_LIKE_CPP: DetourStatus = 1_u32 << 6;
+
 pub const DT_OUT_OF_MEMORY_LIKE_CPP: DetourStatus = 1_u32 << 2;
 
 pub const DT_INVALID_PARAM_LIKE_CPP: DetourStatus = 1_u32 << 3;
+
+const MIN_DETOUR_QUERY_NODES_LIKE_CPP: i32 = 4;
+
+const MAX_DETOUR_QUERY_NODES_LIKE_CPP: i32 = 65_535;
 
 pub const DT_STRAIGHTPATH_START_LIKE_CPP: u8 = 0x01;
 
@@ -175,6 +185,17 @@ pub type DetourPolyRef = u64;
 pub struct DetourNearestPoly {
     pub poly_ref: DetourPolyRef,
     pub nearest_point: [f32; 3],
+}
+
+/// The path corridor and unmodified status returned by Detour `findPath`.
+///
+/// Detour's success bit can coexist with detail bits such as partial result,
+/// out of nodes, or buffer too small. This type preserves the complete raw
+/// status so callers can distinguish those outcomes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DetourPathResult {
+    pub status: DetourStatus,
+    pub polys: Vec<DetourPolyRef>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -401,11 +422,26 @@ pub struct DetourNavMeshQuery<'mesh> {
     pub(crate) _mesh_lifetime_and_thread_model: PhantomData<(&'mesh DetourNavMesh, Rc<()>)>,
 }
 
+/// Validate the vendored Detour node-pool sizing before entering its C++ API.
+///
+/// Modified 2026-10-20: `dtNavMeshQuery::init` computes its node-pool hash size
+/// as `dtNextPow2(maxNodes / 4)`. Values below four produce a zero-sized hash
+/// table, while `dtNodePool` indexes nodes with the 16-bit `DT_NULL_IDX` bound.
+/// The supported range is therefore `4..=65_535`.
+fn validate_detour_query_node_limit(max_nodes: i32) -> Result<(), DetourNavMeshQueryError> {
+    if (MIN_DETOUR_QUERY_NODES_LIKE_CPP..=MAX_DETOUR_QUERY_NODES_LIKE_CPP).contains(&max_nodes) {
+        Ok(())
+    } else {
+        Err(DetourNavMeshQueryError::InvalidNodeLimit { max_nodes })
+    }
+}
+
 impl<'mesh> DetourNavMeshQuery<'mesh> {
     pub fn new(
         mesh: &'mesh DetourNavMesh,
         max_nodes: i32,
     ) -> Result<Self, DetourNavMeshQueryError> {
+        validate_detour_query_node_limit(max_nodes)?;
         let raw = NonNull::new(unsafe { rustycore_dt_alloc_nav_mesh_query() })
             .ok_or(DetourNavMeshQueryError::AllocationFailed)?;
         let status =
@@ -454,6 +490,10 @@ impl<'mesh> DetourNavMeshQuery<'mesh> {
         })
     }
 
+    /// Returns the path corridor, preserving the legacy `Vec`-only behavior.
+    ///
+    /// Use [`Self::find_path_with_status`] when the Detour detail status is
+    /// needed; this method intentionally projects only the corridor.
     pub fn find_path(
         &self,
         start_ref: DetourPolyRef,
@@ -463,6 +503,25 @@ impl<'mesh> DetourNavMeshQuery<'mesh> {
         filter: &DetourQueryFilter,
         max_path: usize,
     ) -> Result<Vec<DetourPolyRef>, DetourNavMeshQueryError> {
+        Ok(self
+            .find_path_with_status(start_ref, end_ref, start_pos, end_pos, filter, max_path)?
+            .polys)
+    }
+
+    /// Returns the path corridor and Detour's unmodified `findPath` status.
+    ///
+    /// A successful status may also contain `PARTIAL_RESULT`, `OUT_OF_NODES`,
+    /// or `BUFFER_TOO_SMALL`. Failure statuses remain errors with their raw
+    /// status preserved in [`DetourNavMeshQueryError::FindPathFailed`].
+    pub fn find_path_with_status(
+        &self,
+        start_ref: DetourPolyRef,
+        end_ref: DetourPolyRef,
+        start_pos: [f32; 3],
+        end_pos: [f32; 3],
+        filter: &DetourQueryFilter,
+        max_path: usize,
+    ) -> Result<DetourPathResult, DetourNavMeshQueryError> {
         if max_path > i32::MAX as usize {
             return Err(DetourNavMeshQueryError::PathBufferTooLarge { max_path });
         }
@@ -487,7 +546,10 @@ impl<'mesh> DetourNavMeshQuery<'mesh> {
         }
 
         path.truncate(path_count.max(0) as usize);
-        Ok(path)
+        Ok(DetourPathResult {
+            status,
+            polys: path,
+        })
     }
 
     pub fn find_straight_path(
@@ -701,6 +763,7 @@ pub struct MMapNavMeshQuery {
 
 impl MMapNavMeshQuery {
     pub fn new(mesh: &DetourNavMesh, max_nodes: i32) -> Result<Self, DetourNavMeshQueryError> {
+        validate_detour_query_node_limit(max_nodes)?;
         let raw = NonNull::new(unsafe { rustycore_dt_alloc_nav_mesh_query() })
             .ok_or(DetourNavMeshQueryError::AllocationFailed)?;
         let status =
