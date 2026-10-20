@@ -21,7 +21,6 @@ wow-entities = { workspace = true }
 wow-handler = { workspace = true }
 wow-loot = { workspace = true }
 wow-map = { workspace = true }
-wow-module-api = { workspace = true }
 wow-persistence = { workspace = true }
 wow-packet = { workspace = true }
 rand = { workspace = true }

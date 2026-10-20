@@ -136,11 +136,6 @@ pub struct SessionCore {
     /// Shared C++ `InstanceLockMgr` analogue used by raid-info and instance entry paths.
     pub instance_lock_mgr: Option<Arc<std::sync::RwLock<InstanceLockMgr>>>,
 
-    /// Test fixture for the process-owned linked-module registry. Production
-    /// borrows the required registry from the session driver.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub module_registry_like_cpp: Option<Arc<wow_module_api::ModuleRegistry>>,
-
     // ── Dynamic visibility tracking ───────────────────────────────
     /// C++ `Player::m_clientGUIDs`: exact objects currently known by this client.
     /// Updated on login and each visibility refresh (player movement).
@@ -251,8 +246,6 @@ impl SessionCore {
             mmap_pathfinder_like_cpp: None,
             instance_lock_mgr: None,
 
-            #[cfg(any(test, feature = "test-fixtures"))]
-            module_registry_like_cpp: None,
             client_visible_guids_like_cpp: SharedClientVisibleGuidsLikeCpp::default(),
         }
     }

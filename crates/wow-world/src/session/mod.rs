@@ -77,6 +77,8 @@ mod collections;
 mod lifecycle_ops;
 mod loot;
 pub mod mailbox;
+mod module_hooks;
+pub(crate) use module_hooks::SessionModuleHooksLikeCpp;
 mod money;
 mod movement;
 mod object_updates;

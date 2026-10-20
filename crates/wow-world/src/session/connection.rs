@@ -66,10 +66,9 @@ impl WorldSession {
     ///
     /// The kernel swaps the channels; continuing the login and releasing the
     /// login claim stay here, because neither is transport.
-    pub(super) async fn poll_instance_link_with_module_registry_like_cpp(
+    pub(super) async fn poll_instance_link_with_catalogs_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
-        modules: &wow_module_api::ModuleRegistry,
         creature_spawn_catalogs: &super::CreatureSpawnCatalogsLikeCpp,
         player_bootstrap: &super::PlayerBootstrapCatalogsLikeCpp,
         player_rest_rates: &super::PlayerRestRatePolicyLikeCpp,
@@ -86,10 +85,9 @@ impl WorldSession {
             InstanceLinkPollOutcome::Pending => {}
             InstanceLinkPollOutcome::Attached => {
                 // Continue the player login sequence on the instance socket
-                wow_world_application::handle_continue_player_login_with_module_registry_like_cpp(
+                wow_world_application::handle_continue_player_login_with_catalogs_like_cpp(
                     self,
                     item_guid_generator,
-                    modules,
                     creature_spawn_catalogs,
                     player_bootstrap,
                     player_rest_rates,
@@ -108,20 +106,14 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(super) async fn poll_instance_link(&mut self) {
-        let modules = self
-            .core
-            .module_registry_like_cpp
-            .clone()
-            .unwrap_or_else(|| std::sync::Arc::new(wow_module_api::ModuleRegistry::new()));
         let generators = self.id_generators_for_test_like_cpp();
         let player_bootstrap = self.player_bootstrap_catalogs_for_test_like_cpp();
         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         let player_rest_rates = self.player_rest_rate_policy_for_test_like_cpp();
         let progression = self.progression_catalogs_for_test_like_cpp();
         let feature_policy = self.support_feature_policy_for_test_like_cpp();
-        self.poll_instance_link_with_module_registry_like_cpp(
+        self.poll_instance_link_with_catalogs_like_cpp(
             generators.item.as_ref(),
-            modules.as_ref(),
             &creature_spawn_catalogs,
             &player_bootstrap,
             &player_rest_rates,

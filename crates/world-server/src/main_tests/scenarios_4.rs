@@ -361,6 +361,16 @@ fn session_resources_requires_named_capability_bundles() {
         !session_factory_source.contains("set_session_handler_catalogs_like_cpp("),
         "the session pass must borrow runtime catalogs instead of retaining them"
     );
+    // #1445 H0: the one exception is the immutable linked-module registry,
+    // which the hook ports need at points the driver does not reach. It is the
+    // dispatch catalogs' own `Arc`, installed once, never a second copy.
+    assert_eq!(
+        session_factory_source
+            .matches("session.install_module_hooks_like_cpp(Arc::clone(&resources.core.handler_catalogs.modules));")
+            .count(),
+        1,
+        "the factory must install the compositor's module registry exactly once"
+    );
     // A session parked on an idle rail must still observe the cooperative
     // shutdown gate, which is a flag rather than a wake-up: without this the
     // drain in app.rs would wait for sessions that never re-read it.

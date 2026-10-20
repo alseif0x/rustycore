@@ -169,6 +169,53 @@ class ModuleManagerTests(unittest.TestCase):
         self.assertIn("source_api", refused.stderr)
         self.assertIn("Update the module or pin an older server", refused.stderr)
 
+    def test_a_module_depending_on_a_server_crate_is_refused(self) -> None:
+        """ADR-002 / #1445 S0: `wow-module-api` is the only server crate allowed."""
+        shutil.copytree(
+            REPO_ROOT / "tools/modules/fixtures/forbidden_dependency",
+            self.ws.root / "modules/forbidden_dependency",
+        )
+        refused = self.ws.run("check")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("depends on server crate 'wow-core'", refused.stderr)
+        self.assertIn("only on wow-module-api", refused.stderr)
+
+    def test_a_workspace_inherited_server_crate_is_refused_too(self) -> None:
+        self.ws.run("new", "demo.greeter")
+        root = self.ws.root / "Cargo.toml"
+        root.write_text(
+            root.read_text(encoding="utf-8")
+            + '\n[workspace.dependencies]\nwow-core = { path = "crates/wow-core" }\n',
+            encoding="utf-8",
+        )
+        cargo = self.ws.root / "modules/demo_greeter/Cargo.toml"
+        cargo.write_text(
+            cargo.read_text(encoding="utf-8").replace(
+                "[dependencies]\n", "[dependencies]\nwow-core = { workspace = true }\n", 1
+            ),
+            encoding="utf-8",
+        )
+        refused = self.ws.run("sync")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("'wow-core'", refused.stderr)
+
+    def test_dev_dependencies_and_api_one_modules_still_compose(self) -> None:
+        """The skeleton is a source API 1 module with a `wow-core` dev-dependency."""
+        self.ws.run("new", "demo.greeter")
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        lock = tomllib.loads((self.ws.root / "modules.lock.toml").read_text(encoding="utf-8"))
+        self.assertEqual(lock["source_api"], "2", "the server provides API 2")
+        self.assertEqual(lock["module"][0]["source_api"], "1", "the module keeps its own API")
+
+    def test_the_composer_and_the_module_api_agree_on_source_apis(self) -> None:
+        sys.path.insert(0, str(REPO_ROOT / "tools/modules"))
+        import compose  # noqa: PLC0415
+
+        lib = (REPO_ROOT / "crates/wow-module-api/src/lib.rs").read_text(encoding="utf-8")
+        self.assertIn(f'pub const SOURCE_API: &str = "{compose.SUPPORTED_SOURCE_API}";', lib)
+        rendered = ", ".join(f'"{api}"' for api in sorted(compose.COMPATIBLE_SOURCE_APIS))
+        self.assertIn(f"pub const COMPATIBLE_SOURCE_APIS: &[&str] = &[{rendered}];", lib)
+
     def test_zero_modules_and_no_config_keep_the_base_behaviour(self) -> None:
         self.assertEqual(self.ws.run("sync").returncode, 0)
         main = (self.ws.root / "crates/world-modules/src/main.rs").read_text(encoding="utf-8")

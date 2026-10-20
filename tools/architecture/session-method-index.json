@@ -4,7 +4,7 @@
     "runtime_shell": [
       "session/driver/",
       "session/construction.rs::new",
-      "session/connection.rs::poll_instance_link_with_module_registry_like_cpp",
+      "session/connection.rs::poll_instance_link_with_catalogs_like_cpp",
       "session/connection_identity.rs::set_state",
       "session/dispatch.rs::dispatch_packet",
       "session/dispatch.rs::is_status_allowed",
@@ -106,7 +106,7 @@
   },
   "staying_bound": {
     "methods": 94,
-    "lines": 2848
+    "lines": 2846
   },
   "outside_ceiling": {
     "methods": 0,
@@ -114,7 +114,7 @@
   },
   "crate_ceiling": {
     "methods": 121,
-    "lines": 4069
+    "lines": 4067
   },
   "reasons": {
     "session/lifecycle/finalization.rs::interrupt_finalization_like_cpp": "world-server session-factory finalization cancel (session_factory/finalization.rs): interrupts the lifecycle-owned in-flight finalization and returns its report; the session driver's own teardown API.",

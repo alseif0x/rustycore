@@ -11,12 +11,9 @@ use super::*;
 ///
 /// Called when the `instance_link_rx` oneshot delivers the new channels.
 /// Sends ResumeComms and the full login sequence after the instance socket is connected.
-pub async fn handle_continue_player_login_with_module_registry_like_cpp<
-    H: ContinueLoginHostLikeCpp,
->(
+pub async fn handle_continue_player_login_with_catalogs_like_cpp<H: ContinueLoginHostLikeCpp>(
     host: &mut H,
     item_guid_generator: &wow_core::ObjectGuidGenerator,
-    modules: &wow_module_api::ModuleRegistry,
     creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
     player_bootstrap: &PlayerBootstrapCatalogsLikeCpp,
     player_rest_rates: &PlayerRestRatePolicyLikeCpp,
@@ -975,10 +972,16 @@ pub async fn handle_continue_player_login_with_module_registry_like_cpp<
         .await;
 
     // C++ `sScriptMgr->OnPlayerLogin(pCurrChar, firstLogin)`
-    // (`CharacterHandler.cpp:1452`), after the completed login and after
-    // the login criteria update. Trusted linked modules observe here.
-    {
-        let (s, h) = host.split_lifecycle_ref();
-        s.dispatch_module_player_login_like_cpp(h, modules, first_login)
+    // (`CharacterHandler.cpp:1390`), after the completed login and after
+    // the login criteria update; AzerothCore `PlayerScript::OnPlayerLogin`
+    // (`PlayerScript.h:332`). Trusted linked modules observe here, through
+    // the host's hook port (#1445): the split borrow ends before the call,
+    // and no map guard or await is in scope.
+    let login_hook_event = {
+        let (_, hub) = host.split_lifecycle_ref();
+        PlayerLoginHookEventLikeCpp::from_hub_like_cpp(hub, first_login)
     };
+    if let Some(event) = login_hook_event {
+        host.player_login_hook_like_cpp(&event);
+    }
 }

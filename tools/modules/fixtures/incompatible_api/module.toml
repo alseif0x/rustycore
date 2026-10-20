@@ -16,4 +16,4 @@ registrar = "fixture_future_api::register"
 [compatibility]
 # The module source API this module was written against. The compositor
 # refuses to compile a module that asks for an API it does not provide.
-source_api = "2"
+source_api = "3"

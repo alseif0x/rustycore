@@ -7,8 +7,14 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
+use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::effect::PlayerLoginEffects;
+use crate::effect::{
+    EffectBatch, HookOutcome, ModuleEffectError, NotificationEffect, PlayerLoginEffects,
+    ScopedEffects, validated,
+};
 use crate::hook::{PlayerLoginModule, PlayerLoginSnapshot};
 
 /// A validated module identifier.
@@ -117,6 +123,10 @@ pub enum ModuleRegistrationError {
     DuplicateId {
         id: String,
     },
+    /// A module offered no hook family, so it could never be called.
+    NoHooks {
+        id: String,
+    },
     /// A module refused its configuration, so it never registered.
     Configuration(crate::ModuleConfigError),
 }
@@ -135,6 +145,7 @@ impl fmt::Display for ModuleRegistrationError {
                 write!(f, "invalid descriptor for module {id}: {reason}")
             }
             Self::DuplicateId { id } => write!(f, "module {id} is already registered"),
+            Self::NoHooks { id } => write!(f, "module {id} registered no hook family"),
             Self::Configuration(error) => write!(f, "{error}"),
         }
     }
@@ -142,14 +153,79 @@ impl fmt::Display for ModuleRegistrationError {
 
 impl std::error::Error for ModuleRegistrationError {}
 
+/// A hook family: one capability a module may offer.
+///
+/// The registry is indexed by capability, not by a single trait: a module
+/// declares exactly the families it implements through [`ModuleHooks`], and a
+/// dispatch only visits the modules that offered that family. Families mirror
+/// AzerothCore's script classes (`ScriptDefines/*.h`) one group at a time.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[non_exhaustive]
+pub enum HookFamily {
+    /// `player.login`, source API 1. AzerothCore `PlayerScript::OnPlayerLogin`
+    /// (`PlayerScript.h:332`); TrinityCore `PlayerScript::OnLogin`.
+    PlayerLogin,
+}
+
+/// The hook families one module offers (source API 2).
+///
+/// Each entry is an `Arc`, so one module value can serve several families and
+/// keep a single state between them. A family left empty is never called.
+#[derive(Clone, Default)]
+pub struct ModuleHooks {
+    player_login: Option<Arc<dyn PlayerLoginModule>>,
+}
+
+impl ModuleHooks {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Offer the `player.login` family.
+    #[must_use]
+    pub fn player_login(mut self, module: Arc<dyn PlayerLoginModule>) -> Self {
+        self.player_login = Some(module);
+        self
+    }
+
+    /// Whether this set offers `family`.
+    #[must_use]
+    pub fn offers(&self, family: HookFamily) -> bool {
+        match family {
+            HookFamily::PlayerLogin => self.player_login.is_some(),
+        }
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.player_login.is_none()
+    }
+}
+
+/// One registered module and its process-lifetime health.
+struct RegisteredModule {
+    descriptor: ModuleDescriptor,
+    hooks: ModuleHooks,
+    /// Set once, when a callback panics. A disabled module is skipped by every
+    /// later dispatch of every family for the rest of the process.
+    disabled: AtomicBool,
+}
+
 /// The registered trusted modules.
 ///
 /// Ordering is deterministic: modules run in `ModuleId` order, never in
 /// registration order, so a build that links the same set always dispatches
-/// the same sequence.
+/// the same sequence. This is distinct from the compositor's registration
+/// order (`order`, then id, recorded in `modules.lock.toml`), which only
+/// decides the order registrars run in.
+///
+/// The registry is built once by the compositor, then shared immutably for
+/// the life of the process. The only state that changes afterwards is the
+/// per-module disabled flag a panicking callback sets.
 #[derive(Default)]
 pub struct ModuleRegistry {
-    modules: BTreeMap<ModuleId, (ModuleDescriptor, Box<dyn PlayerLoginModule>)>,
+    modules: BTreeMap<ModuleId, RegisteredModule>,
 }
 
 impl ModuleRegistry {
@@ -158,19 +234,44 @@ impl ModuleRegistry {
         Self::default()
     }
 
-    pub fn register_player_login_module(
+    /// Register a module with the hook families it offers (source API 2).
+    pub fn register_module(
         &mut self,
         descriptor: ModuleDescriptor,
-        module: Box<dyn PlayerLoginModule>,
+        hooks: ModuleHooks,
     ) -> Result<(), ModuleRegistrationError> {
         if self.modules.contains_key(&descriptor.id) {
             return Err(ModuleRegistrationError::DuplicateId {
                 id: descriptor.id.to_string(),
             });
         }
-        self.modules
-            .insert(descriptor.id.clone(), (descriptor, module));
+        if hooks.is_empty() {
+            return Err(ModuleRegistrationError::NoHooks {
+                id: descriptor.id.to_string(),
+            });
+        }
+        self.modules.insert(
+            descriptor.id.clone(),
+            RegisteredModule {
+                descriptor,
+                hooks,
+                disabled: AtomicBool::new(false),
+            },
+        );
         Ok(())
+    }
+
+    /// Register a login-only module. Source API 1's registrar, kept unchanged:
+    /// it is [`Self::register_module`] with only the `player.login` family.
+    pub fn register_player_login_module(
+        &mut self,
+        descriptor: ModuleDescriptor,
+        module: Box<dyn PlayerLoginModule>,
+    ) -> Result<(), ModuleRegistrationError> {
+        self.register_module(
+            descriptor,
+            ModuleHooks::new().player_login(Arc::from(module)),
+        )
     }
 
     #[must_use]
@@ -178,9 +279,26 @@ impl ModuleRegistry {
         self.modules.is_empty()
     }
 
+    /// Whether any enabled module offers `family`. Owners check this before
+    /// building a snapshot, so a family nobody uses costs nothing.
+    #[must_use]
+    pub fn handles(&self, family: HookFamily) -> bool {
+        self.modules
+            .values()
+            .any(|m| !m.disabled.load(Ordering::Acquire) && m.hooks.offers(family))
+    }
+
+    /// Whether a panic disabled `id`. Unknown ids are not disabled.
+    #[must_use]
+    pub fn is_disabled(&self, id: &ModuleId) -> bool {
+        self.modules
+            .get(id)
+            .is_some_and(|m| m.disabled.load(Ordering::Acquire))
+    }
+
     #[must_use]
     pub fn descriptors(&self) -> Vec<&ModuleDescriptor> {
-        self.modules.values().map(|(d, _)| d).collect()
+        self.modules.values().map(|m| &m.descriptor).collect()
     }
 
     /// Run every registered login module and return the validated batch.
@@ -189,15 +307,61 @@ impl ModuleRegistry {
     /// so an invalid effect from one module discards the entire login batch
     /// rather than leaving a partial result. With no modules registered this
     /// allocates nothing observable and returns an empty batch, which is the
-    /// zero-module no-op path.
+    /// zero-module no-op path. Source API 1's form of
+    /// [`Self::dispatch_player_login_outcome`].
     pub fn dispatch_player_login(
         &self,
         snapshot: &PlayerLoginSnapshot,
-    ) -> Result<PlayerLoginEffects, crate::effect::ModuleEffectError> {
-        let mut effects = PlayerLoginEffects::default();
-        for (id, (_, module)) in &self.modules {
-            module.on_player_login(snapshot, &mut effects.scoped_for(id.clone()));
+    ) -> Result<PlayerLoginEffects, ModuleEffectError> {
+        self.dispatch_player_login_outcome(snapshot).effects
+    }
+
+    /// `player.login`, reporting which modules a panic disabled.
+    pub fn dispatch_player_login_outcome(
+        &self,
+        snapshot: &PlayerLoginSnapshot,
+    ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_notifications(
+            |hooks| hooks.player_login.as_ref(),
+            |module, effects| module.on_player_login(snapshot, effects),
+        )
+    }
+
+    /// Visit, in `ModuleId` order, every enabled module offering one
+    /// notification family, then validate the batch as a whole.
+    ///
+    /// Each callback runs under its own `catch_unwind`. `AssertUnwindSafe` is
+    /// sound here because nothing a panicking callback could leave half-done
+    /// is observed again: the effects it queued are truncated away, and the
+    /// module is disabled so its own state is never read again. The other
+    /// modules and the owner only see the batch.
+    fn dispatch_notifications<M: ?Sized>(
+        &self,
+        family: impl Fn(&ModuleHooks) -> Option<&Arc<M>>,
+        call: impl Fn(&M, &mut ScopedEffects<'_>),
+    ) -> HookOutcome<NotificationEffect> {
+        let mut batch = EffectBatch::default();
+        let mut disabled = Vec::new();
+        for (id, entry) in &self.modules {
+            if entry.disabled.load(Ordering::Acquire) {
+                continue;
+            }
+            let Some(module) = family(&entry.hooks) else {
+                continue;
+            };
+            let mark = batch.len();
+            let completed = catch_unwind(AssertUnwindSafe(|| {
+                call(module, &mut ScopedEffects::new(&mut batch, id.clone()));
+            }));
+            if completed.is_err() {
+                batch.truncate(mark);
+                entry.disabled.store(true, Ordering::Release);
+                disabled.push(id.clone());
+            }
         }
-        effects.validated()
+        HookOutcome {
+            effects: validated(batch),
+            disabled,
+        }
     }
 }

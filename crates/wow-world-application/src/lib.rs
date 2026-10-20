@@ -14,11 +14,11 @@ mod player_handlers;
 mod session_lifecycle;
 pub use continue_login::{
     ContinueLoginHostLikeCpp, PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP,
-    PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP,
+    PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP, PlayerLoginHookEventLikeCpp,
     apply_loaded_known_spell_previous_rank_passive_auras_like_cpp,
     apply_login_passive_known_spell_auras_like_cpp, apply_represented_group_leader_flag_like_cpp,
     apply_represented_login_spell_reset_if_needed_like_cpp, gender_from_u8,
-    handle_continue_player_login_with_module_registry_like_cpp,
+    handle_continue_player_login_with_catalogs_like_cpp,
     load_represented_character_titles_like_cpp,
     loaded_inventory_slot_count_with_legacy_rust_compat,
     login_known_spells_after_account_collections_like_cpp, set_loaded_player_identity_like_cpp,

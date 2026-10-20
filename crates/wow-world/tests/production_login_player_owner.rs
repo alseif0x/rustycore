@@ -424,21 +424,17 @@ async fn hydrate(
     let grid: PlayerGridLoadResolverLikeCpp =
         Arc::new(|_, _, _| panic!("unexpected grid publication"));
     let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
-    let modules = wow_module_api::ModuleRegistry::new();
     let rest = PlayerRestRatePolicyLikeCpp::default();
     let features = SupportFeaturePolicyLikeCpp::default();
-    let mut login = Box::pin(
-        session.handle_continue_player_login_with_module_registry_like_cpp(
-            &generator,
-            &modules,
-            &creatures,
-            &bootstrap,
-            &rest,
-            &progression,
-            &features,
-            &grid,
-        ),
-    );
+    let mut login = Box::pin(session.handle_continue_player_login_with_catalogs_like_cpp(
+        &generator,
+        &creatures,
+        &bootstrap,
+        &rest,
+        &progression,
+        &features,
+        &grid,
+    ));
     // Poll once: early fixture reads are ready; the selected checkpoint is pending.
     let pending =
         std::future::poll_fn(|cx| std::task::Poll::Ready(login.as_mut().poll(cx).is_pending()))

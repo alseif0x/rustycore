@@ -167,8 +167,13 @@ Component Model/WIT** (interfaz tipada y versionada; extism queda como alternati
 atajos de PDK, ya que se apoya en wasmtime). Reglas del sandbox: lista blanca de host functions,
 sin handles de BD, sin escritores de paquetes, sin accesso a storage interno, límite de ejecución
 (fuel/epoch) para que un módulo no cuelgue el servidor, y fallo de módulo **aislado** (se registra
-y se desactiva; el servidor no cae). Versión distinta ⇒ se rechaza al instalar. `world-modules`
-depende solo de `wow-module-api`, nunca de `world-server`. Coherente con el proyecto: el producto
+y se desactiva; el servidor no cae). Versión distinta ⇒ se rechaza al instalar. **Los crates de
+módulo** (`modules/*`) dependen solo de `wow-module-api` entre los crates del servidor;
+`tools/modules/compose.py` lo comprueba y rechaza el resto antes de compilar (#1445).
+`world-modules` es el compositor generado: categoría `composition`, igual que `world-server`, y
+depende de él por `world_server::run_with_modules` (arista composición→composición permitida; ver
+A2 abajo). Corregido el 2026-10-20: la redacción anterior decía que `world-modules` no dependía
+de `world-server`, lo que nunca fue la invariante útil. Coherente con el proyecto: el producto
 Rust/Wasm/C es obligatorio, la activación por operador es opcional.
 
 **ADR-003 — Núcleo funcional, cáscara imperativa (aprobada).** Crates L0-L3 síncronos y puros:
@@ -392,6 +397,9 @@ lateral como violacion. Verificado contra la politica y el codigo: `world-module
 API de libreria prevista para componer. `xtask check-layers` ya excluia las fuentes de capa 5, asi
 que nunca la marco. **No hay nada que invertir**; el generador `tools/modules/compose.py` y su
 salida se quedan como estan hasta D6 (contrato Wasm), que es donde cambia el modelo de modulos.
+La invariante real de ADR-002 es otra y quedaba sin comprobar: que **los crates de modulo**
+dependan solo de `wow-module-api`. #1445 (H0) la añade a `compose.py` con su fixture de rechazo
+(`tools/modules/fixtures/forbidden_dependency/`); A2 queda cerrada con esa comprobacion.
 
 **A3 — tooling y vendor.** `capture-diff` ya esta clasificado como **tooling** en
 `dependency-policy.json` (mis notas anteriores hablaban de "capas de juego" por prosa, no por

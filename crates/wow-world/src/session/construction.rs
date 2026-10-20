@@ -102,7 +102,15 @@ impl WorldSession {
                 area_trigger_script_dispatcher_like_cpp: None,
             },
             dispatch_table: packet_handler_registry,
+            module_hooks: crate::session::SessionModuleHooksLikeCpp::default(),
         }
+    }
+
+    /// Install the process-owned linked-module registry (#1445). The session
+    /// factory calls this once at construction with the compositor's `Arc`;
+    /// the hook ports then dispatch to it.
+    pub fn install_module_hooks_like_cpp(&mut self, registry: Arc<wow_module_api::ModuleRegistry>) {
+        self.module_hooks = crate::session::SessionModuleHooksLikeCpp::new(registry);
     }
 
     #[cfg(test)]
