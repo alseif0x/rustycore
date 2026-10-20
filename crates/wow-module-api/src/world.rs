@@ -162,6 +162,12 @@ pub trait WorldModule: Send + Sync {
 
     /// AzerothCore `WorldScript::OnShutdown` (`WorldScript.h:77`, worldserver
     /// `Main.cpp:419`).
+    ///
+    /// Deviation from C++: AzerothCore calls `OnShutdown` before
+    /// `KickAll`/`UpdateSessions(1)`/`StopNetwork`. RustyCore calls it later,
+    /// after the session flush and the respawn-writer drain and before the
+    /// realm is marked offline, so no module runs while sessions are still
+    /// being finalized; an `announce_world` here may reach no player.
     fn on_shutdown(&self, _snapshot: &WorldShutdownSnapshot, _effects: &mut WorldEffects<'_>) {}
 
     /// AzerothCore `WorldScript::OnUpdate(uint32 diff)` (`WorldScript.h:71`,
