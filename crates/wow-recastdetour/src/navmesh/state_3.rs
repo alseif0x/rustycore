@@ -196,6 +196,10 @@ pub enum DetourTileError {
 pub enum DetourNavMeshQueryError {
     #[error("Detour navmesh query allocation failed")]
     AllocationFailed,
+    #[error(
+        "Detour navmesh query node limit is outside the supported range 4..=65535: {max_nodes}"
+    )]
+    InvalidNodeLimit { max_nodes: i32 },
     #[error("Detour navmesh query initialization failed with status 0x{status:08x}")]
     InitFailed { status: DetourStatus },
     #[error("Detour findNearestPoly failed with status 0x{status:08x}")]
