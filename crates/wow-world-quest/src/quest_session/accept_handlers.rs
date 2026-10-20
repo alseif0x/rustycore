@@ -112,25 +112,28 @@ pub async fn handle_quest_giver_accept_quest_with_generator_like_cpp<
     .await;
 
     // Save to DB after AddQuestAndCheckCompletion-style completion, unless
-    // RewardQuest already removed/rewarded the quest.
-    if let Some(status) = host
+    // RewardQuest already removed/rewarded the quest. The accept is durable
+    // when this save applied, or through that reward's committed transaction.
+    let accept_durable = if let Some(status) = host
         .player_quest_gameplay_snapshot_like_cpp()
         .and_then(|state| {
             state
                 .statuses_like_cpp()
                 .get(&quest_id)
                 .map(|status| status.status)
-        })
-    {
-        crate::save_quest_to_db(host, quest_id, status).await;
-    }
+        }) {
+        crate::save_quest_to_db(host, quest_id, status).await
+    } else {
+        true
+    };
     host.sync_player_registry_state_like_cpp();
     host.send_represented_quest_log_slot_update_like_cpp(slot);
     // AzerothCore `AddQuestAndCheckCompletion` -> `OnPlayerQuestAccept`
-    // (`PlayerQuest.cpp:426`); here after the accepted status was saved (or,
-    // for a quest the completion check already rewarded, after that reward's
-    // commit), so a module observes a durable accept.
-    raise_quest_accepted_hook_like_cpp(host, quest_id, slot);
+    // (`PlayerQuest.cpp:426`); here only once the accept is durable: its
+    // status save applied, or a completion reward already committed it.
+    if accept_durable {
+        raise_quest_accepted_hook_like_cpp(host, quest_id, slot);
+    }
 
     info!(account = host.core().account_id, quest_id, "Quest accepted");
 
@@ -427,13 +430,14 @@ pub async fn handle_quest_confirm_accept_with_generator_like_cpp<
         };
 
         if let Some(source_item_no_grant_reason) = source_item_no_grant_reason {
-            if !crate::add_quest_confirm_accept_local_state_like_cpp(
-                host,
-                item_guid_generator,
-                &quest,
-            )
-            .await
-            {
+            let Some((slot, accept_durable)) =
+                crate::add_quest_confirm_accept_local_state_like_cpp(
+                    host,
+                    item_guid_generator,
+                    &quest,
+                )
+                .await
+            else {
                 record(
                     host,
                     RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp::ReceiverCanAddQuestLogFull,
@@ -445,7 +449,7 @@ pub async fn handle_quest_confirm_accept_with_generator_like_cpp<
                     0,
                 );
                 return;
-            }
+            };
 
             let represented_source_spell_id =
                 (quest.source_spell_id > 0).then_some(quest.source_spell_id);
@@ -460,12 +464,16 @@ pub async fn handle_quest_confirm_accept_with_generator_like_cpp<
                 represented_source_spell_id,
                 represented_source_spell_self_casts,
             );
+            if accept_durable {
+                raise_quest_accepted_hook_like_cpp(host, quest.id, slot);
+            }
             return;
         }
 
-        if !crate::add_quest_confirm_accept_local_state_like_cpp(host, item_guid_generator, &quest)
-            .await
-        {
+        let Some((slot, accept_durable)) =
+            crate::add_quest_confirm_accept_local_state_like_cpp(host, item_guid_generator, &quest)
+                .await
+        else {
             record(
                 host,
                 RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp::ReceiverCanAddQuestLogFull,
@@ -477,7 +485,7 @@ pub async fn handle_quest_confirm_accept_with_generator_like_cpp<
                 0,
             );
             return;
-        }
+        };
 
         let Some(source_item_store_outcome) =
             crate::store_quest_source_item_with_generator_like_cpp(
@@ -499,6 +507,9 @@ pub async fn handle_quest_confirm_accept_with_generator_like_cpp<
                 None,
                 0,
             );
+            if accept_durable {
+                raise_quest_accepted_hook_like_cpp(host, quest.id, slot);
+            }
             return;
         };
 
@@ -523,12 +534,19 @@ pub async fn handle_quest_confirm_accept_with_generator_like_cpp<
             represented_source_spell_id,
             represented_source_spell_self_casts,
         );
+        // The shared-quest `OnPlayerQuestAccept` after the source item step,
+        // which TrinityCore runs before `AddQuestAndCheckCompletion`
+        // (`Player.cpp:14436`); only once the accept is durable (#1444).
+        if accept_durable {
+            raise_quest_accepted_hook_like_cpp(host, quest.id, slot);
+        }
         return;
     }
 
-    if !crate::add_quest_confirm_accept_local_state_like_cpp(host, item_guid_generator, &quest)
-        .await
-    {
+    let Some((slot, accept_durable)) =
+        crate::add_quest_confirm_accept_local_state_like_cpp(host, item_guid_generator, &quest)
+            .await
+    else {
         record(
             host,
             RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp::ReceiverCanAddQuestLogFull,
@@ -540,7 +558,7 @@ pub async fn handle_quest_confirm_accept_with_generator_like_cpp<
             0,
         );
         return;
-    }
+    };
 
     let represented_source_spell_id = (quest.source_spell_id > 0).then_some(quest.source_spell_id);
     let represented_source_spell_self_casts = u8::from(quest.source_spell_id > 0) * 2;
@@ -554,6 +572,9 @@ pub async fn handle_quest_confirm_accept_with_generator_like_cpp<
         represented_source_spell_id,
         represented_source_spell_self_casts,
     );
+    if accept_durable {
+        raise_quest_accepted_hook_like_cpp(host, quest.id, slot);
+    }
 }
 
 pub fn read_quest_giver_accept_quest_like_cpp(

@@ -480,19 +480,33 @@ fn install_level_probe(
     probe
 }
 
-/// `player.level_changed` (#1444 H1): AzerothCore `GiveLevel` ->
-/// `OnPlayerLevelChanged` (`Player.cpp:2585`). Once per level-up, after the XP
-/// save was requested; XP that does not change the level raises nothing.
-#[tokio::test]
-async fn level_changed_hook_runs_once_after_the_xp_save_like_cpp() {
-    let (mut session, port) = session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 2 });
+fn level_session(
+    outcome: PersistenceOutcomeLikeCpp,
+    counter: i64,
+) -> (
+    WorldSession,
+    Arc<RecordingPortLikeCpp>,
+    Arc<LevelProbe>,
+    ObjectGuid,
+) {
+    let (mut session, port) = session_with_port(outcome);
     let probe = install_level_probe(&mut session, &port);
-    let guid = ObjectGuid::create_player(1, 0x7500_0311);
-    let victim = test_creature_guid(0x7500_0312);
+    let guid = ObjectGuid::create_player(1, counter);
+    let victim = test_creature_guid(counter + 1);
     session.set_player_guid(Some(guid));
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     install_tapped_xp_victim_like_cpp(&mut session, victim);
+    (session, port, probe, victim)
+}
+
+/// `player.level_changed` (#1444 H1): AzerothCore `GiveLevel` ->
+/// `OnPlayerLevelChanged` (`Player.cpp:2585`). Once per level-up, after the XP
+/// save applied; XP that does not change the level raises nothing.
+#[tokio::test]
+async fn level_changed_hook_runs_once_after_the_xp_save_like_cpp() {
+    let (mut session, port, probe, victim) =
+        level_session(PersistenceOutcomeLikeCpp::Applied { rows: 2 }, 0x7500_0311);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
 
     session.give_xp(50, victim, 1.0).await;
     assert!(
@@ -502,14 +516,49 @@ async fn level_changed_hook_runs_once_after_the_xp_save_like_cpp() {
 
     crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(60);
     session.give_xp(50, victim, 1.0).await;
-    let calls = probe.calls.lock().unwrap().clone();
-    assert_eq!(calls.len(), 1, "one level-up, one hook");
-    let (old_level, new_level, saves) = calls[0];
-    assert_eq!(old_level, 10);
-    assert!(new_level > old_level);
     assert_eq!(
-        saves,
-        port.xp_saves().len(),
-        "the level-up's XP save was requested before the hook"
+        *probe.calls.lock().unwrap(),
+        vec![(10, 11, port.xp_saves().len())],
+        "one level-up, one hook, after its XP save was requested"
     );
+}
+
+/// A failed or unknown XP save is not a durable level: no hook (#1444 review
+/// F1). The level was still published to the client, as before.
+#[tokio::test]
+async fn an_unsaved_level_up_raises_no_level_changed_hook_like_cpp() {
+    for outcome in [
+        PersistenceOutcomeLikeCpp::Failed {
+            reason: "rolled back".to_owned(),
+        },
+        PersistenceOutcomeLikeCpp::Unknown {
+            reason: "commit reply lost".to_owned(),
+        },
+    ] {
+        let (mut session, port, probe, victim) = level_session(outcome, 0x7500_0321);
+        crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(60);
+        session.give_xp(100, victim, 1.0).await;
+        assert_eq!(port.xp_saves().len(), 1, "the level-up attempted its save");
+        assert!(probe.calls.lock().unwrap().is_empty());
+    }
+}
+
+/// TrinityCore `GiveXP` calls `GiveLevel` once per level gained
+/// (`Player.cpp:2231-2236`), so a multi-level grant reports every step in
+/// order (#1444 review F2).
+#[tokio::test]
+async fn a_multi_level_grant_reports_every_level_step_like_cpp() {
+    let (mut session, _port, probe, victim) =
+        level_session(PersistenceOutcomeLikeCpp::Applied { rows: 2 }, 0x7500_0331);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(10);
+    session.give_xp(1_000_000, victim, 1.0).await;
+    let calls = probe.calls.lock().unwrap().clone();
+    assert!(
+        calls.len() >= 2,
+        "a large grant gains several levels: {calls:?}"
+    );
+    for (index, (old, new, _)) in calls.iter().enumerate() {
+        assert_eq!(*old, 10 + index as u8);
+        assert_eq!(*new, old + 1);
+    }
 }

@@ -61,8 +61,12 @@ pub struct QuestRewardedHookEventLikeCpp {
     pub quest_id: u32,
     pub quest_giver: ObjectGuid,
     pub choice_item_id: u32,
-    pub xp: u32,
-    pub money: i64,
+    /// The XP the reward offered; what `GiveXP` actually grants can be less
+    /// (none at the level cap).
+    pub reward_xp: u32,
+    /// The committed balance before and after the reward's money.
+    pub money_before: u64,
+    pub money_after: u64,
 }
 
 /// The hook port a quest/progression context raises its events through.
@@ -95,8 +99,3 @@ pub trait QuestModuleHookPortLikeCpp: Sync {
     ) {
     }
 }
-
-/// The port with nothing behind it.
-pub struct NoQuestModuleHooksLikeCpp;
-
-impl QuestModuleHookPortLikeCpp for NoQuestModuleHooksLikeCpp {}

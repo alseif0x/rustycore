@@ -196,8 +196,9 @@ impl QuestModuleHookPortLikeCpp for SessionModuleHooksLikeCpp {
             event.quest_id,
             event.quest_giver,
             event.choice_item_id,
-            event.xp,
-            event.money,
+            event.reward_xp,
+            event.money_before,
+            event.money_after,
         );
         let outcome = self.registry.dispatch_quest_rewarded(&snapshot);
         apply_notifications_like_cpp(publication, "player.quest_rewarded", outcome);

@@ -121,10 +121,14 @@ pub struct QuestRewardedSnapshot {
     pub quest_giver: ObjectGuid,
     /// The chosen reward item, or 0.
     pub choice_item_id: u32,
-    /// The XP the reward granted.
-    pub xp: u32,
-    /// The reward money, in copper, as the quest defines it.
-    pub money: i64,
+    /// The XP the reward offered (`Quest::XPValue`). `GiveXP` may grant less,
+    /// nothing at the level cap; `player.level_changed` reports what changed.
+    pub reward_xp: u32,
+    /// The committed balance, in copper, before the reward's money.
+    pub money_before: u64,
+    /// The committed balance, in copper, after it; equal to `money_before`
+    /// when the reward grants no money.
+    pub money_after: u64,
 }
 
 impl QuestRewardedSnapshot {
@@ -134,16 +138,18 @@ impl QuestRewardedSnapshot {
         quest_id: u32,
         quest_giver: ObjectGuid,
         choice_item_id: u32,
-        xp: u32,
-        money: i64,
+        reward_xp: u32,
+        money_before: u64,
+        money_after: u64,
     ) -> Self {
         Self {
             guid,
             quest_id,
             quest_giver,
             choice_item_id,
-            xp,
-            money,
+            reward_xp,
+            money_before,
+            money_after,
         }
     }
 }
@@ -157,7 +163,8 @@ pub trait PlayerModule: Send + Sync {
     fn on_logout(&self, _snapshot: &PlayerLogoutSnapshot) {}
 
     /// AzerothCore `PlayerScript::OnPlayerLevelChanged` (`PlayerScript.h:263`),
-    /// from `Player::GiveLevel`.
+    /// from `Player::GiveLevel`: once per level gained, in order, only after
+    /// the XP save applied.
     fn on_level_changed(
         &self,
         _snapshot: &PlayerLevelChangedSnapshot,
@@ -167,7 +174,8 @@ pub trait PlayerModule: Send + Sync {
 
     /// AzerothCore `PlayerScript::OnPlayerMoneyChanged` (`PlayerScript.h:282`).
     /// Observation only: AzerothCore's `int32&` may change the amount, which
-    /// needs a pre-decision on every money path (#583).
+    /// needs a pre-decision on every money path (#583). Reported once the
+    /// change committed.
     fn on_money_changed(
         &self,
         _snapshot: &PlayerMoneyChangedSnapshot,
@@ -185,7 +193,8 @@ pub trait PlayerModule: Send + Sync {
     }
 
     /// AzerothCore `PlayerScript::OnPlayerCompleteQuest` (`PlayerScript.h:245`),
-    /// the last step of `Player::RewardQuest`.
+    /// the last step of `Player::RewardQuest`. The reward's level and money
+    /// changes are reported first, in AzerothCore's order.
     fn on_quest_rewarded(
         &self,
         _snapshot: &QuestRewardedSnapshot,

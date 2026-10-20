@@ -967,3 +967,97 @@ async fn auto_bank_item_rejects_without_current_bank_like_cpp() {
     assert!(session.represented_bank_item_moves_like_cpp().is_empty());
     assert!(send_rx.try_recv().is_err());
 }
+
+/// Records each `player.money_changed` with the purchases already committed
+/// and whether the exclusive money fence was free.
+struct MoneyHookProbe {
+    port: Arc<CollectionLoadPortLikeCpp>,
+    tracker: Arc<wow_world_core::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp>,
+    calls: std::sync::Mutex<Vec<(u64, u64, usize, bool)>>,
+}
+
+impl wow_module_api::PlayerModule for MoneyHookProbe {
+    fn on_money_changed(
+        &self,
+        snapshot: &wow_module_api::PlayerMoneyChangedSnapshot,
+        _effects: &mut wow_module_api::ScopedEffects<'_>,
+    ) {
+        self.calls.lock().unwrap().push((
+            snapshot.old_money,
+            snapshot.new_money,
+            self.port.bank_slot_purchase_requests().len(),
+            self.tracker.exclusive_money_fence_is_free_like_cpp(),
+        ));
+    }
+}
+
+fn install_money_hook_probe(
+    session: &mut WorldSession,
+    port: &Arc<CollectionLoadPortLikeCpp>,
+) -> Arc<MoneyHookProbe> {
+    let probe = Arc::new(MoneyHookProbe {
+        port: Arc::clone(port),
+        tracker: session.durable_loot_money_persistence_tracker_like_cpp(),
+        calls: std::sync::Mutex::new(Vec::new()),
+    });
+    let mut registry = wow_module_api::ModuleRegistry::new();
+    registry
+        .register_module(
+            wow_module_api::ModuleDescriptor::new(
+                "alpha.money",
+                wow_module_api::ModuleVersion {
+                    major: 1,
+                    minor: 0,
+                    patch: 0,
+                },
+                "Money",
+            )
+            .unwrap(),
+            wow_module_api::ModuleHooks::new().player(Arc::clone(&probe) as _),
+        )
+        .unwrap();
+    session.install_module_hooks_like_cpp(Arc::new(registry));
+    probe
+}
+
+/// `player.money_changed` (#1444 H1) through a production money path, C++
+/// `HandleBuyBankSlotOpcode` -> `ModifyMoney` (AzerothCore
+/// `OnPlayerMoneyChanged`, `Player.cpp:11688`): once, after the purchase
+/// committed, with the exclusive money fence released.
+#[tokio::test]
+async fn buy_bank_slot_raises_money_changed_once_after_the_commit_outside_the_fence() {
+    let (mut session, _send_rx, canonical) = make_bank_slot_session(4);
+    let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 7);
+    insert_banker_creature(&canonical, banker, NPCFlags1::BANKER.bits());
+    let port = CollectionLoadPortLikeCpp::for_bank_slot_purchase([
+        wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::Committed,
+    ]);
+    session.set_player_lifecycle_port_like_cpp(port.clone());
+    let probe = install_money_hook_probe(&mut session, &port);
+
+    session
+        .handle_buy_bank_slot(BuyBankSlot { guid: banker })
+        .await;
+
+    assert_eq!(*probe.calls.lock().unwrap(), vec![(150, 50, 1, true)]);
+}
+
+#[tokio::test]
+async fn a_rolled_back_bank_slot_purchase_raises_no_money_changed_hook() {
+    let (mut session, _send_rx, canonical) = make_bank_slot_session(4);
+    let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 8);
+    insert_banker_creature(&canonical, banker, NPCFlags1::BANKER.bits());
+    let port = CollectionLoadPortLikeCpp::for_bank_slot_purchase([
+        wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::DefinitelyRolledBack {
+            reason: "fixture rollback".to_owned(),
+        },
+    ]);
+    session.set_player_lifecycle_port_like_cpp(port.clone());
+    let probe = install_money_hook_probe(&mut session, &port);
+
+    session
+        .handle_buy_bank_slot(BuyBankSlot { guid: banker })
+        .await;
+
+    assert!(probe.calls.lock().unwrap().is_empty());
+}

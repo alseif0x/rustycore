@@ -9,9 +9,8 @@
 
 mod module_hooks;
 pub use module_hooks::{
-    NoQuestModuleHooksLikeCpp, PlayerLevelChangedHookEventLikeCpp,
-    PlayerMoneyChangedHookEventLikeCpp, QuestAcceptedHookEventLikeCpp, QuestModuleHookPortLikeCpp,
-    QuestRewardedHookEventLikeCpp,
+    PlayerLevelChangedHookEventLikeCpp, PlayerMoneyChangedHookEventLikeCpp,
+    QuestAcceptedHookEventLikeCpp, QuestModuleHookPortLikeCpp, QuestRewardedHookEventLikeCpp,
 };
 mod quest;
 mod quest_handlers;

@@ -242,6 +242,13 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             .pop_represented_quest_objective_progress_like_cpp()
         {
             match event {
+                RepresentedQuestObjectiveProgressEventLikeCpp::RewardMoneyChanged {
+                    old_money,
+                    new_money,
+                } => {
+                    self.update_money_quest_objective_progress_like_cpp(old_money, new_money)
+                        .await;
+                }
                 RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
                     old_money,
                     new_money,

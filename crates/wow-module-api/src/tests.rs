@@ -551,10 +551,10 @@ impl PlayerModule for PlayerRecorder {
         effects.send_system_message_self("accepted");
     }
     fn on_quest_rewarded(&self, snapshot: &QuestRewardedSnapshot, effects: &mut ScopedEffects<'_>) {
-        self.seen
-            .lock()
-            .unwrap()
-            .push(format!("rewarded {} xp {}", snapshot.quest_id, snapshot.xp));
+        self.seen.lock().unwrap().push(format!(
+            "rewarded {} xp {}",
+            snapshot.quest_id, snapshot.reward_xp
+        ));
         effects.send_system_message_self("rewarded");
     }
 }
@@ -600,7 +600,8 @@ fn the_player_family_dispatches_each_hook_in_module_id_order() {
             guid(),
             0,
             120,
-            50,
+            10,
+            60,
         )),
     ] {
         assert_eq!(outcome.effects.expect("valid").len(), 2);

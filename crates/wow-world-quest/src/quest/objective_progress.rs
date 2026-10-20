@@ -58,6 +58,9 @@ pub fn plan_quest_status_save_like_cpp(
     })
 }
 
+/// Save one quest status row. Returns whether the save is known durable
+/// (`Applied`); a failed, unknown or unattempted save returns `false`, which
+/// the quest-accept hook uses to report only durable accepts (#1444).
 pub async fn save_quest_to_db_like_cpp(
     owner: &QuestObjectiveAccessLikeCpp<'_>,
     quest_state: &SessionQuestState,
@@ -66,10 +69,10 @@ pub async fn save_quest_to_db_like_cpp(
     quest_id: u32,
     status: u8,
     fixture_fallback: bool,
-) {
+) -> bool {
     let port = match lifecycle.player_quest_persistence_port_like_cpp() {
         Some(port) => port,
-        None => return,
+        None => return false,
     };
     let Some(request) = plan_quest_status_save_like_cpp(
         owner,
@@ -79,23 +82,29 @@ pub async fn save_quest_to_db_like_cpp(
         status,
         fixture_fallback,
     ) else {
-        return;
+        return false;
     };
 
     match port.persist_status_like_cpp(request).await {
-        PersistenceOutcomeLikeCpp::Applied { .. } => {}
-        PersistenceOutcomeLikeCpp::Failed { reason } => tracing::warn!(
-            account = owner.account_id_like_cpp(),
-            quest_id,
-            error = %reason,
-            "Failed to save quest status"
-        ),
-        PersistenceOutcomeLikeCpp::Unknown { reason } => tracing::warn!(
-            account = owner.account_id_like_cpp(),
-            quest_id,
-            error = %reason,
-            "Quest status save commit outcome is unknown"
-        ),
+        PersistenceOutcomeLikeCpp::Applied { .. } => true,
+        PersistenceOutcomeLikeCpp::Failed { reason } => {
+            tracing::warn!(
+                account = owner.account_id_like_cpp(),
+                quest_id,
+                error = %reason,
+                "Failed to save quest status"
+            );
+            false
+        }
+        PersistenceOutcomeLikeCpp::Unknown { reason } => {
+            tracing::warn!(
+                account = owner.account_id_like_cpp(),
+                quest_id,
+                error = %reason,
+                "Quest status save commit outcome is unknown"
+            );
+            false
+        }
     }
 }
 

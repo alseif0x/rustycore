@@ -855,10 +855,13 @@ async fn quest_giver_choose_reward_records_reward_mail_sender_entry_like_cpp() {
     );
 }
 
-/// Records each `player.quest_accepted` with whether the map lock was free.
-struct AcceptProbe {
-    map: crate::session::SharedCanonicalMapManager,
-    calls: std::sync::Mutex<Vec<(u32, u8, bool)>>,
+/// Records each `player.quest_accepted` with the status saves already
+/// requested and whether the canonical map lock was free.
+pub(super) struct AcceptProbe {
+    map: Option<crate::session::SharedCanonicalMapManager>,
+    pub(super) saves:
+        Arc<std::sync::Mutex<Vec<wow_persistence::PlayerQuestStatusPersistenceRequestLikeCpp>>>,
+    pub(super) calls: std::sync::Mutex<Vec<(u32, u8, usize, bool)>>,
 }
 
 impl wow_module_api::PlayerModule for AcceptProbe {
@@ -870,41 +873,27 @@ impl wow_module_api::PlayerModule for AcceptProbe {
         self.calls.lock().unwrap().push((
             snapshot.quest_id,
             snapshot.slot,
-            self.map.try_lock().is_ok(),
+            self.saves.lock().unwrap().len(),
+            self.map.as_ref().is_none_or(|map| map.try_lock().is_ok()),
         ));
         effects.send_system_message_self("Accepted!");
     }
 }
 
-/// `player.quest_accepted` (#1444 H1): AzerothCore `OnPlayerQuestAccept`
-/// (`PlayerQuest.cpp:426`), after the quest-log slot update. Once, with no
-/// map guard held, before the legacy accept confirmation packet.
-#[tokio::test]
-async fn quest_giver_accept_raises_the_quest_accepted_hook_once_like_cpp() {
-    let (mut session, send_rx) = make_session();
-    let quest_id = 7202;
-    let gameobject_entry = 9302;
-    let source_guid = gameobject_guid(gameobject_entry, 302);
-    let quest = quest_template(quest_id);
-    let mut store = QuestStore::from_quests_like_cpp([quest]);
-    assert!(store.insert_gameobject_starter_relation_like_cpp(gameobject_entry, quest_id));
-    session.set_quest_store(Arc::new(store));
-    let mut manager = wow_map::MapManager::default();
-    insert_gameobject(&mut manager, source_guid, gameobject_entry);
-    attach_map_manager(&mut session, manager);
-    session.record_represented_gameobject_runtime_state_like_cpp(
-        571,
-        source_guid,
-        gameobject_entry,
-        Position::new(10.0, 0.0, 0.0, 0.0),
-        wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8,
-    );
+/// Install a quest status port answering `outcome` and a probe module.
+pub(super) fn install_accept_probe(
+    session: &mut WorldSession,
+    outcome: wow_persistence::PersistenceOutcomeLikeCpp,
+) -> Arc<AcceptProbe> {
+    let fixture = PlayerQuestPersistencePortFixtureLikeCpp {
+        outcome,
+        ..Default::default()
+    };
+    let saves = Arc::clone(&fixture.status_requests);
+    session.set_player_quest_persistence_port_like_cpp(Arc::new(fixture));
     let probe = Arc::new(AcceptProbe {
-        map: session
-            .core
-            .canonical_map_manager
-            .clone()
-            .expect("map attached"),
+        map: session.core.canonical_map_manager.clone(),
+        saves,
         calls: std::sync::Mutex::new(Vec::new()),
     });
     let mut registry = wow_module_api::ModuleRegistry::new();
@@ -924,12 +913,51 @@ async fn quest_giver_accept_raises_the_quest_accepted_hook_once_like_cpp() {
         )
         .unwrap();
     session.install_module_hooks_like_cpp(Arc::new(registry));
+    probe
+}
+
+/// A quest giver offering `quest_id` from a gameobject on the canonical map.
+fn quest_giver_session(
+    quest_id: u32,
+    entry: u32,
+    low: u32,
+) -> (WorldSession, flume::Receiver<Vec<u8>>, ObjectGuid) {
+    let (mut session, send_rx) = make_session();
+    let source_guid = gameobject_guid(entry, i64::from(low));
+    let quest = quest_template(quest_id);
+    let mut store = QuestStore::from_quests_like_cpp([quest]);
+    assert!(store.insert_gameobject_starter_relation_like_cpp(entry, quest_id));
+    session.set_quest_store(Arc::new(store));
+    let mut manager = wow_map::MapManager::default();
+    insert_gameobject(&mut manager, source_guid, entry);
+    attach_map_manager(&mut session, manager);
+    session.record_represented_gameobject_runtime_state_like_cpp(
+        571,
+        source_guid,
+        entry,
+        Position::new(10.0, 0.0, 0.0, 0.0),
+        wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8,
+    );
+    (session, send_rx, source_guid)
+}
+
+/// `player.quest_accepted` (#1444 H1): AzerothCore `OnPlayerQuestAccept`
+/// (`PlayerQuest.cpp:426`). Once, after the status save applied, with no map
+/// guard held, before the legacy accept confirmation packet.
+#[tokio::test]
+async fn quest_giver_accept_raises_the_quest_accepted_hook_once_like_cpp() {
+    let quest_id = 7202;
+    let (mut session, send_rx, source_guid) = quest_giver_session(quest_id, 9302, 302);
+    let probe = install_accept_probe(
+        &mut session,
+        wow_persistence::PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+    );
 
     session
         .handle_quest_giver_accept_quest(quest_giver_cmsg_packet(source_guid, quest_id, 0x00))
         .await;
 
-    assert_eq!(*probe.calls.lock().unwrap(), vec![(quest_id, 0, true)]);
+    assert_eq!(*probe.calls.lock().unwrap(), vec![(quest_id, 0, 1, true)]);
     let opcodes: Vec<_> = send_rx
         .try_iter()
         .map(|bytes| wow_packet::WorldPacket::from_bytes(&bytes).server_opcode())
@@ -943,4 +971,37 @@ async fn quest_giver_accept_raises_the_quest_accepted_hook_once_like_cpp() {
         ],
         "slot update, then the module's message, then the legacy confirmation"
     );
+}
+
+/// A failed or unknown status save is not a durable accept: no hook
+/// (#1444 review F1).
+#[tokio::test]
+async fn an_unsaved_quest_accept_raises_no_hook_like_cpp() {
+    for (low, outcome) in [
+        (
+            303,
+            wow_persistence::PersistenceOutcomeLikeCpp::Failed {
+                reason: "rolled back".to_owned(),
+            },
+        ),
+        (
+            304,
+            wow_persistence::PersistenceOutcomeLikeCpp::Unknown {
+                reason: "commit reply lost".to_owned(),
+            },
+        ),
+    ] {
+        let quest_id = 7200 + low;
+        let (mut session, _send_rx, source_guid) = quest_giver_session(quest_id, 9300 + low, low);
+        let probe = install_accept_probe(&mut session, outcome);
+        session
+            .handle_quest_giver_accept_quest(quest_giver_cmsg_packet(source_guid, quest_id, 0x00))
+            .await;
+        assert_eq!(
+            probe.saves.lock().unwrap().len(),
+            1,
+            "the accept tried to save"
+        );
+        assert!(probe.calls.lock().unwrap().is_empty());
+    }
 }

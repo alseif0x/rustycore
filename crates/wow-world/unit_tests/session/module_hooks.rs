@@ -331,8 +331,8 @@ impl PlayerModule for PlayerProbe {
     }
     fn on_quest_rewarded(&self, s: &QuestRewardedSnapshot, e: &mut ScopedEffects<'_>) {
         self.record(format!(
-            "rewarded {} {} {} {}",
-            s.quest_id, s.choice_item_id, s.xp, s.money
+            "rewarded {} {} {} {} {}",
+            s.quest_id, s.choice_item_id, s.reward_xp, s.money_before, s.money_after
         ));
         e.send_system_message_self("ok");
     }
@@ -398,8 +398,9 @@ fn every_player_port_converts_its_event_and_runs_with_no_map_lock() {
             quest_id: 7201,
             quest_giver: guid,
             choice_item_id: 3,
-            xp: 120,
-            money: 50,
+            reward_xp: 120,
+            money_before: 10,
+            money_after: 60,
         },
     );
     assert_eq!(system_texts(&send_rx, &session), vec!["ok", "ok"]);
@@ -419,7 +420,7 @@ fn every_player_port_converts_its_event_and_runs_with_no_map_lock() {
             "level 9 10",
             "money 5 7",
             "accepted 7201 0",
-            "rewarded 7201 3 120 50",
+            "rewarded 7201 3 120 10 60",
             "logout TimedLogout 1"
         ]
     );

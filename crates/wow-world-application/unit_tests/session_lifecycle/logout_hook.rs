@@ -37,19 +37,43 @@ fn the_logout_port_runs_inside_retirement_between_the_registry_and_the_map() {
     );
 }
 
+/// The ledger itself: in every mode with a player, `Retirement` (and so the
+/// logout hook) comes only after `CharacterSave` and `CharacterOffline` were
+/// admitted and applied, and it is admitted exactly once.
 #[test]
 fn the_ledger_admits_retirement_only_after_the_save_and_the_offline_mark() {
-    let ledger = include_str!("../../../wow-world-lifecycle/src/finalization.rs");
-    for plan in ledger.split("=> &[").skip(1) {
-        let plan = &plan[..plan.find(']').expect("plan end")];
-        if let Some(retirement) = plan.find("Retirement") {
-            let save = plan
-                .find("CharacterSave")
-                .expect("a plan with Retirement saves");
-            let offline = plan
-                .find("CharacterOffline")
-                .expect("a plan with Retirement marks the character offline");
-            assert!(save < retirement && offline < retirement, "{plan}");
+    use wow_world_lifecycle::{
+        FinalizationMode, FinalizationOutcome, FinalizationStep, SessionFinalization,
+    };
+    for mode in [
+        FinalizationMode::CharacterSelection,
+        FinalizationMode::TimedLogout,
+        FinalizationMode::Disconnect,
+    ] {
+        let mut ledger = SessionFinalization::new(mode, true, None);
+        let mut ran = Vec::new();
+        while let Some(step) = ledger.next_step() {
+            assert!(ledger.begin(step), "{mode:?}: {step:?} is admitted");
+            assert!(ledger.finish(step, FinalizationOutcome::Applied));
+            ran.push(step);
         }
+        let at = |wanted| ran.iter().position(|step| *step == wanted);
+        let retirement = at(FinalizationStep::Retirement).expect("a player retires");
+        assert!(
+            at(FinalizationStep::CharacterSave).expect("saved") < retirement,
+            "{mode:?}"
+        );
+        assert!(
+            at(FinalizationStep::CharacterOffline).expect("marked offline") < retirement,
+            "{mode:?}"
+        );
+        assert_eq!(
+            ran.iter()
+                .filter(|step| **step == FinalizationStep::Retirement)
+                .count(),
+            1,
+            "{mode:?}: retirement runs once"
+        );
+        assert!(!ledger.begin(FinalizationStep::Retirement), "no replay");
     }
 }

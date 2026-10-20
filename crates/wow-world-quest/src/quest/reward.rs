@@ -174,10 +174,12 @@ impl<'a> QuestRewardCx<'a> {
         self.player.quest_gameplay_snapshot_like_cpp()
     }
 
-    pub fn enqueue_money_changed_like_cpp(&mut self, old_money: u64, new_money: u64) {
+    /// Queue the reward's committed money change for objective progress. Its
+    /// `player.money_changed` hook is raised by the reward itself.
+    pub fn enqueue_reward_money_changed_like_cpp(&mut self, old_money: u64, new_money: u64) {
         self.quest_state
             .enqueue_represented_quest_objective_progress_like_cpp(
-                RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
+                RepresentedQuestObjectiveProgressEventLikeCpp::RewardMoneyChanged {
                     old_money,
                     new_money,
                 },
