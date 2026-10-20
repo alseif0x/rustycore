@@ -42036,6 +42036,27 @@
         },
         {
           "package": "wow-world-core",
+          "module": "crate::session::canonical_access::visibility_refresh",
+          "self_type": "SessionCore",
+          "resolved_provider": [
+            {
+              "package": "wow-world-core",
+              "module": "crate::session::state::session_core",
+              "symbol": "SessionCore",
+              "kind": "struct",
+              "source_path": "crates/wow-world-core/src/session/state/session_core.rs",
+              "guards": []
+            }
+          ],
+          "trait_path": null,
+          "cfg": [],
+          "availability": {
+            "production": true,
+            "test": true
+          }
+        },
+        {
+          "package": "wow-world-core",
           "module": "crate::session::canonical_access::xp_gain",
           "self_type": "SessionCore",
           "resolved_provider": [
@@ -44084,6 +44105,21 @@
           "name": "npc_interaction_access_with_selected_refs_like_cpp",
           "visibility": "pub",
           "signature": "fn npc_interaction_access_with_selected_refs_like_cpp < 'a > (& 'a self , faction_store : Option < & 'a FactionStore > , faction_template_store : Option < & 'a FactionTemplateStore > , friendship_rep_reaction_store : Option < & 'a FriendshipRepReactionStore > , # [cfg (any (test , feature = \"test-fixtures\"))] fixtures : NpcInteractionFixtureRefsLikeCpp < 'a > ,) -> NpcInteractionAccessLikeCpp < 'a >",
+          "cfg": [],
+          "availability": {
+            "production": true,
+            "test": true
+          }
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::canonical_access::visibility_refresh",
+          "self_type": "SessionCore",
+          "trait_path": null,
+          "kind": "method",
+          "name": "visibility_refresh_access_like_cpp",
+          "visibility": "pub",
+          "signature": "fn visibility_refresh_access_like_cpp (& self) -> VisibilityRefreshAccessLikeCpp < '_ >",
           "cfg": [],
           "availability": {
             "production": true,

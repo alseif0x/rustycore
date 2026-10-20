@@ -229,10 +229,73 @@ impl QuestRewardPlayerAccessLikeCpp<'_> {
             .send_equip_error(result, item1, item2, required_level, limit_category);
     }
 
-    /// Shared view of the same canonical session for the read-only completion
-    /// visibility refresh (C++ `SendQuestUpdate` reads the Player/Map directly).
-    pub fn core_ref_like_cpp(&self) -> &SessionCore {
+    /// Read view for the completion visibility refresh (C++ `SendQuestUpdate`
+    /// ends with `UpdateVisibleGameobjectsOrSpellClicks`, #1440).
+    pub fn visibility_refresh_access_like_cpp(
+        &self,
+    ) -> crate::session::VisibilityRefreshAccessLikeCpp<'_> {
+        self.core.visibility_refresh_access_like_cpp()
+    }
+
+    /// Player-condition reads for the completion visibility projections.
+    pub fn player_condition_access_with_selected_fixture_refs_like_cpp<'s>(
+        &'s self,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        fixtures: crate::session::PlayerConditionFixtureRefsLikeCpp<'s>,
+    ) -> crate::session::PlayerConditionAccessLikeCpp<'s> {
         self.core
+            .player_condition_access_with_selected_fixture_refs_like_cpp(
+                #[cfg(any(test, feature = "test-fixtures"))]
+                fixtures,
+            )
+    }
+
+    /// Quest-eligibility reads for the completion gameobject projection.
+    pub fn quest_eligibility_access_like_cpp<'s>(
+        &'s self,
+        #[cfg(any(test, feature = "test-fixtures"))] race: &'s u8,
+        #[cfg(any(test, feature = "test-fixtures"))] class: &'s u8,
+        #[cfg(any(test, feature = "test-fixtures"))] level: &'s u8,
+        #[cfg(any(test, feature = "test-fixtures"))] skill_records: &'s HashMap<
+            u16,
+            crate::session::RepresentedPlayerSkillLikeCpp,
+        >,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        reputation: &'s wow_entities::PlayerReputationStateLikeCpp,
+    ) -> crate::session::QuestEligibilityAccessLikeCpp<'s> {
+        self.core.quest_eligibility_access_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            race,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            class,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            level,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            skill_records,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            reputation,
+        )
+    }
+
+    /// NPC-interaction reads for the completion spell-click projection.
+    pub fn npc_interaction_access_with_selected_refs_like_cpp<'s>(
+        &'s self,
+        faction_store: Option<&'s wow_data::progression_rewards::FactionStore>,
+        faction_template_store: Option<&'s wow_data::progression_rewards::FactionTemplateStore>,
+        friendship_rep_reaction_store: Option<
+            &'s wow_data::progression_rewards::FriendshipRepReactionStore,
+        >,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        fixtures: crate::session::NpcInteractionFixtureRefsLikeCpp<'s>,
+    ) -> crate::session::NpcInteractionAccessLikeCpp<'s> {
+        self.core
+            .npc_interaction_access_with_selected_refs_like_cpp(
+                faction_store,
+                faction_template_store,
+                friendship_rep_reaction_store,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                fixtures,
+            )
     }
 
     pub fn reborrow_like_cpp<'a>(&'a mut self) -> QuestRewardPlayerAccessLikeCpp<'a> {

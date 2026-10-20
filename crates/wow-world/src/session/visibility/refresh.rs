@@ -20,7 +20,7 @@ impl WorldSession {
     /// and the catalogs/quest state the existing eligibility providers consume.
     fn visibility_refresh_cx_like_cpp(&self) -> VisibilityRefreshCxLikeCpp<'_> {
         VisibilityRefreshCxLikeCpp {
-            core: &self.core,
+            access: self.core.visibility_refresh_access_like_cpp(),
             catalogs: &self.catalogs,
             quest_state: &self.quest_state,
             world_entities: &self.world_entities,
