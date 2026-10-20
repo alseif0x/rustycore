@@ -278,8 +278,13 @@ no effect can.
 
 Every hook below is a confirmed-result notification unless marked otherwise. Each one is raised
 after its transition and that transition's persistence boundary, exactly once, never under a
-map, money or respawn-order guard, and only when `registry.handles(<family>)` says a module
-wants it (the port's interest query).
+map, money or respawn-order guard, and only when the port's interest query says a module wants
+it: `registry.handles_player_hook(<hook>)` for a `player.*` hook (AzerothCore
+`CALL_ENABLED_HOOKS`; a module declares its hooks with `PlayerModule::enabled_hooks`, every hook
+by default), `registry.handles(<family>)` for the others. `player.creature_kill` and
+`player.spell_cast` are **non-persistent observations**: they report an in-memory transition
+(the death state, a cast sent to the client) that has no persistence boundary of its own, not a
+durable or committed result.
 
 | Hook | Family / method | AzerothCore | RustyCore call site | Effects |
 |---|---|---|---|---|
@@ -289,8 +294,12 @@ wants it (the port's interest query).
 | `player.money_changed` | `PlayerModule::on_money_changed` | `PlayerScript.h:282`, `Player.cpp:11688` | `wow-world-quest` `quest/objectives.rs`, the post-commit `MoneyChanged` drain every money path feeds (outside the exclusive money fence); a quest reward raises its own, see below | self message; the amount cannot be changed (#583) |
 | `player.quest_accepted` | `PlayerModule::on_quest_accepted` | `PlayerScript.h:750`, `PlayerQuest.cpp:426` | `wow-world-quest` `quest_session/accept_handlers.rs`, quest giver and shared-quest confirmation (after its source-item step, TrinityCore `Player.cpp:14436`), only once the status save applied or a completion reward committed it | self message |
 | `player.quest_rewarded` | `PlayerModule::on_quest_rewarded` | `PlayerScript.h:245`, `PlayerQuest.cpp:903` | `wow-world-quest` `quest/reward/coordinator.rs`, last step of the reward, after its single commit, the reward XP's level hooks and the reward's own money hook (AzerothCore order: `GiveXP`, `ModifyMoney`, `OnPlayerCompleteQuest`); carries the committed balances and the offered XP | self message |
-| `player.creature_kill` | `PlayerModule::on_creature_kill` | `PlayerScript.h:254`, `Unit.cpp:14298`; TrinityCore `Unit.cpp:10755` (`OnCreatureKill`) | `wow-world-entities` `creature_kill_session.rs`, the kill completion every player kill ends in (spell damage at once, map-tick melee through the session's pending-kill queue): once per `setDeathState(JUST_DIED)`, after the map lock of that transition is released, only for the session's own player | self message |
-| `player.spell_cast` | `PlayerModule::on_spell_cast` | `PlayerScript.h:326`, `Spell.cpp:3825`; TrinityCore `Spell.cpp:3671` | `wow-world-spell` `execution_session/execution.rs`, the only player `SMSG_SPELL_GO` producer: once per cast with the player as caster, after the SPELL_GO and before the effects; `triggered` is C++ `TRIGGERED_IGNORE_GCD`, the one trigger flag represented (every `CastSpell(..., true)` carries it) | self message; nothing can change spells or auras (#754) |
+| `player.creature_kill` | `PlayerModule::on_creature_kill` | `PlayerScript.h:254`, `Unit.cpp:14298`; TrinityCore `Unit.cpp:10755` (`OnCreatureKill`) | `wow-world-entities` `creature_kill_session.rs`, the kill completion every player kill ends in (spell damage at once, map-tick melee through the session's pending-kill queue): once per `setDeathState(JUST_DIED)`, after the map lock of that transition is released, only for the session's own player | self message; non-persistent observation |
+| `player.spell_cast` | `PlayerModule::on_spell_cast` | `PlayerScript.h:326`, `Spell.cpp:3825`; TrinityCore `Spell.cpp:3671` | `wow-world-spell` `execution_session/execution.rs`, the only player `SMSG_SPELL_GO` producer: once per cast with the player as caster, after the SPELL_GO and before the effects; `triggered` is C++ `TRIGGERED_IGNORE_GCD`, the one trigger flag represented (every `CastSpell(..., true)` carries it) | self message; nothing can change spells or auras (#754); non-persistent observation |
+| `item.equipped` | `PlayerModule::on_equip` | `PlayerScript.h:416`, `PlayerStorage.cpp:2940` | `wow-world-inventory` `item_session`: equip into an empty slot (`moves.rs`), a real swap (`real_swap.rs`, once per item that lands in an equipment position) and the child equip, after the inventory transaction committed and the position changed | self message |
+| `player.loot_item` | `PlayerModule::on_loot_item` | `PlayerScript.h:431`, `Player.cpp:13918` | `wow-world-loot-ops` `loot_handlers/item.rs`, a directly looted item once durably stored, raised after the request's loot-removed notifications; roll winners and master-loot recipients are not reported (AzerothCore raises other hooks there) | self message |
+| `player.loot_money` | `PlayerModule::on_loot_money` | `LootScript.h:44`, `LootHandler.cpp:273` | `wow-world-loot-ops` `session_loot/handlers/money.rs`, once for the looter after the group fanout committed (`money` is the whole `loot->gold`, `share` what the looter received), or after an item's money was durably applied; a repeated request on an emptied loot reports 0, as AzerothCore does | self message |
+| `chat.message` (**pre-decision**) | `ChatModule::on_chat_message` | `PlayerScript.h:657-709` (`OnPlayerCanUseChat`); TrinityCore `PlayerScript::OnChat` | `wow-world-social` `chat_handlers`: say, yell, free-text emote, party, raid, raid warning, instance chat and whisper, after every C++ check (language, mute, flood, length, `ValidateMessage`, links, GM silence, alive, level; group resolved; whisper receiver found), right before the send | `ChatDecision`: `Allow`, `Deny`, `ReplaceText` |
 | `world.config_loaded` | `WorldModule::on_config_loaded` | `WorldScript.h:53`, `World.cpp:300` (`OnAfterConfigLoad(false)`) | `world-server` `app.rs`, `WorldModuleHooksLikeCpp::after_config_load_like_cpp`, after the databases are started, the online accounts cleared and the realm marked offline, before the realm list is read (C++ reaches `LoadConfigSettings` only after `StartDB`); `reload` is always `false` (no reload exists) | log, world announcement |
 | `world.startup` | `WorldModule::on_startup` | `WorldScript.h:74`, `Main.cpp:395` (TrinityCore `Main.cpp:413`) | `world-server` `app.rs`, after both listeners are bound and the realm is marked online, beside the internal `on_startup_like_cpp`; the already spawned map loop dispatches no `world.update` before it | log, world announcement |
 | `world.update` | `WorldModule::on_update` | `WorldScript.h:71`, `World.cpp:1342` (TrinityCore `World.cpp:2862`) | `world-server` `runtime/map/update_loop.rs`, once per completed canonical tick, at its end, after the map manager, spawn metadata and respawn-order guards were released and after game events; only after `world.startup`; `diff_ms` is the time since the previous dispatch | log, world announcement; 5 ms budget per module, throttled warning and per-module metric |
@@ -322,11 +331,26 @@ total, maximum and overruns are kept per module. A tick the loop skips (map time
 barrier held, abandoned tick, shutdown, or before `world.startup`) dispatches nothing, and the
 next dispatch's `diff_ms` covers it.
 
-**Combat hooks (#1444 H3).** `player.spell_cast` is raised once the cast is committed and visible
-(`SMSG_SPELL_GO` sent), where C++ `OnPlayerSpellCast` runs just before it at the start of
-`Spell::_cast`; a notification observes a cast that already happened, so the module's message
-follows the SPELL_GO. Creature and GameObject casts on the map tick raise nothing. A group kill
+**Combat hooks (#1444 H3).** Both are non-persistent observations (see above).
+`player.spell_cast` is raised once the cast is visible (`SMSG_SPELL_GO` sent) and before its
+effects apply; a notification observes a cast that already happened, so the module's message
+follows the SPELL_GO. A cast that fails before SPELL_GO (cast checks, targets, power) raises
+nothing. This differs from AzerothCore, which calls `OnPlayerSpellCast` at the start of
+`Spell::_cast` (`Spell.cpp:3825`), before its `CheckCast` (`Spell.cpp:3851`), so a C++ module
+also sees casts that then fail. Creature and GameObject casts on the map tick raise nothing. A group kill
 reports only the killing player (the group reward fanout is not ported).
+
+**Chat pre-decision (#1444 H4).** `chat.message` is the first hook that can change what happens.
+`HookFamily::Chat` is a family of its own, so a server whose modules ignore chat builds nothing
+per message. The chat handlers run in a borrowed context, so the World lends it a
+`ChatModuleHookPortLikeCpp`. Decisions compose in `ModuleId` order: each module sees the text the
+previous ones left, the first `Deny` drops the message, and a panicking module is disabled with
+its decision discarded. A replaced text goes through the client-text rules again (511 bytes,
+`ValidateMessage`, emptiness, hyperlink shape); one that fails them drops the message rather than
+fall back to the text a module wanted replaced, and a module-inserted link never kicks the
+sender. Guild and officer chat, channels, AFK/DND replies and addon messages are not offered:
+guild chat and channel broadcast are not ported, and in C++ a veto after the AFK/DND toggle has
+no effect.
 
 ## Approved next direction — #583 under #99, not implemented yet
 

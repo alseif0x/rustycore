@@ -24,17 +24,25 @@ use std::sync::Arc;
 
 use tracing::{debug, warn};
 use wow_module_api::{
-    CreatureKillSnapshot, HookFamily, HookOutcome, LogoutReason, ModuleRegistry,
-    NotificationEffect, PlayerLevelChangedSnapshot, PlayerLoginSnapshot, PlayerLogoutSnapshot,
-    PlayerMoneyChangedSnapshot, QuestAcceptedSnapshot, QuestRewardedSnapshot, SpellCastSnapshot,
+    ChatDecision, ChatKind, ChatMessageSnapshot, CreatureKillSnapshot, HookFamily, HookOutcome,
+    ItemEquippedSnapshot, LogoutReason, LootItemSnapshot, LootMoneySnapshot, ModuleRegistry,
+    NotificationEffect, PlayerHook, PlayerLevelChangedSnapshot, PlayerLoginSnapshot,
+    PlayerLogoutSnapshot, PlayerMoneyChangedSnapshot, QuestAcceptedSnapshot, QuestRewardedSnapshot,
+    SpellCastSnapshot,
 };
+use wow_packet::packets::chat::ChatMsg;
 use wow_world_application::{PlayerLoginHookEventLikeCpp, PlayerLogoutHookEventLikeCpp};
 use wow_world_core::session::PacketPublicationAccessLikeCpp;
 use wow_world_entities::CreatureKillHookEventLikeCpp;
+use wow_world_inventory::ItemEquippedHookEventLikeCpp;
 use wow_world_lifecycle::FinalizationMode;
+use wow_world_loot_ops::{LootItemHookEventLikeCpp, LootMoneyHookEventLikeCpp};
 use wow_world_quest::{
     PlayerLevelChangedHookEventLikeCpp, PlayerMoneyChangedHookEventLikeCpp,
     QuestAcceptedHookEventLikeCpp, QuestModuleHookPortLikeCpp, QuestRewardedHookEventLikeCpp,
+};
+use wow_world_social::{
+    ChatHookVerdictLikeCpp, ChatMessageHookEventLikeCpp, ChatModuleHookPortLikeCpp,
 };
 use wow_world_spell::SpellCastHookEventLikeCpp;
 
@@ -79,6 +87,13 @@ impl SessionModuleHooksLikeCpp {
         self.registry.handles(family)
     }
 
+    /// Whether any enabled module enabled the `player.*` hook `hook`: the
+    /// per-hook interest query (AzerothCore `CALL_ENABLED_HOOKS`). The port
+    /// that raises the hook asks it first, so the adapter does not ask again.
+    pub(crate) fn wants_player_hook_like_cpp(&self, hook: PlayerHook) -> bool {
+        self.registry.handles_player_hook(hook)
+    }
+
     #[cfg(test)]
     pub(crate) fn registry_like_cpp(&self) -> &Arc<ModuleRegistry> {
         &self.registry
@@ -116,9 +131,6 @@ impl SessionModuleHooksLikeCpp {
     /// (`PlayerScript.h:338`). The session is closing, so modules observe
     /// only; the outcome can carry no effect to apply.
     pub(crate) fn player_logout_like_cpp(&self, event: &PlayerLogoutHookEventLikeCpp) {
-        if !self.registry.handles(HookFamily::Player) {
-            return;
-        }
         let reason = match event.mode {
             FinalizationMode::CharacterSelection => LogoutReason::CharacterSelection,
             FinalizationMode::TimedLogout => LogoutReason::TimedLogout,
@@ -136,9 +148,6 @@ impl SessionModuleHooksLikeCpp {
         publication: PacketPublicationAccessLikeCpp<'_>,
         event: &QuestAcceptedHookEventLikeCpp,
     ) {
-        if !self.registry.handles(HookFamily::Player) {
-            return;
-        }
         let snapshot = QuestAcceptedSnapshot::new(event.guid, event.quest_id, event.slot);
         let outcome = self.registry.dispatch_quest_accepted(&snapshot);
         apply_notifications_like_cpp(publication, "player.quest_accepted", outcome);
@@ -153,9 +162,6 @@ impl SessionModuleHooksLikeCpp {
         publication: PacketPublicationAccessLikeCpp<'_>,
         event: &CreatureKillHookEventLikeCpp,
     ) {
-        if !self.registry.handles(HookFamily::Player) {
-            return;
-        }
         let snapshot = CreatureKillSnapshot::new(
             event.guid,
             event.creature_guid,
@@ -174,9 +180,6 @@ impl SessionModuleHooksLikeCpp {
         publication: PacketPublicationAccessLikeCpp<'_>,
         event: &SpellCastHookEventLikeCpp,
     ) {
-        if !self.registry.handles(HookFamily::Player) {
-            return;
-        }
         let snapshot = SpellCastSnapshot::new(
             event.guid,
             event.spell_id,
@@ -187,12 +190,104 @@ impl SessionModuleHooksLikeCpp {
         let outcome = self.registry.dispatch_spell_cast(&snapshot);
         apply_notifications_like_cpp(publication, "player.spell_cast", outcome);
     }
+
+    /// `item.equipped`: AzerothCore `OnPlayerEquip` (`PlayerStorage.cpp:2940`,
+    /// `PlayerScript.h:416`).
+    pub(crate) fn item_equipped_like_cpp(
+        &self,
+        publication: PacketPublicationAccessLikeCpp<'_>,
+        event: &ItemEquippedHookEventLikeCpp,
+    ) {
+        let snapshot = ItemEquippedSnapshot::new(
+            event.guid,
+            event.item_guid,
+            event.item_entry,
+            event.bag,
+            event.slot,
+        );
+        let outcome = self.registry.dispatch_item_equipped(&snapshot);
+        apply_notifications_like_cpp(publication, "item.equipped", outcome);
+    }
+
+    /// `player.loot_item`: AzerothCore `OnPlayerLootItem` (`Player.cpp:13918`,
+    /// `PlayerScript.h:431`).
+    pub(crate) fn loot_item_like_cpp(
+        &self,
+        publication: PacketPublicationAccessLikeCpp<'_>,
+        event: &LootItemHookEventLikeCpp,
+    ) {
+        let snapshot =
+            LootItemSnapshot::new(event.guid, event.item_id, event.count, event.loot_source);
+        let outcome = self.registry.dispatch_loot_item(&snapshot);
+        apply_notifications_like_cpp(publication, "player.loot_item", outcome);
+    }
+
+    /// `player.loot_money`: AzerothCore `LootScript::OnLootMoney`
+    /// (`LootHandler.cpp:273`, `LootScript.h:44`).
+    pub(crate) fn loot_money_like_cpp(
+        &self,
+        publication: PacketPublicationAccessLikeCpp<'_>,
+        event: &LootMoneyHookEventLikeCpp,
+    ) {
+        let snapshot =
+            LootMoneySnapshot::new(event.guid, event.loot_source, event.money, event.share);
+        let outcome = self.registry.dispatch_loot_money(&snapshot);
+        apply_notifications_like_cpp(publication, "player.loot_money", outcome);
+    }
+}
+
+/// The chat handler context port (#1444 H4): `chat.message`, a pre-decision.
+impl ChatModuleHookPortLikeCpp for SessionModuleHooksLikeCpp {
+    fn chat_hooks_wanted_like_cpp(&self) -> bool {
+        self.wants_like_cpp(HookFamily::Chat)
+    }
+
+    /// AzerothCore `OnPlayerCanUseChat` (`PlayerScript.h:657-709`). The
+    /// handler re-validates a replaced text before it uses it.
+    fn chat_message_like_cpp(&self, event: &ChatMessageHookEventLikeCpp) -> ChatHookVerdictLikeCpp {
+        let kind = match event.msg_type {
+            ChatMsg::Say => ChatKind::Say,
+            ChatMsg::Yell => ChatKind::Yell,
+            ChatMsg::Emote => ChatKind::Emote,
+            ChatMsg::Party => ChatKind::Party,
+            ChatMsg::Raid => ChatKind::Raid,
+            ChatMsg::RaidWarning => ChatKind::RaidWarning,
+            ChatMsg::InstanceChat => ChatKind::InstanceChat,
+            ChatMsg::Whisper => ChatKind::Whisper,
+            _ => return ChatHookVerdictLikeCpp::Allow,
+        };
+        let snapshot = ChatMessageSnapshot::new(
+            event.guid,
+            kind,
+            event.language,
+            event.text.clone(),
+            event.receiver,
+        );
+        let outcome = self.registry.dispatch_chat_message(&snapshot);
+        log_disabled_like_cpp("chat.message", &outcome.disabled);
+        match outcome.decision {
+            ChatDecision::Deny => {
+                debug!(module = ?outcome.denied_by, "chat.message denied by a linked module");
+                ChatHookVerdictLikeCpp::Deny
+            }
+            ChatDecision::ReplaceText(text) => ChatHookVerdictLikeCpp::Replace(text),
+            _ => ChatHookVerdictLikeCpp::Allow,
+        }
+    }
 }
 
 /// The quest and progression context port (#1444 H1).
 impl QuestModuleHookPortLikeCpp for SessionModuleHooksLikeCpp {
-    fn player_hooks_wanted_like_cpp(&self) -> bool {
-        self.wants_like_cpp(HookFamily::Player)
+    fn level_changed_hook_wanted_like_cpp(&self) -> bool {
+        self.wants_player_hook_like_cpp(PlayerHook::LevelChanged)
+    }
+
+    fn money_changed_hook_wanted_like_cpp(&self) -> bool {
+        self.wants_player_hook_like_cpp(PlayerHook::MoneyChanged)
+    }
+
+    fn quest_rewarded_hook_wanted_like_cpp(&self) -> bool {
+        self.wants_player_hook_like_cpp(PlayerHook::QuestRewarded)
     }
 
     /// `player.level_changed`: AzerothCore `OnPlayerLevelChanged`
@@ -202,9 +297,6 @@ impl QuestModuleHookPortLikeCpp for SessionModuleHooksLikeCpp {
         publication: PacketPublicationAccessLikeCpp<'_>,
         event: &PlayerLevelChangedHookEventLikeCpp,
     ) {
-        if !self.registry.handles(HookFamily::Player) {
-            return;
-        }
         let snapshot =
             PlayerLevelChangedSnapshot::new(event.guid, event.old_level, event.new_level);
         let outcome = self.registry.dispatch_player_level_changed(&snapshot);
@@ -218,9 +310,6 @@ impl QuestModuleHookPortLikeCpp for SessionModuleHooksLikeCpp {
         publication: PacketPublicationAccessLikeCpp<'_>,
         event: &PlayerMoneyChangedHookEventLikeCpp,
     ) {
-        if !self.registry.handles(HookFamily::Player) {
-            return;
-        }
         let snapshot =
             PlayerMoneyChangedSnapshot::new(event.guid, event.old_money, event.new_money);
         let outcome = self.registry.dispatch_player_money_changed(&snapshot);
@@ -234,9 +323,6 @@ impl QuestModuleHookPortLikeCpp for SessionModuleHooksLikeCpp {
         publication: PacketPublicationAccessLikeCpp<'_>,
         event: &QuestRewardedHookEventLikeCpp,
     ) {
-        if !self.registry.handles(HookFamily::Player) {
-            return;
-        }
         let snapshot = QuestRewardedSnapshot::new(
             event.guid,
             event.quest_id,

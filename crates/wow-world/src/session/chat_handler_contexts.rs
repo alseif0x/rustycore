@@ -27,8 +27,8 @@ impl ChatHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         &'a mut self,
         catalogs: &'a SessionHandlerCatalogsLikeCpp,
     ) -> ChatHandlerCxLikeCpp<'a> {
-        let (social, hub) = crate::session::split_social_mut(self);
-        ChatHandlerCxLikeCpp::new(hub, social, catalogs.chat_policy.as_ref())
+        let (social, hub, module_hooks) = crate::session::split_social_with_module_hooks_mut(self);
+        ChatHandlerCxLikeCpp::new(hub, social, catalogs.chat_policy.as_ref(), module_hooks)
     }
 
     fn handle_text_emote_with_catalogs_like_cpp<'a>(

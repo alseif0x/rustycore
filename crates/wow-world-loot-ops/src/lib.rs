@@ -14,6 +14,7 @@
 
 mod loot_handlers;
 mod loot_release;
+mod module_hooks;
 mod session_loot;
 pub use loot_handlers::{
     LootHandlerCxLikeCpp, LootHandlerHostLikeCpp, register_loot_handlers_like_cpp,
@@ -24,6 +25,7 @@ pub use loot_release::{
     queue_chest_gameobject_state_refresh_for_same_map_like_cpp,
     represented_gameobject_can_autostore_loot_item_like_cpp,
 };
+pub use module_hooks::{LootItemHookEventLikeCpp, LootMoneyHookEventLikeCpp};
 pub use session_loot::represented_bag_contains_active_item_loot_like_cpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use session_loot::{

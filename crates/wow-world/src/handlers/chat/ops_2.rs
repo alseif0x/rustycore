@@ -17,8 +17,8 @@ impl crate::session::WorldSession {
         msg_type: ChatMsg,
     ) {
         let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
-        let (social, hub) = crate::session::split_social_mut(self);
-        wow_world_social::ChatHandlerCxLikeCpp::new(hub, social, &chat_policy)
+        let (social, hub, module_hooks) = crate::session::split_social_with_module_hooks_mut(self);
+        wow_world_social::ChatHandlerCxLikeCpp::new(hub, social, &chat_policy, module_hooks)
             .handle_chat_message_with_policy_like_cpp(pkt, msg_type)
             .await;
     }
@@ -26,8 +26,8 @@ impl crate::session::WorldSession {
     #[cfg(test)]
     pub(crate) async fn handle_chat_whisper(&mut self, pkt: wow_packet::WorldPacket) {
         let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
-        let (social, hub) = crate::session::split_social_mut(self);
-        wow_world_social::ChatHandlerCxLikeCpp::new(hub, social, &chat_policy)
+        let (social, hub, module_hooks) = crate::session::split_social_with_module_hooks_mut(self);
+        wow_world_social::ChatHandlerCxLikeCpp::new(hub, social, &chat_policy, module_hooks)
             .handle_chat_whisper_with_policy_like_cpp(pkt)
             .await;
     }
@@ -35,8 +35,8 @@ impl crate::session::WorldSession {
     #[cfg(test)]
     pub(crate) async fn handle_chat_channel_message(&mut self, pkt: wow_packet::WorldPacket) {
         let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
-        let (social, hub) = crate::session::split_social_mut(self);
-        wow_world_social::ChatHandlerCxLikeCpp::new(hub, social, &chat_policy)
+        let (social, hub, module_hooks) = crate::session::split_social_with_module_hooks_mut(self);
+        wow_world_social::ChatHandlerCxLikeCpp::new(hub, social, &chat_policy, module_hooks)
             .handle_chat_channel_message_with_policy_like_cpp(pkt)
             .await;
     }
@@ -44,8 +44,8 @@ impl crate::session::WorldSession {
     #[cfg(test)]
     pub(crate) async fn handle_chat_afk(&mut self, pkt: wow_packet::WorldPacket) {
         let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
-        let (social, hub) = crate::session::split_social_mut(self);
-        wow_world_social::ChatHandlerCxLikeCpp::new(hub, social, &chat_policy)
+        let (social, hub, module_hooks) = crate::session::split_social_with_module_hooks_mut(self);
+        wow_world_social::ChatHandlerCxLikeCpp::new(hub, social, &chat_policy, module_hooks)
             .handle_chat_afk_with_policy_like_cpp(pkt)
             .await;
     }
@@ -53,8 +53,8 @@ impl crate::session::WorldSession {
     #[cfg(test)]
     pub(crate) async fn handle_chat_dnd(&mut self, pkt: wow_packet::WorldPacket) {
         let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
-        let (social, hub) = crate::session::split_social_mut(self);
-        wow_world_social::ChatHandlerCxLikeCpp::new(hub, social, &chat_policy)
+        let (social, hub, module_hooks) = crate::session::split_social_with_module_hooks_mut(self);
+        wow_world_social::ChatHandlerCxLikeCpp::new(hub, social, &chat_policy, module_hooks)
             .handle_chat_dnd_with_policy_like_cpp(pkt)
             .await;
     }
@@ -62,8 +62,8 @@ impl crate::session::WorldSession {
     #[cfg(test)]
     pub(crate) async fn handle_chat_emote(&mut self, pkt: wow_packet::WorldPacket) {
         let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
-        let (social, hub) = crate::session::split_social_mut(self);
-        wow_world_social::ChatHandlerCxLikeCpp::new(hub, social, &chat_policy)
+        let (social, hub, module_hooks) = crate::session::split_social_with_module_hooks_mut(self);
+        wow_world_social::ChatHandlerCxLikeCpp::new(hub, social, &chat_policy, module_hooks)
             .handle_chat_emote_with_policy_like_cpp(pkt)
             .await;
     }
@@ -71,8 +71,8 @@ impl crate::session::WorldSession {
     #[cfg(test)]
     pub(crate) async fn handle_chat_addon_message(&mut self, pkt: wow_packet::WorldPacket) {
         let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
-        let (social, hub) = crate::session::split_social_mut(self);
-        wow_world_social::ChatHandlerCxLikeCpp::new(hub, social, &chat_policy)
+        let (social, hub, module_hooks) = crate::session::split_social_with_module_hooks_mut(self);
+        wow_world_social::ChatHandlerCxLikeCpp::new(hub, social, &chat_policy, module_hooks)
             .handle_chat_addon_message_with_policy_like_cpp(pkt)
             .await;
     }
@@ -83,8 +83,8 @@ impl crate::session::WorldSession {
         pkt: wow_packet::WorldPacket,
     ) {
         let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
-        let (social, hub) = crate::session::split_social_mut(self);
-        wow_world_social::ChatHandlerCxLikeCpp::new(hub, social, &chat_policy)
+        let (social, hub, module_hooks) = crate::session::split_social_with_module_hooks_mut(self);
+        wow_world_social::ChatHandlerCxLikeCpp::new(hub, social, &chat_policy, module_hooks)
             .handle_chat_addon_message_targeted_with_policy_like_cpp(pkt)
             .await;
     }
@@ -92,8 +92,8 @@ impl crate::session::WorldSession {
     #[cfg(test)]
     pub(crate) async fn handle_chat_addon_message_whisper(&mut self, pkt: wow_packet::WorldPacket) {
         let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
-        let (social, hub) = crate::session::split_social_mut(self);
-        wow_world_social::ChatHandlerCxLikeCpp::new(hub, social, &chat_policy)
+        let (social, hub, module_hooks) = crate::session::split_social_with_module_hooks_mut(self);
+        wow_world_social::ChatHandlerCxLikeCpp::new(hub, social, &chat_policy, module_hooks)
             .handle_chat_addon_message_whisper_with_policy_like_cpp(pkt)
             .await;
     }

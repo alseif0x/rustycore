@@ -214,6 +214,17 @@ impl ItemSessionHostLikeCpp for WorldSession {
             self, bag, slot, item_guid,
         )
     }
+    fn item_equipped_hook_wanted_like_cpp(&self) -> bool {
+        self.module_hooks
+            .wants_player_hook_like_cpp(wow_module_api::PlayerHook::ItemEquipped)
+    }
+    fn item_equipped_hook_like_cpp(
+        &mut self,
+        event: &wow_world_inventory::ItemEquippedHookEventLikeCpp,
+    ) {
+        self.module_hooks
+            .item_equipped_like_cpp(self.core.packet_publication_access_like_cpp(), event);
+    }
     fn apply_quest_item_removed_like_cpp(&mut self, entry_id: u32) -> Option<Vec<u32>> {
         wow_world_quest::apply_quest_item_removed_like_cpp(self, entry_id)
     }

@@ -256,7 +256,10 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                     // AzerothCore `OnPlayerMoneyChanged` (`Player.cpp:11688`),
                     // observed at the one post-commit point every money path
                     // feeds: each queued change is drained exactly once (#1444).
-                    if self.reward.module_hooks.player_hooks_wanted_like_cpp()
+                    if self
+                        .reward
+                        .module_hooks
+                        .money_changed_hook_wanted_like_cpp()
                         && let Some(guid) = self.reward.player.player_guid_like_cpp()
                     {
                         self.reward.module_hooks.player_money_changed_like_cpp(

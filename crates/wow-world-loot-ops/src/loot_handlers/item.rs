@@ -35,6 +35,10 @@ pub(super) async fn handle_loot_item_with_generator_like_cpp<H, C>(
     };
 
     let mut taken_items: Vec<(ObjectGuid, ObjectGuid, u8, u32, u32, bool)> = Vec::new();
+    // #1444 H4: what `player.loot_item` reports, recorded only when a module
+    // wants it and raised after the loot notifications below.
+    let loot_item_hook_wanted = host.loot_item_hook_wanted_like_cpp();
+    let mut looted_for_hook: Vec<crate::LootItemHookEventLikeCpp> = Vec::new();
     let mut canonical_loot_sync: Vec<ObjectGuid> = Vec::new();
 
     for loot_req in &req.requests {
@@ -277,6 +281,14 @@ pub(super) async fn handle_loot_item_with_generator_like_cpp<H, C>(
         if !stored {
             continue;
         }
+        if loot_item_hook_wanted {
+            looted_for_hook.push(crate::LootItemHookEventLikeCpp {
+                guid: player_guid,
+                item_id: entry.item_id,
+                count: entry.quantity,
+                loot_source: owner_guid,
+            });
+        }
 
         if owner_guid.is_item() {
             // The detached worker published this exact durable removal to
@@ -351,5 +363,12 @@ pub(super) async fn handle_loot_item_with_generator_like_cpp<H, C>(
             quantity,
             "Looted item"
         );
+    }
+
+    // AzerothCore `Player::StoreLootItem` ends with `OnPlayerLootItem`
+    // (`Player.cpp:13918`), after the item is stored and its removal is
+    // notified. Every stored item of this request is durable here.
+    for event in &looted_for_hook {
+        host.loot_item_hook_like_cpp(event);
     }
 }

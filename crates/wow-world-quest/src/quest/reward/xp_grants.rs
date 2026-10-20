@@ -404,7 +404,7 @@ impl QuestRewardCx<'_> {
         // gained (TrinityCore `Player.cpp:2231-2236`). Modules observe each
         // level step, in order, only once the XP save applied: a failed or
         // unknown save is not a durable level (#1444).
-        if level_changed && persisted && self.module_hooks.player_hooks_wanted_like_cpp() {
+        if level_changed && persisted && self.module_hooks.level_changed_hook_wanted_like_cpp() {
             let new_level = {
                 let player = self.xp_gain_access_like_cpp();
                 player.player_level_like_cpp(

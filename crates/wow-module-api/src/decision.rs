@@ -9,7 +9,7 @@
 //! veto it. A pre-decision hook runs at a named point *before* the canonical
 //! transition and may allow, deny or modify it. Source API 2 declares the
 //! decision shape here; the first hook that uses it is `chat.message` (#1444
-//! H2), modelled on AzerothCore `PlayerScript::OnPlayerCanUseChat`
+//! H4), modelled on AzerothCore `PlayerScript::OnPlayerCanUseChat`
 //! (`PlayerScript.h:657-709`).
 
 /// What a module decided about a chat message.

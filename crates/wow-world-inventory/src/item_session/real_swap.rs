@@ -508,6 +508,21 @@ pub(super) async fn execute_inventory_real_swap_like_cpp<H: ItemSessionHostLikeC
     super::record_represented_titan_grip_penalty_action_like_cpp(host);
     super::record_represented_avg_equipped_item_level_update_like_cpp(host);
     host.sync_player_registry_state_like_cpp();
+    // AzerothCore `Player::SwapItem` equips through `EquipItem`, which raises
+    // `OnPlayerEquip` for each item that lands in an equipment position
+    // (`PlayerStorage.cpp:2940`); the swap already committed (#1444 H4).
+    super::module_hooks::raise_item_equipped_hook_like_cpp(
+        host,
+        &source,
+        destination_bag,
+        destination_slot,
+    );
+    super::module_hooks::raise_item_equipped_hook_like_cpp(
+        host,
+        &destination,
+        source_bag,
+        source_slot,
+    );
     for plan in child_plans {
         let _ = execute_inventory_equip_child_like_cpp(
             host,

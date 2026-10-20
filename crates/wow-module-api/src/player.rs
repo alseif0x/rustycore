@@ -185,6 +185,39 @@ impl CreatureKillSnapshot {
     }
 }
 
+/// `item.equipped`: an item was put in an equipment or bag slot.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub struct ItemEquippedSnapshot {
+    pub guid: ObjectGuid,
+    pub item_guid: ObjectGuid,
+    /// The item template id.
+    pub item_entry: u32,
+    /// C++ `INVENTORY_SLOT_BAG_0` (255) for every equipment position.
+    pub bag: u8,
+    /// The equipment slot (`EQUIPMENT_SLOT_*`) or bag slot it took.
+    pub slot: u8,
+}
+
+impl ItemEquippedSnapshot {
+    #[must_use]
+    pub fn new(
+        guid: ObjectGuid,
+        item_guid: ObjectGuid,
+        item_entry: u32,
+        bag: u8,
+        slot: u8,
+    ) -> Self {
+        Self {
+            guid,
+            item_guid,
+            item_entry,
+            bag,
+            slot,
+        }
+    }
+}
+
 /// `player.spell_cast`: the player cast a spell; `SMSG_SPELL_GO` was sent.
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
@@ -220,9 +253,115 @@ impl SpellCastSnapshot {
     }
 }
 
+/// `player.loot_item`: the player looted an item into its inventory.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub struct LootItemSnapshot {
+    pub guid: ObjectGuid,
+    /// The item template id.
+    pub item_id: u32,
+    pub count: u32,
+    /// C++ `GetLootGUID()`: the creature, game object or item looted.
+    pub loot_source: ObjectGuid,
+}
+
+impl LootItemSnapshot {
+    #[must_use]
+    pub fn new(guid: ObjectGuid, item_id: u32, count: u32, loot_source: ObjectGuid) -> Self {
+        Self {
+            guid,
+            item_id,
+            count,
+            loot_source,
+        }
+    }
+}
+
+/// `player.loot_money`: the player looted the money of a loot.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub struct LootMoneySnapshot {
+    pub guid: ObjectGuid,
+    /// The creature, game object or item looted.
+    pub loot_source: ObjectGuid,
+    /// C++ `loot->gold`: the whole amount the loot held, in copper, before
+    /// any group share.
+    pub money: u64,
+    /// What this player's committed balance received, in copper: `money`
+    /// when looting alone, its share in a group split.
+    pub share: u64,
+}
+
+impl LootMoneySnapshot {
+    #[must_use]
+    pub fn new(guid: ObjectGuid, loot_source: ObjectGuid, money: u64, share: u64) -> Self {
+        Self {
+            guid,
+            loot_source,
+            money,
+            share,
+        }
+    }
+}
+
+/// One hook of the `player.*` family, for the per-hook interest query.
+///
+/// AzerothCore registers each `PlayerScript` with the hooks it implements
+/// (its `enabledHooks` constructor argument) and `CALL_ENABLED_HOOKS` only
+/// visits the scripts that enabled a hook; [`PlayerModule::enabled_hooks`]
+/// is that declaration, so an owner skips the snapshot of a hook no module
+/// enabled even when another `player.*` hook is in use.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[non_exhaustive]
+pub enum PlayerHook {
+    Logout,
+    LevelChanged,
+    MoneyChanged,
+    QuestAccepted,
+    QuestRewarded,
+    CreatureKill,
+    SpellCast,
+    ItemEquipped,
+    LootItem,
+    LootMoney,
+}
+
+impl PlayerHook {
+    /// Every `player.*` hook: the default declaration.
+    pub const ALL: &'static [PlayerHook] = &[
+        PlayerHook::Logout,
+        PlayerHook::LevelChanged,
+        PlayerHook::MoneyChanged,
+        PlayerHook::QuestAccepted,
+        PlayerHook::QuestRewarded,
+        PlayerHook::CreatureKill,
+        PlayerHook::SpellCast,
+        PlayerHook::ItemEquipped,
+        PlayerHook::LootItem,
+        PlayerHook::LootMoney,
+    ];
+
+    pub(crate) const fn bit(self) -> u32 {
+        1 << self as u32
+    }
+
+    pub(crate) fn mask(hooks: &[PlayerHook]) -> u32 {
+        hooks.iter().fold(0, |mask, hook| mask | hook.bit())
+    }
+}
+
 /// The `player.*` family. Every method has an empty default, so a module
 /// overrides only the hooks it wants.
 pub trait PlayerModule: Send + Sync {
+    /// The hooks this module implements (AzerothCore's `enabledHooks`). Read
+    /// once, when the module is registered; only these hooks are dispatched to
+    /// it, and only they make an owner build a snapshot. The default enables
+    /// every hook, so a module that does not declare keeps working, at the
+    /// cost of every `player.*` snapshot being built.
+    fn enabled_hooks(&self) -> &'static [PlayerHook] {
+        PlayerHook::ALL
+    }
+
     /// AzerothCore `PlayerScript::OnPlayerLogout` (`PlayerScript.h:338`), from
     /// `WorldSession::LogoutPlayer` after the final save. The session is
     /// closing, so this hook observes and has no effects.
@@ -277,5 +416,24 @@ pub trait PlayerModule: Send + Sync {
     /// AzerothCore `PlayerScript::OnPlayerSpellCast` (`PlayerScript.h:326`,
     /// `Spell.cpp:3825`); TrinityCore `OnPlayerSpellCast` (`Spell.cpp:3671`).
     /// Observation only: no effect can change spells or auras (#754).
+    /// Raised after `SMSG_SPELL_GO`, so unlike AzerothCore (which calls it
+    /// before `CheckCast`) a cast that fails raises nothing. A non-persistent
+    /// observation: nothing about the cast is durable yet.
     fn on_spell_cast(&self, _snapshot: &SpellCastSnapshot, _effects: &mut ScopedEffects<'_>) {}
+
+    /// AzerothCore `PlayerScript::OnPlayerEquip` (`PlayerScript.h:416`), from
+    /// `Player::EquipItem` (`PlayerStorage.cpp:2940`): once per item that
+    /// reaches an equipment or bag slot, after the move committed.
+    fn on_equip(&self, _snapshot: &ItemEquippedSnapshot, _effects: &mut ScopedEffects<'_>) {}
+
+    /// AzerothCore `PlayerScript::OnPlayerLootItem` (`PlayerScript.h:431`),
+    /// the last step of `Player::StoreLootItem` (`Player.cpp:13918`): a
+    /// directly looted item, once it is stored. Roll winners and master-loot
+    /// recipients are not reported, as in AzerothCore.
+    fn on_loot_item(&self, _snapshot: &LootItemSnapshot, _effects: &mut ScopedEffects<'_>) {}
+
+    /// AzerothCore `LootScript::OnLootMoney` (`LootScript.h:44`), from
+    /// `WorldSession::HandleLootMoneyOpcode` (`LootHandler.cpp:273`): once, for
+    /// the looter, after every share was paid.
+    fn on_loot_money(&self, _snapshot: &LootMoneySnapshot, _effects: &mut ScopedEffects<'_>) {}
 }

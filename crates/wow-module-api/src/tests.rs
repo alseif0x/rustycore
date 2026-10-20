@@ -997,3 +997,256 @@ fn creature_kill_and_spell_cast_default_to_no_effect() {
             .is_empty()
     );
 }
+
+// ── `item.equipped`, `player.loot_item`, `player.loot_money` (#1444 H4) ──
+
+#[derive(Default)]
+struct ItemRecorder {
+    seen: std::sync::Mutex<Vec<String>>,
+}
+
+impl PlayerModule for ItemRecorder {
+    fn on_equip(&self, s: &ItemEquippedSnapshot, e: &mut ScopedEffects<'_>) {
+        self.seen
+            .lock()
+            .unwrap()
+            .push(format!("equip {} {} {}", s.item_entry, s.bag, s.slot));
+        e.send_system_message_self("equipped");
+    }
+    fn on_loot_item(&self, s: &LootItemSnapshot, e: &mut ScopedEffects<'_>) {
+        self.seen
+            .lock()
+            .unwrap()
+            .push(format!("loot {} x{}", s.item_id, s.count));
+        e.send_system_message_self("looted");
+    }
+    fn on_loot_money(&self, s: &LootMoneySnapshot, _e: &mut ScopedEffects<'_>) {
+        self.seen
+            .lock()
+            .unwrap()
+            .push(format!("money {} {}", s.money, s.share));
+    }
+}
+
+#[test]
+fn equip_and_loot_hooks_dispatch_through_the_player_family() {
+    let recorder = std::sync::Arc::new(ItemRecorder::default());
+    let mut registry = ModuleRegistry::new();
+    registry
+        .register_module(
+            ModuleDescriptor::new("alpha.items", version(), "Items").unwrap(),
+            ModuleHooks::new().player(recorder.clone()),
+        )
+        .unwrap();
+    let player = ObjectGuid::create_player(1, 42);
+    let item = ObjectGuid::create_item(1, 7);
+    let creature =
+        ObjectGuid::create_world_object(wow_core::guid::HighGuid::Creature, 0, 1, 0, 0, 6, 9);
+    let equip = registry
+        .dispatch_item_equipped(&ItemEquippedSnapshot::new(player, item, 25, 255, 15))
+        .effects
+        .expect("valid");
+    assert_eq!(equip.len(), 1);
+    let loot = registry
+        .dispatch_loot_item(&LootItemSnapshot::new(player, 2589, 3, creature))
+        .effects
+        .expect("valid");
+    assert_eq!(loot.len(), 1);
+    assert!(
+        registry
+            .dispatch_loot_money(&LootMoneySnapshot::new(player, creature, 90, 30))
+            .effects
+            .expect("valid")
+            .is_empty()
+    );
+    assert_eq!(
+        *recorder.seen.lock().unwrap(),
+        vec!["equip 25 255 15", "loot 2589 x3", "money 90 30"]
+    );
+    assert!(!registry.handles(HookFamily::Chat));
+}
+
+// ── `chat.message`, a pre-decision (#1444 H4) ────────────────────────────
+
+struct Chat(fn(&ChatMessageSnapshot) -> ChatDecision);
+
+impl ChatModule for Chat {
+    fn on_chat_message(&self, snapshot: &ChatMessageSnapshot) -> ChatDecision {
+        (self.0)(snapshot)
+    }
+}
+
+fn chat_registry(modules: &[(&str, fn(&ChatMessageSnapshot) -> ChatDecision)]) -> ModuleRegistry {
+    let mut registry = ModuleRegistry::new();
+    for (id, decide) in modules {
+        registry
+            .register_module(
+                ModuleDescriptor::new(id, version(), "Chat").unwrap(),
+                ModuleHooks::new().chat(std::sync::Arc::new(Chat(*decide))),
+            )
+            .unwrap();
+    }
+    registry
+}
+
+fn say(text: &str) -> ChatMessageSnapshot {
+    ChatMessageSnapshot::new(
+        ObjectGuid::create_player(1, 42),
+        ChatKind::Say,
+        7,
+        text,
+        None,
+    )
+}
+
+#[test]
+fn chat_replacements_chain_in_module_id_order() {
+    // Registered out of order: `ModuleId` order decides, not registration.
+    let registry = chat_registry(&[
+        ("zulu.shout", |s| {
+            ChatDecision::ReplaceText(s.text.to_uppercase())
+        }),
+        ("alpha.censor", |s| {
+            ChatDecision::ReplaceText(s.text.replace("darn", "****"))
+        }),
+    ]);
+    assert!(registry.handles(HookFamily::Chat));
+    assert!(!registry.handles(HookFamily::Player));
+    let outcome = registry.dispatch_chat_message(&say("darn it"));
+    assert_eq!(
+        outcome.decision,
+        ChatDecision::ReplaceText("**** IT".to_owned())
+    );
+    assert_eq!(outcome.denied_by, None);
+}
+
+#[test]
+fn the_first_chat_deny_wins_and_stops_the_dispatch() {
+    let registry = chat_registry(&[
+        ("alpha.block", |s| {
+            if s.text.contains("gold") {
+                ChatDecision::Deny
+            } else {
+                ChatDecision::Allow
+            }
+        }),
+        ("zulu.boom", |_| panic!("must not run after a deny")),
+    ]);
+    let denied = registry.dispatch_chat_message(&say("cheap gold here"));
+    assert_eq!(denied.decision, ChatDecision::Deny);
+    assert_eq!(
+        denied.denied_by.as_ref().map(ModuleId::as_str),
+        Some("alpha.block")
+    );
+    assert!(
+        denied.disabled.is_empty(),
+        "the module after the deny never ran"
+    );
+}
+
+#[test]
+fn an_unchanged_chat_message_is_allowed() {
+    let registry = chat_registry(&[("alpha.quiet", |_| ChatDecision::Allow)]);
+    assert_eq!(
+        registry.dispatch_chat_message(&say("hello")).decision,
+        ChatDecision::Allow
+    );
+    assert_eq!(
+        ModuleRegistry::new()
+            .dispatch_chat_message(&say("hello"))
+            .decision,
+        ChatDecision::Allow
+    );
+}
+
+#[test]
+fn a_panicking_chat_module_is_disabled_and_its_decision_discarded() {
+    let registry = chat_registry(&[
+        ("alpha.boom", |_| panic!("chat bug")),
+        ("zulu.tag", |s| {
+            ChatDecision::ReplaceText(format!("{} (ok)", s.text))
+        }),
+    ]);
+    let first = registry.dispatch_chat_message(&say("hi"));
+    assert_eq!(
+        first.decision,
+        ChatDecision::ReplaceText("hi (ok)".to_owned())
+    );
+    assert_eq!(first.disabled.len(), 1);
+    assert!(registry.is_disabled(&ModuleId::new("alpha.boom").unwrap()));
+    let second = registry.dispatch_chat_message(&say("hi"));
+    assert!(second.disabled.is_empty());
+}
+
+// ── Per-hook interest (#1444 H4, AzerothCore `CALL_ENABLED_HOOKS`) ────────
+
+struct KillsOnly {
+    seen: std::sync::Mutex<Vec<&'static str>>,
+}
+
+impl PlayerModule for KillsOnly {
+    fn enabled_hooks(&self) -> &'static [PlayerHook] {
+        &[PlayerHook::CreatureKill]
+    }
+    fn on_creature_kill(&self, _s: &CreatureKillSnapshot, _e: &mut ScopedEffects<'_>) {
+        self.seen.lock().unwrap().push("kill");
+    }
+    fn on_spell_cast(&self, _s: &SpellCastSnapshot, _e: &mut ScopedEffects<'_>) {
+        self.seen.lock().unwrap().push("cast");
+    }
+}
+
+#[test]
+fn the_player_interest_query_and_dispatch_follow_the_enabled_hooks() {
+    let module = std::sync::Arc::new(KillsOnly {
+        seen: std::sync::Mutex::new(Vec::new()),
+    });
+    let mut registry = ModuleRegistry::new();
+    registry
+        .register_module(
+            ModuleDescriptor::new("alpha.kills", version(), "Kills").unwrap(),
+            ModuleHooks::new().player(module.clone()),
+        )
+        .unwrap();
+    assert!(registry.handles(HookFamily::Player));
+    assert!(registry.handles_player_hook(PlayerHook::CreatureKill));
+    assert!(!registry.handles_player_hook(PlayerHook::SpellCast));
+    assert!(!registry.handles_player_hook(PlayerHook::LootMoney));
+
+    let player = ObjectGuid::create_player(1, 42);
+    let _ = registry.dispatch_spell_cast(&SpellCastSnapshot::new(
+        player,
+        133,
+        ObjectGuid::EMPTY,
+        ObjectGuid::EMPTY,
+        false,
+    ));
+    let _ = registry.dispatch_creature_kill(&CreatureKillSnapshot::new(
+        player,
+        ObjectGuid::EMPTY,
+        299,
+        5,
+        0,
+    ));
+    assert_eq!(
+        *module.seen.lock().unwrap(),
+        vec!["kill"],
+        "a hook the module did not enable is never called"
+    );
+}
+
+#[test]
+fn an_undeclared_player_module_enables_every_hook() {
+    struct Undeclared;
+    impl PlayerModule for Undeclared {}
+    let mut registry = ModuleRegistry::new();
+    registry
+        .register_module(
+            ModuleDescriptor::new("alpha.all", version(), "All").unwrap(),
+            ModuleHooks::new().player(std::sync::Arc::new(Undeclared)),
+        )
+        .unwrap();
+    for hook in PlayerHook::ALL {
+        assert!(registry.handles_player_hook(*hook), "{hook:?}");
+    }
+}

@@ -50,6 +50,7 @@ mod bank;
 mod destruction;
 mod handlers;
 mod item_mutations;
+mod module_hooks;
 mod moves;
 mod real_swap;
 
@@ -69,6 +70,7 @@ pub use handlers::{
     handle_auto_store_bag_item_with_generator_like_cpp,
     handle_swap_inv_item_with_generator_like_cpp, handle_swap_item_with_generator_like_cpp,
 };
+pub use module_hooks::ItemEquippedHookEventLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use moves::{plan_inventory_child_redirect_like_cpp, plan_inventory_equip_child_like_cpp};
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -168,6 +170,17 @@ pub trait ItemSessionHostLikeCpp: VendorSessionHostLikeCpp {
         slot: u8,
         item_guid: ObjectGuid,
     ) -> bool;
+
+    /// Whether any linked module wants `item.equipped` (#1444 H4). Asked
+    /// before an event is built, so the zero-module path does no work.
+    fn item_equipped_hook_wanted_like_cpp(&self) -> bool {
+        false
+    }
+
+    /// `item.equipped`: AzerothCore `OnPlayerEquip`, raised once the equip
+    /// committed. The World dispatches it to the linked modules.
+    fn item_equipped_hook_like_cpp(&mut self, _event: &module_hooks::ItemEquippedHookEventLikeCpp) {
+    }
     fn apply_quest_item_removed_like_cpp(&mut self, entry_id: u32) -> Option<Vec<u32>>;
     fn plan_item_transfer_quest_persistence_like_cpp(
         &self,

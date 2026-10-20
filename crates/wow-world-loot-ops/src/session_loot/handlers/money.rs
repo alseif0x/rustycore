@@ -156,7 +156,8 @@ pub async fn handle_loot_money_with_generator_like_cpp<H: LootSessionHostLikeCpp
             if recipients.is_empty() {
                 recipients.push(player_guid);
             }
-            let money_per_player = u64::from(*reserved_money) / recipients.len() as u64;
+            let reserved_total_money = u64::from(*reserved_money);
+            let money_per_player = reserved_total_money / recipients.len() as u64;
             let sole_looter = recipients.len() <= 1;
             let payouts = recipients
                 .iter()
@@ -306,6 +307,22 @@ pub async fn handle_loot_money_with_generator_like_cpp<H: LootSessionHostLikeCpp
                 )
                 .await;
             }
+            // AzerothCore `HandleLootMoneyOpcode` raises `OnLootMoney` once,
+            // for the looter, with the whole `loot->gold`, after every share
+            // was paid (`LootHandler.cpp:273`). The fanout committed above.
+            if host.loot_money_hook_wanted_like_cpp() {
+                let share = if recipients.contains(&player_guid) {
+                    money_per_player
+                } else {
+                    0
+                };
+                host.loot_money_hook_like_cpp(&crate::LootMoneyHookEventLikeCpp {
+                    guid: player_guid,
+                    loot_source: *loot_guid,
+                    money: reserved_total_money,
+                    share,
+                });
+            }
             // The detached worker has already committed the authority and
             // queued the durable runtime applications. Returning to the
             // session loop lets this session drain its own command too.
@@ -377,6 +394,16 @@ pub async fn handle_loot_money_with_generator_like_cpp<H: LootSessionHostLikeCpp
                     item_guid_generator,
                 )
                 .await;
+            }
+            // `OnLootMoney` for item-held money: once, by the session that
+            // applied the durable balance (#1444 H4).
+            if apply_balance && host.loot_money_hook_wanted_like_cpp() {
+                host.loot_money_hook_like_cpp(&crate::LootMoneyHookEventLikeCpp {
+                    guid: player_guid,
+                    loot_source: *loot_guid,
+                    money: applied_delta,
+                    share: applied_delta,
+                });
             }
             continue;
         }

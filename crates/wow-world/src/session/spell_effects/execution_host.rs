@@ -8,7 +8,7 @@ use std::future::Future;
 impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
     fn spell_cast_hook_wanted_like_cpp(&self) -> bool {
         self.module_hooks
-            .wants_like_cpp(wow_module_api::HookFamily::Player)
+            .wants_player_hook_like_cpp(wow_module_api::PlayerHook::SpellCast)
     }
     fn spell_cast_hook_like_cpp(&mut self, event: &wow_world_spell::SpellCastHookEventLikeCpp) {
         self.module_hooks

@@ -456,11 +456,16 @@ pub(super) async fn execute_inventory_equip_child_like_cpp<H: ItemSessionHostLik
         wow_entities::make_item_pos(INVENTORY_SLOT_BAG_0, plan.destination_slot),
     )
     .await;
-    ({
+    let Some((bag, slot, child)) = ({
         let (state, hub) = host.split_inventory_ref();
         state.get_inventory_item_by_guid_like_cpp(hub, plan.child_guid)
     })
-    .is_some_and(|(bag, slot, _)| bag == INVENTORY_SLOT_BAG_0 && slot == plan.destination_slot)
+    .filter(|(bag, slot, _)| *bag == INVENTORY_SLOT_BAG_0 && *slot == plan.destination_slot) else {
+        return false;
+    };
+    // C++ `EquipChildItem` goes through `EquipItem` and its `OnPlayerEquip`.
+    super::module_hooks::raise_item_equipped_hook_like_cpp(host, &child, bag, slot);
+    true
 }
 
 pub(super) async fn execute_inventory_swap_step_like_cpp<H: ItemSessionHostLikeCpp>(
@@ -748,6 +753,14 @@ pub(super) async fn execute_inventory_equip_to_empty_like_cpp<H: ItemSessionHost
     {
         return;
     }
+    // AzerothCore `Player::EquipItem` -> `OnPlayerEquip` (`PlayerStorage.cpp:2940`):
+    // the item reached its equipment position and the move committed.
+    super::module_hooks::raise_item_equipped_hook_like_cpp(
+        host,
+        &source,
+        destination_bag,
+        destination_slot,
+    );
     if let Some(plan) = child_plan {
         let _ = execute_inventory_equip_child_like_cpp(
             host,

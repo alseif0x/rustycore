@@ -917,6 +917,8 @@ mod loot_6;
 mod misc_1;
 #[path = "loot_tests/misc_2.rs"]
 mod misc_2;
+#[path = "loot_tests/module_hook.rs"]
+mod module_hook;
 #[path = "loot_tests/persistence.rs"]
 mod persistence;
 #[path = "loot_tests/quest.rs"]

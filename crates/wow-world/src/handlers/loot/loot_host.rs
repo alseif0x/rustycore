@@ -59,6 +59,16 @@ use crate::session::{
 };
 
 impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
+    fn loot_item_hook_wanted_like_cpp(&self) -> bool {
+        self.module_hooks
+            .wants_player_hook_like_cpp(wow_module_api::PlayerHook::LootItem)
+    }
+
+    fn loot_item_hook_like_cpp(&mut self, event: &wow_world_loot_ops::LootItemHookEventLikeCpp) {
+        self.module_hooks
+            .loot_item_like_cpp(self.core.packet_publication_access_like_cpp(), event);
+    }
+
     fn loot_handler_cx_like_cpp<'a>(
         &'a mut self,
         _catalogs: &'a SessionHandlerCatalogsLikeCpp,

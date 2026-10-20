@@ -71,10 +71,20 @@ pub struct QuestRewardedHookEventLikeCpp {
 
 /// The hook port a quest/progression context raises its events through.
 pub trait QuestModuleHookPortLikeCpp: Sync {
-    /// Whether any linked module wants the `player.*` family. A context asks
-    /// before it reads anything for an event, so the zero-module path does no
-    /// work (some reads take the canonical map lock).
-    fn player_hooks_wanted_like_cpp(&self) -> bool {
+    /// Whether any linked module enabled `player.level_changed`. A context
+    /// asks before it reads anything for an event, so a hook nobody enabled
+    /// does no work (some reads take the canonical map lock).
+    fn level_changed_hook_wanted_like_cpp(&self) -> bool {
+        false
+    }
+
+    /// Whether any linked module enabled `player.money_changed`.
+    fn money_changed_hook_wanted_like_cpp(&self) -> bool {
+        false
+    }
+
+    /// Whether any linked module enabled `player.quest_rewarded`.
+    fn quest_rewarded_hook_wanted_like_cpp(&self) -> bool {
         false
     }
 
