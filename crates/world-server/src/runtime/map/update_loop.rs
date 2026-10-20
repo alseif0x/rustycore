@@ -52,6 +52,9 @@ pub(crate) fn spawn_canonical_map_update_loop(
     // #1263 F6-8D3b-1: the canonical creature runtime; production always
     // passes it, map-only tests may omit it.
     mut canonical_creature_runtime: Option<CanonicalCreatureRuntimeLikeCpp>,
+    // #1444: the `world.*` linked-module hooks; `world.update` runs once per
+    // completed tick, after every guard of the tick was released.
+    mut world_module_hooks: crate::module_hooks::WorldModuleHooksLikeCpp,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut interval =
@@ -745,6 +748,12 @@ pub(crate) fn spawn_canonical_map_update_loop(
                     "C++ respawn-check timer fired; executed safe ProcessRespawns composite zero-delete branches plus linked future reschedules, represented pooled timer UpdatePool plans, safe DoRespawn unloaded-grid early-return timer removals, map-local SpawnGroupDespawn condition-failure side effects, and bounded loaded-grid SpawnGroupSpawn condition loads; submitted DEL_RESPAWN/REP_RESPAWN side effects to the shared async DB writer outside the MapManager lock; full SpawnGroupSpawn AreaTrigger/ObjectAccessor/fanout/scripts/AI and Spawn1Object/ReSpawn1Object runtime remain pending"
                 );
             }
+
+            // AzerothCore `World::Update` ends with `OnWorldUpdate(diff)`
+            // (`World.cpp:1342`), after the maps and game events. Here every
+            // map, spawn-metadata and respawn-order guard of this tick is
+            // already released, and nothing is awaited until the next tick.
+            world_module_hooks.update_like_cpp(now, diff_ms, tick_epoch);
 
             if stop_after_tick {
                 break;

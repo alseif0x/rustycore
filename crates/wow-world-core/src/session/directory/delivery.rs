@@ -4,6 +4,20 @@
 use super::*;
 
 impl PlayerRegistry {
+    /// Every current registration whose player is in the world: the session
+    /// set C++ `World::SendWorldText` addresses (`World.cpp:2989-2994`, each
+    /// session with `GetPlayer()->IsInWorld()`).
+    pub fn in_world_registrations_like_cpp(&self) -> Vec<PlayerRegistration> {
+        self.entries
+            .iter()
+            .filter(|entry| entry.placement.is_in_world)
+            .map(|entry| PlayerRegistration {
+                guid: *entry.key(),
+                generation: entry.generation,
+            })
+            .collect()
+    }
+
     /// Queue a command only if the selected incarnation is still current.
     pub fn try_send_current_command(
         &self,

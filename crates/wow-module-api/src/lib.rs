@@ -33,6 +33,7 @@ mod effect;
 mod hook;
 mod player;
 mod registry;
+mod world;
 
 pub use config::{ModuleConfig, ModuleConfigError, ModuleConfigValue};
 pub use decision::ChatDecision;
@@ -48,6 +49,10 @@ pub use player::{
 pub use registry::{
     HookFamily, ModuleDescriptor, ModuleHooks, ModuleId, ModuleRegistrationError, ModuleRegistry,
     ModuleVersion, module_callback_in_progress,
+};
+pub use world::{
+    ConfigLoadedSnapshot, WorldEffect, WorldEffects, WorldModule, WorldShutdownSnapshot,
+    WorldStartupSnapshot, WorldUpdateSnapshot,
 };
 
 /// The player identity every snapshot carries. Re-exported so a module names

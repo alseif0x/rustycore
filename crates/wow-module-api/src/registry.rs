@@ -20,6 +20,10 @@ use crate::player::{
     PlayerLevelChangedSnapshot, PlayerLogoutSnapshot, PlayerModule, PlayerMoneyChangedSnapshot,
     QuestAcceptedSnapshot, QuestRewardedSnapshot,
 };
+use crate::world::{
+    ConfigLoadedSnapshot, WorldEffect, WorldEffects, WorldModule, WorldShutdownSnapshot,
+    WorldStartupSnapshot, WorldUpdateSnapshot,
+};
 
 /// A validated module identifier.
 ///
@@ -206,6 +210,9 @@ pub enum HookFamily {
     /// The `player.*` notifications of [`PlayerModule`] (#1444): logout,
     /// level, money and quest progress. AzerothCore `PlayerScript`.
     Player,
+    /// The `world.*` notifications of [`WorldModule`] (#1444): configuration,
+    /// startup, shutdown and the world tick. AzerothCore `WorldScript`.
+    World,
 }
 
 /// The hook families one module offers (source API 2).
@@ -216,6 +223,7 @@ pub enum HookFamily {
 pub struct ModuleHooks {
     player_login: Option<Arc<dyn PlayerLoginModule>>,
     player: Option<Arc<dyn PlayerModule>>,
+    world: Option<Arc<dyn WorldModule>>,
 }
 
 impl ModuleHooks {
@@ -238,18 +246,26 @@ impl ModuleHooks {
         self
     }
 
+    /// Offer the `world.*` family.
+    #[must_use]
+    pub fn world(mut self, module: Arc<dyn WorldModule>) -> Self {
+        self.world = Some(module);
+        self
+    }
+
     /// Whether this set offers `family`.
     #[must_use]
     pub fn offers(&self, family: HookFamily) -> bool {
         match family {
             HookFamily::PlayerLogin => self.player_login.is_some(),
             HookFamily::Player => self.player.is_some(),
+            HookFamily::World => self.world.is_some(),
         }
     }
 
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.player_login.is_none() && self.player.is_none()
+        self.player_login.is_none() && self.player.is_none() && self.world.is_none()
     }
 }
 
@@ -432,6 +448,38 @@ impl ModuleRegistry {
         )
     }
 
+    /// `world.config_loaded`.
+    pub fn dispatch_config_loaded(
+        &self,
+        snapshot: &ConfigLoadedSnapshot,
+    ) -> HookOutcome<WorldEffect> {
+        self.dispatch_world(|module, effects| module.on_config_loaded(snapshot, effects))
+    }
+
+    /// `world.startup`.
+    pub fn dispatch_world_startup(
+        &self,
+        snapshot: &WorldStartupSnapshot,
+    ) -> HookOutcome<WorldEffect> {
+        self.dispatch_world(|module, effects| module.on_startup(snapshot, effects))
+    }
+
+    /// `world.shutdown`.
+    pub fn dispatch_world_shutdown(
+        &self,
+        snapshot: &WorldShutdownSnapshot,
+    ) -> HookOutcome<WorldEffect> {
+        self.dispatch_world(|module, effects| module.on_shutdown(snapshot, effects))
+    }
+
+    /// `world.update`.
+    pub fn dispatch_world_update(
+        &self,
+        snapshot: &WorldUpdateSnapshot,
+    ) -> HookOutcome<WorldEffect> {
+        self.dispatch_world(|module, effects| module.on_update(snapshot, effects))
+    }
+
     /// Visit, in `ModuleId` order, every enabled module offering one
     /// notification family, then validate the batch as a whole.
     ///
@@ -445,6 +493,29 @@ impl ModuleRegistry {
         family: impl Fn(&ModuleHooks) -> Option<&Arc<M>>,
         call: impl Fn(&M, &mut ScopedEffects<'_>),
     ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_family(family, |module, batch, id| {
+            call(module, &mut ScopedEffects::new(batch, id));
+        })
+    }
+
+    /// [`Self::dispatch_notifications`] for the `world.*` effects.
+    fn dispatch_world(
+        &self,
+        call: impl Fn(&dyn WorldModule, &mut WorldEffects<'_>),
+    ) -> HookOutcome<WorldEffect> {
+        self.dispatch_family(
+            |hooks| hooks.world.as_ref(),
+            |module, batch, id| call(module, &mut WorldEffects::new(batch, id)),
+        )
+    }
+
+    /// The one dispatch loop every family shares: `ModuleId` order, one
+    /// `catch_unwind` per callback, then whole-batch validation.
+    fn dispatch_family<M: ?Sized, E: crate::effect::ValidatedEffect>(
+        &self,
+        family: impl Fn(&ModuleHooks) -> Option<&Arc<M>>,
+        call: impl Fn(&M, &mut EffectBatch<E>, ModuleId),
+    ) -> HookOutcome<E> {
         let mut batch = EffectBatch::default();
         let mut disabled = Vec::new();
         for (id, entry) in &self.modules {
@@ -457,7 +528,7 @@ impl ModuleRegistry {
             let mark = batch.len();
             let completed = catch_unwind(AssertUnwindSafe(|| {
                 let _scope = CallbackScope::enter();
-                call(module, &mut ScopedEffects::new(&mut batch, id.clone()));
+                call(module, &mut batch, id.clone());
             }));
             if completed.is_err() {
                 batch.truncate(mark);
