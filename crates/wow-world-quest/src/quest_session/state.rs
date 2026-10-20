@@ -237,6 +237,9 @@ pub async fn add_quest_confirm_accept_local_state_like_cpp<H: QuestSessionHostLi
         .await;
     crate::save_represented_quest_status_like_cpp(host, quest.id).await;
     host.sync_player_registry_state_like_cpp();
+    // The shared-quest confirmation's `OnPlayerQuestAccept`, after the save,
+    // like the quest giver path in `accept_handlers.rs`.
+    super::accept_handlers::raise_quest_accepted_hook_like_cpp(host, quest.id, slot);
     true
 }
 

@@ -854,3 +854,93 @@ async fn quest_giver_choose_reward_records_reward_mail_sender_entry_like_cpp() {
         }]
     );
 }
+
+/// Records each `player.quest_accepted` with whether the map lock was free.
+struct AcceptProbe {
+    map: crate::session::SharedCanonicalMapManager,
+    calls: std::sync::Mutex<Vec<(u32, u8, bool)>>,
+}
+
+impl wow_module_api::PlayerModule for AcceptProbe {
+    fn on_quest_accepted(
+        &self,
+        snapshot: &wow_module_api::QuestAcceptedSnapshot,
+        effects: &mut wow_module_api::ScopedEffects<'_>,
+    ) {
+        self.calls.lock().unwrap().push((
+            snapshot.quest_id,
+            snapshot.slot,
+            self.map.try_lock().is_ok(),
+        ));
+        effects.send_system_message_self("Accepted!");
+    }
+}
+
+/// `player.quest_accepted` (#1444 H1): AzerothCore `OnPlayerQuestAccept`
+/// (`PlayerQuest.cpp:426`), after the quest-log slot update. Once, with no
+/// map guard held, before the legacy accept confirmation packet.
+#[tokio::test]
+async fn quest_giver_accept_raises_the_quest_accepted_hook_once_like_cpp() {
+    let (mut session, send_rx) = make_session();
+    let quest_id = 7202;
+    let gameobject_entry = 9302;
+    let source_guid = gameobject_guid(gameobject_entry, 302);
+    let quest = quest_template(quest_id);
+    let mut store = QuestStore::from_quests_like_cpp([quest]);
+    assert!(store.insert_gameobject_starter_relation_like_cpp(gameobject_entry, quest_id));
+    session.set_quest_store(Arc::new(store));
+    let mut manager = wow_map::MapManager::default();
+    insert_gameobject(&mut manager, source_guid, gameobject_entry);
+    attach_map_manager(&mut session, manager);
+    session.record_represented_gameobject_runtime_state_like_cpp(
+        571,
+        source_guid,
+        gameobject_entry,
+        Position::new(10.0, 0.0, 0.0, 0.0),
+        wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8,
+    );
+    let probe = Arc::new(AcceptProbe {
+        map: session
+            .core
+            .canonical_map_manager
+            .clone()
+            .expect("map attached"),
+        calls: std::sync::Mutex::new(Vec::new()),
+    });
+    let mut registry = wow_module_api::ModuleRegistry::new();
+    registry
+        .register_module(
+            wow_module_api::ModuleDescriptor::new(
+                "alpha.accept",
+                wow_module_api::ModuleVersion {
+                    major: 1,
+                    minor: 0,
+                    patch: 0,
+                },
+                "Accept",
+            )
+            .unwrap(),
+            wow_module_api::ModuleHooks::new().player(Arc::clone(&probe) as _),
+        )
+        .unwrap();
+    session.install_module_hooks_like_cpp(Arc::new(registry));
+
+    session
+        .handle_quest_giver_accept_quest(quest_giver_cmsg_packet(source_guid, quest_id, 0x00))
+        .await;
+
+    assert_eq!(*probe.calls.lock().unwrap(), vec![(quest_id, 0, true)]);
+    let opcodes: Vec<_> = send_rx
+        .try_iter()
+        .map(|bytes| wow_packet::WorldPacket::from_bytes(&bytes).server_opcode())
+        .collect();
+    assert_eq!(
+        opcodes,
+        vec![
+            Some(wow_constants::ServerOpcodes::UpdateObject),
+            Some(wow_constants::ServerOpcodes::Chat),
+            Some(wow_constants::ServerOpcodes::QuestGiverQuestComplete),
+        ],
+        "slot update, then the module's message, then the legacy confirmation"
+    );
+}

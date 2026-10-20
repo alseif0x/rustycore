@@ -126,6 +126,11 @@ pub async fn handle_quest_giver_accept_quest_with_generator_like_cpp<
     }
     host.sync_player_registry_state_like_cpp();
     host.send_represented_quest_log_slot_update_like_cpp(slot);
+    // AzerothCore `AddQuestAndCheckCompletion` -> `OnPlayerQuestAccept`
+    // (`PlayerQuest.cpp:426`); here after the accepted status was saved (or,
+    // for a quest the completion check already rewarded, after that reward's
+    // commit), so a module observes a durable accept.
+    raise_quest_accepted_hook_like_cpp(host, quest_id, slot);
 
     info!(account = host.core().account_id, quest_id, "Quest accepted");
 
@@ -581,4 +586,22 @@ pub fn set_represented_pending_quest_sharing_like_cpp<H: QuestHandlerSessionHost
         state.set_pending_share_like_cpp(Some((sender_guid, quest_id)));
     });
     host.sync_player_registry_state_like_cpp();
+}
+
+/// Raise the `player.quest_accepted` hook port for the session's player.
+pub(crate) fn raise_quest_accepted_hook_like_cpp<H: QuestSessionHostLikeCpp>(
+    host: &mut H,
+    quest_id: u32,
+    slot: u8,
+) {
+    if !host.quest_accepted_hook_wanted_like_cpp() {
+        return;
+    }
+    if let Some(guid) = host.player_guid() {
+        host.quest_accepted_hook_like_cpp(&crate::QuestAcceptedHookEventLikeCpp {
+            guid,
+            quest_id,
+            slot,
+        });
+    }
 }

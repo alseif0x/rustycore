@@ -397,6 +397,28 @@ impl QuestRewardCx<'_> {
                 );
             }
         }
+
+        // AzerothCore `Player::GiveLevel` ends with `OnPlayerLevelChanged`
+        // (`Player.cpp:2585`). The level was already published to the client
+        // above; modules observe it after the XP save resolved (#1444), once
+        // per `GiveXP`, with no guard held.
+        if level_changed && self.module_hooks.player_hooks_wanted_like_cpp() {
+            let new_level = {
+                let player = self.xp_gain_access_like_cpp();
+                player.player_level_like_cpp(
+                    #[cfg(any(test, feature = "test-fixtures"))]
+                    &*self.player_level,
+                )
+            };
+            self.module_hooks.player_level_changed_like_cpp(
+                self.player.packet_publication_access_like_cpp(),
+                &crate::PlayerLevelChangedHookEventLikeCpp {
+                    guid,
+                    old_level,
+                    new_level,
+                },
+            );
+        }
     }
 
     fn xp_gain_access_like_cpp(&self) -> CoreXPGainAccessLikeCpp<'_> {

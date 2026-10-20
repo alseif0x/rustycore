@@ -64,6 +64,13 @@ impl PacketPublicationAccessLikeCpp<'_> {
         self.core.send_packet(packet)
     }
 
+    /// C++ `ChatHandler::SendSysMessage` to this session's own player, through
+    /// the session's established send operation. The trusted-module adapter
+    /// applies validated self-message effects through this capability (#1444).
+    pub fn send_system_message_like_cpp(&self, text: &str) {
+        self.core.send_system_message_like_cpp(text);
+    }
+
     /// Build and publish player values through Core's map-addressed update path.
     pub fn publish_player_values_update_like_cpp(
         &self,

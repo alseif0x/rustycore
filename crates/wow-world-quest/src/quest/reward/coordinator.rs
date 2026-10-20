@@ -331,6 +331,24 @@ impl QuestRewardCx<'_> {
             false,
         );
 
+        // AzerothCore `Player::RewardQuest` ends with `OnPlayerCompleteQuest`
+        // (`PlayerQuest.cpp:903`), after its `SaveToDB`. Here the reward plan is
+        // durable (commit above) and the reward XP was granted; this runs once
+        // per reward, auto rewards included (#1444).
+        if self.module_hooks.player_hooks_wanted_like_cpp() {
+            self.module_hooks.quest_rewarded_like_cpp(
+                self.player.packet_publication_access_like_cpp(),
+                &crate::QuestRewardedHookEventLikeCpp {
+                    guid: player_guid,
+                    quest_id,
+                    quest_giver: quest_giver_guid,
+                    choice_item_id,
+                    xp,
+                    money: i64::from(money),
+                },
+            );
+        }
+
         true
     }
 

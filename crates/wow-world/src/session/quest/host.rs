@@ -8,7 +8,7 @@ use wow_world_core::session::{HubMut, HubRef, RepresentedGameObjectAccessLikeCpp
 use wow_world_entities::WorldEntitiesState;
 use wow_world_lifecycle::SessionLifecycleState;
 use wow_world_player_conditions::PlayerConditionProjectionCxLikeCpp;
-use wow_world_quest::{QuestSessionHostLikeCpp, SessionQuestState};
+use wow_world_quest::{QuestAcceptedHookEventLikeCpp, QuestSessionHostLikeCpp, SessionQuestState};
 
 use super::*;
 
@@ -27,6 +27,16 @@ impl QuestSessionHostLikeCpp for WorldSession {
     }
     fn world_entities_mut(&mut self) -> &mut WorldEntitiesState {
         &mut self.world_entities
+    }
+    /// The `player.quest_accepted` hook port, dispatched by the World module
+    /// adapter.
+    fn quest_accepted_hook_like_cpp(&mut self, event: &QuestAcceptedHookEventLikeCpp) {
+        self.module_hooks
+            .quest_accepted_like_cpp(self.core.packet_publication_access_like_cpp(), event);
+    }
+    fn quest_accepted_hook_wanted_like_cpp(&self) -> bool {
+        self.module_hooks
+            .wants_like_cpp(wow_module_api::HookFamily::Player)
     }
     fn player_quest_gameplay_snapshot_like_cpp(&self) -> Option<PlayerQuestGameplayState> {
         let (state, hub) = crate::session::split_quest_state_ref(self);

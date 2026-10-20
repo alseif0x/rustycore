@@ -160,3 +160,93 @@ async fn a_repeatable_quest_reward_deletes_its_status_row_in_the_same_transactio
         }
     );
 }
+
+/// Records each `player.quest_rewarded` with the commits already requested
+/// and whether the canonical map lock was free.
+struct RewardProbe {
+    requests: Arc<std::sync::Mutex<Vec<wow_persistence::PlayerQuestRewardDurableRequestLikeCpp>>>,
+    map: Option<crate::session::SharedCanonicalMapManager>,
+    calls: std::sync::Mutex<Vec<(u32, u32, usize, bool)>>,
+}
+
+impl wow_module_api::PlayerModule for RewardProbe {
+    fn on_quest_rewarded(
+        &self,
+        snapshot: &wow_module_api::QuestRewardedSnapshot,
+        effects: &mut wow_module_api::ScopedEffects<'_>,
+    ) {
+        let map_free = self.map.as_ref().is_none_or(|map| map.try_lock().is_ok());
+        self.calls.lock().unwrap().push((
+            snapshot.quest_id,
+            snapshot.choice_item_id,
+            self.requests.lock().unwrap().len(),
+            map_free,
+        ));
+        effects.send_system_message_self("Quest done!");
+    }
+}
+
+fn install_reward_probe(
+    session: &mut WorldSession,
+    requests: &Arc<std::sync::Mutex<Vec<wow_persistence::PlayerQuestRewardDurableRequestLikeCpp>>>,
+) -> Arc<RewardProbe> {
+    let probe = Arc::new(RewardProbe {
+        requests: Arc::clone(requests),
+        map: session.core.canonical_map_manager.clone(),
+        calls: std::sync::Mutex::new(Vec::new()),
+    });
+    let mut registry = wow_module_api::ModuleRegistry::new();
+    registry
+        .register_module(
+            wow_module_api::ModuleDescriptor::new(
+                "alpha.reward",
+                wow_module_api::ModuleVersion {
+                    major: 1,
+                    minor: 0,
+                    patch: 0,
+                },
+                "Reward",
+            )
+            .unwrap(),
+            wow_module_api::ModuleHooks::new().player(Arc::clone(&probe) as _),
+        )
+        .unwrap();
+    session.install_module_hooks_like_cpp(Arc::new(registry));
+    probe
+}
+
+/// `player.quest_rewarded` (#1444 H1): the last step of AzerothCore
+/// `RewardQuest`, `OnPlayerCompleteQuest` (`PlayerQuest.cpp:903`). Once, after
+/// the single reward transaction was committed.
+#[tokio::test]
+async fn quest_rewarded_hook_runs_once_after_the_reward_commit_like_cpp() {
+    let quest_id = 7105;
+    let (mut session, _send_rx) = complete_quest_session_like_cpp(quest_id, 0);
+    let fixture = PlayerQuestRewardPersistencePortFixtureLikeCpp::default();
+    let requests = Arc::clone(&fixture.requests);
+    session.set_player_quest_reward_persistence_port_like_cpp(Arc::new(fixture));
+    let probe = install_reward_probe(&mut session, &requests);
+
+    choose_reward_like_cpp(&mut session, quest_id).await;
+
+    let calls = probe.calls.lock().unwrap().clone();
+    assert_eq!(calls, vec![(quest_id, 0, 1, true)]);
+}
+
+#[tokio::test]
+async fn a_rolled_back_reward_raises_no_quest_rewarded_hook_like_cpp() {
+    let quest_id = 7106;
+    let (mut session, _send_rx) = complete_quest_session_like_cpp(quest_id, 0);
+    let fixture = PlayerQuestRewardPersistencePortFixtureLikeCpp::with_outcome(
+        PlayerQuestRewardCommitOutcomeLikeCpp::DefinitelyRolledBack {
+            reason: "deadlock".to_string(),
+        },
+    );
+    let requests = Arc::clone(&fixture.requests);
+    session.set_player_quest_reward_persistence_port_like_cpp(Arc::new(fixture));
+    let probe = install_reward_probe(&mut session, &requests);
+
+    choose_reward_like_cpp(&mut session, quest_id).await;
+
+    assert!(probe.calls.lock().unwrap().is_empty());
+}

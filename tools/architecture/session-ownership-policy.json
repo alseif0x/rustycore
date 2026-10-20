@@ -38192,6 +38192,32 @@
           "module": "crate::session",
           "trait_path": "QuestSessionHostLikeCpp",
           "kind": "method",
+          "name": "quest_accepted_hook_like_cpp",
+          "visibility": "private",
+          "signature": "fn quest_accepted_hook_like_cpp (& mut self , event : & QuestAcceptedHookEventLikeCpp)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "QuestSessionHostLikeCpp",
+          "kind": "method",
+          "name": "quest_accepted_hook_wanted_like_cpp",
+          "visibility": "private",
+          "signature": "fn quest_accepted_hook_wanted_like_cpp (& self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "QuestSessionHostLikeCpp",
+          "kind": "method",
           "name": "quest_state",
           "visibility": "private",
           "signature": "fn quest_state (& self) -> & SessionQuestState",
@@ -38546,6 +38572,32 @@
           "name": "visual",
           "visibility": "private",
           "signature": "fn visual (& self , spell : & wow_data :: SpellInfo) -> Option < SpellCastVisualLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "SessionLifecycleHostLikeCpp",
+          "kind": "method",
+          "name": "player_logout_hook_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_logout_hook_like_cpp (& mut self , event : & PlayerLogoutHookEventLikeCpp)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "SessionLifecycleHostLikeCpp",
+          "kind": "method",
+          "name": "player_logout_hook_wanted_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_logout_hook_wanted_like_cpp (& self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [

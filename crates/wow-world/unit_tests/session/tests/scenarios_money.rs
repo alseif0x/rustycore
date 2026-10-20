@@ -763,3 +763,59 @@ async fn loot_money_consumes_only_current_active_loot_like_cpp() {
 mod f4_loot_money_quest_drain;
 #[path = "s2_quest_objective_owner_drain.rs"]
 mod s2_quest_objective_owner_drain;
+
+struct MoneyProbe {
+    calls: std::sync::Mutex<Vec<(u64, u64)>>,
+}
+
+impl wow_module_api::PlayerModule for MoneyProbe {
+    fn on_money_changed(
+        &self,
+        snapshot: &wow_module_api::PlayerMoneyChangedSnapshot,
+        _effects: &mut wow_module_api::ScopedEffects<'_>,
+    ) {
+        self.calls
+            .lock()
+            .unwrap()
+            .push((snapshot.old_money, snapshot.new_money));
+    }
+}
+
+/// `player.money_changed` (#1444 H1): AzerothCore `OnPlayerMoneyChanged`
+/// (`Player.cpp:11688`), observed at the post-commit drain every money path
+/// feeds. One hook per queued change, in order; a second drain repeats none.
+#[tokio::test]
+async fn money_changed_hook_runs_once_per_drained_change_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+    session.set_player_gold_like_cpp(90);
+    let probe = Arc::new(MoneyProbe {
+        calls: std::sync::Mutex::new(Vec::new()),
+    });
+    let mut registry = wow_module_api::ModuleRegistry::new();
+    registry
+        .register_module(
+            wow_module_api::ModuleDescriptor::new(
+                "alpha.money",
+                wow_module_api::ModuleVersion {
+                    major: 1,
+                    minor: 0,
+                    patch: 0,
+                },
+                "Money",
+            )
+            .unwrap(),
+            wow_module_api::ModuleHooks::new().player(Arc::clone(&probe) as _),
+        )
+        .unwrap();
+    session.install_module_hooks_like_cpp(Arc::new(registry));
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
+
+    session.apply_player_money_change_like_cpp(90, 100).await;
+    session.apply_player_money_change_like_cpp(100, 70).await;
+    session
+        .drain_represented_quest_objective_progress_like_cpp()
+        .await;
+
+    assert_eq!(*probe.calls.lock().unwrap(), vec![(90, 100), (100, 70)]);
+}

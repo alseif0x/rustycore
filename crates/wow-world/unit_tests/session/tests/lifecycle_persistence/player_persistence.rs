@@ -430,3 +430,86 @@ async fn represented_xp_reaches_the_port_for_every_classified_outcome_like_cpp()
         assert_eq!(session.player_xp_like_cpp(), 100);
     }
 }
+
+/// Records each `player.level_changed` with the XP saves already requested.
+struct LevelProbe {
+    port: Arc<RecordingPortLikeCpp>,
+    calls: Mutex<Vec<(u8, u8, usize)>>,
+}
+
+impl wow_module_api::PlayerModule for LevelProbe {
+    fn on_level_changed(
+        &self,
+        snapshot: &wow_module_api::PlayerLevelChangedSnapshot,
+        effects: &mut wow_module_api::ScopedEffects<'_>,
+    ) {
+        self.calls.lock().unwrap().push((
+            snapshot.old_level,
+            snapshot.new_level,
+            self.port.xp_saves().len(),
+        ));
+        effects.send_system_message_self(format!("Level {}!", snapshot.new_level));
+    }
+}
+
+fn install_level_probe(
+    session: &mut WorldSession,
+    port: &Arc<RecordingPortLikeCpp>,
+) -> Arc<LevelProbe> {
+    let probe = Arc::new(LevelProbe {
+        port: Arc::clone(port),
+        calls: Mutex::new(Vec::new()),
+    });
+    let mut registry = wow_module_api::ModuleRegistry::new();
+    registry
+        .register_module(
+            wow_module_api::ModuleDescriptor::new(
+                "alpha.level",
+                wow_module_api::ModuleVersion {
+                    major: 1,
+                    minor: 0,
+                    patch: 0,
+                },
+                "Level",
+            )
+            .unwrap(),
+            wow_module_api::ModuleHooks::new().player(Arc::clone(&probe) as _),
+        )
+        .unwrap();
+    session.install_module_hooks_like_cpp(Arc::new(registry));
+    probe
+}
+
+/// `player.level_changed` (#1444 H1): AzerothCore `GiveLevel` ->
+/// `OnPlayerLevelChanged` (`Player.cpp:2585`). Once per level-up, after the XP
+/// save was requested; XP that does not change the level raises nothing.
+#[tokio::test]
+async fn level_changed_hook_runs_once_after_the_xp_save_like_cpp() {
+    let (mut session, port) = session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 2 });
+    let probe = install_level_probe(&mut session, &port);
+    let guid = ObjectGuid::create_player(1, 0x7500_0311);
+    let victim = test_creature_guid(0x7500_0312);
+    session.set_player_guid(Some(guid));
+    session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
+    install_tapped_xp_victim_like_cpp(&mut session, victim);
+
+    session.give_xp(50, victim, 1.0).await;
+    assert!(
+        probe.calls.lock().unwrap().is_empty(),
+        "XP below the next level raises no level hook"
+    );
+
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(60);
+    session.give_xp(50, victim, 1.0).await;
+    let calls = probe.calls.lock().unwrap().clone();
+    assert_eq!(calls.len(), 1, "one level-up, one hook");
+    let (old_level, new_level, saves) = calls[0];
+    assert_eq!(old_level, 10);
+    assert!(new_level > old_level);
+    assert_eq!(
+        saves,
+        port.xp_saves().len(),
+        "the level-up's XP save was requested before the hook"
+    );
+}

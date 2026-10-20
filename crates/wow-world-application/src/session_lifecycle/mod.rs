@@ -28,6 +28,7 @@ use wow_world_spell::TalentHostLikeCpp;
 mod account_saves;
 mod cleanup;
 mod finalization;
+mod logout_hook;
 mod player_save;
 mod talent_reset;
 
@@ -35,6 +36,7 @@ pub use cleanup::cleanup_shared_runtime_state;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use finalization::execute_finalization_step;
 pub use finalization::finalize_session_with_generator_like_cpp;
+pub use logout_hook::PlayerLogoutHookEventLikeCpp;
 pub use player_save::{
     process_pending_periodic_player_save_with_generator_like_cpp,
     resume_deferred_player_save_with_generator_like_cpp,
@@ -60,4 +62,16 @@ pub trait SessionLifecycleHostLikeCpp:
     WorldportHostLikeCpp + LootSessionHostLikeCpp + TalentHostLikeCpp + PlayerSaveHostLikeCpp + Send
 {
     fn session_account_save_cx_like_cpp(&mut self) -> SessionAccountSaveCxLikeCpp<'_>;
+
+    /// Hook port for `player.logout` (#1444 H1): C++ `ScriptMgr::OnPlayerLogout`
+    /// from `WorldSession::LogoutPlayer`. The World adapter dispatches it to
+    /// the trusted linked modules; the default does nothing. Called once, from
+    /// the finalization ledger's `Retirement` step, outside any split borrow.
+    fn player_logout_hook_like_cpp(&mut self, _event: &PlayerLogoutHookEventLikeCpp) {}
+
+    /// Whether any linked module wants `player.logout`; asked before the event
+    /// is built. The default, used by every test host, wants nothing.
+    fn player_logout_hook_wanted_like_cpp(&self) -> bool {
+        false
+    }
 }

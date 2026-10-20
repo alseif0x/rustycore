@@ -51,6 +51,9 @@ pub struct QuestRewardCx<'a> {
     pub(super) currency_types: Option<&'a CurrencyTypesStore>,
     pub(super) quest_xp_store: Option<&'a QuestXpStore>,
     pub(super) world_test_consumer: bool,
+    /// The hook port this operation raises `player.level_changed`,
+    /// `player.money_changed` and `player.quest_rewarded` through (#1444).
+    pub(super) module_hooks: &'a dyn crate::QuestModuleHookPortLikeCpp,
 }
 
 impl<'a> QuestRewardCx<'a> {
@@ -66,6 +69,7 @@ impl<'a> QuestRewardCx<'a> {
         currency_types: Option<&'a CurrencyTypesStore>,
         quest_xp_store: Option<&'a QuestXpStore>,
         world_test_consumer: bool,
+        module_hooks: &'a dyn crate::QuestModuleHookPortLikeCpp,
     ) -> Self {
         Self {
             inventory,
@@ -80,6 +84,7 @@ impl<'a> QuestRewardCx<'a> {
             currency_types,
             quest_xp_store,
             world_test_consumer,
+            module_hooks,
         }
     }
 

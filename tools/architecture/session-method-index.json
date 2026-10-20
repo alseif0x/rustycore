@@ -106,7 +106,7 @@
   },
   "staying_bound": {
     "methods": 94,
-    "lines": 2846
+    "lines": 2848
   },
   "outside_ceiling": {
     "methods": 0,
@@ -114,7 +114,7 @@
   },
   "crate_ceiling": {
     "methods": 121,
-    "lines": 4067
+    "lines": 4070
   },
   "reasons": {
     "session/lifecycle/finalization.rs::interrupt_finalization_like_cpp": "world-server session-factory finalization cancel (session_factory/finalization.rs): interrupts the lifecycle-owned in-flight finalization and returns its report; the session driver's own teardown API.",

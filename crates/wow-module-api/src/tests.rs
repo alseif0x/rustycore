@@ -505,3 +505,201 @@ fn every_profile_keeps_panics_unwinding() {
         "a profile sets panic = \"abort\"; module failure isolation needs unwinding"
     );
 }
+
+// ── The `player.*` family (#1444 H1) ─────────────────────────────────────
+
+/// Records every `player.*` hook it sees and answers each with one message.
+#[derive(Default)]
+struct PlayerRecorder {
+    seen: std::sync::Mutex<Vec<String>>,
+}
+
+impl PlayerModule for PlayerRecorder {
+    fn on_logout(&self, snapshot: &PlayerLogoutSnapshot) {
+        self.seen
+            .lock()
+            .unwrap()
+            .push(format!("logout {:?}", snapshot.reason));
+    }
+    fn on_level_changed(
+        &self,
+        snapshot: &PlayerLevelChangedSnapshot,
+        effects: &mut ScopedEffects<'_>,
+    ) {
+        self.seen.lock().unwrap().push(format!(
+            "level {} -> {}",
+            snapshot.old_level, snapshot.new_level
+        ));
+        effects.send_system_message_self(format!("Level {}!", snapshot.new_level));
+    }
+    fn on_money_changed(
+        &self,
+        snapshot: &PlayerMoneyChangedSnapshot,
+        effects: &mut ScopedEffects<'_>,
+    ) {
+        self.seen.lock().unwrap().push(format!(
+            "money {} -> {}",
+            snapshot.old_money, snapshot.new_money
+        ));
+        effects.send_system_message_self("money");
+    }
+    fn on_quest_accepted(&self, snapshot: &QuestAcceptedSnapshot, effects: &mut ScopedEffects<'_>) {
+        self.seen.lock().unwrap().push(format!(
+            "accepted {} in {}",
+            snapshot.quest_id, snapshot.slot
+        ));
+        effects.send_system_message_self("accepted");
+    }
+    fn on_quest_rewarded(&self, snapshot: &QuestRewardedSnapshot, effects: &mut ScopedEffects<'_>) {
+        self.seen
+            .lock()
+            .unwrap()
+            .push(format!("rewarded {} xp {}", snapshot.quest_id, snapshot.xp));
+        effects.send_system_message_self("rewarded");
+    }
+}
+
+/// Overrides nothing: every `player.*` method keeps its empty default.
+struct SilentPlayer;
+
+impl PlayerModule for SilentPlayer {}
+
+fn guid() -> ObjectGuid {
+    ObjectGuid::create_player(1, 42)
+}
+
+#[test]
+fn the_player_family_dispatches_each_hook_in_module_id_order() {
+    let zulu = std::sync::Arc::new(PlayerRecorder::default());
+    let alpha = std::sync::Arc::new(PlayerRecorder::default());
+    let mut registry = ModuleRegistry::new();
+    for (id, module) in [("zulu.player", &zulu), ("alpha.player", &alpha)] {
+        registry
+            .register_module(
+                ModuleDescriptor::new(id, version(), "Player").expect("descriptor"),
+                ModuleHooks::new().player(std::sync::Arc::clone(module) as _),
+            )
+            .expect("registration");
+    }
+    assert!(registry.handles(HookFamily::Player));
+    assert!(!registry.handles(HookFamily::PlayerLogin));
+
+    let level = registry
+        .dispatch_player_level_changed(&PlayerLevelChangedSnapshot::new(guid(), 9, 10))
+        .effects
+        .expect("valid");
+    let authors: Vec<_> = level.iter().map(|(m, _)| m.as_str()).collect();
+    assert_eq!(authors, vec!["alpha.player", "zulu.player"]);
+
+    for outcome in [
+        registry.dispatch_player_money_changed(&PlayerMoneyChangedSnapshot::new(guid(), 1, 2)),
+        registry.dispatch_quest_accepted(&QuestAcceptedSnapshot::new(guid(), 7, 3)),
+        registry.dispatch_quest_rewarded(&QuestRewardedSnapshot::new(
+            guid(),
+            7,
+            guid(),
+            0,
+            120,
+            50,
+        )),
+    ] {
+        assert_eq!(outcome.effects.expect("valid").len(), 2);
+    }
+    let logout = registry.dispatch_player_logout(&PlayerLogoutSnapshot::new(
+        guid(),
+        5,
+        LogoutReason::Disconnect,
+    ));
+    assert!(
+        logout.effects.expect("valid").is_empty(),
+        "a logging-out session receives no effect"
+    );
+    assert_eq!(
+        *alpha.seen.lock().unwrap(),
+        vec![
+            "level 9 -> 10",
+            "money 1 -> 2",
+            "accepted 7 in 3",
+            "rewarded 7 xp 120",
+            "logout Disconnect"
+        ]
+    );
+}
+
+#[test]
+fn every_player_hook_defaults_to_nothing() {
+    let mut registry = ModuleRegistry::new();
+    registry
+        .register_module(
+            ModuleDescriptor::new("alpha.silent", version(), "Silent").expect("descriptor"),
+            ModuleHooks::new().player(std::sync::Arc::new(SilentPlayer)),
+        )
+        .expect("registration");
+    let level = registry
+        .dispatch_player_level_changed(&PlayerLevelChangedSnapshot::new(guid(), 1, 2))
+        .effects
+        .expect("valid");
+    assert!(level.is_empty());
+}
+
+#[test]
+fn one_value_serves_two_families_with_one_state() {
+    struct Both(std::sync::atomic::AtomicUsize);
+    impl PlayerLoginModule for Both {
+        fn on_player_login(&self, _s: &PlayerLoginSnapshot, _e: &mut ScopedEffects<'_>) {
+            self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+    impl PlayerModule for Both {
+        fn on_level_changed(&self, _s: &PlayerLevelChangedSnapshot, _e: &mut ScopedEffects<'_>) {
+            self.0.fetch_add(10, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+    let both = std::sync::Arc::new(Both(std::sync::atomic::AtomicUsize::new(0)));
+    let mut registry = ModuleRegistry::new();
+    registry
+        .register_module(
+            ModuleDescriptor::new("alpha.both", version(), "Both").expect("descriptor"),
+            ModuleHooks::new()
+                .player_login(std::sync::Arc::clone(&both) as _)
+                .player(std::sync::Arc::clone(&both) as _),
+        )
+        .expect("registration");
+    let _ = registry.dispatch_player_login(&snapshot(false));
+    let _ = registry.dispatch_player_level_changed(&PlayerLevelChangedSnapshot::new(guid(), 1, 2));
+    assert_eq!(both.0.load(std::sync::atomic::Ordering::SeqCst), 11);
+}
+
+#[test]
+fn a_player_hook_panic_disables_the_module_for_login_too() {
+    struct Boom;
+    impl PlayerLoginModule for Boom {
+        fn on_player_login(&self, _s: &PlayerLoginSnapshot, e: &mut ScopedEffects<'_>) {
+            e.send_system_message_self("never after the panic");
+        }
+    }
+    impl PlayerModule for Boom {
+        fn on_money_changed(&self, _s: &PlayerMoneyChangedSnapshot, _e: &mut ScopedEffects<'_>) {
+            panic!("module bug");
+        }
+    }
+    let boom = std::sync::Arc::new(Boom);
+    let mut registry = ModuleRegistry::new();
+    registry
+        .register_module(
+            ModuleDescriptor::new("alpha.boom", version(), "Boom").expect("descriptor"),
+            ModuleHooks::new()
+                .player_login(std::sync::Arc::clone(&boom) as _)
+                .player(boom as _),
+        )
+        .expect("registration");
+    let outcome =
+        registry.dispatch_player_money_changed(&PlayerMoneyChangedSnapshot::new(guid(), 1, 2));
+    assert_eq!(outcome.disabled.len(), 1);
+    assert!(
+        registry
+            .dispatch_player_login(&snapshot(true))
+            .expect("valid")
+            .is_empty()
+    );
+}

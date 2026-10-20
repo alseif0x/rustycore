@@ -50,7 +50,8 @@ impl WorldSession {
 impl ContinueLoginHostLikeCpp for WorldSession {
     /// The `player.login` hook port, dispatched by the World module adapter.
     fn player_login_hook_like_cpp(&mut self, event: &PlayerLoginHookEventLikeCpp) {
-        self.module_hooks.player_login_like_cpp(&self.core, event);
+        self.module_hooks
+            .player_login_like_cpp(self.core.packet_publication_access_like_cpp(), event);
     }
     fn player_login_hook_wanted_like_cpp(&self) -> bool {
         self.module_hooks

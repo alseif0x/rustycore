@@ -194,6 +194,21 @@ pub async fn execute_finalization_step<H: SessionLifecycleHostLikeCpp>(
                 let (state, hub) = host.split_lifecycle_ref();
                 state.unregister_from_player_registry(hub)
             };
+            // C++ `sScriptMgr->OnPlayerLogout(_player)` (`WorldSession.cpp:655`;
+            // AzerothCore `:828`): after the final save and the social cleanup,
+            // before the player leaves the map. The ledger admits `Retirement`
+            // once, and only after `CharacterSave` and `CharacterOffline`
+            // applied, so the hook fires exactly once per logout (#1444).
+            if host.player_logout_hook_wanted_like_cpp()
+                && let Some(guid) = host.player_guid()
+            {
+                let event = crate::PlayerLogoutHookEventLikeCpp {
+                    guid,
+                    account_id: host.core().account_id,
+                    mode,
+                };
+                host.player_logout_hook_like_cpp(&event);
+            }
             wow_world_spell::notify_other_players_visibility_changed_like_cpp(host);
             {
                 let (s, mut h) = host.split_lifecycle_mut();

@@ -81,7 +81,9 @@ first `Deny` wins and `ReplaceText` chains in `ModuleId` order).
 - a module crate with a normal dependency (`[dependencies]` or `[target.*.dependencies]`) on
   any server workspace crate other than `wow-module-api`, whether by name, by a `path` into
   the server tree or by `workspace = true`, including through a helper crate inside the module
-  checkout (#1445, ADR-002). `wow-module-api` re-exports `ObjectGuid`, so neither a module nor
+  checkout (#1445, ADR-002). It does not follow a path dependency that leaves both the checkout
+  and the server tree: native modules are trusted code, and this rule guards against accidental
+  coupling to server internals, not against a deliberate workaround. `wow-module-api` re-exports `ObjectGuid`, so neither a module nor
   its tests need `wow-core`; development dependencies are not checked.
   `tools/modules/fixtures/forbidden_dependency/` is the refusal fixture.
 
@@ -271,6 +273,28 @@ no effect can.
 
 `tools/modules/fixtures/incompatible_api/` is that fixture, and `doctor --json` reports
 `supported_source_apis` alongside each module's own.
+
+## Hook catalogue (#1444 first wave)
+
+Every hook below is a confirmed-result notification unless marked otherwise. Each one is raised
+after its transition and that transition's persistence boundary, exactly once, never under a
+map, money or respawn-order guard, and only when `registry.handles(<family>)` says a module
+wants it (the port's interest query).
+
+| Hook | Family / method | AzerothCore | RustyCore call site | Effects |
+|---|---|---|---|---|
+| `player.login` | `PlayerLoginModule::on_player_login` | `PlayerScript.h:332`, `CharacterHandler.cpp:1136` | `wow-world-application` `continue_login/login.rs`, last step, after `mark_player_online` | self message |
+| `player.logout` | `PlayerModule::on_logout` | `PlayerScript.h:338`, `WorldSession.cpp:828` | `wow-world-application` `session_lifecycle/finalization.rs`, `Retirement` step: after `CharacterSave` and the offline marks, after the registry cleanup, before the map removal | none (session closing) |
+| `player.level_changed` | `PlayerModule::on_level_changed` | `PlayerScript.h:263`, `Player.cpp:2585` | `wow-world-quest` `quest/reward/xp_grants.rs` `give_xp_like_cpp`, after the XP save | self message |
+| `player.money_changed` | `PlayerModule::on_money_changed` | `PlayerScript.h:282`, `Player.cpp:11688` | `wow-world-quest` `quest/objectives.rs`, the post-commit `MoneyChanged` drain every money path feeds | self message; the amount cannot be changed (#583) |
+| `player.quest_accepted` | `PlayerModule::on_quest_accepted` | `PlayerScript.h:750`, `PlayerQuest.cpp:426` | `wow-world-quest` `quest_session/accept_handlers.rs` (quest giver) and `state.rs` (shared-quest confirmation), after the status save | self message |
+| `player.quest_rewarded` | `PlayerModule::on_quest_rewarded` | `PlayerScript.h:245`, `PlayerQuest.cpp:903` | `wow-world-quest` `quest/reward/coordinator.rs`, last step of the reward, after its single commit and the reward XP | self message |
+
+An operation that runs on the session host raises its hook through a provided host-trait method;
+one that runs inside a borrowed context (`QuestRewardCx` and the objective drain on it) raises it
+through the `QuestModuleHookPortLikeCpp` the World hands the context. Both reach the same World
+adapter. A quest that completes and auto-rewards on accept reports `quest_rewarded` before
+`quest_accepted`, because the accept only becomes durable through that reward's commit.
 
 ## Approved next direction — #583 under #99, not implemented yet
 
