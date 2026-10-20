@@ -15,7 +15,7 @@
 use wow_core::ObjectGuid;
 use wow_data::spell_click::UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP;
 use wow_packet::packets::update::{UnitDataValuesDeltaUpdate, UpdateObject};
-use wow_world_core::session::{SessionCatalogs, SessionCore};
+use wow_world_core::session::{SessionCatalogs, VisibilityRefreshAccessLikeCpp};
 use wow_world_entities::{RepresentedGameObjectUseState, WorldEntitiesState};
 
 use super::{
@@ -30,7 +30,7 @@ use crate::SessionQuestState;
 /// the catalogs/quest state the existing eligibility and condition providers
 /// consume.
 pub struct VisibilityRefreshCxLikeCpp<'a> {
-    pub core: &'a SessionCore,
+    pub access: VisibilityRefreshAccessLikeCpp<'a>,
     pub catalogs: &'a SessionCatalogs,
     pub quest_state: &'a SessionQuestState,
     pub world_entities: &'a WorldEntitiesState,
@@ -74,16 +74,15 @@ where
 {
     let mut sent = 0;
     let visible_guids = cx
-        .core
-        .client_visible_guids_like_cpp
-        .snapshot_like_cpp()
+        .access
+        .client_visible_guids_snapshot_like_cpp()
         .into_iter()
         .collect::<Vec<_>>();
     for guid in visible_guids {
         if !guid.is_game_object() {
             continue;
         }
-        let Some(access) = cx.core.canonical_gameobject_access_like_cpp(guid) else {
+        let Some(access) = cx.access.canonical_gameobject_access_like_cpp(guid) else {
             continue;
         };
         let Some(state) = cx
@@ -94,7 +93,7 @@ where
             continue;
         };
         let objective_refresh = represented_has_quest_for_gameobject_like_cpp(
-            &cx.core.quest_objective_access_like_cpp(),
+            &cx.access.quest_objective_access_like_cpp(),
             cx.catalogs,
             cx.quest_state,
             access.entry,
@@ -102,7 +101,7 @@ where
         );
         let relation_refresh = represented_gameobject_is_for_quests_like_cpp(
             cx.catalogs,
-            &cx.core.quest_objective_access_like_cpp(),
+            &cx.access.quest_objective_access_like_cpp(),
             cx.quest_state,
             access.entry,
             &state,
@@ -116,12 +115,12 @@ where
             host.visibility_refresh_gameobject_dynamic_flags_like_cpp(access.entry, &state);
         let Some(update) = represented_gameobject_dynamic_flags_update_like_cpp(
             guid,
-            cx.core.player_map_id_like_cpp(),
+            cx.access.player_map_id_like_cpp(),
             dynamic_flags,
         ) else {
             continue;
         };
-        cx.core.send_packet(&update);
+        cx.access.send_packet(&update);
         sent += 1;
     }
 
@@ -151,9 +150,8 @@ where
 
     let mut sent = 0;
     let visible_guids = cx
-        .core
-        .client_visible_guids_like_cpp
-        .snapshot_like_cpp()
+        .access
+        .client_visible_guids_snapshot_like_cpp()
         .into_iter()
         .collect::<Vec<_>>();
     for guid in visible_guids {
@@ -163,7 +161,7 @@ where
         let Some(creature) = cx
             .world_entities
             .represented_spell_click_creature_snapshot_like_cpp(
-                &cx.core.quest_objective_access_like_cpp(),
+                &cx.access.quest_objective_access_like_cpp(),
                 guid,
             )
         else {
@@ -190,10 +188,10 @@ where
         packet_update.npc_flags = [creature.npc_flags, 0];
         let update = host.visibility_refresh_unit_npc_flags_update_like_cpp(
             guid,
-            cx.core.player_map_id_like_cpp(),
+            cx.access.player_map_id_like_cpp(),
             packet_update,
         );
-        cx.core.send_packet(&update);
+        cx.access.send_packet(&update);
         sent += 1;
     }
 

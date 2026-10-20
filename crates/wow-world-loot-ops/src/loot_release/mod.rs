@@ -22,9 +22,7 @@ use wow_packet::packets::loot::LootRelease;
 use wow_packet::packets::loot::SLootRelease;
 use wow_packet::packets::loot::{LOOT_TYPE_MILLING_LIKE_CPP, LOOT_TYPE_PROSPECTING_LIKE_CPP};
 use wow_packet::{ClientPacket, WorldPacket};
-use wow_world_core::session::{
-    HubRef, OwnedLootAuthorityLookupOutcomeLikeCpp, SessionCatalogs, SessionCore,
-};
+use wow_world_core::session::{HubRef, OwnedLootAuthorityLookupOutcomeLikeCpp, SessionCatalogs};
 
 /// C++ `LockKeyType`: `LOCK_KEY_SKILL` / `LOCK_KEY_SPELL`.
 const LOCK_KEY_SKILL_LIKE_CPP: u8 = 2;
@@ -126,21 +124,16 @@ impl<'a> LootReleaseCxLikeCpp<'a> {
     /// canonical map helpers the release reads take a `HubRef`, exactly as the
     /// World adapter passes one.
     fn hub_ref_like_cpp(&self) -> HubRef<'_> {
-        HubRef {
-            core: self.owner.core_ref_like_cpp(),
-            catalogs: self.stats_inputs.catalogs_like_cpp(),
-            config: self.stats_inputs.config_like_cpp(),
+        self.owner.release_hub_ref_like_cpp(
+            self.stats_inputs.catalogs_like_cpp(),
+            self.stats_inputs.config_like_cpp(),
             #[cfg(any(test, feature = "test-fixtures"))]
-            fixtures: &*self.fixtures,
-        }
+            &*self.fixtures,
+        )
     }
 
     fn catalogs_like_cpp(&self) -> &SessionCatalogs {
         self.stats_inputs.catalogs_like_cpp()
-    }
-
-    fn core_like_cpp(&self) -> &SessionCore {
-        self.owner.core_ref_like_cpp()
     }
 
     fn player_guid(&self) -> Option<ObjectGuid> {

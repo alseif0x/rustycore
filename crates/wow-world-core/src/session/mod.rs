@@ -61,7 +61,7 @@ pub use canonical_access::{
     PlayerConditionAccessLikeCpp, PlayerGroupOwnerAccessLikeCpp,
     PlayerRegistryHydrationAccessLikeCpp, PlayerStatsAccessLikeCpp, QuestObjectiveAccessLikeCpp,
     QuestRewardPlayerAccessLikeCpp, TrainerInteractionRoleAccessLikeCpp,
-    looted_corpse_decay_secs_like_cpp,
+    VisibilityRefreshAccessLikeCpp, looted_corpse_decay_secs_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use canonical_access::{CoreXPGainFixtureRefsLikeCpp, PlayerConditionFixtureRefsLikeCpp};

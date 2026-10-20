@@ -32,7 +32,7 @@ impl QuestObjectiveProgressCx<'_, '_> {
     /// C++ `Player::UpdateVisibleGameobjectsOrSpellClicks` at quest completion.
     pub(super) fn update_visible_gameobjects_or_spell_clicks_like_cpp(&self) -> usize {
         let cx = VisibilityRefreshCxLikeCpp {
-            core: self.reward.player.core_ref_like_cpp(),
+            access: self.reward.player.visibility_refresh_access_like_cpp(),
             catalogs: self.reward.catalogs,
             quest_state: &*self.reward.quest_state,
             world_entities: self.world_entities,
@@ -44,7 +44,6 @@ impl QuestObjectiveProgressCx<'_, '_> {
     fn completion_player_condition_access_like_cpp(&self) -> PlayerConditionAccessLikeCpp<'_> {
         self.reward
             .player
-            .core_ref_like_cpp()
             .player_condition_access_with_selected_fixture_refs_like_cpp(
                 #[cfg(any(test, feature = "test-fixtures"))]
                 self.item_planning_fixtures
@@ -74,12 +73,11 @@ impl VisibilityRefreshHostLikeCpp for QuestObjectiveProgressCx<'_, '_> {
         gameobject_entry: u32,
         state: &RepresentedGameObjectUseState,
     ) -> u32 {
-        let core = self.reward.player.core_ref_like_cpp();
         let conditions = self.completion_condition_projection_like_cpp();
         #[cfg(any(test, feature = "test-fixtures"))]
         let (race, class) = self.item_planning_fixtures.race_class_refs_like_cpp();
         let eligibility = QuestEligibilityCx::new(
-            core.quest_eligibility_access_like_cpp(
+            self.reward.player.quest_eligibility_access_like_cpp(
                 #[cfg(any(test, feature = "test-fixtures"))]
                 race,
                 #[cfg(any(test, feature = "test-fixtures"))]
@@ -130,10 +128,10 @@ impl QuestObjectiveProgressCx<'_, '_> {
         &self,
         creature_guid: ObjectGuid,
     ) -> wow_world_entities::spell_click_values::RepresentedCanSeeSpellClickOutcomeLikeCpp {
-        let core = self.reward.player.core_ref_like_cpp();
+        let player = &self.reward.player;
         let catalogs = self.reward.catalogs;
-        let owner = core.quest_objective_access_like_cpp();
-        let npc_access = core.npc_interaction_access_with_selected_refs_like_cpp(
+        let owner = player.quest_objective_access_like_cpp();
+        let npc_access = player.npc_interaction_access_with_selected_refs_like_cpp(
             catalogs.factions.store.as_deref(),
             catalogs.factions.template_store.as_deref(),
             catalogs.friendship_rep_reaction_store.as_deref(),

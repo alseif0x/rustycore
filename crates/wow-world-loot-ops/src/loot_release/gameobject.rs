@@ -303,15 +303,9 @@ impl LootReleaseCxLikeCpp<'_> {
     /// Canonical known spells, with the same absent-owner fixture fallback the
     /// World spell-state adapter applies at its original read point.
     fn represented_known_spells_like_cpp(&self) -> Vec<i32> {
-        let core = self.core_like_cpp();
-        let canonical = core.with_owned_player_like_cpp(|player| {
-            player
-                .spell_runtime_like_cpp()
-                .known_spells_like_cpp()
-                .to_vec()
-        });
+        let canonical = self.owner.owned_player_known_spells_like_cpp();
         #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && core.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.owner.owner_handle_absent_like_cpp() {
             let runtime = wow_world_spell::canonical_player_spell_runtime_like_cpp(
                 self.spell_state
                     .represented_spell_runtime_fixture_like_cpp(),
@@ -328,11 +322,10 @@ impl LootReleaseCxLikeCpp<'_> {
         &mut self,
         guid: ObjectGuid,
     ) {
-        let core = self.core_like_cpp();
-        if !core.client_visible_guids_like_cpp.contains(&guid) {
+        if !self.owner.client_visible_guid_like_cpp(guid) {
             return;
         }
-        let Some(access) = core.canonical_gameobject_access_like_cpp(guid) else {
+        let Some(access) = self.owner.canonical_gameobject_access_like_cpp(guid) else {
             return;
         };
         let Some(state) = self
@@ -380,7 +373,7 @@ impl LootReleaseCxLikeCpp<'_> {
         };
         let update = UpdateObject::game_object_values_update(
             guid,
-            core.player_map_id_like_cpp(),
+            self.owner.player_map_id_like_cpp(),
             packet_update,
         );
         self.send_packet(&update);
@@ -394,10 +387,9 @@ impl LootReleaseCxLikeCpp<'_> {
         entry: u32,
         state: &wow_world_entities::RepresentedGameObjectUseState,
     ) -> u32 {
-        let core = self.core_like_cpp();
-        let conditions = self.represented_condition_projection_like_cpp(core);
+        let conditions = self.represented_condition_projection_like_cpp();
         let eligibility = wow_world_quest::QuestEligibilityCx::new(
-            core.quest_eligibility_access_like_cpp(
+            self.owner.quest_eligibility_access_like_cpp(
                 #[cfg(any(test, feature = "test-fixtures"))]
                 &self.fixtures.identity.player_race,
                 #[cfg(any(test, feature = "test-fixtures"))]
@@ -418,8 +410,8 @@ impl LootReleaseCxLikeCpp<'_> {
             &conditions,
             cfg!(test),
         );
-        let owner = core.quest_objective_access_like_cpp();
-        let inventory_access = core.owned_inventory_access_like_cpp();
+        let owner = self.owner.quest_objective_access_like_cpp();
+        let inventory_access = self.owner.inventory_like_cpp();
         wow_world_quest::represented_gameobject_dynamic_flags_for_player_like_cpp(
             &owner,
             self.catalogs_like_cpp(),
@@ -439,53 +431,56 @@ impl LootReleaseCxLikeCpp<'_> {
     /// demand so the context can keep its mutable inventory borrow.
     fn represented_condition_projection_like_cpp<'b>(
         &'b self,
-        core: &'b SessionCore,
     ) -> wow_world_player_conditions::PlayerConditionProjectionCxLikeCpp<'b> {
         #[cfg(any(test, feature = "test-fixtures"))]
-        let player = core.player_condition_access_with_selected_fixture_refs_like_cpp(
-            wow_world_core::session::PlayerConditionFixtureRefsLikeCpp::new(
-                &self.fixtures.identity.player_race,
-                &self.fixtures.identity.player_class,
-                &self.fixtures.identity.player_level,
-                &self.fixtures.identity.player_gender,
-                &self
-                    .fixtures
-                    .progression
-                    .represented_primary_specialization_id_like_cpp,
-                &self.fixtures.movement.player_position,
-                &self.fixtures.identity.player_zone_id_like_cpp,
-                &self.fixtures.identity.player_area_id_like_cpp,
-                &self
-                    .fixtures
-                    .identity
-                    .player_zone_area_authority_complete_like_cpp,
-                &self.fixtures.combat.player_pvp_hostile_like_cpp,
-                &self.fixtures.combat.player_pvp_end_timer_like_cpp,
-                &self.fixtures.combat.player_contested_pvp_timer_like_cpp,
-                &self.fixtures.identity.represented_is_outdoors_like_cpp,
-                &self.fixtures.combat.player_health_like_cpp,
-                &self.fixtures.combat.player_max_health_like_cpp,
-                &self.fixtures.combat.player_alive_like_cpp,
-                &self.fixtures.vehicles.taxi_destinations_like_cpp,
-                &self.fixtures.vehicles.taxi_flight_state_like_cpp,
-                &self.fixtures.vehicles.taxi_unit_flags_like_cpp,
-                &self.fixtures.vehicles.taxi_mounted_like_cpp,
-                &self.fixtures.auras.visible_auras,
-                &self.fixtures.auras.player_aura_authority_complete_like_cpp,
-                &self
-                    .fixtures
-                    .auras
-                    .player_spell_hit_aura_authority_tombstoned_like_cpp,
-                &self.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
-                &self
-                    .fixtures
-                    .progression
-                    .player_skill_test_fixture_like_cpp
-                    .player_skill_records_like_cpp,
-            ),
-        );
+        let player = self
+            .owner
+            .player_condition_access_with_selected_fixture_refs_like_cpp(
+                wow_world_core::session::PlayerConditionFixtureRefsLikeCpp::new(
+                    &self.fixtures.identity.player_race,
+                    &self.fixtures.identity.player_class,
+                    &self.fixtures.identity.player_level,
+                    &self.fixtures.identity.player_gender,
+                    &self
+                        .fixtures
+                        .progression
+                        .represented_primary_specialization_id_like_cpp,
+                    &self.fixtures.movement.player_position,
+                    &self.fixtures.identity.player_zone_id_like_cpp,
+                    &self.fixtures.identity.player_area_id_like_cpp,
+                    &self
+                        .fixtures
+                        .identity
+                        .player_zone_area_authority_complete_like_cpp,
+                    &self.fixtures.combat.player_pvp_hostile_like_cpp,
+                    &self.fixtures.combat.player_pvp_end_timer_like_cpp,
+                    &self.fixtures.combat.player_contested_pvp_timer_like_cpp,
+                    &self.fixtures.identity.represented_is_outdoors_like_cpp,
+                    &self.fixtures.combat.player_health_like_cpp,
+                    &self.fixtures.combat.player_max_health_like_cpp,
+                    &self.fixtures.combat.player_alive_like_cpp,
+                    &self.fixtures.vehicles.taxi_destinations_like_cpp,
+                    &self.fixtures.vehicles.taxi_flight_state_like_cpp,
+                    &self.fixtures.vehicles.taxi_unit_flags_like_cpp,
+                    &self.fixtures.vehicles.taxi_mounted_like_cpp,
+                    &self.fixtures.auras.visible_auras,
+                    &self.fixtures.auras.player_aura_authority_complete_like_cpp,
+                    &self
+                        .fixtures
+                        .auras
+                        .player_spell_hit_aura_authority_tombstoned_like_cpp,
+                    &self.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
+                    &self
+                        .fixtures
+                        .progression
+                        .player_skill_test_fixture_like_cpp
+                        .player_skill_records_like_cpp,
+                ),
+            );
         #[cfg(not(any(test, feature = "test-fixtures")))]
-        let player = core.player_condition_access_with_selected_fixture_refs_like_cpp();
+        let player = self
+            .owner
+            .player_condition_access_with_selected_fixture_refs_like_cpp();
 
         wow_world_player_conditions::PlayerConditionProjectionCxLikeCpp::new(
             player,

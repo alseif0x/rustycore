@@ -86,10 +86,97 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
         self.core.account_id
     }
 
-    /// Shared view of the same canonical session, for read-only projections the
-    /// release context builds on the fly (C++ reads the Player/Map directly).
-    pub fn core_ref_like_cpp(&self) -> &SessionCore {
+    /// Read-only hub view for the canonical map helpers the release calls,
+    /// assembled from the release context's selected catalogs, config and
+    /// fixtures exactly as the World adapter passes one (#1440).
+    pub fn release_hub_ref_like_cpp<'s>(
+        &'s self,
+        catalogs: &'s crate::session::SessionCatalogs,
+        config: &'s crate::session::SessionWorldConfig,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        fixtures: &'s crate::session::state::SessionFixtures,
+    ) -> crate::session::HubRef<'s> {
+        crate::session::HubRef {
+            core: self.core,
+            catalogs,
+            config,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures,
+        }
+    }
+
+    /// Known spells of the owned canonical Player, read at the release's
+    /// original point; `None` when the owner is not resolvable.
+    pub fn owned_player_known_spells_like_cpp(&self) -> Option<Vec<i32>> {
+        self.core.with_owned_player_like_cpp(|player| {
+            player
+                .spell_runtime_like_cpp()
+                .known_spells_like_cpp()
+                .to_vec()
+        })
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn owner_handle_absent_like_cpp(&self) -> bool {
+        self.core.player_handle_like_cpp.is_none()
+    }
+
+    /// Whether `guid` is in this client's visible set.
+    pub fn client_visible_guid_like_cpp(&self, guid: ObjectGuid) -> bool {
+        self.core.client_visible_guids_like_cpp.contains(&guid)
+    }
+
+    pub fn canonical_gameobject_access_like_cpp(
+        &self,
+        guid: ObjectGuid,
+    ) -> Option<crate::session::RepresentedGameObjectAccessLikeCpp> {
+        self.core.canonical_gameobject_access_like_cpp(guid)
+    }
+
+    pub fn quest_objective_access_like_cpp(
+        &self,
+    ) -> crate::session::QuestObjectiveAccessLikeCpp<'_> {
+        self.core.quest_objective_access_like_cpp()
+    }
+
+    /// Player-condition reads for the release's viewer-dependent projection.
+    pub fn player_condition_access_with_selected_fixture_refs_like_cpp<'s>(
+        &'s self,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        fixtures: crate::session::PlayerConditionFixtureRefsLikeCpp<'s>,
+    ) -> crate::session::PlayerConditionAccessLikeCpp<'s> {
         self.core
+            .player_condition_access_with_selected_fixture_refs_like_cpp(
+                #[cfg(any(test, feature = "test-fixtures"))]
+                fixtures,
+            )
+    }
+
+    /// Quest-eligibility reads for the release's gameobject projection.
+    pub fn quest_eligibility_access_like_cpp<'s>(
+        &'s self,
+        #[cfg(any(test, feature = "test-fixtures"))] race: &'s u8,
+        #[cfg(any(test, feature = "test-fixtures"))] class: &'s u8,
+        #[cfg(any(test, feature = "test-fixtures"))] level: &'s u8,
+        #[cfg(any(test, feature = "test-fixtures"))] skill_records: &'s std::collections::HashMap<
+            u16,
+            crate::session::RepresentedPlayerSkillLikeCpp,
+        >,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        reputation: &'s wow_entities::PlayerReputationStateLikeCpp,
+    ) -> crate::session::QuestEligibilityAccessLikeCpp<'s> {
+        self.core.quest_eligibility_access_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            race,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            class,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            level,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            skill_records,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            reputation,
+        )
     }
 
     pub fn player_map_id_like_cpp(&self) -> u16 {

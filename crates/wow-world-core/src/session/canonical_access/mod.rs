@@ -40,6 +40,7 @@ mod registry_hydration;
 mod spell_acquisition;
 mod trainer_interaction;
 mod trainer_npc;
+mod visibility_refresh;
 mod xp_gain;
 
 pub use acquisition_owner::PlayerAcquisitionOwnerAccessLikeCpp;
@@ -75,6 +76,7 @@ pub use trainer_interaction::TrainerInteractionRoleAccessLikeCpp;
 pub use trainer_npc::NpcInteractionAccessLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use trainer_npc::NpcInteractionFixtureRefsLikeCpp;
+pub use visibility_refresh::VisibilityRefreshAccessLikeCpp;
 pub use xp_gain::CoreXPGainAccessLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use xp_gain::CoreXPGainFixtureRefsLikeCpp;
