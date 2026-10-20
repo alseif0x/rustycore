@@ -20,6 +20,7 @@
 <p align="center">
   <a href="#what-works-today">Progress</a> ·
   <a href="#quick-start">Build & test</a> ·
+  <a href="#forever-extraction-tools">Extraction tools</a> ·
   <a href="docs/operations/forever-login.md">Forever runbook</a> ·
   <a href="#roadmap">Next milestones</a> ·
   <a href="#contributing">Contribute</a> ·
@@ -229,6 +230,36 @@ git clone --branch forever https://github.com/alseif0x/rustycore.git
 cd rustycore
 ```
 
+Before running **any Cargo command**, clone the pinned sibling extractor source.
+The RustyCore workspace resolves sibling path manifests even when the optional
+extractor feature is disabled. Keep this layout, with both checkouts under the
+same parent:
+
+```text
+parent/
+├── rustycore/
+└── rustycore-extractors/
+```
+
+The reviewed extractor source is commit
+`3baac307329bd0391cd7f083a55e03b982081b27`; its `Cargo.lock` SHA-256 is
+`8afafe1f5f8b9c98f53ed55155160b2a6d21f6efb5edf1d1c7f0f6e60819af27`.
+This checkout refuses to use an existing destination rather than replacing it:
+
+```bash
+(
+  set -eu
+  if [ -e ../rustycore-extractors ] || [ -L ../rustycore-extractors ]; then
+    printf '%s\n' 'Refusing existing ../rustycore-extractors; inspect it or choose a fresh sibling layout.' >&2
+    exit 1
+  fi
+  git clone --no-checkout https://github.com/alseif0x/rustycore-extractors.git ../rustycore-extractors
+  git -C ../rustycore-extractors checkout --detach 3baac307329bd0391cd7f083a55e03b982081b27
+  test "$(git -C ../rustycore-extractors rev-parse HEAD)" = '3baac307329bd0391cd7f083a55e03b982081b27'
+  test "$(sha256sum ../rustycore-extractors/Cargo.lock | cut -d ' ' -f 1)" = '8afafe1f5f8b9c98f53ed55155160b2a6d21f6efb5edf1d1c7f0f6e60819af27'
+)
+```
+
 Install a `protoc` release matching `.protoc-version` (`28.3`), then point `PROTOC` at it.
 Build the Battle.net server with one Cargo job:
 
@@ -269,6 +300,115 @@ The recorded isolated fixture uses loopback-only endpoints:
 
 Advertised HTTPS URLs use `localhost` to match the test certificate. Do not copy
 these development endpoints, credentials or certificates into a public deployment.
+
+## Forever extraction tools
+
+The separate [rustycore-extractors project](https://github.com/alseif0x/rustycore-extractors/tree/forever)
+provides versioned tools that read local client data and produce and verify
+resource packages for RustyCore. Its Rust CLI is `forever-extractor`. The
+preserved standalone C++ tools remain for `wow_classic` 3.4.3/build 51943; they
+are not retargeted by the `forever` branch. The Rust profiles have their own
+build and component gates. In particular, the v20–v23 profiles below target
+client build 70450; their evidence does not change this server branch's separate
+build-70170 runtime target or establish runtime compatibility.
+
+The pinned source checkout and Cargo.lock checksum are listed in the [Quick
+start](#quick-start). Build the Rust CLI from the sibling `rustycore-extractors/`
+checkout with the repository-pinned Rust 1.98.0 toolchain. Keep build files and
+all run outputs outside both Git checkouts and the client:
+
+```bash
+cd ../rustycore-extractors
+# Replace WORK_ROOT with a real path outside every Git checkout.
+WORK_ROOT=/absolute/path/outside/all-git-checkouts/rustycore-extractor-work
+mkdir -p "$WORK_ROOT/builds" "$WORK_ROOT/runs/candidate"
+export CARGO_TARGET_DIR="$WORK_ROOT/builds/rust"
+
+# Fetch the locked dependency closure, then build offline.
+cargo fetch --locked
+cargo build --offline --locked --release \
+  -p forever-extractor --no-default-features
+
+BIN="$CARGO_TARGET_DIR/release/forever-extractor"
+"$BIN" --help
+```
+
+`cargo fetch` may need network access to retrieve locked Rust dependencies if
+they are not cached. Client acquisition remains local. The `--no-default-features`
+build does not enable the optional native acquisition prototype.
+
+Plans are explicit, caller-supplied canonical TSV files; the client does not
+generate a plan for you. Use an admitted plan for the exact build and components
+you intend to run. Test fixtures under `tests/contracts/fixtures` are synthetic
+contract examples, not real-client plans. `inspect --plan` validates a plan but
+does not inspect the client. The [product guide](https://github.com/alseif0x/rustycore-extractors/blob/3baac307329bd0391cd7f083a55e03b982081b27/docs/forever-product.md)
+describes plan profiles and their required options.
+
+For a profile that takes a client and plan without linked packages, such as a
+v20 terrain plan, use this inspect/extract/verify lifecycle. Replace each
+placeholder with an absolute path outside the checkouts; choose a new output
+directory that does not already exist:
+
+```bash
+WORK_ROOT=/absolute/path/outside/all-git-checkouts/rustycore-extractor-work
+BIN="$WORK_ROOT/builds/rust/release/forever-extractor"
+PLAN=/absolute/path/to/your-admitted-plan.tsv
+CLIENT=/absolute/path/to/matching-client
+NEW_PACKAGE="$WORK_ROOT/runs/candidate/new-package"
+
+"$BIN" inspect --plan "$PLAN"
+"$BIN" extract --plan "$PLAN" --client "$CLIENT" --output "$NEW_PACKAGE"
+"$BIN" verify --plan "$PLAN" --output "$NEW_PACKAGE"
+```
+
+The client is read-only. Keep the package separate from the client, plan and
+both repositories. Use each profile guide when it requires additional options,
+including `--scratch` for v22 extraction. The [v20 terrain guide](https://github.com/alseif0x/rustycore-extractors/blob/3baac307329bd0391cd7f083a55e03b982081b27/docs/forever-product-v20.md)
+and [v22 selected-geometry guide](https://github.com/alseif0x/rustycore-extractors/blob/3baac307329bd0391cd7f083a55e03b982081b27/docs/forever-product-v22.md)
+cover producing those inputs.
+
+### Build-70450 selected navigation (v23)
+
+On Linux, v23 uses an already sealed v20 terrain package and v22 selected-map
+geometry package, along with the exact canonical producer plan for each. These
+inputs, the v23 plan and the local client must match in build, locale and source
+identity. The input packages must contain the selected map's required terrain
+and geometry; v23 does not manufacture missing inputs. Follow the
+[v23 guide](https://github.com/alseif0x/rustycore-extractors/blob/3baac307329bd0391cd7f083a55e03b982081b27/docs/forever-product-v23.md)
+for plan admission and create the v20/v22 packages using their linked guides
+above. Use fresh output paths outside the client, plans and input packages:
+
+```bash
+WORK_ROOT=/absolute/path/outside/all-git-checkouts/rustycore-extractor-work
+BIN="$WORK_ROOT/builds/rust/release/forever-extractor"
+PLAN=/absolute/path/to/canonical-v23-plan.tsv
+CLIENT=/absolute/path/to/matching-build-70450-client
+NEW_PACKAGE="$WORK_ROOT/runs/candidate/new-v23-package"
+TERRAIN_PACKAGE=/absolute/path/to/sealed-v20-package
+TERRAIN_PLAN=/absolute/path/to/canonical-v20-producer-plan.tsv
+VMAP_PACKAGE=/absolute/path/to/sealed-v22-package
+VMAP_PLAN=/absolute/path/to/canonical-v22-producer-plan.tsv
+
+"$BIN" inspect --plan "$PLAN"
+"$BIN" extract \
+  --plan "$PLAN" --client "$CLIENT" --output "$NEW_PACKAGE" \
+  --terrain-package "$TERRAIN_PACKAGE" --terrain-plan "$TERRAIN_PLAN" \
+  --vmap-package "$VMAP_PACKAGE" --vmap-plan "$VMAP_PLAN"
+"$BIN" verify --plan "$PLAN" --output "$NEW_PACKAGE"
+"$BIN" verify-links \
+  --plan "$PLAN" --output "$NEW_PACKAGE" \
+  --terrain-package "$TERRAIN_PACKAGE" --terrain-plan "$TERRAIN_PLAN" \
+  --vmap-package "$VMAP_PACKAGE" --vmap-plan "$VMAP_PLAN"
+```
+
+This produces a selected-map navigation package, not complete world data.
+Verification establishes package integrity and, with `verify-links`, the exact
+sealed-input links; it does not establish full-world coverage, complete
+extraction or server runtime compatibility. The merged optional
+`wow-world`/`forever-navigation` library worker from
+[RustyCore PR #1454](https://github.com/alseif0x/rustycore/pull/1454) does not
+activate `world-server` configuration. The extractor does not copy packages
+into `DataDir` or convert data in place.
 
 ## Workspace
 
