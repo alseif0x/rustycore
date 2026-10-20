@@ -9,6 +9,7 @@ mod login_spell_application;
 pub mod login_spell_rules;
 pub mod melee_damage;
 pub mod melee_rules;
+mod module_hooks;
 pub mod player_cast;
 mod player_cast_session;
 mod profession;
@@ -100,6 +101,7 @@ pub use login_spell_application::{
     promote_loaded_character_mount_spells_like_cpp, set_account_mounts_like_cpp,
     set_known_spells_like_cpp, set_represented_favorite_known_spells_like_cpp,
 };
+pub use module_hooks::SpellCastHookEventLikeCpp;
 pub use player_cast::PlayerCastPublicationPhaseLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use player_cast_session::take_ready_player_cast_like_cpp;

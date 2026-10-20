@@ -183,4 +183,13 @@ pub trait SpellExecutionHostLikeCpp:
     fn set_represented_seer_guid_fixture_like_cpp(&mut self, guid: Option<ObjectGuid>) {
         let _ = guid;
     }
+
+    /// Whether any linked module wants `player.spell_cast` (#1444 H3).
+    fn spell_cast_hook_wanted_like_cpp(&self) -> bool {
+        false
+    }
+
+    /// `player.spell_cast`: TrinityCore `OnPlayerSpellCast`, raised once per
+    /// player cast after `SMSG_SPELL_GO`, with no guard or await in scope.
+    fn spell_cast_hook_like_cpp(&mut self, _event: &crate::SpellCastHookEventLikeCpp) {}
 }

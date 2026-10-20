@@ -451,8 +451,11 @@ pub fn complete_represented_creature_death_state_after_kill_hooks_like_cpp<
     attacker_guid: ObjectGuid,
     creature_guid: ObjectGuid,
 ) -> Option<wow_entities::UnitValuesUpdate> {
-    #[cfg(not(any(test, feature = "test-fixtures")))]
-    let _ = attacker_guid;
+    // #1444 H3: only a kill by the session's own player raises
+    // `player.creature_kill`, and only when a module wants it.
+    let kill_hook_wanted = attacker_guid.is_player()
+        && host.player_guid() == Some(attacker_guid)
+        && host.creature_kill_hook_wanted_like_cpp();
     let lootable = host
         .cached_loot_for_owner_like_cpp(creature_guid)
         .is_some_and(|loot| loot.coins != 0 || loot.unlooted_count != 0);
@@ -464,7 +467,7 @@ pub fn complete_represented_creature_death_state_after_kill_hooks_like_cpp<
     // F6-8D3b-2: the canonical-first root no longer refuses a replay on a
     // stale copy, so the completion itself only proceeds when this call
     // performs the JUST_DIED transition (AI-dead, unit not yet dead).
-    let values_update = host
+    let (values_update, killed_creature) = host
         .core_mut()
         .mutate_world_creature(creature_guid, |creature| {
             if creature.ai_state() != wow_entities::CreatureAiState::Dead
@@ -474,7 +477,9 @@ pub fn complete_represented_creature_death_state_after_kill_hooks_like_cpp<
             }
             creature.complete_death_state_after_kill_hooks_like_cpp();
             creature.apply_corpse_loot_flags_after_death_state_like_cpp(lootable, can_skin);
-            Some(creature.unit().values_update())
+            let killed_creature =
+                kill_hook_wanted.then(|| (creature.entry(), creature.level(), creature.map_id()));
+            Some((creature.unit().values_update(), killed_creature))
         })
         .flatten()?;
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -525,6 +530,18 @@ pub fn complete_represented_creature_death_state_after_kill_hooks_like_cpp<
                     },
                 );
         }
+    }
+    // TrinityCore `Unit::Kill` ends with `OnCreatureKill(killer, creature)`
+    // (`Unit.cpp:10755`): the JUST_DIED transition above happened exactly
+    // once, and the map lock it took is already released.
+    if let Some((creature_entry, creature_level, map_id)) = killed_creature {
+        host.creature_kill_hook_like_cpp(&crate::CreatureKillHookEventLikeCpp {
+            guid: attacker_guid,
+            creature_guid,
+            creature_entry,
+            creature_level,
+            map_id,
+        });
     }
     Some(values_update)
 }

@@ -43,6 +43,7 @@ mod gameobject_use_pvp;
 mod gameobject_use_scripted;
 mod gameobject_use_support;
 mod gameobject_use_types;
+mod module_hooks;
 mod movement_acks;
 mod movement_handlers;
 mod movement_host;
@@ -90,6 +91,7 @@ pub use corpse_handlers::{
     CorpseHostLikeCpp, handle_reclaim_corpse, handle_repop_request,
     handle_request_cemetery_list_with_catalog_like_cpp, handle_resurrect_response,
 };
+pub use module_hooks::CreatureKillHookEventLikeCpp;
 // The exact `ApplicationCorpse` owner facade the handler-contract checker
 // requires (#1263 F5 deferred families).
 pub use corpse_registrations::{CorpseHandlerHostLikeCpp, register_corpse_handlers_like_cpp};

@@ -18,8 +18,8 @@ use crate::effect::{
 };
 use crate::hook::{PlayerLoginModule, PlayerLoginSnapshot};
 use crate::player::{
-    PlayerLevelChangedSnapshot, PlayerLogoutSnapshot, PlayerModule, PlayerMoneyChangedSnapshot,
-    QuestAcceptedSnapshot, QuestRewardedSnapshot,
+    CreatureKillSnapshot, PlayerLevelChangedSnapshot, PlayerLogoutSnapshot, PlayerModule,
+    PlayerMoneyChangedSnapshot, QuestAcceptedSnapshot, QuestRewardedSnapshot, SpellCastSnapshot,
 };
 use crate::world::{
     ConfigLoadedSnapshot, WorldEffect, WorldEffects, WorldModule, WorldShutdownSnapshot,
@@ -495,6 +495,28 @@ impl ModuleRegistry {
             Some(&mut timings),
         );
         (outcome, timings)
+    }
+
+    /// `player.creature_kill`.
+    pub fn dispatch_creature_kill(
+        &self,
+        snapshot: &CreatureKillSnapshot,
+    ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_notifications(
+            |hooks| hooks.player.as_ref(),
+            |module, effects| module.on_creature_kill(snapshot, effects),
+        )
+    }
+
+    /// `player.spell_cast`.
+    pub fn dispatch_spell_cast(
+        &self,
+        snapshot: &SpellCastSnapshot,
+    ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_notifications(
+            |hooks| hooks.player.as_ref(),
+            |module, effects| module.on_spell_cast(snapshot, effects),
+        )
     }
 
     /// Visit, in `ModuleId` order, every enabled module offering one

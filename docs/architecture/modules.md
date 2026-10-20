@@ -289,6 +289,8 @@ wants it (the port's interest query).
 | `player.money_changed` | `PlayerModule::on_money_changed` | `PlayerScript.h:282`, `Player.cpp:11688` | `wow-world-quest` `quest/objectives.rs`, the post-commit `MoneyChanged` drain every money path feeds (outside the exclusive money fence); a quest reward raises its own, see below | self message; the amount cannot be changed (#583) |
 | `player.quest_accepted` | `PlayerModule::on_quest_accepted` | `PlayerScript.h:750`, `PlayerQuest.cpp:426` | `wow-world-quest` `quest_session/accept_handlers.rs`, quest giver and shared-quest confirmation (after its source-item step, TrinityCore `Player.cpp:14436`), only once the status save applied or a completion reward committed it | self message |
 | `player.quest_rewarded` | `PlayerModule::on_quest_rewarded` | `PlayerScript.h:245`, `PlayerQuest.cpp:903` | `wow-world-quest` `quest/reward/coordinator.rs`, last step of the reward, after its single commit, the reward XP's level hooks and the reward's own money hook (AzerothCore order: `GiveXP`, `ModifyMoney`, `OnPlayerCompleteQuest`); carries the committed balances and the offered XP | self message |
+| `player.creature_kill` | `PlayerModule::on_creature_kill` | `PlayerScript.h:254`, `Unit.cpp:14298`; TrinityCore `Unit.cpp:10755` (`OnCreatureKill`) | `wow-world-entities` `creature_kill_session.rs`, the kill completion every player kill ends in (spell damage at once, map-tick melee through the session's pending-kill queue): once per `setDeathState(JUST_DIED)`, after the map lock of that transition is released, only for the session's own player | self message |
+| `player.spell_cast` | `PlayerModule::on_spell_cast` | `PlayerScript.h:326`, `Spell.cpp:3825`; TrinityCore `Spell.cpp:3671` | `wow-world-spell` `execution_session/execution.rs`, the only player `SMSG_SPELL_GO` producer: once per cast with the player as caster, after the SPELL_GO and before the effects; `triggered` is C++ `TRIGGERED_IGNORE_GCD`, the one trigger flag represented (every `CastSpell(..., true)` carries it) | self message; nothing can change spells or auras (#754) |
 | `world.config_loaded` | `WorldModule::on_config_loaded` | `WorldScript.h:53`, `World.cpp:300` (`OnAfterConfigLoad(false)`) | `world-server` `app.rs`, `WorldModuleHooksLikeCpp::after_config_load_like_cpp`, after the databases are started, the online accounts cleared and the realm marked offline, before the realm list is read (C++ reaches `LoadConfigSettings` only after `StartDB`); `reload` is always `false` (no reload exists) | log, world announcement |
 | `world.startup` | `WorldModule::on_startup` | `WorldScript.h:74`, `Main.cpp:395` (TrinityCore `Main.cpp:413`) | `world-server` `app.rs`, after both listeners are bound and the realm is marked online, beside the internal `on_startup_like_cpp`; the already spawned map loop dispatches no `world.update` before it | log, world announcement |
 | `world.update` | `WorldModule::on_update` | `WorldScript.h:71`, `World.cpp:1342` (TrinityCore `World.cpp:2862`) | `world-server` `runtime/map/update_loop.rs`, once per completed canonical tick, at its end, after the map manager, spawn metadata and respawn-order guards were released and after game events; only after `world.startup`; `diff_ms` is the time since the previous dispatch | log, world announcement; 5 ms budget per module, throttled warning and per-module metric |
@@ -319,6 +321,12 @@ overrun of each module is logged at once and later ones are summarized every 10 
 total, maximum and overruns are kept per module. A tick the loop skips (map timer not passed,
 barrier held, abandoned tick, shutdown, or before `world.startup`) dispatches nothing, and the
 next dispatch's `diff_ms` covers it.
+
+**Combat hooks (#1444 H3).** `player.spell_cast` is raised once the cast is committed and visible
+(`SMSG_SPELL_GO` sent), where C++ `OnPlayerSpellCast` runs just before it at the start of
+`Spell::_cast`; a notification observes a cast that already happened, so the module's message
+follows the SPELL_GO. Creature and GameObject casts on the map tick raise nothing. A group kill
+reports only the killing player (the group reward fanout is not ported).
 
 ## Approved next direction — #583 under #99, not implemented yet
 

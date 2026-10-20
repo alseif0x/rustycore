@@ -24,17 +24,19 @@ use std::sync::Arc;
 
 use tracing::{debug, warn};
 use wow_module_api::{
-    HookFamily, HookOutcome, LogoutReason, ModuleRegistry, NotificationEffect,
-    PlayerLevelChangedSnapshot, PlayerLoginSnapshot, PlayerLogoutSnapshot,
-    PlayerMoneyChangedSnapshot, QuestAcceptedSnapshot, QuestRewardedSnapshot,
+    CreatureKillSnapshot, HookFamily, HookOutcome, LogoutReason, ModuleRegistry,
+    NotificationEffect, PlayerLevelChangedSnapshot, PlayerLoginSnapshot, PlayerLogoutSnapshot,
+    PlayerMoneyChangedSnapshot, QuestAcceptedSnapshot, QuestRewardedSnapshot, SpellCastSnapshot,
 };
 use wow_world_application::{PlayerLoginHookEventLikeCpp, PlayerLogoutHookEventLikeCpp};
 use wow_world_core::session::PacketPublicationAccessLikeCpp;
+use wow_world_entities::CreatureKillHookEventLikeCpp;
 use wow_world_lifecycle::FinalizationMode;
 use wow_world_quest::{
     PlayerLevelChangedHookEventLikeCpp, PlayerMoneyChangedHookEventLikeCpp,
     QuestAcceptedHookEventLikeCpp, QuestModuleHookPortLikeCpp, QuestRewardedHookEventLikeCpp,
 };
+use wow_world_spell::SpellCastHookEventLikeCpp;
 
 /// The session's handle on the linked-module registry.
 pub(crate) struct SessionModuleHooksLikeCpp {
@@ -140,6 +142,50 @@ impl SessionModuleHooksLikeCpp {
         let snapshot = QuestAcceptedSnapshot::new(event.guid, event.quest_id, event.slot);
         let outcome = self.registry.dispatch_quest_accepted(&snapshot);
         apply_notifications_like_cpp(publication, "player.quest_accepted", outcome);
+    }
+}
+
+impl SessionModuleHooksLikeCpp {
+    /// `player.creature_kill`: TrinityCore `OnCreatureKill` (`Unit.cpp:10755`);
+    /// AzerothCore `OnPlayerCreatureKill` (`Unit.cpp:14298`, `PlayerScript.h:254`).
+    pub(crate) fn creature_kill_like_cpp(
+        &self,
+        publication: PacketPublicationAccessLikeCpp<'_>,
+        event: &CreatureKillHookEventLikeCpp,
+    ) {
+        if !self.registry.handles(HookFamily::Player) {
+            return;
+        }
+        let snapshot = CreatureKillSnapshot::new(
+            event.guid,
+            event.creature_guid,
+            event.creature_entry,
+            event.creature_level,
+            event.map_id,
+        );
+        let outcome = self.registry.dispatch_creature_kill(&snapshot);
+        apply_notifications_like_cpp(publication, "player.creature_kill", outcome);
+    }
+
+    /// `player.spell_cast`: TrinityCore `OnPlayerSpellCast` (`Spell.cpp:3671`);
+    /// AzerothCore `PlayerScript.h:326`. Self messages only (#754).
+    pub(crate) fn spell_cast_like_cpp(
+        &self,
+        publication: PacketPublicationAccessLikeCpp<'_>,
+        event: &SpellCastHookEventLikeCpp,
+    ) {
+        if !self.registry.handles(HookFamily::Player) {
+            return;
+        }
+        let snapshot = SpellCastSnapshot::new(
+            event.guid,
+            event.spell_id,
+            event.cast_id,
+            event.target_guid,
+            event.triggered,
+        );
+        let outcome = self.registry.dispatch_spell_cast(&snapshot);
+        apply_notifications_like_cpp(publication, "player.spell_cast", outcome);
     }
 }
 

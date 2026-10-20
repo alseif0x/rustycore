@@ -43,8 +43,9 @@ pub use effect::{
 };
 pub use hook::{PlayerLoginModule, PlayerLoginSnapshot};
 pub use player::{
-    LogoutReason, PlayerLevelChangedSnapshot, PlayerLogoutSnapshot, PlayerModule,
-    PlayerMoneyChangedSnapshot, QuestAcceptedSnapshot, QuestRewardedSnapshot,
+    CreatureKillSnapshot, LogoutReason, PlayerLevelChangedSnapshot, PlayerLogoutSnapshot,
+    PlayerModule, PlayerMoneyChangedSnapshot, QuestAcceptedSnapshot, QuestRewardedSnapshot,
+    SpellCastSnapshot,
 };
 pub use registry::{
     HookFamily, ModuleDescriptor, ModuleHooks, ModuleId, ModuleRegistrationError, ModuleRegistry,

@@ -8279,6 +8279,34 @@
           "module": "crate::handlers::entities::host",
           "trait_path": "WorldEntitiesHostLikeCpp",
           "kind": "method",
+          "name": "creature_kill_hook_like_cpp",
+          "visibility": "private",
+          "signature": "fn creature_kill_hook_like_cpp (& mut self , event : & wow_world_entities :: CreatureKillHookEventLikeCpp ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::host",
+          "trait_path": "WorldEntitiesHostLikeCpp",
+          "kind": "method",
+          "name": "creature_kill_hook_wanted_like_cpp",
+          "visibility": "private",
+          "signature": "fn creature_kill_hook_wanted_like_cpp (& self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::host",
+          "trait_path": "WorldEntitiesHostLikeCpp",
+          "kind": "method",
           "name": "current_player_is_group_visible_for_owner_like_cpp",
           "visibility": "private",
           "signature": "fn current_player_is_group_visible_for_owner_like_cpp (& self , current_group_guid : Option < u64 > , owner_guid : ObjectGuid ,) -> bool",
@@ -40290,6 +40318,32 @@
           "source_class": "test_fixture",
           "guards": [
             "setter",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_spell :: SpellExecutionHostLikeCpp",
+          "kind": "method",
+          "name": "spell_cast_hook_like_cpp",
+          "visibility": "private",
+          "signature": "fn spell_cast_hook_like_cpp (& mut self , event : & wow_world_spell :: SpellCastHookEventLikeCpp)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_spell :: SpellExecutionHostLikeCpp",
+          "kind": "method",
+          "name": "spell_cast_hook_wanted_like_cpp",
+          "visibility": "private",
+          "signature": "fn spell_cast_hook_wanted_like_cpp (& self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
             "trait_impl"
           ]
         },

@@ -336,6 +336,21 @@ impl PlayerModule for PlayerProbe {
         ));
         e.send_system_message_self("ok");
     }
+    fn on_creature_kill(
+        &self,
+        s: &wow_module_api::CreatureKillSnapshot,
+        e: &mut ScopedEffects<'_>,
+    ) {
+        self.record(format!(
+            "kill {} {} {}",
+            s.creature_entry, s.creature_level, s.map_id
+        ));
+        e.send_system_message_self("ok");
+    }
+    fn on_spell_cast(&self, s: &wow_module_api::SpellCastSnapshot, e: &mut ScopedEffects<'_>) {
+        self.record(format!("cast {} {}", s.spell_id, s.triggered));
+        e.send_system_message_self("ok");
+    }
 }
 
 fn player_probe_session() -> (
@@ -483,4 +498,52 @@ fn zero_modules_make_every_player_port_a_no_op() {
         mode: wow_world_lifecycle::FinalizationMode::Disconnect,
     });
     assert!(send_rx.is_empty());
+}
+
+// ── `player.creature_kill` and `player.spell_cast` (#1444 H3) ─────────────
+
+#[test]
+fn the_kill_and_cast_ports_convert_their_events_with_no_map_lock() {
+    use wow_world_entities::{CreatureKillHookEventLikeCpp, WorldEntitiesHostLikeCpp};
+    use wow_world_spell::{SpellCastHookEventLikeCpp, SpellExecutionHostLikeCpp};
+
+    let (mut session, send_rx, seen) = player_probe_session();
+    let guid = ObjectGuid::create_player(1, 42);
+    assert!(session.creature_kill_hook_wanted_like_cpp());
+    assert!(session.spell_cast_hook_wanted_like_cpp());
+
+    session.creature_kill_hook_like_cpp(&CreatureKillHookEventLikeCpp {
+        guid,
+        creature_guid: ObjectGuid::EMPTY,
+        creature_entry: 299,
+        creature_level: 5,
+        map_id: 0,
+    });
+    session.spell_cast_hook_like_cpp(&SpellCastHookEventLikeCpp {
+        guid,
+        spell_id: 133,
+        cast_id: ObjectGuid::EMPTY,
+        target_guid: ObjectGuid::EMPTY,
+        triggered: true,
+    });
+
+    assert_eq!(system_texts(&send_rx, &session), vec!["ok", "ok"]);
+    let seen = seen.lock().expect("probe").clone();
+    assert_eq!(
+        seen.iter()
+            .map(|(what, _)| what.as_str())
+            .collect::<Vec<_>>(),
+        vec!["kill 299 5 0", "cast 133 true"]
+    );
+    assert!(seen.iter().all(|(_, free)| *free), "{seen:?}");
+}
+
+#[test]
+fn zero_modules_make_the_kill_and_cast_ports_a_no_op() {
+    use wow_world_entities::WorldEntitiesHostLikeCpp;
+    use wow_world_spell::SpellExecutionHostLikeCpp;
+
+    let (session, _send_rx) = make_session();
+    assert!(!session.creature_kill_hook_wanted_like_cpp());
+    assert!(!session.spell_cast_hook_wanted_like_cpp());
 }
