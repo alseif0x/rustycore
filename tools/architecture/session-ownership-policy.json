@@ -50553,7 +50553,7 @@
           "visibility": "",
           "cfg": [],
           "fingerprint": "& player_registry",
-          "count": 4
+          "count": 3
         },
         {
           "package": "world-server",
@@ -50601,19 +50601,6 @@
           "enclosing": "fn run_inner",
           "registry": "PlayerRegistry",
           "operation": "argument_escape",
-          "symbol": "for_realm_like_cpp",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "Arc :: clone (& player_registry)",
-          "count": 1
-        },
-        {
-          "package": "world-server",
-          "module": "crate::app",
-          "source": "crates/world-server/src/app.rs",
-          "enclosing": "fn run_inner",
-          "registry": "PlayerRegistry",
-          "operation": "argument_escape",
           "symbol": "new",
           "visibility": "",
           "cfg": [],
@@ -50644,6 +50631,19 @@
           "visibility": "",
           "cfg": [],
           "fingerprint": "Arc :: clone (& player_registry)",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::app",
+          "source": "crates/world-server/src/app.rs",
+          "enclosing": "fn run_inner",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "with_realm_announcer_like_cpp",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "& player_registry",
           "count": 1
         },
         {
@@ -50819,45 +50819,6 @@
           "package": "world-server",
           "module": "crate::module_hooks",
           "source": "crates/world-server/src/module_hooks.rs",
-          "enclosing": "impl WorldAnnouncerLikeCpp::for_realm_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "type_reference",
-          "symbol": "players",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "Arc < PlayerRegistry >",
-          "count": 1
-        },
-        {
-          "package": "world-server",
-          "module": "crate::module_hooks",
-          "source": "crates/world-server/src/module_hooks.rs",
-          "enclosing": "impl WorldAnnouncerLikeCpp::for_realm_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "return",
-          "symbol": "registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "Self :: new (players , virtual_realm)",
-          "count": 1
-        },
-        {
-          "package": "world-server",
-          "module": "crate::module_hooks",
-          "source": "crates/world-server/src/module_hooks.rs",
-          "enclosing": "impl WorldAnnouncerLikeCpp::for_realm_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "argument_escape",
-          "symbol": "new",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "players",
-          "count": 1
-        },
-        {
-          "package": "world-server",
-          "module": "crate::module_hooks",
-          "source": "crates/world-server/src/module_hooks.rs",
           "enclosing": "impl WorldAnnouncerLikeCpp::new",
           "registry": "PlayerRegistry",
           "operation": "type_reference",
@@ -50879,6 +50840,58 @@
           "cfg": [],
           "fingerprint": "self . players",
           "count": 2
+        },
+        {
+          "package": "world-server",
+          "module": "crate::module_hooks",
+          "source": "crates/world-server/src/module_hooks.rs",
+          "enclosing": "impl WorldModuleHooksLikeCpp::with_realm_announcer_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "players",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "& Arc < PlayerRegistry >",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::module_hooks",
+          "source": "crates/world-server/src/module_hooks.rs",
+          "enclosing": "impl WorldModuleHooksLikeCpp::with_realm_announcer_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "players",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::module_hooks",
+          "source": "crates/world-server/src/module_hooks.rs",
+          "enclosing": "impl WorldModuleHooksLikeCpp::with_realm_announcer_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "Some",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "WorldAnnouncerLikeCpp :: new (Arc :: clone (players) , virtual_realm ,)",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::module_hooks",
+          "source": "crates/world-server/src/module_hooks.rs",
+          "enclosing": "impl WorldModuleHooksLikeCpp::with_realm_announcer_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "new",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "Arc :: clone (players)",
+          "count": 1
         },
         {
           "package": "world-server",

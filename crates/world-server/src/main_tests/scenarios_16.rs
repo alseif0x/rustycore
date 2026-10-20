@@ -391,6 +391,7 @@ fn d3b_spawn_canonical_loop_like_cpp(
 struct D3bLoopGuardsLikeCpp {
     spawn_metadata: Arc<Mutex<spawn_store_loader::CanonicalSpawnMetadataLikeCpp>>,
     respawn_db_mutation_order: Arc<Mutex<()>>,
+    world_state_mgr: crate::SharedWorldStateMgrLikeCpp,
 }
 
 impl Default for D3bLoopGuardsLikeCpp {
@@ -403,6 +404,7 @@ impl Default for D3bLoopGuardsLikeCpp {
                 ),
             )),
             respawn_db_mutation_order: Arc::new(Mutex::new(())),
+            world_state_mgr: Arc::new(Mutex::new(Default::default())),
         }
     }
 }
@@ -434,7 +436,7 @@ fn d3b_spawn_canonical_loop_with_like_cpp(
         Arc::clone(&world.registry),
         Arc::new(ActiveWorldSessionRegistryLikeCpp::new()),
         Arc::new(wow_data::BattlemasterListStore::from_entries([])),
-        Arc::new(Mutex::new(Default::default())),
+        Arc::clone(&guards.world_state_mgr),
         Some(runtime),
         world_module_hooks,
     );

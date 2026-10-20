@@ -856,3 +856,59 @@ fn a_panicking_world_update_disables_only_that_module() {
         vec!["update 1 50", "update 2 50"]
     );
 }
+
+#[test]
+fn the_timed_world_update_reports_each_module_callback_in_order() {
+    struct Slow;
+    impl WorldModule for Slow {
+        fn on_update(&self, _s: &WorldUpdateSnapshot, _e: &mut WorldEffects<'_>) {
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+    }
+    let quick = std::sync::Arc::new(WorldRecorder::default());
+    let registry = world_registry(&[
+        ("zulu.slow", std::sync::Arc::new(Slow) as _),
+        ("alpha.quick", quick as _),
+    ]);
+    let (outcome, timings) = registry.dispatch_world_update_timed(&WorldUpdateSnapshot::new(50, 1));
+    assert!(outcome.effects.expect("valid").is_empty());
+    let ids: Vec<_> = timings.iter().map(|(id, _)| id.as_str()).collect();
+    assert_eq!(ids, vec!["alpha.quick", "zulu.slow"]);
+    assert!(timings[1].1 >= std::time::Duration::from_millis(2));
+}
+
+/// #1444 acceptance: the registry's share of the `world.update` tick cost
+/// with zero modules and with one trivial module. Run in release with
+/// `cargo test --release -p wow-module-api -- --ignored --nocapture
+/// world_update_registry_cost`.
+#[test]
+#[ignore = "measurement, run explicitly"]
+fn world_update_registry_cost_with_zero_and_one_trivial_module() {
+    struct Trivial;
+    impl WorldModule for Trivial {}
+    const TICKS: u64 = 1_000_000;
+    let measure = |registry: &ModuleRegistry| {
+        let start = std::time::Instant::now();
+        for tick in 1..=TICKS {
+            if registry.handles(HookFamily::World) {
+                std::hint::black_box(
+                    registry.dispatch_world_update_timed(&WorldUpdateSnapshot::new(10, tick)),
+                );
+            }
+        }
+        start.elapsed().as_nanos() as f64 / TICKS as f64
+    };
+    let zero = ModuleRegistry::new();
+    let one = world_registry(&[("trivial.world", std::sync::Arc::new(Trivial) as _)]);
+    let zero_ns = measure(&zero);
+    let one_ns = measure(&one);
+    println!(
+        "world.update registry cost ({}): zero modules {zero_ns:.1} ns/tick, one trivial module {one_ns:.1} ns/tick, over {TICKS} ticks",
+        if cfg!(debug_assertions) {
+            "debug"
+        } else {
+            "release"
+        }
+    );
+    assert!(zero_ns < one_ns);
+}

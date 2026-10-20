@@ -6,7 +6,8 @@
 //! AzerothCore `World::Update` ends with `OnWorldUpdate(diff)`
 //! (`World.cpp:1342`), after the maps. RustyCore dispatches it once per
 //! completed canonical tick, after the tick released the map manager, the
-//! spawn metadata and the respawn mutation-order gate (#787). A module runs
+//! spawn metadata and the respawn mutation-order gate (#787); the game-event
+//! world-state manager is released too. A module runs
 //! there, so it must never find one of them held: this probe tries each guard
 //! from inside the callback, on the loop's own task.
 
@@ -18,8 +19,9 @@ use wow_module_api::{
 use super::*;
 
 /// What one `world.update` callback saw: the tick, then whether the map
-/// manager, the spawn metadata and the respawn-order gate were free.
-type GuardSample = (u64, bool, bool, bool);
+/// manager, the spawn metadata, the respawn-order gate and the world-state
+/// manager were free.
+type GuardSample = (u64, bool, bool, bool, bool);
 
 struct GuardProbe {
     canonical: wow_world::SharedCanonicalMapManager,
@@ -34,6 +36,7 @@ impl WorldModule for GuardProbe {
             self.canonical.try_lock().is_ok(),
             self.guards.spawn_metadata.try_lock().is_ok(),
             self.guards.respawn_db_mutation_order.try_lock().is_ok(),
+            self.guards.world_state_mgr.try_lock().is_ok(),
         );
         self.seen.lock().unwrap().push(sample);
     }
@@ -65,6 +68,9 @@ async fn world_update_runs_once_per_tick_with_every_tick_guard_released() {
         )
         .unwrap();
     let hooks = crate::module_hooks::WorldModuleHooksLikeCpp::new(Arc::new(registry));
+    // The composition root raises `world.startup` before the loop's first
+    // dispatch; this harness owns the loop, so it does the same.
+    hooks.startup_like_cpp("RustyCore", 1);
     let (handle, _creature_probe) = d3b_spawn_canonical_loop_with_like_cpp(&world, &guards, hooks);
 
     let started = Instant::now();
@@ -79,9 +85,9 @@ async fn world_update_runs_once_per_tick_with_every_tick_guard_released() {
         seen.len() >= 5,
         "the loop dispatched world.update: {seen:?}"
     );
-    for &(tick, manager_free, metadata_free, respawn_order_free) in &seen {
+    for &(tick, manager_free, metadata_free, respawn_order_free, world_state_free) in &seen {
         assert!(
-            manager_free && metadata_free && respawn_order_free,
+            manager_free && metadata_free && respawn_order_free && world_state_free,
             "tick {tick}: a tick guard was held during world.update: {seen:?}"
         );
     }

@@ -69,9 +69,11 @@ impl crate::session::state::SessionCore {
     /// Region and Battlegroup come from the active `realmlist` row, matching C++
     /// `Battlenet::RealmHandle{ realm.Id.Region, realm.Id.Site, realm.Id.Realm }.GetAddress()`.
     pub fn virtual_realm_address(&self) -> u32 {
-        (u32::from(self.realm_policy.realm_region) << 24)
-            | (u32::from(self.realm_policy.realm_battlegroup) << 16)
-            | u32::from(self.realm_id)
+        virtual_realm_address_like_cpp(
+            self.realm_policy.realm_region,
+            self.realm_policy.realm_battlegroup,
+            self.realm_id,
+        )
     }
 
     pub fn realm_names_for_address_like_cpp(&self, realm_address: u32) -> Option<(&str, &str)> {
@@ -147,4 +149,12 @@ impl crate::session::state::SessionCore {
     pub fn is_legit_character(&self, guid: &ObjectGuid) -> bool {
         self.account_state.legit_characters.contains(guid)
     }
+}
+
+/// C++ `Battlenet::RealmHandle::GetAddress()`: `(Region << 24) | (Site << 16) |
+/// Realm`, the virtual realm address every session and the world announcer
+/// (#1444 H2) put on their packets.
+#[must_use]
+pub fn virtual_realm_address_like_cpp(region: u8, site: u8, realm_id: u16) -> u32 {
+    (u32::from(region) << 24) | (u32::from(site) << 16) | u32::from(realm_id)
 }

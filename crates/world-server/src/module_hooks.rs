@@ -13,26 +13,37 @@
 //! no snapshot.
 //!
 //! Effects are a log line or C++ `World::SendWorldText` (`World.cpp:2982`):
-//! one system message, split per line, to every player in the world.
+//! one system message per non-empty line, to every player in the world.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use wow_config::WorldConfigSet;
-
 use tracing::{debug, info, warn};
+use wow_config::WorldConfigSet;
 use wow_core::ObjectGuid;
 use wow_module_api::{
-    ConfigLoadedSnapshot, HookFamily, HookOutcome, ModuleRegistry, WorldEffect,
+    ConfigLoadedSnapshot, HookFamily, HookOutcome, ModuleId, ModuleRegistry, WorldEffect,
     WorldShutdownSnapshot, WorldStartupSnapshot, WorldUpdateSnapshot,
 };
 use wow_packet::ServerPacket;
 use wow_packet::packets::chat::{ChatMsg, ChatPkt};
 use wow_world::session::directory::PlayerRegistry;
 
-/// Above this, one world-tick dispatch is reported: module code runs on the
-/// map loop, and a slow module delays every map.
+/// Above this, one module's `world.update` callback, or the effects of one
+/// dispatch, is reported: module code runs on the map loop, and a slow module
+/// delays every map.
 pub(crate) const WORLD_UPDATE_HOOK_BUDGET_LIKE_CPP: Duration = Duration::from_millis(5);
+
+/// How often repeated budget overruns are summarized, after the first one of
+/// each module was reported.
+pub(crate) const WORLD_UPDATE_BUDGET_SUMMARY_INTERVAL_LIKE_CPP: Duration = Duration::from_secs(10);
+
+/// The most `AnnounceWorld` lines one dispatch sends. Each line is one packet
+/// to every player in the world, whose socket queue is bounded; announcements
+/// beyond it are cut, and the cut is logged.
+pub(crate) const MAX_WORLD_TEXT_LINES_PER_DISPATCH_LIKE_CPP: usize = 8;
 
 /// Where `AnnounceWorld` goes: the in-world players of the registry.
 #[derive(Clone)]
@@ -50,26 +61,16 @@ impl WorldAnnouncerLikeCpp {
         }
     }
 
-    /// The announcer of this realm: C++ `RealmHandle::GetAddress()`, region,
-    /// site (battlegroup) and realm id, as the sessions build it
-    /// (`connection_identity.rs` `virtual_realm_address`).
-    pub(crate) fn for_realm_like_cpp(
-        players: Arc<PlayerRegistry>,
-        region: u8,
-        site: u8,
-        realm_id: u16,
-    ) -> Self {
-        let virtual_realm =
-            (u32::from(region) << 24) | (u32::from(site) << 16) | u32::from(realm_id);
-        Self::new(players, virtual_realm)
-    }
-
-    /// C++ `World::SendWorldText` for an already-localized text: every line as
-    /// a `CHAT_MSG_SYSTEM` to every session whose player is in the world.
-    /// Returns how many packets were queued.
-    pub(crate) fn send_world_text_like_cpp(&self, text: &str) -> usize {
+    /// C++ `World::SendWorldText` for an already-localized text: each
+    /// non-empty line (TrinityCore `ChatHandler::LineFromMessage` tokenizes
+    /// with `strtok`, which skips empty lines, `Chat.cpp:43`) as a
+    /// `CHAT_MSG_SYSTEM` to every session whose player is in the world, at most
+    /// `max_lines` of them. Returns the lines sent and the packets queued.
+    pub(crate) fn send_world_text_like_cpp(&self, text: &str, max_lines: usize) -> (usize, usize) {
         let packets: Vec<Vec<u8>> = text
             .split('\n')
+            .filter(|line| !line.is_empty())
+            .take(max_lines)
             .map(|line| {
                 ChatPkt {
                     msg_type: ChatMsg::System,
@@ -86,6 +87,9 @@ impl WorldAnnouncerLikeCpp {
                 .to_bytes()
             })
             .collect();
+        if packets.is_empty() {
+            return (0, 0);
+        }
         let mut queued = 0;
         for registration in self.players.in_world_registrations_like_cpp() {
             for packet in &packets {
@@ -98,7 +102,124 @@ impl WorldAnnouncerLikeCpp {
                 }
             }
         }
-        queued
+        (packets.len(), queued)
+    }
+}
+
+/// One module's `world.update` cost since the process started.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) struct WorldUpdateModuleMetricLikeCpp {
+    pub(crate) calls: u64,
+    pub(crate) total: Duration,
+    pub(crate) max: Duration,
+    pub(crate) over_budget: u64,
+}
+
+/// The per-module `world.update` budget and metric (#1444, plan §4.3 row 15).
+///
+/// The first overrun of each module, and the first of effect application,
+/// is logged at once. Later ones are counted and summarized at most once per
+/// [`WORLD_UPDATE_BUDGET_SUMMARY_INTERVAL_LIKE_CPP`], so a steadily slow
+/// module costs one log line per window, not one per tick.
+#[derive(Clone, Debug)]
+struct WorldUpdateBudgetLikeCpp {
+    budget: Duration,
+    modules: BTreeMap<ModuleId, WorldUpdateModuleMetricLikeCpp>,
+    /// Overruns not yet logged, per module; `None` stands for effects.
+    unreported: BTreeMap<Option<ModuleId>, u64>,
+    effects_warned: bool,
+    window_started: Option<Instant>,
+    /// How many warnings this tracker emitted: the throttle's observable.
+    warnings: u64,
+}
+
+impl WorldUpdateBudgetLikeCpp {
+    fn new(budget: Duration) -> Self {
+        Self {
+            budget,
+            modules: BTreeMap::new(),
+            unreported: BTreeMap::new(),
+            effects_warned: false,
+            window_started: None,
+            warnings: 0,
+        }
+    }
+
+    fn record_like_cpp(
+        &mut self,
+        now: Instant,
+        tick: u64,
+        timings: &[(ModuleId, Duration)],
+        effects: Duration,
+    ) {
+        let window_started = *self.window_started.get_or_insert(now);
+        for (module, elapsed) in timings {
+            let metric = self.modules.entry(module.clone()).or_default();
+            metric.calls += 1;
+            metric.total += *elapsed;
+            metric.max = metric.max.max(*elapsed);
+            if *elapsed <= self.budget {
+                continue;
+            }
+            metric.over_budget += 1;
+            if metric.over_budget == 1 {
+                self.warnings += 1;
+                warn!(
+                    %module,
+                    tick,
+                    elapsed_us = elapsed.as_micros() as u64,
+                    budget_us = self.budget.as_micros() as u64,
+                    "linked module's world.update exceeded its per-tick budget; further overruns are summarized"
+                );
+            } else {
+                *self.unreported.entry(Some(module.clone())).or_default() += 1;
+            }
+        }
+        if effects > self.budget {
+            if self.effects_warned {
+                *self.unreported.entry(None).or_default() += 1;
+            } else {
+                self.effects_warned = true;
+                self.warnings += 1;
+                warn!(
+                    tick,
+                    elapsed_us = effects.as_micros() as u64,
+                    budget_us = self.budget.as_micros() as u64,
+                    "applying world.update effects exceeded the per-tick budget; further overruns are summarized"
+                );
+            }
+        }
+        if now.saturating_duration_since(window_started)
+            >= WORLD_UPDATE_BUDGET_SUMMARY_INTERVAL_LIKE_CPP
+        {
+            self.summarize_like_cpp();
+            self.window_started = Some(now);
+        }
+    }
+
+    /// Log the overruns counted since the last summary, one line per module.
+    fn summarize_like_cpp(&mut self) {
+        for (module, suppressed) in std::mem::take(&mut self.unreported) {
+            self.warnings += 1;
+            match module {
+                Some(module) => {
+                    let metric = self.modules.get(&module).copied().unwrap_or_default();
+                    warn!(
+                        %module,
+                        suppressed,
+                        over_budget = metric.over_budget,
+                        calls = metric.calls,
+                        max_us = metric.max.as_micros() as u64,
+                        mean_us = (metric.total.as_micros() / u128::from(metric.calls.max(1))) as u64,
+                        "linked module's world.update keeps exceeding its per-tick budget"
+                    );
+                }
+                None => warn!(
+                    suppressed,
+                    "applying world.update effects keeps exceeding the per-tick budget"
+                ),
+            }
+        }
     }
 }
 
@@ -107,18 +228,31 @@ impl WorldAnnouncerLikeCpp {
 pub(crate) struct WorldModuleHooksLikeCpp {
     registry: Arc<ModuleRegistry>,
     announcer: Option<WorldAnnouncerLikeCpp>,
+    /// Set by `world.startup`. C++ runs `OnStartup` before the world loop's
+    /// first `OnUpdate`; the canonical loop is spawned a little earlier, so a
+    /// tick before startup dispatches nothing. Shared by every clone.
+    started: Arc<AtomicBool>,
     /// When the previous `world.update` ran, so each dispatch reports the time
     /// since the previous one, as C++ `World::Update(diff)` does, even when
     /// the loop skipped a tick in between. Only the map loop's copy moves it.
     last_update: Option<Instant>,
+    /// The per-module tick budget and metric. Only the map loop's copy
+    /// records into it.
+    budget: WorldUpdateBudgetLikeCpp,
 }
 
 impl WorldModuleHooksLikeCpp {
     pub(crate) fn new(registry: Arc<ModuleRegistry>) -> Self {
+        Self::with_budget(registry, WORLD_UPDATE_HOOK_BUDGET_LIKE_CPP)
+    }
+
+    fn with_budget(registry: Arc<ModuleRegistry>, budget: Duration) -> Self {
         Self {
             registry,
             announcer: None,
+            started: Arc::new(AtomicBool::new(false)),
             last_update: None,
+            budget: WorldUpdateBudgetLikeCpp::new(budget),
         }
     }
 
@@ -145,7 +279,26 @@ impl WorldModuleHooksLikeCpp {
         hooks
     }
 
-    /// Bind the world announcer once the player registry exists.
+    /// Bind the world announcer once the player registry exists, addressed
+    /// with this realm's C++ `RealmHandle::GetAddress()`, as the sessions do.
+    #[must_use]
+    pub(crate) fn with_realm_announcer_like_cpp(
+        mut self,
+        players: &Arc<PlayerRegistry>,
+        realm: &crate::RealmHandleLikeCpp,
+        realm_id: u16,
+    ) -> Self {
+        let virtual_realm =
+            wow_world::session::virtual_realm_address_like_cpp(realm.region, realm.site, realm_id);
+        self.announcer = Some(WorldAnnouncerLikeCpp::new(
+            Arc::clone(players),
+            virtual_realm,
+        ));
+        self
+    }
+
+    /// Bind a given announcer (tests).
+    #[cfg(test)]
     #[must_use]
     pub(crate) fn with_announcer(mut self, announcer: WorldAnnouncerLikeCpp) -> Self {
         self.announcer = Some(announcer);
@@ -174,14 +327,15 @@ impl WorldModuleHooksLikeCpp {
     }
 
     /// `world.startup`: AzerothCore `OnStartup` (worldserver `Main.cpp:395`).
+    /// From here on, the map loop's ticks dispatch `world.update`.
     pub(crate) fn startup_like_cpp(&self, server_version: &str, realm_id: u32) {
-        if !self.wanted() {
-            return;
+        if self.wanted() {
+            let module_count = self.registry.descriptors().len();
+            let snapshot = WorldStartupSnapshot::new(server_version, realm_id, module_count);
+            let outcome = self.registry.dispatch_world_startup(&snapshot);
+            self.apply_like_cpp("world.startup", outcome);
         }
-        let module_count = self.registry.descriptors().len();
-        let snapshot = WorldStartupSnapshot::new(server_version, realm_id, module_count);
-        let outcome = self.registry.dispatch_world_startup(&snapshot);
-        self.apply_like_cpp("world.startup", outcome);
+        self.started.store(true, Ordering::Release);
     }
 
     /// `world.shutdown`: AzerothCore `OnShutdown` (worldserver `Main.cpp:419`).
@@ -196,17 +350,18 @@ impl WorldModuleHooksLikeCpp {
     }
 
     /// `world.update`: AzerothCore `OnWorldUpdate(diff)` (`World.cpp:1342`),
-    /// once per completed world tick. `now` is the tick's game time and
-    /// `tick_diff_ms` the tick's own diff, used for the first dispatch only;
-    /// later ones report the time since the previous dispatch. Returns how
-    /// long the dispatch took.
+    /// once per completed world tick after `world.startup`. `now` is the
+    /// tick's game time and `tick_diff_ms` the tick's own diff, used for the
+    /// first dispatch only; later ones report the time since the previous
+    /// dispatch. Returns how long the module callbacks and the effect
+    /// application took, in that order.
     pub(crate) fn update_like_cpp(
         &mut self,
         now: Instant,
         tick_diff_ms: u32,
         tick: u64,
-    ) -> Option<Duration> {
-        if !self.wanted() {
+    ) -> Option<(Duration, Duration)> {
+        if !self.wanted() || !self.started.load(Ordering::Acquire) {
             return None;
         }
         let diff_ms = self.last_update.replace(now).map_or(tick_diff_ms, |last| {
@@ -214,24 +369,31 @@ impl WorldModuleHooksLikeCpp {
                 .as_millis()
                 .min(u128::from(u32::MAX)) as u32
         });
-        let started = Instant::now();
-        let outcome = self
+        let (outcome, timings) = self
             .registry
-            .dispatch_world_update(&WorldUpdateSnapshot::new(diff_ms, tick));
+            .dispatch_world_update_timed(&WorldUpdateSnapshot::new(diff_ms, tick));
+        let callbacks = timings.iter().map(|(_, elapsed)| *elapsed).sum();
+        let applying = Instant::now();
         self.apply_like_cpp("world.update", outcome);
-        let elapsed = started.elapsed();
-        if elapsed > WORLD_UPDATE_HOOK_BUDGET_LIKE_CPP {
-            warn!(
-                tick,
-                elapsed_us = elapsed.as_micros() as u64,
-                budget_us = WORLD_UPDATE_HOOK_BUDGET_LIKE_CPP.as_micros() as u64,
-                "linked world.update hooks exceeded their per-tick budget"
-            );
-        }
-        Some(elapsed)
+        let effects = applying.elapsed();
+        self.budget.record_like_cpp(now, tick, &timings, effects);
+        Some((callbacks, effects))
     }
 
-    /// Apply a validated `world.*` batch, all or nothing.
+    /// The per-module `world.update` metric: calls, total and maximum
+    /// callback time and budget overruns since the process started.
+    pub(crate) fn world_update_metrics_like_cpp(
+        &self,
+    ) -> Vec<(ModuleId, WorldUpdateModuleMetricLikeCpp)> {
+        self.budget
+            .modules
+            .iter()
+            .map(|(module, metric)| (module.clone(), *metric))
+            .collect()
+    }
+
+    /// Apply a validated `world.*` batch, all or nothing. Announcements share
+    /// one line budget per dispatch.
     fn apply_like_cpp(&self, hook: &'static str, outcome: HookOutcome<WorldEffect>) {
         for module in &outcome.disabled {
             warn!(%module, hook, "linked module panicked; disabled for the rest of the process");
@@ -243,13 +405,25 @@ impl WorldModuleHooksLikeCpp {
                 return;
             }
         };
+        let mut lines_left = MAX_WORLD_TEXT_LINES_PER_DISPATCH_LIKE_CPP;
         for (module, effect) in effects.iter() {
             match effect {
                 WorldEffect::Log { text } => info!(%module, hook, "{text}"),
                 WorldEffect::AnnounceWorld { text } => match &self.announcer {
                     Some(announcer) => {
-                        let queued = announcer.send_world_text_like_cpp(text);
-                        debug!(%module, hook, queued, "module world announcement");
+                        let wanted = text.split('\n').filter(|line| !line.is_empty()).count();
+                        let (sent, queued) = announcer.send_world_text_like_cpp(text, lines_left);
+                        lines_left -= sent;
+                        if sent < wanted {
+                            warn!(
+                                %module,
+                                hook,
+                                dropped_lines = wanted - sent,
+                                limit = MAX_WORLD_TEXT_LINES_PER_DISPATCH_LIKE_CPP,
+                                "world announcement cut at the per-dispatch line limit"
+                            );
+                        }
+                        debug!(%module, hook, sent, queued, "module world announcement");
                     }
                     None => {
                         debug!(%module, hook, "module world announcement before any player can be in the world");

@@ -196,14 +196,37 @@ fn announce_world_reaches_every_in_world_player_line_by_line() {
 fn world_update_reports_the_time_since_the_previous_dispatch() {
     let recorder = Arc::new(Recorder::default());
     let mut hooks = hooks_with(Arc::clone(&recorder));
+    hooks.startup_like_cpp("RustyCore", 1);
     let start = Instant::now();
     hooks.update_like_cpp(start, 50, 1);
     hooks.update_like_cpp(start + Duration::from_millis(120), 10, 3);
     hooks.update_like_cpp(start + Duration::from_millis(130), 10, 4);
     assert_eq!(
         *recorder.seen.lock().unwrap(),
-        vec!["update 1 50", "update 3 120", "update 4 10"]
+        vec!["startup 1 1", "update 1 50", "update 3 120", "update 4 10"]
     );
+}
+
+/// C++ runs `OnStartup` before the world loop's first `OnUpdate`; the
+/// canonical loop is spawned earlier, so its ticks before `world.startup`
+/// dispatch nothing.
+#[test]
+fn no_world_update_is_dispatched_before_startup() {
+    let recorder = Arc::new(Recorder::default());
+    let mut hooks = hooks_with(Arc::clone(&recorder));
+    let loop_copy = hooks.clone();
+    let mut loop_copy = loop_copy;
+    assert_eq!(loop_copy.update_like_cpp(Instant::now(), 50, 1), None);
+    hooks.startup_like_cpp("RustyCore", 1);
+    assert!(
+        loop_copy.update_like_cpp(Instant::now(), 50, 2).is_some(),
+        "startup on the composition root's copy releases the loop's copy"
+    );
+    assert_eq!(
+        *recorder.seen.lock().unwrap(),
+        vec!["startup 1 1", "update 2 50"]
+    );
+    let _ = &mut hooks;
 }
 
 /// A slow module is reported, and the dispatch still completes.
@@ -232,18 +255,107 @@ fn world_update_measures_its_dispatch_against_the_budget() {
         )
         .unwrap();
     let mut hooks = WorldModuleHooksLikeCpp::new(Arc::new(registry));
-    let elapsed = hooks
+    hooks.startup_like_cpp("RustyCore", 1);
+    let (callbacks, _effects) = hooks
         .update_like_cpp(Instant::now(), 50, 1)
         .expect("a module offers world.update");
-    assert!(elapsed > WORLD_UPDATE_HOOK_BUDGET_LIKE_CPP);
+    assert!(callbacks > WORLD_UPDATE_HOOK_BUDGET_LIKE_CPP);
+    let metrics = hooks.world_update_metrics_like_cpp();
+    assert_eq!(metrics.len(), 1);
+    assert_eq!(metrics[0].0.as_str(), "slow.world");
+    assert_eq!(metrics[0].1.calls, 1);
+    assert_eq!(metrics[0].1.over_budget, 1);
+    assert!(metrics[0].1.max > WORLD_UPDATE_HOOK_BUDGET_LIKE_CPP);
+}
+
+/// A steadily slow module is reported once, then summarized once per
+/// window, not once per tick; callbacks and effects are counted apart.
+#[test]
+fn budget_overruns_are_throttled_and_attributed_per_module() {
+    let mut hooks = WorldModuleHooksLikeCpp::with_budget(
+        Arc::clone(&hooks_with(Arc::new(Recorder::default())).registry),
+        Duration::ZERO,
+    );
+    hooks.startup_like_cpp("RustyCore", 1);
+    let start = Instant::now();
+    for tick in 1..=100 {
+        hooks.update_like_cpp(start + Duration::from_millis(tick), 1, tick);
+    }
+    let first_window = hooks.budget.warnings;
+    assert!(
+        (1..=2).contains(&first_window),
+        "one first warning for the module (and at most one for effects), not one per tick: {first_window}"
+    );
+    hooks.update_like_cpp(
+        start + WORLD_UPDATE_BUDGET_SUMMARY_INTERVAL_LIKE_CPP + Duration::from_millis(200),
+        1,
+        101,
+    );
+    let summaries = hooks.budget.warnings - first_window;
+    assert!(
+        (1..=2).contains(&summaries),
+        "one summary per source after the window: {summaries}"
+    );
+    let metrics = hooks.world_update_metrics_like_cpp();
+    assert_eq!(metrics[0].0.as_str(), "alpha.world");
+    assert_eq!(metrics[0].1.calls, 101);
+    assert_eq!(metrics[0].1.over_budget, 101);
 }
 
 /// The announcer addresses this realm as the sessions do.
 #[test]
 fn the_realm_announcer_uses_the_session_virtual_realm_address() {
-    let announcer =
-        WorldAnnouncerLikeCpp::for_realm_like_cpp(Arc::new(PlayerRegistry::new()), 1, 2, 0x0304);
-    assert_eq!(announcer.virtual_realm, 0x0102_0304);
+    let hooks = WorldModuleHooksLikeCpp::new(Arc::new(ModuleRegistry::new()))
+        .with_realm_announcer_like_cpp(
+            &Arc::new(PlayerRegistry::new()),
+            &crate::RealmHandleLikeCpp::new_like_cpp(1, 2, 0x0304),
+            0x0304,
+        );
+    assert_eq!(hooks.announcer.expect("bound").virtual_realm, 0x0102_0304);
+}
+
+/// TrinityCore `ChatHandler::LineFromMessage` skips empty lines, and one
+/// dispatch sends at most `MAX_WORLD_TEXT_LINES_PER_DISPATCH_LIKE_CPP` lines
+/// across all its announcements, so a module cannot flood the socket queues.
+#[test]
+fn announcements_skip_empty_lines_and_share_a_per_dispatch_line_cap() {
+    struct Loud;
+    impl WorldModule for Loud {
+        fn on_startup(&self, _s: &WorldStartupSnapshot, e: &mut WorldEffects<'_>) {
+            e.announce_world("\n\nfirst\n\nsecond\n");
+            e.announce_world(vec!["x"; 20].join("\n"));
+            e.announce_world("\n".repeat(200));
+        }
+    }
+    let players = Arc::new(PlayerRegistry::new());
+    let (player, player_rx) = registration(true);
+    players.register_or_replace(ObjectGuid::create_player(1, 1), player, Default::default());
+    let mut registry = ModuleRegistry::new();
+    registry
+        .register_module(
+            ModuleDescriptor::new(
+                "loud.world",
+                ModuleVersion {
+                    major: 1,
+                    minor: 0,
+                    patch: 0,
+                },
+                "Loud",
+            )
+            .unwrap(),
+            ModuleHooks::new().world(Arc::new(Loud)),
+        )
+        .unwrap();
+    let hooks = WorldModuleHooksLikeCpp::new(Arc::new(registry))
+        .with_announcer(WorldAnnouncerLikeCpp::new(Arc::clone(&players), 1));
+
+    hooks.startup_like_cpp("RustyCore", 1);
+
+    let packets: Vec<_> = player_rx.try_iter().collect();
+    assert_eq!(packets.len(), MAX_WORLD_TEXT_LINES_PER_DISPATCH_LIKE_CPP);
+    assert!(system_text(&packets[0], 1, "first"));
+    assert!(system_text(&packets[1], 1, "second"));
+    assert!(system_text(&packets[2], 1, "x"));
 }
 
 #[test]
@@ -289,15 +401,24 @@ fn the_world_update_dispatch_sits_after_the_tick_with_no_guard_in_scope() {
 
 /// The process hooks sit where C++ `main` calls them, relative to the steps
 /// around them in `app.rs`:
-/// - `OnAfterConfigLoad(false)` once the configuration is read, before the
-///   world databases are checked and the realm is listed (AzerothCore
-///   `World.cpp:300`, the end of `LoadConfigSettings`);
+/// - `OnAfterConfigLoad(false)` once the databases are started, the online
+///   accounts cleared and the realm marked offline, as C++ reaches
+///   `SetInitialWorldSettings` -> `LoadConfigSettings` only after `StartDB`
+///   and the realm-offline update (AzerothCore `Main.cpp:285/291/315`,
+///   `World.cpp:300`; TrinityCore `Main.cpp:293/304/337`, `World.cpp:2363`),
+///   and before the realm is listed;
 /// - `OnStartup` after both listeners are bound and the realm is marked
-///   online, once the map loop runs (TrinityCore `Main.cpp:413`, AzerothCore
-///   `Main.cpp:395`), beside the internal script lifecycle;
-/// - `OnShutdown` after the world loop stopped, the sessions were flushed and
-///   the respawn writer drained, and before the realm is marked offline
-///   (TrinityCore `Main.cpp:440`, AzerothCore `Main.cpp:419`).
+///   online (TrinityCore `Main.cpp:413`, AzerothCore `Main.cpp:395`), beside
+///   the internal script lifecycle. The map loop is already spawned, but it
+///   dispatches no `world.update` before this call (the started gate), so
+///   modules see `OnStartup` before their first `OnUpdate`, as in C++;
+/// - `OnShutdown` once the world loop stopped and before the realm is marked
+///   offline (TrinityCore `Main.cpp:440`, AzerothCore `Main.cpp:419`). C++
+///   runs it before `KickAll`/`UpdateSessions(1)`/`StopNetwork`, which happen
+///   later in the socket manager's deleter; RustyCore runs it after the
+///   session flush and the respawn-writer drain. That is an intentional
+///   deviation: modules never run while sessions are still being finalized,
+///   and an announcement reaches nobody in either order.
 #[test]
 fn the_process_hooks_follow_the_cpp_startup_and_shutdown_order() {
     let app = include_str!("app.rs");
@@ -314,8 +435,10 @@ fn the_process_hooks_follow_the_cpp_startup_and_shutdown_order() {
     let shutdown = once("world_module_hooks.shutdown_like_cpp(");
 
     assert!(at("let world_configs = wow_config::load_world_config_values();") < config);
-    assert!(config < at("clear_online_accounts_like_cpp(&login_db"));
-    assert!(config < at("verify_world_db_version_like_cpp("));
+    assert!(at("clear_online_accounts_like_cpp(&login_db") < config);
+    assert!(at("verify_world_db_version_like_cpp(") < config);
+    assert!(at("set_realm_offline(&login_db, realm_id).await?;") < config);
+    assert!(config < at("update_realm_list_once_like_cpp("));
 
     assert!(at("if let Err(error) = set_realm_online(&login_db, realm_id)") < startup);
     assert!(at("let mut map_update_handle = spawn_canonical_map_update_loop(") < startup);
@@ -325,4 +448,56 @@ fn the_process_hooks_follow_the_cpp_startup_and_shutdown_order() {
     assert!(at("if !drain_respawn_db_writer_like_cpp(") < shutdown);
     assert!(at("wow_script::lifecycle::on_shutdown_like_cpp()") < shutdown);
     assert!(shutdown < app.rfind("set_realm_offline(&login_db, realm_id)").unwrap());
+}
+
+/// #1444 acceptance: the tick cost of `world.update` with zero modules and
+/// with one trivial module, measured on the adapter path the map loop runs
+/// (interest query, started gate, diff, timed dispatch, effects, budget).
+/// Run with `cargo test -p world-server --lib -- --ignored --nocapture
+/// world_update_tick_cost`; the evidence records the figures and the profile.
+#[test]
+#[ignore = "measurement, run explicitly"]
+fn world_update_tick_cost_with_zero_and_one_trivial_module() {
+    struct Trivial;
+    impl WorldModule for Trivial {
+        fn on_update(&self, _s: &WorldUpdateSnapshot, _e: &mut WorldEffects<'_>) {}
+    }
+    const TICKS: u64 = 200_000;
+    let measure = |hooks: &mut WorldModuleHooksLikeCpp| {
+        hooks.startup_like_cpp("RustyCore", 1);
+        let start = Instant::now();
+        for tick in 1..=TICKS {
+            std::hint::black_box(hooks.update_like_cpp(start, 10, tick));
+        }
+        start.elapsed().as_nanos() as f64 / TICKS as f64
+    };
+    let mut zero = WorldModuleHooksLikeCpp::new(Arc::new(ModuleRegistry::new()));
+    let mut registry = ModuleRegistry::new();
+    registry
+        .register_module(
+            ModuleDescriptor::new(
+                "trivial.world",
+                ModuleVersion {
+                    major: 1,
+                    minor: 0,
+                    patch: 0,
+                },
+                "Trivial",
+            )
+            .unwrap(),
+            ModuleHooks::new().world(Arc::new(Trivial)),
+        )
+        .unwrap();
+    let mut one = WorldModuleHooksLikeCpp::new(Arc::new(registry));
+    let zero_ns = measure(&mut zero);
+    let one_ns = measure(&mut one);
+    println!(
+        "world.update tick cost ({}): zero modules {zero_ns:.1} ns/tick, one trivial module {one_ns:.1} ns/tick, over {TICKS} ticks",
+        if cfg!(debug_assertions) {
+            "debug"
+        } else {
+            "release"
+        }
+    );
+    assert!(zero_ns < one_ns);
 }

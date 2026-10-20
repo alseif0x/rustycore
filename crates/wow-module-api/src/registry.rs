@@ -10,6 +10,7 @@ use std::fmt;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 use crate::effect::{
     EffectBatch, HookOutcome, ModuleEffectError, NotificationEffect, PlayerLoginEffects,
@@ -480,6 +481,22 @@ impl ModuleRegistry {
         self.dispatch_world(|module, effects| module.on_update(snapshot, effects))
     }
 
+    /// `world.update`, also reporting how long each module's callback ran,
+    /// in dispatch order. The host uses it for the per-module tick budget and
+    /// metric; effect application is not included.
+    pub fn dispatch_world_update_timed(
+        &self,
+        snapshot: &WorldUpdateSnapshot,
+    ) -> (HookOutcome<WorldEffect>, Vec<(ModuleId, Duration)>) {
+        let mut timings = Vec::new();
+        let outcome = self.dispatch_family(
+            |hooks| hooks.world.as_ref(),
+            |module, batch, id| module.on_update(snapshot, &mut WorldEffects::new(batch, id)),
+            Some(&mut timings),
+        );
+        (outcome, timings)
+    }
+
     /// Visit, in `ModuleId` order, every enabled module offering one
     /// notification family, then validate the batch as a whole.
     ///
@@ -493,9 +510,13 @@ impl ModuleRegistry {
         family: impl Fn(&ModuleHooks) -> Option<&Arc<M>>,
         call: impl Fn(&M, &mut ScopedEffects<'_>),
     ) -> HookOutcome<NotificationEffect> {
-        self.dispatch_family(family, |module, batch, id| {
-            call(module, &mut ScopedEffects::new(batch, id));
-        })
+        self.dispatch_family(
+            family,
+            |module, batch, id| {
+                call(module, &mut ScopedEffects::new(batch, id));
+            },
+            None,
+        )
     }
 
     /// [`Self::dispatch_notifications`] for the `world.*` effects.
@@ -506,15 +527,18 @@ impl ModuleRegistry {
         self.dispatch_family(
             |hooks| hooks.world.as_ref(),
             |module, batch, id| call(module, &mut WorldEffects::new(batch, id)),
+            None,
         )
     }
 
     /// The one dispatch loop every family shares: `ModuleId` order, one
-    /// `catch_unwind` per callback, then whole-batch validation.
+    /// `catch_unwind` per callback, then whole-batch validation. With
+    /// `timings`, each callback's duration is recorded under its module.
     fn dispatch_family<M: ?Sized, E: crate::effect::ValidatedEffect>(
         &self,
         family: impl Fn(&ModuleHooks) -> Option<&Arc<M>>,
         call: impl Fn(&M, &mut EffectBatch<E>, ModuleId),
+        mut timings: Option<&mut Vec<(ModuleId, Duration)>>,
     ) -> HookOutcome<E> {
         let mut batch = EffectBatch::default();
         let mut disabled = Vec::new();
@@ -526,10 +550,14 @@ impl ModuleRegistry {
                 continue;
             };
             let mark = batch.len();
+            let started = timings.is_some().then(Instant::now);
             let completed = catch_unwind(AssertUnwindSafe(|| {
                 let _scope = CallbackScope::enter();
                 call(module, &mut batch, id.clone());
             }));
+            if let (Some(timings), Some(started)) = (timings.as_deref_mut(), started) {
+                timings.push((id.clone(), started.elapsed()));
+            }
             if completed.is_err() {
                 batch.truncate(mark);
                 entry.disabled.store(true, Ordering::Release);
