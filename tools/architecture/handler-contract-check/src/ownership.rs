@@ -32,14 +32,6 @@ use crate::registrations::{
 };
 
 const HANDLER_PACKAGE_NAME: &str = "wow-handler";
-/// Where the one legacy-wrapper inventory collector lives.
-///
-/// #359 moved the registry beside the session it dispatches to: an entry now
-/// carries a `fn(&mut WorldSession, WorldPacket)` thunk. `PacketHandlerEntry`
-/// remains the generic type from `wow-handler`; this crate-local wrapper lets
-/// `wow-world` collect that specialized entry for its dispatcher.
-const REGISTRY_PACKAGE_NAME: &str = "wow-world";
-const REGISTRY_MODULE_PATH: &str = "crate::session::registry";
 const WOW_PROTO_PACKAGE_NAME: &str = "wow-proto";
 const WOW_PROTO_GENERATED_INCLUDE_SUFFIXES: &[&str] = &[
     "/bgs.protocol.rs",
@@ -1762,7 +1754,6 @@ fn is_owned_handler_mount(
 pub(crate) fn audit_package_registration_sources(
     package_name: &str,
     sources: &BTreeMap<PathBuf, BTreeSet<String>>,
-    unconditional: &BTreeSet<PathBuf>,
 ) -> Result<(), String> {
     let test_owner = CapabilityOwner {
         capability: "handler_registration".to_owned(),
@@ -1774,7 +1765,6 @@ pub(crate) fn audit_package_registration_sources(
     audit_package_registration_sources_with_owners(
         package_name,
         sources,
-        unconditional,
         &BTreeSet::new(),
         std::slice::from_ref(&test_owner),
         false,
@@ -1784,13 +1774,11 @@ pub(crate) fn audit_package_registration_sources(
 pub(crate) fn audit_package_registration_sources_with_owners(
     package_name: &str,
     sources: &BTreeMap<PathBuf, BTreeSet<String>>,
-    unconditional: &BTreeSet<PathBuf>,
     production_impossible: &BTreeSet<PathBuf>,
     owners: &[CapabilityOwner],
     allow_local_data_module: bool,
 ) -> Result<(), String> {
     let mut errors = Vec::new();
-    let mut exact_collectors = 0usize;
     for (source_path, logical_paths) in sources {
         let owned = is_owned_handler_mount(package_name, logical_paths, owners);
         if owned || production_impossible.contains(source_path) {
@@ -1798,26 +1786,13 @@ pub(crate) fn audit_package_registration_sources_with_owners(
         }
         let source = fs::read_to_string(source_path)
             .map_err(|error| format!("cannot read {}: {error}", source_path.display()))?;
-        // The legacy adapter collector belongs only to the unconditional World
-        // registry module; package and logical-module identity both matter.
-        let collector_owner = package_name == REGISTRY_PACKAGE_NAME
-            && logical_paths == &BTreeSet::from([REGISTRY_MODULE_PATH.to_owned()])
-            && unconditional.contains(source_path);
-        match analyze_registration_syntax_outside_handlers(
+        if let Err(error) = analyze_registration_syntax_outside_handlers(
             source_path,
             &source,
-            collector_owner,
             allow_local_data_module,
         ) {
-            Ok(report) => exact_collectors += report.exact_legacy_wrapper_collectors,
-            Err(error) => errors.push(format!("package {package_name}: {error}")),
+            errors.push(format!("package {package_name}: {error}"));
         }
-    }
-    if package_name == REGISTRY_PACKAGE_NAME && exact_collectors != 1 {
-        errors.push(format!(
-            "{REGISTRY_MODULE_PATH} must define exactly one unconditional module-level \
-             inventory::collect!(LegacyPacketHandlerRegistrationLikeCpp), found {exact_collectors}"
-        ));
     }
     if errors.is_empty() {
         Ok(())
@@ -1850,7 +1825,7 @@ pub(crate) fn audit_registration_ownership(
     let mut errors = Vec::new();
     let mut package_names = Vec::new();
     for scope in &scopes {
-        let (sources, explicit_paths, unconditional, production_impossible) =
+        let (sources, explicit_paths, _, production_impossible) =
             audit_package_source_graph(&scope.root, &scope.production_roots).map_err(|error| {
                 format!(
                     "invalid production source graph for {}: {error}",
@@ -1963,7 +1938,6 @@ pub(crate) fn audit_registration_ownership(
             if let Err(error) = audit_package_registration_sources_with_owners(
                 &scope.name,
                 &sources,
-                &unconditional,
                 &production_impossible,
                 owners,
                 allow_local_data_module,

@@ -376,11 +376,9 @@ fn handler_module_policy_is_strict_and_registration_uses_declared_owner() {
         outside.canonicalize().expect("canonical outside source"),
         BTreeSet::from(["crate::handlers::outside".to_owned()]),
     )]);
-    let unconditional: BTreeSet<_> = sources.keys().cloned().collect();
     let error = audit_package_registration_sources_with_owners(
         "wow-world",
         &sources,
-        &unconditional,
         &BTreeSet::new(),
         owners,
         false,
@@ -399,7 +397,6 @@ fn handler_module_policy_is_strict_and_registration_uses_declared_owner() {
     let error = audit_package_registration_sources_with_owners(
         "wow-world-inventory",
         &unregistered_domain_route,
-        &unconditional,
         &BTreeSet::new(),
         owners,
         false,

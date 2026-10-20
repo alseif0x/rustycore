@@ -28,45 +28,6 @@ fn path_is(path: &syn::Path, expected: &[&str]) -> bool {
             .all(|(segment, expected)| segment.ident.to_string() == *expected)
 }
 
-/// The ordered authority consumes the legacy registrar from its owner module,
-/// so the only accepted mention is the exact
-/// `crate::session::registry::register_remaining_handlers_like_cpp` import; a
-/// rename, re-export or second import could redirect the ordered legacy
-/// registration.
-fn has_exact_legacy_import(items: &[Item]) -> bool {
-    let mut matching = 0usize;
-    for item in items {
-        let Item::Use(item_use) = item else {
-            continue;
-        };
-        if !tree_mentions(&item_use.tree, "register_remaining_handlers_like_cpp") {
-            continue;
-        }
-        matching += 1;
-        let expected = [
-            "crate",
-            "session",
-            "registry",
-            "register_remaining_handlers_like_cpp",
-        ];
-        let path_is_exact = use_tree_path(&item_use.tree).is_some_and(|path| {
-            path.len() == expected.len()
-                && path
-                    .iter()
-                    .zip(expected)
-                    .all(|(actual, expected)| actual == expected)
-        });
-        if !path_is_exact
-            || item_use.leading_colon.is_some()
-            || !item_use.attrs.is_empty()
-            || !matches!(&item_use.vis, Visibility::Inherited)
-        {
-            return false;
-        }
-    }
-    matching == 1
-}
-
 /// The flat path of an ordinary `a::b::c` use tree; groups, renames and globs
 /// are not an exact path.
 fn use_tree_path(tree: &UseTree) -> Option<Vec<String>> {
@@ -276,18 +237,6 @@ fn is_domain_registration(statement: &Stmt, contract: DirectRegistrarContract) -
             })
 }
 
-fn is_legacy_registration(statement: &Stmt) -> bool {
-    let Some(call) = try_call(statement) else {
-        return false;
-    };
-    matches!(&*call.func, Expr::Path(function)
-        if function.attrs.is_empty()
-            && path_is(&function.path, &["register_remaining_handlers_like_cpp"])
-            && matches!(function.path.segments.last().map(|segment| &segment.arguments), Some(syn::PathArguments::None)))
-        && call.args.len() == 1
-        && builder_mut_ref(&call.args[0])
-}
-
 /// The fixture dispatch builder must not repeat the ordered list: it delegates
 /// to the single crate-level authority and keeps the legacy panic-on-duplicate
 /// contract.
@@ -371,18 +320,14 @@ fn is_builder_result(statement: &Stmt) -> bool {
 
 fn exact_body(function: &ItemFn, contracts: &[DirectRegistrarContract]) -> bool {
     let statements = &function.block.stmts;
-    if statements.len() != contracts.len() + 3 || !is_builder_initializer(&statements[0]) {
-        return false;
-    }
-    let legacy_registration = &statements[contracts.len() + 1];
-    if !is_legacy_registration(legacy_registration) {
+    if statements.len() != contracts.len() + 2 || !is_builder_initializer(&statements[0]) {
         return false;
     }
     let registrations_match = contracts
         .iter()
         .enumerate()
         .all(|(index, contract)| is_domain_registration(&statements[index + 1], *contract));
-    registrations_match && is_builder_result(&statements[contracts.len() + 2])
+    registrations_match && is_builder_result(&statements[contracts.len() + 1])
 }
 
 fn exact_function(function: &ItemFn, contracts: &[DirectRegistrarContract]) -> bool {
@@ -970,13 +915,10 @@ pub(crate) fn validate_composition_mounts_with_contracts(
                 .iter()
                 .filter(|function| function.sig.ident == "compose_packet_handlers_like_cpp")
                 .collect();
-            if authorities.len() != 1
-                || !has_exact_legacy_import(&syntax.items)
-                || !exact_function(authorities[0], &contracts)
-            {
+            if authorities.len() != 1 || !exact_function(authorities[0], &contracts) {
                 return Err(format!(
                     "{} must contain one unconditional ordered compose_packet_handlers_like_cpp \
-                     authority with each direct registrar then the legacy registration",
+                     authority with each direct registrar and no other registration",
                     mount.source_path.display()
                 ));
             }

@@ -3440,7 +3440,6 @@ version = "0.1.0"
 dependencies = [
  "dashmap",
  "flume",
- "inventory",
  "num-traits",
  "rand",
  "serde",
