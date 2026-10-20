@@ -6,17 +6,26 @@
 use super::*;
 
 #[derive(Default)]
-pub(super) struct PersistenceOperationSyntax {
+pub(super) struct PersistenceOperationSyntax<'a> {
     pub(super) symbols: BTreeSet<String>,
     pub(super) generic_types: BTreeSet<String>,
+    /// Each counted site by syntax-node address, so the generic-function
+    /// check can drop exactly the sites the body analyzer typed (#1437).
+    pub(super) sites: BTreeMap<usize, String>,
+    /// Crate roots of the inventoried workspace packages this module depends
+    /// on. When set, a call path that names a free function through one of
+    /// them is not counted: see `names_inventoried_free_function` (#1437).
+    pub(super) workspace_roots: Option<&'a BTreeMap<String, String>>,
 }
 
-impl<'ast> Visit<'ast> for PersistenceOperationSyntax {
+impl<'ast> Visit<'ast> for PersistenceOperationSyntax<'_> {
     fn visit_expr_method_call(&mut self, method: &'ast ExprMethodCall) {
         let name = normalized_ident(&method.method);
         if !matches!(name.as_str(), "new" | "open")
             && PersistenceOperation::from_executor_method(&name).is_some()
         {
+            self.sites
+                .insert(std::ptr::from_ref(method) as usize, name.clone());
             self.symbols.insert(name);
         }
         syn::visit::visit_expr_method_call(self, method);
@@ -28,6 +37,9 @@ impl<'ast> Visit<'ast> for PersistenceOperationSyntax {
             && let Some(name) = last_path_name(&path.path)
             && name != "new"
             && PersistenceOperation::from_executor_method(&name).is_some()
+            && !self.workspace_roots.is_some_and(|roots| {
+                names_inventoried_free_function(path, roots, &self.generic_types)
+            })
         {
             let owner = path
                 .path
@@ -36,11 +48,55 @@ impl<'ast> Visit<'ast> for PersistenceOperationSyntax {
                 .nth_back(1)
                 .map(|segment| normalized_ident(&segment.ident));
             if name != "open" || owner.is_some_and(|owner| self.generic_types.contains(&owner)) {
+                self.sites
+                    .insert(std::ptr::from_ref(call) as usize, name.clone());
                 self.symbols.insert(name);
             }
         }
         syn::visit::visit_expr_call(self, call);
     }
+}
+
+/// Whether `path` names a module-level free function of an inventoried
+/// workspace package, such as `wow_world_spell::player_cast::prepare` (#1437).
+///
+/// The path must be rooted at `crate`, `self`, `super` or the crate root of
+/// an inventoried dependency, and every segment before the function must be
+/// a plain module segment: snake_case, without generic arguments, not a
+/// primitive type and not one of the function's own type parameters. Such a
+/// path cannot name a type, a trait or an associated item, so the call has
+/// no generic receiver. The callee's body is inventoried at its own
+/// definition, where a generic callee is held to this same check; the
+/// qualified spelling therefore audits exactly like its already-accepted
+/// imported single-segment form.
+pub(super) fn names_inventoried_free_function(
+    path: &syn::ExprPath,
+    workspace_roots: &BTreeMap<String, String>,
+    generic_types: &BTreeSet<String>,
+) -> bool {
+    const PRIMITIVE_TYPES: &[&str] = &[
+        "bool", "char", "str", "f32", "f64", "i8", "i16", "i32", "i64", "i128", "isize", "u8",
+        "u16", "u32", "u64", "u128", "usize",
+    ];
+    let segments = &path.path.segments;
+    if path.qself.is_some() || path.path.leading_colon.is_some() || segments.len() < 2 {
+        return false;
+    }
+    let root = normalized_ident(&segments[0].ident);
+    if !matches!(root.as_str(), "crate" | "self" | "super") && !workspace_roots.contains_key(&root)
+    {
+        return false;
+    }
+    segments.iter().take(segments.len() - 1).all(|segment| {
+        let name = normalized_ident(&segment.ident);
+        matches!(segment.arguments, syn::PathArguments::None)
+            && name
+                .chars()
+                .next()
+                .is_some_and(|first| first.is_ascii_lowercase())
+            && !PRIMITIVE_TYPES.contains(&name.as_str())
+            && !generic_types.contains(&name)
+    })
 }
 
 pub(super) fn persistence_operations_in_syntax(item: &Item) -> BTreeSet<String> {
@@ -49,16 +105,20 @@ pub(super) fn persistence_operations_in_syntax(item: &Item) -> BTreeSet<String> 
     visitor.symbols
 }
 
-pub(super) fn persistence_operations_in_block(
+/// Persistence-shaped sites in a generic function body, by syntax-node
+/// address. Free-function calls through `workspace_roots` are not sites.
+pub(super) fn generic_persistence_operation_sites(
     block: &syn::Block,
     generic_types: BTreeSet<String>,
-) -> BTreeSet<String> {
+    workspace_roots: &BTreeMap<String, String>,
+) -> BTreeMap<usize, String> {
     let mut visitor = PersistenceOperationSyntax {
         generic_types,
+        workspace_roots: Some(workspace_roots),
         ..PersistenceOperationSyntax::default()
     };
     visitor.visit_block(block);
-    visitor.symbols
+    visitor.sites
 }
 
 #[derive(Default)]

@@ -340,4 +340,104 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         }
         instantiated
     }
+
+    /// Whether the analyzer typed `receiver` to declared types none of which
+    /// can be a type parameter of the generic function being analyzed (#1437).
+    ///
+    /// The generic-function check exists because a receiver whose type is a
+    /// type parameter has no declared flow until instantiation. A receiver the
+    /// analyzer resolves to a declared, non-generic type (or a standard
+    /// collection) is typed independently of every instantiation, so the
+    /// ordinary flow analysis that just ran over the call is as complete as in
+    /// a non-generic function. An unresolved or partly resolved receiver still
+    /// fails the check.
+    pub(super) fn receiver_type_is_parameter_free(&self, receiver: &Expr) -> bool {
+        let types = self.parameter_free_candidate_types(receiver);
+        !types.is_empty()
+            && types
+                .iter()
+                .all(|ty| self.is_parameter_free_declared_type(ty))
+    }
+
+    /// The receiver's nominal types, looking through `Option::unwrap`,
+    /// `Option::expect` and `?` on an `Option` to the declared payload.
+    fn parameter_free_candidate_types(&self, receiver: &Expr) -> BTreeSet<String> {
+        let option_payload = |inner: &Expr| -> BTreeSet<String> {
+            if self.nominal_types_of_expr(inner) != BTreeSet::from(["Option".to_owned()]) {
+                return BTreeSet::new();
+            }
+            let variants = self.info_from_expr(inner).payload_variants;
+            if variants.is_empty() || variants.iter().any(|variant| variant.len() != 1) {
+                return BTreeSet::new();
+            }
+            let payload = variants
+                .iter()
+                .flat_map(|variant| variant[0].nominal_types.iter().cloned())
+                .collect::<BTreeSet<_>>();
+            // Every payload shape must carry a type; one that does not is
+            // unknown and taints the whole set.
+            if variants
+                .iter()
+                .any(|variant| variant[0].nominal_types.is_empty())
+            {
+                return BTreeSet::new();
+            }
+            payload
+        };
+        match receiver {
+            Expr::Paren(paren) => self.parameter_free_candidate_types(&paren.expr),
+            Expr::Group(group) => self.parameter_free_candidate_types(&group.expr),
+            Expr::Reference(reference) => self.parameter_free_candidate_types(&reference.expr),
+            Expr::Unary(unary) if matches!(unary.op, syn::UnOp::Deref(_)) => {
+                self.parameter_free_candidate_types(&unary.expr)
+            }
+            Expr::MethodCall(method)
+                if method.turbofish.is_none()
+                    && ((method.method == "unwrap" && method.args.is_empty())
+                        || (method.method == "expect" && method.args.len() == 1)) =>
+            {
+                option_payload(&method.receiver)
+            }
+            Expr::Try(try_expression)
+                if self.nominal_types_of_expr(&try_expression.expr)
+                    == BTreeSet::from(["Option".to_owned()]) =>
+            {
+                option_payload(&try_expression.expr)
+            }
+            _ => self.nominal_types_of_expr(receiver),
+        }
+    }
+
+    /// A primitive or standard collection, or a type the inventory registered from its
+    /// declaration without type parameters, that is not one of the generic
+    /// function's own type parameters.
+    fn is_parameter_free_declared_type(&self, ty: &str) -> bool {
+        // Primitives and standard collections: the analyzer reports a field's
+        // type as the union over every same-named field it may resolve to, so
+        // a set such as {Vec, bool} is still parameter-free.
+        const STANDARD_TYPES: &[&str] = &[
+            "Vec", "VecDeque", "String", "BTreeMap", "BTreeSet", "HashMap", "HashSet", "bool",
+            "char", "str", "f32", "f64", "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16",
+            "u32", "u64", "u128", "usize",
+        ];
+        if ty
+            .split("::")
+            .any(|segment| segment == "Self" || self.generic_function_params.contains(segment))
+        {
+            return false;
+        }
+        if STANDARD_TYPES.contains(&ty) && !self.symbols.local_type_definitions.contains(ty) {
+            return true;
+        }
+        let suffix = format!("::{ty}");
+        let mut declarations = self
+            .symbols
+            .named_type_info
+            .iter()
+            .chain(self.symbols.workspace_named_type_info.iter())
+            .filter(|(path, _)| path.as_str() == ty || path.ends_with(&suffix))
+            .peekable();
+        declarations.peek().is_some()
+            && declarations.all(|(_, info)| info.type_generic_params.is_empty())
+    }
 }

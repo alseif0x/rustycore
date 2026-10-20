@@ -38,6 +38,13 @@ pub(super) struct BodyAnalyzer<'a, 'b> {
     pub(super) suppress_records: bool,
     /// Macro shadows declared above the item whose body this analyzes.
     pub(super) visible_macro_shadows: BTreeSet<String>,
+    /// Type parameters of the generic module-level function being analyzed
+    /// (#1437). Empty for every other body.
+    pub(super) generic_function_params: BTreeSet<String>,
+    /// Persistence-shaped method calls in that generic function whose
+    /// receiver type the analyzer resolved to declared types that cannot be
+    /// one of those parameters, keyed by syntax-node address (#1437).
+    pub(super) parameter_free_operation_sites: BTreeSet<usize>,
 }
 
 #[derive(Default)]

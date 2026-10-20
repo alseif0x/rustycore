@@ -338,18 +338,15 @@ pub(super) fn analyze_function(
     errors: &mut Vec<String>,
 ) {
     let enclosing = format!("fn {}", normalized_ident(&function.sig.ident));
-    let generic_operations = function
-        .sig
-        .generics
-        .params
-        .iter()
-        .any(|param| matches!(param, syn::GenericParam::Type(_)))
+    let generic_params = generic_type_param_names(&function.sig.generics)
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let generic_operation_sites = (!generic_params.is_empty())
         .then(|| {
-            persistence_operations_in_block(
+            generic_persistence_operation_sites(
                 &function.block,
-                generic_type_param_names(&function.sig.generics)
-                    .into_iter()
-                    .collect(),
+                generic_params.clone(),
+                &symbols.dependency_crate_aliases,
             )
         })
         .unwrap_or_default();
@@ -397,6 +394,7 @@ pub(super) fn analyze_function(
         cfg.clone(),
     );
     analyzer.visible_macro_shadows = visible_macro_shadows;
+    analyzer.generic_function_params = generic_params;
     analyzer.register_local_uses(&function.block.stmts);
     analyzer.register_local_callables(&function.block.stmts);
     analyzer.register_local_constants(&function.block.stmts);
@@ -421,8 +419,16 @@ pub(super) fn analyze_function(
             fingerprint,
         );
     }
+    let parameter_free_sites = std::mem::take(&mut analyzer.parameter_free_operation_sites);
     drop(analyzer);
-    let unresolved = generic_operations
+    // A site stays unresolved unless the analyzer recorded its operation from
+    // declared flow, or typed its receiver to declared types that cannot be
+    // one of this function's type parameters (#1437).
+    let unresolved = generic_operation_sites
+        .into_iter()
+        .filter(|(site, _)| !parameter_free_sites.contains(site))
+        .map(|(_, operation)| operation)
+        .collect::<BTreeSet<_>>()
         .into_iter()
         .filter(|operation| !accumulator.contains_symbol(&enclosing, operation))
         .collect::<Vec<_>>();

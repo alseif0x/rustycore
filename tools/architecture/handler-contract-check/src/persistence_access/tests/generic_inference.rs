@@ -410,3 +410,178 @@ fn persistence_inventory_instantiates_generic_named_type_fields() {
         row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
     }));
 }
+
+/// The F5 host-trait shapes from #1437: persistence-shaped names on receivers
+/// the analyzer types without the function's type parameters, and a call to a
+/// module-qualified workspace free function, are audited like any other call.
+#[test]
+fn persistence_inventory_accepts_parameter_free_receivers_in_generic_functions() {
+    let result = inventory(
+        r#"
+                #[derive(Default)]
+                pub struct Outcome { pub actions: Vec<u32> }
+                impl Outcome { pub fn append(&mut self, other: Outcome) { let _ = other; } }
+                pub struct Finalization;
+                impl Finalization { pub fn begin(&mut self, step: u8) -> bool { step > 0 } }
+                pub struct Lifecycle { finalization: Option<Finalization> }
+                impl Lifecycle {
+                    pub fn finalization_mut(&mut self) -> Option<&mut Finalization> {
+                        self.finalization.as_mut()
+                    }
+                }
+                pub trait Host {
+                    fn read(&self) -> u32;
+                    fn lifecycle_mut(&mut self) -> &mut Lifecycle;
+                }
+                pub mod player_cast {
+                    pub fn prepare<H: super::Host>(host: &mut H) -> bool { host.read() > 0 }
+                }
+                pub fn apply<H: Host>(host: &mut H) -> Outcome {
+                    let mut outcome = Outcome::default();
+                    let mut list = Vec::new();
+                    let mut more = vec![host.read()];
+                    list.append(&mut more);
+                    outcome.actions.append(&mut list);
+                    outcome.append(Outcome::default());
+                    if host.lifecycle_mut().finalization_mut().unwrap().begin(1) {}
+                    if host.lifecycle_mut().finalization_mut().expect("x").begin(2) {}
+                    if crate::player_cast::prepare(host) {}
+                    outcome
+                }
+            "#,
+    );
+    assert!(result.is_ok(), "{result:?}");
+}
+
+/// Receivers that may still be a type parameter keep failing (#1437).
+#[test]
+fn persistence_inventory_rejects_parameter_dependent_receivers_in_generic_functions() {
+    let rejected = |body: &str, operation: &str| {
+        let source = format!(
+            r#"
+                pub trait HasPool {{ fn pool(&self); fn begin(&self) -> bool; }}
+                pub struct Holder<T>(pub T);
+                pub struct Wrapper<T> {{ pub inner: T }}
+                impl<T> Wrapper<T> {{ pub fn begin(&self) -> bool {{ true }} }}
+                pub trait Host {{ type Db: HasPool; fn db(&mut self) -> &mut Self::Db; }}
+                pub trait Exec {{ fn execute(&self); }}
+                {body}
+            "#
+        );
+        let error = inventory(&source).unwrap_err();
+        assert!(
+            error.contains(&format!("persistence-shaped operations ({operation})")),
+            "{body}: {error}"
+        );
+    };
+    rejected(
+        "pub fn f<T: HasPool>(value: T) { let held = Holder(value); held.0.pool(); }",
+        "pool",
+    );
+    rejected("pub fn f<T>(value: Wrapper<T>) { value.begin(); }", "begin");
+    rejected(
+        "pub fn f<T: HasPool>(value: Option<T>) { value.unwrap().pool(); }",
+        "pool",
+    );
+    rejected(
+        "pub fn f<H: Host>(host: &mut H) { host.db().begin(); }",
+        "begin",
+    );
+    rejected(
+        "pub fn f<T: Exec>(value: T) { Exec::execute(&value); }",
+        "execute",
+    );
+    rejected(
+        "pub fn f<T: HasPool>(value: T) { unknown_root::prepare(value); }",
+        "prepare",
+    );
+    rejected(
+        "pub fn f<T: Exec>(value: T) { crate::Exec::execute(&value); }",
+        "execute",
+    );
+}
+
+/// Across packages (#1437): a dependency's free function and declared type
+/// are parameter-free, while the dependency's own generic body is still held
+/// to the check at its definition, and an undeclared root is not trusted.
+#[test]
+fn persistence_inventory_audits_dependency_free_functions_at_their_definition() {
+    let source = |package, source| ClassifiedPersistenceSource {
+        classification: "database_adapter_core",
+        package,
+        module: "crate",
+        source_path: "src/lib.rs",
+        inherited_cfg: &[],
+        source,
+    };
+    let provider = source(
+        "provider-a",
+        r#"
+            pub trait Host { fn lifecycle_mut(&mut self) -> &mut Lifecycle; }
+            pub struct Lifecycle;
+            impl Lifecycle { pub fn begin(&mut self) -> bool { true } }
+            pub mod player_cast {
+                pub fn prepare<H: super::Host>(host: &mut H) -> bool {
+                    host.lifecycle_mut().begin()
+                }
+            }
+        "#,
+    );
+    let consumer = source(
+        "consumer-b",
+        r#"
+            pub fn tick<H: provider_alias::Host>(host: &mut H) -> bool {
+                provider_alias::player_cast::prepare(host) && host.lifecycle_mut().begin()
+            }
+        "#,
+    );
+    // Test builds see the normal dependencies too, as Cargo does.
+    let aliases = BTreeMap::from([(
+        "consumer-b".to_owned(),
+        BTreeMap::from([("provider_alias".to_owned(), "provider_a".to_owned())]),
+    )]);
+    let dependencies = WorkspaceDependencyAliases {
+        production: aliases.clone(),
+        test: aliases,
+    };
+    let accepted =
+        inventory_persistence_accesses_with_dependencies(&[consumer, provider], &dependencies);
+    assert!(accepted.is_ok(), "{accepted:?}");
+
+    let generic_provider = source(
+        "provider-a",
+        r#"
+            pub trait HasPool { fn pool(&self); }
+            pub mod player_cast {
+                pub fn prepare<T: super::HasPool>(value: T) { value.pool(); }
+            }
+        "#,
+    );
+    let generic_consumer = source(
+        "consumer-b",
+        r#"
+            pub fn tick<T: provider_alias::HasPool>(value: T) {
+                provider_alias::player_cast::prepare(value);
+            }
+            pub fn untrusted<T: provider_alias::HasPool>(value: T) {
+                unrelated_provider::player_cast::prepare(value);
+            }
+        "#,
+    );
+    let error = inventory_persistence_accesses_with_dependencies(
+        &[generic_consumer, generic_provider],
+        &dependencies,
+    )
+    .unwrap_err();
+    assert!(
+        error.contains("fn prepare is generic and contains persistence-shaped operations (pool)"),
+        "{error}"
+    );
+    assert!(
+        error.contains(
+            "fn untrusted is generic and contains persistence-shaped operations (prepare)"
+        ),
+        "{error}"
+    );
+    assert!(!error.contains("fn tick "), "{error}");
+}
