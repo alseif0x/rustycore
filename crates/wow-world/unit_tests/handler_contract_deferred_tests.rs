@@ -50,7 +50,6 @@ fn void_storage_family_is_migrated_off_the_legacy_inventory() {
                 "Inplace",
             ),
         ],
-        0,
     );
 }
 
@@ -83,7 +82,6 @@ fn talent_family_is_migrated_off_the_legacy_inventory() {
                 "ThreadUnsafe",
             ),
         ],
-        0,
     );
 }
 
@@ -130,19 +128,14 @@ fn corpse_family_is_migrated_off_the_legacy_inventory() {
                 "Inplace",
             ),
         ],
-        0,
     );
 }
 
-/// F5 is complete: the legacy inventory drain contributes no row, and every one
-/// of the 476 composed registrations originates from an explicit area
+/// F5 is complete: the legacy inventory drain is retired (#1360), and every
+/// one of the 476 composed registrations originates from an explicit area
 /// registrar.
 #[test]
 fn legacy_inventory_drain_is_empty_and_every_registration_is_area_owned() {
-    assert!(
-        legacy_inventory_contract_rows().is_empty(),
-        "no packet handler may still be submitted through the legacy inventory"
-    );
     assert_eq!(
         registered_contract().len(),
         476,

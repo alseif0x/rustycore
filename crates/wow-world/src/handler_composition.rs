@@ -4,7 +4,8 @@
 //! The single ordered packet-handler composition for the process.
 //!
 //! This crate-level module owns the one ordered list of packet-handler
-//! registrars and the legacy inventory registration that closes it. Both the
+//! registrars; the legacy inventory registration bridge was retired by #1360.
+//! Both the
 //! fixture dispatch builder in [`crate::session::registry`] and the
 //! process-wide composer published by `world-server` consume this function, so
 //! a new handler owner is registered exactly once, in contract order.
@@ -13,7 +14,6 @@ use std::sync::Arc;
 
 use wow_handler::DuplicateHandlerRegistrationLikeCpp;
 
-use crate::session::registry::register_remaining_handlers_like_cpp;
 use crate::session::registry::{WorldPacketHandlerRegistry, WorldPacketHandlerRegistryBuilder};
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 
@@ -196,6 +196,5 @@ pub fn compose_packet_handlers_like_cpp()
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;
-    register_remaining_handlers_like_cpp(&mut builder)?;
     Ok(Arc::new(builder.build()))
 }

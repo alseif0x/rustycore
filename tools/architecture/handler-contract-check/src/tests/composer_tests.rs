@@ -469,8 +469,6 @@ where
 /// direct registrars, exactly like the real tree.
 fn synthetic_world_authority_source() -> String {
     r#"
-use crate::session::registry::register_remaining_handlers_like_cpp;
-
 /// Synthetic ordered authority for the finite two-owner test.
 pub fn compose_packet_handlers_like_cpp() -> Result<
     Arc<WorldPacketHandlerRegistry>,
@@ -479,7 +477,6 @@ pub fn compose_packet_handlers_like_cpp() -> Result<
     let mut builder = WorldPacketHandlerRegistryBuilder::new();
     wow_world_inventory::register_inventory_handlers_like_cpp::<WorldSession, SessionHandlerCatalogsLikeCpp>(&mut builder)?;
     synthetic_fixture_owner::register_synthetic_handlers_like_cpp::<WorldSession, SessionHandlerCatalogsLikeCpp>(&mut builder)?;
-    register_remaining_handlers_like_cpp(&mut builder)?;
     Ok(Arc::new(builder.build()))
 }
 "#
@@ -650,8 +647,8 @@ fn composition_guard_requires_bank_once_in_the_authority_with_exact_facade() {
     let mut duplicate = actual;
     duplicate[authority].source = mutate_fixture(
         &duplicate[authority].source,
-        "    register_remaining_handlers_like_cpp(&mut builder)?;",
-        "    wow_world_inventory::register_bank_handlers_like_cpp::<WorldSession, SessionHandlerCatalogsLikeCpp>(&mut builder)?;\n    register_remaining_handlers_like_cpp(&mut builder)?;",
+        "    Ok(Arc::new(builder.build()))",
+        "    wow_world_inventory::register_bank_handlers_like_cpp::<WorldSession, SessionHandlerCatalogsLikeCpp>(&mut builder)?;\n    Ok(Arc::new(builder.build()))",
     );
     assert_rejected(&duplicate, "duplicate Bank registrar call");
 }
@@ -873,21 +870,22 @@ fn composition_guard_rejects_missing_aliased_and_wrong_equipment_set_use_calls()
 
 #[test]
 fn composition_guard_rejects_missing_duplicate_nested_and_aliased_domain_calls() {
-    let mut missing_legacy = actual_mounts();
-    let authority = authority_index(&missing_legacy);
-    missing_legacy[authority].source = mutate_fixture(
-        &missing_legacy[authority].source,
-        "    register_remaining_handlers_like_cpp(&mut builder)?;\n",
-        "",
+    // #1360 retired the legacy drain: reintroducing its call is rejected.
+    let mut reintroduced_legacy = actual_mounts();
+    let authority = authority_index(&reintroduced_legacy);
+    reintroduced_legacy[authority].source = mutate_fixture(
+        &reintroduced_legacy[authority].source,
+        "    Ok(Arc::new(builder.build()))",
+        "    register_remaining_handlers_like_cpp(&mut builder)?;\n    Ok(Arc::new(builder.build()))",
     );
-    assert_rejected(&missing_legacy, "missing legacy authority call");
+    assert_rejected(&reintroduced_legacy, "reintroduced legacy authority call");
 
     let mut duplicate = actual_mounts();
     let authority = authority_index(&duplicate);
     duplicate[authority].source = mutate_fixture(
         &duplicate[authority].source,
-        "    register_remaining_handlers_like_cpp(&mut builder)?;",
-        "    wow_world_inventory::register_inventory_handlers_like_cpp::<WorldSession, SessionHandlerCatalogsLikeCpp>(&mut builder)?;\n    register_remaining_handlers_like_cpp(&mut builder)?;",
+        "    Ok(Arc::new(builder.build()))",
+        "    wow_world_inventory::register_inventory_handlers_like_cpp::<WorldSession, SessionHandlerCatalogsLikeCpp>(&mut builder)?;\n    Ok(Arc::new(builder.build()))",
     );
     assert_rejected(&duplicate, "duplicate domain registration");
 
@@ -944,6 +942,11 @@ fn composition_guard_rejects_wrong_mount_and_aliased_legacy_import() {
         &aliased_legacy[authority].source,
         "use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};",
         "use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};\nuse wow_world::session::registry::register_remaining_handlers_like_cpp as register_legacy_handlers;",
+    );
+    aliased_legacy[authority].source = mutate_fixture(
+        &aliased_legacy[authority].source,
+        "    Ok(Arc::new(builder.build()))",
+        "    register_legacy_handlers(&mut builder)?;\n    Ok(Arc::new(builder.build()))",
     );
     assert_rejected(
         &aliased_legacy,
@@ -1064,8 +1067,8 @@ fn composition_guard_derives_two_owner_call_set_and_rejects_partial_or_alternate
     let authority = authority_index(&duplicated);
     duplicated[authority].source = mutate_fixture(
         &duplicated[authority].source,
-        "    register_remaining_handlers_like_cpp(&mut builder)?;",
-        "    wow_world_inventory::register_inventory_handlers_like_cpp::<WorldSession, SessionHandlerCatalogsLikeCpp>(&mut builder)?;\n    register_remaining_handlers_like_cpp(&mut builder)?;",
+        "    Ok(Arc::new(builder.build()))",
+        "    wow_world_inventory::register_inventory_handlers_like_cpp::<WorldSession, SessionHandlerCatalogsLikeCpp>(&mut builder)?;\n    Ok(Arc::new(builder.build()))",
     );
     assert!(validate_composition_mounts_with_contracts(&duplicated, contracts).is_err());
 

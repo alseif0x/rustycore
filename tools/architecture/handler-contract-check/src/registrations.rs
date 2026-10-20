@@ -42,7 +42,6 @@ pub(crate) use direct_builder::{
 pub(crate) use local_inventory::{
     data_module_alias_violations, inventory_dependency_packages, registration_alias_violations,
     registration_alias_violations_with_context,
-    registration_alias_violations_with_legacy_wrapper_reexport,
 };
 
 /// Registration macros the repository is expected to expand.
@@ -500,11 +499,6 @@ fn use_tree_can_alias_expected_registration_macro(tree: &UseTree) -> bool {
     }
 }
 
-#[derive(Debug, Default)]
-pub(crate) struct OutsideRegistrationReport {
-    pub(crate) exact_legacy_wrapper_collectors: usize,
-}
-
 pub(crate) fn handler_capable_macro_definitions(
     source_path: &Path,
     source: &str,
@@ -637,23 +631,19 @@ pub(crate) fn include_macro_bodies(
 pub(crate) fn analyze_registration_syntax_outside_handlers(
     source_path: &Path,
     source: &str,
-    allow_exact_legacy_registry_bridge: bool,
     allow_local_data_module: bool,
-) -> Result<OutsideRegistrationReport, String> {
+) -> Result<(), String> {
     // Tokenize the complete source without evaluating cfg predicates. This is
     // intentionally independent of rustc's active target/profile so an
     // otherwise invisible #[cfg(...)] registration is still audited.
     let tokens: TokenStream = source
         .parse()
         .map_err(|error| format!("cannot tokenize {}: {error}", source_path.display()))?;
-    let mut violations = registration_alias_violations_with_context(
-        source,
-        allow_exact_legacy_registry_bridge,
-        allow_local_data_module,
-    )?
-    .into_iter()
-    .map(|violation| format!("{} {violation}", source_path.display()))
-    .collect::<Vec<_>>();
+    let mut violations =
+        registration_alias_violations_with_context(source, allow_local_data_module)?
+            .into_iter()
+            .map(|violation| format!("{} {violation}", source_path.display()))
+            .collect::<Vec<_>>();
     if token_stream_mentions_ident(&tokens, "PacketHandlerEntry") {
         if let Some(violation) = direct_builder::unowned_entry_literal_violation(source)? {
             violations.push(format!("{} {violation}", source_path.display()));
@@ -661,13 +651,11 @@ pub(crate) fn analyze_registration_syntax_outside_handlers(
     }
     let syntax = syn::parse_file(source)
         .map_err(|error| format!("cannot parse {}: {error}", source_path.display()))?;
-    let bridge = legacy_registry::analyze_bridge(
+    violations.extend(legacy_registry::retired_bridge_violations(
         source_path,
         &tokens,
         &syntax,
-        allow_exact_legacy_registry_bridge,
-    );
-    violations.extend(bridge.violations);
+    ));
     for call in token_macro_calls(&tokens) {
         if call.path.last().is_some_and(|name| name == "include") {
             violations.push(format!(
@@ -675,15 +663,6 @@ pub(crate) fn analyze_registration_syntax_outside_handlers(
                  registration",
                 source_path.display()
             ));
-        } else if allow_exact_legacy_registry_bridge
-            && legacy_registry::is_exact_wrapper_collector(&call.path, &call.body)
-        {
-            continue;
-        } else if allow_exact_legacy_registry_bridge
-            && bridge.complete
-            && legacy_registry::is_exact_wrapper_submit(&call.path, &call.body)
-        {
-            continue;
         } else if call
             .path
             .last()
@@ -726,9 +705,7 @@ pub(crate) fn analyze_registration_syntax_outside_handlers(
     violations.dedup();
 
     if violations.is_empty() {
-        Ok(OutsideRegistrationReport {
-            exact_legacy_wrapper_collectors: bridge.exact_collectors,
-        })
+        Ok(())
     } else {
         Err(violations.join("\n"))
     }
@@ -739,7 +716,7 @@ pub(crate) fn reject_registration_syntax_outside_handlers(
     source_path: &Path,
     source: &str,
 ) -> Result<(), String> {
-    analyze_registration_syntax_outside_handlers(source_path, source, false, false).map(|_| ())
+    analyze_registration_syntax_outside_handlers(source_path, source, false)
 }
 
 fn path_segments(path: &syn::Path) -> Vec<String> {
@@ -1444,10 +1421,7 @@ fn collect_source_file(
     }
     let source = fs::read_to_string(&source_path)
         .map_err(|error| format!("cannot read {}: {error}", source_path.display()))?;
-    let alias_violations = registration_alias_violations_with_legacy_wrapper_reexport(
-        &source,
-        module_path == "crate::session::registry",
-    )?;
+    let alias_violations = registration_alias_violations(&source)?;
     if !alias_violations.is_empty() {
         return Err(format!(
             "{}: {}",

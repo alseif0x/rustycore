@@ -806,13 +806,5 @@ fn production_linked_registry_carries_the_migrated_deferred_families() {
         assert_eq!(matches[0].processing, *processing, "{opcode:?} processing");
     }
 
-    let mut legacy = wow_world::session::registry::WorldPacketHandlerRegistryBuilder::new();
-    wow_world::session::registry::register_remaining_handlers_like_cpp(&mut legacy)
-        .expect("the legacy inventory drain registers");
-    assert_eq!(
-        legacy.build().iter().count(),
-        0,
-        "no production-linked registration may remain in the legacy inventory"
-    );
     assert_eq!(registry.iter().count(), 476, "476 effective registrations");
 }

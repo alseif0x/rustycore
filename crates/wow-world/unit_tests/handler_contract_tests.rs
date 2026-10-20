@@ -296,33 +296,12 @@ fn print_world_handler_contract_snapshot() {
     );
 }
 
-/// The rows the legacy inventory drain still contributes (#1263 F5 tail).
-///
-/// These are the registrations `register_remaining_handlers_like_cpp` links from
-/// `inventory::submit!`; every migrated family must be absent from this set, so
-/// a family that silently kept its legacy submission fails here. After
-/// `#1263 F5 remaining families` the residual was exactly the ten deliberately
-/// deferred entries of `handlers/void_storage.rs` (4), `handlers/talent.rs` (2)
-/// and `handlers/entities/corpse.rs` (4); after `#1263 F5 deferred families`
-/// it is empty.
-fn legacy_inventory_contract_rows() -> Vec<HandlerContractRow> {
-    let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
-    crate::session::registry::register_remaining_handlers_like_cpp(&mut builder)
-        .expect("legacy inventory drain registers");
-    builder
-        .build()
-        .iter()
-        .map(HandlerContractRow::from_entry)
-        .collect()
-}
-
-/// Assert one migrated family: exact tuples, one registration each, and no
-/// legacy submission left behind.
+/// Assert one migrated family: exact tuples, one registration each, each
+/// originating from its explicit area registrar.
 fn assert_migrated_family_like_cpp(
     family: &str,
     registrar: impl FnOnce(&mut crate::session::registry::WorldPacketHandlerRegistryBuilder),
     expected: &[HandlerContractRow],
-    expected_legacy_rows: usize,
 ) {
     let composed = registered_contract();
     for row in expected {
@@ -358,22 +337,6 @@ fn assert_migrated_family_like_cpp(
             row.display()
         );
     }
-
-    let legacy = legacy_inventory_contract_rows();
-    for row in expected {
-        assert!(
-            !legacy
-                .iter()
-                .any(|candidate| candidate.opcode_value == row.opcode_value),
-            "{family}: {} is still submitted through the legacy inventory",
-            row.display()
-        );
-    }
-    assert_eq!(
-        legacy.len(),
-        expected_legacy_rows,
-        "{family}: the legacy inventory drain must hold exactly the measured residual rows"
-    );
 }
 
 /// Negative control (#1263 F5 tail): re-registering the migrated tail on the
@@ -436,7 +399,6 @@ fn trainer_family_is_migrated_off_the_legacy_inventory() {
                 "Inplace",
             ),
         ],
-        0,
     );
 }
 /// The movement registration tail (#1263 F5 tail, commit 2) left the legacy
@@ -833,7 +795,6 @@ fn movement_tail_family_is_migrated_off_the_legacy_inventory() {
                 "ThreadSafe",
             ),
         ],
-        0,
     );
 }
 
@@ -1008,7 +969,6 @@ fn character_account_family_is_migrated_off_the_legacy_inventory() {
                 "ThreadUnsafe",
             ),
         ],
-        0,
     );
 }
 
@@ -1135,7 +1095,6 @@ fn quest_family_is_migrated_off_the_legacy_inventory() {
                 "ThreadUnsafe",
             ),
         ],
-        0,
     );
 }
 
@@ -1184,7 +1143,6 @@ fn spell_cast_family_is_migrated_off_the_legacy_inventory() {
                 "Inplace",
             ),
         ],
-        0,
     );
 }
 
@@ -1226,7 +1184,6 @@ fn travel_family_is_migrated_off_the_legacy_inventory() {
                 "ThreadUnsafe",
             ),
         ],
-        0,
     );
 }
 
@@ -1349,7 +1306,6 @@ fn combat_family_is_migrated_off_the_legacy_inventory() {
             "LoggedIn",
             "Inplace",
         )],
-        0,
     );
 }
 
@@ -1373,7 +1329,6 @@ fn client_state_currency_flags_family_is_migrated_off_the_legacy_inventory() {
             "LoggedIn",
             "Inplace",
         )],
-        0,
     );
 }
 
@@ -1397,7 +1352,6 @@ fn chat_text_emote_family_is_migrated_off_the_legacy_inventory() {
             "LoggedIn",
             "Inplace",
         )],
-        0,
     );
 }
 
@@ -1421,7 +1375,6 @@ fn gameobject_use_family_is_migrated_off_the_legacy_inventory() {
             "LoggedIn",
             "Inplace",
         )],
-        0,
     );
 }
 
@@ -1445,7 +1398,6 @@ fn dungeon_finding_system_info_family_is_migrated_off_the_legacy_inventory() {
             "LoggedIn",
             "ThreadSafe",
         )],
-        0,
     );
 }
 
@@ -1469,7 +1421,6 @@ fn loot_money_family_is_migrated_off_the_legacy_inventory() {
             "LoggedIn",
             "ThreadUnsafe",
         )],
-        0,
     );
 }
 
@@ -1493,7 +1444,6 @@ fn dismiss_critter_family_is_migrated_off_the_legacy_inventory() {
             "LoggedIn",
             "ThreadUnsafe",
         )],
-        0,
     );
 }
 
@@ -1526,7 +1476,6 @@ fn pvp_skirmish_and_wargame_family_is_migrated_off_the_legacy_inventory() {
                 "ThreadUnsafe",
             ),
         ],
-        0,
     );
 }
 
@@ -1554,7 +1503,6 @@ fn toy_collection_family_is_migrated_off_the_legacy_inventory() {
             ),
             contract_row(0x329A, "UseToy", "handle_use_toy", "LoggedIn", "Inplace"),
         ],
-        0,
     );
 }
 
@@ -1601,7 +1549,6 @@ fn vehicle_seat_family_is_migrated_off_the_legacy_inventory() {
                 "ThreadUnsafe",
             ),
         ],
-        0,
     );
 }
 

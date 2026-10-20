@@ -92,6 +92,17 @@ pub fn check_repository() -> Result<String, String> {
             source_report.builder_registrars
         ));
     }
+    // #1360 retired the World legacy inventory drain: nothing registers an
+    // `inventory::submit!` (or the old wrapper) any more, so such a submission
+    // inside a handler owner would be silently dropped at runtime.
+    if source_report.direct_submissions != 0 {
+        return Err(format!(
+            "found {} legacy inventory handler submission(s); the legacy inventory \
+             registration bridge was retired by #1360 and nothing drains it, so register \
+             every handler through an explicit area registrar",
+            source_report.direct_submissions
+        ));
+    }
     if source_report.represented_entries() != snapshot.row_count {
         return Err(format!(
             "source registration coverage differs from the linked handler snapshot: \

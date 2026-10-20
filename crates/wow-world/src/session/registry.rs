@@ -2,13 +2,11 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! The world-session adapter for the shared packet-handler registry.
-#![allow(unused_macros, unused_imports)] // Empty checker-pinned legacy bridge (#1360).
 
 #[cfg(any(test, feature = "test-fixtures"))]
 use std::sync::Arc;
-#[cfg(any(test, feature = "test-fixtures"))]
+#[cfg(test)]
 use wow_constants::ClientOpcodes;
-use wow_handler::DuplicateHandlerRegistrationLikeCpp;
 
 use super::{SessionHandlerCatalogsLikeCpp, WorldSession};
 
@@ -27,39 +25,6 @@ pub type WorldPacketHandlerRegistry =
 /// The builder used to compose world-session packet handlers.
 pub type WorldPacketHandlerRegistryBuilder =
     wow_handler::RegistryBuilder<WorldSession, SessionHandlerCatalogsLikeCpp>;
-
-/// Inventory's orphan-rule adapter for registrations declared in this crate.
-pub(crate) struct LegacyPacketHandlerRegistrationLikeCpp {
-    pub(crate) entry: &'static PacketHandlerEntry,
-}
-
-inventory::collect!(LegacyPacketHandlerRegistrationLikeCpp);
-
-/// Register one static world-session packet handler with the legacy collector.
-macro_rules! register_packet_handler_like_cpp {
-    ($entry:expr) => {
-        const _: () = {
-            static ENTRY: $crate::session::registry::PacketHandlerEntry = $entry;
-            inventory::submit! {
-                $crate::session::registry::LegacyPacketHandlerRegistrationLikeCpp {
-                    entry: &ENTRY,
-                }
-            }
-        };
-    };
-}
-
-pub(crate) use register_packet_handler_like_cpp;
-
-/// Register every legacy inventory entry in a world-session registry builder.
-pub fn register_remaining_handlers_like_cpp(
-    builder: &mut WorldPacketHandlerRegistryBuilder,
-) -> Result<(), DuplicateHandlerRegistrationLikeCpp> {
-    for registration in inventory::iter::<LegacyPacketHandlerRegistrationLikeCpp> {
-        builder.register(*registration.entry)?;
-    }
-    Ok(())
-}
 
 /// Compose the immutable world-session dispatch table from registered handlers.
 #[cfg(any(test, feature = "test-fixtures"))]
