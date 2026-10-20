@@ -15,6 +15,7 @@ checkbox or an old percentage is not proof that the current server implements th
 | What must a quest reward make durable, and when? | [Quest reward operation contract](architecture/quest-reward-operation-contract.md) |
 | What architecture and extension direction is approved? | [Modularity/ECS plan](architecture/modularity-and-ecs-plan.md) |
 | How should responsibilities and files be organized? | [Module design](architecture/module-design-guidelines.md) and [dependency/ownership boundaries](architecture/ownership-and-boundaries.md) |
+| Which oversized files still owe a #584:C4 split? | [C4 physical split plan](architecture/c4-physical-split-plan.md) |
 | What reported defects need current verification? | [EXISTING-CODE-DEFECTS.md](migration/EXISTING-CODE-DEFECTS.md) |
 
 Base-server behavior is established by versioned C++ references and appropriate target-build
