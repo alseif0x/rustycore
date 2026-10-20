@@ -8,9 +8,13 @@ the existing native mesh/query owner and pathfinder worker with explicit
 prepare, query and unload operations. Checked ground-payload admission precedes
 native loading; query budgets and raw partial-path status remain explicit.
 
-This candidate is isolated from pending terrain, spell-fixture and operator
-configuration changes. Its committed-candidate acceptance is pending; earlier
-scoped evidence does not establish acceptance of this isolated tree. The server
+This candidate preserves pending terrain and operator configuration changes.
+It includes seven reviewed test-only prerequisites: explicit persistence/SQL
+imports, correctly typed literals, current serialized fixture expectations,
+complete table-fixture cleanup and the existing binary-effect fixture scaling
+correction/regression. Their original development files remain intact.
+Renewed committed-candidate acceptance is pending; earlier
+scoped evidence does not establish acceptance of the revised tree. The server
 does not instantiate the optional capability. Full-world resources, complete
 geometry, movement/gameplay and server runtime acceptance remain open; creation
 and world entry stay paused. See the owning navigation candidate section in

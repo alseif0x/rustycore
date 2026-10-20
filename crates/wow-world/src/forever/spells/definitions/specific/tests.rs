@@ -46,7 +46,7 @@ fn family_rules_keep_each_source_bit_and_precedence() {
         (6, 0, 0x20, PriestDivineSpirit),
         (9, 0, 0x200000, Aspect),
         (9, 2, 0x1010, Aspect),
-        (10, 1, 0xA2000800, Seal),
+        (10, 1, 0xA2000800u32, Seal),
         (10, 0, 0x2190, Hand),
         (11, 1, 0x420, ElementalShield),
         (11, 0, 0x400, ElementalShield),

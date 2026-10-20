@@ -10,13 +10,31 @@ query budgets and explicit unload fence its lifecycle. The worker preserves raw
 corridor status, including partial results, and bounds paths to 256 polygons.
 The lower-level SDK permits up to 4,096; these are separate bounds.
 
-The candidate uses an exact sibling-library dependency policy. It does not
-include the pending terrain adapter, spell-fixture repairs or local operator
-configuration. The existing checkout and its other work remain intact.
-Committed-candidate validation is pending in a separate source tree with the
+The candidate uses an exact sibling-library dependency policy. Cargo requires
+the reviewed extractor checkout as the adjacent `rustycore-extractors` directory
+even when the optional consumer feature is disabled; the optional dependency
+does not make its manifest optional during dependency resolution. It does not
+include the pending terrain adapter or local operator configuration. Seven
+reviewed test-only prerequisites are included: explicit persistence/SQL imports,
+correctly typed literals, current serialized fixture expectations, complete
+table-fixture cleanup and the existing binary-effect fixture scaling
+correction/regression. No spell production behavior changes. The existing
+checkout and its original test files remain intact.
+Renewed committed-candidate validation is pending in a separate source tree with the
 extractor pinned to `3baac307329bd0391cd7f083a55e03b982081b27`. Earlier acceptance
 of a mixed development tree is retained at its actual scope and is not
 transferred to this isolated candidate.
+
+The first isolated candidate `d67509c8` completed a fresh-target campaign in
+449.555 seconds. Its 77 SDK tests, ten public consumer tests and one disabled
+feature regression pass. Its general final fails the SDK root physical ceiling
+(220 versus 218) and inherited Session ownership baselines; its world library
+cannot compile eight missing persistence-type uses in existing tests. These
+negative results are retained, not waived. The revised candidate moves the
+three synthetic-fixture FFI declarations into one private module, preserving
+symbols, cfgs and call sites, and includes the reviewed test prerequisites.
+This cold isolated run does not reset the earlier ordinary campaign or its
+failed 600-second performance target.
 
 The server does not instantiate this capability. This is library integration,
 without full-world, complete geometry, movement/gameplay or server runtime

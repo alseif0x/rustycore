@@ -17,7 +17,12 @@ fn every_effect_and_periodic_aura_exclusion_keeps_source_binary_predicates() {
         for aura in [0, 3, 89, 4, 53, 62, 226, 2] {
             let s = fresh(
                 Default::default(),
-                [(key, definition(vec![effect(kind, aura, 10.0)]))],
+                // 02245dcd SpellMgr.cpp:3218 calls CalcValueAsInt first.
+                // SpellInfo.cpp:742-755 and DB2Stores.cpp:2527-2534 use a
+                // missing-ExpectedStat multiplier of 1/100. Keep every effect
+                // positive after that scaling and integer conversion so this
+                // matrix really isolates the binary effect/aura predicates.
+                [(key, definition(vec![effect(kind, aura, 1000.0)]))],
             );
             let (s, _) = run(s, key, &mut no_draw);
             let expected = kind != 0
@@ -27,6 +32,25 @@ fn every_effect_and_periodic_aura_exclusion_keeps_source_binary_predicates() {
                     27 | 6 | 35 | 65 | 128 | 129 | 119 | 143 | 174 | 202 | 271
                 ) && matches!(aura, 3 | 89 | 4 | 53 | 62 | 226));
             assert_eq!(flags(&s, key) & BINARY != 0, expected, "{kind}/{aura}");
+        }
+    }
+}
+
+#[test]
+fn expected_stat_fallback_is_scaled_before_binary_integer_admission() {
+    let key = (900_001, 0);
+    for (kind, aura) in [(7, 0), (8, 0), (10, 0), (6, 13), (6, 8), (6, 29)] {
+        for (base, expected) in [(10.0, false), (100.0, true)] {
+            let s = fresh(
+                Default::default(),
+                [(key, definition(vec![effect(kind, aura, base)]))],
+            );
+            let (s, _) = run(s, key, &mut no_draw);
+            assert_eq!(
+                flags(&s, key) & BINARY != 0,
+                expected,
+                "{kind}/{aura}/{base}"
+            );
         }
     }
 }
