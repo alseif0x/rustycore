@@ -48,17 +48,46 @@ file. That child file has no row of its own, so the obligation moves here:
 - **`crates/wow-database/src/statements/character/`.** `identities.rs` (1791 lines) and
   `statement_def.rs` (1629) still owe the semantic separation of the statement catalogue.
 - **`tools/architecture/handler-contract-check/src/persistence_access/body_visit.rs`.** At
-  1686 lines it needs a cohesion review.
+  1686 lines on `0aba84cee` (1694 once PR #1447 lands, +8 lines for the #1437 generic
+  guard hook) it needs a cohesion review. The retired row's text: "one Visit trait impl can
+  delegate to private expression analyzers while preserving traversal order".
 - **`tools/wow-test-bot/src/bot/void_storage_2.rs`.** At 1648 lines it has grown past the 1573
   its parent row recorded, and it has no guard.
 
 All three are under 2000, so they pass the terminal budget. They stay in the >1000 cohesion
 review.
 
+Five more retired rows are files still between 1000 and 2000 lines. Their rows carried a
+split or no-growth obligation of their own, which no longer has a guard; it is carried here
+verbatim in substance (line counts at `0aba84cee`):
+
+- **`crates/wow-world-inventory/src/vendor_session/buy.rs` (1075).** One function, the body of
+  C++ `Player::BuyItemFromVendorSlot` (`handle_buy_item_with_generator_like_cpp`), moved
+  verbatim by #1363 slice 8b. Split it by complete purchase phase (admission and price,
+  extended-cost and currency plan, item store and publication) in a behaviour-preserving
+  refactor that keeps the money boundary and publication order. The row was ratcheted at
+  the live value by #1363 slice 8c: no growth is permitted.
+- **`crates/world-server/src/runtime/map.rs` (1295).** Keep the remaining respawn/startup
+  projections and recipient delivery scoped, with no I/O under map guards; the canonical
+  World/Map producer already lives in `map/update_loop.rs` (#787). The row was tightened to
+  the observed size on 2026-09-25: no growth is permitted.
+- **`crates/capture-diff/scripts/capture-rust.sh` (1810).** Separate the runtime swap, the
+  packet-dump provenance and the recovery orchestration, preserving the existing
+  capture/fixture safeguards and the explicit runtime authorization.
+- **`crates/world-server/src/main_tests.rs` (1533).** Separate the configuration,
+  composition, shutdown, session-supervision and runtime-timing suites with narrow fixture
+  builders. #628 already moved the test functions into bounded `main_tests/scenarios_*.rs`
+  modules; only shared helpers stay here, because a child module sees its parent's private
+  items. A new scenario module adds only its three mount lines (comment, `#[path]`, `mod`).
+- **`crates/world-server/src/spawn_store_loader_tests.rs` (1007).** Move the catalog-specific
+  loader fixtures and negative cases beside their loader responsibilities; #628 already moved
+  the test functions into bounded scenario modules, keeping only shared helpers here.
+
 ## Remaining split work
 
-The C and B rows exceed the 2000 budget by 15,958 lines. Each slice is one PR. Each PR retires
-or tightens its own rows in the same change. Each split is a move with no behaviour change:
+The C and B rows exceed the 2000 budget by 15,958 lines. Each slice is one PR, except
+C4-8, which lands in several staged PRs (C4-6 and C4-7 are already split into a/b slices).
+Each PR retires or tightens its own rows in the same change. Each split is a move with no behaviour change:
 R1/R2 apply, and the test count must be the same before and after.
 
 | Slice | Paths | Lines over 2000 | Effort | Cut |
