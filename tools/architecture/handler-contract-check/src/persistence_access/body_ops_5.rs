@@ -420,22 +420,46 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             "char", "str", "f32", "f64", "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16",
             "u32", "u64", "u128", "usize",
         ];
+        // Associated types of the standard traits the nominal model can surface.
+        const STANDARD_ASSOCIATED_TYPES: &[&str] = &[
+            "Item", "Output", "Target", "Error", "Owned", "IntoIter", "Err",
+        ];
         if ty
             .split("::")
             .any(|segment| segment == "Self" || self.generic_function_params.contains(segment))
         {
             return false;
         }
+        // A projection (`Self::Db`, `H::Db`, `<H as Host>::Db`) reaches the
+        // nominal model as its last segment only, so any name an inventoried
+        // trait or impl declares as an associated type fails closed.
+        let leaf = ty.rsplit("::").next().unwrap_or(ty);
+        if STANDARD_ASSOCIATED_TYPES.contains(&leaf)
+            || self.symbols.workspace_associated_type_names.contains(leaf)
+        {
+            return false;
+        }
         if STANDARD_TYPES.contains(&ty) && !self.symbols.local_type_definitions.contains(ty) {
             return true;
         }
+        let registries = [
+            &*self.symbols.named_type_info,
+            &*self.symbols.workspace_named_type_info,
+        ];
         let suffix = format!("::{ty}");
-        let mut declarations = self
-            .symbols
-            .named_type_info
+        let suffix = suffix.as_str();
+        // Only struct, enum and alias keys count: an enum variant is registered
+        // as `Enum::Variant`, under a parent key that is itself registered.
+        let mut declarations = registries
             .iter()
-            .chain(self.symbols.workspace_named_type_info.iter())
-            .filter(|(path, _)| path.as_str() == ty || path.ends_with(&suffix))
+            .flat_map(|registry| {
+                registry.iter().filter(move |(path, _)| {
+                    let is_variant = path
+                        .rsplit_once("::")
+                        .is_some_and(|(parent, _)| registry.contains_key(parent));
+                    !is_variant && (path.as_str() == ty || path.ends_with(suffix))
+                })
+            })
             .peekable();
         declarations.peek().is_some()
             && declarations.all(|(_, info)| info.type_generic_params.is_empty())

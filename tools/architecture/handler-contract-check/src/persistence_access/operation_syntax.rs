@@ -16,6 +16,10 @@ pub(super) struct PersistenceOperationSyntax<'a> {
     /// on. When set, a call path that names a free function through one of
     /// them is not counted: see `names_inventoried_free_function` (#1437).
     pub(super) workspace_roots: Option<&'a BTreeMap<String, String>>,
+    /// Functions of the inherent impl whose method body this is. `Self::name`
+    /// for one of them calls a body inventoried, and guarded, at its own
+    /// definition, like a workspace free function (#1437).
+    pub(super) same_impl_functions: Option<&'a BTreeSet<String>>,
 }
 
 impl<'ast> Visit<'ast> for PersistenceOperationSyntax<'_> {
@@ -40,6 +44,9 @@ impl<'ast> Visit<'ast> for PersistenceOperationSyntax<'_> {
             && !self.workspace_roots.is_some_and(|roots| {
                 names_inventoried_free_function(path, roots, &self.generic_types)
             })
+            && !self
+                .same_impl_functions
+                .is_some_and(|functions| names_same_impl_function(path, functions))
         {
             let owner = path
                 .path
@@ -61,7 +68,10 @@ impl<'ast> Visit<'ast> for PersistenceOperationSyntax<'_> {
 /// workspace package, such as `wow_world_spell::player_cast::prepare` (#1437).
 ///
 /// The path must be rooted at `crate`, `self`, `super` or the crate root of
-/// an inventoried dependency, and every segment before the function must be
+/// an inventoried workspace-member dependency. `sqlx` is the one external
+/// crate the dependency alias map carries (see `ownership.rs`), and its
+/// bodies are not inventoried, so it is never such a root. Every segment
+/// before the function must be
 /// a plain module segment: snake_case, without generic arguments, not a
 /// primitive type and not one of the function's own type parameters. Such a
 /// path cannot name a type, a trait or an associated item, so the call has
@@ -83,8 +93,10 @@ pub(super) fn names_inventoried_free_function(
         return false;
     }
     let root = normalized_ident(&segments[0].ident);
-    if !matches!(root.as_str(), "crate" | "self" | "super") && !workspace_roots.contains_key(&root)
-    {
+    let workspace_member_root = workspace_roots
+        .get(&root)
+        .is_some_and(|provider| provider != "sqlx");
+    if !matches!(root.as_str(), "crate" | "self" | "super") && !workspace_member_root {
         return false;
     }
     segments.iter().take(segments.len() - 1).all(|segment| {
@@ -105,16 +117,35 @@ pub(super) fn persistence_operations_in_syntax(item: &Item) -> BTreeSet<String> 
     visitor.symbols
 }
 
+/// Whether `path` is exactly `Self::name` for a function of the same
+/// inherent impl (#1437).
+pub(super) fn names_same_impl_function(
+    path: &syn::ExprPath,
+    same_impl_functions: &BTreeSet<String>,
+) -> bool {
+    let segments = &path.path.segments;
+    path.qself.is_none()
+        && path.path.leading_colon.is_none()
+        && segments.len() == 2
+        && segments[0].ident == "Self"
+        && segments
+            .iter()
+            .all(|segment| matches!(segment.arguments, syn::PathArguments::None))
+        && same_impl_functions.contains(&normalized_ident(&segments[1].ident))
+}
+
 /// Persistence-shaped sites in a generic function body, by syntax-node
 /// address. Free-function calls through `workspace_roots` are not sites.
 pub(super) fn generic_persistence_operation_sites(
     block: &syn::Block,
     generic_types: BTreeSet<String>,
     workspace_roots: &BTreeMap<String, String>,
+    same_impl_functions: Option<&BTreeSet<String>>,
 ) -> BTreeMap<usize, String> {
     let mut visitor = PersistenceOperationSyntax {
         generic_types,
         workspace_roots: Some(workspace_roots),
+        same_impl_functions,
         ..PersistenceOperationSyntax::default()
     };
     visitor.visit_block(block);
