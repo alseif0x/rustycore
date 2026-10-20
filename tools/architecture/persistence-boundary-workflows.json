@@ -15695,6 +15695,21 @@
       "package": "wow-database",
       "module": "crate::world::query_catalog_adapter",
       "source": "crates/wow-database/src/world/query_catalog_adapter.rs",
+      "enclosing": "fn gameobject_query_template_row_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "Existing ObjectMgr query-catalog startup adapter introduced by 11c34e6b; inventory reconciliation in #578",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Decodes one borrowed SqlResult row of the gameobject_rows SELECT; it performs no I/O and holds no WorldDatabase handle (row helper split out by #1435 for #1430).",
+      "current_order": "Decodes the gameobject_rows result row by row in the caller's order; it adds no query or ordering of its own.",
+      "failure_and_unknown_commit": "Decode-only: each column falls back to its typed default when absent or unreadable (try_read(..).unwrap_or), so it cannot fail a load; the SELECT failure, partial-catalog and no-COMMIT contract stays with gameobject_rows."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world::query_catalog_adapter",
+      "source": "crates/wow-database/src/world/query_catalog_adapter.rs",
       "enclosing": "impl MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp::creature_rows",
       "logical_databases": [
         "world"

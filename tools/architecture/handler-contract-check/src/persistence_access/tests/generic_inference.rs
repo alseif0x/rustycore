@@ -410,3 +410,311 @@ fn persistence_inventory_instantiates_generic_named_type_fields() {
         row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
     }));
 }
+
+/// The F5 host-trait shapes from #1437: persistence-shaped names on receivers
+/// the analyzer types without the function's type parameters, and a call to a
+/// module-qualified workspace free function, are audited like any other call.
+#[test]
+fn persistence_inventory_accepts_parameter_free_receivers_in_generic_functions() {
+    let result = inventory(
+        r#"
+                #[derive(Default)]
+                pub struct Outcome { pub actions: Vec<u32> }
+                impl Outcome { pub fn append(&mut self, other: Outcome) { let _ = other; } }
+                pub struct Finalization;
+                impl Finalization { pub fn begin(&mut self, step: u8) -> bool { step > 0 } }
+                pub struct Lifecycle { finalization: Option<Finalization> }
+                impl Lifecycle {
+                    pub fn finalization_mut(&mut self) -> Option<&mut Finalization> {
+                        self.finalization.as_mut()
+                    }
+                }
+                pub trait Host {
+                    fn read(&self) -> u32;
+                    fn lifecycle_mut(&mut self) -> &mut Lifecycle;
+                }
+                pub mod player_cast {
+                    pub fn prepare<H: super::Host>(host: &mut H) -> bool { host.read() > 0 }
+                }
+                pub fn apply<H: Host>(host: &mut H) -> Outcome {
+                    let mut outcome = Outcome::default();
+                    let mut list = Vec::new();
+                    let mut more = vec![host.read()];
+                    list.append(&mut more);
+                    outcome.actions.append(&mut list);
+                    outcome.append(Outcome::default());
+                    if host.lifecycle_mut().finalization_mut().unwrap().begin(1) {}
+                    if host.lifecycle_mut().finalization_mut().expect("x").begin(2) {}
+                    if crate::player_cast::prepare(host) {}
+                    outcome
+                }
+            "#,
+    );
+    assert!(result.is_ok(), "{result:?}");
+}
+
+/// Receivers that may still be a type parameter keep failing (#1437).
+#[test]
+fn persistence_inventory_rejects_parameter_dependent_receivers_in_generic_functions() {
+    let rejected = |body: &str, operation: &str| {
+        let source = format!(
+            r#"
+                pub trait HasPool {{ fn pool(&self); fn begin(&self) -> bool; }}
+                pub struct Holder<T>(pub T);
+                pub struct Wrapper<T> {{ pub inner: T }}
+                impl<T> Wrapper<T> {{ pub fn begin(&self) -> bool {{ true }} }}
+                pub trait Host {{ type Db: HasPool; fn db(&mut self) -> &mut Self::Db; }}
+                pub trait Exec {{ fn execute(&self); }}
+                {body}
+            "#
+        );
+        let error = inventory(&source).unwrap_err();
+        assert!(
+            error.contains(&format!("persistence-shaped operations ({operation})")),
+            "{body}: {error}"
+        );
+    };
+    rejected(
+        "pub fn f<T: HasPool>(value: T) { let held = Holder(value); held.0.pool(); }",
+        "pool",
+    );
+    rejected("pub fn f<T>(value: Wrapper<T>) { value.begin(); }", "begin");
+    rejected(
+        "pub fn f<T: HasPool>(value: Option<T>) { value.unwrap().pool(); }",
+        "pool",
+    );
+    rejected(
+        "pub fn f<H: Host>(host: &mut H) { host.db().begin(); }",
+        "begin",
+    );
+    rejected(
+        "pub fn f<T: Exec>(value: T) { Exec::execute(&value); }",
+        "execute",
+    );
+    rejected(
+        "pub fn f<T: HasPool>(value: T) { unknown_root::prepare(value); }",
+        "prepare",
+    );
+    rejected(
+        "pub fn f<T: Exec>(value: T) { crate::Exec::execute(&value); }",
+        "execute",
+    );
+    // F1: a projection collapses to its last segment; a same-named declared
+    // struct or enum variant must not make it look parameter-free.
+    rejected(
+        "pub struct Db; pub fn f<H: Host>(host: &mut H) { host.db().begin(); }",
+        "begin",
+    );
+    rejected(
+        "pub enum E { Db } pub fn f<H: Host>(host: &mut H) { host.db().begin(); }",
+        "begin",
+    );
+    // F4: argument-position `impl Trait` is an anonymous type parameter.
+    rejected("pub fn f(value: impl HasPool) { value.pool(); }", "pool");
+}
+
+/// F2 (#1437): a concrete receiver's generic method is audited at its own
+/// definition, so passing a generic value into it cannot hide persistence.
+#[test]
+fn persistence_inventory_guards_generic_impl_methods() {
+    let error = inventory(
+        r#"
+                pub trait Exec { fn execute(&self); }
+                pub struct Runner;
+                impl Runner {
+                    pub fn execute<D: Exec>(&self, database: D) { database.execute(); }
+                }
+                pub trait Host { type Db: Exec; fn db(&mut self) -> Self::Db; }
+                pub fn f<H: Host>(host: &mut H, runner: &Runner) { runner.execute(host.db()); }
+            "#,
+    )
+    .unwrap_err();
+    assert!(
+        error.contains(
+            "impl Runner::execute is generic and contains persistence-shaped operations (execute)"
+        ),
+        "{error}"
+    );
+
+    let error = inventory(
+        r#"
+                pub trait Exec { fn execute(&self); }
+                pub struct Holder<T>(pub T);
+                impl<T: Exec> Holder<T> {
+                    pub fn run(&self) { self.0.execute(); }
+                }
+            "#,
+    )
+    .unwrap_err();
+    assert!(
+        error.contains(
+            "impl Holder < T >::run is generic and contains persistence-shaped operations (execute)"
+        ),
+        "{error}"
+    );
+
+    // `Self::name` reaches a function of the same inherent impl, audited at
+    // its own definition; a name the impl does not define stays a site.
+    let accepted = inventory(
+        r#"
+                pub struct Database<S>(S);
+                impl<S> Database<S> {
+                    pub fn open(statements: S) -> Self { Self::open_with_pool_size(statements, 10) }
+                    pub fn open_with_pool_size(statements: S, size: u32) -> Self {
+                        let _ = size;
+                        Database(statements)
+                    }
+                }
+            "#,
+    );
+    assert!(accepted.is_ok(), "{accepted:?}");
+    let error = inventory(
+        r#"
+                pub trait Exec { fn execute(value: u8); }
+                pub struct Database<S>(S);
+                impl<S> Database<S> {
+                    pub fn run(&self) { Self::execute(1); }
+                }
+                impl<S> Exec for Database<S> { fn execute(value: u8) { let _ = value; } }
+            "#,
+    )
+    .unwrap_err();
+    assert!(
+        error.contains("impl Database < S >::run is generic and contains persistence-shaped operations (execute)"),
+        "{error}"
+    );
+
+    let accepted = inventory(
+        r#"
+                #[derive(Default)]
+                pub struct Outcome { pub actions: Vec<u32> }
+                pub struct Runner;
+                impl Runner {
+                    pub fn merge<T>(&self, value: T) -> Outcome {
+                        let _ = value;
+                        let mut outcome = Outcome::default();
+                        let mut more = Vec::new();
+                        outcome.actions.append(&mut more);
+                        outcome
+                    }
+                }
+            "#,
+    );
+    assert!(accepted.is_ok(), "{accepted:?}");
+}
+
+/// Across packages (#1437): a dependency's free function and declared type
+/// are parameter-free, while the dependency's own generic body is still held
+/// to the check at its definition, and an undeclared root is not trusted.
+#[test]
+fn persistence_inventory_audits_dependency_free_functions_at_their_definition() {
+    let source = |package, source| ClassifiedPersistenceSource {
+        classification: "database_adapter_core",
+        package,
+        module: "crate",
+        source_path: "src/lib.rs",
+        inherited_cfg: &[],
+        source,
+    };
+    let provider = source(
+        "provider-a",
+        r#"
+            pub trait Host { fn lifecycle_mut(&mut self) -> &mut Lifecycle; }
+            pub struct Lifecycle;
+            impl Lifecycle { pub fn begin(&mut self) -> bool { true } }
+            pub mod player_cast {
+                pub fn prepare<H: super::Host>(host: &mut H) -> bool {
+                    host.lifecycle_mut().begin()
+                }
+            }
+        "#,
+    );
+    let consumer = source(
+        "consumer-b",
+        r#"
+            pub fn tick<H: provider_alias::Host>(host: &mut H) -> bool {
+                provider_alias::player_cast::prepare(host) && host.lifecycle_mut().begin()
+            }
+        "#,
+    );
+    // Test builds see the normal dependencies too, as Cargo does.
+    // `sqlx` is the one external crate the alias map carries (ownership.rs).
+    let aliases = BTreeMap::from([(
+        "consumer-b".to_owned(),
+        BTreeMap::from([
+            ("provider_alias".to_owned(), "provider_a".to_owned()),
+            ("sqlx".to_owned(), "sqlx".to_owned()),
+        ]),
+    )]);
+    let dependencies = WorkspaceDependencyAliases {
+        production: aliases.clone(),
+        test: aliases,
+    };
+    let accepted =
+        inventory_persistence_accesses_with_dependencies(&[consumer, provider], &dependencies);
+    assert!(accepted.is_ok(), "{accepted:?}");
+
+    let generic_provider = source(
+        "provider-a",
+        r#"
+            pub trait HasPool { fn pool(&self); }
+            pub mod player_cast {
+                pub fn prepare<T: super::HasPool>(value: T) { value.pool(); }
+            }
+        "#,
+    );
+    let generic_consumer = source(
+        "consumer-b",
+        r#"
+            pub fn tick<T: provider_alias::HasPool>(value: T) {
+                provider_alias::player_cast::prepare(value);
+            }
+            pub fn untrusted<T: provider_alias::HasPool>(value: T) {
+                unrelated_provider::player_cast::prepare(value);
+            }
+        "#,
+    );
+    let error = inventory_persistence_accesses_with_dependencies(
+        &[generic_consumer, generic_provider],
+        &dependencies,
+    )
+    .unwrap_err();
+    assert!(
+        error.contains("fn prepare is generic and contains persistence-shaped operations (pool)"),
+        "{error}"
+    );
+    assert!(
+        error.contains(
+            "fn untrusted is generic and contains persistence-shaped operations (prepare)"
+        ),
+        "{error}"
+    );
+    assert!(!error.contains("fn tick "), "{error}");
+
+    // F3: `sqlx` is never a trusted free-function root. Its call stays a
+    // generic-guard site and is either rejected or recorded as a row.
+    let external = source(
+        "consumer-b",
+        r#"
+            pub fn external<T: provider_alias::HasPool>(value: T) {
+                sqlx::query::prepare(value);
+            }
+        "#,
+    );
+    let provider = source("provider-a", "pub trait HasPool { fn pool(&self); }");
+    match inventory_persistence_accesses_with_dependencies(&[external, provider], &dependencies) {
+        Err(error) => assert!(
+            error.contains(
+                "fn external is generic and contains persistence-shaped operations (prepare)"
+            ),
+            "{error}"
+        ),
+        Ok(baseline) => assert!(
+            baseline
+                .accesses
+                .iter()
+                .any(|row| row.enclosing == "fn external" && row.symbol == "prepare"),
+            "{baseline:?}"
+        ),
+    }
+}

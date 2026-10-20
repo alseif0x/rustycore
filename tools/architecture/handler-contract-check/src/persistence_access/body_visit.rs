@@ -1190,6 +1190,14 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 }
             }
         }
+        if !valid_persistence_method
+            && !self.generic_function_params.is_empty()
+            && PersistenceOperation::from_executor_method(&name).is_some()
+            && self.receiver_type_is_parameter_free(&method.receiver)
+        {
+            self.parameter_free_operation_sites
+                .insert(std::ptr::from_ref(method) as usize);
+        }
         if !valid_persistence_method && !validated_flow_passthrough {
             if receiver.has_stage(FlowStage::Transaction) {
                 self.record_persistence_escape(

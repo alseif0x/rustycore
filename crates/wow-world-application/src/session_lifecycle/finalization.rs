@@ -7,7 +7,7 @@ use wow_world_core::session::SessionState;
 use wow_world_entities::PlayerTeleportHostLikeCpp;
 use wow_world_lifecycle::{
     FinalizationDisposition, FinalizationMode, FinalizationOutcome, FinalizationReport,
-    FinalizationStep, PlayerSaveOutcomeLikeCpp, SessionFinalization,
+    FinalizationStep, PlayerSaveOutcomeLikeCpp, SessionFinalization, SessionLifecycleState,
 };
 use wow_world_loot_ops::{
     LootSessionHostLikeCpp, wait_for_active_loot_persistence_with_generator_like_cpp,
@@ -18,6 +18,19 @@ use super::SessionLifecycleHostLikeCpp;
 fn finalization_result<H: SessionLifecycleHostLikeCpp>(host: &mut H) -> FinalizationReport {
     let (state, mut hub) = host.split_lifecycle_mut();
     state.finalization_result(&mut hub)
+}
+
+/// Typed module-level adapter for admitting one finalization step (#1437).
+///
+/// The persistence inventory cannot type the generic host's `lifecycle_mut`
+/// receiver: it is declared on `CharacterLoginHostLikeCpp`, which the bound
+/// only reaches through the re-exported `WorldportHostLikeCpp` supertrait.
+/// Naming the concrete owner here lets the inventory audit the call.
+fn begin_finalization_step_like_cpp(
+    lifecycle: &mut SessionLifecycleState,
+    step: FinalizationStep,
+) -> bool {
+    lifecycle.finalization_mut().unwrap().begin(step)
 }
 
 pub async fn finalize_session_with_generator_like_cpp<H: SessionLifecycleHostLikeCpp>(
@@ -54,7 +67,7 @@ pub async fn finalize_session_with_generator_like_cpp<H: SessionLifecycleHostLik
     ));
 
     while let Some(step) = host.lifecycle_mut().finalization().unwrap().next_step() {
-        if !host.lifecycle_mut().finalization_mut().unwrap().begin(step) {
+        if !begin_finalization_step_like_cpp(host.lifecycle_mut(), step) {
             return finalization_result(host);
         }
         if !finalization_identity_is_current(host) {

@@ -30891,6 +30891,36 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::world::query_catalog_adapter:crates/wow-database/src/world/query_catalog_adapter.rs::fn gameobject_query_template_row_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/world/query_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::world::query_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn gameobject_query_template_row_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "Existing ObjectMgr query-catalog startup adapter introduced by 11c34e6b; inventory reconciliation in #578 currently owns the complete wow-database workflow fn gameobject_query_template_row_like_cpp in crates/wow-database/src/world/query_catalog_adapter.rs.",
+      "connection_affinity": "Decodes one borrowed SqlResult row of the gameobject_rows SELECT; it performs no I/O and holds no WorldDatabase handle (row helper split out by #1435 for #1430).",
+      "current_order": "Decodes the gameobject_rows result row by row in the caller's order; it adds no query or ordering of its own.",
+      "failure_and_unknown_commit": "Decode-only: each column falls back to its typed default when absent or unreadable (try_read(..).unwrap_or), so it cannot fail a load; the SELECT failure, partial-catalog and no-COMMIT contract stays with gameobject_rows.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::world::query_catalog_adapter:crates/wow-database/src/world/query_catalog_adapter.rs::impl MariaDbWorldQueryCatalogPersistenceAdapterLikeCpp::creature_rows",
       "source_class": "production",
       "packages": [
@@ -31572,6 +31602,7 @@
         "crates/wow-database/src/vendor_trade_adapter.rs",
         "crates/wow-database/src/void_storage_adapter.rs",
         "crates/wow-database/src/world/auxiliary_catalog_adapter.rs",
+        "crates/wow-database/src/world/query_catalog_adapter.rs",
         "crates/wow-database/src/world/reference_catalog_adapter.rs",
         "crates/wow-database/src/world/state_startup_adapter.rs"
       ],

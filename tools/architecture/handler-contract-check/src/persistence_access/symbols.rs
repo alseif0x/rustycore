@@ -88,6 +88,11 @@ pub(super) struct ModuleSymbols {
     // different physical source module through #[macro_use], #[macro_export],
     // or a macro import. The leaf-name union intentionally fails closed.
     pub(super) package_persistence_macros: std::sync::Arc<BTreeMap<String, TargetSet>>,
+    /// Every associated-type name a trait or impl declares in the inventoried
+    /// sources. The nominal model keeps only a projection's last segment, so a
+    /// receiver typed `Self::Db`, `H::Db` or `<H as Host>::Db` is just `Db`
+    /// and must never count as a declared parameter-free type (#1437).
+    pub(super) workspace_associated_type_names: std::sync::Arc<BTreeSet<String>>,
 }
 
 impl Default for ModuleSymbols {
@@ -149,6 +154,7 @@ impl Default for ModuleSymbols {
             local_type_definitions: BTreeSet::new(),
             persistence_macros: BTreeMap::new(),
             package_persistence_macros: std::sync::Arc::new(BTreeMap::new()),
+            workspace_associated_type_names: std::sync::Arc::new(BTreeSet::new()),
         }
     }
 }
