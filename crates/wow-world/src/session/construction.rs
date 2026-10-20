@@ -108,9 +108,9 @@ impl WorldSession {
 
     /// Install the process-owned linked-module registry (#1445). The session
     /// factory calls this once at construction with the compositor's `Arc`;
-    /// the hook ports then dispatch to it.
+    /// the hook ports then dispatch to it. A second install is refused.
     pub fn install_module_hooks_like_cpp(&mut self, registry: Arc<wow_module_api::ModuleRegistry>) {
-        self.module_hooks = crate::session::SessionModuleHooksLikeCpp::new(registry);
+        self.module_hooks.install_like_cpp(registry);
     }
 
     #[cfg(test)]

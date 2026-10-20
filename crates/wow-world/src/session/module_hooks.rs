@@ -32,18 +32,42 @@ use wow_world_core::session::SessionCore;
 /// The session's handle on the linked-module registry.
 pub(crate) struct SessionModuleHooksLikeCpp {
     registry: Arc<ModuleRegistry>,
+    /// Whether the session factory already installed the process registry.
+    installed: bool,
 }
 
 impl Default for SessionModuleHooksLikeCpp {
     /// The zero-module registry: every port returns before building anything.
     fn default() -> Self {
-        Self::new(Arc::new(ModuleRegistry::new()))
+        Self {
+            registry: Arc::new(ModuleRegistry::new()),
+            installed: false,
+        }
     }
 }
 
 impl SessionModuleHooksLikeCpp {
-    pub(crate) fn new(registry: Arc<ModuleRegistry>) -> Self {
-        Self { registry }
+    /// Install the process registry. Composition does this exactly once per
+    /// session; a second install would silently swap the modules a running
+    /// session dispatches to, so it is refused (and asserted in debug).
+    pub(crate) fn install_like_cpp(&mut self, registry: Arc<ModuleRegistry>) -> bool {
+        debug_assert!(
+            !self.installed,
+            "the linked-module registry is installed once per session"
+        );
+        if self.installed {
+            warn!("ignoring a second linked-module registry install for this session");
+            return false;
+        }
+        self.registry = registry;
+        self.installed = true;
+        true
+    }
+
+    /// Whether any enabled module offers `family`: the ports' interest query,
+    /// asked before an event is built.
+    pub(crate) fn wants_like_cpp(&self, family: HookFamily) -> bool {
+        self.registry.handles(family)
     }
 
     #[cfg(test)]

@@ -111,6 +111,7 @@ impl ModuleDescriptor {
 
 /// Why a registration was refused.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum ModuleRegistrationError {
     InvalidId {
         id: String,
@@ -152,6 +153,37 @@ impl fmt::Display for ModuleRegistrationError {
 }
 
 impl std::error::Error for ModuleRegistrationError {}
+
+thread_local! {
+    /// Set while this thread runs a module callback under its `catch_unwind`.
+    static IN_MODULE_CALLBACK: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Whether the current thread is inside a linked-module callback.
+///
+/// A panic there is caught at the module boundary and only disables that
+/// module, so the process panic hook can report it as contained instead of
+/// fatal (`world-server` wires this into `wow-logging`'s hook).
+#[must_use]
+pub fn module_callback_in_progress() -> bool {
+    IN_MODULE_CALLBACK.with(std::cell::Cell::get)
+}
+
+/// Marks the callback scope; cleared on return and on unwind alike.
+struct CallbackScope;
+
+impl CallbackScope {
+    fn enter() -> Self {
+        IN_MODULE_CALLBACK.with(|flag| flag.set(true));
+        Self
+    }
+}
+
+impl Drop for CallbackScope {
+    fn drop(&mut self) {
+        IN_MODULE_CALLBACK.with(|flag| flag.set(false));
+    }
+}
 
 /// A hook family: one capability a module may offer.
 ///
@@ -351,6 +383,7 @@ impl ModuleRegistry {
             };
             let mark = batch.len();
             let completed = catch_unwind(AssertUnwindSafe(|| {
+                let _scope = CallbackScope::enter();
                 call(module, &mut ScopedEffects::new(&mut batch, id.clone()));
             }));
             if completed.is_err() {

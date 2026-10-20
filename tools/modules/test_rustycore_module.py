@@ -199,9 +199,58 @@ class ModuleManagerTests(unittest.TestCase):
         self.assertNotEqual(refused.returncode, 0)
         self.assertIn("'wow-core'", refused.stderr)
 
-    def test_dev_dependencies_and_api_one_modules_still_compose(self) -> None:
-        """The skeleton is a source API 1 module with a `wow-core` dev-dependency."""
+    def test_a_server_crate_named_without_a_path_is_refused(self) -> None:
         self.ws.run("new", "demo.greeter")
+        cargo = self.ws.root / "modules/demo_greeter/Cargo.toml"
+        cargo.write_text(
+            cargo.read_text(encoding="utf-8").replace(
+                "[dependencies]\n", '[dependencies]\nwow-core = "0.1"\n', 1
+            ),
+            encoding="utf-8",
+        )
+        refused = self.ws.run("check")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("depends on server crate 'wow-core'", refused.stderr)
+
+    def test_a_helper_crate_inside_the_module_cannot_smuggle_a_server_crate(self) -> None:
+        self.ws.run("new", "demo.greeter")
+        module = self.ws.root / "modules/demo_greeter"
+        helper = module / "helper"
+        (helper / "src").mkdir(parents=True)
+        (helper / "src/lib.rs").write_text("", encoding="utf-8")
+        (helper / "Cargo.toml").write_text(
+            '[package]\nname = "demo-helper"\nversion = "0.1.0"\nedition = "2024"\n\n'
+            '[dependencies]\nnot-a-server-name = { package = "wow-core", '
+            'path = "../../../crates/wow-core" }\n',
+            encoding="utf-8",
+        )
+        cargo = module / "Cargo.toml"
+        cargo.write_text(
+            cargo.read_text(encoding="utf-8").replace(
+                "[dependencies]\n", '[dependencies]\ndemo-helper = { path = "helper" }\n', 1
+            ),
+            encoding="utf-8",
+        )
+        refused = self.ws.run("check")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("'wow-core'", refused.stderr)
+
+        # The same helper without the server dependency is fine.
+        (helper / "Cargo.toml").write_text(
+            '[package]\nname = "demo-helper"\nversion = "0.1.0"\nedition = "2024"\n',
+            encoding="utf-8",
+        )
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+
+    def test_dev_dependencies_and_api_one_modules_still_compose(self) -> None:
+        """The skeleton is a source API 1 module; a dev-dependency is not checked."""
+        self.ws.run("new", "demo.greeter")
+        cargo = self.ws.root / "modules/demo_greeter/Cargo.toml"
+        cargo.write_text(
+            cargo.read_text(encoding="utf-8")
+            + '\n[dev-dependencies]\nwow-core = { path = "../../crates/wow-core" }\n',
+            encoding="utf-8",
+        )
         self.assertEqual(self.ws.run("sync").returncode, 0)
         lock = tomllib.loads((self.ws.root / "modules.lock.toml").read_text(encoding="utf-8"))
         self.assertEqual(lock["source_api"], "2", "the server provides API 2")

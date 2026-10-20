@@ -1,8 +1,9 @@
 //! Production-linked login regression: wow-world is compiled WITHOUT cfg(test).
 //! C++ CharacterHandler.cpp:1065-1070 constructs Player before LoadFromDB;
 //! Player.cpp:17748/17759 loads inventory/mail on that same Player.
-//! Fixtures stop at PetStable or EquipmentInventory, after initial map selection.
-//! It is deliberately not a complete login or database integration test.
+//! Fixtures stop at PetStable or EquipmentInventory, after initial map selection,
+//! except `module_hook`, which answers every load empty so the login reaches
+//! its end. None of this is a database integration test.
 //! Run in both dev and release: storage mutations must survive disabled debug assertions.
 
 use std::sync::{
@@ -25,6 +26,10 @@ struct LoginPort {
     reached_inventory_load: AtomicBool,
     stop_at_pet_load: bool,
     manager: Arc<std::sync::Mutex<wow_map::MapManager>>,
+    /// `module_hook`: every load answers empty so the login runs to its end,
+    /// and the online mark is recorded instead of refused.
+    full_login: AtomicBool,
+    events: std::sync::Mutex<Vec<&'static str>>,
 }
 
 // Unexpected persistence calls fail the test rather than silently succeeding.
@@ -120,12 +125,23 @@ impl PlayerLifecyclePortLikeCpp for LoginPort {
     fn load_initial_world_states_like_cpp<'a>(
         &'a self,
     ) -> PersistenceFutureLikeCpp<'a, PlayerInitialWorldStatesLoadOutcomeLikeCpp> {
+        if self.full_login.load(Ordering::SeqCst) {
+            return Box::pin(async {
+                PlayerInitialWorldStatesLoadOutcomeLikeCpp {
+                    templates: PlayerInitialWorldStateRowsLikeCpp::Loaded(vec![]),
+                    saved_values: PlayerInitialWorldStateRowsLikeCpp::Loaded(vec![]),
+                }
+            });
+        }
         panic!("unexpected load_initial_world_states_like_cpp");
     }
     fn load_login_transports_like_cpp<'a>(
         &'a self,
         _: PlayerLoginTransportLoadRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PlayerLoginTransportLoadOutcomeLikeCpp> {
+        if self.full_login.load(Ordering::SeqCst) {
+            return Box::pin(async { PlayerLoginTransportLoadOutcomeLikeCpp::Loaded(vec![]) });
+        }
         panic!("unexpected load_login_transports_like_cpp");
     }
     fn load_account_collection_like_cpp<'a>(
@@ -174,6 +190,10 @@ impl PlayerLifecyclePortLikeCpp for LoginPort {
         &'a self,
         _: PlayerOnlineMarkRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        if self.full_login.load(Ordering::SeqCst) {
+            self.events.lock().unwrap().push("online");
+            return Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 1 } });
+        }
         panic!("unexpected mark_player_online_like_cpp");
     }
     fn save_account_collection_like_cpp<'a>(
@@ -277,6 +297,9 @@ impl PlayerLifecyclePortLikeCpp for LoginPort {
         &'a self,
         request: PlayerLoginAuxiliaryLoadRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PlayerLoginAuxiliaryLoadOutcomeLikeCpp> {
+        if self.full_login.load(Ordering::SeqCst) {
+            return module_hook::empty_auxiliary_load(request);
+        }
         match request {
             PlayerLoginAuxiliaryLoadRequestLikeCpp::Mail { .. } => Box::pin(async {
                 PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
@@ -363,6 +386,8 @@ async fn hydrate(
         reached_inventory_load: AtomicBool::new(false),
         stop_at_pet_load,
         manager: Arc::clone(&manager),
+        full_login: AtomicBool::new(false),
+        events: std::sync::Mutex::new(Vec::new()),
     });
     let maps = Arc::new(MapStore::from_entries([MapEntry {
         id: 0,
@@ -462,6 +487,8 @@ async fn hydrate(
 mod cleanup;
 #[path = "production_login_player_owner/finalization.rs"]
 mod finalization;
+#[path = "production_login_player_owner/module_hook.rs"]
+mod module_hook;
 #[path = "production_login_player_owner/save.rs"]
 mod save;
 #[path = "production_login_player_owner/teleport_admission.rs"]

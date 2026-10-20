@@ -42,8 +42,13 @@ pub use effect::{
 pub use hook::{PlayerLoginModule, PlayerLoginSnapshot};
 pub use registry::{
     HookFamily, ModuleDescriptor, ModuleHooks, ModuleId, ModuleRegistrationError, ModuleRegistry,
-    ModuleVersion,
+    ModuleVersion, module_callback_in_progress,
 };
+
+/// The player identity every snapshot carries. Re-exported so a module names
+/// it through this crate alone: `tools/modules/compose.py` refuses a module
+/// with a normal dependency on any other server crate, `wow-core` included.
+pub use wow_core::ObjectGuid;
 
 /// The source API this server provides. `tools/modules/compose.py` records it
 /// in `modules.lock.toml` and its tests assert it matches this constant.

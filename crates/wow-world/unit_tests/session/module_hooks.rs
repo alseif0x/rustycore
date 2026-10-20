@@ -246,3 +246,43 @@ fn a_panicking_module_is_disabled_and_the_others_still_apply() {
     assert_eq!(probes.calls.load(Ordering::SeqCst), 2);
     assert!(registry.is_disabled(&wow_module_api::ModuleId::new("mike.panics").expect("id")));
 }
+
+/// The interest query the login asks before it reads anything (#1445 review
+/// M1): nothing with zero modules, yes with a login module, and nothing again
+/// once a panic disabled the only one.
+#[test]
+fn the_login_interest_query_follows_the_registry() {
+    let (session, _send_rx) = make_session();
+    assert!(!session.player_login_hook_wanted_like_cpp());
+
+    let (mut session, _send_rx) = make_session();
+    let (module, _probes) = probe("ok", None);
+    let mut registry = ModuleRegistry::new();
+    register(&mut registry, "alpha.probe", module);
+    session.install_module_hooks_like_cpp(Arc::new(registry));
+    assert!(session.player_login_hook_wanted_like_cpp());
+
+    let (mut session, _send_rx) = make_session();
+    let mut registry = ModuleRegistry::new();
+    register(&mut registry, "mike.panics", Panics);
+    session.install_module_hooks_like_cpp(Arc::new(registry));
+    session.player_login_hook_like_cpp(&event(false));
+    assert!(!session.player_login_hook_wanted_like_cpp());
+}
+
+/// The registry is installed once per session (#1445 review L4).
+#[test]
+#[cfg_attr(
+    debug_assertions,
+    should_panic(expected = "installed once per session")
+)]
+fn a_second_registry_install_is_refused() {
+    let (mut session, send_rx) = make_session();
+    let (module, _probes) = probe("ok", None);
+    let mut registry = ModuleRegistry::new();
+    register(&mut registry, "alpha.probe", module);
+    session.install_module_hooks_like_cpp(Arc::new(registry));
+    session.install_module_hooks_like_cpp(Arc::new(ModuleRegistry::new()));
+    session.player_login_hook_like_cpp(&event(false));
+    assert_eq!(system_texts(&send_rx, &session), vec!["ok"]);
+}

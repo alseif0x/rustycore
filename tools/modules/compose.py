@@ -165,8 +165,11 @@ def reject_server_dependencies(root: pathlib.Path, crate_dir: pathlib.Path, wher
 
     This is ADR-002's real invariant (#1445 S0): the public contract is the
     only server surface a module compiles against, so it cannot obtain a
-    session, a map or a packet writer through a type. Development dependencies
-    stay free, so a module's own tests may build an `ObjectGuid`.
+    session, a map or a packet writer through a type. The rule follows every
+    path dependency that stays inside the module checkout, so a helper crate
+    there cannot carry a server dependency in on the module's behalf.
+    Development dependencies are not checked; `wow-module-api` re-exports
+    `ObjectGuid`, so a module's tests need no other server crate either.
     """
     workspace = workspace_packages()
     api_dir = workspace.get(MODULE_API_PACKAGE)
@@ -178,28 +181,42 @@ def reject_server_dependencies(root: pathlib.Path, crate_dir: pathlib.Path, wher
             .get("workspace", {})
             .get("dependencies", {})
         )
-    cargo = tomllib.loads((crate_dir / "Cargo.toml").read_text(encoding="utf-8"))
-    for table in _normal_dependency_tables(cargo):
-        for key, spec in table.items():
-            spec = spec if isinstance(spec, dict) else {}
-            package = spec.get("package", key)
-            base = crate_dir
-            if spec.get("workspace") is True:
-                inherited = root_deps.get(key, {})
-                spec = inherited if isinstance(inherited, dict) else {}
+    module_root = root.resolve()
+    pending = [crate_dir.resolve()]
+    visited: set[pathlib.Path] = set()
+    while pending:
+        current = pending.pop()
+        if current in visited:
+            continue
+        visited.add(current)
+        manifest = current / "Cargo.toml"
+        if not manifest.is_file():
+            continue
+        cargo = tomllib.loads(manifest.read_text(encoding="utf-8"))
+        for table in _normal_dependency_tables(cargo):
+            for key, spec in table.items():
+                spec = spec if isinstance(spec, dict) else {}
                 package = spec.get("package", key)
-                base = REPO_ROOT
-            target = (base / spec["path"]).resolve() if "path" in spec else None
-            inside_server = target is not None and target.is_relative_to(REPO_ROOT.resolve())
-            inside_module = target is not None and target.is_relative_to(root.resolve())
-            is_api = package == MODULE_API_PACKAGE and (target is None or target == api_dir)
-            if is_api:
-                continue
-            _require(
-                package not in workspace and not (inside_server and not inside_module),
-                f"{where}: the module crate depends on server crate {package!r}; a module may "
-                f"depend only on {MODULE_API_PACKAGE} among the server's crates (ADR-002)",
-            )
+                base = current
+                if spec.get("workspace") is True:
+                    inherited = root_deps.get(key, {})
+                    spec = inherited if isinstance(inherited, dict) else {}
+                    package = spec.get("package", key)
+                    base = REPO_ROOT
+                target = (base / spec["path"]).resolve() if "path" in spec else None
+                inside_server = target is not None and target.is_relative_to(REPO_ROOT.resolve())
+                inside_module = target is not None and target.is_relative_to(module_root)
+                is_api = package == MODULE_API_PACKAGE and (target is None or target == api_dir)
+                if is_api:
+                    continue
+                _require(
+                    package not in workspace and not (inside_server and not inside_module),
+                    f"{where}: the module crate depends on server crate {package!r}; a module "
+                    f"may depend only on {MODULE_API_PACKAGE} among the server's crates "
+                    f"(ADR-002)",
+                )
+                if inside_module:
+                    pending.append(target)
 
 
 CONFIG_KEY_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")

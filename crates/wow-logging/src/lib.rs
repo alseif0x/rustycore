@@ -185,6 +185,20 @@ pub fn init_logging(log_level: &str) -> Result<(), Box<dyn std::error::Error>> {
 
 static PANIC_HOOK_INSTALLED: std::sync::Once = std::sync::Once::new();
 
+/// Answers whether the panicking thread is inside a scope whose caller catches
+/// the panic and keeps the process running (a linked-module callback, #1445).
+static CONTAINED_PANIC_PROBE: std::sync::OnceLock<fn() -> bool> = std::sync::OnceLock::new();
+
+/// Register the containment probe the panic hook consults. The composition
+/// root sets it once; later calls are ignored.
+pub fn set_contained_panic_probe_like_cpp(probe: fn() -> bool) {
+    let _ = CONTAINED_PANIC_PROBE.set(probe);
+}
+
+fn panic_is_contained_like_cpp() -> bool {
+    CONTAINED_PANIC_PROBE.get().is_some_and(|probe| probe())
+}
+
 /// Install a panic hook that mirrors the useful logging side of TrinityCore's
 /// `Trinity::Fatal`.
 ///
@@ -200,6 +214,20 @@ pub fn install_panic_hook_like_cpp() {
         let previous_hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |panic_info| {
             let message = panic_payload_message_like_cpp(panic_info.payload());
+
+            // A panic its caller contains is not `Trinity::Fatal`: the caller
+            // catches it, disables the offender and the process keeps running.
+            if panic_is_contained_like_cpp() {
+                let location = panic_info.location();
+                tracing::warn!(
+                    contained = true,
+                    file = location.map(|l| l.file()),
+                    line = location.map(|l| l.line()),
+                    panic_message = %message,
+                    "Rust panic contained at a linked-module boundary"
+                );
+                return;
+            }
 
             if let Some(location) = panic_info.location() {
                 tracing::error!(
@@ -454,6 +482,25 @@ macro_rules! log_movement {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    thread_local! {
+        static PROBE_ANSWER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
+
+    fn probe() -> bool {
+        PROBE_ANSWER.with(std::cell::Cell::get)
+    }
+
+    /// The hook downgrades exactly the panics the registered probe reports as
+    /// contained (#1445 review); with no probe nothing is contained.
+    #[test]
+    fn contained_panics_follow_the_registered_probe() {
+        set_contained_panic_probe_like_cpp(probe);
+        PROBE_ANSWER.with(|answer| answer.set(true));
+        assert!(panic_is_contained_like_cpp());
+        PROBE_ANSWER.with(|answer| answer.set(false));
+        assert!(!panic_is_contained_like_cpp());
+    }
 
     #[test]
     fn log_filter_as_str_round_trip() {

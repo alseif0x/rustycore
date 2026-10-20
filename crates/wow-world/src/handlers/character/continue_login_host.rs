@@ -52,6 +52,10 @@ impl ContinueLoginHostLikeCpp for WorldSession {
     fn player_login_hook_like_cpp(&mut self, event: &PlayerLoginHookEventLikeCpp) {
         self.module_hooks.player_login_like_cpp(&self.core, event);
     }
+    fn player_login_hook_wanted_like_cpp(&self) -> bool {
+        self.module_hooks
+            .wants_like_cpp(wow_module_api::HookFamily::PlayerLogin)
+    }
     fn apply_initial_loaded_item_mods_like_cpp(
         &mut self,
         loaded_equipped_item_guids: &[ObjectGuid],

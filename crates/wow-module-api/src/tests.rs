@@ -459,3 +459,49 @@ fn a_family_whose_only_module_was_disabled_is_no_longer_handled() {
 fn the_chat_decision_defaults_to_allow() {
     assert_eq!(ChatDecision::default(), ChatDecision::Allow);
 }
+
+#[test]
+fn the_callback_scope_is_visible_inside_and_cleared_after_a_panic() {
+    struct Observe(std::sync::Arc<std::sync::atomic::AtomicBool>);
+    impl PlayerLoginModule for Observe {
+        fn on_player_login(&self, _s: &PlayerLoginSnapshot, _e: &mut ScopedEffects<'_>) {
+            self.0.store(
+                module_callback_in_progress(),
+                std::sync::atomic::Ordering::SeqCst,
+            );
+        }
+    }
+    let seen = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let mut registry = ModuleRegistry::new();
+    registry
+        .register_player_login_module(
+            ModuleDescriptor::new("alpha.observe", version(), "Observe").expect("descriptor"),
+            Box::new(Observe(std::sync::Arc::clone(&seen))),
+        )
+        .expect("registration");
+    registry
+        .register_player_login_module(
+            ModuleDescriptor::new("mike.panics", version(), "Panics").expect("descriptor"),
+            Box::new(Panicking),
+        )
+        .expect("registration");
+    assert!(!module_callback_in_progress());
+    let _ = registry.dispatch_player_login_outcome(&snapshot(false));
+    assert!(seen.load(std::sync::atomic::Ordering::SeqCst));
+    assert!(
+        !module_callback_in_progress(),
+        "the scope must be cleared on unwind too"
+    );
+}
+
+/// `catch_unwind` isolates a module only while panics unwind. No profile of
+/// the workspace may switch to `panic = "abort"` (#1445 review).
+#[test]
+fn every_profile_keeps_panics_unwinding() {
+    let manifest = include_str!("../../../Cargo.toml");
+    let compact: String = manifest.chars().filter(|c| !c.is_whitespace()).collect();
+    assert!(
+        !compact.contains("panic=\"abort\""),
+        "a profile sets panic = \"abort\"; module failure isolation needs unwinding"
+    );
+}

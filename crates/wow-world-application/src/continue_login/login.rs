@@ -972,16 +972,19 @@ pub async fn handle_continue_player_login_with_catalogs_like_cpp<H: ContinueLogi
         .await;
 
     // C++ `sScriptMgr->OnPlayerLogin(pCurrChar, firstLogin)`
-    // (`CharacterHandler.cpp:1390`), after the completed login and after
-    // the login criteria update; AzerothCore `PlayerScript::OnPlayerLogin`
-    // (`PlayerScript.h:332`). Trusted linked modules observe here, through
-    // the host's hook port (#1445): the split borrow ends before the call,
-    // and no map guard or await is in scope.
-    let login_hook_event = {
-        let (_, hub) = host.split_lifecycle_ref();
-        PlayerLoginHookEventLikeCpp::from_hub_like_cpp(hub, first_login)
-    };
-    if let Some(event) = login_hook_event {
-        host.player_login_hook_like_cpp(&event);
+    // (TrinityCore `CharacterHandler.cpp:1390`; AzerothCore
+    // `CharacterHandler.cpp:1136`, `PlayerScript.h:332`), after the completed
+    // login and the login criteria update. Trusted linked modules observe here
+    // through the host's hook port (#1445). With no interested module nothing
+    // is read; otherwise the event's split borrow ends before the call, and no
+    // map guard or await is in scope.
+    if host.player_login_hook_wanted_like_cpp() {
+        let login_hook_event = {
+            let (_, hub) = host.split_lifecycle_ref();
+            PlayerLoginHookEventLikeCpp::from_hub_like_cpp(hub, first_login)
+        };
+        if let Some(event) = login_hook_event {
+            host.player_login_hook_like_cpp(&event);
+        }
     }
 }

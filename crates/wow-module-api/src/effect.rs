@@ -36,6 +36,7 @@ pub type PlayerLoginEffect = NotificationEffect;
 
 /// Why a batch was rejected.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum ModuleEffectError {
     EmptyMessage { module: String },
     MessageTooLong { module: String, bytes: usize },

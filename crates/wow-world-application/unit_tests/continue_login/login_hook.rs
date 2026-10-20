@@ -36,15 +36,27 @@ fn the_login_port_runs_last_after_the_online_mark() {
     );
 }
 
-/// The port is called after the split borrow that read the event has ended,
-/// so the World adapter is free to borrow the whole session.
+/// With no interested module the login reads nothing for the hook (#1445
+/// review M1): the event (canonical Player reads that take the map lock) is
+/// built only inside the interest query's branch, in its own block whose split
+/// borrow ends before the port call.
 #[test]
-fn the_login_port_is_called_outside_the_split_borrow() {
+fn the_login_event_is_read_only_when_a_module_wants_it() {
+    let gate = position("if host.player_login_hook_wanted_like_cpp() {");
+    let block = position("let login_hook_event = {");
+    let split = position("let (_, hub) = host.split_lifecycle_ref();");
     let read = position("PlayerLoginHookEventLikeCpp::from_hub_like_cpp(hub, first_login)");
+    let close = gate + LOGIN[gate..].find("        };\n").expect("event block end");
     let port = position("host.player_login_hook_like_cpp(&event);");
-    let between = &LOGIN[read..port];
-    assert!(
-        between.contains("};"),
-        "the event is read inside its own block, closed before the port call"
+    assert!(gate < block && block < split && split < read && read < close && close < port);
+    assert_eq!(
+        LOGIN.matches("from_hub_like_cpp(").count(),
+        1,
+        "nothing else builds the event"
+    );
+    assert_eq!(
+        LOGIN[..gate].matches("player_login_hook").count(),
+        0,
+        "no hook work happens before the interest query"
     );
 }

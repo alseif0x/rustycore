@@ -80,8 +80,9 @@ first `Deny` wins and `ReplaceText` chains in `ModuleId` order).
 - a `source_api` this server does not provide;
 - a module crate with a normal dependency (`[dependencies]` or `[target.*.dependencies]`) on
   any server workspace crate other than `wow-module-api`, whether by name, by a `path` into
-  the server tree or by `workspace = true` (#1445, ADR-002). Development dependencies stay
-  free, so a module's own tests may build an `ObjectGuid` with `wow-core`.
+  the server tree or by `workspace = true`, including through a helper crate inside the module
+  checkout (#1445, ADR-002). `wow-module-api` re-exports `ObjectGuid`, so neither a module nor
+  its tests need `wow-core`; development dependencies are not checked.
   `tools/modules/fixtures/forbidden_dependency/` is the refusal fixture.
 
 ## `modules.lock.toml`
@@ -227,7 +228,8 @@ A set with no family is refused. Families follow AzerothCore's script classes
 (`src/server/game/Scripting/ScriptDefines/*.h`); `HookFamily` names them and
 `registry.handles(family)` lets an owner skip building a snapshot nobody receives.
 
-**Contract shape.** Snapshots are owned copies; API 2 snapshots are `#[non_exhaustive]` with a
+**Contract shape.** `wow-module-api` re-exports `ObjectGuid`, so a module names every type it
+needs through that one crate. Snapshots are owned copies; API 2 snapshots are `#[non_exhaustive]` with a
 constructor, so fields can be added without breaking modules. Effects are per family and
 validated as one batch, all or nothing (`EffectBatch`). Confirmed-result hooks return
 `NotificationEffect::SendSystemMessageSelf`; the pre-decision type `ChatDecision`
@@ -236,12 +238,19 @@ validated as one batch, all or nothing (`EffectBatch`). Confirmed-result hooks r
 **Failure isolation.** Each callback runs under `catch_unwind` with `AssertUnwindSafe`: what a
 panicking callback queued is discarded, and the module is disabled for every family for the rest
 of the process (`HookOutcome::disabled`, `registry.is_disabled`). The other modules' batch still
-applies. Native modules are trusted code; this is isolation from bugs, not a sandbox.
+applies. Native modules are trusted code; this is isolation from bugs, not a sandbox. It needs
+unwinding panics, so no workspace profile may set `panic = "abort"` (a `wow-module-api` test
+checks it). `world-server` registers `wow_module_api::module_callback_in_progress` with the
+`wow-logging` panic hook, which then logs such a panic as contained instead of
+`Trinity::Fatal`-like.
 
 **Ports, not dependencies.** Domain crates never depend on `wow-module-api`. A hook point is a
 provided method on the domain's existing host trait with an empty default body, taking a plain
 domain event (for login, `ContinueLoginHostLikeCpp::player_login_hook_like_cpp` with
-`PlayerLoginHookEventLikeCpp`). `WorldSession` overrides the port and calls the World adapter,
+`PlayerLoginHookEventLikeCpp`). Where building the event costs anything (canonical Player reads
+take the map lock), the port has a provided interest query too
+(`player_login_hook_wanted_like_cpp`, default `false`, answered by the World from
+`registry.handles`), so a zero-module server builds nothing. `WorldSession` overrides the port and calls the World adapter,
 `crates/wow-world/src/session/module_hooks.rs`, the one place that converts the event to the
 public snapshot, dispatches and applies the validated effects through the canonical owner. Test
 hosts implement nothing. No `wow-world*` dependency edge is added, so `wow_world_closure.py` and
@@ -250,7 +259,8 @@ hosts implement nothing. No `wow-world*` dependency edge is added, so `wow_world
 
 **Registry ownership.** The compositor's `Arc<ModuleRegistry>` is process-owned and immutable.
 The session factory installs the same `Arc` the dispatch catalogs carry into each session once,
-through `WorldSession::install_module_hooks_like_cpp`; it replaces the former test-only
+through `WorldSession::install_module_hooks_like_cpp` (a second install is refused and asserted
+in debug builds); it replaces the former test-only
 `SessionCore::module_registry_like_cpp`. Nothing else is installed into the session this way.
 
 **Ordering and locks.** A port is called where C++ calls `sScriptMgr`, after the transition and

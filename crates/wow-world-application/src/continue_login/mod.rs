@@ -101,6 +101,13 @@ pub trait ContinueLoginHostLikeCpp:
     /// trusted linked modules; the default, used by every test host, does
     /// nothing. Called with no split borrow, map guard or await in scope.
     fn player_login_hook_like_cpp(&mut self, _event: &PlayerLoginHookEventLikeCpp) {}
+    /// Whether any linked module wants `player.login`. The login reads the
+    /// event (name, race, class, level: canonical Player reads that take the
+    /// map lock) only when this is true, so the zero-module login does no
+    /// extra work. The default, used by every test host, wants nothing.
+    fn player_login_hook_wanted_like_cpp(&self) -> bool {
+        false
+    }
     fn apply_initial_loaded_item_mods_like_cpp(
         &mut self,
         loaded_equipped_item_guids: &[ObjectGuid],

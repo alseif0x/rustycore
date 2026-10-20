@@ -4226,6 +4226,20 @@
           "module": "crate::handlers::character::continue_login_host",
           "trait_path": "ContinueLoginHostLikeCpp",
           "kind": "method",
+          "name": "player_login_hook_wanted_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_login_hook_wanted_like_cpp (& self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::continue_login_host",
+          "trait_path": "ContinueLoginHostLikeCpp",
+          "kind": "method",
           "name": "player_spell_hit_source_identity_complete_like_cpp",
           "visibility": "private",
           "signature": "fn player_spell_hit_source_identity_complete_like_cpp (& self) -> bool",
