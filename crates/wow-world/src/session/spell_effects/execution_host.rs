@@ -6,6 +6,14 @@ use super::*;
 use std::future::Future;
 
 impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
+    fn spell_cast_hook_wanted_like_cpp(&self) -> bool {
+        self.module_hooks
+            .wants_like_cpp(wow_module_api::HookFamily::Player)
+    }
+    fn spell_cast_hook_like_cpp(&mut self, event: &wow_world_spell::SpellCastHookEventLikeCpp) {
+        self.module_hooks
+            .spell_cast_like_cpp(self.core.packet_publication_access_like_cpp(), event);
+    }
     fn mutate_cast_execution_like_cpp<R>(
         &mut self,
         f: impl FnOnce(&mut wow_entities::CastExecutionStateLikeCpp) -> R,

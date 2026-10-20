@@ -912,3 +912,88 @@ fn world_update_registry_cost_with_zero_and_one_trivial_module() {
     );
     assert!(zero_ns < one_ns);
 }
+
+// ── `player.creature_kill` and `player.spell_cast` (#1444 H3) ─────────────
+
+#[derive(Default)]
+struct CombatRecorder {
+    seen: std::sync::Mutex<Vec<String>>,
+}
+
+impl PlayerModule for CombatRecorder {
+    fn on_creature_kill(&self, s: &CreatureKillSnapshot, e: &mut ScopedEffects<'_>) {
+        self.seen.lock().unwrap().push(format!(
+            "kill {} lvl {} map {}",
+            s.creature_entry, s.creature_level, s.map_id
+        ));
+        e.send_system_message_self("kill");
+    }
+    fn on_spell_cast(&self, s: &SpellCastSnapshot, _e: &mut ScopedEffects<'_>) {
+        self.seen
+            .lock()
+            .unwrap()
+            .push(format!("cast {} triggered {}", s.spell_id, s.triggered));
+    }
+}
+
+#[test]
+fn creature_kill_and_spell_cast_dispatch_through_the_player_family() {
+    let recorder = std::sync::Arc::new(CombatRecorder::default());
+    let mut registry = ModuleRegistry::new();
+    registry
+        .register_module(
+            ModuleDescriptor::new("alpha.combat", version(), "Combat").unwrap(),
+            ModuleHooks::new().player(recorder.clone()),
+        )
+        .unwrap();
+    let player = ObjectGuid::create_player(1, 42);
+    let kill = registry
+        .dispatch_creature_kill(&CreatureKillSnapshot::new(
+            player,
+            ObjectGuid::EMPTY,
+            299,
+            5,
+            0,
+        ))
+        .effects
+        .expect("valid");
+    assert_eq!(kill.len(), 1);
+    assert!(
+        registry
+            .dispatch_spell_cast(&SpellCastSnapshot::new(
+                player,
+                133,
+                ObjectGuid::EMPTY,
+                ObjectGuid::EMPTY,
+                false,
+            ))
+            .effects
+            .expect("valid")
+            .is_empty()
+    );
+    assert_eq!(
+        *recorder.seen.lock().unwrap(),
+        vec!["kill 299 lvl 5 map 0", "cast 133 triggered false"]
+    );
+}
+
+#[test]
+fn creature_kill_and_spell_cast_default_to_no_effect() {
+    struct Silent;
+    impl PlayerModule for Silent {}
+    let mut registry = ModuleRegistry::new();
+    registry
+        .register_module(
+            ModuleDescriptor::new("alpha.silent", version(), "Silent").unwrap(),
+            ModuleHooks::new().player(std::sync::Arc::new(Silent)),
+        )
+        .unwrap();
+    let player = ObjectGuid::create_player(1, 42);
+    assert!(
+        registry
+            .dispatch_creature_kill(&CreatureKillSnapshot::new(player, player, 1, 1, 0))
+            .effects
+            .expect("valid")
+            .is_empty()
+    );
+}

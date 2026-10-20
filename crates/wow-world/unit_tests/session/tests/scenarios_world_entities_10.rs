@@ -9,6 +9,8 @@ use super::*;
 mod creature_aura_application;
 #[path = "scenarios_world_entities_10/creature_kill_and_death.rs"]
 mod creature_kill_and_death;
+#[path = "scenarios_world_entities_10/creature_kill_hook.rs"]
+mod creature_kill_hook;
 #[path = "scenarios_world_entities_10/spell_damage_death.rs"]
 mod spell_damage_death;
 #[path = "scenarios_world_entities_10/spell_healing.rs"]

@@ -163,4 +163,15 @@ pub trait WorldEntitiesHostLikeCpp: SessionHubHostLikeCpp {
         creature_entry: u32,
         creature_guid: ObjectGuid,
     ) -> impl Future<Output = ()> + Send;
+
+    /// Whether any linked module wants `player.creature_kill` (#1444 H3).
+    /// Asked before the death transition, so the zero-module path copies
+    /// nothing out of the creature.
+    fn creature_kill_hook_wanted_like_cpp(&self) -> bool {
+        false
+    }
+
+    /// `player.creature_kill`: TrinityCore `OnCreatureKill`, raised once per
+    /// kill after `setDeathState(JUST_DIED)` with no map guard held.
+    fn creature_kill_hook_like_cpp(&mut self, _event: &crate::CreatureKillHookEventLikeCpp) {}
 }

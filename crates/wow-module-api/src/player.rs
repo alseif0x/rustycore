@@ -154,6 +154,72 @@ impl QuestRewardedSnapshot {
     }
 }
 
+/// `player.creature_kill`: the player killed a creature.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub struct CreatureKillSnapshot {
+    pub guid: ObjectGuid,
+    pub creature: ObjectGuid,
+    /// The creature template id.
+    pub creature_entry: u32,
+    pub creature_level: u8,
+    pub map_id: u32,
+}
+
+impl CreatureKillSnapshot {
+    #[must_use]
+    pub fn new(
+        guid: ObjectGuid,
+        creature: ObjectGuid,
+        creature_entry: u32,
+        creature_level: u8,
+        map_id: u32,
+    ) -> Self {
+        Self {
+            guid,
+            creature,
+            creature_entry,
+            creature_level,
+            map_id,
+        }
+    }
+}
+
+/// `player.spell_cast`: the player cast a spell; `SMSG_SPELL_GO` was sent.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub struct SpellCastSnapshot {
+    pub guid: ObjectGuid,
+    pub spell_id: u32,
+    pub cast_id: ObjectGuid,
+    /// The explicit target, or `ObjectGuid::EMPTY`.
+    pub target: ObjectGuid,
+    /// A server cast carrying C++ `TRIGGERED_IGNORE_GCD`, which every
+    /// `CastSpell(..., true)` (`TRIGGERED_FULL_MASK`) cast does. RustyCore
+    /// represents no other trigger flag, so this is not TrinityCore's
+    /// `skipCheck` argument.
+    pub triggered: bool,
+}
+
+impl SpellCastSnapshot {
+    #[must_use]
+    pub fn new(
+        guid: ObjectGuid,
+        spell_id: u32,
+        cast_id: ObjectGuid,
+        target: ObjectGuid,
+        triggered: bool,
+    ) -> Self {
+        Self {
+            guid,
+            spell_id,
+            cast_id,
+            target,
+            triggered,
+        }
+    }
+}
+
 /// The `player.*` family. Every method has an empty default, so a module
 /// overrides only the hooks it wants.
 pub trait PlayerModule: Send + Sync {
@@ -201,4 +267,15 @@ pub trait PlayerModule: Send + Sync {
         _effects: &mut ScopedEffects<'_>,
     ) {
     }
+
+    /// AzerothCore `PlayerScript::OnPlayerCreatureKill` (`PlayerScript.h:254`,
+    /// `Unit.cpp:14298`); TrinityCore `OnCreatureKill` (`Unit.cpp:10755`), at
+    /// the end of `Unit::Kill`: once per kill, after `setDeathState(JUST_DIED)`.
+    fn on_creature_kill(&self, _snapshot: &CreatureKillSnapshot, _effects: &mut ScopedEffects<'_>) {
+    }
+
+    /// AzerothCore `PlayerScript::OnPlayerSpellCast` (`PlayerScript.h:326`,
+    /// `Spell.cpp:3825`); TrinityCore `OnPlayerSpellCast` (`Spell.cpp:3671`).
+    /// Observation only: no effect can change spells or auras (#754).
+    fn on_spell_cast(&self, _snapshot: &SpellCastSnapshot, _effects: &mut ScopedEffects<'_>) {}
 }

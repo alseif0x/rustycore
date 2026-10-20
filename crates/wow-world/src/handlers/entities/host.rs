@@ -17,6 +17,17 @@ use wow_world_entities::{WorldEntitiesHostLikeCpp, WorldEntitiesState};
 use crate::session::WorldSession;
 
 impl WorldEntitiesHostLikeCpp for WorldSession {
+    fn creature_kill_hook_wanted_like_cpp(&self) -> bool {
+        self.module_hooks
+            .wants_like_cpp(wow_module_api::HookFamily::Player)
+    }
+    fn creature_kill_hook_like_cpp(
+        &mut self,
+        event: &wow_world_entities::CreatureKillHookEventLikeCpp,
+    ) {
+        self.module_hooks
+            .creature_kill_like_cpp(self.core.packet_publication_access_like_cpp(), event);
+    }
     fn world_entities(&self) -> &WorldEntitiesState {
         &self.world_entities
     }

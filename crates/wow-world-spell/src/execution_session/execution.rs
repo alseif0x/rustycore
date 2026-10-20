@@ -118,6 +118,19 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             wow_packet::ServerPacket::to_bytes(&go_pkt),
         );
     }
+    // #1444 H3: TrinityCore `Spell::_cast` raises `OnPlayerSpellCast` for a
+    // player caster (`Spell.cpp:3671`). Modules observe a cast that already
+    // happened, so it is raised once SMSG_SPELL_GO is out and before the
+    // effects apply; a creature or GameObject caster raises nothing.
+    if caster_guid == player_guid && host.spell_cast_hook_wanted_like_cpp() {
+        host.spell_cast_hook_like_cpp(&crate::SpellCastHookEventLikeCpp {
+            guid: player_guid,
+            spell_id: spell_id as u32,
+            cast_id,
+            target_guid,
+            triggered: metadata.triggered_ignores_global_cooldown_like_cpp,
+        });
+    }
     apply_post_spell_go_target_effects_like_cpp(
         host,
         creature_spawn_catalogs,
