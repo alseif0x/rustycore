@@ -10,7 +10,7 @@ fn mmap_constants_and_nav_flags_match_cpp() {
     assert_eq!(MMAP_VERSION_LIKE_CPP, 15);
     assert_eq!(MMAP_TILE_HEADER_SIZE_LIKE_CPP, 20);
 
-    assert!(DT_POLYREF64_LIKE_CPP);
+    const { assert!(DT_POLYREF64_LIKE_CPP) };
     assert_eq!(DT_SALT_BITS_LIKE_CPP, 12);
     assert_eq!(DT_TILE_BITS_LIKE_CPP, 21);
     assert_eq!(DT_POLY_BITS_LIKE_CPP, 31);

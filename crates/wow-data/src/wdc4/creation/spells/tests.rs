@@ -263,9 +263,10 @@ fn public_raw_spell_batch_decodes_all_forty_nine_source_record_types() {
             .all(|(_, known, unknown)| (known, unknown) == (0, 0))
     );
     // Even failure at the last dependency cannot return a partial batch.
-    std::fs::remove_file(directory.join("LiquidType.db2")).unwrap();
+    let last = *SpellTable::ALL.last().unwrap();
+    std::fs::remove_file(directory.join(format!("{}.db2", last.name()))).unwrap();
     assert!(SpellRecords::load(&directory, SpellBaseline::Complete).is_err());
-    for table in SpellTable::ALL.into_iter().take(41) {
+    for table in SpellTable::ALL.into_iter().filter(|table| *table != last) {
         std::fs::remove_file(directory.join(format!("{}.db2", table.name()))).unwrap();
     }
     std::fs::remove_dir(directory).unwrap();

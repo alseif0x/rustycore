@@ -395,7 +395,7 @@ fn detour_obstacle_fixture_leaves_the_centre_cell_unwalkable() {
 
 #[test]
 fn detour_obstacle_fixture_preserves_connected_world_height() {
-    let origin = [2_666.6667, 218.49, -10_133.333];
+    let origin = [2_666.666_7, 218.49, -10_133.333];
     let params = DetourNavMeshParams {
         origin,
         tile_width: OBSTACLE_TILE_EXTENT,

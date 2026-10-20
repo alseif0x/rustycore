@@ -4,8 +4,69 @@
 #include "DetourNavMeshBuilder.h"
 #include "DetourNavMeshQuery.h"
 
+#include <cstddef>
 #include <stdint.h>
 #include <string.h>
+
+static_assert(sizeof(dtPolyRef) == 8, "checked ingress requires 64-bit dtPolyRef");
+static_assert(DT_SALT_BITS == 12 && DT_TILE_BITS == 21 && DT_POLY_BITS == 31,
+    "checked profile expects the vendored 64-bit reference partition");
+static_assert(sizeof(dtMeshHeader) == 100, "checked ingress expects the Detour7 header layout");
+static_assert(offsetof(dtMeshHeader, magic) == 0);
+static_assert(offsetof(dtMeshHeader, version) == 4);
+static_assert(offsetof(dtMeshHeader, x) == 8);
+static_assert(offsetof(dtMeshHeader, y) == 12);
+static_assert(offsetof(dtMeshHeader, layer) == 16);
+static_assert(offsetof(dtMeshHeader, userId) == 20);
+static_assert(offsetof(dtMeshHeader, polyCount) == 24);
+static_assert(offsetof(dtMeshHeader, vertCount) == 28);
+static_assert(offsetof(dtMeshHeader, maxLinkCount) == 32);
+static_assert(offsetof(dtMeshHeader, detailMeshCount) == 36);
+static_assert(offsetof(dtMeshHeader, detailVertCount) == 40);
+static_assert(offsetof(dtMeshHeader, detailTriCount) == 44);
+static_assert(offsetof(dtMeshHeader, bvNodeCount) == 48);
+static_assert(offsetof(dtMeshHeader, offMeshConCount) == 52);
+static_assert(offsetof(dtMeshHeader, offMeshBase) == 56);
+static_assert(offsetof(dtMeshHeader, walkableHeight) == 60);
+static_assert(offsetof(dtMeshHeader, walkableRadius) == 64);
+static_assert(offsetof(dtMeshHeader, walkableClimb) == 68);
+static_assert(offsetof(dtMeshHeader, bmin) == 72);
+static_assert(offsetof(dtMeshHeader, bmax) == 84);
+static_assert(offsetof(dtMeshHeader, bvQuantFactor) == 96);
+
+static_assert(sizeof(dtNavMeshParams) == 28);
+static_assert(offsetof(dtNavMeshParams, orig) == 0);
+static_assert(offsetof(dtNavMeshParams, tileWidth) == 12);
+static_assert(offsetof(dtNavMeshParams, tileHeight) == 16);
+static_assert(offsetof(dtNavMeshParams, maxTiles) == 20);
+static_assert(offsetof(dtNavMeshParams, maxPolys) == 24);
+
+static_assert(sizeof(dtPoly) == 32);
+static_assert(offsetof(dtPoly, firstLink) == 0);
+static_assert(offsetof(dtPoly, verts) == 4);
+static_assert(offsetof(dtPoly, neis) == 16);
+static_assert(offsetof(dtPoly, flags) == 28);
+static_assert(offsetof(dtPoly, vertCount) == 30);
+static_assert(offsetof(dtPoly, areaAndtype) == 31);
+
+static_assert(sizeof(dtLink) == 16);
+static_assert(offsetof(dtLink, ref) == 0);
+static_assert(offsetof(dtLink, next) == 8);
+static_assert(offsetof(dtLink, edge) == 12);
+static_assert(offsetof(dtLink, side) == 13);
+static_assert(offsetof(dtLink, bmin) == 14);
+static_assert(offsetof(dtLink, bmax) == 15);
+
+static_assert(sizeof(dtPolyDetail) == 12);
+static_assert(offsetof(dtPolyDetail, vertBase) == 0);
+static_assert(offsetof(dtPolyDetail, triBase) == 4);
+static_assert(offsetof(dtPolyDetail, vertCount) == 8);
+static_assert(offsetof(dtPolyDetail, triCount) == 9);
+
+static_assert(sizeof(dtBVNode) == 16);
+static_assert(offsetof(dtBVNode, bmin) == 0);
+static_assert(offsetof(dtBVNode, bmax) == 6);
+static_assert(offsetof(dtBVNode, i) == 12);
 
 extern "C"
 {

@@ -1,5 +1,78 @@
 # WoW Forever 1.60.1 login-only runbook
 
+## Selected Linux navigation library candidate — 2026-10-20
+
+Extractor issue 104 supplies the shared Linux V23 package admission API. The
+optional `wow-world/forever-navigation` adapter binds exact expected identity,
+checks Detour v7 ground payloads and reuses the existing `MMapManager` and owner
+thread. Native state remains authoritative; batch preflight, rollback, retained
+query budgets and explicit unload fence its lifecycle. The worker preserves raw
+corridor status, including partial results, and bounds paths to 256 polygons.
+The lower-level SDK permits up to 4,096; these are separate bounds.
+
+The candidate uses an exact sibling-library dependency policy. Cargo requires
+the reviewed extractor checkout as the adjacent `rustycore-extractors` directory
+even when the optional consumer feature is disabled; the optional dependency
+does not make its manifest optional during dependency resolution. It does not
+include the pending terrain adapter or local operator configuration. Seven
+reviewed test-only prerequisites are included: explicit persistence/SQL imports,
+correctly typed literals, current serialized fixture expectations, complete
+table-fixture cleanup and the existing binary-effect fixture scaling
+correction/regression. No spell production behavior changes. The existing
+checkout and its original test files remain intact.
+Committed-candidate validation uses a separate source tree with the
+extractor pinned to `3baac307329bd0391cd7f083a55e03b982081b27`. Earlier acceptance
+of a mixed development tree is retained at its actual scope and is not
+transferred to this isolated candidate.
+
+The first isolated candidate `d67509c8` completed a fresh-target campaign in
+449.555 seconds. Its 77 SDK tests, ten public consumer tests and one disabled
+feature regression pass. Its general final fails the SDK root physical ceiling
+(220 versus 218) and inherited Session ownership baselines; its world library
+cannot compile eight missing persistence-type uses in existing tests. These
+negative results are retained, not waived. The revised candidate moves the
+three synthetic-fixture FFI declarations into one private module, preserving
+symbols, cfgs and call sites, and includes the reviewed test prerequisites.
+This cold isolated run does not reset the earlier ordinary campaign or its
+failed 600-second performance target.
+
+The revised code candidate `1bf5ee4b48d8f729e806f7acddfdebad01025b58` passes
+workspace all-target compilation (495.889s), whitespace/formatting, the focused
+dependency-policy fixtures and actual all-feature metadata graph, and SDK
+Clippy. Its four affected libraries pass 971 data, 392 database, 77 SDK and
+4,493 world tests (three ignored in total). The public consumer passes ten
+additional cases and the feature-disabled regression passes one. These 5,944
+passes are composed from retained exact-candidate evidence, not one green
+general final invocation.
+
+The first combined library invocation retained the 971 data passes but failed
+five database comparisons because the isolated runner omitted its SQL reference
+environment. The resumed invocation supplies `RUSTYCORE_CPP_REFERENCE_ROOT`
+with the existing partial source reference pinned by CI to TrinityCoreLegacy
+`92796557f9b0ba3d2d1c7c770f535153154cf83e`; both SQL files match CI's exact
+checksums before and after the run. Nothing was downloaded or changed. The
+database, SDK and world suites then pass, followed by the consumer/disabled
+cases and Clippy. No source changed between the retained and resumed evidence.
+
+Code qualification receipt:
+`fe9f725ff4de50441ace06613be4b028bb723cbab4a1cbde9cdbc75107ea8e41`.
+The three isolated attempts total 1,345.029 seconds through that checkpoint;
+closing documentation/publication validation adds cost. Failed attempts and
+the earlier ordinary campaign are not reset. The general final now passes the
+physical gate and fails the unchanged inherited logical hotspot/Session debt.
+The four affected legacy Session source files are byte-identical to the earlier
+waived `3c56508e` candidate; Session totals remain 95,306 production / 128,635
+test / 223,941 total lines. No baseline or ceiling changes. Experimental branch
+publication may use only the existing inherited-debt exception; this is not a
+green general final, merge approval or server/runtime acceptance.
+
+The server does not instantiate this capability. This is library integration,
+without full-world, complete geometry, movement/gameplay or server runtime
+acceptance. No key recovery, client/launcher operation, server activation,
+Windows delivery or release publication is established. Creation/world entry
+remain paused. The existing experimental publication exception covers only
+unchanged inherited architecture debt, never new failures or a green final.
+
 The target branch is **`forever`**, renamed from `1.60.1` on 2026-10-02.
 This is an independent version line based on `3.4.3`, not a feature branch to
 merge back wholesale. Historical acceptance names below refer to the old name.

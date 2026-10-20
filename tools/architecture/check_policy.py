@@ -6,6 +6,7 @@ Separated from check_architecture.py under #664; behaviour is preserved.
 from __future__ import annotations
 
 from check_shared import *  # noqa: F401,F403
+from external_path_policy import path_identity, validate_path_allowances
 
 def reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
@@ -406,6 +407,12 @@ def validate_policy(policy: Any) -> dict[str, Any]:
                     (package, dependency, canonical_registry_source, kind)
                 )
 
+    path_allowances = validate_path_allowances(
+        external.get("allowed_paths", []), protected_packages, set(package_categories)
+    )
+    for (source, target, kind), entry in path_allowances.items():
+        external_allowed_edges.add((source, target, path_identity(entry), kind))
+
     external_exception_map: dict[
         tuple[str, str, str, str], dict[str, Any]
     ] = {}
@@ -489,6 +496,7 @@ def validate_policy(policy: Any) -> dict[str, Any]:
     policy["_external_protected_packages"] = protected_packages
     policy["_external_canonical_registry_source"] = canonical_registry_source
     policy["_external_allowed_edges"] = external_allowed_edges
+    policy["_external_path_allowances"] = path_allowances
     policy["_external_exception_map"] = external_exception_map
     return policy
 
