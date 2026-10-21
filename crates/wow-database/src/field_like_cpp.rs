@@ -18,7 +18,8 @@
 //! They are deliberately **stricter than C++** for the column class: C++
 //! decodes DECIMAL through its double converter and, over the text protocol,
 //! parses numbers from strings and returns any column, including numeric and
-//! DATE/TIME ones, through `GetString()` (QueryResult.cpp:155-187). Here a
+//! DATE/TIME ones, through `GetString()` (DECIMAL to double at
+//! QueryResult.cpp:169,185). Here a
 //! numeric getter on a text/DECIMAL/DATE column and `GetString()` on a
 //! non-text column are errors, because in these projections that only
 //! happens when the SQL widened a column by accident (`COALESCE(uint,
