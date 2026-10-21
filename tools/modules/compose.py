@@ -489,11 +489,17 @@ def render_sql_entries(table: str, sql: dict) -> list[str]:
 
 
 def split_lock(text: str) -> tuple[str, str]:
-    """The generated part and the preserved tombstone block of a lock."""
-    index = text.find(TOMBSTONE_MARKER)
+    """The generated part and the preserved tombstone block of a lock.
+
+    The marker counts only as a whole line: a quoted value that happens to
+    contain its text (a description, say) is not the block.
+    """
+    if text.startswith(TOMBSTONE_MARKER + "\n"):
+        return "", text
+    index = text.find("\n" + TOMBSTONE_MARKER + "\n")
     if index < 0:
         return text, ""
-    return text[:index], text[index:]
+    return text[: index + 1], text[index + 1 :]
 
 
 def read_previous_lock() -> tuple[dict, str]:

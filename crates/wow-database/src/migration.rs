@@ -166,18 +166,17 @@ impl MigrationManifest {
             .iter()
             .filter(|migration| migration.database == database)
             .collect();
-        // Numeric versions compare numerically ("2026.10.9" < "2026.10.10");
-        // anything else keeps the text order.
-        migrations.sort_by(|a, b| {
-            a.component.cmp(&b.component).then_with(|| {
-                match (
-                    modules::parse_schema_version(&a.version),
-                    modules::parse_schema_version(&b.version),
-                ) {
-                    (Some(left), Some(right)) => left.cmp(&right),
-                    _ => a.version.cmp(&b.version),
-                }
-            })
+        // Numeric versions compare numerically ("2026.10.9" < "2026.10.10")
+        // and sort before any other version, which keeps its text order: one
+        // total key, so mixed kinds can never form a comparison cycle.
+        migrations.sort_by_cached_key(|migration| {
+            let parsed = modules::parse_schema_version(&migration.version);
+            (
+                migration.component.clone(),
+                parsed.is_none(),
+                parsed,
+                migration.version.clone(),
+            )
         });
         migrations
     }

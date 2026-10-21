@@ -353,3 +353,26 @@ fn unknown_module_history_and_changed_active_checksums_are_refused() {
         report.problems
     );
 }
+
+#[test]
+fn mixed_version_kinds_sort_by_one_total_key() {
+    let mut manifest = core();
+    for version in ["b", "10", "9", "a", "1.x", "2", "1.10", "1.9"] {
+        manifest.migrations.push(Migration {
+            component: "module:mixed".into(),
+            database: DatabaseKind::World,
+            version: version.into(),
+            description: "mixed".into(),
+            file: format!("{version}.sql"),
+            sha256: SHA_A.into(),
+            state: MigrationState::Archived,
+            adopt_query: None,
+        });
+    }
+    let order: Vec<_> = manifest
+        .migrations_for(DatabaseKind::World)
+        .into_iter()
+        .map(|migration| migration.version.as_str())
+        .collect();
+    assert_eq!(order, ["1.9", "1.10", "2", "9", "10", "1.x", "a", "b"]);
+}

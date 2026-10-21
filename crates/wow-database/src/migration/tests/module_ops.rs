@@ -336,3 +336,21 @@ async fn live_mariadb_module_apply_remove_and_purge() -> Result<()> {
     fs::remove_dir_all(root)?;
     Ok(())
 }
+
+#[test]
+fn a_description_quoting_the_marker_is_not_the_tombstone_block() {
+    let (root, lock) = workspace("marker", false);
+    let quoted = lock.replace(
+        "description = \"seed\"",
+        &format!("description = \"seed {TOMBSTONE_MARKER} quoted\""),
+    );
+    let plan = plan_removal(&quoted, &root, "it.mod").unwrap();
+    assert!(
+        plan.lock.starts_with(quoted.trim_end()),
+        "the generated part, quoted marker included, is untouched"
+    );
+    let schema = ModuleSchema::from_lock(&plan.lock).unwrap();
+    assert!(schema.tombstone("it.mod").is_some());
+    assert_eq!(lock_with_tombstones(&quoted, &[]), quoted);
+    fs::remove_dir_all(root).unwrap();
+}

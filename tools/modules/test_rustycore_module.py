@@ -519,6 +519,23 @@ class ModuleManagerTests(unittest.TestCase):
         self.assertIn("rustycore-db module remove demo.greeter", refused.stderr)
         self.assertTrue((self.ws.root / "modules/demo_greeter").is_dir())
 
+    def test_a_description_quoting_the_tombstone_marker_is_harmless(self) -> None:
+        sys.path.insert(0, str(REPO_ROOT / "tools/modules"))
+        import compose  # noqa: PLC0415
+        root = self._module_with_sql()
+        manifest = root / "data/sql/manifest.toml"
+        manifest.write_text(
+            manifest.read_text(encoding="utf-8").replace(
+                'description = "counts"', f'description = "counts {compose.TOMBSTONE_MARKER} x"'
+            ),
+            encoding="utf-8",
+        )
+        for _ in range(2):
+            synced = self.ws.run("sync")
+            self.assertEqual(synced.returncode, 0, synced.stderr)
+        self.assertEqual(self.ws.run("check").returncode, 0)
+        self.assertNotIn("tombstone", self._lock())
+
     def test_zero_modules_keep_the_plain_compositor(self) -> None:
         self.assertEqual(self.ws.run("sync").returncode, 0)
         main = (self.ws.root / "crates/world-modules/src/main.rs").read_text(encoding="utf-8")

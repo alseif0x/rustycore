@@ -396,11 +396,20 @@ fn render_entry(module: &LockedModule) -> String {
     text
 }
 
+/// Where the tombstone block starts: the marker as a whole line only, as
+/// compose.py's `split_lock` finds it.
+fn tombstone_block_start(lock: &str) -> Option<usize> {
+    if lock.starts_with(&format!("{TOMBSTONE_MARKER}\n")) {
+        return Some(0);
+    }
+    lock.find(&format!("\n{TOMBSTONE_MARKER}\n"))
+        .map(|index| index + 1)
+}
+
 /// The lock with its tombstone block replaced by `tombstones`.
 #[must_use]
 pub fn lock_with_tombstones(lock: &str, tombstones: &[LockedModule]) -> String {
-    let generated = lock
-        .find(TOMBSTONE_MARKER)
+    let generated = tombstone_block_start(lock)
         .map_or(lock, |index| &lock[..index])
         .trim_end_matches('\n');
     if tombstones.is_empty() {
