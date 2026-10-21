@@ -10,6 +10,8 @@ use wow_persistence::{
     WorldAuxiliaryCatalogPersistencePortLikeCpp, WorldAuxiliaryRowsLoadOutcomeLikeCpp,
 };
 
+use crate::field_like_cpp::FieldRowLikeCpp;
+use crate::result::collect_rows_like_cpp;
 use crate::{WorldDatabase, WorldStatements};
 
 pub struct MariaDbWorldAuxiliaryCatalogPersistenceAdapterLikeCpp {
@@ -22,31 +24,26 @@ impl MariaDbWorldAuxiliaryCatalogPersistenceAdapterLikeCpp {
     }
 
     async fn access_requirement_rows(&self) -> Result<Vec<AccessRequirementPersistenceRowLikeCpp>> {
-        let mut result = self.world_db.direct_query(
+        let result = self.world_db.direct_query(
             "SELECT mapid, difficulty, level_min, level_max, item, item2, quest_done_A, quest_done_H, completed_achievement, quest_failed_text FROM access_requirement",
         ).await?;
-        let mut rows = Vec::with_capacity(result.row_count_like_cpp());
-        if !result.is_empty() {
-            loop {
-                let fields = result.fields();
-                rows.push(AccessRequirementPersistenceRowLikeCpp {
-                    map_id: fields.try_read(0).unwrap_or(0),
-                    difficulty: fields.try_read(1).unwrap_or(0),
-                    level_min: fields.try_read(2).unwrap_or(0),
-                    level_max: fields.try_read(3).unwrap_or(0),
-                    item: fields.try_read(4).unwrap_or(0),
-                    item2: fields.try_read(5).unwrap_or(0),
-                    quest_done_a: fields.try_read(6).unwrap_or(0),
-                    quest_done_h: fields.try_read(7).unwrap_or(0),
-                    completed_achievement: fields.try_read(8).unwrap_or(0),
-                    quest_failed_text: fields.read_string(9),
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-        Ok(rows)
+        // ObjectMgr::LoadAccessRequirements (ObjectMgr.cpp:7187-7225) getters.
+        collect_rows_like_cpp(result, "access_requirement", |row| {
+            Ok(AccessRequirementPersistenceRowLikeCpp {
+                map_id: row.get_like_cpp(0, "access_requirement.mapid")?,
+                difficulty: row.get_like_cpp(1, "access_requirement.difficulty")?,
+                level_min: row.get_like_cpp(2, "access_requirement.level_min")?,
+                level_max: row.get_like_cpp(3, "access_requirement.level_max")?,
+                item: row.get_like_cpp(4, "access_requirement.item")?,
+                item2: row.get_like_cpp(5, "access_requirement.item2")?,
+                quest_done_a: row.get_like_cpp(6, "access_requirement.quest_done_A")?,
+                quest_done_h: row.get_like_cpp(7, "access_requirement.quest_done_H")?,
+                completed_achievement: row
+                    .get_like_cpp(8, "access_requirement.completed_achievement")?,
+                quest_failed_text: row
+                    .get_string_like_cpp(9, "access_requirement.quest_failed_text")?,
+            })
+        })
     }
 
     async fn graveyard_rows(&self) -> Result<Vec<GraveyardZonePersistenceRowLikeCpp>> {
@@ -110,23 +107,20 @@ impl MariaDbWorldAuxiliaryCatalogPersistenceAdapterLikeCpp {
     }
 
     async fn trinity_string_rows(&self) -> Result<Vec<TrinityStringPersistenceRowLikeCpp>> {
-        let mut result = self.world_db.direct_query(
+        let result = self.world_db.direct_query(
             "SELECT entry, content_default, content_loc1, content_loc2, content_loc3, content_loc4, content_loc5, content_loc6, content_loc7, content_loc8 FROM trinity_string",
         ).await?;
-        let mut rows = Vec::with_capacity(result.row_count_like_cpp());
-        if !result.is_empty() {
-            loop {
-                let fields = result.fields();
-                rows.push(TrinityStringPersistenceRowLikeCpp {
-                    entry: fields.try_read(0).unwrap_or(0),
-                    content: std::array::from_fn(|index| fields.read_string(index + 1)),
-                });
-                if !result.next_row() {
-                    break;
-                }
+        // ObjectMgr::LoadTrinityStrings (ObjectMgr.cpp:8835-8860) getters.
+        collect_rows_like_cpp(result, "trinity_string", |row| {
+            let mut content: [String; 9] = Default::default();
+            for (index, text) in content.iter_mut().enumerate() {
+                *text = row.get_string_like_cpp(index + 1, "trinity_string.content")?;
             }
-        }
-        Ok(rows)
+            Ok(TrinityStringPersistenceRowLikeCpp {
+                entry: row.get_like_cpp(0, "trinity_string.entry")?,
+                content,
+            })
+        })
     }
 }
 
