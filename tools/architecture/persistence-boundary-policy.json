@@ -1026,6 +1026,96 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:rustycore-db:crate::module:crates/rustycore-db/src/module.rs::fn run",
+      "source_class": "production",
+      "packages": [
+        "rustycore-db"
+      ],
+      "sources": [
+        "crates/rustycore-db/src/module.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::module"
+      ],
+      "enclosings": [
+        "fn run"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Explicit database migration composition boundary: module commands (#1444 H6) currently owns the complete rustycore-db workflow fn run in crates/rustycore-db/src/module.rs.",
+      "connection_affinity": "The module command opens the characters and world databases one at a time, each with one configured typed pool; no cross-database transaction is claimed.",
+      "current_order": "rustycore-db module apply|remove|purge visits characters then world; apply and purge verify every file before changing a database, and remove/purge rewrite the lock only after the database work succeeded.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:rustycore-db:crate::module:crates/rustycore-db/src/module.rs::fn with_pool",
+      "source_class": "production",
+      "packages": [
+        "rustycore-db"
+      ],
+      "sources": [
+        "crates/rustycore-db/src/module.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::module"
+      ],
+      "enclosings": [
+        "fn with_pool"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Explicit database migration composition boundary: module commands (#1444 H6) currently owns the complete rustycore-db workflow fn with_pool in crates/rustycore-db/src/module.rs.",
+      "connection_affinity": "The module command opens the characters and world databases one at a time, each with one configured typed pool; no cross-database transaction is claimed.",
+      "current_order": "rustycore-db module apply|remove|purge visits characters then world; apply and purge verify every file before changing a database, and remove/purge rewrite the lock only after the database work succeeded.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:rustycore-db:crate::module:crates/rustycore-db/src/module.rs::module",
+      "source_class": "production",
+      "packages": [
+        "rustycore-db"
+      ],
+      "sources": [
+        "crates/rustycore-db/src/module.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::module"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Explicit database migration composition boundary: module commands (#1444 H6) currently owns the complete rustycore-db workflow module in crates/rustycore-db/src/module.rs.",
+      "connection_affinity": "The module command opens the characters and world databases one at a time, each with one configured typed pool; no cross-database transaction is claimed.",
+      "current_order": "rustycore-db module apply|remove|purge visits characters then world; apply and purge verify every file before changing a database, and remove/purge rewrite the lock only after the database work succeeded.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:world-server:crate:crates/world-server/src/lib.rs::const ITEM_GUID_DANGLING_REFERENCE_CLEANUP_STATEMENTS_LIKE_CPP",
       "source_class": "production",
       "packages": [
@@ -14992,6 +15082,36 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::migration:crates/wow-database/src/migration.rs::fn apply_one_content",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration"
+      ],
+      "enclosings": [
+        "fn apply_one_content"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary currently owns the complete wow-database workflow fn apply_one_content in crates/wow-database/src/migration.rs.",
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::migration:crates/wow-database/src/migration.rs::fn baseline_matches",
       "source_class": "production",
       "packages": [
@@ -15437,6 +15557,246 @@
       "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
       "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
       "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration::module_ops:crates/wow-database/src/migration/module_ops.rs::fn apply_module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration/module_ops.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration::module_ops"
+      ],
+      "enclosings": [
+        "fn apply_module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary: module SQL (#1444 H6) currently owns the complete wow-database workflow fn apply_module in crates/wow-database/src/migration/module_ops.rs.",
+      "connection_affinity": "apply and purge pin one MariaDB connection from the shared advisory lock (rustycore-db:migrate:<database>) through history and SQL; dry runs and reports use exactly one selected pool. Only the characters and world databases are touched.",
+      "current_order": "The embedded lock orders composed modules by enabled_order, id, then numeric version per database; apply runs one module at a time after the core schema is current and earlier modules are applied; purge runs the retained guarded DROP scripts, then deletes the module's history only once none of its tables remain. No distributed transaction is claimed.",
+      "failure_and_unknown_commit": "apply records a success=false history row before the module SQL, like a core migration; MariaDB DDL may commit implicitly, so a failure stays incomplete for explicit repair. purge DROP TABLE IF EXISTS is retry-safe and keeps the history while any module table remains.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration::module_ops:crates/wow-database/src/migration/module_ops.rs::fn lock_database",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration/module_ops.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration::module_ops"
+      ],
+      "enclosings": [
+        "fn lock_database"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary: module SQL (#1444 H6) currently owns the complete wow-database workflow fn lock_database in crates/wow-database/src/migration/module_ops.rs.",
+      "connection_affinity": "apply and purge pin one MariaDB connection from the shared advisory lock (rustycore-db:migrate:<database>) through history and SQL; dry runs and reports use exactly one selected pool. Only the characters and world databases are touched.",
+      "current_order": "The embedded lock orders composed modules by enabled_order, id, then numeric version per database; apply runs one module at a time after the core schema is current and earlier modules are applied; purge runs the retained guarded DROP scripts, then deletes the module's history only once none of its tables remain. No distributed transaction is claimed.",
+      "failure_and_unknown_commit": "apply records a success=false history row before the module SQL, like a core migration; MariaDB DDL may commit implicitly, so a failure stays incomplete for explicit repair. purge DROP TABLE IF EXISTS is retry-safe and keeps the history while any module table remains.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration::module_ops:crates/wow-database/src/migration/module_ops.rs::fn module_history",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration/module_ops.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration::module_ops"
+      ],
+      "enclosings": [
+        "fn module_history"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary: module SQL (#1444 H6) currently owns the complete wow-database workflow fn module_history in crates/wow-database/src/migration/module_ops.rs.",
+      "connection_affinity": "apply and purge pin one MariaDB connection from the shared advisory lock (rustycore-db:migrate:<database>) through history and SQL; dry runs and reports use exactly one selected pool. Only the characters and world databases are touched.",
+      "current_order": "The embedded lock orders composed modules by enabled_order, id, then numeric version per database; apply runs one module at a time after the core schema is current and earlier modules are applied; purge runs the retained guarded DROP scripts, then deletes the module's history only once none of its tables remain. No distributed transaction is claimed.",
+      "failure_and_unknown_commit": "apply records a success=false history row before the module SQL, like a core migration; MariaDB DDL may commit implicitly, so a failure stays incomplete for explicit repair. purge DROP TABLE IF EXISTS is retry-safe and keeps the history while any module table remains.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration::module_ops:crates/wow-database/src/migration/module_ops.rs::fn module_tables",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration/module_ops.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration::module_ops"
+      ],
+      "enclosings": [
+        "fn module_tables"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary: module SQL (#1444 H6) currently owns the complete wow-database workflow fn module_tables in crates/wow-database/src/migration/module_ops.rs.",
+      "connection_affinity": "apply and purge pin one MariaDB connection from the shared advisory lock (rustycore-db:migrate:<database>) through history and SQL; dry runs and reports use exactly one selected pool. Only the characters and world databases are touched.",
+      "current_order": "The embedded lock orders composed modules by enabled_order, id, then numeric version per database; apply runs one module at a time after the core schema is current and earlier modules are applied; purge runs the retained guarded DROP scripts, then deletes the module's history only once none of its tables remain. No distributed transaction is claimed.",
+      "failure_and_unknown_commit": "apply records a success=false history row before the module SQL, like a core migration; MariaDB DDL may commit implicitly, so a failure stays incomplete for explicit repair. purge DROP TABLE IF EXISTS is retry-safe and keeps the history while any module table remains.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration::module_ops:crates/wow-database/src/migration/module_ops.rs::fn purge_module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration/module_ops.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration::module_ops"
+      ],
+      "enclosings": [
+        "fn purge_module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary: module SQL (#1444 H6) currently owns the complete wow-database workflow fn purge_module in crates/wow-database/src/migration/module_ops.rs.",
+      "connection_affinity": "apply and purge pin one MariaDB connection from the shared advisory lock (rustycore-db:migrate:<database>) through history and SQL; dry runs and reports use exactly one selected pool. Only the characters and world databases are touched.",
+      "current_order": "The embedded lock orders composed modules by enabled_order, id, then numeric version per database; apply runs one module at a time after the core schema is current and earlier modules are applied; purge runs the retained guarded DROP scripts, then deletes the module's history only once none of its tables remain. No distributed transaction is claimed.",
+      "failure_and_unknown_commit": "apply records a success=false history row before the module SQL, like a core migration; MariaDB DDL may commit implicitly, so a failure stays incomplete for explicit repair. purge DROP TABLE IF EXISTS is retry-safe and keeps the history while any module table remains.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration::module_ops:crates/wow-database/src/migration/module_ops.rs::fn retained_data",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration/module_ops.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration::module_ops"
+      ],
+      "enclosings": [
+        "fn retained_data"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary: module SQL (#1444 H6) currently owns the complete wow-database workflow fn retained_data in crates/wow-database/src/migration/module_ops.rs.",
+      "connection_affinity": "apply and purge pin one MariaDB connection from the shared advisory lock (rustycore-db:migrate:<database>) through history and SQL; dry runs and reports use exactly one selected pool. Only the characters and world databases are touched.",
+      "current_order": "The embedded lock orders composed modules by enabled_order, id, then numeric version per database; apply runs one module at a time after the core schema is current and earlier modules are applied; purge runs the retained guarded DROP scripts, then deletes the module's history only once none of its tables remain. No distributed transaction is claimed.",
+      "failure_and_unknown_commit": "apply records a success=false history row before the module SQL, like a core migration; MariaDB DDL may commit implicitly, so a failure stays incomplete for explicit repair. purge DROP TABLE IF EXISTS is retry-safe and keeps the history while any module table remains.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration::module_ops:crates/wow-database/src/migration/module_ops.rs::fn unlock_database",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration/module_ops.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration::module_ops"
+      ],
+      "enclosings": [
+        "fn unlock_database"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary: module SQL (#1444 H6) currently owns the complete wow-database workflow fn unlock_database in crates/wow-database/src/migration/module_ops.rs.",
+      "connection_affinity": "apply and purge pin one MariaDB connection from the shared advisory lock (rustycore-db:migrate:<database>) through history and SQL; dry runs and reports use exactly one selected pool. Only the characters and world databases are touched.",
+      "current_order": "The embedded lock orders composed modules by enabled_order, id, then numeric version per database; apply runs one module at a time after the core schema is current and earlier modules are applied; purge runs the retained guarded DROP scripts, then deletes the module's history only once none of its tables remain. No distributed transaction is claimed.",
+      "failure_and_unknown_commit": "apply records a success=false history row before the module SQL, like a core migration; MariaDB DDL may commit implicitly, so a failure stays incomplete for explicit repair. purge DROP TABLE IF EXISTS is retry-safe and keeps the history while any module table remains.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration::module_ops:crates/wow-database/src/migration/module_ops.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration/module_ops.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration::module_ops"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary: module SQL (#1444 H6) currently owns the complete wow-database workflow module in crates/wow-database/src/migration/module_ops.rs.",
+      "connection_affinity": "apply and purge pin one MariaDB connection from the shared advisory lock (rustycore-db:migrate:<database>) through history and SQL; dry runs and reports use exactly one selected pool. Only the characters and world databases are touched.",
+      "current_order": "The embedded lock orders composed modules by enabled_order, id, then numeric version per database; apply runs one module at a time after the core schema is current and earlier modules are applied; purge runs the retained guarded DROP scripts, then deletes the module's history only once none of its tables remain. No distributed transaction is claimed.",
+      "failure_and_unknown_commit": "apply records a success=false history row before the module SQL, like a core migration; MariaDB DDL may commit implicitly, so a failure stays incomplete for explicit repair. purge DROP TABLE IF EXISTS is retry-safe and keeps the history while any module table remains.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -31560,6 +31920,7 @@
         "crates/wow-database/src/instance_lock_persistence_adapter.rs",
         "crates/wow-database/src/map_corpse_adapter.rs",
         "crates/wow-database/src/migration.rs",
+        "crates/wow-database/src/migration/tests/module_ops.rs",
         "crates/wow-database/src/migration/tests/scenarios.rs",
         "crates/wow-database/src/packet_spoof_ban_adapter.rs",
         "crates/wow-database/src/params.rs",
