@@ -32,6 +32,7 @@ modules.lock.toml                  generated record of what was composed
 crates/world-modules/              generated compositor crate
 tools/modules/compose.py           sync | check
 tools/modules/fixtures/            copyable example module
+tools/modules/examples/milestones/  example.milestones: the source API 2 example (#1444)
 ```
 
 ## `module.toml`
@@ -92,6 +93,21 @@ first `Deny` wins and `ReplaceText` chains in `ModuleId` order).
 Records identity, version, package, source path, requested ref, resolved commit,
 registrar, source API, enabled order and a content digest for every composed module.
 It holds no credentials and no URLs with secrets.
+
+## The example module (#1444)
+
+`tools/modules/examples/milestones/` (`example.milestones`, source API 2) uses the `player.login`,
+`player.*`, `chat.*`, `world.*` and `creature.*` families together: a login greeting, a
+configurable `level_message` on level milestones, a per-session count of rewarded quests, a self
+message every `kill_milestone`-th kill (also logged on the next `world.update`), a `chat.message`
+pre-decision that denies messages containing one of `blocked_words`, an optional world
+announcement for level milestones queued from the player hook and sent by `world.update`, and a
+creature death counter logged at shutdown. `enabled_hooks` declares its four `player.*` hooks, and
+the `chat.*` family is registered only when a word is blocked. Its counters are in memory only;
+its README lists the typed configuration and the state boundary. Install it with
+`rustycore-module install --path tools/modules/examples/milestones`, `sync`, and add
+`modules/milestones` to the workspace members to build or test it; `test_rustycore_module.py`
+checks that it installs and composes.
 
 ## The zero-module build is unchanged
 

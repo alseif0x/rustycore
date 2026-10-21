@@ -301,6 +301,72 @@ pub fn parse_gossip_id(data: &[u8]) -> Option<i32> {
     read_i32(data, pos)
 }
 
+/// The fields of `SMSG_CHAT` a QA scenario asserts on.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChatSummary {
+    /// `ChatMsg` (`SlashCmd`): 0 = system, 1 = say, ...
+    pub msg_type: u8,
+    pub sender_name: String,
+    pub text: String,
+}
+
+/// `CHAT_MSG_SYSTEM`.
+pub const CHAT_MSG_SYSTEM: u8 = 0;
+/// `CHAT_MSG_SAY`.
+pub const CHAT_MSG_SAY: u8 = 1;
+
+/// Decode `SMSG_CHAT` (C++ `WorldPackets::Chat::Chat::Write`, as RustyCore's
+/// `wow_packet::packets::chat::ChatPkt` writes it): SlashCmd, language, four
+/// packed GUIDs, two virtual addresses, achievement, display time and spell,
+/// then the bit-packed lengths, the flags, four bits, and the strings.
+pub fn parse_chat_summary(data: &[u8]) -> Option<ChatSummary> {
+    let msg_type = *data.first()?;
+    let mut pos = 1 + 4; // SlashCmd, Language
+    for _ in 0..4 {
+        // Sender, SenderGuild, SenderAccount, Target
+        let (size, _, _) = parse_packed_guid(data.get(pos..)?)?;
+        pos += size;
+    }
+    pos += 4 + 4 + 4 + 4 + 4; // virtual addresses, AchievementID, DisplayTime, SpellID
+    let mut bits = BitReader::new(data, pos);
+    let sender_len = bits.read_bits(11)? as usize;
+    let target_len = bits.read_bits(11)? as usize;
+    let prefix_len = bits.read_bits(5)? as usize;
+    let channel_len = bits.read_bits(7)? as usize;
+    let text_len = bits.read_bits(12)? as usize;
+    bits.read_bits(15)?; // ChatFlags
+    bits.read_bits(4)?; // HideChatLog, FakeSenderName, Unused_801, ChannelGUID
+    let mut pos = bits.flushed_pos();
+    let mut string = |len: usize| -> Option<String> {
+        let bytes = data.get(pos..pos.checked_add(len)?)?;
+        pos += len;
+        Some(String::from_utf8_lossy(bytes).into_owned())
+    };
+    let sender_name = string(sender_len)?;
+    string(target_len)?;
+    string(prefix_len)?;
+    string(channel_len)?;
+    let text = string(text_len)?;
+    Some(ChatSummary {
+        msg_type,
+        sender_name,
+        text,
+    })
+}
+
+/// `CMSG_CHAT_MESSAGE_SAY` (C++ `WorldPackets::Chat::ChatMessage::Read`):
+/// int32 Language, 11 bits text length, 1 bit IsSecure, flush, text.
+pub fn build_chat_message_say_payload(language: i32, text: &str) -> Vec<u8> {
+    let len = text.len().min(0x7FF) as u16;
+    // 11-bit length, IsSecure = false, then 4 padding bits to the byte.
+    let packed = len << 5;
+    let mut payload = Vec::with_capacity(6 + text.len());
+    payload.extend_from_slice(&language.to_le_bytes());
+    payload.extend_from_slice(&packed.to_be_bytes());
+    payload.extend_from_slice(&text.as_bytes()[..usize::from(len)]);
+    payload
+}
+
 struct BitReader<'a> {
     data: &'a [u8],
     pos: usize,
@@ -909,6 +975,16 @@ pub fn parse_packet(opcode: u16, data: &[u8]) -> String {
                 format!("SMSG_TRAINER_LIST ({} bytes)", data.len())
             }
         }
+        0x2BAD => {
+            if let Some(chat) = parse_chat_summary(data) {
+                format!(
+                    "SMSG_CHAT: type={} sender={:?} text={:?}",
+                    chat.msg_type, chat.sender_name, chat.text
+                )
+            } else {
+                format!("SMSG_CHAT: <parse failed, {} bytes>", data.len())
+            }
+        }
         _ => format!("Unknown opcode 0x{:04X} ({} bytes)", opcode, data.len()),
     }
 }
@@ -916,6 +992,68 @@ pub fn parse_packet(opcode: u16, data: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `SMSG_CHAT` as `wow_packet::packets::chat::ChatPkt::write` lays it out.
+    fn chat_payload(msg_type: u8, sender: &str, text: &str) -> Vec<u8> {
+        let mut data = vec![msg_type];
+        data.extend_from_slice(&7u32.to_le_bytes()); // Language
+        data.extend_from_slice(&[0x01, 0x00, 0x0F]); // sender: player 15
+        data.extend_from_slice(&[0x00, 0x00]); // guild
+        data.extend_from_slice(&[0x00, 0x00]); // account
+        data.extend_from_slice(&[0x00, 0x00]); // target
+        data.extend_from_slice(&[0u8; 20]); // addresses, achievement, time, spell
+                                            // 11+11+5+7+12+15+4 = 65 bits, MSB first, padded to 9 bytes.
+        let fields: [(u64, u32); 7] = [
+            (sender.len() as u64, 11),
+            (0, 11),
+            (0, 5),
+            (0, 7),
+            (text.len() as u64, 12),
+            (0, 15),
+            (0, 4),
+        ];
+        let mut acc: u128 = 0;
+        let mut nbits = 0u32;
+        for (value, width) in fields {
+            acc = (acc << width) | u128::from(value);
+            nbits += width;
+        }
+        let padded = nbits.div_ceil(8) * 8;
+        acc <<= padded - nbits;
+        let bytes = acc.to_be_bytes();
+        data.extend_from_slice(&bytes[16 - (padded / 8) as usize..]);
+        data.extend_from_slice(sender.as_bytes());
+        data.extend_from_slice(text.as_bytes());
+        data
+    }
+
+    #[test]
+    fn smsg_chat_text_and_type_are_decoded() {
+        let system = parse_chat_summary(&chat_payload(0, "", "Milestone reached: 1 kills!"))
+            .expect("system chat");
+        assert_eq!(system.msg_type, CHAT_MSG_SYSTEM);
+        assert_eq!(system.text, "Milestone reached: 1 kills!");
+        let say = parse_chat_summary(&chat_payload(1, "Testbot", "hello there")).expect("say");
+        assert_eq!(say.msg_type, CHAT_MSG_SAY);
+        assert_eq!(say.sender_name, "Testbot");
+        assert_eq!(say.text, "hello there");
+        assert!(parse_chat_summary(&chat_payload(1, "Testbot", "hi")[..40]).is_none());
+        assert!(parse_packet(0x2BAD, &chat_payload(0, "", "x")).contains("text=\"x\""));
+    }
+
+    #[test]
+    fn chat_message_say_matches_the_server_reader_layout() {
+        let payload = build_chat_message_say_payload(7, "hello");
+        assert_eq!(&payload[..4], &7i32.to_le_bytes());
+        // 11-bit length 5, IsSecure 0: 00000000 101|0|0000
+        assert_eq!(&payload[4..6], &[0x00, 0xA0]);
+        assert_eq!(&payload[6..], b"hello");
+        let long = "x".repeat(300);
+        let payload = build_chat_message_say_payload(1, &long);
+        let len = (u16::from_be_bytes([payload[4], payload[5]]) >> 5) as usize;
+        assert_eq!(len, 300);
+        assert_eq!(payload.len(), 6 + 300);
+    }
 
     fn attacker_state_update_payload(sub_damage: bool) -> Vec<u8> {
         let mut info = Vec::new();

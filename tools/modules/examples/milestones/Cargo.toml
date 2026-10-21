@@ -1,0 +1,12 @@
+[package]
+name = "example-milestones"
+version = "1.0.0"
+edition = "2024"
+license = "GPL-3.0-only"
+
+[dependencies]
+# The path is the one this checkout has once installed under modules/.
+wow-module-api = { path = "../../crates/wow-module-api" }
+
+# A module depends on no other server crate: `compose.py` refuses one that
+# does. Name `ObjectGuid` and every snapshot type through `wow_module_api`.

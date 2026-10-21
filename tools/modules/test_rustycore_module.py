@@ -256,6 +256,20 @@ class ModuleManagerTests(unittest.TestCase):
         self.assertEqual(lock["source_api"], "2", "the server provides API 2")
         self.assertEqual(lock["module"][0]["source_api"], "1", "the module keeps its own API")
 
+    def test_the_example_milestones_module_installs_and_composes(self) -> None:
+        """#1444 H5: the shipped example is a valid source API 2 checkout."""
+        example = self.ws.root / "examples/milestones"
+        shutil.copytree(REPO_ROOT / "tools/modules/examples/milestones", example)
+        installed = self.ws.run("install", "--path", "examples/milestones", "--json")
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        self.assertEqual(json.loads(installed.stdout)["id"], "example.milestones")
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        lock = tomllib.loads((self.ws.root / "modules.lock.toml").read_text(encoding="utf-8"))
+        self.assertEqual(lock["module"][0]["source_api"], "2")
+        compositor = (self.ws.root / "crates/world-modules/src/main.rs").read_text(encoding="utf-8")
+        self.assertIn("example_milestones::register(&mut modules, config)", compositor)
+        self.assertEqual(self.ws.run("check").returncode, 0)
+
     def test_the_composer_and_the_module_api_agree_on_source_apis(self) -> None:
         sys.path.insert(0, str(REPO_ROOT / "tools/modules"))
         import compose  # noqa: PLC0415

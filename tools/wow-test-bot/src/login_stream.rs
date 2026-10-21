@@ -85,6 +85,9 @@ pub(super) async fn drain_login_streams(
         .context("login drain frame deadline exceeded")??;
         result.seen_opcodes.push(format!("0x{opcode:04X}"));
         observe_login_packet(instance, opcode, result);
+        if opcode == crate::chat_say::SMSG_CHAT {
+            crate::chat_say::record(0, &payload, result);
+        }
         if !login_drain_ignores_for_quiet(opcode) {
             last_significant = tokio::time::Instant::now();
         } else if result.login_instance_object_update_seen

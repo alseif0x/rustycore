@@ -298,6 +298,9 @@ pub(super) async fn finish_login(
     result: &mut BotRunResult,
 ) -> Result<()> {
     drain_login_streams(stream, crypt, inflater, realm, result).await?;
+    if crate::chat_say::requested() {
+        crate::chat_say::run(bot_index, stream, crypt, inflater, realm, result).await?;
+    }
     if let Some(before) = before {
         let mut known = known.context("save check missing known-spell packet")?;
         let mut acquisition = if let Some(plan) = plan {

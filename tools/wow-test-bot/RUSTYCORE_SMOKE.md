@@ -203,6 +203,27 @@ explicit recovery. Recovery refuses to start a non-original executable or overwr
 an online character. `test_session_transfer_qa.py` exercises the recovery policy
 without DB/service access. Do not use this wrapper concurrently with manual play.
 
+## Login chat phase (#1444 H5)
+
+In login-only mode, after the login streams drain, the bot can say chat lines
+and assert what the server sent back. Every `SMSG_CHAT` read during login, the
+drain and this phase is decoded and recorded in the report as `chat_received`
+(type, sender, text). The phase runs when any of these is set (`|` separates
+entries):
+
+- `WOW_BOT_CHAT_SAY`: lines sent as `CMSG_CHAT_MESSAGE_SAY` that must come back
+  as a say echo (C++ `Player::Say` echoes an allowed line to its sender);
+- `WOW_BOT_CHAT_SAY_BLOCKED`: lines sent first that must never be echoed, for a
+  module's `chat.message` `Deny`;
+- `WOW_BOT_EXPECT_SYSTEM_CHAT`: substrings that must each appear in a system
+  message received since login, such as a module greeting;
+- `WOW_BOT_CHAT_LANGUAGE`: the `LANG_*` id to say in (default 7).
+
+Each line is observed for three seconds. The report's `chat_say` holds the
+evidence, and a failed assertion fails the run. `qa-runtime.sh login` passes
+these variables through to the bot. Saying a line is a normal chat action: it
+writes nothing to the databases.
+
 ## What was adapted
 
 - `--login-only`: verifies world entry and drains the login streams.
