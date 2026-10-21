@@ -158,6 +158,31 @@ pub fn run_canonical_creature_lifecycle_phase_for_test_like_cpp(
     outcome
 }
 
+/// [`run_canonical_creature_lifecycle_phase_for_test_like_cpp`] with a
+/// linked module wanting the `creature.*` family (#1444 H3b).
+pub fn run_canonical_creature_lifecycle_phase_recording_module_events_for_test_like_cpp(
+    canonical: &SharedCanonicalMapManager,
+    map_store: &wow_data::MapStore,
+    now: Instant,
+) -> CreatureLifecycleTickOutcomeLikeCpp {
+    let mut outcome = CreatureLifecycleTickOutcomeLikeCpp {
+        record_module_events_like_cpp: true,
+        ..CreatureLifecycleTickOutcomeLikeCpp::default()
+    };
+    let mut manager = lock_canonical_for_test_like_cpp(canonical);
+    let (maps, mut objects) = all_canonical_creatures_selection_like_cpp(&manager);
+    crate::run_creature_lifecycle_phase_on_manager_like_cpp(
+        &mut manager,
+        &maps,
+        &mut objects,
+        None,
+        map_store,
+        now,
+        &mut outcome,
+    );
+    outcome
+}
+
 /// The creature movement phase (`Unit::Update` clock, spline, motion master).
 pub fn run_canonical_creature_movement_phase_for_test_like_cpp(
     canonical: &SharedCanonicalMapManager,

@@ -24,12 +24,14 @@ use tracing::{debug, info, warn};
 use wow_config::WorldConfigSet;
 use wow_core::ObjectGuid;
 use wow_module_api::{
-    ConfigLoadedSnapshot, HookFamily, HookOutcome, ModuleId, ModuleRegistry, WorldEffect,
-    WorldShutdownSnapshot, WorldStartupSnapshot, WorldUpdateSnapshot,
+    ConfigLoadedSnapshot, CreatureAddedToWorldSnapshot, CreatureDiedSnapshot, CreatureLocation,
+    HookFamily, HookOutcome, ModuleId, ModuleRegistry, WorldEffect, WorldShutdownSnapshot,
+    WorldStartupSnapshot, WorldUpdateSnapshot,
 };
 use wow_packet::ServerPacket;
 use wow_packet::packets::chat::{ChatMsg, ChatPkt};
 use wow_world::session::directory::PlayerRegistry;
+use wow_world::session::{CreatureModuleEventKindLikeCpp, CreatureModuleEventLikeCpp};
 
 /// Above this, one module's `world.update` callback, or the effects of one
 /// dispatch, is reported: module code runs on the map loop, and a slow module
@@ -223,6 +225,102 @@ impl WorldUpdateBudgetLikeCpp {
     }
 }
 
+/// A problem met while applying one dispatch's effects.
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum ApplyWarningLikeCpp {
+    /// The batch failed validation as a whole; nothing was applied.
+    BatchRejected { error: String },
+    /// An announcement lost lines to the per-dispatch line limit.
+    AnnouncementCut {
+        module: ModuleId,
+        dropped_lines: usize,
+    },
+}
+
+impl ApplyWarningLikeCpp {
+    /// What the throttle keys the warning on: its kind and module.
+    fn key(&self) -> (&'static str, Option<ModuleId>) {
+        match self {
+            Self::BatchRejected { .. } => ("batch_rejected", None),
+            Self::AnnouncementCut { module, .. } => ("announcement_cut", Some(module.clone())),
+        }
+    }
+
+    fn log(&self, hook: &'static str) {
+        match self {
+            Self::BatchRejected { error } => {
+                warn!(%error, hook, "module effect batch rejected; no effect applied");
+            }
+            Self::AnnouncementCut {
+                module,
+                dropped_lines,
+            } => warn!(
+                %module,
+                hook,
+                dropped_lines,
+                limit = MAX_WORLD_TEXT_LINES_PER_DISPATCH_LIKE_CPP,
+                "world announcement cut at the per-dispatch line limit"
+            ),
+        }
+    }
+}
+
+/// The throttle for the warnings a per-tick hook (`world.update`,
+/// `creature.*`) can raise on every tick: the first occurrence of each
+/// (hook, kind, module) is logged at once, later ones are counted and
+/// summarized at most once per [`WORLD_UPDATE_BUDGET_SUMMARY_INTERVAL_LIKE_CPP`]
+/// with the suppressed count, as the budget warning is.
+#[derive(Clone, Debug, Default)]
+struct ApplyWarningThrottleLikeCpp {
+    warned: std::collections::BTreeSet<(&'static str, &'static str, Option<ModuleId>)>,
+    unreported: BTreeMap<(&'static str, &'static str, Option<ModuleId>), u64>,
+    window_started: Option<Instant>,
+    /// How many lines this throttle logged: its observable.
+    logged: u64,
+}
+
+impl ApplyWarningThrottleLikeCpp {
+    fn record_like_cpp(
+        &mut self,
+        now: Instant,
+        hook: &'static str,
+        warnings: Vec<ApplyWarningLikeCpp>,
+    ) {
+        let window_started = *self.window_started.get_or_insert(now);
+        for warning in warnings {
+            let (kind, module) = warning.key();
+            let key = (hook, kind, module);
+            if self.warned.insert(key.clone()) {
+                self.logged += 1;
+                warning.log(hook);
+            } else {
+                *self.unreported.entry(key).or_default() += 1;
+            }
+        }
+        if now.saturating_duration_since(window_started)
+            >= WORLD_UPDATE_BUDGET_SUMMARY_INTERVAL_LIKE_CPP
+        {
+            for ((hook, kind, module), suppressed) in std::mem::take(&mut self.unreported) {
+                self.logged += 1;
+                match module {
+                    Some(module) => warn!(
+                        %module,
+                        hook,
+                        kind,
+                        suppressed,
+                        "linked module effect warnings repeated; summarized"
+                    ),
+                    None => warn!(
+                        hook,
+                        kind, suppressed, "module effect warnings repeated; summarized"
+                    ),
+                }
+            }
+            self.window_started = Some(now);
+        }
+    }
+}
+
 /// The process-level module hooks.
 #[derive(Clone)]
 pub(crate) struct WorldModuleHooksLikeCpp {
@@ -239,6 +337,9 @@ pub(crate) struct WorldModuleHooksLikeCpp {
     /// The per-module tick budget and metric. Only the map loop's copy
     /// records into it.
     budget: WorldUpdateBudgetLikeCpp,
+    /// The throttle for the effect warnings of the per-tick hooks. Only the
+    /// map loop's copy records into it.
+    warnings: ApplyWarningThrottleLikeCpp,
 }
 
 impl WorldModuleHooksLikeCpp {
@@ -253,6 +354,7 @@ impl WorldModuleHooksLikeCpp {
             started: Arc::new(AtomicBool::new(false)),
             last_update: None,
             budget: WorldUpdateBudgetLikeCpp::new(budget),
+            warnings: ApplyWarningThrottleLikeCpp::default(),
         }
     }
 
@@ -323,7 +425,7 @@ impl WorldModuleHooksLikeCpp {
         }
         let snapshot = ConfigLoadedSnapshot::new(false, realm_id, max_player_level, expansion);
         let outcome = self.registry.dispatch_config_loaded(&snapshot);
-        self.apply_like_cpp("world.config_loaded", outcome);
+        self.apply_and_log_like_cpp("world.config_loaded", outcome);
     }
 
     /// `world.startup`: AzerothCore `OnStartup` (worldserver `Main.cpp:395`).
@@ -333,7 +435,7 @@ impl WorldModuleHooksLikeCpp {
             let module_count = self.registry.descriptors().len();
             let snapshot = WorldStartupSnapshot::new(server_version, realm_id, module_count);
             let outcome = self.registry.dispatch_world_startup(&snapshot);
-            self.apply_like_cpp("world.startup", outcome);
+            self.apply_and_log_like_cpp("world.startup", outcome);
         }
         self.started.store(true, Ordering::Release);
     }
@@ -346,7 +448,7 @@ impl WorldModuleHooksLikeCpp {
         let outcome = self
             .registry
             .dispatch_world_shutdown(&WorldShutdownSnapshot::new(exit_code));
-        self.apply_like_cpp("world.shutdown", outcome);
+        self.apply_and_log_like_cpp("world.shutdown", outcome);
     }
 
     /// `world.update`: AzerothCore `OnWorldUpdate(diff)` (`World.cpp:1342`),
@@ -374,14 +476,67 @@ impl WorldModuleHooksLikeCpp {
             .dispatch_world_update_timed(&WorldUpdateSnapshot::new(diff_ms, tick));
         let callbacks = timings.iter().map(|(_, elapsed)| *elapsed).sum();
         let applying = Instant::now();
-        self.apply_like_cpp("world.update", outcome);
+        let warnings = self.apply_like_cpp("world.update", outcome);
         let effects = applying.elapsed();
         self.budget.record_like_cpp(now, tick, &timings, effects);
+        self.warnings.record_like_cpp(now, "world.update", warnings);
         Some((callbacks, effects))
+    }
+
+    /// Whether a linked module wants the `creature.*` family: the map tick's
+    /// interest query, asked before the lifecycle phase copies any event.
+    pub(crate) fn creature_events_wanted_like_cpp(&self) -> bool {
+        self.registry.handles(HookFamily::Creature)
+    }
+
+    /// `creature.added_to_world` and `creature.died`: AzerothCore
+    /// `OnCreatureAddWorld` (`AllCreatureScript.h:43`) and `OnUnitDeath`
+    /// (`UnitScript.h:111`), one dispatch per event in the order the
+    /// lifecycle phase observed them, after the tick's guards were released.
+    /// Not gated on `world.startup`: C++ adds creatures to the world before
+    /// `OnStartup` too.
+    pub(crate) fn creature_events_like_cpp(
+        &mut self,
+        now: Instant,
+        events: &[CreatureModuleEventLikeCpp],
+    ) {
+        if events.is_empty() || !self.creature_events_wanted_like_cpp() {
+            return;
+        }
+        for event in events {
+            let location = CreatureLocation::new(
+                u32::from(event.map_id),
+                event.instance_id,
+                event.position.x,
+                event.position.y,
+                event.position.z,
+                event.position.orientation,
+            );
+            let (hook, outcome) = match event.kind {
+                CreatureModuleEventKindLikeCpp::AddedToWorld => (
+                    "creature.added_to_world",
+                    self.registry.dispatch_creature_added_to_world(
+                        &CreatureAddedToWorldSnapshot::new(event.guid, event.entry, location),
+                    ),
+                ),
+                CreatureModuleEventKindLikeCpp::Died => (
+                    "creature.died",
+                    self.registry
+                        .dispatch_creature_died(&CreatureDiedSnapshot::new(
+                            event.guid,
+                            event.entry,
+                            location,
+                        )),
+                ),
+            };
+            let warnings = self.apply_like_cpp(hook, outcome);
+            self.warnings.record_like_cpp(now, hook, warnings);
+        }
     }
 
     /// The per-module `world.update` metric: calls, total and maximum
     /// callback time and budget overruns since the process started.
+    #[cfg(test)]
     pub(crate) fn world_update_metrics_like_cpp(
         &self,
     ) -> Vec<(ModuleId, WorldUpdateModuleMetricLikeCpp)> {
@@ -392,17 +547,34 @@ impl WorldModuleHooksLikeCpp {
             .collect()
     }
 
+    /// [`Self::apply_like_cpp`] for a hook that runs once (configuration,
+    /// startup, shutdown): its warnings cannot repeat, so they are logged.
+    fn apply_and_log_like_cpp(&self, hook: &'static str, outcome: HookOutcome<WorldEffect>) {
+        for warning in self.apply_like_cpp(hook, outcome) {
+            warning.log(hook);
+        }
+    }
+
     /// Apply a validated `world.*` batch, all or nothing. Announcements share
-    /// one line budget per dispatch.
-    fn apply_like_cpp(&self, hook: &'static str, outcome: HookOutcome<WorldEffect>) {
+    /// one line budget per dispatch. A disabled module is logged at once (it
+    /// happens once per module); the other problems are returned so a
+    /// per-tick hook can throttle them.
+    fn apply_like_cpp(
+        &self,
+        hook: &'static str,
+        outcome: HookOutcome<WorldEffect>,
+    ) -> Vec<ApplyWarningLikeCpp> {
         for module in &outcome.disabled {
             warn!(%module, hook, "linked module panicked; disabled for the rest of the process");
         }
+        let mut warnings = Vec::new();
         let effects = match outcome.effects {
             Ok(effects) => effects,
             Err(error) => {
-                warn!(%error, hook, "module effect batch rejected; no effect applied");
-                return;
+                warnings.push(ApplyWarningLikeCpp::BatchRejected {
+                    error: error.to_string(),
+                });
+                return warnings;
             }
         };
         let mut lines_left = MAX_WORLD_TEXT_LINES_PER_DISPATCH_LIKE_CPP;
@@ -415,13 +587,10 @@ impl WorldModuleHooksLikeCpp {
                         let (sent, queued) = announcer.send_world_text_like_cpp(text, lines_left);
                         lines_left -= sent;
                         if sent < wanted {
-                            warn!(
-                                %module,
-                                hook,
-                                dropped_lines = wanted - sent,
-                                limit = MAX_WORLD_TEXT_LINES_PER_DISPATCH_LIKE_CPP,
-                                "world announcement cut at the per-dispatch line limit"
-                            );
+                            warnings.push(ApplyWarningLikeCpp::AnnouncementCut {
+                                module: module.clone(),
+                                dropped_lines: wanted - sent,
+                            });
                         }
                         debug!(%module, hook, sent, queued, "module world announcement");
                     }
@@ -432,6 +601,7 @@ impl WorldModuleHooksLikeCpp {
                 _ => warn!(%module, hook, "unsupported world effect ignored"),
             }
         }
+        warnings
     }
 }
 

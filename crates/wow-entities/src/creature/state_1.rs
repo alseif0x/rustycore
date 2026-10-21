@@ -867,6 +867,15 @@ pub struct CreatureRuntimeState {
     /// settlement. This is runtime-only state and must not be cloned into
     /// lifecycle metadata as an identity sequence.
     pub pending_addon_aura_provenance_like_cpp: Vec<PendingCreatureAddonAuraProvenanceLikeCpp>,
+    /// #1444 H3b: set when the creature is added to its map (C++
+    /// `Creature::AddToWorld`, where AzerothCore raises
+    /// `OnCreatureAddWorld`), cleared by the lifecycle phase that reports it
+    /// to the linked modules after the tick. Runtime-only.
+    pub module_added_to_world_pending_like_cpp: bool,
+    /// #1444 H3b: set on the transition into `JUST_DIED` (C++
+    /// `setDeathState(JUST_DIED)`, AzerothCore `OnUnitDeath`), cleared by
+    /// the lifecycle phase that reports it. Runtime-only.
+    pub module_died_pending_like_cpp: bool,
 }
 
 impl Default for CreatureRuntimeState {
@@ -890,6 +899,8 @@ impl Default for CreatureRuntimeState {
             has_loot_recipient: false,
             movement_flags: MovementFlag::NONE,
             pending_addon_aura_provenance_like_cpp: Vec::new(),
+            module_added_to_world_pending_like_cpp: false,
+            module_died_pending_like_cpp: false,
         }
     }
 }

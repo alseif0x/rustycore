@@ -272,9 +272,13 @@ pub(crate) fn spawn_canonical_map_update_loop(
                 }
                 // #1263 F6-8D3b-1: the registry snapshots the creature phases
                 // read, taken before any guard.
-                let creature_inputs = canonical_creature_runtime
-                    .as_ref()
-                    .map(|runtime| runtime.collect_inputs_like_cpp(&map_manager, &player_registry));
+                let creature_inputs = canonical_creature_runtime.as_ref().map(|runtime| {
+                    runtime.collect_inputs_like_cpp(
+                        &map_manager,
+                        &player_registry,
+                        world_module_hooks.creature_events_wanted_like_cpp(),
+                    )
+                });
                 // The persistence fence is re-taken for the half that produces
                 // respawn mutations, and its statements are still coalesced
                 // before it is released, so mailbox replacement order still
@@ -405,6 +409,11 @@ pub(crate) fn spawn_canonical_map_update_loop(
                     melee_plan_commands = delivery.melee_plan.candidates_queued,
                     "Canonical creature tick owner delivered its deferred output outside map guards"
                 );
+                // #1444 H3b: the `creature.*` events the lifecycle phase
+                // observed, dispatched after every guard of the tick was
+                // released (AzerothCore `OnCreatureAddWorld`/`OnUnitDeath`).
+                world_module_hooks
+                    .creature_events_like_cpp(now, &phases.lifecycle.module_events_like_cpp);
             }
 
             if let Some(summary) = tick_summary.as_ref() {

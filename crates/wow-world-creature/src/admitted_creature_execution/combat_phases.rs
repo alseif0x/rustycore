@@ -49,6 +49,8 @@ pub struct AdmittedCreatureCombatPhaseInputsLikeCpp<'a> {
     /// the tick deadline its respawn queue drains against.
     pub map_store: &'a wow_data::MapStore,
     pub now: Instant,
+    /// Whether a linked module wants the `creature.*` family (#1444 H3b).
+    pub record_creature_module_events: bool,
 }
 
 /// The typed outcome of one admitted combat-phase execution.
@@ -173,6 +175,7 @@ pub fn run_admitted_creature_combat_phases_on_locked_manager_like_cpp(
         &mut outcome.player_melee,
     );
     let mut selection = admission.objects.clone();
+    outcome.lifecycle.record_module_events_like_cpp = inputs.record_creature_module_events;
     run_creature_lifecycle_phase_on_manager_like_cpp(
         manager,
         maps,

@@ -189,6 +189,7 @@ async fn d3a3_executor_tick_like_cpp(
             config: &config,
             map_store: &world.map_store,
             now,
+            record_creature_module_events: false,
         },
     );
     assert!(outcome.executed_like_cpp(), "{:?}", outcome.admission);

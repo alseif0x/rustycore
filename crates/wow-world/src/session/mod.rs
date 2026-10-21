@@ -177,6 +177,7 @@ pub use creature_aggro_contracts::CreatureLifecycleTickOutcomeLikeCpp;
 pub use creature_aggro_contracts::CreatureMeleeTickOutcomeLikeCpp;
 pub use creature_aggro_contracts::CreatureMovementTickOutcomeLikeCpp;
 pub use creature_aggro_contracts::CreatureSpellTickOutcomeLikeCpp;
+pub use creature_aggro_contracts::{CreatureModuleEventKindLikeCpp, CreatureModuleEventLikeCpp};
 mod creature_canonical_adapter;
 pub(crate) use creature_canonical_adapter::relocate_canonical_creature_map_object_on_map_like_cpp;
 pub(crate) use creature_canonical_adapter::remove_canonical_creature_map_object_on_map_like_cpp;

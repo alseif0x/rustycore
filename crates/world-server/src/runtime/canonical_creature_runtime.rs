@@ -62,6 +62,10 @@ pub(crate) struct CanonicalCreatureTickInputsLikeCpp {
     chase_targets:
         std::collections::HashMap<(u16, u32, ObjectGuid), wow_world::ChaseTargetSnapshotLikeCpp>,
     terrain: Option<Arc<wow_world::terrain::LiveTerrainHeights>>,
+    /// Whether a linked module wants the `creature.*` family (#1444 H3b):
+    /// asked before the guards, so the lifecycle phase copies no event for a
+    /// zero-module server.
+    record_creature_module_events: bool,
 }
 
 impl CanonicalCreatureRuntimeLikeCpp {
@@ -92,6 +96,7 @@ impl CanonicalCreatureRuntimeLikeCpp {
         &self,
         canonical_map_manager: &SharedCanonicalMapManager,
         registry: &PlayerRegistry,
+        record_creature_module_events: bool,
     ) -> CanonicalCreatureTickInputsLikeCpp {
         let tap_index = build_tap_group_index_like_cpp(self.group_registry.as_ref());
         CanonicalCreatureTickInputsLikeCpp {
@@ -102,6 +107,7 @@ impl CanonicalCreatureRuntimeLikeCpp {
             ),
             chase_targets: collect_chase_target_snapshots_like_cpp(registry),
             terrain: self.terrain.clone(),
+            record_creature_module_events,
         }
     }
 
@@ -162,6 +168,7 @@ impl CanonicalCreatureRuntimeLikeCpp {
                     config: &self.aggro_config,
                     map_store,
                     now,
+                    record_creature_module_events: inputs.record_creature_module_events,
                 },
             );
         if outcome.executed_like_cpp() {

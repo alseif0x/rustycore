@@ -359,10 +359,15 @@ impl Creature {
         death_fall: Option<CreatureDeathFallContextLikeCpp>,
     ) -> CreatureRuntimePlan {
         let mut plan = CreatureRuntimePlan::new();
+        let was_alive = self.unit.death_state() == DeathState::Alive;
         self.unit.set_death_state(state);
 
         match state {
             DeathState::JustDied => {
+                // #1444 H3b: one `creature.died` per transition into JUST_DIED.
+                if was_alive {
+                    self.runtime_state.module_died_pending_like_cpp = true;
+                }
                 self.clear_pending_addon_aura_provenance_like_cpp();
                 if self.ai_ownership.state != CreatureAiState::Dead {
                     self.advance_loot_lifecycle_revision_like_cpp();

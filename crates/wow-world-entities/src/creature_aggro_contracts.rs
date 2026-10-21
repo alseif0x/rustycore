@@ -46,6 +46,35 @@ pub struct CreatureLifecycleTickOutcomeLikeCpp {
     pub respawn_publications_deferred_like_cpp: usize,
     /// Map instances whose sessions must recompute creature visibility.
     pub refresh_map_keys: Vec<(u16, u32)>,
+    /// Input: whether a linked module wants the `creature.*` family (#1444
+    /// H3b). Without it the phase only clears the pending marks, so the
+    /// zero-module path copies nothing.
+    pub record_module_events_like_cpp: bool,
+    /// The `creature.added_to_world` and `creature.died` events the phase
+    /// observed, in map then creature order, delivered after the guards are
+    /// released.
+    pub module_events_like_cpp: Vec<CreatureModuleEventLikeCpp>,
+}
+
+/// Which `creature.*` transition a [`CreatureModuleEventLikeCpp`] reports.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CreatureModuleEventKindLikeCpp {
+    /// AzerothCore `AllCreatureScript::OnCreatureAddWorld`.
+    AddedToWorld,
+    /// AzerothCore `UnitScript::OnUnitDeath` for a creature victim.
+    Died,
+}
+
+/// One `creature.*` event (#1444 H3b), copied out of the canonical creature
+/// under the tick's map guard and dispatched after it is released.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreatureModuleEventLikeCpp {
+    pub kind: CreatureModuleEventKindLikeCpp,
+    pub guid: ObjectGuid,
+    pub entry: u32,
+    pub map_id: u16,
+    pub instance_id: u32,
+    pub position: Position,
 }
 
 #[derive(Debug, Clone, PartialEq)]
