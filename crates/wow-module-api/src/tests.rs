@@ -1250,3 +1250,80 @@ fn an_undeclared_player_module_enables_every_hook() {
         assert!(registry.handles_player_hook(*hook), "{hook:?}");
     }
 }
+
+// ── The `creature.*` family (#1444 H3b) ──────────────────────────────────
+
+#[derive(Default)]
+struct CreatureRecorder {
+    seen: std::sync::Mutex<Vec<String>>,
+}
+
+impl CreatureModule for CreatureRecorder {
+    fn on_added_to_world(&self, s: &CreatureAddedToWorldSnapshot, e: &mut WorldEffects<'_>) {
+        self.seen
+            .lock()
+            .unwrap()
+            .push(format!("added {} map {}", s.entry, s.location.map_id));
+        e.log("added");
+    }
+    fn on_died(&self, s: &CreatureDiedSnapshot, e: &mut WorldEffects<'_>) {
+        self.seen
+            .lock()
+            .unwrap()
+            .push(format!("died {} map {}", s.entry, s.location.map_id));
+        e.announce_world("A creature died.");
+    }
+}
+
+#[test]
+fn the_creature_family_dispatches_with_world_effects() {
+    let recorder = std::sync::Arc::new(CreatureRecorder::default());
+    let mut registry = ModuleRegistry::new();
+    assert!(!registry.handles(HookFamily::Creature));
+    registry
+        .register_module(
+            ModuleDescriptor::new("alpha.creatures", version(), "Creatures").unwrap(),
+            ModuleHooks::new().creature(recorder.clone()),
+        )
+        .unwrap();
+    assert!(registry.handles(HookFamily::Creature));
+    assert!(!registry.handles(HookFamily::World));
+    let guid = ObjectGuid::EMPTY;
+    let location = CreatureLocation::new(571, 0, 1.0, 2.0, 3.0, 0.5);
+    let added = registry
+        .dispatch_creature_added_to_world(&CreatureAddedToWorldSnapshot::new(guid, 299, location))
+        .effects
+        .expect("valid");
+    assert_eq!(added.len(), 1);
+    let died = registry
+        .dispatch_creature_died(&CreatureDiedSnapshot::new(guid, 299, location))
+        .effects
+        .expect("valid");
+    assert_eq!(died.len(), 1);
+    assert_eq!(
+        *recorder.seen.lock().unwrap(),
+        vec!["added 299 map 571", "died 299 map 571"]
+    );
+}
+
+#[test]
+fn a_panicking_creature_module_is_disabled() {
+    struct Panics;
+    impl CreatureModule for Panics {
+        fn on_died(&self, _s: &CreatureDiedSnapshot, _e: &mut WorldEffects<'_>) {
+            panic!("boom");
+        }
+    }
+    let mut registry = ModuleRegistry::new();
+    registry
+        .register_module(
+            ModuleDescriptor::new("alpha.panics", version(), "Panics").unwrap(),
+            ModuleHooks::new().creature(std::sync::Arc::new(Panics)),
+        )
+        .unwrap();
+    let location = CreatureLocation::new(0, 0, 0.0, 0.0, 0.0, 0.0);
+    let outcome =
+        registry.dispatch_creature_died(&CreatureDiedSnapshot::new(ObjectGuid::EMPTY, 1, location));
+    assert_eq!(outcome.disabled.len(), 1);
+    assert!(!registry.handles(HookFamily::Creature));
+}

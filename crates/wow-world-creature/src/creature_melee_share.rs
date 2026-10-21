@@ -369,10 +369,7 @@ fn apply_secondary_share_damage_like_cpp(
             wow_entities::game_time_secs_like_cpp(),
         );
         if killed {
-            caster.set_death_state_runtime(
-                wow_constants::DeathState::JustDied,
-                wow_entities::game_time_secs_like_cpp(),
-            );
+            caster.set_kill_death_state_runtime_like_cpp(wow_entities::game_time_secs_like_cpp());
             caster.unit_mut().set_health(0);
         }
         if !killed {

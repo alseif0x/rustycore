@@ -349,6 +349,19 @@ impl Creature {
     pub fn apply_death_transition(&mut self, state: DeathState, now: i64) -> CreatureRuntimePlan {
         self.set_death_state_runtime(state, now)
     }
+    /// `setDeathState(JUST_DIED)` from `Unit::Kill`: the death transition of a
+    /// kill. Besides the transition, it marks the creature for
+    /// `creature.died` (#1444 H3b), once per transition from alive, as
+    /// AzerothCore raises `OnUnitDeath` only from `Unit::Kill`
+    /// (`Unit.cpp:14307`); a forced despawn, `DisappearAndDie` or a forced
+    /// respawn call [`Self::set_death_state_runtime`] and raise nothing.
+    pub fn set_kill_death_state_runtime_like_cpp(&mut self, now: i64) -> CreatureRuntimePlan {
+        if self.unit.death_state() == DeathState::Alive {
+            self.runtime_state.module_died_pending_like_cpp = true;
+        }
+        self.set_death_state_runtime(DeathState::JustDied, now)
+    }
+
     pub fn set_death_state_runtime(&mut self, state: DeathState, now: i64) -> CreatureRuntimePlan {
         self.set_death_state_runtime_with_fall_like_cpp(state, now, None)
     }

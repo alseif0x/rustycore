@@ -399,6 +399,166 @@ fn the_world_update_dispatch_sits_after_the_tick_with_no_guard_in_scope() {
     );
 }
 
+// ── `creature.*` (#1444 H3b) and the per-tick warning throttle ─────────
+
+#[derive(Default)]
+struct CreatureProbe {
+    seen: Mutex<Vec<String>>,
+}
+
+impl wow_module_api::CreatureModule for CreatureProbe {
+    fn on_added_to_world(
+        &self,
+        s: &wow_module_api::CreatureAddedToWorldSnapshot,
+        e: &mut WorldEffects<'_>,
+    ) {
+        self.seen.lock().unwrap().push(format!(
+            "added {} {} {} {}",
+            s.entry, s.location.map_id, s.location.instance_id, s.location.x
+        ));
+        e.log("added");
+    }
+    fn on_died(&self, s: &wow_module_api::CreatureDiedSnapshot, e: &mut WorldEffects<'_>) {
+        self.seen
+            .lock()
+            .unwrap()
+            .push(format!("died {} {}", s.entry, s.location.map_id));
+        e.announce_world(vec!["x"; 20].join("\n"));
+    }
+}
+
+fn creature_hooks(probe: Arc<CreatureProbe>) -> WorldModuleHooksLikeCpp {
+    let mut registry = ModuleRegistry::new();
+    registry
+        .register_module(
+            ModuleDescriptor::new(
+                "alpha.creatures",
+                ModuleVersion {
+                    major: 1,
+                    minor: 0,
+                    patch: 0,
+                },
+                "Creatures",
+            )
+            .unwrap(),
+            ModuleHooks::new().creature(probe),
+        )
+        .unwrap();
+    WorldModuleHooksLikeCpp::new(Arc::new(registry)).with_announcer(WorldAnnouncerLikeCpp::new(
+        Arc::new(PlayerRegistry::new()),
+        1,
+    ))
+}
+
+fn creature_event(kind: CreatureModuleEventKindLikeCpp, entry: u32) -> CreatureModuleEventLikeCpp {
+    CreatureModuleEventLikeCpp {
+        kind,
+        guid: ObjectGuid::EMPTY,
+        entry,
+        map_id: 571,
+        instance_id: 3,
+        position: wow_core::Position::new(1.5, 2.0, 3.0, 0.0),
+    }
+}
+
+#[test]
+fn creature_events_dispatch_once_each_in_order_and_cost_nothing_without_modules() {
+    let idle = WorldModuleHooksLikeCpp::new(Arc::new(ModuleRegistry::new()));
+    assert!(!idle.creature_events_wanted_like_cpp());
+
+    let probe = Arc::new(CreatureProbe::default());
+    let mut hooks = creature_hooks(Arc::clone(&probe));
+    assert!(hooks.creature_events_wanted_like_cpp());
+    hooks.creature_events_like_cpp(
+        Instant::now(),
+        &[
+            creature_event(CreatureModuleEventKindLikeCpp::AddedToWorld, 299),
+            creature_event(CreatureModuleEventKindLikeCpp::Died, 299),
+        ],
+    );
+    assert_eq!(
+        *probe.seen.lock().unwrap(),
+        vec!["added 299 571 3 1.5", "died 299 571"]
+    );
+}
+
+/// Review nit: a per-tick hook whose announcement is cut every tick, or whose
+/// batch is rejected every tick, logs once and is then summarized.
+#[test]
+fn per_tick_effect_warnings_are_throttled_then_summarized() {
+    let probe = Arc::new(CreatureProbe::default());
+    let mut hooks = creature_hooks(probe);
+    let start = Instant::now();
+    for tick in 0..50 {
+        hooks.creature_events_like_cpp(
+            start + Duration::from_millis(tick),
+            &[creature_event(CreatureModuleEventKindLikeCpp::Died, 1)],
+        );
+    }
+    assert_eq!(
+        hooks.warnings.logged, 1,
+        "one cut warning, not one per tick"
+    );
+    hooks.creature_events_like_cpp(
+        start + WORLD_UPDATE_BUDGET_SUMMARY_INTERVAL_LIKE_CPP + Duration::from_millis(100),
+        &[],
+    );
+    assert_eq!(
+        hooks.warnings.logged, 2,
+        "one summary with the suppressed count, even on a quiet tick"
+    );
+
+    struct Invalid;
+    impl WorldModule for Invalid {
+        fn on_update(&self, _s: &WorldUpdateSnapshot, e: &mut WorldEffects<'_>) {
+            e.log("x".repeat(10_000));
+        }
+    }
+    let mut registry = ModuleRegistry::new();
+    registry
+        .register_module(
+            ModuleDescriptor::new(
+                "alpha.invalid",
+                ModuleVersion {
+                    major: 1,
+                    minor: 0,
+                    patch: 0,
+                },
+                "Invalid",
+            )
+            .unwrap(),
+            ModuleHooks::new().world(Arc::new(Invalid)),
+        )
+        .unwrap();
+    let mut hooks = WorldModuleHooksLikeCpp::new(Arc::new(registry));
+    hooks.startup_like_cpp("RustyCore", 1);
+    for tick in 1..=50 {
+        hooks.update_like_cpp(start + Duration::from_millis(tick), 1, tick);
+    }
+    assert_eq!(
+        hooks.warnings.logged, 1,
+        "one rejected-batch warning, not one per tick"
+    );
+}
+
+/// The creature events are dispatched after the creature phases' deferred
+/// delivery, which runs after every guard of the tick was released.
+#[test]
+fn the_creature_event_dispatch_sits_after_the_guards_of_the_tick() {
+    let source = include_str!("runtime/map/update_loop.rs");
+    let dispatch = source
+        .find("world_module_hooks\n                    .creature_events_like_cpp(")
+        .expect("the loop dispatches the creature events");
+    let delivery = source
+        .find("deliver_canonical_creature_phases_like_cpp(phases, &player_registry)")
+        .expect("the creature phases are delivered");
+    let guards_released = source
+        .find("(tick_summary, creature_phases)\n            };")
+        .expect("the tick's guarded block ends");
+    assert!(guards_released < delivery && delivery < dispatch);
+    assert_eq!(source.matches(".creature_events_like_cpp(").count(), 1);
+}
+
 /// The process hooks sit where C++ `main` calls them, relative to the steps
 /// around them in `app.rs`:
 /// - `OnAfterConfigLoad(false)` once the databases are started, the online

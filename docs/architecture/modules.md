@@ -304,6 +304,8 @@ durable or committed result.
 | `world.startup` | `WorldModule::on_startup` | `WorldScript.h:74`, `Main.cpp:395` (TrinityCore `Main.cpp:413`) | `world-server` `app.rs`, after both listeners are bound and the realm is marked online, beside the internal `on_startup_like_cpp`; the already spawned map loop dispatches no `world.update` before it | log, world announcement |
 | `world.update` | `WorldModule::on_update` | `WorldScript.h:71`, `World.cpp:1342` (TrinityCore `World.cpp:2862`) | `world-server` `runtime/map/update_loop.rs`, once per completed canonical tick, at its end, after the map manager, spawn metadata and respawn-order guards were released and after game events; only after `world.startup`; `diff_ms` is the time since the previous dispatch | log, world announcement; 5 ms budget per module, throttled warning and per-module metric |
 | `world.shutdown` | `WorldModule::on_shutdown` | `WorldScript.h:77`, `Main.cpp:419` (TrinityCore `Main.cpp:440`) | `world-server` `app.rs`, after the session flush and the respawn-writer drain, beside the internal `on_shutdown_like_cpp`, before the realm is marked offline. C++ runs it before `KickAll`/`UpdateSessions(1)`/`StopNetwork`; RustyCore's later point is an intentional deviation, so no module runs while sessions are still being finalized | log, world announcement |
+| `creature.added_to_world` | `CreatureModule::on_added_to_world` | `AllCreatureScript.h:43` (`OnCreatureAddWorld`, `Creature::AddToWorld`) | the creature is marked where it enters its map: a fresh canonical incarnation (`wow-world-entities` `creature_registry.rs`, the admission grid loads and respawns use) or a creature record added through `wow-map` `add_map_object_record_to_map_like_cpp`; the canonical map tick's lifecycle phase (`wow-world-creature` `creature_lifecycle_tick.rs`) reports and clears the mark on the first update that visits it, and `world-server` dispatches after the tick's guards were released (`runtime/map/update_loop.rs`, after the creature phases' delivery); non-persistent observation | log, world announcement |
+| `creature.died` | `CreatureModule::on_died` | `UnitScript.h:111` (`OnUnitDeath`, raised from `Unit::Kill`, `Unit.cpp:14307`) | `wow-entities` `Creature::set_kill_death_state_runtime_like_cpp`, the kill's transition from alive into `JUST_DIED` (player melee and spells, creature melee and damage share); a forced despawn, `DisappearAndDie` or forced respawn raises nothing, as in AzerothCore; pets are not creatures here and are not reported; reported and dispatched like `added_to_world`, exactly once per transition; the killer is not reported (see `player.creature_kill`); non-persistent observation | log, world announcement |
 
 An operation that runs on the session host raises its hook through a provided host-trait method;
 one that runs inside a borrowed context (`QuestRewardCx` and the objective drain on it) raises it
@@ -330,6 +332,21 @@ overrun of each module is logged at once and later ones are summarized every 10 
 total, maximum and overruns are kept per module. A tick the loop skips (map timer not passed,
 barrier held, abandoned tick, shutdown, or before `world.startup`) dispatches nothing, and the
 next dispatch's `diff_ms` covers it.
+
+**Creature family (#1444 H3b).** `creature.*` hooks have no session; their effects are the
+`world.*` ones. The creature carries two runtime marks, set where C++ calls the hook
+(`Creature::AddToWorld`, a kill's transition into `JUST_DIED`) and consumed by the canonical tick's
+lifecycle phase, which visits every creature the map updates (the cells around players and
+active objects). So an event is reported by the tick after its transition, from that tick's
+outcome, once every guard of the tick was released; the map loop asks `handles(Creature)` before
+the guards, and without a creature module the phase reads nothing. **Coverage limit:** only a
+creature in the tick's admitted selection (the map's NearbyCells update plan) is visited, so an
+event for a creature outside it may never be reported, not just reported late: a creature added
+and removed between two ticks, a game-event or spawn-group creature in a cell no update visits,
+or one that leaves the selection before it is visited. Collecting the events from the map's
+`AddToMapOutcome` instead (plan row 16) is #1462. Effect warnings of the per-tick hooks (`world.update`, `creature.*`), such as a rejected
+batch or an announcement cut at the line cap, go through the same throttle as the budget
+warning: the first is logged, later ones are summarized every 10 s with the suppressed count.
 
 **Combat hooks (#1444 H3).** Both are non-persistent observations (see above).
 `player.spell_cast` is raised once the cast is visible (`SMSG_SPELL_GO` sent) and before its

@@ -5,6 +5,9 @@
 
 use super::*;
 
+#[path = "scenarios_world_entities_30/creature_module_events.rs"]
+mod creature_module_events;
+
 #[test]
 fn respawn_queue_lives_in_map_not_in_session_like_cpp() {
     // After a creature is despawned and queued for respawn, the pending entry

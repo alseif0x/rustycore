@@ -217,6 +217,11 @@ fn admit_canonical_creature_map_object_on_locked_map_like_cpp(
         .map_mut()
         .add_to_map_like_cpp(AccessorObjectKind::Creature, object);
     creature.unit_mut().world_mut().object_mut().add_to_world();
+    // #1444 H3b: a fresh canonical incarnation is `Creature::AddToWorld`
+    // (AzerothCore `OnCreatureAddWorld`); the lifecycle phase reports it.
+    creature
+        .runtime_state_mut()
+        .module_added_to_world_pending_like_cpp = true;
     let Ok(record) = wow_entities::MapObjectRecord::new_creature(creature) else {
         return Deferred;
     };

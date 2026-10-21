@@ -13,6 +13,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use crate::chat::{ChatMessageSnapshot, ChatModule, ChatOutcome};
+use crate::creature::{CreatureAddedToWorldSnapshot, CreatureDiedSnapshot, CreatureModule};
 use crate::decision::ChatDecision;
 use crate::effect::{
     EffectBatch, HookOutcome, ModuleEffectError, NotificationEffect, PlayerLoginEffects,
@@ -221,6 +222,10 @@ pub enum HookFamily {
     /// `PlayerScript::OnPlayerCanUseChat`. A family of its own so a server
     /// whose modules ignore chat builds no snapshot per message.
     Chat,
+    /// The `creature.*` notifications of [`CreatureModule`] (#1444 H3b):
+    /// added to the world and died. AzerothCore `AllCreatureScript` and
+    /// `UnitScript`.
+    Creature,
 }
 
 /// The hook families one module offers (source API 2).
@@ -235,6 +240,7 @@ pub struct ModuleHooks {
     player_hooks: u32,
     world: Option<Arc<dyn WorldModule>>,
     chat: Option<Arc<dyn ChatModule>>,
+    creature: Option<Arc<dyn CreatureModule>>,
 }
 
 impl ModuleHooks {
@@ -272,6 +278,13 @@ impl ModuleHooks {
         self
     }
 
+    /// Offer the `creature.*` family.
+    #[must_use]
+    pub fn creature(mut self, module: Arc<dyn CreatureModule>) -> Self {
+        self.creature = Some(module);
+        self
+    }
+
     /// Whether this set offers `family`.
     #[must_use]
     pub fn offers(&self, family: HookFamily) -> bool {
@@ -280,6 +293,7 @@ impl ModuleHooks {
             HookFamily::Player => self.player.is_some(),
             HookFamily::World => self.world.is_some(),
             HookFamily::Chat => self.chat.is_some(),
+            HookFamily::Creature => self.creature.is_some(),
         }
     }
 
@@ -302,6 +316,7 @@ impl ModuleHooks {
             && self.player.is_none()
             && self.world.is_none()
             && self.chat.is_none()
+            && self.creature.is_none()
     }
 }
 
@@ -668,6 +683,32 @@ impl ModuleRegistry {
             |module, batch, id| {
                 call(module, &mut ScopedEffects::new(batch, id));
             },
+            None,
+        )
+    }
+
+    /// `creature.added_to_world`.
+    pub fn dispatch_creature_added_to_world(
+        &self,
+        snapshot: &CreatureAddedToWorldSnapshot,
+    ) -> HookOutcome<WorldEffect> {
+        self.dispatch_family(
+            |hooks| hooks.creature.as_ref(),
+            |module, batch, id| {
+                module.on_added_to_world(snapshot, &mut WorldEffects::new(batch, id));
+            },
+            None,
+        )
+    }
+
+    /// `creature.died`.
+    pub fn dispatch_creature_died(
+        &self,
+        snapshot: &CreatureDiedSnapshot,
+    ) -> HookOutcome<WorldEffect> {
+        self.dispatch_family(
+            |hooks| hooks.creature.as_ref(),
+            |module, batch, id| module.on_died(snapshot, &mut WorldEffects::new(batch, id)),
             None,
         )
     }

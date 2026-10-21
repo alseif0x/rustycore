@@ -106,7 +106,7 @@ impl Creature {
             Some(now_ms.saturating_add(u64::from(self.corpse_delay).saturating_mul(1_000)));
         self.unit.set_health(0);
         self.respawn_delay = self.ai_ownership.respawn_time_secs.min(u64::from(u32::MAX)) as u32;
-        self.set_death_state_runtime(DeathState::JustDied, game_time_secs);
+        self.set_kill_death_state_runtime_like_cpp(game_time_secs);
         self.unit.set_health(0);
     }
     pub fn complete_ai_death_state_after_kill_hooks_like_cpp(
@@ -120,7 +120,7 @@ impl Creature {
         self.ai_ownership.death_time_ms = Some(now_ms);
         self.ai_ownership.corpse_despawn_at_ms =
             Some(now_ms.saturating_add(u64::from(self.corpse_delay).saturating_mul(1_000)));
-        self.set_death_state_runtime(DeathState::JustDied, game_time_secs);
+        self.set_kill_death_state_runtime_like_cpp(game_time_secs);
         self.unit.set_health(0);
     }
     pub fn apply_corpse_loot_flags_after_death_state_like_cpp(

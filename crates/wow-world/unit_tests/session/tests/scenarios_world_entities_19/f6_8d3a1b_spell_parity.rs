@@ -194,6 +194,7 @@ fn d3a1b_executor_tick_like_cpp(
             config: &config,
             map_store: &lifecycle_test_map_store_like_cpp(0, wow_data::map::MAP_COMMON, 0),
             now: Instant::now(),
+            record_creature_module_events: false,
         },
     );
     assert!(outcome.executed_like_cpp(), "{:?}", outcome.admission);

@@ -29,6 +29,7 @@
 
 mod chat;
 mod config;
+mod creature;
 mod decision;
 mod effect;
 mod hook;
@@ -38,6 +39,9 @@ mod world;
 
 pub use chat::{ChatKind, ChatMessageSnapshot, ChatModule, ChatOutcome};
 pub use config::{ModuleConfig, ModuleConfigError, ModuleConfigValue};
+pub use creature::{
+    CreatureAddedToWorldSnapshot, CreatureDiedSnapshot, CreatureLocation, CreatureModule,
+};
 pub use decision::ChatDecision;
 pub use effect::{
     EffectBatch, HookOutcome, ModuleEffectError, NotificationEffect, PlayerLoginEffect,

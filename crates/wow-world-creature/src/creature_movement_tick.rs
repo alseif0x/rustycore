@@ -707,10 +707,7 @@ pub(crate) fn apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
         wow_entities::game_time_secs_like_cpp(),
     );
     if killed {
-        victim.set_death_state_runtime(
-            wow_constants::DeathState::JustDied,
-            wow_entities::game_time_secs_like_cpp(),
-        );
+        victim.set_kill_death_state_runtime_like_cpp(wow_entities::game_time_secs_like_cpp());
         victim.unit_mut().set_health(0);
     }
     let health_after = victim.unit().data().health;

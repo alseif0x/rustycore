@@ -97,6 +97,57 @@ fn canonical_creature_incarnation_exists_like_cpp(
         .is_some_and(|map| map.map().with_creature_like_cpp(guid, |_| ()).is_some())
 }
 
+/// #1444 H3b: report and clear each creature's pending `creature.*` marks.
+///
+/// `creature.added_to_world` (set by the map's add-to-world) is reported
+/// before `creature.died` (set by a kill's `JUST_DIED` transition), so a
+/// creature added and killed between two ticks reports both in C++ order.
+///
+/// With no module wanting the family this returns at once, before any
+/// lookup: the marks are plain bools that cannot accumulate, and the
+/// interest never turns on after startup (modules are only ever disabled), so
+/// a mark left set is never reported.
+fn collect_creature_module_events_like_cpp(
+    store: &mut AdmittedCanonicalCreatureLifecycleStoreLikeCpp<'_, '_>,
+    map_id: u16,
+    instance_id: u32,
+    guids: &[ObjectGuid],
+    outcome: &mut CreatureLifecycleTickOutcomeLikeCpp,
+) {
+    use wow_world_entities::creature_aggro_contracts::{
+        CreatureModuleEventKindLikeCpp, CreatureModuleEventLikeCpp,
+    };
+    if !outcome.record_module_events_like_cpp {
+        return;
+    }
+    for guid in guids {
+        let Some(creature) = store.lifecycle_creature_mut_like_cpp(map_id, instance_id, *guid)
+        else {
+            continue;
+        };
+        let state = creature.runtime_state_mut();
+        let added = std::mem::take(&mut state.module_added_to_world_pending_like_cpp);
+        let died = std::mem::take(&mut state.module_died_pending_like_cpp);
+        for (pending, kind) in [
+            (added, CreatureModuleEventKindLikeCpp::AddedToWorld),
+            (died, CreatureModuleEventKindLikeCpp::Died),
+        ] {
+            if pending {
+                outcome
+                    .module_events_like_cpp
+                    .push(CreatureModuleEventLikeCpp {
+                        kind,
+                        guid: *guid,
+                        entry: creature.entry(),
+                        map_id,
+                        instance_id,
+                        position: creature.position(),
+                    });
+            }
+        }
+    }
+}
+
 /// The creature lifecycle phase (#1263 F6-8D3a-3).
 ///
 /// Stage order and DB statement order: JUST_DIED respawn-time saves and corpse despawns per map with the
@@ -144,6 +195,7 @@ pub(crate) fn run_creature_lifecycle_phase_on_store_like_cpp(
     for (map_id, instance_id) in map_keys {
         let guids = store.lifecycle_creature_guids_like_cpp(map_id, instance_id);
         outcome.creatures_seen += guids.len();
+        collect_creature_module_events_like_cpp(store, map_id, instance_id, &guids, outcome);
 
         // C++ saves the respawn time from JUST_DIED, not when the corpse is
         // eventually removed. Only persistent world-map spawns belong in the
