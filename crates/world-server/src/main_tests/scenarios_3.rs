@@ -849,7 +849,7 @@ fn library_composition_preserves_cpp_startup_and_shutdown_order() {
         "CharacterDatabase::open_with_pool_size(",
         "WorldDatabase::open_with_pool_size(",
         "HotfixDatabase::open_with_pool_size(",
-        "let migration_manifest = wow_database::migration::bundled_manifest()?;",
+        "wow_database::migration::bundled_manifest()?.with_module_schema(&module_schema)?;",
         "wow_database::migration::validate_runtime_schema(",
         "clear_online_accounts_like_cpp(&login_db, &char_db, realm_id).await?;",
         "set_realm_offline(&login_db, realm_id).await?;",
