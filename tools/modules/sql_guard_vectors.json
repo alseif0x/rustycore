@@ -1,0 +1,77 @@
+{
+  "comment": "Shared vectors for the module SQL guard (#1444 H6). tools/modules/test_rustycore_module.py and wow-database's module_sql tests both read this file, so the compose-time (Python) and apply-time (Rust) guards cannot drift. prefix is the one for module id example.milestones.",
+  "prefix": "mod_example_milestones_",
+  "migration": {
+    "allow": [
+      "CREATE TABLE `mod_example_milestones_counts` (`guid` BIGINT UNSIGNED NOT NULL, `kills` INT UNSIGNED NOT NULL DEFAULT 0, PRIMARY KEY (`guid`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+      "create table if not exists mod_example_milestones_log (id int primary key)",
+      "-- a comment first\nCREATE TABLE mod_example_milestones_x (id INT)",
+      "ALTER TABLE `mod_example_milestones_counts` ADD COLUMN `quests` INT UNSIGNED NOT NULL DEFAULT 0",
+      "CREATE INDEX idx_kills ON `mod_example_milestones_counts` (`kills`)",
+      "CREATE UNIQUE INDEX idx_u ON mod_example_milestones_counts (guid, kills)",
+      "DROP INDEX idx_kills ON mod_example_milestones_counts",
+      "INSERT INTO `mod_example_milestones_counts` (`guid`, `kills`) VALUES (1, 2)",
+      "INSERT IGNORE INTO mod_example_milestones_counts VALUES (1, 2, 3)",
+      "REPLACE INTO mod_example_milestones_counts VALUES (1, 2, 3)",
+      "UPDATE `mod_example_milestones_counts` SET `kills` = 0 WHERE `guid` = 1",
+      "DELETE FROM mod_example_milestones_counts WHERE kills = 0",
+      "DELETE FROM `mod_example_milestones_counts`"
+    ],
+    "deny": [
+      "CREATE TABLE characters_extra (id INT)",
+      "CREATE TABLE `characters` (id INT)",
+      "CREATE TABLE mod_example_milestonesx (id INT)",
+      "CREATE TABLE mod_other_module_x (id INT)",
+      "CREATE TABLE `characters`.`mod_example_milestones_x` (id INT)",
+      "CREATE TABLE world.mod_example_milestones_x (id INT)",
+      "CREATE TABLE mod_example_milestones_copy AS SELECT * FROM characters",
+      "CREATE TABLE mod_example_milestones_copy LIKE characters",
+      "CREATE TABLE mod_example_milestones_x (guid BIGINT, FOREIGN KEY (guid) REFERENCES characters (guid))",
+      "ALTER TABLE characters ADD COLUMN x INT",
+      "ALTER TABLE `characters` DROP COLUMN `name`",
+      "ALTER TABLE mod_example_milestones_counts RENAME TO characters",
+      "RENAME TABLE mod_example_milestones_counts TO characters",
+      "CREATE INDEX idx ON characters (name)",
+      "DROP INDEX idx ON characters",
+      "INSERT INTO characters (guid) VALUES (1)",
+      "INSERT INTO mod_example_milestones_counts SELECT guid, 0 FROM characters",
+      "UPDATE characters SET money = 0",
+      "UPDATE mod_example_milestones_counts, characters SET kills = 0",
+      "UPDATE mod_example_milestones_counts JOIN characters ON 1 SET kills = 0",
+      "UPDATE mod_example_milestones_counts SET kills = (SELECT COUNT(*) FROM characters)",
+      "DELETE FROM characters",
+      "DELETE mod_example_milestones_counts FROM mod_example_milestones_counts JOIN characters",
+      "DROP TABLE mod_example_milestones_counts",
+      "DROP TABLE characters",
+      "TRUNCATE TABLE characters",
+      "USE characters",
+      "CREATE DATABASE evil",
+      "GRANT ALL ON *.* TO 'x'@'%'",
+      "SET GLOBAL read_only = 0",
+      "CREATE TRIGGER t BEFORE INSERT ON characters FOR EACH ROW SET NEW.money = 0",
+      "CREATE PROCEDURE p() BEGIN END",
+      "CREATE VIEW mod_example_milestones_v AS SELECT * FROM characters",
+      "LOAD DATA INFILE '/etc/passwd' INTO TABLE mod_example_milestones_counts",
+      "SELECT 1",
+      "/*!50000 DROP TABLE characters */",
+      "CREATE TABLE mod_example_milestones_x (id INT) /*!50000 , DROP TABLE characters */",
+      "CALL p()"
+    ]
+  },
+  "purge": {
+    "allow": [
+      "DROP TABLE IF EXISTS `mod_example_milestones_counts`",
+      "DROP TABLE mod_example_milestones_counts",
+      "drop table if exists mod_example_milestones_a, `mod_example_milestones_b`"
+    ],
+    "deny": [
+      "DROP TABLE characters",
+      "DROP TABLE IF EXISTS mod_example_milestones_a, characters",
+      "DROP TABLE `world`.`mod_example_milestones_a`",
+      "DROP DATABASE characters",
+      "DELETE FROM mod_example_milestones_counts",
+      "TRUNCATE TABLE mod_example_milestones_counts",
+      "CREATE TABLE mod_example_milestones_x (id INT)"
+    ]
+  }
+}

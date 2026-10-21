@@ -13,6 +13,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
+pub mod module_ops;
+pub mod module_sql;
 pub mod modules;
 
 pub use modules::{ModuleSchema, is_module_component, module_component};
@@ -445,6 +447,17 @@ async fn apply_one(
     manifest: &MigrationManifest,
     migration: &Migration,
 ) -> Result<()> {
+    let content = normalized_source(&manifest.source_path(migration))?;
+    apply_one_content(connection, migration, &content).await
+}
+
+/// Record `migration` as started, run `content`, then mark it successful.
+/// A failure leaves the row incomplete for explicit recovery.
+async fn apply_one_content(
+    connection: &mut PoolConnection<MySql>,
+    migration: &Migration,
+    content: &str,
+) -> Result<()> {
     let next_rank: u64 = sqlx::query_scalar(
         "SELECT CAST(COALESCE(MAX(`installed_rank`), 0) + 1 AS UNSIGNED) FROM `rustycore_schema_history`",
     )
@@ -465,9 +478,8 @@ async fn apply_one(
     .execute(&mut **connection)
     .await?;
 
-    let content = normalized_source(&manifest.source_path(migration))?;
     let started = Instant::now();
-    for statement in split_sql(&content) {
+    for statement in split_sql(content) {
         if let Err(error) = sqlx::query(statement).execute(&mut **connection).await {
             let message = format!("{error}");
             let _ = sqlx::query(

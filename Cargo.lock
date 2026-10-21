@@ -1803,6 +1803,7 @@ dependencies = [
  "anyhow",
  "serde",
  "serde_json",
+ "sqlx",
  "tokio",
  "wow-config",
  "wow-database",

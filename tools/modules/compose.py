@@ -18,6 +18,9 @@ import re
 import sys
 import tomllib
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import module_sql  # noqa: E402
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 MODULES_DIR = REPO_ROOT / "modules"
 LOCK_PATH = REPO_ROOT / "modules.lock.toml"
@@ -196,6 +199,8 @@ def read_module_sql(module_id: str, root: pathlib.Path) -> dict | None:
         f"{where}: min_core_schema {minimum} is newer than this server's core schema",
     )
 
+    prefix = table_prefix(module_id)
+
     def entry_file(entry: dict, label: str) -> tuple[str, str]:
         file = str(entry.get("file", ""))
         _require(
@@ -204,6 +209,15 @@ def read_module_sql(module_id: str, root: pathlib.Path) -> dict | None:
         )
         path = sql_dir / file
         _require(path.is_file(), f"{where}: {label} file {file} is missing")
+        # The static guard: only the module's own prefixed tables (#1444 H6).
+        problems = module_sql.check_script(
+            path.read_text(encoding="utf-8"), prefix, purge=label == "purge"
+        )
+        _require(
+            not problems,
+            f"{where}: {file} is refused by the module SQL guard (prefix {prefix}): "
+            + "; ".join(problems),
+        )
         return file, sql_sha256(path)
 
     def database_of(entry: dict, label: str) -> str:
