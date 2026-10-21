@@ -167,8 +167,11 @@ Owner decisions (2026-10-21, recorded on #1444):
     pending migration, when `min_core_schema` is newer than the core manifest, when a file no
     longer matches its recorded checksum, or when the guard refuses it. Like `purge`, it checks
     every recorded file of both databases before it connects, and with `--yes` it dry-runs both
-    databases before changing either, so a `world` refusal never follows a changed `characters`
-    (#1468). It holds the same
+    databases before changing either, so the refusals that can be checked in advance (files,
+    guard, core schema problems, `enabled_order`, `min_core_schema`) are found before
+    `characters` changes (#1468). A runtime SQL error in `world`, or a concurrent change between
+    the dry run and the write, can still leave `characters` applied; the incomplete history row
+    then needs explicit repair. It holds the same
     advisory lock as `migrate`, and a failed statement leaves the row incomplete for explicit
     recovery, like a core migration.
   - `remove` keeps every table and history row. It copies the recorded files to

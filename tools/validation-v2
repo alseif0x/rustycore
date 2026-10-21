@@ -44,22 +44,45 @@ BUILD_INPUT_DIAGNOSTIC = "tools/measure_build_inputs.py"
 BUILD_INPUT_CONTRACT_SUITE = "tools/test_measure_build_inputs.py"
 CARGO_CONFIG_PATHS = {".cargo/config", ".cargo/config.toml"}
 CHECKER_MANIFEST = "tools/architecture/handler-contract-check/Cargo.toml"
+# #1468 review B1: the architecture checker builds into a checkout-local target
+# directory. Cargo fingerprints a path package by its workspace-relative path
+# and mtimes, so under a CARGO_TARGET_DIR shared between checkouts a binary or
+# test executable built from another checkout looks fresh here and scans that
+# tree. A per-checkout directory removes the collision; the scan-root banner
+# check below detects any that remains.
+ARCH_TOOLS_TARGET_DIR = "target/arch-tools"
+CHECKER_CARGO = ["--manifest-path", CHECKER_MANIFEST, "--target-dir", ARCH_TOOLS_TARGET_DIR]
+# A scan step names the tool whose stderr banner must name this checkout.
+SCAN_ROOT_BANNER_KEY = "require_scan_root_banner"
 BOT_MANIFEST = "tools/wow-test-bot/Cargo.toml"
 # #1468 item 3: the SQL-mode compositor compile check and its triggers.
 SQL_COMPOSITOR_CHECK = "tools/modules/check_sql_compositor.py"
 MODULE_TOOL_SUITE = "tools/modules/test_rustycore_module.py"
 SQL_COMPOSITOR_PREFIXES = ("tools/modules/", "crates/world-modules/", "crates/wow-module-api/")
-SQL_COMPOSITOR_PATHS = frozenset({"crates/world-server/src/entry.rs"})
+# entry.rs defines run_with_composition; app.rs and lib.rs re-export it.
+SQL_COMPOSITOR_PATHS = frozenset({
+    "crates/world-server/src/entry.rs",
+    "crates/world-server/src/app.rs",
+    "crates/world-server/src/lib.rs",
+})
 # #1468 item 1: inputs of the exhaustive persistence inventory that `final`
-# does not run (870-900 s alone, over the 600 s campaign budget).
+# does not run (870-900 s alone, over the 600 s campaign budget): every
+# workspace Rust source it inventories, the whole checker and its policies.
 PERSISTENCE_INVENTORY_PATHS = frozenset({
     "tools/architecture/persistence-access-snapshot.json",
     "tools/architecture/persistence-boundary-policy.json",
     "tools/architecture/persistence-boundary-workflows.json",
+    "tools/architecture/session-ownership-policy.json",
 })
-PERSISTENCE_INVENTORY_PREFIXES = (
-    "tools/architecture/handler-contract-check/src/persistence_",
-)
+PERSISTENCE_INVENTORY_PREFIXES = ("tools/architecture/handler-contract-check/",)
+
+
+def persistence_inventory_input(path: str) -> bool:
+    return (
+        path in PERSISTENCE_INVENTORY_PATHS
+        or path.startswith(PERSISTENCE_INVENTORY_PREFIXES)
+        or (path.startswith("crates/") and path.endswith(".rs"))
+    )
 INTERRUPT_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
 # Cargo reports a child killed by a signal as its own exit 101, so the signal
 # only survives in the child's own message: "(signal: 6, SIGABRT: ...)".
@@ -610,23 +633,22 @@ def audit_steps(base_commit: str, jobs: int) -> list[dict[str, object]]:
         (
             "handler-contract-unit-tests",
             [
-                "cargo", "test", "--no-fail-fast", "--release", "--locked", "--manifest-path",
-                CHECKER_MANIFEST, "--lib", "--jobs", str(jobs),
+                "cargo", "test", "--no-fail-fast", "--release", "--locked", *CHECKER_CARGO,
+                "--lib", "--jobs", str(jobs),
             ],
         ),
         (
             "handler-contract-repository-check",
             [
-                "cargo", "run", "--release", "--locked", "--manifest-path",
-                CHECKER_MANIFEST, "--jobs", str(jobs), "--", "check",
+                "cargo", "run", "--release", "--locked", *CHECKER_CARGO,
+                "--jobs", str(jobs), "--", "check",
             ],
         ),
         (
             "session-persistence-ratchet",
             [
-                "cargo", "run", "--release", "--locked", "--manifest-path",
-                CHECKER_MANIFEST, "--bin", "session-ownership-check", "--jobs",
-                str(jobs), "--", "check",
+                "cargo", "run", "--release", "--locked", *CHECKER_CARGO,
+                "--bin", "session-ownership-check", "--jobs", str(jobs), "--", "check",
             ],
         ),
         (
@@ -662,9 +684,16 @@ def audit_steps(base_commit: str, jobs: int) -> list[dict[str, object]]:
             ],
         ),
     ]
+    banners = {
+        "handler-contract-repository-check": "handler-contract-check",
+        "session-persistence-ratchet": "session-ownership-check",
+    }
     steps: list[dict[str, object]] = []
     for section, argv in commands:
-        steps.append({"section": section, "argv": argv})
+        step: dict[str, object] = {"section": section, "argv": argv}
+        if section in banners:
+            step[SCAN_ROOT_BANNER_KEY] = banners[section]
+        steps.append(step)
     argv_values = [tuple(step["argv"]) for step in steps]
     if len(set(argv_values)) != len(argv_values):
         raise ValueError("audit plan contains duplicate commands")
@@ -1009,7 +1038,7 @@ def validation_commands(
     if checker_affected:
         add_command(planned, ["cargo", "fmt", "--manifest-path", CHECKER_MANIFEST, "--", "--check"])
         command = "test" if profile == "final" else "check"
-        checker = ["cargo", command, "--locked", "--manifest-path", CHECKER_MANIFEST, "--jobs", str(jobs)]
+        checker = ["cargo", command, "--locked", *CHECKER_CARGO, "--jobs", str(jobs)]
         if profile == "final":
             # No test is skipped by name here. `repository_surface_can_be_collected`
             # used to be, because it asked for a persistence inventory it never
@@ -1034,12 +1063,10 @@ def validation_commands(
     # costs 870-900 s by itself, so final cannot run it inside the 600 s
     # budget; `audit` (every push to 3.4.3 and the weekly cron) does. Say so
     # in the manifest when this diff changes that inventory's inputs.
-    if profile == "final" and any(
-        path in PERSISTENCE_INVENTORY_PATHS or path.startswith(PERSISTENCE_INVENTORY_PREFIXES)
-        for path in all_paths
-    ):
+    if profile == "final" and any(persistence_inventory_input(path) for path in all_paths):
         optional_skips.append(
-            "persistence inventory inputs changed; the exhaustive "
+            "persistence inventory inputs changed (crates/ Rust, the checker or its "
+            "policies); the exhaustive "
             "`session-ownership-check check` (870-900 s) is not part of final - run "
             "`./tools/validation-v2 audit` (or that command) before relying on it"
         )
@@ -1135,7 +1162,7 @@ def enable_architecture_acceptance(plan: dict[str, object], jobs: int) -> None:
         [*checker, command] for command in ("physical-files", "hotspot-ratchet", "self-test", "check")
     ] + [combined]
     ownership = [
-        "cargo", "run", "--release", "--locked", "--manifest-path", CHECKER_MANIFEST,
+        "cargo", "run", "--release", "--locked", *CHECKER_CARGO,
         "--bin", "session-ownership-check", "--jobs", str(jobs), "--", "check", "--syntax-only",
     ]
     remaining = [step for step in plan["planned_steps"] if step["argv"] not in [*covered, ownership]]
@@ -1149,7 +1176,11 @@ def enable_architecture_acceptance(plan: dict[str, object], jobs: int) -> None:
             "argv": combined,
             "continue_to_section_on_failure": "session-syntax-acceptance",
         },
-        {"section": "session-syntax-acceptance", "argv": ownership},
+        {
+            "section": "session-syntax-acceptance",
+            "argv": ownership,
+            SCAN_ROOT_BANNER_KEY: "session-ownership-check",
+        },
         *remaining,
     ]
     plan["planned_steps"] = steps
@@ -1260,10 +1291,14 @@ def terminate_group(process: subprocess.Popen) -> int:
 
 
 def tee_output(stream, reports: list[dict[str, object]], log=None,
-               errors: list[str] | None = None) -> None:
-    """Stream child output through unchanged while noting reported signals."""
+               errors: list[str] | None = None, banner: bytes | None = None,
+               seen: list[bytes] | None = None) -> None:
+    """Stream child output through unchanged while noting reported signals
+    and, when asked, the line that starts with `banner`."""
     target = sys.stdout.buffer
     for line in iter(stream.readline, b""):
+        if banner is not None and seen is not None and not seen and line.startswith(banner):
+            seen.append(line)
         if log is not None:
             try:
                 log.write(line)
@@ -1311,8 +1346,15 @@ def run_one(
     timeout: int,
     sink: list[dict[str, object]] | None = None,
     log_path: Path | None = None,
+    banner_tool: str | None = None,
 ) -> dict[str, object]:
     print("+ " + shlex.join(command), flush=True)
+    # The tool's own banner must name this checkout, followed by its reason.
+    banner = (
+        None if banner_tool is None
+        else f"{banner_tool}: scan root {repo.resolve()} (".encode()
+    )
+    banner_seen: list[bytes] = []
     started_at = utc_now()
     started = time.monotonic()
     timed_out = False
@@ -1338,7 +1380,12 @@ def run_one(
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )
-        pump = threading.Thread(target=tee_output, args=(process.stdout, reports, log, log_errors), daemon=True)
+        pump = threading.Thread(
+            target=tee_output,
+            args=(process.stdout, reports, log, log_errors),
+            kwargs={} if banner is None else {"banner": banner, "seen": banner_seen},
+            daemon=True,
+        )
         pump.start()
         return_code = process.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -1371,6 +1418,15 @@ def run_one(
         failure_kind = "interrupted"
     elif log_errors and failure_kind in {None, "exit"}:
         failure_kind = "output-log"
+    elif failure_kind is None and banner is not None and not banner_seen:
+        # A PASS without the banner came from a binary that did not scan
+        # this checkout (or predates the guard): not evidence (#1468 B1).
+        failure_kind = "scan-root"
+        print(
+            f"validation-v2: no '{banner.decode()}...' banner: the scan did not "
+            "demonstrably read this checkout",
+            file=sys.stderr,
+        )
     for error in log_errors:
         print(f"validation-v2: {error}", file=sys.stderr)
     outcome = {
@@ -1433,9 +1489,14 @@ def run_steps(
             raise ValueError(f"planned step has an unsafe section name: {section!r}")
         before = len(outcomes)
         try:
-            options = {} if log_directory is None else {
+            options: dict[str, object] = {} if log_directory is None else {
                 "log_path": log_directory / f"{index:02d}-{section}.log",
             }
+            banner_tool = step.get(SCAN_ROOT_BANNER_KEY)
+            if banner_tool is not None:
+                if not isinstance(banner_tool, str) or not banner_tool:
+                    raise ValueError(f"planned step '{section}' has an invalid banner tool")
+                options["banner_tool"] = banner_tool
             outcome = run_one(repo, command, environment, timeout, sink=outcomes, **options)
         except BaseException:
             # An interrupted command is still recorded through the sink.

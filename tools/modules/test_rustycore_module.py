@@ -620,7 +620,8 @@ class SqlCompositorCheckTests(unittest.TestCase):
         self.assertIn("sql compositor check: PASS", result.stdout)
         self.assertEqual(
             self.cargo_log.read_text(encoding="utf-8").splitlines(),
-            ["test --offline -p example-milestones --jobs 1",
+            ["metadata --offline --format-version 1",
+             "test --offline -p example-milestones --jobs 1",
              "check --offline -p world-modules --jobs 1"],
         )
         self.assertEqual(self.snapshot(), before)
@@ -635,23 +636,107 @@ class SqlCompositorCheckTests(unittest.TestCase):
         self.assertIn("exited 3", result.stderr)
         self.assertEqual(self.snapshot(), before)
 
+    def checker(self):
+        sys.path.insert(0, str(self.ws.root / "tools/modules"))
+        try:
+            import check_sql_compositor  # noqa: PLC0415
+        finally:
+            sys.path.pop(0)
+        return check_sql_compositor
+
+    def interrupt_after_compose(self) -> pathlib.Path:
+        """What a SIGKILL after the composed state was recorded leaves behind."""
+        checker = self.checker()
+        backup = checker.backup_directory(self.ws.root)
+        state = checker.save(self.ws.root, backup)
+        self.assertEqual(self.ws.run("install", "--path", checker.EXAMPLE).returncode, 0)
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        checker.add_member(self.ws.root)
+        checker.record_composed(self.ws.root, backup, state)
+        return backup
+
+    def git(self, *args: str) -> None:
+        subprocess.run(["git", *args], cwd=self.ws.root, check=True, capture_output=True)
+
     def test_an_interrupted_run_is_restored_by_the_next_one(self) -> None:
         self.stub_cargo()
         before = self.snapshot()
-        sys.path.insert(0, str(self.ws.root / "tools/modules"))
-        try:
-            import check_sql_compositor as checker  # noqa: PLC0415
-        finally:
-            sys.path.pop(0)
-        backup = checker.backup_directory(self.ws.root)
-        checker.save(self.ws.root, backup)
-        # What a SIGKILL after install/sync leaves behind.
-        self.assertEqual(self.ws.run("install", "--path", checker.EXAMPLE).returncode, 0)
-        self.assertEqual(self.ws.run("sync").returncode, 0)
+        backup = self.interrupt_after_compose()
         self.assertNotEqual(self.snapshot(), before)
         result = self.check()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("interrupted run", result.stdout)
+        self.assertEqual(self.snapshot(), before)
+        self.assertFalse(backup.exists())
+
+    def test_a_stale_backup_never_reverts_a_later_commit(self) -> None:
+        """#1468 review B2: the operator restored by hand, then committed a
+        Cargo.toml change; the stale backup must not revert it."""
+        self.stub_cargo()
+        backup = self.interrupt_after_compose()
+        self.git("checkout", "--", "Cargo.toml")
+        shutil.rmtree(self.ws.root / "modules/milestones")
+        manifest = self.ws.root / "Cargo.toml"
+        manifest.write_text(manifest.read_text(encoding="utf-8") + "# later work\n", encoding="utf-8")
+        self.git("commit", "-qam", "later work")
+        before = self.snapshot()
+        result = self.check()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("could overwrite newer work", result.stderr)
+        self.assertIn("HEAD is", result.stderr)
+        self.assertEqual(self.snapshot(), before)
+        self.assertIn("# later work", manifest.read_text(encoding="utf-8"))
+        self.assertTrue(backup.exists(), "the backup stays for a manual restore")
+        self.assertFalse(self.cargo_log.exists())
+
+    def test_a_stale_backup_never_removes_the_operators_own_checkout(self) -> None:
+        """#1468 review B2: a user's new modules/milestones survives."""
+        self.stub_cargo()
+        self.interrupt_after_compose()
+        own = self.ws.root / "modules/milestones"
+        shutil.rmtree(own)
+        own.mkdir()
+        (own / "mine.txt").write_text("operator work\n", encoding="utf-8")
+        before = self.snapshot()
+        result = self.check()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("is not the example the interrupted run installed", result.stderr)
+        self.assertEqual(self.snapshot(), before)
+        self.assertEqual((own / "mine.txt").read_text(encoding="utf-8"), "operator work\n")
+
+    def test_an_uncommitted_edit_after_the_interruption_is_refused(self) -> None:
+        self.stub_cargo()
+        self.interrupt_after_compose()
+        main_rs = self.ws.root / "crates/world-modules/src/main.rs"
+        main_rs.write_text(main_rs.read_text(encoding="utf-8") + "// edited\n", encoding="utf-8")
+        before = self.snapshot()
+        result = self.check()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("crates/world-modules/src/main.rs changed", result.stderr)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_an_interruption_before_the_composed_state_is_refused(self) -> None:
+        self.stub_cargo()
+        checker = self.checker()
+        checker.save(self.ws.root, checker.backup_directory(self.ws.root))
+        self.assertEqual(self.ws.run("install", "--path", checker.EXAMPLE).returncode, 0)
+        before = self.snapshot()
+        result = self.check()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("before it recorded the composed state", result.stderr)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_a_backup_without_state_never_removes_an_existing_checkout(self) -> None:
+        self.stub_cargo()
+        checker = self.checker()
+        checker.backup_directory(self.ws.root).mkdir(parents=True)  # killed inside save
+        own = self.ws.root / "modules/milestones"
+        own.mkdir()
+        (own / "mine.txt").write_text("operator work\n", encoding="utf-8")
+        before = self.snapshot()
+        result = self.check()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("already exists", result.stderr)
         self.assertEqual(self.snapshot(), before)
 
     def test_an_existing_checkout_is_refused_untouched(self) -> None:

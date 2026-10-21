@@ -59,22 +59,36 @@ pub fn take_root_argument(
     Ok((root, rest))
 }
 
-/// The git top-level of `directory`, canonicalized, or `None` outside git.
-fn git_toplevel(directory: &Path) -> Option<PathBuf> {
+/// The git top-level of `directory`, canonicalized; `Ok(None)` outside git,
+/// `Err` when git itself fails (missing, dubious ownership, ...).
+fn git_toplevel(directory: &Path) -> Result<Option<PathBuf>, String> {
     let output = Command::new("git")
         .arg("-C")
         .arg(directory)
         .args(["rev-parse", "--show-toplevel"])
         .output()
-        .ok()?;
+        .map_err(|error| format!("git failed ({error})"))?;
     if !output.status.success() {
-        return None;
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if stderr.contains("not a git repository") {
+            return Ok(None);
+        }
+        return Err(format!("git failed ({})", stderr.trim()));
     }
-    let text = String::from_utf8(output.stdout).ok()?;
+    let text = String::from_utf8(output.stdout)
+        .map_err(|_| "git failed (the top-level path is not UTF-8)".to_owned())?;
     Path::new(text.trim_end_matches(['\n', '\r']))
         .canonicalize()
-        .ok()
+        .map(Some)
+        .map_err(|error| format!("git failed (cannot resolve its top-level: {error})"))
 }
+
+/// What to do when a binary would scan another tree.
+const REMEDY: &str = "Build it from this checkout into a checkout-local target directory \
+     (cargo run --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
+     --target-dir target/arch-tools ...): under a CARGO_TARGET_DIR shared between checkouts \
+     Cargo treats another checkout's build as fresh and does not rebuild it. Or pass \
+     --root PATH to scan another tree on purpose";
 
 /// Decide the scan root without touching process state.
 ///
@@ -97,7 +111,15 @@ pub fn resolve_scan_root(
         }
         return Ok(root);
     }
-    let Some(toplevel) = git_toplevel(cwd) else {
+    let toplevel = git_toplevel(cwd).map_err(|error| {
+        format!(
+            "{error} in {}, so the scan root cannot be confirmed; this binary was compiled \
+             from {}. {REMEDY}",
+            cwd.display(),
+            compiled.display()
+        )
+    })?;
+    let Some(toplevel) = toplevel else {
         return Err(format!(
             "the current directory {} is not inside a git checkout, so the scan root cannot be \
              confirmed; this binary was compiled from {}. Run it from that checkout or pass \
@@ -109,9 +131,7 @@ pub fn resolve_scan_root(
     if toplevel != compiled {
         return Err(format!(
             "this binary was compiled from {} but the current checkout is {}; it would scan the \
-             compiled tree and its verdict would not describe this checkout. Rebuild it from this \
-             checkout (cargo run --manifest-path tools/architecture/handler-contract-check/\
-             Cargo.toml ...) or pass --root PATH to scan another tree on purpose",
+             compiled tree and its verdict would not describe this checkout. {REMEDY}",
             compiled.display(),
             toplevel.display()
         ));
@@ -203,6 +223,28 @@ mod tests {
         let error = resolve_scan_root(None, &compiled, &outside).unwrap_err();
         assert!(error.contains("--root"), "{error}");
         std::fs::remove_dir_all(outside).unwrap();
+    }
+
+    #[test]
+    fn a_git_failure_is_reported_as_such() {
+        let compiled = compiled_repository_root().unwrap();
+        // `git -C` into a missing directory fails without "not a git repository".
+        let missing = scratch("git-failure").join("missing");
+        let error = resolve_scan_root(None, &compiled, &missing).unwrap_err();
+        assert!(error.starts_with("git failed ("), "{error}");
+        assert!(error.contains("target/arch-tools"), "{error}");
+        assert!(!error.contains("not inside a git checkout"), "{error}");
+    }
+
+    #[test]
+    fn another_checkout_names_the_checkout_local_remedy() {
+        let compiled = compiled_repository_root().unwrap();
+        let other = scratch("remedy");
+        git_init(&other);
+        let error = resolve_scan_root(None, &compiled, &other).unwrap_err();
+        assert!(error.contains("--target-dir target/arch-tools"), "{error}");
+        assert!(error.contains("does not rebuild"), "{error}");
+        std::fs::remove_dir_all(other).unwrap();
     }
 
     #[test]
