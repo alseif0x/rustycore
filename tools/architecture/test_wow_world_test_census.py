@@ -63,6 +63,12 @@ FILES = {
             host.test_fixtures_ref_like_cpp()
                 .is_some()
         }
+        pub fn bind_like_cpp<H: SessionHubHostLikeCpp>(host: &H) -> u32 {
+            if let Some(fixtures) = host.test_fixtures_ref_like_cpp() {
+                return fixtures;
+            }
+            if host.test_fixtures_ref_like_cpp().is_none() { 0 } else { 1 }
+        }
     """,
     "crates/wow-world-spell/src/lib.rs": """
         pub fn spell_power_like_cpp() -> u32 { 3 }
@@ -201,7 +207,42 @@ class CensusTests(unittest.TestCase):
              "kind": "fixture-check", "test_fixtures_gated": True, "sites": 1},
             {"crate": "wow-world-social", "file": "crates/wow-world-social/src/lib.rs", "fn": "rest_like_cpp",
              "kind": "fixture-check", "test_fixtures_gated": False, "sites": 1},
+            {"crate": "wow-world-social", "file": "crates/wow-world-social/src/lib.rs", "fn": "bind_like_cpp",
+             "kind": "fixture-binding", "test_fixtures_gated": False, "sites": 1},
+            {"crate": "wow-world-social", "file": "crates/wow-world-social/src/lib.rs", "fn": "bind_like_cpp",
+             "kind": "fixture-check", "test_fixtures_gated": False, "sites": 1},
         ])
+
+    def test_fully_qualified_test_attributes_are_counted(self):
+        tests = self.root / "crates/wow-world/unit_tests/tests.rs"
+        tests.write_text(tests.read_text() + "#[::tokio::test]\nasync fn rooted_like_cpp() {}\n"
+                         "#[core::prelude::v1::test]\nfn prelude_like_cpp() {}\n"
+                         "#[test_case]\nfn not_a_test_like_cpp() {}\n", encoding="utf-8")
+        rows, _, metrics, _ = self.rows()
+        self.assertIn("rooted_like_cpp", rows)
+        self.assertIn("prelude_like_cpp", rows)
+        self.assertNotIn("not_a_test_like_cpp", rows)
+        self.assertEqual(metrics["unit_tests_tests"], 11)
+
+    def test_tests_mounted_outside_src_and_unit_tests_fail_closed(self):
+        lib = self.root / "crates/wow-world/src/lib.rs"
+        lib.write_text(lib.read_text() + '#[cfg(test)]\n#[path = "../elsewhere/extra.rs"]\nmod extra;\n')
+        extra = self.root / "crates/wow-world/elsewhere/extra.rs"
+        extra.parent.mkdir()
+        extra.write_text("#[test]\nfn escaped_like_cpp() {}\n", encoding="utf-8")
+        with self.assertRaisesRegex(census.CensusError, "outside src/ and unit_tests/: elsewhere/extra.rs"):
+            census.census(self.root)
+
+    def test_unmounted_src_test_fails_the_raw_attribute_count(self):
+        ledger, _, _ = census.census(self.root)
+        (self.root / census.LEDGER).write_text(census.dump(ledger), encoding="utf-8")
+        (self.root / "crates/wow-world/src/stray.rs").write_text("#[test]\nfn stray_like_cpp() {}\n")
+        (self.root / "crates/wow-world/tests").mkdir()
+        (self.root / "crates/wow-world/tests/it.rs").write_text("#[test]\nfn integration_like_cpp() {}\n")
+        errors, metrics, _, _ = census.check_errors(self.root)
+        self.assertEqual(metrics["raw_test_attributes"], 11)
+        self.assertEqual(errors, ["11 test attributes in crates/wow-world/** (outside tests/) but 10 mounted "
+                                  "test functions: a test source is not mounted from src/lib.rs"])
 
     def test_ledger_round_trip_and_check_passes(self):
         ledger, _, _ = census.census(self.root)
@@ -255,6 +296,61 @@ class CensusTests(unittest.TestCase):
         tests.write_text(tests.read_text() + "#[test]\nconst NOT_A_FN: u32 = 1;\n", encoding="utf-8")
         with self.assertRaisesRegex(census.CensusError, "test attributes"):
             census.census(self.root)
+
+
+class CeilingCommandTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = pathlib.Path(self.tmp.name)
+        write_tree(self.root)
+        ledger, _, _ = census.census(self.root)
+        (self.root / census.LEDGER).write_text(census.dump(ledger), encoding="utf-8")
+        self.tests = self.root / "crates/wow-world/unit_tests/tests.rs"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_tool(self, *args):
+        tool = pathlib.Path(census.__file__).resolve()
+        return subprocess.run([sys.executable, str(tool), "census", "--repo", str(self.root), *args],
+                              capture_output=True, text=True)
+
+    def policy(self):
+        return json.loads((self.root / census.CEILING).read_text(encoding="utf-8"))
+
+    def test_one_step_raise_writes_ledger_and_an_exact_entry(self):
+        self.tests.write_text(self.tests.read_text() + "#[test]\nfn added_like_cpp() {}\n", encoding="utf-8")
+        self.assertNotEqual(census.check_errors(self.root)[0], [])
+        result = self.run_tool("--write", "--raise", "--issue", "1500", "--reason", "new regression test")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        errors, metrics, ceiling, _ = census.check_errors(self.root)
+        self.assertEqual(errors, [])
+        self.assertEqual(ceiling["kind"], "raise")
+        self.assertEqual(ceiling["id"], "raise-1500-1")
+        self.assertEqual({k: ceiling[k] for k in census.CEILING_KEYS}, {k: metrics[k] for k in census.CEILING_KEYS})
+
+    def test_raise_needs_growth_an_issue_a_reason_and_write(self):
+        before = self.policy()
+        self.assertEqual(self.run_tool("--write", "--raise", "--issue", "1500", "--reason", "x").returncode, 1)
+        self.tests.write_text(self.tests.read_text() + "#[test]\nfn added_like_cpp() {}\n", encoding="utf-8")
+        self.assertEqual(self.run_tool("--write", "--raise", "--issue", "1500").returncode, 1)
+        self.assertEqual(self.run_tool("--write", "--raise", "--reason", "x").returncode, 1)
+        self.assertEqual(self.run_tool("--raise", "--issue", "1500", "--reason", "x").returncode, 2)
+        self.assertEqual(self.policy(), before)
+
+    def test_newest_raise_must_equal_the_live_metrics(self):
+        self.tests.write_text(self.tests.read_text() + "#[test]\nfn added_like_cpp() {}\n", encoding="utf-8")
+        self.assertEqual(self.run_tool("--write", "--raise", "--issue", "1500", "--reason", "x").returncode, 0)
+        self.tests.write_text(self.tests.read_text().replace("#[test]\nfn added_like_cpp() {}\n", ""),
+                              encoding="utf-8")
+        ledger, _, _ = census.census(self.root)
+        (self.root / census.LEDGER).write_text(census.dump(ledger), encoding="utf-8")
+        errors = census.check_errors(self.root)[0]
+        self.assertTrue(errors and all("a raise must equal the live metrics" in e for e in errors), errors)
+        result = self.run_tool("--write", "--tighten", "--issue", "1500", "--reason", "test moved")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(census.check_errors(self.root)[0], [])
+        self.assertEqual(self.policy()["entries"][-1]["kind"], "tighten")
 
 
 class CeilingPolicyTests(unittest.TestCase):

@@ -48,11 +48,19 @@ miss). Over that closure it records:
          fields only); stays in `wow-world`.
 
 `census --write` regenerates `wow-world-test-census.json` (the ledger; one test
-per line). `check` fails (exit 1) when the ledger differs from the tree, when
-a `unit_tests/*.rs` file is not mounted, or when the live suite exceeds the
-newest reviewed entry of `wow-world-test-ceiling.json`: physical lines of
+per line); `census --write --raise|--tighten --issue N --reason "..."` also
+appends a reviewed ceiling entry at exactly the live metrics, in one step.
+
+`check` fails (exit 1) when the ledger differs from the tree, when a
+`unit_tests/*.rs` file is not mounted, when a test-visible source is mounted
+from outside `src/` and `unit_tests/`, when the test attributes of every
+`crates/wow-world/**/*.rs` outside `tests/` differ from the mounted test
+functions, or when the live suite exceeds the newest reviewed entry of
+`wow-world-test-ceiling.json`: physical lines of
 `crates/wow-world/unit_tests/**/*.rs`, tests there, and tests in `src/`. Only a
-reviewed `raise` entry may lift a ceiling.
+`raise` entry may lift a ceiling, and while the newest entry is a raise the
+live metrics must equal it (no silent headroom). The integration tests in
+`crates/wow-world/tests/` are outside the census and the ratchet.
 """
 from __future__ import annotations
 
@@ -442,15 +450,20 @@ def test_id(fn: Fn) -> str:
     return "::".join([fn.file, *fn.module, fn.name])
 
 
-BRANCH_RE = re.compile(r"\bworld_test_consumer_like_cpp\b|\btest_fixtures_ref_like_cpp\s*\(\s*\)\s*\.\s*is_some\s*\(")
+BRANCH_RE = re.compile(
+    r"\b(?P<consumer>world_test_consumer_like_cpp)\b"
+    r"|\btest_fixtures_ref_like_cpp\s*\(\s*\)\s*\.\s*is_(?:some|none)\s*\("
+    r"|\blet\s+Some\s*\([^()=;]*\)\s*=\s*(?:[\w.()]*\.)?test_fixtures_ref_like_cpp\s*\(\s*\)"
+)
 
 
 def world_test_branches(repo: Path) -> list[dict]:
     """Production functions that branch on whether a World test fixture is present.
 
     One row per function and kind: `definition` of `world_test_consumer_like_cpp`,
-    a `consumer` call of it, or a direct `test_fixtures_ref_like_cpp().is_some()`
-    `fixture-check`; `test_fixtures_gated` when the site only exists under
+    a `consumer` call of it, a direct `test_fixtures_ref_like_cpp().is_some()` /
+    `.is_none()` `fixture-check`, or a `let Some(..) = ..test_fixtures_ref_like_cpp()`
+    `fixture-binding`; `test_fixtures_gated` when the site only exists under
     `cfg(any(test, feature = "test-fixtures"))`.
     """
     rows: dict[tuple, int] = {}
@@ -466,14 +479,28 @@ def world_test_branches(repo: Path) -> list[dict]:
             fns = [(m.start(), m.group(1)) for m in FN_RE.finditer(masked)]
             for match in BRANCH_RE.finditer(masked):
                 enclosing = max((f for f in fns if f[0] < match.start()), default=(0, "<item>"))
-                kind = "definition" if masked[max(0, match.start() - 8):match.start()].rstrip().endswith("fn") else (
-                    "consumer" if match.group(0).startswith("world_test") else "fixture-check")
+                if masked[max(0, match.start() - 8):match.start()].rstrip().endswith("fn"):
+                    kind = "definition"
+                elif match.group("consumer"):
+                    kind = "consumer"
+                else:
+                    kind = "fixture-binding" if match.group(0).startswith("let") else "fixture-check"
                 key = (crate, path.relative_to(repo).as_posix(), enclosing[1], kind, inside(gated, match.start()))
                 rows[key] = rows.get(key, 0) + 1
     return [
         {"crate": crate, "file": file, "fn": fn, "kind": kind, "test_fixtures_gated": gated, "sites": sites}
         for (crate, file, fn, kind, gated), sites in rows.items()
     ]
+
+
+def raw_test_attributes(repo: Path) -> int:
+    """Test attributes in every `.rs` under `crates/wow-world`, mounted or not, except `tests/`."""
+    crate_dir = repo / CRATE
+    return sum(
+        len(TEST_ATTR_SCAN_RE.findall(mask(path.read_text(encoding="utf-8"))))
+        for path in sorted(crate_dir.rglob("*.rs"))
+        if path.relative_to(crate_dir).parts[0] != "tests"
+    )
 
 
 def census(repo: Path) -> tuple[dict, dict, dict[str, int]]:
@@ -507,12 +534,18 @@ def census(repo: Path) -> tuple[dict, dict, dict[str, int]]:
     attributes = sum(len(TEST_ATTR_SCAN_RE.findall(mask(source))) for source in model.files.values())
     if attributes != len(rows):
         raise CensusError(f"{attributes} test attributes in mounted sources but {len(rows)} test functions found")
+    # Fail closed: the metrics count `unit_tests/` and `src/` only, so a test
+    # mounted from anywhere else (`#[path = "../elsewhere/x.rs"]`) would escape them.
+    outside = sorted(rel for rel in model.files if not rel.startswith(("src/", "unit_tests/")))
+    if outside:
+        raise CensusError("test-visible source mounted outside src/ and unit_tests/: " + ", ".join(outside))
     unit_files = sorted((repo / CRATE / "unit_tests").rglob("*.rs"))
     metrics = {
         "unit_tests_files": len(unit_files),
         "unit_tests_lines": sum(len(p.read_text(encoding="utf-8").splitlines()) for p in unit_files),
         "unit_tests_tests": sum(r["id"].startswith("unit_tests/") for r in rows),
         "src_tests": sum(r["id"].startswith("src/") for r in rows),
+        "raw_test_attributes": raw_test_attributes(repo),
     }
     return {
         "schema_version": 1,
@@ -639,12 +672,24 @@ def effective_ceiling(policy: dict) -> dict:
     return previous
 
 
+RAISE_COMMAND = "census --write --raise --issue N --reason '...'"
+
+
 def ceiling_errors(metrics: dict, ceiling: dict) -> list[str]:
-    return [
+    errors = [
         f"{key} {metrics[key]} exceeds the reviewed ceiling {ceiling[key]} "
-        f"(entry {ceiling['id']}); move or delete tests, or add a reviewed `raise` entry to {CEILING}"
+        f"(entry {ceiling['id']}); move or delete tests, or add a reviewed raise ({RAISE_COMMAND})"
         for key in CEILING_KEYS if metrics[key] > ceiling[key]
     ]
+    if ceiling["kind"] == "raise":
+        # A raise records the reviewed suite exactly; it never leaves silent headroom.
+        errors += [
+            f"{key} {metrics[key]} differs from the newest raise entry {ceiling['id']} ({ceiling[key]}); "
+            "a raise must equal the live metrics: regenerate it, or record a reduction with "
+            "census --write --tighten --issue N --reason '...'"
+            for key in CEILING_KEYS if metrics[key] < ceiling[key]
+        ]
+    return errors
 
 
 def ledger_diff(expected: dict, actual: dict) -> list[str]:
@@ -678,9 +723,44 @@ def check_errors(repo: Path) -> tuple[list[str], dict, dict, dict]:
             errors += drift + [f"regenerate with: {actual['generator']} and review the class/destination delta"]
     for path in actual["unmounted_unit_tests"]:
         errors.append(f"unit_tests source not mounted from src/lib.rs: {path}")
+    mounted = metrics["unit_tests_tests"] + metrics["src_tests"]
+    if metrics["raw_test_attributes"] != mounted:
+        errors.append(f"{metrics['raw_test_attributes']} test attributes in crates/wow-world/** (outside tests/) "
+                      f"but {mounted} mounted test functions: a test source is not mounted from src/lib.rs")
     ceiling = effective_ceiling(json.loads((repo / CEILING).read_text(encoding="utf-8")))
     errors += ceiling_errors(metrics, ceiling)
     return errors, metrics, ceiling, actual
+
+
+def ceiling_entry(policy: dict, metrics: dict, kind: str, issue: int, reason: str,
+                  today: dt.date | None = None) -> dict:
+    """A reviewed `raise`/`tighten` entry at exactly the live metrics, validated against the policy."""
+    if type(issue) is not int or issue <= 0:
+        raise CensusError("--issue must be a positive issue number")
+    if not reason or not reason.strip():
+        raise CensusError("--reason must say why the ceiling changes")
+    entries = policy["entries"]
+    number = sum(entry["kind"] == kind for entry in entries) + 1
+    entry = {
+        "id": f"{kind}-{issue}-{number}", "kind": kind, "issue": issue,
+        "reviewed_at": (today or dt.datetime.now(dt.timezone.utc).date()).isoformat(),
+        "reason": reason.strip(), **{key: metrics[key] for key in CEILING_KEYS},
+    }
+    effective_ceiling({**policy, "entries": [*entries, entry]})
+    return entry
+
+
+def write_census(repo: Path, kind: str | None, issue: int | None, reason: str | None) -> tuple[dict, dict, dict]:
+    """Rewrite the ledger and, with `kind`, append a ceiling entry at the live metrics (one step)."""
+    ledger, metrics, lines = census(repo)
+    entry = None
+    if kind:
+        policy = json.loads((repo / CEILING).read_text(encoding="utf-8"))
+        entry = ceiling_entry(policy, metrics, kind, issue, reason)
+        policy["entries"].append(entry)
+        (repo / CEILING).write_text(json.dumps(policy, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    (repo / LEDGER).write_text(dump(ledger), encoding="utf-8")
+    return ledger, metrics, lines
 
 
 def check(repo: Path) -> int:
@@ -709,7 +789,7 @@ def print_census(ledger: dict, metrics: dict, lines: dict[str, int], list_tests:
             print(f"  {crate:28} " + "  ".join(
                 f"{row[c]:5}/{line_summary[key][crate][c]:6}" for c in CLASSES))
     print(f"\nhost-trait methods World implements, by crate: {ledger['host_trait_methods']}")
-    print(f"world_test branch functions: {len(ledger['world_test_branches'])} "
+    print(f"world_test branch functions: {len({(r['file'], r['fn']) for r in ledger['world_test_branches']})} "
           f"({sum(r['sites'] for r in ledger['world_test_branches'])} sites); "
           f"unmounted unit_tests files: {len(ledger['unmounted_unit_tests'])}")
     if list_tests:
@@ -725,6 +805,13 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--repo", type=Path, default=REPO)
     run.add_argument("--write", action="store_true", help=f"rewrite {LEDGER}")
     run.add_argument("--tests", action="store_true", help="list every test row")
+    change = run.add_mutually_exclusive_group()
+    change.add_argument("--raise", dest="ceiling_kind", action="store_const", const="raise",
+                        help=f"with --write, also append a reviewed raise entry at the live metrics to {CEILING}")
+    change.add_argument("--tighten", dest="ceiling_kind", action="store_const", const="tighten",
+                        help="with --write, also append a tighten entry at the live metrics")
+    run.add_argument("--issue", type=int, help="issue that reviews the ceiling change")
+    run.add_argument("--reason", help="why the ceiling changes")
     gate = sub.add_parser("check")
     gate.add_argument("--repo", type=Path, default=REPO)
     sub.add_parser("self-test")
@@ -737,11 +824,15 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "check":
             return check(args.repo)
-        ledger, metrics, lines = census(args.repo)
+        if args.ceiling_kind and not args.write:
+            parser.error("--raise/--tighten require --write")
+        if args.write:
+            ledger, metrics, lines = write_census(args.repo, args.ceiling_kind, args.issue, args.reason)
+        else:
+            ledger, metrics, lines = census(args.repo)
         print_census(ledger, metrics, lines, args.tests)
         if args.write:
-            (args.repo / LEDGER).write_text(dump(ledger), encoding="utf-8")
-            print(f"wrote {LEDGER}")
+            print(f"wrote {LEDGER}" + (f" and a {args.ceiling_kind} entry in {CEILING}" if args.ceiling_kind else ""))
         return 0
     except (CensusError, OSError, ValueError) as exc:
         print(f"wow_world_test_census failed: {exc}", file=sys.stderr)

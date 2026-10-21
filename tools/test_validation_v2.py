@@ -815,6 +815,7 @@ def test_planner_contract(repo: Path) -> None:
         "tools/architecture/wow_world_test_scan.py",
         "tools/architecture/test_wow_world_test_census.py",
         "tools/architecture/session_method_index.py",
+        "tools/architecture/hotspot_metrics.py",
     ):
         planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
         quick_planned, _ = runner.validation_commands(repo, "quick", 2, "base", runner.grouped_paths([changed]), None)

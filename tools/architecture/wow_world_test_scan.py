@@ -41,8 +41,11 @@ IMPL_RE = re.compile(r"(?m)^[ \t]*(?:unsafe\s+)?impl\b")
 MOD_RE = re.compile(r"(?m)^[ \t]*(?:pub(?:\s*\([^)]*\))?\s+)?mod\s+(?:r#)?(\w+)\s*([;{])")
 USE_RE = re.compile(r"(?m)^[ \t]*(?:pub(?:\s*\([^)]*\))?\s+)?use\s+([^;]*);")
 ATTR_RE = re.compile(r"#\s*!?\s*\[")
-TEST_ATTR_SCAN_RE = re.compile(r"#\s*\[\s*(?:tokio\s*::\s*)?test\b")
-TEST_ATTR_RE = re.compile(r"^#\s*\[\s*(?:tokio\s*::\s*)?test\b")
+# A test attribute is any path ending in `test`: `#[test]`, `#[tokio::test]`,
+# `#[::tokio::test]`, `#[core::prelude::v1::test]` (not `#[cfg(test)]` or `#[test_case]`).
+TEST_ATTR_PATTERN = r"#\s*\[\s*(?:::\s*)?(?:[A-Za-z_]\w*\s*::\s*)*test\b"
+TEST_ATTR_SCAN_RE = re.compile(TEST_ATTR_PATTERN)
+TEST_ATTR_RE = re.compile("^" + TEST_ATTR_PATTERN)
 IGNORE_ATTR_RE = re.compile(r"^#\s*\[\s*ignore\b")
 CFG_ATTR_RE = re.compile(r"^#\s*(!)?\s*\[\s*cfg\s*\(")
 PATH_ATTR_RE = re.compile(r'^#\s*\[\s*path\s*=\s*"([^"]+)"\s*\]$')

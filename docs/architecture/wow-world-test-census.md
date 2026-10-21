@@ -30,10 +30,13 @@ Other totals:
 **Moving tests to domain crates is a small slice, not most of the suite.** It
 confirms the plan's finding: World composition owns most of these tests.
 
-- **T1 move-only:** at most **231 tests / ≈8.3k lines**. These are the P tests with a domain destination.
-- **With a test host (T2 to T3):** at most another **165 tests / ≈4.4k lines**. This is the H class.
-- **Combined ceiling:** ≈6.5 % of the 193,881 test-function lines. Every
-  `wow-world-*` crate together cannot take more than that.
+- **T1 move-only:** an estimated **231 tests / ≈8.3k lines**. These are the P tests with a domain destination.
+- **With a test host (T2 to T3):** an estimated **165 tests / ≈4.4k lines** more. This is the H class.
+- **Together:** ≈6.5 % of the 193,881 test-function lines.
+
+These figures are estimates from a name-based heuristic, not upper or lower
+bounds. Some P and H rows will turn out not to move (see the limits below), and
+a test can become movable after World code moves out of it.
 
 The census counts each test once. The per-file heuristic in the plan counted 42
 P tests. Counting per test finds more of them, because many mostly-composition
@@ -99,14 +102,14 @@ composition is centred:
 These are the ledger rows with `class == "P"` and `destination != "wow-world"`: 231 tests.
 
 - **Reasons.** 206 of them are `P-domain`. The other 25 are `P-lowest-covering`: the primary owner does not reach every referenced crate, so the destination is the lowest crate that does.
-- **Dev-dependencies.** Eight rows list `dev_deps`, the dev-dependencies the destination still needs.
+- **Dev-dependencies.** Three of these rows list `dev_deps`, the dev-dependencies the destination still needs. Five H rows list them too.
 - **Largest sources:**
   - `handlers/character_tests/login.rs`: 17 (source-text contract tests of application and character)
   - `battle_pet_purchase/tests/scenarios_1.rs`: 12
   - `handlers/character_tests/{persistence,item_1,spell}.rs`: 11, 10 and 10
   - `spell_acquisition/application/tests/validation.rs`: 9
 
-The 70 P tests that stay are of three kinds:
+The 70 P tests that stay are of two kinds:
 
 - **`P-world-items` (37):** handler registration, dispatch tables, and `wow-world` planners.
 - **`P-library` (33):** they name no `wow-world*` symbol.
@@ -139,23 +142,28 @@ still needs the following:
 ## `world_test_consumer` branch inventory
 
 These are production functions that behave differently when a World test fixture
-is present. They match `world_test_consumer_like_cpp` or
-`test_fixtures_ref_like_cpp().is_some()`, outside comments. The ledger lists them
+is present. Outside comments, they match one of these:
+
+- `world_test_consumer_like_cpp` (its definition or a call);
+- `test_fixtures_ref_like_cpp().is_some()` or `.is_none()` (`fixture-check`);
+- `let Some(..) = ..test_fixtures_ref_like_cpp()`, which includes `if let` and let-chains (`fixture-binding`).
+
+ The ledger lists them
 per function (`world_test_branches`) and records whether each site exists only
 under `cfg(any(test, feature = "test-fixtures"))`.
 
-There are 101 sites in 100 functions. 67 of the sites are test-fixtures-gated.
+There are 109 sites in 100 functions. 75 of the sites are test-fixtures-gated.
 
-| Crate | Functions | Sites (definition / consumer / fixture-check) | Gated sites |
+| Crate | Functions | Sites (definition / consumer / fixture-check / fixture-binding) | Gated sites |
 |---|---:|---|---:|
-| application | 16 | 1 / 7 / 8 | 9 |
-| instances | 18 | 1 / 1 / 16 | 16 |
-| inventory | 17 | 1 / 11 / 5 | 9 |
-| spell | 15 | 1 / 3 / 11 | 10 |
-| quest | 13 | 1 / 11 / 1 | 4 |
-| entities | 12 | 0 / 0 / 13 | 13 |
-| character | 8 | 1 / 2 / 5 | 5 |
-| social | 1 | 0 / 0 / 1 | 1 |
+| inventory | 22 | 1 / 11 / 5 / 6 | 15 |
+| instances | 17 | 1 / 1 / 16 / 0 | 16 |
+| application | 15 | 1 / 7 / 8 / 0 | 9 |
+| spell | 15 | 1 / 3 / 11 / 1 | 11 |
+| entities | 13 | 0 / 0 / 14 / 0 | 14 |
+| quest | 12 | 1 / 11 / 1 / 0 | 4 |
+| character | 5 | 1 / 2 / 5 / 0 | 5 |
+| social | 1 | 0 / 0 / 1 / 0 | 1 |
 
 **Proposal.** A domain host for T2/T3 must not inherit these branches silently.
 Before a domain's tests move, take one of two actions for each of that domain's
@@ -193,6 +201,29 @@ It errs toward W and toward "stays":
 - A name defined in several crates splits its vote.
 - Any World route makes the test W.
 
+Two rules can err the other way, so treat the H and W-fields rows as candidates:
+
+- **H ignores direct field access.** H looks only at the session *methods* a test
+  calls. It does not look at reads and writes of session fields such as
+  `session.fixtures` or `session.core`. Those fields are World state that a test
+  host would have to reproduce. 11 of the 165 H tests access them in the test
+  body, and the review counted about 30 once helpers are included.
+- **W-fields hides domain calls.** A W-fields test calls no session method, but it
+  may pass the session to a domain function, as in `wow_world_x::f(&mut session, ..)`.
+  That shape is the one T2 rewrites onto a host, so some W-fields tests are really
+  H-like. 22 of the 71 do this in the test body, and the review counted 32 once
+  helpers are included.
+
+Known scope gaps:
+
+- **Integration tests are out of scope.** `crates/wow-world/tests/` (integration
+  tests, a separate crate per file) is outside the census and the ratchet.
+- **Macro-generated tests are not seen.** A test that a macro generates is invisible,
+  and so is one whose attribute a macro emits. The raw-attribute count still catches
+  a hand-written `#[test]` the census missed. The test attribute is any path that
+  ends in `test`: `#[test]`, `#[tokio::test]`, `#[::tokio::test]` and
+  `#[core::prelude::v1::test]`.
+
 Library crates (`wow-data`, `wow-persistence` and others) are not in the symbol
 table, so a P destination is a candidate, not a proof. Every T1 move still
 compiles the test in its destination crate and keeps the test-identity multiset
@@ -201,16 +232,22 @@ false P, and the test stays.
 
 ## Ratchet
 
-`check` runs in `validation-v2 final` for any `crates/wow-world*` change,
-`Cargo.lock`, the ledger, the ceiling, the tool or its scanner, or
-`session_method_index.py`.
-The tool's unit suite also runs when the tool changes. `check` fails in four
-cases:
+`check` runs in `validation-v2 final` when any of these change:
+
+- `crates/wow-world*`;
+- `Cargo.lock`;
+- the ledger or the ceiling;
+- the tool or its scanner;
+- `session_method_index.py` or `hotspot_metrics.py`.
+
+The tool's unit suite also runs when the tool or those helpers change. `check` fails if:
 
 - the ledger differs from the tree;
 - a `unit_tests` source is unmounted;
+- a test-visible source is mounted from outside `src/` and `unit_tests/`;
+- the test attributes in every `crates/wow-world/**/*.rs` (outside `tests/`) differ from the mounted test functions;
 - the live suite exceeds the newest reviewed ceiling entry;
-- the attribute count differs from the test functions found.
+- the newest entry is a `raise` and the live suite falls below it.
 
 The T0 baseline entry is:
 
@@ -223,6 +260,12 @@ The T0 baseline entry is:
 How the ceiling changes:
 
 - **Moving or deleting tests passes.** The check then suggests a `tighten` entry.
-- **Adding a test needs two steps:** regenerate the ledger
-  (`census --write`, then review the class and destination delta), and add a reviewed `raise` entry with
-  its issue and reason. `effective_ceiling` rejects a raise that is not marked `raise`.
+  The exception is when the newest entry is a `raise`: a raise records the
+  reviewed suite exactly, so you must also record the reduction:
+  `census --write --tighten --issue N --reason "..."`.
+- **Adding a test takes one command:**
+  `python3 tools/architecture/wow_world_test_census.py census --write --raise --issue N --reason "..."`.
+  It regenerates the ledger and appends a `raise` entry at exactly the live
+  metrics. Review the ledger's class and destination delta and the new entry in
+  the PR. `effective_ceiling` rejects a growth not marked `raise` and a raise that
+  raises nothing.

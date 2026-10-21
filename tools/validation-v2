@@ -810,13 +810,15 @@ def validation_commands(
     # test suite stays at or below its reviewed ceiling (lines, tests). The
     # census reads every crates/wow-world* source and Cargo.lock, so final plans
     # it for any change there, to the census, its ledger or ceiling, or to the
-    # session-index helpers it imports; its suite follows the tool. Neither
+    # session-index (and hotspot masking) helpers it imports; its suite follows
+    # the tool and those helpers. Neither
     # calls Cargo; quick never runs them.
     census_tool = {
         "tools/architecture/wow_world_test_census.py",
         "tools/architecture/wow_world_test_scan.py",
         "tools/architecture/test_wow_world_test_census.py",
         "tools/architecture/session_method_index.py",
+        "tools/architecture/hotspot_metrics.py",
     }
     census_inputs = census_tool | {
         "Cargo.lock",

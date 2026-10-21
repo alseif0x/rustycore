@@ -200,18 +200,31 @@ its diff touches any of these:
 - the census ledger `tools/architecture/wow-world-test-census.json`;
 - its ceiling `wow-world-test-ceiling.json`;
 - `wow_world_test_census.py` or its scanner `wow_world_test_scan.py`;
-- the `session_method_index.py` helpers it imports.
+- the helpers it imports: `session_method_index.py` and, through it, `hotspot_metrics.py`.
 
 The check fails unless all of the following hold:
 
 - the per-test census ledger matches the tree;
 - every `crates/wow-world/unit_tests/*.rs` is mounted;
+- no test-visible source is mounted from outside `src/` and `unit_tests/`;
+- the test attributes of every `crates/wow-world/**/*.rs` outside `tests/` equal the mounted test
+  functions;
 - the physical lines of `crates/wow-world/unit_tests/**`, the tests there and the tests in
-  `crates/wow-world/src` stay at or below the newest reviewed ceiling entry.
+  `crates/wow-world/src` stay at or below the newest reviewed ceiling entry;
+- if the newest entry is a `raise`, the live suite equals it, with no headroom.
 
-Moving or deleting tests passes, and the check suggests a `tighten` entry. Adding a test fails
-until you regenerate the ledger with `wow_world_test_census.py census --write` and add a reviewed
-`raise` entry that lifts the ceiling.
+The integration tests in `crates/wow-world/tests/` are outside the census and the ratchet.
+
+Moving or deleting tests passes, and the check suggests a `tighten` entry, unless the newest entry
+is a `raise`. Adding a test fails until one reviewed command updates both files:
+
+~~~bash
+python3 tools/architecture/wow_world_test_census.py census --write --raise --issue N --reason "..."
+~~~
+
+It regenerates the ledger and appends a `raise` entry at exactly the live metrics. Review the
+ledger's class and destination delta and the new entry in the PR. `--tighten` records a reduction
+the same way. Plain `census --write` regenerates only the ledger.
 
 Changing the tool or those helpers also plans its suite
 `tools/architecture/test_wow_world_test_census.py`. It reads sources only and calls no Cargo.
