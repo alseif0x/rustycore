@@ -192,6 +192,44 @@ allow-list entry or a source the module walk cannot reach fails the check. `inde
 per-module table; `check --done` is the #1363 done criterion (no non-forward method outside the
 allow-list). Changing the tool also plans its `self-test`. It reads sources only and calls no Cargo.
 
+A `final` run plans `python3 tools/architecture/wow_world_test_census.py check` (#1442 T0) when
+its diff touches any of these:
+
+- `crates/wow-world*/**`;
+- `Cargo.lock`;
+- the census ledger `tools/architecture/wow-world-test-census.json`;
+- its ceiling `wow-world-test-ceiling.json`;
+- `wow_world_test_census.py` or its scanner `wow_world_test_scan.py`;
+- the helpers it imports: `session_method_index.py` and, through it, `hotspot_metrics.py`.
+
+The check fails unless all of the following hold:
+
+- the per-test census ledger matches the tree;
+- every `crates/wow-world/unit_tests/*.rs` is mounted;
+- no test-visible source is mounted from outside `src/` and `unit_tests/`;
+- the test attributes of every `crates/wow-world/**/*.rs` outside `tests/` equal the mounted test
+  functions;
+- the physical lines of `crates/wow-world/unit_tests/**`, the tests there and the tests in
+  `crates/wow-world/src` stay at or below the newest reviewed ceiling entry;
+- if the newest entry is a `raise`, the live suite equals it, with no headroom.
+
+The integration tests in `crates/wow-world/tests/` are outside the census and the ratchet.
+
+Moving or deleting tests passes, and the check suggests a `tighten` entry, unless the newest entry
+is a `raise`. Adding a test fails until one reviewed command updates both files:
+
+~~~bash
+python3 tools/architecture/wow_world_test_census.py census --write --raise --issue N --reason "..."
+~~~
+
+It regenerates the ledger and appends a `raise` entry at exactly the live metrics. Review the
+ledger's class and destination delta and the new entry in the PR. `--tighten` records a reduction
+the same way. Plain `census --write` regenerates only the ledger.
+
+Changing the tool or those helpers also plans its suite
+`tools/architecture/test_wow_world_test_census.py`. It reads sources only and calls no Cargo.
+See [the census](../architecture/wow-world-test-census.md).
+
 Paths classified as `documentation` run no Cargo command. Classification is directory-first:
 even a README under `crates/`, `tools/wow-test-bot/` or
 `tools/architecture/handler-contract-check/` takes that directory's Cargo route. The standalone

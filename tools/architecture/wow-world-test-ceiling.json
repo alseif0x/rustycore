@@ -1,0 +1,20 @@
+{
+ "schema_version": 1,
+ "scope": {
+  "unit_tests_lines": "physical lines of crates/wow-world/unit_tests/**/*.rs",
+  "unit_tests_tests": "#[test]/#[tokio::test] functions mounted from crates/wow-world/unit_tests",
+  "src_tests": "#[test]/#[tokio::test] functions in crates/wow-world/src (cfg(test) modules)"
+ },
+ "entries": [
+  {
+   "id": "T0-baseline",
+   "kind": "baseline",
+   "issue": 1442,
+   "reviewed_at": "2026-10-21",
+   "reason": "#1442 T0 census at origin/3.4.3 412bfd06c: the wow-world test suite may only shrink from here (T1-T5 move tests to their domain crates).",
+   "unit_tests_lines": 232745,
+   "unit_tests_tests": 3709,
+   "src_tests": 22
+  }
+ ]
+}

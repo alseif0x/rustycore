@@ -797,6 +797,34 @@ def test_planner_contract(repo: Path) -> None:
         suite_quick, _ = runner.validation_commands(repo, "quick", 2, "base", runner.grouped_paths([changed]), None)
         assert closure_suite in suite_final and closure_check in suite_final, changed
         assert closure_suite not in suite_quick and closure_check not in suite_quick, changed
+    # #1442 T0: final plans the census check for any crates/wow-world* change
+    # (deletions included), Cargo.lock, the ledger, the ceiling, the tool or
+    # the session-index helpers it imports; quick never does. Its suite follows
+    # the tool and those helpers only.
+    census_check = ["python3", "tools/architecture/wow_world_test_census.py", "check"]
+    census_suite = ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_wow_world_test_census.py"]
+    assert census_check not in final and census_check not in quick
+    for changed in (
+        "crates/wow-world/unit_tests/session/tests/deleted.rs",
+        "crates/wow-world/src/lib.rs",
+        "crates/wow-world-social/src/lib.rs",
+        "Cargo.lock",
+        "tools/architecture/wow-world-test-census.json",
+        "tools/architecture/wow-world-test-ceiling.json",
+        "tools/architecture/wow_world_test_census.py",
+        "tools/architecture/wow_world_test_scan.py",
+        "tools/architecture/test_wow_world_test_census.py",
+        "tools/architecture/session_method_index.py",
+        "tools/architecture/hotspot_metrics.py",
+    ):
+        planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        quick_planned, _ = runner.validation_commands(repo, "quick", 2, "base", runner.grouped_paths([changed]), None)
+        assert census_check in planned and census_check not in quick_planned, changed
+        assert census_suite not in quick_planned, changed
+        assert (census_suite in planned) == changed.endswith(".py"), changed
+    for changed in ("crates/wow-map/src/lib.rs", "docs/state.md", "tools/architecture/net_move.py"):
+        planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        assert census_check not in planned and census_suite not in planned, changed
     # #1363 slice 6c (#1405 review): each tool's self-test runs in final when
     # that tool changes, never in quick and never for an unrelated change.
     tool_self_tests = {
