@@ -6,7 +6,8 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use wow_config::DatabaseInfo;
 use wow_database::migration::{
-    DatabaseKind, DatabaseReport, MigrationManifest, inspect_database_for_admin, migrate_database,
+    DatabaseKind, DatabaseReport, MigrationManifest, ModuleSchema, inspect_database_for_admin,
+    migrate_database,
 };
 use wow_database::{Database, StatementDef, build_connection_string_with_ssl_like_cpp};
 
@@ -16,6 +17,8 @@ const EXIT_INCOMPATIBLE: u8 = 3;
 const EXIT_OPERATIONAL: u8 = 4;
 const DEFAULT_MANIFEST: &str = "database/migrations/manifest.toml";
 const DEFAULT_CONFIG: &str = "worldserver.conf";
+/// The module composition whose SQL history the databases may carry (#1444 H6).
+const DEFAULT_LOCK: &str = "modules.lock.toml";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Command {
@@ -30,6 +33,7 @@ struct Cli {
     json: bool,
     manifest: PathBuf,
     config: PathBuf,
+    lock: PathBuf,
 }
 
 #[derive(Debug, Serialize)]
@@ -69,7 +73,8 @@ async fn run(args: Vec<String>) -> Result<u8> {
     };
     wow_config::load_config(cli.config.to_string_lossy().as_ref())
         .with_context(|| format!("cannot load database config {}", cli.config.display()))?;
-    let manifest = MigrationManifest::load(&cli.manifest)?;
+    let manifest = MigrationManifest::load(&cli.manifest)?
+        .with_module_schema(&load_module_schema(&cli.lock)?)?;
     let mut reports = Vec::new();
     for database in DatabaseKind::ALL {
         reports.push(run_one(&cli, &manifest, database).await?);
@@ -162,6 +167,16 @@ async fn with_database<S: StatementDef>(
     Ok(report)
 }
 
+/// The module history of `lock`; no lock file means no module history.
+fn load_module_schema(lock: &std::path::Path) -> Result<ModuleSchema> {
+    match std::fs::read_to_string(lock) {
+        Ok(text) => ModuleSchema::from_lock(&text)
+            .with_context(|| format!("invalid module lock {}", lock.display())),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(ModuleSchema::empty()),
+        Err(error) => Err(error).with_context(|| format!("cannot read {}", lock.display())),
+    }
+}
+
 fn database_info(database: DatabaseKind) -> DatabaseInfo {
     let (key, default_name) = match database {
         DatabaseKind::Auth => ("Login", "auth"),
@@ -182,6 +197,7 @@ impl Cli {
         let mut dry_run = false;
         let mut manifest = PathBuf::from(DEFAULT_MANIFEST);
         let mut config = PathBuf::from(DEFAULT_CONFIG);
+        let mut lock = PathBuf::from(DEFAULT_LOCK);
         let mut index = 0;
         while index < args.len() {
             match args[index].as_str() {
@@ -192,16 +208,16 @@ impl Cli {
                 }
                 "--json" => json = true,
                 "--dry-run" => dry_run = true,
-                "--manifest" | "--config" => {
+                "--manifest" | "--config" | "--lock" => {
                     let option = args[index].clone();
                     index += 1;
                     let value = args
                         .get(index)
                         .ok_or_else(|| format!("{option} requires a path"))?;
-                    if option == "--manifest" {
-                        manifest = PathBuf::from(value);
-                    } else {
-                        config = PathBuf::from(value);
+                    match option.as_str() {
+                        "--manifest" => manifest = PathBuf::from(value),
+                        "--config" => config = PathBuf::from(value),
+                        _ => lock = PathBuf::from(value),
                     }
                 }
                 unknown => return Err(format!("unknown or duplicate argument: {unknown}")),
@@ -220,6 +236,7 @@ impl Cli {
             json,
             manifest,
             config,
+            lock,
         })
     }
 }
@@ -261,7 +278,9 @@ fn print_human(output: &Output) {
 
 fn print_help() {
     println!(
-        "rustycore-db <status|validate|migrate> [--dry-run] [--json] [--config PATH] [--manifest PATH]\n\
+        "rustycore-db <status|validate|migrate> [--dry-run] [--json] [--config PATH] [--manifest PATH] [--lock PATH]\n\
+         \nmigrate applies core migrations only; module SQL recorded in the lock (default modules.lock.toml)\n\
+         is reported and validated, never applied by migrate (the module commands are #1444 H6b).\n\
          \nExit codes:\n  0 compatible/success\n  2 invalid command line\n  3 schema incompatible or migrations pending\n  4 operational/database/lock/migration failure"
     );
 }
@@ -283,6 +302,17 @@ mod tests {
             Command::Migrate { dry_run: true }
         );
         assert!(Cli::parse(vec!["validate".into(), "--dry-run".into()]).is_err());
+        let cli = Cli::parse(vec!["status".into(), "--lock".into(), "x.toml".into()]).unwrap();
+        assert_eq!(cli.lock, PathBuf::from("x.toml"));
+        assert_eq!(
+            Cli::parse(vec!["status".into()]).unwrap().lock,
+            PathBuf::from(DEFAULT_LOCK)
+        );
+        assert!(
+            load_module_schema(std::path::Path::new("/nonexistent/modules.lock.toml"))
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]

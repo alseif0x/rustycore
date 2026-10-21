@@ -33,6 +33,11 @@ class Workspace:
         shutil.copytree(REPO_ROOT / "crates/wow-module-api", root / "crates/wow-module-api")
         shutil.copytree(REPO_ROOT / "crates/wow-core", root / "crates/wow-core")
         (root / "modules").mkdir()
+        (root / "database/migrations").mkdir(parents=True)
+        shutil.copy2(
+            REPO_ROOT / "database/migrations/manifest.toml",
+            root / "database/migrations/manifest.toml",
+        )
         (root / "Cargo.toml").write_text("[workspace]\nmembers = []\n", encoding="utf-8")
 
     def run(self, *args: str) -> subprocess.CompletedProcess:
@@ -307,6 +312,177 @@ class ModuleManagerTests(unittest.TestCase):
         self.assertEqual(self.ws.run("sync").returncode, 0)
         restored = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
         self.assertIs(restored["lints"]["workspace"], True)
+
+
+    # ------------------------------------------------ per-module SQL (#1444 H6)
+    def _module_with_sql(self, module_id: str = "demo.greeter", database: str = "characters",
+                         minimum: str = "2026.08.02.00", directory: str | None = None) -> pathlib.Path:
+        directory = directory or module_id.replace(".", "_")
+        created = self.ws.run("new", module_id, "--dir", directory, "--package", directory.replace("_", "-"))
+        self.assertEqual(created.returncode, 0, created.stderr)
+        root = self.ws.root / "modules" / directory
+        sql = root / "data/sql"
+        (sql / database).mkdir(parents=True, exist_ok=True)
+        (sql / "purge").mkdir(exist_ok=True)
+        prefix = "mod_" + module_id.replace(".", "_") + "_"
+        (sql / database / "1.sql").write_text(
+            f"CREATE TABLE {prefix}counts (guid BIGINT UNSIGNED PRIMARY KEY);\r\n", encoding="utf-8"
+        )
+        (sql / "purge/drop.sql").write_text(f"DROP TABLE IF EXISTS {prefix}counts;\n", encoding="utf-8")
+        (sql / "manifest.toml").write_text(
+            f'format = 1\nmin_core_schema = "{minimum}"\n\n'
+            f'[[migrations]]\ndatabase = "{database}"\nversion = "2026.10.21.00"\n'
+            f'description = "counts"\nfile = "{database}/1.sql"\n\n'
+            f'[[purge]]\ndatabase = "{database}"\nfile = "purge/drop.sql"\n',
+            encoding="utf-8",
+        )
+        return root
+
+    def _lock(self) -> dict:
+        return tomllib.loads((self.ws.root / "modules.lock.toml").read_text(encoding="utf-8"))
+
+    def test_module_sql_is_recorded_in_the_lock_and_embedded(self) -> None:
+        self._module_with_sql()
+        synced = self.ws.run("sync")
+        self.assertEqual(synced.returncode, 0, synced.stderr)
+        sql = self._lock()["module"][0]["sql"]
+        self.assertEqual(sql["min_core_schema"], "2026.08.02.00")
+        self.assertEqual(sql["source"], "modules/demo_greeter/data/sql")
+        migration = sql["migration"][0]
+        self.assertEqual(
+            (migration["database"], migration["version"], migration["file"]),
+            ("characters", "2026.10.21.00", "characters/1.sql"),
+        )
+        # CRLF is normalized before hashing, exactly like rustycore-db does.
+        import hashlib  # noqa: PLC0415
+        expected = hashlib.sha256(
+            b"CREATE TABLE mod_demo_greeter_counts (guid BIGINT UNSIGNED PRIMARY KEY);\n"
+        ).hexdigest()
+        self.assertEqual(migration["sha256"], expected)
+        self.assertEqual(sql["purge"][0]["file"], "purge/drop.sql")
+        main = (self.ws.root / "crates/world-modules/src/main.rs").read_text(encoding="utf-8")
+        self.assertIn("world_server::run_with_composition(", main)
+        self.assertIn('include_str!("../../../modules.lock.toml")', main)
+        self.assertEqual(self.ws.run("check").returncode, 0)
+
+    def test_a_recorded_migration_is_immutable(self) -> None:
+        root = self._module_with_sql()
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        (root / "data/sql/characters/1.sql").write_text("CREATE TABLE mod_demo_greeter_x (a INT);\n")
+        changed = self.ws.run("sync")
+        self.assertNotEqual(changed.returncode, 0)
+        self.assertIn("add a new migration file", changed.stderr)
+        self.assertNotEqual(self.ws.run("check").returncode, 0)
+
+    def test_a_module_with_sql_cannot_vanish_without_a_tombstone(self) -> None:
+        root = self._module_with_sql()
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        lock = (self.ws.root / "modules.lock.toml").read_text(encoding="utf-8")
+        shutil.rmtree(root)
+        refused = self.ws.run("sync")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("rustycore-db module remove demo.greeter", refused.stderr)
+
+        # The tombstone block rustycore-db writes is kept byte for byte.
+        sys.path.insert(0, str(REPO_ROOT / "tools/modules"))
+        import compose  # noqa: PLC0415
+        entry = lock[lock.index("[[module]]"):]
+        block = (
+            compose.TOMBSTONE_MARKER + "\n"
+            + entry.replace("[[module]]", "[[tombstone]]").replace("[module.", "[tombstone.")
+            .replace("[[module.", "[[tombstone.")
+        )
+        (self.ws.root / "modules.lock.toml").write_text(lock + "\n" + block, encoding="utf-8")
+        synced = self.ws.run("sync")
+        self.assertEqual(synced.returncode, 0, synced.stderr)
+        text = (self.ws.root / "modules.lock.toml").read_text(encoding="utf-8")
+        self.assertTrue(text.endswith(block), "the tombstone block is preserved verbatim")
+        self.assertEqual([t["id"] for t in self._lock()["tombstone"]], ["demo.greeter"])
+        self.assertNotIn("module", self._lock())
+        main = (self.ws.root / "crates/world-modules/src/main.rs").read_text(encoding="utf-8")
+        self.assertIn("run_with_composition", main, "tombstoned history stays accepted")
+        self.assertEqual(self.ws.run("check").returncode, 0)
+
+    def test_module_sql_is_limited_to_characters_and_world(self) -> None:
+        for database in ("auth", "hotfixes"):
+            with self.subTest(database=database):
+                root = self._module_with_sql(database=database)
+                refused = self.ws.run("sync")
+                self.assertNotEqual(refused.returncode, 0)
+                self.assertIn("a module may change only characters and world", refused.stderr)
+                shutil.rmtree(root)
+
+    def test_min_core_schema_must_exist_in_this_core(self) -> None:
+        self._module_with_sql(minimum="2999.01.01.00")
+        refused = self.ws.run("sync")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("newer than this server's core schema", refused.stderr)
+
+    def test_a_missing_or_escaping_sql_file_is_refused(self) -> None:
+        root = self._module_with_sql()
+        manifest = root / "data/sql/manifest.toml"
+        text = manifest.read_text(encoding="utf-8")
+        for bad in ("characters/missing.sql", "../module.toml.sql", "/etc/x.sql"):
+            with self.subTest(file=bad):
+                manifest.write_text(text.replace('file = "characters/1.sql"', f'file = "{bad}"'))
+                self.assertNotEqual(self.ws.run("sync").returncode, 0)
+
+    def test_two_modules_cannot_share_a_table_prefix(self) -> None:
+        self._module_with_sql("demo.a_b")
+        self._module_with_sql("demo_a.b", directory="second")
+        refused = self.ws.run("sync")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("share the table prefix", refused.stderr)
+
+    def test_lock_records_migrations_in_numeric_version_order(self) -> None:
+        root = self._module_with_sql()
+        sql = root / "data/sql"
+        (sql / "characters/9.sql").write_text("CREATE TABLE mod_demo_greeter_nine (a INT);\n")
+        (sql / "characters/10.sql").write_text("CREATE TABLE mod_demo_greeter_ten (a INT);\n")
+        manifest = sql / "manifest.toml"
+        manifest.write_text(
+            manifest.read_text(encoding="utf-8")
+            + '\n[[migrations]]\ndatabase = "characters"\nversion = "2026.10.10"\n'
+            'description = "ten"\nfile = "characters/10.sql"\n'
+            '\n[[migrations]]\ndatabase = "characters"\nversion = "2026.10.9"\n'
+            'description = "nine"\nfile = "characters/9.sql"\n',
+            encoding="utf-8",
+        )
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        versions = [m["version"] for m in self._lock()["module"][0]["sql"]["migration"]]
+        self.assertEqual(versions, ["2026.10.9", "2026.10.10", "2026.10.21.00"])
+
+    def test_a_description_with_a_newline_or_control_character_is_refused(self) -> None:
+        root = self._module_with_sql()
+        manifest = root / "data/sql/manifest.toml"
+        text = manifest.read_text(encoding="utf-8")
+        for bad in ('"counts\\nmore"', "'counts\tmore'", '"""counts\nmore"""'):
+            with self.subTest(description=bad):
+                manifest.write_text(text.replace('description = "counts"', f"description = {bad}"))
+                refused = self.ws.run("sync")
+                self.assertNotEqual(refused.returncode, 0, bad)
+
+    def test_the_tombstone_block_may_hold_only_tombstones(self) -> None:
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        sys.path.insert(0, str(REPO_ROOT / "tools/modules"))
+        import compose  # noqa: PLC0415
+        lock = self.ws.root / "modules.lock.toml"
+        base = lock.read_text(encoding="utf-8")
+        for block in (
+            "[[module]]\nid = \"smuggled.module\"\n",
+            "source_api = \"9\"\n",
+            "[[tombstone]]\nid = \"no.sql\"\n",
+        ):
+            with self.subTest(block=block):
+                lock.write_text(base + "\n" + compose.TOMBSTONE_MARKER + "\n" + block, encoding="utf-8")
+                refused = self.ws.run("sync")
+                self.assertNotEqual(refused.returncode, 0, refused.stdout)
+
+    def test_zero_modules_keep_the_plain_compositor(self) -> None:
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        main = (self.ws.root / "crates/world-modules/src/main.rs").read_text(encoding="utf-8")
+        self.assertIn("world_server::run_with_modules(", main)
+        self.assertNotIn("run_with_composition", main)
 
 
 if __name__ == "__main__":

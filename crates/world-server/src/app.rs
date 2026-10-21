@@ -7,30 +7,14 @@
 use super::*;
 use wow_database::player::spell_acquisition_adapter::spell_acquisition_port;
 
-/// Run the world server with explicit process arguments.
-///
-/// Boxing keeps the enormous startup future private to this crate and gives
-/// embedders a stable, compact library boundary.
-pub fn run(args: Vec<String>) -> Pin<Box<dyn Future<Output = Result<ExitCode>> + Send + 'static>> {
-    run_with_modules(args, wow_module_api::ModuleRegistry::new())
-}
-
-/// Run the world server with a pre-composed trusted module registry.
-///
-/// The generated compositor crate (issue #229) calls this after invoking every
-/// installed module's registrar in the operator's declared order. `run` is the
-/// zero-module case and passes an empty registry, so the ordinary build is
-/// unchanged and never observes a module.
-pub fn run_with_modules(
-    args: Vec<String>,
-    modules: wow_module_api::ModuleRegistry,
-) -> Pin<Box<dyn Future<Output = Result<ExitCode>> + Send + 'static>> {
-    Box::pin(run_inner(args, Arc::new(modules)))
-}
+#[path = "entry.rs"]
+mod entry;
+pub use entry::{run, run_with_composition, run_with_modules};
 
 async fn run_inner(
     args: Vec<String>,
     modules: Arc<wow_module_api::ModuleRegistry>,
+    module_lock: &'static str,
 ) -> Result<ExitCode> {
     // Initialize logging
     tracing_subscriber::fmt()
@@ -186,7 +170,10 @@ async fn run_inner(
 
     info!("Connected to hotfix database");
 
-    let migration_manifest = wow_database::migration::bundled_manifest()?;
+    let module_schema = wow_database::migration::ModuleSchema::from_lock(module_lock)
+        .context("the composed modules.lock.toml is invalid")?;
+    let migration_manifest =
+        wow_database::migration::bundled_manifest()?.with_module_schema(&module_schema)?;
     for (database, pool) in [
         (wow_database::migration::DatabaseKind::Auth, login_db.pool()),
         (

@@ -13,6 +13,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
+pub mod modules;
+
+pub use modules::{ModuleSchema, is_module_component, module_component};
+
 pub const HISTORY_TABLE: &str = "rustycore_schema_history";
 const LOCK_PREFIX: &str = "rustycore-db:migrate:";
 
@@ -160,7 +164,19 @@ impl MigrationManifest {
             .iter()
             .filter(|migration| migration.database == database)
             .collect();
-        migrations.sort_by_key(|migration| (&migration.component, &migration.version));
+        // Numeric versions compare numerically ("2026.10.9" < "2026.10.10");
+        // anything else keeps the text order.
+        migrations.sort_by(|a, b| {
+            a.component.cmp(&b.component).then_with(|| {
+                match (
+                    modules::parse_schema_version(&a.version),
+                    modules::parse_schema_version(&b.version),
+                ) {
+                    (Some(left), Some(right)) => left.cmp(&right),
+                    _ => a.version.cmp(&b.version),
+                }
+            })
+        });
         migrations
     }
 
@@ -316,8 +332,17 @@ pub async fn validate_runtime_schema(
 ) -> Result<DatabaseReport> {
     let report = inspect_database(pool, manifest, database).await?;
     if !report.compatible {
+        let module_hint = if report
+            .problems
+            .iter()
+            .any(|problem| problem.contains(modules::MODULE_COMPONENT_PREFIX))
+        {
+            "; module SQL is applied only by the operator's `rustycore-db module` command (#1444 H6b), and a removed module needs its tombstone in the composed modules.lock.toml"
+        } else {
+            ""
+        };
         bail!(
-            "{} database schema is incompatible: {}. Run `rustycore-db status` then `rustycore-db migrate` before starting the server",
+            "{} database schema is incompatible: {}. Run `rustycore-db status` then `rustycore-db migrate` before starting the server{module_hint}",
             database.as_str(),
             report.problems.join("; ")
         );
@@ -388,6 +413,7 @@ async fn migrate_while_locked(
             database.as_str()
         );
     }
+    // A pending module migration is `rustycore-db module apply`'s, not ours.
     let immutable_problems: Vec<_> = report
         .problems
         .iter()
@@ -402,6 +428,7 @@ async fn migrate_while_locked(
 
     for migration in manifest.migrations_for(database) {
         if migration.state == MigrationState::Archived
+            || is_module_component(&migration.component)
             || history
                 .iter()
                 .any(|row| row.component == migration.component && row.version == migration.version)
@@ -519,6 +546,10 @@ async fn import_transition_history(
     let old: BTreeMap<_, _> = old_rows.into_iter().collect();
     let mut imports = Vec::new();
     for migration in manifest.migrations_for(database) {
+        // Legacy `updates` history predates modules; it never adopts one.
+        if is_module_component(&migration.component) {
+            continue;
+        }
         let Some(file_name) = Path::new(&migration.file)
             .file_name()
             .and_then(|name| name.to_str())
@@ -693,6 +724,10 @@ async fn legacy_import_candidates(
     let old: BTreeMap<_, _> = old_rows.into_iter().collect();
     let mut candidates = BTreeSet::new();
     for migration in manifest.migrations_for(database) {
+        // Legacy `updates` history predates modules; it never adopts one.
+        if is_module_component(&migration.component) {
+            continue;
+        }
         let Some(file_name) = Path::new(&migration.file)
             .file_name()
             .and_then(|name| name.to_str())
