@@ -16,6 +16,7 @@ use tracing::{debug, error, info, warn};
 
 mod bot_srp6;
 mod cast_lifecycle;
+mod chat_say;
 mod run_report;
 use run_report::{log_bot_summary, write_report_if_requested};
 mod config;

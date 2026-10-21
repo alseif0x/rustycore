@@ -96,18 +96,18 @@ It holds no credentials and no URLs with secrets.
 
 ## The example module (#1444)
 
-`tools/modules/examples/milestones/` (`example.milestones`, source API 2) uses the `player.*`,
-`world.*` and `creature.*` families together: a self message on every `level_step`-th level and
-`kill_step`-th kill (kill milestones also logged on the next `world.update`), an optional world
-announcement for level milestones queued from the player hook and sent by `world.update`, a
-creature death counter logged at shutdown, and `enabled_hooks` declaring its three `player.*`
-hooks. Its counters are in memory only. Install it with
+`tools/modules/examples/milestones/` (`example.milestones`, source API 2) uses the `player.login`,
+`player.*`, `chat.*`, `world.*` and `creature.*` families together: a login greeting, a
+configurable `level_message` on level milestones, a per-session count of rewarded quests, a self
+message every `kill_milestone`-th kill (also logged on the next `world.update`), a `chat.message`
+pre-decision that denies messages containing one of `blocked_words`, an optional world
+announcement for level milestones queued from the player hook and sent by `world.update`, and a
+creature death counter logged at shutdown. `enabled_hooks` declares its four `player.*` hooks, and
+the `chat.*` family is registered only when a word is blocked. Its counters are in memory only;
+its README lists the typed configuration and the state boundary. Install it with
 `rustycore-module install --path tools/modules/examples/milestones`, `sync`, and add
 `modules/milestones` to the workspace members to build or test it; `test_rustycore_module.py`
-checks that it installs and composes. It was run live (#1444 H5) through `tools/qa-runtime.sh`
-`loot-item` as a composed `world-modules` candidate with `kill_step = 1`: the journal shows its
-`world.startup` line, the kill milestone logged by `world.update`, and `1 creature deaths observed`
-at shutdown.
+checks that it installs and composes.
 
 ## The zero-module build is unchanged
 

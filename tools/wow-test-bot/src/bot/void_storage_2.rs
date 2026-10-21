@@ -340,6 +340,8 @@ pub(crate) async fn run_bot_with_void_storage(
         quest_titles_seen: Vec::new(),
         quest_failure: None,
         seen_opcodes: Vec::new(),
+        chat_received: Vec::new(),
+        chat_say: None,
     };
 
     let mut acquisition_plan = spell_acquisition::load()?;
@@ -727,6 +729,9 @@ pub(crate) async fn run_bot_with_void_storage(
                 Ok(Ok((op, payload))) => {
                     result.seen_opcodes.push(format!("0x{:04X}", op));
                     login_stream::observe_login_packet(realm_connection.is_some(), op, &mut result);
+                    if op == crate::chat_say::SMSG_CHAT {
+                        crate::chat_say::record(bot_index, &payload, &mut result);
+                    }
                     if op == SMSG_SEND_KNOWN_SPELLS {
                         let decoded = decode_login_known_spells_like_cpp(&payload)?;
                         if !decoded.initial_login {

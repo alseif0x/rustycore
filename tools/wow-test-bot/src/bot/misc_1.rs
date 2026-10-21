@@ -468,6 +468,9 @@ pub(crate) struct BotRunResult {
     pub(crate) quest_titles_seen: Vec<String>,
     pub(crate) quest_failure: Option<String>,
     pub(crate) seen_opcodes: Vec<String>,
+    /// Every `SMSG_CHAT` the login and chat phases read (#1444 H5).
+    pub(crate) chat_received: Vec<crate::chat_say::ChatSeen>,
+    pub(crate) chat_say: Option<crate::chat_say::Evidence>,
 }
 impl BotRunResult {
     pub(crate) fn success(
