@@ -1,6 +1,6 @@
 ---
 name: orchestrate-rustycore
-description: "Route RustyCore development work between the Opus parent and its DeepSeek worker (native DeepSeek API through opencodex). Use for implementation coordination or adapting this workflow, not ordinary factual answers."
+description: "Route RustyCore development work between one parent integrator and bounded workers, per runtime (Claude Code: Opus; OpenCode Go: DeepSeek + Luna builder; DSH Web: go-mix; Codex: Sol/Luna). Use for implementation coordination or adapting this workflow, not ordinary factual answers."
 ---
 
 # RustyCore orchestration
@@ -16,9 +16,10 @@ human operator**. This is the rule that keeps a round from stalling.
 
 - **Who decides.** Parity and behaviour contracts, intentional departures from the
   reference, the scope and cut points of a slice, ownership boundaries and design choices
-  are decided by the **reviewer tier at high effort**: in the DSH `go-mix` preset the
-  Codex route (GPT-6.1 Sol, `high`) with Claude Opus 5.5 at `high` as the second opinion;
-  in the native workflow the Opus parent itself. If the reviewer route is unavailable,
+  are decided at high effort: in DSH `go-mix` the coordinator decides at `high`, consulting
+  GPT-6.1 Sol `high` or Claude Opus 5.5 `medium` for a concrete uncertainty; in OpenCode
+  Go the DeepSeek orchestrator decides, with review on a model family different from the
+  builder and never Sol; in Claude Code the Opus parent itself. If the reviewer route is unavailable,
   state that it failed, decide from the recorded evidence, and label the decision as
   taken without that second opinion.
 - **Who executes.** The coordinator/parent owns review, validation, Git, integration and
@@ -36,29 +37,40 @@ human operator**. This is the rule that keeps a round from stalling.
   treat "the human has not answered" as a blocker for work that does not touch a reserved
   operation.
 
-## Models
+## Roles and principles (runtime-neutral)
 
-Only two models take part. Do not call or substitute any other model or provider.
+The roles are the same in every runtime; only the models differ (see **Routing by runtime**).
 
-- **Parent: Claude Opus 5.5**, started with `ocx claude` (opencodex) in this checkout. Opus
-  runs on the operator's own Claude login through opencodex's native passthrough (model
-  `claude-opus-5-5`), effort `low` from
-  `.claude/settings.json`; raise it with `/effort medium` only for a hard architecture,
-  lock-order or concurrency decision, then return to `low`). The parent owns
-  architecture, decomposition, contracts, coordination, review, Git, integration and
-  final acceptance. It does not implement: every code change goes to a worker.
-- **Worker: DeepSeek v4.1 flash** on the native DeepSeek API, the
-  `.claude/agents/deepseek-worker.md` subagent (`deepseek/deepseek-flash` in opencodex,
-  effort `high`). Never route it through OpenRouter or another reseller.
-- **Fallback: `rustycore-worker`** (`.claude/agents/rustycore-worker.md`, Opus inherited,
-  `low`) only when a DeepSeek spawn or turn fails at the API level (model error,
-  provider outage, quota/balance, rate limit, timeout). State it once and hand over the
-  base, current diff and partial work. A slow or poor result is not an API failure.
+- **One parent integrator** owns architecture, decomposition, contracts, coordination,
+  review, Git, integration and final acceptance. It does not implement routine units.
+- **One bounded worker** implements a settled unit, does read-only exploration, or runs
+  the agreed final sequence as exclusive validation executor, as assigned.
+- **At most one child at a time** (route files state any exception). **No worker spawns
+  children.** No overlapping edits between parent and worker; the parent owns Git.
+- **One useful collaborator.** Delegate only when the parent has useful independent work
+  meanwhile and delegation saves more than it costs; never delegate merely to consume a
+  collaborator's quota. Do not duplicate the child's implementation.
+- **No silent model substitution.** Use only the routes and fallbacks in the current
+  runtime's route file. If a role/model/effort is unavailable, disclose it once and keep
+  safe work moving in the parent. **No paid-API fallback** unless the route says so.
+- **Actual model/effort.** Workers report the model/effort that actually ran; a
+  configured role or default is not evidence that it ran — claims need a successful
+  spawn trace.
+- **Bounded context.** Avoid full-history forks when they force inherited models or
+  expose irrelevant data; do not send secrets or session transcripts to children.
+- **The parent inspects the actual diff** and its consumers, not just the summary.
 
-Start sessions with `ocx claude`, not plain `claude` (which cannot reach DeepSeek) and not
-`claude-router`. Keep agents on `inherit` or a `deepseek/...` id. Reasoning effort is a real runtime
-setting: do not claim a model or effort the session configuration does not confirm.
-Record the model that actually ran.
+## Routing by runtime
+
+Identify the session's runtime and read only its route file. Each client reads only its
+own defaults.
+
+| Runtime | Route | Client defaults |
+|---|---|---|
+| Claude Code / `ocx claude` (default) | [routes/claude.md](routes/claude.md): Opus parent, Opus `rustycore-worker` | `.claude/settings.json`, `.claude/agents/` |
+| OpenCode Go | [routes/go-mix.md](routes/go-mix.md#opencode-go): DeepSeek orchestrator/scout/reviewer, Luna `max` builder | `opencode.json`, `.opencode/` |
+| DSH Web `go-mix` (if the user chooses it) | [routes/go-mix.md](routes/go-mix.md#dsh-web-go-mix): Go DeepSeek coordinator, Luna `max` worker | preset `go-mix` in `~/.dsh` |
+| Codex | [routes/codex.md](routes/codex.md): Sol parent, `luna_worker` | `.codex/config.toml`, `.codex/agents/` |
 
 ## Sizing the work
 
@@ -78,7 +90,8 @@ open-ended ones. The parent makes the decisions, the worker executes them.
 
 ## Running the worker
 
-Start at most one worker at a time; no worker spawns children. Run it in the
+In Claude Code, start at most one worker at a time (other routes: see their route file);
+no worker spawns children. Run it in the
 background and keep doing useful parent work (settling consumers, preparing the next
 unit's contract, reviewing the previous diff) without duplicating the worker's edits.
 
@@ -86,7 +99,7 @@ unit's contract, reviewing the previous diff) without duplicating the worker's e
   within ~15 tool calls or ~8 minutes of starting an implementation unit.
 - **Stall:** if two heartbeats pass with reads but no edit, stop it and reassign the
   unit smaller or with the missing decision made. A stall is a sizing problem, not a
-  reason to use the fallback.
+  reason to change model or provider.
 - **Review every diff** against the contract and its consumers before assigning the
   next unit, not just the summary. Assign corrections as a new small unit.
 

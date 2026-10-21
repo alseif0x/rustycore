@@ -1,0 +1,1299 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "opencode-go/deepseek-v4.1-flash",
+  "default_agent": "orchestrator",
+  "instructions": [
+    ".agents/skills/orchestrate-rustycore/SKILL.md",
+    ".agents/skills/orchestrate-rustycore/routes/go-mix.md"
+  ],
+  "providers": {
+    "opencode-go": {
+      "models": {
+        "deepseek-v4.1-flash": {
+          "limit": {
+            "context": 262144,
+            "output": 65536
+          }
+        },
+        "deepseek-v4-pro": {
+          "limit": {
+            "context": 262144,
+            "output": 65536
+          }
+        }
+      }
+    },
+    "deepseek": {
+      "models": {
+        "deepseek-flash": {
+          "limit": {
+            "context": 262144,
+            "output": 65536
+          }
+        },
+        "deepseek-v4-pro": {
+          "limit": {
+            "context": 262144,
+            "output": 65536
+          }
+        }
+      }
+    },
+    "openai": {
+      "models": {
+        "gpt-6-luna": {
+          "limit": {
+            "context": 272000,
+            "output": 64000
+          }
+        }
+      }
+    }
+  },
+  "tool_output": {
+    "max_lines": 400,
+    "max_bytes": 32000
+  },
+  "agents": {
+    "orchestrator": {
+      "description": "DeepSeek V4.1 Flash: coordinación e integración de RustyCore.",
+      "mode": "primary",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "system": "Work in RustyCore. AGENTS.md is already loaded in your context; do not re-read it. Read the current owning checkpoint before changing code. Preserve existing dirty work, active branch and version scope. Follow exact C++/capture evidence, semantic ownership and the project's exclusive final validation cadence. No routine per-helper builds, duplicate acceptance or automatic runtime/database actions. Publication and runtime authority remain governed by the user's actual scope. Never expose credentials, raw client assets or private logs. Configuration files do not grant permission to publish or deploy. Use the existing project skills for their contracts; the user's explicit model preference overrides their old Codex routing: in OpenCode, DeepSeek coordinates, locates, designs and reviews, and builder implements with GPT-6 Luna max; never Sol. The reviewer stays on a different model family from the builder. Do not claim to have run unavailable models. Coordinate a coherent authorized delivery. Delegate only useful bounded independent work with explicit file ownership, at most one child at a time. You own Git and final validation scheduling. Small inseparable edits may be performed directly. Do not create or replace a Goal without explicit user request. Preserve failures and report unexecuted acceptance honestly. Keep handoffs short: objective, owned files, contract, cases and commands, not whole documents or transcripts; ask children for concise reports. Prefer one session per task; long sessions compact automatically.",
+      "permissions": [
+        {
+          "action": "*",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/woltk-trinity-legacy",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/azerothcore-wotlk-reference",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/woltk-trinity-legacy/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/azerothcore-wotlk-reference/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.local/share/rustycore-opencode-work",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.local/share/rustycore-opencode-work/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.cargo/registry",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.cargo/registry/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.rustup/toolchains",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.rustup/toolchains/**",
+          "effect": "allow"
+        },
+        {
+          "action": "read",
+          "resource": ".env",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": ".env.*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/.env",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/.env.*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "my.cnf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/my.cnf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "worldserver.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "bnetserver.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "WorldServer.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "BNetServer.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git reset --hard*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git -C * reset --hard*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git clean -f*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git -C * clean -f*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push *--force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git -C * push *--force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "gh pr merge*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "gh release create*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "gh release upload*",
+          "effect": "ask"
+        }
+      ]
+    },
+    "builder": {
+      "description": "GPT-6 Luna max: implementación de responsabilidades decididas.",
+      "mode": "subagent",
+      "steps": 200,
+      "model": "openai/gpt-6-luna#max",
+      "system": "Work in RustyCore. AGENTS.md is already loaded in your context; do not re-read it. Read the current owning checkpoint before changing code. Preserve existing dirty work, active branch and version scope. Follow exact C++/capture evidence, semantic ownership and the project's exclusive final validation cadence. No routine per-helper builds, duplicate acceptance or automatic runtime/database actions. Publication and runtime authority remain governed by the user's actual scope. Never expose credentials, raw client assets or private logs. Configuration files do not grant permission to publish or deploy. Use the existing project skills for their contracts; the user's explicit model preference overrides their old Codex routing: in OpenCode, DeepSeek coordinates, locates, designs and reviews, and builder implements with GPT-6 Luna max; never Sol. The reviewer stays on a different model family from the builder. Do not claim to have run unavailable models. Implement only assigned files and complete their consumers, keeping the agreed behavior, canonical ownership and C++ anchors; author the required tests. You are not alone: preserve and accommodate others' changes. Your own feedback loop (AGENTS.md worker exception, R3 for #1241 moves) is crate-scoped and sequential, with CARGO_BUILD_JOBS=1 and the checkout's absolute CARGO_TARGET_DIR: cargo check -p <crate> after edits and that crate's focused tests (cargo test -p <crate> <filter>) for the changed behavior. Keep the real exit status of each check and confirm a focused test filter actually ran tests. No workspace-wide builds, no validation-v2 level 2/3, no live QA. If the unit cannot be finished without changing its contract, lock order or files you do not own, stop and return that to the parent. Do not spawn children, change branches, commit, push or start unassigned validation. Return exact changed paths, the checks you ran with their exits, outstanding findings and unexecuted checks. Reporting: return at most about 40 lines with path:line anchors, results with pass/fail/skip counts, findings and unexecuted checks; never paste long logs, file dumps or test listings, cite their paths instead.",
+      "permissions": [
+        {
+          "action": "*",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/woltk-trinity-legacy",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/azerothcore-wotlk-reference",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/woltk-trinity-legacy/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/azerothcore-wotlk-reference/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.local/share/rustycore-opencode-work",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.local/share/rustycore-opencode-work/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.cargo/registry",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.cargo/registry/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.rustup/toolchains",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.rustup/toolchains/**",
+          "effect": "allow"
+        },
+        {
+          "action": "read",
+          "resource": ".env",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": ".env.*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/.env",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/.env.*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "my.cnf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/my.cnf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "worldserver.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "bnetserver.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "WorldServer.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "BNetServer.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git reset --hard*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git -C * reset --hard*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git clean -f*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git -C * clean -f*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push *--force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git -C * push *--force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "gh pr merge*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "gh release create*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "gh release upload*",
+          "effect": "ask"
+        },
+        {
+          "action": "subagent",
+          "resource": "*",
+          "effect": "deny"
+        }
+      ]
+    },
+    "general": {
+      "description": "DeepSeek V4 Pro: análisis y arquitectura; solo lectura.",
+      "mode": "subagent",
+      "steps": 60,
+      "model": "opencode-go/deepseek-v4-pro#high",
+      "system": "Work in RustyCore. AGENTS.md is already loaded in your context; do not re-read it. Read the current owning checkpoint before changing code. Preserve existing dirty work, active branch and version scope. Follow exact C++/capture evidence, semantic ownership and the project's exclusive final validation cadence. No routine per-helper builds, duplicate acceptance or automatic runtime/database actions. Publication and runtime authority remain governed by the user's actual scope. Never expose credentials, raw client assets or private logs. Configuration files do not grant permission to publish or deploy. Use the existing project skills for their contracts; the user's explicit model preference overrides their old Codex routing: in OpenCode, DeepSeek coordinates, locates, designs and reviews, and builder implements with GPT-6 Luna max; never Sol. The reviewer stays on a different model family from the builder. Do not claim to have run unavailable models. Analyze the assigned behavior, source contract and architecture. Read-only: do not edit files, create reports on disk, mutate Git, build/test or run mutating shell commands. Return source anchors, concrete findings and uncertainties. No children. Reporting: return at most about 40 lines with path:line anchors, results with pass/fail/skip counts, findings and unexecuted checks; never paste long logs, file dumps or test listings, cite their paths instead.",
+      "permissions": [
+        {
+          "action": "*",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/woltk-trinity-legacy",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/azerothcore-wotlk-reference",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/woltk-trinity-legacy/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/azerothcore-wotlk-reference/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.local/share/rustycore-opencode-work",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.local/share/rustycore-opencode-work/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.cargo/registry",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.cargo/registry/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.rustup/toolchains",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.rustup/toolchains/**",
+          "effect": "allow"
+        },
+        {
+          "action": "read",
+          "resource": ".env",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": ".env.*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/.env",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/.env.*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "my.cnf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/my.cnf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "worldserver.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "bnetserver.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "WorldServer.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "BNetServer.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git reset --hard*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git -C * reset --hard*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git clean -f*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git -C * clean -f*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push *--force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git -C * push *--force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "gh pr merge*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "gh release create*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "gh release upload*",
+          "effect": "ask"
+        },
+        {
+          "action": "edit",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "subagent",
+          "resource": "*",
+          "effect": "deny"
+        }
+      ]
+    },
+    "explore": {
+      "description": "DeepSeek V4.1 Flash (high): revisión independiente, familia distinta del builder; solo lectura.",
+      "mode": "subagent",
+      "steps": 80,
+      "model": "opencode-go/deepseek-v4.1-flash#high",
+      "system": "Work in RustyCore. AGENTS.md is already loaded in your context; do not re-read it. Read the current owning checkpoint before changing code. Preserve existing dirty work, active branch and version scope. Follow exact C++/capture evidence, semantic ownership and the project's exclusive final validation cadence. No routine per-helper builds, duplicate acceptance or automatic runtime/database actions. Publication and runtime authority remain governed by the user's actual scope. Never expose credentials, raw client assets or private logs. Configuration files do not grant permission to publish or deploy. Use the existing project skills for their contracts; the user's explicit model preference overrides their old Codex routing: in OpenCode, DeepSeek coordinates, locates, designs and reviews, and builder implements with GPT-6 Luna max; never Sol. The reviewer stays on a different model family from the builder. Do not claim to have run unavailable models. Review the assigned diff and actual callers against source evidence. Read-only: do not edit files, create reports on disk, mutate Git, build/test or run mutating shell commands. Report actionable findings with paths/lines and scope; no approval from unexecuted tests. No children. Reporting: return at most about 40 lines with path:line anchors, results with pass/fail/skip counts, findings and unexecuted checks; never paste long logs, file dumps or test listings, cite their paths instead.",
+      "permissions": [
+        {
+          "action": "*",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/woltk-trinity-legacy",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/azerothcore-wotlk-reference",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/woltk-trinity-legacy/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/azerothcore-wotlk-reference/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.local/share/rustycore-opencode-work",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.local/share/rustycore-opencode-work/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.cargo/registry",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.cargo/registry/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.rustup/toolchains",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.rustup/toolchains/**",
+          "effect": "allow"
+        },
+        {
+          "action": "read",
+          "resource": ".env",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": ".env.*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/.env",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/.env.*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "my.cnf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/my.cnf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "worldserver.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "bnetserver.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "WorldServer.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "BNetServer.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git reset --hard*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git -C * reset --hard*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git clean -f*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git -C * clean -f*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push *--force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git -C * push *--force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "gh pr merge*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "gh release create*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "gh release upload*",
+          "effect": "ask"
+        },
+        {
+          "action": "edit",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "subagent",
+          "resource": "*",
+          "effect": "deny"
+        }
+      ]
+    },
+    "scout": {
+      "description": "DeepSeek V4.1 Flash: localización acotada; solo lectura.",
+      "mode": "subagent",
+      "steps": 40,
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "system": "Work in RustyCore. AGENTS.md is already loaded in your context; do not re-read it. Read the current owning checkpoint before changing code. Preserve existing dirty work, active branch and version scope. Follow exact C++/capture evidence, semantic ownership and the project's exclusive final validation cadence. No routine per-helper builds, duplicate acceptance or automatic runtime/database actions. Publication and runtime authority remain governed by the user's actual scope. Never expose credentials, raw client assets or private logs. Configuration files do not grant permission to publish or deploy. Use the existing project skills for their contracts; the user's explicit model preference overrides their old Codex routing: in OpenCode, DeepSeek coordinates, locates, designs and reviews, and builder implements with GPT-6 Luna max; never Sol. The reviewer stays on a different model family from the builder. Do not claim to have run unavailable models. Locate relevant code and reference functions for a bounded question. Read-only: no edits, disk reports, Git mutations, builds/tests or mutating shell commands. Return concise paths and facts. No children. Reporting: return at most about 40 lines with path:line anchors, results with pass/fail/skip counts, findings and unexecuted checks; never paste long logs, file dumps or test listings, cite their paths instead.",
+      "permissions": [
+        {
+          "action": "*",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/woltk-trinity-legacy",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/azerothcore-wotlk-reference",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/woltk-trinity-legacy/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/azerothcore-wotlk-reference/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.local/share/rustycore-opencode-work",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.local/share/rustycore-opencode-work/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.cargo/registry",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.cargo/registry/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.rustup/toolchains",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.rustup/toolchains/**",
+          "effect": "allow"
+        },
+        {
+          "action": "read",
+          "resource": ".env",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": ".env.*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/.env",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/.env.*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "my.cnf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/my.cnf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "worldserver.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "bnetserver.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "WorldServer.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "BNetServer.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git reset --hard*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git -C * reset --hard*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git clean -f*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git -C * clean -f*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push *--force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git -C * push *--force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "gh pr merge*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "gh release create*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "gh release upload*",
+          "effect": "ask"
+        },
+        {
+          "action": "edit",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "subagent",
+          "resource": "*",
+          "effect": "deny"
+        }
+      ]
+    },
+    "build": {
+      "permissions": [
+        {
+          "action": "*",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/woltk-trinity-legacy",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/azerothcore-wotlk-reference",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/woltk-trinity-legacy/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/azerothcore-wotlk-reference/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.local/share/rustycore-opencode-work",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.local/share/rustycore-opencode-work/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.cargo/registry",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.cargo/registry/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.rustup/toolchains",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.rustup/toolchains/**",
+          "effect": "allow"
+        },
+        {
+          "action": "read",
+          "resource": ".env",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": ".env.*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/.env",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/.env.*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "my.cnf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/my.cnf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "worldserver.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "bnetserver.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "WorldServer.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "BNetServer.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git reset --hard*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git -C * reset --hard*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git clean -f*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git -C * clean -f*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push *--force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git -C * push *--force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "gh pr merge*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "gh release create*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "gh release upload*",
+          "effect": "ask"
+        }
+      ]
+    },
+    "plan": {
+      "permissions": [
+        {
+          "action": "*",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/woltk-trinity-legacy",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/azerothcore-wotlk-reference",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/woltk-trinity-legacy/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/server/azerothcore-wotlk-reference/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.local/share/rustycore-opencode-work",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.local/share/rustycore-opencode-work/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.cargo/registry",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.cargo/registry/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.rustup/toolchains",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/home/ubuntu/.rustup/toolchains/**",
+          "effect": "allow"
+        },
+        {
+          "action": "read",
+          "resource": ".env",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": ".env.*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/.env",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/.env.*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "my.cnf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/my.cnf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "worldserver.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "bnetserver.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "WorldServer.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "BNetServer.conf",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git reset --hard*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git -C * reset --hard*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git clean -f*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git -C * clean -f*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push *--force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git -C * push *--force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "gh pr merge*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "gh release create*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "gh release upload*",
+          "effect": "ask"
+        }
+      ]
+    }
+  },
+  "plugins": [
+    {
+      "package": "@prevalentware/opencode-goal-plugin@0.1.64",
+      "options": {
+        "auto_continue": true,
+        "defer_while_tasks_active": true,
+        "max_auto_turns": 25,
+        "locale": "auto"
+      }
+    }
+  ],
+  "policies": [
+    {
+      "action": "tool.use",
+      "resource": "shell:git push --force*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:git push -f*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:git push * --force*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:git push * -f*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:git push --mirror*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:git -C * push *--force*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:git reset --hard*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:git -C * reset --hard*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:git clean -f*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:git -C * clean -f*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:git stash drop*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:git stash clear*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "read:**/.env",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "read:**/.env.*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "read:/home/ubuntu/.config/opencode/*-api-key",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "edit:**/.env",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "edit:**/.env.*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "edit:/home/ubuntu/.config/opencode/*-api-key",
+      "effect": "deny"
+    }
+  ]
+}

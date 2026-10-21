@@ -45,7 +45,11 @@ Logs/
 Thumbs.db
 
 # OpenClaw agent internal dirs (not for public repo)
-.codex/
+.codex/*
+!.codex/config.toml
+!.codex/agents/
+.codex/agents/*
+!.codex/agents/luna-worker.toml
 .agent/
 .agents/*
 .claude/*
@@ -53,7 +57,12 @@ Thumbs.db
 !.claude/agents/
 .claude/agents/*
 !.claude/agents/rustycore-worker.md
-!.claude/agents/deepseek-worker.md
+# OpenCode installs plugin dependencies under .opencode/; only the versioned config is tracked.
+.opencode/node_modules/
+.opencode/package.json
+.opencode/package-lock.json
+.opencode/bun.lock
+.opencode/bun.lockb
 .openclaw/
 .trae/
 memory/
@@ -72,6 +81,7 @@ skills-lock.json
 !.agents/skills/*/SKILL.md
 !.agents/skills/*/agents/openai.yaml
 !.agents/skills/*/references/**/*.md
+!.agents/skills/orchestrate-rustycore/routes/*.md
 # Claude Code discovers project skills under .claude/skills/; track only the relative
 # symlinks to the shared .agents/skills tree.
 !.claude/skills/
