@@ -18,6 +18,9 @@ import re
 import sys
 import tomllib
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import module_sql  # noqa: E402
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 MODULES_DIR = REPO_ROOT / "modules"
 LOCK_PATH = REPO_ROOT / "modules.lock.toml"
@@ -196,6 +199,8 @@ def read_module_sql(module_id: str, root: pathlib.Path) -> dict | None:
         f"{where}: min_core_schema {minimum} is newer than this server's core schema",
     )
 
+    prefix = table_prefix(module_id)
+
     def entry_file(entry: dict, label: str) -> tuple[str, str]:
         file = str(entry.get("file", ""))
         _require(
@@ -204,6 +209,15 @@ def read_module_sql(module_id: str, root: pathlib.Path) -> dict | None:
         )
         path = sql_dir / file
         _require(path.is_file(), f"{where}: {label} file {file} is missing")
+        # The static guard: only the module's own prefixed tables (#1444 H6).
+        problems = module_sql.check_script(
+            path.read_text(encoding="utf-8"), prefix, purge=label == "purge"
+        )
+        _require(
+            not problems,
+            f"{where}: {file} is refused by the module SQL guard (prefix {prefix}): "
+            + "; ".join(problems),
+        )
         return file, sql_sha256(path)
 
     def database_of(entry: dict, label: str) -> str:
@@ -475,11 +489,17 @@ def render_sql_entries(table: str, sql: dict) -> list[str]:
 
 
 def split_lock(text: str) -> tuple[str, str]:
-    """The generated part and the preserved tombstone block of a lock."""
-    index = text.find(TOMBSTONE_MARKER)
+    """The generated part and the preserved tombstone block of a lock.
+
+    The marker counts only as a whole line: a quoted value that happens to
+    contain its text (a description, say) is not the block.
+    """
+    if text.startswith(TOMBSTONE_MARKER + "\n"):
+        return "", text
+    index = text.find("\n" + TOMBSTONE_MARKER + "\n")
     if index < 0:
         return text, ""
-    return text[:index], text[index:]
+    return text[: index + 1], text[index + 1 :]
 
 
 def read_previous_lock() -> tuple[dict, str]:
@@ -571,15 +591,19 @@ def check_sql_history(modules: list[dict], previous: dict) -> None:
                 f"module {identifier} is re-installed but its data/sql does not continue the "
                 f"tombstoned history ({m['database']} {m['version']})",
             )
-    prefixes: dict[str, str] = {}
     with_sql = {identifier for identifier, m in current.items() if m.get("sql")}
-    for identifier in sorted(with_sql | set(tombstones)):
-        prefix = table_prefix(identifier)
-        _require(
-            prefix not in prefixes or prefixes[prefix] == identifier,
-            f"modules {prefixes.get(prefix)} and {identifier} share the table prefix {prefix}",
-        )
-        prefixes[prefix] = identifier
+    # A prefix may not contain another (mod_demo_ vs mod_demo_x_): the guard
+    # would let the shorter one reach the longer one's tables.
+    owners = sorted(with_sql | set(tombstones))
+    for first in owners:
+        for second in owners:
+            if first < second:
+                a, b = table_prefix(first), table_prefix(second)
+                _require(
+                    not (a.startswith(b) or b.startswith(a)),
+                    f"modules {first} and {second} share the table prefix "
+                    f"{min(a, b, key=len)} (one prefix contains the other)",
+                )
 
 
 def has_sql(modules: list[dict], tombstone_block: str) -> bool:

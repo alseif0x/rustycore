@@ -27,7 +27,7 @@ class Workspace:
         self.root = root
         (root / "tools/modules").mkdir(parents=True)
         (root / "crates").mkdir()
-        for name in ("compose.py", "rustycore-module"):
+        for name in ("compose.py", "rustycore-module", "module_sql.py"):
             shutil.copy2(REPO_ROOT / "tools/modules" / name, root / "tools/modules" / name)
         shutil.copytree(REPO_ROOT / "tools/modules/skeleton", root / "tools/modules/skeleton")
         shutil.copytree(REPO_ROOT / "crates/wow-module-api", root / "crates/wow-module-api")
@@ -477,6 +477,71 @@ class ModuleManagerTests(unittest.TestCase):
                 lock.write_text(base + "\n" + compose.TOMBSTONE_MARKER + "\n" + block, encoding="utf-8")
                 refused = self.ws.run("sync")
                 self.assertNotEqual(refused.returncode, 0, refused.stdout)
+
+    def test_the_sql_guard_matches_the_shared_vectors(self) -> None:
+        sys.path.insert(0, str(REPO_ROOT / "tools/modules"))
+        import module_sql  # noqa: PLC0415
+        vectors = json.loads((REPO_ROOT / "tools/modules/sql_guard_vectors.json").read_text())
+        prefix = vectors["prefix"]
+        self.assertEqual(module_sql.table_prefix("example.milestones"), prefix)
+        for kind, purge in (("migration", False), ("purge", True)):
+            for statement in vectors[kind]["allow"]:
+                with self.subTest(kind=kind, allow=statement):
+                    self.assertEqual(module_sql.check_script(statement, prefix, purge), [])
+            for statement in vectors[kind]["deny"]:
+                with self.subTest(kind=kind, deny=statement):
+                    self.assertNotEqual(module_sql.check_script(statement, prefix, purge), [])
+
+    def test_compose_refuses_sql_on_core_tables(self) -> None:
+        root = self._module_with_sql()
+        (root / "data/sql/characters/1.sql").write_text(
+            "CREATE TABLE mod_demo_greeter_counts (guid INT PRIMARY KEY);\n"
+            "ALTER TABLE characters ADD COLUMN x INT;\n",
+            encoding="utf-8",
+        )
+        refused = self.ws.run("sync")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("refused by the module SQL guard", refused.stderr)
+        self.assertIn("statement 2", refused.stderr)
+        (root / "data/sql/purge/drop.sql").write_text("DROP TABLE characters;\n")
+        (root / "data/sql/characters/1.sql").write_text(
+            "CREATE TABLE mod_demo_greeter_counts (guid INT PRIMARY KEY);\n"
+        )
+        refused = self.ws.run("sync")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("purge/drop.sql", refused.stderr)
+
+    def test_remove_keeps_recorded_sql_acceptable(self) -> None:
+        self._module_with_sql()
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        refused = self.ws.run("remove", "demo.greeter")
+        self.assertEqual(refused.returncode, 4, refused.stderr)
+        self.assertIn("rustycore-db module remove demo.greeter", refused.stderr)
+        self.assertTrue((self.ws.root / "modules/demo_greeter").is_dir())
+
+    def test_a_description_quoting_the_tombstone_marker_is_harmless(self) -> None:
+        sys.path.insert(0, str(REPO_ROOT / "tools/modules"))
+        import compose  # noqa: PLC0415
+        root = self._module_with_sql()
+        manifest = root / "data/sql/manifest.toml"
+        manifest.write_text(
+            manifest.read_text(encoding="utf-8").replace(
+                'description = "counts"', f'description = "counts {compose.TOMBSTONE_MARKER} x"'
+            ),
+            encoding="utf-8",
+        )
+        for _ in range(2):
+            synced = self.ws.run("sync")
+            self.assertEqual(synced.returncode, 0, synced.stderr)
+        self.assertEqual(self.ws.run("check").returncode, 0)
+        self.assertNotIn("tombstone", self._lock())
+
+    def test_nested_table_prefixes_are_refused(self) -> None:
+        self._module_with_sql("demo.x")
+        self._module_with_sql("demo.x.y", directory="nested")
+        refused = self.ws.run("sync")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("one prefix contains the other", refused.stderr)
 
     def test_zero_modules_keep_the_plain_compositor(self) -> None:
         self.assertEqual(self.ws.run("sync").returncode, 0)

@@ -229,6 +229,18 @@ def cmd_remove(args) -> int:
     if len(matches) > 1:
         raise CliError(f"{args.id_or_dir!r} matches several checkouts; use the directory name")
     target = _checkout(pathlib.Path(matches[0]["source_path"]).name)
+    # SQL recorded in the lock may be applied: keep it acceptable first.
+    previous, _ = compose.read_previous_lock()
+    module_id = matches[0]["id"]
+    recorded = any(m.get("id") == module_id and m.get("sql") for m in previous.get("module", []))
+    tombstoned = any(t.get("id") == module_id for t in previous.get("tombstone", []))
+    if recorded and not tombstoned:
+        raise CliError(
+            f"{module_id} has SQL recorded in modules.lock.toml; run "
+            f"`rustycore-db module remove {module_id}` (then with --yes) first, which keeps "
+            f"its history and data and retains its SQL for a later purge",
+            EXIT_DIRTY,
+        )
     shutil.rmtree(target)
     emit(
         args.json,

@@ -214,6 +214,27 @@ impl ModuleSchema {
         for module in self.modules.iter().chain(&self.tombstones) {
             validate_module(module)?;
         }
+        // A prefix may not contain another (mod_demo_ vs mod_demo_x_): the
+        // guard would let the shorter one reach the longer one's tables.
+        let owners: BTreeSet<&str> = self
+            .modules
+            .iter()
+            .chain(&self.tombstones)
+            .map(|module| module.id.as_str())
+            .collect();
+        for first in &owners {
+            for second in &owners {
+                let (a, b) = (
+                    super::module_sql::table_prefix(first),
+                    super::module_sql::table_prefix(second),
+                );
+                if first < second && (a.starts_with(&b) || b.starts_with(&a)) {
+                    bail!(
+                        "modules {first} and {second} share a table prefix (one of {a} and {b} contains the other)"
+                    );
+                }
+            }
+        }
         // A re-installed module continues its tombstoned history.
         for tombstone in &self.tombstones {
             let Some(active) = self.active(&tombstone.id) else {
@@ -248,6 +269,15 @@ fn validate_module(module: &LockedModule) -> Result<()> {
     let Some(sql) = &module.sql else {
         return Ok(());
     };
+    check_relative(id, &sql.source)?;
+    for file in sql
+        .migration
+        .iter()
+        .map(|migration| &migration.file)
+        .chain(sql.purge.iter().map(|purge| &purge.file))
+    {
+        check_relative(id, file)?;
+    }
     if parse_schema_version(&sql.min_core_schema).is_none() {
         bail!(
             "module {id}: invalid min_core_schema {:?}",
@@ -286,6 +316,21 @@ fn validate_module(module: &LockedModule) -> Result<()> {
             );
         }
         check_sha(id, &purge.file, &purge.sha256)?;
+    }
+    Ok(())
+}
+
+/// A recorded path stays relative and inside its root: no absolute path, no
+/// `..`, no empty segment.
+fn check_relative(id: &str, path: &str) -> Result<()> {
+    let safe = !path.is_empty()
+        && !path.starts_with('/')
+        && !path.contains('\\')
+        && path
+            .split('/')
+            .all(|part| !part.is_empty() && part != "." && part != "..");
+    if !safe {
+        bail!("module {id}: path {path:?} must be relative, without `..`");
     }
     Ok(())
 }

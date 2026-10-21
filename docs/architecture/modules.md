@@ -142,6 +142,29 @@ Owner decisions (2026-10-21, recorded on #1444):
   drop a module whose SQL is in the lock unless it is tombstoned. A re-installed module must
   continue its tombstoned history. Removal never deletes data; a separate explicit purge runs
   the module's reviewed DROP scripts.
+- **Static guard.** `compose.py` (`tools/modules/module_sql.py`) at sync and `rustycore-db`
+  (`wow_database::migration::module_sql`) before applying or purging check every statement:
+  migrations may only `CREATE TABLE`/`ALTER TABLE` the module's tables, `CREATE`/`DROP INDEX` on
+  them, and `INSERT`/`REPLACE`/`UPDATE`/`DELETE` their rows; purge scripts may only
+  `DROP TABLE` them. Qualified names, `SELECT`, `JOIN`, `RENAME`, `UNION`, file I/O, executable
+  `/*! */` comments, foreign keys to other tables and every other statement are refused. Both
+  guards are tested against the shared `tools/modules/sql_guard_vectors.json`.
+- **Commands** (dry run unless `--yes`), `rustycore-db module <apply|remove|purge> <id>`:
+  - `apply` runs the composed module's pending migrations per database in version order. It
+    refuses while the core schema has a problem, while an earlier module in `enabled_order` has a
+    pending migration, when `min_core_schema` is newer than the core manifest, when a file no
+    longer matches its recorded checksum, or when the guard refuses it. It holds the same
+    advisory lock as `migrate`, and a failed statement leaves the row incomplete for explicit
+    recovery, like a core migration.
+  - `remove` keeps every table and history row. It copies the recorded files to
+    `modules/.retired/<id>/data/sql` and writes the module's tombstone into the lock. Then
+    `rustycore-module remove <id>` (which refuses before that step), `sync` and a rebuild.
+  - `purge` (only for a tombstoned, no longer composed module) runs the retained, re-verified and
+    guarded DROP scripts, deletes the module's history rows and its tombstone, and deletes the
+    retained copy. Run `sync` afterwards.
+- **Tests** use a throwaway database: the ignored `live_mariadb_module_apply_remove_and_purge`
+  (`RUSTYCORE_DB_IT_USER`, `_HOST`, `_PORT`, `_PASS`, as the other `live_mariadb*` tests), run in
+  CI by `.github/workflows/wow-database-live.yml`. Never point them at a server database.
 - **Core migrations stay separate.** `rustycore-db status|validate|migrate` read the lock
   (`--lock`, default `modules.lock.toml`) so module history is validated, but `migrate`
   applies core migrations only; module migrations are applied in `enabled_order`, then

@@ -11,6 +11,8 @@ use wow_database::migration::{
 };
 use wow_database::{Database, StatementDef, build_connection_string_with_ssl_like_cpp};
 
+mod module;
+
 const EXIT_OK: u8 = 0;
 const EXIT_USAGE: u8 = 2;
 const EXIT_INCOMPATIBLE: u8 = 3;
@@ -62,6 +64,9 @@ async fn run(args: Vec<String>) -> Result<u8> {
     {
         print_help();
         return Ok(EXIT_OK);
+    }
+    if args.first().map(String::as_str) == Some("module") {
+        return module::run(args[1..].to_vec()).await;
     }
     let cli = match Cli::parse(args) {
         Ok(cli) => cli,
@@ -279,8 +284,12 @@ fn print_human(output: &Output) {
 fn print_help() {
     println!(
         "rustycore-db <status|validate|migrate> [--dry-run] [--json] [--config PATH] [--manifest PATH] [--lock PATH]\n\
+         rustycore-db module <apply|remove|purge> <id> [--yes] [--json] [--config PATH] [--manifest PATH] [--lock PATH]\n\
          \nmigrate applies core migrations only; module SQL recorded in the lock (default modules.lock.toml)\n\
-         is reported and validated, never applied by migrate (the module commands are #1444 H6b).\n\
+         is reported and validated, and changed only by the module commands, which are dry runs unless --yes:\n\
+         \x20 apply   run a composed module's pending migrations (core current, earlier modules first)\n\
+         \x20 remove  keep its tables and history; retain its SQL and write its tombstone into the lock\n\
+         \x20 purge   run a removed module's reviewed DROP scripts, delete its history and tombstone\n\
          \nExit codes:\n  0 compatible/success\n  2 invalid command line\n  3 schema incompatible or migrations pending\n  4 operational/database/lock/migration failure"
     );
 }

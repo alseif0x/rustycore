@@ -13,6 +13,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
+pub mod module_ops;
+pub mod module_sql;
 pub mod modules;
 
 pub use modules::{ModuleSchema, is_module_component, module_component};
@@ -164,18 +166,17 @@ impl MigrationManifest {
             .iter()
             .filter(|migration| migration.database == database)
             .collect();
-        // Numeric versions compare numerically ("2026.10.9" < "2026.10.10");
-        // anything else keeps the text order.
-        migrations.sort_by(|a, b| {
-            a.component.cmp(&b.component).then_with(|| {
-                match (
-                    modules::parse_schema_version(&a.version),
-                    modules::parse_schema_version(&b.version),
-                ) {
-                    (Some(left), Some(right)) => left.cmp(&right),
-                    _ => a.version.cmp(&b.version),
-                }
-            })
+        // Numeric versions compare numerically ("2026.10.9" < "2026.10.10")
+        // and sort before any other version, which keeps its text order: one
+        // total key, so mixed kinds can never form a comparison cycle.
+        migrations.sort_by_cached_key(|migration| {
+            let parsed = modules::parse_schema_version(&migration.version);
+            (
+                migration.component.clone(),
+                parsed.is_none(),
+                parsed,
+                migration.version.clone(),
+            )
         });
         migrations
     }
@@ -337,7 +338,7 @@ pub async fn validate_runtime_schema(
             .iter()
             .any(|problem| problem.contains(modules::MODULE_COMPONENT_PREFIX))
         {
-            "; module SQL is applied only by the operator's `rustycore-db module` command (#1444 H6b), and a removed module needs its tombstone in the composed modules.lock.toml"
+            "; module SQL is applied with `rustycore-db module apply <id>`, and a removed module needs its tombstone in the composed modules.lock.toml"
         } else {
             ""
         };
@@ -445,6 +446,17 @@ async fn apply_one(
     manifest: &MigrationManifest,
     migration: &Migration,
 ) -> Result<()> {
+    let content = normalized_source(&manifest.source_path(migration))?;
+    apply_one_content(connection, migration, &content).await
+}
+
+/// Record `migration` as started, run `content`, then mark it successful.
+/// A failure leaves the row incomplete for explicit recovery.
+async fn apply_one_content(
+    connection: &mut PoolConnection<MySql>,
+    migration: &Migration,
+    content: &str,
+) -> Result<()> {
     let next_rank: u64 = sqlx::query_scalar(
         "SELECT CAST(COALESCE(MAX(`installed_rank`), 0) + 1 AS UNSIGNED) FROM `rustycore_schema_history`",
     )
@@ -465,9 +477,8 @@ async fn apply_one(
     .execute(&mut **connection)
     .await?;
 
-    let content = normalized_source(&manifest.source_path(migration))?;
     let started = Instant::now();
-    for statement in split_sql(&content) {
+    for statement in split_sql(content) {
         if let Err(error) = sqlx::query(statement).execute(&mut **connection).await {
             let message = format!("{error}");
             let _ = sqlx::query(
@@ -847,7 +858,7 @@ fn split_sql(content: &str) -> Vec<&str> {
     let (mut start, mut index) = (0, 0);
     while index < bytes.len() {
         match bytes[index] {
-            b'-' if index + 1 < bytes.len() && bytes[index + 1] == b'-' => {
+            b'-' if module_sql::dash_comment_at(bytes, index) => {
                 while index < bytes.len() && bytes[index] != b'\n' {
                     index += 1;
                 }
