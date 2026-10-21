@@ -806,6 +806,29 @@ def validation_commands(
         add_command(planned, ["python3", "tools/architecture/wow_world_closure.py", "check"])
     if profile == "final" and any(path in closure_files for path in all_paths):
         add_command(planned, ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_wow_world_closure.py"])
+    # #1442 T0: the per-test census ledger matches the tree and the wow-world
+    # test suite stays at or below its reviewed ceiling (lines, tests). The
+    # census reads every crates/wow-world* source and Cargo.lock, so final plans
+    # it for any change there, to the census, its ledger or ceiling, or to the
+    # session-index helpers it imports; its suite follows the tool. Neither
+    # calls Cargo; quick never runs them.
+    census_tool = {
+        "tools/architecture/wow_world_test_census.py",
+        "tools/architecture/wow_world_test_scan.py",
+        "tools/architecture/test_wow_world_test_census.py",
+        "tools/architecture/session_method_index.py",
+    }
+    census_inputs = census_tool | {
+        "Cargo.lock",
+        "tools/architecture/wow-world-test-census.json",
+        "tools/architecture/wow-world-test-ceiling.json",
+    }
+    if profile == "final" and any(
+        path.startswith("crates/wow-world") or path in census_inputs for path in all_paths
+    ):
+        add_command(planned, ["python3", "tools/architecture/wow_world_test_census.py", "check"])
+    if profile == "final" and any(path in census_tool for path in all_paths):
+        add_command(planned, ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_wow_world_test_census.py"])
     # #1363 slice 6c (#1405 review): the warning counter and the moved-body
     # token comparison run their own self-tests in final when either file
     # changes, like the closure suite above. Neither calls Cargo.

@@ -192,6 +192,31 @@ allow-list entry or a source the module walk cannot reach fails the check. `inde
 per-module table; `check --done` is the #1363 done criterion (no non-forward method outside the
 allow-list). Changing the tool also plans its `self-test`. It reads sources only and calls no Cargo.
 
+A `final` run plans `python3 tools/architecture/wow_world_test_census.py check` (#1442 T0) when
+its diff touches any of these:
+
+- `crates/wow-world*/**`;
+- `Cargo.lock`;
+- the census ledger `tools/architecture/wow-world-test-census.json`;
+- its ceiling `wow-world-test-ceiling.json`;
+- `wow_world_test_census.py` or its scanner `wow_world_test_scan.py`;
+- the `session_method_index.py` helpers it imports.
+
+The check fails unless all of the following hold:
+
+- the per-test census ledger matches the tree;
+- every `crates/wow-world/unit_tests/*.rs` is mounted;
+- the physical lines of `crates/wow-world/unit_tests/**`, the tests there and the tests in
+  `crates/wow-world/src` stay at or below the newest reviewed ceiling entry.
+
+Moving or deleting tests passes, and the check suggests a `tighten` entry. Adding a test fails
+until you regenerate the ledger with `wow_world_test_census.py census --write` and add a reviewed
+`raise` entry that lifts the ceiling.
+
+Changing the tool or those helpers also plans its suite
+`tools/architecture/test_wow_world_test_census.py`. It reads sources only and calls no Cargo.
+See [the census](../architecture/wow-world-test-census.md).
+
 Paths classified as `documentation` run no Cargo command. Classification is directory-first:
 even a README under `crates/`, `tools/wow-test-bot/` or
 `tools/architecture/handler-contract-check/` takes that directory's Cargo route. The standalone

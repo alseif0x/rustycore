@@ -16,6 +16,7 @@ checkbox or an old percentage is not proof that the current server implements th
 | What architecture and extension direction is approved? | [Modularity/ECS plan](architecture/modularity-and-ecs-plan.md) |
 | How should responsibilities and files be organized? | [Module design](architecture/module-design-guidelines.md) and [dependency/ownership boundaries](architecture/ownership-and-boundaries.md) |
 | Which oversized files still owe a #584:C4 split? | [C4 physical split plan](architecture/c4-physical-split-plan.md) |
+| Which `wow-world` unit tests could move to a domain crate? | [wow-world test census](architecture/wow-world-test-census.md) (#1442) |
 | What reported defects need current verification? | [EXISTING-CODE-DEFECTS.md](migration/EXISTING-CODE-DEFECTS.md) |
 
 Base-server behavior is established by versioned C++ references and appropriate target-build
