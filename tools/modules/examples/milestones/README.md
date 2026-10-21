@@ -26,6 +26,13 @@ of source API 2 together.
 - **Per-hook interest.** `enabled_hooks` declares the four `player.*` hooks
   the module implements, so the server builds no snapshot for the others.
 
+- **SQL.** `data/sql/manifest.toml` declares one `characters` migration that
+  creates the module's own table `mod_example_milestones_counts`, and a
+  reviewed purge script that drops it. It shows the module SQL lifecycle
+  (`docs/architecture/modules.md`, "Module SQL"); nothing writes the table
+  yet, because the module API gives modules no database access (durable
+  module state is #583).
+
 ## Configuration
 
 | Key | Type | Default | Meaning |
@@ -65,9 +72,19 @@ change), then:
 PROTOC=/home/ubuntu/.local/protoc/bin/protoc python3 tools/modules/rustycore-module test
 ```
 
-Remove it again with
+Its SQL is applied only by an operator, after `sync` recorded it:
+
+```bash
+rustycore-db module apply example.milestones          # dry run
+rustycore-db module apply example.milestones --yes
+```
+
+Remove it again with `rustycore-db module remove example.milestones --yes`
+(once it was applied or recorded: this keeps the table and its history and
+writes a tombstone), then
 `python3 tools/modules/rustycore-module remove example.milestones`, revert the
-workspace member, and run `sync`.
+workspace member, and run `sync`. `rustycore-db module purge
+example.milestones --yes` later drops the table.
 
 ## Trust
 

@@ -90,7 +90,9 @@ def _tokens(statement: str) -> list[tuple[str, str]]:
 
     Kinds: `w` word, `q` backtick identifier (content), `s` string, `p` one
     punctuation character. An executable comment (`/*!` or `/*M!`) raises,
-    because MariaDB runs what it contains.
+    because MariaDB runs what it contains. Strings assume backslash escapes
+    (no NO_BACKSLASH_ESCAPES): SET is refused, so a module script cannot
+    change sql_mode under the guard.
     """
     tokens: list[tuple[str, str]] = []
     index, n = 0, len(statement)

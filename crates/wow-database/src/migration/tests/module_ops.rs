@@ -7,6 +7,10 @@ use crate::migration::module_ops::{
     purge_module, purge_statements, retain_sql, retained_data,
 };
 
+/// The live tests share the server-wide `GET_LOCK` name of the characters
+/// database, so they run one at a time.
+static LIVE: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 const COUNTS: &str = "CREATE TABLE mod_it_mod_counts (guid BIGINT UNSIGNED PRIMARY KEY, kills INT UNSIGNED NOT NULL DEFAULT 0);\n";
 const SEED: &str = "INSERT INTO mod_it_mod_counts (guid, kills) VALUES (1, 2);\n";
 const PURGE: &str = "DROP TABLE IF EXISTS mod_it_mod_counts;\n";
@@ -198,6 +202,7 @@ fn changed_or_unguarded_files_are_refused_before_any_database_work() {
 #[tokio::test]
 #[ignore = "requires a disposable live MariaDB; set RUSTYCORE_DB_IT_USER and optional HOST/PORT/PASS"]
 async fn live_mariadb_module_apply_remove_and_purge() -> Result<()> {
+    let _serial = LIVE.lock().await;
     let Some(user) = std::env::var("RUSTYCORE_DB_IT_USER").ok() else {
         eprintln!("skipping: RUSTYCORE_DB_IT_USER is not set");
         return Ok(());
@@ -405,4 +410,158 @@ fn a_description_quoting_the_marker_is_not_the_tombstone_block() {
     assert!(schema.tombstone("it.mod").is_some());
     assert_eq!(lock_with_tombstones(&quoted, &[]), quoted);
     fs::remove_dir_all(root).unwrap();
+}
+
+/// The shipped example's SQL (#1444 H6c), recorded as compose.py would.
+fn example_lock(root: &Path) -> String {
+    let sql = root.join("tools/modules/examples/milestones/data/sql");
+    let sha = |file: &str| sha256_hex(&normalized_source(&sql.join(file)).unwrap());
+    format!(
+        "source_api = \"2\"\n\n[[module]]\nid = \"example.milestones\"\nenabled_order = 0\n\n[module.sql]\nmin_core_schema = \"2026.08.03.00\"\nsource = \"tools/modules/examples/milestones/data/sql\"\n\n[[module.sql.migration]]\ndatabase = \"characters\"\nversion = \"2026.10.21.00\"\ndescription = \"per-character milestone counts\"\nfile = \"characters/2026_10_21_00_counts.sql\"\nsha256 = \"{}\"\n\n[[module.sql.purge]]\ndatabase = \"characters\"\nfile = \"purge/characters.sql\"\nsha256 = \"{}\"\n",
+        sha("characters/2026_10_21_00_counts.sql"),
+        sha("purge/characters.sql")
+    )
+}
+
+fn repo_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
+#[test]
+fn the_example_module_sql_passes_the_guard() {
+    let root = repo_root();
+    let sql = root.join("tools/modules/examples/milestones/data/sql");
+    let prefix = crate::migration::module_sql::table_prefix("example.milestones");
+    for (file, purge) in [
+        ("characters/2026_10_21_00_counts.sql", false),
+        ("purge/characters.sql", true),
+    ] {
+        let content = normalized_source(&sql.join(file)).unwrap();
+        assert_eq!(
+            crate::migration::module_sql::check_script(&content, &prefix, purge),
+            Vec::<String>::new(),
+            "{file}"
+        );
+    }
+    let schema = ModuleSchema::from_lock(&example_lock(&root)).unwrap();
+    assert!(schema.active("example.milestones").is_some());
+}
+
+#[tokio::test]
+#[ignore = "requires a disposable live MariaDB; set RUSTYCORE_DB_IT_USER and optional HOST/PORT/PASS"]
+async fn live_mariadb_example_milestones_sql_applies_and_purges() -> Result<()> {
+    let _serial = LIVE.lock().await;
+    let Some(user) = std::env::var("RUSTYCORE_DB_IT_USER").ok() else {
+        eprintln!("skipping: RUSTYCORE_DB_IT_USER is not set");
+        return Ok(());
+    };
+    let host = std::env::var("RUSTYCORE_DB_IT_HOST").unwrap_or_else(|_| "127.0.0.1".into());
+    let port = std::env::var("RUSTYCORE_DB_IT_PORT").unwrap_or_else(|_| "3306".into());
+    let password = std::env::var("RUSTYCORE_DB_IT_PASS").unwrap_or_default();
+    let server = MySqlPoolOptions::new()
+        .max_connections(1)
+        .connect(&format!(
+            "mysql://{user}:{password}@{host}:{port}?ssl-mode=DISABLED"
+        ))
+        .await?;
+    let unique = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
+    let database_name = format!("rustycore_example_it_{}_{}", std::process::id(), unique);
+    sqlx::query(&format!(
+        "CREATE DATABASE `{database_name}` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+    ))
+    .execute(&server)
+    .await?;
+    let pool = MySqlPoolOptions::new()
+        .max_connections(3)
+        .connect(&format!(
+            "mysql://{user}:{password}@{host}:{port}/{database_name}?ssl-mode=DISABLED"
+        ))
+        .await?;
+    let characters = DatabaseKind::Characters;
+    sqlx::query("CREATE TABLE it_marker (id INT PRIMARY KEY)")
+        .execute(&pool)
+        .await?;
+    let mut core = core_manifest(characters);
+    core.migrations[0].version = "2026.08.03.00".into();
+    migrate_database(&pool, &core, characters).await?;
+
+    let root = repo_root();
+    let lock = example_lock(&root);
+    let schema = ModuleSchema::from_lock(&lock)?;
+    let manifest = core.with_module_schema(&schema)?;
+    let applied = apply_module(
+        &pool,
+        &manifest,
+        &schema,
+        &root,
+        "example.milestones",
+        characters,
+        true,
+    )
+    .await?;
+    assert_eq!(applied.pending, vec!["2026.10.21.00".to_string()]);
+    assert_eq!(
+        applied.tables,
+        vec!["mod_example_milestones_counts".to_string()]
+    );
+    sqlx::query("INSERT INTO mod_example_milestones_counts (guid, kills) VALUES (15, 1)")
+        .execute(&pool)
+        .await?;
+    assert!(
+        inspect_database(&pool, &manifest, characters)
+            .await?
+            .compatible
+    );
+
+    // Removal keeps the table and its row; the tombstone keeps it accepted.
+    let scratch = std::env::temp_dir().join(format!("{database_name}-root"));
+    let plan = plan_removal(&lock, &root, "example.milestones")?;
+    let tombstoned = ModuleSchema::from_lock(&without_checkout(&plan.lock))?;
+    let accepted = core.with_module_schema(&tombstoned)?;
+    assert!(
+        inspect_database(&pool, &accepted, characters)
+            .await?
+            .compatible
+    );
+    let rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM mod_example_milestones_counts")
+        .fetch_one(&pool)
+        .await?;
+    assert_eq!(rows, 1, "remove never deletes data");
+
+    // Purge from a retained copy (in a scratch root, not the repository).
+    let sql = schema
+        .active("example.milestones")
+        .unwrap()
+        .sql
+        .clone()
+        .unwrap();
+    fs::create_dir_all(&scratch)?;
+    for file in [
+        "characters/2026_10_21_00_counts.sql",
+        "purge/characters.sql",
+    ] {
+        let source = root.join(&sql.source).join(file);
+        let target = scratch.join(&plan.retained).join(file);
+        fs::create_dir_all(target.parent().unwrap())?;
+        fs::copy(source, target)?;
+    }
+    let purged = purge_module(
+        &pool,
+        &tombstoned,
+        &scratch,
+        "example.milestones",
+        characters,
+        true,
+    )
+    .await?;
+    assert!(purged.tables.is_empty());
+    assert!(purged.history.is_empty());
+
+    pool.close().await;
+    sqlx::query(&format!("DROP DATABASE `{database_name}`"))
+        .execute(&server)
+        .await?;
+    server.close().await;
+    fs::remove_dir_all(scratch)?;
+    Ok(())
 }
