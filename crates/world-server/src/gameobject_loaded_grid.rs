@@ -300,7 +300,9 @@ pub fn resolved_template_from_lifecycle_record_like_cpp(
         data: template.data,
         world_effect_id,
         anim_kit_id,
-        level: template.content_tuning_id,
+        // C++ `GameObject::Create` never derives the level from
+        // `ContentTuningId`; it is only a DB2 lookup key (GameObject.cpp:2182).
+        level: 0,
         percent_health: 100,
         custom_param: 0,
     })
@@ -370,7 +372,8 @@ pub fn build_loaded_grid_gameobject_inputs_from_db_like_cpp(
             data: template.data,
             world_effect_id,
             anim_kit_id,
-            level: template.content_tuning_id,
+            // C++ `GameObject::Create` leaves the level at 0 (see above).
+            level: 0,
             percent_health: 100,
             custom_param: 0,
         },

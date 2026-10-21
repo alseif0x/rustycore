@@ -112,6 +112,44 @@ pub(crate) mod live_tests {
         );
     }
 
+    /// #1436: the spawn movement projection keeps TINYINT/INT UNSIGNED
+    /// columns (C++ two-column COALESCE), so overrides reach spawns.
+    #[tokio::test]
+    #[ignore = "read-only MariaDB probe; set RUSTYCORE_DB_IT_USER, RUSTYCORE_DB_IT_WORLD_DB and optional HOST/PORT/PASS/SOCKET"]
+    async fn live_creature_spawn_movement_columns_stay_unsigned_like_cpp() {
+        let sql = format!(
+            "{} WHERE ctm.CreatureId IS NOT NULL ORDER BY creature.guid LIMIT 500",
+            <crate::WorldStatements as crate::statements::StatementDef>::sql(
+                crate::WorldStatements::SEL_CREATURE_SPAWNS
+            )
+        );
+        let rows = live_world_probe_rows_like_cpp(&sql).await.unwrap();
+        assert!(!rows.is_empty());
+        for row in &rows {
+            for cell in &row[28..=33] {
+                assert!(
+                    matches!(
+                        cell,
+                        NativeFieldLikeCpp::UInt8(_) | NativeFieldLikeCpp::Null
+                    ),
+                    "{cell:?}"
+                );
+            }
+            assert!(
+                matches!(
+                    row[34],
+                    NativeFieldLikeCpp::UInt32(_) | NativeFieldLikeCpp::Null
+                ),
+                "{:?}",
+                row[34]
+            );
+        }
+        assert!(
+            rows.iter()
+                .any(|row| row[30] != NativeFieldLikeCpp::UInt8(0))
+        );
+    }
+
     #[tokio::test]
     #[ignore = "read-only MariaDB probe; set RUSTYCORE_DB_IT_USER, RUSTYCORE_DB_IT_WORLD_DB and optional HOST/PORT/PASS/SOCKET"]
     async fn live_world_catalog_adapters_decode_every_row_like_cpp() {

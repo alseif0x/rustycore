@@ -5,15 +5,24 @@
 //! (FieldValueConverters.h): the value is read in the column's own width
 //! (`MysqlTypeToFieldType`, QueryResult.cpp), `static_cast` to the requested
 //! width and accepted only if casting it back reproduces the column value.
-//! A width that does not round-trip, or a numeric getter on a text/binary
-//! column, reaches `LogTruncation` (FieldValueConverter.cpp), which is an
-//! `ASSERT(false)`: the C++ server stops instead of loading a wrong value.
+//! A value that does not round-trip reaches `LogTruncation`
+//! (FieldValueConverter.cpp), which is an `ASSERT(false)` in every build: the
+//! C++ server stops instead of loading a wrong value.
 //!
 //! sqlx instead rejects any signed/unsigned mismatch, and the former
 //! `try_read(..).unwrap_or(0)` turned that rejection into a silent 0 (#1430,
 //! #1436). These getters read the column at its MariaDB width, apply the C++
-//! round-trip, and return an error where C++ asserts, so the catalog load
+//! round-trip and return an error where C++ asserts, so the catalog load
 //! fails closed with the field name instead of storing a default.
+//!
+//! They are deliberately **stricter than C++** for the column class: C++
+//! decodes DECIMAL through its double converter and, over the text protocol,
+//! parses numbers from strings and returns any column, including numeric and
+//! DATE/TIME ones, through `GetString()` (QueryResult.cpp:155-187). Here a
+//! numeric getter on a text/DECIMAL/DATE column and `GetString()` on a
+//! non-text column are errors, because in these projections that only
+//! happens when the SQL widened a column by accident (`COALESCE(uint,
+//! literal)` is DECIMAL).
 
 use anyhow::{Result, anyhow, bail};
 
@@ -33,8 +42,8 @@ pub(crate) enum NativeFieldLikeCpp {
     Double(f64),
     /// C++ `DatabaseFieldTypes::Binary`: CHAR/VARCHAR/TEXT/BLOB columns.
     Text(String),
-    /// DECIMAL, DATE, BIT, ...: no C++ numeric/string getter used by these
-    /// catalogs accepts them (`COALESCE(uint, literal)` is DECIMAL).
+    /// DECIMAL, DATE, BIT, ...: C++ can read these (DECIMAL as double, any
+    /// column as a string); these getters reject them, stricter than C++.
     Unsupported(String),
 }
 
@@ -42,8 +51,9 @@ pub(crate) enum NativeFieldLikeCpp {
 pub trait FieldNumberLikeCpp: Copy + Default {
     const GETTER: &'static str;
 
-    /// `GetNumericValue`: `static_cast` plus the round-trip check; `None` is
-    /// a truncation (or a non-numeric column) that C++ asserts on.
+    /// `GetNumericValue`: `static_cast` plus the round-trip check. `None` is
+    /// a truncation that C++ asserts on, or a non-numeric column that these
+    /// getters reject (stricter than C++).
     fn cast_like_cpp(native: &NativeFieldLikeCpp) -> Option<Self>;
 }
 
@@ -108,7 +118,8 @@ field_number_like_cpp!(
 pub trait FieldRowLikeCpp {
     fn native_field_like_cpp(&self, column: usize) -> Result<NativeFieldLikeCpp>;
 
-    /// C++ `Field::GetUInt32()` & co.: `NULL` is 0, a truncation is an error.
+    /// C++ `Field::GetUInt32()` & co.: `NULL` is 0, a truncation is an error
+    /// (C++ asserts), a non-numeric column is an error (stricter than C++).
     fn get_like_cpp<T: FieldNumberLikeCpp>(&self, column: usize, field: &str) -> Result<T> {
         Ok(self
             .get_nullable_like_cpp(column, field)?
@@ -124,6 +135,15 @@ pub trait FieldRowLikeCpp {
         let native = self.native_field_like_cpp(column)?;
         if native == NativeFieldLikeCpp::Null {
             return Ok(None);
+        }
+        if matches!(
+            native,
+            NativeFieldLikeCpp::Text(_) | NativeFieldLikeCpp::Unsupported(_)
+        ) {
+            bail!(
+                "{} on {field} (column {column}) holding {native:?} is not a numeric column (rejected, stricter than C++)",
+                T::GETTER
+            );
         }
         T::cast_like_cpp(&native).map(Some).ok_or_else(|| {
             anyhow!(
@@ -145,13 +165,14 @@ pub trait FieldRowLikeCpp {
             .map(|value| value == 1))
     }
 
-    /// C++ `Field::GetString()`: `NULL` is empty; a numeric column asserts.
+    /// C++ `Field::GetString()`: `NULL` is empty. A non-text column is an
+    /// error, stricter than C++, which returns its text-protocol string.
     fn get_string_like_cpp(&self, column: usize, field: &str) -> Result<String> {
         match self.native_field_like_cpp(column)? {
             NativeFieldLikeCpp::Null => Ok(String::new()),
             NativeFieldLikeCpp::Text(text) => Ok(text),
             native => bail!(
-                "Field::GetString on {field} (column {column}) holding {native:?} is not a string column (C++ LogTruncation)"
+                "Field::GetString on {field} (column {column}) holding {native:?} is not a string column (rejected, stricter than C++)"
             ),
         }
     }
@@ -252,8 +273,8 @@ mod tests {
         // creature_template_difficulty.MinLevel is TINYINT; GetUInt8.
         assert_eq!(u8::cast_like_cpp(&Native::Int8(75)), Some(75));
         assert_eq!(u8::cast_like_cpp(&Native::Int8(-1)), Some(u8::MAX));
-        // creature_template.RequiredExpansion is INT; a narrower getter
-        // asserts in C++ when the value does not fit.
+        // A value that does not fit the getter width does not round-trip:
+        // C++ `LogTruncation` asserts.
         assert_eq!(u8::cast_like_cpp(&Native::Int32(2)), Some(2));
         assert_eq!(u8::cast_like_cpp(&Native::Int32(300)), None);
         assert_eq!(u16::cast_like_cpp(&Native::UInt32(70_000)), None);
@@ -270,7 +291,7 @@ mod tests {
     }
 
     #[test]
-    fn null_text_and_decimal_columns_follow_cpp_field_getters() {
+    fn null_reads_like_cpp_and_text_or_decimal_columns_are_rejected_stricter_than_cpp() {
         let row = [
             Native::Null,
             Native::Text("Hogger".into()),
@@ -288,6 +309,7 @@ mod tests {
             .get_like_cpp::<u8>(2, "COALESCE(ctm.Ground, 1)")
             .unwrap_err();
         assert!(error.to_string().contains("Field::GetUInt8"), "{error}");
+        assert!(error.to_string().contains("stricter than C++"), "{error}");
         assert!(
             error.to_string().contains("COALESCE(ctm.Ground, 1)"),
             "{error}"
