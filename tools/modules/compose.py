@@ -591,15 +591,19 @@ def check_sql_history(modules: list[dict], previous: dict) -> None:
                 f"module {identifier} is re-installed but its data/sql does not continue the "
                 f"tombstoned history ({m['database']} {m['version']})",
             )
-    prefixes: dict[str, str] = {}
     with_sql = {identifier for identifier, m in current.items() if m.get("sql")}
-    for identifier in sorted(with_sql | set(tombstones)):
-        prefix = table_prefix(identifier)
-        _require(
-            prefix not in prefixes or prefixes[prefix] == identifier,
-            f"modules {prefixes.get(prefix)} and {identifier} share the table prefix {prefix}",
-        )
-        prefixes[prefix] = identifier
+    # A prefix may not contain another (mod_demo_ vs mod_demo_x_): the guard
+    # would let the shorter one reach the longer one's tables.
+    owners = sorted(with_sql | set(tombstones))
+    for first in owners:
+        for second in owners:
+            if first < second:
+                a, b = table_prefix(first), table_prefix(second)
+                _require(
+                    not (a.startswith(b) or b.startswith(a)),
+                    f"modules {first} and {second} share the table prefix "
+                    f"{min(a, b, key=len)} (one prefix contains the other)",
+                )
 
 
 def has_sql(modules: list[dict], tombstone_block: str) -> bool:

@@ -536,6 +536,13 @@ class ModuleManagerTests(unittest.TestCase):
         self.assertEqual(self.ws.run("check").returncode, 0)
         self.assertNotIn("tombstone", self._lock())
 
+    def test_nested_table_prefixes_are_refused(self) -> None:
+        self._module_with_sql("demo.x")
+        self._module_with_sql("demo.x.y", directory="nested")
+        refused = self.ws.run("sync")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("one prefix contains the other", refused.stderr)
+
     def test_zero_modules_keep_the_plain_compositor(self) -> None:
         self.assertEqual(self.ws.run("sync").returncode, 0)
         main = (self.ws.root / "crates/world-modules/src/main.rs").read_text(encoding="utf-8")

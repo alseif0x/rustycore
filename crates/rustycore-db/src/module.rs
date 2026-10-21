@@ -66,6 +66,7 @@ impl ModuleCli {
         let mut manifest = PathBuf::from(DEFAULT_MANIFEST);
         let mut config = PathBuf::from(DEFAULT_CONFIG);
         let mut lock = PathBuf::from(DEFAULT_LOCK);
+        let mut config_given = false;
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "--yes" => execute = true,
@@ -76,13 +77,21 @@ impl ModuleCli {
                         .ok_or_else(|| format!("{arg} requires a path"))?;
                     match arg.as_str() {
                         "--manifest" => manifest = PathBuf::from(value),
-                        "--config" => config = PathBuf::from(value),
+                        "--config" => {
+                            config_given = true;
+                            config = PathBuf::from(value);
+                        }
                         _ => lock = PathBuf::from(value),
                     }
                 }
                 value if !value.starts_with('-') && id.is_none() => id = Some(value.to_owned()),
                 unknown => return Err(format!("unknown or duplicate argument: {unknown}")),
             }
+        }
+        if execute && !config_given {
+            return Err(
+                "--yes changes databases or the lock: name the configuration with --config".into(),
+            );
         }
         Ok(Self {
             action,
@@ -199,8 +208,7 @@ pub(crate) async fn run(args: Vec<String>) -> Result<u8> {
                     .and_then(|module| module.sql.as_ref())
                     .expect("plan_removal found it");
                 retain_sql(&root, sql, &plan)?;
-                std::fs::write(&cli.lock, &plan.lock)
-                    .with_context(|| format!("cannot write {}", cli.lock.display()))?;
+                write_atomically(&cli.lock, &plan.lock)?;
             }
         }
         Action::Purge => {
@@ -222,11 +230,10 @@ pub(crate) async fn run(args: Vec<String>) -> Result<u8> {
                 format!("delete {}", retained.display()),
             ];
             if cli.execute {
-                std::fs::write(
+                write_atomically(
                     &cli.lock,
-                    module_ops::lock_without_tombstone(&lock_text, id)?,
-                )
-                .with_context(|| format!("cannot write {}", cli.lock.display()))?;
+                    &module_ops::lock_without_tombstone(&lock_text, id)?,
+                )?;
                 if retained.is_dir() {
                     std::fs::remove_dir_all(&retained)?;
                 }
@@ -239,6 +246,17 @@ pub(crate) async fn run(args: Vec<String>) -> Result<u8> {
         print_human(&output);
     }
     Ok(EXIT_OK)
+}
+
+/// Replace `path` with `text` through a sibling temporary file and a rename,
+/// so a crash never leaves a half-written lock.
+fn write_atomically(path: &std::path::Path, text: &str) -> Result<()> {
+    let mut temporary = path.as_os_str().to_owned();
+    temporary.push(".tmp");
+    let temporary = PathBuf::from(temporary);
+    std::fs::write(&temporary, text)
+        .with_context(|| format!("cannot write {}", temporary.display()))?;
+    std::fs::rename(&temporary, path).with_context(|| format!("cannot replace {}", path.display()))
 }
 
 fn print_human(output: &Output) {
@@ -293,10 +311,16 @@ mod tests {
         let cli = parse(&["apply", "example.milestones"]).unwrap();
         assert_eq!(cli.action, Action::Apply);
         assert!(!cli.execute);
+        assert!(
+            parse(&["purge", "example.milestones", "--yes"]).is_err(),
+            "--yes needs --config"
+        );
         let cli = parse(&[
             "purge",
             "example.milestones",
             "--yes",
+            "--config",
+            "w.conf",
             "--lock",
             "x/modules.lock.toml",
         ])

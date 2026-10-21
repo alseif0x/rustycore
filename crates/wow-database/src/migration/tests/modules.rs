@@ -376,3 +376,25 @@ fn mixed_version_kinds_sort_by_one_total_key() {
         .collect();
     assert_eq!(order, ["1.9", "1.10", "2", "9", "10", "1.x", "a", "b"]);
 }
+
+#[test]
+fn nested_prefixes_and_escaping_paths_are_refused() {
+    let nested = lock("characters", "").replace("plain.module\"", "example.milestones.x\"")
+        + "\n[module.sql]\nmin_core_schema = \"1\"\nsource = \"b\"\n";
+    let error = ModuleSchema::from_lock(&nested).unwrap_err().to_string();
+    assert!(error.contains("share a table prefix"), "{error}");
+    let tombstoned = lock(
+        "characters",
+        &TOMBSTONE.replace("old.module", "example.milestones.old"),
+    );
+    let error = ModuleSchema::from_lock(&tombstoned)
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("share a table prefix"), "{error}");
+    for bad in ["../x.sql", "/etc/x.sql", "a//b.sql", "./a.sql"] {
+        let escaping = lock("characters", "").replace("characters/2026_10_21_00_counts.sql", bad);
+        assert!(ModuleSchema::from_lock(&escaping).is_err(), "{bad}");
+    }
+    let source = lock("characters", "").replace("modules/milestones/data/sql", "../outside");
+    assert!(ModuleSchema::from_lock(&source).is_err());
+}

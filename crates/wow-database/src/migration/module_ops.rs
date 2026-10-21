@@ -188,14 +188,22 @@ pub async fn apply_module(
         );
     }
     let state = super::inspect_database(pool, manifest, database).await?;
+    // Only pending module migrations are tolerated here (this module's are
+    // the work; an earlier module's are refused below). Checksum drift,
+    // incomplete rows and history absent from the lock are refused, for core
+    // and modules alike.
+    let pending_module = format!(
+        "pending migration {}",
+        super::modules::MODULE_COMPONENT_PREFIX
+    );
     let core_problems: Vec<_> = state
         .problems
         .iter()
-        .filter(|problem| !problem.contains(super::modules::MODULE_COMPONENT_PREFIX))
+        .filter(|problem| !problem.starts_with(&pending_module))
         .collect();
     if !core_problems.is_empty() {
         bail!(
-            "{} core schema is not current ({}); run `rustycore-db migrate` first",
+            "{} schema has problems ({}); fix them (core: `rustycore-db migrate`) before applying module SQL",
             database.as_str(),
             core_problems
                 .iter()
@@ -349,6 +357,21 @@ pub async fn purge_module(
                 .execute(&mut *connection)
                 .await
                 .with_context(|| format!("purge statement failed: {statement}"))?;
+        }
+        // The history goes only once every module table is gone, so a purge
+        // interrupted between the two is safe to run again.
+        let prefix = table_prefix(module_id).replace('_', "\\_");
+        let remaining: Vec<String> = sqlx::query_scalar(
+            "SELECT CAST(table_name AS CHAR) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name LIKE ? ORDER BY table_name",
+        )
+        .bind(format!("{prefix}%"))
+        .fetch_all(&mut *connection)
+        .await?;
+        if !remaining.is_empty() {
+            bail!(
+                "module {module_id} tables remain after its purge scripts ({}); its history is kept: extend the reviewed purge script and run purge again",
+                remaining.join(", ")
+            );
         }
         if super::table_exists_on(&mut connection, HISTORY_TABLE).await? {
             sqlx::query("DELETE FROM `rustycore_schema_history` WHERE `component` = ?")

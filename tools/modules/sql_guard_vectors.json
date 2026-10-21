@@ -15,7 +15,16 @@
       "REPLACE INTO mod_example_milestones_counts VALUES (1, 2, 3)",
       "UPDATE `mod_example_milestones_counts` SET `kills` = 0 WHERE `guid` = 1",
       "DELETE FROM mod_example_milestones_counts WHERE kills = 0",
-      "DELETE FROM `mod_example_milestones_counts`"
+      "DELETE FROM `mod_example_milestones_counts`",
+      "CREATE TABLE mod_example_milestones_opts (id INT PRIMARY KEY) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='counts'",
+      "CREATE TABLE mod_example_milestones_opts2 (id INT PRIMARY KEY) ENGINE = Aria, ROW_FORMAT=DYNAMIC, AUTO_INCREMENT=5",
+      "ALTER TABLE mod_example_milestones_counts ADD INDEX idx_k (kills), DROP COLUMN old, MODIFY COLUMN kills BIGINT UNSIGNED, CHANGE quests q INT, ENGINE=InnoDB",
+      "ALTER TABLE mod_example_milestones_counts ADD CONSTRAINT fk_x FOREIGN KEY (guid) REFERENCES mod_example_milestones_other (guid)",
+      "ALTER TABLE mod_example_milestones_counts DEFAULT CHARACTER SET utf8mb4, COMMENT 'x'",
+      "INSERT INTO mod_example_milestones_counts (guid, kills) VALUES (1, 1 - -1)",
+      "INSERT INTO mod_example_milestones_counts (guid) VALUES (1) -- a trailing comment",
+      "INSERT INTO mod_example_milestones_counts (guid) VALUES (1)\n--\n",
+      "INSERT INTO mod_example_milestones_counts (guid, kills) VALUES (1, 2) ON DUPLICATE KEY UPDATE kills = kills + 1"
     ],
     "deny": [
       "CREATE TABLE characters_extra (id INT)",
@@ -55,13 +64,37 @@
       "SELECT 1",
       "/*!50000 DROP TABLE characters */",
       "CREATE TABLE mod_example_milestones_x (id INT) /*!50000 , DROP TABLE characters */",
-      "CALL p()"
+      "CALL p()",
+      "ALTER TABLE mod_example_milestones_counts EXCHANGE PARTITION p0 WITH TABLE characters WITHOUT VALIDATION",
+      "ALTER TABLE mod_example_milestones_counts CONVERT TABLE characters TO PARTITION p1 VALUES LESS THAN (MAXVALUE)",
+      "ALTER TABLE mod_example_milestones_counts ADD PARTITION (PARTITION p2 VALUES LESS THAN (10))",
+      "ALTER TABLE mod_example_milestones_counts DISCARD TABLESPACE",
+      "ALTER TABLE mod_example_milestones_counts ENGINE=CONNECT TABLE_TYPE=MYSQL CONNECTION='mysql://u@h/characters/characters'",
+      "ALTER TABLE mod_example_milestones_counts ENGINE=FEDERATED",
+      "ALTER TABLE mod_example_milestones_counts ORDER BY guid, FORCE",
+      "ALTER TABLE mod_example_milestones_counts CONVERT TO CHARACTER SET latin1",
+      "CREATE TABLE mod_example_milestones_p (id INT) PARTITION BY HASH(id) PARTITIONS 2",
+      "CREATE TABLE mod_example_milestones_d (id INT) DATA DIRECTORY='/tmp'",
+      "CREATE TABLE mod_example_milestones_c (id INT) ENGINE=CONNECT TABLE_TYPE=MYSQL CONNECTION='mysql://u@h/characters/characters'",
+      "CREATE TABLE mod_example_milestones_f (id INT) ENGINE=FEDERATED CONNECTION='mysql://u@h/characters/characters'",
+      "CREATE TABLE mod_example_milestones_m (guid INT) ENGINE=MERGE UNION=(characters) INSERT_METHOD=LAST",
+      "CREATE TABLE mod_example_milestones_s (id INT) ENGINE=SPIDER COMMENT='wrapper \"mysql\", table \"characters\"'",
+      "INSERT INTO mod_example_milestones_counts (v) VALUES (1--1, (SELECT sha_pass_hash FROM auth.account LIMIT 1)\n)",
+      "INSERT INTO mod_example_milestones_counts (v) VALUES (1--1, LOAD_FILE('/etc/passwd')\n)",
+      "INSERT INTO mod_example_milestones_counts (v) VALUES (LOAD_FILE('/etc/shadow'))",
+      "INSERT INTO mod_example_milestones_counts (v) VALUES (GET_LOCK('rustycore-db:migrate:characters', 100))",
+      "INSERT INTO mod_example_milestones_counts (v) VALUES (RELEASE_ALL_LOCKS())",
+      "INSERT INTO mod_example_milestones_counts (v) VALUES (RELEASE_LOCK('x'))",
+      "UPDATE mod_example_milestones_counts SET kills = SLEEP(100)",
+      "UPDATE mod_example_milestones_counts SET kills = BENCHMARK(100000000, MD5('x'))",
+      "INSERT INTO mod_example_milestones_counts (v) VALUES (NEXT VALUE FOR characters_seq)",
+      "INSERT INTO mod_example_milestones_counts (v) VALUES (NEXTVAL(characters_seq))",
+      "INSERT INTO mod_example_milestones_counts TABLE characters"
     ]
   },
   "purge": {
     "allow": [
       "DROP TABLE IF EXISTS `mod_example_milestones_counts`",
-      "DROP TABLE mod_example_milestones_counts",
       "drop table if exists mod_example_milestones_a, `mod_example_milestones_b`"
     ],
     "deny": [
@@ -71,7 +104,9 @@
       "DROP DATABASE characters",
       "DELETE FROM mod_example_milestones_counts",
       "TRUNCATE TABLE mod_example_milestones_counts",
-      "CREATE TABLE mod_example_milestones_x (id INT)"
+      "CREATE TABLE mod_example_milestones_x (id INT)",
+      "DROP TABLE mod_example_milestones_counts",
+      "DROP TABLE IF EXISTS mod_example_milestones_a --x\n, characters"
     ]
   }
 }

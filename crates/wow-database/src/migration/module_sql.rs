@@ -13,10 +13,68 @@
 
 use super::split_sql;
 
-/// Words that read or reach another table, or rename one away from the prefix.
-const BANNED_WORDS: [&str; 7] = [
-    "SELECT", "JOIN", "RENAME", "UNION", "OUTFILE", "DUMPFILE", "INFILE",
+/// Words that read or reach another table, rename one away from the prefix,
+/// move data between tables (partitions), reach files or other servers, or
+/// call a side-effecting function. Matched as whole words, case-insensitively,
+/// outside strings and comments. Mirrors `module_sql.py`'s `BANNED_WORDS`.
+const BANNED_WORDS: &[&str] = &[
+    "SELECT",
+    "JOIN",
+    "RENAME",
+    "UNION",
+    "OUTFILE",
+    "DUMPFILE",
+    "INFILE",
+    "PARTITION",
+    "PARTITIONS",
+    "SUBPARTITION",
+    "EXCHANGE",
+    "TABLESPACE",
+    "DIRECTORY",
+    "CONNECTION",
+    "FOR",
+    "LOAD_FILE",
+    "RELEASE_ALL_LOCKS",
+    "RELEASE_LOCK",
+    "GET_LOCK",
+    "IS_FREE_LOCK",
+    "IS_USED_LOCK",
+    "SLEEP",
+    "BENCHMARK",
+    "NEXTVAL",
+    "SETVAL",
+    "LASTVAL",
+    "MASTER_POS_WAIT",
+    "MASTER_GTID_WAIT",
+    "SYS_EXEC",
+    "SYS_EVAL",
 ];
+
+/// Storage engines a module table may use: none of them reaches another
+/// table, file or server (CONNECT, FEDERATED, MERGE, SPIDER and so on would).
+const ALLOWED_ENGINES: &[&str] = &["INNODB", "ARIA", "MYISAM", "MEMORY"];
+
+/// Table options allowed after CREATE TABLE's columns and as ALTER clauses.
+const TABLE_OPTIONS: &[&str] = &[
+    "ENGINE",
+    "CHARSET",
+    "CHARACTER",
+    "COLLATE",
+    "COMMENT",
+    "AUTO_INCREMENT",
+    "ROW_FORMAT",
+];
+
+/// MariaDB starts a `--` comment only when the second dash is followed by
+/// whitespace, a control character or the end of input; `1--1` is
+/// arithmetic. Shared by the tokenizer and `split_sql`.
+pub(super) fn dash_comment_at(bytes: &[u8], index: usize) -> bool {
+    bytes.get(index) == Some(&b'-')
+        && bytes.get(index + 1) == Some(&b'-')
+        && bytes
+            .get(index + 2)
+            .is_none_or(|next| next.is_ascii_whitespace() || *next < 32)
+}
 
 /// The table prefix a module owns: `mod_` + its id with `.` as `_` + `_`.
 #[must_use]
@@ -30,6 +88,11 @@ enum Token {
     Quoted(String),
     Str,
     Punct(char),
+}
+
+/// The byte offset of char `index` (statements are mostly ASCII).
+fn byte_offset(chars: &[char], index: usize) -> usize {
+    chars[..index].iter().map(|c| c.len_utf8()).sum()
 }
 
 fn is_ident_char(c: char) -> bool {
@@ -52,7 +115,9 @@ fn tokens(statement: &str) -> Result<Vec<Token>, String> {
         let c = chars[index];
         if c.is_whitespace() {
             index += 1;
-        } else if starts(index, "--") || c == '#' {
+        } else if (c == '-' && dash_comment_at(statement.as_bytes(), byte_offset(&chars, index)))
+            || c == '#'
+        {
             while index < n && chars[index] != '\n' {
                 index += 1;
             }
@@ -189,6 +254,95 @@ fn check_common(tokens: &[Token], prefix: &str) -> Result<(), String> {
     Ok(())
 }
 
+impl Cursor<'_> {
+    /// One allowed table option: ENGINE (allowed engines only), [DEFAULT]
+    /// CHARSET / CHARACTER SET / COLLATE, COMMENT, AUTO_INCREMENT, ROW_FORMAT.
+    fn table_option(&mut self) -> Result<(), String> {
+        self.word(&["DEFAULT"]);
+        let option = match self.tokens.get(self.at) {
+            Some(Token::Word(text))
+                if TABLE_OPTIONS.contains(&text.to_ascii_uppercase().as_str()) =>
+            {
+                text.to_ascii_uppercase()
+            }
+            Some(other) => return Err(format!("table option {other:?} is not allowed")),
+            None => return Err("table option 'end of statement' is not allowed".into()),
+        };
+        self.at += 1;
+        if option == "CHARACTER" && !self.word(&["SET"]) {
+            return Err("CHARACTER must be followed by SET".into());
+        }
+        self.punct('=');
+        let value = self
+            .tokens
+            .get(self.at)
+            .cloned()
+            .ok_or("a table option needs a value")?;
+        self.at += 1;
+        if option == "ENGINE" {
+            let allowed = matches!(&value, Token::Word(name) | Token::Quoted(name)
+                if ALLOWED_ENGINES.contains(&name.to_ascii_uppercase().as_str()));
+            if !allowed {
+                return Err(format!(
+                    "engine {value:?} is not allowed; use one of {ALLOWED_ENGINES:?}"
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// Skip a parenthesised group whose opening `(` was just consumed.
+    fn skip_group(&mut self) -> Result<(), String> {
+        let mut depth = 1;
+        while depth > 0 {
+            let token = self.tokens.get(self.at).ok_or("unbalanced parentheses")?;
+            self.at += 1;
+            match token {
+                Token::Punct('(') => depth += 1,
+                Token::Punct(')') => depth -= 1,
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    /// A row statement names one module table only.
+    fn dml_tail(&self) -> Result<(), String> {
+        if self.tokens[self.at..]
+            .iter()
+            .any(|token| matches!(token, Token::Word(text) if text.eq_ignore_ascii_case("TABLE")))
+        {
+            return Err("a row statement may name one module table only".into());
+        }
+        Ok(())
+    }
+}
+
+/// One ALTER TABLE clause: ADD/DROP/MODIFY/CHANGE/ALTER of columns, indexes,
+/// keys and own foreign keys, or a table option. Nothing else.
+fn alter_clause(clause: &[Token], prefix: &str) -> Result<(), String> {
+    let head = match clause.first() {
+        Some(Token::Word(text)) => text.to_ascii_uppercase(),
+        other => return Err(format!("ALTER TABLE clause {other:?} is not allowed")),
+    };
+    if ["ADD", "DROP", "MODIFY", "CHANGE", "ALTER"].contains(&head.as_str()) {
+        return Ok(());
+    }
+    if TABLE_OPTIONS.contains(&head.as_str()) || head == "DEFAULT" {
+        let mut c = Cursor {
+            tokens: clause,
+            prefix,
+            at: 0,
+        };
+        c.table_option()?;
+        if !c.done() {
+            return Err("unexpected text after a table option".into());
+        }
+        return Ok(());
+    }
+    Err(format!("ALTER TABLE clause '{head}' is not allowed"))
+}
+
 /// `Ok` only when the statement changes nothing but the module's own tables.
 pub fn check_migration_statement(statement: &str, prefix: &str) -> Result<(), String> {
     let tokens = tokens(statement)?;
@@ -204,8 +358,34 @@ pub fn check_migration_statement(statement: &str, prefix: &str) -> Result<(), St
         if !c.punct('(') {
             return Err("CREATE TABLE must define its columns".into());
         }
+        c.skip_group()?;
+        while !c.done() {
+            c.punct(',');
+            c.table_option()?;
+        }
     } else if c.word(&["ALTER", "TABLE"]) {
         c.own_table()?;
+        let mut clause = Vec::new();
+        let mut depth = 0i32;
+        for token in tokens[c.at..]
+            .iter()
+            .chain(std::iter::once(&Token::Punct(',')))
+        {
+            match token {
+                Token::Punct('(') => depth += 1,
+                Token::Punct(')') => depth -= 1,
+                _ => {}
+            }
+            if *token == Token::Punct(',') && depth == 0 {
+                if clause.is_empty() {
+                    return Err("empty ALTER TABLE clause".into());
+                }
+                alter_clause(&clause, prefix)?;
+                clause.clear();
+            } else {
+                clause.push(token.clone());
+            }
+        }
     } else if c.word(&["CREATE", "UNIQUE", "INDEX"])
         || c.word(&["CREATE", "INDEX"])
         || c.word(&["DROP", "INDEX"])
@@ -220,16 +400,19 @@ pub fn check_migration_statement(statement: &str, prefix: &str) -> Result<(), St
         || c.word(&["REPLACE", "INTO"])
     {
         c.own_table()?;
+        c.dml_tail()?;
     } else if c.word(&["UPDATE"]) {
         c.own_table()?;
         if !c.word(&["SET"]) {
             return Err("UPDATE may change one module table only".into());
         }
+        c.dml_tail()?;
     } else if c.word(&["DELETE", "FROM"]) {
         c.own_table()?;
         if !(c.done() || c.word(&["WHERE"]) || c.word(&["ORDER"]) || c.word(&["LIMIT"])) {
             return Err("DELETE may change one module table only".into());
         }
+        c.dml_tail()?;
     } else {
         return Err("only CREATE/ALTER TABLE, CREATE/DROP INDEX, INSERT, REPLACE, UPDATE and DELETE on the module's tables are allowed".into());
     }
@@ -248,7 +431,9 @@ pub fn check_purge_statement(statement: &str, prefix: &str) -> Result<(), String
     if !c.word(&["DROP", "TABLE"]) {
         return Err("a purge script may only DROP TABLE the module's tables".into());
     }
-    c.word(&["IF", "EXISTS"]);
+    if !c.word(&["IF", "EXISTS"]) {
+        return Err("a purge DROP TABLE needs IF EXISTS, so a retried purge is safe".into());
+    }
     c.own_table()?;
     while c.punct(',') {
         c.own_table()?;

@@ -42,3 +42,16 @@ fn a_script_reports_each_refused_statement() {
     assert_eq!(problems.len(), 1, "{problems:?}");
     assert!(problems[0].starts_with("statement 2:"), "{problems:?}");
 }
+
+#[test]
+fn dash_dash_starts_a_comment_only_before_whitespace() {
+    // MariaDB: `1--1` is arithmetic, so the line after it is still SQL.
+    assert_eq!(
+        crate::migration::split_sql("SELECT 1--1;\nSELECT 2"),
+        vec!["SELECT 1--1", "SELECT 2"]
+    );
+    assert_eq!(
+        crate::migration::split_sql("SELECT 1 -- note; still a comment\n;SELECT 2 --\n"),
+        vec!["SELECT 1 -- note; still a comment", "SELECT 2 --"]
+    );
+}

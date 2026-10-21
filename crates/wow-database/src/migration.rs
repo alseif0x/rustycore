@@ -858,7 +858,7 @@ fn split_sql(content: &str) -> Vec<&str> {
     let (mut start, mut index) = (0, 0);
     while index < bytes.len() {
         match bytes[index] {
-            b'-' if index + 1 < bytes.len() && bytes[index + 1] == b'-' => {
+            b'-' if module_sql::dash_comment_at(bytes, index) => {
                 while index < bytes.len() && bytes[index] != b'\n' {
                     index += 1;
                 }

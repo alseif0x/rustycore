@@ -285,6 +285,38 @@ async fn live_mariadb_module_apply_remove_and_purge() -> Result<()> {
     let again = apply_module(&pool, &manifest, &schema, &root, "it.mod", characters, true).await?;
     assert!(again.pending.is_empty(), "apply is idempotent");
 
+    // F1: apply refuses checksum drift and unknown module history instead of
+    // tolerating every module problem.
+    sqlx::query("UPDATE rustycore_schema_history SET checksum_sha256 = ? WHERE component = 'module:it.mod' AND version = '1'")
+        .bind("c".repeat(64))
+        .execute(&pool)
+        .await?;
+    let error = apply_module(
+        &pool, &manifest, &schema, &root, "it.mod", characters, false,
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(error.contains("checksum differs"), "{error}");
+    sqlx::query("UPDATE rustycore_schema_history SET checksum_sha256 = ? WHERE component = 'module:it.mod' AND version = '1'")
+        .bind(sha256_hex(COUNTS))
+        .execute(&pool)
+        .await?;
+    sqlx::query("INSERT INTO rustycore_schema_history (installed_rank, component, database_name, version, description, script, checksum_sha256, execution_time_ms, success) VALUES (999, 'module:stranger', 'characters', '1', 'x', 'x', ?, 0, 1)")
+        .bind("d".repeat(64))
+        .execute(&pool)
+        .await?;
+    let error = apply_module(
+        &pool, &manifest, &schema, &root, "it.mod", characters, false,
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(error.contains("module:stranger"), "{error}");
+    sqlx::query("DELETE FROM rustycore_schema_history WHERE component = 'module:stranger'")
+        .execute(&pool)
+        .await?;
+
     // A plain server (no module history accepted) refuses this database.
     assert!(
         !inspect_database(
@@ -317,6 +349,26 @@ async fn live_mariadb_module_apply_remove_and_purge() -> Result<()> {
         vec!["DROP TABLE IF EXISTS mod_it_mod_counts".to_string()]
     );
     assert_eq!(dry.tables.len(), 1, "a dry run drops nothing");
+    // F2: a table the purge script does not drop keeps the history.
+    sqlx::query("CREATE TABLE mod_it_mod_extra (id INT PRIMARY KEY)")
+        .execute(&pool)
+        .await?;
+    let error = purge_module(&pool, &tombstoned, &root, "it.mod", characters, true)
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("mod_it_mod_extra"), "{error}");
+    assert_eq!(
+        retained_data(&pool, "it.mod", characters)
+            .await?
+            .history
+            .len(),
+        2
+    );
+    sqlx::query("DROP TABLE mod_it_mod_extra")
+        .execute(&pool)
+        .await?;
+    // Retrying is safe: the DROP is IF EXISTS.
     let purged = purge_module(&pool, &tombstoned, &root, "it.mod", characters, true).await?;
     assert!(purged.tables.is_empty());
     assert!(purged.history.is_empty());
