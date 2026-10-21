@@ -8375,7 +8375,3 @@ R5 leído con `python3 -B tools/architecture/wow_world_coupling.py report --json
 17 miembros superiores, 199.895 líneas clasificadas como producción, 2.598 métodos contabilizados
 por el scanner, 443 thunks y 1.726 métodos en subestados. Este reporte textual puede incluir
 items con cfg internos; no es un censo del código realmente compilado ni prueba del DAG completo.
-
-
-- `tools/architecture/net_move.py`: comprobación R1 net-move
-  (`python3 tools/architecture/net_move.py check --base origin/3.4.3`).

@@ -57,6 +57,12 @@ Thumbs.db
 !.claude/agents/
 .claude/agents/*
 !.claude/agents/rustycore-worker.md
+# OpenCode installs plugin dependencies under .opencode/; only the versioned config is tracked.
+.opencode/node_modules/
+.opencode/package.json
+.opencode/package-lock.json
+.opencode/bun.lock
+.opencode/bun.lockb
 .openclaw/
 .trae/
 memory/

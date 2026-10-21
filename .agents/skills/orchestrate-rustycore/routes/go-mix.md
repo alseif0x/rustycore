@@ -122,3 +122,7 @@ work, then execute the single completed-delivery acceptance campaign. The curren
 refactor checkpoint records that instruction; do not restart feedback checks at a
 worker or helper boundary. Completed-delivery
 acceptance follows AGENTS.md: the parent plans it once and may assign the worker as the
+exclusive validation executor for the agreed non-live sequence; that assignment does not
+include another QA campaign or autonomous repairs. The parent interprets findings and
+assigns corrections. Authorized live DB/runtime QA stays with the parent. Reuse valid
+evidence for unchanged inputs.

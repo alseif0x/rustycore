@@ -36,6 +36,7 @@ human operator**. This is the rule that keeps a round from stalling.
   the reviewer tier can make; do not repeat a request for approval across rounds; do not
   treat "the human has not answered" as a blocker for work that does not touch a reserved
   operation.
+
 ## Roles and principles (runtime-neutral)
 
 The roles are the same in every runtime; only the models differ (see **Routing by runtime**).
