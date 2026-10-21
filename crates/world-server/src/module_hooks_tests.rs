@@ -501,11 +501,11 @@ fn per_tick_effect_warnings_are_throttled_then_summarized() {
     );
     hooks.creature_events_like_cpp(
         start + WORLD_UPDATE_BUDGET_SUMMARY_INTERVAL_LIKE_CPP + Duration::from_millis(100),
-        &[creature_event(CreatureModuleEventKindLikeCpp::Died, 1)],
+        &[],
     );
     assert_eq!(
         hooks.warnings.logged, 2,
-        "one summary with the suppressed count"
+        "one summary with the suppressed count, even on a quiet tick"
     );
 
     struct Invalid;

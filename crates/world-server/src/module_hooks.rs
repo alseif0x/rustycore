@@ -500,7 +500,13 @@ impl WorldModuleHooksLikeCpp {
         now: Instant,
         events: &[CreatureModuleEventLikeCpp],
     ) {
-        if events.is_empty() || !self.creature_events_wanted_like_cpp() {
+        if !self.creature_events_wanted_like_cpp() {
+            return;
+        }
+        if events.is_empty() {
+            // A quiet tick still closes the warning window, so a summary is
+            // not held back until the next event.
+            self.warnings.record_like_cpp(now, "creature.*", Vec::new());
             return;
         }
         for event in events {

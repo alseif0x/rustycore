@@ -73,7 +73,7 @@ async fn a_kill_reports_creature_died_once_on_the_next_lifecycle_phase() {
 }
 
 #[tokio::test]
-async fn without_a_creature_module_the_marks_are_cleared_and_nothing_is_copied() {
+async fn without_a_creature_module_nothing_is_copied() {
     let (mut session, canonical, guid) = creature_session(91_102, 40);
     let map_store = canonical_player_transfer_test_map_store_like_cpp();
     session.core.player_guid = Some(ObjectGuid::create_player(1, 9102));
@@ -84,16 +84,39 @@ async fn without_a_creature_module_the_marks_are_cleared_and_nothing_is_copied()
         &map_store,
         Instant::now(),
     );
-    let later = run_canonical_creature_lifecycle_phase_recording_module_events_for_test_like_cpp(
+
+    assert!(silent.module_events_like_cpp.is_empty());
+}
+
+#[tokio::test]
+async fn a_forced_despawn_raises_no_creature_died() {
+    // AzerothCore raises `OnUnitDeath` from `Unit::Kill` only
+    // (`Unit.cpp:14307`), not from `ForcedDespawn`.
+    let (mut session, canonical, guid) = creature_session(91_104, 40);
+    let map_store = canonical_player_transfer_test_map_store_like_cpp();
+    let _ = run_canonical_creature_lifecycle_phase_recording_module_events_for_test_like_cpp(
         &canonical,
         &map_store,
         Instant::now(),
     );
+    session
+        .mutate_world_creature(guid, |creature| {
+            let _ = creature.forced_despawn_runtime(0, 0, wow_entities::game_time_secs_like_cpp());
+        })
+        .expect("live creature");
 
-    assert!(silent.module_events_like_cpp.is_empty());
+    let outcome = run_canonical_creature_lifecycle_phase_recording_module_events_for_test_like_cpp(
+        &canonical,
+        &map_store,
+        Instant::now(),
+    );
     assert!(
-        later.module_events_like_cpp.is_empty(),
-        "a mark cleared without a module is not reported later"
+        outcome
+            .module_events_like_cpp
+            .iter()
+            .all(|event| event.kind != CreatureModuleEventKindLikeCpp::Died),
+        "{:?}",
+        outcome.module_events_like_cpp
     );
 }
 

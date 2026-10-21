@@ -100,10 +100,13 @@ fn canonical_creature_incarnation_exists_like_cpp(
 /// #1444 H3b: report and clear each creature's pending `creature.*` marks.
 ///
 /// `creature.added_to_world` (set by the map's add-to-world) is reported
-/// before `creature.died` (set by the `JUST_DIED` transition), so a creature
-/// added and killed between two ticks reports both in C++ order. Each mark is
-/// cleared even when no module wants the family, so it never accumulates;
-/// only the copy into the outcome depends on the interest flag.
+/// before `creature.died` (set by a kill's `JUST_DIED` transition), so a
+/// creature added and killed between two ticks reports both in C++ order.
+///
+/// With no module wanting the family this returns at once, before any
+/// lookup: the marks are plain bools that cannot accumulate, and the
+/// interest never turns on after startup (modules are only ever disabled), so
+/// a mark left set is never reported.
 fn collect_creature_module_events_like_cpp(
     store: &mut AdmittedCanonicalCreatureLifecycleStoreLikeCpp<'_, '_>,
     map_id: u16,
@@ -114,6 +117,9 @@ fn collect_creature_module_events_like_cpp(
     use wow_world_entities::creature_aggro_contracts::{
         CreatureModuleEventKindLikeCpp, CreatureModuleEventLikeCpp,
     };
+    if !outcome.record_module_events_like_cpp {
+        return;
+    }
     for guid in guids {
         let Some(creature) = store.lifecycle_creature_mut_like_cpp(map_id, instance_id, *guid)
         else {
@@ -122,9 +128,6 @@ fn collect_creature_module_events_like_cpp(
         let state = creature.runtime_state_mut();
         let added = std::mem::take(&mut state.module_added_to_world_pending_like_cpp);
         let died = std::mem::take(&mut state.module_died_pending_like_cpp);
-        if !outcome.record_module_events_like_cpp {
-            continue;
-        }
         for (pending, kind) in [
             (added, CreatureModuleEventKindLikeCpp::AddedToWorld),
             (died, CreatureModuleEventKindLikeCpp::Died),
