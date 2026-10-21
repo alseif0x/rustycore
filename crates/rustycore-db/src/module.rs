@@ -180,6 +180,19 @@ pub(crate) async fn run(args: Vec<String>) -> Result<u8> {
     };
     match cli.action {
         Action::Apply => {
+            // Verify every database's files before touching any (#1468), as
+            // purge does, and with --yes dry-run every database first, so a
+            // world refusal (files, core schema, enabled_order) is found
+            // before characters changes.
+            module_ops::verify_apply_sources(&schema, &root, id)?;
+            if cli.execute {
+                for database in MODULE_DATABASES {
+                    with_pool(database, false, async |pool| {
+                        apply_module(pool, &manifest, &schema, &root, id, database, false).await
+                    })
+                    .await?;
+                }
+            }
             for database in MODULE_DATABASES {
                 let report = with_pool(database, cli.execute, async |pool| {
                     apply_module(pool, &manifest, &schema, &root, id, database, cli.execute).await

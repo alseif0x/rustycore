@@ -3,8 +3,8 @@
 
 use super::*;
 use crate::migration::module_ops::{
-    TOMBSTONE_MARKER, apply_module, lock_with_tombstones, lock_without_tombstone, plan_removal,
-    purge_module, purge_statements, retain_sql, retained_data,
+    TOMBSTONE_MARKER, apply_module, apply_sources, lock_with_tombstones, lock_without_tombstone,
+    plan_removal, purge_module, purge_statements, retain_sql, retained_data, verify_apply_sources,
 };
 
 /// The live tests share the server-wide `GET_LOCK` name of the characters
@@ -195,6 +195,72 @@ fn changed_or_unguarded_files_are_refused_before_any_database_work() {
         .unwrap_err()
         .to_string();
     assert!(error.contains("refused by the module SQL guard"), "{error}");
+    fs::remove_dir_all(root).unwrap();
+    fs::remove_dir_all(root2).unwrap();
+}
+
+/// `workspace` plus a `world` migration of it.mod whose file is `content`
+/// while the lock records `recorded`.
+fn with_world_migration(root: &Path, lock: &str, content: &str, recorded: &str) -> String {
+    let world = root.join("modules/it_mod/data/sql/world");
+    fs::create_dir_all(&world).unwrap();
+    fs::write(world.join("1.sql"), content).unwrap();
+    format!(
+        "{lock}\n[[module.sql.migration]]\ndatabase = \"world\"\nversion = \"1\"\ndescription = \"spawns\"\nfile = \"world/1.sql\"\nsha256 = \"{}\"\n",
+        sha256_hex(recorded)
+    )
+}
+
+#[test]
+fn apply_verifies_both_databases_before_either_is_touched() {
+    // #1468 item 2: the characters files are fine, the world file is not;
+    // the pre-verification the CLI runs first must refuse, so characters is
+    // never changed before world is found bad.
+    let spawns = "CREATE TABLE mod_it_mod_spawns (id INT PRIMARY KEY);\n";
+    let (root, lock) = workspace("preverify", false);
+    let good = with_world_migration(&root, &lock, spawns, spawns);
+    let schema = ModuleSchema::from_lock(&good).unwrap();
+    verify_apply_sources(&schema, &root, "it.mod").unwrap();
+    let characters = apply_sources(&schema, &root, "it.mod", DatabaseKind::Characters).unwrap();
+    assert_eq!(
+        characters
+            .iter()
+            .map(|(migration, _)| migration.version.as_str())
+            .collect::<Vec<_>>(),
+        ["1", "2"]
+    );
+    let world = apply_sources(&schema, &root, "it.mod", DatabaseKind::World).unwrap();
+    assert_eq!(world.len(), 1);
+    assert_eq!(world[0].1, spawns);
+
+    // Changed since the lock recorded it.
+    fs::write(
+        root.join("modules/it_mod/data/sql/world/1.sql"),
+        "CREATE TABLE mod_it_mod_spawns (id BIGINT PRIMARY KEY);\n",
+    )
+    .unwrap();
+    apply_sources(&schema, &root, "it.mod", DatabaseKind::Characters).unwrap();
+    let error = verify_apply_sources(&schema, &root, "it.mod")
+        .unwrap_err()
+        .to_string();
+    assert!(
+        error.contains("changed since modules.lock.toml recorded it") && error.contains("world"),
+        "{error}"
+    );
+
+    // Recorded exactly, but it reaches a core table: the guard refuses it.
+    let (root2, lock2) = workspace("preverify-guard", false);
+    let evil = "DELETE FROM creature;\n";
+    let guarded = with_world_migration(&root2, &lock2, evil, evil);
+    let schema = ModuleSchema::from_lock(&guarded).unwrap();
+    let error = verify_apply_sources(&schema, &root2, "it.mod")
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("refused by the module SQL guard"), "{error}");
+    assert!(error.contains("world/1.sql"), "{error}");
+
+    // A tombstoned or unknown module is refused before any file is read.
+    assert!(verify_apply_sources(&schema, &root2, "no.such").is_err());
     fs::remove_dir_all(root).unwrap();
     fs::remove_dir_all(root2).unwrap();
 }

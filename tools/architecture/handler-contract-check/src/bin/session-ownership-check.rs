@@ -7,12 +7,15 @@ use std::process::ExitCode;
 
 fn usage() -> ExitCode {
     eprintln!(
-        "usage: session-ownership-check check [--policy PATH]\n       \
+        "usage: session-ownership-check [--root PATH] check [--policy PATH]\n       \
          session-ownership-check check --syntax-only\n       \
          session-ownership-check print-baseline\n       \
          session-ownership-check print-path-modules\n       \
          session-ownership-check print-persistence-baseline\n       \
-         session-ownership-check print-persistence-policy [--from-snapshot PATH]"
+         session-ownership-check print-persistence-policy [--from-snapshot PATH]\n\n\
+         Every command prints its scan root on stderr and refuses to run unless the tree it\n\
+         was compiled from is the current directory's git top-level; --root PATH (in any\n\
+         position) scans PATH instead, on purpose."
     );
     ExitCode::FAILURE
 }
@@ -51,7 +54,24 @@ fn main() -> ExitCode {
 }
 
 fn run() -> ExitCode {
-    let arguments: Vec<_> = std::env::args_os().skip(1).collect();
+    // Every command scans a checkout, so each one confirms which (#1468).
+    let (root, arguments) =
+        match handler_contract_check::take_root_argument(std::env::args_os().skip(1).collect()) {
+            Ok(split) => split,
+            Err(error) => {
+                eprintln!("{error}");
+                return usage();
+            }
+        };
+    if arguments.is_empty() {
+        return usage();
+    }
+    if let Err(error) =
+        handler_contract_check::select_scan_root("session-ownership-check", root.as_deref())
+    {
+        eprintln!("session ownership check failed: {error}");
+        return ExitCode::FAILURE;
+    }
     let result = match arguments.as_slice() {
         [command] if command == "check" => {
             handler_contract_check::check_session_ownership_repository(None)

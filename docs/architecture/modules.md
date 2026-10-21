@@ -165,7 +165,10 @@ Owner decisions (2026-10-21, recorded on #1444):
     tolerates only pending module migrations: it refuses while the schema has any other problem
     (checksum drift, incomplete rows, unknown history), while an earlier module in `enabled_order` has a
     pending migration, when `min_core_schema` is newer than the core manifest, when a file no
-    longer matches its recorded checksum, or when the guard refuses it. It holds the same
+    longer matches its recorded checksum, or when the guard refuses it. Like `purge`, it checks
+    every recorded file of both databases before it connects, and with `--yes` it dry-runs both
+    databases before changing either, so a `world` refusal never follows a changed `characters`
+    (#1468). It holds the same
     advisory lock as `migrate`, and a failed statement leaves the row incomplete for explicit
     recovery, like a core migration.
   - `remove` keeps every table and history row. It copies the recorded files to
@@ -199,7 +202,9 @@ script, which show the lifecycle below; nothing writes that table until #583 giv
 durable state. Install it with
 `rustycore-module install --path tools/modules/examples/milestones`, `sync`, and add
 `modules/milestones` to the workspace members to build or test it; `test_rustycore_module.py`
-checks that it installs and composes.
+checks that it installs and composes, and `tools/modules/check_sql_compositor.py` does exactly
+that install/sync/member step, runs its tests and `cargo check -p world-modules` on the SQL-mode
+compositor, and restores the checkout (`final` runs it for module-surface changes, #1468).
 
 ## The zero-module build is unchanged
 

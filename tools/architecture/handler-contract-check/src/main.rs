@@ -5,10 +5,22 @@
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
-    let mut arguments = std::env::args_os();
-    let _binary = arguments.next();
-    match (arguments.next(), arguments.next()) {
-        (Some(command), None) if command == "check" => {
+    let (root, arguments) =
+        match handler_contract_check::take_root_argument(std::env::args_os().skip(1).collect()) {
+            Ok(split) => split,
+            Err(error) => {
+                eprintln!("{error}");
+                return usage();
+            }
+        };
+    match arguments.as_slice() {
+        [command] if command == "check" => {
+            if let Err(error) =
+                handler_contract_check::select_scan_root("handler-contract-check", root.as_deref())
+            {
+                eprintln!("handler contract check failed: {error}");
+                return ExitCode::FAILURE;
+            }
             match handler_contract_check::check_repository() {
                 Ok(report) => {
                     println!("{report}");
@@ -20,9 +32,11 @@ fn main() -> ExitCode {
                 }
             }
         }
-        _ => {
-            eprintln!("usage: handler-contract-check check");
-            ExitCode::FAILURE
-        }
+        _ => usage(),
     }
+}
+
+fn usage() -> ExitCode {
+    eprintln!("usage: handler-contract-check check [--root PATH]");
+    ExitCode::FAILURE
 }

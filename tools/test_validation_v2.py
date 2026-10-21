@@ -1396,10 +1396,62 @@ def test_evidence_contract(repo: Path, environment: dict[str, str], directory: P
     assert runner.failed_exit_code(result) == runner.RUNNER_ERROR
 
 
+def test_module_and_persistence_plan_contract() -> None:
+    """#1468: final compiles the SQL-mode compositor (and runs the module tool
+    suite) for module-surface changes, and records - without running - the
+    exhaustive persistence inventory when its inputs change."""
+    repo = RUNNER_PATH.parents[1]
+    compositor = ["python3", runner.SQL_COMPOSITOR_CHECK, "--jobs", "2"]
+    suite = ["python3", runner.MODULE_TOOL_SUITE]
+
+    def plan(profile: str, paths: list[str]) -> tuple[list[list[str]], list[str]]:
+        return runner.validation_commands(repo, profile, 2, "base", runner.grouped_paths(paths), None)
+
+    for path in (
+        "tools/modules/compose.py",
+        "tools/modules/examples/milestones/src/lib.rs",
+        "crates/world-server/src/entry.rs",
+        "crates/world-modules/src/main.rs",
+        "crates/wow-module-api/src/lib.rs",
+    ):
+        planned, _ = plan("final", [path])
+        assert compositor in planned, path
+        assert (suite in planned) is path.startswith("tools/modules/"), path
+        quick, _ = plan("quick", [path])
+        assert compositor not in quick and suite not in quick, path
+    for path in ("crates/world-server/src/app.rs", "docs/architecture/modules.md"):
+        planned, _ = plan("final", [path])
+        assert compositor not in planned and suite not in planned, path
+    # The compositor step compiles world-server: it needs the pinned protoc.
+    try:
+        runner.require_protoc_for([{"section": "x", "argv": compositor}], {})
+    except ValueError as error:
+        assert "protoc" in str(error)
+    else:
+        raise AssertionError("the compositor step must require protoc")
+
+    for path in (
+        "tools/architecture/persistence-boundary-workflows.json",
+        "tools/architecture/persistence-access-snapshot.json",
+        "tools/architecture/handler-contract-check/src/persistence_policy.rs",
+    ):
+        planned, skips = plan("final", [path])
+        assert any("persistence inventory" in skip and "audit" in skip for skip in skips), path
+        assert not any(
+            "session-ownership-check" in " ".join(command) and "--syntax-only" not in command
+            for command in planned
+        ), "final never runs the exhaustive inventory"
+        _, quick_skips = plan("quick", [path])
+        assert not quick_skips, path
+    _, skips = plan("final", ["tools/architecture/handler-contract-check/src/scan_root.rs"])
+    assert not any("persistence inventory" in skip for skip in skips)
+
+
 def main() -> None:
     test_no_validation_level()
     test_architecture_plan_contract()
     test_timing_plan_contract()
+    test_module_and_persistence_plan_contract()
     with tempfile.TemporaryDirectory(prefix="validation-v2-self-test-") as raw_directory:
         directory = Path(raw_directory)
         repo = directory / "repo"

@@ -559,5 +559,111 @@ class ModuleManagerTests(unittest.TestCase):
         self.assertNotIn("run_with_composition", main)
 
 
+
+class SqlCompositorCheckTests(unittest.TestCase):
+    """#1468 item 3: the SQL-mode compositor check restores the checkout."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.ws = Workspace(pathlib.Path(self._tmp.name))
+        root = self.ws.root
+        shutil.copy2(REPO_ROOT / "tools/modules/check_sql_compositor.py",
+                     root / "tools/modules/check_sql_compositor.py")
+        shutil.copytree(REPO_ROOT / "tools/modules/examples/milestones",
+                        root / "tools/modules/examples/milestones")
+        (root / "modules/.gitignore").write_text("*\n!.gitignore\n", encoding="utf-8")
+        (root / ".gitignore").write_text("__pycache__/\n", encoding="utf-8")
+        self.cargo_log = root.parent / f"{root.name}-cargo.log"
+        self.cargo = root.parent / f"{root.name}-cargo"
+        for command in (["init", "-q"], ["config", "user.email", "t@example.invalid"],
+                        ["config", "user.name", "t"], ["add", "."], ["commit", "-qm", "base"]):
+            subprocess.run(["git", *command], cwd=root, check=True)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+        self.cargo_log.unlink(missing_ok=True)
+        self.cargo.unlink(missing_ok=True)
+
+    def stub_cargo(self, fail_on: str | None = None) -> None:
+        """Record each call; the workspace member must be there when it runs."""
+        failing = f'[ "$1" = "{fail_on}" ] && exit 3\n' if fail_on else ""
+        self.cargo.write_text(
+            "#!/bin/sh\n"
+            f'echo "$*" >> "{self.cargo_log}"\n'
+            'grep -q \'"modules/milestones",\' Cargo.toml || exit 9\n'
+            'grep -q run_with_composition crates/world-modules/src/main.rs || exit 8\n'
+            f"{failing}exit 0\n",
+            encoding="utf-8",
+        )
+        self.cargo.chmod(0o755)
+
+    def snapshot(self) -> dict[str, bytes]:
+        return {
+            str(path.relative_to(self.ws.root)): path.read_bytes()
+            for path in sorted(self.ws.root.rglob("*"))
+            if path.is_file() and ".git" not in path.relative_to(self.ws.root).parts[:1]
+            and "__pycache__" not in path.parts
+        }
+
+    def check(self) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, str(self.ws.root / "tools/modules/check_sql_compositor.py"),
+             "--cargo", str(self.cargo), "--jobs", "1"],
+            cwd=self.ws.root, capture_output=True, text=True, check=False,
+        )
+
+    def test_a_passing_check_compiles_sql_mode_and_restores_everything(self) -> None:
+        self.stub_cargo()
+        before = self.snapshot()
+        result = self.check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("sql compositor check: PASS", result.stdout)
+        self.assertEqual(
+            self.cargo_log.read_text(encoding="utf-8").splitlines(),
+            ["test --offline -p example-milestones --jobs 1",
+             "check --offline -p world-modules --jobs 1"],
+        )
+        self.assertEqual(self.snapshot(), before)
+        self.assertFalse((self.ws.root / ".git/rustycore-sql-compositor-backup").exists())
+
+    def test_a_failing_compile_still_restores_and_fails(self) -> None:
+        self.stub_cargo(fail_on="check")
+        before = self.snapshot()
+        result = self.check()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("cargo", result.stderr)
+        self.assertIn("exited 3", result.stderr)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_an_interrupted_run_is_restored_by_the_next_one(self) -> None:
+        self.stub_cargo()
+        before = self.snapshot()
+        sys.path.insert(0, str(self.ws.root / "tools/modules"))
+        try:
+            import check_sql_compositor as checker  # noqa: PLC0415
+        finally:
+            sys.path.pop(0)
+        backup = checker.backup_directory(self.ws.root)
+        checker.save(self.ws.root, backup)
+        # What a SIGKILL after install/sync leaves behind.
+        self.assertEqual(self.ws.run("install", "--path", checker.EXAMPLE).returncode, 0)
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        self.assertNotEqual(self.snapshot(), before)
+        result = self.check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("interrupted run", result.stdout)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_an_existing_checkout_is_refused_untouched(self) -> None:
+        self.stub_cargo()
+        (self.ws.root / "modules/milestones").mkdir()
+        before = self.snapshot()
+        result = self.check()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("already exists", result.stderr)
+        self.assertEqual(self.snapshot(), before)
+        self.assertFalse(self.cargo_log.exists())
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -5,7 +5,8 @@
 //! - **apply** runs a composed module's pending migrations, in version order,
 //!   after the core schema is current and every module earlier in
 //!   `enabled_order` is applied. Each file must still match the checksum the
-//!   lock recorded and pass the static guard (`module_sql`).
+//!   lock recorded and pass the static guard (`module_sql`); the CLI verifies
+//!   both databases' files, and dry-runs both, before it changes either.
 //! - **remove** keeps every table and history row. It copies the module's
 //!   `data/sql` to `modules/.retired/<id>/data/sql` and writes the module's
 //!   tombstone into `modules.lock.toml`, so the server keeps accepting its
@@ -146,6 +147,45 @@ async fn unlock_database(connection: &mut PoolConnection<MySql>, lock_name: &str
     Ok(())
 }
 
+/// Every recorded migration of `module_id` for `database`, in apply order,
+/// each read, checked against the lock's checksum and passed through the
+/// static guard. Already applied files are checked too: a recorded migration
+/// never changes.
+pub fn apply_sources<'a>(
+    schema: &'a ModuleSchema,
+    repo_root: &Path,
+    module_id: &str,
+    database: DatabaseKind,
+) -> Result<Vec<(&'a ModuleMigration, String)>> {
+    let module = active(schema, module_id)?;
+    let sql = module.sql.as_ref().expect("active modules have SQL");
+    // The one apply order: enabled_order, id, numeric version (#1444 H6a F3).
+    schema
+        .ordered_migrations(database)
+        .into_iter()
+        .filter(|(owner, _)| owner.id == module.id)
+        .map(|(_, migration)| {
+            let content = source_file(repo_root, sql, &migration.file, &migration.sha256)?;
+            guarded(module_id, &migration.file, &content, false)?;
+            Ok((migration, content))
+        })
+        .collect()
+}
+
+/// Verify `module_id`'s files for every module database before `apply`
+/// touches any of them (#1468 item 2), as `purge` does: a bad `world` file
+/// must not be found only after `characters` was changed.
+pub fn verify_apply_sources(
+    schema: &ModuleSchema,
+    repo_root: &Path,
+    module_id: &str,
+) -> Result<()> {
+    for database in super::modules::MODULE_DATABASES {
+        apply_sources(schema, repo_root, module_id, database)?;
+    }
+    Ok(())
+}
+
 /// `rustycore-db module apply <id>` for one database. `manifest` is the core
 /// manifest merged with `schema`.
 pub async fn apply_module(
@@ -159,19 +199,14 @@ pub async fn apply_module(
 ) -> Result<ModuleDatabaseReport> {
     let module = active(schema, module_id)?;
     let sql = module.sql.as_ref().expect("active modules have SQL");
+    // Files first: nothing is read from the database for a bad file.
+    let migrations = apply_sources(schema, repo_root, module_id, database)?;
     let mut report = ModuleDatabaseReport {
         database: Some(database),
         history: module_history(pool, module_id).await?,
         tables: module_tables(pool, module_id).await?,
         ..ModuleDatabaseReport::default()
     };
-    // The one apply order: enabled_order, id, numeric version (#1444 H6a F3).
-    let migrations: Vec<&ModuleMigration> = schema
-        .ordered_migrations(database)
-        .into_iter()
-        .filter(|(owner, _)| owner.id == module.id)
-        .map(|(_, migration)| migration)
-        .collect();
     if migrations.is_empty() {
         return Ok(report);
     }
@@ -234,7 +269,7 @@ pub async fn apply_module(
     }
     let component = module_component(module_id);
     let mut todo = Vec::new();
-    for migration in migrations {
+    for (migration, content) in migrations {
         let view = state
             .migrations
             .iter()
@@ -248,8 +283,6 @@ pub async fn apply_module(
             ),
             _ => {}
         }
-        let content = source_file(repo_root, sql, &migration.file, &migration.sha256)?;
-        guarded(module_id, &migration.file, &content, false)?;
         report.pending.push(migration.version.clone());
         todo.push((migration, content));
     }

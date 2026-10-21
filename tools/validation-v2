@@ -45,6 +45,21 @@ BUILD_INPUT_CONTRACT_SUITE = "tools/test_measure_build_inputs.py"
 CARGO_CONFIG_PATHS = {".cargo/config", ".cargo/config.toml"}
 CHECKER_MANIFEST = "tools/architecture/handler-contract-check/Cargo.toml"
 BOT_MANIFEST = "tools/wow-test-bot/Cargo.toml"
+# #1468 item 3: the SQL-mode compositor compile check and its triggers.
+SQL_COMPOSITOR_CHECK = "tools/modules/check_sql_compositor.py"
+MODULE_TOOL_SUITE = "tools/modules/test_rustycore_module.py"
+SQL_COMPOSITOR_PREFIXES = ("tools/modules/", "crates/world-modules/", "crates/wow-module-api/")
+SQL_COMPOSITOR_PATHS = frozenset({"crates/world-server/src/entry.rs"})
+# #1468 item 1: inputs of the exhaustive persistence inventory that `final`
+# does not run (870-900 s alone, over the 600 s campaign budget).
+PERSISTENCE_INVENTORY_PATHS = frozenset({
+    "tools/architecture/persistence-access-snapshot.json",
+    "tools/architecture/persistence-boundary-policy.json",
+    "tools/architecture/persistence-boundary-workflows.json",
+})
+PERSISTENCE_INVENTORY_PREFIXES = (
+    "tools/architecture/handler-contract-check/src/persistence_",
+)
 INTERRUPT_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
 # Cargo reports a child killed by a signal as its own exit 101, so the signal
 # only survives in the child's own message: "(signal: 6, SIGABRT: ...)".
@@ -1002,6 +1017,32 @@ def validation_commands(
             # in seconds (#363).
             checker.extend(["--lib", "--no-fail-fast"])
         add_command(planned, checker)
+    if profile == "final" and any(path.startswith("tools/modules/") for path in all_paths) and (
+        repo / MODULE_TOOL_SUITE
+    ).is_file():
+        add_command(planned, ["python3", MODULE_TOOL_SUITE])
+    # #1468 item 3: no checked-in tree composes a module with SQL, so the
+    # SQL-mode compositor (run_with_composition + the embedded lock) compiles
+    # only here. It installs the example under the ignored modules/, syncs,
+    # checks world-modules and restores every file it touched.
+    if profile == "final" and any(
+        path.startswith(SQL_COMPOSITOR_PREFIXES) or path in SQL_COMPOSITOR_PATHS
+        for path in all_paths
+    ) and (repo / SQL_COMPOSITOR_CHECK).is_file():
+        add_command(planned, ["python3", SQL_COMPOSITOR_CHECK, "--jobs", str(jobs)])
+    # #1468 item 1: the exhaustive session-ownership/persistence inventory
+    # costs 870-900 s by itself, so final cannot run it inside the 600 s
+    # budget; `audit` (every push to 3.4.3 and the weekly cron) does. Say so
+    # in the manifest when this diff changes that inventory's inputs.
+    if profile == "final" and any(
+        path in PERSISTENCE_INVENTORY_PATHS or path.startswith(PERSISTENCE_INVENTORY_PREFIXES)
+        for path in all_paths
+    ):
+        optional_skips.append(
+            "persistence inventory inputs changed; the exhaustive "
+            "`session-ownership-check check` (870-900 s) is not part of final - run "
+            "`./tools/validation-v2 audit` (or that command) before relying on it"
+        )
     if "wow-test-bot" in groups or cargo_config_changed:
         add_command(
             planned,
@@ -1027,7 +1068,7 @@ def require_protoc_for(steps: list[dict[str, object]], environment: dict[str, st
         return
     for step in steps:
         argv = step["argv"]
-        if isinstance(argv, list) and argv[:1] == ["cargo"]:
+        if isinstance(argv, list) and (argv[:1] == ["cargo"] or SQL_COMPOSITOR_CHECK in argv):
             raise ValueError(
                 "the plan compiles Rust but no pinned protoc was found; install it, "
                 "put it on PATH, or set PROTOC"
