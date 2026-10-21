@@ -11861,6 +11861,24 @@
       "package": "wow-database",
       "module": "crate::result",
       "source": "crates/wow-database/src/result.rs",
+      "enclosing": "fn collect_rows_like_cpp",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Consumes one SqlResult already returned by its caller's query; it performs no I/O and holds no database handle, so the caller's logical database and connection stay authoritative (#1436).",
+      "current_order": "Decodes and maps the result row by row in the returned order (C++ do { Fetch } while (NextRow)); it adds no query or ordering of its own.",
+      "failure_and_unknown_commit": "Decode-only and fail-closed: the first row whose C++ Field getter would truncate or mismatch returns an error naming table, row, field and column, so the caller's load fails instead of publishing a partial or defaulted catalog; no transaction or unknown-commit outcome applies (#1436)."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::result",
+      "source": "crates/wow-database/src/result.rs",
       "enclosing": "impl SqlFields < 'a >",
       "logical_databases": [
         "characters",
@@ -15650,21 +15668,6 @@
       "package": "wow-database",
       "module": "crate::world::object_catalog_adapter",
       "source": "crates/wow-database/src/world/object_catalog_adapter.rs",
-      "enclosing": "fn read_u8",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "MariaDB adapter for the complete SQLx-free world object catalog capability (#574)",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
-      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::world::object_catalog_adapter",
-      "source": "crates/wow-database/src/world/object_catalog_adapter.rs",
       "enclosing": "impl MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp::addon_query",
       "logical_databases": [
         "world"
@@ -15870,21 +15873,6 @@
       "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
       "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::world::query_catalog_adapter",
-      "source": "crates/wow-database/src/world/query_catalog_adapter.rs",
-      "enclosing": "fn gameobject_query_template_row_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "Existing ObjectMgr query-catalog startup adapter introduced by 11c34e6b; inventory reconciliation in #578",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "Decodes one borrowed SqlResult row of the gameobject_rows SELECT; it performs no I/O and holds no WorldDatabase handle (row helper split out by #1435 for #1430).",
-      "current_order": "Decodes the gameobject_rows result row by row in the caller's order; it adds no query or ordering of its own.",
-      "failure_and_unknown_commit": "Decode-only: each column falls back to its typed default when absent or unreadable (try_read(..).unwrap_or), so it cannot fail a load; the SELECT failure, partial-catalog and no-COMMIT contract stays with gameobject_rows."
     },
     {
       "package": "wow-database",

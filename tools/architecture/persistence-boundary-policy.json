@@ -23367,6 +23367,39 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::result:crates/wow-database/src/result.rs::fn collect_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/result.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::result"
+      ],
+      "enclosings": [
+        "fn collect_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow fn collect_rows_like_cpp in crates/wow-database/src/result.rs.",
+      "connection_affinity": "Consumes one SqlResult already returned by its caller's query; it performs no I/O and holds no database handle, so the caller's logical database and connection stay authoritative (#1436).",
+      "current_order": "Decodes and maps the result row by row in the returned order (C++ do { Fetch } while (NextRow)); it adds no query or ordering of its own.",
+      "failure_and_unknown_commit": "Decode-only and fail-closed: the first row whose C++ Field getter would truncate or mismatch returns an error naming table, row, field and column, so the caller's load fails instead of publishing a partial or defaulted catalog; no transaction or unknown-commit outcome applies (#1436).",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::result:crates/wow-database/src/result.rs::impl SqlFields < 'a >",
       "source_class": "production",
       "packages": [
@@ -30801,36 +30834,6 @@
       "stable_boundary": true
     },
     {
-      "id": "workflow:wow-database:crate::world::object_catalog_adapter:crates/wow-database/src/world/object_catalog_adapter.rs::fn read_u8",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/world/object_catalog_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::world::object_catalog_adapter"
-      ],
-      "enclosings": [
-        "fn read_u8"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "MariaDB adapter for the complete SQLx-free world object catalog capability (#574) currently owns the complete wow-database workflow fn read_u8 in crates/wow-database/src/world/object_catalog_adapter.rs.",
-      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
-      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
       "id": "workflow:wow-database:crate::world::object_catalog_adapter:crates/wow-database/src/world/object_catalog_adapter.rs::impl MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp::addon_query",
       "source_class": "production",
       "packages": [
@@ -31246,36 +31249,6 @@
       "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
       "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::world::query_catalog_adapter:crates/wow-database/src/world/query_catalog_adapter.rs::fn gameobject_query_template_row_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/world/query_catalog_adapter.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::world::query_catalog_adapter"
-      ],
-      "enclosings": [
-        "fn gameobject_query_template_row_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "Existing ObjectMgr query-catalog startup adapter introduced by 11c34e6b; inventory reconciliation in #578 currently owns the complete wow-database workflow fn gameobject_query_template_row_like_cpp in crates/wow-database/src/world/query_catalog_adapter.rs.",
-      "connection_affinity": "Decodes one borrowed SqlResult row of the gameobject_rows SELECT; it performs no I/O and holds no WorldDatabase handle (row helper split out by #1435 for #1430).",
-      "current_order": "Decodes the gameobject_rows result row by row in the caller's order; it adds no query or ordering of its own.",
-      "failure_and_unknown_commit": "Decode-only: each column falls back to its typed default when absent or unreadable (try_read(..).unwrap_or), so it cannot fail a load; the SELECT failure, partial-catalog and no-COMMIT contract stays with gameobject_rows.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -31963,7 +31936,7 @@
         "crates/wow-database/src/vendor_trade_adapter.rs",
         "crates/wow-database/src/void_storage_adapter.rs",
         "crates/wow-database/src/world/auxiliary_catalog_adapter.rs",
-        "crates/wow-database/src/world/query_catalog_adapter.rs",
+        "crates/wow-database/src/world/mod.rs",
         "crates/wow-database/src/world/reference_catalog_adapter.rs",
         "crates/wow-database/src/world/state_startup_adapter.rs"
       ],
