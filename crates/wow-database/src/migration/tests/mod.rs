@@ -28,4 +28,5 @@ fn fixture_manifest(migrations: Vec<Migration>) -> MigrationManifest {
     }
 }
 
+mod modules;
 mod scenarios;

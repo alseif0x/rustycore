@@ -25,12 +25,28 @@ pub fn run_with_modules(
     args: Vec<String>,
     modules: wow_module_api::ModuleRegistry,
 ) -> Pin<Box<dyn Future<Output = Result<ExitCode>> + Send + 'static>> {
-    Box::pin(run_inner(args, Arc::new(modules)))
+    Box::pin(run_inner(args, Arc::new(modules), ""))
+}
+
+/// Run the world server with a composed registry and the composition's
+/// `modules.lock.toml` (#1444 H6).
+///
+/// The generated compositor passes the lock it was built from when a module
+/// ships SQL or a removed module left a tombstone. The startup schema check
+/// then requires every composed module's migrations and accepts the history
+/// of tombstoned ones; `run_with_modules` accepts no module history at all.
+pub fn run_with_composition(
+    args: Vec<String>,
+    modules: wow_module_api::ModuleRegistry,
+    module_lock: &'static str,
+) -> Pin<Box<dyn Future<Output = Result<ExitCode>> + Send + 'static>> {
+    Box::pin(run_inner(args, Arc::new(modules), module_lock))
 }
 
 async fn run_inner(
     args: Vec<String>,
     modules: Arc<wow_module_api::ModuleRegistry>,
+    module_lock: &'static str,
 ) -> Result<ExitCode> {
     // Initialize logging
     tracing_subscriber::fmt()
@@ -186,7 +202,10 @@ async fn run_inner(
 
     info!("Connected to hotfix database");
 
-    let migration_manifest = wow_database::migration::bundled_manifest()?;
+    let module_schema = wow_database::migration::ModuleSchema::from_lock(module_lock)
+        .context("the composed modules.lock.toml is invalid")?;
+    let migration_manifest =
+        wow_database::migration::bundled_manifest()?.with_module_schema(&module_schema)?;
     for (database, pool) in [
         (wow_database::migration::DatabaseKind::Auth, login_db.pool()),
         (

@@ -22,16 +22,18 @@ PROTOC=/home/ubuntu/.local/protoc/bin/protoc python3 tools/modules/rustycore-mod
 - `conf/__MODULE_ID__.toml.example` — example operator configuration; copy reviewed
   overrides to the core's `conf/modules/__MODULE_ID__.toml`, outside this checkout
   (see `docs/architecture/modules.md`).
-- `data/sql/{auth,characters,world,hotfixes}/` — reserved SQL artifact locations,
-  not registered or automatically applied module migrations.
+- `data/sql/{characters,world}/` — where module migrations go once declared in
+  `data/sql/manifest.toml` (none by default).
 
-Module-local SQL discovery and migration lifecycle are not implemented by this
-skeleton or manager. Placing a file here neither adds it to the current
-`rustycore-db` manifest nor authorizes applying it. Schema changes must use the
-reviewed manifest/artifact path through `rustycore-db`, with the applicable
-operator approval and recovery requirements; do not bypass that authority with
-ad-hoc SQL or a module startup hook. Managed module migration integration and
-retained upgrade/removal history remain #583 delivery work.
+## SQL
+
+A module that needs tables declares its migrations in `data/sql/manifest.toml`
+(`docs/architecture/modules.md`, "Module SQL"). `compose.py` records each file's
+checksum in `modules.lock.toml`; only an operator's explicit
+`rustycore-db module apply <id>` runs it. Tables carry the module's prefix
+(`mod_<id with . as _>_`), only the `characters` and `world` databases are open
+to modules, and a recorded file never changes. Do not run module SQL by hand or
+from a startup hook.
 
 ## Trust
 

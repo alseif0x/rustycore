@@ -91,8 +91,60 @@ first `Deny` wins and `ReplaceText` chains in `ModuleId` order).
 ## `modules.lock.toml`
 
 Records identity, version, package, source path, requested ref, resolved commit,
-registrar, source API, enabled order and a content digest for every composed module.
-It holds no credentials and no URLs with secrets.
+registrar, source API, enabled order and a content digest for every composed module,
+plus its SQL record (below). It holds no credentials and no URLs with secrets.
+
+## Module SQL (#1444 H6)
+
+A module that needs tables ships `data/sql/manifest.toml`:
+
+```toml
+format = 1
+min_core_schema = "2026.08.02.00"   # a core migration version this module builds on
+
+[[migrations]]
+database = "characters"              # characters or world only
+version = "2026.10.21.00"            # dot-separated numbers, unique per database
+description = "per-character milestone counts"
+file = "characters/2026_10_21_00_counts.sql"   # relative to data/sql
+
+[[purge]]                            # reviewed DROP scripts, run only by an explicit purge
+database = "characters"
+file = "purge/characters.sql"
+```
+
+Owner decisions (2026-10-21, recorded on #1444):
+
+- **Scope.** A module changes only `characters` and `world`, and there only its own tables,
+  named `mod_<id with . as _>_…` (`example.milestones` → `mod_example_milestones_`). No
+  ALTER or DML on core tables; `auth` and `hotfixes` are closed to modules for now. Two
+  modules may not share a prefix.
+- **Record.** `compose.py sync` validates the manifest (files exist inside `data/sql`,
+  `min_core_schema` is a version this core's migration manifest reaches) and records it in the
+  lock: `[module.sql]` with `min_core_schema` and `source`, one `[[module.sql.migration]]` per
+  file with its SHA-256 (CRLF normalized, as `rustycore-db` hashes), and `[[module.sql.purge]]`.
+- **Immutable.** A migration recorded in the lock keeps its checksum and may not be dropped
+  from the manifest: `sync`/`check` refuse a change, and the startup check refuses applied
+  history whose checksum differs. A fix is a new migration file.
+- **Namespace.** Module history lives in the same `rustycore_schema_history` table, with
+  `component = "module:<id>"`.
+- **Embedded.** When any module has SQL or a tombstone exists, the generated compositor calls
+  `world_server::run_with_composition(args, modules, include_str!("../../../modules.lock.toml"))`.
+  The startup check (`ModuleSchema::from_lock` + `MigrationManifest::with_module_schema`) then
+  treats a composed module's migrations as `active` — the server refuses to start while one is
+  pending — and a tombstoned module's as `archived`: its history is accepted with its
+  checksums and nothing is required. The plain `world-server` binary and a zero-module
+  composition accept no module history; their compositor is unchanged.
+- **Removal keeps data.** A removed module leaves a tombstone in the lock: a block after the line
+  `# --- tombstones: written by rustycore-db module remove; …` holding `[[tombstone]]` entries
+  shaped like `[[module]]` ones. `compose.py` keeps that block byte for byte and refuses to
+  drop a module whose SQL is in the lock unless it is tombstoned. A re-installed module must
+  continue its tombstoned history. Removal never deletes data; a separate explicit purge runs
+  the module's reviewed DROP scripts.
+- **Core migrations stay separate.** `rustycore-db status|validate|migrate` read the lock
+  (`--lock`, default `modules.lock.toml`) so module history is validated, but `migrate`
+  applies core migrations only; module migrations are applied in `enabled_order`, then
+  version, by the operator's explicit module command.
 
 ## The example module (#1444)
 
@@ -158,8 +210,8 @@ entire stdout is not guaranteed to be a single JSON document.
 - `update` refuses a checkout with local modifications rather than discarding them.
 - `remove` resolves the id to exactly one validated checkout inside `modules/` and refuses any
   path that escapes it.
-- The manager never runs SQL. `data/sql/` is a reserved layout, not an integrated migration
-  mechanism or permission to bypass the project's explicit database-migration authority.
+- The manager never runs SQL. Module SQL is recorded by `sync` and applied only through
+  `rustycore-db` (see "Module SQL").
 
 The Git v1→v2 workflow still needs product-level acceptance. Inspection found that
 `install` calls `_pin`, which writes revision metadata into the checkout's `module.toml`,
@@ -171,7 +223,7 @@ local-path/composition tests do not establish a successful Git upgrade and resta
 
 `rustycore-module new` produces a module that compiles and tests as-is: manifest, `src/lib.rs`
 with a working `register`, a focused hook test asserting the module greets only on first login,
-an example configuration, `data/sql/{auth,characters,world,hotfixes}/` and a README stating the
+an example configuration, `data/sql/{characters,world}/` and a README stating the
 trust model. Optional directories are documented rather than generated empty.
 
 ## Typed configuration
@@ -475,12 +527,10 @@ publication must not duplicate a reward after a lost response or restart. Preser
 logical reward/receipt identity across retries, new runtime incarnations and schema/config
 upgrades; a data version must not accidentally become a new reward entitlement.
 
-Extend the existing `rustycore-db` authority for approved module migrations: review/dry-run,
-immutable checksums, component history and explicit recovery. Current runtime validation uses
-the embedded core manifest and rejects applied history absent from that manifest
-(`wow-database/src/migration.rs::bundled_manifest` / `build_report`). Module integration must
-retain verifiable migration history and required artifacts independently of the active module
-checkout; existing `Archived` entries are a useful primitive, not that completed integration.
+Module migrations extend the existing `rustycore-db` authority (#1444 H6, "Module SQL" above):
+immutable checksums, `module:<id>` component history, and an embedded lock that makes the
+startup check require composed modules' migrations and accept tombstoned history as `archived`.
+Durable module state built on it (receipts, retry-safe rewards) remains the work below.
 **Disable is not purge:** deactivate callbacks while retaining data/history; deleting module
 code must not implicitly delete data. Purging requires a separate explicit operation.
 MariaDB DDL may already be committed after failure: do not promise automatic rollback or a

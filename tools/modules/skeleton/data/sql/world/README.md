@@ -1,6 +1,8 @@
-# Reserved world SQL artifacts
+# world SQL
 
-This directory is not an implemented migration integration. Its files are not
-automatically registered or applied by the module manager or `rustycore-db`.
-Do not apply schema SQL ad hoc; follow the reviewed `rustycore-db` migration and
-operator-authority requirements in the [module README](../../../README.md#layout).
+Put this module's world migrations here and list each one in
+`data/sql/manifest.toml` (see `docs/architecture/modules.md`, "Module SQL").
+A module creates and changes only its own tables, named with its prefix
+(`mod_<id with . as _>_`). Nothing here is applied until an operator runs
+`rustycore-db module apply <id>`; a recorded file never changes, so a fix
+is a new migration.
