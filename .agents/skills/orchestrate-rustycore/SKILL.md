@@ -60,6 +60,86 @@ Start sessions with `ocx claude`, not plain `claude` (which cannot reach DeepSee
 setting: do not claim a model or effort the session configuration does not confirm.
 Record the model that actually ran.
 
+## Opción DSH / go-mix, usar solo si el usuario la elige
+
+**Condición de selección (léela primero).**
+- **Si la sesión es DSH Web con el preset `go-mix`** (persona "Go Mix subscription
+  harness") **o una sesión OpenCode / OpenCode Go** (coordinador
+  `opencode-go/deepseek-v4.1-flash` o `opencode-go/minimax-m3`): esta sección **sustituye** a
+  **Models** de arriba para ese parent. Aplica estas rutas, roles y handoffs; la regla
+  "only two models" de **Models** no se aplica a esa sesión. Las demás secciones del skill
+  (decision authority, sizing, running, acceptance) siguen aplicando.
+- **Si la sesión es Claude Code / `ocx claude`**: ignora esta sección por completo. Solo
+  aplica **Models** de arriba (Opus parent con sus propios subagentes, `.claude/settings.json`
+  y `.claude/agents/rustycore-worker.md`); ninguna ruta DSH/GPT/Luna/DeepSeek de esta sección
+  se usa ni se añade en una sesión Claude Code.
+- **Si la sesión es Codex nativa** (no Claude Code) y el usuario eligió Sol/Luna: aplica el
+  párrafo "Native Codex entry point" de abajo.
+
+DSH y OpenCode no usan `.claude/settings.json` ni `.claude/agents/*` para elegir modelos:
+DSH los toma del preset `go-mix` instalado en el perfil DSH del usuario y OpenCode de su
+propia configuración de modelo (ambas fuera del repo). Los dos leen `AGENTS.md` de la raíz
+del checkout y descubren este skill en `.agents/skills/` (y vía `.claude/skills/`). Texto importado de `dsh-orquestacion-wip` (2026-09-28..10-06).
+
+**DSH Web Go Mix (`go-mix`) coordinator.** OpenCode Go **DeepSeek V4.1 Flash**
+(`opencode-go/deepseek-v4.1-flash`) at `high` effort is the coordinator. Its installed
+request-recovery plugin switches the same root session to **MiniMax M3**
+(`opencode-go/minimax-m3`) at `high` on a classified quota, rate-limit, server, timeout
+or transport failure. It retries only the failed model step: previously completed tools
+and worker changes are retained. It does not change the global default on failure or
+switch back automatically. If MiniMax also fails on a classified quota or availability
+error, the user-authorized last resort is **DeepSeek API**
+(`deepseek-official/deepseek-v4-flash`) at `high`. This root-coordinator fallback
+consumes the user's paid API balance; it is not part of the Go subscription. No further
+provider fallback is configured after it. Authentication, permissions, invalid requests
+and context overflow are not fallback triggers. A user model selection takes precedence.
+Both Go routes consume the same Go subscription, so a plan-wide quota or outage may
+affect both.
+
+This coordinator owns architecture, decomposition, contracts, task assignment, review,
+Git, integration and acceptance scheduling; it does not implement. Assign implementation
+through DSH `subagent` using `provider: openai-codex`, `model: gpt-6-luna`,
+`reasoning_effort: max`. Give one bounded worker the settled contract and owned paths.
+Use the implementation fallback below only when needed. Use Go DeepSeek for bounded
+read-only exploration instead of consuming Codex for routine searches. Sol `high` is a
+specific consultation option, not a mandatory second coordinator or reviewer on every
+unit. New DSH sessions pick up the preset; existing sessions retain their mounted
+generation.
+
+**Native Codex entry point (separate).** The native Codex parent uses **GPT-6.1 Sol**
+(`gpt-6.1-sol`) at `high` effort. It owns architecture, decomposition, contracts,
+coordination, review, Git, integration and final acceptance; it does not implement. The
+implementing worker is **GPT-6 Luna** at max reasoning effort, spawned natively with
+`model: gpt-6-luna` and `reasoning_effort: max`. The local, ignored `.codex/config.toml`
+sets the parent model/effort and the `[agents]` default subagent model/effort for this
+checkout.
+
+**Implementation fallback.** The user-authorized implementation fallback is **Claude
+Opus 5.5** (`anthropic/claude-opus-5-5`) at `low` effort when Luna cannot run because of
+exhausted quota or provider/model unavailability. The parent owns this handoff: confirm
+that the Luna worker has stopped before starting one Opus worker, inspect any partial
+diff, and pass a bounded continuation with the same ownership and acceptance contract.
+Do not restart the complete task or let both workers write the same unit. For an
+ambiguous failure after dispatch, establish whether the worker is still running before
+reassigning it. Report the actual route, effort and fallback reason. Code/test failures,
+permissions, missing credentials and unresolved contracts are not reasons to change
+providers. Apart from the Go Mix coordinator recovery above, no other automatic provider
+fallback or paid API fallback is authorized by this rule. Use the DSH model-selectable
+worker for an explicit Opus effort; native bridges do not expose per-call model/effort
+selection.
+
+An optional second opinion uses **Claude Opus 5.5** at `medium` effort for a concrete
+uncertainty. It is separate from the implementing fallback and is not required for
+every unit.
+
+**Worker concurrency (DSH/OpenCode/Codex only).** Start one Luna worker by default. When the user
+authorizes parallel implementation, use the available native slots for independent,
+disjoint write scopes. No worker spawns children. Worker concurrency does not authorize
+concurrent validation or shared target directories. (The WIP recorded that the refactor
+campaign of that time had parallel authorization and a whole-sweep instruction deferring
+worker checks; both were specific to that historical campaign and do not carry over —
+the acceptance rules below apply.)
+
 ## Sizing the work
 
 The worker is productive on small units with compiler feedback and stalls on large,

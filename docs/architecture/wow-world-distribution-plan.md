@@ -8321,3 +8321,61 @@ mantienen este procedimiento hasta reparar el helper.
 
 La versión anterior de este documento era el plan de #1233 ("forma modular estilo AzerothCore",
 F0-F13, rama `584-wow-world-distribution`); queda en el historial de Git y no es un plan activo.
+
+## Anexo histórico — texto de la rama `dsh-orquestacion-wip`, 2026-10-02
+
+**Histórico, no vigente.** Texto preservado de la revisión local del 2026-10-02 (base `e786ece1`) que no estaba ya en este documento. El estado vigente es el de las secciones anteriores (#1263 cerrada el 2026-10-11); nada de este anexo reabre fases ni sustituye criterios actuales.
+
+**Revisión del plan y aceptación P3 — 2026-10-02:** F0–F3 y F4a P1/P2 integradas;
+P3 aceptada en `002ff5e46`, con publicación/integración registradas en #1263.
+
+- Variante de F1 (2026-10-02):
+  - Trasladar los 173 tests estimados a `wow-world-core/unit_tests/`, con rutas espejo.
+    Comparar el conjunto combinado de tests de origen y destino, conforme a §10; no exigir
+    que `wow-world` conserve por sí solo los 3.950 tests.
+  - Definir y propagar `test-fixtures` a `wow-world-core` y `wow-session/test-support`.
+    Verificar con Cargo la estrategia de dev-dependencies en la fase: una dependencia propia
+    `wow-world = { path = ".", features = ["test-fixtures"] }` es una hipótesis, no una decisión
+    comprobada. Si no sirve, ejecutar los tests consumidores con `--features test-fixtures`.
+    Comprobar también la composición de producción sin activar fixtures.
+  - Ampliar la cobertura del scanner antes de aceptar la extracción. El collector actual
+    (`session_ownership/state_3.rs::collect_repository_baseline_with_persistence`) carga
+    explícitamente `wow-world`, `world-server`, `wow-network` y `wow-social`.
+    Añadir las raíces de `wow-world-core` y adaptar `PackageRole`, selección de módulos,
+    resolución de símbolos/reexports y gates de mailbox/directory/loot_persistence según sus
+    consumidores. Cambiar solo constantes de rutas en `state_1.rs`/`state_2.rs` no basta.
+    Añadir casos positivos y negativos que prueben que una infracción en el crate destino
+    sigue detectándose y que la fachada de origen resuelve a la misma definición.
+
+Estado contrastado del 2026-10-02 (copia histórica):
+
+Integración remota `3.4.3`: `ec5d60717f86d936b7ce341f50b49f37264853ff` (PR #1262).
+Worktree P3: candidato aceptado `002ff5e462ba2c5c948934a270e67b137b456fcf`, limpio durante
+final. La consulta inicial no revalidó PRs históricos. #1263 registra la publicación e
+integración posterior; los SHAs de aceptación y de squash no se confunden.
+
+| fase | estado | PR/evidencia |
+|---|---|---|
+| F0 | integrada | #1242 |
+| F1 | integrada, adaptación de tests privados | #1243: 488 ficheros a `unit_tests/`; testkit diferido |
+| F2 | integrada | #1244: 455 campos agrupados |
+| F3-0 | integrada | #1245: 11 grupos de fixture |
+| F3-1…F3-12 | integradas | #1246–#1257: 1.726 métodos trasladados |
+| F3-I | integrada | #1258–#1260: 1.160 → 443 thunks |
+| guía develop-rustycore | integrada | #1253 |
+| F4a P1 | integrada | #1261: dispatch_table fuera de SessionCore |
+| F4a P2 | integrada | #1262: base test-fixtures y dos regresiones corregidas |
+| F4a P3 | aceptación completada; publicación/integración en #1263 | movimiento `6f0660ab0`, candidato `002ff5e46` |
+| F4a P4a/P4b | pendientes | §6 |
+| F4b | pendiente | §6 |
+| F5 | diseño detallado e implementación pendientes | §6 |
+| F6 | pendiente | pista de comportamiento |
+
+R5 leído con `python3 -B tools/architecture/wow_world_coupling.py report --json` en P3:
+17 miembros superiores, 199.895 líneas clasificadas como producción, 2.598 métodos contabilizados
+por el scanner, 443 thunks y 1.726 métodos en subestados. Este reporte textual puede incluir
+items con cfg internos; no es un censo del código realmente compilado ni prueba del DAG completo.
+
+
+- `tools/architecture/net_move.py`: comprobación R1 net-move
+  (`python3 tools/architecture/net_move.py check --base origin/3.4.3`).

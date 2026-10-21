@@ -120,6 +120,18 @@ DeepSeek v4.1 flash on the native DeepSeek API as the worker that implements
 `.claude/agents/rustycore-worker.md` when the DeepSeek API fails. Agent definitions do
 not override runtime permissions.
 
+**Opción DSH / go-mix, usar solo si el usuario la elige.** Si la sesión es DSH Web con el
+preset `go-mix` o una sesión OpenCode / OpenCode Go, aplica estas rutas/roles/handoffs en lugar del default Opus de arriba; en Claude Code / `ocx claude` solo
+aplica el default Opus de arriba y nada de este párrafo. In those sessions coordination uses OpenCode Go DeepSeek V4.1
+Flash at `high` effort, with MiniMax M3 at `high` as its bounded availability fallback and
+paid DeepSeek API as the last resort if both Go routes fail on quota or availability. This
+parent owns the same decisions, review, integration and validation scheduling and delegates
+implementation. GPT-6 Luna `max` is the implementer (DSH `subagent`, `provider: openai-codex`; a native
+Codex session uses a GPT-6.1 Sol `high` parent); Opus `low` is its availability
+fallback, and Opus `medium` provides an optional concrete second opinion. The orchestration
+skill owns the exact routes and handoff rules. Inspect effective runtime evidence before
+claiming which route ran.
+
 The orchestration skill also owns the **decision authority** rule: substantive technical
 decisions (parity and behaviour contracts, intentional departures from the reference, slice
 scope and cut points, ownership boundaries and design) are made by the reviewer tier at high
