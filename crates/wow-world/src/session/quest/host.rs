@@ -36,7 +36,7 @@ impl QuestSessionHostLikeCpp for WorldSession {
     }
     fn quest_accepted_hook_wanted_like_cpp(&self) -> bool {
         self.module_hooks
-            .wants_like_cpp(wow_module_api::HookFamily::Player)
+            .wants_player_hook_like_cpp(wow_module_api::PlayerHook::QuestAccepted)
     }
     fn player_quest_gameplay_snapshot_like_cpp(&self) -> Option<PlayerQuestGameplayState> {
         let (state, hub) = crate::session::split_quest_state_ref(self);

@@ -223,4 +223,13 @@ pub trait LootSessionHostLikeCpp: WorldEntitiesHostLikeCpp {
     ) -> impl Future<Output = Option<(u64, u64)>> + Send
     where
         F: FnOnce(u64) -> u64 + Send;
+
+    /// Whether any linked module wants `player.loot_money` (#1444 H4).
+    fn loot_money_hook_wanted_like_cpp(&self) -> bool {
+        false
+    }
+
+    /// `player.loot_money`: AzerothCore `LootScript::OnLootMoney`, raised once
+    /// for the looter after every share committed.
+    fn loot_money_hook_like_cpp(&mut self, _event: &crate::LootMoneyHookEventLikeCpp) {}
 }

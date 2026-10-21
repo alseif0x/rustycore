@@ -175,8 +175,12 @@ pub struct ChatHandlerCxLikeCpp<'a> {
     hub: HubMut<'a>,
     social: &'a mut SessionSocialLimits,
     policy: &'a ChatPolicyCatalogsLikeCpp,
+    /// The `chat.message` port the World lends (#1444 H4).
+    module_hooks: &'a dyn crate::ChatModuleHookPortLikeCpp,
 }
 
+/// `chat.message`, the linked-module pre-decision (#1444 H4).
+mod module_hook;
 /// Chat handler packet bodies.
 mod ops;
 

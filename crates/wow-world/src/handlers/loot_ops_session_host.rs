@@ -41,6 +41,14 @@ use wow_entities::{Item, ItemObjectUpdateLikeCpp, PlayerValuesUpdate};
 use wow_world_quest::SessionQuestState;
 
 impl LootSessionHostLikeCpp for WorldSession {
+    fn loot_money_hook_wanted_like_cpp(&self) -> bool {
+        self.module_hooks
+            .wants_player_hook_like_cpp(wow_module_api::PlayerHook::LootMoney)
+    }
+    fn loot_money_hook_like_cpp(&mut self, event: &wow_world_loot_ops::LootMoneyHookEventLikeCpp) {
+        self.module_hooks
+            .loot_money_like_cpp(self.core.packet_publication_access_like_cpp(), event);
+    }
     fn loot(&self) -> &wow_world_loot::LootState {
         &self.loot
     }

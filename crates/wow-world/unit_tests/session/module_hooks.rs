@@ -351,6 +351,18 @@ impl PlayerModule for PlayerProbe {
         self.record(format!("cast {} {}", s.spell_id, s.triggered));
         e.send_system_message_self("ok");
     }
+    fn on_equip(&self, s: &wow_module_api::ItemEquippedSnapshot, e: &mut ScopedEffects<'_>) {
+        self.record(format!("equip {} {} {}", s.item_entry, s.bag, s.slot));
+        e.send_system_message_self("ok");
+    }
+    fn on_loot_item(&self, s: &wow_module_api::LootItemSnapshot, e: &mut ScopedEffects<'_>) {
+        self.record(format!("loot {} x{}", s.item_id, s.count));
+        e.send_system_message_self("ok");
+    }
+    fn on_loot_money(&self, s: &wow_module_api::LootMoneySnapshot, e: &mut ScopedEffects<'_>) {
+        self.record(format!("money {} {}", s.money, s.share));
+        e.send_system_message_self("ok");
+    }
 }
 
 fn player_probe_session() -> (
@@ -546,4 +558,126 @@ fn zero_modules_make_the_kill_and_cast_ports_a_no_op() {
     let (session, _send_rx) = make_session();
     assert!(!session.creature_kill_hook_wanted_like_cpp());
     assert!(!session.spell_cast_hook_wanted_like_cpp());
+}
+
+// ── `item.equipped`, `player.loot_*` and `chat.message` (#1444 H4) ────────
+
+#[test]
+fn the_item_and_loot_ports_convert_their_events_with_no_map_lock() {
+    use wow_world_inventory::{ItemEquippedHookEventLikeCpp, ItemSessionHostLikeCpp};
+    use wow_world_loot_ops::{
+        LootHandlerHostLikeCpp, LootItemHookEventLikeCpp, LootMoneyHookEventLikeCpp,
+        LootSessionHostLikeCpp,
+    };
+
+    let (mut session, send_rx, seen) = player_probe_session();
+    let guid = ObjectGuid::create_player(1, 42);
+    let source = ObjectGuid::create_item(1, 9);
+    assert!(session.item_equipped_hook_wanted_like_cpp());
+    assert!(LootHandlerHostLikeCpp::<
+        crate::session::SessionHandlerCatalogsLikeCpp,
+    >::loot_item_hook_wanted_like_cpp(&session));
+    assert!(session.loot_money_hook_wanted_like_cpp());
+
+    session.item_equipped_hook_like_cpp(&ItemEquippedHookEventLikeCpp {
+        guid,
+        item_guid: ObjectGuid::create_item(1, 7),
+        item_entry: 25,
+        bag: 255,
+        slot: 15,
+    });
+    LootHandlerHostLikeCpp::<crate::session::SessionHandlerCatalogsLikeCpp>::loot_item_hook_like_cpp(
+        &mut session,
+        &LootItemHookEventLikeCpp {
+            guid,
+            item_id: 2589,
+            count: 2,
+            loot_source: source,
+        },
+    );
+    session.loot_money_hook_like_cpp(&LootMoneyHookEventLikeCpp {
+        guid,
+        loot_source: source,
+        money: 90,
+        share: 30,
+    });
+
+    assert_eq!(system_texts(&send_rx, &session), vec!["ok", "ok", "ok"]);
+    let seen = seen.lock().expect("probe").clone();
+    assert_eq!(
+        seen.iter()
+            .map(|(what, _)| what.as_str())
+            .collect::<Vec<_>>(),
+        vec!["equip 25 255 15", "loot 2589 x2", "money 90 30"]
+    );
+    assert!(seen.iter().all(|(_, free)| *free), "{seen:?}");
+}
+
+#[test]
+fn zero_modules_make_the_item_loot_and_chat_ports_a_no_op() {
+    use wow_world_inventory::ItemSessionHostLikeCpp;
+    use wow_world_loot_ops::LootSessionHostLikeCpp;
+    use wow_world_social::ChatModuleHookPortLikeCpp;
+
+    let (session, _send_rx) = make_session();
+    assert!(!session.item_equipped_hook_wanted_like_cpp());
+    assert!(!session.loot_money_hook_wanted_like_cpp());
+    assert!(!session.module_hooks.chat_hooks_wanted_like_cpp());
+}
+
+/// The World answers the chat port with the composed module decision, and
+/// only for the chat kinds the hook covers.
+#[test]
+fn the_chat_port_maps_module_decisions_to_verdicts() {
+    use wow_module_api::{ChatDecision, ChatMessageSnapshot, ChatModule};
+    use wow_packet::packets::chat::ChatMsg;
+    use wow_world_social::{
+        ChatHookVerdictLikeCpp, ChatMessageHookEventLikeCpp, ChatModuleHookPortLikeCpp,
+    };
+
+    struct Rules;
+    impl ChatModule for Rules {
+        fn on_chat_message(&self, s: &ChatMessageSnapshot) -> ChatDecision {
+            match s.text.as_str() {
+                "deny" => ChatDecision::Deny,
+                "swap" => ChatDecision::ReplaceText("swapped".to_owned()),
+                _ => ChatDecision::Allow,
+            }
+        }
+    }
+    let (mut session, _send_rx) = make_session();
+    let mut registry = ModuleRegistry::new();
+    registry
+        .register_module(
+            ModuleDescriptor::new("alpha.chat", version(), "Chat").expect("descriptor"),
+            ModuleHooks::new().chat(Arc::new(Rules)),
+        )
+        .expect("registration");
+    session.install_module_hooks_like_cpp(Arc::new(registry));
+    let port: &dyn ChatModuleHookPortLikeCpp = &session.module_hooks;
+    assert!(port.chat_hooks_wanted_like_cpp());
+    let event = |msg_type, text: &str| ChatMessageHookEventLikeCpp {
+        guid: ObjectGuid::create_player(1, 42),
+        msg_type,
+        language: 7,
+        text: text.to_owned(),
+        receiver: None,
+    };
+    assert_eq!(
+        port.chat_message_like_cpp(&event(ChatMsg::Say, "deny")),
+        ChatHookVerdictLikeCpp::Deny
+    );
+    assert_eq!(
+        port.chat_message_like_cpp(&event(ChatMsg::Party, "swap")),
+        ChatHookVerdictLikeCpp::Replace("swapped".to_owned())
+    );
+    assert_eq!(
+        port.chat_message_like_cpp(&event(ChatMsg::Yell, "hello")),
+        ChatHookVerdictLikeCpp::Allow
+    );
+    assert_eq!(
+        port.chat_message_like_cpp(&event(ChatMsg::Guild, "deny")),
+        ChatHookVerdictLikeCpp::Allow,
+        "guild chat is not ported, so it is not offered to modules"
+    );
 }

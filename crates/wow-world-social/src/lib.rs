@@ -22,6 +22,7 @@ mod guild_bank_handlers;
 mod guild_handlers;
 mod handlers;
 mod lfg_lock_info;
+mod module_hooks;
 mod reputation;
 mod reputation_gain;
 mod requests;
@@ -90,6 +91,9 @@ pub use lfg_lock_info::{
     handle_df_get_system_info_with_catalog_like_cpp, lfg_is_disabled_map_type_for_player_like_cpp,
     lfg_lock_status_like_cpp, lfg_player_lock_info_like_cpp,
     populate_lfg_player_dungeon_reward_like_cpp,
+};
+pub use module_hooks::{
+    ChatHookVerdictLikeCpp, ChatMessageHookEventLikeCpp, ChatModuleHookPortLikeCpp,
 };
 pub use reputation::{
     ReputationHandlerCxLikeCpp, ReputationHandlerHostLikeCpp, register_reputation_handlers_like_cpp,

@@ -63,6 +63,28 @@ pub(crate) fn split_interaction(s: &mut WorldSession) -> (&mut InteractionState,
     )
 }
 
+/// [`split_social_mut`] plus the session's linked-module hooks, a disjoint
+/// field the chat handler context borrows as its `chat.message` port (#1444 H4).
+pub(crate) fn split_social_with_module_hooks_mut(
+    s: &mut WorldSession,
+) -> (
+    &mut SessionSocialLimits,
+    HubMut<'_>,
+    &crate::session::SessionModuleHooksLikeCpp,
+) {
+    (
+        &mut s.social,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures: &mut s.fixtures,
+        },
+        &s.module_hooks,
+    )
+}
+
 /// Shared group state plus the shared hub for `&self` methods.
 pub(crate) fn split_interaction_ref(s: &WorldSession) -> (&InteractionState, HubRef<'_>) {
     (&s.interaction, hub_ref(s))

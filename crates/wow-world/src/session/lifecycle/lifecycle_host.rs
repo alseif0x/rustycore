@@ -32,6 +32,6 @@ impl SessionLifecycleHostLikeCpp for WorldSession {
 
     fn player_logout_hook_wanted_like_cpp(&self) -> bool {
         self.module_hooks
-            .wants_like_cpp(wow_module_api::HookFamily::Player)
+            .wants_player_hook_like_cpp(wow_module_api::PlayerHook::Logout)
     }
 }

@@ -27,6 +27,7 @@
 //! compiled in, the types are expected to evolve, and official internal
 //! scripts keep their own separate dispatch.
 
+mod chat;
 mod config;
 mod decision;
 mod effect;
@@ -35,6 +36,7 @@ mod player;
 mod registry;
 mod world;
 
+pub use chat::{ChatKind, ChatMessageSnapshot, ChatModule, ChatOutcome};
 pub use config::{ModuleConfig, ModuleConfigError, ModuleConfigValue};
 pub use decision::ChatDecision;
 pub use effect::{
@@ -43,9 +45,9 @@ pub use effect::{
 };
 pub use hook::{PlayerLoginModule, PlayerLoginSnapshot};
 pub use player::{
-    CreatureKillSnapshot, LogoutReason, PlayerLevelChangedSnapshot, PlayerLogoutSnapshot,
-    PlayerModule, PlayerMoneyChangedSnapshot, QuestAcceptedSnapshot, QuestRewardedSnapshot,
-    SpellCastSnapshot,
+    CreatureKillSnapshot, ItemEquippedSnapshot, LogoutReason, LootItemSnapshot, LootMoneySnapshot,
+    PlayerHook, PlayerLevelChangedSnapshot, PlayerLogoutSnapshot, PlayerModule,
+    PlayerMoneyChangedSnapshot, QuestAcceptedSnapshot, QuestRewardedSnapshot, SpellCastSnapshot,
 };
 pub use registry::{
     HookFamily, ModuleDescriptor, ModuleHooks, ModuleId, ModuleRegistrationError, ModuleRegistry,

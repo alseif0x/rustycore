@@ -12,14 +12,17 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
+use crate::chat::{ChatMessageSnapshot, ChatModule, ChatOutcome};
+use crate::decision::ChatDecision;
 use crate::effect::{
     EffectBatch, HookOutcome, ModuleEffectError, NotificationEffect, PlayerLoginEffects,
     ScopedEffects, validated,
 };
 use crate::hook::{PlayerLoginModule, PlayerLoginSnapshot};
 use crate::player::{
-    CreatureKillSnapshot, PlayerLevelChangedSnapshot, PlayerLogoutSnapshot, PlayerModule,
-    PlayerMoneyChangedSnapshot, QuestAcceptedSnapshot, QuestRewardedSnapshot, SpellCastSnapshot,
+    CreatureKillSnapshot, ItemEquippedSnapshot, LootItemSnapshot, LootMoneySnapshot, PlayerHook,
+    PlayerLevelChangedSnapshot, PlayerLogoutSnapshot, PlayerModule, PlayerMoneyChangedSnapshot,
+    QuestAcceptedSnapshot, QuestRewardedSnapshot, SpellCastSnapshot,
 };
 use crate::world::{
     ConfigLoadedSnapshot, WorldEffect, WorldEffects, WorldModule, WorldShutdownSnapshot,
@@ -214,6 +217,10 @@ pub enum HookFamily {
     /// The `world.*` notifications of [`WorldModule`] (#1444): configuration,
     /// startup, shutdown and the world tick. AzerothCore `WorldScript`.
     World,
+    /// The `chat.*` pre-decision of [`ChatModule`] (#1444 H4). AzerothCore
+    /// `PlayerScript::OnPlayerCanUseChat`. A family of its own so a server
+    /// whose modules ignore chat builds no snapshot per message.
+    Chat,
 }
 
 /// The hook families one module offers (source API 2).
@@ -224,7 +231,10 @@ pub enum HookFamily {
 pub struct ModuleHooks {
     player_login: Option<Arc<dyn PlayerLoginModule>>,
     player: Option<Arc<dyn PlayerModule>>,
+    /// The `player.*` hooks `player` enabled ([`PlayerModule::enabled_hooks`]).
+    player_hooks: u32,
     world: Option<Arc<dyn WorldModule>>,
+    chat: Option<Arc<dyn ChatModule>>,
 }
 
 impl ModuleHooks {
@@ -243,6 +253,7 @@ impl ModuleHooks {
     /// Offer the `player.*` family.
     #[must_use]
     pub fn player(mut self, module: Arc<dyn PlayerModule>) -> Self {
+        self.player_hooks = PlayerHook::mask(module.enabled_hooks());
         self.player = Some(module);
         self
     }
@@ -254,6 +265,13 @@ impl ModuleHooks {
         self
     }
 
+    /// Offer the `chat.*` family.
+    #[must_use]
+    pub fn chat(mut self, module: Arc<dyn ChatModule>) -> Self {
+        self.chat = Some(module);
+        self
+    }
+
     /// Whether this set offers `family`.
     #[must_use]
     pub fn offers(&self, family: HookFamily) -> bool {
@@ -261,12 +279,29 @@ impl ModuleHooks {
             HookFamily::PlayerLogin => self.player_login.is_some(),
             HookFamily::Player => self.player.is_some(),
             HookFamily::World => self.world.is_some(),
+            HookFamily::Chat => self.chat.is_some(),
         }
+    }
+
+    /// Whether this set offers the `player.*` family with `hook` enabled.
+    #[must_use]
+    pub fn offers_player_hook(&self, hook: PlayerHook) -> bool {
+        self.player_for(hook).is_some()
+    }
+
+    /// The `player.*` module, when it enabled `hook`.
+    fn player_for(&self, hook: PlayerHook) -> Option<&Arc<dyn PlayerModule>> {
+        self.player
+            .as_ref()
+            .filter(|_| self.player_hooks & hook.bit() != 0)
     }
 
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.player_login.is_none() && self.player.is_none() && self.world.is_none()
+        self.player_login.is_none()
+            && self.player.is_none()
+            && self.world.is_none()
+            && self.chat.is_none()
     }
 }
 
@@ -355,6 +390,16 @@ impl ModuleRegistry {
             .any(|m| !m.disabled.load(Ordering::Acquire) && m.hooks.offers(family))
     }
 
+    /// Whether any enabled module enabled the `player.*` hook `hook`: the
+    /// per-hook interest query (AzerothCore `CALL_ENABLED_HOOKS`). Owners ask
+    /// it before building that hook's snapshot.
+    #[must_use]
+    pub fn handles_player_hook(&self, hook: PlayerHook) -> bool {
+        self.modules
+            .values()
+            .any(|m| !m.disabled.load(Ordering::Acquire) && m.hooks.offers_player_hook(hook))
+    }
+
     /// Whether a panic disabled `id`. Unknown ids are not disabled.
     #[must_use]
     pub fn is_disabled(&self, id: &ModuleId) -> bool {
@@ -400,7 +445,7 @@ impl ModuleRegistry {
         snapshot: &PlayerLogoutSnapshot,
     ) -> HookOutcome<NotificationEffect> {
         self.dispatch_notifications(
-            |hooks| hooks.player.as_ref(),
+            |hooks| hooks.player_for(PlayerHook::Logout),
             |module, _effects| module.on_logout(snapshot),
         )
     }
@@ -411,7 +456,7 @@ impl ModuleRegistry {
         snapshot: &PlayerLevelChangedSnapshot,
     ) -> HookOutcome<NotificationEffect> {
         self.dispatch_notifications(
-            |hooks| hooks.player.as_ref(),
+            |hooks| hooks.player_for(PlayerHook::LevelChanged),
             |module, effects| module.on_level_changed(snapshot, effects),
         )
     }
@@ -422,7 +467,7 @@ impl ModuleRegistry {
         snapshot: &PlayerMoneyChangedSnapshot,
     ) -> HookOutcome<NotificationEffect> {
         self.dispatch_notifications(
-            |hooks| hooks.player.as_ref(),
+            |hooks| hooks.player_for(PlayerHook::MoneyChanged),
             |module, effects| module.on_money_changed(snapshot, effects),
         )
     }
@@ -433,7 +478,7 @@ impl ModuleRegistry {
         snapshot: &QuestAcceptedSnapshot,
     ) -> HookOutcome<NotificationEffect> {
         self.dispatch_notifications(
-            |hooks| hooks.player.as_ref(),
+            |hooks| hooks.player_for(PlayerHook::QuestAccepted),
             |module, effects| module.on_quest_accepted(snapshot, effects),
         )
     }
@@ -444,7 +489,7 @@ impl ModuleRegistry {
         snapshot: &QuestRewardedSnapshot,
     ) -> HookOutcome<NotificationEffect> {
         self.dispatch_notifications(
-            |hooks| hooks.player.as_ref(),
+            |hooks| hooks.player_for(PlayerHook::QuestRewarded),
             |module, effects| module.on_quest_rewarded(snapshot, effects),
         )
     }
@@ -503,7 +548,7 @@ impl ModuleRegistry {
         snapshot: &CreatureKillSnapshot,
     ) -> HookOutcome<NotificationEffect> {
         self.dispatch_notifications(
-            |hooks| hooks.player.as_ref(),
+            |hooks| hooks.player_for(PlayerHook::CreatureKill),
             |module, effects| module.on_creature_kill(snapshot, effects),
         )
     }
@@ -514,9 +559,95 @@ impl ModuleRegistry {
         snapshot: &SpellCastSnapshot,
     ) -> HookOutcome<NotificationEffect> {
         self.dispatch_notifications(
-            |hooks| hooks.player.as_ref(),
+            |hooks| hooks.player_for(PlayerHook::SpellCast),
             |module, effects| module.on_spell_cast(snapshot, effects),
         )
+    }
+
+    /// `item.equipped`.
+    pub fn dispatch_item_equipped(
+        &self,
+        snapshot: &ItemEquippedSnapshot,
+    ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_notifications(
+            |hooks| hooks.player_for(PlayerHook::ItemEquipped),
+            |module, effects| module.on_equip(snapshot, effects),
+        )
+    }
+
+    /// `player.loot_item`.
+    pub fn dispatch_loot_item(
+        &self,
+        snapshot: &LootItemSnapshot,
+    ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_notifications(
+            |hooks| hooks.player_for(PlayerHook::LootItem),
+            |module, effects| module.on_loot_item(snapshot, effects),
+        )
+    }
+
+    /// `player.loot_money`.
+    pub fn dispatch_loot_money(
+        &self,
+        snapshot: &LootMoneySnapshot,
+    ) -> HookOutcome<NotificationEffect> {
+        self.dispatch_notifications(
+            |hooks| hooks.player_for(PlayerHook::LootMoney),
+            |module, effects| module.on_loot_money(snapshot, effects),
+        )
+    }
+
+    /// `chat.message`, a pre-decision composed in `ModuleId` order.
+    ///
+    /// Each module sees the text the previous ones left: a `ReplaceText`
+    /// feeds the next module, and the first `Deny` stops the dispatch and
+    /// drops the message. The outcome is `Allow` when no module changed
+    /// anything, otherwise `ReplaceText` with the final text. A callback that
+    /// panics is disabled and its decision discarded. The owner re-validates
+    /// a replaced text; this registry does not know the client-text rules.
+    pub fn dispatch_chat_message(&self, snapshot: &ChatMessageSnapshot) -> ChatOutcome {
+        let mut current = snapshot.clone();
+        let mut replaced = false;
+        let mut disabled = Vec::new();
+        for (id, entry) in &self.modules {
+            if entry.disabled.load(Ordering::Acquire) {
+                continue;
+            }
+            let Some(module) = entry.hooks.chat.as_ref() else {
+                continue;
+            };
+            let decided = catch_unwind(AssertUnwindSafe(|| {
+                let _scope = CallbackScope::enter();
+                module.on_chat_message(&current)
+            }));
+            match decided {
+                Err(_) => {
+                    entry.disabled.store(true, Ordering::Release);
+                    disabled.push(id.clone());
+                }
+                Ok(ChatDecision::Allow) => {}
+                Ok(ChatDecision::Deny) => {
+                    return ChatOutcome {
+                        decision: ChatDecision::Deny,
+                        denied_by: Some(id.clone()),
+                        disabled,
+                    };
+                }
+                Ok(ChatDecision::ReplaceText(text)) => {
+                    current.text = text;
+                    replaced = true;
+                }
+            }
+        }
+        ChatOutcome {
+            decision: if replaced {
+                ChatDecision::ReplaceText(current.text)
+            } else {
+                ChatDecision::Allow
+            },
+            denied_by: None,
+            disabled,
+        }
     }
 
     /// Visit, in `ModuleId` order, every enabled module offering one

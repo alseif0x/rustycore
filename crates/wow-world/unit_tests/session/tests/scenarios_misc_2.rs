@@ -5,6 +5,9 @@
 
 use super::*;
 
+#[path = "scenarios_misc_2/spell_cast_hook.rs"]
+mod spell_cast_hook;
+
 #[tokio::test]
 async fn or_db_missing_row_positive_radius_offsets_and_applies_facing_like_cpp() {
     let (mut session, _, send_rx) = make_session();

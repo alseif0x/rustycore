@@ -90,8 +90,12 @@ use wow_persistence::{
     PlayerNameQueryRowLikeCpp, PlayerOfflineMarkLikeCpp, PlayerOnlineMarkRequestLikeCpp,
 };
 
+#[path = "character_tests/binder_cast_hook.rs"]
+mod binder_cast_hook;
 #[path = "character_tests/creature.rs"]
 mod creature;
+#[path = "character_tests/equip_hook.rs"]
+mod equip_hook;
 #[path = "character_tests/gameobject.rs"]
 mod gameobject;
 #[path = "character_tests/group.rs"]

@@ -496,3 +496,5 @@ mod channels;
 mod scenarios_1;
 mod scenarios_2;
 mod scenarios_3;
+// #1444 H4: the `chat.message` linked-module pre-decision.
+mod module_hook;

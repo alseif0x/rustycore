@@ -468,6 +468,16 @@ pub trait LootHandlerHostLikeCpp<C> {
         apply_money: bool,
         publish: bool,
     ) -> impl Future<Output = ApplyLootMoneyResultLikeCpp> + Send + 'a;
+
+    /// Whether any linked module wants `player.loot_item` (#1444 H4); asked
+    /// once per request, before any event is recorded.
+    fn loot_item_hook_wanted_like_cpp(&self) -> bool {
+        false
+    }
+
+    /// `player.loot_item`: AzerothCore `OnPlayerLootItem`, raised for a
+    /// directly looted item once it is durably stored.
+    fn loot_item_hook_like_cpp(&mut self, _event: &crate::LootItemHookEventLikeCpp) {}
 }
 
 fn handle_set_loot_specialization_thunk<'a, S, C>(

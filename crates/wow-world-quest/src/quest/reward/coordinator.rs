@@ -342,19 +342,21 @@ impl QuestRewardCx<'_> {
         // then the reward, in that order, once per reward, auto rewards
         // included. The queued `RewardMoneyChanged` feeds objective progress
         // only; it does not raise the money hook again (#1444).
-        if self.module_hooks.player_hooks_wanted_like_cpp() {
+        if let Some((before, after)) = committed_money_change
+            && self.module_hooks.money_changed_hook_wanted_like_cpp()
+        {
+            self.module_hooks.player_money_changed_like_cpp(
+                self.player.packet_publication_access_like_cpp(),
+                &crate::PlayerMoneyChangedHookEventLikeCpp {
+                    guid: player_guid,
+                    old_money: before,
+                    new_money: after,
+                },
+            );
+        }
+        if self.module_hooks.quest_rewarded_hook_wanted_like_cpp() {
             let (money_before, money_after) = match committed_money_change {
-                Some((before, after)) => {
-                    self.module_hooks.player_money_changed_like_cpp(
-                        self.player.packet_publication_access_like_cpp(),
-                        &crate::PlayerMoneyChangedHookEventLikeCpp {
-                            guid: player_guid,
-                            old_money: before,
-                            new_money: after,
-                        },
-                    );
-                    (before, after)
-                }
+                Some(change) => change,
                 None => {
                     let balance = self
                         .inventory

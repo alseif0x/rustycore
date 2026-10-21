@@ -47,11 +47,13 @@ impl<'a> ChatHandlerCxLikeCpp<'a> {
         hub: HubMut<'a>,
         social: &'a mut SessionSocialLimits,
         policy: &'a ChatPolicyCatalogsLikeCpp,
+        module_hooks: &'a dyn crate::ChatModuleHookPortLikeCpp,
     ) -> Self {
         Self {
             hub,
             social,
             policy,
+            module_hooks,
         }
     }
 
@@ -190,6 +192,13 @@ impl<'a> ChatHandlerCxLikeCpp<'a> {
                 (chat_type, None)
             }
             _ => return,
+        };
+        // AzerothCore asks `OnPlayerCanUseChat` once the group is resolved
+        // (`ChatHandler.cpp:466/513/546`); TrinityCore `OnPlayerChat`
+        // (`ChatHandler.cpp:355/397/410/452`).
+        let Some(text) = self.module_chat_text_like_cpp(requested_type, language, text, None)
+        else {
+            return;
         };
 
         let chat = ChatPkt {
@@ -714,6 +723,11 @@ impl<'a> ChatHandlerCxLikeCpp<'a> {
         let (sender_guid, sender_name) = player_name_and_guid_like_cpp(&self.hub.shared());
         let virtual_realm = self.hub.shared().core.virtual_realm_address();
 
+        // AzerothCore `Player::TextEmote` (`Player.cpp:9617`); TrinityCore
+        // `Player.cpp:21086`.
+        let Some(text) = self.module_chat_text_like_cpp(ChatMsg::Emote, 0, msg.text, None) else {
+            return;
+        };
         let chat = ChatPkt {
             msg_type: ChatMsg::Emote,
             language: 0,
@@ -723,7 +737,7 @@ impl<'a> ChatHandlerCxLikeCpp<'a> {
             target_name: String::new(),
             prefix: String::new(),
             channel: String::new(),
-            text: msg.text,
+            text,
             virtual_realm,
         };
         self.publication_like_cpp().send_packet(&chat);
@@ -902,6 +916,13 @@ impl<'a> ChatHandlerCxLikeCpp<'a> {
             return;
         }
 
+        // AzerothCore `Player::Say`/`Yell` ask `OnPlayerCanUseChat` here
+        // (`Player.cpp:9561/9589`); TrinityCore `OnPlayerChat` (`Player.cpp:21047/21073`).
+        let Some(text) =
+            self.module_chat_text_like_cpp(msg_type, msg.language as u32, msg.text, None)
+        else {
+            return;
+        };
         let chat = ChatPkt {
             msg_type,
             language: msg.language as u32,
@@ -911,7 +932,7 @@ impl<'a> ChatHandlerCxLikeCpp<'a> {
             target_name: String::new(),
             prefix: String::new(),
             channel: String::new(),
-            text: msg.text,
+            text,
             virtual_realm,
         };
 
@@ -1097,6 +1118,14 @@ impl<'a> ChatHandlerCxLikeCpp<'a> {
                 self.send_gm_silence_notification_like_cpp();
                 return;
             }
+            // AzerothCore `Player::Whisper` asks `OnPlayerCanUseChat` with the
+            // receiver and `LANG_UNIVERSAL` (`Player.cpp:9667-9671`);
+            // TrinityCore `Player.cpp:21121`.
+            let Some(text) =
+                self.module_chat_text_like_cpp(ChatMsg::Whisper, 0, msg.text, Some(target.guid))
+            else {
+                return;
+            };
 
             // Forward the whisper to the target as a normal Say-whisper.
             let to_target = ChatPkt {
@@ -1108,7 +1137,7 @@ impl<'a> ChatHandlerCxLikeCpp<'a> {
                 target_name: target_name.clone(),
                 prefix: String::new(),
                 channel: String::new(),
-                text: msg.text.clone(),
+                text: text.clone(),
                 virtual_realm,
             };
             let _ = registry.send_current_packet(target.registration, to_target.to_bytes());
@@ -1123,7 +1152,7 @@ impl<'a> ChatHandlerCxLikeCpp<'a> {
                 target_name: target_name.clone(),
                 prefix: String::new(),
                 channel: String::new(),
-                text: msg.text,
+                text,
                 virtual_realm,
             };
             self.publication_like_cpp().send_packet(&inform);

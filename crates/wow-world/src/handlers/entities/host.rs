@@ -19,7 +19,7 @@ use crate::session::WorldSession;
 impl WorldEntitiesHostLikeCpp for WorldSession {
     fn creature_kill_hook_wanted_like_cpp(&self) -> bool {
         self.module_hooks
-            .wants_like_cpp(wow_module_api::HookFamily::Player)
+            .wants_player_hook_like_cpp(wow_module_api::PlayerHook::CreatureKill)
     }
     fn creature_kill_hook_like_cpp(
         &mut self,

@@ -218,7 +218,8 @@ pub use item_session::{
     plan_inventory_equip_child_like_cpp, plan_inventory_real_swap_children_like_cpp,
 };
 pub use item_session::{
-    ItemSessionHostLikeCpp, destroy_inventory_full_stack_by_pos_like_cpp,
+    ItemEquippedHookEventLikeCpp, ItemSessionHostLikeCpp,
+    destroy_inventory_full_stack_by_pos_like_cpp,
     destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp,
     handle_auto_equip_item_slot_with_generator_like_cpp,
     handle_auto_equip_item_with_generator_like_cpp,
