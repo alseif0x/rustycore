@@ -339,7 +339,7 @@ pub async fn validate_runtime_schema(
             .iter()
             .any(|problem| problem.contains(modules::MODULE_COMPONENT_PREFIX))
         {
-            "; module SQL is applied only by the operator's `rustycore-db module` command (#1444 H6b), and a removed module needs its tombstone in the composed modules.lock.toml"
+            "; module SQL is applied with `rustycore-db module apply <id>`, and a removed module needs its tombstone in the composed modules.lock.toml"
         } else {
             ""
         };

@@ -88,17 +88,6 @@ fn active<'a>(schema: &'a ModuleSchema, id: &str) -> Result<&'a LockedModule> {
     })
 }
 
-/// The module's migrations for `database`, in version order.
-fn ordered_migrations(sql: &ModuleSql, database: DatabaseKind) -> Vec<&ModuleMigration> {
-    let mut migrations: Vec<_> = sql
-        .migration
-        .iter()
-        .filter(|migration| migration.database == database)
-        .collect();
-    migrations.sort_by_key(|migration| parse_schema_version(&migration.version));
-    migrations
-}
-
 async fn module_tables(pool: &MySqlPool, module_id: &str) -> Result<Vec<String>> {
     let prefix = table_prefix(module_id).replace('_', "\\_");
     Ok(sqlx::query_scalar(
@@ -176,7 +165,13 @@ pub async fn apply_module(
         tables: module_tables(pool, module_id).await?,
         ..ModuleDatabaseReport::default()
     };
-    let migrations = ordered_migrations(sql, database);
+    // The one apply order: enabled_order, id, numeric version (#1444 H6a F3).
+    let migrations: Vec<&ModuleMigration> = schema
+        .ordered_migrations(database)
+        .into_iter()
+        .filter(|(owner, _)| owner.id == module.id)
+        .map(|(_, migration)| migration)
+        .collect();
     if migrations.is_empty() {
         return Ok(report);
     }
