@@ -210,6 +210,7 @@ async fn a_whisper_reports_its_receiver_and_sends_the_replaced_text() {
     assert_eq!(seen.len(), 1);
     assert_eq!(seen[0].kind, ChatKind::Whisper);
     assert_eq!(seen[0].receiver, Some(target));
+    assert_eq!(seen[0].language, 0, "AzerothCore passes LANG_UNIVERSAL");
 }
 
 #[tokio::test]

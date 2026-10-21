@@ -297,8 +297,8 @@ durable or committed result.
 | `player.creature_kill` | `PlayerModule::on_creature_kill` | `PlayerScript.h:254`, `Unit.cpp:14298`; TrinityCore `Unit.cpp:10755` (`OnCreatureKill`) | `wow-world-entities` `creature_kill_session.rs`, the kill completion every player kill ends in (spell damage at once, map-tick melee through the session's pending-kill queue): once per `setDeathState(JUST_DIED)`, after the map lock of that transition is released, only for the session's own player | self message; non-persistent observation |
 | `player.spell_cast` | `PlayerModule::on_spell_cast` | `PlayerScript.h:326`, `Spell.cpp:3825`; TrinityCore `Spell.cpp:3671` | `wow-world-spell` `execution_session/execution.rs`, the only player `SMSG_SPELL_GO` producer: once per cast with the player as caster, after the SPELL_GO and before the effects; `triggered` is C++ `TRIGGERED_IGNORE_GCD`, the one trigger flag represented (every `CastSpell(..., true)` carries it) | self message; nothing can change spells or auras (#754); non-persistent observation |
 | `item.equipped` | `PlayerModule::on_equip` | `PlayerScript.h:416`, `PlayerStorage.cpp:2940` | `wow-world-inventory` `item_session`: equip into an empty slot (`moves.rs`), a real swap (`real_swap.rs`, once per item that lands in an equipment position) and the child equip, after the inventory transaction committed and the position changed | self message |
-| `player.loot_item` | `PlayerModule::on_loot_item` | `PlayerScript.h:431`, `Player.cpp:13918` | `wow-world-loot-ops` `loot_handlers/item.rs`, a directly looted item once durably stored, raised after the request's loot-removed notifications; roll winners and master-loot recipients are not reported (AzerothCore raises other hooks there) | self message |
-| `player.loot_money` | `PlayerModule::on_loot_money` | `LootScript.h:44`, `LootHandler.cpp:273` | `wow-world-loot-ops` `session_loot/handlers/money.rs`, once for the looter after the group fanout committed (`money` is the whole `loot->gold`, `share` what the looter received), or after an item's money was durably applied; a repeated request on an emptied loot reports 0, as AzerothCore does | self message |
+| `player.loot_item` | `PlayerModule::on_loot_item` | `PlayerScript.h:431`, `Player.cpp:13918` | `wow-world-loot-ops` `loot_handlers/item.rs`, a directly looted item once durably stored, raised after the request's loot-removed notifications; roll winners and master-loot recipients are deliberately not reported, for AzerothCore parity: it raises `OnPlayerLootItem` only at the end of `StoreLootItem` (`Player.cpp:13918`) and other hooks for rolls and master loot (`Group.cpp:1652/1736`) | self message |
+| `player.loot_money` | `PlayerModule::on_loot_money` | `LootScript.h:44`, `LootHandler.cpp:273` | `wow-world-loot-ops` `session_loot/handlers/money.rs`, once for the looter after the group fanout committed (`money` is the whole `loot->gold`, `share` what the looter received), or after an item's money was durably applied; on the creature/GameObject path a repeated request on an emptied loot reports 0, as AzerothCore does; the item-held loot path raises nothing on a repeat | self message |
 | `chat.message` (**pre-decision**) | `ChatModule::on_chat_message` | `PlayerScript.h:657-709` (`OnPlayerCanUseChat`); TrinityCore `PlayerScript::OnChat` | `wow-world-social` `chat_handlers`: say, yell, free-text emote, party, raid, raid warning, instance chat and whisper, after every C++ check (language, mute, flood, length, `ValidateMessage`, links, GM silence, alive, level; group resolved; whisper receiver found), right before the send | `ChatDecision`: `Allow`, `Deny`, `ReplaceText` |
 | `world.config_loaded` | `WorldModule::on_config_loaded` | `WorldScript.h:53`, `World.cpp:300` (`OnAfterConfigLoad(false)`) | `world-server` `app.rs`, `WorldModuleHooksLikeCpp::after_config_load_like_cpp`, after the databases are started, the online accounts cleared and the realm marked offline, before the realm list is read (C++ reaches `LoadConfigSettings` only after `StartDB`); `reload` is always `false` (no reload exists) | log, world announcement |
 | `world.startup` | `WorldModule::on_startup` | `WorldScript.h:74`, `Main.cpp:395` (TrinityCore `Main.cpp:413`) | `world-server` `app.rs`, after both listeners are bound and the realm is marked online, beside the internal `on_startup_like_cpp`; the already spawned map loop dispatches no `world.update` before it | log, world announcement |
@@ -350,7 +350,20 @@ its decision discarded. A replaced text goes through the client-text rules again
 fall back to the text a module wanted replaced, and a module-inserted link never kicks the
 sender. Guild and officer chat, channels, AFK/DND replies and addon messages are not offered:
 guild chat and channel broadcast are not ported, and in C++ a veto after the AFK/DND toggle has
-no effect.
+no effect. A whisper is reported with `LANG_UNIVERSAL`, as AzerothCore `Player::Whisper` passes it
+(`Player.cpp:9667-9671`).
+
+**Security consequence: chat filtering fails open.** A chat module that panics is disabled for the
+rest of the process, like any module, and its decision is discarded. A module used as a
+profanity or spam filter therefore stops filtering after its first panic, and messages are sent
+unfiltered from then on (the disable is logged). A filter that must fail closed is out of scope
+until #583.
+
+**Equip hook coverage (#1444 H4).** `item.equipped` is raised only by the equip handlers (empty
+slot, real swap, child equip). Unlike AzerothCore, it is not raised for the equipment loaded at
+login (`QuickEquipItem` in `_LoadInventory`, `PlayerStorage.cpp:6008`), for a stack merged into an
+equipped stack (`PlayerStorage.cpp:2932`), or for a new character's starting outfit
+(`Player.cpp:724`).
 
 ## Approved next direction — #583 under #99, not implemented yet
 

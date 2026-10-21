@@ -1119,13 +1119,11 @@ impl<'a> ChatHandlerCxLikeCpp<'a> {
                 return;
             }
             // AzerothCore `Player::Whisper` asks `OnPlayerCanUseChat` with the
-            // receiver (`Player.cpp:9671`); TrinityCore `Player.cpp:21121`.
-            let Some(text) = self.module_chat_text_like_cpp(
-                ChatMsg::Whisper,
-                msg.language as u32,
-                msg.text,
-                Some(target.guid),
-            ) else {
+            // receiver and `LANG_UNIVERSAL` (`Player.cpp:9667-9671`);
+            // TrinityCore `Player.cpp:21121`.
+            let Some(text) =
+                self.module_chat_text_like_cpp(ChatMsg::Whisper, 0, msg.text, Some(target.guid))
+            else {
                 return;
             };
 
