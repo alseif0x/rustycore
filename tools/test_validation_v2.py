@@ -357,9 +357,18 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
         ("architecture-policy-check", ["diff-hygiene", "architecture-policy-check"]),
         (None, [step["section"] for step in audit]),
     ):
+        def simulated_body(step: dict[str, object]) -> str:
+            if step["section"] == red_section:
+                return "raise SystemExit(19)"
+            tool = step.get(runner.SCAN_ROOT_BANNER_KEY)
+            if tool is None:
+                return "pass"
+            # A green scan step must show the banner naming this checkout.
+            banner = f"{tool}: scan root {repo.resolve()} (fixture)"
+            return f"import sys; print({banner!r}, file=sys.stderr)"
+
         simulated = [
-            {**step, "argv": [sys.executable, "-c",
-                "raise SystemExit(19)" if step["section"] == red_section else "pass"]}
+            {**step, "argv": [sys.executable, "-c", simulated_body(step)]}
             for step in audit
         ]
         outcomes, exit_code = runner.run_steps(repo, simulated, base_env, 30)
@@ -629,7 +638,7 @@ def test_handler_graph_contract() -> None:
     the base, in any TOML spelling, including a new or deleted crate; a
     comment-only or other metadata edit does not (#1363 slices Q2 and 4c).
     Quick never plans a checker command for any of them."""
-    checker_suite = ["cargo", "test", "--locked", "--manifest-path", runner.CHECKER_MANIFEST,
+    checker_suite = ["cargo", "test", "--locked", *runner.CHECKER_CARGO,
                      "--jobs", "2", "--lib", "--no-fail-fast"]
     package = '[package]\nname = "x"\nversion = "0.1.0"\n'
     with_handler = package + '\n[dependencies]\nwow-handler = { path = "../wow-handler" }\n'
@@ -863,7 +872,7 @@ def test_planner_contract(repo: Path) -> None:
     # #1363 slice Q2 (#1406 review follow-up 1): final runs the checker lib
     # suite, whose repository test pins the checked production-package set,
     # for a workspace manifest or lock change; quick never does.
-    checker_suite = ["cargo", "test", "--locked", "--manifest-path", runner.CHECKER_MANIFEST,
+    checker_suite = ["cargo", "test", "--locked", *runner.CHECKER_CARGO,
                      "--jobs", "2", "--lib", "--no-fail-fast"]
     assert checker_suite not in final and checker_suite not in quick
     for changed in ("Cargo.toml", "Cargo.lock"):
@@ -1281,9 +1290,11 @@ def test_architecture_plan_contract() -> None:
         # hide the ownership verdict.
         assert first[0]["continue_to_section_on_failure"] == "session-syntax-acceptance"
         assert all("continue_to_section_on_failure" not in step for step in first[1:])
+        # #1468 B1: the ownership scan must show it read this checkout.
+        assert first[1][runner.SCAN_ROOT_BANNER_KEY] == "session-ownership-check"
         assert actual[0] == [*checker, "check", "--self-test"]
         assert actual[1] == [
-            "cargo", "run", "--release", "--locked", "--manifest-path", runner.CHECKER_MANIFEST,
+            "cargo", "run", "--release", "--locked", *runner.CHECKER_CARGO,
             "--bin", "session-ownership-check", "--jobs", "2", "--", "check", "--syntax-only",
         ]
         assert actual[2:] == (retained if original else [])
@@ -1396,10 +1407,107 @@ def test_evidence_contract(repo: Path, environment: dict[str, str], directory: P
     assert runner.failed_exit_code(result) == runner.RUNNER_ERROR
 
 
+def test_module_and_persistence_plan_contract() -> None:
+    """#1468: final compiles the SQL-mode compositor (and runs the module tool
+    suite) for module-surface changes, and records - without running - the
+    exhaustive persistence inventory when its inputs change."""
+    repo = RUNNER_PATH.parents[1]
+    compositor = ["python3", runner.SQL_COMPOSITOR_CHECK, "--jobs", "2"]
+    suite = ["python3", runner.MODULE_TOOL_SUITE]
+
+    def plan(profile: str, paths: list[str]) -> tuple[list[list[str]], list[str]]:
+        return runner.validation_commands(repo, profile, 2, "base", runner.grouped_paths(paths), None)
+
+    for path in (
+        "tools/modules/compose.py",
+        "tools/modules/examples/milestones/src/lib.rs",
+        "crates/world-server/src/entry.rs",
+        "crates/world-server/src/app.rs",
+        "crates/world-server/src/lib.rs",
+        "crates/world-modules/src/main.rs",
+        "crates/wow-module-api/src/lib.rs",
+    ):
+        planned, _ = plan("final", [path])
+        assert compositor in planned, path
+        assert (suite in planned) is path.startswith("tools/modules/"), path
+        quick, _ = plan("quick", [path])
+        assert compositor not in quick and suite not in quick, path
+    for path in ("crates/world-server/src/runtime/map.rs", "docs/architecture/modules.md"):
+        planned, _ = plan("final", [path])
+        assert compositor not in planned and suite not in planned, path
+    # The compositor step compiles world-server: it needs the pinned protoc.
+    try:
+        runner.require_protoc_for([{"section": "x", "argv": compositor}], {})
+    except ValueError as error:
+        assert "protoc" in str(error)
+    else:
+        raise AssertionError("the compositor step must require protoc")
+
+    for path in (
+        "tools/architecture/persistence-boundary-workflows.json",
+        "tools/architecture/persistence-access-snapshot.json",
+        "tools/architecture/handler-contract-check/src/persistence_policy.rs",
+        "tools/architecture/handler-contract-check/src/session_ownership/state_3.rs",
+        "tools/architecture/handler-contract-check/src/bin/session-ownership-check.rs",
+        "tools/architecture/session-ownership-policy.json",
+        "crates/wow-database/src/migration/module_ops.rs",
+        "crates/world-server/src/runtime/map.rs",
+    ):
+        planned, skips = plan("final", [path])
+        assert any("persistence inventory" in skip and "audit" in skip for skip in skips), path
+        assert not any(
+            command[:2] == ["cargo", "run"] and "session-ownership-check" in command
+            and "--syntax-only" not in command
+            for command in planned
+        ), "final never runs the exhaustive inventory"
+        _, quick_skips = plan("quick", [path])
+        assert not quick_skips, path
+    for path in ("docs/architecture/modules.md", "crates/wow-database/Cargo.toml", "tools/modules/compose.py"):
+        _, skips = plan("final", [path])
+        assert not any("persistence inventory" in skip for skip in skips), path
+
+
+def test_scan_root_banner_contract() -> None:
+    """#1468 review B1: a scan step passes only when its tool's stderr banner
+    names this checkout; the checker builds into a checkout-local target dir."""
+    audit = runner.audit_steps("base", 2)
+    banners = {step["section"]: step.get(runner.SCAN_ROOT_BANNER_KEY) for step in audit}
+    assert banners["handler-contract-repository-check"] == "handler-contract-check"
+    assert banners["session-persistence-ratchet"] == "session-ownership-check"
+    for step in audit:
+        argv = step["argv"]
+        if argv[:1] == ["cargo"] and runner.CHECKER_MANIFEST in argv and argv[1] != "fmt":
+            index = argv.index("--target-dir")
+            assert argv[index + 1] == runner.ARCH_TOOLS_TARGET_DIR == "target/arch-tools"
+    with tempfile.TemporaryDirectory(prefix="validation-v2-banner-") as scratch:
+        repo = Path(scratch).resolve()
+        environment = os.environ.copy()
+
+        def outcome(stderr_line: str) -> dict[str, object]:
+            command = ["python3", "-c", f"import sys; print({stderr_line!r}, file=sys.stderr)"]
+            # tee_output writes the child's bytes to the real stdout buffer.
+            return runner.run_one(repo, command, environment, 30, banner_tool="tool")
+
+        good = outcome(f"tool: scan root {repo} (compiled tree = current git top-level)")
+        assert good["status"] == "passed" and good["failure_kind"] is None, good
+        for line in (
+            "",  # a stale binary that predates the banner
+            f"tool: scan root {repo}/../elsewhere (compiled tree = current git top-level)",
+            f"other: scan root {repo} (x)",
+            f"tool: scan root {repo}-sibling (x)",
+        ):
+            bad = outcome(line)
+            assert bad["status"] == "failed" and bad["failure_kind"] == "scan-root", (line, bad)
+        plain = runner.run_one(repo, ["true"], environment, 30)
+        assert plain["status"] == "passed"
+
+
 def main() -> None:
     test_no_validation_level()
     test_architecture_plan_contract()
     test_timing_plan_contract()
+    test_module_and_persistence_plan_contract()
+    test_scan_root_banner_contract()
     with tempfile.TemporaryDirectory(prefix="validation-v2-self-test-") as raw_directory:
         directory = Path(raw_directory)
         repo = directory / "repo"

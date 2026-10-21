@@ -20,12 +20,12 @@ mod persistence_access;
 mod persistence_policy;
 mod registrations;
 mod registry_access;
+mod scan_root;
 mod session_ownership;
 mod snapshot;
 
 use std::collections::BTreeSet;
 use std::fs;
-use std::path::{Path, PathBuf};
 
 use dispatcher::{assert_single_dispatch_mechanism, dispatcher_contract_from_mounts};
 use module_policy::load_handler_module_policy;
@@ -45,12 +45,9 @@ pub use session_ownership::{
     print_repository_persistence_policy_from_snapshot as print_persistence_boundary_policy_from_snapshot,
 };
 
-fn repository_root() -> Result<PathBuf, String> {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../..")
-        .canonicalize()
-        .map_err(|error| format!("cannot resolve repository root: {error}"))
-}
+pub use scan_root::{resolve_scan_root, select_scan_root, take_root_argument};
+
+use scan_root::repository_root;
 
 /// Validate the complete source-level world-handler contract for this checkout.
 pub fn check_repository() -> Result<String, String> {

@@ -235,7 +235,24 @@ even a README under `crates/`, `tools/wow-test-bot/` or
 `tools/architecture/handler-contract-check/` takes that directory's Cargo route. The standalone
 checker and QA bot use their own manifests. A final architecture-checker run executes all its
 library tests, including the now syntax-only `repository_surface_can_be_collected`; it does not
-recompute the exhaustive persistence inventory. `final` also runs those library tests (and the
+recompute the exhaustive persistence inventory. That inventory alone costs 870-900 seconds, over
+the 600-second final budget, so `final` never runs it, even when its inputs change (#1468): it
+records an `optional_skips` entry instead when the diff touches any of its inputs (Rust under
+`crates/`, anything under `tools/architecture/handler-contract-check/`, or the
+`persistence-{access-snapshot,boundary-policy,boundary-workflows}.json` and
+`session-ownership-policy.json` policies), and `audit` (every push to `3.4.3` and the weekly
+cron) runs it. Run `./tools/validation-v2 audit` before relying on such a change earlier.
+Both checker binaries print `<tool>: scan root <path> (...)` on stderr and refuse to scan when
+the tree they were compiled from is not the current directory's git top-level (`--root PATH`
+scans another tree on purpose; a git failure is reported as such). Cargo fingerprints a path
+package by its workspace-relative path and mtimes, so under a `CARGO_TARGET_DIR` shared between
+checkouts another checkout's build of the checker looks fresh and is not rebuilt; that produced
+false passes (#1468). Every checker `cargo test`/`run`/`check` the runner plans (and
+`hotspot_metrics.py`'s `print-path-modules` call) therefore builds into the checkout-local
+`--target-dir target/arch-tools`, and each scan step declares `require_scan_root_banner`: it
+passes only when the tool's banner names this checkout, otherwise it fails with
+`failure_kind: scan-root`.
+`final` also runs those library tests (and the
 checker's format check) when the checked production-package set (the transitive reverse closure
 of `wow-handler`) can change without a checker file. The trigger is deliberately coarse, not a
 closure computation: a root `Cargo.toml` or `Cargo.lock` change, or a `crates/*/Cargo.toml` whose
@@ -246,7 +263,20 @@ edits do not trigger it (#1363 slices Q2 and 4c). `quick` plans no checker comma
 manifest-only diff. The self-test has, for each of those five tables and the package name,
 a fixture in which only that part differs, plus fixtures for the spellings above; it covers
 those cases, not every possible manifest edit. The checker's own lib test pins the package list. Committed capture contracts belong to `audit`,
-and live database/runtime/capture operations to explicit QA procedures. Commands run sequentially and each exact command appears at
+and live database/runtime/capture operations to explicit QA procedures.
+A `final` diff under `tools/modules/` also runs `tools/modules/test_rustycore_module.py`, and one
+under `tools/modules/`, `crates/world-modules/`, `crates/wow-module-api/` or touching
+`crates/world-server/src/{entry,app,lib}.rs` (where `run_with_composition` is defined and
+re-exported) runs `tools/modules/check_sql_compositor.py` (#1468): no
+checked-in tree composes a module with SQL, so the SQL-mode compositor
+(`run_with_composition` plus the embedded lock) compiles only there. It installs the example
+module under the ignored `modules/`, syncs, adds the workspace member, runs
+`cargo test -p example-milestones` and `cargo check -p world-modules` (offline, not `--locked`:
+the new member changes `Cargo.lock`), and restores every tracked file it touched from a backup in
+the checkout's git directory. A killed run leaves that backup; the next run restores it only when
+HEAD is unchanged, every touched file is still byte-identical to the composed (or original)
+state and `modules/milestones` is the recorded install, and otherwise refuses with instructions
+for a manual restore, so it never overwrites later work. Commands run sequentially and each exact command appears at
 most once. Neither level-2 nor level-3 profile calls a legacy wrapper or uses the network; Cargo is forced offline.
 
 `audit` is the explicit expert global, read-only budget. It does not use changed-path scope: it runs the

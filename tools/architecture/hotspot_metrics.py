@@ -523,6 +523,10 @@ PATH_MODULE_MOUNTS_COMMAND = (
     "--locked",
     "--manifest-path",
     "tools/architecture/handler-contract-check/Cargo.toml",
+    # Checkout-local: under a CARGO_TARGET_DIR shared between checkouts, Cargo
+    # treats another checkout's build of this binary as fresh (#1468 B1).
+    "--target-dir",
+    "target/arch-tools",
     "--bin",
     "session-ownership-check",
     "--",
@@ -556,6 +560,12 @@ def path_module_mounts() -> dict[pathlib.Path, list[tuple[pathlib.Path, bool]]]:
         raise ArchitectureError(
             "cannot resolve #[path] module mounts: "
             f"{result.stderr.strip() or result.stdout.strip()}"
+        )
+    banner = f"session-ownership-check: scan root {REPO_ROOT.resolve()} ("
+    if not any(line.startswith(banner) for line in result.stderr.splitlines()):
+        raise ArchitectureError(
+            "#[path] module mounts did not come from a scan of this checkout: "
+            f"no '{banner}...' banner on stderr"
         )
     try:
         rows = json.loads(result.stdout)
