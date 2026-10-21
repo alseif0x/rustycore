@@ -1,0 +1,25 @@
+# Trusted linked module manifest. See docs/architecture/modules.md.
+[module]
+id = "example.milestones"
+version = "1.0.0"
+display_name = "Example Milestones"
+
+[build]
+package = "example-milestones"
+crate_path = "."
+registrar = "example_milestones::register"
+
+[compatibility]
+# Uses the player.*, world.* and creature.* families of source API 2.
+source_api = "2"
+
+[config]
+# Package defaults. Operators override these in
+# conf/modules/example.milestones.toml, outside this repository.
+enabled = true
+# Congratulate a player on every level that is a multiple of this.
+level_step = 10
+# Congratulate a player on every kill count that is a multiple of this.
+kill_step = 100
+# Announce a level milestone to every player in the world as well.
+announce_levels = false

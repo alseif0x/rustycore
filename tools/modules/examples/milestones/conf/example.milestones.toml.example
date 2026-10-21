@@ -1,0 +1,5 @@
+# Copy reviewed overrides to the core's conf/modules/example.milestones.toml.
+enabled = true
+level_step = 10
+kill_step = 100
+announce_levels = false

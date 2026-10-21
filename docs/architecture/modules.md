@@ -32,6 +32,7 @@ modules.lock.toml                  generated record of what was composed
 crates/world-modules/              generated compositor crate
 tools/modules/compose.py           sync | check
 tools/modules/fixtures/            copyable example module
+tools/modules/examples/milestones/  example.milestones: the source API 2 example (#1444)
 ```
 
 ## `module.toml`
@@ -92,6 +93,21 @@ first `Deny` wins and `ReplaceText` chains in `ModuleId` order).
 Records identity, version, package, source path, requested ref, resolved commit,
 registrar, source API, enabled order and a content digest for every composed module.
 It holds no credentials and no URLs with secrets.
+
+## The example module (#1444)
+
+`tools/modules/examples/milestones/` (`example.milestones`, source API 2) uses the `player.*`,
+`world.*` and `creature.*` families together: a self message on every `level_step`-th level and
+`kill_step`-th kill (kill milestones also logged on the next `world.update`), an optional world
+announcement for level milestones queued from the player hook and sent by `world.update`, a
+creature death counter logged at shutdown, and `enabled_hooks` declaring its three `player.*`
+hooks. Its counters are in memory only. Install it with
+`rustycore-module install --path tools/modules/examples/milestones`, `sync`, and add
+`modules/milestones` to the workspace members to build or test it; `test_rustycore_module.py`
+checks that it installs and composes. It was run live (#1444 H5) through `tools/qa-runtime.sh`
+`loot-item` as a composed `world-modules` candidate with `kill_step = 1`: the journal shows its
+`world.startup` line, the kill milestone logged by `world.update`, and `1 creature deaths observed`
+at shutdown.
 
 ## The zero-module build is unchanged
 
