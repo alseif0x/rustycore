@@ -143,15 +143,27 @@ Owner decisions (2026-10-21, recorded on #1444):
   continue its tombstoned history. Removal never deletes data; a separate explicit purge runs
   the module's reviewed DROP scripts.
 - **Static guard.** `compose.py` (`tools/modules/module_sql.py`) at sync and `rustycore-db`
-  (`wow_database::migration::module_sql`) before applying or purging check every statement:
-  migrations may only `CREATE TABLE`/`ALTER TABLE` the module's tables, `CREATE`/`DROP INDEX` on
-  them, and `INSERT`/`REPLACE`/`UPDATE`/`DELETE` their rows; purge scripts may only
-  `DROP TABLE` them. Qualified names, `SELECT`, `JOIN`, `RENAME`, `UNION`, file I/O, executable
-  `/*! */` comments, foreign keys to other tables and every other statement are refused. Both
-  guards are tested against the shared `tools/modules/sql_guard_vectors.json`.
-- **Commands** (dry run unless `--yes`), `rustycore-db module <apply|remove|purge> <id>`:
+  (`wow_database::migration::module_sql`) before applying or purging check every statement, with
+  comments removed and strings emptied (`--` is a comment only before whitespace, as in MariaDB;
+  backslash escapes are assumed, which holds because `SET` is refused):
+  - migrations may `CREATE TABLE` the module's tables with columns first and then only the
+    options `ENGINE` (InnoDB, Aria, MyISAM, MEMORY), `[DEFAULT] CHARSET`/`CHARACTER SET`,
+    `COLLATE`, `COMMENT`, `AUTO_INCREMENT`, `ROW_FORMAT`; `ALTER TABLE` them with only
+    `ADD`/`DROP`/`MODIFY`/`CHANGE`/`ALTER` clauses and the same options; `CREATE`/`DROP INDEX` on
+    them; and `INSERT`/`REPLACE`/`UPDATE`/`DELETE` their rows without naming another table;
+  - purge scripts may only `DROP TABLE IF EXISTS` them, so a retried purge is safe;
+  - refused everywhere: qualified names, `SELECT`, `JOIN`, `RENAME`, `UNION`, partitions
+    (`PARTITION`, `EXCHANGE`, `CONVERT TABLE`), `TABLESPACE`, `DATA`/`INDEX DIRECTORY`,
+    `CONNECTION`, other engines, file I/O, sequences, side-effecting functions (`LOAD_FILE`,
+    `GET_LOCK`, `RELEASE_LOCK`, `SLEEP`, `BENCHMARK`, …), executable `/*! */` comments, foreign
+    keys to other tables and every other statement. `ALGORITHM=` and `LOCK=` clauses are refused
+    too, so online-DDL hints are not available to module tables;
+  - two modules may not have one table prefix inside the other (`mod_demo_` vs `mod_demo_x_`).
+  Both guards are tested against the shared `tools/modules/sql_guard_vectors.json`.
+- **Commands** (dry run unless `--yes`, which also requires `--config`), `rustycore-db module <apply|remove|purge> <id>`:
   - `apply` runs the composed module's pending migrations per database in version order. It
-    refuses while the core schema has a problem, while an earlier module in `enabled_order` has a
+    tolerates only pending module migrations: it refuses while the schema has any other problem
+    (checksum drift, incomplete rows, unknown history), while an earlier module in `enabled_order` has a
     pending migration, when `min_core_schema` is newer than the core manifest, when a file no
     longer matches its recorded checksum, or when the guard refuses it. It holds the same
     advisory lock as `migrate`, and a failed statement leaves the row incomplete for explicit
@@ -160,8 +172,9 @@ Owner decisions (2026-10-21, recorded on #1444):
     `modules/.retired/<id>/data/sql` and writes the module's tombstone into the lock. Then
     `rustycore-module remove <id>` (which refuses before that step), `sync` and a rebuild.
   - `purge` (only for a tombstoned, no longer composed module) runs the retained, re-verified and
-    guarded DROP scripts, deletes the module's history rows and its tombstone, and deletes the
-    retained copy. Run `sync` afterwards.
+    guarded DROP scripts, deletes the module's history rows once none of its tables remain (so an
+    interrupted purge can be rerun), then its tombstone and the retained copy. Run `sync`
+    afterwards.
 - **Tests** use a throwaway database: the ignored `live_mariadb_module_apply_remove_and_purge`
   (`RUSTYCORE_DB_IT_USER`, `_HOST`, `_PORT`, `_PASS`, as the other `live_mariadb*` tests), run in
   CI by `.github/workflows/wow-database-live.yml`. Never point them at a server database.
@@ -180,7 +193,10 @@ pre-decision that denies messages containing one of `blocked_words`, an optional
 announcement for level milestones queued from the player hook and sent by `world.update`, and a
 creature death counter logged at shutdown. `enabled_hooks` declares its four `player.*` hooks, and
 the `chat.*` family is registered only when a word is blocked. Its counters are in memory only;
-its README lists the typed configuration and the state boundary. Install it with
+its README lists the typed configuration and the state boundary. It also ships module SQL
+(#1444 H6c): one `characters` migration creating `mod_example_milestones_counts` and its purge
+script, which show the lifecycle below; nothing writes that table until #583 gives modules
+durable state. Install it with
 `rustycore-module install --path tools/modules/examples/milestones`, `sync`, and add
 `modules/milestones` to the workspace members to build or test it; `test_rustycore_module.py`
 checks that it installs and composes.

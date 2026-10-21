@@ -101,6 +101,8 @@ fn is_ident_char(c: char) -> bool {
 
 /// Tokens with comments removed and string literals emptied. An executable
 /// comment (`/*!` or `/*M!`) is refused: MariaDB runs what it contains.
+/// Strings assume backslash escapes (no `NO_BACKSLASH_ESCAPES`): `SET` is
+/// refused, so a module script cannot change `sql_mode` under the guard.
 fn tokens(statement: &str) -> Result<Vec<Token>, String> {
     let chars: Vec<char> = statement.chars().collect();
     let starts = |at: usize, text: &str| {

@@ -542,6 +542,51 @@
       "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
     },
     {
+      "package": "rustycore-db",
+      "module": "crate::module",
+      "source": "crates/rustycore-db/src/module.rs",
+      "enclosing": "fn run",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Explicit database migration composition boundary: module commands (#1444 H6)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The module command opens the characters and world databases one at a time, each with one configured typed pool; no cross-database transaction is claimed.",
+      "current_order": "rustycore-db module apply|remove|purge visits characters then world; apply and purge verify every file before changing a database, and remove/purge rewrite the lock only after the database work succeeded.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
+    },
+    {
+      "package": "rustycore-db",
+      "module": "crate::module",
+      "source": "crates/rustycore-db/src/module.rs",
+      "enclosing": "fn with_pool",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Explicit database migration composition boundary: module commands (#1444 H6)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The module command opens the characters and world databases one at a time, each with one configured typed pool; no cross-database transaction is claimed.",
+      "current_order": "rustycore-db module apply|remove|purge visits characters then world; apply and purge verify every file before changing a database, and remove/purge rewrite the lock only after the database work succeeded.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
+    },
+    {
+      "package": "rustycore-db",
+      "module": "crate::module",
+      "source": "crates/rustycore-db/src/module.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Explicit database migration composition boundary: module commands (#1444 H6)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The module command opens the characters and world databases one at a time, each with one configured typed pool; no cross-database transaction is claimed.",
+      "current_order": "rustycore-db module apply|remove|purge visits characters then world; apply and purge verify every file before changing a database, and remove/purge rewrite the lock only after the database work succeeded.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
+    },
+    {
       "package": "world-server",
       "module": "crate",
       "source": "crates/world-server/src/lib.rs",
@@ -7611,6 +7656,21 @@
       "package": "wow-database",
       "module": "crate::migration",
       "source": "crates/wow-database/src/migration.rs",
+      "enclosing": "fn apply_one_content",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration",
+      "source": "crates/wow-database/src/migration.rs",
       "enclosing": "fn baseline_matches",
       "logical_databases": [
         "updater-control"
@@ -7831,6 +7891,126 @@
       "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
       "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
       "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration::module_ops",
+      "source": "crates/wow-database/src/migration/module_ops.rs",
+      "enclosing": "fn apply_module",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary: module SQL (#1444 H6)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "apply and purge pin one MariaDB connection from the shared advisory lock (rustycore-db:migrate:<database>) through history and SQL; dry runs and reports use exactly one selected pool. Only the characters and world databases are touched.",
+      "current_order": "The embedded lock orders composed modules by enabled_order, id, then numeric version per database; apply runs one module at a time after the core schema is current and earlier modules are applied; purge runs the retained guarded DROP scripts, then deletes the module's history only once none of its tables remain. No distributed transaction is claimed.",
+      "failure_and_unknown_commit": "apply records a success=false history row before the module SQL, like a core migration; MariaDB DDL may commit implicitly, so a failure stays incomplete for explicit repair. purge DROP TABLE IF EXISTS is retry-safe and keeps the history while any module table remains."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration::module_ops",
+      "source": "crates/wow-database/src/migration/module_ops.rs",
+      "enclosing": "fn lock_database",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary: module SQL (#1444 H6)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "apply and purge pin one MariaDB connection from the shared advisory lock (rustycore-db:migrate:<database>) through history and SQL; dry runs and reports use exactly one selected pool. Only the characters and world databases are touched.",
+      "current_order": "The embedded lock orders composed modules by enabled_order, id, then numeric version per database; apply runs one module at a time after the core schema is current and earlier modules are applied; purge runs the retained guarded DROP scripts, then deletes the module's history only once none of its tables remain. No distributed transaction is claimed.",
+      "failure_and_unknown_commit": "apply records a success=false history row before the module SQL, like a core migration; MariaDB DDL may commit implicitly, so a failure stays incomplete for explicit repair. purge DROP TABLE IF EXISTS is retry-safe and keeps the history while any module table remains."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration::module_ops",
+      "source": "crates/wow-database/src/migration/module_ops.rs",
+      "enclosing": "fn module_history",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary: module SQL (#1444 H6)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "apply and purge pin one MariaDB connection from the shared advisory lock (rustycore-db:migrate:<database>) through history and SQL; dry runs and reports use exactly one selected pool. Only the characters and world databases are touched.",
+      "current_order": "The embedded lock orders composed modules by enabled_order, id, then numeric version per database; apply runs one module at a time after the core schema is current and earlier modules are applied; purge runs the retained guarded DROP scripts, then deletes the module's history only once none of its tables remain. No distributed transaction is claimed.",
+      "failure_and_unknown_commit": "apply records a success=false history row before the module SQL, like a core migration; MariaDB DDL may commit implicitly, so a failure stays incomplete for explicit repair. purge DROP TABLE IF EXISTS is retry-safe and keeps the history while any module table remains."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration::module_ops",
+      "source": "crates/wow-database/src/migration/module_ops.rs",
+      "enclosing": "fn module_tables",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary: module SQL (#1444 H6)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "apply and purge pin one MariaDB connection from the shared advisory lock (rustycore-db:migrate:<database>) through history and SQL; dry runs and reports use exactly one selected pool. Only the characters and world databases are touched.",
+      "current_order": "The embedded lock orders composed modules by enabled_order, id, then numeric version per database; apply runs one module at a time after the core schema is current and earlier modules are applied; purge runs the retained guarded DROP scripts, then deletes the module's history only once none of its tables remain. No distributed transaction is claimed.",
+      "failure_and_unknown_commit": "apply records a success=false history row before the module SQL, like a core migration; MariaDB DDL may commit implicitly, so a failure stays incomplete for explicit repair. purge DROP TABLE IF EXISTS is retry-safe and keeps the history while any module table remains."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration::module_ops",
+      "source": "crates/wow-database/src/migration/module_ops.rs",
+      "enclosing": "fn purge_module",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary: module SQL (#1444 H6)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "apply and purge pin one MariaDB connection from the shared advisory lock (rustycore-db:migrate:<database>) through history and SQL; dry runs and reports use exactly one selected pool. Only the characters and world databases are touched.",
+      "current_order": "The embedded lock orders composed modules by enabled_order, id, then numeric version per database; apply runs one module at a time after the core schema is current and earlier modules are applied; purge runs the retained guarded DROP scripts, then deletes the module's history only once none of its tables remain. No distributed transaction is claimed.",
+      "failure_and_unknown_commit": "apply records a success=false history row before the module SQL, like a core migration; MariaDB DDL may commit implicitly, so a failure stays incomplete for explicit repair. purge DROP TABLE IF EXISTS is retry-safe and keeps the history while any module table remains."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration::module_ops",
+      "source": "crates/wow-database/src/migration/module_ops.rs",
+      "enclosing": "fn retained_data",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary: module SQL (#1444 H6)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "apply and purge pin one MariaDB connection from the shared advisory lock (rustycore-db:migrate:<database>) through history and SQL; dry runs and reports use exactly one selected pool. Only the characters and world databases are touched.",
+      "current_order": "The embedded lock orders composed modules by enabled_order, id, then numeric version per database; apply runs one module at a time after the core schema is current and earlier modules are applied; purge runs the retained guarded DROP scripts, then deletes the module's history only once none of its tables remain. No distributed transaction is claimed.",
+      "failure_and_unknown_commit": "apply records a success=false history row before the module SQL, like a core migration; MariaDB DDL may commit implicitly, so a failure stays incomplete for explicit repair. purge DROP TABLE IF EXISTS is retry-safe and keeps the history while any module table remains."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration::module_ops",
+      "source": "crates/wow-database/src/migration/module_ops.rs",
+      "enclosing": "fn unlock_database",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary: module SQL (#1444 H6)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "apply and purge pin one MariaDB connection from the shared advisory lock (rustycore-db:migrate:<database>) through history and SQL; dry runs and reports use exactly one selected pool. Only the characters and world databases are touched.",
+      "current_order": "The embedded lock orders composed modules by enabled_order, id, then numeric version per database; apply runs one module at a time after the core schema is current and earlier modules are applied; purge runs the retained guarded DROP scripts, then deletes the module's history only once none of its tables remain. No distributed transaction is claimed.",
+      "failure_and_unknown_commit": "apply records a success=false history row before the module SQL, like a core migration; MariaDB DDL may commit implicitly, so a failure stays incomplete for explicit repair. purge DROP TABLE IF EXISTS is retry-safe and keeps the history while any module table remains."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration::module_ops",
+      "source": "crates/wow-database/src/migration/module_ops.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary: module SQL (#1444 H6)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "apply and purge pin one MariaDB connection from the shared advisory lock (rustycore-db:migrate:<database>) through history and SQL; dry runs and reports use exactly one selected pool. Only the characters and world databases are touched.",
+      "current_order": "The embedded lock orders composed modules by enabled_order, id, then numeric version per database; apply runs one module at a time after the core schema is current and earlier modules are applied; purge runs the retained guarded DROP scripts, then deletes the module's history only once none of its tables remain. No distributed transaction is claimed.",
+      "failure_and_unknown_commit": "apply records a success=false history row before the module SQL, like a core migration; MariaDB DDL may commit implicitly, so a failure stays incomplete for explicit repair. purge DROP TABLE IF EXISTS is retry-safe and keeps the history while any module table remains."
     },
     {
       "package": "wow-database",

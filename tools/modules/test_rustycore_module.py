@@ -273,6 +273,15 @@ class ModuleManagerTests(unittest.TestCase):
         self.assertEqual(lock["module"][0]["source_api"], "2")
         compositor = (self.ws.root / "crates/world-modules/src/main.rs").read_text(encoding="utf-8")
         self.assertIn("example_milestones::register(&mut modules, config)", compositor)
+        # #1444 H6c: its SQL is recorded and the lock is embedded.
+        sql = lock["module"][0]["sql"]
+        self.assertEqual(sql["min_core_schema"], "2026.08.03.00")
+        self.assertEqual(
+            [(m["database"], m["version"]) for m in sql["migration"]],
+            [("characters", "2026.10.21.00")],
+        )
+        self.assertEqual([p["file"] for p in sql["purge"]], ["purge/characters.sql"])
+        self.assertIn("world_server::run_with_composition(", compositor)
         self.assertEqual(self.ws.run("check").returncode, 0)
 
     def test_the_composer_and_the_module_api_agree_on_source_apis(self) -> None:
