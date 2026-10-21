@@ -251,3 +251,105 @@ fn core_migrate_skips_module_migrations() {
     assert!(!is_module_component("core"));
     assert_eq!(module_component("a.b"), "module:a.b");
 }
+
+/// Two modules listed against `enabled_order`, with versions listed against
+/// numeric order ("2026.10.10" before "2026.10.9").
+const WRONG_ORDER: &str = r#"source_api = "2"
+
+[[module]]
+id = "a.late"
+enabled_order = 1
+
+[module.sql]
+min_core_schema = "1"
+source = "a"
+
+[[module.sql.migration]]
+database = "characters"
+version = "2026.10.10"
+description = "second"
+file = "2.sql"
+sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+[[module.sql.migration]]
+database = "characters"
+version = "2026.10.9"
+description = "first"
+file = "1.sql"
+sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+[[module]]
+id = "z.early"
+enabled_order = 0
+
+[module.sql]
+min_core_schema = "1"
+source = "z"
+
+[[module.sql.migration]]
+database = "characters"
+version = "1"
+description = "only"
+file = "1.sql"
+sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+"#;
+
+#[test]
+fn apply_order_is_enabled_order_then_numeric_version() {
+    let schema = ModuleSchema::from_lock(WRONG_ORDER).unwrap();
+    let order: Vec<_> = schema
+        .ordered_migrations(DatabaseKind::Characters)
+        .into_iter()
+        .map(|(module, migration)| format!("{}:{}", module.id, migration.version))
+        .collect();
+    assert_eq!(
+        order,
+        ["z.early:1", "a.late:2026.10.9", "a.late:2026.10.10"],
+        "enabled_order beats the id, numbers beat text"
+    );
+    let manifest = core().with_module_schema(&schema).unwrap();
+    let versions: Vec<_> = manifest
+        .migrations_for(DatabaseKind::Characters)
+        .into_iter()
+        .filter(|migration| migration.component == "module:a.late")
+        .map(|migration| migration.version.as_str())
+        .collect();
+    assert_eq!(versions, ["2026.10.9", "2026.10.10"]);
+}
+
+#[test]
+fn unknown_module_history_and_changed_active_checksums_are_refused() {
+    let schema = ModuleSchema::from_lock(&lock("characters", "")).unwrap();
+    let manifest = core().with_module_schema(&schema).unwrap();
+    let unknown = [
+        row("module:example.milestones", "2026.10.21.00", SHA_A),
+        row("module:someone.else", "1", SHA_A),
+    ];
+    let report = build_report(
+        &manifest,
+        DatabaseKind::Characters,
+        true,
+        true,
+        &unknown,
+        &BTreeSet::new(),
+    );
+    assert_eq!(
+        report.problems,
+        vec!["applied migration module:someone.else:1 is absent from the manifest".to_string()]
+    );
+    let changed = [row("module:example.milestones", "2026.10.21.00", SHA_B)];
+    let report = build_report(
+        &manifest,
+        DatabaseKind::Characters,
+        true,
+        true,
+        &changed,
+        &BTreeSet::new(),
+    );
+    assert!(!report.compatible);
+    assert!(
+        report.problems[0].contains("checksum differs"),
+        "{:?}",
+        report.problems
+    );
+}

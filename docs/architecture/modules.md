@@ -69,7 +69,8 @@ The compositor invokes registrars in the operator's `order`, then module id
 (`tools/modules/compose.py::ordered` / `render_main`). Hook callbacks of every family instead
 run in `ModuleId` order, because `ModuleRegistry` stores modules in a `BTreeMap`. These are two
 distinct deterministic orders, neither inferred from linker inventory: `modules.lock.toml`'s
-`enabled_order` records the registration order only. Operator composition order does not set
+`enabled_order` records that registration order, and module SQL (#1444 H6) is applied in it
+(then by version); it never sets callback order. Operator composition order does not set
 callback order; a pre-decision family states its own composition rule (for `chat.message`, the
 first `Deny` wins and `ReplaceText` chains in `ModuleId` order).
 

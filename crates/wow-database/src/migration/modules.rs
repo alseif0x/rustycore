@@ -136,12 +136,51 @@ impl ModuleSchema {
             tombstones: lock.tombstone,
         };
         schema.validate()?;
+        let mut schema = schema;
+        // Never trust the file order: database, then numeric version.
+        for module in schema
+            .modules
+            .iter_mut()
+            .chain(schema.tombstones.iter_mut())
+        {
+            if let Some(sql) = module.sql.as_mut() {
+                sql.migration.sort_by_key(|migration| {
+                    (
+                        migration.database,
+                        parse_schema_version(&migration.version).expect("validated"),
+                    )
+                });
+            }
+        }
         Ok(schema)
     }
 
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.modules.is_empty() && self.tombstones.is_empty()
+    }
+
+    /// Composed modules' migrations on `database` in apply order: `enabled_order`,
+    /// then module id, then numeric version. `rustycore-db module apply` goes
+    /// through this, never through the text order of `migrations_for`.
+    #[must_use]
+    pub fn ordered_migrations(
+        &self,
+        database: DatabaseKind,
+    ) -> Vec<(&LockedModule, &ModuleMigration)> {
+        // `modules` is sorted by (enabled_order, id) and each module's
+        // migrations by (database, numeric version) in `from_lock`.
+        self.modules
+            .iter()
+            .flat_map(|module| {
+                module
+                    .sql
+                    .iter()
+                    .flat_map(|sql| sql.migration.iter())
+                    .filter(move |migration| migration.database == database)
+                    .map(move |migration| (module, migration))
+            })
+            .collect()
     }
 
     /// The composed module `id`, if it has SQL.

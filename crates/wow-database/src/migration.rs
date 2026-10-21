@@ -164,7 +164,19 @@ impl MigrationManifest {
             .iter()
             .filter(|migration| migration.database == database)
             .collect();
-        migrations.sort_by_key(|migration| (&migration.component, &migration.version));
+        // Numeric versions compare numerically ("2026.10.9" < "2026.10.10");
+        // anything else keeps the text order.
+        migrations.sort_by(|a, b| {
+            a.component.cmp(&b.component).then_with(|| {
+                match (
+                    modules::parse_schema_version(&a.version),
+                    modules::parse_schema_version(&b.version),
+                ) {
+                    (Some(left), Some(right)) => left.cmp(&right),
+                    _ => a.version.cmp(&b.version),
+                }
+            })
+        });
         migrations
     }
 
@@ -325,7 +337,7 @@ pub async fn validate_runtime_schema(
             .iter()
             .any(|problem| problem.contains(modules::MODULE_COMPONENT_PREFIX))
         {
-            "; module SQL is applied with `rustycore-db module apply <id>`, and a removed module needs its tombstone in the composed modules.lock.toml"
+            "; module SQL is applied only by the operator's `rustycore-db module` command (#1444 H6b), and a removed module needs its tombstone in the composed modules.lock.toml"
         } else {
             ""
         };

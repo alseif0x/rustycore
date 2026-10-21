@@ -30,7 +30,7 @@ PROTOC=/home/ubuntu/.local/protoc/bin/protoc python3 tools/modules/rustycore-mod
 A module that needs tables declares its migrations in `data/sql/manifest.toml`
 (`docs/architecture/modules.md`, "Module SQL"). `compose.py` records each file's
 checksum in `modules.lock.toml`; only an operator's explicit
-`rustycore-db module apply <id>` runs it. Tables carry the module's prefix
+`rustycore-db module apply <id>` (#1444 H6b) runs it. Tables carry the module's prefix
 (`mod_<id with . as _>_`), only the `characters` and `world` databases are open
 to modules, and a recorded file never changes. Do not run module SQL by hand or
 from a startup hook.

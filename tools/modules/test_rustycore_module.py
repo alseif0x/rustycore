@@ -434,6 +434,50 @@ class ModuleManagerTests(unittest.TestCase):
         self.assertNotEqual(refused.returncode, 0)
         self.assertIn("share the table prefix", refused.stderr)
 
+    def test_lock_records_migrations_in_numeric_version_order(self) -> None:
+        root = self._module_with_sql()
+        sql = root / "data/sql"
+        (sql / "characters/9.sql").write_text("CREATE TABLE mod_demo_greeter_nine (a INT);\n")
+        (sql / "characters/10.sql").write_text("CREATE TABLE mod_demo_greeter_ten (a INT);\n")
+        manifest = sql / "manifest.toml"
+        manifest.write_text(
+            manifest.read_text(encoding="utf-8")
+            + '\n[[migrations]]\ndatabase = "characters"\nversion = "2026.10.10"\n'
+            'description = "ten"\nfile = "characters/10.sql"\n'
+            '\n[[migrations]]\ndatabase = "characters"\nversion = "2026.10.9"\n'
+            'description = "nine"\nfile = "characters/9.sql"\n',
+            encoding="utf-8",
+        )
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        versions = [m["version"] for m in self._lock()["module"][0]["sql"]["migration"]]
+        self.assertEqual(versions, ["2026.10.9", "2026.10.10", "2026.10.21.00"])
+
+    def test_a_description_with_a_newline_or_control_character_is_refused(self) -> None:
+        root = self._module_with_sql()
+        manifest = root / "data/sql/manifest.toml"
+        text = manifest.read_text(encoding="utf-8")
+        for bad in ('"counts\\nmore"', "'counts\tmore'", '"""counts\nmore"""'):
+            with self.subTest(description=bad):
+                manifest.write_text(text.replace('description = "counts"', f"description = {bad}"))
+                refused = self.ws.run("sync")
+                self.assertNotEqual(refused.returncode, 0, bad)
+
+    def test_the_tombstone_block_may_hold_only_tombstones(self) -> None:
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        sys.path.insert(0, str(REPO_ROOT / "tools/modules"))
+        import compose  # noqa: PLC0415
+        lock = self.ws.root / "modules.lock.toml"
+        base = lock.read_text(encoding="utf-8")
+        for block in (
+            "[[module]]\nid = \"smuggled.module\"\n",
+            "source_api = \"9\"\n",
+            "[[tombstone]]\nid = \"no.sql\"\n",
+        ):
+            with self.subTest(block=block):
+                lock.write_text(base + "\n" + compose.TOMBSTONE_MARKER + "\n" + block, encoding="utf-8")
+                refused = self.ws.run("sync")
+                self.assertNotEqual(refused.returncode, 0, refused.stdout)
+
     def test_zero_modules_keep_the_plain_compositor(self) -> None:
         self.assertEqual(self.ws.run("sync").returncode, 0)
         main = (self.ws.root / "crates/world-modules/src/main.rs").read_text(encoding="utf-8")

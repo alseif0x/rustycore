@@ -227,7 +227,13 @@ def read_module_sql(module_id: str, root: pathlib.Path) -> dict | None:
         seen.add((database, version))
         description = str(entry.get("description", "")).strip()
         _require(0 < len(description) <= 255, f"{where}: migration {version} needs a description")
-        _require('"' not in description and "\\" not in description, f"{where}: description of {version} may not contain quotes or backslashes")
+        _require(
+            '"' not in description
+            and "\\" not in description
+            and not any(ch.isspace() and ch != " " or not ch.isprintable() for ch in description),
+            f"{where}: description of {version} may not contain quotes, backslashes, newlines "
+            f"or control characters",
+        )
         file, sha = entry_file(entry, "migration")
         migrations.append(
             {"database": database, "version": version, "description": description, "file": file, "sha256": sha}
@@ -477,15 +483,38 @@ def split_lock(text: str) -> tuple[str, str]:
 
 
 def read_previous_lock() -> tuple[dict, str]:
-    """The current lock, parsed, and its tombstone block verbatim."""
+    """The current lock, parsed, and its tombstone block verbatim.
+
+    The block is kept byte for byte, so it is validated on its own first: it
+    may hold nothing but `[[tombstone]]` entries with SQL.
+    """
     if not LOCK_PATH.is_file():
         return {}, ""
     text = LOCK_PATH.read_text(encoding="utf-8")
     _, block = split_lock(text)
     try:
-        return tomllib.loads(text), block
+        parsed = tomllib.loads(text)
+        tombstones = tomllib.loads(block) if block else {}
     except tomllib.TOMLDecodeError as error:
         raise ComposeError(f"modules.lock.toml is not valid TOML: {error}") from error
+    _require(
+        set(tombstones) <= {"tombstone"},
+        f"the tombstone block of modules.lock.toml may hold only [[tombstone]] entries, "
+        f"not {sorted(set(tombstones) - {'tombstone'})}",
+    )
+    for entry in tombstones.get("tombstone", []):
+        _require(
+            isinstance(entry, dict)
+            and bool(ID_RE.match(str(entry.get("id", ""))))
+            and isinstance(entry.get("sql"), dict)
+            and isinstance(entry["sql"].get("migration", []), list),
+            f"modules.lock.toml: invalid tombstone entry {entry!r:.80}",
+        )
+    _require(
+        parsed.get("tombstone", []) == tombstones.get("tombstone", []),
+        "modules.lock.toml: [[tombstone]] entries must all be inside the tombstone block",
+    )
+    return parsed, block
 
 
 def check_sql_history(modules: list[dict], previous: dict) -> None:

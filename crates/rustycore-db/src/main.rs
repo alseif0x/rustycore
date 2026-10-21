@@ -280,7 +280,7 @@ fn print_help() {
     println!(
         "rustycore-db <status|validate|migrate> [--dry-run] [--json] [--config PATH] [--manifest PATH] [--lock PATH]\n\
          \nmigrate applies core migrations only; module SQL recorded in the lock (default modules.lock.toml)\n\
-         is reported and validated, and applied with `rustycore-db module apply <id>`.\n\
+         is reported and validated, never applied by migrate (the module commands are #1444 H6b).\n\
          \nExit codes:\n  0 compatible/success\n  2 invalid command line\n  3 schema incompatible or migrations pending\n  4 operational/database/lock/migration failure"
     );
 }
