@@ -179,8 +179,15 @@ pub(crate) async fn read_encrypted_packet(
 
     let opcode = u16::from_le_bytes([plaintext[0], plaintext[1]]);
     let payload = plaintext[2..].to_vec();
-    if opcode == SMSG_COMPRESSED_PACKET {
-        return decompress_server_packet_like_cpp(&payload, server_inflater);
+    let (opcode, payload) = if opcode == SMSG_COMPRESSED_PACKET {
+        decompress_server_packet_like_cpp(&payload, server_inflater)?
+    } else {
+        (opcode, payload)
+    };
+    // Every mode logs the chat it receives, so a scenario can assert on a
+    // module's system message whichever read loop consumed it (#1444 H5).
+    if opcode == crate::chat_say::SMSG_CHAT {
+        info!("💬 {}", packet_parser::parse_packet(opcode, &payload));
     }
     Ok((opcode, payload))
 }

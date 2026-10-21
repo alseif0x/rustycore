@@ -62,25 +62,14 @@ fn list(name: &str) -> Vec<String> {
         .collect()
 }
 
-/// Record an `SMSG_CHAT` wherever the bot reads one.
-pub(crate) fn record(bot_index: usize, payload: &[u8], result: &mut BotRunResult) {
-    match parse_chat_summary(payload) {
-        Some(chat) => {
-            info!(
-                "[Bot {}] 💬 SMSG_CHAT type={} sender={:?} text={:?}",
-                bot_index, chat.msg_type, chat.sender_name, chat.text
-            );
-            result.chat_received.push(ChatSeen {
-                msg_type: chat.msg_type,
-                sender: chat.sender_name,
-                text: chat.text,
-            });
-        }
-        None => info!(
-            "[Bot {}] 💬 SMSG_CHAT <parse failed, {} bytes>",
-            bot_index,
-            payload.len()
-        ),
+/// Record an `SMSG_CHAT` in the report. The shared reader already logged it.
+pub(crate) fn record(_bot_index: usize, payload: &[u8], result: &mut BotRunResult) {
+    if let Some(chat) = parse_chat_summary(payload) {
+        result.chat_received.push(ChatSeen {
+            msg_type: chat.msg_type,
+            sender: chat.sender_name,
+            text: chat.text,
+        });
     }
 }
 
