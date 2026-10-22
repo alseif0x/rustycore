@@ -20,4 +20,8 @@ impl AccountDataHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSessi
         let (lifecycle, hub) = crate::session::split_lifecycle_mut(self);
         AccountDataHandlerCxLikeCpp::new(lifecycle, hub)
     }
+
+    fn restore_logout_wait_movement_like_cpp(&mut self) {
+        wow_world_application::restore_logout_wait_movement_like_cpp(self)
+    }
 }

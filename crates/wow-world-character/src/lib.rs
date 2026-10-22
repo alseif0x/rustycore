@@ -53,7 +53,7 @@ pub use gossip_session::{
 };
 pub use login_session::{
     CharacterLoginHostLikeCpp, LoginAdmissionDataLikeCpp, LoginInventorySnapshotLikeCpp,
-    LoginSpellRowsLikeCpp, abort_partial_login_sequence_like_cpp,
+    LoginSpellRowsLikeCpp, LogoutDenialLikeCpp, abort_partial_login_sequence_like_cpp,
     account_mount_login_partial_rows_like_cpp, apply_default_skills_for_login_like_cpp,
     apply_post_add_zone_from_terrain_like_cpp,
     begin_represented_trait_config_authority_load_like_cpp,
@@ -70,10 +70,10 @@ pub use login_session::{
     load_group_membership_for_login_like_cpp, load_inventory_for_login_like_cpp,
     load_login_admission_data_like_cpp, load_represented_group_by_db_store_id_like_cpp,
     load_represented_group_difficulties_like_cpp, load_represented_void_storage_row_like_cpp,
-    mark_represented_void_storage_loaded_like_cpp, player_login_combat_stats_like_cpp,
-    prepare_represented_void_storage_login_load_like_cpp, repair_character_homebind_like_cpp,
-    restore_persisted_transport_for_login_like_cpp, retry_login_at_homebind_like_cpp,
-    seed_login_location_zone_area_like_cpp,
+    logout_admission_like_cpp, mark_represented_void_storage_loaded_like_cpp,
+    player_login_combat_stats_like_cpp, prepare_represented_void_storage_login_load_like_cpp,
+    repair_character_homebind_like_cpp, restore_persisted_transport_for_login_like_cpp,
+    retry_login_at_homebind_like_cpp, seed_login_location_zone_area_like_cpp,
     send_initial_packets_after_add_to_map_with_catalogs_like_cpp, send_login_sequence,
     set_player_transport_position_like_cpp, skill_rewarded_spell_changes_for_login_like_cpp,
     update_realm_characters,

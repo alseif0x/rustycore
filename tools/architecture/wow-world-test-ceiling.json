@@ -25,6 +25,16 @@
    "unit_tests_lines": 233128,
    "unit_tests_tests": 3715,
    "src_tests": 22
+  },
+  {
+   "id": "raise-54-1",
+   "kind": "raise",
+   "issue": 54,
+   "reviewed_at": "2026-10-22",
+   "reason": "#54 logout admission/countdown/cancel tests replace the timer-disconnect tests; the loot-release logout test now rests for the C++ instant logout",
+   "unit_tests_lines": 233436,
+   "unit_tests_tests": 3720,
+   "src_tests": 22
   }
  ]
 }

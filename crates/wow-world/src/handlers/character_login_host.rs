@@ -144,6 +144,9 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
     ) -> impl Future<Output = FinalizationReport> + Send {
         WorldSession::finalize_session_with_generator_like_cpp(self, mode, item_guid_generator)
     }
+    fn begin_logout_wait_movement_like_cpp(&mut self) {
+        wow_world_application::begin_logout_wait_movement_like_cpp(self)
+    }
     fn force_update_visibility_with_catalogs_like_cpp(
         &mut self,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,

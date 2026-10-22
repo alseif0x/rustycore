@@ -382,6 +382,11 @@ async fn pending_far_disconnect(outcome: DisconnectDestination, explicit_logout:
             .map_mut()
             .get_typed_player_mut(guid)
             .unwrap();
+        if explicit_logout {
+            // C++ instant logout (resting, `MiscHandler.cpp:244`): this case
+            // exercises `LogoutPlayer(true)`, not the 20 s countdown (#54).
+            player.set_player_flag(0x20);
+        }
         player.unit_mut().set_max_health(1000);
         player.unit_mut().set_health(500);
         player

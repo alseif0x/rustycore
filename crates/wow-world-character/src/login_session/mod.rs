@@ -138,8 +138,8 @@ pub use transport_restore::{
     restore_persisted_transport_for_login_like_cpp, set_player_transport_position_like_cpp,
 };
 pub use world_entry::{
-    fallback_direct_login, handle_logout_request_with_generator_like_cpp,
-    player_login_combat_stats_like_cpp,
+    LogoutDenialLikeCpp, fallback_direct_login, handle_logout_request_with_generator_like_cpp,
+    logout_admission_like_cpp, player_login_combat_stats_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use world_entry::{motd_lines_like_cpp, send_handle_player_login_packets_like_cpp};
@@ -202,6 +202,10 @@ pub trait CharacterLoginHostLikeCpp:
         mode: FinalizationMode,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
     ) -> impl Future<Output = FinalizationReport> + Send;
+    /// The `CanFreeMove` block of C++ `HandleLogoutRequestOpcode`
+    /// (`MiscHandler.cpp:276-284`): sit, root, `UNIT_FLAG_STUNNED`. The
+    /// stand-state owner lives above this crate.
+    fn begin_logout_wait_movement_like_cpp(&mut self);
     fn force_update_visibility_with_catalogs_like_cpp(
         &mut self,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,

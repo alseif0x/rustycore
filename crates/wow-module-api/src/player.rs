@@ -20,9 +20,9 @@ use crate::effect::ScopedEffects;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum LogoutReason {
-    /// Back to the character list.
+    /// Back to the character list at once (instant logout).
     CharacterSelection,
-    /// The client's logout timer completed.
+    /// The 20 s logout countdown completed; also back to the character list.
     TimedLogout,
     /// The connection closed.
     Disconnect,

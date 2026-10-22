@@ -5477,6 +5477,20 @@
           "module": "crate::handlers::character_login_host",
           "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
           "kind": "method",
+          "name": "begin_logout_wait_movement_like_cpp",
+          "visibility": "private",
+          "signature": "fn begin_logout_wait_movement_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character_login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
           "name": "finalize_session_with_generator_like_cpp",
           "visibility": "private",
           "signature": "fn finalize_session_with_generator_like_cpp (& mut self , mode : FinalizationMode , item_guid_generator : & wow_core :: ObjectGuidGenerator ,) -> impl Future < Output = FinalizationReport > + Send",
@@ -23362,21 +23376,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "complete_logout",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn complete_logout (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "complete_player_quest_status_authority_load_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn complete_player_quest_status_authority_load_like_cpp (& mut self)",
@@ -37255,6 +37254,19 @@
           "name": "account_data_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn account_data_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> AccountDataHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "AccountDataHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "restore_logout_wait_movement_like_cpp",
+          "visibility": "private",
+          "signature": "fn restore_logout_wait_movement_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
           "guards": [

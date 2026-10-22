@@ -170,6 +170,9 @@ pub use creature_aggro_contracts::{
 mod creature_spell_metadata;
 pub use creature_spell_metadata::creature_ai_spell_difficulty_chain_like_cpp;
 
+mod logout_wait;
+pub use logout_wait::{GM_FREEZE_SPELL_ID_LIKE_CPP, LogoutAdmissionSnapshotLikeCpp};
+
 mod stand_state_adapter;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use stand_state_adapter::RepresentedLiveApplicationLikeCpp;

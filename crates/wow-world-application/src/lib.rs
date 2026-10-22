@@ -41,11 +41,14 @@ pub use session_lifecycle::{
     cleanup_shared_runtime_state, finalize_session_with_generator_like_cpp,
     handle_confirm_respec_wipe_with_generator_like_cpp,
     process_pending_periodic_player_save_with_generator_like_cpp,
-    resume_deferred_player_save_with_generator_like_cpp,
+    resume_deferred_player_save_with_generator_like_cpp, run_logout_timer_with_generator_like_cpp,
 };
 mod spell_handlers;
 mod stand_state_session;
-pub use stand_state_session::apply_represented_live_intent_like_cpp;
+pub use stand_state_session::{
+    apply_represented_live_intent_like_cpp, begin_logout_wait_movement_like_cpp,
+    restore_logout_wait_movement_like_cpp,
+};
 mod talent_handlers;
 pub use player_handlers::item_purchase_contents_from_extended_cost;
 pub use player_handlers::{

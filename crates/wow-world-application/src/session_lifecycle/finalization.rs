@@ -33,25 +33,44 @@ fn begin_finalization_step_like_cpp(
     lifecycle.finalization_mut().unwrap().begin(step)
 }
 
+/// C++ `WorldSession::Update` (`WorldSession.cpp:505-511`): when the logout
+/// timer is due, `LogoutPlayer(true)` — the `TimedLogout` finalization, back to
+/// character selection.
+pub async fn run_logout_timer_with_generator_like_cpp<H: SessionLifecycleHostLikeCpp>(
+    host: &mut H,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+) {
+    let due = {
+        let (state, mut hub) = host.split_lifecycle_mut();
+        state.run_logout_timer_like_cpp(&mut hub)
+    };
+    if due {
+        let _ = finalize_session_with_generator_like_cpp(
+            host,
+            FinalizationMode::TimedLogout,
+            item_guid_generator,
+        )
+        .await;
+    }
+}
+
 pub async fn finalize_session_with_generator_like_cpp<H: SessionLifecycleHostLikeCpp>(
     host: &mut H,
-    mut mode: FinalizationMode,
+    mode: FinalizationMode,
     item_guid_generator: &wow_core::ObjectGuidGenerator,
 ) -> FinalizationReport {
     let no_player = host.player_guid().is_none();
     if let Some(previous) = host.lifecycle_mut().finalization_mut() {
         let report = previous.report();
-        if previous.is_unstarted() && report.mode == FinalizationMode::TimedLogout {
-            mode = FinalizationMode::TimedLogout;
-        } else if mode == FinalizationMode::Disconnect
-            && report.mode == FinalizationMode::CharacterSelection
+        if mode == FinalizationMode::Disconnect
+            && report.mode.returns_to_character_selection_like_cpp()
             && report.outcome(FinalizationStep::NativeTransfer) == FinalizationOutcome::Deferred
             && report.outcome(FinalizationStep::CharacterSave) == FinalizationOutcome::NotAttempted
         {
             // Completed terminal native recovery hands its source save to
             // disconnect, before any explicit-logout persistence submission.
         } else if !(report.disposition == FinalizationDisposition::Complete
-            && report.mode == FinalizationMode::CharacterSelection
+            && report.mode.returns_to_character_selection_like_cpp()
             && mode == FinalizationMode::Disconnect
             && no_player)
         {
@@ -108,7 +127,7 @@ pub async fn execute_finalization_step<H: SessionLifecycleHostLikeCpp>(
             if !wow_world_character::finish_worldport_native_before_disconnect_like_cpp(host) {
                 return FinalizationOutcome::Unavailable;
             }
-            if mode == FinalizationMode::CharacterSelection
+            if mode.returns_to_character_selection_like_cpp()
                 && host.state() == SessionState::Disconnecting
             {
                 return FinalizationOutcome::Deferred;
@@ -239,7 +258,7 @@ pub async fn execute_finalization_step<H: SessionLifecycleHostLikeCpp>(
             }
         }
         Release => {
-            if mode == FinalizationMode::CharacterSelection {
+            if mode.returns_to_character_selection_like_cpp() {
                 host.set_player_guid(None);
                 host.lifecycle_mut()
                     .release_character_login_claim_like_cpp();

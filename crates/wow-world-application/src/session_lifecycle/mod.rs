@@ -35,7 +35,9 @@ mod talent_reset;
 pub use cleanup::cleanup_shared_runtime_state;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use finalization::execute_finalization_step;
-pub use finalization::finalize_session_with_generator_like_cpp;
+pub use finalization::{
+    finalize_session_with_generator_like_cpp, run_logout_timer_with_generator_like_cpp,
+};
 pub use logout_hook::PlayerLogoutHookEventLikeCpp;
 pub use player_save::{
     process_pending_periodic_player_save_with_generator_like_cpp,

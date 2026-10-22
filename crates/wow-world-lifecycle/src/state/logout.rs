@@ -1,12 +1,27 @@
-use tracing::info;
-use wow_world_core::session::{HubMut, SessionState};
-
 use super::SessionLifecycleState;
-use crate::{FinalizationMode, SessionFinalization};
+
+/// C++ `ShouldLogOut`: `currTime >= _logoutTime + 20`.
+pub const LOGOUT_DELAY_SECS_LIKE_CPP: i64 = 20;
 
 impl SessionLifecycleState {
     pub fn clear_logout_time(&mut self) {
-        self.logout_time = None;
+        self.set_logout_start_time_like_cpp(0);
+    }
+
+    /// C++ `WorldSession::SetLogoutStartTime` (`WorldSession.h:1004`).
+    pub fn set_logout_start_time_like_cpp(&mut self, request_time: i64) {
+        self.logout_time = request_time;
+    }
+
+    /// C++ `WorldSession::isLogingOut` (`WorldSession.h:1001`).
+    pub fn is_logging_out_like_cpp(&self) -> bool {
+        self.logout_time != 0 || self.player_logout_like_cpp
+    }
+
+    /// C++ `WorldSession::ShouldLogOut` (`WorldSession.h:1010`): the timed
+    /// logout is due 20 game-time seconds after it started.
+    pub fn should_log_out_like_cpp(&self, current_time: i64) -> bool {
+        self.logout_time > 0 && current_time >= self.logout_time + LOGOUT_DELAY_SECS_LIKE_CPP
     }
 
     pub fn set_player_logout_like_cpp(&mut self, player_logout: bool) {
@@ -19,25 +34,5 @@ impl SessionLifecycleState {
 
     pub fn player_logout_like_cpp(&self) -> bool {
         self.player_logout_like_cpp
-    }
-
-    /// C++ `WorldSession::isLogingOut`: `_logoutTime || m_playerLogout`.
-    pub fn is_logging_out_like_cpp(&self) -> bool {
-        self.logout_time.is_some() || self.player_logout_like_cpp
-    }
-
-    /// Admit timed finalization, without publishing completion before save.
-    /// The session supervisor executes the same obligation coordinator; the
-    /// timed route retains disconnect semantics after its logout publication.
-    pub fn complete_logout(&mut self, hub: &mut HubMut<'_>) {
-        info!("Timed logout admitted for account {}", hub.core.account_id);
-        if self.finalization.is_none() {
-            self.finalization = Some(SessionFinalization::new(
-                FinalizationMode::TimedLogout,
-                hub.core.player_guid().is_some(),
-                hub.core.player_handle_like_cpp,
-            ));
-        }
-        hub.core.state = SessionState::Disconnecting;
     }
 }

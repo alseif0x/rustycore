@@ -89,26 +89,6 @@ async fn update_disconnects_when_socket_timeout_deadline_expired_like_cpp() {
 }
 
 #[tokio::test]
-async fn timed_logout_preserves_player_until_disconnect_save_like_cpp() {
-    let (mut session, _, send_rx) = make_session();
-    let guid = ObjectGuid::create_player(1, 77);
-    session.set_player_guid(Some(guid));
-    session.set_state(SessionState::LoggedIn);
-    session
-        .lifecycle
-        .set_logout_time_for_test_like_cpp(Some(Instant::now() - Duration::from_secs(1)));
-
-    session.update(100).await;
-
-    assert!(
-        send_rx.try_recv().is_err(),
-        "timer admission is not completed finalization"
-    );
-    assert_eq!(session.player_guid(), Some(guid));
-    assert!(session.is_disconnecting());
-}
-
-#[tokio::test]
 async fn update_resets_socket_timeout_on_regular_packet_like_cpp() {
     let (mut session, pkt_tx, _) = make_session();
     session.set_socket_timeouts_like_cpp(SocketTimeoutsLikeCpp {

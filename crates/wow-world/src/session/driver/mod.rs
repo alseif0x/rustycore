@@ -32,6 +32,7 @@ mod phase_consumer;
 mod phase_pass;
 
 use phases::SessionDriverPhaseLikeCpp;
+use wow_world_application::run_logout_timer_with_generator_like_cpp;
 
 #[cfg(test)]
 use std::sync::Arc;
@@ -217,10 +218,7 @@ impl WorldSession {
         // coordinated session therefore runs it at the end of its world pass,
         // not here, where its own packets have not been dispatched yet.
         if !self.is_map_phase_coordinated_like_cpp() {
-            {
-                let (s, mut h) = crate::session::split_lifecycle_mut(self);
-                s.run_logout_timer_like_cpp(&mut h)
-            };
+            run_logout_timer_with_generator_like_cpp(self, &catalogs.id_generators.item).await;
         }
 
         processed

@@ -22,18 +22,18 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 3737,
+  "tests": 3742,
   "ignored": 1,
-  "session": 3436,
-  "shims": 3252,
+  "session": 3440,
+  "shims": 3256,
   "by_class": {
-   "P": 301,
+   "P": 302,
    "H": 165,
-   "W": 3271
+   "W": 3275
   },
   "by_reason": {
    "H-host": 165,
-   "P-domain": 206,
+   "P-domain": 207,
    "P-library": 33,
    "P-lowest-covering": 25,
    "P-world-items": 37,
@@ -42,7 +42,7 @@
    "W-multi-domain": 36,
    "W-unreached": 22,
    "W-world-items": 2,
-   "W-world-logic": 3053
+   "W-world-logic": 3057
   },
   "by_owner": {
    "wow-world": {
@@ -56,9 +56,9 @@
     "W": 62
    },
    "wow-world-character": {
-    "P": 35,
+    "P": 36,
     "H": 18,
-    "W": 328
+    "W": 331
    },
    "wow-world-core": {
     "P": 18,
@@ -93,7 +93,7 @@
    "wow-world-lifecycle": {
     "P": 38,
     "H": 43,
-    "W": 147
+    "W": 148
    },
    "wow-world-loot": {
     "P": 6,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 70,
     "H": 0,
-    "W": 3271
+    "W": 3275
    },
    "wow-world-application": {
     "P": 27,
@@ -143,7 +143,7 @@
     "W": 0
    },
    "wow-world-character": {
-    "P": 23,
+    "P": 24,
     "H": 17,
     "W": 0
    },
@@ -211,13 +211,13 @@
  },
  "host_trait_methods": {
   "wow-world-application": 84,
-  "wow-world-character": 81,
+  "wow-world-character": 82,
   "wow-world-core": 4,
   "wow-world-entities": 113,
   "wow-world-instances": 30,
   "wow-world-interaction": 1,
   "wow-world-inventory": 76,
-  "wow-world-lifecycle": 17,
+  "wow-world-lifecycle": 18,
   "wow-world-loot-ops": 107,
   "wow-world-quest": 54,
   "wow-world-social": 25,
@@ -2140,7 +2140,6 @@
   ["unit_tests/session/tests/admission.rs::update_empty_queue", "W", "wow-world", "wow-world", "W-world-logic", true, true, false, ["update"], []],
   ["unit_tests/session/tests/admission.rs::update_processes_packets", "W", "wow-world", "wow-world", "W-world-logic", true, true, false, ["update"], []],
   ["unit_tests/session/tests/admission.rs::update_disconnects_when_socket_timeout_deadline_expired_like_cpp", "W", "wow-world", "wow-world-core", "W-world-logic", true, true, false, ["set_socket_timeouts_like_cpp", "update"], []],
-  ["unit_tests/session/tests/admission.rs::timed_logout_preserves_player_until_disconnect_save_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["set_player_guid", "set_state", "update"], []],
   ["unit_tests/session/tests/admission.rs::update_resets_socket_timeout_on_regular_packet_like_cpp", "W", "wow-world", "wow-world-core", "W-world-logic", true, true, false, ["set_socket_timeouts_like_cpp", "update"], []],
   ["unit_tests/session/tests/admission.rs::keep_alive_only_resets_socket_timeout_for_logged_in_session_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["set_socket_timeouts_like_cpp", "set_state", "update"], []],
   ["unit_tests/session/tests/admission.rs::packet_spoof_policy_kick_blocks_over_limit_opcode_like_cpp", "W", "wow-world", "wow-world-core", "W-world-logic", true, true, false, ["update"], []],
@@ -2190,7 +2189,13 @@
   ["unit_tests/session/tests/instance_occupancy.rs::canonical_game_master_bypasses_existing_instance_full_gate_like_cpp", "W", "wow-world", "wow-world-visibility", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp", "set_canonical_map_manager", "set_difficulty_store"], []],
   ["unit_tests/session/tests/lifecycle.rs::character_login_claim_is_exclusive_and_released_like_cpp", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["release_character_login_claim_like_cpp"], []],
   ["unit_tests/session/tests/lifecycle.rs::releasing_without_a_claim_leaves_the_owner_untouched_like_cpp", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["release_character_login_claim_like_cpp"], []],
-  ["unit_tests/session/tests/lifecycle.rs::complete_logout_defers_notification_and_keeps_the_player_for_the_save_like_cpp", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["complete_logout", "set_player_guid", "set_state"], []],
+  ["unit_tests/session/tests/lifecycle.rs::logout_admission_follows_the_cpp_reason_order_and_instant_rules", "P", "wow-world-character", "wow-world-character", "P-domain", false, false, false, [], []],
+  ["unit_tests/session/tests/lifecycle.rs::timed_logout_request_sits_roots_stuns_and_starts_the_countdown_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_logout_request", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/session/tests/lifecycle.rs::logout_cancel_acks_and_restores_movement_like_cpp", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_logout_request", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/session/tests/lifecycle.rs::logout_request_in_combat_is_denied_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_logout_request", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/session/tests/lifecycle.rs::logout_request_falling_or_dueling_is_denied_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_logout_request", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/session/tests/lifecycle.rs::resting_or_gm_logout_is_instant_and_idle_logout_waits_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_logout_request", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/session/tests/lifecycle.rs::logout_timer_fires_after_twenty_seconds_into_character_selection_like_cpp", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "set_canonical_map_manager", "set_player_guid", "set_state"], []],
   ["unit_tests/session/tests/lifecycle.rs::shared_runtime_cleanup_releases_the_login_claim_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "cleanup_shared_runtime_state", "release_character_login_claim_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/session/tests/lifecycle.rs::shared_runtime_cleanup_is_safe_without_a_player_like_cpp", "W", "wow-world", "wow-world-character", "W-world-logic", true, false, false, ["cleanup_shared_runtime_state"], []],
   ["unit_tests/session/tests/lifecycle.rs::disconnect_save_without_a_player_only_marks_the_account_offline_like_cpp", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["player_logout_like_cpp", "save_disconnect_player_to_db_like_cpp"], []],
