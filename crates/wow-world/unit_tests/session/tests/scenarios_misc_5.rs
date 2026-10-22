@@ -60,6 +60,7 @@ fn canonical_player_resurrection_follows_active_detached_and_stale_ownership_lik
             self_res_spells: BTreeSet::from([21169]),
             death_timer_active: true,
             area_spirit_healer_guid: healer_guid,
+            ..Default::default()
         })
     );
 
@@ -126,6 +127,7 @@ fn canonical_player_resurrection_follows_active_detached_and_stale_ownership_lik
             self_res_spells: BTreeSet::from([20608]),
             death_timer_active: false,
             area_spirit_healer_guid: replacement_healer,
+            ..Default::default()
         })
     );
 }

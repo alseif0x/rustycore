@@ -371,6 +371,34 @@ pub(crate) fn trade_policy_like_cpp(
     }
 }
 
+/// C++ `CONFIG_DEATH_SICKNESS_LEVEL`, `CONFIG_DEATH_CORPSE_RECLAIM_DELAY_*` and
+/// `CONFIG_DEATH_BONES_*` (`World.cpp:1306-1310`), with the C++ defaults.
+pub(crate) fn death_policy_like_cpp(configs: &WorldConfigSet) -> wow_world::DeathPolicyLikeCpp {
+    let defaults = wow_world::DeathPolicyLikeCpp::default();
+    wow_world::DeathPolicyLikeCpp {
+        sickness_level: configs
+            .get_int("CONFIG_DEATH_SICKNESS_LEVEL")
+            .map(|value| value as i32)
+            .unwrap_or(defaults.sickness_level),
+        corpse_reclaim_delay_pvp: world_config_bool(
+            configs,
+            "CONFIG_DEATH_CORPSE_RECLAIM_DELAY_PVP",
+            defaults.corpse_reclaim_delay_pvp,
+        ),
+        corpse_reclaim_delay_pve: world_config_bool(
+            configs,
+            "CONFIG_DEATH_CORPSE_RECLAIM_DELAY_PVE",
+            defaults.corpse_reclaim_delay_pve,
+        ),
+        bones_world: world_config_bool(configs, "CONFIG_DEATH_BONES_WORLD", defaults.bones_world),
+        bones_bg_or_arena: world_config_bool(
+            configs,
+            "CONFIG_DEATH_BONES_BG_OR_ARENA",
+            defaults.bones_bg_or_arena,
+        ),
+    }
+}
+
 /// C++ `CONFIG_STATS_LIMITS_ENABLE`/`_DODGE`/`_PARRY`/`_BLOCK`/`_CRIT`
 /// (`World.cpp:1664-1668`): the optional caps `Player::UpdateBlockPercentage`,
 /// `UpdateDodgePercentage`, `UpdateParryPercentage` and `UpdateCritPercentage`

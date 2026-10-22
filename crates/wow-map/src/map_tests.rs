@@ -902,6 +902,8 @@ mod movement_2;
 mod persistence_1;
 #[path = "map_tests/persistence_2.rs"]
 mod persistence_2;
+#[path = "map_tests/player_corpses.rs"]
+mod player_corpses;
 #[path = "map_tests/quest.rs"]
 mod quest;
 #[path = "map_tests/skill.rs"]

@@ -50,9 +50,14 @@ pub trait CorpseHandlerHostLikeCpp<C> {
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()>;
 
-    /// C++ `HandleRepopRequest` (`MiscHandler.cpp:59`). The legacy closure did
-    /// not read the catalog view.
-    fn handle_repop_request_like_cpp<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()>;
+    /// C++ `HandleRepopRequest` (`MiscHandler.cpp:59`). The release casts the
+    /// ghost spells and searches the graveyard store, so the host receives
+    /// the catalog view (#43).
+    fn handle_repop_request_with_catalogs_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+        pkt: WorldPacket,
+    ) -> HandlerFuture<'a, ()>;
 
     /// C++ `HandleReclaimCorpse` (`MiscHandler.cpp:416`). The legacy closure did
     /// not read the catalog view.
@@ -82,14 +87,14 @@ where
 
 fn handle_repop_request_thunk<'a, S, C>(
     session: &'a mut S,
-    _catalogs: &'a C,
+    catalogs: &'a C,
     pkt: WorldPacket,
 ) -> HandlerFuture<'a, ()>
 where
     S: CorpseHandlerHostLikeCpp<C> + Send,
     C: Sync,
 {
-    session.handle_repop_request_like_cpp(pkt)
+    session.handle_repop_request_with_catalogs_like_cpp(catalogs, pkt)
 }
 
 fn handle_reclaim_corpse_thunk<'a, S, C>(

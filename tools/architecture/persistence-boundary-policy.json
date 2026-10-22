@@ -14902,6 +14902,66 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::map_corpse_adapter:crates/wow-database/src/map_corpse_adapter.rs::fn corpse_delete_statements_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/map_corpse_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::map_corpse_adapter"
+      ],
+      "enclosings": [
+        "fn corpse_delete_statements_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for C++ Corpse::SaveToDB/DeleteFromDB (#43) currently owns the complete wow-database workflow fn corpse_delete_statements_like_cpp in crates/wow-database/src/map_corpse_adapter.rs.",
+      "connection_affinity": "Pure Characters-database statement construction keyed by the owner's character counter.",
+      "current_order": "Builds DEL_CORPSE, DEL_CORPSE_PHASES and DEL_CORPSE_CUSTOMIZATIONS in C++ Corpse::DeleteFromDB order.",
+      "failure_and_unknown_commit": "No I/O occurs here; the caller's transaction classifies the outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::map_corpse_adapter:crates/wow-database/src/map_corpse_adapter.rs::fn corpse_save_statements_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/map_corpse_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::map_corpse_adapter"
+      ],
+      "enclosings": [
+        "fn corpse_save_statements_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for C++ Corpse::SaveToDB/DeleteFromDB (#43) currently owns the complete wow-database workflow fn corpse_save_statements_like_cpp in crates/wow-database/src/map_corpse_adapter.rs.",
+      "connection_affinity": "Pure Characters-database statement construction keyed by the owner's character counter.",
+      "current_order": "Builds Corpse::DeleteFromDB first, then INS_CORPSE, one INS_CORPSE_PHASES per phase and one INS_CORPSE_CUSTOMIZATIONS per choice, in C++ Corpse::SaveToDB order.",
+      "failure_and_unknown_commit": "No I/O occurs here; the caller's transaction classifies the outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::map_corpse_adapter:crates/wow-database/src/map_corpse_adapter.rs::fn map_corpse_load_statements_like_cpp",
       "source_class": "production",
       "packages": [
@@ -14962,6 +15022,36 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::map_corpse_adapter:crates/wow-database/src/map_corpse_adapter.rs::impl wow_persistence::MapCorpsePersistencePortLikeCpp for MariaDbMapCorpsePersistenceAdapterLikeCpp::delete_corpse_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/map_corpse_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::map_corpse_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::MapCorpsePersistencePortLikeCpp for MariaDbMapCorpsePersistenceAdapterLikeCpp::delete_corpse_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for C++ Corpse::SaveToDB/DeleteFromDB (#43) currently owns the complete wow-database workflow impl wow_persistence::MapCorpsePersistencePortLikeCpp for MariaDbMapCorpsePersistenceAdapterLikeCpp::delete_corpse_like_cpp in crates/wow-database/src/map_corpse_adapter.rs.",
+      "connection_affinity": "One Characters-database transaction; no cross-database affinity.",
+      "current_order": "Commits the three Corpse::DeleteFromDB statements as one transaction, as C++ Map::ConvertCorpseToBones does; the caller runs it after releasing the Map guard.",
+      "failure_and_unknown_commit": "A failed or unknown commit returns Failed with the driver reason; the Map has already converted the corpse, matching the C++ asynchronous commit.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::map_corpse_adapter:crates/wow-database/src/map_corpse_adapter.rs::impl wow_persistence::MapCorpsePersistencePortLikeCpp for MariaDbMapCorpsePersistenceAdapterLikeCpp::load_map_corpses_like_cpp",
       "source_class": "production",
       "packages": [
@@ -14987,6 +15077,36 @@
       "connection_affinity": "All reads use the configured Characters adapter; the read-only workflow claims no transaction or cross-database affinity.",
       "current_order": "Queries base corpses first, skips auxiliaries for an empty base result, then queries phases before customizations exactly like C++.",
       "failure_and_unknown_commit": "A base failure returns Failed with no rows; phase and customization failures are classified independently and do not discard successfully loaded base rows.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::map_corpse_adapter:crates/wow-database/src/map_corpse_adapter.rs::impl wow_persistence::MapCorpsePersistencePortLikeCpp for MariaDbMapCorpsePersistenceAdapterLikeCpp::save_corpse_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/map_corpse_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::map_corpse_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::MapCorpsePersistencePortLikeCpp for MariaDbMapCorpsePersistenceAdapterLikeCpp::save_corpse_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for C++ Corpse::SaveToDB/DeleteFromDB (#43) currently owns the complete wow-database workflow impl wow_persistence::MapCorpsePersistencePortLikeCpp for MariaDbMapCorpsePersistenceAdapterLikeCpp::save_corpse_like_cpp in crates/wow-database/src/map_corpse_adapter.rs.",
+      "connection_affinity": "One Characters-database transaction; no cross-database affinity.",
+      "current_order": "Commits delete-then-insert of the corpse, phases and customizations as one transaction exactly like C++ Corpse::SaveToDB; the caller runs it after Map::AddCorpse/AddToMap with no Map guard held.",
+      "failure_and_unknown_commit": "A failed or unknown commit returns Failed with the driver reason and the in-memory corpse stays, matching the C++ asynchronous commit.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true

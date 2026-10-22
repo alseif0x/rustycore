@@ -75,6 +75,26 @@
    "unit_tests_lines": 234265,
    "unit_tests_tests": 3727,
    "src_tests": 22
+  },
+  {
+   "id": "raise-43-7",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-23",
+   "reason": "#43 slice 1 adds five World corpse lifecycle tests (repop corpse+graveyard, bones conversion, repeated repop, reclaim-delay steps, corpse flags/item cache)",
+   "unit_tests_lines": 234644,
+   "unit_tests_tests": 3732,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-43-8",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-23",
+   "reason": "#43 slice 1 review: realm-routing assertions plus dungeon auto-revive/no-save and JUST_DIED KillPlayer repop tests",
+   "unit_tests_lines": 234741,
+   "unit_tests_tests": 3734,
+   "src_tests": 22
   }
  ]
 }

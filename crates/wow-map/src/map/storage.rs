@@ -8,6 +8,9 @@
 use super::*;
 use crate::map_rules::ensure_map_guid_sequence_source_like_cpp;
 
+#[path = "player_corpses.rs"]
+mod player_corpses;
+
 impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>
 where
     Terrain: TerrainGridLoader,

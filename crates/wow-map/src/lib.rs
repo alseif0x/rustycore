@@ -43,6 +43,7 @@ pub use manager::{
     MapUpdater, PlayerHandle, PlayerOwnerError, PlayerResidenceLikeCpp,
     PlayerVisibilityRefreshIntentLikeCpp,
 };
+mod player_corpse_types;
 pub use map::{
     AIRelocationPlan, ActiveObjectKind, AddToMapError, AddToMapOutcome,
     CheckRespawnCompositeOutcomeLikeCpp, CheckRespawnLinkedRespawnGuardOutcomeLikeCpp,
@@ -71,6 +72,7 @@ pub use personal_phase::{
     MultiPersonalPhaseTracker, PERSONAL_PHASE_DELETE_TIME_DEFAULT_MS, PersonalPhaseSpawns,
     PhaseRef, PhaseShift, PlayerPersonalPhasesTracker,
 };
+pub use player_corpse_types::{CORPSE_FLAG_BONES_LIKE_CPP, ConvertCorpseToBonesOutcomeLikeCpp};
 pub use pool::{
     PoolDespawnObjectPlanLikeCpp, PoolDespawnPoolPlanLikeCpp, PoolGroupLikeCpp,
     PoolInitForMapErrorKindLikeCpp, PoolInitForMapErrorLikeCpp, PoolInitForMapPlanLikeCpp,

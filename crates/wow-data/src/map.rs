@@ -91,6 +91,9 @@ impl MapEntry {
 pub struct MapStore {
     entries: HashMap<u32, MapEntry>,
     area_table_ids_like_cpp: HashMap<u32, u16>,
+    /// C++ `MapEntry::CorpseMapID` (Map.db2 field 18), kept beside the entry
+    /// like `AreaTableID`.
+    corpse_map_ids_like_cpp: HashMap<u32, i16>,
 }
 
 impl MapStore {
@@ -98,6 +101,7 @@ impl MapStore {
         Self {
             entries: entries.into_iter().map(|entry| (entry.id, entry)).collect(),
             area_table_ids_like_cpp: HashMap::new(),
+            corpse_map_ids_like_cpp: HashMap::new(),
         }
     }
 
@@ -114,6 +118,7 @@ impl MapStore {
 
         let mut entries = HashMap::with_capacity(reader.total_count());
         let mut area_table_ids_like_cpp = HashMap::with_capacity(reader.total_count());
+        let mut corpse_map_ids_like_cpp = HashMap::with_capacity(reader.total_count());
         for (id, idx) in reader.iter_records() {
             let entry = MapEntry {
                 id,
@@ -130,6 +135,8 @@ impl MapStore {
                 flags2: reader.get_array_element(idx, 21, 1, 32),
             };
             area_table_ids_like_cpp.insert(id, reader.get_field_u16(idx, 9));
+            // C++ field 18 (`CorpseMapID`) -> reader field 17.
+            corpse_map_ids_like_cpp.insert(id, reader.get_field_i16(idx, 17));
             entries.insert(id, entry);
         }
 
@@ -137,6 +144,7 @@ impl MapStore {
         Ok(Self {
             entries,
             area_table_ids_like_cpp,
+            corpse_map_ids_like_cpp,
         })
     }
 
@@ -146,6 +154,18 @@ impl MapStore {
 
     pub fn area_table_id_like_cpp(&self, id: u32) -> u16 {
         self.area_table_ids_like_cpp.get(&id).copied().unwrap_or(0)
+    }
+
+    /// C++ `MapEntry::CorpseMapID`: the entrance map shown to a ghost whose
+    /// corpse lies in this map, or `-1`. Unknown maps answer `-1`.
+    pub fn corpse_map_id_like_cpp(&self, id: u32) -> i16 {
+        self.corpse_map_ids_like_cpp.get(&id).copied().unwrap_or(-1)
+    }
+
+    /// Install `CorpseMapID` for a map built from entries (tests and
+    /// fixtures); the DB2 loader fills it from field 18.
+    pub fn set_corpse_map_id_like_cpp(&mut self, id: u32, corpse_map_id: i16) {
+        self.corpse_map_ids_like_cpp.insert(id, corpse_map_id);
     }
 
     pub fn entries(&self) -> impl Iterator<Item = &MapEntry> {

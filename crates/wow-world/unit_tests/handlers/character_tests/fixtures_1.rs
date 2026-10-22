@@ -281,6 +281,22 @@ impl MapCorpsePersistencePortLikeCpp for MapCorpseLoadPortFixtureLikeCpp {
             .expect("one map-corpse outcome per request");
         Box::pin(async move { outcome })
     }
+
+    fn save_corpse_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::CorpseSaveRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, wow_persistence::CorpsePersistenceMutationOutcomeLikeCpp>
+    {
+        Box::pin(async { wow_persistence::CorpsePersistenceMutationOutcomeLikeCpp::Committed })
+    }
+
+    fn delete_corpse_like_cpp<'a>(
+        &'a self,
+        _owner_guid: u64,
+    ) -> PersistenceFutureLikeCpp<'a, wow_persistence::CorpsePersistenceMutationOutcomeLikeCpp>
+    {
+        Box::pin(async { wow_persistence::CorpsePersistenceMutationOutcomeLikeCpp::Committed })
+    }
 }
 
 pub(super) struct CollectionLoadPortLikeCpp {

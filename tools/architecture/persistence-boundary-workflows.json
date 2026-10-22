@@ -7581,6 +7581,66 @@
       "package": "wow-database",
       "module": "crate::map_corpse_adapter",
       "source": "crates/wow-database/src/map_corpse_adapter.rs",
+      "enclosing": "fn corpse_delete_statements_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for C++ Corpse::SaveToDB/DeleteFromDB (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure Characters-database statement construction keyed by the owner's character counter.",
+      "current_order": "Builds DEL_CORPSE, DEL_CORPSE_PHASES and DEL_CORPSE_CUSTOMIZATIONS in C++ Corpse::DeleteFromDB order.",
+      "failure_and_unknown_commit": "No I/O occurs here; the caller's transaction classifies the outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::map_corpse_adapter",
+      "source": "crates/wow-database/src/map_corpse_adapter.rs",
+      "enclosing": "fn corpse_save_statements_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for C++ Corpse::SaveToDB/DeleteFromDB (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure Characters-database statement construction keyed by the owner's character counter.",
+      "current_order": "Builds Corpse::DeleteFromDB first, then INS_CORPSE, one INS_CORPSE_PHASES per phase and one INS_CORPSE_CUSTOMIZATIONS per choice, in C++ Corpse::SaveToDB order.",
+      "failure_and_unknown_commit": "No I/O occurs here; the caller's transaction classifies the outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::map_corpse_adapter",
+      "source": "crates/wow-database/src/map_corpse_adapter.rs",
+      "enclosing": "impl wow_persistence::MapCorpsePersistencePortLikeCpp for MariaDbMapCorpsePersistenceAdapterLikeCpp::delete_corpse_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for C++ Corpse::SaveToDB/DeleteFromDB (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One Characters-database transaction; no cross-database affinity.",
+      "current_order": "Commits the three Corpse::DeleteFromDB statements as one transaction, as C++ Map::ConvertCorpseToBones does; the caller runs it after releasing the Map guard.",
+      "failure_and_unknown_commit": "A failed or unknown commit returns Failed with the driver reason; the Map has already converted the corpse, matching the C++ asynchronous commit."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::map_corpse_adapter",
+      "source": "crates/wow-database/src/map_corpse_adapter.rs",
+      "enclosing": "impl wow_persistence::MapCorpsePersistencePortLikeCpp for MariaDbMapCorpsePersistenceAdapterLikeCpp::save_corpse_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for C++ Corpse::SaveToDB/DeleteFromDB (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One Characters-database transaction; no cross-database affinity.",
+      "current_order": "Commits delete-then-insert of the corpse, phases and customizations as one transaction exactly like C++ Corpse::SaveToDB; the caller runs it after Map::AddCorpse/AddToMap with no Map guard held.",
+      "failure_and_unknown_commit": "A failed or unknown commit returns Failed with the driver reason and the in-memory corpse stays, matching the C++ asynchronous commit."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::map_corpse_adapter",
+      "source": "crates/wow-database/src/map_corpse_adapter.rs",
       "enclosing": "impl MariaDbMapCorpsePersistenceAdapterLikeCpp::new",
       "logical_databases": [
         "characters"

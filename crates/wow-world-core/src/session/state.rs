@@ -26,7 +26,7 @@ mod hub;
 pub use hub::{HubMut, HubRef};
 
 pub mod config;
-pub use config::SessionWorldConfig;
+pub use config::{DeathPolicyLikeCpp, SessionWorldConfig};
 
 #[cfg(any(test, feature = "test-fixtures"))]
 pub mod combat;

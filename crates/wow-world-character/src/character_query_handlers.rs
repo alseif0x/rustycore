@@ -421,14 +421,52 @@ impl<'a> CharacterQueryHandlerCxLikeCpp<'a> {
             .send_packet_realm(&QueryPlayerNamesResponse { players: results });
     }
 
-    /// CMSG_QUERY_CORPSE_LOCATION_FROM_CLIENT — answer an invalid corpse
-    /// location while the live corpse/raid lookup is not represented.
+    /// CMSG_QUERY_CORPSE_LOCATION_FROM_CLIENT.
+    /// C++ ref: `WorldSession::HandleQueryCorpseLocation` (`QueryHandler.cpp:126`).
     pub async fn handle_query_corpse_location(&mut self, query: QueryCorpseLocationFromClient) {
-        // C++ sends an invalid CorpseLocation when the queried player is missing,
-        // has no corpse, or is not in the querying player's raid. Rust does not
-        // yet have the live corpse/raid lookup needed for the valid branch.
+        // C++ answers for any connected raid member with a corpse. Rust
+        // answers the querying Player's own corpse (`IsInSameRaidWith(self)`
+        // is true); other players still get the invalid shape until the
+        // connected-player corpse/raid lookup exists (#43 follow-up).
+        let own = self.hub.shared().core.player_guid() == Some(query.player);
+        let corpse_location = own
+            .then(|| {
+                self.hub.shared().core.with_owned_player_like_cpp(|player| {
+                    (
+                        player.resurrection_state_like_cpp().corpse_location,
+                        player.unit().world().map_id(),
+                    )
+                })
+            })
+            .flatten();
+        let Some((Some((corpse_map_id, position)), player_map_id)) = corpse_location else {
+            // SMSG_CORPSE_LOCATION is a realm-connection opcode (Opcodes.cpp:1306).
+            self.publication_like_cpp()
+                .send_packet_realm(&CorpseLocation::not_found_like_cpp(query.player));
+            return;
+        };
+        // C++ shows a dungeon corpse at its entrance map (`CorpseMapID`) when
+        // the Player is on another map; the entrance height lookup
+        // (`TerrainInfo::GetStaticHeight`) keeps the corpse z here.
+        let mut actual_map_id = corpse_map_id;
+        if corpse_map_id != player_map_id
+            && let Some(store) = self.hub.shared().catalogs.maps.store.as_ref()
+            && store
+                .get(corpse_map_id)
+                .is_some_and(|entry| entry.is_dungeon())
+            && let Ok(entrance) = u32::try_from(store.corpse_map_id_like_cpp(corpse_map_id))
+        {
+            actual_map_id = entrance;
+        }
         self.publication_like_cpp()
-            .send_packet(&CorpseLocation::not_found_like_cpp(query.player));
+            .send_packet_realm(&CorpseLocation {
+                player: query.player,
+                transport: ObjectGuid::EMPTY,
+                position: wow_core::Position::new(position.x, position.y, position.z, 0.0),
+                actual_map_id: actual_map_id as i32,
+                map_id: corpse_map_id as i32,
+                valid: true,
+            });
     }
 
     /// CMSG_QUERY_CORPSE_TRANSPORT — answer an invalid corpse transport while
