@@ -4,4 +4,5 @@
 
 use super::*;
 
+mod forever_map;
 mod scenarios;
