@@ -8,6 +8,7 @@ use super::*;
 enum AvailablePrefix {
     Achievement,
     InitialMap,
+    ForeverMap,
     BirthAbilities,
     Item(super::available::items::ItemPrefix),
     Spell(super::creation::SpellTable),
@@ -60,6 +61,13 @@ impl Wdc4Reader {
 
     pub(crate) fn open_available_initial_map(path: &Path) -> Result<Self> {
         Self::open_inner(path, Some(AvailablePrefix::InitialMap))
+    }
+
+    /// Pinned 70450 Map acquisition: load its readable prefix and skip the
+    /// three sections marked with unavailable TACT keys. This does not decrypt
+    /// or claim completeness for those sections.
+    pub(crate) fn open_available_forever_map(path: &Path) -> Result<Self> {
+        Self::open_inner(path, Some(AvailablePrefix::ForeverMap))
     }
 
     pub(crate) fn open_available_birth_abilities(path: &Path) -> Result<Self> {
@@ -172,6 +180,9 @@ impl Wdc4Reader {
                     }
                     AvailablePrefix::InitialMap => {
                         super::available::validate_initial_map(&header, &sections, data.len())?
+                    }
+                    AvailablePrefix::ForeverMap => {
+                        super::available::validate_forever_map(&header, &sections, data.len())?
                     }
                     AvailablePrefix::BirthAbilities => {
                         super::available::validate_birth_abilities(&header, &sections, data.len())?
