@@ -12,5 +12,6 @@ use wow_packet::packets::misc::{
 mod contents;
 mod duel;
 mod initiate;
+mod initiate_order;
 mod petition;
 mod session;

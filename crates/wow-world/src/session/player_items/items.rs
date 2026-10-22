@@ -14,12 +14,6 @@ impl WorldSession {
         self.interaction
             .set_vendor_buy_item_test_override_like_cpp(item);
     }
-    #[cfg(test)]
-    pub(crate) fn represented_trade_spell_cast_item_like_cpp(&self) -> Option<ObjectGuid> {
-        self.player_trade_state_snapshot_like_cpp()
-            .flatten()
-            .and_then(|state| state.spell_cast_item_guid)
-    }
 }
 
 #[cfg(test)]

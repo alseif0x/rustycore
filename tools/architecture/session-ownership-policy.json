@@ -5393,6 +5393,20 @@
           "module": "crate::handlers::character_login_host",
           "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
           "kind": "method",
+          "name": "begin_logout_wait_movement_like_cpp",
+          "visibility": "private",
+          "signature": "fn begin_logout_wait_movement_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character_login_host",
+          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
+          "kind": "method",
           "name": "begin_represented_trait_config_authority_load_like_cpp",
           "visibility": "private",
           "signature": "fn begin_represented_trait_config_authority_load_like_cpp (& mut self)",
@@ -5466,20 +5480,6 @@
           "name": "execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp",
           "visibility": "private",
           "signature": "fn execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , spell_id : i32 , target_guid : ObjectGuid , cast_id : ObjectGuid , spell_visual : SpellCastVisual , target_data : SpellTargetData , metadata : SpellCastMetadata ,) -> impl Future < Output = Result < () , & 'static str > > + Send",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::character_login_host",
-          "trait_path": "wow_world_character :: CharacterLoginHostLikeCpp",
-          "kind": "method",
-          "name": "begin_logout_wait_movement_like_cpp",
-          "visibility": "private",
-          "signature": "fn begin_logout_wait_movement_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -21660,21 +21660,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "accept_represented_trade_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn accept_represented_trade_like_cpp (& mut self , state_index : u32)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "account_data_times_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn account_data_times_like_cpp (& self , player_guid : ObjectGuid , mask : u32 ,) -> wow_packet :: packets :: misc :: AccountDataTimes",
@@ -29763,69 +29748,9 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_trade_client_state_index_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_trade_client_state_index_like_cpp (& self) -> u32",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_trade_item_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_trade_item_like_cpp (& self , slot : u8) -> Option < ObjectGuid >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_trade_money_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_trade_money_like_cpp (& self) -> u64",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_trade_server_state_index_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_trade_server_state_index_like_cpp (& self) -> u32",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_trade_spell_cast_item_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_trade_spell_cast_item_like_cpp (& self) -> Option < ObjectGuid >",
           "cfg": [
             "cfg (test)"
           ],
@@ -34721,22 +34646,6 @@
           "name": "set_represented_movie_like_cpp_for_test",
           "visibility": "pub (crate)",
           "signature": "fn set_represented_movie_like_cpp_for_test (& mut self , movie_id : Option < u32 >)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_represented_partner_trade_server_state_index_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn set_represented_partner_trade_server_state_index_like_cpp (& mut self , state_index : u32 ,) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -42255,6 +42164,27 @@
         },
         {
           "package": "wow-world-core",
+          "module": "crate::session::canonical_access::trade_pair",
+          "self_type": "SessionCore",
+          "resolved_provider": [
+            {
+              "package": "wow-world-core",
+              "module": "crate::session::state::session_core",
+              "symbol": "SessionCore",
+              "kind": "struct",
+              "source_path": "crates/wow-world-core/src/session/state/session_core.rs",
+              "guards": []
+            }
+          ],
+          "trait_path": null,
+          "cfg": [],
+          "availability": {
+            "production": true,
+            "test": true
+          }
+        },
+        {
+          "package": "wow-world-core",
           "module": "crate::session::canonical_access::trainer_interaction",
           "self_type": "SessionCore",
           "resolved_provider": [
@@ -44336,6 +44266,36 @@
           "name": "owned_spell_acquisition_access_like_cpp",
           "visibility": "pub",
           "signature": "fn owned_spell_acquisition_access_like_cpp (& self ,) -> OwnedSpellAcquisitionAccessLikeCpp < '_ >",
+          "cfg": [],
+          "availability": {
+            "production": true,
+            "test": true
+          }
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::canonical_access::trade_pair",
+          "self_type": "SessionCore",
+          "trait_path": null,
+          "kind": "method",
+          "name": "mark_player_logging_out_like_cpp",
+          "visibility": "pub",
+          "signature": "fn mark_player_logging_out_like_cpp (& self , logging_out : bool)",
+          "cfg": [],
+          "availability": {
+            "production": true,
+            "test": true
+          }
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::canonical_access::trade_pair",
+          "self_type": "SessionCore",
+          "trait_path": null,
+          "kind": "method",
+          "name": "with_trade_pair_like_cpp",
+          "visibility": "pub",
+          "signature": "fn with_trade_pair_like_cpp < R > (& self , f : impl FnOnce (& mut TradePairAccessLikeCpp < '_ >) -> R ,) -> Option < R >",
           "cfg": [],
           "availability": {
             "production": true,

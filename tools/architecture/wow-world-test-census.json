@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 3742,
+  "tests": 3739,
   "ignored": 1,
-  "session": 3440,
-  "shims": 3256,
+  "session": 3437,
+  "shims": 3253,
   "by_class": {
    "P": 302,
    "H": 165,
-   "W": 3275
+   "W": 3272
   },
   "by_reason": {
    "H-host": 165,
@@ -42,7 +42,7 @@
    "W-multi-domain": 36,
    "W-unreached": 22,
    "W-world-items": 2,
-   "W-world-logic": 3057
+   "W-world-logic": 3054
   },
   "by_owner": {
    "wow-world": {
@@ -93,7 +93,7 @@
    "wow-world-lifecycle": {
     "P": 38,
     "H": 43,
-    "W": 148
+    "W": 149
    },
    "wow-world-loot": {
     "P": 6,
@@ -103,7 +103,7 @@
    "wow-world-loot-ops": {
     "P": 11,
     "H": 8,
-    "W": 186
+    "W": 190
    },
    "wow-world-player-conditions": {
     "P": 1,
@@ -118,12 +118,12 @@
    "wow-world-social": {
     "P": 18,
     "H": 30,
-    "W": 190
+    "W": 181
    },
    "wow-world-spell": {
     "P": 43,
     "H": 5,
-    "W": 785
+    "W": 786
    },
    "wow-world-visibility": {
     "P": 0,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 70,
     "H": 0,
-    "W": 3275
+    "W": 3272
    },
    "wow-world-application": {
     "P": 27,
@@ -982,25 +982,18 @@
   ["unit_tests/handlers/economy/tests/auction.rs::auction_replicate_items_records_request_after_auctioneer_gate_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "handle_auction_replicate_items", "set_canonical_map_manager"], []],
   ["unit_tests/handlers/economy/tests/auction.rs::auction_replicate_items_rejects_missing_auctioneer_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "attach_player_controller_like_cpp", "handle_auction_replicate_items", "set_canonical_map_manager"], []],
   ["unit_tests/handlers/economy/tests/auction.rs::auctionable_token_sell_at_market_price_is_silent_wotlk_stub_like_cpp", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["handle_auctionable_token_sell_at_market_price"], []],
-  ["unit_tests/handlers/economy/tests/trade/contents.rs::clear_trade_item_without_active_trade_is_noop_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["represented_trade_client_state_index_like_cpp", "represented_trade_item_like_cpp"], []],
-  ["unit_tests/handlers/economy/tests/trade/contents.rs::clear_trade_item_invalid_slot_updates_client_state_only_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["represented_trade_accepted_like_cpp", "represented_trade_client_state_index_like_cpp", "represented_trade_server_state_index_like_cpp", "set_represented_trade_accepted_like_cpp_for_test"], []],
-  ["unit_tests/handlers/economy/tests/trade/contents.rs::clear_trade_item_empty_slot_only_updates_client_state_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["represented_trade_accepted_like_cpp", "represented_trade_client_state_index_like_cpp", "represented_trade_server_state_index_like_cpp", "set_represented_trade_accepted_like_cpp_for_test"], []],
-  ["unit_tests/handlers/economy/tests/trade/contents.rs::clear_trade_item_clears_slot_and_unaccepts_both_sides_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["process_represented_session_commands_like_cpp", "represented_trade_accepted_like_cpp", "represented_trade_client_state_index_like_cpp", "represented_trade_item_like_cpp"], []],
-  ["unit_tests/handlers/economy/tests/trade/contents.rs::set_trade_item_without_active_trade_is_noop_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object", "represented_trade_client_state_index_like_cpp"], []],
-  ["unit_tests/handlers/economy/tests/trade/contents.rs::set_trade_item_invalid_slot_cancels_without_client_state_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object", "represented_trade_client_state_index_like_cpp"], []],
-  ["unit_tests/handlers/economy/tests/trade/contents.rs::set_trade_item_missing_inventory_cancels_without_client_state_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["represented_trade_client_state_index_like_cpp", "represented_trade_item_like_cpp"], []],
-  ["unit_tests/handlers/economy/tests/trade/contents.rs::set_trade_item_duplicate_item_cancels_without_client_state_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object", "represented_trade_client_state_index_like_cpp"], []],
-  ["unit_tests/handlers/economy/tests/trade/contents.rs::set_trade_item_records_slot_and_unaccepts_both_sides_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object", "process_represented_session_commands_like_cpp"], []],
-  ["unit_tests/handlers/economy/tests/trade/contents.rs::set_trade_gold_without_active_trade_is_noop_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["represented_trade_client_state_index_like_cpp", "represented_trade_money_like_cpp", "set_player_gold_like_cpp"], []],
-  ["unit_tests/handlers/economy/tests/trade/contents.rs::set_trade_gold_same_money_only_updates_client_state_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["represented_trade_client_state_index_like_cpp", "represented_trade_money_like_cpp", "represented_trade_server_state_index_like_cpp", "set_player_gold_like_cpp"], []],
-  ["unit_tests/handlers/economy/tests/trade/contents.rs::set_trade_gold_not_enough_money_sends_failed_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["represented_trade_client_state_index_like_cpp", "represented_trade_money_like_cpp", "represented_trade_server_state_index_like_cpp", "set_player_gold_like_cpp"], []],
-  ["unit_tests/handlers/economy/tests/trade/contents.rs::set_trade_gold_records_money_and_unaccepts_both_sides_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["process_represented_session_commands_like_cpp", "represented_trade_accepted_like_cpp", "represented_trade_client_state_index_like_cpp", "represented_trade_money_like_cpp"], []],
-  ["unit_tests/handlers/economy/tests/trade/contents.rs::set_trade_spell_without_active_trade_is_noop_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["represented_trade_client_state_index_like_cpp", "represented_trade_server_state_index_like_cpp", "represented_trade_spell_cast_item_like_cpp", "represented_trade_spell_like_cpp"], []],
-  ["unit_tests/handlers/economy/tests/trade/contents.rs::set_trade_spell_zero_clears_spell_and_unaccepts_both_sides_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["process_represented_session_commands_like_cpp", "represented_trade_accepted_like_cpp", "represented_trade_client_state_index_like_cpp", "represented_trade_server_state_index_like_cpp"], []],
-  ["unit_tests/handlers/economy/tests/trade/contents.rs::set_trade_spell_missing_spell_info_clears_existing_spell_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["represented_trade_accepted_like_cpp", "represented_trade_client_state_index_like_cpp", "represented_trade_server_state_index_like_cpp", "represented_trade_spell_cast_item_like_cpp"], []],
-  ["unit_tests/handlers/economy/tests/trade/contents.rs::set_trade_spell_unknown_spell_clears_existing_spell_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["represented_trade_accepted_like_cpp", "represented_trade_client_state_index_like_cpp", "represented_trade_server_state_index_like_cpp", "represented_trade_spell_cast_item_like_cpp"], []],
-  ["unit_tests/handlers/economy/tests/trade/contents.rs::set_trade_spell_valid_records_spell_and_cast_item_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object", "process_represented_session_commands_like_cpp"], []],
-  ["unit_tests/handlers/economy/tests/trade/contents.rs::set_trade_spell_same_spell_and_cast_item_is_noop_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["insert_inventory_item_like_cpp", "insert_inventory_item_object", "make_inventory_item_object", "represented_trade_accepted_like_cpp"], []],
+  ["unit_tests/handlers/economy/tests/trade/contents.rs::set_trade_item_resets_both_acceptances_and_updates_trader_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "insert_inventory_item_like_cpp", "insert_inventory_item_object"], []],
+  ["unit_tests/handlers/economy/tests/trade/contents.rs::set_trade_item_refusals_cancel_without_client_state_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "insert_inventory_item_like_cpp", "insert_inventory_item_object"], []],
+  ["unit_tests/handlers/economy/tests/trade/contents.rs::set_trade_item_soulbound_item_is_cancelled_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "insert_inventory_item_like_cpp", "insert_inventory_item_object"], []],
+  ["unit_tests/handlers/economy/tests/trade/contents.rs::clear_trade_item_follows_cpp_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "insert_inventory_item_like_cpp", "insert_inventory_item_object"], []],
+  ["unit_tests/handlers/economy/tests/trade/contents.rs::set_trade_gold_follows_trade_data_set_money_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "process_represented_session_commands_like_cpp", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/economy/tests/trade/contents.rs::set_trade_spell_updates_both_views_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "insert_inventory_item_like_cpp", "insert_inventory_item_object"], []],
+  ["unit_tests/handlers/economy/tests/trade/contents.rs::non_traded_slot_change_clears_trader_spell_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "insert_inventory_item_like_cpp", "insert_inventory_item_object"], []],
+  ["unit_tests/handlers/economy/tests/trade/contents.rs::unaccept_trade_notifies_only_the_trader_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "process_represented_session_commands_like_cpp", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/economy/tests/trade/contents.rs::accept_trade_checks_the_traders_server_state_index_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "process_represented_session_commands_like_cpp", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/economy/tests/trade/contents.rs::set_trade_item_bop_tradeable_not_for_trader_is_not_on_taplist_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "insert_inventory_item_like_cpp", "insert_inventory_item_object"], []],
+  ["unit_tests/handlers/economy/tests/trade/contents.rs::set_trade_item_looted_items_are_cancelled_like_cpp", "W", "wow-world", "wow-world-loot-ops", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "insert_inventory_item_like_cpp", "insert_inventory_item_object"], []],
+  ["unit_tests/handlers/economy/tests/trade/contents.rs::partner_statuses_carry_the_same_bnet_flag_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "process_represented_session_commands_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/handlers/economy/tests/trade/duel.rs::can_duel_missing_target_is_noop_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
   ["unit_tests/handlers/economy/tests/trade/duel.rs::can_duel_allows_target_without_duel_and_records_spell_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
   ["unit_tests/handlers/economy/tests/trade/duel.rs::can_duel_rejects_target_with_any_duel_info_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
@@ -1015,6 +1008,13 @@
   ["unit_tests/handlers/economy/tests/trade/initiate.rs::initiate_trade_allows_two_side_trade_by_config_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/economy/tests/trade/initiate.rs::initiate_trade_while_trading_is_silent_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/economy/tests/trade/initiate.rs::logout_cancel_clears_partner_trade_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "process_represented_session_commands_like_cpp", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/economy/tests/trade/initiate_order.rs::own_state_refusals_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "process_represented_session_commands_like_cpp", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/economy/tests/trade/initiate_order.rs::target_state_refusals_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "process_represented_session_commands_like_cpp", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/economy/tests/trade/initiate_order.rs::refusals_keep_the_cpp_check_order_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "process_represented_session_commands_like_cpp", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/economy/tests/trade/initiate_order.rs::game_master_overrides_the_faction_check_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "process_represented_session_commands_like_cpp", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/economy/tests/trade/initiate_order.rs::level_gate_notification_goes_to_the_realm_connection_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/handlers/economy/tests/trade/initiate_order.rs::logout_retirement_cancels_the_open_trade_and_refuses_new_ones_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "process_represented_session_commands_like_cpp", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/economy/tests/trade/initiate_order.rs::target_in_logout_countdown_is_logging_out_until_it_cancels_like_cpp", "W", "wow-world", "wow-world-lifecycle", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "handle_logout_request", "process_represented_session_commands_like_cpp"], []],
   ["unit_tests/handlers/economy/tests/trade/petition.rs::sign_petition_records_guid_and_choice_like_cpp_without_runtime_mgr", "H", "wow-world-social", "wow-world-social", "H-host", true, true, false, [], []],
   ["unit_tests/handlers/economy/tests/trade/petition.rs::decline_petition_records_guid_like_cpp_without_client_notification", "H", "wow-world-social", "wow-world-social", "H-host", true, true, false, [], []],
   ["unit_tests/handlers/economy/tests/trade/petition.rs::query_petition_without_runtime_mgr_sends_not_found_like_cpp", "W", "wow-world", "wow-world-social", "W-multi-domain", true, true, false, ["wow-world-social", "wow-world-spell"], []],
@@ -1022,10 +1022,7 @@
   ["unit_tests/handlers/economy/tests/trade/session.rs::cancel_trade_cancels_represented_trade_and_sends_status_like_cpp", "H", "wow-world-social", "wow-world-social", "H-host", true, true, false, [], []],
   ["unit_tests/handlers/economy/tests/trade/session.rs::cancel_trade_cancels_partner_represented_trade_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["process_represented_session_commands_like_cpp", "set_player_guid", "set_player_registry"], []],
   ["unit_tests/handlers/economy/tests/trade/session.rs::accept_trade_without_active_trade_is_noop_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["represented_trade_accepted_like_cpp"], []],
-  ["unit_tests/handlers/economy/tests/trade/session.rs::accept_trade_state_changed_resets_acceptance_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["represented_trade_accepted_like_cpp", "set_represented_partner_trade_server_state_index_like_cpp"], []],
-  ["unit_tests/handlers/economy/tests/trade/session.rs::accept_trade_records_acceptance_and_notifies_partner_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["process_represented_session_commands_like_cpp", "represented_trade_accepted_like_cpp", "set_player_guid", "set_player_registry"], []],
   ["unit_tests/handlers/economy/tests/trade/session.rs::unaccept_trade_without_active_trade_is_noop_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["represented_trade_accepted_like_cpp"], []],
-  ["unit_tests/handlers/economy/tests/trade/session.rs::unaccept_trade_clears_acceptance_and_notifies_partner_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["process_represented_session_commands_like_cpp", "represented_trade_accepted_like_cpp", "set_player_guid", "set_player_registry"], []],
   ["unit_tests/handlers/economy/tests/trade/session.rs::busy_trade_without_active_trade_is_noop_like_cpp", "H", "wow-world-social", "wow-world-social", "H-host", true, true, false, [], []],
   ["unit_tests/handlers/economy/tests/trade/session.rs::busy_trade_cancels_represented_trade_and_sends_status_like_cpp", "H", "wow-world-social", "wow-world-social", "H-host", true, true, false, [], []],
   ["unit_tests/handlers/economy/tests/trade/session.rs::busy_trade_cancels_partner_represented_trade_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["process_represented_session_commands_like_cpp", "set_player_guid", "set_player_registry"], []],
@@ -3744,7 +3741,7 @@
   ["unit_tests/session/tests/scenarios_world_entities_19/f6_8d3a1_combat_parity.rs::canonical_executor_matches_recorded_aggro_phase_like_cpp", "W", "wow-world", "wow-world-creature", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_world_entities_19/f6_8d3a1_combat_parity.rs::canonical_executor_matches_recorded_creature_melee_phase_like_cpp", "W", "wow-world", "wow-world-creature", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_world_entities_19/f6_8d3a1_combat_parity.rs::canonical_executor_regression_detects_a_perturbed_draw_like_cpp", "W", "wow-world", "wow-world-creature", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
-  ["unit_tests/session/tests/scenarios_world_entities_19/f6_8d3a1_combat_parity.rs::canonical_executor_does_not_republish_unchanged_values_like_cpp", "W", "wow-world", "wow-world-creature", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
+  ["unit_tests/session/tests/scenarios_world_entities_19/f6_8d3a1_combat_parity.rs::canonical_executor_does_not_republish_unchanged_values_like_cpp", "W", "wow-world", "wow-world-creature", "W-world-logic", true, true, false, ["process_represented_session_commands_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_world_entities_19/f6_8d3a1b_spell_parity.rs::canonical_executor_matches_recorded_spell_phase_like_cpp", "W", "wow-world", "wow-world-creature", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_world_entities_19/f6_8d3a1b_spell_parity.rs::canonical_executor_spell_regression_detects_a_perturbed_draw_like_cpp", "W", "wow-world", "wow-world-creature", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],
   ["unit_tests/session/tests/scenarios_world_entities_19/f6_8d3a2_movement_lifecycle_parity.rs::canonical_executor_matches_recorded_chase_movement_like_cpp", "W", "wow-world", "wow-world-creature", "W-world-logic", true, true, false, ["set_canonical_map_manager"], []],

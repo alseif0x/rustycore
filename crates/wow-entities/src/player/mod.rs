@@ -747,7 +747,7 @@ pub struct PlayerGuildState {
 pub struct PlayerTradeStateLikeCpp {
     pub partner_guid: ObjectGuid,
     pub accepted: bool,
-    pub partner_server_state_index: u32,
+    pub in_accept_process: bool,
     pub client_state_index: u32,
     pub server_state_index: u32,
     pub items: [Option<ObjectGuid>; PLAYER_TRADE_SLOT_COUNT_LIKE_CPP],
@@ -769,7 +769,7 @@ impl PlayerTradeStateLikeCpp {
         Self {
             partner_guid,
             accepted: false,
-            partner_server_state_index: 0,
+            in_accept_process: false,
             client_state_index: 1,
             server_state_index: 1,
             items: [None; PLAYER_TRADE_SLOT_COUNT_LIKE_CPP],

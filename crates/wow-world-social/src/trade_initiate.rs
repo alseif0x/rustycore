@@ -74,6 +74,7 @@ struct TradeInitiateSideLikeCpp {
     level: u32,
     team: Team,
     mercenary: bool,
+    logging_out: bool,
     world: WorldObject,
 }
 
@@ -91,6 +92,7 @@ impl TradeInitiateSideLikeCpp {
             level: u32::from(player.level_like_cpp()),
             team: player_team_for_race_cpp(player.race_like_cpp()),
             mercenary: player.has_player_flag_ex(PLAYER_FLAGS_EX_MERCENARY_MODE_LIKE_CPP),
+            logging_out: player.trade_session_logging_out_like_cpp(),
             world: unit.world().clone(),
         }
     }
@@ -109,13 +111,14 @@ pub struct InitiateTradeContextLikeCpp {
 }
 
 /// Run the C++ check sequence and, when it passes, install both `m_trade`
-/// under one map-manager lock. `target_logging_out` answers C++
-/// `pOther->GetSession()->isLogingOut()`.
+/// under one map-manager lock. C++ `pOther->GetSession()->isLogingOut()` is
+/// the target Player's logout mark, read under the same lock; the leaving
+/// session sets it before its own `TradeCancel`, so a trade either opens
+/// before the mark (and that cancel closes it) or is refused.
 pub fn initiate_trade_pair_like_cpp(
     core: &SessionCore,
     target_guid: ObjectGuid,
     context: InitiateTradeContextLikeCpp,
-    target_logging_out: bool,
 ) -> InitiateTradeOutcomeLikeCpp {
     use InitiateTradeOutcomeLikeCpp::*;
     let (Some(manager), Some(handle)) = (
@@ -184,7 +187,7 @@ pub fn initiate_trade_pair_like_cpp(
     if other.stunned {
         return Refused(TRADE_STATUS_TARGET_STUNNED_LIKE_CPP);
     }
-    if target_logging_out {
+    if other.logging_out {
         return Refused(wow_packet::packets::misc::TRADE_STATUS_TARGET_LOGGING_OUT_LIKE_CPP);
     }
     if (other.team != me.team || other.mercenary || me.mercenary)

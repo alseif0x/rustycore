@@ -279,6 +279,7 @@ impl<'a> AccountDataHandlerCxLikeCpp<'a> {
         }
         info!("LogoutCancel from account {}", self.hub.core.account_id);
         self.lifecycle.clear_logout_time();
+        self.hub.core.mark_player_logging_out_like_cpp(false);
         self.hub
             .core
             .packet_publication_access_like_cpp()

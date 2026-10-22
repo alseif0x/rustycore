@@ -45,31 +45,12 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub(crate) fn accept_represented_trade_like_cpp(&mut self, state_index: u32) {
-        self.trade_handler_cx_like_cpp()
-            .accept_represented_trade_like_cpp(state_index)
-    }
-
-    #[cfg(test)]
     pub(crate) fn represented_active_trade_partner_like_cpp(&self) -> Option<ObjectGuid> {
         wow_world_social::resolved_represented_active_trade_partner_like_cpp(
             &self.core,
             &self.social,
         )
         .expect("test Player trade owner must resolve")
-    }
-
-    #[cfg(test)]
-    pub(crate) fn set_represented_partner_trade_server_state_index_like_cpp(
-        &mut self,
-        state_index: u32,
-    ) -> bool {
-        self.mutate_player_trade_state_like_cpp(|state| {
-            if let Some(state) = state {
-                state.partner_server_state_index = state_index;
-            }
-        })
-        .is_some()
     }
 
     #[cfg(test)]
@@ -82,27 +63,6 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn set_represented_trade_accepted_like_cpp_for_test(&mut self, accepted: bool) {
         let _ = self.set_represented_trade_accepted_like_cpp_for_command(accepted);
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_trade_client_state_index_like_cpp(&self) -> u32 {
-        self.player_trade_state_snapshot_like_cpp()
-            .flatten()
-            .map_or(1, |state| state.client_state_index)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_trade_server_state_index_like_cpp(&self) -> u32 {
-        self.player_trade_state_snapshot_like_cpp()
-            .flatten()
-            .map_or(1, |state| state.server_state_index)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_trade_money_like_cpp(&self) -> u64 {
-        self.player_trade_state_snapshot_like_cpp()
-            .flatten()
-            .map_or(0, |state| state.money)
     }
 }
 

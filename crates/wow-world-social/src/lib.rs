@@ -34,6 +34,8 @@ mod state;
 mod test_support;
 mod text_emote;
 mod trade;
+mod trade_content_handlers;
+pub mod trade_contents;
 mod trade_handlers;
 mod trade_initiate;
 

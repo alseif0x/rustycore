@@ -154,6 +154,8 @@ pub async fn handle_logout_request_with_generator_like_cpp<H: CharacterLoginHost
     host.begin_logout_wait_movement_like_cpp();
     host.lifecycle_mut()
         .set_logout_start_time_like_cpp(wow_entities::game_time_secs_like_cpp());
+    // `isLogingOut()` is now true for other sessions too (trade admission).
+    host.core().mark_player_logging_out_like_cpp(true);
 }
 
 /// Handle CMSG_LOGOUT_CANCEL — player cancels a pending logout.

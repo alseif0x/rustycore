@@ -12,8 +12,10 @@ use crate::session::WorldSession;
 
 impl WorldSession {
     fn trade_test_cx_like_cpp(&mut self) -> TradeHandlerCxLikeCpp<'_> {
+        let active_loot_guid = self.loot.active_loot_guid_like_cpp();
         let (social, inventory, spell_state, hub) = crate::session::split_trade_mut(self);
         TradeHandlerCxLikeCpp::new(hub, social, inventory, spell_state)
+            .with_active_loot_guid_like_cpp(active_loot_guid)
     }
 
     pub(crate) async fn handle_initiate_trade_with_policy(
