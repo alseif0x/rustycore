@@ -747,7 +747,7 @@ fn production_linked_registry_carries_the_migrated_travel_family() {
 /// The ten deliberately deferred F5 entries (#1263 F5 deferred families) must
 /// reach the production-linked registry exactly once with their reviewed
 /// tuples, and the production-linked legacy inventory drain must be empty, so
-/// all 476 registrations come from explicit area registrars.
+/// all 477 registrations come from explicit area registrars.
 #[test]
 fn production_linked_registry_carries_the_migrated_deferred_families() {
     use wow_constants::ClientOpcodes as Op;
@@ -806,5 +806,5 @@ fn production_linked_registry_carries_the_migrated_deferred_families() {
         assert_eq!(matches[0].processing, *processing, "{opcode:?} processing");
     }
 
-    assert_eq!(registry.iter().count(), 476, "476 effective registrations");
+    assert_eq!(registry.iter().count(), 477, "477 effective registrations");
 }

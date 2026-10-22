@@ -16,6 +16,18 @@ impl WorldSession {
         TradeHandlerCxLikeCpp::new(hub, social, inventory, spell_state)
     }
 
+    pub(crate) async fn handle_initiate_trade_with_policy(
+        &mut self,
+        pkt: WorldPacket,
+        policy: wow_world_social::TradePolicyLikeCpp,
+    ) {
+        let logging_out = self.lifecycle.is_logging_out_like_cpp();
+        self.trade_test_cx_like_cpp()
+            .with_initiate_context_like_cpp(policy, logging_out)
+            .handle_initiate_trade(pkt)
+            .await;
+    }
+
     pub(crate) async fn handle_cancel_trade(&mut self, pkt: WorldPacket) {
         self.trade_test_cx_like_cpp().handle_cancel_trade(pkt).await;
     }

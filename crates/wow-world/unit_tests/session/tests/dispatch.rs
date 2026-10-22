@@ -273,7 +273,7 @@ struct DispatchTableRow {
 /// swap lost nothing: it is generated from the registry as it stood with the
 /// match arms in place, and it must keep matching once they are gone.
 ///
-/// It is an enumeration, not a sample: all 476 rows, compared as a set.
+/// It is an enumeration, not a sample: all 477 rows, compared as a set.
 #[test]
 fn every_registered_opcode_keeps_its_handler_status_and_processing_like_cpp() {
     let golden: Vec<DispatchTableRow> = serde_json::from_str(include_str!(

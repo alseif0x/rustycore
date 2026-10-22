@@ -359,6 +359,18 @@ pub(crate) fn durability_loss_on_death_rate_like_cpp(configs: &WorldConfigSet) -
     percent / 100.0
 }
 
+/// C++ `CONFIG_TRADE_LEVEL_REQ` (`LevelReq.Trade`, default 1) and
+/// `CONFIG_ALLOW_TWO_SIDE_TRADE` (`AllowTwoSide.Trade`, default false),
+/// `World.cpp:791,916`, read by `HandleInitiateTradeOpcode` (#38).
+pub(crate) fn trade_policy_like_cpp(
+    configs: &WorldConfigSet,
+) -> wow_world::session::TradePolicyLikeCpp {
+    wow_world::session::TradePolicyLikeCpp {
+        trade_level_req: world_config_u32(configs, "CONFIG_TRADE_LEVEL_REQ", 1),
+        allow_two_side_trade: world_config_bool(configs, "CONFIG_ALLOW_TWO_SIDE_TRADE", false),
+    }
+}
+
 /// C++ `CONFIG_STATS_LIMITS_ENABLE`/`_DODGE`/`_PARRY`/`_BLOCK`/`_CRIT`
 /// (`World.cpp:1664-1668`): the optional caps `Player::UpdateBlockPercentage`,
 /// `UpdateDodgePercentage`, `UpdateParryPercentage` and `UpdateCritPercentage`

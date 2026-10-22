@@ -142,6 +142,7 @@ pub use catalog_capabilities::{PlayerBootstrapCatalogsLikeCpp, PlayerRestRatePol
 pub use catalog_capabilities::{SessionHandlerCatalogsLikeCpp, SessionIdGeneratorsLikeCpp};
 pub use wow_world_core::session::ChatPolicyCatalogsLikeCpp;
 pub use wow_world_core::session::SupportFeaturePolicyLikeCpp;
+pub use wow_world_social::TradePolicyLikeCpp;
 mod character_customization;
 #[cfg(test)]
 pub(crate) use character_customization::{

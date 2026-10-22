@@ -10,6 +10,7 @@ opcode_value	opcode_name	handler_name	session_status	packet_processing
 0x3126	BattlePetClearFanfare	handle_battle_pet_clear_fanfare	LoggedIn	ThreadUnsafe
 0x3127	MountClearFanfare	handle_mount_clear_fanfare	LoggedIn	ThreadUnsafe
 0x3128	ToyClearFanfare	handle_toy_clear_fanfare	LoggedIn	Inplace
+0x3156	InitiateTrade	handle_initiate_trade	LoggedIn	ThreadUnsafe
 0x3157	BeginTrade	handle_begin_trade	LoggedIn	ThreadUnsafe
 0x3158	BusyTrade	handle_busy_trade	LoggedIn	ThreadUnsafe
 0x3159	IgnoreTrade	handle_ignore_trade	LoggedIn	ThreadUnsafe

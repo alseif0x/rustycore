@@ -15,6 +15,16 @@
    "unit_tests_lines": 232745,
    "unit_tests_tests": 3709,
    "src_tests": 22
+  },
+  {
+   "id": "raise-38-1",
+   "kind": "raise",
+   "issue": 38,
+   "reviewed_at": "2026-10-22",
+   "reason": "#38 slice 1: CMSG_INITIATE_TRADE parity tests (two canonical sessions) and logout TradeCancel",
+   "unit_tests_lines": 233128,
+   "unit_tests_tests": 3715,
+   "src_tests": 22
   }
  ]
 }

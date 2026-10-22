@@ -35,6 +35,7 @@ mod test_support;
 mod text_emote;
 mod trade;
 mod trade_handlers;
+mod trade_initiate;
 
 pub use arena_team_handlers::{
     ArenaTeamHandlerCxLikeCpp, ArenaTeamHandlerHostLikeCpp, register_arena_team_handlers_like_cpp,
@@ -124,6 +125,12 @@ pub use trade_handlers::{
     player_trade_state_snapshot_like_cpp, resolved_represented_active_trade_partner_like_cpp,
     resolved_represented_duel_arbiter_guid_like_cpp, set_represented_duel_arbiter_guid_like_cpp,
     set_represented_duel_state_like_cpp,
+};
+pub use trade_initiate::{
+    InitiateTradeContextLikeCpp, InitiateTradeOutcomeLikeCpp, LANG_TRADE_OTHER_REQ_LIKE_CPP,
+    LANG_TRADE_REQ_LIKE_CPP, PLAYER_FLAGS_EX_MERCENARY_MODE_LIKE_CPP, TradePolicyLikeCpp,
+    initiate_trade_pair_like_cpp, partner_is_same_bnet_account_like_cpp,
+    send_trade_status_to_partner_like_cpp, trade_level_notification_like_cpp,
 };
 
 pub const GROUP_XP_DISTANCE_LIKE_CPP: f32 = 74.0;

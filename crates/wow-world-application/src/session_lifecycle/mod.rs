@@ -69,6 +69,10 @@ pub trait SessionLifecycleHostLikeCpp:
     /// the finalization ledger's `Retirement` step, outside any split borrow.
     fn player_logout_hook_like_cpp(&mut self, _event: &PlayerLogoutHookEventLikeCpp) {}
 
+    /// C++ `Player::CleanupsBeforeDelete` → `TradeCancel(false)` (#38):
+    /// called from `Retirement` after the logout hook, before the map removal.
+    fn cancel_trade_before_logout_like_cpp(&mut self) {}
+
     /// Whether any linked module wants `player.logout`; asked before the event
     /// is built. The default, used by every test host, wants nothing.
     fn player_logout_hook_wanted_like_cpp(&self) -> bool {

@@ -15,9 +15,11 @@ use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 impl TradeHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
     fn trade_handler_cx_like_cpp<'a>(
         &'a mut self,
-        _catalogs: &'a SessionHandlerCatalogsLikeCpp,
+        catalogs: &'a SessionHandlerCatalogsLikeCpp,
     ) -> TradeHandlerCxLikeCpp<'a> {
+        let logging_out = self.lifecycle.is_logging_out_like_cpp();
         let (social, inventory, spell_state, hub) = crate::session::split_trade_mut(self);
         TradeHandlerCxLikeCpp::new(hub, social, inventory, spell_state)
+            .with_initiate_context_like_cpp(*catalogs.trade_policy, logging_out)
     }
 }

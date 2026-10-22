@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 3731,
+  "tests": 3737,
   "ignored": 1,
-  "session": 3430,
-  "shims": 3246,
+  "session": 3436,
+  "shims": 3252,
   "by_class": {
    "P": 301,
    "H": 165,
-   "W": 3265
+   "W": 3271
   },
   "by_reason": {
    "H-host": 165,
@@ -42,7 +42,7 @@
    "W-multi-domain": 36,
    "W-unreached": 22,
    "W-world-items": 2,
-   "W-world-logic": 3047
+   "W-world-logic": 3053
   },
   "by_owner": {
    "wow-world": {
@@ -118,12 +118,12 @@
    "wow-world-social": {
     "P": 18,
     "H": 30,
-    "W": 185
+    "W": 190
    },
    "wow-world-spell": {
     "P": 43,
     "H": 5,
-    "W": 784
+    "W": 785
    },
    "wow-world-visibility": {
     "P": 0,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 70,
     "H": 0,
-    "W": 3265
+    "W": 3271
    },
    "wow-world-application": {
     "P": 27,
@@ -210,7 +210,7 @@
   }
  },
  "host_trait_methods": {
-  "wow-world-application": 83,
+  "wow-world-application": 84,
   "wow-world-character": 81,
   "wow-world-core": 4,
   "wow-world-entities": 113,
@@ -1009,6 +1009,12 @@
   ["unit_tests/handlers/economy/tests/trade/duel.rs::duel_response_cancel_interrupts_challenged_duel_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/economy/tests/trade/duel.rs::duel_response_forfeit_records_surrender_spell_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/economy/tests/trade/duel.rs::duel_response_handler_metadata_like_cpp", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["compose_packet_handlers_like_cpp"], []],
+  ["unit_tests/handlers/economy/tests/trade/initiate.rs::initiate_trade_opens_both_trades_and_proposes_to_target_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "process_represented_session_commands_like_cpp", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/economy/tests/trade/initiate.rs::initiate_trade_marks_same_bnet_account_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "process_represented_session_commands_like_cpp", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/economy/tests/trade/initiate.rs::initiate_trade_refusals_follow_cpp_order_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/handlers/economy/tests/trade/initiate.rs::initiate_trade_allows_two_side_trade_by_config_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/handlers/economy/tests/trade/initiate.rs::initiate_trade_while_trading_is_silent_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/handlers/economy/tests/trade/initiate.rs::logout_cancel_clears_partner_trade_like_cpp", "W", "wow-world", "wow-world-social", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "handle_initiate_trade_with_policy", "process_represented_session_commands_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/handlers/economy/tests/trade/petition.rs::sign_petition_records_guid_and_choice_like_cpp_without_runtime_mgr", "H", "wow-world-social", "wow-world-social", "H-host", true, true, false, [], []],
   ["unit_tests/handlers/economy/tests/trade/petition.rs::decline_petition_records_guid_like_cpp_without_client_notification", "H", "wow-world-social", "wow-world-social", "H-host", true, true, false, [], []],
   ["unit_tests/handlers/economy/tests/trade/petition.rs::query_petition_without_runtime_mgr_sends_not_found_like_cpp", "W", "wow-world", "wow-world-social", "W-multi-domain", true, true, false, ["wow-world-social", "wow-world-spell"], []],

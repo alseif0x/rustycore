@@ -132,14 +132,14 @@ fn corpse_family_is_migrated_off_the_legacy_inventory() {
 }
 
 /// F5 is complete: the legacy inventory drain is retired (#1360), and every
-/// one of the 476 composed registrations originates from an explicit area
+/// one of the 477 composed registrations originates from an explicit area
 /// registrar.
 #[test]
 fn legacy_inventory_drain_is_empty_and_every_registration_is_area_owned() {
     assert_eq!(
         registered_contract().len(),
-        476,
-        "the composed registry keeps its 476 effective registrations"
+        477,
+        "the composed registry keeps its 477 effective registrations"
     );
 }
 

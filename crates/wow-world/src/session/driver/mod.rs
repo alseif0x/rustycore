@@ -392,6 +392,7 @@ impl WorldSession {
                 .unwrap_or(empty_catalogs.battle_pet_trainer_selection),
             chat_policy: Arc::new(self.chat_policy_catalogs_for_test_like_cpp()),
             group_invite_policy: Arc::new(self.group_invite_policy_for_test_like_cpp()),
+            trade_policy: empty_catalogs.trade_policy,
             support_feature_policy: Arc::new(self.support_feature_policy_for_test_like_cpp()),
             player_regeneration_rates: empty_catalogs.player_regeneration_rates,
             bank_bag_slot_prices: self

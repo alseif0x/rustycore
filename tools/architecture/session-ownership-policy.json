@@ -7841,6 +7841,22 @@
           "module": "crate::handlers::economy::trade::test_shims",
           "trait_path": null,
           "kind": "method",
+          "name": "handle_initiate_trade_with_policy",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_initiate_trade_with_policy (& mut self , pkt : WorldPacket , policy : wow_world_social :: TradePolicyLikeCpp ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::economy::trade::test_shims",
+          "trait_path": null,
+          "kind": "method",
           "name": "handle_query_petition",
           "visibility": "pub (crate)",
           "signature": "async fn handle_query_petition (& mut self , pkt : WorldPacket)",
@@ -38694,6 +38710,19 @@
           "module": "crate::session",
           "trait_path": "SessionLifecycleHostLikeCpp",
           "kind": "method",
+          "name": "cancel_trade_before_logout_like_cpp",
+          "visibility": "private",
+          "signature": "fn cancel_trade_before_logout_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "SessionLifecycleHostLikeCpp",
+          "kind": "method",
           "name": "player_logout_hook_like_cpp",
           "visibility": "private",
           "signature": "fn player_logout_hook_like_cpp (& mut self , event : & PlayerLogoutHookEventLikeCpp)",
@@ -39023,7 +39052,7 @@
           "kind": "method",
           "name": "trade_handler_cx_like_cpp",
           "visibility": "private",
-          "signature": "fn trade_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> TradeHandlerCxLikeCpp < 'a >",
+          "signature": "fn trade_handler_cx_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> TradeHandlerCxLikeCpp < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -59612,6 +59641,19 @@
           "visibility": "",
           "cfg": [],
           "fingerprint": "self . hub . shared () . core . player_registry () . and_then (| registry | { registry . social_recipient (guid) . map (| recipient | { if recipient . is_dnd { FRIEND_STATUS_DND_LIKE_CPP } else if recipient . is_afk { FRIEND_STATUS_AFK_LIKE_CPP } else { FRIEND_STATUS_ONLINE_LIKE_CPP } }) }) . unwrap_or (FRIEND_STATUS_OFFLINE_LIKE_CPP)",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::trade_initiate",
+          "source": "crates/wow-world-social/src/trade_initiate.rs",
+          "enclosing": "fn partner_is_same_bnet_account_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
           "count": 1
         },
         {

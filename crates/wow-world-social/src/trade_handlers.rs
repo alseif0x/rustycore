@@ -26,12 +26,12 @@ use wow_handler::{
 };
 use wow_packet::packets::misc::{
     AcceptTrade, BeginTrade, BusyTrade, CanDuel, ClearTradeItem, DeclinePetition, DuelCountdown,
-    DuelResponse, EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP, IgnoreTrade, QueryPetition,
+    DuelResponse, EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP, IgnoreTrade, InitiateTrade, QueryPetition,
     QueryPetitionResponse, SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition,
     TRADE_SLOT_COUNT_LIKE_CPP, TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_CANCELLED_LIKE_CPP,
-    TRADE_STATUS_PLAYER_BUSY_LIKE_CPP, TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP,
-    TRADE_STATUS_STATE_CHANGED_LIKE_CPP, TRADE_STATUS_UNACCEPTED_LIKE_CPP, TradeStatus,
-    UnacceptTrade,
+    TRADE_STATUS_FAILED_LIKE_CPP, TRADE_STATUS_PLAYER_BUSY_LIKE_CPP,
+    TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TRADE_STATUS_STATE_CHANGED_LIKE_CPP,
+    TRADE_STATUS_UNACCEPTED_LIKE_CPP, TradeStatus, UnacceptTrade,
 };
 use wow_packet::{ClientPacket, ServerPacket, WorldPacket};
 use wow_world_core::session::mailbox::{
@@ -109,6 +109,7 @@ pub struct TradeHandlerCxLikeCpp<'a> {
     social: &'a mut SessionSocialLimits,
     inventory: &'a mut InventoryState,
     spell_state: &'a SessionSpellState,
+    initiate: crate::InitiateTradeContextLikeCpp,
 }
 
 impl<'a> TradeHandlerCxLikeCpp<'a> {
@@ -123,6 +124,126 @@ impl<'a> TradeHandlerCxLikeCpp<'a> {
             social,
             inventory,
             spell_state,
+            initiate: crate::InitiateTradeContextLikeCpp {
+                policy: crate::TradePolicyLikeCpp::default(),
+                logging_out: false,
+                two_side_permission: false,
+            },
+        }
+    }
+
+    /// Lend the World's trade policy and the session's logout state to
+    /// `CMSG_INITIATE_TRADE`.
+    #[must_use]
+    pub fn with_initiate_context_like_cpp(
+        mut self,
+        policy: crate::TradePolicyLikeCpp,
+        logging_out: bool,
+    ) -> Self {
+        let two_side_permission = self.hub.shared().player_is_game_master_like_cpp() == Some(true);
+        self.initiate = crate::InitiateTradeContextLikeCpp {
+            policy,
+            logging_out,
+            two_side_permission,
+        };
+        self
+    }
+
+    /// C++ `WorldSession::SendTradeStatus` for this session's own client.
+    fn send_own_trade_status_like_cpp(&self, status: TradeStatus) {
+        let partner = self
+            .player_trade_state_snapshot_like_cpp()
+            .flatten()
+            .map(|trade| trade.partner_guid);
+        let status = status.with_partner_is_same_bnet_account(
+            crate::partner_is_same_bnet_account_like_cpp(self.hub.shared(), partner),
+        );
+        self.hub.shared().core.send_raw_packet(&status.to_bytes());
+    }
+
+    /// `TradeStatus` bytes for the partner, with the symmetric bnet flag.
+    fn partner_trade_status_bytes_like_cpp(
+        &self,
+        partner_guid: ObjectGuid,
+        status: TradeStatus,
+    ) -> Vec<u8> {
+        status
+            .with_partner_is_same_bnet_account(crate::partner_is_same_bnet_account_like_cpp(
+                self.hub.shared(),
+                Some(partner_guid),
+            ))
+            .to_bytes()
+    }
+
+    /// CMSG_INITIATE_TRADE — C++ `HandleInitiateTradeOpcode`
+    /// (`TradeHandler.cpp:582-701`).
+    pub async fn handle_initiate_trade(&mut self, mut pkt: WorldPacket) {
+        let packet = match InitiateTrade::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.hub.shared().core.account_id,
+                    "InitiateTrade parse failed: {error}"
+                );
+                return;
+            }
+        };
+        self.initiate_trade_like_cpp(packet.guid);
+    }
+
+    pub fn initiate_trade_like_cpp(&mut self, target_guid: ObjectGuid) {
+        // `pOther->GetSession()->isLogingOut()`: Rust arms no logout
+        // countdown (`logout_time` is never set by a handler), and a finalizing
+        // session cancels its trade in the logout `Retirement` step.
+        let target_logging_out = false;
+        let outcome = crate::initiate_trade_pair_like_cpp(
+            self.hub.shared().core,
+            target_guid,
+            self.initiate,
+            target_logging_out,
+        );
+        match outcome {
+            crate::InitiateTradeOutcomeLikeCpp::Silent => {}
+            crate::InitiateTradeOutcomeLikeCpp::Refused(status) => {
+                self.send_own_trade_status_like_cpp(TradeStatus::status_only_like_cpp(status));
+            }
+            crate::InitiateTradeOutcomeLikeCpp::LevelRequirement { lang } => {
+                let format = self
+                    .hub
+                    .catalogs
+                    .trinity_string_store
+                    .as_ref()
+                    .map(|store| store.get_like_cpp(lang, &self.hub.shared().core.locale))
+                    .unwrap_or("<error>");
+                let text = crate::trade_level_notification_like_cpp(
+                    format,
+                    self.initiate.policy.trade_level_req,
+                );
+                self.hub.shared().core.send_notification_like_cpp(text);
+                self.send_own_trade_status_like_cpp(TradeStatus::status_only_like_cpp(
+                    TRADE_STATUS_FAILED_LIKE_CPP,
+                ));
+            }
+            crate::InitiateTradeOutcomeLikeCpp::Opened => {
+                let Some(own_guid) = self.hub.shared().core.player_guid() else {
+                    return;
+                };
+                let bytes = self.partner_trade_status_bytes_like_cpp(
+                    target_guid,
+                    TradeStatus::proposed_like_cpp(own_guid),
+                );
+                self.hub
+                    .shared()
+                    .core
+                    .try_send_connected_player_command_like_cpp(
+                        target_guid,
+                        SessionCommand::SendRepresentedTradeStatusLikeCpp(
+                            SendRepresentedTradeStatusLikeCppCommand {
+                                packet_bytes: bytes,
+                            },
+                        ),
+                    );
+            }
         }
     }
 
@@ -633,7 +754,10 @@ impl<'a> TradeHandlerCxLikeCpp<'a> {
         };
         let partner_guid = trade.partner_guid;
 
-        let packet_bytes = TradeStatus::cancel_like_cpp(status).to_bytes();
+        let packet_bytes = self.partner_trade_status_bytes_like_cpp(
+            partner_guid,
+            TradeStatus::cancel_like_cpp(status),
+        );
         self.social.record_represented_trade_cancel_like_cpp(status);
         if !self.clear_represented_active_trade_partner_like_cpp() {
             return;
@@ -664,7 +788,8 @@ impl<'a> TradeHandlerCxLikeCpp<'a> {
         };
         let partner_guid = trade.partner_guid;
 
-        let packet_bytes = TradeStatus::initiated_like_cpp(0).to_bytes();
+        let packet_bytes = self
+            .partner_trade_status_bytes_like_cpp(partner_guid, TradeStatus::initiated_like_cpp(0));
         self.hub.shared().core.send_raw_packet(&packet_bytes);
 
         self.hub
@@ -1007,6 +1132,23 @@ pub trait TradeHandlerHostLikeCpp<C> {
     fn trade_handler_cx_like_cpp<'a>(&'a mut self, catalogs: &'a C) -> TradeHandlerCxLikeCpp<'a>;
 }
 
+fn initiate_trade_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: TradeHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .trade_handler_cx_like_cpp(catalogs)
+            .handle_initiate_trade(pkt)
+            .await;
+    })
+}
+
 fn cancel_trade_thunk<'a, S, C>(
     session: &'a mut S,
     catalogs: &'a C,
@@ -1264,6 +1406,13 @@ where
     S: TradeHandlerHostLikeCpp<C> + Send,
     C: Sync,
 {
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::InitiateTrade,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_initiate_trade",
+        handler: initiate_trade_thunk::<S, C>,
+    })?;
     builder.register(PacketHandlerEntry {
         opcode: ClientOpcodes::CancelTrade,
         status: SessionStatus::LoggedInOrRecentlyLogout,

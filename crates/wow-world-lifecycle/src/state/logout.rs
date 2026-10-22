@@ -21,6 +21,11 @@ impl SessionLifecycleState {
         self.player_logout_like_cpp
     }
 
+    /// C++ `WorldSession::isLogingOut`: `_logoutTime || m_playerLogout`.
+    pub fn is_logging_out_like_cpp(&self) -> bool {
+        self.logout_time.is_some() || self.player_logout_like_cpp
+    }
+
     /// Admit timed finalization, without publishing completion before save.
     /// The session supervisor executes the same obligation coordinator; the
     /// timed route retains disconnect semantics after its logout publication.
