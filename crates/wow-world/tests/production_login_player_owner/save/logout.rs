@@ -111,6 +111,9 @@ async fn exercise(outcome: PersistenceOutcomeLikeCpp, cancel: bool) {
             .map_mut()
             .get_typed_player_mut(guid)
             .unwrap();
+        // C++ instant logout (resting, `MiscHandler.cpp:244`): these cases
+        // exercise `LogoutPlayer(true)`, not the 20 s countdown (#54).
+        player.set_player_flag(0x20);
         player.teleport_state_mut_like_cpp().far_pending = true;
         assert_eq!(player.defer_save_if_transfer_pending_like_cpp(), Some(true));
         player.teleport_state_mut_like_cpp().far_pending = false;
@@ -264,6 +267,9 @@ async fn production_explicit_logout_rejects_unavailable_source_save_without_reti
             .map_mut()
             .get_typed_player_mut(guid)
             .unwrap();
+        // C++ instant logout (resting, `MiscHandler.cpp:244`): these cases
+        // exercise `LogoutPlayer(true)`, not the 20 s countdown (#54).
+        player.set_player_flag(0x20);
         player.teleport_state_mut_like_cpp().recovery =
             wow_entities::PlayerTransferRecovery::Terminal;
         player

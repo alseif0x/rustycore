@@ -172,6 +172,14 @@ async fn logout_releases_active_loot_views_like_cpp_remove_from_world() {
             .lifecycle
             .try_claim_character_login_like_cpp(player_guid)
     );
+    // Resting: C++ instant logout (`MiscHandler.cpp:244`), so this request
+    // runs `LogoutPlayer(true)` instead of the 20 s countdown (#54).
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.set_player_flag(crate::session::PLAYER_FLAGS_RESTING_LIKE_CPP)
+        })
+        .unwrap();
     session.loot.set_active_loot_guid(loot_guid);
     session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_guid,

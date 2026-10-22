@@ -12,6 +12,16 @@ pub enum FinalizationMode {
     Disconnect,
 }
 
+impl FinalizationMode {
+    /// C++ `WorldSession::LogoutPlayer(true)` from `HandleLogoutRequestOpcode`
+    /// (instant, `MiscHandler.cpp:274`) and from the `ShouldLogOut` timer
+    /// (`WorldSession.cpp:510`) is the same operation: the session stays and
+    /// returns to character selection. Only the hook reason differs.
+    pub const fn returns_to_character_selection_like_cpp(self) -> bool {
+        matches!(self, Self::CharacterSelection | Self::TimedLogout)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(usize)]
 pub enum FinalizationStep {
@@ -112,7 +122,7 @@ impl SessionFinalization {
             }
             required[LogoutPublication as usize] = mode != FinalizationMode::Disconnect;
         }
-        required[LoginAccountOffline as usize] = mode != FinalizationMode::CharacterSelection;
+        required[LoginAccountOffline as usize] = !mode.returns_to_character_selection_like_cpp();
         Self {
             report: FinalizationReport {
                 mode,
@@ -147,14 +157,14 @@ impl SessionFinalization {
             return None;
         }
         let plan: &[FinalizationStep] = if !self.has_player {
-            if self.report.mode == FinalizationMode::CharacterSelection {
+            if self.report.mode.returns_to_character_selection_like_cpp() {
                 &[NativeTransfer, Release]
             } else {
                 &[NativeTransfer, LoginAccountOffline, Release]
             }
         } else {
             match self.report.mode {
-                FinalizationMode::CharacterSelection => &[
+                FinalizationMode::CharacterSelection | FinalizationMode::TimedLogout => &[
                     NativeTransfer,
                     LootSettlement,
                     Buyback,
@@ -184,23 +194,6 @@ impl SessionFinalization {
                     CharacterAccountOffline,
                     LoginAccountOffline,
                     Retirement,
-                    Release,
-                ],
-                FinalizationMode::TimedLogout => &[
-                    NativeTransfer,
-                    LootSettlement,
-                    Buyback,
-                    CharacterSave,
-                    Mounts,
-                    Toys,
-                    Heirlooms,
-                    Appearances,
-                    Illusions,
-                    CharacterOffline,
-                    Retirement,
-                    LogoutPublication,
-                    CharacterAccountOffline,
-                    LoginAccountOffline,
                     Release,
                 ],
             }

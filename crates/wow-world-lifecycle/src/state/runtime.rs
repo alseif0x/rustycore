@@ -24,18 +24,26 @@ impl SessionLifecycleState {
     }
 
     /// C++ `WorldSession::Update` logout decision, on the `ProcessUnsafe()`
-    /// branch reserved for the world filter (`WorldSession.cpp:505-511`).
-    pub fn run_logout_timer_like_cpp(&mut self, hub: &mut HubMut<'_>) {
-        let Some(logout_time) = self.logout_time else {
-            return;
-        };
+    /// branch reserved for the world filter (`WorldSession.cpp:505-511`):
+    /// `if (ShouldLogOut(currentTime) && m_playerLoading.IsEmpty())
+    /// LogoutPlayer(true)`. Returns `true` when the caller must now run that
+    /// `LogoutPlayer(true)` (the `TimedLogout` finalization); the start time is
+    /// cleared first so a failed or deferred finalization is not re-admitted
+    /// by the next tick (C++ clears it at the end of `LogoutPlayer`).
+    pub fn run_logout_timer_like_cpp(&mut self, hub: &mut HubMut<'_>) -> bool {
+        if self.logout_time == 0 {
+            return false;
+        }
         hub.core.record_driver_phase_like_cpp(
             wow_world_core::session::SessionDriverPhaseLikeCpp::LogoutTimer,
         );
-        if std::time::Instant::now() >= logout_time {
-            self.logout_time = None;
-            self.complete_logout(hub);
+        if self.should_log_out_like_cpp(wow_entities::game_time_secs_like_cpp())
+            && self.player_loading.is_none()
+        {
+            self.clear_logout_time();
+            return true;
         }
+        false
     }
 
     pub fn submit_character_rename_like_cpp(

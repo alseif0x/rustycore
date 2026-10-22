@@ -75,9 +75,9 @@ pub struct SessionLifecycleState {
     pub(crate) level_played_time: u32,
     /// Timestamp set when the player enters the world (PlayerLogin).
     pub(crate) login_time: Option<Instant>,
-    /// When set, the session is counting down to logout (20s timer).
-    /// `None` means no logout is pending.
-    pub(crate) logout_time: Option<Instant>,
+    /// C++ `WorldSession::_logoutTime` (`WorldSession.h:1903`): the game time
+    /// (Unix seconds) at which a timed logout started; `0` means none.
+    pub(crate) logout_time: i64,
     /// C++ `Player::m_nextSave` countdown in milliseconds; 0 disables autosave.
     pub(crate) next_player_save_ms_like_cpp: u32,
     /// Set by the sync update loop when the autosave countdown expires.
@@ -139,7 +139,7 @@ impl SessionLifecycleState {
             homebind_persistence_tx_like_cpp: None,
             level_played_time: 0,
             login_time: None,
-            logout_time: None,
+            logout_time: 0,
             next_player_save_ms_like_cpp: DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP,
             pending_periodic_player_save_like_cpp: false,
             persistence_ports_like_cpp: Box::default(),

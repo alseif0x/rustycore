@@ -354,3 +354,46 @@ fn publish_player_cast_interruption_like_cpp<H: SpellExecutionHostLikeCpp>(
     let (state, mut hub) = host.split_spell_state_mut();
     state.publish_player_cast_interruption_like_cpp(&mut hub, cast)
 }
+
+/// The `CanFreeMove` block of C++ `HandleLogoutRequestOpcode`
+/// (`MiscHandler.cpp:276-284`), run only for an admitted timed logout:
+/// sit down if standing, root, and set `UNIT_FLAG_STUNNED`. "Not set flags if
+/// player can't free move to prevent lost state at logout cancel."
+pub fn begin_logout_wait_movement_like_cpp<H: SpellExecutionHostLikeCpp>(host: &mut H) {
+    let Some(snapshot) = host.hub_ref().logout_admission_snapshot_like_cpp() else {
+        return;
+    };
+    if !snapshot.can_free_move {
+        return;
+    }
+    if snapshot.stand_state == UnitStandStateType::Stand {
+        let _ = apply_represented_live_intent_like_cpp(
+            host,
+            RepresentedLiveIntentLikeCpp::StandStateChanged(RepresentedStandStateChangedLikeCpp {
+                state: UnitStandStateType::Sit,
+            }),
+        );
+    }
+    host.hub_mut().set_player_rooted_like_cpp(true);
+    host.hub_mut().set_player_unit_flag_stunned_like_cpp(true);
+}
+
+/// The `CanFreeMove` block of C++ `HandleLogoutCancelOpcode`
+/// (`MiscHandler.cpp:300-310`): unroot, stand up, clear `UNIT_FLAG_STUNNED`.
+/// "Not remove flags if can't free move - its not set in Logout request code."
+pub fn restore_logout_wait_movement_like_cpp<H: SpellExecutionHostLikeCpp>(host: &mut H) {
+    let Some(snapshot) = host.hub_ref().logout_admission_snapshot_like_cpp() else {
+        return;
+    };
+    if !snapshot.can_free_move {
+        return;
+    }
+    host.hub_mut().set_player_rooted_like_cpp(false);
+    let _ = apply_represented_live_intent_like_cpp(
+        host,
+        RepresentedLiveIntentLikeCpp::StandStateChanged(RepresentedStandStateChangedLikeCpp {
+            state: UnitStandStateType::Stand,
+        }),
+    );
+    host.hub_mut().set_player_unit_flag_stunned_like_cpp(false);
+}

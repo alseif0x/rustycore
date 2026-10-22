@@ -269,14 +269,21 @@ impl<'a> AccountDataHandlerCxLikeCpp<'a> {
             });
     }
 
-    /// C++ `WorldSession::HandleLogoutCancel`.
-    pub async fn handle_logout_cancel(&mut self) {
+    /// C++ `WorldSession::HandleLogoutCancelOpcode` (`MiscHandler.cpp:289-311`)
+    /// up to the `CanFreeMove` restoration, which the caller applies after
+    /// this returns `true`: no player means it is too late to cancel.
+    pub async fn handle_logout_cancel(&mut self) -> bool {
+        // Player have already logged out serverside, too late to cancel.
+        if self.hub.core.player_guid().is_none() {
+            return false;
+        }
         info!("LogoutCancel from account {}", self.hub.core.account_id);
         self.lifecycle.clear_logout_time();
         self.hub
             .core
             .packet_publication_access_like_cpp()
             .send_packet(&wow_packet::packets::misc::LogoutCancelAck);
+        true
     }
 }
 
@@ -286,6 +293,12 @@ pub trait AccountDataHandlerHostLikeCpp<C> {
         &'a mut self,
         catalogs: &'a C,
     ) -> AccountDataHandlerCxLikeCpp<'a>;
+
+    /// The `CanFreeMove` tail of C++ `HandleLogoutCancelOpcode`
+    /// (`MiscHandler.cpp:300-310`): unroot, stand up, clear
+    /// `UNIT_FLAG_STUNNED`. It needs the stand-state owner, which this
+    /// lifecycle context does not hold.
+    fn restore_logout_wait_movement_like_cpp(&mut self);
 }
 
 fn handle_addon_list_thunk<'a, S, C>(
@@ -398,10 +411,13 @@ where
     C: Sync,
 {
     Box::pin(async move {
-        session
+        if session
             .account_data_handler_cx_like_cpp(catalogs)
             .handle_logout_cancel()
-            .await;
+            .await
+        {
+            session.restore_logout_wait_movement_like_cpp();
+        }
     })
 }
 

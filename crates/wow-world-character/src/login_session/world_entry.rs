@@ -56,11 +56,47 @@ pub fn fallback_direct_login<H: CharacterLoginHostLikeCpp>(host: &mut H) {
 ///
 /// We acknowledge the response to keep the client's time sync state healthy.
 /// The periodic timer in `update()` handles sending the next request.
-/// Handle CMSG_LOGOUT_REQUEST — player wants to log out.
-///
-/// C++ MiscHandler.cpp:238 validates combat/falling/duel and selects instant
-/// or timed logout. Rust's existing instant-only admission remains incomplete;
-/// the persistence completion below does not implement those missing rules.
+/// C++ `HandleLogoutRequestOpcode` `LogoutResult` (`MiscHandler.cpp:251-258`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(i32)]
+pub enum LogoutDenialLikeCpp {
+    InCombat = 1,
+    /// C++: "FIXME - Need the correct value".
+    DuelingOrFrozen = 2,
+    Falling = 3,
+}
+
+/// C++ `HandleLogoutRequestOpcode` admission (`MiscHandler.cpp:243-258`).
+/// Returns the `LogoutResult` (0 = admitted) and `Instant`.
+pub fn logout_admission_like_cpp(
+    snapshot: &wow_world_core::session::LogoutAdmissionSnapshotLikeCpp,
+    idle_logout: bool,
+    has_instant_logout_permission: bool,
+) -> (Option<LogoutDenialLikeCpp>, bool) {
+    let mut instant_logout = snapshot.in_flight;
+    if !idle_logout {
+        instant_logout |=
+            (snapshot.resting && !snapshot.in_combat) || has_instant_logout_permission;
+    }
+    // TODO in C++: "Possibly add RBAC permission to log out in combat".
+    let can_logout_in_combat = snapshot.resting;
+    let reason = if snapshot.in_combat && !can_logout_in_combat {
+        Some(LogoutDenialLikeCpp::InCombat)
+    } else if snapshot.falling {
+        Some(LogoutDenialLikeCpp::Falling)
+    } else if snapshot.dueling_or_frozen {
+        Some(LogoutDenialLikeCpp::DuelingOrFrozen)
+    } else {
+        None
+    };
+    (reason, instant_logout)
+}
+
+/// Handle CMSG_LOGOUT_REQUEST — C++ `WorldSession::HandleLogoutRequestOpcode`
+/// (`MiscHandler.cpp:238-287`): release loot, decide denial/instant, answer
+/// `SMSG_LOGOUT_RESPONSE`, then either `LogoutPlayer(true)` at once or start
+/// the 20 s countdown that `WorldSession::Update` completes
+/// (`WorldSession.cpp:505-511`).
 pub async fn handle_logout_request_with_generator_like_cpp<H: CharacterLoginHostLikeCpp>(
     host: &mut H,
     item_guid_generator: &wow_core::ObjectGuidGenerator,
@@ -79,20 +115,45 @@ pub async fn handle_logout_request_with_generator_like_cpp<H: CharacterLoginHost
         host.send_packet(&LootReleaseAll);
     }
 
-    // Always allow instant logout for now (no combat/duel checks)
-    host.send_packet(&LogoutResponse::instant_ok());
+    // C++ dereferences `GetPlayer()` here; a LoggedIn session always has one.
+    // Without a canonical Player nothing can be admitted or rooted, so the
+    // represented session keeps its former instant finalization.
+    let (reason, instant_logout) = match host.hub_ref().logout_admission_snapshot_like_cpp() {
+        Some(snapshot) => logout_admission_like_cpp(
+            &snapshot,
+            req.idle_logout,
+            host.hub_ref().has_instant_logout_permission_like_cpp(),
+        ),
+        None => (None, true),
+    };
 
-    let report = host
-        .finalize_session_with_generator_like_cpp(
-            FinalizationMode::CharacterSelection,
-            item_guid_generator,
-        )
-        .await;
-    if report.disposition != FinalizationDisposition::Complete {
+    host.send_packet(&LogoutResponse {
+        logout_result: reason.map_or(0, |reason| reason as i32),
+        instant: instant_logout,
+    });
+
+    if reason.is_some() {
+        host.lifecycle_mut().clear_logout_time();
         return;
     }
 
-    info!("Player logged out for account {}", host.core().account_id);
+    // Instant logout in taverns/cities, on taxi, or with the permission.
+    if instant_logout {
+        let report = host
+            .finalize_session_with_generator_like_cpp(
+                FinalizationMode::CharacterSelection,
+                item_guid_generator,
+            )
+            .await;
+        if report.disposition == FinalizationDisposition::Complete {
+            info!("Player logged out for account {}", host.core().account_id);
+        }
+        return;
+    }
+
+    host.begin_logout_wait_movement_like_cpp();
+    host.lifecycle_mut()
+        .set_logout_start_time_like_cpp(wow_entities::game_time_secs_like_cpp());
 }
 
 /// Handle CMSG_LOGOUT_CANCEL — player cancels a pending logout.

@@ -1,7 +1,5 @@
 #![cfg(any(test, feature = "test-fixtures"))]
 
-use std::time::Instant;
-
 use super::SessionLifecycleState;
 
 impl SessionLifecycleState {
@@ -19,12 +17,8 @@ impl SessionLifecycleState {
             .session_account_state = None;
     }
 
-    pub fn logout_time_for_test_like_cpp(&self) -> Option<Instant> {
+    pub fn logout_time_for_test_like_cpp(&self) -> i64 {
         self.logout_time
-    }
-
-    pub fn set_logout_time_for_test_like_cpp(&mut self, logout_time: Option<Instant>) {
-        self.logout_time = logout_time;
     }
 
     pub fn set_represented_loaded_player_flags_for_test_like_cpp(

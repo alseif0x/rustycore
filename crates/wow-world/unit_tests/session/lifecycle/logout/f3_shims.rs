@@ -10,8 +10,4 @@ impl crate::session::WorldSession {
     pub(crate) fn player_logout_like_cpp(&self) -> bool {
         self.lifecycle.player_logout_like_cpp()
     }
-    pub(in crate::session) fn complete_logout(&mut self) {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.complete_logout(&mut hub)
-    }
 }

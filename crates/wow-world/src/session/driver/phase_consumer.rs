@@ -14,6 +14,7 @@
 //! tail C++ runs for `MapSessionFilter` (`Server/WorldSession.cpp:488-506`).
 
 use wow_handler::PacketUpdatePhase;
+use wow_world_application::run_logout_timer_with_generator_like_cpp;
 
 use super::super::{SessionHandlerCatalogsLikeCpp, SessionState, WorldSession};
 use crate::session::mailbox::{
@@ -389,10 +390,7 @@ impl WorldSession {
         // and the query callbacks, on the `ProcessUnsafe()` branch
         // (`WorldSession.cpp:505-511`): a `LogoutCancel` queued in this same
         // pass is dispatched above and must be seen before the decision.
-        {
-            let (s, mut h) = crate::session::split_lifecycle_mut(self);
-            s.run_logout_timer_like_cpp(&mut h)
-        };
+        run_logout_timer_with_generator_like_cpp(self, &catalogs.id_generators.item).await;
 
         RunWorldPhasePassResultLikeCpp {
             coordinator_id: request.coordinator_id,
