@@ -30,6 +30,17 @@ impl SessionLifecycleHostLikeCpp for WorldSession {
         self.module_hooks.player_logout_like_cpp(event);
     }
 
+    /// C++ `Player::CleanupsBeforeDelete` → `TradeCancel(false)`
+    /// (`Player.cpp:380`): the partner is told, the leaving client is not.
+    fn cancel_trade_before_logout_like_cpp(&mut self) {
+        let (social, inventory, spell_state, hub) = crate::session::split_trade_mut(self);
+        wow_world_social::TradeHandlerCxLikeCpp::new(hub, social, inventory, spell_state)
+            .cancel_represented_trade_like_cpp(
+                wow_packet::packets::misc::TRADE_STATUS_CANCELLED_LIKE_CPP,
+                false,
+            );
+    }
+
     fn player_logout_hook_wanted_like_cpp(&self) -> bool {
         self.module_hooks
             .wants_player_hook_like_cpp(wow_module_api::PlayerHook::Logout)

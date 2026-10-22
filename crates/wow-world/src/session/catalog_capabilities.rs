@@ -82,6 +82,8 @@ pub struct SessionHandlerCatalogsLikeCpp {
         Arc<wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp>,
     pub chat_policy: Arc<ChatPolicyCatalogsLikeCpp>,
     pub group_invite_policy: Arc<GroupInvitePolicyLikeCpp>,
+    /// C++ `CONFIG_TRADE_LEVEL_REQ` / `CONFIG_ALLOW_TWO_SIDE_TRADE` (#38).
+    pub trade_policy: Arc<wow_world_social::TradePolicyLikeCpp>,
     pub support_feature_policy: Arc<SupportFeaturePolicyLikeCpp>,
     /// C++ `sWorld->getRate(...)` subset consumed by `Player::Regenerate` and
     /// `Player::RegenerateHealth`.
@@ -122,6 +124,7 @@ impl Default for SessionHandlerCatalogsLikeCpp {
             ),
             chat_policy: Arc::new(ChatPolicyCatalogsLikeCpp::default()),
             group_invite_policy: Arc::new(GroupInvitePolicyLikeCpp::default()),
+            trade_policy: Arc::new(wow_world_social::TradePolicyLikeCpp::default()),
             support_feature_policy: Arc::new(SupportFeaturePolicyLikeCpp::default()),
             player_regeneration_rates: Arc::new(PlayerRegenerationRatesLikeCpp::default()),
             bank_bag_slot_prices: Arc::new(BankBagSlotPricesStore::from_entries([])),

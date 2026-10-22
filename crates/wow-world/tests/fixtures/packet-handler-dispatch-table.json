@@ -1372,6 +1372,13 @@
   "handler": "handle_initiate_role_poll"
  },
  {
+  "opcode": "InitiateTrade",
+  "value": 12630,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_initiate_trade"
+ },
+ {
   "opcode": "Inspect",
   "value": 13609,
   "status": "LoggedIn",

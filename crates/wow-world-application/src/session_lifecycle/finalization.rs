@@ -209,6 +209,10 @@ pub async fn execute_finalization_step<H: SessionLifecycleHostLikeCpp>(
                 };
                 host.player_logout_hook_like_cpp(&event);
             }
+            // C++ `WorldSession::LogoutPlayer` runs `CleanupsBeforeDelete`
+            // (`WorldSession.cpp:664`, `TradeCancel(false)`) after the logout
+            // hook and before `RemovePlayerFromMap`.
+            host.cancel_trade_before_logout_like_cpp();
             wow_world_spell::notify_other_players_visibility_changed_like_cpp(host);
             {
                 let (s, mut h) = host.split_lifecycle_mut();

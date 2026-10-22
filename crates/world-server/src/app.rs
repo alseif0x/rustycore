@@ -4788,6 +4788,7 @@ async fn run_inner(
                     ),
                     minimum_level: world_config_u32(&world_configs, "CONFIG_PARTY_LEVEL_REQ", 1),
                 }),
+                trade_policy: Arc::new(trade_policy_like_cpp(&world_configs)),
                 support_feature_policy: Arc::new(wow_world::session::SupportFeaturePolicyLikeCpp {
                     support_enabled: world_config_bool(
                         &world_configs,
