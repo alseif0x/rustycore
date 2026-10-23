@@ -51,6 +51,7 @@ mod movement_opcodes;
 mod pending_runtime;
 mod player_attack;
 mod player_death;
+mod player_resurrection;
 mod player_vitals;
 mod spawn;
 mod spell_click;
@@ -214,6 +215,7 @@ pub use player_death::{
     player_in_arena_like_cpp, repop_at_graveyard_like_cpp, repop_request_like_cpp,
     spawn_corpse_bones_like_cpp, updated_death_expire_time_like_cpp,
 };
+pub use player_resurrection::{reclaim_corpse_like_cpp, resurrect_player_like_cpp};
 pub use player_vitals::{set_player_alive_like_cpp, set_player_ghost_flag_like_cpp};
 pub use state::WorldEntitiesState;
 pub use teleport_session::{

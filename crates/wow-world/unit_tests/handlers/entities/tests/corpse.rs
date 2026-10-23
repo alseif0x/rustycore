@@ -5,9 +5,26 @@
 
 use super::*;
 use crate::session::WorldSession;
-use wow_world_entities::{handle_reclaim_corpse, handle_resurrect_response};
+use wow_world_entities::handle_resurrect_response;
 
 /// CMSG_REPOP_REQUEST with the test session's catalogs (#43).
+/// CMSG_RECLAIM_CORPSE with the test session's catalogs (#43 slice 2).
+async fn handle_reclaim_corpse(session: &mut WorldSession, pkt: WorldPacket) {
+    let generators = session.id_generators_for_test_like_cpp();
+    let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
+    let graveyards = wow_data::GraveyardStore::default();
+    wow_world_entities::handle_reclaim_corpse(
+        session,
+        wow_world_entities::CorpseLifecycleCatalogsLikeCpp {
+            item_guid_generator: generators.item.as_ref(),
+            creature_spawns: &creature_spawns,
+            graveyards: &graveyards,
+        },
+        pkt,
+    )
+    .await;
+}
+
 async fn handle_repop_request(session: &mut WorldSession, pkt: WorldPacket) {
     let generators = session.id_generators_for_test_like_cpp();
     let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
@@ -397,7 +414,7 @@ async fn client_port_graveyard_alive_or_not_ghost_returns_like_cpp() {
 }
 
 #[tokio::test]
-async fn reclaim_corpse_dead_ghost_resurrects_and_clears_ghost_like_cpp() {
+async fn reclaim_corpse_without_corpse_returns_like_cpp() {
     let (mut session, send_rx) = make_session();
     let canonical = shared_canonical_map_manager_for_misc_test();
     let player_guid = ObjectGuid::create_player(1, 44);
@@ -418,12 +435,9 @@ async fn reclaim_corpse_dead_ghost_resurrects_and_clears_ghost_like_cpp() {
 
     handle_reclaim_corpse(&mut session, reclaim_corpse_packet(corpse_guid)).await;
 
-    assert!(session.player_is_alive_like_cpp());
-    assert!(!crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
-    assert_eq!(
-        session.canonical_player_health_snapshot_like_cpp(),
-        Some((50, 100))
-    );
+    // C++ `HandleReclaimCorpse` returns when `GetCorpse()` is null.
+    assert!(!session.player_is_alive_like_cpp());
+    assert!(crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
     assert!(send_rx.try_recv().is_err());
 }
 
@@ -917,4 +931,94 @@ async fn repop_of_just_died_player_runs_kill_player_first_like_cpp() {
         2
     );
     assert!(crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
+}
+
+/// A released ghost (corpse at (1, 2, 3) on 571) with the PvE reclaim delay
+/// disabled so the reclaim is admitted at once.
+async fn released_ghost_without_reclaim_delay_like_cpp(
+    guid_counter: i64,
+) -> (
+    WorldSession,
+    flume::Receiver<Vec<u8>>,
+    flume::Receiver<Vec<u8>>,
+    Arc<RecordingCorpsePortLikeCpp>,
+) {
+    let (mut session, send_rx, realm_rx, _player_guid, port) =
+        dead_player_session_with_graveyard_like_cpp(guid_counter);
+    session.set_death_policy_like_cpp(wow_world_core::session::DeathPolicyLikeCpp {
+        corpse_reclaim_delay_pve: false,
+        ..Default::default()
+    });
+    handle_repop_request(&mut session, repop_request_packet(true)).await;
+    assert!(crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
+    while send_rx.try_recv().is_ok() {}
+    while realm_rx.try_recv().is_ok() {}
+    (session, send_rx, realm_rx, port)
+}
+
+#[tokio::test]
+async fn reclaim_corpse_in_range_resurrects_half_and_spawns_bones_like_cpp() {
+    let (mut session, _send_rx, realm_rx, port) =
+        released_ghost_without_reclaim_delay_like_cpp(4_401).await;
+    let player_guid = session.player_guid().unwrap();
+    let corpse_guid = current_corpse_guid_like_cpp(&session, player_guid).unwrap();
+    // The ghost walks back to its corpse.
+    session.set_player_position_like_cpp(Position::new(10.0, 2.0, 3.0, 0.0));
+
+    handle_reclaim_corpse(&mut session, reclaim_corpse_packet(corpse_guid)).await;
+
+    // ResurrectPlayer(0.5f): alive, ghost cleared, half health.
+    assert!(session.player_is_alive_like_cpp());
+    assert!(!crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
+    assert_eq!(
+        session.canonical_player_health_snapshot_like_cpp(),
+        Some((500, 1_000))
+    );
+    // SMSG_DEATH_RELEASE_LOC(-1) on the realm connection (Opcodes.cpp:1333).
+    assert_eq!(
+        sent_opcodes(&realm_rx),
+        vec![ServerOpcodes::DeathReleaseLoc as u16]
+    );
+    // SpawnCorpseBones: corpse rows deleted, bones keep the corpse counter.
+    assert_eq!(*port.deletes.lock().unwrap(), vec![4_401]);
+    assert!(current_corpse_guid_like_cpp(&session, player_guid).is_none());
+    assert_eq!(
+        wow_world_entities::player_corpse_location_like_cpp(&session),
+        None
+    );
+}
+
+#[tokio::test]
+async fn reclaim_corpse_out_of_range_is_ignored_like_cpp() {
+    let (mut session, send_rx, realm_rx, port) =
+        released_ghost_without_reclaim_delay_like_cpp(4_402).await;
+    let player_guid = session.player_guid().unwrap();
+    let corpse_guid = current_corpse_guid_like_cpp(&session, player_guid).unwrap();
+    // CORPSE_RECLAIM_RADIUS 39 plus the combat reaches: 60 yards is too far.
+    session.set_player_position_like_cpp(Position::new(61.0, 2.0, 3.0, 0.0));
+
+    handle_reclaim_corpse(&mut session, reclaim_corpse_packet(corpse_guid)).await;
+
+    assert!(!session.player_is_alive_like_cpp());
+    assert!(crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
+    assert!(port.deletes.lock().unwrap().is_empty());
+    assert!(sent_opcodes(&send_rx).is_empty());
+    assert!(sent_opcodes(&realm_rx).is_empty());
+}
+
+#[tokio::test]
+async fn reclaim_corpse_before_reclaim_delay_is_ignored_like_cpp() {
+    let (mut session, _send_rx, _realm_rx, _player_guid, port) =
+        dead_player_session_with_graveyard_like_cpp(4_403);
+    // Default policy: Death.CorpseReclaimDelay.PvE = true, so the first death
+    // waits 30 s after the release.
+    handle_repop_request(&mut session, repop_request_packet(true)).await;
+    let player_guid = session.player_guid().unwrap();
+    let corpse_guid = current_corpse_guid_like_cpp(&session, player_guid).unwrap();
+    session.set_player_position_like_cpp(Position::new(1.0, 2.0, 3.0, 0.0));
+
+    handle_reclaim_corpse(&mut session, reclaim_corpse_packet(corpse_guid)).await;
+
+    assert!(!session.player_is_alive_like_cpp());
+    assert!(port.deletes.lock().unwrap().is_empty());
 }

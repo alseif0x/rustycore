@@ -161,7 +161,7 @@ fn player_pvp_death_like_cpp<H: CorpseHostLikeCpp>(host: &H) -> bool {
         .unwrap_or(false)
 }
 
-fn player_death_expire_time_like_cpp<H: CorpseHostLikeCpp>(host: &H) -> i64 {
+pub(crate) fn player_death_expire_time_like_cpp<H: CorpseHostLikeCpp>(host: &H) -> i64 {
     host.core()
         .with_owned_player_like_cpp(|player| player.resurrection_state_like_cpp().death_expire_time)
         .unwrap_or(0)
@@ -222,7 +222,7 @@ fn calculate_corpse_reclaim_delay_ms_like_cpp<H: CorpseHostLikeCpp>(host: &H) ->
     ) * 1_000
 }
 
-fn with_current_map_like_cpp<H: CorpseHostLikeCpp, R>(
+pub(crate) fn with_current_map_like_cpp<H: CorpseHostLikeCpp, R>(
     host: &H,
     f: impl FnOnce(&mut wow_map::Map<wow_map::NoopTerrainGridLoader, wow_map::NoopGridLifecycle>) -> R,
 ) -> Option<R> {
@@ -609,6 +609,15 @@ fn terrain_zone_id_like_cpp<H: CorpseHostLikeCpp>(
     map_id: u32,
     position: Position,
 ) -> u32 {
+    terrain_zone_and_area_like_cpp(host, map_id, position).0
+}
+
+/// C++ `GetZoneAndAreaId` for an arbitrary location (`(0, 0)` without terrain).
+pub(crate) fn terrain_zone_and_area_like_cpp<H: CorpseHostLikeCpp>(
+    host: &H,
+    map_id: u32,
+    position: Position,
+) -> (u32, u32) {
     let hub = host.hub_ref();
     wow_world_core::terrain::zone_and_area_for_position_like_cpp(
         &hub.config.mmap_runtime_config_like_cpp().data_dir,
@@ -624,8 +633,7 @@ fn terrain_zone_id_like_cpp<H: CorpseHostLikeCpp>(
                 .unwrap_or(0)
         },
     )
-    .map(|(zone_id, _)| zone_id)
-    .unwrap_or(0)
+    .unwrap_or((0, 0))
 }
 
 /// C++ `ObjectMgr::GetClosestGraveyard(location, team, player)` with the

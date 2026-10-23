@@ -59,6 +59,8 @@ pub trait CorpseHostLikeCpp: PlayerMovementHostLikeCpp {
     fn map_corpse_persistence_port_like_cpp(
         &self,
     ) -> Option<std::sync::Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>>;
+    /// C++ `Unit::RemoveAurasDueToSpell(spellId)`.
+    fn remove_auras_due_to_spell_like_cpp(&mut self, spell_id: i32) -> usize;
     /// C++ `Player::HasSpell`.
     fn player_has_spell_like_cpp(&self, spell_id: i32) -> bool;
     /// C++ `CastSpell(this, spellId, true)`: a triggered self cast through
@@ -265,40 +267,19 @@ pub async fn handle_repop_request<H: CorpseHostLikeCpp>(
 }
 
 /// CMSG_RECLAIM_CORPSE — resurrect at corpse.
-/// C++ ref: `WorldSession::HandleReclaimCorpse`.
+/// C++ ref: `WorldSession::HandleReclaimCorpse` (`MiscHandler.cpp:416-445`);
+/// the body is [`crate::reclaim_corpse_like_cpp`].
 pub async fn handle_reclaim_corpse<H: CorpseHostLikeCpp>(
     host: &mut H,
+    catalogs: crate::CorpseLifecycleCatalogsLikeCpp<'_>,
     mut pkt: wow_packet::WorldPacket,
 ) {
-    let _request = match ReclaimCorpse::read(&mut pkt) {
-        Ok(request) => request,
-        Err(error) => {
-            warn!(
-                account = host.core().account_id,
-                "ReclaimCorpse parse failed: {error}"
-            );
-            return;
-        }
-    };
-
-    if host.hub_ref().resolved_player_is_alive_like_cpp() != Some(false) {
+    if let Err(error) = ReclaimCorpse::read(&mut pkt) {
+        warn!(
+            account = host.core().account_id,
+            "ReclaimCorpse parse failed: {error}"
+        );
         return;
     }
-
-    if !host.hub_ref().player_has_ghost_flag_like_cpp() {
-        return;
-    }
-
-    // C++ checks arena, live corpse existence, reclaim delay, and distance
-    // before `ResurrectPlayer(0.5f)` + `SpawnCorpseBones`. Those require the
-    // full player-corpse runtime; this represented slice only clears the
-    // ghost/dead state when the already-known C++ gates pass.
-    crate::set_player_ghost_flag_like_cpp(host, false);
-    let restore_percent = if host.hub_ref().player_in_represented_battleground_like_cpp() {
-        1.0
-    } else {
-        0.5
-    };
-    host.hub_mut()
-        .apply_represented_resurrection_percent_like_cpp(restore_percent);
+    crate::reclaim_corpse_like_cpp(host, catalogs).await;
 }

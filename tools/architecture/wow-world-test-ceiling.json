@@ -95,6 +95,16 @@
    "unit_tests_lines": 234741,
    "unit_tests_tests": 3734,
    "src_tests": 22
+  },
+  {
+   "id": "raise-43-9",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-23",
+   "reason": "#43 slice 2 adds reclaim-corpse tests (in range resurrects and spawns bones, out of range, before the reclaim delay)",
+   "unit_tests_lines": 234845,
+   "unit_tests_tests": 3737,
+   "src_tests": 22
   }
  ]
 }
