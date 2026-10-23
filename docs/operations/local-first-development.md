@@ -118,9 +118,17 @@ For a guarded login/world-entry check of a clean committed candidate:
 
 ```bash
 ./tools/qa-runtime.sh --allow-runtime-qa \
-  --world-exec /home/server/rustycore/target/release/world-server \
+  --world-exec /absolute/path/to/candidate/target/debug/world-server \
   --report /tmp/rustycore-login-runtime-report.json login
 ```
+
+Live QA candidates are **debug** builds (`cargo build --locked -p world-server`), not release.
+A release build of `world-server` costs 15–25 minutes per iteration on this host; a debug build is
+enough to prove functional behaviour and keeps fix → rebuild → rerun loops short. Use a release
+build only for the actual deployment (`redeploy-rustycore.sh`) or when a scenario measurably needs
+release speed (for example the bot times out against a debug server); say so in the evidence.
+Build the candidate from the clean committed head you are validating, with the shared-target
+precautions below.
 
 `login` uses the maintained login wrapper with a hash-pinned bot binary. It disables account
 provisioning, password generation and inherited fixture modes, verifies the bot's authentication,
