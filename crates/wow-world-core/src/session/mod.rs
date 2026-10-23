@@ -74,6 +74,7 @@ pub use canonical_access::{
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use canonical_access::{StatsAuraFixtureRefs, StatsCombatFixtureRefs, StatsFixtureRefs};
+pub use canonical_access::{TradePairAccessLikeCpp, TradeSideLikeCpp};
 mod catalogs;
 mod connection;
 mod construction;

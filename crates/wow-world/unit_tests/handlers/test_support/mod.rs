@@ -43,9 +43,6 @@ pub(crate) use wow_packet::WorldPacket;
 pub(crate) use wow_packet::packets::misc::TRADE_STATUS_INITIATED_LIKE_CPP;
 pub(crate) use wow_packet::packets::misc::compress_account_data_like_cpp;
 pub(crate) use wow_packet::packets::misc::{
-    EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP, TRADE_STATUS_FAILED_LIKE_CPP,
-};
-pub(crate) use wow_packet::packets::misc::{
     SUPPORT_SPAM_TYPE_CHAT_LIKE_CPP, empty_battle_pet_guid_like_cpp,
 };
 pub(crate) use wow_packet::packets::misc::{

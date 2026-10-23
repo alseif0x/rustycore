@@ -134,6 +134,7 @@ pub async fn execute_finalization_step<H: SessionLifecycleHostLikeCpp>(
             }
             if host.player_guid().is_some() {
                 host.lifecycle_mut().set_player_logout_like_cpp(true);
+                host.core().mark_player_logging_out_like_cpp(true);
                 PlayerTeleportHostLikeCpp::sync_current_player_session_visibility_detection_like_cpp(
                     host,
                 );

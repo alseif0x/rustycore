@@ -90,6 +90,10 @@ pub struct PlayerGameplayState {
     pub guild: PlayerGuildState,
     /// C++ `Player::m_trade`; `None` is the normal no-trade state.
     pub trade: Option<PlayerTradeStateLikeCpp>,
+    /// The owning session is logging this Player out (C++
+    /// `WorldSession::isLogingOut` read through `pOther->GetSession()`).
+    /// Set before the logout `TradeCancel` so no trade can open in between.
+    pub trade_session_logging_out: bool,
     pub persistent_capabilities: PlayerPersistentCapabilityStateLikeCpp,
     pub battleground: PlayerBattlegroundState,
     /// C++ `Player::_usePvpItemLevels`.

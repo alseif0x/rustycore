@@ -38,6 +38,7 @@ mod quest_objectives;
 mod quest_reward_owner;
 mod registry_hydration;
 mod spell_acquisition;
+mod trade_pair;
 mod trainer_interaction;
 mod trainer_npc;
 mod visibility_refresh;
@@ -72,6 +73,7 @@ pub use registry_hydration::{
     KnownSpellsFixtureSourceLikeCpp, PlayerQuestGameplayFixtureSourceLikeCpp,
 };
 pub use spell_acquisition::OwnedSpellAcquisitionAccessLikeCpp;
+pub use trade_pair::{TradePairAccessLikeCpp, TradeSideLikeCpp};
 pub use trainer_interaction::TrainerInteractionRoleAccessLikeCpp;
 pub use trainer_npc::NpcInteractionAccessLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]

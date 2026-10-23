@@ -71,7 +71,6 @@ impl Default for GuildTestFixtureLikeCpp {
 pub(crate) struct TradeTestFixtureLikeCpp {
     pub(crate) represented_active_trade_partner_like_cpp: Option<ObjectGuid>,
     pub(crate) represented_trade_accepted_like_cpp: bool,
-    pub(crate) represented_partner_trade_server_state_index_like_cpp: u32,
     pub(crate) represented_trade_client_state_index_like_cpp: u32,
     pub(crate) represented_trade_server_state_index_like_cpp: u32,
     pub(crate) represented_trade_items_like_cpp:
@@ -87,7 +86,6 @@ impl Default for TradeTestFixtureLikeCpp {
         Self {
             represented_active_trade_partner_like_cpp: None,
             represented_trade_accepted_like_cpp: false,
-            represented_partner_trade_server_state_index_like_cpp: 0,
             represented_trade_client_state_index_like_cpp: 1,
             represented_trade_server_state_index_like_cpp: 1,
             represented_trade_items_like_cpp: [None;

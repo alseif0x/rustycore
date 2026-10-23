@@ -14,9 +14,7 @@ impl SessionSocialLimits {
                 accepted: self
                     .trade_test_fixture_like_cpp
                     .represented_trade_accepted_like_cpp,
-                partner_server_state_index: self
-                    .trade_test_fixture_like_cpp
-                    .represented_partner_trade_server_state_index_like_cpp,
+                in_accept_process: false,
                 client_state_index: self
                     .trade_test_fixture_like_cpp
                     .represented_trade_client_state_index_like_cpp,
@@ -49,9 +47,6 @@ impl SessionSocialLimits {
             self.trade_test_fixture_like_cpp
                 .represented_trade_accepted_like_cpp = state.accepted;
             self.trade_test_fixture_like_cpp
-                .represented_partner_trade_server_state_index_like_cpp =
-                state.partner_server_state_index;
-            self.trade_test_fixture_like_cpp
                 .represented_trade_client_state_index_like_cpp = state.client_state_index;
             self.trade_test_fixture_like_cpp
                 .represented_trade_server_state_index_like_cpp = state.server_state_index;
@@ -68,8 +63,6 @@ impl SessionSocialLimits {
                 .represented_active_trade_partner_like_cpp = None;
             self.trade_test_fixture_like_cpp
                 .represented_trade_accepted_like_cpp = false;
-            self.trade_test_fixture_like_cpp
-                .represented_partner_trade_server_state_index_like_cpp = 0;
             self.trade_test_fixture_like_cpp
                 .represented_trade_client_state_index_like_cpp = 1;
             self.trade_test_fixture_like_cpp

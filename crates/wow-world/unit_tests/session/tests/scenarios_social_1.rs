@@ -510,7 +510,6 @@ fn canonical_player_trade_state_follows_active_detached_and_stale_ownership_like
         .expect("canonical handle");
 
     assert!(session.set_represented_active_trade_partner_like_cpp(Some(partner_guid)));
-    assert!(session.set_represented_partner_trade_server_state_index_like_cpp(7));
     session.set_represented_trade_item_like_cpp_for_test(2, item_guid);
     session.set_represented_trade_spell_like_cpp_for_test(7418, Some(item_guid));
     session.set_represented_trade_accepted_like_cpp_for_test(true);
@@ -534,7 +533,7 @@ fn canonical_player_trade_state_follows_active_detached_and_stale_ownership_like
     let replacement_state = wow_entities::PlayerTradeStateLikeCpp {
         partner_guid: replacement_partner,
         accepted: true,
-        partner_server_state_index: 12,
+        in_accept_process: false,
         client_state_index: 13,
         server_state_index: 14,
         items: [None; wow_entities::PLAYER_TRADE_SLOT_COUNT_LIKE_CPP],

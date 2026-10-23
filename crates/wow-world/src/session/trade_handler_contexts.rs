@@ -18,8 +18,10 @@ impl TradeHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         catalogs: &'a SessionHandlerCatalogsLikeCpp,
     ) -> TradeHandlerCxLikeCpp<'a> {
         let logging_out = self.lifecycle.is_logging_out_like_cpp();
+        let active_loot_guid = self.loot.active_loot_guid_like_cpp();
         let (social, inventory, spell_state, hub) = crate::session::split_trade_mut(self);
         TradeHandlerCxLikeCpp::new(hub, social, inventory, spell_state)
             .with_initiate_context_like_cpp(*catalogs.trade_policy, logging_out)
+            .with_active_loot_guid_like_cpp(active_loot_guid)
     }
 }

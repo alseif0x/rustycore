@@ -17,26 +17,21 @@ use crate::SessionSocialLimits;
 use tracing::warn;
 use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
-use wow_entities::{
-    NULL_BAG, NULL_SLOT, PlayerDuelInfoLikeCpp, PlayerDuelStateLikeCpp, PlayerTradeStateLikeCpp,
-};
+use wow_entities::{PlayerDuelInfoLikeCpp, PlayerDuelStateLikeCpp, PlayerTradeStateLikeCpp};
 use wow_handler::{
     DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry, PacketProcessing,
     RegistryBuilder, SessionStatus,
 };
 use wow_packet::packets::misc::{
     AcceptTrade, BeginTrade, BusyTrade, CanDuel, ClearTradeItem, DeclinePetition, DuelCountdown,
-    DuelResponse, EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP, IgnoreTrade, InitiateTrade, QueryPetition,
-    QueryPetitionResponse, SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition,
-    TRADE_SLOT_COUNT_LIKE_CPP, TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    DuelResponse, IgnoreTrade, InitiateTrade, QueryPetition, QueryPetitionResponse, SetTradeGold,
+    SetTradeItem, SetTradeSpell, SignPetition, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_FAILED_LIKE_CPP, TRADE_STATUS_PLAYER_BUSY_LIKE_CPP,
-    TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TRADE_STATUS_STATE_CHANGED_LIKE_CPP,
-    TRADE_STATUS_UNACCEPTED_LIKE_CPP, TradeStatus, UnacceptTrade,
+    TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TradeStatus, UnacceptTrade,
 };
 use wow_packet::{ClientPacket, ServerPacket, WorldPacket};
 use wow_world_core::session::mailbox::{
     CancelRepresentedTradeLikeCppCommand, SendRepresentedTradeStatusLikeCppCommand, SessionCommand,
-    UnacceptRepresentedTradeLikeCppCommand,
 };
 use wow_world_core::session::{HubMut, SessionCore};
 use wow_world_inventory::InventoryState;
@@ -105,11 +100,15 @@ pub fn resolved_represented_duel_arbiter_guid_like_cpp(
 
 /// Borrowed inputs of one trade handler invocation.
 pub struct TradeHandlerCxLikeCpp<'a> {
-    hub: HubMut<'a>,
-    social: &'a mut SessionSocialLimits,
-    inventory: &'a mut InventoryState,
-    spell_state: &'a SessionSpellState,
-    initiate: crate::InitiateTradeContextLikeCpp,
+    pub(crate) hub: HubMut<'a>,
+    pub(crate) social: &'a mut SessionSocialLimits,
+    pub(crate) inventory: &'a mut InventoryState,
+    /// Read only by the handle-less spell fixture of `known_spells_like_cpp`.
+    #[cfg_attr(not(any(test, feature = "test-fixtures")), allow(dead_code))]
+    pub(crate) spell_state: &'a SessionSpellState,
+    pub(crate) initiate: crate::InitiateTradeContextLikeCpp,
+    /// C++ `Player::GetLootGUID`, lent by the session's loot owner.
+    pub(crate) active_loot_guid: ObjectGuid,
 }
 
 impl<'a> TradeHandlerCxLikeCpp<'a> {
@@ -129,7 +128,15 @@ impl<'a> TradeHandlerCxLikeCpp<'a> {
                 logging_out: false,
                 two_side_permission: false,
             },
+            active_loot_guid: ObjectGuid::EMPTY,
         }
+    }
+
+    /// Lend C++ `Player::GetLootGUID` to `Item::CanBeTraded`.
+    #[must_use]
+    pub fn with_active_loot_guid_like_cpp(mut self, active_loot_guid: ObjectGuid) -> Self {
+        self.active_loot_guid = active_loot_guid;
+        self
     }
 
     /// Lend the World's trade policy and the session's logout state to
@@ -150,7 +157,7 @@ impl<'a> TradeHandlerCxLikeCpp<'a> {
     }
 
     /// C++ `WorldSession::SendTradeStatus` for this session's own client.
-    fn send_own_trade_status_like_cpp(&self, status: TradeStatus) {
+    pub(crate) fn send_own_trade_status_like_cpp(&self, status: TradeStatus) {
         let partner = self
             .player_trade_state_snapshot_like_cpp()
             .flatten()
@@ -192,16 +199,8 @@ impl<'a> TradeHandlerCxLikeCpp<'a> {
     }
 
     pub fn initiate_trade_like_cpp(&mut self, target_guid: ObjectGuid) {
-        // `pOther->GetSession()->isLogingOut()`: Rust arms no logout
-        // countdown (`logout_time` is never set by a handler), and a finalizing
-        // session cancels its trade in the logout `Retirement` step.
-        let target_logging_out = false;
-        let outcome = crate::initiate_trade_pair_like_cpp(
-            self.hub.shared().core,
-            target_guid,
-            self.initiate,
-            target_logging_out,
-        );
+        let outcome =
+            crate::initiate_trade_pair_like_cpp(self.hub.shared().core, target_guid, self.initiate);
         match outcome {
             crate::InitiateTradeOutcomeLikeCpp::Silent => {}
             crate::InitiateTradeOutcomeLikeCpp::Refused(status) => {
@@ -219,7 +218,11 @@ impl<'a> TradeHandlerCxLikeCpp<'a> {
                     format,
                     self.initiate.policy.trade_level_req,
                 );
-                self.hub.shared().core.send_notification_like_cpp(text);
+                // `SMSG_PRINT_NOTIFICATION` is a realm-connection opcode
+                // (`Opcodes.cpp:1916`).
+                self.hub.shared().core.send_packet_realm(
+                    &wow_packet::packets::chat::PrintNotification { notify_text: text },
+                );
                 self.send_own_trade_status_like_cpp(TradeStatus::status_only_like_cpp(
                     TRADE_STATUS_FAILED_LIKE_CPP,
                 ));
@@ -267,54 +270,7 @@ impl<'a> TradeHandlerCxLikeCpp<'a> {
         );
     }
 
-    fn set_represented_trade_spell_like_cpp(
-        &mut self,
-        spell_id: u32,
-        pack_slot: u8,
-        item_slot_in_pack: u8,
-    ) {
-        let Some(Some(trade)) = self.player_trade_state_snapshot_like_cpp() else {
-            return;
-        };
-        let partner_guid = trade.partner_guid;
-
-        if spell_id == 0 {
-            self.set_represented_trade_spell_state_like_cpp(partner_guid, 0, None);
-            return;
-        }
-
-        let cast_item_guid = if pack_slot != NULL_BAG || item_slot_in_pack != NULL_SLOT {
-            self.inventory
-                .get_inventory_item_by_pos(self.hub.shared(), pack_slot, item_slot_in_pack)
-                .map(|item| item.guid)
-        } else {
-            None
-        };
-
-        let Ok(spell_id_i32) = i32::try_from(spell_id) else {
-            self.set_represented_trade_spell_state_like_cpp(partner_guid, 0, None);
-            return;
-        };
-
-        let Some(spell_store) = self.hub.catalogs.spell_store() else {
-            self.set_represented_trade_spell_state_like_cpp(partner_guid, 0, None);
-            return;
-        };
-
-        if spell_store.get(spell_id_i32).is_none() {
-            self.set_represented_trade_spell_state_like_cpp(partner_guid, 0, None);
-            return;
-        }
-
-        if !self.known_spells_like_cpp().contains(&spell_id_i32) {
-            self.set_represented_trade_spell_state_like_cpp(partner_guid, 0, None);
-            return;
-        }
-
-        self.set_represented_trade_spell_state_like_cpp(partner_guid, spell_id, cast_item_guid);
-    }
-
-    fn known_spells_like_cpp(&self) -> Vec<i32> {
+    pub(crate) fn known_spells_like_cpp(&self) -> Vec<i32> {
         #[cfg(any(test, feature = "test-fixtures"))]
         if self.hub.shared().core.player_handle_like_cpp.is_none() {
             let snapshot = self
@@ -333,53 +289,6 @@ impl<'a> TradeHandlerCxLikeCpp<'a> {
                     .to_vec()
             })
             .unwrap_or_default()
-    }
-
-    fn set_represented_trade_spell_state_like_cpp(
-        &mut self,
-        partner_guid: ObjectGuid,
-        spell_id: u32,
-        cast_item_guid: Option<ObjectGuid>,
-    ) {
-        let Some(Some(trade)) = self.player_trade_state_snapshot_like_cpp() else {
-            return;
-        };
-        if trade.partner_guid != partner_guid {
-            return;
-        }
-        if trade.spell_id == spell_id && trade.spell_cast_item_guid == cast_item_guid {
-            return;
-        }
-
-        let canonical = self
-            .hub
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_trade_spell_like_cpp(spell_id, cast_item_guid)
-            })
-            .is_some_and(|changed| changed);
-        #[cfg(any(test, feature = "test-fixtures"))]
-        let canonical = if !canonical && self.hub.shared().core.player_handle_like_cpp.is_none() {
-            self.mutate_player_trade_state_like_cpp(|state| {
-                if let Some(state) = state {
-                    state.spell_id = spell_id;
-                    state.spell_cast_item_guid = cast_item_guid;
-                    state.accepted = false;
-                    state.server_state_index = state.server_state_index.wrapping_add(1);
-                }
-            })
-            .is_some()
-        } else {
-            canonical
-        };
-        if !canonical {
-            return;
-        }
-
-        let packet_bytes =
-            TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
-        self.hub.shared().core.send_raw_packet(&packet_bytes);
-        self.send_unaccept_to_partner_like_cpp(partner_guid, packet_bytes);
     }
 
     /// Canonical Player trade snapshot with the represented fixture fallback.
@@ -478,273 +387,6 @@ impl<'a> TradeHandlerCxLikeCpp<'a> {
             return Some(result);
         }
         canonical.then_some(result)
-    }
-
-    fn advance_trade_client_state_index_like_cpp(&mut self) {
-        let _canonical = self
-            .hub
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.advance_trade_client_state_index_like_cpp()
-            })
-            .is_some_and(|changed| changed);
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if !_canonical && self.hub.shared().core.player_handle_like_cpp.is_none() {
-            let _ = self.mutate_player_trade_state_like_cpp(|state| {
-                if let Some(state) = state {
-                    state.client_state_index = state.client_state_index.wrapping_add(1);
-                }
-            });
-        }
-    }
-
-    fn send_unaccept_to_partner_like_cpp(&self, partner_guid: ObjectGuid, packet_bytes: Vec<u8>) {
-        self.hub
-            .shared()
-            .core
-            .try_send_connected_player_command_like_cpp(
-                partner_guid,
-                SessionCommand::UnacceptRepresentedTradeLikeCpp(
-                    UnacceptRepresentedTradeLikeCppCommand { packet_bytes },
-                ),
-            );
-    }
-
-    /// CMSG_CLEAR_TRADE_ITEM — clear one offered slot or advance the client index.
-    pub fn clear_represented_trade_item_like_cpp(&mut self, trade_slot: u8) {
-        let Some(Some(trade)) = self.player_trade_state_snapshot_like_cpp() else {
-            return;
-        };
-        let partner_guid = trade.partner_guid;
-
-        if trade_slot >= TRADE_SLOT_COUNT_LIKE_CPP {
-            self.advance_trade_client_state_index_like_cpp();
-            return;
-        }
-
-        let slot = trade_slot as usize;
-        if trade.items[slot].is_none() {
-            self.advance_trade_client_state_index_like_cpp();
-            return;
-        }
-
-        let canonical = self
-            .hub
-            .core
-            .with_owned_player_mut_like_cpp(|player| player.clear_trade_item_like_cpp(trade_slot))
-            .is_some();
-        #[cfg(any(test, feature = "test-fixtures"))]
-        let canonical = if !canonical && self.hub.shared().core.player_handle_like_cpp.is_none() {
-            self.mutate_player_trade_state_like_cpp(|state| {
-                let Some(state) = state else { return };
-                state.client_state_index = state.client_state_index.wrapping_add(1);
-                state.items[slot] = None;
-                state.accepted = false;
-                state.server_state_index = state.server_state_index.wrapping_add(1);
-            })
-            .is_some()
-        } else {
-            canonical
-        };
-        if !canonical {
-            return;
-        }
-
-        let packet_bytes =
-            TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
-        self.hub.shared().core.send_raw_packet(&packet_bytes);
-
-        self.send_unaccept_to_partner_like_cpp(partner_guid, packet_bytes);
-    }
-
-    /// CMSG_SET_TRADE_ITEM — offer one carried item in a trade slot.
-    pub fn set_represented_trade_item_like_cpp(
-        &mut self,
-        trade_slot: u8,
-        pack_slot: u8,
-        item_slot_in_pack: u8,
-    ) {
-        let Some(Some(trade)) = self.player_trade_state_snapshot_like_cpp() else {
-            return;
-        };
-        let partner_guid = trade.partner_guid;
-
-        if trade_slot >= TRADE_SLOT_COUNT_LIKE_CPP {
-            let packet_bytes =
-                TradeStatus::cancel_like_cpp(TRADE_STATUS_CANCELLED_LIKE_CPP).to_bytes();
-            self.hub.shared().core.send_raw_packet(&packet_bytes);
-            return;
-        }
-
-        let Some(item) = self.inventory.get_inventory_item_by_pos(
-            self.hub.shared(),
-            pack_slot,
-            item_slot_in_pack,
-        ) else {
-            let packet_bytes =
-                TradeStatus::cancel_like_cpp(TRADE_STATUS_CANCELLED_LIKE_CPP).to_bytes();
-            self.hub.shared().core.send_raw_packet(&packet_bytes);
-            return;
-        };
-
-        if trade.items.contains(&Some(item.guid)) {
-            let packet_bytes =
-                TradeStatus::cancel_like_cpp(TRADE_STATUS_CANCELLED_LIKE_CPP).to_bytes();
-            self.hub.shared().core.send_raw_packet(&packet_bytes);
-            return;
-        }
-
-        let canonical = self
-            .hub
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_trade_item_like_cpp(trade_slot, item.guid)
-            })
-            .is_some();
-        #[cfg(any(test, feature = "test-fixtures"))]
-        let canonical = if !canonical && self.hub.shared().core.player_handle_like_cpp.is_none() {
-            self.mutate_player_trade_state_like_cpp(|state| {
-                let Some(state) = state else { return };
-                state.client_state_index = state.client_state_index.wrapping_add(1);
-                state.items[trade_slot as usize] = Some(item.guid);
-                state.accepted = false;
-                state.server_state_index = state.server_state_index.wrapping_add(1);
-            })
-            .is_some()
-        } else {
-            canonical
-        };
-        if !canonical {
-            return;
-        }
-
-        let packet_bytes =
-            TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
-        self.hub.shared().core.send_raw_packet(&packet_bytes);
-
-        self.send_unaccept_to_partner_like_cpp(partner_guid, packet_bytes);
-    }
-
-    fn set_represented_trade_gold_state_like_cpp(
-        &mut self,
-        coinage: u64,
-        affordable: bool,
-    ) -> bool {
-        let canonical = self
-            .hub
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_trade_gold_like_cpp(coinage, affordable)
-            })
-            .is_some();
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if !canonical && self.hub.shared().core.player_handle_like_cpp.is_none() {
-            return self
-                .mutate_player_trade_state_like_cpp(|state| {
-                    let Some(state) = state else { return };
-                    state.client_state_index = state.client_state_index.wrapping_add(1);
-                    if state.money != coinage && affordable {
-                        state.money = coinage;
-                        state.accepted = false;
-                        state.server_state_index = state.server_state_index.wrapping_add(1);
-                    }
-                })
-                .is_some();
-        }
-        canonical
-    }
-
-    /// CMSG_SET_TRADE_GOLD — offer coinage, refunding when unaffordable.
-    pub fn set_represented_trade_gold_like_cpp(&mut self, coinage: u64) {
-        let Some(Some(trade)) = self.player_trade_state_snapshot_like_cpp() else {
-            return;
-        };
-        let partner_guid = trade.partner_guid;
-
-        if trade.money == coinage {
-            let _ = self.set_represented_trade_gold_state_like_cpp(coinage, true);
-            return;
-        }
-
-        let affordable = self
-            .inventory
-            .resolved_player_money_like_cpp(self.hub.shared())
-            .is_some_and(|player_money| player_money >= coinage);
-        if !affordable {
-            if !self.set_represented_trade_gold_state_like_cpp(coinage, false) {
-                return;
-            }
-            let packet_bytes =
-                TradeStatus::failed_like_cpp(EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP, 0).to_bytes();
-            self.hub.shared().core.send_raw_packet(&packet_bytes);
-            return;
-        }
-
-        if !self.set_represented_trade_gold_state_like_cpp(coinage, true) {
-            return;
-        }
-
-        let packet_bytes =
-            TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
-        self.hub.shared().core.send_raw_packet(&packet_bytes);
-
-        self.send_unaccept_to_partner_like_cpp(partner_guid, packet_bytes);
-    }
-
-    /// C++ `Player::TradeAccept`.
-    pub fn accept_represented_trade_like_cpp(&mut self, state_index: u32) {
-        let Some(Some(trade)) = self.player_trade_state_snapshot_like_cpp() else {
-            return;
-        };
-        let partner_guid = trade.partner_guid;
-
-        if trade.partner_server_state_index != state_index {
-            let _ = self.set_represented_trade_accepted_like_cpp_for_command(false);
-            let packet_bytes =
-                TradeStatus::status_only_like_cpp(TRADE_STATUS_STATE_CHANGED_LIKE_CPP).to_bytes();
-            self.hub.shared().core.send_raw_packet(&packet_bytes);
-            return;
-        }
-
-        if !self.set_represented_trade_accepted_like_cpp_for_command(true) {
-            return;
-        }
-
-        let packet_bytes =
-            TradeStatus::status_only_like_cpp(TRADE_STATUS_ACCEPTED_LIKE_CPP).to_bytes();
-        self.hub
-            .shared()
-            .core
-            .try_send_connected_player_command_like_cpp(
-                partner_guid,
-                SessionCommand::SendRepresentedTradeStatusLikeCpp(
-                    SendRepresentedTradeStatusLikeCppCommand { packet_bytes },
-                ),
-            );
-    }
-
-    /// C++ `Player::TradeUnaccept`.
-    pub fn unaccept_represented_trade_like_cpp(&mut self) {
-        let Some(Some(trade)) = self.player_trade_state_snapshot_like_cpp() else {
-            return;
-        };
-        let partner_guid = trade.partner_guid;
-
-        if !self.set_represented_trade_accepted_like_cpp_for_command(false) {
-            return;
-        }
-
-        let packet_bytes =
-            TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
-        self.hub
-            .shared()
-            .core
-            .try_send_connected_player_command_like_cpp(
-                partner_guid,
-                SessionCommand::SendRepresentedTradeStatusLikeCpp(
-                    SendRepresentedTradeStatusLikeCppCommand { packet_bytes },
-                ),
-            );
     }
 
     /// C++ `Player::TradeCancel`.

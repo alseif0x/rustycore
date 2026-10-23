@@ -171,3 +171,171 @@ impl ServerPacket for TradeStatus {
         }
     }
 }
+
+/// C++ `WorldPackets::Item::ItemGemData`: slot, then the gem's `ItemInstance`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TradeItemGemLikeCpp {
+    pub slot: u8,
+    pub item: crate::packets::item::ItemInstance,
+}
+
+/// C++ `WorldPackets::Trade::UnwrappedTradeItem` (`TradePackets.cpp`).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct UnwrappedTradeItemLikeCpp {
+    pub enchant_id: i32,
+    pub on_use_enchantment_id: i32,
+    pub creator: ObjectGuid,
+    pub charges: i32,
+    pub lock: bool,
+    pub max_durability: u32,
+    pub durability: u32,
+    pub gems: Vec<TradeItemGemLikeCpp>,
+}
+
+impl UnwrappedTradeItemLikeCpp {
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_int32(self.enchant_id);
+        pkt.write_int32(self.on_use_enchantment_id);
+        pkt.write_packed_guid(&self.creator);
+        pkt.write_int32(self.charges);
+        pkt.write_uint32(self.max_durability);
+        pkt.write_uint32(self.durability);
+        pkt.write_bits(self.gems.len() as u32, 2);
+        pkt.write_bit(self.lock);
+        pkt.flush_bits();
+        for gem in &self.gems {
+            pkt.write_uint8(gem.slot);
+            gem.item.write(pkt);
+        }
+    }
+}
+
+/// C++ `WorldPackets::Trade::TradeItem`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TradeItemLikeCpp {
+    pub slot: u8,
+    pub item: crate::packets::item::ItemInstance,
+    pub stack_count: i32,
+    pub gift_creator: ObjectGuid,
+    pub unwrapped: Option<UnwrappedTradeItemLikeCpp>,
+}
+
+impl TradeItemLikeCpp {
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint8(self.slot);
+        pkt.write_uint32(self.stack_count as u32);
+        pkt.write_packed_guid(&self.gift_creator);
+        self.item.write(pkt);
+        pkt.write_bit(self.unwrapped.is_some());
+        pkt.flush_bits();
+        if let Some(unwrapped) = &self.unwrapped {
+            unwrapped.write(pkt);
+        }
+    }
+}
+
+/// C++ `WorldPackets::Trade::TradeUpdated` (`SMSG_TRADE_UPDATED`), built by
+/// `WorldSession::SendUpdateTrade` (`TradeHandler.cpp:54-105`).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TradeUpdated {
+    pub which_player: u8,
+    pub id: u32,
+    pub client_state_index: u32,
+    pub current_state_index: u32,
+    pub gold: u64,
+    pub currency_type: i32,
+    pub currency_quantity: i32,
+    pub proposed_enchantment: i32,
+    pub items: Vec<TradeItemLikeCpp>,
+}
+
+impl ServerPacket for TradeUpdated {
+    const OPCODE: ServerOpcodes = ServerOpcodes::TradeUpdated;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint8(self.which_player);
+        pkt.write_uint32(self.id);
+        pkt.write_uint32(self.client_state_index);
+        pkt.write_uint32(self.current_state_index);
+        pkt.write_uint64(self.gold);
+        pkt.write_int32(self.currency_type);
+        pkt.write_int32(self.currency_quantity);
+        pkt.write_int32(self.proposed_enchantment);
+        pkt.write_uint32(self.items.len() as u32);
+        for item in &self.items {
+            item.write(pkt);
+        }
+    }
+}
+
+#[cfg(test)]
+mod trade_packet_tests {
+    use super::*;
+
+    #[test]
+    fn trade_status_payload_branches_match_cpp_writer() {
+        let proposed = TradeStatus::proposed_like_cpp(ObjectGuid::create_player(1, 0x22))
+            .with_partner_is_same_bnet_account(true)
+            .to_bytes();
+        assert_eq!(proposed[2], 0x80 | (TRADE_STATUS_PROPOSED_LIKE_CPP << 2));
+        let mut payload = WorldPacket::from_bytes(&proposed[3..]);
+        assert_eq!(
+            payload.read_packed_guid().unwrap(),
+            ObjectGuid::create_player(1, 0x22)
+        );
+        assert_eq!(payload.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+
+        let taplist = TradeStatus::not_on_taplist_like_cpp(5).to_bytes();
+        assert_eq!(
+            &taplist[2..],
+            &[TRADE_STATUS_NOT_ON_TAPLIST_LIKE_CPP << 2, 5]
+        );
+
+        let failed = TradeStatus::failed_like_cpp(30, 0).to_bytes();
+        assert_eq!(failed[2], TRADE_STATUS_FAILED_LIKE_CPP << 2);
+        assert_eq!(&failed[3..], &[30, 0, 0, 0, 0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn trade_updated_writes_cpp_field_order() {
+        let packet = TradeUpdated {
+            which_player: 1,
+            id: 0,
+            client_state_index: 2,
+            current_state_index: 3,
+            gold: 4,
+            currency_type: 0,
+            currency_quantity: 0,
+            proposed_enchantment: 7,
+            items: vec![TradeItemLikeCpp {
+                slot: 6,
+                item: crate::packets::item::ItemInstance {
+                    item_id: 25,
+                    ..Default::default()
+                },
+                stack_count: 1,
+                gift_creator: ObjectGuid::EMPTY,
+                unwrapped: None,
+            }],
+        };
+        let bytes = packet.to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::TradeUpdated as u16
+        );
+        let body = &bytes[2..];
+        assert_eq!(body[0], 1);
+        assert_eq!(&body[1..5], &0u32.to_le_bytes());
+        assert_eq!(&body[5..9], &2u32.to_le_bytes());
+        assert_eq!(&body[9..13], &3u32.to_le_bytes());
+        assert_eq!(&body[13..21], &4u64.to_le_bytes());
+        assert_eq!(&body[29..33], &7i32.to_le_bytes());
+        assert_eq!(&body[33..37], &1u32.to_le_bytes());
+        // slot, stack count, empty packed gift creator.
+        assert_eq!(&body[37..44], &[6, 1, 0, 0, 0, 0, 0]);
+        // ItemInstance: entry, seed, properties id, bonus bit, mods count.
+        assert_eq!(&body[44..48], &25i32.to_le_bytes());
+        // ...followed by the `Unwrapped` presence bit, clear.
+        assert_eq!(*body.last().unwrap(), 0);
+    }
+}

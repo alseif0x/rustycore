@@ -35,6 +35,16 @@
    "unit_tests_lines": 233436,
    "unit_tests_tests": 3720,
    "src_tests": 22
+  },
+  {
+   "id": "raise-38-3",
+   "kind": "raise",
+   "issue": 38,
+   "reviewed_at": "2026-10-22",
+   "reason": "#38 slice 2: trade contents tests rebuilt on two canonical sessions (TradeData order, TRADE_UPDATED, accept reset, NOT_ON_TAPLIST, looted refusals, bnet flag) plus initiate branch-order, logout-countdown, realm notification and retirement coverage from the slice 1 review; 22 represented-fixture tests replaced",
+   "unit_tests_lines": 233617,
+   "unit_tests_tests": 3717,
+   "src_tests": 22
   }
  ]
 }
