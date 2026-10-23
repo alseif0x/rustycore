@@ -256,6 +256,12 @@ pub struct PlayerResurrectionStateLikeCpp {
     pub self_res_spells: BTreeSet<i32>,
     pub death_timer_active: bool,
     pub area_spirit_healer_guid: ObjectGuid,
+    /// C++ `Player::_corpseLocation`: the map and position of the Player's
+    /// resurrectable corpse; `None` is C++ `MAPID_INVALID` (no corpse).
+    pub corpse_location: Option<(u32, wow_core::Position)>,
+    /// C++ `Player::m_deathExpireTime` (unix seconds), advanced by
+    /// `Player::UpdateCorpseReclaimDelay`.
+    pub death_expire_time: i64,
 }
 
 /// C++ `Player` teleport bookkeeping (`m_teleport_dest`, teleport options,

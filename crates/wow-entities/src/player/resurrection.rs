@@ -11,6 +11,16 @@ impl Player {
         &mut self.gameplay_state.resurrection
     }
 
+    /// C++ `Player::SetPvPDeath` (`Player.h:1147`): `PLAYER_EXTRA_PVP_DEATH`.
+    pub fn set_pvp_death_like_cpp(&mut self, on: bool) {
+        const PLAYER_EXTRA_PVP_DEATH: u32 = 0x0100;
+        if on {
+            self.extra_flags |= PLAYER_EXTRA_PVP_DEATH;
+        } else {
+            self.extra_flags &= !PLAYER_EXTRA_PVP_DEATH;
+        }
+    }
+
     pub fn set_resurrection_request_like_cpp(&mut self, request: PlayerResurrectionRequestLikeCpp) {
         self.gameplay_state.resurrection.request = Some(request);
     }

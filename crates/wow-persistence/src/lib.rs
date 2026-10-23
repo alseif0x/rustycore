@@ -319,6 +319,7 @@ mod outcome;
 pub use outcome::{LogicalDatabaseLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp};
 
 pub use world::{
+    CorpsePersistenceMutationOutcomeLikeCpp, CorpseSaveRequestLikeCpp,
     GameEventConditionSaveLoadOutcomeLikeCpp, GameEventConditionSavePersistenceRowLikeCpp,
     GameEventPersistenceMutationLikeCpp, GameEventPersistenceMutationOutcomeLikeCpp,
     GameEventPersistencePortLikeCpp, MapCorpseAuxiliaryLoadOutcomeLikeCpp,

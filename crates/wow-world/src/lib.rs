@@ -58,5 +58,6 @@ pub use session_policy::{
     LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, PlayerRegenerationRatesLikeCpp,
     ReputationRatesLikeCpp,
 };
+pub use wow_world_core::session::DeathPolicyLikeCpp;
 
 pub use battle_pet_account::{BattlePetAccountAttachmentLikeCpp, BattlePetAccountRegistryLikeCpp};

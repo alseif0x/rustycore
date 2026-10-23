@@ -46,7 +46,35 @@ pub trait CorpseHostLikeCpp: PlayerMovementHostLikeCpp {
         request: PlayerResurrectionRequestLikeCpp,
     ) -> bool;
     fn teleport_to(&mut self, new_map: u32, new_pos: Position) -> impl Future<Output = ()> + Send;
+    /// C++ `Player::TeleportTo(loc, options)`.
+    fn teleport_to_with_options_like_cpp(
+        &mut self,
+        new_map: u32,
+        new_pos: Position,
+        options: wow_world_core::session::movement_protocol::TeleportToOptionsLikeCpp,
+    ) -> impl Future<Output = ()> + Send;
     fn pending_teleport_like_cpp(&self) -> Option<(u32, Position)>;
+
+    /// The lifecycle-owned C++ `Corpse::SaveToDB`/`DeleteFromDB` port.
+    fn map_corpse_persistence_port_like_cpp(
+        &self,
+    ) -> Option<std::sync::Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>>;
+    /// C++ `Player::HasSpell`.
+    fn player_has_spell_like_cpp(&self, spell_id: i32) -> bool;
+    /// C++ `CastSpell(this, spellId, true)`: a triggered self cast through
+    /// the spell executor.
+    fn cast_triggered_self_spell_like_cpp(
+        &mut self,
+        catalogs: crate::CorpseLifecycleCatalogsLikeCpp<'_>,
+        spell_id: i32,
+    ) -> impl Future<Output = bool> + Send;
+    /// C++ `WorldSession::PlayerLogoutWithSave`.
+    fn player_logout_with_save_like_cpp(&self) -> bool;
+    /// C++ `Player::SaveToDB()` as `SpawnCorpseBones` triggers it.
+    fn save_player_after_corpse_bones_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+    ) -> impl Future<Output = ()> + Send;
 }
 
 fn clear_represented_resurrection_request_like_cpp<H: CorpseHostLikeCpp>(host: &mut H) -> bool {
@@ -219,41 +247,21 @@ pub async fn handle_resurrect_response<H: CorpseHostLikeCpp>(
 }
 
 /// CMSG_REPOP_REQUEST — release spirit.
-/// C++ ref: `WorldSession::HandleRepopRequest`.
+/// C++ ref: `WorldSession::HandleRepopRequest` (`MiscHandler.cpp:59-83`); the
+/// body is [`crate::repop_request_like_cpp`].
 pub async fn handle_repop_request<H: CorpseHostLikeCpp>(
     host: &mut H,
+    catalogs: crate::CorpseLifecycleCatalogsLikeCpp<'_>,
     mut pkt: wow_packet::WorldPacket,
 ) {
-    let _request = match RepopRequest::read(&mut pkt) {
-        Ok(request) => request,
-        Err(error) => {
-            warn!(
-                account = host.core().account_id,
-                "RepopRequest parse failed: {error}"
-            );
-            return;
-        }
-    };
-
-    if host.hub_ref().resolved_player_is_alive_like_cpp() != Some(false)
-        || host.hub_ref().player_has_ghost_flag_like_cpp()
-    {
+    if let Err(error) = RepopRequest::read(&mut pkt) {
+        warn!(
+            account = host.core().account_id,
+            "RepopRequest parse failed: {error}"
+        );
         return;
     }
-
-    // C++ also blocks `SPELL_AURA_PREVENT_RESURRECTION`, handles JUST_DIED
-    // promotion through KillPlayer, removes the pet, builds the corpse, and
-    // teleports to the graveyard. Rust has only the represented death/ghost
-    // seam here; full corpse/graveyard runtime remains open.
-    crate::set_player_alive_like_cpp(host, false);
-    crate::set_player_ghost_flag_like_cpp(host, true);
-    #[cfg(any(test, feature = "test-fixtures"))]
-    if let Some(fixtures) = host.test_fixtures_like_cpp() {
-        fixtures.combat.represented_repop_at_graveyard_count = fixtures
-            .combat
-            .represented_repop_at_graveyard_count
-            .saturating_add(1);
-    }
+    crate::repop_request_like_cpp(host, catalogs).await;
 }
 
 /// CMSG_RECLAIM_CORPSE — resurrect at corpse.

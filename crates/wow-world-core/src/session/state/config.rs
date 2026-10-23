@@ -18,6 +18,34 @@ use wow_instances::ResetSchedule;
 #[cfg(any(test, feature = "test-fixtures"))]
 use std::sync::Arc;
 
+/// C++ `World::LoadConfigSettings` death policy (`World.cpp:1306-1310`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DeathPolicyLikeCpp {
+    /// `CONFIG_DEATH_SICKNESS_LEVEL` (`Death.SicknessLevel`).
+    pub sickness_level: i32,
+    /// `CONFIG_DEATH_CORPSE_RECLAIM_DELAY_PVP` (`Death.CorpseReclaimDelay.PvP`).
+    pub corpse_reclaim_delay_pvp: bool,
+    /// `CONFIG_DEATH_CORPSE_RECLAIM_DELAY_PVE` (`Death.CorpseReclaimDelay.PvE`).
+    pub corpse_reclaim_delay_pve: bool,
+    /// `CONFIG_DEATH_BONES_WORLD` (`Death.Bones.World`).
+    pub bones_world: bool,
+    /// `CONFIG_DEATH_BONES_BG_OR_ARENA` (`Death.Bones.BattlegroundOrArena`).
+    pub bones_bg_or_arena: bool,
+}
+
+impl Default for DeathPolicyLikeCpp {
+    /// The C++ `GetIntDefault`/`GetBoolDefault` fallbacks.
+    fn default() -> Self {
+        Self {
+            sickness_level: 11,
+            corpse_reclaim_delay_pvp: true,
+            corpse_reclaim_delay_pve: true,
+            bones_world: true,
+            bones_bg_or_arena: true,
+        }
+    }
+}
+
 #[cfg(any(test, feature = "test-fixtures"))]
 pub type GivePlayerXpScriptDispatcherLikeCpp =
     Arc<dyn Fn(wow_script::player::GivePlayerXpContextLikeCpp, &mut u32) + Send + Sync>;
@@ -68,6 +96,8 @@ pub struct SessionWorldConfig {
     /// C++ `sWorld->getRate(RATE_DURABILITY_LOSS_ON_DEATH)` fraction
     /// (`DurabilityLoss.OnDeath / 100`).
     pub durability_loss_on_death_rate_like_cpp: f32,
+    /// C++ `CONFIG_DEATH_*` policy read by the death/corpse lifecycle (#43).
+    pub death_policy_like_cpp: DeathPolicyLikeCpp,
     /// C++ `CONFIG_STATS_LIMITS_*` subset consumed by the represented
     /// `Player::UpdateBlockPercentage`/`UpdateDodgePercentage`/
     /// `UpdateParryPercentage`/`UpdateCritPercentage` caps.
@@ -144,6 +174,7 @@ impl Default for SessionWorldConfig {
             reputation_rates: ReputationRatesLikeCpp::default(),
             repair_cost_rate_like_cpp: 1.0,
             durability_loss_on_death_rate_like_cpp: 0.1,
+            death_policy_like_cpp: DeathPolicyLikeCpp::default(),
             stats_limits_like_cpp: StatsLimitsLikeCpp::default(),
             reset_schedule_like_cpp: ResetSchedule::default(),
 

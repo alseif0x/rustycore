@@ -383,13 +383,17 @@ async fn query_player_names_connected_target_overlays_live_identity_like_cpp() {
 #[tokio::test]
 async fn query_corpse_location_without_runtime_corpse_sends_cpp_invalid_shape() {
     let (mut session, send_rx) = make_session_with_send_capacity(1);
+    let (realm_tx, realm_rx) = flume::bounded(1);
+    session.install_realm_send_channel_for_test(realm_tx);
     let player = ObjectGuid::create_player(1, 0xAABB_CCDD);
 
     session
         .handle_query_corpse_location(QueryCorpseLocationFromClient { player })
         .await;
 
-    let bytes = send_rx.try_recv().expect("corpse location response");
+    // SMSG_CORPSE_LOCATION is a realm-connection opcode (Opcodes.cpp:1306).
+    assert!(send_rx.try_recv().is_err());
+    let bytes = realm_rx.try_recv().expect("corpse location response");
     assert_eq!(
         u16::from_le_bytes([bytes[0], bytes[1]]),
         wow_constants::ServerOpcodes::CorpseLocation as u16

@@ -4,7 +4,25 @@
 //! corpse capability handler tests.
 
 use super::*;
-use wow_world_entities::{handle_reclaim_corpse, handle_repop_request, handle_resurrect_response};
+use crate::session::WorldSession;
+use wow_world_entities::{handle_reclaim_corpse, handle_resurrect_response};
+
+/// CMSG_REPOP_REQUEST with the test session's catalogs (#43).
+async fn handle_repop_request(session: &mut WorldSession, pkt: WorldPacket) {
+    let generators = session.id_generators_for_test_like_cpp();
+    let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
+    let graveyards = wow_data::GraveyardStore::default();
+    wow_world_entities::handle_repop_request(
+        session,
+        wow_world_entities::CorpseLifecycleCatalogsLikeCpp {
+            item_guid_generator: generators.item.as_ref(),
+            creature_spawns: &creature_spawns,
+            graveyards: &graveyards,
+        },
+        pkt,
+    )
+    .await;
+}
 
 #[tokio::test]
 async fn request_cemetery_list_without_links_sends_no_response_like_cpp() {
@@ -227,7 +245,9 @@ async fn resurrect_response_ignores_alive_player_like_cpp() {
 
 #[tokio::test]
 async fn repop_request_dead_non_ghost_sets_ghost_and_repop_count_like_cpp() {
-    let (mut session, send_rx) = make_session();
+    let (mut session, _send_rx) = make_session();
+    let (realm_tx, realm_rx) = flume::bounded(16);
+    session.install_realm_send_channel_for_test(realm_tx);
     let canonical = shared_canonical_map_manager_for_misc_test();
     let player_guid = ObjectGuid::create_player(1, 42);
     session.set_player_guid(Some(player_guid));
@@ -250,7 +270,13 @@ async fn repop_request_dead_non_ghost_sets_ghost_and_repop_count_like_cpp() {
         session.fixtures.combat.represented_repop_at_graveyard_count,
         1
     );
-    assert!(send_rx.try_recv().is_err());
+    // C++ `BuildPlayerRepop` always starts with SMSG_PRE_RESSURECT; without a
+    // race faction the corpse cannot be created and the release stops there.
+    // SMSG_PRE_RESSURECT is a realm-connection opcode.
+    assert_eq!(
+        sent_opcodes(&realm_rx).first().copied(),
+        Some(ServerOpcodes::PreRessurect as u16)
+    );
 }
 
 #[tokio::test]
@@ -463,4 +489,432 @@ async fn instance_lock_response_decline_repops_and_clears_pending_bind_like_cpp(
         session.fixtures.combat.represented_repop_at_graveyard_count,
         1
     );
+}
+
+fn sent_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<u16> {
+    std::iter::from_fn(|| send_rx.try_recv().ok())
+        .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+        .collect()
+}
+
+#[derive(Default)]
+struct RecordingCorpsePortLikeCpp {
+    saves: std::sync::Mutex<Vec<wow_persistence::CorpseSaveRequestLikeCpp>>,
+    deletes: std::sync::Mutex<Vec<u64>>,
+}
+
+impl wow_persistence::MapCorpsePersistencePortLikeCpp for RecordingCorpsePortLikeCpp {
+    fn load_map_corpses_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::MapCorpseLoadRequestLikeCpp,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<'a, wow_persistence::MapCorpseLoadOutcomeLikeCpp>
+    {
+        Box::pin(async {
+            wow_persistence::MapCorpseLoadOutcomeLikeCpp::Failed {
+                reason: "not used".into(),
+            }
+        })
+    }
+
+    fn save_corpse_like_cpp<'a>(
+        &'a self,
+        request: wow_persistence::CorpseSaveRequestLikeCpp,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        'a,
+        wow_persistence::CorpsePersistenceMutationOutcomeLikeCpp,
+    > {
+        self.saves.lock().unwrap().push(request);
+        Box::pin(async { wow_persistence::CorpsePersistenceMutationOutcomeLikeCpp::Committed })
+    }
+
+    fn delete_corpse_like_cpp<'a>(
+        &'a self,
+        owner_guid: u64,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        'a,
+        wow_persistence::CorpsePersistenceMutationOutcomeLikeCpp,
+    > {
+        self.deletes.lock().unwrap().push(owner_guid);
+        Box::pin(async { wow_persistence::CorpsePersistenceMutationOutcomeLikeCpp::Committed })
+    }
+}
+
+fn human_race_entry_with_faction(
+    faction_id: i16,
+) -> wow_data::character_progression::ChrRacesEntry {
+    wow_data::character_progression::ChrRacesEntry {
+        id: 1,
+        client_prefix: String::new(),
+        client_file_string: String::new(),
+        name: String::new(),
+        flags: 0,
+        male_display_id: 0,
+        female_display_id: 0,
+        high_res_male_display_id: 0,
+        high_res_female_display_id: 0,
+        res_sickness_spell_id: 15007,
+        splash_sound_id: 0,
+        create_screen_file_data_id: 0,
+        select_screen_file_data_id: 0,
+        low_res_screen_file_data_id: 0,
+        altered_form_start_visual_kit_id: [0; 3],
+        altered_form_finish_visual_kit_id: [0; 3],
+        heritage_armor_achievement_id: 0,
+        starting_level: 1,
+        ui_display_order: 0,
+        playable_race_bit: 0,
+        female_skeleton_file_data_id: 0,
+        male_skeleton_file_data_id: 0,
+        helmet_anim_scaling_race_id: 0,
+        transmogrify_disabled_slot_mask: 0,
+        faction_id,
+        cinematic_sequence_id: 0,
+        base_language: 0,
+        creature_type: 0,
+        alliance: 0,
+        race_related: 0,
+        unaltered_visual_race_id: 0,
+        default_class_id: 0,
+        neutral_race_id: 0,
+    }
+}
+
+/// A dead (not yet released) human on map 571 with the Alliance default
+/// graveyard (WorldSafeLocs 4) on the same map.
+fn dead_player_session_with_graveyard_like_cpp(
+    guid_counter: i64,
+) -> (
+    WorldSession,
+    flume::Receiver<Vec<u8>>,
+    flume::Receiver<Vec<u8>>,
+    ObjectGuid,
+    Arc<RecordingCorpsePortLikeCpp>,
+) {
+    dead_player_session_on_map_like_cpp(
+        guid_counter,
+        crate::teleport_test_fixtures::world_maps([571]),
+    )
+}
+
+fn dead_player_session_on_map_like_cpp(
+    guid_counter: i64,
+    maps: Arc<wow_data::MapStore>,
+) -> (
+    WorldSession,
+    flume::Receiver<Vec<u8>>,
+    flume::Receiver<Vec<u8>>,
+    ObjectGuid,
+    Arc<RecordingCorpsePortLikeCpp>,
+) {
+    let (mut session, send_rx) = make_session();
+    let (realm_tx, realm_rx) = flume::bounded(64);
+    session.install_realm_send_channel_for_test(realm_tx);
+    let map_id = maps.entries().next().expect("one map").id;
+    session.set_map_store(Arc::clone(&maps));
+    let player_guid = ObjectGuid::create_player(1, guid_counter);
+    session.set_player_guid(Some(player_guid));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(
+        &mut session,
+        map_id,
+        0,
+    );
+    session.set_loaded_player_identity_like_cpp(map_id as u16, 1, 1, 80, 0);
+    session.set_player_position_like_cpp(Position::new(1.0, 2.0, 3.0, 0.0));
+    session.set_player_health_like_cpp(0, 1_000);
+    wow_world_entities::set_player_alive_like_cpp(&mut session, false);
+    session.set_chr_races_store(Arc::new(
+        wow_data::character_progression::ChrRacesStore::from_entries([
+            human_race_entry_with_faction(1),
+        ]),
+    ));
+    let (safe_locs, _) = wow_data::WorldSafeLocStore::from_rows_like_cpp(
+        [wow_data::WorldSafeLocRow {
+            id: wow_data::ALLIANCE_GRAVEYARD_SAFE_LOC_ID_LIKE_CPP,
+            map_id,
+            x: 50.0,
+            y: 60.0,
+            z: 70.0,
+            facing_degrees: 0.0,
+        }],
+        &maps,
+    );
+    session.set_world_safe_loc_store_like_cpp(Arc::new(safe_locs));
+    let port = Arc::new(RecordingCorpsePortLikeCpp::default());
+    session.set_map_corpse_persistence_port_like_cpp(port.clone());
+    while send_rx.try_recv().is_ok() {}
+    while realm_rx.try_recv().is_ok() {}
+    (session, send_rx, realm_rx, player_guid, port)
+}
+
+fn current_corpse_guid_like_cpp(session: &WorldSession, owner: ObjectGuid) -> Option<ObjectGuid> {
+    let manager = crate::session::hub_ref(session)
+        .core
+        .canonical_map_manager
+        .clone()?;
+    let manager = manager.lock().unwrap();
+    manager
+        .find_map(571, 0)?
+        .map()
+        .corpse_guid_by_player_like_cpp(owner)
+}
+
+#[tokio::test]
+async fn repop_request_creates_saved_corpse_and_releases_to_graveyard_like_cpp() {
+    let (mut session, send_rx, realm_rx, player_guid, port) =
+        dead_player_session_with_graveyard_like_cpp(4_301);
+
+    handle_repop_request(&mut session, repop_request_packet(true)).await;
+
+    // BuildPlayerRepop: ghost at 1 health, corpse on the map at the death spot.
+    assert!(!session.player_is_alive_like_cpp());
+    assert!(crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
+    assert_eq!(
+        session.canonical_player_health_snapshot_like_cpp(),
+        Some((1, 1_000))
+    );
+    assert!(current_corpse_guid_like_cpp(&session, player_guid).is_some());
+    assert_eq!(
+        wow_world_entities::player_corpse_location_like_cpp(&session),
+        Some((571, Position::new(1.0, 2.0, 3.0, 0.0)))
+    );
+
+    // Corpse::SaveToDB on a non-instanceable map; no prior corpse to delete.
+    let saves = port.saves.lock().unwrap().clone();
+    assert_eq!(saves.len(), 1);
+    assert_eq!(saves[0].owner_guid, 4_301);
+    assert_eq!(saves[0].map_id, 571);
+    assert_eq!(
+        (saves[0].pos_x, saves[0].pos_y, saves[0].pos_z),
+        (1.0, 2.0, 3.0)
+    );
+    assert_eq!(saves[0].race, 1);
+    assert_eq!(saves[0].corpse_type, 1);
+    assert_eq!(
+        saves[0].item_cache.split(' ').count(),
+        wow_entities::CORPSE_ITEMS + 1
+    );
+    assert!(port.deletes.lock().unwrap().is_empty());
+
+    // RepopAtGraveyard: near teleport to WorldSafeLocs 4, then DeathReleaseLoc.
+    assert_eq!(
+        session.fixtures.combat.represented_repop_at_graveyard_count,
+        1
+    );
+    // SMSG_PRE_RESSURECT and SMSG_DEATH_RELEASE_LOC go on the realm
+    // connection (Opcodes.cpp:1915, :1333); the reclaim delay and the
+    // teleport stay on the instance connection.
+    assert_eq!(
+        sent_opcodes(&realm_rx),
+        vec![
+            ServerOpcodes::PreRessurect as u16,
+            ServerOpcodes::DeathReleaseLoc as u16,
+        ]
+    );
+    let opcodes = sent_opcodes(&send_rx);
+    assert!(!opcodes.contains(&(ServerOpcodes::PreRessurect as u16)));
+    assert!(!opcodes.contains(&(ServerOpcodes::DeathReleaseLoc as u16)));
+    let reclaim_delay = opcodes
+        .iter()
+        .position(|opcode| *opcode == ServerOpcodes::CorpseReclaimDelay as u16)
+        .expect("BuildPlayerRepop sends the reclaim delay");
+    let teleport = opcodes
+        .iter()
+        .position(|opcode| *opcode == ServerOpcodes::MoveTeleport as u16)
+        .expect("RepopAtGraveyard teleports to the graveyard");
+    assert!(reclaim_delay < teleport);
+}
+
+#[tokio::test]
+async fn spawn_corpse_bones_deletes_rows_and_leaves_bones_like_cpp() {
+    let (mut session, _send_rx, _realm_rx, player_guid, port) =
+        dead_player_session_with_graveyard_like_cpp(4_302);
+    handle_repop_request(&mut session, repop_request_packet(true)).await;
+    let corpse_guid = current_corpse_guid_like_cpp(&session, player_guid).unwrap();
+    let generators = session.id_generators_for_test_like_cpp();
+
+    assert!(
+        wow_world_entities::spawn_corpse_bones_like_cpp(
+            &mut session,
+            generators.item.as_ref(),
+            false,
+        )
+        .await
+    );
+
+    assert!(current_corpse_guid_like_cpp(&session, player_guid).is_none());
+    assert_eq!(
+        wow_world_entities::player_corpse_location_like_cpp(&session),
+        None
+    );
+    assert_eq!(*port.deletes.lock().unwrap(), vec![4_302]);
+    let manager = crate::session::hub_ref(&session)
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap();
+    let manager = manager.lock().unwrap();
+    let bones = manager
+        .find_map(571, 0)
+        .unwrap()
+        .map()
+        .get_typed_corpse(corpse_guid)
+        .expect("bones keep the corpse counter on the same map");
+    assert_eq!(bones.corpse_type(), wow_entities::CorpseType::Bones);
+}
+
+#[tokio::test]
+async fn second_repop_after_release_is_ignored_like_cpp() {
+    let (mut session, _send_rx, _realm_rx, _player_guid, port) =
+        dead_player_session_with_graveyard_like_cpp(4_303);
+    handle_repop_request(&mut session, repop_request_packet(true)).await;
+    handle_repop_request(&mut session, repop_request_packet(true)).await;
+
+    assert_eq!(port.saves.lock().unwrap().len(), 1);
+    assert_eq!(
+        session.fixtures.combat.represented_repop_at_graveyard_count,
+        1
+    );
+}
+
+#[test]
+fn corpse_reclaim_delay_follows_cpp_death_expire_steps_like_cpp() {
+    use wow_world_core::session::DeathPolicyLikeCpp;
+    use wow_world_entities::{
+        corpse_reclaim_delay_secs_like_cpp, updated_death_expire_time_like_cpp,
+    };
+    let policy = DeathPolicyLikeCpp::default();
+    let now = 1_000_000;
+
+    // First death: expire = now + 5 min, delay 30 s.
+    let first = updated_death_expire_time_like_cpp(false, 0, now, policy);
+    assert_eq!(first, now + 300);
+    assert_eq!(
+        corpse_reclaim_delay_secs_like_cpp(false, first, now, policy),
+        30
+    );
+    // A second death 100 s later: one partial period left, so C++ extends to
+    // two full steps from now (count = 200/300 + 1 = 1) and the delay is 60 s.
+    let later = now + 100;
+    let second = updated_death_expire_time_like_cpp(false, first, later, policy);
+    assert_eq!(second, later + 600);
+    assert_eq!(
+        corpse_reclaim_delay_secs_like_cpp(false, second, later, policy),
+        60
+    );
+    // Dying again at once: count = 600/300 + 1 = 3 reaches MAX_DEATH_COUNT,
+    // so the expire time caps at three steps and the delay at 120 s.
+    let third = updated_death_expire_time_like_cpp(false, second, later, policy);
+    assert_eq!(third, later + 900);
+    assert_eq!(
+        corpse_reclaim_delay_secs_like_cpp(false, third, later, policy),
+        120
+    );
+    assert_eq!(
+        updated_death_expire_time_like_cpp(false, third, later, policy),
+        later + 900
+    );
+    // Once the window has passed the delay drops back to the first step.
+    assert_eq!(
+        corpse_reclaim_delay_secs_like_cpp(false, third, later + 900, policy),
+        30
+    );
+
+    // PvE delay disabled: always 0 and the expire time does not move.
+    let no_pve = DeathPolicyLikeCpp {
+        corpse_reclaim_delay_pve: false,
+        ..policy
+    };
+    assert_eq!(
+        corpse_reclaim_delay_secs_like_cpp(false, third, now, no_pve),
+        0
+    );
+    assert_eq!(updated_death_expire_time_like_cpp(false, 7, now, no_pve), 7);
+    // PvP delay disabled: always the first step.
+    let no_pvp = DeathPolicyLikeCpp {
+        corpse_reclaim_delay_pvp: false,
+        ..policy
+    };
+    assert_eq!(
+        corpse_reclaim_delay_secs_like_cpp(true, third, now, no_pvp),
+        30
+    );
+}
+
+#[test]
+fn corpse_flags_and_item_cache_match_cpp_like_cpp() {
+    assert_eq!(
+        wow_world_entities::corpse_flags_like_cpp(0x01, false, false),
+        0x04
+    );
+    assert_eq!(
+        wow_world_entities::corpse_flags_like_cpp(0x04, true, false),
+        0x60
+    );
+    assert_eq!(wow_world_entities::corpse_flags_like_cpp(0, true, true), 0);
+    assert_eq!(
+        wow_world_entities::corpse_item_cache_like_cpp(&[1, 0, 33]),
+        "1 0 33 "
+    );
+}
+
+#[tokio::test]
+async fn repop_in_dungeon_skips_corpse_save_and_revives_at_teleport_like_cpp() {
+    let maps = Arc::new(wow_data::MapStore::from_entries([wow_data::MapEntry {
+        id: 33,
+        instance_type: wow_data::map::MAP_INSTANCE,
+        expansion_id: 0,
+        parent_map_id: -1,
+        cosmetic_parent_map_id: -1,
+        flags1: 0,
+        flags2: 0,
+    }]));
+    let (mut session, _send_rx, realm_rx, _player_guid, port) =
+        dead_player_session_on_map_like_cpp(4_304, maps);
+
+    handle_repop_request(&mut session, repop_request_packet(true)).await;
+
+    // CreateCorpse: "we do not need to save corpses for instances".
+    assert!(port.saves.lock().unwrap().is_empty());
+    // RepopAtGraveyard: a non-raid dungeon converts the corpse to bones and
+    // teleports with TELE_REVIVE_AT_TELEPORT, reviving at 50 %.
+    assert_eq!(*port.deletes.lock().unwrap(), vec![4_304]);
+    assert_eq!(
+        wow_world_entities::player_corpse_location_like_cpp(&session),
+        None
+    );
+    assert!(session.player_is_alive_like_cpp());
+    assert_eq!(
+        session.canonical_player_health_snapshot_like_cpp(),
+        Some((500, 1_000))
+    );
+    // Alive after the teleport: no DeathReleaseLoc.
+    assert_eq!(
+        sent_opcodes(&realm_rx),
+        vec![ServerOpcodes::PreRessurect as u16]
+    );
+}
+
+#[tokio::test]
+async fn repop_of_just_died_player_runs_kill_player_first_like_cpp() {
+    let (mut session, send_rx, _realm_rx, _player_guid, _port) =
+        dead_player_session_with_graveyard_like_cpp(4_305);
+    let _ = crate::session::hub_ref(&session)
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::JustDied);
+        });
+
+    handle_repop_request(&mut session, repop_request_packet(true)).await;
+
+    // KillPlayer and BuildPlayerRepop each send SMSG_CORPSE_RECLAIM_DELAY.
+    assert_eq!(
+        sent_opcodes(&send_rx)
+            .iter()
+            .filter(|opcode| **opcode == ServerOpcodes::CorpseReclaimDelay as u16)
+            .count(),
+        2
+    );
+    assert!(crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
 }

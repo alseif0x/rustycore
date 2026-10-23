@@ -10,6 +10,7 @@
 
 mod character;
 mod combat;
+mod death;
 mod durability;
 mod lfg_client;
 mod movement;
@@ -20,6 +21,7 @@ mod world_state;
 
 pub use character::*;
 pub use combat::*;
+pub use death::*;
 pub use durability::*;
 pub use lfg_client::*;
 pub use movement::*;

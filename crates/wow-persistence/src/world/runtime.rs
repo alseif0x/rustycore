@@ -199,10 +199,58 @@ pub enum MapCorpseLoadOutcomeLikeCpp {
     },
 }
 
-/// SQLx-free persistence boundary for C++ `Map::LoadCorpseData`.
+/// One C++ `Corpse::SaveToDB` row set (`Corpse.cpp`): the `corpse` row, one
+/// `corpse_phases` row per phase and one `corpse_customizations` row per
+/// customization, all keyed by the owner's character counter.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CorpseSaveRequestLikeCpp {
+    pub owner_guid: u64,
+    pub pos_x: f32,
+    pub pos_y: f32,
+    pub pos_z: f32,
+    pub orientation: f32,
+    pub map_id: u16,
+    pub display_id: u32,
+    /// C++ writes every `CorpseData::Items` value followed by one space.
+    pub item_cache: String,
+    pub race: u8,
+    pub class: u8,
+    pub sex: u8,
+    pub flags: u8,
+    pub dynamic_flags: u8,
+    pub ghost_time: u32,
+    pub corpse_type: u8,
+    pub instance_id: u32,
+    pub phases: Vec<u32>,
+    pub customizations: Vec<(u32, u32)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CorpsePersistenceMutationOutcomeLikeCpp {
+    Committed,
+    Failed { reason: String },
+}
+
+/// SQLx-free persistence boundary for C++ `Map::LoadCorpseData`,
+/// `Corpse::SaveToDB` and `Corpse::DeleteFromDB`.
 pub trait MapCorpsePersistencePortLikeCpp: Send + Sync {
     fn load_map_corpses_like_cpp<'a>(
         &'a self,
         request: MapCorpseLoadRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, MapCorpseLoadOutcomeLikeCpp>;
+
+    /// C++ `Corpse::SaveToDB`: one transaction that first runs
+    /// `Corpse::DeleteFromDB` (corpse, phases, customizations) and then
+    /// inserts the corpse, its phases and its customizations.
+    fn save_corpse_like_cpp<'a>(
+        &'a self,
+        request: CorpseSaveRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, CorpsePersistenceMutationOutcomeLikeCpp>;
+
+    /// C++ `Corpse::DeleteFromDB(ownerGuid, trans)` committed alone, as
+    /// `Map::ConvertCorpseToBones` does.
+    fn delete_corpse_like_cpp<'a>(
+        &'a self,
+        owner_guid: u64,
+    ) -> PersistenceFutureLikeCpp<'a, CorpsePersistenceMutationOutcomeLikeCpp>;
 }

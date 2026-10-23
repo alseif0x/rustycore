@@ -52,6 +52,7 @@ pub fn player_resurrection_state_snapshot_like_cpp<H: SpellExecutionHostLikeCpp 
                 .fixtures
                 .combat
                 .area_spirit_healer_guid_like_cpp,
+            ..PlayerResurrectionStateLikeCpp::default()
         });
     }
     canonical

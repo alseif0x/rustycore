@@ -275,6 +275,7 @@ impl WorldSession {
                     .clone(),
                 death_timer_active: self.fixtures.combat.represented_death_timer_active_like_cpp,
                 area_spirit_healer_guid: self.fixtures.combat.area_spirit_healer_guid_like_cpp,
+                ..PlayerResurrectionStateLikeCpp::default()
             };
             *player.teleport_state_mut_like_cpp() = PlayerTeleportStateLikeCpp {
                 recovery: Default::default(),

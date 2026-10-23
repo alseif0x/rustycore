@@ -22,6 +22,13 @@ impl WorldSession {
     pub fn set_durability_loss_on_death_rate_like_cpp(&mut self, rate: f32) {
         self.config.durability_loss_on_death_rate_like_cpp = rate.clamp(0.0, 1.0);
     }
+    /// Set the C++ `CONFIG_DEATH_*` policy (`World.cpp:1306-1310`).
+    pub fn set_death_policy_like_cpp(
+        &mut self,
+        policy: wow_world_core::session::DeathPolicyLikeCpp,
+    ) {
+        self.config.death_policy_like_cpp = policy;
+    }
     /// Set the C++ `CONFIG_STATS_LIMITS_*` values (`World.cpp:1664-1668`).
     pub fn set_stats_limits_like_cpp(&mut self, limits: wow_data::StatsLimitsLikeCpp) {
         self.config.stats_limits_like_cpp = limits;

@@ -50,6 +50,7 @@ mod movement_host;
 mod movement_opcodes;
 mod pending_runtime;
 mod player_attack;
+mod player_death;
 mod player_vitals;
 mod spawn;
 mod spell_click;
@@ -203,6 +204,15 @@ pub use player_attack::{
     PLAYER_FLAGS_UBER_LIKE_CPP, PlayerAttackStartLikeCppResult,
     handle_apply_player_melee_result_like_cpp_command_like_cpp, handle_attack_swing,
     start_player_attack_like_cpp,
+};
+pub use player_death::{
+    CORPSE_RECLAIM_RADIUS_LIKE_CPP, CorpseLifecycleCatalogsLikeCpp, SPELL_GHOST_LIKE_CPP,
+    SPELL_WISP_SPIRIT_AURA_LIKE_CPP, SPELL_WISP_SPIRIT_RACIAL_LIKE_CPP,
+    build_player_repop_like_cpp, closest_graveyard_like_cpp, corpse_flags_like_cpp,
+    corpse_item_cache_like_cpp, corpse_reclaim_delay_secs_like_cpp, create_corpse_like_cpp,
+    kill_player_like_cpp, player_corpse_like_cpp, player_corpse_location_like_cpp,
+    player_in_arena_like_cpp, repop_at_graveyard_like_cpp, repop_request_like_cpp,
+    spawn_corpse_bones_like_cpp, updated_death_expire_time_like_cpp,
 };
 pub use player_vitals::{set_player_alive_like_cpp, set_player_ghost_flag_like_cpp};
 pub use state::WorldEntitiesState;
