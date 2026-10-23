@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 3756,
+  "tests": 3759,
   "ignored": 1,
-  "session": 3452,
-  "shims": 3268,
+  "session": 3455,
+  "shims": 3271,
   "by_class": {
    "P": 304,
    "H": 165,
-   "W": 3287
+   "W": 3290
   },
   "by_reason": {
    "H-host": 165,
@@ -42,7 +42,7 @@
    "W-multi-domain": 36,
    "W-unreached": 22,
    "W-world-items": 2,
-   "W-world-logic": 3069
+   "W-world-logic": 3072
   },
   "by_owner": {
    "wow-world": {
@@ -73,7 +73,7 @@
    "wow-world-entities": {
     "P": 28,
     "H": 3,
-    "W": 362
+    "W": 365
    },
    "wow-world-instances": {
     "P": 0,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 70,
     "H": 0,
-    "W": 3287
+    "W": 3290
    },
    "wow-world-application": {
     "P": 27,
@@ -213,7 +213,7 @@
   "wow-world-application": 84,
   "wow-world-character": 82,
   "wow-world-core": 4,
-  "wow-world-entities": 119,
+  "wow-world-entities": 120,
   "wow-world-instances": 30,
   "wow-world-interaction": 1,
   "wow-world-inventory": 76,
@@ -1053,8 +1053,8 @@
   ["unit_tests/handlers/entities/tests/corpse.rs::repop_request_alive_or_already_ghost_returns_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/entities/tests/corpse.rs::client_port_graveyard_dead_ghost_repops_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["set_canonical_map_manager", "set_player_guid", "try_handle_client_port_graveyard_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/corpse.rs::client_port_graveyard_alive_or_not_ghost_returns_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["set_canonical_map_manager", "set_player_guid", "try_handle_client_port_graveyard_like_cpp"], []],
-  ["unit_tests/handlers/entities/tests/corpse.rs::reclaim_corpse_dead_ghost_resurrects_and_clears_ghost_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["canonical_player_health_snapshot_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
-  ["unit_tests/handlers/entities/tests/corpse.rs::reclaim_corpse_alive_or_not_ghost_returns_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/handlers/entities/tests/corpse.rs::reclaim_corpse_without_corpse_returns_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
+  ["unit_tests/handlers/entities/tests/corpse.rs::reclaim_corpse_alive_or_not_ghost_returns_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/entities/tests/corpse.rs::instance_lock_response_decline_repops_and_clears_pending_bind_like_cpp", "W", "wow-world", "wow-world-instances", "W-world-logic", true, true, false, ["handle_instance_lock_response"], []],
   ["unit_tests/handlers/entities/tests/corpse.rs::repop_request_creates_saved_corpse_and_releases_to_graveyard_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "canonical_player_health_snapshot_like_cpp", "creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/corpse.rs::spawn_corpse_bones_deletes_rows_and_leaves_bones_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "set_canonical_map_manager"], []],
@@ -1063,6 +1063,9 @@
   ["unit_tests/handlers/entities/tests/corpse.rs::corpse_flags_and_item_cache_match_cpp_like_cpp", "P", "wow-world-entities", "wow-world-entities", "P-domain", false, false, false, [], []],
   ["unit_tests/handlers/entities/tests/corpse.rs::repop_in_dungeon_skips_corpse_save_and_revives_at_teleport_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "canonical_player_health_snapshot_like_cpp", "creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/corpse.rs::repop_of_just_died_player_runs_kill_player_first_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/entities/tests/corpse.rs::reclaim_corpse_in_range_resurrects_half_and_spawns_bones_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "canonical_player_health_snapshot_like_cpp", "creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],
+  ["unit_tests/handlers/entities/tests/corpse.rs::reclaim_corpse_out_of_range_is_ignored_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "set_canonical_map_manager"], []],
+  ["unit_tests/handlers/entities/tests/corpse.rs::reclaim_corpse_before_reclaim_delay_is_ignored_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "set_canonical_map_manager"], []],
   ["unit_tests/handlers/entities/tests/gameobject.rs::game_obj_use_loaded_template_dispatches_door_without_concrete_db_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp", "handle_game_obj_use", "record_represented_gameobject_runtime_state_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/gameobject.rs::game_obj_use_missing_template_is_noop_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["attach_player_controller_like_cpp", "ensure_canonical_world_map_for_current_player_like_cpp", "handle_game_obj_use", "record_represented_gameobject_runtime_state_like_cpp"], []],
   ["unit_tests/handlers/entities/tests/gameobject.rs::game_obj_use_missing_catalog_capability_is_noop_before_template_read_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_game_obj_use", "record_represented_gameobject_runtime_state_like_cpp", "set_player_guid"], []],

@@ -59,9 +59,14 @@ pub trait CorpseHandlerHostLikeCpp<C> {
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()>;
 
-    /// C++ `HandleReclaimCorpse` (`MiscHandler.cpp:416`). The legacy closure did
-    /// not read the catalog view.
-    fn handle_reclaim_corpse_like_cpp<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()>;
+    /// C++ `HandleReclaimCorpse` (`MiscHandler.cpp:416`). The resurrection
+    /// updates visibility and spawns bones, so the host receives the catalog
+    /// view (#43).
+    fn handle_reclaim_corpse_with_catalogs_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+        pkt: WorldPacket,
+    ) -> HandlerFuture<'a, ()>;
 
     /// C++ `HandleRequestCemeteryList` (`MiscHandler.cpp:361`). The legacy
     /// closure destructured the catalog view (`graveyards`), so the host
@@ -99,14 +104,14 @@ where
 
 fn handle_reclaim_corpse_thunk<'a, S, C>(
     session: &'a mut S,
-    _catalogs: &'a C,
+    catalogs: &'a C,
     pkt: WorldPacket,
 ) -> HandlerFuture<'a, ()>
 where
     S: CorpseHandlerHostLikeCpp<C> + Send,
     C: Sync,
 {
-    session.handle_reclaim_corpse_like_cpp(pkt)
+    session.handle_reclaim_corpse_with_catalogs_like_cpp(catalogs, pkt)
 }
 
 fn handle_request_cemetery_list_thunk<'a, S, C>(

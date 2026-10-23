@@ -40,8 +40,19 @@ impl CorpseHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         })
     }
 
-    fn handle_reclaim_corpse_like_cpp<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { wow_world_entities::handle_reclaim_corpse(self, pkt).await })
+    fn handle_reclaim_corpse_with_catalogs_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a SessionHandlerCatalogsLikeCpp,
+        pkt: WorldPacket,
+    ) -> HandlerFuture<'a, ()> {
+        Box::pin(async move {
+            wow_world_entities::handle_reclaim_corpse(
+                self,
+                corpse_lifecycle_catalogs_like_cpp(catalogs),
+                pkt,
+            )
+            .await
+        })
     }
 
     fn handle_request_cemetery_list_with_catalogs_like_cpp<'a>(
@@ -92,6 +103,24 @@ impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
         self.lifecycle
             .map_corpse_persistence_port_like_cpp()
             .map(std::sync::Arc::clone)
+    }
+
+    fn remove_auras_due_to_spell_like_cpp(&mut self, spell_id: i32) -> usize {
+        let Some(auras) = crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
+        else {
+            return 0;
+        };
+        let slots = auras
+            .values()
+            .filter_map(|aura| (aura.spell_id == spell_id).then_some(aura.slot))
+            .collect::<Vec<_>>();
+        let removed = slots.len();
+        for slot in slots {
+            let _ = self
+                .player_aura_application_cx_like_cpp()
+                .remove_aura_like_cpp(slot);
+        }
+        removed
     }
 
     fn player_has_spell_like_cpp(&self, spell_id: i32) -> bool {

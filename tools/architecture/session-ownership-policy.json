@@ -8034,9 +8034,9 @@
           "module": "crate::handlers::entities::corpse::host",
           "trait_path": "CorpseHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
-          "name": "handle_reclaim_corpse_like_cpp",
+          "name": "handle_reclaim_corpse_with_catalogs_like_cpp",
           "visibility": "private",
-          "signature": "fn handle_reclaim_corpse_like_cpp < 'a > (& 'a mut self , pkt : WorldPacket) -> HandlerFuture < 'a , () >",
+          "signature": "fn handle_reclaim_corpse_with_catalogs_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -8163,6 +8163,20 @@
           "name": "player_logout_with_save_like_cpp",
           "visibility": "private",
           "signature": "fn player_logout_with_save_like_cpp (& self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::corpse::host",
+          "trait_path": "wow_world_entities :: CorpseHostLikeCpp",
+          "kind": "method",
+          "name": "remove_auras_due_to_spell_like_cpp",
+          "visibility": "private",
+          "signature": "fn remove_auras_due_to_spell_like_cpp (& mut self , spell_id : i32) -> usize",
           "cfg": [],
           "source_class": "production",
           "guards": [
