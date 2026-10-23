@@ -263,6 +263,13 @@ across worktrees; no worker starts its own parallel campaign. Check for active w
 and available RAM/disk before launching. On this shared host start Cargo with one job
 (`VALIDATION_V2_CARGO_JOBS=1` for the runner); increase only with demonstrated headroom.
 Do not kill unrelated processes to obtain resources. Agent-count limits are not resource locks.
+Live runtime QA (`tools/qa-runtime.sh`) uses a debug `world-server` candidate built from the committed
+head; release builds are reserved for deployment or a documented need for release speed.
+When several worktrees share one `CARGO_TARGET_DIR`, cargo can reuse another worktree's artifacts
+(path crates share artifact names and freshness is mtime-based): serialize builds behind one host
+lock and, before each build, touch in your worktree every file any active worktree changed, so the
+affected crates rebuild from your own sources. Architecture checkers build in the checkout-local
+`target/arch-tools` and must print a scan-root banner naming the checkout.
 
 Keep direct Cargo and runner commands on the same per-worktree target directory; the
 runner defaults to `<checkout>/target` and respects explicit `CARGO_TARGET_DIR`. For
