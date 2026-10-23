@@ -12,10 +12,8 @@
 
 use wow_core::ObjectGuid;
 use wow_entities::{Item, NULL_BAG, NULL_SLOT, is_bag_pos, make_item_pos};
-use wow_packet::ServerPacket;
 use wow_packet::packets::misc::{
-    TRADE_SLOT_COUNT_LIKE_CPP, TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_CANCELLED_LIKE_CPP,
-    TRADE_STATUS_STATE_CHANGED_LIKE_CPP, TradeStatus,
+    TRADE_SLOT_COUNT_LIKE_CPP, TRADE_STATUS_CANCELLED_LIKE_CPP, TradeStatus,
 };
 use wow_world_core::session::mailbox::{SendRepresentedTradeStatusLikeCppCommand, SessionCommand};
 use wow_world_core::session::{TradePairAccessLikeCpp, TradeSideLikeCpp};
@@ -242,42 +240,6 @@ impl TradeHandlerCxLikeCpp<'_> {
     pub fn unaccept_represented_trade_like_cpp(&mut self) {
         let _ = self.run_trade_transition_like_cpp(|pair, cx, fx| {
             set_accepted_like_cpp(pair, cx, TradeSideLikeCpp::Own, false, true, fx);
-        });
-    }
-
-    /// CMSG_ACCEPT_TRADE, up to the both-accepted commit (slice 3): the
-    /// acceptance is set first, then the trader's real server state index is
-    /// compared, as `HandleAcceptTradeOpcode` does.
-    pub fn accept_represented_trade_like_cpp(&mut self, state_index: u32) {
-        let _ = self.run_trade_transition_like_cpp(|pair, cx, fx| {
-            if pair
-                .partner(|partner| partner.trade_state_snapshot_like_cpp())
-                .flatten()
-                .is_none()
-            {
-                return;
-            }
-            let _ = pair.own(|player| player.set_trade_accepted_like_cpp(true));
-            let partner_index = pair
-                .partner(|partner| partner.trade_state_snapshot_like_cpp())
-                .flatten()
-                .map(|trade| trade.server_state_index);
-            if partner_index != Some(state_index) {
-                fx.packets.push((
-                    TradeSideLikeCpp::Own,
-                    TradeStatus::status_only_like_cpp(TRADE_STATUS_STATE_CHANGED_LIKE_CPP)
-                        .with_partner_is_same_bnet_account(cx.same_bnet)
-                        .to_bytes(),
-                ));
-                set_accepted_like_cpp(pair, cx, TradeSideLikeCpp::Own, false, false, fx);
-                return;
-            }
-            fx.packets.push((
-                TradeSideLikeCpp::Partner,
-                TradeStatus::status_only_like_cpp(TRADE_STATUS_ACCEPTED_LIKE_CPP)
-                    .with_partner_is_same_bnet_account(cx.same_bnet)
-                    .to_bytes(),
-            ));
         });
     }
 

@@ -35,7 +35,19 @@ impl WorldSession {
     }
 
     pub(crate) async fn handle_accept_trade(&mut self, pkt: WorldPacket) {
-        self.trade_test_cx_like_cpp().handle_accept_trade(pkt).await;
+        use wow_packet::ClientPacket;
+        let mut pkt = pkt;
+        let Ok(packet) = wow_packet::packets::misc::AcceptTrade::read(&mut pkt) else {
+            return;
+        };
+        let generator = self.id_generators_for_test_like_cpp().item;
+        wow_world_social::accept_trade_like_cpp(self, packet.state_index, generator).await;
+    }
+
+    /// The driver's head-of-pass step for a coordinator's pending exchange.
+    pub(crate) async fn continue_pending_trade_commit_for_test_like_cpp(&mut self) {
+        let generator = self.id_generators_for_test_like_cpp().item;
+        wow_world_social::continue_pending_trade_commit_like_cpp(self, generator).await;
     }
 
     pub(crate) async fn handle_clear_trade_item(&mut self, pkt: WorldPacket) {

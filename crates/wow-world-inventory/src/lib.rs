@@ -53,6 +53,7 @@ mod storage;
 mod storage_bags;
 mod storage_slots;
 mod toy_session;
+mod trade_storage;
 mod turnins;
 mod valuation;
 pub use currency_session::{
@@ -183,6 +184,10 @@ pub use persistence::item_spell_charges_db_string;
 pub use publication::item_storage_fields_values_update_like_cpp;
 pub use state::InventoryState;
 pub use storage_slots::is_represented_bag_slot;
+pub use trade_storage::{
+    TradeStoreActionLikeCpp, TradeStoreCatalogsLikeCpp, TradeStorePlanLikeCpp,
+    plan_trade_receive_like_cpp,
+};
 
 pub use quest_reward::{
     item_push_result_from_send_new_item_plan, make_inventory_item_object_like_cpp,

@@ -32,6 +32,8 @@ mod runtime_4;
 mod social;
 mod spell;
 mod sql_fixtures;
+mod trade_fixture;
+mod trade_smoke;
 mod vendor_sell;
 mod void_storage_1;
 mod void_storage_2;
@@ -92,6 +94,10 @@ pub(crate) use social::*;
 pub(crate) use spell::*;
 #[allow(unused_imports)]
 pub(crate) use sql_fixtures::*;
+#[allow(unused_imports)]
+pub(crate) use trade_fixture::*;
+#[allow(unused_imports)]
+pub(crate) use trade_smoke::*;
 #[allow(unused_imports)]
 pub(crate) use vendor_sell::*;
 #[allow(unused_imports)]

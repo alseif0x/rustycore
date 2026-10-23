@@ -250,6 +250,9 @@ pub enum SessionCommand {
     /// Clear the receiver's represented trade acceptance and send the already
     /// serialized `TRADE_STATUS_UNACCEPTED` packet without cancelling trade.
     UnacceptRepresentedTradeLikeCpp(UnacceptRepresentedTradeLikeCppCommand),
+    /// Park the partner of a completing trade until its coordinator commits
+    /// (#38; C++ `HandleAcceptTradeOpcode` runs for both Players at once).
+    TradeCommitLikeCpp(super::TradeCommitRequestLikeCpp),
     /// Deliver represented `SMSG_DUEL_COUNTDOWN` to the remote duel participant.
     SendRepresentedDuelCountdownLikeCpp(SendRepresentedDuelCountdownLikeCppCommand),
     /// Deliver represented `SMSG_DUEL_REQUESTED` to the remote duel participant.

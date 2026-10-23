@@ -614,6 +614,7 @@ pub(super) fn write_report_if_requested(
         vendor_smoke,
         vendor_sell_smoke: cli.vendor_sell_smoke,
         movement_smoke: cli.movement_smoke,
+        trade_smoke: cli.trade.smoke,
         equipment_set_race_smoke,
         rested_xp_smoke,
         detour_chase_capture,

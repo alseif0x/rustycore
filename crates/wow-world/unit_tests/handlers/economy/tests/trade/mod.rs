@@ -9,6 +9,7 @@ use wow_packet::packets::misc::{
     TRADE_STATUS_CANCELLED_LIKE_CPP, TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP,
 };
 
+mod commit;
 mod contents;
 mod duel;
 mod initiate;

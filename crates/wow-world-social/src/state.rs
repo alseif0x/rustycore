@@ -56,6 +56,9 @@ pub struct SessionSocialLimits {
     /// Detached duel state and evidence used only by tests.
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) duel_test_fixture_like_cpp: DuelTestFixtureLikeCpp,
+    /// The coordinator's trade exchange awaiting the partner's park (#38).
+    pub(crate) pending_trade_commit_like_cpp:
+        std::sync::Mutex<Option<crate::trade_commit::PendingTradeCommitLikeCpp>>,
 }
 
 impl SessionSocialLimits {
@@ -93,6 +96,7 @@ impl SessionSocialLimits {
             represented_silence_party_talker_like_cpp: Vec::new(),
             #[cfg(any(test, feature = "test-fixtures"))]
             duel_test_fixture_like_cpp: DuelTestFixtureLikeCpp::default(),
+            pending_trade_commit_like_cpp: std::sync::Mutex::new(None),
         }
     }
 

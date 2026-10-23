@@ -41,6 +41,11 @@ impl SessionLifecycleState {
             && self.player_loading.is_none()
         {
             self.clear_logout_time();
+            // The timed `LogoutPlayer` that follows sets the mark again; a
+            // deferred one leaves the Player no longer logging out.
+            if !self.player_logout_like_cpp {
+                hub.core.mark_player_logging_out_like_cpp(false);
+            }
             return true;
         }
         false

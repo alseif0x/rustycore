@@ -4593,7 +4593,10 @@ async fn run_inner(
             Arc::clone(&spell_acquisition_port),
             Arc::clone(&instance_lock_persistence_port),
             Arc::clone(&battle_pet_purchase_persistence_port),
-        ),
+        )
+        .with_player_trade_like_cpp(Arc::new(
+            wow_database::MariaDbPlayerTradePersistenceAdapterLikeCpp::new(Arc::clone(&char_db)),
+        )),
         wow_world::session::WorldPersistenceCapabilitiesLikeCpp::required_like_cpp(
             Arc::clone(&map_corpse_persistence_port),
             Arc::clone(&group_loot_money_persistence_port),

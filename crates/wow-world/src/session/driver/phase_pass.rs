@@ -127,7 +127,9 @@ impl WorldSession {
         }
 
         let mut summary = SessionPhasePassSummaryLikeCpp::default();
-        while let Some(pkt) = self.core.admission.pending_packets.pop_front() {
+        while !wow_world_social::trade_commit_pending_like_cpp(&self.social)
+            && let Some(pkt) = self.core.admission.pending_packets.pop_front()
+        {
             self.dispatch_packet(catalogs, pkt).await;
             summary.dispatched = summary.dispatched.saturating_add(1);
         }
@@ -141,7 +143,9 @@ impl WorldSession {
     ) -> SessionPhasePassSummaryLikeCpp {
         let mut summary = SessionPhasePassSummaryLikeCpp::default();
         loop {
-            if self.core.admission.pending_packets.is_empty() {
+            if self.core.admission.pending_packets.is_empty()
+                || wow_world_social::trade_commit_pending_like_cpp(&self.social)
+            {
                 return summary;
             }
             let residence = self.player_packet_residence_like_cpp();

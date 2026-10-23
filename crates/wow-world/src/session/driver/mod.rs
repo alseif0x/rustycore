@@ -240,6 +240,13 @@ impl WorldSession {
         self.flush_packet_spoof_ban_like_cpp().await;
         self.core
             .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::SessionCommands);
+        // #38: a trade this session accepted last pass completes here, while
+        // the partner parks in its own concurrent pass.
+        wow_world_social::continue_pending_trade_commit_like_cpp(
+            self,
+            std::sync::Arc::clone(&catalogs.id_generators.item),
+        )
+        .await;
         self.process_represented_session_commands_with_catalogs_like_cpp(catalogs)
             .await;
         // #743: a group state change the authority could not hand to this

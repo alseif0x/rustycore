@@ -64,6 +64,7 @@ QA_LOOT_RACE_CHEST_SPAWN=9106001
 DRY_RUN=0
 ALLOW_RUNTIME_QA=0
 ACK_LOOT_RACE=0
+ACK_TRADE=0
 WORLD_EXEC=""
 REPORT=""
 
@@ -114,12 +115,17 @@ Commands:
                 fixture (world stopped) and the build.
   loot-item     Swap in a build, guard one creature's health, run the destructive
                 creature-kill capture, restore both the fixture and the build.
+  trade         Swap in a build, run the two-session player-trade smoke (the bot
+                seeds and restores its own character fixture under a recovery
+                journal), then restore the build.
 
 Options:
   --dry-run                              Print the plan; start, stop and copy nothing.
   --allow-runtime-qa                     Required: this stops and starts a live service.
   --ack-disposable-overworld-loot-race   Required for loot-race: it mutates a world
                                          GameObject fixture and two disposable characters.
+  --ack-disposable-trade                 Required for trade: it mutates two disposable
+                                         characters (money, position, one item).
   --world-exec PATH                      Build to swap in (default target/release/world-server).
   --report PATH                          Write a JSON result document.
   -h, --help                             Show this help.
@@ -349,7 +355,7 @@ write_report() {
 # The outcome every swapping command reports, written from the restore trap.
 write_final_report() {
   case "${COMMAND:-}" in
-    login|loot-race|loot-item)
+    login|loot-race|loot-item|trade)
       write_report "$COMMAND" "$1" "${RUN_CANDIDATE_SHA:-}" "${RUN_BOT_STATUS:-null}" ;;
   esac
 }
@@ -690,11 +696,119 @@ run_loot_item() {
   return "$bot_status"
 }
 
+# Two disposable characters trade one isolated item and gold, under the guarded
+# swap (#38). Unlike the loot scenarios there is no world fixture: the bot puts
+# its characters-DB fixture (item row, money, co-location) in place while both
+# characters are offline, records it in the recovery journal first, and
+# restores it on every exit path. A journal that survives the run is reported
+# with its recovery command, exactly like loot-item.
+run_trade() {
+  ((ALLOW_RUNTIME_QA == 1)) || die \
+    "trade stops and starts $QA_SERVICE; rerun with --allow-runtime-qa"
+  ((ACK_TRADE == 1)) || die \
+    "trade mutates two disposable characters (money, position, one item); rerun with --ack-disposable-trade"
+
+  LIVE_PATH="$QA_LIVE_DIR/$QA_LIVE_NAME"
+  local candidate="${WORLD_EXEC:-$REPO_ROOT/target/release/world-server}"
+  [[ -x "$candidate" ]] || die "candidate build is not executable: $candidate"
+  [[ -f "$LIVE_PATH" ]] || die "no live build at $LIVE_PATH"
+  [[ -x "$QA_BOT" ]] || die "QA bot is not built: $QA_BOT"
+  [[ -x "$QA_SMOKE" ]] || die "smoke wrapper is missing: $QA_SMOKE"
+  require_clean_worktree
+  have_bot_credentials || die \
+    "no bot credentials: set WOW_BOT_PASSWORD or provide $QA_ENV_FILE before swapping a build"
+
+  local candidate_sha
+  candidate_sha="$(sha256_of "$candidate")"
+  RUN_CANDIDATE_SHA="$candidate_sha"
+
+  if ((DRY_RUN == 1)); then
+    log "Dry run: nothing is stopped, copied, mutated or started"
+    printf 'would snapshot  %s\n' "$LIVE_PATH"
+    printf 'would install   %s (%s)\n' "$candidate" "$candidate_sha"
+    printf 'would run       %s with WOW_BOT_TRADE_SMOKE=1\n' "$QA_SMOKE"
+    printf 'would journal   a fresh path under %s\n' "$QA_JOURNAL_DIR"
+    printf 'would restore   the snapshot on every exit path\n'
+    return 0
+  fi
+
+  local identity
+  identity="$(live_identity)"
+  packet_dump_absent || die "a packet dump directory is configured; refusing to run QA"
+  ORIGINAL_SHA="$(cut -f3 <<<"$identity")"
+  local pid
+  pid="$(cut -f1 <<<"$identity")"
+  WORLD_PID="$pid"
+  ports_ready "$pid" || die "ports $QA_WORLD_PORT/$QA_INSTANCE_PORT are not owned by PID $pid"
+  log "Live build $ORIGINAL_SHA serving on PID $pid"
+
+  RESTORE_FROM="$(mktemp "${TMPDIR:-/tmp}/rustycore-live-build.XXXXXX")"
+  cp -- "$LIVE_PATH" "$RESTORE_FROM"
+  [[ "$(sha256_of "$RESTORE_FROM")" == "$ORIGINAL_SHA" ]] || die "snapshot copy does not match"
+  RESTORE_PENDING=1
+  trap restore_live_build EXIT
+  trap 'exit 130' HUP INT TERM
+  write_report trade running "$candidate_sha"
+
+  log "Installing the candidate build $candidate_sha"
+  stop_world_verified || die "$QA_SERVICE did not stop (still active, running or listening); refusing to swap the build"
+  cp -- "$candidate" "$LIVE_PATH"
+  [[ "$(sha256_of "$LIVE_PATH")" == "$candidate_sha" ]] || die "candidate did not install"
+  # shellcheck disable=SC2086
+  $QA_SYSTEMCTL start "$QA_SERVICE"
+  local candidate_pid
+  candidate_pid="$(wait_until_serving)" || die "$QA_SERVICE did not come up with the candidate"
+  WORLD_PID="$candidate_pid"
+  log "Candidate serving on PID $candidate_pid"
+
+  local bot_status=0 evidence_dir
+  load_bot_environment
+  [[ -d "$QA_BOT_DIR" ]] || die "bot directory is missing: $QA_BOT_DIR"
+  prepare_journal_dir
+  local journal="$QA_JOURNAL_DIR/trade-$$-$(date -u +%Y%m%dT%H%M%SZ).journal"
+  [[ ! -e "$journal" && ! -e "${journal}.cleanup-complete" ]] \
+    || die "fixture journal path is not fresh: $journal"
+  evidence_dir="$(mktemp -d "${TMPDIR:-/tmp}/rustycore-trade-qa.XXXXXX")"
+  log "Fixture recovery journal: $journal"
+  log "Trade evidence directory: $evidence_dir"
+  ( cd "$QA_BOT_DIR" && exec timeout --foreground --signal=TERM --kill-after=30 \
+      "${QA_BOT_TIMEOUT_SECONDS}s" env \
+      WOW_BOT_TRADE_SMOKE=1 \
+      WOW_BOT_ACK_DISPOSABLE_TRADE=1 \
+      WOW_BOT_FIXTURE_JOURNAL="$journal" \
+      WOW_BOT_ENSURE_TEST_ACCOUNTS=0 \
+      WOW_BOT_REPORT="$evidence_dir/bot.json" WOW_BOT_LOG="$evidence_dir/bot.log" \
+      "$QA_SMOKE" ) || bot_status=$?
+  if [[ -e "$journal" ]]; then
+    warn "fixture journal $journal survived the run; the trade characters are still mutated"
+    warn "recover it with: cd $QA_BOT_DIR && WOW_BOT_FIXTURE_JOURNAL=$journal ./target/debug/wow-test-bot --recover-trade-fixture"
+    ((bot_status == 0)) && bot_status=75
+  fi
+  if ((bot_status == 0)) && ! jq -e \
+    '.trade_smoke == true and (.results | length == 2) and
+     all(.results[]; .trade_smoke_passed == true and .trade_completed == true and
+       .trade_db_verified_online == true and .trade_db_verified_after_logout == true and
+       .trade_relog_verified == true and .trade_db_verified_after_relog == true)' \
+    "$evidence_dir/bot.json" >/dev/null 2>&1; then
+    warn "trade smoke returned success without complete trade evidence"
+    bot_status=65
+  fi
+  if ((bot_status == 0)); then
+    log "Trade smoke passed; evidence: $evidence_dir/bot.json"
+  else
+    warn "trade smoke failed with status $bot_status; evidence: $evidence_dir"
+  fi
+  # The final outcome is reported by the restore trap, after the restore.
+  RUN_BOT_STATUS="$bot_status"
+  return "$bot_status"
+}
+
 while (($#)); do
   case "$1" in
     --dry-run) DRY_RUN=1; shift ;;
     --allow-runtime-qa) ALLOW_RUNTIME_QA=1; shift ;;
     --ack-disposable-overworld-loot-race) ACK_LOOT_RACE=1; shift ;;
+    --ack-disposable-trade) ACK_TRADE=1; shift ;;
     --world-exec) [[ $# -ge 2 ]] || die "--world-exec needs a path"; WORLD_EXEC="$2"; shift 2 ;;
     --report) [[ $# -ge 2 ]] || die "--report needs a path"; REPORT="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -735,6 +849,14 @@ case "$COMMAND" in
     exec 9>"$QA_LOCK"
     flock -n 9 || die "another runtime QA run holds $QA_LOCK"
     run_loot_item
+    ;;
+  trade)
+    require_command ss
+    require_command timeout
+    require_command jq
+    exec 9>"$QA_LOCK"
+    flock -n 9 || die "another runtime QA run holds $QA_LOCK"
+    run_trade
     ;;
   help) usage ;;
   *) usage >&2; die "unknown command: $COMMAND" ;;

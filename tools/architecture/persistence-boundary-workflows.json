@@ -10881,6 +10881,111 @@
     },
     {
       "package": "wow-database",
+      "module": "crate::player_trade_adapter",
+      "source": "crates/wow-database/src/player_trade_adapter.rs",
+      "enclosing": "fn player_trade_statements_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free player-trade capability (#38)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One completed trade uses one explicit Character transaction for both participants (C++ HandleAcceptTradeOpcode SaveInventoryAndGoldToDB x2, one CommitTransaction); a lost COMMIT is classified by reading the changed money rows afterwards.",
+      "current_order": "Preserve the moved-item link/owner/count/gift guards, merge and full-merge cleanup order, then the changed money rows, as pinned by the adapter test.",
+      "failure_and_unknown_commit": "Preserve definite rollback versus unknown COMMIT; the trade worker applies runtime state only after a committed or reconciled-committed outcome and quarantines both sessions on an indeterminate one."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_trade_adapter",
+      "source": "crates/wow-database/src/player_trade_adapter.rs",
+      "enclosing": "fn statement",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free player-trade capability (#38)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One completed trade uses one explicit Character transaction for both participants (C++ HandleAcceptTradeOpcode SaveInventoryAndGoldToDB x2, one CommitTransaction); a lost COMMIT is classified by reading the changed money rows afterwards.",
+      "current_order": "Preserve the moved-item link/owner/count/gift guards, merge and full-merge cleanup order, then the changed money rows, as pinned by the adapter test.",
+      "failure_and_unknown_commit": "Preserve definite rollback versus unknown COMMIT; the trade worker applies runtime state only after a committed or reconciled-committed outcome and quarantines both sessions on an indeterminate one."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_trade_adapter",
+      "source": "crates/wow-database/src/player_trade_adapter.rs",
+      "enclosing": "impl MariaDbPlayerTradePersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free player-trade capability (#38)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One completed trade uses one explicit Character transaction for both participants (C++ HandleAcceptTradeOpcode SaveInventoryAndGoldToDB x2, one CommitTransaction); a lost COMMIT is classified by reading the changed money rows afterwards.",
+      "current_order": "Preserve the moved-item link/owner/count/gift guards, merge and full-merge cleanup order, then the changed money rows, as pinned by the adapter test.",
+      "failure_and_unknown_commit": "Preserve definite rollback versus unknown COMMIT; the trade worker applies runtime state only after a committed or reconciled-committed outcome and quarantines both sessions on an indeterminate one."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_trade_adapter",
+      "source": "crates/wow-database/src/player_trade_adapter.rs",
+      "enclosing": "impl MariaDbPlayerTradePersistenceAdapterLikeCpp::observe_money_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free player-trade capability (#38)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One completed trade uses one explicit Character transaction for both participants (C++ HandleAcceptTradeOpcode SaveInventoryAndGoldToDB x2, one CommitTransaction); a lost COMMIT is classified by reading the changed money rows afterwards.",
+      "current_order": "Preserve the moved-item link/owner/count/gift guards, merge and full-merge cleanup order, then the changed money rows, as pinned by the adapter test.",
+      "failure_and_unknown_commit": "Preserve definite rollback versus unknown COMMIT; the trade worker applies runtime state only after a committed or reconciled-committed outcome and quarantines both sessions on an indeterminate one."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_trade_adapter",
+      "source": "crates/wow-database/src/player_trade_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerTradePersistencePortLikeCpp for MariaDbPlayerTradePersistenceAdapterLikeCpp::persist_player_trade_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free player-trade capability (#38)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One completed trade uses one explicit Character transaction for both participants (C++ HandleAcceptTradeOpcode SaveInventoryAndGoldToDB x2, one CommitTransaction); a lost COMMIT is classified by reading the changed money rows afterwards.",
+      "current_order": "Preserve the moved-item link/owner/count/gift guards, merge and full-merge cleanup order, then the changed money rows, as pinned by the adapter test.",
+      "failure_and_unknown_commit": "Preserve definite rollback versus unknown COMMIT; the trade worker applies runtime state only after a committed or reconciled-committed outcome and quarantines both sessions on an indeterminate one."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_trade_adapter",
+      "source": "crates/wow-database/src/player_trade_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free player-trade capability (#38)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One completed trade uses one explicit Character transaction for both participants (C++ HandleAcceptTradeOpcode SaveInventoryAndGoldToDB x2, one CommitTransaction); a lost COMMIT is classified by reading the changed money rows afterwards.",
+      "current_order": "Preserve the moved-item link/owner/count/gift guards, merge and full-merge cleanup order, then the changed money rows, as pinned by the adapter test.",
+      "failure_and_unknown_commit": "Preserve definite rollback versus unknown COMMIT; the trade worker applies runtime state only after a committed or reconciled-committed outcome and quarantines both sessions on an indeterminate one."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_trade_adapter",
+      "source": "crates/wow-database/src/player_trade_adapter.rs",
+      "enclosing": "struct MariaDbPlayerTradePersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free player-trade capability (#38)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One completed trade uses one explicit Character transaction for both participants (C++ HandleAcceptTradeOpcode SaveInventoryAndGoldToDB x2, one CommitTransaction); a lost COMMIT is classified by reading the changed money rows afterwards.",
+      "current_order": "Preserve the moved-item link/owner/count/gift guards, merge and full-merge cleanup order, then the changed money rows, as pinned by the adapter test.",
+      "failure_and_unknown_commit": "Preserve definite rollback versus unknown COMMIT; the trade worker applies runtime state only after a committed or reconciled-committed outcome and quarantines both sessions on an indeterminate one."
+    },
+    {
+      "package": "wow-database",
       "module": "crate::query_holder",
       "source": "crates/wow-database/src/query_holder.rs",
       "enclosing": "fn prepared_result_slot_like_cpp",

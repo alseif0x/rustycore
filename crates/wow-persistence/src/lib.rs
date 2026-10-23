@@ -24,6 +24,7 @@ mod hotfix;
 mod hotfix_delivery_metadata;
 mod instance_lock;
 mod player;
+mod player_trade;
 mod quest;
 mod skill_world_rules;
 mod spell;
@@ -242,6 +243,7 @@ pub use player::{
     PlayerQuestRewardDurableRequestLikeCpp, PlayerQuestRewardMoneyLikeCpp,
     PlayerQuestRewardPersistencePortLikeCpp,
 };
+pub use player_trade::*;
 pub use quest::*;
 pub use quest::{
     CreatureQuestItemPersistenceRowLikeCpp, GameObjectQuestItemPersistenceRowLikeCpp,

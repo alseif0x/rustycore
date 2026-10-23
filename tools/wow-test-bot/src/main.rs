@@ -80,12 +80,24 @@ async fn main() -> Result<()> {
             || cli.loot_item_capture
             || cli.group_capacity_race_smoke
             || cli.quest_smoke
+            || cli.trade.smoke
+            || cli.trade.recover
             || cli.single_account.is_some();
         if conflicting_mode {
             bail!("--recover-loot-fixture must be used alone");
         }
         loot_race::recover_pending_fixture().await?;
         info!("Pending loot fixture recovered and cleanup marker written");
+        return Ok(());
+    }
+    if cli.trade.recover {
+        if cli.trade.smoke || cli.single_account.is_some() || cli.ensure_test_accounts {
+            bail!("--recover-trade-fixture must be used alone");
+        }
+        if !recover_pending_trade_fixture_if_present().await? {
+            bail!("no pending trade fixture record exists at WOW_BOT_FIXTURE_JOURNAL");
+        }
+        info!("Pending trade fixture recovered and cleanup marker written");
         return Ok(());
     }
     let detour_chase_options = if cli.detour_chase_capture {
@@ -141,6 +153,15 @@ async fn main() -> Result<()> {
         bots.retain(|bot| {
             bot.account.eq_ignore_ascii_case(&cli.loot_race_account_a)
                 || bot.account.eq_ignore_ascii_case(&cli.loot_race_account_b)
+        });
+    }
+    if cli.trade.smoke {
+        if cli.single_account.is_some() {
+            bail!("--single is incompatible with --trade-smoke; select the pair with --trade-account-a/-b");
+        }
+        bots.retain(|bot| {
+            bot.account.eq_ignore_ascii_case(&cli.trade.account_a)
+                || bot.account.eq_ignore_ascii_case(&cli.trade.account_b)
         });
     }
     if cli.group_capacity_race_smoke {
@@ -212,7 +233,8 @@ async fn main() -> Result<()> {
         || cli.creature_spell_capture
         || cli.cast_lifecycle
         || cli.group_capacity_race_smoke
-        || cli.equipment_set_race_smoke;
+        || cli.equipment_set_race_smoke
+        || cli.trade.smoke;
     validate_provisioning_mode(guarded_identity_mode, cli.ensure_test_accounts)?;
     let post_login_mode_count = [
         cli.stand_state_smoke,
@@ -233,13 +255,14 @@ async fn main() -> Result<()> {
         cli.loot_item_capture,
         cli.group_capacity_race_smoke,
         cli.quest_smoke,
+        cli.trade.smoke,
     ]
     .into_iter()
     .filter(|enabled| *enabled)
     .count();
     if post_login_mode_count > 1 {
         bail!(
-            "stand-state, bank, void-storage, homebind, inventory-swap, vendor, vendor-sell, movement, equipment-set-race, rested-xp, detour-chase-capture, creature-spell-capture, cast-lifecycle, loot-race, loot-item-capture, group-capacity-race, and quest smoke are separate post-login modes"
+            "stand-state, bank, void-storage, homebind, inventory-swap, vendor, vendor-sell, movement, equipment-set-race, rested-xp, detour-chase-capture, creature-spell-capture, cast-lifecycle, loot-race, loot-item-capture, group-capacity-race, trade, and quest smoke are separate post-login modes"
         );
     }
     if cli.bank_smoke && bots.len() != 1 {
@@ -291,6 +314,7 @@ async fn main() -> Result<()> {
         bail!("vendor smoke requires nonzero fixture identifiers/cost and a seeded currency quantity greater than one purchase cost");
     }
     validate_post_login_smoke_cli(&cli, bots.len())?;
+    cli.trade.validate(&bots)?;
     if cli.equipment_set_race_smoke {
         if bots.len() != 2 {
             bail!("--equipment-set-race-smoke requires exactly its two configured bots");
@@ -338,7 +362,15 @@ async fn main() -> Result<()> {
         &bots,
         &loot_race_cli,
     )?;
-    if loot_mode {
+    if cli.trade.smoke {
+        validate_trade_journal_contract()?;
+        let bots_for_validation = bots.clone();
+        tokio::task::spawn_blocking(move || {
+            validate_exact_loot_bot_identities(&bots_for_validation)
+        })
+        .await
+        .map_err(|e| anyhow!("Trade identity-preflight DB worker join failed: {e}"))??;
+    } else if loot_mode {
         loot_race::validate_journal_contract()?;
         let bots_for_validation = bots.clone();
         tokio::task::spawn_blocking(move || {
@@ -423,6 +455,7 @@ async fn main() -> Result<()> {
         && !cli.loot_race_smoke
         && !cli.loot_item_capture
         && !cli.group_capacity_race_smoke
+        && !cli.trade.smoke
     {
         cleanup_bot_group_state(&bots)?;
     }
@@ -452,6 +485,23 @@ async fn main() -> Result<()> {
             loot_race::run_workflow(
                 bots,
                 loot_race_cli,
+                dungeon_id,
+                timeout_secs,
+                auto_teleport,
+                shutdown,
+            )
+            .await,
+        )
+        .await?;
+        for result in &results {
+            log_bot_summary(result, require_proposal, require_group, cli.login_only);
+        }
+    } else if cli.trade.smoke {
+        let shutdown = install_loot_termination_token()?;
+        results = finish_guarded_trade_result(
+            run_trade_workflow(
+                bots,
+                cli.trade.clone(),
                 dungeon_id,
                 timeout_secs,
                 auto_teleport,

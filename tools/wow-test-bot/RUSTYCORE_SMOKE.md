@@ -406,6 +406,44 @@ position after the routed logout, and the relogin `SMSG_LOGIN_VERIFY_WORLD`
 publishing the same position. Cleanup restores the original position after the
 character is offline.
 
+## Two-session player trade smoke (#38)
+
+```bash
+WOW_BOT_TRADE_SMOKE=1 WOW_BOT_ACK_DISPOSABLE_TRADE=1 \
+WOW_BOT_FIXTURE_JOURNAL="$(mktemp -d)/trade.journal" \
+./run_rustycore_login_smoke.sh
+```
+
+Guarded through the build swap: `./tools/qa-runtime.sh --allow-runtime-qa
+--ack-disposable-trade --world-exec target/release/world-server --report
+/tmp/trade-qa.json trade` (evidence JSON in the printed `rustycore-trade-qa.*`
+directory).
+
+Accounts A/B default to `TESTBOT1@bot.local`/`TESTBOT2@bot.local`
+(`WOW_BOT_TRADE_ACCOUNT_A/B`); both must be offline, alive, same team, and own
+no item of the trade entry (default 2589 Linen Cloth). While both are offline the
+bot writes the recovery journal first, then in one transaction: inserts one
+isolated `item_instance` (guid = MAX+10000) plus a `character_inventory` row in
+A's first free backpack slot (35..50), sets A's money to 10000 and B's to 500,
+and moves B 1.5 yd beside A (A must stand on an open-world continent).
+
+Wire sequence (instance socket, C++ `TradeHandler.cpp`): A `CMSG_INITIATE_TRADE`
+-> B `TRADE_STATUS PROPOSED` (Partner = A) -> B `CMSG_BEGIN_TRADE` -> both
+`INITIATED` -> A `CMSG_SET_TRADE_ITEM(0, 255, slot)` + `CMSG_SET_TRADE_GOLD(3000)`
+-> B `TRADE_UPDATED(WhichPlayer=1)` with the item and gold -> B
+`CMSG_ACCEPT_TRADE(A's CurrentStateIndex)` -> A `ACCEPTED` -> A
+`CMSG_ACCEPT_TRADE(B's index, 1 unless updated)` -> both `COMPLETE`. A trade
+packet on the realm socket, or any other status, fails the run.
+
+The pass requires the characters DB to show the item owned by and inventoried
+under B only, A = 7000 and B = 3500 copper: once while both are still online
+(C++ commits `SaveInventoryAndGoldToDB` before `COMPLETE`), again after the
+routed logout, and again after a clean relog of both. Cleanup always waits for
+both characters to be offline, deletes the item rows and restores both money
+and positions exactly, then marks the journal complete. A journal left by an
+interrupted run is restored with `--recover-trade-fixture` (same
+`WOW_BOT_FIXTURE_JOURNAL`). Report fields: `trade_*`.
+
 ## Rested XP accrual and consumption smoke
 
 Run the complete offline-accrual, kill-consumption, DB-persistence, and relog

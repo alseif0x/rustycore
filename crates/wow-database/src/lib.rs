@@ -52,6 +52,7 @@ pub mod packet_spoof_ban_adapter;
 pub mod params;
 pub mod persistence_trace;
 pub mod player;
+pub mod player_trade_adapter;
 pub mod query_holder;
 pub mod quest;
 pub mod represented_group_persistence_adapter;
@@ -133,6 +134,7 @@ pub use player::{CharacterIdentityCacheEntryLikeCpp, CharacterIdentityCacheLikeC
 pub use player::{
     MariaDbPlayerNameQueryPersistenceAdapterLikeCpp, build_player_name_query_port_like_cpp,
 };
+pub use player_trade_adapter::MariaDbPlayerTradePersistenceAdapterLikeCpp;
 pub use query_holder::{SqlQueryHolder, SqlQueryHolderResult};
 pub use quest::MariaDbQuestCatalogPersistenceAdapterLikeCpp;
 pub use quest::MariaDbQuestItemCatalogPersistenceAdapterLikeCpp;

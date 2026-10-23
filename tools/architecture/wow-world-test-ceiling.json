@@ -45,6 +45,36 @@
    "unit_tests_lines": 233617,
    "unit_tests_tests": 3717,
    "src_tests": 22
+  },
+  {
+   "id": "raise-38-4",
+   "kind": "raise",
+   "issue": 38,
+   "reviewed_at": "2026-10-23",
+   "reason": "#38 slice 3: atomic trade commit tests (items+gold swap in one transaction, rollback, missing space) and the logout-mark clear on a refused re-request",
+   "unit_tests_lines": 233971,
+   "unit_tests_tests": 3722,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-38-5",
+   "kind": "raise",
+   "issue": 38,
+   "reviewed_at": "2026-10-23",
+   "reason": "#38 slice 3: commit tests drive the executor/coordinator pass protocol (no in-pass wait on another session)",
+   "unit_tests_lines": 233979,
+   "unit_tests_tests": 3722,
+   "src_tests": 22
+  },
+  {
+   "id": "raise-38-6",
+   "kind": "raise",
+   "issue": 38,
+   "reviewed_at": "2026-10-23",
+   "reason": "#1480 review: commit tests for the in-bag persisted destination, Unknown COMMIT tracker marking, revoke at the deadline, claim-vs-revoke and coordinator disconnect mid-handover",
+   "unit_tests_lines": 234265,
+   "unit_tests_tests": 3727,
+   "src_tests": 22
   }
  ]
 }

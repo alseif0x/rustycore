@@ -224,6 +224,10 @@ service's own process, installs the candidate through `systemctl`, waits until
 it is serving again, runs this smoke, and attempts to restore the original build on
 normal and trapped exits — including failure, caught interruption and a hung bot. A restore that does
 not come back clean is reported as the run's outcome even when the smoke passed.
+The two-session player-trade smoke (#38) uses the same swap and restore path:
+`./tools/qa-runtime.sh --allow-runtime-qa --ack-disposable-trade --world-exec
+target/release/world-server --report /tmp/trade-qa.json trade` (see
+`RUSTYCORE_SMOKE.md`, "Two-session player trade smoke").
 `./tools/qa-runtime.sh self-test` proves that restore path against fake services;
 `snapshot` prints the live identity without touching anything.
 

@@ -86,10 +86,14 @@ set -euo pipefail
 pwd >"${QA_FAKE_STATE:?}.bot-cwd"
 printf '%s\n' "${WOW_BOT_FIXTURE_JOURNAL:-none}" >"${QA_FAKE_STATE:?}.bot-journal"
 printf '%s\n' "${WOW_BOT_LOOT_RACE_SMOKE:-0}" >"${QA_FAKE_STATE:?}.bot-mode"
+printf '%s %s\n' "${WOW_BOT_TRADE_SMOKE:-0}" "${WOW_BOT_ACK_DISPOSABLE_TRADE:-0}" >"${QA_FAKE_STATE:?}.bot-trade-mode"
 # Some runs leave the fixture mutated; the fixture decides which.
 if [[ "${QA_FAKE_LEAVE_JOURNAL:-0}" == "1" ]]; then : >"${WOW_BOT_FIXTURE_JOURNAL:?}"; fi
 cat "${QA_FAKE_LIVE:?}" >"${QA_FAKE_STATE:?}.bot-saw"
-if [[ -n "${WOW_BOT_REPORT:-}" && "${QA_FAKE_NO_LOGIN_REPORT:-0}" != 1 ]]; then
+if [[ "${WOW_BOT_TRADE_SMOKE:-0}" == 1 && -n "${WOW_BOT_REPORT:-}" && "${QA_FAKE_NO_LOGIN_REPORT:-0}" != 1 ]]; then
+  trade_result='{"trade_smoke_passed":true,"trade_completed":true,"trade_db_verified_online":true,"trade_db_verified_after_logout":true,"trade_relog_verified":true,"trade_db_verified_after_relog":true}'
+  printf '{"trade_smoke":true,"results":[%s,%s]}\n' "$trade_result" "$trade_result" >"$WOW_BOT_REPORT"
+elif [[ -n "${WOW_BOT_REPORT:-}" && "${QA_FAKE_NO_LOGIN_REPORT:-0}" != 1 ]]; then
   printf '{"login_only":true,"results":[{"world_auth":true,"enum_characters":true,"player_login_verified":true,"login_stream_drained":true}]}\n' >"$WOW_BOT_REPORT"
   printf '%s\n' "${WOW_BOT_ENSURE_TEST_ACCOUNTS:-unset}" >"${QA_FAKE_STATE:?}.bot-provisioning"
   printf '%s\n' "${WOW_BOT_EXEC_SHA256:-unset}" >"${QA_FAKE_STATE:?}.bot-sha"
@@ -487,5 +491,52 @@ status=0
 run_qa --allow-runtime-qa --world-exec "$WORK/candidate" --report "$WORK/report.json" login >/dev/null 2>&1 || status=$?
 check "login restore failure takes precedence" test "$status" -eq 70
 check "login report does not hide restore failure" grep -q '"outcome":"restore-failed"' "$WORK/report.json"
+
+# 15. The trade scenario is guarded, swaps under the same restore trap, pins
+# its mode and journal, never touches the world fixture guard, and verifies the
+# bot's trade evidence (#38).
+reset_state
+rm -f "$WORK/state.fixture"
+output="$(run_qa --world-exec "$WORK/candidate" trade 2>&1 || true)"
+check "trade needs runtime authorization" grep -q -- "--allow-runtime-qa" <<<"$output"
+output="$(run_qa --allow-runtime-qa --world-exec "$WORK/candidate" trade 2>&1 || true)"
+check "trade needs its disposable-fixture acknowledgement" grep -q -- "--ack-disposable-trade" <<<"$output"
+output="$(run_qa --allow-runtime-qa --ack-disposable-overworld-loot-race \
+  --world-exec "$WORK/candidate" trade 2>&1 || true)"
+check "the loot acknowledgement does not authorize trade" grep -q -- "--ack-disposable-trade" <<<"$output"
+check "unapproved trade stopped nothing" test ! -f "$WORK/state.log"
+output="$(run_qa --dry-run --allow-runtime-qa --ack-disposable-trade \
+  --world-exec "$WORK/candidate" trade 2>&1)"
+check "trade dry run names its mode" grep -q "WOW_BOT_TRADE_SMOKE=1" <<<"$output"
+check "trade dry run stopped nothing" test ! -f "$WORK/state.log"
+run_qa --allow-runtime-qa --ack-disposable-trade --world-exec "$WORK/candidate" \
+  --report "$WORK/report.json" trade >/dev/null
+check "trade bot saw the candidate" bot_saw_candidate
+check "trade restored the original" live_is_original
+check "trade reports successful restoration" grep -q '"command":"trade","outcome":"passed-restored"' "$WORK/report.json"
+check "trade pinned its mode and acknowledgement" grep -qx '1 1' "$WORK/state.bot-trade-mode"
+check "trade did not run a loot mode" grep -qx 0 "$WORK/state.bot-mode"
+check "trade used a fresh journal under the journal directory" \
+  grep -q "^$WORK/journals/trade-" "$WORK/state.bot-journal"
+check "trade never touched the world fixture guard" test ! -f "$WORK/state.fixture"
+reset_state
+status=0
+output="$(QA_FAKE_LEAVE_JOURNAL=1 run_qa --allow-runtime-qa --ack-disposable-trade \
+  --world-exec "$WORK/candidate" trade 2>&1)" || status=$?
+check "a surviving trade journal fails the run" test "$status" -eq 75
+check "a surviving trade journal names its recovery" grep -q -- "--recover-trade-fixture" <<<"$output"
+check "a surviving trade journal still restores the build" live_is_original
+reset_state
+status=0
+QA_FAKE_BOT_STATUS=4 run_qa --allow-runtime-qa --ack-disposable-trade \
+  --world-exec "$WORK/candidate" trade >/dev/null 2>&1 || status=$?
+check "trade propagates bot failure" test "$status" -eq 4
+check "failed trade restores" live_is_original
+reset_state
+status=0
+QA_FAKE_NO_LOGIN_REPORT=1 run_qa --allow-runtime-qa --ack-disposable-trade \
+  --world-exec "$WORK/candidate" trade >/dev/null 2>&1 || status=$?
+check "trade refuses missing evidence despite zero exit" test "$status" -eq 65
+check "missing trade evidence still restores" live_is_original
 
 printf 'qa-runtime self-test: PASS (%d checks)\n' "$PASSED"

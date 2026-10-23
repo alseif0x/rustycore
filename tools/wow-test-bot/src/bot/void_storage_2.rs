@@ -168,6 +168,7 @@ pub(crate) async fn run_bot_with_void_storage(
         vendor_failure: None,
         vendor_sell: VendorSellEvidence::for_options(post_login_smoke.as_ref()),
         movement: MovementSmokeEvidence::for_options(post_login_smoke.as_ref()),
+        trade: TradeSmokeEvidence::for_options(post_login_smoke.as_ref()),
         equipment_set_smoke: equipment_set_options.is_some(),
         equipment_set_smoke_passed: None,
         equipment_set_type: equipment_set_options

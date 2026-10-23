@@ -16,6 +16,7 @@ pub(crate) const SMSG_LOGIN_VERIFY_WORLD: u16 = 0x2597;
 pub(crate) enum PostLoginSmokeOptions {
     VendorSell(VendorSellOptions),
     Movement(MovementSmokeOptions),
+    Trade(TradeSmokeOptions),
 }
 
 /// `SMSG_LOGIN_VERIFY_WORLD` body: `int32 MapID`, `TaggedPosition<XYZO> Pos`
@@ -280,6 +281,20 @@ pub(crate) async fn run_post_login_smoke_phase(
             )
             .await
         }
+        PostLoginSmokeOptions::Trade(options) => {
+            run_trade_smoke_phase(
+                bot_index,
+                bot,
+                stream,
+                crypt,
+                server_inflater,
+                realm_connection,
+                options,
+                &mut logged_out,
+                result,
+            )
+            .await
+        }
     };
     let Err(error) = outcome else {
         return;
@@ -310,6 +325,10 @@ pub(crate) async fn run_post_login_smoke_phase(
         PostLoginSmokeOptions::Movement(_) => {
             result.movement.movement_failure = Some(failure);
             result.movement.movement_smoke_passed = Some(false);
+        }
+        PostLoginSmokeOptions::Trade(_) => {
+            result.trade.trade_failure = Some(failure);
+            result.trade.trade_smoke_passed = Some(false);
         }
     }
 }
@@ -377,6 +396,9 @@ pub(crate) fn append_failure(slot: &mut Option<String>, failure: String) {
 
 /// One-line human summary for `run_report::log_bot_summary`.
 pub(crate) fn post_login_smoke_summary(result: &BotRunResult) -> Option<String> {
+    if let Some(summary) = trade_smoke_summary(result) {
+        return Some(summary);
+    }
     if result.vendor_sell.vendor_sell_smoke {
         let evidence = &result.vendor_sell;
         return Some(format!(
