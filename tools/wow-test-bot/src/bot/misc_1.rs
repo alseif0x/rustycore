@@ -328,6 +328,8 @@ pub(crate) struct BotRunResult {
     pub(crate) vendor_sell: VendorSellEvidence,
     #[serde(flatten)]
     pub(crate) movement: MovementSmokeEvidence,
+    #[serde(flatten)]
+    pub(crate) trade: TradeSmokeEvidence,
     pub(crate) equipment_set_smoke: bool,
     pub(crate) equipment_set_smoke_passed: Option<bool>,
     pub(crate) equipment_set_type: Option<i32>,
@@ -554,6 +556,12 @@ impl BotRunResult {
                 && self.player_login_verified
                 && self.movement.passed();
         }
+        if self.trade.trade_smoke {
+            return self.world_auth
+                && self.enum_characters
+                && self.player_login_verified
+                && self.trade.passed();
+        }
         if self.equipment_set_smoke {
             return self.world_auth
                 && self.enum_characters
@@ -652,6 +660,7 @@ pub(crate) struct RunReport {
     pub(crate) vendor_smoke: bool,
     pub(crate) vendor_sell_smoke: bool,
     pub(crate) movement_smoke: bool,
+    pub(crate) trade_smoke: bool,
     pub(crate) equipment_set_race_smoke: bool,
     pub(crate) rested_xp_smoke: bool,
     pub(crate) detour_chase_capture: bool,
@@ -769,7 +778,7 @@ pub(crate) struct BankSmokeOptions {
     pub(crate) bank_slot: u8,
     pub(crate) timeout_secs: u64,
 }
-#[derive(Debug, Clone, Copy, Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, serde::Deserialize)]
 pub(crate) struct CharacterPositionSnapshot {
     pub(crate) map_id: u32,
     pub(crate) zone_id: u32,

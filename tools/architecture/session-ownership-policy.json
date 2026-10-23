@@ -1636,6 +1636,12 @@
         },
         {
           "module": "crate::session",
+          "trait_path": "wow_world_social :: TradeCommitHostLikeCpp",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
           "trait_path": "wow_world_spell :: AuraHostLikeCpp",
           "cfg": [],
           "source_class": "production"
@@ -7698,6 +7704,22 @@
           "name": "handle_commerce_token_get_log",
           "visibility": "pub (crate)",
           "signature": "async fn handle_commerce_token_get_log (& mut self , mut pkt : wow_packet :: WorldPacket ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::economy::trade::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "continue_pending_trade_commit_for_test_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn continue_pending_trade_commit_for_test_like_cpp (& mut self)",
           "cfg": [
             "cfg (test)"
           ],
@@ -38982,6 +39004,19 @@
         },
         {
           "module": "crate::session",
+          "trait_path": "TradeHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "trade_item_guid_generator_like_cpp",
+          "visibility": "private",
+          "signature": "fn trade_item_guid_generator_like_cpp (& self , catalogs : & SessionHandlerCatalogsLikeCpp ,) -> std :: sync :: Arc < wow_core :: ObjectGuidGenerator >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
           "trait_path": "TravelHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
           "name": "handle_activate_taxi",
@@ -39769,6 +39804,84 @@
           "name": "sync_player_save_registry_state_like_cpp",
           "visibility": "private",
           "signature": "fn sync_player_save_registry_state_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_social :: TradeCommitHostLikeCpp",
+          "kind": "method",
+          "name": "begin_trade_money_fence_like_cpp",
+          "visibility": "private",
+          "signature": "fn begin_trade_money_fence_like_cpp (& mut self ,) -> wow_world_social :: TradeHostFutureLikeCpp < '_ , Option < wow_world_social :: TradeFenceLikeCpp > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_social :: TradeCommitHostLikeCpp",
+          "kind": "method",
+          "name": "player_trade_persistence_port_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_trade_persistence_port_like_cpp (& self ,) -> Option < std :: sync :: Arc < dyn wow_persistence :: PlayerTradePersistencePortLikeCpp > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_social :: TradeCommitHostLikeCpp",
+          "kind": "method",
+          "name": "publish_trade_side_like_cpp",
+          "visibility": "private",
+          "signature": "fn publish_trade_side_like_cpp (& mut self , side : wow_world_core :: session :: mailbox :: TradeSidePublicationLikeCpp , item_guid_generator : std :: sync :: Arc < wow_core :: ObjectGuidGenerator > ,) -> wow_world_social :: TradeHostFutureLikeCpp < '_ , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_social :: TradeCommitHostLikeCpp",
+          "kind": "method",
+          "name": "quarantine_trade_like_cpp",
+          "visibility": "private",
+          "signature": "fn quarantine_trade_like_cpp (& mut self , reason : & str)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_social :: TradeCommitHostLikeCpp",
+          "kind": "method",
+          "name": "trade_commit_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn trade_commit_cx_like_cpp (& mut self) -> TradeHandlerCxLikeCpp < '_ >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_social :: TradeCommitHostLikeCpp",
+          "kind": "method",
+          "name": "trade_money_tracker_like_cpp",
+          "visibility": "private",
+          "signature": "fn trade_money_tracker_like_cpp (& self ,) -> std :: sync :: Arc < wow_world_core :: loot_persistence :: DurableLootMoneyPersistenceTrackerLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -44293,6 +44406,21 @@
           "self_type": "SessionCore",
           "trait_path": null,
           "kind": "method",
+          "name": "trade_commit_target_like_cpp",
+          "visibility": "pub",
+          "signature": "fn trade_commit_target_like_cpp (& self) -> Option < TradeCommitTargetLikeCpp >",
+          "cfg": [],
+          "availability": {
+            "production": true,
+            "test": true
+          }
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::canonical_access::trade_pair",
+          "self_type": "SessionCore",
+          "trait_path": null,
+          "kind": "method",
           "name": "with_trade_pair_like_cpp",
           "visibility": "pub",
           "signature": "fn with_trade_pair_like_cpp < R > (& self , f : impl FnOnce (& mut TradePairAccessLikeCpp < '_ >) -> R ,) -> Option < R >",
@@ -47844,6 +47972,21 @@
           "source_class": "production"
         },
         {
+          "name": "TradeCommitLikeCpp",
+          "fields": [
+            {
+              "name": "0",
+              "type": "super :: TradeCommitRequestLikeCpp",
+              "visibility": "private",
+              "cfg": [],
+              "source_class": "production"
+            }
+          ],
+          "discriminant": null,
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "name": "UnacceptRepresentedTradeLikeCpp",
           "fields": [
             {
@@ -50159,6 +50302,191 @@
         ],
         "variants": [],
         "alias": null
+      },
+      {
+        "definition": {
+          "module": "crate::session::mailbox::trade_commit",
+          "name": "TradeCommitParkedLikeCpp",
+          "visibility": "pub",
+          "cfg": [],
+          "source_class": "production"
+        },
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "money_fence",
+            "type": "Box < dyn std :: any :: Any + Send >",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "money_tracker",
+            "type": "Arc < crate :: loot_persistence :: DurableLootMoneyPersistenceTrackerLikeCpp >",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "outcome_tx",
+            "type": "tokio :: sync :: oneshot :: Sender < TradeSideOutcomeLikeCpp >",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "snapshot",
+            "type": "Box < dyn std :: any :: Any + Send >",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          }
+        ],
+        "variants": [],
+        "alias": null
+      },
+      {
+        "definition": {
+          "module": "crate::session::mailbox::trade_commit",
+          "name": "TradeCommitRequestLikeCpp",
+          "visibility": "pub",
+          "cfg": [],
+          "source_class": "production"
+        },
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "coordinator",
+            "type": "ObjectGuid",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "handover",
+            "type": "Arc < Mutex < Option < TradeCommitParkedLikeCpp > > >",
+            "visibility": "private",
+            "cfg": [],
+            "source_class": "production"
+          }
+        ],
+        "variants": [],
+        "alias": null
+      },
+      {
+        "definition": {
+          "module": "crate::session::mailbox::trade_commit",
+          "name": "TradeSideOutcomeLikeCpp",
+          "visibility": "pub",
+          "cfg": [],
+          "source_class": "production"
+        },
+        "kind": "enum",
+        "fields": [],
+        "variants": [
+          {
+            "name": "Aborted",
+            "fields": [
+              {
+                "name": "packets",
+                "type": "Vec < Vec < u8 > >",
+                "visibility": "private",
+                "cfg": [],
+                "source_class": "production"
+              }
+            ],
+            "discriminant": null,
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "Committed",
+            "fields": [
+              {
+                "name": "0",
+                "type": "TradeSidePublicationLikeCpp",
+                "visibility": "private",
+                "cfg": [],
+                "source_class": "production"
+              }
+            ],
+            "discriminant": null,
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "Unknown",
+            "fields": [
+              {
+                "name": "reason",
+                "type": "String",
+                "visibility": "private",
+                "cfg": [],
+                "source_class": "production"
+              }
+            ],
+            "discriminant": null,
+            "cfg": [],
+            "source_class": "production"
+          }
+        ],
+        "alias": null
+      },
+      {
+        "definition": {
+          "module": "crate::session::mailbox::trade_commit",
+          "name": "TradeSidePublicationLikeCpp",
+          "visibility": "pub",
+          "cfg": [],
+          "source_class": "production"
+        },
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "complete_packet",
+            "type": "Vec < u8 >",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "merged",
+            "type": "Vec < (ObjectGuid , u32) >",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "money_after",
+            "type": "u64",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "money_before",
+            "type": "u64",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "removed",
+            "type": "Vec < (ObjectGuid , u8 , u8) >",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "stored",
+            "type": "Vec < Item >",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          }
+        ],
+        "variants": [],
+        "alias": null
       }
     ],
     "generated_surface_inputs": [
@@ -50239,6 +50567,14 @@
       {
         "module": "crate::session",
         "target": "WorldSession::session_phase_sender_like_cpp",
+        "kind": "attribute",
+        "fingerprint": "must_use",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session::canonical_access::trade_pair",
+        "target": "SessionCore::trade_commit_target_like_cpp",
         "kind": "attribute",
         "fingerprint": "must_use",
         "cfg": [],
@@ -50601,6 +50937,30 @@
         "target": "WorldSessionShutdownFlushResultLikeCpp",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug , PartialEq , Eq)",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session::mailbox::trade_commit",
+        "target": "TradeCommitRequestLikeCpp",
+        "kind": "derive",
+        "fingerprint": "derive (Clone)",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session::mailbox::trade_commit",
+        "target": "TradeSideOutcomeLikeCpp",
+        "kind": "derive",
+        "fingerprint": "derive (Debug , Clone , PartialEq)",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session::mailbox::trade_commit",
+        "target": "TradeSidePublicationLikeCpp",
+        "kind": "derive",
+        "fingerprint": "derive (Debug , Clone , PartialEq)",
         "cfg": [],
         "source_class": "production"
       },

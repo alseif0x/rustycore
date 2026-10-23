@@ -113,6 +113,7 @@ rested_xp_timeout_secs="${WOW_BOT_RESTED_XP_TIMEOUT_SECS:-120}"
 rested_xp_offline_secs="${WOW_BOT_RESTED_XP_OFFLINE_SECS:-86400}"
 detour_chase_timeout_secs="${WOW_BOT_DETOUR_CHASE_TIMEOUT_SECS:-30}"
 loot_race_timeout_secs="${WOW_BOT_LOOT_RACE_TIMEOUT_SECS:-30}"
+trade_timeout_secs="${WOW_BOT_TRADE_TIMEOUT_SECS:-30}"
 ensure_accounts="${WOW_BOT_ENSURE_TEST_ACCOUNTS:-1}"
 
 export BNET_HOST="${BNET_HOST:-127.0.0.1}"
@@ -193,6 +194,18 @@ loot_race_acknowledged=0
 if [[ "${WOW_BOT_ACK_DISPOSABLE_OVERWORLD_LOOT_RACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
   loot_race_acknowledged=1
 fi
+trade_requested=0
+if [[ "${WOW_BOT_TRADE_SMOKE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  trade_requested=1
+fi
+trade_acknowledged=0
+if [[ "${WOW_BOT_ACK_DISPOSABLE_TRADE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  trade_acknowledged=1
+fi
+if ((trade_acknowledged && !trade_requested)); then
+  echo "WOW_BOT_ACK_DISPOSABLE_TRADE is only valid with WOW_BOT_TRADE_SMOKE" >&2
+  exit 2
+fi
 if ((rested_xp_acknowledged && !rested_xp_requested)); then
   echo "WOW_BOT_ACK_DISPOSABLE_RESTED_XP is only valid with WOW_BOT_RESTED_XP_SMOKE" >&2
   exit 2
@@ -205,13 +218,17 @@ if ((loot_race_acknowledged && !loot_race_requested && !loot_item_capture_reques
   echo "WOW_BOT_ACK_DISPOSABLE_OVERWORLD_LOOT_RACE is only valid with WOW_BOT_LOOT_RACE_SMOKE or WOW_BOT_LOOT_ITEM_CAPTURE" >&2
   exit 2
 fi
-if ((stand_state_requested + quest_requested + bank_requested + void_storage_requested + void_storage_query_capture_requested + homebind_requested + inventory_swap_requested + vendor_requested + vendor_sell_requested + movement_requested + rested_xp_requested + detour_chase_requested + loot_race_requested + loot_item_capture_requested > 1)); then
-  echo "Stand-state, quest, bank, void-storage, void-storage-query-capture, homebind, inventory-swap, vendor, vendor-sell, movement, rested-XP, detour-chase-capture, loot-race, and loot-item-capture are separate modes" >&2
+if ((stand_state_requested + quest_requested + bank_requested + void_storage_requested + void_storage_query_capture_requested + homebind_requested + inventory_swap_requested + vendor_requested + vendor_sell_requested + movement_requested + rested_xp_requested + detour_chase_requested + loot_race_requested + loot_item_capture_requested + trade_requested > 1)); then
+  echo "Stand-state, quest, bank, void-storage, void-storage-query-capture, homebind, inventory-swap, vendor, vendor-sell, movement, rested-XP, detour-chase-capture, loot-race, loot-item-capture, and trade are separate modes" >&2
   exit 2
 fi
 if ((loot_race_requested || loot_item_capture_requested)) \
     && ((!loot_race_acknowledged)); then
   echo "Loot fixture modes require WOW_BOT_ACK_DISPOSABLE_OVERWORLD_LOOT_RACE=1" >&2
+  exit 2
+fi
+if ((trade_requested && !trade_acknowledged)); then
+  echo "Trade smoke mutates two disposable characters and requires WOW_BOT_ACK_DISPOSABLE_TRADE=1" >&2
   exit 2
 fi
 
@@ -227,8 +244,8 @@ if ((detour_chase_requested)); then
   export WOW_BOT_ENSURE_TEST_ACCOUNTS=0
 fi
 
-if ((loot_race_requested || loot_item_capture_requested)); then
-  # Loot fixtures require pre-provisioned, already-owned disposable identities.
+if ((loot_race_requested || loot_item_capture_requested || trade_requested)); then
+  # Loot and trade fixtures require pre-provisioned, already-owned disposable identities.
   # Never let the generic local bootstrap overwrite an existing numeric account
   # id or reassign a configured character before the fixture contract validates.
   ensure_accounts=0
@@ -236,7 +253,7 @@ if ((loot_race_requested || loot_item_capture_requested)); then
   fixture_journal="${WOW_BOT_FIXTURE_JOURNAL:-}"
   if [[ -z "$fixture_journal" || "$fixture_journal" != /* \
       || "$fixture_journal" == *$'\n'* ]]; then
-    echo "Loot fixture modes require an absolute WOW_BOT_FIXTURE_JOURNAL path" >&2
+    echo "Loot and trade fixture modes require an absolute WOW_BOT_FIXTURE_JOURNAL path" >&2
     exit 2
   fi
   if [[ ! -d "$(dirname -- "$fixture_journal")" ]]; then
@@ -267,6 +284,17 @@ if ((detour_chase_requested)); then
     --ack-disposable-detour-fixture
     --detour-fixture-manifest "$detour_fixture_manifest"
     --detour-chase-timeout "$detour_chase_timeout_secs"
+  )
+elif ((trade_requested)); then
+  report_path="${WOW_BOT_REPORT:-/tmp/rustycore-bot-trade-smoke-report.json}"
+  log_path="${WOW_BOT_LOG:-/tmp/rustycore-bot-trade-smoke.log}"
+  mode_args=(
+    --trade-smoke
+    --ack-disposable-trade
+    --trade-account-a "${WOW_BOT_TRADE_ACCOUNT_A:-TESTBOT2@bot.local}"
+    --trade-account-b "${WOW_BOT_TRADE_ACCOUNT_B:-TESTBOT3@bot.local}"
+    --trade-item-entry "${WOW_BOT_TRADE_ITEM_ENTRY:-2589}"
+    --trade-timeout "$trade_timeout_secs"
   )
 elif ((loot_item_capture_requested)); then
   if ((!loot_race_acknowledged)); then
@@ -518,6 +546,10 @@ if ((loot_race_requested || loot_item_capture_requested)); then
     smoke_subject="TESTBOT2@bot.local and TESTBOT3@bot.local"
   fi
 fi
+if ((trade_requested)); then
+  selection_args=()
+  smoke_subject="${WOW_BOT_TRADE_ACCOUNT_A:-TESTBOT1@bot.local} and ${WOW_BOT_TRADE_ACCOUNT_B:-TESTBOT2@bot.local} (trade)"
+fi
 
 bot_command=(
   "$bot_exec"
@@ -534,7 +566,7 @@ if ((RC_CALLER_XTRACE)); then
   set -x
 fi
 
-if ((loot_race_requested || loot_item_capture_requested)); then
+if ((loot_race_requested || loot_item_capture_requested || trade_requested)); then
   # Preserve PID ownership across the shell boundary. TERM/INT reaches the
   # Rust handler installed before fixture mutation, and SIGKILL cannot leave a
   # detached bot child continuing to mutate the durable fixture.

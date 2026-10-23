@@ -51,6 +51,19 @@ impl SessionLifecycleState {
         self.persistence_ports_like_cpp.player.vendor_trade.clone()
     }
 
+    pub fn set_player_trade_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::PlayerTradePersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.player.player_trade = Some(port);
+    }
+
+    pub fn player_trade_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::PlayerTradePersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp.player.player_trade.clone()
+    }
+
     pub fn set_player_inventory_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::PlayerInventoryPersistencePortLikeCpp>,

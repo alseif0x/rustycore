@@ -41,6 +41,8 @@ mod spell_runtime;
 mod talent_runtime;
 mod taxi_state;
 mod trade;
+mod trade_transfer;
+pub use trade_transfer::TradeTakenItemLikeCpp;
 mod vehicle;
 mod world_local;
 pub use battleground::PlayerBattlegroundState;

@@ -134,6 +134,9 @@ pub async fn handle_logout_request_with_generator_like_cpp<H: CharacterLoginHost
 
     if reason.is_some() {
         host.lifecycle_mut().clear_logout_time();
+        if !host.lifecycle_mut().player_logout_like_cpp() {
+            host.core().mark_player_logging_out_like_cpp(false);
+        }
         return;
     }
 

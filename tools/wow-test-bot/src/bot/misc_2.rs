@@ -712,6 +712,27 @@ pub(crate) fn print_help() {
     );
     println!("                           Env: WOW_BOT_MOVEMENT_SMOKE");
     println!(
+        "  --trade-smoke            Two sessions: A offers an isolated item + gold, B accepts, verify DB/relog, restore"
+    );
+    println!(
+        "  --ack-disposable-trade   Required with --trade-smoke (mutates two disposable characters; needs WOW_BOT_FIXTURE_JOURNAL)"
+    );
+    println!(
+        "  --trade-account-a/-b <account>  Initiator/receiver (default TESTBOT2@bot.local / TESTBOT3@bot.local, same faction)"
+    );
+    println!(
+        "  --trade-item-entry <id> --trade-gold <copper> --trade-money-a <copper> --trade-money-b <copper>"
+    );
+    println!(
+        "                           Defaults: 2589 Linen Cloth, 3000, 10000, 500; --trade-timeout <secs> (30)"
+    );
+    println!(
+        "  --recover-trade-fixture  Restore a pending trade fixture record (WOW_BOT_FIXTURE_JOURNAL) and exit"
+    );
+    println!(
+        "                           Env: WOW_BOT_TRADE_SMOKE, WOW_BOT_ACK_DISPOSABLE_TRADE, WOW_BOT_TRADE_ACCOUNT_A/B, WOW_BOT_TRADE_ITEM_ENTRY, WOW_BOT_TRADE_TIMEOUT_SECS, WOW_BOT_TRADE_BAG_DESTINATION"
+    );
+    println!(
         "  --equipment-set-race-smoke  Concurrently save equipment/transmog sets, logout, relog, and verify shared GUID persistence"
     );
     println!(

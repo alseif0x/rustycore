@@ -15,20 +15,10 @@ impl Player {
 
     /// C++ `TradeData::GetItem` → `Player::GetItemByGuid`
     /// (`ItemSearchLocation::Everywhere`: equipment, bags, bank, reagent bank;
-    /// never buyback).
+    /// never buyback). The inventory runtime is the position authority: its
+    /// top-level records, plus item objects contained in a top-level bag.
     pub fn trade_item_by_guid_like_cpp(&self, item_guid: ObjectGuid) -> Option<&crate::Item> {
-        let mut found = false;
-        self.for_each_item_guid(crate::ItemSearchLocation::EVERYWHERE, |guid| {
-            if guid == item_guid {
-                found = true;
-                crate::ItemSearchCallbackResult::Stop
-            } else {
-                crate::ItemSearchCallbackResult::Continue
-            }
-        });
-        if !found {
-            return None;
-        }
+        self.trade_item_position_like_cpp(item_guid)?;
         self.inventory_runtime_like_cpp()
             .item_objects()
             .get(&item_guid)

@@ -34,6 +34,7 @@ mod state;
 mod test_support;
 mod text_emote;
 mod trade;
+mod trade_commit;
 mod trade_content_handlers;
 pub mod trade_contents;
 mod trade_handlers;
@@ -119,6 +120,15 @@ pub use state::SessionSocialLimits;
 pub use text_emote::{
     ANIM_MOUNT_SPECIAL_LIKE_CPP, EMOTE_STATE_DANCE_LIKE_CPP, EMOTE_STATE_SIT_LIKE_CPP,
     handle_text_emote_with_catalogs_like_cpp,
+};
+pub use trade_commit::{
+    PendingTradeCommitLikeCpp, TradeCommitHostLikeCpp, TradeFenceLikeCpp, TradeHostFutureLikeCpp,
+    accept_trade_like_cpp, continue_pending_trade_commit_like_cpp, park_for_trade_commit_like_cpp,
+    trade_commit_pending_like_cpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use trade_commit::{
+    drop_pending_trade_commit_for_test_like_cpp, expire_pending_trade_commit_for_test_like_cpp,
 };
 pub use trade_handlers::{
     TradeHandlerCxLikeCpp, TradeHandlerHostLikeCpp, register_trade_handlers_like_cpp,

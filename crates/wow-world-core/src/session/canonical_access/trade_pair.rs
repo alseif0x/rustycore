@@ -95,6 +95,62 @@ impl TradePairAccessLikeCpp<'_> {
     }
 }
 
+fn lock_trade_pair_like_cpp<R>(
+    manager: &crate::session::SharedCanonicalMapManager,
+    own: wow_map::PlayerHandle,
+    partner_guid: Option<ObjectGuid>,
+    f: impl FnOnce(&mut TradePairAccessLikeCpp<'_>) -> R,
+) -> Option<R> {
+    let mut manager = manager.lock().ok()?;
+    let partner_guid = match partner_guid {
+        Some(guid) => guid,
+        None => {
+            manager
+                .with_player_like_cpp(own, |player| player.trade_state_snapshot_like_cpp())??
+                .partner_guid
+        }
+    };
+    let mut partner_key = None;
+    manager.do_for_all_maps(|managed| {
+        if partner_key.is_none()
+            && managed
+                .map()
+                .get_typed_player(partner_guid)
+                .is_some_and(|player| player.unit().world().object().is_in_world())
+        {
+            partner_key = Some((managed.map_id(), managed.instance_id()));
+        }
+    });
+    let mut access = TradePairAccessLikeCpp {
+        manager: &mut manager,
+        own,
+        partner_guid,
+        partner_key,
+    };
+    Some(f(&mut access))
+}
+
+/// An owned address of this session's canonical Player for work that
+/// outlives the session borrow: the trade commit worker changes both
+/// Players after its COMMIT even when the accepting handler was dropped.
+#[derive(Clone)]
+pub struct TradeCommitTargetLikeCpp {
+    manager: crate::session::SharedCanonicalMapManager,
+    own: wow_map::PlayerHandle,
+}
+
+impl TradeCommitTargetLikeCpp {
+    /// Both Players under one lock, the partner named explicitly (its
+    /// `m_trade` may already be gone).
+    pub fn with_pair_like_cpp<R>(
+        &self,
+        partner_guid: ObjectGuid,
+        f: impl FnOnce(&mut TradePairAccessLikeCpp<'_>) -> R,
+    ) -> Option<R> {
+        lock_trade_pair_like_cpp(&self.manager, self.own, Some(partner_guid), f)
+    }
+}
+
 impl SessionCore {
     /// Mirror C++ `WorldSession::isLogingOut` onto this session's Player for
     /// trade admission (`HandleInitiateTradeOpcode` reads it through
@@ -114,27 +170,14 @@ impl SessionCore {
         f: impl FnOnce(&mut TradePairAccessLikeCpp<'_>) -> R,
     ) -> Option<R> {
         let own = self.player_handle_like_cpp?;
-        let mut manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
-        let partner_guid = manager
-            .with_player_like_cpp(own, |player| player.trade_state_snapshot_like_cpp())??
-            .partner_guid;
-        let mut partner_key = None;
-        manager.do_for_all_maps(|managed| {
-            if partner_key.is_none()
-                && managed
-                    .map()
-                    .get_typed_player(partner_guid)
-                    .is_some_and(|player| player.unit().world().object().is_in_world())
-            {
-                partner_key = Some((managed.map_id(), managed.instance_id()));
-            }
-        });
-        let mut access = TradePairAccessLikeCpp {
-            manager: &mut manager,
-            own,
-            partner_guid,
-            partner_key,
-        };
-        Some(f(&mut access))
+        lock_trade_pair_like_cpp(self.canonical_map_manager.as_ref()?, own, None, f)
+    }
+
+    #[must_use]
+    pub fn trade_commit_target_like_cpp(&self) -> Option<TradeCommitTargetLikeCpp> {
+        Some(TradeCommitTargetLikeCpp {
+            manager: std::sync::Arc::clone(self.canonical_map_manager.as_ref()?),
+            own: self.player_handle_like_cpp?,
+        })
     }
 }

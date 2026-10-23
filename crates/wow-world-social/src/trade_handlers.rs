@@ -450,22 +450,6 @@ impl<'a> TradeHandlerCxLikeCpp<'a> {
         self.cancel_represented_trade_like_cpp(status, true);
     }
 
-    /// CMSG_ACCEPT_TRADE.
-    pub async fn handle_accept_trade(&mut self, pkt: WorldPacket) {
-        let mut pkt = pkt;
-        let packet = match AcceptTrade::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.hub.shared().core.account_id,
-                    "AcceptTrade parse failed: {error}"
-                );
-                return;
-            }
-        };
-        self.accept_represented_trade_like_cpp(packet.state_index);
-    }
-
     /// CMSG_CLEAR_TRADE_ITEM.
     pub async fn handle_clear_trade_item(&mut self, pkt: WorldPacket) {
         let mut pkt = pkt;
@@ -770,8 +754,15 @@ fn duel_countdown_ms_like_cpp() -> u32 {
 }
 
 /// Builds a trade handler context from a host's social and inventory state.
-pub trait TradeHandlerHostLikeCpp<C> {
+/// A trade host also lends the exchange capabilities `AcceptTrade` needs.
+pub trait TradeHandlerHostLikeCpp<C>: crate::TradeCommitHostLikeCpp {
     fn trade_handler_cx_like_cpp<'a>(&'a mut self, catalogs: &'a C) -> TradeHandlerCxLikeCpp<'a>;
+
+    /// The item GUID generator the money criteria drain needs after a trade.
+    fn trade_item_guid_generator_like_cpp(
+        &self,
+        catalogs: &C,
+    ) -> std::sync::Arc<wow_core::ObjectGuidGenerator>;
 }
 
 fn initiate_trade_thunk<'a, S, C>(
@@ -818,10 +809,16 @@ where
     C: Sync,
 {
     Box::pin(async move {
-        session
-            .trade_handler_cx_like_cpp(catalogs)
-            .handle_accept_trade(pkt)
-            .await;
+        let mut pkt = pkt;
+        let packet = match AcceptTrade::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!("AcceptTrade parse failed: {error}");
+                return;
+            }
+        };
+        let item_guid_generator = session.trade_item_guid_generator_like_cpp(catalogs);
+        crate::accept_trade_like_cpp(session, packet.state_index, item_guid_generator).await;
     })
 }
 

@@ -207,6 +207,14 @@ impl WorldSession {
             SessionCommand::UnacceptRepresentedTradeLikeCpp(command) => {
                 self.handle_unaccept_represented_trade_command_like_cpp(command);
             }
+            SessionCommand::TradeCommitLikeCpp(request) => {
+                wow_world_social::park_for_trade_commit_like_cpp(
+                    self,
+                    request,
+                    std::sync::Arc::clone(&catalogs.id_generators.item),
+                )
+                .await;
+            }
             SessionCommand::SendRepresentedDuelCountdownLikeCpp(command) => {
                 self.send_raw_packet(&command.packet_bytes);
             }

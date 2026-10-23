@@ -73,7 +73,7 @@ pub use registry_hydration::{
     KnownSpellsFixtureSourceLikeCpp, PlayerQuestGameplayFixtureSourceLikeCpp,
 };
 pub use spell_acquisition::OwnedSpellAcquisitionAccessLikeCpp;
-pub use trade_pair::{TradePairAccessLikeCpp, TradeSideLikeCpp};
+pub use trade_pair::{TradeCommitTargetLikeCpp, TradePairAccessLikeCpp, TradeSideLikeCpp};
 pub use trainer_interaction::TrainerInteractionRoleAccessLikeCpp;
 pub use trainer_npc::NpcInteractionAccessLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]

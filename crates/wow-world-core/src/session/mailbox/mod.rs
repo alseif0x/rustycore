@@ -5,6 +5,7 @@ mod protocol;
 mod pump;
 mod session_phase_permit;
 mod session_phase_rail;
+mod trade_commit;
 
 pub use self::durable::{
     DurableCreatureRuntimeCommandsLikeCpp, MAX_DURABLE_CREATURE_RUNTIME_COMMANDS_LIKE_CPP,
@@ -43,6 +44,10 @@ pub use self::session_phase_rail::{
     MapPhaseAdmissionLikeCpp, PendingWorldPhaseFinalizationLikeCpp, RunMapPhasePassLikeCppCommand,
     RunMapPhasePassResultLikeCpp, RunWorldPhasePassLikeCppRequest, RunWorldPhasePassResultLikeCpp,
     SessionPhasePassOutcomeLikeCpp, SessionPhaseRequestLikeCpp,
+};
+pub use self::trade_commit::{
+    TradeCommitParkedLikeCpp, TradeCommitRequestLikeCpp, TradeSideOutcomeLikeCpp,
+    TradeSidePublicationLikeCpp,
 };
 
 #[cfg(test)]

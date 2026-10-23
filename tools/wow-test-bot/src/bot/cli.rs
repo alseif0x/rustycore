@@ -110,6 +110,7 @@ pub(crate) struct CliOptions {
     pub(crate) expect_trainer_id: Option<i32>,
     pub(crate) quest_timeout_secs: u64,
     pub(crate) report_path: Option<String>,
+    pub(crate) trade: TradeSmokeCli,
 }
 pub(crate) fn parse_cli() -> Result<CliOptions> {
     let stand_state = std::env::var("WOW_BOT_STAND_STATE")
@@ -503,6 +504,7 @@ pub(crate) fn parse_cli() -> Result<CliOptions> {
             .and_then(|s| s.parse().ok())
             .unwrap_or(5),
         report_path: std::env::var("WOW_BOT_REPORT").ok(),
+        trade: TradeSmokeCli::from_env()?,
     };
 
     let raw_args: Vec<String> = std::env::args().skip(1).collect();
@@ -801,6 +803,7 @@ pub(crate) fn parse_cli() -> Result<CliOptions> {
                 opts.quest_timeout_secs = next_arg(&mut args, "--quest-timeout")?.parse()?;
             }
             "--report" => opts.report_path = Some(next_arg(&mut args, "--report")?),
+            arg if opts.trade.parse_arg(arg, &mut args)? => {}
             "--help" | "-h" => {
                 print_help();
                 std::process::exit(0);
@@ -842,6 +845,8 @@ pub(crate) fn run_mode_label(cli: &CliOptions) -> &'static str {
         "vendor-sell-smoke"
     } else if cli.movement_smoke {
         "movement-smoke"
+    } else if cli.trade.smoke {
+        "trade-smoke"
     } else if cli.equipment_set_race_smoke {
         "equipment-set-race-smoke"
     } else if cli.rested_xp_smoke {

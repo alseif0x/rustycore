@@ -374,3 +374,36 @@ async fn target_in_logout_countdown_is_logging_out_until_it_cancels_like_cpp() {
                 && status_of(bytes) == TRADE_STATUS_PROPOSED_LIKE_CPP)
     );
 }
+
+/// A refused logout re-request during the countdown clears the timer
+/// (`MiscHandler.cpp`, `SetLogoutStartTime(0)`), so the target stops logging
+/// out and can be proposed again.
+#[tokio::test]
+async fn refused_logout_rerequest_clears_the_logging_out_mark_like_cpp() {
+    let mut pair = trade_pair_like_cpp(NEAR(), 1, 10, false);
+    pair.partner
+        .handle_logout_request(wow_packet::packets::misc::LogoutRequest { idle_logout: false })
+        .await;
+    assert!(pair.partner.lifecycle.is_logging_out_like_cpp());
+    target(&mut pair, |t| {
+        t.unit_mut().subsystems_mut().combat.set_in_combat_with(
+            ObjectGuid::create_player(1, 0x5100_00FF),
+            true,
+            false,
+        );
+    });
+    pair.partner
+        .handle_logout_request(wow_packet::packets::misc::LogoutRequest { idle_logout: false })
+        .await;
+    assert!(!pair.partner.lifecycle.is_logging_out_like_cpp(), "refused");
+    let _ = pair.partner_rx.try_iter().count();
+
+    let target_guid = pair.partner_guid;
+    pair.source
+        .handle_initiate_trade_with_policy(
+            initiate_trade_packet(target_guid),
+            TradePolicyLikeCpp::default(),
+        )
+        .await;
+    assert!(opened(&pair.partner), "no longer TARGET_LOGGING_OUT");
+}

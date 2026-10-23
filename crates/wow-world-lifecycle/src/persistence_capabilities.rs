@@ -33,6 +33,9 @@ pub struct PlayerPersistenceCapabilitiesLikeCpp {
     pub(crate) player_quest_reward:
         Option<Arc<dyn wow_persistence::PlayerQuestRewardPersistencePortLikeCpp>>,
     pub(crate) vendor_trade: Option<Arc<dyn wow_persistence::VendorTradePersistencePortLikeCpp>>,
+    /// Commits one completed player trade (#38; C++ `HandleAcceptTradeOpcode`
+    /// saves both participants in one Character transaction).
+    pub(crate) player_trade: Option<Arc<dyn wow_persistence::PlayerTradePersistencePortLikeCpp>>,
     pub(crate) player_spell_acquisition:
         Option<Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>>,
     pub(crate) instance_lock: Option<Arc<dyn wow_persistence::InstanceLockPersistencePortLikeCpp>>,
@@ -122,10 +125,23 @@ impl PlayerPersistenceCapabilitiesLikeCpp {
             player_quest: Some(player_quest),
             player_quest_reward: Some(player_quest_reward),
             vendor_trade: Some(vendor_trade),
+            player_trade: None,
             player_spell_acquisition: Some(player_spell_acquisition),
             instance_lock: Some(instance_lock),
             battle_pet_purchase: Some(battle_pet_purchase),
         }
+    }
+}
+
+impl PlayerPersistenceCapabilitiesLikeCpp {
+    /// Install the player-trade capability composed by `world-server`.
+    #[must_use]
+    pub fn with_player_trade_like_cpp(
+        mut self,
+        player_trade: Arc<dyn wow_persistence::PlayerTradePersistencePortLikeCpp>,
+    ) -> Self {
+        self.player_trade = Some(player_trade);
+        self
     }
 }
 
