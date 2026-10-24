@@ -6,11 +6,11 @@ están escritos y tienen feedback focalizado; **no hay aceptación final de este
 candidato**. Faltan productor desde hechizos, participantes de limpieza al morir,
 fallos de las otras operaciones del ciclo y capturas/QA viva. El usuario autoriza
 continuar los pendientes y la aceptación, no solo conservar el feedback anterior.
-La revisión previa a la campaña detecta brechas reales todavía abiertas: faltan
-las llamadas de movimiento en muerte/release/resurrección/login; las respuestas
-de resurrección inmediata y diferida aplican salud sin ejecutar la operación
-completa y el helper deja `Dead` sin convertir a `Alive`; la limpieza al morir
-no conecta todavía todos los participantes existentes. Anclas del mismo C++
+La revisión previa a la campaña detectó brechas en las llamadas de movimiento
+de muerte/release/resurrección/login y en las respuestas de resurrección inmediata
+y diferida. Los checkpoints `d69c0860e` y `89645b0e6` contienen sus reparaciones,
+todavía sin aceptación final. La limpieza al morir sigue sin conectar todos
+los participantes existentes. Anclas del mismo C++
 `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Player.cpp:1158–1198`,
 `4262–4441`, `24897–24937`, `Unit.cpp:12718–12757` y
 `CharacterHandler.cpp:1227–1241`. Se completarán las rutas afectadas antes de
@@ -42,6 +42,18 @@ el proceso 3094551, binario `target/deploy/live/world-server`, SHA-256
 cero reinicios y sin packet dump activo. No es el candidato nuevo ni prueba viva
 de #43. Capturas de la acción y DB/reinicio/relogin conservan su aceptación
 propia y autorización de runtime; no se ha publicado, desplegado ni cerrado #43.
+
+Avance local, 14:41 UTC: el codec `ResurrectRequest` reproduce
+`SpellPackets.h:825–839` y `SpellPackets.cpp:852–866` del mismo C++ fijado:
+GUID empaquetado, realm virtual, pet number, spell ID y longitud UTF-8 de once
+bits con flags de timer/sickness. `cargo test -p wow-packet resurrect_request`
+ejecutó tres tests (exit 0, 42.34 s de Cargo); `cargo check -p wow-packet`
+terminó con exit 0 (20.62 s). Es feedback del worker sobre los archivos locales
+posteriores a `89645b0e6`, no evidencia de aceptación de ese SHA ni captura viva.
+El productor desde hechizos sigue pendiente. La revisión de muerte identificó
+además que el daño de spell-click usa directamente `Corpse`; deberá entrar por
+la transición `JustDied` con los participantes existentes, en lugar de eludir
+KillPlayer y su timer. No se da esa corrección por implementada.
 
 Avance local a las 12:46 UTC: movimiento y timer escritos, **sin compilar ni
 ejecutar todavía sus pruebas**. Worker `01a16ddf-f5d4-7702-a6f2-dec78c3d3767`:
