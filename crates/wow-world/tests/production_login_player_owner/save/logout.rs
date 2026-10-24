@@ -125,13 +125,18 @@ async fn exercise(outcome: PersistenceOutcomeLikeCpp, cancel: bool) {
     });
     *port.save_probe.lock().unwrap() = Some(probe.clone());
     let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
+    let creature_spawns = wow_world_entities::CreatureSpawnCatalogsLikeCpp::default();
+    let resurrection_catalogs = wow_world_entities::ResurrectionOperationCatalogs {
+        item_guid_generator: &generator,
+        creature_spawns: &creature_spawns,
+    };
     let request = wow_packet::packets::misc::LogoutRequest { idle_logout: false };
     if cancel {
         use std::future::Future;
         let mut logout = Box::pin(
-            wow_world_character::handle_logout_request_with_generator_like_cpp(
+            wow_world_character::handle_logout_request_with_catalogs(
                 &mut session,
-                &generator,
+                resurrection_catalogs,
                 request,
             ),
         );
@@ -145,9 +150,9 @@ async fn exercise(outcome: PersistenceOutcomeLikeCpp, cancel: bool) {
         drop(logout);
         session.kick("controlled explicit logout cancellation after save submission");
     } else {
-        wow_world_character::handle_logout_request_with_generator_like_cpp(
+        wow_world_character::handle_logout_request_with_catalogs(
             &mut session,
-            &generator,
+            resurrection_catalogs,
             request,
         )
         .await;
@@ -278,9 +283,14 @@ async fn production_explicit_logout_rejects_unavailable_source_save_without_reti
             .relocate(Position::new(f32::NAN, 0.0, 0.0, 0.0));
     }
     let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
-    wow_world_character::handle_logout_request_with_generator_like_cpp(
+    let creature_spawns = wow_world_entities::CreatureSpawnCatalogsLikeCpp::default();
+    let resurrection_catalogs = wow_world_entities::ResurrectionOperationCatalogs {
+        item_guid_generator: &generator,
+        creature_spawns: &creature_spawns,
+    };
+    wow_world_character::handle_logout_request_with_catalogs(
         &mut session,
-        &generator,
+        resurrection_catalogs,
         wow_packet::packets::misc::LogoutRequest { idle_logout: false },
     )
     .await;

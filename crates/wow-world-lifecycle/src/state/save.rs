@@ -36,7 +36,8 @@ impl SessionLifecycleState {
         self.defer_player_save_for_transfer_with_owner_like_cpp(&mut owner)
     }
 
-    /// Apply the save's transfer gate through its selected canonical owner.
+    /// Apply the save's transfer and resurrection gates through the selected
+    /// canonical Player owner before acquiring fences or capturing a snapshot.
     pub fn defer_player_save_for_transfer_with_owner_like_cpp(
         &mut self,
         owner: &mut PlayerSaveOperationAccessLikeCpp<'_>,

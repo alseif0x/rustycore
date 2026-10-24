@@ -93,6 +93,11 @@ pub async fn handle_world_port_response_with_catalogs_like_cpp<H: WorldportHostL
     if !host.set_pending_teleport_like_cpp(None) {
         return;
     }
+    if !wow_world_entities::mark_player_resurrection_teleport_completed(host) {
+        host.core_mut()
+            .kick("worldport resurrection continuation lost its Player owner");
+        return;
+    }
 
     info!(
         account = host.core().account_id,
@@ -196,7 +201,11 @@ pub async fn handle_world_port_response_with_catalogs_like_cpp<H: WorldportHostL
     // MovementHandler.cpp:156-234 completes after-add initialization and
     // zone updates before pet recovery and ProcessDelayedOperations.
     // In particular, self CREATE must precede the delayed resurrection.
-    if !finish_worldport_native_before_disconnect_like_cpp(host) {
+    let resurrection_catalogs = wow_world_entities::ResurrectionOperationCatalogs {
+        item_guid_generator,
+        creature_spawns: creature_spawn_catalogs,
+    };
+    if !finish_worldport_native_before_disconnect_like_cpp(host, resurrection_catalogs).await {
         host.core_mut()
             .kick("worldport native completion unavailable");
         return;

@@ -553,12 +553,13 @@ pub trait MovementHandlerHostLikeCpp<C> {
     /// `crate::handle_move_teleport_ack_like_cpp` (`teleport_session`, #1363
     /// slice 11a), which needs the session host that the handler context does
     /// not reach.
-    fn handle_move_teleport_ack_like_cpp(
-        &mut self,
+    fn handle_move_teleport_ack_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
         mover_guid: ObjectGuid,
         ack_index: i32,
         move_time: i32,
-    );
+    ) -> HandlerFuture<'a, ()>;
 
     /// C++ `HandleMovementOpcode` (`MovementHandler.cpp:310`) for the
     /// mechanical `CMSG_MOVE_*` tail: the body reads the session catalogs the
@@ -850,10 +851,11 @@ where
                     .handle_move_teleport_ack(ack)
                     .await;
                 session.handle_move_teleport_ack_like_cpp(
+                    catalogs,
                     step.mover_guid,
                     step.ack_index,
                     step.move_time,
-                );
+                ).await;
             }
             Err(e) => tracing::warn!("Failed to read MoveTeleportAck: {e}"),
         }

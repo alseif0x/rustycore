@@ -20,6 +20,54 @@ and an ignored password file by default. Use only authorized test identities and
 approved runtime/DB targets; disabling bootstrap does not make gameplay read-only.
 Runtime swaps and destructive fixture modes retain their separate explicit guards.
 
+## Death lifecycle acceptance (#43, preparation)
+
+As of 2026-10-24, the login smoke does **not** exercise death/release/reclaim or
+spirit-healer recovery. The death driver and its fresh captures are still pending;
+the scenarios below are acceptance requirements, not reports of completed runs.
+
+Use a committed debug `world-server` candidate under the runtime swap/restore
+guard. The proposed account scope is the existing `TESTBOT1@bot.local` and its
+sole offline character, with provisioning disabled. Runtime execution requires
+authorization for that account, the Rust and reference targets, restarts and the
+normal character writes caused by death, durability loss and logout. Do not seed
+or erase unrelated characters, inventory, auras or corpse rows to obtain a pass.
+
+The target reference is `woltk-trinity-legacy` at
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`. Capture each action on both realm
+and instance connections, including the client request and its ACKs. Record the
+candidate SHA/hash, reference SHA, account/character identity without credentials,
+ordered packets, scenario outcome and restoration outcome. A Rust-generated
+golden is not an independent reference capture.
+
+| Scenario | Required observations |
+|---|---|
+| Lethal fall, then release | Actual server-applied lethal damage; root before release; one corpse for the owner; ghost auras and water-walk; realm `PreRessurect` before `DeathReleaseLoc`; near teleport completed by its ACK. |
+| Reclaim | Early/out-of-range requests leave the ghost unchanged; after the actual reclaim delay and return to the corpse, the player becomes alive, land-walk is restored and corpse rows become bones/deleted as applicable. |
+| Spirit healer | Valid ghost-visible healer and interaction distance; resurrection, selected sickness and equipped/inventory durability loss; normal save and relog preserve the resulting state. |
+| Resurrection offer | A real cast produces the realm offer and the canonical request; decline, wrong offerer and repeat response preserve the expected state. Acceptance verifies immediate/rejected teleport and admitted near/far ACK paths, requested health/mana, full energy/focus, original aura caster and corpse conversion. A request installed only by a test fixture does not prove this scenario. |
+| Automatic release | No manual release request; the existing update driver expires the six-minute timer exactly once on an eligible map. Instanceable maps and PREVENT_RESURRECTION pause the countdown. |
+| Recovery | Disconnect/relogin while dead and while ghost; corpse location and movement restored; repeated release/reclaim/request packets do not duplicate effects. Restart/relogin evidence remains a separate required observation. |
+| Interrupted transfer/save | Exercise the candidate's retained operation and failure fences; distinguish known rollback, uncertain in-flight effects and actual DB outcome. Mocked futures alone do not prove durability. |
+
+The offer scenario additionally needs an existing caster character/account and a
+known resurrection spell. Select and authorize that second identity explicitly;
+the proposed single-account fall/reclaim scope does not cover it. A reference
+target must actually provide the expected action before its capture is accepted.
+
+For a scripted fall, use a non-instance map and a character without GM mode,
+flight, fall immunity or safe-fall auras. Pin the initial position and report the
+sent height/landing sequence; a client-position update alone is not proof of
+damage. `MovementPackets.cpp:104–179` owns the fall-data presence bit and payload,
+and `Player::HandleFall` owns damage admission. The driver must fail if lethal
+damage and the ensuing death state are not observed.
+
+Protocol anchors for the driver: `MiscPackets.cpp:266–301` (packed corpse GUID,
+one-bit RepopRequest and resurrection response), `MovementPackets.cpp:705–728`
+(MoveTeleport) and `800–815` (teleport ACK versus MovementAck). Movement ACKs
+carry **MovementInfo then AckIndex**; a teleport ACK carries **MoverGUID,
+AckIndex, MoveTime**. Do not treat them as the same packet shape.
+
 ## Bounded normal save/relogin check (#578)
 
 With explicit approval to swap/restart `world-server` and use existing

@@ -148,6 +148,15 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
         let residence = manager.player_residence_like_cpp(handle)?;
         manager.with_player_like_cpp(handle, |player| {
             let teleport = player.teleport_state_like_cpp();
+            if player
+                .resurrection_state_like_cpp()
+                .delayed_after_teleport
+                .is_some_and(|continuation| {
+                    continuation.phase != wow_entities::PlayerResurrectionPhase::SavingPlayer
+                })
+            {
+                return None;
+            }
             if teleport.post_add.is_some()
                 || (teleport.far_pending
                     && teleport.recovery != wow_entities::PlayerTransferRecovery::Terminal)
@@ -408,7 +417,8 @@ impl PlayerSaveOperationAccessLikeCpp<'_> {
         self.core.player_handle_like_cpp.is_none()
     }
 
-    /// Apply the existing transfer deferral to the selected canonical Player.
+    /// Apply canonical full-save admission to the selected Player: transfer
+    /// deferral and the resurrection phase gate share this owner operation.
     /// `None` means the session has no matching owner; the inner `None` means
     /// the Player's deferred-save revision could not be advanced.
     pub fn defer_player_save_for_transfer_like_cpp(&mut self) -> Option<Option<bool>> {

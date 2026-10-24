@@ -28,7 +28,10 @@ mod recovery;
 mod response;
 mod self_create;
 
-pub use completion::finish_worldport_native_before_disconnect_like_cpp;
+pub use completion::{
+    finish_worldport_native_before_disconnect_like_cpp,
+    finish_worldport_native_without_resurrection_catalogs,
+};
 pub use response::handle_world_port_response_with_catalogs_like_cpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use {
@@ -44,6 +47,7 @@ pub trait WorldportHostLikeCpp:
     + VisibilitySessionHostLikeCpp
     + SpellEffectHostLikeCpp
     + PetSessionHostLikeCpp
+    + wow_world_entities::CorpseHostLikeCpp
 {
     fn resume_deferred_player_save_with_generator_like_cpp(
         &mut self,

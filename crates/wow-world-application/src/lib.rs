@@ -39,10 +39,12 @@ pub use session_lifecycle::{
 pub use session_lifecycle::{
     PlayerLogoutHookEventLikeCpp, SessionAccountSaveCxLikeCpp, SessionLifecycleHostLikeCpp,
     cleanup_shared_runtime_state, finalize_session_with_generator_like_cpp,
+    finalize_session_with_resurrection_catalogs,
     handle_confirm_respec_wipe_with_generator_like_cpp,
     process_pending_periodic_player_save_with_generator_like_cpp,
-    resume_deferred_player_save_with_generator_like_cpp, run_logout_timer_with_generator_like_cpp,
+    resume_deferred_player_save_with_generator_like_cpp, run_logout_timer_with_catalogs,
 };
+pub use wow_world_entities::ResurrectionOperationCatalogs;
 mod spell_handlers;
 mod stand_state_session;
 pub use stand_state_session::{

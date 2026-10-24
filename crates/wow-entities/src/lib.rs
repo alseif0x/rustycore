@@ -320,8 +320,10 @@ pub use player_gameplay_state::{
     PlayerCurrencyState, PlayerDamageControlStateLikeCpp, PlayerFavoriteAppearanceStateLikeCpp,
     PlayerGameplayState, PlayerGossipOptionLikeCpp, PlayerHomebindLikeCpp,
     PlayerInteractionDataLikeCpp, PlayerMenuStateLikeCpp, PlayerMovementControlStateLikeCpp,
-    PlayerPetLifecycleStateLikeCpp, PlayerResurrectionRequestLikeCpp,
-    PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp, PlayerTransferRecovery,
+    PlayerPetLifecycleStateLikeCpp, PlayerResurrectionContinuation, PlayerResurrectionOperation,
+    PlayerResurrectionPhase,
+    PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp,
+    PlayerTransferRecovery,
     PlayerWorldportPostAddLikeCpp, PlayerWorldportPostAddPhaseLikeCpp,
     plan_remove_currency_like_cpp,
 };

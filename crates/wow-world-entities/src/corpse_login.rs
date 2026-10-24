@@ -38,7 +38,7 @@ pub async fn restore_player_corpse_after_login(
 
     if !alive {
         if resurrect_at_login {
-            resurrect_player_like_cpp(host, catalogs, 0.5, false).await;
+            resurrect_player_like_cpp(host, catalogs.resurrection(), 0.5, false).await;
         } else if let Some((map_id, position, instanceable)) = corpse_location_from_row(host, row) {
             let installed = host.core().with_owned_player_mut_like_cpp(|player| {
                 player.resurrection_state_mut_like_cpp().corpse_location = Some((map_id, position));
@@ -116,7 +116,12 @@ async fn restore_ghost_auras(
     }
     if race == NIGHT_ELF_RACE && !has_wisp {
         if !host
-            .cast_triggered_self_spell_like_cpp(catalogs, SPELL_WISP_SPIRIT_AURA_LIKE_CPP, None)
+            .cast_triggered_self_spell_like_cpp(
+                catalogs.resurrection(),
+                SPELL_WISP_SPIRIT_AURA_LIKE_CPP,
+                None,
+                None,
+            )
             .await
         {
             warn!("Failed to restore the persisted Wisp Spirit aura during login");
@@ -129,7 +134,12 @@ async fn restore_ghost_auras(
         .with_owned_player_like_cpp(|player| !aura_spell_present(player, SPELL_GHOST_LIKE_CPP));
     if needs_ghost == Some(true)
         && !host
-            .cast_triggered_self_spell_like_cpp(catalogs, SPELL_GHOST_LIKE_CPP, None)
+            .cast_triggered_self_spell_like_cpp(
+                catalogs.resurrection(),
+                SPELL_GHOST_LIKE_CPP,
+                None,
+                None,
+            )
             .await
     {
         warn!("Failed to restore the persisted ghost aura during login");

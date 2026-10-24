@@ -78,6 +78,23 @@ pub struct CorpseLifecycleCatalogsLikeCpp<'a> {
     pub graveyards: &'a GraveyardStore,
 }
 
+/// Catalog inputs consumed by resurrection and its triggered aura casts.
+/// Graveyard lookup data stays at the callers that perform corpse search.
+#[derive(Clone, Copy)]
+pub struct ResurrectionOperationCatalogs<'a> {
+    pub item_guid_generator: &'a ObjectGuidGenerator,
+    pub creature_spawns: &'a CreatureSpawnCatalogsLikeCpp,
+}
+
+impl<'a> CorpseLifecycleCatalogsLikeCpp<'a> {
+    pub fn resurrection(self) -> ResurrectionOperationCatalogs<'a> {
+        ResurrectionOperationCatalogs {
+            item_guid_generator: self.item_guid_generator,
+            creature_spawns: self.creature_spawns,
+        }
+    }
+}
+
 // ── Pure C++ rules ──────────────────────────────────────────────────────────
 
 /// C++ `Player::GetCorpseReclaimDelay(pvp)` in seconds.
@@ -339,9 +356,33 @@ pub async fn spawn_corpse_bones_like_cpp<H: CorpseHostLikeCpp>(
     item_guid_generator: &ObjectGuidGenerator,
     trigger_save: bool,
 ) -> bool {
+    match convert_corpse_to_bones_for_resurrection(host).await {
+        CorpseBonesConversion::Unavailable => false,
+        CorpseBonesConversion::NoCorpse => true,
+        CorpseBonesConversion::Converted => {
+            if trigger_save && !host.player_logout_with_save_like_cpp() {
+                return host
+                    .save_player_after_corpse_bones_like_cpp(item_guid_generator)
+                    .await
+                    == crate::ResurrectionSaveOutcome::Applied;
+            }
+            true
+        }
+    }
+}
+
+pub(crate) enum CorpseBonesConversion {
+    Unavailable,
+    NoCorpse,
+    Converted,
+}
+
+pub(crate) async fn convert_corpse_to_bones_for_resurrection<H: CorpseHostLikeCpp>(
+    host: &mut H,
+) -> CorpseBonesConversion {
     set_player_corpse_location_like_cpp(host, None);
     let Some(owner) = host.player_guid() else {
-        return false;
+        return CorpseBonesConversion::Unavailable;
     };
     let policy = host.hub_ref().config.death_policy_like_cpp;
     let bones_enabled =
@@ -351,32 +392,34 @@ pub async fn spawn_corpse_bones_like_cpp<H: CorpseHostLikeCpp>(
             policy.bones_world
         };
     let now = unix_now();
-    let converted = with_current_map_like_cpp(host, |map| {
+    let Some(converted) = with_current_map_like_cpp(host, |map| {
         map.convert_corpse_to_bones_like_cpp(owner, bones_enabled, now)
-    })
-    .flatten();
+    }) else {
+        return CorpseBonesConversion::Unavailable;
+    };
     let Some(_converted) = converted else {
-        return false;
+        // No corpse exists on this current map; C++ SpawnCorpseBones has no
+        // persistence work to wait for and its caller may finish normally.
+        return CorpseBonesConversion::NoCorpse;
     };
 
     // C++ `Map::ConvertCorpseToBones` commits `Corpse::DeleteFromDB` in its
     // own transaction.
-    if let Some(port) = host.map_corpse_persistence_port_like_cpp() {
-        if let wow_persistence::CorpsePersistenceMutationOutcomeLikeCpp::Failed { reason } =
-            port.delete_corpse_like_cpp(owner.counter() as u64).await
-        {
-            warn!(
-                player = ?owner,
-                "C++ Corpse::DeleteFromDB for bones conversion failed: {reason}"
-            );
-        }
+    let Some(port) = host.map_corpse_persistence_port_like_cpp() else {
+        return CorpseBonesConversion::Unavailable;
+    };
+    if let wow_persistence::CorpsePersistenceMutationOutcomeLikeCpp::Failed { reason } =
+        port.delete_corpse_like_cpp(owner.counter() as u64).await
+    {
+        warn!(
+            player = ?owner,
+            "C++ Corpse::DeleteFromDB for bones conversion was not confirmed: {reason}"
+        );
+        // The port cannot distinguish a returned error before COMMIT from
+        // an error after COMMIT. Neither outcome authorizes completion.
+        return CorpseBonesConversion::Unavailable;
     }
-
-    if trigger_save && !host.player_logout_with_save_like_cpp() {
-        host.save_player_after_corpse_bones_like_cpp(item_guid_generator)
-            .await;
-    }
-    true
+    CorpseBonesConversion::Converted
 }
 
 // ── CreateCorpse ────────────────────────────────────────────────────────────
@@ -576,10 +619,20 @@ pub async fn build_player_repop_like_cpp<H: CorpseHostLikeCpp>(
 
     // If the player has the Wisp racial then cast the Wisp aura on them.
     if host.player_has_spell_like_cpp(SPELL_WISP_SPIRIT_RACIAL_LIKE_CPP) {
-        host.cast_triggered_self_spell_like_cpp(catalogs, SPELL_WISP_SPIRIT_AURA_LIKE_CPP, None)
+        host.cast_triggered_self_spell_like_cpp(
+            catalogs.resurrection(),
+            SPELL_WISP_SPIRIT_AURA_LIKE_CPP,
+            None,
+            None,
+        )
             .await;
     }
-    host.cast_triggered_self_spell_like_cpp(catalogs, SPELL_GHOST_LIKE_CPP, None)
+    host.cast_triggered_self_spell_like_cpp(
+        catalogs.resurrection(),
+        SPELL_GHOST_LIKE_CPP,
+        None,
+        None,
+    )
         .await;
     // C++ `AuraEffect::HandleAuraGhost` sets PLAYER_FLAGS_GHOST when 8326
     // applies; the represented aura has no effect handler, so the flag is
@@ -873,7 +926,12 @@ pub async fn repop_at_graveyard_like_cpp<H: CorpseHostLikeCpp>(
         } else {
             TELE_TO_NONE_LIKE_CPP
         };
-        host.teleport_to_with_options_like_cpp(grave_map_id, grave_position, options)
+        host.teleport_to_with_options_like_cpp(
+            catalogs.resurrection(),
+            grave_map_id,
+            grave_position,
+            options,
+        )
             .await;
         // not send if alive, because it used in TeleportTo()
         if host.hub_ref().resolved_player_is_alive_like_cpp() == Some(false) {
@@ -892,6 +950,7 @@ pub async fn repop_at_graveyard_like_cpp<H: CorpseHostLikeCpp>(
             .flatten()
     {
         host.teleport_to_with_options_like_cpp(
+            catalogs.resurrection(),
             homebind.map_id,
             homebind.position,
             TELE_TO_NONE_LIKE_CPP,

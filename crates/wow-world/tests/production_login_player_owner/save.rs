@@ -273,13 +273,18 @@ async fn production_disconnect_finishes_retained_worldport_before_save_with_full
         player.unit_mut().set_health(500);
         player
             .resurrection_state_mut_like_cpp()
-            .delayed_after_teleport = Some(wow_entities::PlayerResurrectionRequestLikeCpp {
-            resurrecter: guid,
-            map_id: 0,
-            position,
-            health: 123,
-            mana: 0,
-            aura: 0,
+            .delayed_after_teleport = Some(wow_entities::PlayerResurrectionContinuation {
+            operation: wow_entities::PlayerResurrectionOperation::RequestData(
+                wow_entities::PlayerResurrectionRequestLikeCpp {
+                    resurrecter: guid,
+                    map_id: 0,
+                    position,
+                    health: 123,
+                    mana: 0,
+                    aura: 0,
+                },
+            ),
+            phase: wow_entities::PlayerResurrectionPhase::AwaitingTeleport,
         });
         // A represented equipped item makes the normal scaling path publish stats.
         // Finalization must complete native work even when that output is saturated.
@@ -400,13 +405,18 @@ async fn pending_far_disconnect(outcome: DisconnectDestination, explicit_logout:
         player.teleport_state_mut_like_cpp().far_pending = false;
         player
             .resurrection_state_mut_like_cpp()
-            .delayed_after_teleport = Some(wow_entities::PlayerResurrectionRequestLikeCpp {
-            resurrecter: guid,
-            map_id: 1,
-            position: destination,
-            health: 123,
-            mana: 0,
-            aura: 0,
+            .delayed_after_teleport = Some(wow_entities::PlayerResurrectionContinuation {
+            operation: wow_entities::PlayerResurrectionOperation::RequestData(
+                wow_entities::PlayerResurrectionRequestLikeCpp {
+                    resurrecter: guid,
+                    map_id: 1,
+                    position: destination,
+                    health: 123,
+                    mana: 0,
+                    aura: 0,
+                },
+            ),
+            phase: wow_entities::PlayerResurrectionPhase::AwaitingTeleport,
         });
     }
     session.set_state(SessionState::LoggedIn);
@@ -443,11 +453,16 @@ async fn pending_far_disconnect(outcome: DisconnectDestination, explicit_logout:
     port.retain_after_save
         .store(!explicit_logout, Ordering::SeqCst);
     if explicit_logout {
+        let creature_spawns = wow_world_entities::CreatureSpawnCatalogsLikeCpp::default();
+        let resurrection_catalogs = wow_world_entities::ResurrectionOperationCatalogs {
+            item_guid_generator: &generator,
+            creature_spawns: &creature_spawns,
+        };
         // Direct production adapter call proves LogoutPlayer ordering, not that
         // the LoggedIn-only network registration admits a packet during Transfer.
-        wow_world_character::handle_logout_request_with_generator_like_cpp(
+        wow_world_character::handle_logout_request_with_catalogs(
             &mut session,
-            &generator,
+            resurrection_catalogs,
             wow_packet::packets::misc::LogoutRequest { idle_logout: false },
         )
         .await;
@@ -547,6 +562,197 @@ async fn pending_far_disconnect(outcome: DisconnectDestination, explicit_logout:
     assert_eq!(requests[0].character.position.map_id, expected_map as u16);
     assert_eq!(requests[0].character.position.x, expected_position.x);
     assert_eq!(session.state(), SessionState::Disconnecting);
+}
+
+async fn pending_near_disconnect(outcome: PersistenceOutcomeLikeCpp) {
+    let (mut session, port, _output, receiver) = hydrate(true, true, true).await;
+    let guid = ObjectGuid::create_player(1, 42);
+    let current = Position::new(1.0, 2.0, 3.0, 0.5);
+    let destination = Position::new(9.0, 8.0, 7.0, 1.5);
+    let corpse_guid =
+        ObjectGuid::create_world_object(wow_core::guid::HighGuid::Corpse, 0, 1, 0, 0, 0, 42);
+    {
+        let mut manager = port.manager.lock().unwrap();
+        let map = manager.find_map_mut(0, 0).unwrap().map_mut();
+        let player = map.get_typed_player_mut(guid).unwrap();
+        player.unit_mut().world_mut().relocate(current);
+        player.unit_mut().set_max_health(1000);
+        player.unit_mut().set_health(1);
+        player
+            .unit_mut()
+            .set_death_state(wow_constants::DeathState::Dead);
+        player.resurrection_state_mut_like_cpp().corpse_location = Some((0, current));
+
+        let mut corpse =
+            wow_entities::Corpse::new_at(wow_entities::CorpseType::ResurrectablePve, 0);
+        corpse.world_mut().object_mut().create(corpse_guid);
+        corpse.world_mut().set_map(0, 0).unwrap();
+        corpse.world_mut().relocate(current);
+        corpse.world_mut().object_mut().add_to_world();
+        corpse.set_owner_guid(guid);
+        map.add_corpse_to_map_like_cpp(corpse).unwrap();
+    }
+    session.set_state(SessionState::LoggedIn);
+    while receiver.try_recv().is_ok() {}
+    session.teleport_to(0, destination).await;
+    let transfer_opcodes = receiver
+        .try_iter()
+        .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+        .collect::<Vec<_>>();
+    assert!(
+        transfer_opcodes.contains(&(wow_constants::ServerOpcodes::MoveTeleport as u16)),
+        "fixture establishes a real near transfer and leaves its ACK pending"
+    );
+    {
+        let mut manager = port.manager.lock().unwrap();
+        let player = manager
+            .find_map_mut(0, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(guid)
+            .unwrap();
+        assert!(player.teleport_state_like_cpp().near_pending);
+        assert_eq!(
+            player.teleport_state_like_cpp().near_destination,
+            Some((0, destination))
+        );
+        player
+            .resurrection_state_mut_like_cpp()
+            .delayed_after_teleport = Some(wow_entities::PlayerResurrectionContinuation {
+            operation: wow_entities::PlayerResurrectionOperation::RequestData(
+                wow_entities::PlayerResurrectionRequestLikeCpp {
+                    resurrecter: guid,
+                    map_id: 0,
+                    position: destination,
+                    health: 123,
+                    mana: 0,
+                    aura: 0,
+                },
+            ),
+            phase: wow_entities::PlayerResurrectionPhase::AwaitingTeleport,
+        });
+    }
+    session.kick("controlled disconnect during near resurrection transfer");
+
+    let probe = Arc::new(SaveProbe {
+        requests: Mutex::new(vec![]),
+        released: AtomicBool::new(true),
+        outcome: outcome.clone(),
+    });
+    *port.save_probe.lock().unwrap() = Some(Arc::clone(&probe));
+    port.retain_after_save.store(true, Ordering::SeqCst);
+    let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
+    let creature_spawns = wow_world_entities::CreatureSpawnCatalogsLikeCpp::default();
+    let catalogs = wow_world_application::ResurrectionOperationCatalogs {
+        item_guid_generator: &generator,
+        creature_spawns: &creature_spawns,
+    };
+    let report = wow_world_application::finalize_session_with_resurrection_catalogs(
+        &mut session,
+        wow_world::FinalizationMode::Disconnect,
+        &generator,
+        catalogs,
+    )
+    .await;
+
+    assert_eq!(
+        report.outcome(wow_world::FinalizationStep::NativeTransfer),
+        wow_world::FinalizationOutcome::Applied,
+        "near AwaitingTeleport is cancelled without fabricating an ACK"
+    );
+    let save_outcome = if matches!(outcome, PersistenceOutcomeLikeCpp::Applied { .. }) {
+        wow_world::FinalizationOutcome::Applied
+    } else {
+        wow_world::FinalizationOutcome::Unknown
+    };
+    assert_eq!(
+        report.outcome(wow_world::FinalizationStep::CharacterSave),
+        save_outcome
+    );
+    let requests = probe.requests.lock().unwrap();
+    assert_eq!(
+        requests.len(),
+        1,
+        "one ordinary disconnect save is submitted"
+    );
+    assert_eq!(requests[0].character.health, 1);
+    assert_eq!(requests[0].character.position.map_id, 0);
+    assert_eq!(requests[0].character.position.x, destination.x);
+    assert_eq!(requests[0].character.position.y, destination.y);
+    assert_eq!(requests[0].character.position.z, destination.z);
+    drop(requests);
+
+    let manager = port.manager.lock().unwrap();
+    let map = manager.find_map(0, 0).unwrap().map();
+    assert_eq!(
+        map.corpse_guid_by_player_like_cpp(guid),
+        Some(corpse_guid),
+        "near disconnect does not convert or remove the corpse"
+    );
+    let player = map
+        .get_typed_player(guid)
+        .expect("save-fenced Player remains");
+    assert_eq!(player.unit().data().health, 1);
+    assert_eq!(player.unit().death_state(), wow_constants::DeathState::Dead);
+    assert_eq!(
+        player.resurrection_state_like_cpp().corpse_location,
+        Some((0, current))
+    );
+    assert!(
+        player
+            .resurrection_state_like_cpp()
+            .delayed_after_teleport
+            .is_none()
+    );
+    assert!(player.teleport_state_like_cpp().near_pending);
+    assert_eq!(
+        player.teleport_state_like_cpp().near_destination,
+        Some((0, destination))
+    );
+
+    let opcodes = receiver
+        .try_iter()
+        .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+        .collect::<Vec<_>>();
+    assert!(!opcodes.iter().any(|opcode| {
+        [
+            wow_constants::ServerOpcodes::DeathReleaseLoc as u16,
+            wow_constants::ServerOpcodes::MoveSetLandWalk as u16,
+            wow_constants::ServerOpcodes::MoveUnroot as u16,
+            wow_constants::ServerOpcodes::MoveTeleport as u16,
+        ]
+        .contains(opcode)
+    }));
+    drop(manager);
+
+    if matches!(outcome, PersistenceOutcomeLikeCpp::Unknown { .. }) {
+        assert_eq!(
+            wow_world_lifecycle::save_current_player_to_db_with_generator_like_cpp(
+                &mut session,
+                &generator,
+            )
+            .await,
+            PlayerSaveOutcomeLikeCpp::Quarantined
+        );
+        assert_eq!(
+            probe.requests.lock().unwrap().len(),
+            1,
+            "unknown save is not replayed"
+        );
+    }
+}
+
+#[tokio::test]
+async fn production_disconnect_near_resurrection_cancels_unstarted_and_saves_ghost_destination() {
+    pending_near_disconnect(PersistenceOutcomeLikeCpp::Applied { rows: 1 }).await;
+}
+
+#[tokio::test]
+async fn production_disconnect_near_resurrection_unknown_save_keeps_fence_without_replay() {
+    pending_near_disconnect(PersistenceOutcomeLikeCpp::Unknown {
+        reason: "controlled uncertain disconnect save".into(),
+    })
+    .await;
 }
 #[tokio::test]
 async fn production_save_old_completion_does_not_clean_replacement_incarnation() {

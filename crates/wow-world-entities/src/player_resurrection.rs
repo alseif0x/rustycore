@@ -19,21 +19,38 @@ use wow_packet::packets::misc::DeathReleaseLoc;
 use wow_world_core::session::connection_identity::unix_now;
 
 use crate::player_death::{
-    CORPSE_RECLAIM_RADIUS_LIKE_CPP, CorpseLifecycleCatalogsLikeCpp, SPELL_GHOST_LIKE_CPP,
-    SPELL_WISP_SPIRIT_AURA_LIKE_CPP, corpse_reclaim_delay_secs_like_cpp,
-    player_death_expire_time_like_cpp, terrain_zone_and_area_like_cpp, with_current_map_like_cpp,
+    CORPSE_RECLAIM_RADIUS_LIKE_CPP, CorpseLifecycleCatalogsLikeCpp,
+    ResurrectionOperationCatalogs, SPELL_GHOST_LIKE_CPP, SPELL_WISP_SPIRIT_AURA_LIKE_CPP,
+    corpse_reclaim_delay_secs_like_cpp, player_death_expire_time_like_cpp,
+    terrain_zone_and_area_like_cpp, with_current_map_like_cpp,
 };
 use crate::{CorpseHostLikeCpp, player_corpse_like_cpp, player_in_arena_like_cpp};
 
 /// C++ `Player::ResurrectPlayer(restore_percent, applySickness)`.
 pub async fn resurrect_player_like_cpp<H: CorpseHostLikeCpp>(
     host: &mut H,
-    catalogs: CorpseLifecycleCatalogsLikeCpp<'_>,
+    catalogs: ResurrectionOperationCatalogs<'_>,
     restore_percent: f32,
     apply_sickness: bool,
 ) {
-    if host.player_guid().is_none() {
+    if !resurrect_player_native(host, restore_percent) {
         return;
+    }
+    finish_resurrection_visibility(host, catalogs).await;
+    if apply_sickness {
+        apply_resurrection_sickness(host, catalogs).await;
+    }
+}
+
+/// Synchronous half of C++ `Player::ResurrectPlayer`, through its value and
+/// zone publications. Keeping the visibility await separate lets the request
+/// continuation mark that boundary before suspending.
+pub(crate) fn resurrect_player_native<H: CorpseHostLikeCpp>(
+    host: &mut H,
+    restore_percent: f32,
+) -> bool {
+    if host.player_guid().is_none() {
+        return false;
     }
     // SetAreaSpiritHealer(nullptr)
     let _ = host.core().with_owned_player_mut_like_cpp(|player| {
@@ -59,7 +76,7 @@ pub async fn resurrect_player_like_cpp<H: CorpseHostLikeCpp>(
             .set_death_state(wow_constants::DeathState::Alive);
     });
     if alive.is_none() {
-        return;
+        return false;
     }
 
     // C++ adds this bit first so SetWaterWalking(false) always emits land-walk,
@@ -107,7 +124,7 @@ pub async fn resurrect_player_like_cpp<H: CorpseHostLikeCpp>(
         player.values_update(true)
     });
     let Some(values_update) = restored else {
-        return;
+        return false;
     };
     host.sync_player_registry_state_like_cpp();
     host.core()
@@ -120,17 +137,20 @@ pub async fn resurrect_player_like_cpp<H: CorpseHostLikeCpp>(
         host.update_zone_represented_like_cpp(zone_id, area_id);
     }
 
-    // update visibility
+    true
+}
+
+pub(crate) async fn finish_resurrection_visibility<H: CorpseHostLikeCpp>(
+    host: &mut H,
+    catalogs: ResurrectionOperationCatalogs<'_>,
+) {
     host.update_visibility_with_catalogs_like_cpp(catalogs.creature_spawns)
         .await;
-    if apply_sickness {
-        apply_resurrection_sickness(host, catalogs).await;
-    }
 }
 
 async fn apply_resurrection_sickness<H: CorpseHostLikeCpp>(
     host: &mut H,
-    catalogs: CorpseLifecycleCatalogsLikeCpp<'_>,
+    catalogs: ResurrectionOperationCatalogs<'_>,
 ) {
     let (threshold, level, race_id, sickness_spell_id) = {
         let hub = host.hub_ref();
@@ -167,7 +187,12 @@ async fn apply_resurrection_sickness<H: CorpseHostLikeCpp>(
         None
     };
     if !host
-        .cast_triggered_self_spell_like_cpp(catalogs, sickness_spell_id, sickness_remaining_ms)
+        .cast_triggered_self_spell_like_cpp(
+            catalogs,
+            sickness_spell_id,
+            sickness_remaining_ms,
+            None,
+        )
         .await
     {
         warn!(
@@ -247,7 +272,7 @@ pub async fn reclaim_corpse_like_cpp<H: CorpseHostLikeCpp>(
     } else {
         0.5
     };
-    resurrect_player_like_cpp(host, catalogs, restore_percent, false).await;
+    resurrect_player_like_cpp(host, catalogs.resurrection(), restore_percent, false).await;
 
     // spawn bones
     crate::spawn_corpse_bones_like_cpp(host, catalogs.item_guid_generator, true).await;

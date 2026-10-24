@@ -83,7 +83,7 @@ pub struct CombatState {
     /// that initiate teleport and must apply after WorldPortResponse.
     #[cfg(any(test, feature = "test-fixtures"))]
     pub represented_delayed_resurrection_after_teleport_like_cpp:
-        Option<PlayerResurrectionRequestLikeCpp>,
+        Option<wow_entities::PlayerResurrectionContinuation>,
     /// C++ `Player::GetDeathTimer()` represented for `Spell::EffectStuck`.
     #[cfg(any(test, feature = "test-fixtures"))]
     pub represented_death_timer_remaining_ms_like_cpp: u32,

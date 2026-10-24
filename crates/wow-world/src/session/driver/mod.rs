@@ -32,7 +32,7 @@ mod phase_consumer;
 mod phase_pass;
 
 use phases::SessionDriverPhaseLikeCpp;
-use wow_world_application::run_logout_timer_with_generator_like_cpp;
+use wow_world_application::{ResurrectionOperationCatalogs, run_logout_timer_with_catalogs};
 
 #[cfg(test)]
 use std::sync::Arc;
@@ -191,6 +191,12 @@ impl WorldSession {
             if self.world_entities.creature_tick_like_cpp() % 4 == 0 {
                 wow_world_spell::tick_auras(self);
             }
+            // C++ Player::Update closes the delayed-teleport window immediately
+            // after Unit::Update (`Player.cpp:935-942`). The save and death
+            // timers run with can_delay=false, so graveyard release teleports
+            // publish immediately (`Player.cpp:1101`).
+            let _ =
+                crate::session::hub_mut(self).set_represented_can_delay_teleport_like_cpp(false);
             self.lifecycle.update_player_save_timer_like_cpp(diff_ms);
             // C++ `Player::Update` advances m_deathTimer after SaveTimer and
             // before its delayed teleport (`Player.cpp:1101`), only while its
@@ -215,10 +221,14 @@ impl WorldSession {
                 catalogs.player_rest_rates.as_ref(),
                 wow_core::GameTime::now().as_secs(),
             );
-            let _ =
-                crate::session::hub_mut(self).set_represented_can_delay_teleport_like_cpp(false);
-            wow_world_entities::process_represented_delayed_teleport_after_update_like_cpp(self)
-                .await;
+            wow_world_entities::process_represented_delayed_teleport_after_update_like_cpp(
+                self,
+                wow_world_entities::ResurrectionOperationCatalogs {
+                    item_guid_generator: catalogs.id_generators.item.as_ref(),
+                    creature_spawns: catalogs.creature_spawns.as_ref(),
+                },
+            )
+            .await;
         }
 
         // ── Periodic TimeSyncRequest ──────────────────────────────
@@ -249,7 +259,14 @@ impl WorldSession {
         // coordinated session therefore runs it at the end of its world pass,
         // not here, where its own packets have not been dispatched yet.
         if !self.is_map_phase_coordinated_like_cpp() {
-            run_logout_timer_with_generator_like_cpp(self, &catalogs.id_generators.item).await;
+            run_logout_timer_with_catalogs(
+                self,
+                ResurrectionOperationCatalogs {
+                    item_guid_generator: catalogs.id_generators.item.as_ref(),
+                    creature_spawns: catalogs.creature_spawns.as_ref(),
+                },
+            )
+            .await;
         }
 
         processed

@@ -221,6 +221,55 @@ fn save_snapshot_keeps_ghost_health_and_captures_player_death_metadata() {
     );
 }
 
+#[test]
+fn canonical_full_save_capture_waits_for_resurrection_ready_phase() {
+    let (mut session, _, _) = make_session();
+    install_canonical_player_owner_for_test(&mut session, 571, 0);
+    let request = wow_entities::PlayerResurrectionRequestLikeCpp {
+        resurrecter: wow_core::ObjectGuid::create_player(1, 77),
+        map_id: 571,
+        position: Position::default(),
+        health: 450,
+        mana: 120,
+        aura: 1234,
+    };
+    session
+        .with_owned_player_mut_like_cpp(|player| {
+            player.resurrection_state_mut_like_cpp().delayed_after_teleport =
+                Some(wow_entities::PlayerResurrectionContinuation {
+                    operation: wow_entities::PlayerResurrectionOperation::RequestData(request),
+                    phase: wow_entities::PlayerResurrectionPhase::BonesInFlight,
+                });
+        })
+        .unwrap();
+
+    assert!(
+        session.prepare_player_save_like_cpp(123).is_none(),
+        "the canonical owner cannot capture while corpse conversion is unresolved"
+    );
+
+    session
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .resurrection_state_mut_like_cpp()
+                .delayed_after_teleport
+                .as_mut()
+                .unwrap()
+                .phase = wow_entities::PlayerResurrectionPhase::ReadyToSavePlayer;
+            assert_eq!(
+                player.defer_save_if_transfer_pending_like_cpp(),
+                Some(false),
+                "canonical Player admission claims SavingPlayer after the bones step"
+            );
+        })
+        .unwrap();
+
+    assert!(
+        session.prepare_player_save_like_cpp(124).is_some(),
+        "the existing canonical capture owner permits only the claimed SavingPlayer phase"
+    );
+}
+
 fn dirty_item(
     item_id: i64,
     owner: wow_core::ObjectGuid,

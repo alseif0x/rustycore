@@ -1,6 +1,10 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, preparación de aceptación final — 2026-10-24:** el usuario autoriza
+**#43, implementación previa a aceptación final — 2026-10-24, 14:34 UTC:**
+movimiento/timer, consumidor de resurrección y sus rutas de transferencia/logout
+están escritos y tienen feedback focalizado; **no hay aceptación final de este
+candidato**. Faltan productor desde hechizos, participantes de limpieza al morir,
+fallos de las otras operaciones del ciclo y capturas/QA viva. El usuario autoriza
 continuar los pendientes y la aceptación, no solo conservar el feedback anterior.
 La revisión previa a la campaña detecta brechas reales todavía abiertas: faltan
 las llamadas de movimiento en muerte/release/resurrección/login; las respuestas
@@ -52,6 +56,118 @@ pendiente y orden realm sin confundir el envío del teleport con su ACK.
 La revisión corrigió esas expectativas antes de ejecutar evidencia. Continúa
 la operación de resurrección por solicitud; ningún test escrito en este avance
 se incluye en el recuento verde anterior.
+
+Revisión de integración, 13:12 UTC: el checkpoint local `d69c0860e` conserva
+reconexión, movimiento y timer como **UNVALIDATED**. La continuación de
+`ResurrectUsingRequestData` se implementa sobre el mismo Player, antes del primer
+await, y distingue retorno normal de TeleportTo, ACK admitido y efecto externo
+interrumpido. C++ `Player.cpp:24897–24937` ignora el rechazo de TeleportTo:
+no se exige llegar a las coordenadas solicitadas para resucitar cuando la llamada
+retorna sin teleport pendiente. Una llamada cancelada antes de resolver ese paso
+no puede darse por terminada solo por coincidencia de coordenadas. Los efectos
+externos de resultado incierto se retienen; no se autoriza replay ni retiro del
+Player como si hubieran terminado. `TELE_REVIVE_AT_TELEPORT` conserva su fase
+anterior al envío del teleport cercano (`Player.cpp`, rama de TeleportTo), distinta
+de la resurrección por solicitud posterior al ACK. El finalizador exterior recibe
+las capacidades concretas existentes; no se almacena otro catálogo en Session.
+Esta implementación y sus nuevos tests siguen sin ejecutar aceptación.
+La revisión del consumidor far detectó un ciclo entre `post_add` y el guardado
+de SpawnCorpseBones: el save esperaba acabar el teleport y el teleport esperaba
+ese save. La transferencia debe confirmar zona/escalado/pet y limpiar su
+`post_add` antes de continuar la resurrección, cuyo estado canónico sigue
+bloqueando la captura incompleta. El guard compartido reside en la admisión y
+captura del Player, no en cada consumidor de guardado; solo la fase posterior
+al borrado confirmado del cadáver permite preparar su save. Un retorno fallido
+no confirmado debe desconectar y conservar la continuación para el finalizador,
+en lugar de permitir gameplay con una operación parcial. Son decisiones de la
+revisión; sus regresiones todavía no constituyen evidencia ejecutada.
+
+Feedback de implementación, 13:55 UTC: `cargo check -p wow-world --tests`
+termina correctamente (intento r9, 40,68 s). Los logs
+`/tmp/rustycore-unit3-cargo-test-20261024-*.log` muestran doce casos distintos
+verdes: respuesta de resurrección (4), fallo al borrar bones (2), finalización
+far con cadáver y cancelación durante save (2), timer/detached (3) y atribución
+del aura al lanzador original (1, tras reparar su fixture). La regresión
+TELE_REVIVE todavía falla por esperar únicamente CancelCombat/MoveTeleport;
+la operación completa publica también DeathReleaseLoc, land-walk, unroot y
+valores antes del teleport. Son resultados sobre el árbol de trabajo posterior
+a `d69c0860e`, no aceptación final ni evidencia del candidato comprometido.
+Quedan reparaciones y propagación de capacidades en logout instantáneo/timer.
+La revisión de desconexión near fija otro contrato: C++ LogoutPlayer solo
+fuerza transferencias far (`WorldSession.cpp:544–548,602`); el near ejecuta
+operaciones diferidas únicamente al ACK (`MovementHandler.cpp:302`), y
+SaveToDB conserva su destino pendiente (`Player.cpp:19488–19510`). Por ello,
+al finalizar se abandona exclusivamente una solicitud aceptada en
+AwaitingTeleport con near pendiente, todavía sin efectos de resurrección;
+se conserva el muerto/cadáver y el destino para guardar. No se simula un ACK
+ni se descartan fases inciertas de teleport, aura, bones o save. Esa reparación
+y sus regresiones siguen pendientes de implementación/evidencia.
+La revisión posterior del aura detecta que ese test verde de atribución todavía
+usaba un GUID sin Unit: no prueba el contrato C++. `Spell.cpp:536–545,3198–3222`
+y `ObjectAccessor.cpp:217–239` requieren resolver el lanzador original en el
+mismo mapa y en mundo; si ya no está disponible, el aura usa el lanzador real.
+Se corrige el resolver y se exige un caso positivo con dueño canónico real y
+el negativo ausente/en otro mapa antes de aceptar esa evidencia.
+La revisión de `process_represented_delayed_teleport_after_update_like_cpp`
+rechaza quitar su guard IsAlive: `Player.cpp:1151–1155` lo exige precisamente
+para no volver a teletransportar un ghost. El nuevo timer se había situado
+dentro de un tramo Rust con `can_delay=true`; C++ cierra ese tramo tras
+`Unit::Update` (`Player.cpp:935–942`), antes del timer de muerte. Corrección
+acotada: cerrar el tramo Rust después del tick de auras, antes de los timers
+de save/muerte, y conservar el guard vivo de la operación diferida. No se
+presenta este ajuste como migración completa de las fases de #584.
+Los dos casos `production_disconnect_near_resurrection_*` pasan en el objetivo
+`production_login_player_owner` (log local
+`/tmp/rustycore-unit3-cargo-test-20261024-near-finalization.log`): preservan
+cadáver, salud del ghost y destino pendiente, y retienen el fence después de
+un save Unknown sin segundo envío. El resto de reparaciones sigue en feedback.
+
+Checkpoint local del consumidor, 14:34 UTC: worker detenido tras entregar, sin
+Cargo activo; traza efectiva final `gpt-6-luna`/`max`. Se conserva el guard vivo y
+se cierra `can_delay` antes del timer. Último check de `wow-world --tests`: exit 0,
+22,69 s (`/tmp/rustycore-unit3-cargo-check-20261024-can-delay-alive.log`).
+`cargo check -p world-server --tests`: exit 0, 7m37s
+(`/tmp/rustycore-unit3-cargo-check-20261024-world-server-tests.log`); compila sus
+targets de pruebas, **no los ejecuta**. Los filtros de expiración (1), `delayed_`
+(5) y revive-at-teleport (1) pasan, además de los filtros previos de respuesta,
+bones fallido, save far/cancelado, timer/detached, atribución original resuelta
+y las dos pruebas de integración near. El test nuevo de ghost diferido se
+renombró a `update_keeps_delayed_teleport_for_ghost_without_emitting` después de
+ejecutar el mismo cuerpo con sufijo legado; no se relabela esa evidencia.
+Logs de feedback: `/tmp/rustycore-unit3-cargo-test-20261024-*.log`; el de
+revive-at-teleport contiene su última ejecución corregida. No se ejecutó
+`validation-v2 final`, ni inventario exhaustivo, ni cliente/DB/runtime; el
+checkpoint sigue **UNVALIDATED** para la aceptación completa. Estos tiempos
+son de implementación y reparación, no una campaña ordinaria verde de 600 s.
+
+La inspección encontró además que no hay productor de solicitudes integrado en
+los efectos de hechizos: los callers del setter eran fixtures/tests. Completar
+el consumidor no basta para probar esa ruta en producción. La unidad productora
+debe conservar `SpellEffects.cpp:416–441,3599–3626,5328–5357`,
+`Spell.cpp:5288–5310` y `Player.cpp:22705–22714`: Player muerto y en mundo,
+sin solicitud previa, valores absolutos/porcentuales según efecto, aura opcional,
+ubicación del lanzador y publicación `SMSG_RESURRECT_REQUEST` por realm.
+La revisión de muerte también mantiene pendiente conectar los participantes
+existentes de `Player::setDeathState` y la retirada de auras de
+`Unit::setDeathState`; el helper de auras por sí solo no demuestra esa integración.
+La guía del bot contiene la matriz de QA de #43 como preparación, sin declarar
+un driver de muerte ni capturas ejecutadas. Permanecen reservados el cambio del
+binario vivo, las escrituras de cuentas/personajes y DB/reinicio/relogin hasta
+disponer del candidato y de autorización concreta para esos objetivos.
+La inspección de procesos de solo lectura durante esta preparación encuentra
+`bnet-server` y `world-server` Rust, sin un proceso `worldserver` C++ activo.
+El directorio `/home/server/trinity-legacy-install/bin` no existe; se conservan
+los nombres de configuración en `etc`, cuyo contenido no se ha volcado.
+La búsqueda posterior localiza el ejecutable en
+`/home/server/woltk-trinity-legacy/build-r6/src/server/worldserver/worldserver`.
+Su SHA-256 actual es
+`80f143841b5a7b443022480500760ce336dc83052f05ddd7e3b7be6a6605b02a`,
+el mismo registrado en [la preparación R6](../architecture/captures/1263-r6-paired-2026-10-10.md).
+El checkout sigue en `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` con los tres
+parches locales de infraestructura allí documentados (LFGList, instanciaciones
+de Spell y guard DB2); no se presenta como binario upstream sin modificaciones.
+La evidencia R6 histórica no sustituye capturas de muerte nuevas. No se ha
+arrancado, recompilado ni modificado ese runtime de referencia en esta preparación.
 
 **#43, recuperación al reconectar — implementación local y feedback focalizado, 2026-10-24:**
 continuación autorizada sobre `d78b90750`, rama `43-spirit-healer`. Alcance:

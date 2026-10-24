@@ -231,7 +231,7 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
         choice_id: 0x3456CDEF,
     }];
     assert!(
-        session.schedule_represented_resurrection_after_teleport_like_cpp(
+        session.schedule_represented_resurrection_after_teleport(
             wow_entities::PlayerResurrectionRequestLikeCpp {
                 resurrecter: player_guid,
                 map_id: 0,

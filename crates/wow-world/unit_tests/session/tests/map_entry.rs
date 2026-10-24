@@ -28,8 +28,7 @@ async fn far_transfer_writer_fence_retains_native_authority_on_cancel_and_failur
             let mut transfer = Box::pin(async {
                 if delayed {
                     assert!(
-                        wow_world_entities::process_represented_delayed_teleport_after_update_like_cpp(&mut session)
-                            .await
+                        session.process_represented_delayed_teleport_after_update().await
                     );
                 } else {
                     session.teleport_to(1, destination).await;
@@ -76,7 +75,7 @@ async fn far_transfer_writer_fence_retains_native_authority_on_cancel_and_failur
                 instance.is_empty(),
                 "failure/cancellation must not publish a late token"
             );
-            assert!(session.finish_worldport_native_before_disconnect_like_cpp());
+            assert!(session.finish_worldport_native_before_disconnect_like_cpp().await);
             assert_eq!(session.core.player_handle_like_cpp, Some(handle));
             assert_eq!(session.player_position_like_cpp(), Some(destination));
         }
@@ -346,10 +345,7 @@ async fn detached_return_keeps_incarnation_through_immediate_and_delayed_entry()
         if delayed {
             assert!(output.is_empty());
             assert!(
-                wow_world_entities::process_represented_delayed_teleport_after_update_like_cpp(
-                    &mut session
-                )
-                .await
+                session.process_represented_delayed_teleport_after_update().await
             );
         }
         assert_eq!(

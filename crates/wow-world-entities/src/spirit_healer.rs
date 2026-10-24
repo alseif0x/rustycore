@@ -14,7 +14,7 @@ pub async fn send_spirit_resurrect<H: CorpseHostLikeCpp>(
     host: &mut H,
     catalogs: CorpseLifecycleCatalogsLikeCpp<'_>,
 ) {
-    resurrect_player_like_cpp(host, catalogs, 0.5, true).await;
+    resurrect_player_like_cpp(host, catalogs.resurrection(), 0.5, true).await;
     host.apply_spirit_healer_durability_loss();
 
     // C++ caches GetCorpseLocation before SpawnCorpseBones and asks the

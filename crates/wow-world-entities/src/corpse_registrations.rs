@@ -43,10 +43,11 @@ use wow_packet::WorldPacket;
 /// graveyard catalog and condition evaluation, and every client publication.
 /// This crate owns only the registration and dispatch of the four opcodes.
 pub trait CorpseHandlerHostLikeCpp<C> {
-    /// C++ `HandleResurrectResponse` (`MiscHandler.cpp:447`). The legacy
-    /// closure did not read the catalog view.
-    fn handle_resurrect_response_like_cpp<'a>(
+    /// C++ `HandleResurrectResponse` (`MiscHandler.cpp:447`). The accepted
+    /// continuation needs spell and item-GUID catalogs after teleport.
+    fn handle_resurrect_response_with_catalogs_like_cpp<'a>(
         &'a mut self,
+        catalogs: &'a C,
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()>;
 
@@ -80,14 +81,14 @@ pub trait CorpseHandlerHostLikeCpp<C> {
 
 fn handle_resurrect_response_thunk<'a, S, C>(
     session: &'a mut S,
-    _catalogs: &'a C,
+    catalogs: &'a C,
     pkt: WorldPacket,
 ) -> HandlerFuture<'a, ()>
 where
     S: CorpseHandlerHostLikeCpp<C> + Send,
     C: Sync,
 {
-    session.handle_resurrect_response_like_cpp(pkt)
+    session.handle_resurrect_response_with_catalogs_like_cpp(catalogs, pkt)
 }
 
 fn handle_repop_request_thunk<'a, S, C>(

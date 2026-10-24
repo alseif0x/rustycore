@@ -138,7 +138,7 @@ pub use transport_restore::{
     restore_persisted_transport_for_login_like_cpp, set_player_transport_position_like_cpp,
 };
 pub use world_entry::{
-    LogoutDenialLikeCpp, fallback_direct_login, handle_logout_request_with_generator_like_cpp,
+    LogoutDenialLikeCpp, fallback_direct_login, handle_logout_request_with_catalogs,
     logout_admission_like_cpp, player_login_combat_stats_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -197,10 +197,10 @@ pub trait CharacterLoginHostLikeCpp:
         target_data: SpellTargetData,
         metadata: SpellCastMetadata,
     ) -> impl Future<Output = Result<(), &'static str>> + Send;
-    fn finalize_session_with_generator_like_cpp(
+    fn finalize_session_with_resurrection_catalogs(
         &mut self,
         mode: FinalizationMode,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        catalogs: wow_world_entities::ResurrectionOperationCatalogs<'_>,
     ) -> impl Future<Output = FinalizationReport> + Send;
     /// The `CanFreeMove` block of C++ `HandleLogoutRequestOpcode`
     /// (`MiscHandler.cpp:276-284`): sit, root, `UNIT_FLAG_STUNNED`. The

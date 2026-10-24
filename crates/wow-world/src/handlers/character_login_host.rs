@@ -137,12 +137,17 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
             metadata,
         )
     }
-    fn finalize_session_with_generator_like_cpp(
+    fn finalize_session_with_resurrection_catalogs(
         &mut self,
         mode: FinalizationMode,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        catalogs: wow_world_entities::ResurrectionOperationCatalogs<'_>,
     ) -> impl Future<Output = FinalizationReport> + Send {
-        WorldSession::finalize_session_with_generator_like_cpp(self, mode, item_guid_generator)
+        wow_world_application::finalize_session_with_resurrection_catalogs(
+            self,
+            mode,
+            catalogs.item_guid_generator,
+            catalogs,
+        )
     }
     fn begin_logout_wait_movement_like_cpp(&mut self) {
         wow_world_application::begin_logout_wait_movement_like_cpp(self)

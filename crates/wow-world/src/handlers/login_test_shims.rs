@@ -30,9 +30,13 @@ use crate::session::{InventoryItem, WorldSession};
 impl WorldSession {
     pub(crate) async fn handle_logout_request(&mut self, req: LogoutRequest) {
         let generators = self.id_generators_for_test_like_cpp();
-        wow_world_character::handle_logout_request_with_generator_like_cpp(
+        let creature_spawns = self.creature_spawn_catalogs_for_test_like_cpp();
+        wow_world_character::handle_logout_request_with_catalogs(
             self,
-            generators.item.as_ref(),
+            wow_world_entities::ResurrectionOperationCatalogs {
+                item_guid_generator: generators.item.as_ref(),
+                creature_spawns: &creature_spawns,
+            },
             req,
         )
         .await;

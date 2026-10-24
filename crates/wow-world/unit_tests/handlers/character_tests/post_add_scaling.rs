@@ -104,7 +104,7 @@ async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
     session.set_player_lifecycle_port_like_cpp(port);
     if worldport {
         assert!(
-            session.schedule_represented_resurrection_after_teleport_like_cpp(
+            session.schedule_represented_resurrection_after_teleport(
                 wow_entities::PlayerResurrectionRequestLikeCpp {
                     resurrecter: guid,
                     map_id: 571,
@@ -124,7 +124,7 @@ async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
             assert!(session.begin_worldport_post_add_like_cpp(571, position));
             assert!(!session.begin_worldport_post_add_like_cpp(571, position));
             session.set_player_position_like_cpp(Position::new(4.0, 5.0, 6.0, 0.0));
-            assert!(!session.finish_worldport_native_before_disconnect_like_cpp());
+            assert!(!session.finish_worldport_native_before_disconnect_like_cpp().await);
             assert!(!session.represented_using_pvp_item_levels_like_cpp());
             assert!(
                 session
@@ -170,7 +170,7 @@ async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
         );
         let pet_resummons = session.temporary_pet_resummon_requests_like_cpp();
         assert_eq!(pet_resummons, 1);
-        assert!(session.finish_worldport_native_before_disconnect_like_cpp());
+        assert!(session.finish_worldport_native_before_disconnect_like_cpp().await);
         assert_eq!(
             session.temporary_pet_resummon_requests_like_cpp(),
             pet_resummons

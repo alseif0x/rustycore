@@ -247,12 +247,46 @@ pub struct PlayerResurrectionRequestLikeCpp {
     pub aura: u32,
 }
 
+/// The single Player-owned continuation for C++ resurrection work that crosses
+/// a teleport or an async visibility/persistence boundary.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlayerResurrectionContinuation {
+    pub operation: PlayerResurrectionOperation,
+    pub phase: PlayerResurrectionPhase,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PlayerResurrectionOperation {
+    RequestData(PlayerResurrectionRequestLikeCpp),
+    TeleportRevivePercent {
+        map_id: u32,
+        position: wow_core::Position,
+        restore_percent: f32,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerResurrectionPhase {
+    TeleportInFlight,
+    AwaitingTeleport,
+    TeleportCompleted,
+    ResurrectPlayerInFlight,
+    VisibilityInFlight,
+    ApplyRequestValues,
+    AuraInFlight,
+    BonesInFlight,
+    ReadyToSavePlayer,
+    SavingPlayer,
+    PlayerSaveDeferred,
+    Complete,
+}
+
 /// C++ Player-owned resurrection lifecycle state: `_resurrectionData`,
 /// `SelfResSpells`, `m_deathTimer`, delayed resurrection and spirit-healer queue.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct PlayerResurrectionStateLikeCpp {
     pub request: Option<PlayerResurrectionRequestLikeCpp>,
-    pub delayed_after_teleport: Option<PlayerResurrectionRequestLikeCpp>,
+    pub delayed_after_teleport: Option<PlayerResurrectionContinuation>,
     pub self_res_spells: BTreeSet<i32>,
     /// Remaining C++ `Player::m_deathTimer` countdown in milliseconds.
     pub death_timer_remaining_ms: u32,

@@ -652,6 +652,186 @@ async fn battle_pet_spell_check_cast_species_type_and_level_like_cpp() {
         SpellCastResult::GrantPetLevelFail as i32
     );
 }
+
+#[tokio::test]
+async fn resurrection_original_caster_attribution_keeps_spell_go_self_identity() {
+    let (mut session, _, send_rx) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 230);
+    let resurrecter = ObjectGuid::create_player(1, 231);
+    let spell_id = 77_292;
+    // This synthetic SpellInfo locks down only caster attribution in the
+    // current represented path; it is not evidence for aura CalcValue,
+    // SpellDuration.db2 or character-aura persistence parity.
+    let effect_amount = 37;
+    session.set_player_guid(Some(player_guid));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    let canonical = Arc::clone(
+        session
+            .core
+            .canonical_map_manager
+            .as_ref()
+            .expect("canonical map manager"),
+    );
+    add_canonical_test_player_on_map(&canonical, resurrecter, Position::ZERO, 0, 0);
+
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        spell_id,
+        wow_data::SpellInfo {
+            spell_id,
+            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_base_points: effect_amount,
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
+                effect_base_points: effect_amount,
+                effect_die_sides: 1,
+                ..Default::default()
+            }],
+            ..test_spell_info_like_cpp(spell_id)
+        },
+    );
+    session.set_spell_store(Arc::new(spell_store));
+
+    session
+        .execute_spell_with_visual_and_target_data_with_metadata(
+            spell_id,
+            player_guid,
+            ObjectGuid::EMPTY,
+            wow_packet::packets::spell::SpellCastVisual::default(),
+            SpellTargetData {
+                flags: 0x2,
+                unit: player_guid,
+                ..Default::default()
+            },
+            SpellCastMetadata {
+                cast_flags: 0x0000_0001,
+                triggered_ignores_global_cooldown_like_cpp: true,
+                original_caster_guid: Some(resurrecter),
+                ..SpellCastMetadata::default()
+            },
+        )
+        .await
+        .expect("the request aura's self cast should execute");
+
+    let packets = drain_server_packet_bytes(&send_rx);
+    let mut spell_go = wow_packet::WorldPacket::from_bytes(&packets[0]);
+    assert_eq!(
+        spell_go.read_uint16().expect("SpellGo opcode"),
+        ServerOpcodes::SpellGo as u16
+    );
+    assert_eq!(
+        spell_go.read_packed_guid().expect("visible caster"),
+        player_guid
+    );
+    assert_eq!(
+        spell_go.read_packed_guid().expect("caster unit"),
+        player_guid
+    );
+    assert!(spell_go.read_packed_guid().expect("cast id").is_empty());
+    assert!(
+        spell_go
+            .read_packed_guid()
+            .expect("original cast id")
+            .is_empty()
+    );
+    assert_eq!(spell_go.read_int32().expect("spell id"), spell_id);
+
+    let aura = session
+        .with_owned_player_like_cpp(|player| {
+            player
+                .unit()
+                .subsystems()
+                .auras
+                .runtime_applications_like_cpp()
+                .values()
+                .find(|aura| aura.spell_id == spell_id)
+                .cloned()
+        })
+        .flatten()
+        .expect("the request aura is registered on the canonical Player");
+    assert_eq!(aura.caster_guid, resurrecter);
+    assert_eq!(
+        (aura.duration_total, aura.duration_remaining),
+        (30_000, 30_000)
+    );
+    assert_eq!(
+        aura.represented_effect,
+        Some(RepresentedAuraEffectLikeCpp::Speed)
+    );
+    assert_eq!(aura.represented_amount, effect_amount);
+    assert_eq!(
+        aura.represented_effect_amounts,
+        vec![RepresentedAuraEffectAmountLikeCpp {
+            effect_index: 0,
+            amount: effect_amount,
+        }]
+    );
+}
+
+#[tokio::test]
+async fn resurrection_original_caster_missing_from_map_falls_back_to_self() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 232);
+    let missing_original_caster = ObjectGuid::create_player(1, 233);
+    let spell_id = 77_294;
+    session.set_player_guid(Some(player_guid));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        spell_id,
+        wow_data::SpellInfo {
+            spell_id,
+            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
+                effect_base_points: 37,
+                effect_die_sides: 1,
+                ..Default::default()
+            }],
+            ..test_spell_info_like_cpp(spell_id)
+        },
+    );
+    session.set_spell_store(Arc::new(spell_store));
+
+    session
+        .execute_spell_with_visual_and_target_data_with_metadata(
+            spell_id,
+            player_guid,
+            ObjectGuid::EMPTY,
+            wow_packet::packets::spell::SpellCastVisual::default(),
+            SpellTargetData {
+                flags: 0x2,
+                unit: player_guid,
+                ..Default::default()
+            },
+            SpellCastMetadata {
+                original_caster_guid: Some(missing_original_caster),
+                ..SpellCastMetadata::default()
+            },
+        )
+        .await
+        .expect("self cast falls back when its original caster is not in the caster map");
+
+    let aura_caster = session
+        .with_owned_player_like_cpp(|player| {
+            player
+                .unit()
+                .subsystems()
+                .auras
+                .runtime_applications_like_cpp()
+                .values()
+                .find(|aura| aura.spell_id == spell_id)
+                .map(|aura| aura.caster_guid)
+        })
+        .flatten()
+        .expect("self aura is registered on the canonical Player");
+    assert_eq!(aura_caster, player_guid);
+}
 #[tokio::test]
 async fn spell_effect_grant_battle_pet_level_uses_unit_companion_guid_like_cpp() {
     let (mut session, _, send_rx) = make_session();

@@ -20,13 +20,21 @@ use std::future::Future;
 
 use tracing::{info, warn};
 use wow_core::{ObjectGuid, Position};
-use wow_entities::{Player, PlayerResurrectionRequestLikeCpp};
+use wow_entities::{Player, PlayerResurrectionPhase, PlayerResurrectionRequestLikeCpp};
 use wow_packet::ClientPacket;
 use wow_packet::packets::misc::{
     ReclaimCorpse, RepopRequest, RequestCemeteryListResponse, ResurrectResponse,
 };
 
 use crate::movement_host::PlayerMovementHostLikeCpp;
+use crate::TELE_TO_NONE_LIKE_CPP;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResurrectionSaveOutcome {
+    Applied,
+    Deferred,
+    Unresolved,
+}
 
 /// The World operations the moved corpse bodies still call; each is the
 /// same-named `WorldSession` operation.
@@ -41,14 +49,11 @@ pub trait CorpseHostLikeCpp: PlayerMovementHostLikeCpp {
     fn represented_resurrection_requested_by_like_cpp(&self, _resurrecter: ObjectGuid) -> bool {
         false
     }
-    fn schedule_represented_resurrection_after_teleport_like_cpp(
-        &mut self,
-        request: PlayerResurrectionRequestLikeCpp,
-    ) -> bool;
     fn teleport_to(&mut self, new_map: u32, new_pos: Position) -> impl Future<Output = ()> + Send;
     /// C++ `Player::TeleportTo(loc, options)`.
     fn teleport_to_with_options_like_cpp(
         &mut self,
+        catalogs: crate::ResurrectionOperationCatalogs<'_>,
         new_map: u32,
         new_pos: Position,
         options: wow_world_core::session::movement_protocol::TeleportToOptionsLikeCpp,
@@ -69,9 +74,10 @@ pub trait CorpseHostLikeCpp: PlayerMovementHostLikeCpp {
     /// the spell executor.
     fn cast_triggered_self_spell_like_cpp(
         &mut self,
-        catalogs: crate::CorpseLifecycleCatalogsLikeCpp<'_>,
+        catalogs: crate::ResurrectionOperationCatalogs<'_>,
         spell_id: i32,
         sickness_remaining_ms: Option<u32>,
+        original_caster_guid: Option<ObjectGuid>,
     ) -> impl Future<Output = bool> + Send;
     /// C++ `WorldSession::isLogingOut()` guard for `BuildPlayerRepop`
     /// (`WorldSession.h:1001`).
@@ -82,7 +88,7 @@ pub trait CorpseHostLikeCpp: PlayerMovementHostLikeCpp {
     fn save_player_after_corpse_bones_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
-    ) -> impl Future<Output = ()> + Send;
+    ) -> impl Future<Output = ResurrectionSaveOutcome> + Send;
 }
 
 fn clear_represented_resurrection_request_like_cpp<H: CorpseHostLikeCpp>(host: &mut H) -> bool {
@@ -102,34 +108,6 @@ fn clear_represented_resurrection_request_like_cpp<H: CorpseHostLikeCpp>(host: &
             .represented_resurrection_request_like_cpp = None;
     }
     canonical || world_test && hub.core.player_handle_like_cpp.is_none()
-}
-
-fn take_represented_resurrection_request_if_requested_by_like_cpp<H: CorpseHostLikeCpp>(
-    host: &mut H,
-    resurrecter: ObjectGuid,
-) -> Option<PlayerResurrectionRequestLikeCpp> {
-    let canonical = host
-        .core()
-        .with_owned_player_mut_like_cpp(|player| {
-            player.take_resurrection_request_if_requested_by_like_cpp(resurrecter)
-        })
-        .flatten();
-    #[cfg(any(test, feature = "test-fixtures"))]
-    if host.test_fixtures_ref_like_cpp().is_some()
-        && canonical.is_none()
-        && host.core().player_handle_like_cpp.is_none()
-    {
-        if !host.represented_resurrection_requested_by_like_cpp(resurrecter) {
-            return None;
-        }
-        return host
-            .hub_mut()
-            .fixtures
-            .combat
-            .represented_resurrection_request_like_cpp
-            .take();
-    }
-    canonical
 }
 
 /// CMSG_REQUEST_CEMETERY_LIST — client asks for graveyards in zone.
@@ -213,6 +191,7 @@ pub async fn handle_request_cemetery_list_with_catalog_like_cpp<H: CorpseHostLik
 /// C++ ref: `WorldSession::HandleResurrectResponse`.
 pub async fn handle_resurrect_response<H: CorpseHostLikeCpp>(
     host: &mut H,
+    catalogs: crate::ResurrectionOperationCatalogs<'_>,
     mut pkt: wow_packet::WorldPacket,
 ) {
     let response = match ResurrectResponse::read(&mut pkt) {
@@ -235,22 +214,52 @@ pub async fn handle_resurrect_response<H: CorpseHostLikeCpp>(
         return;
     }
 
-    let Some(request) =
-        take_represented_resurrection_request_if_requested_by_like_cpp(host, response.resurrecter)
+    let Some(continuation) =
+        crate::resurrection_request::accept_request(host, response.resurrecter)
     else {
         return;
     };
+    let PlayerResurrectionRequestLikeCpp { map_id, position, .. } =
+        match continuation.operation {
+            wow_entities::PlayerResurrectionOperation::RequestData(request) => request,
+            wow_entities::PlayerResurrectionOperation::TeleportRevivePercent { .. } => return,
+        };
 
-    // C++ teleports to resurrection request location before applying the
-    // resurrected state. InstanceScript combat-res charges, aura original
-    // caster, and SpawnCorpseBones remain represented gaps.
-    host.teleport_to(request.map_id, request.position).await;
-    if host.pending_teleport_like_cpp().is_some() || host.hub_ref().near_teleport_pending_like_cpp()
-    {
-        host.schedule_represented_resurrection_after_teleport_like_cpp(request);
+    // C++ `ResurrectUsingRequestData` teleports first; the continuation has
+    // already taken Player ownership before this await can be cancelled.
+    host.teleport_to_with_options_like_cpp(
+        catalogs,
+        map_id,
+        position,
+        TELE_TO_NONE_LIKE_CPP,
+    )
+    .await;
+    let teleport = host.hub_ref().player_teleport_state_snapshot_like_cpp();
+    let near_pending = teleport.is_some_and(|state| state.near_pending);
+    let far_pending = host.pending_teleport_like_cpp();
+    if near_pending || far_pending.is_some() {
+        if !crate::resurrection_request::advance_phase(
+            host,
+            PlayerResurrectionPhase::TeleportInFlight,
+            PlayerResurrectionPhase::AwaitingTeleport,
+        ) {
+            return;
+        }
     } else {
-        host.hub_mut()
-            .apply_represented_resurrection_health_like_cpp(request.health);
+        if !crate::resurrection_request::advance_phase(
+            host,
+            PlayerResurrectionPhase::TeleportInFlight,
+            PlayerResurrectionPhase::TeleportCompleted,
+        ) {
+            return;
+        }
+        let completed = crate::resurrection_request::process_after_teleport(host, catalogs).await;
+        if !completed
+            && !crate::resurrection_request::player_resurrection_save_waiting_for_transfer(host)
+        {
+            host.core_mut()
+                .kick("immediate resurrection continuation did not complete");
+        }
     }
 }
 

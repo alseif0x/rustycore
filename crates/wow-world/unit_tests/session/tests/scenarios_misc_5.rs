@@ -42,7 +42,6 @@ fn canonical_player_resurrection_follows_active_detached_and_stale_ownership_lik
         .expect("canonical handle");
 
     assert!(session.set_represented_resurrection_request_like_cpp(request));
-    assert!(session.schedule_represented_resurrection_after_teleport_like_cpp(request));
     session.add_represented_self_res_spell_like_cpp(21169);
     assert!(session.set_area_spirit_healer_guid_like_cpp(healer_guid));
     assert!(
@@ -58,7 +57,7 @@ fn canonical_player_resurrection_follows_active_detached_and_stale_ownership_lik
         session.player_resurrection_state_snapshot_like_cpp(),
         Some(wow_entities::PlayerResurrectionStateLikeCpp {
             request: Some(request),
-            delayed_after_teleport: Some(request),
+            delayed_after_teleport: None,
             self_res_spells: BTreeSet::from([21169]),
             death_timer_remaining_ms: 360_000,
             area_spirit_healer_guid: healer_guid,
@@ -113,7 +112,6 @@ fn canonical_player_resurrection_follows_active_detached_and_stale_ownership_lik
 
     assert_eq!(session.player_resurrection_state_snapshot_like_cpp(), None);
     assert!(!session.set_represented_resurrection_request_like_cpp(request));
-    assert!(!session.schedule_represented_resurrection_after_teleport_like_cpp(request));
     session.add_represented_self_res_spell_like_cpp(21169);
     assert!(!session.set_area_spirit_healer_guid_like_cpp(healer_guid));
     assert_eq!(

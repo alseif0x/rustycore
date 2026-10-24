@@ -38,6 +38,9 @@ pub struct SpellCastMetadata {
     /// Overrides the visible/effect caster for represented triggered casts.
     /// Normal player casts leave this empty and use the logged-in player GUID.
     pub caster_guid_override: Option<ObjectGuid>,
+    /// C++ `Spell::m_originalCasterGUID`: kept distinct from the caster in
+    /// `SMSG_SPELL_GO` and from `caster_guid_override`.
+    pub original_caster_guid: Option<ObjectGuid>,
     /// C++ `SpellCastData::CastFlags` for the emitted `SMSG_SPELL_GO`.
     pub cast_flags: u32,
     pub misc: [i32; 2],
@@ -75,6 +78,7 @@ impl Default for SpellCastMetadata {
             prepared_residence_revision: None,
             client_started_global_cooldown: false,
             caster_guid_override: None,
+            original_caster_guid: None,
             cast_flags: 0,
             misc: [0, 0],
             cast_item_entry: None,
