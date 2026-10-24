@@ -240,8 +240,11 @@ impl Unit {
         self.visibility_detection
             .server_side_visibility_detect_ghost = detect & (GHOST_VISIBILITY_ALIVE_LIKE_CPP | 0x2);
     }
-    pub fn set_ghost_visible_to_seer_by_group_like_cpp(&mut self, visible: bool) {
-        self.visibility_detection.ghost_visible_to_seer_by_group = visible;
+    pub const fn server_side_ghost_visibility(&self) -> u32 {
+        self.visibility_detection.server_side_visibility_ghost
+    }
+    pub const fn server_side_ghost_visibility_detect(&self) -> u32 {
+        self.visibility_detection.server_side_visibility_detect_ghost
     }
     pub fn set_invisibility_like_cpp(&mut self, aura_type: usize, value: i32) {
         if aura_type >= MAX_VISIBILITY_AURA_TYPES_LIKE_CPP {
@@ -362,6 +365,27 @@ impl Unit {
         seer_is_player: bool,
         check_alert: bool,
     ) -> bool {
+        self.can_see_or_detect_unit_with_context(
+            target,
+            implicit_detect,
+            seer_is_player,
+            check_alert,
+            UnitVisibilityContext {
+                distance_allowed: true,
+                corpse_visibility: false,
+                player_group_visibility: false,
+            },
+        )
+    }
+
+    pub fn can_see_or_detect_unit_with_context(
+        &self,
+        target: &Self,
+        implicit_detect: bool,
+        seer_is_player: bool,
+        check_alert: bool,
+        context: UnitVisibilityContext,
+    ) -> bool {
         let seer_guid = self.world.object().guid();
         if !seer_guid.is_empty() && seer_guid == target.world.object().guid() {
             return true;
@@ -424,6 +448,10 @@ impl Unit {
             return false;
         }
 
+        if !context.distance_allowed {
+            return false;
+        }
+
         let gm_visibility = target.visibility_detection.server_side_visibility_gm;
         if gm_visibility == 0 {
             if self.visibility_detection.server_side_visibility_detect_gm != 0 {
@@ -433,12 +461,19 @@ impl Unit {
             return self.visibility_detection.server_side_visibility_detect_gm >= gm_visibility;
         }
 
+        let corpse_visibility = context.corpse_visibility
+            && seer_is_player
+            && self.world.object().is_type(TypeMask::PLAYER);
         if target.visibility_detection.server_side_visibility_ghost
             & self
                 .visibility_detection
                 .server_side_visibility_detect_ghost
             == 0
-            && !(seer_is_player && target.visibility_detection.ghost_visible_to_seer_by_group)
+            && !corpse_visibility
+            && !(context.player_group_visibility
+                && seer_is_player
+                && self.world.object().is_type(TypeMask::PLAYER)
+                && target.world.object().is_type(TypeMask::PLAYER))
         {
             return false;
         }

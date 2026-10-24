@@ -371,7 +371,8 @@ pub use unit::{
     UnitAttackStopOutcome, UnitDataUpdate, UnitDataValues, UnitHealthRegenInputLikeCpp,
     UnitPowerRegenInputLikeCpp, UnitPowerRegenOutcomeLikeCpp, UnitPowerRegenStateLikeCpp,
     UnitRemoveFromWorldOutcomeLikeCpp, UnitSharedVisionSetWorldObjectRequestLikeCpp,
-    UnitValuesUpdate, UnitVisibilityDetectionStateLikeCpp, represented_power_type_from_u8_like_cpp,
+    UnitValuesUpdate, UnitVisibilityContext, UnitVisibilityDetectionStateLikeCpp,
+    represented_power_type_from_u8_like_cpp,
 };
 pub use unit_subsystems::{
     ACT_COMMAND_LIKE_CPP, ACT_DISABLED_LIKE_CPP, ACT_ENABLED_LIKE_CPP, ACT_PASSIVE_LIKE_CPP,

@@ -13,3 +13,4 @@ use crate::{
 mod scenarios_1;
 mod scenarios_2;
 mod scenarios_3;
+mod visibility_context;

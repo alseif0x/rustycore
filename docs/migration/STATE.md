@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, implementación previa a aceptación final — 2026-10-24, 20:08 UTC:**
+**#43, implementación previa a aceptación final — 2026-10-24, 20:35 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
 y productor desde hechizos están escritos y tienen feedback focalizado;
 **no hay aceptación final de este candidato**. El cálculo básico del productor
@@ -137,6 +137,20 @@ Ambos tests salieron 0. Los intentos `202232Z` y `202345Z` fallaron al
 compilar fixtures (GUID y referencias) y se corrigieron. Tras el feedback
 se restauró el `type_flags = 0x20` del fixture general: la tabla nueva
 sobrescribe ese campo en cada caso; no se atribuye a la corrida un SHA posterior.
+
+Predicado de visibilidad, 20:35 UTC, sobre `089a606ae` más el delta local:
+`UnitVisibilityContext` aporta resultados efímeros de distancia, cadáver y
+grupo; la distancia se comprueba antes de GM y las excepciones solo afectan
+al filtro ghost. La de cadáver exige un Player observador y la de grupo
+exige dos Players. Se retiró el campo mutable de grupo, cuyo único productor
+era un test. Se conserva el orden de fase, privacidad, condiciones, despawn,
+invisibilidad y sigilo (`Object.cpp:1517–1627`). Feedback focal del worker:
+6 passed en `unit::tests::visibility_context` y 1 passed en el test existente
+`can_see_or_detect_unit_like_cpp_applies_ghost_despawn_and_always_detectable_gates`,
+ambos exit 0. Logs `/tmp/rustycore-9c2a-visibility-context-20261024TIfvuo5.log`
+y `/tmp/rustycore-9c2a-existing-visibility-20261024TqnlmEM.log`.
+El cálculo desde Map/Player/cadáver y los consumidores productivos todavía
+no usan este contexto: es implementación parcial, no aceptación de visibilidad.
 
 Contraste de datos del productor, 2026-10-24: el diagnóstico opt-in mantenido
 `wow-data::spell_db2::tests::resurrection_effect_data` leyó el DataDir instalado

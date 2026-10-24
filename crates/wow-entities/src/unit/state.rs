@@ -360,6 +360,16 @@ pub struct UnitAttackContextLikeCpp {
     pub victim_has_pvp_unk1_flag: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UnitVisibilityContext {
+    /// The caller's `WorldObject::IsWithinDist` result, resolved before the GM gate.
+    pub distance_allowed: bool,
+    /// A corpse-derived exception to the ghost mask check only.
+    pub corpse_visibility: bool,
+    /// The caller's group result; the predicate still requires Player↔Player objects.
+    pub player_group_visibility: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnitVisibilityDetectionStateLikeCpp {
     pub(super) never_visible_for_seer: bool,
@@ -377,7 +387,6 @@ pub struct UnitVisibilityDetectionStateLikeCpp {
     pub(super) server_side_visibility_detect_gm: u32,
     pub(super) server_side_visibility_ghost: u32,
     pub(super) server_side_visibility_detect_ghost: u32,
-    pub(super) ghost_visible_to_seer_by_group: bool,
     pub(super) seer_can_always_see_target_guid: ObjectGuid,
     pub(super) invisibility_flags: u64,
     pub(super) invisibility: [i32; MAX_VISIBILITY_AURA_TYPES_LIKE_CPP],
@@ -406,7 +415,6 @@ impl Default for UnitVisibilityDetectionStateLikeCpp {
             server_side_visibility_detect_gm: 0,
             server_side_visibility_ghost: GHOST_VISIBILITY_ALIVE_LIKE_CPP,
             server_side_visibility_detect_ghost: GHOST_VISIBILITY_ALIVE_LIKE_CPP,
-            ghost_visible_to_seer_by_group: false,
             seer_can_always_see_target_guid: ObjectGuid::EMPTY,
             invisibility_flags: 0,
             invisibility: [0; MAX_VISIBILITY_AURA_TYPES_LIKE_CPP],
