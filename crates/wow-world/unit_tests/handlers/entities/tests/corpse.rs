@@ -512,9 +512,15 @@ fn sent_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<u16> {
 }
 
 #[derive(Default)]
-struct RecordingCorpsePortLikeCpp {
+pub(super) struct RecordingCorpsePortLikeCpp {
     saves: std::sync::Mutex<Vec<wow_persistence::CorpseSaveRequestLikeCpp>>,
     deletes: std::sync::Mutex<Vec<u64>>,
+}
+
+impl RecordingCorpsePortLikeCpp {
+    pub(super) fn delete_requests(&self) -> Vec<u64> {
+        self.deletes.lock().unwrap().clone()
+    }
 }
 
 impl wow_persistence::MapCorpsePersistencePortLikeCpp for RecordingCorpsePortLikeCpp {
@@ -553,7 +559,7 @@ impl wow_persistence::MapCorpsePersistencePortLikeCpp for RecordingCorpsePortLik
     }
 }
 
-fn human_race_entry_with_faction(
+pub(super) fn human_race_entry_with_faction(
     faction_id: i16,
 ) -> wow_data::character_progression::ChrRacesEntry {
     wow_data::character_progression::ChrRacesEntry {
@@ -660,7 +666,10 @@ fn dead_player_session_on_map_like_cpp(
     (session, send_rx, realm_rx, player_guid, port)
 }
 
-fn current_corpse_guid_like_cpp(session: &WorldSession, owner: ObjectGuid) -> Option<ObjectGuid> {
+pub(super) fn current_corpse_guid_like_cpp(
+    session: &WorldSession,
+    owner: ObjectGuid,
+) -> Option<ObjectGuid> {
     let manager = crate::session::hub_ref(session)
         .core
         .canonical_map_manager
@@ -935,7 +944,7 @@ async fn repop_of_just_died_player_runs_kill_player_first_like_cpp() {
 
 /// A released ghost (corpse at (1, 2, 3) on 571) with the PvE reclaim delay
 /// disabled so the reclaim is admitted at once.
-async fn released_ghost_without_reclaim_delay_like_cpp(
+pub(super) async fn released_ghost_without_reclaim_delay_like_cpp(
     guid_counter: i64,
 ) -> (
     WorldSession,

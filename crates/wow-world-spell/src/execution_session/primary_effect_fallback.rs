@@ -31,6 +31,7 @@ pub(super) fn apply_primary_spell_effect_fallback_like_cpp<H: SpellExecutionHost
                         cast_id,
                         spell_visual_id: spell_visual_id.min(i32::MAX as u32) as i32,
                     },
+                    true,
                 )?;
             }
         }

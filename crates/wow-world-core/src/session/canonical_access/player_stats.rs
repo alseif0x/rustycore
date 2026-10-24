@@ -180,10 +180,10 @@ fn represented_total_stat_multiplier_from_snapshot_like_cpp(
     catalogs: &SessionCatalogs,
     spell_store: &wow_data::SpellStore,
     visible_auras: &HashMap<u8, wow_entities::AuraApplicationLikeCpp>,
+    aura_type: i32,
     stat: usize,
     uses_misc_value_b: bool,
 ) -> f32 {
-    let aura_type = wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE;
     let mut multiplier = 1.0f32;
     let mut same_effect_spell_groups = BTreeMap::<u32, i32>::new();
 
@@ -570,6 +570,18 @@ impl PlayerStatsAccessLikeCpp<'_> {
         Some(multipliers)
     }
 
+    pub fn resolved_stat_base_multipliers(&self) -> Option<[f32; 5]> {
+        let mut multipliers = [1.0; 5];
+        for (stat, multiplier) in multipliers.iter_mut().enumerate() {
+            *multiplier = self.resolved_represented_stat_multiplier_for_stat(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_PERCENT_STAT,
+                stat,
+                false,
+            )?;
+        }
+        Some(multipliers)
+    }
+
     pub fn resolved_represented_total_stat_buff_multipliers_like_cpp(&self) -> Option<[f32; 5]> {
         let mut multipliers = [1.0; 5];
         for (stat, multiplier) in multipliers.iter_mut().enumerate() {
@@ -590,6 +602,25 @@ impl PlayerStatsAccessLikeCpp<'_> {
             self.catalogs,
             spell_store,
             &visible_auras,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE,
+            stat,
+            uses_misc_value_b,
+        ))
+    }
+
+    fn resolved_represented_stat_multiplier_for_stat(
+        &self,
+        aura_type: i32,
+        stat: usize,
+        uses_misc_value_b: bool,
+    ) -> Option<f32> {
+        let spell_store = self.catalogs.spell_store()?;
+        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
+        Some(represented_total_stat_multiplier_from_snapshot_like_cpp(
+            self.catalogs,
+            spell_store,
+            &visible_auras,
+            aura_type,
             stat,
             uses_misc_value_b,
         ))
@@ -682,6 +713,7 @@ impl HubRef<'_> {
                 self.catalogs,
                 spell_store,
                 &visible_auras,
+                wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE,
                 stat,
                 uses_misc_value_b,
             );

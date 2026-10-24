@@ -64,6 +64,7 @@ mod player_effects;
 mod post_spell_go;
 mod preparation;
 mod primary_effect_fallback;
+mod resurrection_sickness;
 mod target_resolution;
 
 pub use cast_state::*;
@@ -125,6 +126,7 @@ pub trait SpellExecutionHostLikeCpp:
         aura_flags: u32,
         effect_mask: u32,
         provenance: wow_entities::AuraCastProvenanceLikeCpp,
+        send_update: bool,
     ) -> Result<(), &'static str>;
     fn apply_durability_damage_effect_like_cpp(
         &mut self,

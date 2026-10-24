@@ -13,7 +13,7 @@ impl AuraRemovalCxLikeCpp<'_> {
             );
     }
 
-    pub(super) fn update_total_stat_percentage_phase_like_cpp(
+    pub(super) fn update_character_stats_phase(
         &mut self,
         removed: &RemovedAuraLikeCpp,
         spell_store: Option<&wow_data::SpellStore>,
@@ -21,10 +21,7 @@ impl AuraRemovalCxLikeCpp<'_> {
         if self.player.is_logged_in_like_cpp()
             && self
                 .spell
-                .aura_has_total_stat_percentage_effect_with_store_like_cpp(
-                    spell_store,
-                    &removed.aura,
-                )
+                .aura_affects_character_stats_with_store(spell_store, &removed.aura)
         {
             let preserve_health_pct = self
                 .spell

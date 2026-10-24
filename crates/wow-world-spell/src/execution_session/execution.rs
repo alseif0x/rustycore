@@ -27,6 +27,12 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
 ) -> Result<(), &'static str> {
     let player_guid = host.player_guid().ok_or("No player GUID")?;
     let caster_guid = metadata.caster_guid_override.unwrap_or(player_guid);
+    let player_resurrection_sickness = target_guid == player_guid
+        && caster_guid == player_guid
+        && super::resurrection_sickness::is_resurrection_sickness_spell(host, spell_id);
+    let server_triggered_resurrection_sickness = !metadata.from_client
+        && metadata.triggered_ignores_global_cooldown_like_cpp
+        && player_resurrection_sickness;
 
     // Load spell metadata.
     let spell_info = host
@@ -89,34 +95,49 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
     } else {
         (Default::default(), metadata.cast_flags)
     };
-    let go_pkt = SpellGoPkt {
-        cast_data,
-        caster: caster_guid,
-        cast_id,
-        original_cast_id: metadata.original_cast_id_or(cast_id),
-        spell_id,
-        visual: spell_visual,
-        cast_flags,
-        cast_flags_ex: metadata.cast_flags_ex,
-        cast_time_ms: wow_world_core::session::game_time_ms_like_cpp(),
-        target: spell_go_target_data,
-        hit_targets: vec![target_guid],
-        miss_targets: Vec::new(),
-    };
-    if metadata.client_cast_id.is_some() {
-        publish_player_cast_frame_like_cpp(
+    let send_spell_go = if server_triggered_resurrection_sickness {
+        super::resurrection_sickness::should_send_resurrection_sickness_spell_go(
             host,
-            metadata,
-            wow_packet::ServerPacket::to_bytes(&go_pkt),
-        );
+            spell_id,
+            spell_visual.spell_visual_id,
+        )?
     } else {
-        host.send_packet(&go_pkt);
-    }
-    if caster_guid != player_guid && caster_guid.is_any_type_creature() {
-        host.broadcast_creature_packet_to_visible_set_like_cpp(
-            caster_guid,
-            wow_packet::ServerPacket::to_bytes(&go_pkt),
-        );
+        true
+    };
+    if send_spell_go {
+        let go_pkt = SpellGoPkt {
+            cast_data,
+            caster: caster_guid,
+            cast_id,
+            original_cast_id: if server_triggered_resurrection_sickness {
+                metadata.original_cast_id
+            } else {
+                metadata.original_cast_id_or(cast_id)
+            },
+            spell_id,
+            visual: spell_visual,
+            cast_flags,
+            cast_flags_ex: metadata.cast_flags_ex,
+            cast_time_ms: wow_world_core::session::game_time_ms_like_cpp(),
+            target: spell_go_target_data,
+            hit_targets: vec![target_guid],
+            miss_targets: Vec::new(),
+        };
+        if metadata.client_cast_id.is_some() {
+            publish_player_cast_frame_like_cpp(
+                host,
+                metadata,
+                wow_packet::ServerPacket::to_bytes(&go_pkt),
+            );
+        } else {
+            host.send_packet(&go_pkt);
+        }
+        if caster_guid != player_guid && caster_guid.is_any_type_creature() {
+            host.broadcast_creature_packet_to_visible_set_like_cpp(
+                caster_guid,
+                wow_packet::ServerPacket::to_bytes(&go_pkt),
+            );
+        }
     }
     // #1444 H3: TrinityCore `Spell::_cast` raises `OnPlayerSpellCast` for a
     // player caster (`Spell.cpp:3671`). Modules observe a cast that already
@@ -634,10 +655,24 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         // caster. The represented player chain below is the host-cast path;
         // a creature target receives one canonical `AuraApplication`
         // carrying every applied effect slot.
+        if player_resurrection_sickness {
+            super::resurrection_sickness::apply_resurrection_sickness_aura(
+                host,
+                spell_id,
+                caster_guid,
+                &spell_info,
+                cast_id,
+                spell_visual_id,
+                metadata.resurrection_sickness_remaining_ms,
+            )?;
+        }
         let mut creature_aura_applied = false;
         for effect in spell_info.effects().iter().filter(|effect| {
             effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
         }) {
+            if player_resurrection_sickness {
+                continue;
+            }
             // The represented taunt path owns `SPELL_AURA_MOD_TAUNT` and
             // its `EffectTaunt` current-victim gate, so that aura keeps
             // flowing through the chain below instead of the generic
@@ -969,6 +1004,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                         cast_id,
                         spell_visual_id: spell_visual_id.min(i32::MAX as u32) as i32,
                     },
+                    true,
                 )?;
             } else {
                 debug!(

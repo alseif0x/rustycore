@@ -21,7 +21,7 @@ async fn dispatch_registered_like_cpp(
     let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == opcode)
         .expect("registered NPC handler");
-    let catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
+    let catalogs = session.session_handler_catalogs_for_test_like_cpp();
     (entry.handler)(session, &catalogs, pkt).await;
 }
 

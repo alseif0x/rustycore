@@ -119,6 +119,27 @@ impl SessionSpellState {
         })
     }
 
+    pub fn aura_affects_character_stats_with_store(
+        &self,
+        spell_store: Option<&wow_data::SpellStore>,
+        aura: &AuraApplication,
+    ) -> bool {
+        spell_store.is_some_and(|store| {
+            store.get(aura.spell_id).is_some_and(|spell| {
+                spell.effects().iter().any(|effect| {
+                    1u32.checked_shl(effect.effect_index)
+                        .is_some_and(|bit| aura.effect_mask & bit != 0)
+                        && matches!(
+                            effect.effect_aura,
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_PERCENT_STAT
+                                | wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE
+                                | wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE
+                        )
+                })
+            })
+        })
+    }
+
     pub fn total_stat_percentage_aura_preserves_health_pct_like_cpp(
         &self,
         hub: HubRef<'_>,

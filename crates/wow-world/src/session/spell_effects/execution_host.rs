@@ -96,16 +96,18 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
         aura_flags: u32,
         effect_mask: u32,
         provenance: wow_entities::AuraCastProvenanceLikeCpp,
+        send_update: bool,
     ) -> Result<(), &'static str> {
-        WorldSession::apply_aura_with_effect_mask_and_provenance_like_cpp(
-            self,
-            spell_id,
-            caster_guid,
-            duration_ms,
-            aura_flags,
-            effect_mask,
-            provenance,
-        )
+        self.player_aura_application_cx_like_cpp()
+            .apply_aura_with_effect_mask_provenance_and_update_like_cpp(
+                spell_id,
+                caster_guid,
+                duration_ms,
+                aura_flags,
+                effect_mask,
+                provenance,
+                send_update,
+            )
     }
     fn apply_durability_damage_effect_like_cpp(
         &mut self,

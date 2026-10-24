@@ -58,10 +58,26 @@ pub async fn execute_server_triggered_spell_like_cpp<H: SpellExecutionHostLikeCp
     creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
     spell_id: i32,
     target_guid: ObjectGuid,
-    metadata: SpellCastMetadata,
+    mut metadata: SpellCastMetadata,
 ) -> Result<(), &'static str> {
     use wow_packet::packets::spell::SpellCastVisual;
-
+    let player_guid = host.player_guid().ok_or("No player GUID")?;
+    let mut spell_visual = SpellCastVisual {
+        spell_visual_id: 0,
+        script_visual_id: 0,
+    };
+    let caster_guid = metadata.caster_guid_override.unwrap_or(player_guid);
+    if !metadata.from_client
+        && metadata.triggered_ignores_global_cooldown_like_cpp
+        && target_guid == player_guid
+        && caster_guid == player_guid
+        && super::resurrection_sickness::is_resurrection_sickness_spell(host, spell_id)
+    {
+        let (visual_id, cast_flags) =
+            super::resurrection_sickness::resurrection_sickness_cast_metadata(host, spell_id)?;
+        spell_visual.spell_visual_id = visual_id;
+        metadata.cast_flags = cast_flags;
+    }
     let Some(cast_id) = host.next_represented_spell_cast_guid_like_cpp(spell_id) else {
         return Err("canonical Map cast identity unavailable for a triggered cast");
     };
@@ -72,10 +88,7 @@ pub async fn execute_server_triggered_spell_like_cpp<H: SpellExecutionHostLikeCp
         spell_id,
         target_guid,
         cast_id,
-        SpellCastVisual {
-            spell_visual_id: 0,
-            script_visual_id: 0,
-        },
+        spell_visual,
         Default::default(),
         metadata,
     )

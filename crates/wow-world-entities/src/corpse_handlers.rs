@@ -61,6 +61,8 @@ pub trait CorpseHostLikeCpp: PlayerMovementHostLikeCpp {
     ) -> Option<std::sync::Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>>;
     /// C++ `Unit::RemoveAurasDueToSpell(spellId)`.
     fn remove_auras_due_to_spell_like_cpp(&mut self, spell_id: i32) -> usize;
+    /// C++ `Player::DurabilityLossAll(0.25f, true)`.
+    fn apply_spirit_healer_durability_loss(&mut self);
     /// C++ `Player::HasSpell`.
     fn player_has_spell_like_cpp(&self, spell_id: i32) -> bool;
     /// C++ `CastSpell(this, spellId, true)`: a triggered self cast through
@@ -69,6 +71,7 @@ pub trait CorpseHostLikeCpp: PlayerMovementHostLikeCpp {
         &mut self,
         catalogs: crate::CorpseLifecycleCatalogsLikeCpp<'_>,
         spell_id: i32,
+        sickness_remaining_ms: Option<u32>,
     ) -> impl Future<Output = bool> + Send;
     /// C++ `WorldSession::PlayerLogoutWithSave`.
     fn player_logout_with_save_like_cpp(&self) -> bool;

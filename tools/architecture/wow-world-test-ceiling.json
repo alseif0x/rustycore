@@ -105,6 +105,16 @@
    "unit_tests_lines": 234845,
    "unit_tests_tests": 3737,
    "src_tests": 22
+  },
+  {
+   "id": "raise-43-10",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-23",
+   "reason": "#43 spirit healer: six reviewed World composition tests cover NPC admission, resurrection sickness and expiry, carried-item durability, level/race/configuration, saved-corpse graveyard and teleport branches; existing test identities/classes are preserved. Domain arithmetic remains in wow-data tests.",
+   "unit_tests_lines": 236123,
+   "unit_tests_tests": 3743,
+   "src_tests": 22
   }
  ]
 }

@@ -56,6 +56,7 @@ mod player_vitals;
 mod spawn;
 mod spell_click;
 pub mod spell_click_values;
+mod spirit_healer;
 mod state;
 mod teleport_session;
 mod travel_handlers;
@@ -94,6 +95,7 @@ pub use corpse_handlers::{
     handle_request_cemetery_list_with_catalog_like_cpp, handle_resurrect_response,
 };
 pub use module_hooks::CreatureKillHookEventLikeCpp;
+pub use spirit_healer::send_spirit_resurrect;
 // The exact `ApplicationCorpse` owner facade the handler-contract checker
 // requires (#1263 F5 deferred families).
 pub use corpse_registrations::{CorpseHandlerHostLikeCpp, register_corpse_handlers_like_cpp};

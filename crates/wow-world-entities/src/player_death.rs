@@ -545,10 +545,10 @@ pub async fn build_player_repop_like_cpp<H: CorpseHostLikeCpp>(
 
     // If the player has the Wisp racial then cast the Wisp aura on them.
     if host.player_has_spell_like_cpp(SPELL_WISP_SPIRIT_RACIAL_LIKE_CPP) {
-        host.cast_triggered_self_spell_like_cpp(catalogs, SPELL_WISP_SPIRIT_AURA_LIKE_CPP)
+        host.cast_triggered_self_spell_like_cpp(catalogs, SPELL_WISP_SPIRIT_AURA_LIKE_CPP, None)
             .await;
     }
-    host.cast_triggered_self_spell_like_cpp(catalogs, SPELL_GHOST_LIKE_CPP)
+    host.cast_triggered_self_spell_like_cpp(catalogs, SPELL_GHOST_LIKE_CPP, None)
         .await;
     // C++ `AuraEffect::HandleAuraGhost` sets PLAYER_FLAGS_GHOST when 8326
     // applies; the represented aura has no effect handler, so the flag is

@@ -13,6 +13,7 @@
 //! `OutdoorPvPMgr::HandlePlayerResurrects`, `Battleground::HandlePlayerResurrect`
 //! and `CastAllObtainSpells`.
 
+use tracing::warn;
 use wow_constants::PowerType;
 use wow_core::ObjectGuid;
 use wow_packet::packets::misc::DeathReleaseLoc;
@@ -25,11 +26,12 @@ use crate::player_death::{
 };
 use crate::{CorpseHostLikeCpp, player_corpse_like_cpp, player_in_arena_like_cpp};
 
-/// C++ `Player::ResurrectPlayer(restore_percent, applySickness = false)`.
+/// C++ `Player::ResurrectPlayer(restore_percent, applySickness)`.
 pub async fn resurrect_player_like_cpp<H: CorpseHostLikeCpp>(
     host: &mut H,
     catalogs: CorpseLifecycleCatalogsLikeCpp<'_>,
     restore_percent: f32,
+    apply_sickness: bool,
 ) {
     if host.player_guid().is_none() {
         return;
@@ -93,8 +95,60 @@ pub async fn resurrect_player_like_cpp<H: CorpseHostLikeCpp>(
     // update visibility
     host.update_visibility_with_catalogs_like_cpp(catalogs.creature_spawns)
         .await;
-    // Resurrection sickness (`applySickness`) is the spirit healer's path
-    // (#43 slice 3); corpse reclaim calls `ResurrectPlayer(pct)` without it.
+    if apply_sickness {
+        apply_resurrection_sickness(host, catalogs).await;
+    }
+}
+
+async fn apply_resurrection_sickness<H: CorpseHostLikeCpp>(
+    host: &mut H,
+    catalogs: CorpseLifecycleCatalogsLikeCpp<'_>,
+) {
+    let (threshold, level, race_id, sickness_spell_id) = {
+        let hub = host.hub_ref();
+        let race_id = hub.player_race_like_cpp();
+        let sickness_spell_id = hub
+            .catalogs
+            .chr
+            .races_store
+            .as_ref()
+            .and_then(|store| store.get(u32::from(race_id)))
+            .map(|race| race.res_sickness_spell_id);
+        (
+            i64::from(hub.config.death_policy_like_cpp.sickness_level),
+            i64::from(hub.player_level_like_cpp()),
+            race_id,
+            sickness_spell_id,
+        )
+    };
+    let Some(sickness_spell_id) = sickness_spell_id else {
+        warn!(
+            account = host.core().account_id,
+            race = race_id,
+            "Resurrection sickness skipped without ChrRaces data"
+        );
+        return;
+    };
+    if level < threshold {
+        return;
+    }
+
+    let sickness_remaining_ms = if level < threshold + 9 {
+        u32::try_from((level - threshold + 1) * 60_000).ok()
+    } else {
+        None
+    };
+    if !host
+        .cast_triggered_self_spell_like_cpp(catalogs, sickness_spell_id, sickness_remaining_ms)
+        .await
+    {
+        warn!(
+            account = host.core().account_id,
+            race = race_id,
+            spell_id = sickness_spell_id,
+            "Resurrection sickness triggered cast failed"
+        );
+    }
 }
 
 /// C++ `WorldSession::HandleReclaimCorpse` after the packet is parsed.
@@ -165,7 +219,7 @@ pub async fn reclaim_corpse_like_cpp<H: CorpseHostLikeCpp>(
     } else {
         0.5
     };
-    resurrect_player_like_cpp(host, catalogs, restore_percent).await;
+    resurrect_player_like_cpp(host, catalogs, restore_percent, false).await;
 
     // spawn bones
     crate::spawn_corpse_bones_like_cpp(host, catalogs.item_guid_generator, true).await;

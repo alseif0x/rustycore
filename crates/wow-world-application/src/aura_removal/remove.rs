@@ -18,10 +18,7 @@ impl AuraRemovalCxLikeCpp<'_> {
         if removed.aura.spell_id == wow_world_core::session::SPELL_PVP_RULES_ENABLED_LIKE_CPP {
             let _ = self.item_scaling_phase_like_cpp();
         }
-        self.update_total_stat_percentage_phase_like_cpp(
-            &removed,
-            self.spell_store.map(|store| store.as_ref()),
-        );
+        self.update_character_stats_phase(&removed, self.spell_store.map(|store| store.as_ref()));
         self.sync_attack_speed_phase_like_cpp(self.spell_store.map(|store| store.as_ref()));
         if let Some(mutation) = self.shapeshift_ownership_phase_like_cpp(removed.aura.spell_id) {
             self.sync_shapeshift_form_like_cpp(mutation);

@@ -90,6 +90,10 @@ pub mod attributes {
     pub const SPELL_ATTR1_NO_AUTOCAST_AI: u32 = 0x0002_0000;
     /// C++ `SPELL_ATTR1_NO_AURA_ICON` (`SharedDefines.h`).
     pub const SPELL_ATTR1_NO_AURA_ICON: u32 = 0x1000_0000;
+    /// C++ `SPELL_ATTR7_ALWAYS_CAST_LOG` (`SharedDefines.h`).
+    pub const SPELL_ATTR7_ALWAYS_CAST_LOG: u32 = 0x8000_0000;
+    /// C++ `SPELL_ATTR8_AURA_POINTS_ON_CLIENT` (`SharedDefines.h`).
+    pub const SPELL_ATTR8_AURA_POINTS_ON_CLIENT: u32 = 0x0000_1000;
     /// C++ `SPELL_ATTR2_IGNORE_LINE_OF_SIGHT` (`SharedDefines.h`).
     pub const SPELL_ATTR2_IGNORE_LINE_OF_SIGHT: u32 = 0x0000_0004;
     /// C++ `SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM` (`SharedDefines.h`).

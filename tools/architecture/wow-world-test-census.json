@@ -22,14 +22,14 @@
   "W-fields": "builds a WorldSession and only reads or writes its fields"
  },
  "summary": {
-  "tests": 3759,
+  "tests": 3765,
   "ignored": 1,
-  "session": 3455,
-  "shims": 3271,
+  "session": 3461,
+  "shims": 3277,
   "by_class": {
    "P": 304,
    "H": 165,
-   "W": 3290
+   "W": 3296
   },
   "by_reason": {
    "H-host": 165,
@@ -42,7 +42,7 @@
    "W-multi-domain": 36,
    "W-unreached": 22,
    "W-world-items": 2,
-   "W-world-logic": 3072
+   "W-world-logic": 3078
   },
   "by_owner": {
    "wow-world": {
@@ -73,7 +73,7 @@
    "wow-world-entities": {
     "P": 28,
     "H": 3,
-    "W": 365
+    "W": 369
    },
    "wow-world-instances": {
     "P": 0,
@@ -88,7 +88,7 @@
    "wow-world-inventory": {
     "P": 26,
     "H": 14,
-    "W": 409
+    "W": 410
    },
    "wow-world-lifecycle": {
     "P": 38,
@@ -123,7 +123,7 @@
    "wow-world-spell": {
     "P": 43,
     "H": 5,
-    "W": 788
+    "W": 789
    },
    "wow-world-visibility": {
     "P": 0,
@@ -135,7 +135,7 @@
    "wow-world": {
     "P": 70,
     "H": 0,
-    "W": 3290
+    "W": 3296
    },
    "wow-world-application": {
     "P": 27,
@@ -213,9 +213,9 @@
   "wow-world-application": 84,
   "wow-world-character": 82,
   "wow-world-core": 4,
-  "wow-world-entities": 120,
+  "wow-world-entities": 121,
   "wow-world-instances": 30,
-  "wow-world-interaction": 1,
+  "wow-world-interaction": 2,
   "wow-world-inventory": 76,
   "wow-world-lifecycle": 18,
   "wow-world-loot-ops": 107,
@@ -1106,6 +1106,11 @@
   ["unit_tests/handlers/entities/tests/player.rs::stand_state_change_missing_live_owner_records_no_false_success_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_stand_state_change", "set_player_guid"], []],
   ["unit_tests/handlers/entities/tests/player.rs::repeated_stand_state_still_sends_direct_cpp_packet_without_values_delta", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_stand_state_change", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/handlers/entities/tests/player.rs::stand_state_change_handler_metadata_matches_cpp", "P", "wow-world", "wow-world", "P-world-items", false, false, false, ["compose_packet_handlers_like_cpp"], []],
+  ["unit_tests/handlers/entities/tests/spirit_healer.rs::spirit_healer_gate_rejects_wrong_flag_and_distant_npc", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "pending_teleport_like_cpp"], []],
+  ["unit_tests/handlers/entities/tests/spirit_healer.rs::spirit_healer_resurrects_applies_sickness_and_only_damages_carried_items", "W", "wow-world", "wow-world-inventory", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "apply_inventory_item_store_side_effects_like_cpp", "creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp"], []],
+  ["unit_tests/handlers/entities/tests/spirit_healer.rs::sickness_uses_configured_threshold_and_race_spell_even_without_visible_go", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "pending_teleport_like_cpp"], []],
+  ["unit_tests/handlers/entities/tests/spirit_healer.rs::healer_uses_cached_corpse_graveyard_without_corpse_object", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "pending_teleport_like_cpp"], []],
+  ["unit_tests/handlers/entities/tests/spirit_healer.rs::healer_skips_teleport_when_graveyard_matches_or_corpse_location_is_missing", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "creature_spawn_catalogs_for_test_like_cpp", "id_generators_for_test_like_cpp", "pending_teleport_like_cpp"], []],
   ["unit_tests/handlers/group_tests/combat.rs::lfg_uninvite_in_combat_returns_code_without_removal_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_party_uninvite", "set_group_registry", "set_player_guid", "set_player_registry"], []],
   ["unit_tests/handlers/group_tests/combat.rs::lfg_uninvite_member_in_combat_returns_code_without_removal_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_party_uninvite", "set_group_registry", "set_player_guid", "set_player_registry"], []],
   ["unit_tests/handlers/group_tests/combat.rs::lfg_uninvite_member_in_combat_on_another_map_passes_gate_like_cpp", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["handle_party_uninvite", "set_group_registry", "set_player_guid", "set_player_registry"], []],
@@ -2172,6 +2177,7 @@
   ["unit_tests/session/tests/admission.rs::packet_spoof_ban_eviction_queues_kick_for_affected_accounts_like_cpp", "W", "wow-world", "wow-world-core", "W-world-logic", true, true, false, ["set_player_registry"], []],
   ["unit_tests/session/tests/admission.rs::packet_spoof_cpp_opcode_limit_table_is_exhaustive_like_cpp", "P", "wow-world-core", "wow-world-core", "P-domain", false, false, false, [], []],
   ["unit_tests/session/tests/admission.rs::packet_spoof_zero_limit_opcode_is_unlimited_like_cpp", "W", "wow-world", "wow-world-core", "W-world-logic", true, true, false, ["update"], []],
+  ["unit_tests/session/tests/aura_duration.rs::set_aura_duration_updates_packet_provenance_and_remaining_lifetime", "W", "wow-world", "wow-world-spell", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "apply_aura_with_effect_mask_and_provenance_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/session/tests/cinematic_catalog.rs::cinematic_catalog_wiring_changes_camera_state_not_trigger_admission", "W", "wow-world", "wow-world-character", "W-world-logic", true, true, false, ["adopt_registered_canonical_player_fixture_like_cpp", "send_represented_cinematic_start_like_cpp", "set_canonical_map_manager", "set_player_guid"], []],
   ["unit_tests/session/tests/connection.rs::primary_only_realm_sends_fall_back_to_the_primary_connection_like_cpp", "W", "wow-world", "wow-world-core", "W-fields", true, false, false, [], []],
   ["unit_tests/session/tests/connection.rs::instance_link_attach_parks_the_previous_primary_as_realm_like_cpp", "W", "wow-world", "wow-world-entities", "W-world-logic", true, true, false, ["poll_instance_link"], []],

@@ -123,6 +123,10 @@ impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
         removed
     }
 
+    fn apply_spirit_healer_durability_loss(&mut self) {
+        wow_world_inventory::apply_spirit_healer_durability_loss(self);
+    }
+
     fn player_has_spell_like_cpp(&self, spell_id: i32) -> bool {
         self.core
             .with_owned_player_like_cpp(|player| {
@@ -138,6 +142,7 @@ impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
         &mut self,
         catalogs: wow_world_entities::CorpseLifecycleCatalogsLikeCpp<'_>,
         spell_id: i32,
+        sickness_remaining_ms: Option<u32>,
     ) -> impl std::future::Future<Output = bool> + Send {
         async move {
             let Some(player_guid) = self.player_guid() else {
@@ -154,6 +159,7 @@ impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
                 wow_entities::SpellCastMetadata {
                     cast_flags: 0x0000_0001,
                     triggered_ignores_global_cooldown_like_cpp: true,
+                    resurrection_sickness_remaining_ms: sickness_remaining_ms,
                     ..wow_entities::SpellCastMetadata::default()
                 },
             )

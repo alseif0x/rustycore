@@ -10,3 +10,4 @@ use crate::handlers::test_support::*;
 mod corpse;
 mod gameobject;
 mod player;
+mod spirit_healer;

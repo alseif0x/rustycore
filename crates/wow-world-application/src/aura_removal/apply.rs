@@ -86,7 +86,20 @@ impl AuraRemovalCxLikeCpp<'_> {
                 )
             })
             .unwrap_or_default();
-        let modifies_total_stats = !total_stat_percentage_effects.is_empty();
+        let modifies_character_stats = self.spell_store.is_some_and(|store| {
+            store.get(spell_id).is_some_and(|spell| {
+                spell.effects().iter().any(|effect| {
+                    1u32.checked_shl(effect.effect_index)
+                        .is_some_and(|bit| effect_mask & bit != 0)
+                        && matches!(
+                            effect.effect_aura,
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_PERCENT_STAT
+                                | wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE
+                                | wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE
+                        )
+                })
+            })
+        });
         let preserve_health_pct = is_ability
             && total_stat_percentage_effects
                 .iter()
@@ -174,23 +187,24 @@ impl AuraRemovalCxLikeCpp<'_> {
                 #[cfg(any(test, feature = "test-fixtures"))]
                 self.player_level,
             );
-            // C++ applies login/load auras while Player is not yet in world,
-            // then folds their modifiers into UpdateAllStats and the initial
-            // CreateObject. Do not publish a VALUES delta for a GUID the
-            // client has not created yet.
-            if modifies_total_stats && self.player.is_logged_in_like_cpp() {
-                let player = self.stats.reborrow_like_cpp(
-                    &self.player,
-                    #[cfg(any(test, feature = "test-fixtures"))]
-                    &*self.shapeshift_form,
-                );
-                let mut stats = wow_world_inventory::CharacterStatsApplicationCxLikeCpp::new(
-                    player,
-                    &*self.inventory,
-                    self.player.packet_publication_like_cpp(),
-                );
-                stats.send_total_stat_percentage_update_like_cpp(preserve_health_pct);
-            }
+        }
+        // C++ applies login/load auras while Player is not yet in world, then
+        // folds their modifiers into UpdateAllStats and the initial
+        // CreateObject. Do not publish a VALUES delta for a GUID the client
+        // has not created yet. A caller may defer AuraUpdate publication and
+        // still needs the canonical stat projection refreshed here.
+        if modifies_character_stats && self.player.is_logged_in_like_cpp() {
+            let player = self.stats.reborrow_like_cpp(
+                &self.player,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &*self.shapeshift_form,
+            );
+            let mut stats = wow_world_inventory::CharacterStatsApplicationCxLikeCpp::new(
+                player,
+                &*self.inventory,
+                self.player.packet_publication_like_cpp(),
+            );
+            stats.send_total_stat_percentage_update_like_cpp(preserve_health_pct);
         }
         if spell_id == SPELL_PVP_RULES_ENABLED_LIKE_CPP {
             let _ = self.item_scaling_phase_like_cpp();

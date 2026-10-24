@@ -192,8 +192,10 @@ pub fn tick_auras<H: AuraHostLikeCpp>(host: &mut H) {
     let expired: Vec<u8> = visible_auras
         .values()
         .filter(|a| {
-            // Permanent auras (duration_total == 0) never expire
-            a.duration_total > 0 && a.applied_at.elapsed().as_millis() as u32 >= a.duration_total
+            // Permanent auras (duration_total == 0) never expire. SetDuration
+            // changes the remaining lifetime while retaining the maximum.
+            a.duration_total > 0
+                && a.applied_at.elapsed().as_millis() >= u128::from(a.duration_remaining)
         })
         .map(|a| a.slot)
         .collect();

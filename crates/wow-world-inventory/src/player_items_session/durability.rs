@@ -8,12 +8,18 @@
 //! `Spell::EffectDurabilityDamagePCT` slot and all-items branches and the
 //! `Unit::Kill` death-loss branches.
 
+use wow_constants::ItemUpdateState;
 use wow_core::ObjectGuid;
 use wow_entities::{
-    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, is_equipment_packed_pos, make_item_pos,
+    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT,
+    ItemDataUpdate, ItemValuesUpdate, TYPEID_ITEM, UpdateMask, is_equipment_packed_pos,
+    make_item_pos,
 };
+use wow_world_core::entity_update_bridge::item_values_update_to_update_object;
 
-use super::item_mods::record_represented_item_mods_like_cpp;
+use super::item_mods::{
+    record_represented_item_mods_like_cpp, send_represented_item_bonus_player_stat_update_like_cpp,
+};
 use crate::VendorSessionHostLikeCpp;
 
 /// C++ `Player::DurabilityLossAll` (`Player.cpp:4522-4544`).
@@ -34,6 +40,69 @@ pub fn apply_represented_durability_loss_all_like_cpp<H: VendorSessionHostLikeCp
         if apply_represented_durability_loss_item_like_cpp(host, guid, slot, equipped, percent) {
             affected += 1;
         }
+    }
+    affected
+}
+
+/// Spirit-healer `Player::DurabilityLossAll(0.25f, true)` with item and stat
+/// publication at the WorldSession boundary.
+pub fn apply_spirit_healer_durability_loss<H: VendorSessionHostLikeCpp>(host: &mut H) -> usize {
+    let targets = {
+        let (state, hub) = host.split_inventory_ref();
+        state.represented_durability_targets_like_cpp(hub, true)
+    };
+    let mut affected = 0;
+    let mut equipped_became_broken = false;
+    for (item_guid, slot, equipped) in targets {
+        let Some(was_broken) = ({
+            let (state, hub) = host.split_inventory_ref();
+            state
+                .resolved_inventory_item_object_like_cpp(hub, item_guid)
+                .map(|item| item.is_broken())
+        }) else {
+            continue;
+        };
+        if !apply_represented_durability_loss_item_like_cpp(host, item_guid, slot, equipped, 0.25) {
+            continue;
+        }
+        affected += 1;
+        let _ = {
+            let (state, mut hub) = host.split_inventory_mut();
+            state.apply_inventory_item_object_updates_like_cpp(
+                &mut hub,
+                item_guid,
+                &[wow_entities::ItemObjectUpdateLikeCpp::SetState(
+                    ItemUpdateState::Changed,
+                )],
+            )
+        };
+
+        if let Some(item) = {
+            let (state, hub) = host.split_inventory_ref();
+            state.resolved_inventory_item_object_like_cpp(hub, item_guid)
+        } {
+            equipped_became_broken |= equipped && !was_broken && item.is_broken();
+            let mut item_data_mask = UpdateMask::new(ITEM_DATA_BITS);
+            item_data_mask.set(ITEM_DATA_DURABILITY_BIT);
+            let durability_update = ItemValuesUpdate {
+                changed_object_type_mask: 1 << TYPEID_ITEM,
+                object_data: None,
+                item_data: Some(ItemDataUpdate {
+                    mask: item_data_mask,
+                    values: item.data().clone(),
+                }),
+            };
+            if let Some(update) = item_values_update_to_update_object(
+                item_guid,
+                host.core().player_map_id_like_cpp(),
+                &durability_update,
+            ) {
+                host.send_packet(&update);
+            }
+        }
+    }
+    if equipped_became_broken {
+        send_represented_item_bonus_player_stat_update_like_cpp(host);
     }
     affected
 }

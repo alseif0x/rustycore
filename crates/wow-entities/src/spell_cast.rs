@@ -62,6 +62,9 @@ pub struct SpellCastMetadata {
     /// the player's global cooldown untouched while a `TRIGGERED_NONE` server
     /// cast still starts it.
     pub triggered_ignores_global_cooldown_like_cpp: bool,
+    /// Optional remaining-time override for the race-selected spirit-healer
+    /// sickness aura. Its maximum duration continues to come from SpellDuration.
+    pub resurrection_sickness_remaining_ms: Option<u32>,
 }
 
 impl Default for SpellCastMetadata {
@@ -84,6 +87,7 @@ impl Default for SpellCastMetadata {
             request_has_trajectory_like_cpp: false,
             request_trajectory_pitch_like_cpp: 0.0,
             triggered_ignores_global_cooldown_like_cpp: false,
+            resurrection_sickness_remaining_ms: None,
         }
     }
 }

@@ -55,7 +55,10 @@ impl<'a> NpcHandlerCxLikeCpp<'a> {
 
     /// CMSG_SPIRIT_HEALER_ACTIVATE — ghost uses spirit healer.
     /// C++ ref: `WorldSession::HandleSpiritHealerActivate`.
-    pub async fn handle_spirit_healer_activate(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub async fn handle_spirit_healer_activate(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+    ) -> bool {
         let request = match SpiritHealerActivate::read(&mut pkt) {
             Ok(request) => request,
             Err(error) => {
@@ -63,7 +66,7 @@ impl<'a> NpcHandlerCxLikeCpp<'a> {
                     account = self.hub.shared().core.account_id,
                     "SpiritHealerActivate parse failed: {error}"
                 );
-                return;
+                return false;
             }
         };
 
@@ -81,17 +84,15 @@ impl<'a> NpcHandlerCxLikeCpp<'a> {
                 healer = ?request.healer,
                 "SpiritHealerActivate ignored without represented spirit healer"
             );
-            return;
+            return false;
         };
 
-        // C++ continues into SendSpiritResurrect here: resurrect 50%, durability
-        // loss, corpse-bones spawn, and possible graveyard teleport. That player
-        // corpse/death runtime is not represented in this handler yet.
         debug!(
             account = self.hub.shared().core.account_id,
             healer = ?request.healer,
-            "SpiritHealerActivate validated; resurrection runtime pending"
+            "SpiritHealerActivate validated"
         );
+        true
     }
 
     /// CMSG_REQUEST_STABLED_PETS — player opens stable master UI.
@@ -122,6 +123,7 @@ impl<'a> NpcHandlerCxLikeCpp<'a> {
 /// Builds an NPC handler context from a host's hub.
 pub trait NpcHandlerHostLikeCpp<C> {
     fn npc_handler_cx_like_cpp<'a>(&'a mut self, catalogs: &'a C) -> NpcHandlerCxLikeCpp<'a>;
+    fn send_spirit_resurrect<'a>(&'a mut self, catalogs: &'a C) -> HandlerFuture<'a, ()>;
 }
 
 fn handle_tabard_vendor_activate_thunk<'a, S, C>(
@@ -151,10 +153,13 @@ where
     C: Sync,
 {
     Box::pin(async move {
-        session
-            .npc_handler_cx_like_cpp(catalogs)
-            .handle_spirit_healer_activate(pkt)
-            .await;
+        let accepted = {
+            let mut context = session.npc_handler_cx_like_cpp(catalogs);
+            context.handle_spirit_healer_activate(pkt).await
+        };
+        if accepted {
+            session.send_spirit_resurrect(catalogs).await;
+        }
     })
 }
 

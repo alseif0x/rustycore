@@ -91,6 +91,7 @@ impl<'a> CharacterStatsApplicationCxLikeCpp<'a> {
             attack_power_per_strength,
             attack_power_per_agility,
             ranged_attack_power_per_agility,
+            stat_base_multipliers: self.player.resolved_stat_base_multipliers()?,
             stat_total_multipliers: self
                 .player
                 .resolved_represented_total_stat_multipliers_like_cpp()?,

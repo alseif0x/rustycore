@@ -40,8 +40,8 @@ pub use aura_session::{
     remove_represented_mounted_auras_by_type_like_cpp,
     represented_mount_capability_selection_for_type_like_cpp,
     represented_spell_area_autocast_source_is_empty_like_cpp,
-    represented_trait_config_aura_source_is_empty_like_cpp, send_aura_update_applied, tick_auras,
-    update_player_collision_height_like_cpp,
+    represented_trait_config_aura_source_is_empty_like_cpp, send_aura_update_applied,
+    set_player_aura_duration, tick_auras, update_player_collision_height_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use aura_session::{

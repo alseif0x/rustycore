@@ -829,7 +829,9 @@ pub fn player_target_spell_effect_is_hit_inert_like_cpp(effect: &SpellEffectInfo
             effect.effect_aura,
             aura_types::SPELL_AURA_MOD_STEALTH_DETECT
                 | aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE
+                | aura_types::SPELL_AURA_MOD_PERCENT_STAT
                 | aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE
+                | aura_types::SPELL_AURA_NO_PVP_CREDIT
                 | aura_types::SPELL_AURA_MOD_REPUTATION_GAIN
                 | aura_types::SPELL_AURA_MOD_XP_PCT
                 | aura_types::SPELL_AURA_MOD_EXPERTISE

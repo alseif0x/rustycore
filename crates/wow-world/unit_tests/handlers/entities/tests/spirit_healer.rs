@@ -1,0 +1,1068 @@
+// Copyright (c) 2026 alseif0x
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! Spirit-healer interaction, resurrection sickness and durability scenarios.
+
+use super::corpse;
+use super::*;
+use crate::session::WorldSession;
+use wow_constants::ItemUpdateState;
+use wow_constants::unit::{NPCFlags1, UnitFlags2};
+use wow_constants::{CreatureTypeFlags, ItemContext};
+use wow_data::character_progression::ChrRacesStore;
+use wow_data::spell::aura_types::{
+    SPELL_AURA_MOD_DAMAGE_PERCENT_DONE, SPELL_AURA_MOD_PERCENT_STAT, SPELL_AURA_NO_PVP_CREDIT,
+};
+use wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;
+use wow_entities::{EQUIPMENT_SLOT_CHEST, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START};
+
+const SICKNESS_SPELL: i32 = 15_007;
+const CUSTOM_SICKNESS_SPELL: i32 = 846_201;
+
+#[derive(Debug)]
+struct SicknessAuraUpdate {
+    cast_id: ObjectGuid,
+    spell_id: i32,
+    visual_id: i32,
+    aura_flags: u16,
+    active_flags: u32,
+    duration_ms: Option<u32>,
+    remaining_ms: Option<u32>,
+}
+
+fn packet_opcode(bytes: &[u8]) -> u16 {
+    u16::from_le_bytes([bytes[0], bytes[1]])
+}
+
+fn move_teleport_sequence_index(bytes: &[u8]) -> u32 {
+    assert_eq!(packet_opcode(bytes), ServerOpcodes::MoveTeleport as u16);
+    u32::from_le_bytes(
+        bytes[18..22]
+            .try_into()
+            .expect("MoveTeleport sequence index follows opcode and full mover GUID"),
+    )
+}
+
+fn drain_packets(receiver: &flume::Receiver<Vec<u8>>) -> Vec<Vec<u8>> {
+    std::iter::from_fn(|| receiver.try_recv().ok()).collect()
+}
+
+async fn logged_in_released_ghost(
+    guid_counter: i64,
+) -> (
+    WorldSession,
+    flume::Receiver<Vec<u8>>,
+    flume::Receiver<Vec<u8>>,
+    Arc<corpse::RecordingCorpsePortLikeCpp>,
+) {
+    let (mut session, send_rx, realm_rx, port) =
+        corpse::released_ghost_without_reclaim_delay_like_cpp(guid_counter).await;
+    session.core.state = crate::session::SessionState::LoggedIn;
+
+    let player_guid = session.player_guid().expect("released ghost Player GUID");
+    assert!(matches!(
+        wow_world_entities::handle_move_teleport_ack_like_cpp(&mut session, player_guid, 0, 0,),
+        wow_world_core::session::movement_protocol::MoveTeleportAckActionLikeCpp::Accepted
+    ));
+    assert_eq!(
+        session.pending_teleport_like_cpp(),
+        None,
+        "acknowledge repop's initial near teleport before healer assertions"
+    );
+    let teleport_state = crate::session::hub_ref(&session)
+        .player_teleport_state_snapshot_like_cpp()
+        .expect("canonical teleport state after repop ACK");
+    assert!(!teleport_state.near_pending);
+    assert!(!teleport_state.far_pending);
+    let _ = drain_packets(&send_rx);
+    let _ = drain_packets(&realm_rx);
+    (session, send_rx, realm_rx, port)
+}
+
+fn healer_packet(healer: ObjectGuid) -> WorldPacket {
+    let mut packet = WorldPacket::new_empty();
+    packet.write_packed_guid(&healer);
+    packet.reset_read();
+    packet
+}
+
+fn insert_healer(
+    session: &WorldSession,
+    guid_counter: i64,
+    position: Position,
+    npc_flags: u32,
+) -> ObjectGuid {
+    let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 91, guid_counter);
+    let mut creature = wow_entities::Creature::new(false);
+    creature.unit_mut().world_mut().object_mut().create(guid);
+    creature.unit_mut().world_mut().object_mut().set_entry(91);
+    creature.unit_mut().world_mut().set_map(571, 0).unwrap();
+    creature.unit_mut().world_mut().relocate(position);
+    creature.unit_mut().world_mut().set_combat_reach(1.0);
+    creature.unit_mut().set_level(80);
+    creature.unit_mut().set_max_health(100);
+    creature.unit_mut().set_health(100);
+    creature.unit_mut().world_mut().object_mut().add_to_world();
+    creature.set_ai_identity_runtime(1, 35, npc_flags, 0);
+    creature.set_type_flags_runtime_like_cpp(CreatureTypeFlags::VISIBLE_TO_GHOSTS.bits());
+    creature.set_unit_flags2_runtime_like_cpp(UnitFlags2::INTERACT_WHILE_HOSTILE.bits());
+
+    let manager = crate::session::hub_ref(session)
+        .core
+        .canonical_map_manager
+        .clone()
+        .expect("corpse fixture canonical map manager");
+    manager
+        .lock()
+        .unwrap()
+        .find_map_mut(571, 0)
+        .expect("corpse fixture world map")
+        .map_mut()
+        .insert_map_object_record(wow_entities::MapObjectRecord::new_creature(creature).unwrap())
+        .unwrap();
+    guid
+}
+
+fn install_sickness_data(session: &mut WorldSession, spell_id: i32, visual_id: Option<u32>) {
+    let spell_info = wow_data::SpellInfo {
+        spell_id,
+        cast_time_ms: 0,
+        cooldown_ms: 0,
+        recovery_time_ms: 0,
+        effect_type: SPELL_EFFECT_APPLY_AURA,
+        effect_base_points: -76,
+        effect_bonus_coefficient: 0.0,
+        aura_type: Some(SPELL_AURA_MOD_PERCENT_STAT),
+        display_flags: 0,
+        requires_spell_focus: 0,
+        power_costs: Vec::new(),
+        effects: vec![
+            wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: SPELL_EFFECT_APPLY_AURA,
+                effect_aura: SPELL_AURA_MOD_PERCENT_STAT,
+                effect_base_points: -76,
+                effect_die_sides: 1,
+                effect_misc_value_1: -1,
+                ..Default::default()
+            },
+            wow_data::SpellEffectInfo {
+                effect_index: 1,
+                effect: SPELL_EFFECT_APPLY_AURA,
+                effect_aura: SPELL_AURA_MOD_DAMAGE_PERCENT_DONE,
+                effect_base_points: -76,
+                effect_die_sides: 1,
+                effect_misc_value_1: 127,
+                ..Default::default()
+            },
+            wow_data::SpellEffectInfo {
+                effect_index: 2,
+                effect: SPELL_EFFECT_APPLY_AURA,
+                effect_aura: SPELL_AURA_NO_PVP_CREDIT,
+                effect_base_points: -1,
+                effect_die_sides: 1,
+                effect_misc_value_1: 127,
+                ..Default::default()
+            },
+        ],
+    };
+    let mut spells = wow_data::SpellStore::new();
+    spells.insert(spell_id, spell_info);
+    session.set_spell_store(Arc::new(spells));
+    session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries([
+        wow_data::SpellMiscEntry {
+            id: spell_id as u32,
+            spell_id: spell_id as u32,
+            duration_index: 427,
+            ..Default::default()
+        },
+    ])));
+    session.set_spell_duration_store(Arc::new(wow_data::SpellDurationStore::from_entries([
+        wow_data::SpellDurationEntry {
+            id: 427,
+            duration: -600_000,
+            duration_per_level: 60_000,
+            max_duration: 600_000,
+        },
+    ])));
+    let visual_rows = visual_id
+        .map(|spell_visual_id| wow_data::SpellXSpellVisualEntry {
+            id: 245_039,
+            difficulty_id: 0,
+            spell_visual_id,
+            probability: 1.0,
+            flags: 0,
+            priority: 0,
+            spell_icon_file_id: 0,
+            active_icon_file_id: 0,
+            viewer_unit_condition_id: 0,
+            viewer_player_condition_id: 0,
+            caster_unit_condition_id: 0,
+            caster_player_condition_id: 0,
+            spell_id: spell_id as u32,
+        })
+        .into_iter()
+        .collect::<Vec<_>>();
+    session.set_creature_aggro_config_like_cpp(crate::session::CreatureAggroConfigLikeCpp {
+        spell_x_spell_visual_store: Some(Arc::new(wow_data::SpellXSpellVisualStore::from_entries(
+            visual_rows,
+        ))),
+        ..Default::default()
+    });
+}
+
+fn set_race_sickness_spell(session: &mut WorldSession, spell_id: i32) {
+    let mut race = corpse::human_race_entry_with_faction(1);
+    race.res_sickness_spell_id = spell_id;
+    session.set_chr_races_store(Arc::new(ChrRacesStore::from_entries([race])));
+}
+
+fn decode_sickness_auras(bytes: &[u8]) -> Vec<SicknessAuraUpdate> {
+    let mut packet = WorldPacket::from_bytes(bytes);
+    assert_eq!(packet.server_opcode(), Some(ServerOpcodes::AuraUpdate));
+    packet.skip_opcode();
+    assert!(!packet.read_bit().unwrap());
+    let count = packet.read_bits(9).unwrap();
+    let mut updates = Vec::new();
+    for _ in 0..count {
+        let _slot = packet.read_uint8().unwrap();
+        if !packet.read_bit().unwrap() {
+            packet.reset_bits();
+            continue;
+        }
+        let cast_id = packet.read_packed_guid().unwrap();
+        let spell_id = packet.read_int32().unwrap();
+        let visual_id = packet.read_int32().unwrap();
+        let aura_flags = packet.read_uint16().unwrap();
+        let active_flags = packet.read_uint32().unwrap();
+        let _cast_level = packet.read_uint16().unwrap();
+        let _applications = packet.read_uint8().unwrap();
+        let _content_tuning_id = packet.read_int32().unwrap();
+        let has_caster = packet.read_bit().unwrap();
+        let has_duration = packet.read_bit().unwrap();
+        let has_remaining = packet.read_bit().unwrap();
+        let _has_time_mod = packet.read_bit().unwrap();
+        let point_count = packet.read_bits(6).unwrap();
+        let _estimated_point_count = packet.read_bits(6).unwrap();
+        let _has_content_tuning = packet.read_bit().unwrap();
+        packet.reset_bits();
+        if has_caster {
+            let _caster = packet.read_packed_guid().unwrap();
+        }
+        let duration_ms = has_duration.then(|| packet.read_uint32().unwrap());
+        let remaining_ms = has_remaining.then(|| packet.read_uint32().unwrap());
+        for _ in 0..point_count {
+            let _point = packet.read_float().unwrap();
+        }
+        updates.push(SicknessAuraUpdate {
+            cast_id,
+            spell_id,
+            visual_id,
+            aura_flags,
+            active_flags,
+            duration_ms,
+            remaining_ms,
+        });
+    }
+    updates
+}
+
+fn decode_spell_go(bytes: &[u8]) -> (ObjectGuid, ObjectGuid, i32, u32, u32) {
+    let mut packet = WorldPacket::from_bytes(bytes);
+    assert_eq!(packet.server_opcode(), Some(ServerOpcodes::SpellGo));
+    packet.skip_opcode();
+    let _caster = packet.read_packed_guid().unwrap();
+    let _caster_unit = packet.read_packed_guid().unwrap();
+    let cast_id = packet.read_packed_guid().unwrap();
+    let original_cast_id = packet.read_packed_guid().unwrap();
+    let spell_id = packet.read_int32().unwrap();
+    let visual = wow_packet::packets::spell::SpellCastVisual::read(&mut packet).unwrap();
+    let flags = packet.read_uint32().unwrap();
+    (
+        cast_id,
+        original_cast_id,
+        spell_id,
+        visual.spell_visual_id,
+        flags,
+    )
+}
+
+fn visible_sickness_aura(
+    session: &WorldSession,
+    spell_id: i32,
+) -> Vec<wow_entities::AuraApplicationLikeCpp> {
+    crate::session::hub_ref(session)
+        .resolved_player_visible_auras_like_cpp()
+        .expect("canonical Player aura applications")
+        .into_values()
+        .filter(|aura| aura.spell_id == spell_id)
+        .collect()
+}
+
+fn durability_update_packet(session: &WorldSession, guid: ObjectGuid) -> Vec<u8> {
+    let mut mask = wow_entities::UpdateMask::new(wow_entities::ITEM_DATA_BITS);
+    mask.set(wow_entities::ITEM_DATA_DURABILITY_BIT);
+    let update = wow_entities::ItemValuesUpdate {
+        changed_object_type_mask: 1 << wow_entities::TYPEID_ITEM,
+        object_data: None,
+        item_data: Some(wow_entities::ItemDataUpdate {
+            mask,
+            values: session
+                .resolved_inventory_item_object_like_cpp(guid)
+                .expect("durability item")
+                .data()
+                .clone(),
+        }),
+    };
+    wow_world_core::entity_update_bridge::item_values_update_to_update_object(guid, 571, &update)
+        .expect("durability-only item update")
+        .to_bytes()
+}
+
+#[tokio::test]
+async fn spirit_healer_gate_rejects_wrong_flag_and_distant_npc() {
+    let (mut session, send_rx, _realm_rx, _port) = logged_in_released_ghost(43_101).await;
+    let position = session.player_position_like_cpp().unwrap();
+    let wrong_flag = insert_healer(&session, 43_102, position, NPCFlags1::QUEST_GIVER.bits());
+    let far_healer = insert_healer(
+        &session,
+        43_103,
+        Position::new(
+            position.x + 1_000.0,
+            position.y,
+            position.z,
+            position.orientation,
+        ),
+        NPCFlags1::SPIRIT_HEALER.bits(),
+    );
+
+    session
+        .handle_spirit_healer_activate(healer_packet(wrong_flag))
+        .await;
+    session
+        .handle_spirit_healer_activate(healer_packet(far_healer))
+        .await;
+
+    assert!(!session.player_is_alive_like_cpp());
+    assert!(crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[tokio::test]
+async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_items() {
+    let (mut session, send_rx, _realm_rx, port) = logged_in_released_ghost(43_201).await;
+    let player_guid = session.player_guid().unwrap();
+    let position = session.player_position_like_cpp().unwrap();
+    let healer = insert_healer(&session, 43_202, position, NPCFlags1::SPIRIT_HEALER.bits());
+    session.set_loaded_player_identity_like_cpp(571, 1, 1, 11, 0);
+    session.set_death_policy_like_cpp(wow_world_core::session::DeathPolicyLikeCpp {
+        sickness_level: 11,
+        corpse_reclaim_delay_pve: false,
+        ..Default::default()
+    });
+    set_race_sickness_spell(&mut session, SICKNESS_SPELL);
+    install_sickness_data(&mut session, SICKNESS_SPELL, Some(69));
+    session.set_player_inventory_slot_count_like_cpp(wow_entities::INVENTORY_DEFAULT_SIZE);
+
+    session.set_player_stats(Arc::new(wow_data::PlayerStatsStore::from_entries([(
+        (1, 1, 11),
+        wow_data::PlayerLevelStats {
+            strength: 10,
+            agility: 10,
+            stamina: 10,
+            intellect: 10,
+            spirit: 10,
+            base_mana: 100,
+        },
+    )])));
+    session.set_chr_classes_store(Arc::new(
+        wow_data::character_progression::ChrClassesStore::from_entries([{
+            let mut entry = wow_data::character_progression::ChrClassesEntry::default();
+            entry.id = 1;
+            entry
+        }]),
+    ));
+    let gear_guid = ObjectGuid::create_item(1, 43_203);
+    let backpack_guid = ObjectGuid::create_item(1, 43_204);
+    let carried_bag_guid = ObjectGuid::create_item(1, 43_205);
+    let carried_child_guid = ObjectGuid::create_item(1, 43_206);
+    let bank_guid = ObjectGuid::create_item(1, 43_207);
+    let bank_bag_guid = ObjectGuid::create_item(1, 43_208);
+    let bank_child_guid = ObjectGuid::create_item(1, 43_209);
+    session.set_item_stats_store(Arc::new(wow_data::ItemStatsStore::from_parts(
+        [(
+            43_210,
+            wow_data::ItemStatEntry {
+                stats: std::array::from_fn(|index| {
+                    if index == 0 {
+                        (wow_constants::ItemModType::Strength as i8, 10)
+                    } else {
+                        (wow_constants::ItemModType::None as i8, 0)
+                    }
+                }),
+                resistances: [0; 7],
+                armor: 0,
+            },
+        )],
+        [],
+    )));
+    add_top_level_item(
+        &mut session,
+        player_guid,
+        gear_guid,
+        43_210,
+        EQUIPMENT_SLOT_CHEST,
+        100,
+        25,
+        ItemUpdateState::Unchanged,
+    );
+    session.apply_inventory_item_store_side_effects_like_cpp(
+        wow_entities::INVENTORY_SLOT_BAG_0,
+        EQUIPMENT_SLOT_CHEST,
+        gear_guid,
+    );
+    add_top_level_item(
+        &mut session,
+        player_guid,
+        backpack_guid,
+        43_211,
+        INVENTORY_SLOT_ITEM_START,
+        100,
+        100,
+        ItemUpdateState::Unchanged,
+    );
+    add_top_level_item(
+        &mut session,
+        player_guid,
+        carried_bag_guid,
+        43_212,
+        INVENTORY_SLOT_BAG_START,
+        0,
+        0,
+        ItemUpdateState::Unchanged,
+    );
+    add_bag_child(
+        &mut session,
+        player_guid,
+        carried_child_guid,
+        carried_bag_guid,
+        INVENTORY_SLOT_BAG_START,
+        0,
+        100,
+        100,
+        ItemUpdateState::New,
+    );
+    add_top_level_item(
+        &mut session,
+        player_guid,
+        bank_guid,
+        43_213,
+        wow_entities::BANK_SLOT_ITEM_START,
+        100,
+        100,
+        ItemUpdateState::Unchanged,
+    );
+    add_top_level_item(
+        &mut session,
+        player_guid,
+        bank_bag_guid,
+        43_214,
+        wow_entities::BANK_SLOT_BAG_START,
+        0,
+        0,
+        ItemUpdateState::Unchanged,
+    );
+    add_bag_child(
+        &mut session,
+        player_guid,
+        bank_child_guid,
+        bank_bag_guid,
+        wow_entities::BANK_SLOT_BAG_START,
+        0,
+        100,
+        100,
+        ItemUpdateState::Unchanged,
+    );
+    let _ = session.send_stat_update();
+    let pre_resurrection_max_health = session
+        .core
+        .with_owned_player_like_cpp(|player| player.unit().data().max_health)
+        .expect("canonical Player maximum health");
+    assert_eq!(
+        session
+            .canonical_player_effective_combat_stats_like_cpp()
+            .unwrap()
+            .stats[wow_constants::Stats::Strength as usize],
+        20
+    );
+    let _ = drain_packets(&send_rx);
+
+    session
+        .handle_spirit_healer_activate(healer_packet(healer))
+        .await;
+
+    assert!(session.player_is_alive_like_cpp());
+    assert!(!crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
+    let (current_health, final_max_health) = session
+        .core
+        .with_owned_player_like_cpp(|player| {
+            (player.unit().data().health, player.unit().data().max_health)
+        })
+        .expect("canonical Player vitals");
+    assert_eq!(
+        current_health,
+        (pre_resurrection_max_health / 2).min(final_max_health),
+        "ResurrectPlayer halves pre-sickness max health and SetMaxHealth clamps it"
+    );
+    assert!(corpse::current_corpse_guid_like_cpp(&session, player_guid).is_none());
+    assert!(!port.delete_requests().is_empty());
+    assert_eq!(item_durability(&session, gear_guid), 0);
+    assert_eq!(item_durability(&session, backpack_guid), 75);
+    assert_eq!(item_durability(&session, carried_child_guid), 75);
+    assert_eq!(item_durability(&session, bank_guid), 100);
+    assert_eq!(item_durability(&session, bank_child_guid), 100);
+    assert_eq!(
+        item_update_state(&session, gear_guid),
+        ItemUpdateState::Changed
+    );
+    assert_eq!(
+        item_update_state(&session, backpack_guid),
+        ItemUpdateState::Changed
+    );
+    assert_eq!(
+        item_update_state(&session, carried_child_guid),
+        ItemUpdateState::New
+    );
+    assert_eq!(
+        item_update_state(&session, bank_guid),
+        ItemUpdateState::Unchanged
+    );
+    assert_eq!(
+        item_update_state(&session, bank_child_guid),
+        ItemUpdateState::Unchanged
+    );
+    assert_eq!(
+        session
+            .canonical_player_effective_combat_stats_like_cpp()
+            .unwrap()
+            .stats[wow_constants::Stats::Strength as usize],
+        2,
+        "broken equipment is removed after the sickness BASE_PCT refresh"
+    );
+
+    let first_packets = drain_packets(&send_rx);
+    let realm_packets = drain_packets(&_realm_rx);
+    assert_eq!(
+        realm_packets
+            .iter()
+            .map(|bytes| packet_opcode(bytes))
+            .collect::<Vec<_>>(),
+        vec![ServerOpcodes::DeathReleaseLoc as u16]
+    );
+    assert!(
+        first_packets
+            .iter()
+            .all(|bytes| { packet_opcode(bytes) != ServerOpcodes::DurabilityDamageDeath as u16 })
+    );
+
+    let expected_durability_updates = [
+        durability_update_packet(&session, gear_guid),
+        durability_update_packet(&session, backpack_guid),
+        durability_update_packet(&session, carried_child_guid),
+    ];
+    let durability_packet_positions = expected_durability_updates
+        .iter()
+        .map(|expected| {
+            first_packets
+                .iter()
+                .position(|packet| packet == expected)
+                .expect("durability-only item values update")
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        durability_packet_positions
+            .windows(2)
+            .all(|pair| pair[0] < pair[1])
+    );
+    assert!(!first_packets.contains(&durability_update_packet(&session, bank_guid)));
+    assert!(!first_packets.contains(&durability_update_packet(&session, bank_child_guid)));
+    let spell_go = first_packets
+        .iter()
+        .find(|bytes| packet_opcode(bytes) == ServerOpcodes::SpellGo as u16)
+        .expect("visible sickness cast publishes SpellGo");
+    let (cast_id, original_cast_id, spell_id, visual_id, flags) = decode_spell_go(spell_go);
+    assert_eq!(spell_id, SICKNESS_SPELL);
+    assert_eq!(visual_id, 245_039);
+    assert_eq!(flags, 0x0004_0101);
+    assert!(!cast_id.is_empty());
+    assert!(original_cast_id.is_empty());
+    let aura_updates = first_packets
+        .iter()
+        .filter(|bytes| packet_opcode(bytes) == ServerOpcodes::AuraUpdate as u16)
+        .flat_map(|bytes| decode_sickness_auras(bytes))
+        .filter(|aura| aura.spell_id == SICKNESS_SPELL)
+        .collect::<Vec<_>>();
+    assert_eq!(aura_updates.len(), 1, "sickness publishes one AuraUpdate");
+    let sickness = &aura_updates[0];
+    assert_eq!(sickness.cast_id, cast_id);
+    assert_eq!(sickness.visual_id, 245_039);
+    assert_eq!(sickness.duration_ms, Some(600_000));
+    assert_eq!(sickness.remaining_ms, Some(60_000));
+    assert_eq!(sickness.aura_flags, 0x15);
+    assert_eq!(sickness.active_flags, 0x7);
+    let sickness_auras = visible_sickness_aura(&session, SICKNESS_SPELL);
+    assert_eq!(sickness_auras.len(), 1);
+    assert_eq!(sickness_auras[0].aura_flags, 0x15);
+    assert_eq!(sickness_auras[0].effect_mask, 0x7);
+    assert_eq!(sickness_auras[0].duration_total, 600_000);
+    assert_eq!(sickness_auras[0].duration_remaining, 60_000);
+    assert_eq!(
+        session
+            .canonical_player_effective_combat_stats_like_cpp()
+            .unwrap()
+            .mod_damage_done_percent,
+        [0.25; 7]
+    );
+
+    // C++ permits invoking the healer again while alive. The existing
+    // same-caster/mask aura is refreshed in place and cannot multiply BASE_PCT.
+    session
+        .handle_spirit_healer_activate(healer_packet(healer))
+        .await;
+    let refreshed = visible_sickness_aura(&session, SICKNESS_SPELL);
+    assert_eq!(refreshed.len(), 1);
+    let refreshed_stats = session
+        .canonical_player_effective_combat_stats_like_cpp()
+        .unwrap();
+    assert_eq!(
+        refreshed_stats.stats[wow_constants::Stats::Strength as usize],
+        2,
+        "refresh keeps BASE_PCT at 0.25 instead of multiplying it again"
+    );
+    assert_eq!(refreshed_stats.mod_damage_done_percent, [0.25; 7]);
+    let refreshed_packets = drain_packets(&send_rx);
+    let refreshed_updates = refreshed_packets
+        .iter()
+        .filter(|bytes| packet_opcode(bytes) == ServerOpcodes::AuraUpdate as u16)
+        .flat_map(|bytes| decode_sickness_auras(bytes))
+        .filter(|aura| aura.spell_id == SICKNESS_SPELL)
+        .collect::<Vec<_>>();
+    assert_eq!(refreshed_updates.len(), 1);
+    assert_eq!(refreshed_updates[0].cast_id, sickness.cast_id);
+    assert_eq!(refreshed_updates[0].visual_id, sickness.visual_id);
+    assert_eq!(refreshed_updates[0].duration_ms, Some(600_000));
+    assert_eq!(refreshed_updates[0].remaining_ms, Some(60_000));
+
+    let stale = std::time::Instant::now() - std::time::Duration::from_secs(121);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            let auras = &mut player.unit_mut().subsystems_mut().auras;
+            let slot = refreshed[0].slot;
+            auras
+                .runtime_application_mut_like_cpp(slot)
+                .unwrap()
+                .applied_at = stale;
+        })
+        .expect("canonical Player aura owner");
+    wow_world_spell::tick_auras(&mut session);
+    assert!(visible_sickness_aura(&session, SICKNESS_SPELL).is_empty());
+    let expired_stats = session
+        .canonical_player_effective_combat_stats_like_cpp()
+        .unwrap();
+    assert_eq!(
+        expired_stats.stats[wow_constants::Stats::Strength as usize],
+        10
+    );
+    assert_eq!(expired_stats.mod_damage_done_percent, [1.0; 7]);
+}
+
+#[tokio::test]
+async fn sickness_uses_configured_threshold_and_race_spell_even_without_visible_go() {
+    for (case, level, configured_threshold, expected_remaining) in [
+        (0, 10, None, None),
+        (1, 11, None, Some(60_000)),
+        (2, 19, None, Some(540_000)),
+        (3, 20, None, Some(600_000)),
+        (4, 14, Some(12), Some(180_000)),
+    ] {
+        let base = 43_300 + case * 10;
+        let (mut session, send_rx, _realm_rx, _port) = logged_in_released_ghost(base).await;
+        let healer = insert_healer(
+            &session,
+            base + 1,
+            session.player_position_like_cpp().unwrap(),
+            NPCFlags1::SPIRIT_HEALER.bits(),
+        );
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, level, 0);
+        if let Some(sickness_level) = configured_threshold {
+            session.set_death_policy_like_cpp(wow_world_core::session::DeathPolicyLikeCpp {
+                sickness_level,
+                corpse_reclaim_delay_pve: false,
+                ..Default::default()
+            });
+        }
+        set_race_sickness_spell(&mut session, CUSTOM_SICKNESS_SPELL);
+        install_sickness_data(&mut session, CUSTOM_SICKNESS_SPELL, None);
+        let _ = drain_packets(&send_rx);
+
+        session
+            .handle_spirit_healer_activate(healer_packet(healer))
+            .await;
+
+        let aura = visible_sickness_aura(&session, CUSTOM_SICKNESS_SPELL);
+        let packets = drain_packets(&send_rx);
+        assert!(
+            packets
+                .iter()
+                .all(|bytes| packet_opcode(bytes) != ServerOpcodes::SpellGo as u16),
+            "a missing visual mapping and no client-log attributes suppress only SpellGo"
+        );
+        let updates = packets
+            .iter()
+            .filter(|bytes| packet_opcode(bytes) == ServerOpcodes::AuraUpdate as u16)
+            .flat_map(|bytes| decode_sickness_auras(bytes))
+            .filter(|aura| aura.spell_id == CUSTOM_SICKNESS_SPELL)
+            .collect::<Vec<_>>();
+        if let Some(expected_remaining) = expected_remaining {
+            assert_eq!(aura.len(), 1, "configured race spell case {case}");
+            assert_eq!(aura[0].effect_mask, 0x7);
+            assert_eq!(aura[0].duration_total, 600_000);
+            assert_eq!(aura[0].duration_remaining, expected_remaining);
+            assert_eq!(updates.len(), 1, "aura applies without SpellGo");
+            assert_eq!(updates[0].visual_id, 0);
+            assert_eq!(updates[0].duration_ms, Some(600_000));
+            assert_eq!(updates[0].remaining_ms, Some(expected_remaining));
+        } else {
+            assert!(
+                aura.is_empty(),
+                "level below configured threshold gets no aura"
+            );
+            assert!(
+                updates.is_empty(),
+                "below-threshold cast sends no AuraUpdate"
+            );
+        }
+    }
+}
+
+#[tokio::test]
+async fn healer_uses_cached_corpse_graveyard_without_corpse_object() {
+    let (mut session, send_rx, _realm_rx, _port) = logged_in_released_ghost(43_501).await;
+    let owner = session.player_guid().unwrap();
+    // Without terrain, z <= -500 bypasses default graveyard 4 and exercises
+    // the linked closest-graveyard lookup at safe location 5.
+    let corpse_position = Position::new(1.0, 2.0, -600.0, 0.0);
+    let corpse_guid = corpse::current_corpse_guid_like_cpp(&session, owner).unwrap();
+    let manager = crate::session::hub_ref(&session)
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap();
+    manager
+        .lock()
+        .unwrap()
+        .find_map_mut(571, 0)
+        .unwrap()
+        .map_mut()
+        .remove_map_object(corpse_guid)
+        .expect("map corpse removed while location remains cached");
+    assert!(corpse::current_corpse_guid_like_cpp(&session, owner).is_none());
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.resurrection_state_mut_like_cpp().corpse_location = Some((571, corpse_position));
+        })
+        .expect("canonical Player resurrection state");
+    assert_eq!(
+        wow_world_entities::player_corpse_location_like_cpp(&session),
+        Some((571, corpse_position))
+    );
+
+    let maps = crate::session::hub_ref(&session)
+        .catalogs
+        .maps
+        .store
+        .clone()
+        .expect("map store");
+    let (safe_locs, _) = wow_data::WorldSafeLocStore::from_rows_like_cpp(
+        [
+            wow_data::WorldSafeLocRow {
+                id: wow_data::ALLIANCE_GRAVEYARD_SAFE_LOC_ID_LIKE_CPP,
+                map_id: 571,
+                x: 50.0,
+                y: 60.0,
+                z: 70.0,
+                facing_degrees: 0.0,
+            },
+            wow_data::WorldSafeLocRow {
+                id: 5,
+                map_id: 571,
+                x: corpse_position.x,
+                y: corpse_position.y,
+                z: corpse_position.z,
+                facing_degrees: 0.0,
+            },
+        ],
+        &maps,
+    );
+    session.set_world_safe_loc_store_like_cpp(Arc::new(safe_locs));
+    let (graveyards, _) = graveyard_store_with_links(
+        0,
+        [wow_data::ALLIANCE_GRAVEYARD_SAFE_LOC_ID_LIKE_CPP, 5],
+        [],
+    );
+    session.set_graveyard_store(graveyards.clone());
+
+    let corpse_graveyard = wow_world_entities::closest_graveyard_like_cpp(
+        &mut session,
+        graveyards.as_ref(),
+        571,
+        corpse_position,
+    );
+    assert_eq!(corpse_graveyard, Some(5));
+    let ghost_position = session.player_position_like_cpp().unwrap();
+    let ghost_map = u32::from(
+        crate::session::hub_ref(&session)
+            .core
+            .player_map_id_like_cpp(),
+    );
+    let ghost_graveyard = wow_world_entities::closest_graveyard_like_cpp(
+        &mut session,
+        graveyards.as_ref(),
+        ghost_map,
+        ghost_position,
+    );
+    assert_eq!(
+        ghost_graveyard,
+        Some(wow_data::ALLIANCE_GRAVEYARD_SAFE_LOC_ID_LIKE_CPP)
+    );
+
+    let corpse_map = maps.get(571).copied().expect("corpse map is available");
+    assert!(corpse_position.is_valid_map_coord_like_cpp());
+    assert!(!corpse_map.is_battleground_or_arena());
+    assert!(session.core.expansion >= corpse_map.expansion_like_cpp());
+    assert!(
+        !wow_world_entities::PlayerTeleportHostLikeCpp::is_map_disabled_for_player_like_cpp(
+            &session, 571
+        )
+    );
+    assert_eq!(session.core.state, crate::session::SessionState::LoggedIn);
+    let teleport_state = crate::session::hub_ref(&session)
+        .player_teleport_state_snapshot_like_cpp()
+        .expect("canonical teleport state");
+    assert_ne!(
+        teleport_state.recovery,
+        wow_entities::PlayerTransferRecovery::Terminal
+    );
+    assert!(!teleport_state.near_pending);
+    assert!(!teleport_state.far_pending);
+    assert!(!teleport_state.can_delay);
+    assert_eq!(
+        crate::session::hub_ref(&session)
+            .core
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.map_id),
+        Some(571)
+    );
+    let healer = insert_healer(
+        &session,
+        43_502,
+        session.player_position_like_cpp().unwrap(),
+        NPCFlags1::SPIRIT_HEALER.bits(),
+    );
+    let _ = drain_packets(&send_rx);
+
+    session
+        .handle_spirit_healer_activate(healer_packet(healer))
+        .await;
+
+    let teleport_state = crate::session::hub_ref(&session)
+        .player_teleport_state_snapshot_like_cpp()
+        .expect("canonical teleport state");
+    assert!(teleport_state.near_pending);
+    assert_eq!(
+        teleport_state.near_destination,
+        Some((571, corpse_position)),
+        "same-map teleport relocates to the cached corpse graveyard without a corpse object"
+    );
+    let movement_packets = drain_packets(&send_rx);
+    let teleport_packet = movement_packets
+        .iter()
+        .find(|bytes| packet_opcode(bytes) == ServerOpcodes::MoveTeleport as u16)
+        .expect("same-map near teleport packet");
+    let ack_index = i32::try_from(move_teleport_sequence_index(teleport_packet))
+        .expect("MoveTeleport sequence index fits ACK field");
+    assert_eq!(
+        wow_world_entities::handle_move_teleport_ack_like_cpp(&mut session, owner, ack_index, 0,),
+        wow_world_core::session::movement_protocol::MoveTeleportAckActionLikeCpp::Accepted
+    );
+    assert_eq!(session.player_position_like_cpp(), Some(corpse_position));
+    let acknowledged_teleport = crate::session::hub_ref(&session)
+        .player_teleport_state_snapshot_like_cpp()
+        .expect("canonical teleport state after healer graveyard ACK");
+    assert!(!acknowledged_teleport.near_pending);
+    assert!(corpse::current_corpse_guid_like_cpp(&session, owner).is_none());
+}
+
+#[tokio::test]
+async fn healer_skips_teleport_when_graveyard_matches_or_corpse_location_is_missing() {
+    for (case, corpse_location) in [(0, true), (1, false)] {
+        let base = 43_600 + case * 10;
+        let (mut session, send_rx, _realm_rx, _port) = logged_in_released_ghost(base).await;
+        let owner = session.player_guid().unwrap();
+        if corpse_location {
+            let position = session.player_position_like_cpp().unwrap();
+            let corpse_guid = corpse::current_corpse_guid_like_cpp(&session, owner).unwrap();
+            let manager = crate::session::hub_ref(&session)
+                .core
+                .canonical_map_manager
+                .clone()
+                .unwrap();
+            manager
+                .lock()
+                .unwrap()
+                .find_map_mut(571, 0)
+                .unwrap()
+                .map_mut()
+                .remove_map_object(corpse_guid)
+                .expect("remove corpse map object");
+            session
+                .core
+                .with_owned_player_mut_like_cpp(|player| {
+                    player.resurrection_state_mut_like_cpp().corpse_location =
+                        Some((571, position));
+                })
+                .expect("canonical Player resurrection state");
+        } else {
+            session
+                .core
+                .with_owned_player_mut_like_cpp(|player| {
+                    player.resurrection_state_mut_like_cpp().corpse_location = None;
+                })
+                .expect("canonical Player resurrection state");
+        }
+        let (graveyards, _) =
+            graveyard_store_with_links(0, [wow_data::ALLIANCE_GRAVEYARD_SAFE_LOC_ID_LIKE_CPP], []);
+        session.set_graveyard_store(graveyards.clone());
+        let ghost_position = session.player_position_like_cpp().unwrap();
+        let ghost_map = u32::from(
+            crate::session::hub_ref(&session)
+                .core
+                .player_map_id_like_cpp(),
+        );
+        assert_eq!(
+            wow_world_entities::closest_graveyard_like_cpp(
+                &mut session,
+                graveyards.as_ref(),
+                ghost_map,
+                ghost_position,
+            ),
+            Some(wow_data::ALLIANCE_GRAVEYARD_SAFE_LOC_ID_LIKE_CPP)
+        );
+        if corpse_location {
+            let (corpse_map, corpse_position) =
+                wow_world_entities::player_corpse_location_like_cpp(&session).unwrap();
+            assert_eq!(
+                wow_world_entities::closest_graveyard_like_cpp(
+                    &mut session,
+                    graveyards.as_ref(),
+                    corpse_map,
+                    corpse_position,
+                ),
+                Some(wow_data::ALLIANCE_GRAVEYARD_SAFE_LOC_ID_LIKE_CPP)
+            );
+        }
+        let healer = insert_healer(
+            &session,
+            base + 1,
+            session.player_position_like_cpp().unwrap(),
+            NPCFlags1::SPIRIT_HEALER.bits(),
+        );
+        let _ = drain_packets(&send_rx);
+
+        session
+            .handle_spirit_healer_activate(healer_packet(healer))
+            .await;
+
+        assert_eq!(session.pending_teleport_like_cpp(), None);
+        let teleport_state = crate::session::hub_ref(&session)
+            .player_teleport_state_snapshot_like_cpp()
+            .expect("canonical teleport state after same-graveyard/no-corpse activation");
+        assert!(!teleport_state.near_pending);
+        assert!(
+            drain_packets(&send_rx)
+                .iter()
+                .all(|bytes| packet_opcode(bytes) != ServerOpcodes::MoveTeleport as u16)
+        );
+    }
+}
+
+fn add_top_level_item(
+    session: &mut WorldSession,
+    owner: ObjectGuid,
+    guid: ObjectGuid,
+    entry: u32,
+    slot: u8,
+    max_durability: u32,
+    durability: u32,
+    state: ItemUpdateState,
+) {
+    session.insert_inventory_item_like_cpp(
+        slot,
+        crate::session::InventoryItem {
+            guid,
+            entry_id: entry,
+            db_guid: guid.counter() as u64,
+            inventory_type: None,
+        },
+    );
+    let mut item =
+        session.make_inventory_item_object(guid, entry, owner, 1, 0, ItemContext::None, slot);
+    item.set_max_durability(max_durability);
+    item.set_durability(durability);
+    item.force_state(state);
+    session.insert_inventory_item_object(item);
+}
+
+fn add_bag_child(
+    session: &mut WorldSession,
+    owner: ObjectGuid,
+    guid: ObjectGuid,
+    bag_guid: ObjectGuid,
+    container_slot: u8,
+    child_slot: u8,
+    max_durability: u32,
+    durability: u32,
+    state: ItemUpdateState,
+) {
+    let mut item = session.make_inventory_item_object(
+        guid,
+        guid.counter() as u32,
+        owner,
+        1,
+        0,
+        ItemContext::None,
+        child_slot,
+    );
+    item.set_container_guid_and_slot(bag_guid, container_slot);
+    item.set_max_durability(max_durability);
+    item.set_durability(durability);
+    item.force_state(state);
+    session.insert_inventory_item_object(item);
+}
+
+fn item_durability(session: &WorldSession, guid: ObjectGuid) -> u32 {
+    session
+        .resolved_inventory_item_object_like_cpp(guid)
+        .expect("inventory item object")
+        .data()
+        .durability
+}
+
+fn item_update_state(session: &WorldSession, guid: ObjectGuid) -> ItemUpdateState {
+    session
+        .resolved_inventory_item_object_like_cpp(guid)
+        .expect("inventory item object")
+        .update_state()
+}

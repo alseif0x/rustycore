@@ -171,6 +171,9 @@ pub struct PlayerStatSystemInputLikeCpp {
     pub attack_power_per_strength: u8,
     pub attack_power_per_agility: u8,
     pub ranged_attack_power_per_agility: u8,
+    /// C++ UnitMods `BASE_PCT` after represented `SPELL_AURA_MOD_PERCENT_STAT`
+    /// effects, one factor per stat.
+    pub stat_base_multipliers: [f32; 5],
     /// C++ UnitMods `TOTAL_PCT` after represented
     /// `SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE` effects, one factor per stat.
     pub stat_total_multipliers: [f32; 5],
@@ -482,7 +485,7 @@ fn mana_bonus_from_intellect_like_cpp(intellect: i32) -> i64 {
 /// Represent the C++ `Player::UpdateAllStats` branches backed by the inputs
 /// available in this runtime.
 ///
-/// Item flat modifiers, combat ratings and the represented total-stat
+/// Item flat modifiers, combat ratings and the represented base/total-stat
 /// percentage multipliers are included. The remaining aura modifiers stay
 /// owned by the wider represented aura runtime.
 pub fn calculate_player_stat_system_like_cpp(
@@ -490,17 +493,20 @@ pub fn calculate_player_stat_system_like_cpp(
 ) -> PlayerStatSystemProjectionLikeCpp {
     let base_stats = input.base.primary_stats_like_cpp().map(i32::from);
     let stats = std::array::from_fn(|index| {
-        let value = base_stats[index].saturating_add(input.gear_stats[index]);
+        let value = base_stats[index] as f32 + input.gear_stats[index] as f32;
         // C++ `Player::UpdateStats` truncates `GetTotalStatValue()` to int32.
-        (value as f32 * input.stat_total_multipliers[index].max(0.0)) as i32
+        (value * input.stat_base_multipliers[index] * input.stat_total_multipliers[index].max(0.0))
+            as i32
     });
     let stat_pos_buff = std::array::from_fn(|index| {
-        (input.gear_stats[index].max(0) as f32 * input.stat_buff_total_multipliers[index].max(0.0))
-            as i32
+        (input.gear_stats[index].max(0) as f32
+            * input.stat_base_multipliers[index]
+            * input.stat_buff_total_multipliers[index].max(0.0)) as i32
     });
     let stat_neg_buff = std::array::from_fn(|index| {
-        (input.gear_stats[index].min(0) as f32 * input.stat_buff_total_multipliers[index].max(0.0))
-            as i32
+        (input.gear_stats[index].min(0) as f32
+            * input.stat_base_multipliers[index]
+            * input.stat_buff_total_multipliers[index].max(0.0)) as i32
     });
 
     let max_health =
@@ -998,6 +1004,7 @@ mod tests {
             attack_power_per_strength: 0,
             attack_power_per_agility: 0,
             ranged_attack_power_per_agility: 0,
+            stat_base_multipliers: [1.0; 5],
             stat_total_multipliers: [1.0; 5],
             stat_buff_total_multipliers: [1.0; 5],
             gear_stats: [0, 0, 5, 3, 0],
@@ -1067,6 +1074,7 @@ mod tests {
             attack_power_per_strength: 2,
             attack_power_per_agility: 0,
             ranged_attack_power_per_agility: 0,
+            stat_base_multipliers: [1.0; 5],
             stat_total_multipliers: [1.0; 5],
             stat_buff_total_multipliers: [1.0; 5],
             gear_stats: [0; 5],
@@ -1131,6 +1139,7 @@ mod tests {
             attack_power_per_strength: 0,
             attack_power_per_agility: 0,
             ranged_attack_power_per_agility: 0,
+            stat_base_multipliers: [1.0; 5],
             stat_total_multipliers: [1.0; 5],
             stat_buff_total_multipliers: [1.0; 5],
             gear_stats: [0; 5],
@@ -1187,6 +1196,7 @@ mod tests {
             attack_power_per_strength: 2,
             attack_power_per_agility: 0,
             ranged_attack_power_per_agility: 0,
+            stat_base_multipliers: [1.0; 5],
             stat_total_multipliers: [1.0; 5],
             stat_buff_total_multipliers: [1.0; 5],
             gear_stats: [0; 5],
@@ -1255,6 +1265,7 @@ mod tests {
             attack_power_per_strength: 2,
             attack_power_per_agility: 0,
             ranged_attack_power_per_agility: 0,
+            stat_base_multipliers: [1.0; 5],
             stat_total_multipliers: [1.0; 5],
             stat_buff_total_multipliers: [1.0; 5],
             gear_stats: [0; 5],
@@ -1310,6 +1321,7 @@ mod tests {
             attack_power_per_strength: 2,
             attack_power_per_agility: 0,
             ranged_attack_power_per_agility: 0,
+            stat_base_multipliers: [1.0; 5],
             stat_total_multipliers: [1.0; 5],
             stat_buff_total_multipliers: [1.0; 5],
             gear_stats: [0; 5],
@@ -1369,6 +1381,7 @@ mod tests {
             attack_power_per_strength: 2,
             attack_power_per_agility: 0,
             ranged_attack_power_per_agility: 0,
+            stat_base_multipliers: [1.0; 5],
             stat_total_multipliers: [1.03; 5],
             stat_buff_total_multipliers: [1.03; 5],
             gear_stats: [0; 5],
@@ -1408,14 +1421,14 @@ mod tests {
     }
 
     #[test]
-    fn stat_system_scales_positive_and_negative_client_buffs_like_cpp() {
-        let projection = calculate_player_stat_system_like_cpp(PlayerStatSystemInputLikeCpp {
+    fn stat_system_scales_base_stats_and_positive_negative_buffs_like_cpp() {
+        let input = PlayerStatSystemInputLikeCpp {
             base: PlayerLevelStats {
                 strength: 10,
                 agility: 200,
                 stamina: 10,
                 intellect: 10,
-                spirit: 10,
+                spirit: 3,
                 base_mana: 0,
             },
             class: 1,
@@ -1423,9 +1436,10 @@ mod tests {
             attack_power_per_strength: 2,
             attack_power_per_agility: 0,
             ranged_attack_power_per_agility: 0,
-            stat_total_multipliers: [1.03; 5],
+            stat_base_multipliers: [0.5, 0.5, 1.0, 1.0, 0.5],
+            stat_total_multipliers: [1.03, 1.03, 1.03, 1.03, 1.5],
             stat_buff_total_multipliers: [1.03; 5],
-            gear_stats: [100, -100, 0, 0, 0],
+            gear_stats: [100, -100, 90, 0, 0],
             gear_health: 0,
             gear_mana: 0,
             gear_armor: 0,
@@ -1452,11 +1466,25 @@ mod tests {
             rating_bonuses: [0.0; 32],
             can_parry: false,
             can_block: false,
-        });
+        };
+        let projection = calculate_player_stat_system_like_cpp(input);
 
-        assert_eq!(projection.stats[..2], [113, 103]);
-        assert_eq!(projection.stat_pos_buff[..2], [103, 0]);
-        assert_eq!(projection.stat_neg_buff[..2], [0, -103]);
+        assert_eq!(projection.stats[..3], [56, 51, 103]);
+        assert_eq!(
+            projection.stats[4], 2,
+            "BASE_PCT and TOTAL_PCT stay in f32 until the final truncation"
+        );
+        assert_eq!(projection.stat_pos_buff[..3], [51, 0, 92]);
+        assert_eq!(projection.stat_neg_buff[..2], [0, -51]);
+
+        let restored = calculate_player_stat_system_like_cpp(PlayerStatSystemInputLikeCpp {
+            stat_base_multipliers: [1.0; 5],
+            ..input
+        });
+        assert_eq!(restored.stats[..3], [113, 103, 103]);
+        assert_eq!(restored.stats[4], 4);
+        assert_eq!(restored.stat_pos_buff[..3], [103, 0, 92]);
+        assert_eq!(restored.stat_neg_buff[..2], [0, -103]);
     }
 
     #[test]
@@ -1475,6 +1503,7 @@ mod tests {
             attack_power_per_strength: 0,
             attack_power_per_agility: 0,
             ranged_attack_power_per_agility: 0,
+            stat_base_multipliers: [1.0; 5],
             stat_total_multipliers: [1.0; 5],
             stat_buff_total_multipliers: [1.0; 5],
             gear_stats: [0; 5],
@@ -1548,6 +1577,7 @@ mod tests {
             attack_power_per_strength: 0,
             attack_power_per_agility: 0,
             ranged_attack_power_per_agility: 0,
+            stat_base_multipliers: [1.0; 5],
             stat_total_multipliers: [1.0; 5],
             stat_buff_total_multipliers: [1.0; 5],
             gear_stats: [0; 5],
@@ -1632,6 +1662,7 @@ mod tests {
             attack_power_per_strength: 0,
             attack_power_per_agility: 0,
             ranged_attack_power_per_agility: 0,
+            stat_base_multipliers: [1.0; 5],
             stat_total_multipliers: [1.0; 5],
             stat_buff_total_multipliers: [1.0; 5],
             gear_stats: [0; 5],

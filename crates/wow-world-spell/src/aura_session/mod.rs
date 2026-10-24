@@ -22,12 +22,14 @@ use crate::{SpellbookHostLikeCpp, represented_aura_effect_amounts_like_cpp};
 
 mod application;
 mod aura_state;
+mod duration;
 mod mount;
 mod publication;
 mod sources;
 
 pub use application::*;
 pub use aura_state::*;
+pub use duration::*;
 pub use mount::*;
 pub use publication::*;
 pub use sources::*;

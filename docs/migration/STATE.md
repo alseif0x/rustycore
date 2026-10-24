@@ -1,5 +1,124 @@
 # RustyCore — Honest Current State (single source of truth)
 
+**#43, sanador de espíritus — aceptación local en curso, 2026-10-23/24:** continuación de
+las partes integradas en #1482 (`bdfbe8e2a`, release/corpse/cementerio) y #1483
+(`408d11c12`, reclaim). Rama `43-spirit-healer`, base `408d11c12`. Contrato:
+`NPCHandler.cpp:331–376` del C++ objetivo `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+admisión del NPC, retirada de muerte fingida, `ResurrectPlayer(0.5f, true)`,
+`DurabilityLossAll(0.25f, true)`, selección del cementerio desde la ubicación del
+cadáver antes de `SpawnCorpseBones`, y teleport solo si difiere del cementerio
+del jugador. `Player.cpp:4320–4404` toma el hechizo de `ChrRaces.ResSicknessSpellID`
+y el umbral de `Death.SicknessLevel`; los nueve primeros niveles afectados
+ajustan el tiempo restante, conservando la duración máxima del aura
+(`SpellAuras.cpp:897–906`).
+La duración final viaja como dato efímero del lanzamiento para publicar una sola
+actualización del aura, siguiendo la acumulación de `SetNeedClientUpdate`
+(`SpellAuras.cpp:220–228`). La reactivación refresca la misma aplicación y
+conserva su identidad de lanzamiento (`Unit.cpp:3224–3283`). La pérdida del
+25 % selecciona equipo, mochila y bolsas llevadas, excluyendo banco y sus bolsas,
+en el orden de `Player.cpp:4522–4544`; publica la durabilidad modificada y
+recalcula estadísticas si el equipo se rompe.
+
+La inspección de los DB2 locales de referencia (`Data/dbc/enUS`, sin overlays SQL)
+encuentra en 15007 los efectos 80/79/159, índices 0/1/2: estadísticas base −75 %,
+daño −75 % y ausencia de crédito PvP. `SpellMisc` 325284 usa `SpellDuration` 427:
+duración −600000, máximo 600000; `SpellInfo::GetDuration` toma el valor absoluto.
+Huellas SHA-256: SpellEffect `c786e3f82d69f6a2675cdcc7a0a6c48a2684044fb23344bd488425d982b525f8`,
+SpellMisc `23a649b44401e99d123375dc7a0d7be1eee76287af02e7bd91c2a45636a089c2`,
+SpellDuration `4b5c9c1795abe70cb788d5652c1dcad413bf535fd9423d49501309400ee3da53`.
+`SpellXSpellVisual` contiene para 15007 la fila incondicional 245039 (visual 69),
+que es la identidad visual transmitida por `SpellInfo::GetSpellXSpellVisualId`
+(`SpellInfo.cpp:4446`). Su huella es
+`893b2141d6250684968cccd76fb365b548177327f2fad508131fe46050276e86`.
+No se encontraron filas 15007 en las secciones legibles de `SpellCooldowns`
+(`4dd4678937c313c08952095e249308904099a06e825b714ed3268e6fc6600b69`) ni
+`SpellPower` (`2e62ed5891722bcdb4f87d4bde8f78abb0814e80f2095bcc18cbe64ac41ed2e5`);
+se omitieron sus siete y dos registros cifrados, respectivamente. El contrato
+del lanzamiento interno de enfermedad conserva CastID propio, OriginalCastID
+vacío y la visual efectiva; `Spell.cpp:4765–4814,8072–8077` gobierna flags y
+admisión de SpellGo. No supone una reparación general de lanzamientos internos.
+Son datos inspeccionados, no prueba de los overlays efectivos del servidor vivo.
+Participantes necesarios de esta entrega: duración restante/expiración, aplicación
+conjunta de los efectos de la enfermedad y su multiplicador de estadísticas base
+(`SpellAuraEffects.cpp:3567–3601`, `Unit.cpp:9080–9094`). **NOT VALIDATED**:
+primera campaña local fallida; sin captura, QA viva ni despliegue.
+Código y pruebas permanecen sin commit en `43-spirit-healer`; `408d11c12` es
+la base, no un SHA que contenga o haya validado estos cambios. Se escribieron
+escenarios en `crates/wow-world/unit_tests/handlers/entities/tests/spirit_healer.rs`
+(admisión, enfermedad por nivel/raza/configuración, renovación, estadísticas,
+durabilidad y cementerios) y `crates/wow-world/unit_tests/session/tests/aura_duration.rs`
+(duración restante, identidad y expiración), además del caso de multiplicadores
+en `crates/wow-data/src/player/stats.rs`. Los casos de World pasan en el feedback
+enfocado del implementador; la suite completa sigue pendiente. El soporte de pruebas del
+NPC usa los catálogos de la sesión; los escenarios completan el ACK del teleport
+de release y establecen LoggedIn para ejercitar el refresco de estadísticas.
+Primera campaña en aarch64, árbol modificado sobre `408d11c12`:
+`PROTOC=/home/ubuntu/.local/protoc/bin/protoc CARGO_BUILD_JOBS=1
+CARGO_TARGET_DIR=/home/server/rustycore/target VALIDATION_V2_CARGO_JOBS=1
+VALIDATION_V2_TIMEOUT_SECONDS=1800 ./tools/validation-v2 final --base origin/3.4.3
+--architecture --timings --logs --require-changes --keep-going`,
+23:26:21–23:36:56 UTC, **634,941 s**. Manifiesto local
+`target/validation-v2/manifests/20261023T232621.284597Z-3184099-final.json`;
+huellas del candidato en `target/validation-v2/evidence/43-spirit-healer-candidate-1.json`.
+Fallaron el límite de crecimiento de Session/Player, el inventario de interfaces
+y el import de `ItemUpdateState` desde la raíz de `wow-entities`. El integrador
+interrumpió con SIGTERM la compilación de tests dependiente del mismo error
+(exit 143); no se ejecutaron los tests. Formato, censo, archivos físicos,
+ausencia de duplicados y método-índice pasaron. El comprobador de arquitectura
+se compiló desde frío (289,578 s en su primer paso); también faltaban artefactos
+del workspace. **Supera 600 s; no acredita el objetivo de rendimiento cálido.**
+La reparación posterior se mide aparte. Censo revisado: seis tests nuevos de
+composición, ninguna identidad/clase preexistente retirada o reclasificada.
+Segunda campaña, mismas opciones sin `--keep-going`, candidato local 2:
+23:41:45–23:44:43 UTC, **177,387 s**, exit 101, manifiesto
+`target/validation-v2/manifests/20261023T234145.998066Z-3190700-final.json`.
+Arquitectura, fixtures, firmas, censo y formato pasaron. La compilación detectó
+dos argumentos `true` añadidos indebidamente a taunt y al aura de criatura al
+adaptar el host de aura de jugador; tests todavía no ejecutados. Se conserva el
+resultado fallido y se corrigen ambos consumidores. Reparación entre campañas:
+23:36:56–23:41:45 UTC (aproximadamente 290 s, fuera de la medición de aceptación).
+La secuencia de enfermedad y sus flags quedan en `wow-world-spell`; el adaptador
+existente de World solo reenvía `send_update`. Crecimiento revisado y acotado:
+Session +2 líneas de producción/+200 de tests; Player +34 de producción sobre
+el almacén canónico, sin nuevo estado, lock, reloj o tarea. Inventario de firmas:
+dos métodos de host añadidos y dos firmas ampliadas; ninguna otra sección cambia.
+Feedback del implementador (secuencial, `CARGO_BUILD_JOBS=1`, mismo target/PROTOC,
+sin campaña paralela del integrador): `cargo check -p wow-world --tests` tuvo dos
+fallos (acceso privado del adaptador; acceso privado y orientación en el fixture)
+y pasó tras corregirlos. `cargo test -p wow-world spirit_healer` pasó finalmente
+**9/9**, y `cargo test -p wow-world aura_duration`, **1/1**. Sus ejecuciones filtradas
+de targets de integración encontraron cero tests y no se cuentan como evidencia.
+Logs locales bajo `target/validation-v2/evidence/`, prefijo `spirit-healer-wow-world-`:
+
+| Log | Segundos de pared | Resultado |
+| --- | ---: | --- |
+| `check.log` | 138 | exit 101 |
+| `check-2.log` | 52 | exit 101 |
+| `check-3.log` | 49 | exit 0 |
+| `test-spirit_healer.log` | 445 | 8 pasan, 1 falla; compilación inicial del ejecutable |
+| `test-spirit_healer-2.log` | 73 | 9 pasan |
+| `test-spirit_healer-3.log` | 77 | 4 pasan, 5 fallan en la precondición común del ACK |
+| `test-spirit_healer-4.log` | 73 | 9 pasan; termina 2026-10-24 00:08:10 UTC |
+| `test-aura_duration.log` | 1 | 1 pasa; termina 00:08:18 UTC |
+
+Los 908 s de órdenes de feedback son coste de implementación/reparación, no una
+campaña final verde. El fallo de cementerio era una aserción sobre
+`far_destination` para un teleport local: ahora se comprueban selección 5/4,
+`near_destination`, paquete/contador, ACK, posición final y flags pendientes.
+El destino histórico se conserva tras ACK; su presencia no significa pendiente.
+No se cambió producción para adaptar esa prueba. El archivo de escenarios mide
+1.068 líneas: revisión de cohesión aceptada para este único flujo con sus fixtures;
+si la continuación de #43 amplía sus fixtures, separar sus decodificadores y datos
+de hechizo antes de añadir escenarios de relog. No requiere excepción de 2.000 líneas.
+La issue completa sigue abierta: carga del cadáver al relog, participantes de
+movimiento y aceptación DB/restart/relogin conservan sus pendientes.
+El guardado general representado (`PlayerCharacterSaveRequestLikeCpp` y
+`wow-world-lifecycle/src/player_save.rs`) no captura auras ni durabilidad de los
+objetos: marcar el objeto como modificado y publicar sus valores no demuestra
+su supervivencia a logout/restart. El efecto 159 queda representado en el aura;
+no se reclama implementación del sistema de crédito de honor. La agrupación y
+el orden observables de AuraUpdate requieren captura específica de esta acción.
+
 **#1263 F5: las 10 entradas diferidas — 2026-10-11 (rama `1263-f5-deferred`, PR sin integrar):** void storage (4), talent (2) y corpse (4) salen del inventario heredado hacia tres registradores de área explícitos (`wow_world_inventory::register_void_storage_handlers_like_cpp`, `wow_world_application::register_talent_handlers_like_cpp` y `register_corpse_handlers_like_cpp`) cuyos rasgos de host son los contratos de adaptador que faltaban: la persistencia de inventario/dinero, el commit/publicación del reset de talentos y las transiciones de muerte/resurrección/mapa se quedan en el host de World, que ya las poseía. Sin cambio de comportamiento; `world-handler-contract.tsv` idéntico. **F5 en 476/476** (0 legacy-direct + 423 builder + 53 macro); el puente heredado queda vacío y su retirada es un corte aparte. Con este corte, **los seis puntos del criterio de cierre de #1263 están entregados** cuando se integre: (1) #1338, (2) #1345, (3) #1347–#1353, (4) #1355/#1356, (5) este corte, (6) #1358. Seguimientos fuera de #1263: #1339–#1344, #1354, #1357, #1359, más #1360 (retirar el puente heredado vacío) y #1361 (paridad de los handlers de talentos), abiertos por este corte. Detalle y evidencia: entrada `F5: las 10 entradas diferidas` de `wow-world-distribution-plan.md`.
 
 **#1263 F4 LootMoney dependencia (8) — 2026-10-11 (rama `1263-f4-lootmoney-dep8`, integrada como #1358):** el drenaje de objetivos de quest sale del shell: el dueño de producción es `QuestObjectiveProgressCx::drain_represented_quest_objective_progress_like_cpp` (`wow-world-application`), cuya finalización ejecuta ella misma el refresco `UpdateVisibleGameobjectsOrSpellClicks` de `SendQuestUpdate`; `session/quest/objective_drain.rs` solo presta los dueños y se borran los cuerpos de dinero/moneda/reputación del shell. Sin cambio de comportamiento. Con esto **las nueve dependencias de LootMoney están en sus dueños** (el hold «dependencia (8) sigue en el shell» de las entradas de cierre de abajo queda superado). Incluye dos seguimientos de #1356: test de fijación de `UnitFlags` vivos en el CREATE de visibilidad y robustez del test de captura C1 frente a la caché de interés de `tracing`. Detalle y evidencia: entrada homónima de `wow-world-distribution-plan.md`.

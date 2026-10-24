@@ -8090,9 +8090,23 @@
           "module": "crate::handlers::entities::corpse::host",
           "trait_path": "wow_world_entities :: CorpseHostLikeCpp",
           "kind": "method",
+          "name": "apply_spirit_healer_durability_loss",
+          "visibility": "private",
+          "signature": "fn apply_spirit_healer_durability_loss (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::corpse::host",
+          "trait_path": "wow_world_entities :: CorpseHostLikeCpp",
+          "kind": "method",
           "name": "cast_triggered_self_spell_like_cpp",
           "visibility": "private",
-          "signature": "fn cast_triggered_self_spell_like_cpp (& mut self , catalogs : wow_world_entities :: CorpseLifecycleCatalogsLikeCpp < '_ > , spell_id : i32 ,) -> impl std :: future :: Future < Output = bool > + Send",
+          "signature": "fn cast_triggered_self_spell_like_cpp (& mut self , catalogs : wow_world_entities :: CorpseLifecycleCatalogsLikeCpp < '_ > , spell_id : i32 , sickness_remaining_ms : Option < u32 > ,) -> impl std :: future :: Future < Output = bool > + Send",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -13742,6 +13756,20 @@
           "name": "npc_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn npc_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> NpcHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::npc_host",
+          "trait_path": "NpcHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "send_spirit_resurrect",
+          "visibility": "private",
+          "signature": "fn send_spirit_resurrect < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> HandlerFuture < 'a , () >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -40332,7 +40360,7 @@
           "kind": "method",
           "name": "apply_aura_with_effect_mask_and_provenance_like_cpp",
           "visibility": "private",
-          "signature": "fn apply_aura_with_effect_mask_and_provenance_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid , duration_ms : u32 , aura_flags : u32 , effect_mask : u32 , provenance : wow_entities :: AuraCastProvenanceLikeCpp ,) -> Result < () , & 'static str >",
+          "signature": "fn apply_aura_with_effect_mask_and_provenance_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid , duration_ms : u32 , aura_flags : u32 , effect_mask : u32 , provenance : wow_entities :: AuraCastProvenanceLikeCpp , send_update : bool ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
           "guards": [
