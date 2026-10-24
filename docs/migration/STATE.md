@@ -1,11 +1,13 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, implementación previa a aceptación final — 2026-10-24, 16:15 UTC:**
+**#43, implementación previa a aceptación final — 2026-10-24, 19:10 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
 y productor desde hechizos están escritos y tienen feedback focalizado;
-**no hay aceptación final de este candidato**. Faltan completar el cálculo del
-productor, participantes de limpieza al morir/resucitar, fallos de las otras
-operaciones del ciclo y capturas/QA viva. El usuario autoriza
+**no hay aceptación final de este candidato**. El cálculo básico del productor
+tiene contraste de datos registrado abajo; Ghost/Wisp está en implementación
+y reparación del primer fallo de compilación. Faltan su visibilidad y guardado,
+participantes de limpieza al morir/resucitar, fallos de las otras operaciones
+del ciclo y capturas/QA viva. El usuario autoriza
 continuar los pendientes y la aceptación, no solo conservar el feedback anterior.
 La revisión previa a la campaña detectó brechas en las llamadas de movimiento
 de muerte/release/resurrección/login y en las respuestas de resurrección inmediata
@@ -197,6 +199,49 @@ los RecordIDs y sus TableHash F04238A5/C603EE28/B423FA7A/27B7A01A/F72496D9.
 `world.serverside_spell_effect` tampoco tiene filas por ambos SpellIDs.
 El template SQL 12861 existe y tiene un único modelo: DisplayID 1825,
 escala 1, probabilidad 100. Esta lectura no ejecutó casts ni QA viva.
+Decisión del bloque de implementación de auras: una aplicación por hechizo,
+con todos sus efectos activos, duración permanente y procedencia real; se
+reutilizarán los registros de efectos del AuraSubsystem y los consumidores de
+movimiento existentes. La retirada de Ghost conservará sus máscaras mientras
+quede otra aura de tipo 95. La restauración de display debe respetar
+`Unit.cpp:10038–10098,11763–11870`, no forzar siempre el modelo nativo.
+Falta confirmar con el lector productivo la ausencia de enlaces de modelos
+de personalización: el header WDC4 de `ChrCustomizationDisplayInfo.db2`
+declara cero registros (92 bytes), y la consulta SQL de su tabla de hotfixes
+cuenta cero filas. La lectura del header no sustituye ese diagnóstico ni
+prueba el soporte del selector para otros datasets. Las consultas de
+visibilidad y máscaras de criaturas serán el bloque siguiente; no hay
+activación de runtime de un estado intermedio.
+La revisión de guardado encuentra además que el snapshot/adapter actual de
+auras solo escribe la sickness seleccionada; aún no escribe 8326/20584.
+El diagnóstico del worker de 18:12 UTC encontró cero filas SpellInterrupts
+para ambos SpellIDs (TableHash 0x668FAE03); una consulta SQL de solo lectura
+posterior tampoco encontró overlays por esos IDs. `Aura::CanBeSaved`
+(`SpellAuras.cpp:1134`, `SpellMgr.cpp:3280`, exclusión LeaveWorld) permite
+estas auras permanentes autocasteadas sin item. Su guardado y retirada deben integrarse en la
+transacción existente con claves acotadas, preservando las demás auras aún no
+portadas; cargar filas preparadas en un test no prueba ese productor de guardado.
+Esto coexiste con el fallback explícito de `CharacterHandler.cpp:1227–1243`:
+al entrar muerto, C++ recastea Wisp para Night Elf y Ghost solo cuando faltan.
+El fallback ya tiene consumidor Rust en `corpse_login.rs`; no sustituye el
+guardado ni permite duplicar las aplicaciones que sí se cargaron.
+El feedback `cargo test -p wow-data resurrection_effect_data -- --ignored
+--nocapture` ejecutó dos tests, exit 0, sobre `9f24f3832` más delta local;
+log `/tmp/rustycore-unit9b-ghost-wisp-db2-20261024T181243Z.A3Esbf.log`.
+El primer `cargo check -p wow-world-application` falló (exit 101) por dos
+llamadas a un mutador de auras limitado a fixtures; log
+`/tmp/rustycore-unit9b-check-wow-world-application-20261024T181340Z.ykKShG.log`.
+La reparación usa operaciones canónicas acotadas de la cola existente; no
+convierte el mutador genérico de fixtures en API de producción. Las pruebas
+de aplicación y restauración siguen pendientes; no es aceptación final.
+La revisión del delta detectó dos expectativas incorrectas antes de ejecutar
+sus tests: `SpellInfo.cpp:4863` clasifica el efecto GHOST como negativo
+(autocast: NOCASTER|NEGATIVE, no CANCELABLE), y `Unit.cpp:10038–10098`
+restaura el display nativo si GetModelForForm devuelve cero, incluso con
+Glyph of Stars. `SpellAuraEffects.cpp:2132` pasa IsMounted a RestoreDisplayId;
+no permite sustituirlo por un booleano de fallback. Las correcciones pertenecen
+al mismo bloque. La consulta de solo lectura de `world.spell_script_names`
+por 8326/20584 y sus claves negativas no encontró scripts asociados.
 
 La comprobación del productor sin features de fixtures detectó un defecto del
 propio candidato #43 en `login_sequence.rs`: el código de LoadCorpse accedía a
