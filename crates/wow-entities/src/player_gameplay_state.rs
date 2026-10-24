@@ -263,6 +263,8 @@ pub enum PlayerResurrectionOperation {
         position: wow_core::Position,
         restore_percent: f32,
     },
+    Repop,
+    CreateCorpse,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -278,6 +280,11 @@ pub enum PlayerResurrectionPhase {
     ReadyToSavePlayer,
     SavingPlayer,
     PlayerSaveDeferred,
+    ReleaseWispAuraInFlight,
+    ReleaseGhostAuraInFlight,
+    CorpseBonesInFlight,
+    CorpseSaveInFlight,
+    CorpsePublished,
     Complete,
 }
 

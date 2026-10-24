@@ -1,0 +1,483 @@
+// Copyright (c) 2026 alseif0x
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+use super::*;
+use std::future::Future;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
+use std::task::Poll;
+use wow_persistence::{
+    CorpsePersistenceMutationOutcomeLikeCpp, CorpseSaveRequestLikeCpp, MapCorpseLoadOutcomeLikeCpp,
+    MapCorpseLoadRequestLikeCpp, MapCorpsePersistencePortLikeCpp, PersistenceFutureLikeCpp,
+};
+
+#[derive(Default)]
+struct GatedCorpseSavePort {
+    receiver: Mutex<Option<flume::Receiver<CorpsePersistenceMutationOutcomeLikeCpp>>>,
+    started: AtomicBool,
+    saves: AtomicUsize,
+}
+
+impl MapCorpsePersistencePortLikeCpp for GatedCorpseSavePort {
+    fn load_map_corpses_like_cpp<'a>(
+        &'a self,
+        _request: MapCorpseLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, MapCorpseLoadOutcomeLikeCpp> {
+        Box::pin(async {
+            MapCorpseLoadOutcomeLikeCpp::Failed {
+                reason: "not used".into(),
+            }
+        })
+    }
+
+    fn save_corpse_like_cpp<'a>(
+        &'a self,
+        _request: CorpseSaveRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, CorpsePersistenceMutationOutcomeLikeCpp> {
+        self.saves.fetch_add(1, Ordering::SeqCst);
+        self.started.store(true, Ordering::SeqCst);
+        let receiver = self.receiver.lock().unwrap().take().unwrap();
+        Box::pin(async move {
+            receiver.recv_async().await.unwrap_or_else(|_| {
+                CorpsePersistenceMutationOutcomeLikeCpp::Failed {
+                    reason: "controlled save result channel closed".into(),
+                }
+            })
+        })
+    }
+
+    fn delete_corpse_like_cpp<'a>(
+        &'a self,
+        _owner_guid: u64,
+    ) -> PersistenceFutureLikeCpp<'a, CorpsePersistenceMutationOutcomeLikeCpp> {
+        Box::pin(async { CorpsePersistenceMutationOutcomeLikeCpp::Committed })
+    }
+}
+
+fn release_phase(session: &WorldSession) -> Option<wow_entities::PlayerResurrectionPhase> {
+    session
+        .core
+        .with_owned_player_like_cpp(|player| {
+            player
+                .resurrection_state_like_cpp()
+                .delayed_after_teleport
+                .map(|continuation| continuation.phase)
+        })
+        .flatten()
+}
+
+fn release_phase_at(
+    manager: &wow_map::MapManager,
+    handle: wow_map::PlayerHandle,
+) -> Option<wow_entities::PlayerResurrectionPhase> {
+    manager.with_player_like_cpp(handle, |player| {
+        player
+            .resurrection_state_like_cpp()
+            .delayed_after_teleport
+            .map(|continuation| continuation.phase)
+    })?
+}
+
+fn corpse_guid_at(manager: &wow_map::MapManager, player_guid: ObjectGuid) -> Option<ObjectGuid> {
+    manager
+        .find_map(571, 0)?
+        .map()
+        .corpse_guid_by_player_like_cpp(player_guid)
+}
+
+fn assert_release_failed_before_graveyard(
+    session: &WorldSession,
+    player_guid: ObjectGuid,
+    send_rx: &flume::Receiver<Vec<u8>>,
+) {
+    assert_eq!(session.state(), crate::session::SessionState::Disconnecting);
+    assert!(current_corpse_guid_like_cpp(session, player_guid).is_none());
+    assert_eq!(
+        wow_world_entities::player_corpse_location_like_cpp(session),
+        None
+    );
+    assert_eq!(
+        session.fixtures.combat.represented_repop_at_graveyard_count,
+        0
+    );
+    assert!(!crate::session::hub_ref(session).near_teleport_pending_like_cpp());
+    assert!(!sent_opcodes(send_rx).contains(&(ServerOpcodes::MoveTeleport as u16)));
+    assert_eq!(
+        release_phase(session),
+        Some(wow_entities::PlayerResurrectionPhase::CorpseSaveInFlight)
+    );
+}
+
+fn assert_release_phase_rejects_late_ack_and_full_save(session: &mut WorldSession) {
+    let before = release_phase(session);
+    assert!(!wow_world_entities::mark_player_resurrection_teleport_completed(session));
+    assert_eq!(
+        release_phase(session),
+        before,
+        "late ACK must retain the fence"
+    );
+    assert!(
+        session.player_save_snapshot_blocked_for_test(1),
+        "a full Player snapshot must remain blocked during release"
+    );
+}
+
+#[tokio::test]
+async fn release_failure_corpse_save_retains_fence_and_never_repopulates() {
+    let (mut session, send_rx, _realm_rx, player_guid, port) =
+        dead_player_session_with_graveyard_like_cpp(9_201);
+    port.fail_next_save();
+
+    handle_repop_request(&mut session, repop_request_packet(true)).await;
+
+    assert_eq!(port.saves.lock().unwrap().len(), 1);
+    assert_release_failed_before_graveyard(&session, player_guid, &send_rx);
+    assert_release_phase_rejects_late_ack_and_full_save(&mut session);
+
+    handle_repop_request(&mut session, repop_request_packet(true)).await;
+    assert_eq!(
+        port.saves.lock().unwrap().len(),
+        1,
+        "duplicate must not replay SQL"
+    );
+    assert_release_failed_before_graveyard(&session, player_guid, &send_rx);
+    assert_release_phase_rejects_late_ack_and_full_save(&mut session);
+}
+
+#[tokio::test]
+async fn release_failure_missing_corpse_port_retains_fence_and_never_repopulates() {
+    let (mut session, send_rx, _realm_rx, player_guid) =
+        dead_player_session_without_corpse_port(9_202);
+
+    handle_repop_request(&mut session, repop_request_packet(true)).await;
+
+    assert_release_failed_before_graveyard(&session, player_guid, &send_rx);
+}
+
+#[tokio::test]
+async fn release_failure_cancelled_corpse_save_keeps_request_unpublished() {
+    let (mut session, _send_rx, _realm_rx, player_guid, _recording_port) =
+        dead_player_session_with_graveyard_like_cpp(9_203);
+    let (save_tx, save_rx) = flume::bounded(1);
+    let port = Arc::new(GatedCorpseSavePort {
+        receiver: Mutex::new(Some(save_rx)),
+        ..Default::default()
+    });
+    session.set_map_corpse_persistence_port_like_cpp(port.clone());
+    let handle = session.core.player_handle_like_cpp.unwrap();
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
+
+    let mut release = Box::pin(handle_repop_request(
+        &mut session,
+        repop_request_packet(true),
+    ));
+    let reached_pending_save = std::future::poll_fn(|cx| {
+        let polled = release.as_mut().poll(cx);
+        if port.started.load(Ordering::SeqCst) || polled.is_ready() {
+            Poll::Ready(port.started.load(Ordering::SeqCst) && polled.is_pending())
+        } else {
+            Poll::Pending
+        }
+    })
+    .await;
+    assert!(reached_pending_save);
+    assert!(port.started.load(Ordering::SeqCst));
+    assert_eq!(port.saves.load(Ordering::SeqCst), 1);
+    {
+        let manager = manager.lock().unwrap();
+        assert!(corpse_guid_at(&manager, player_guid).is_none());
+        assert_eq!(
+            release_phase_at(&manager, handle),
+            Some(wow_entities::PlayerResurrectionPhase::CorpseSaveInFlight)
+        );
+    }
+
+    drop(release);
+    handle_repop_request(&mut session, repop_request_packet(true)).await;
+    assert_eq!(
+        port.saves.load(Ordering::SeqCst),
+        1,
+        "cancelled SQL must not replay"
+    );
+    assert!(current_corpse_guid_like_cpp(&session, player_guid).is_none());
+    assert_eq!(
+        release_phase(&session),
+        Some(wow_entities::PlayerResurrectionPhase::CorpseSaveInFlight)
+    );
+    assert_release_phase_rejects_late_ack_and_full_save(&mut session);
+    assert_eq!(
+        session.fixtures.combat.represented_repop_at_graveyard_count,
+        0
+    );
+    drop(save_tx);
+}
+
+#[derive(Clone, Copy)]
+enum StaleAdmissionChange {
+    ResidenceRevision,
+    Incarnation,
+}
+
+async fn assert_stale_release_completion_is_rejected(
+    guid_counter: i64,
+    change: StaleAdmissionChange,
+) {
+    let (mut session, send_rx, _realm_rx, player_guid, _recording_port) =
+        dead_player_session_with_graveyard_like_cpp(guid_counter);
+    let (save_tx, save_rx) = flume::bounded(1);
+    let port = Arc::new(GatedCorpseSavePort {
+        receiver: Mutex::new(Some(save_rx)),
+        ..Default::default()
+    });
+    session.set_map_corpse_persistence_port_like_cpp(port.clone());
+    let handle = session.core.player_handle_like_cpp.unwrap();
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
+    let initial_admission = manager
+        .lock()
+        .unwrap()
+        .current_player_admission_like_cpp(player_guid)
+        .expect("initial canonical admission");
+    assert_eq!(initial_admission.0, handle);
+    let original_position = session
+        .player_position_like_cpp()
+        .expect("active Player fixture position");
+    let mut release = Box::pin(handle_repop_request(
+        &mut session,
+        repop_request_packet(true),
+    ));
+    let pending_at_save = std::future::poll_fn(|cx| {
+        let polled = release.as_mut().poll(cx);
+        if port.started.load(Ordering::SeqCst) || polled.is_ready() {
+            Poll::Ready(port.started.load(Ordering::SeqCst) && polled.is_pending())
+        } else {
+            Poll::Pending
+        }
+    })
+    .await;
+    assert!(pending_at_save);
+    assert!(port.started.load(Ordering::SeqCst));
+    let expected_current_handle = match change {
+        StaleAdmissionChange::ResidenceRevision => {
+            let mut manager = manager.lock().unwrap();
+            manager
+                .detach_player_like_cpp(handle)
+                .expect("detach original residence");
+            manager
+                .attach_player_like_cpp(handle, wow_map::MapKey::new(571, 0), original_position)
+                .expect("reattach original incarnation");
+            handle
+        }
+        StaleAdmissionChange::Incarnation => {
+            let mut replacement = Box::new(wow_entities::Player::new(Some(2), false));
+            replacement
+                .unit_mut()
+                .world_mut()
+                .object_mut()
+                .create(player_guid);
+            let replacement_handle = manager
+                .lock()
+                .unwrap()
+                .install_detached_player_like_cpp(replacement)
+                .unwrap();
+            assert_ne!(replacement_handle, handle);
+            manager
+                .lock()
+                .unwrap()
+                .with_player_mut_like_cpp(replacement_handle, |player| {
+                    player.unit_mut().set_max_health(200);
+                    player.unit_mut().set_health(123);
+                    player
+                        .unit_mut()
+                        .set_unit_flags_like_cpp(wow_constants::UnitFlags::SKINNABLE);
+                })
+                .expect("replacement canonical incarnation");
+            replacement_handle
+        }
+    };
+    let expected_residence_revision = match change {
+        StaleAdmissionChange::ResidenceRevision => initial_admission.1 + 1,
+        StaleAdmissionChange::Incarnation => 0,
+    };
+    {
+        let manager = manager.lock().unwrap();
+        assert_eq!(
+            manager.current_player_admission_like_cpp(player_guid),
+            Some((expected_current_handle, expected_residence_revision))
+        );
+        if matches!(change, StaleAdmissionChange::Incarnation) {
+            assert_eq!(
+                manager.with_player_like_cpp(expected_current_handle, |player| {
+                    (
+                        player.unit().death_state(),
+                        player.unit().data().max_health,
+                        player.unit().data().health,
+                        player.unit().unit_flags_like_cpp(),
+                        player.resurrection_state_like_cpp().corpse_location,
+                        player.resurrection_state_like_cpp().delayed_after_teleport,
+                    )
+                }),
+                Some((
+                    wow_constants::DeathState::Alive,
+                    200,
+                    123,
+                    wow_constants::UnitFlags::SKINNABLE,
+                    None,
+                    None,
+                )),
+                "replacement baseline must be canonical before the save resumes"
+            );
+        }
+    }
+    save_tx
+        .send(CorpsePersistenceMutationOutcomeLikeCpp::Committed)
+        .unwrap();
+    release.await;
+
+    assert_eq!(port.saves.load(Ordering::SeqCst), 1);
+    assert_eq!(session.state(), crate::session::SessionState::Disconnecting);
+    assert!(current_corpse_guid_like_cpp(&session, player_guid).is_none());
+    assert_eq!(
+        session.fixtures.combat.represented_repop_at_graveyard_count,
+        0
+    );
+    assert!(!crate::session::hub_ref(&session).near_teleport_pending_like_cpp());
+    assert!(!sent_opcodes(&send_rx).contains(&(ServerOpcodes::MoveTeleport as u16)));
+    assert_eq!(session.core.player_handle_like_cpp, Some(handle));
+    let manager = manager.lock().unwrap();
+    match change {
+        StaleAdmissionChange::ResidenceRevision => assert_eq!(
+            manager.with_player_like_cpp(handle, |player| {
+                (
+                    player.resurrection_state_like_cpp().corpse_location,
+                    player
+                        .resurrection_state_like_cpp()
+                        .delayed_after_teleport
+                        .map(|continuation| continuation.phase),
+                )
+            }),
+            Some((
+                None,
+                Some(wow_entities::PlayerResurrectionPhase::CorpseSaveInFlight),
+            )),
+            "stale residence completion must retain the original in-flight fence"
+        ),
+        StaleAdmissionChange::Incarnation => assert_eq!(
+            manager.with_player_like_cpp(expected_current_handle, |player| {
+                (
+                    player.unit().death_state(),
+                    player.unit().data().max_health,
+                    player.unit().data().health,
+                    player.unit().unit_flags_like_cpp(),
+                    player.resurrection_state_like_cpp().corpse_location,
+                    player.resurrection_state_like_cpp().delayed_after_teleport,
+                )
+            }),
+            Some((
+                wow_constants::DeathState::Alive,
+                200,
+                123,
+                wow_constants::UnitFlags::SKINNABLE,
+                None,
+                None,
+            )),
+            "stale completion must not mutate the replacement incarnation"
+        ),
+    }
+}
+
+#[tokio::test]
+async fn release_failure_residence_revision_change_after_commit_does_not_publish_corpse() {
+    assert_stale_release_completion_is_rejected(9_204, StaleAdmissionChange::ResidenceRevision)
+        .await;
+}
+
+#[tokio::test]
+async fn release_failure_incarnation_change_after_commit_does_not_mutate_replacement() {
+    assert_stale_release_completion_is_rejected(9_207, StaleAdmissionChange::Incarnation).await;
+}
+
+#[tokio::test]
+async fn release_failure_timer_save_does_not_send_graveyard_teleport() {
+    let (mut session, send_rx, _realm_rx, player_guid, port) =
+        dead_player_session_with_graveyard_like_cpp(9_205);
+    let _packet_tx = keep_driver_input_open(&mut session);
+    session.core.state = crate::session::SessionState::LoggedIn;
+    let (graveyards, conditions) =
+        graveyard_store_with_links(0, [wow_data::ALLIANCE_GRAVEYARD_SAFE_LOC_ID_LIKE_CPP], []);
+    session.set_graveyard_store(graveyards);
+    session.set_condition_store(conditions);
+    set_death_timer_for_driver(&mut session, 1);
+    port.fail_next_save();
+
+    session.update(1).await;
+
+    assert_eq!(death_timer_from_driver(&session), 0);
+    assert_eq!(port.saves.lock().unwrap().len(), 1);
+    assert_release_failed_before_graveyard(&session, player_guid, &send_rx);
+    assert_release_phase_rejects_late_ack_and_full_save(&mut session);
+}
+
+#[tokio::test]
+async fn release_failure_old_bones_delete_stops_standalone_replacement() {
+    let (mut session, _send_rx, _realm_rx, player_guid, port) =
+        dead_player_session_with_graveyard_like_cpp(9_206);
+    let generators = session.id_generators_for_test_like_cpp();
+    assert!(
+        wow_world_entities::create_corpse_like_cpp(&mut session, generators.item.as_ref(),)
+            .await
+            .is_some()
+    );
+    assert!(current_corpse_guid_like_cpp(&session, player_guid).is_some());
+
+    port.fail_next_delete();
+    assert!(
+        wow_world_entities::create_corpse_like_cpp(&mut session, generators.item.as_ref(),)
+            .await
+            .is_none()
+    );
+
+    assert_eq!(port.delete_requests(), vec![9_206]);
+    assert_eq!(
+        port.saves.lock().unwrap().len(),
+        1,
+        "no replacement save before oldbones succeeds"
+    );
+    assert!(current_corpse_guid_like_cpp(&session, player_guid).is_none());
+    assert_eq!(
+        release_phase(&session),
+        Some(wow_entities::PlayerResurrectionPhase::CorpseBonesInFlight)
+    );
+}
+
+#[tokio::test]
+async fn release_failure_same_map_corpse_guard_precedes_oldbones_conversion() {
+    let (mut session, send_rx, _realm_rx, player_guid, port) =
+        dead_player_session_with_graveyard_like_cpp(9_207);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.resurrection_state_mut_like_cpp().corpse_location =
+                Some((571, Position::new(8.0, 9.0, 10.0, 0.0)));
+        })
+        .expect("canonical Player owner");
+
+    handle_repop_request(&mut session, repop_request_packet(true)).await;
+
+    assert_eq!(port.delete_requests(), Vec::<u64>::new());
+    assert!(port.saves.lock().unwrap().is_empty());
+    assert!(current_corpse_guid_like_cpp(&session, player_guid).is_none());
+    assert_eq!(
+        wow_world_entities::player_corpse_location_like_cpp(&session),
+        Some((571, Position::new(8.0, 9.0, 10.0, 0.0)))
+    );
+    assert_eq!(
+        session.fixtures.combat.represented_repop_at_graveyard_count,
+        0
+    );
+    assert!(!crate::session::hub_ref(&session).near_teleport_pending_like_cpp());
+    assert!(!sent_opcodes(&send_rx).contains(&(ServerOpcodes::MoveTeleport as u16)));
+    assert_eq!(
+        release_phase(&session),
+        Some(wow_entities::PlayerResurrectionPhase::CorpseBonesInFlight)
+    );
+}

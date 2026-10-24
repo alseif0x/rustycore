@@ -136,7 +136,51 @@ C++ un commit-before-publication que no tiene. Un fallo/cancelación conserva
 el bloqueo del guardado completo y la retención del dueño, sin reintentar una
 escritura de resultado desconocido. El estado ghost completo es la frontera
 de salida de BuildPlayerRepop; el teleport posterior conserva su propio
-contrato. Este bloque todavía no está implementado ni aceptado.
+contrato. El bloque está escrito en `player_release.rs` sobre `8be267512`,
+con feedback focalizado y pendiente de aceptación final. Reutiliza
+la continuación del Player para release/creación, rechaza ACKs de teleport
+para esas operaciones y conserva la identidad y revisión de residencia al
+publicar. El helper independiente de creación conserva el guardado posterior
+a huesos antes de construir el reemplazo. Los callers de petición y timer
+solo continúan al cementerio cuando BuildPlayerRepop confirma el resultado.
+El primer check encontró un préstamo temporal y el primer intento de compilar
+tests un getter inexistente; ambos fueron reparados. La primera ejecución de
+los siete casos nuevos produjo 1 passed/6 failed: el fixture carecía de
+SpellInfo para Ghost y se detenía antes de SQL. Se completó ese fixture sin
+debilitar el guard del cast. El caso de reemplazo requirió además preparar
+la salud máxima después de crear/instalar el Player; se corrigió un getter
+inexistente durante esa reparación. El resultado final del filtro
+`cargo test -p wow-world --lib release_failure -- --nocapture` fue **8 passed**,
+exit 0, en `/tmp/rustycore-unit8-release-failure-repair3-20261024T165552Z.log`.
+Incluye identidades distintas para revisión de residencia y nueva encarnación,
+cancelación antes de commit, ausencia/fallo del puerto, petición duplicada,
+fallo de timer y precondiciones de huesos/cadáver. El check de
+`wow-world-entities` pasó tras reparar el préstamo. Los filtros positivos de
+release manual, timer de seis minutos y creación/guardado tras worldport dieron
+1 passed cada uno, exit 0, logs `/tmp/rustycore-unit8-request-success-20261024T165800Z.log`,
+`/tmp/rustycore-unit8-timer-success-20261024T165802Z.log` y
+`/tmp/rustycore-unit8-standalone-corpse-success-20261024T165806Z.log`.
+Todos son feedback del delta de implementación en aarch64, jobs=1, no evidencia
+de aceptación final de un SHA posterior ni prueba de durabilidad con DB real.
+
+La revisión posterior de ghost confirma otro pendiente de #43:
+`set_player_ghost_flag_like_cpp` solo escribe PLAYER_FLAGS_GHOST; los setters
+de las máscaras Unit de visibilidad/detección ghost solo tienen callers de
+tests. Falta conectar el contrato de `HandleAuraGhost`
+(`SpellAuraEffects.cpp:1718–1743`) junto con las máscaras de criaturas visibles
+a ghosts/spirit healers (`Creature.cpp:1104–1106,1148–1152`). La consulta de
+visibilidad de otros Players filtra fase, sin el contrato ghost completo.
+Se conservarán las excepciones de cadáver cercano y grupo de
+`Object.cpp:1517–1595`, sin introducir estado mutable por observador.
+Además, el ejecutor genérico usa 30 segundos para auras/modificadores y omite
+parte de los grupos multiefecto. Antes de aceptar release deben contrastarse
+8326/20584 con sus filas DB2, duración, efectos y publicación; un retorno Ok
+del cast no demuestra su permanencia ni los efectos de ghost. Esto no exige
+portar todas las auras de #32, pero sí las necesarias para el ciclo de #43.
+Consultas SQL de solo lectura por 8326/20584 no encontraron filas en
+`hotfixes.spell_effect`, `hotfixes.spell_misc` ni
+`world.serverside_spell_effect`. Falta contrastar los RecordIDs y estados de
+hotfix con las filas DB2; estos ceros no prueban por sí solos el dato efectivo.
 
 La comprobación del productor sin features de fixtures detectó un defecto del
 propio candidato #43 en `login_sequence.rs`: el código de LoadCorpse accedía a

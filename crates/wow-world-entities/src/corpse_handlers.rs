@@ -219,11 +219,14 @@ pub async fn handle_resurrect_response<H: CorpseHostLikeCpp>(
     else {
         return;
     };
-    let PlayerResurrectionRequestLikeCpp { map_id, position, .. } =
-        match continuation.operation {
-            wow_entities::PlayerResurrectionOperation::RequestData(request) => request,
-            wow_entities::PlayerResurrectionOperation::TeleportRevivePercent { .. } => return,
-        };
+    let PlayerResurrectionRequestLikeCpp {
+        map_id, position, ..
+    } = match continuation.operation {
+        wow_entities::PlayerResurrectionOperation::RequestData(request) => request,
+        wow_entities::PlayerResurrectionOperation::TeleportRevivePercent { .. }
+        | wow_entities::PlayerResurrectionOperation::Repop
+        | wow_entities::PlayerResurrectionOperation::CreateCorpse => return,
+    };
 
     // C++ `ResurrectUsingRequestData` teleports first; the continuation has
     // already taken Player ownership before this await can be cancelled.

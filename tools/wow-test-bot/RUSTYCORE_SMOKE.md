@@ -62,6 +62,19 @@ approval if those prerequisites are absent. Account provisioning being disabled
 does not authorize granting spells or adding items. A reference target must
 actually provide the expected action before its capture is accepted.
 
+Read-only fixture facts from 2026-10-24: the installed enUS effect row for
+Redemption (`7328`, effect record `685420`, difficulty 0) is effect 113 with
+base 64, die sides 1 and mana 120: the basic offer is 65 health / 120 mana.
+This is a candidate spell, not proof that TESTBOT2 knows or can cast it.
+Spirit Healer entry 6491 has map-0 spawn rows 9008549 and 9008781 at
+(-8946.23, -183.477, 79.9953), and 9008741 at (-9340.7, 165.021, 61.6412).
+Discover the live NPC identity and visibility; do not assume a database spawn
+counter is the runtime GUID or change the duplicate data for this test.
+Durable item templates still need verification through the installed DB2
+reader before choosing the exact equipment fixture. Use target-version slot
+constants: backpack starts at 35 and equipped bag slots are 30 through 33
+(`Player.h:671–683`), not the 3.3.5 inventory layout.
+
 For a scripted fall, use a non-instance map and a character without GM mode,
 flight, fall immunity or safe-fall auras. Pin the initial position and report the
 sent height/landing sequence; a client-position update alone is not proof of

@@ -54,9 +54,10 @@ mod movement_opcodes;
 mod pending_runtime;
 mod player_attack;
 mod player_death;
+mod player_release;
 mod player_resurrection;
-mod resurrection_request;
 mod player_vitals;
+mod resurrection_request;
 mod spawn;
 mod spell_click;
 pub mod spell_click_values;
@@ -214,24 +215,25 @@ pub use player_attack::{
     start_player_attack_like_cpp,
 };
 pub use player_death::{
-    CORPSE_RECLAIM_RADIUS_LIKE_CPP, CorpseLifecycleCatalogsLikeCpp,
-    ResurrectionOperationCatalogs, SPELL_GHOST_LIKE_CPP,
-    SPELL_WISP_SPIRIT_AURA_LIKE_CPP, SPELL_WISP_SPIRIT_RACIAL_LIKE_CPP,
-    build_player_repop_like_cpp, closest_graveyard_like_cpp, corpse_flags_like_cpp,
-    corpse_item_cache_like_cpp, corpse_reclaim_delay_secs_like_cpp, create_corpse_like_cpp,
-    kill_player_like_cpp, player_corpse_like_cpp, player_corpse_location_like_cpp,
-    player_in_arena_like_cpp, repop_at_graveyard_like_cpp, repop_request_like_cpp,
-    tick_player_death_timer,
-    spawn_corpse_bones_like_cpp, updated_death_expire_time_like_cpp,
+    CORPSE_RECLAIM_RADIUS_LIKE_CPP, CorpseLifecycleCatalogsLikeCpp, ResurrectionOperationCatalogs,
+    SPELL_GHOST_LIKE_CPP, SPELL_WISP_SPIRIT_AURA_LIKE_CPP, SPELL_WISP_SPIRIT_RACIAL_LIKE_CPP,
+    closest_graveyard_like_cpp, corpse_flags_like_cpp, corpse_item_cache_like_cpp,
+    corpse_reclaim_delay_secs_like_cpp, kill_player_like_cpp, player_corpse_like_cpp,
+    player_corpse_location_like_cpp, player_in_arena_like_cpp, repop_at_graveyard_like_cpp,
+    repop_request_like_cpp, spawn_corpse_bones_like_cpp, tick_player_death_timer,
+    updated_death_expire_time_like_cpp,
 };
+pub use player_release::{build_player_repop_like_cpp, create_corpse_like_cpp};
 pub use player_resurrection::{reclaim_corpse_like_cpp, resurrect_player_like_cpp};
+pub use player_vitals::{set_player_alive_like_cpp, set_player_ghost_flag_like_cpp};
 pub use resurrection_request::{
     continue_player_resurrection_after_teleport, mark_player_resurrection_teleport_completed,
     player_resurrection_continuation_pending, player_resurrection_save_waiting_for_transfer,
     revive_player_for_teleport,
 };
-pub use player_vitals::{set_player_alive_like_cpp, set_player_ghost_flag_like_cpp};
 pub use state::WorldEntitiesState;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use teleport_session::schedule_represented_resurrection_after_teleport;
 pub use teleport_session::{
     CLASS_DEATH_KNIGHT_LIKE_CPP, DEATH_KNIGHT_ESCAPE_SPELL_LIKE_CPP,
     DEATH_KNIGHT_START_MAP_LIKE_CPP, PlayerTeleportHostLikeCpp, TELE_REVIVE_AT_TELEPORT_LIKE_CPP,
@@ -240,11 +242,9 @@ pub use teleport_session::{
     TRANSFER_ABORT_UNIQUE_MESSAGE_LIKE_CPP, handle_move_teleport_ack_like_cpp,
     pending_teleport_save_destination_like_cpp,
     process_represented_delayed_resurrection_after_teleport_like_cpp,
-    process_represented_delayed_teleport_after_update_like_cpp,
-    teleport_to_with_options, teleport_to_with_options_and_resurrection,
+    process_represented_delayed_teleport_after_update_like_cpp, teleport_to_with_options,
+    teleport_to_with_options_and_resurrection,
 };
-#[cfg(any(test, feature = "test-fixtures"))]
-pub use teleport_session::schedule_represented_resurrection_after_teleport;
 pub use travel_handlers::{
     TravelHandlerCxLikeCpp, TravelHandlerHostLikeCpp, register_travel_handlers_like_cpp,
 };

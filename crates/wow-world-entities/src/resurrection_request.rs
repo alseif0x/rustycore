@@ -242,28 +242,41 @@ fn no_teleport_pending(host: &impl CorpseHostLikeCpp) -> bool {
 pub fn mark_player_resurrection_teleport_completed(
     host: &mut impl CorpseHostLikeCpp,
 ) -> bool {
-    match continuation(host).map(|continuation| continuation.phase) {
-        Some(PlayerResurrectionPhase::TeleportInFlight) => advance_phase(
+    let Some(continuation) = continuation(host) else {
+        return true;
+    };
+    if matches!(
+        continuation.operation,
+        PlayerResurrectionOperation::Repop | PlayerResurrectionOperation::CreateCorpse
+    ) {
+        return false;
+    }
+    match continuation.phase {
+        PlayerResurrectionPhase::TeleportInFlight => advance_phase(
             host,
             PlayerResurrectionPhase::TeleportInFlight,
             PlayerResurrectionPhase::TeleportCompleted,
         ),
-        Some(PlayerResurrectionPhase::AwaitingTeleport) => advance_phase(
+        PlayerResurrectionPhase::AwaitingTeleport => advance_phase(
             host,
             PlayerResurrectionPhase::AwaitingTeleport,
             PlayerResurrectionPhase::TeleportCompleted,
         ),
-        Some(PlayerResurrectionPhase::TeleportCompleted)
-        | Some(PlayerResurrectionPhase::ResurrectPlayerInFlight)
-        | Some(PlayerResurrectionPhase::VisibilityInFlight)
-        | Some(PlayerResurrectionPhase::ApplyRequestValues)
-        | Some(PlayerResurrectionPhase::AuraInFlight)
-        | Some(PlayerResurrectionPhase::BonesInFlight)
-        | Some(PlayerResurrectionPhase::ReadyToSavePlayer)
-        | Some(PlayerResurrectionPhase::SavingPlayer)
-        | Some(PlayerResurrectionPhase::PlayerSaveDeferred)
-        | Some(PlayerResurrectionPhase::Complete)
-        | None => true,
+        PlayerResurrectionPhase::TeleportCompleted
+        | PlayerResurrectionPhase::ResurrectPlayerInFlight
+        | PlayerResurrectionPhase::VisibilityInFlight
+        | PlayerResurrectionPhase::ApplyRequestValues
+        | PlayerResurrectionPhase::AuraInFlight
+        | PlayerResurrectionPhase::BonesInFlight
+        | PlayerResurrectionPhase::ReadyToSavePlayer
+        | PlayerResurrectionPhase::SavingPlayer
+        | PlayerResurrectionPhase::PlayerSaveDeferred
+        | PlayerResurrectionPhase::ReleaseWispAuraInFlight
+        | PlayerResurrectionPhase::ReleaseGhostAuraInFlight
+        | PlayerResurrectionPhase::CorpseBonesInFlight
+        | PlayerResurrectionPhase::CorpseSaveInFlight
+        | PlayerResurrectionPhase::CorpsePublished
+        | PlayerResurrectionPhase::Complete => true,
     }
 }
 
@@ -313,6 +326,11 @@ pub(crate) async fn process_after_teleport(
             | PlayerResurrectionPhase::AuraInFlight
             | PlayerResurrectionPhase::BonesInFlight
             | PlayerResurrectionPhase::SavingPlayer
+            | PlayerResurrectionPhase::ReleaseWispAuraInFlight
+            | PlayerResurrectionPhase::ReleaseGhostAuraInFlight
+            | PlayerResurrectionPhase::CorpseBonesInFlight
+            | PlayerResurrectionPhase::CorpseSaveInFlight
+            | PlayerResurrectionPhase::CorpsePublished
     ) {
         // These effects may have reached their external boundary before this
         // future was cancelled. Keep the continuation; never replay them blindly.
@@ -543,4 +561,3 @@ pub async fn revive_player_for_teleport<H: CorpseHostLikeCpp>(
     begin_teleport_revive(host, map_id, destination)
         && run_teleport_revive(host, catalogs).await
 }
-

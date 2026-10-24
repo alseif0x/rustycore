@@ -65,6 +65,11 @@ impl WorldSession {
             receipt: SavedPlayerReceipt::Owner,
         })
     }
+
+    #[cfg(test)]
+    pub(crate) fn player_save_snapshot_blocked_for_test(&mut self, now: i64) -> bool {
+        self.prepare_player_save_like_cpp(now).is_none()
+    }
 }
 
 #[cfg(test)]

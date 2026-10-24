@@ -6,6 +6,8 @@
 use super::*;
 use crate::session::WorldSession;
 
+mod release;
+
 async fn handle_resurrect_response(session: &mut WorldSession, pkt: WorldPacket) {
     let generators = session.id_generators_for_test_like_cpp();
     let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
@@ -646,6 +648,7 @@ fn water_walking_publication_is_idempotent_and_uses_the_unit_counter() {
 pub(super) struct RecordingCorpsePortLikeCpp {
     saves: std::sync::Mutex<Vec<wow_persistence::CorpseSaveRequestLikeCpp>>,
     deletes: std::sync::Mutex<Vec<u64>>,
+    fail_next_save: std::sync::atomic::AtomicBool,
     fail_next_delete: std::sync::atomic::AtomicBool,
 }
 
@@ -656,6 +659,11 @@ impl RecordingCorpsePortLikeCpp {
 
     fn fail_next_delete(&self) {
         self.fail_next_delete
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    pub(super) fn fail_next_save(&self) {
+        self.fail_next_save
             .store(true, std::sync::atomic::Ordering::SeqCst);
     }
 }
@@ -681,7 +689,18 @@ impl wow_persistence::MapCorpsePersistencePortLikeCpp for RecordingCorpsePortLik
         wow_persistence::CorpsePersistenceMutationOutcomeLikeCpp,
     > {
         self.saves.lock().unwrap().push(request);
-        Box::pin(async { wow_persistence::CorpsePersistenceMutationOutcomeLikeCpp::Committed })
+        let fail = self
+            .fail_next_save
+            .swap(false, std::sync::atomic::Ordering::SeqCst);
+        Box::pin(async move {
+            if fail {
+                wow_persistence::CorpsePersistenceMutationOutcomeLikeCpp::Failed {
+                    reason: "controlled unconfirmed corpse save".into(),
+                }
+            } else {
+                wow_persistence::CorpsePersistenceMutationOutcomeLikeCpp::Committed
+            }
+        })
     }
 
     fn delete_corpse_like_cpp<'a>(
@@ -774,6 +793,75 @@ fn dead_player_session_on_map_like_cpp(
     ObjectGuid,
     Arc<RecordingCorpsePortLikeCpp>,
 ) {
+    let (session, send_rx, realm_rx, player_guid, port) =
+        dead_player_session_on_map_with_optional_port(guid_counter, maps, true);
+    (
+        session,
+        send_rx,
+        realm_rx,
+        player_guid,
+        port.expect("fixture requested corpse persistence"),
+    )
+}
+
+fn dead_player_session_without_corpse_port(
+    guid_counter: i64,
+) -> (
+    WorldSession,
+    flume::Receiver<Vec<u8>>,
+    flume::Receiver<Vec<u8>>,
+    ObjectGuid,
+) {
+    let (session, send_rx, realm_rx, player_guid, _) =
+        dead_player_session_on_map_with_optional_port(
+            guid_counter,
+            crate::teleport_test_fixtures::world_maps([571]),
+            false,
+        );
+    (session, send_rx, realm_rx, player_guid)
+}
+
+/// Supplies only the primary aura metadata needed for the production triggered
+/// cast entry point to admit the mandatory release spells. Detailed DB2 effect
+/// rows and Ghost/Wisp aura semantics are outside these corpse-fence fixtures.
+fn install_release_cast_spell_fixture(session: &mut WorldSession) {
+    let mut spells = wow_data::SpellStore::new();
+    for spell_id in [
+        wow_world_entities::SPELL_GHOST_LIKE_CPP,
+        wow_world_entities::SPELL_WISP_SPIRIT_AURA_LIKE_CPP,
+    ] {
+        spells.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_DUMMY),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: Vec::new(),
+            },
+        );
+    }
+    session.set_spell_store(Arc::new(spells));
+}
+
+fn dead_player_session_on_map_with_optional_port(
+    guid_counter: i64,
+    maps: Arc<wow_data::MapStore>,
+    install_port: bool,
+) -> (
+    WorldSession,
+    flume::Receiver<Vec<u8>>,
+    flume::Receiver<Vec<u8>>,
+    ObjectGuid,
+    Option<Arc<RecordingCorpsePortLikeCpp>>,
+) {
     let (mut session, send_rx) = make_session();
     let (realm_tx, realm_rx) = flume::bounded(64);
     session.install_realm_send_channel_for_test(realm_tx);
@@ -786,6 +874,7 @@ fn dead_player_session_on_map_like_cpp(
         map_id,
         0,
     );
+    install_release_cast_spell_fixture(&mut session);
     session.set_loaded_player_identity_like_cpp(map_id as u16, 1, 1, 80, 0);
     session.set_player_position_like_cpp(Position::new(1.0, 2.0, 3.0, 0.0));
     session.set_player_health_like_cpp(0, 1_000);
@@ -807,8 +896,10 @@ fn dead_player_session_on_map_like_cpp(
         &maps,
     );
     session.set_world_safe_loc_store_like_cpp(Arc::new(safe_locs));
-    let port = Arc::new(RecordingCorpsePortLikeCpp::default());
-    session.set_map_corpse_persistence_port_like_cpp(port.clone());
+    let port = install_port.then(|| Arc::new(RecordingCorpsePortLikeCpp::default()));
+    if let Some(port) = &port {
+        session.set_map_corpse_persistence_port_like_cpp(port.clone());
+    }
     while send_rx.try_recv().is_ok() {}
     while realm_rx.try_recv().is_ok() {}
     (session, send_rx, realm_rx, player_guid, port)
