@@ -140,6 +140,9 @@ impl WorldSession {
     pub fn set_chr_races_store(&mut self, store: Arc<ChrRacesStore>) {
         self.catalogs.chr.races_store = Some(store);
     }
+    pub fn set_shapeshift_display_links_absent(&mut self, absent: bool) {
+        self.catalogs.chr.shapeshift_display_links_absent = Some(absent);
+    }
     pub(crate) fn apply_offline_xp_rest_bonus_with_policy_like_cpp(
         &mut self,
         policy: &PlayerRestRatePolicyLikeCpp,

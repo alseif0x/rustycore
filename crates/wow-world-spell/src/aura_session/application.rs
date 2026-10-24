@@ -210,4 +210,43 @@ pub fn tick_auras<H: AuraHostLikeCpp>(host: &mut H) {
             "Aura expired"
         );
     }
+
+    // `Unit::m_visibleAurasToUpdate` is a slot-ordered set
+    // (`Unit.h:638-639`, `Unit.cpp:13566-13569`). The Rust subsystem already
+    // owns the pending slots; consume only the two selected resurrection
+    // spells here and leave every other pending aura for its existing owner.
+    let pending = host
+        .core()
+        .with_owned_player_mut_like_cpp(|player| {
+            let auras = &mut player.unit_mut().subsystems_mut().auras;
+            let mut slots = auras
+                .visible_auras_to_update
+                .iter()
+                .copied()
+                .filter(|slot| {
+                    auras
+                        .runtime_application_like_cpp(*slot)
+                        .is_some_and(|aura| matches!(aura.spell_id, 8326 | 20584))
+                })
+                .collect::<Vec<_>>();
+            slots.sort_unstable();
+            let applications = slots
+                .iter()
+                .filter_map(|slot| {
+                    Some((
+                        auras.runtime_application_like_cpp(*slot)?.clone(),
+                        auras.aura_cast_provenance_like_cpp(*slot),
+                    ))
+                })
+                .collect::<Vec<_>>();
+            for slot in slots {
+                auras.visible_auras_to_update.remove(&slot);
+            }
+            applications
+        })
+        .unwrap_or_default();
+    for (aura, provenance) in pending {
+        let (state, hub) = host.split_spell_state_ref();
+        state.send_aura_application_update_with_provenance(hub, &aura, provenance);
+    }
 }

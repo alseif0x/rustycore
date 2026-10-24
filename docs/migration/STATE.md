@@ -1,11 +1,12 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, implementación previa a aceptación final — 2026-10-24, 19:10 UTC:**
+**#43, implementación previa a aceptación final — 2026-10-24, 19:44 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
 y productor desde hechizos están escritos y tienen feedback focalizado;
 **no hay aceptación final de este candidato**. El cálculo básico del productor
-tiene contraste de datos registrado abajo; Ghost/Wisp está en implementación
-y reparación del primer fallo de compilación. Faltan su visibilidad y guardado,
+tiene contraste de datos registrado abajo; Ghost/Wisp tiene feedback focalizado
+tras reparar compilación, restauración de display y publicación de su visual.
+Sigue en revisión el recast de la misma aura/caster. Faltan su visibilidad y guardado,
 participantes de limpieza al morir/resucitar, fallos de las otras operaciones
 del ciclo y capturas/QA viva. El usuario autoriza
 continuar los pendientes y la aceptación, no solo conservar el feedback anterior.
@@ -45,6 +46,38 @@ el proceso 3094551, binario `target/deploy/live/world-server`, SHA-256
 cero reinicios y sin packet dump activo. No es el candidato nuevo ni prueba viva
 de #43. Capturas de la acción y DB/reinicio/relogin conservan su aceptación
 propia y autorización de runtime; no se ha publicado, desplegado ni cerrado #43.
+
+Feedback de Ghost/Wisp a las 19:40 UTC, sobre `6117a9dc5` más el delta local
+del worker (aarch64, un job; no aceptación del SHA ni campaña final):
+`cargo test -p wow-world --lib scenarios_spell_state_27 -- --nocapture`
+terminó con 12 passed en
+`/tmp/rustycore-unit9b-test-wow-world-spell-state-27-20261024T194007Z-RxgHes.log`.
+La primera ejecución conjunta tuvo 9 passed y 3 failed: la publicación perdía
+la procedencia visual del aura, la consulta de Glyph of Stars no incluía su
+aplicación runtime y el test de login confundía los dos paquetes de velocidad
+con el paquete completo de auras. Se corrigieron y se repitió el grupo afectado.
+El filtro `reclaim_corpse_in_range_resurrects_half_and_spawns_bones_like_cpp`
+pasó un caso, log
+`/tmp/rustycore-unit9b-test-wow-world-release-reclaim-20261024T193910Z-e1I5Uf.log`.
+Los tres casos de selección/restauración de display de Application pasaron en
+`/tmp/rustycore-unit9b-test-wow-world-application-ghost-wisp-20261024T193633Z-lMk7Ew.log`.
+La revisión posterior detectó que el insertor genérico siempre elige un slot
+libre: falta cerrar la renovación de Ghost/Wisp del mismo caster sin duplicar
+la aplicación, conforme a `Unit.cpp:3224–3288` y `SpellAuras.cpp:1021–1096`.
+La publicación delta/removal a observadores queda con la integración de
+visibilidad; los tests de carga con recalc cero no prueban el guardado real:
+la continuación debe cubrir Ghost recalc 7 y Wisp recalc 3, duración SQL -1,
+en la transacción existente de PlayerSave y en su loader productivo.
+El handoff de las 19:50 confirma exit 0 para esos filtros y los checks de
+Application, Spell y World; el recast no se implementó en este checkpoint.
+`ghost_wisp_spell_data` pasó un diagnóstico adicional en
+`/tmp/rustycore-unit9b-ghost-wisp-data-20261024T194400Z-aOe5Fc.log`:
+SpellAuraOptions (TableHash `0xF42FC065`) no selecciona filas para ambos
+spells en dificultad 0; la consulta SQL de solo lectura por sus SpellIDs
+en `hotfixes.spell_aura_options` devolvió COUNT 0 a las 19:45 UTC.
+Esto respalda stack máximo por defecto, sin sustituir la selección de
+catálogos del código. La renovación debe preservar slot/procedencia y no
+reaplicar ghost/transform (`SpellAuraEffects.cpp:923–964,1718,1935`).
 
 Contraste de datos del productor, 2026-10-24: el diagnóstico opt-in mantenido
 `wow-data::spell_db2::tests::resurrection_effect_data` leyó el DataDir instalado

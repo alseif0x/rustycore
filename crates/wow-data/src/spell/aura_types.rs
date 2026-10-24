@@ -73,6 +73,7 @@ pub const SPELL_AURA_MOD_SPELL_CRIT_CHANCE: i32 = 57;
 /// critical percentage added to every weapon and spell critical chance.
 pub const SPELL_AURA_MOD_CRIT_PCT: i32 = 290;
 pub const SPELL_AURA_MOD_INCREASE_SWIM_SPEED: i32 = 58;
+pub const SPELL_AURA_GHOST: i32 = 95;
 pub const SPELL_AURA_MOD_SCALE: i32 = 61;
 pub const SPELL_AURA_MOD_CASTING_SPEED_NOT_STACK: i32 = 65;
 /// C++ `AuraType::SPELL_AURA_HASTE_SPELLS` (`SpellAuraDefines.h:287`), handled

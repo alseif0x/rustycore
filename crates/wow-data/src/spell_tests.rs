@@ -162,6 +162,16 @@ fn represented_spell_positivity_marks_resurrection_sickness_modifiers_negative()
     }
 }
 
+#[test]
+fn represented_spell_positivity_marks_ghost_aura_negative() {
+    let spell = test_spell_info_with_aura(
+        8_326,
+        crate::spell::aura_types::SPELL_AURA_GHOST,
+    );
+
+    assert!(!represented_spell_is_positive_like_cpp(&spell));
+}
+
 fn test_spell_proc_entry_like_cpp() -> SpellProcEntryLikeCpp {
     SpellProcEntryLikeCpp {
         school_mask: 0,

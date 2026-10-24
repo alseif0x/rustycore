@@ -15,6 +15,7 @@ pub use item_effects::plan_item_set_aura_refresh_with_access_like_cpp;
 mod apply;
 mod context;
 mod feign_death;
+mod ghost_wisp;
 mod item_scaling;
 mod remove;
 mod trainer_views;
@@ -38,6 +39,14 @@ pub struct AuraRemovalCxLikeCpp<'a> {
     item_stats: Option<&'a std::sync::Arc<wow_data::ItemStatsStore>>,
     item_effects: Option<&'a std::sync::Arc<wow_data::ItemEffectStore>>,
     form_store: Option<&'a wow_data::SpellShapeshiftFormStore>,
+    map_difficulty_id: u8,
+    display_info_store: Option<&'a wow_data::CreatureDisplayInfoStore>,
+    display_info_extra_store: Option<&'a wow_data::CreatureDisplayInfoExtraStore>,
+    model_data_store: Option<&'a wow_data::CreatureModelDataStore>,
+    races_store: Option<&'a wow_data::character_progression::ChrRacesStore>,
+    shapeshift_display_links_absent: Option<bool>,
+    creature_template_store: Option<&'a wow_data::CreatureTemplateLifecycleStoreLikeCpp>,
+    creature_model_info_store: Option<&'a wow_data::CreatureModelInfoStoreLikeCpp>,
     map_store: Option<&'a wow_data::map::MapStore>,
     item_mod_catalogs: wow_world_inventory::ItemModsCatalogsViewLikeCpp<'a>,
     loot: &'a wow_world_loot::LootState,

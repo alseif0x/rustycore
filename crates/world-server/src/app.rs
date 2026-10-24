@@ -1050,6 +1050,23 @@ async fn run_inner(
         wow_data::character_progression::ChrClassesStore::load(&data_dir, &locale)
             .context("Failed to load ChrClasses.db2")?,
     );
+    let chr_customization_display_info_store = Arc::new(
+        wow_data::character_progression::ChrCustomizationDisplayInfoStore::load(
+            &data_dir, &locale,
+        )
+        .context("Failed to load ChrCustomizationDisplayInfo.db2")?,
+    );
+    let shapeshift_display_links_absent = crate::static_data_overlay::shapeshift_display_links_absent(
+        &chr_customization_display_info_store,
+        &static_data_overlay_persistence,
+    )
+    .await
+    .context("Failed to certify effective shapeshift customization display links")?;
+    info!(
+        "Loaded {} ChrCustomizationDisplayInfo DB2 rows; shapeshift fallback link gate: {}",
+        chr_customization_display_info_store.len(),
+        shapeshift_display_links_absent
+    );
     let power_type_store = Arc::new(
         crate::static_data_overlay::load_power_type_store_like_cpp(
             &data_dir,
@@ -4926,6 +4943,7 @@ async fn run_inner(
             num_talents_at_level_store: Arc::clone(&num_talents_at_level_store),
             chr_races_store: Arc::clone(&chr_races_store),
             chr_classes_store: Arc::clone(&chr_classes_store),
+            shapeshift_display_links_absent,
             power_type_store: Arc::clone(&power_type_store),
         },
         spells: SessionSpellCatalogCapabilitiesLikeCpp {

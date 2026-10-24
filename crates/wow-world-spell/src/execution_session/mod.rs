@@ -64,6 +64,7 @@ mod player_effects;
 mod post_spell_go;
 mod preparation;
 mod primary_effect_fallback;
+mod resurrection_auras;
 mod resurrection_offer;
 mod resurrection_sickness;
 mod target_resolution;
@@ -128,6 +129,16 @@ pub trait SpellExecutionHostLikeCpp:
         effect_mask: u32,
         provenance: wow_entities::AuraCastProvenanceLikeCpp,
         send_update: bool,
+    ) -> Result<(), &'static str>;
+    fn apply_ghost_wisp_aura(
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        spell_info: &wow_data::SpellInfo,
+        duration_ms: u32,
+        aura_flags: u32,
+        effect_mask: u32,
+        provenance: wow_entities::AuraCastProvenanceLikeCpp,
     ) -> Result<(), &'static str>;
     fn apply_durability_damage_effect_like_cpp(
         &mut self,

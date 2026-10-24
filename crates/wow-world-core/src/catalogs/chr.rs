@@ -15,5 +15,8 @@ use std::sync::Arc;
 pub struct ChrCatalogsLikeCpp {
     pub classes_store: Option<Arc<wow_data::character_progression::ChrClassesStore>>,
     pub races_store: Option<Arc<wow_data::character_progression::ChrRacesStore>>,
+    /// Startup proof that both DB2 and the typed hotfix table contain no
+    /// shapeshift display links. `None` means the input was not certified.
+    pub shapeshift_display_links_absent: Option<bool>,
     pub specialization_store: Option<Arc<wow_data::ChrSpecializationStore>>,
 }

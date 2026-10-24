@@ -27,6 +27,7 @@ use crate::{CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp};
 // C++ SpellAuraDefines.h AURA_FLAGS values used by AuraApplication::_InitFlags
 // and BuildUpdatePacket for a restored player aura.
 const AFLAG_DURATION: u32 = 0x0000_0004;
+const AFLAG_CANCELABLE: u32 = 0x0000_0002;
 const AFLAG_NEGATIVE: u32 = 0x0000_0010;
 const AFLAG_POSITIVE: u32 = 0x0000_0100;
 
@@ -381,6 +382,25 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
         } else {
             AFLAG_NEGATIVE
         };
+        if matches!(row.spell_id, 8326 | 20584) && aura_flags & AFLAG_POSITIVE != 0 {
+            let attributes = spell_store
+                .misc_attributes_for_difficulty_like_cpp(
+                    row.spell_id as i32,
+                    row.difficulty,
+                    difficulty_store_ref,
+                )
+                .unwrap_or([0; 15]);
+            if attributes[0] as u32 & wow_data::spell::attributes::SPELL_ATTR0_PASSIVE == 0
+                && attributes[1] as u32
+                    & wow_data::spell::attributes::SPELL_ATTR1_NO_AURA_ICON
+                    == 0
+            {
+                // C++ AuraApplication::_InitFlags checks owner GUID == target
+                // GUID. These loaded applications are installed on the Player
+                // they target, even when the original caster was another unit.
+                aura_flags |= AFLAG_CANCELABLE;
+            }
+        }
         if caster_guid == player_guid {
             aura_flags |= AFLAG_NOCASTER_LIKE_CPP;
         }
@@ -414,6 +434,8 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
             charges: row.remain_charges,
             base_amounts,
         };
+        let selected_ghost_wisp_application = matches!(row.spell_id, 8326 | 20584)
+            .then(|| aura.clone());
         let _fallback_snapshot = canonical_snapshot.clone();
         let _fallback_aura = aura.clone();
         let _fallback_metadata = persistence_metadata.clone();
@@ -488,6 +510,11 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
         if _canonical.is_none() && installed.is_none() {
             authority_complete = false;
             break;
+        }
+        if let Some(aura) = selected_ghost_wisp_application
+            && host.apply_loaded_ghost_wisp_aura(&aura).is_err()
+        {
+            authority_complete = false;
         }
         loaded += 1;
     }

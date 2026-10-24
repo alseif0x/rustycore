@@ -16,7 +16,7 @@ pub fn player_aura_info_like_cpp(
     player_aura_info_with_provenance(aura, player_level, map_id, None)
 }
 
-fn player_aura_info_with_provenance(
+pub(crate) fn player_aura_info_with_provenance(
     aura: &AuraApplication,
     player_level: u8,
     map_id: u16,
@@ -458,6 +458,29 @@ impl SessionSpellState {
             },
             || player.aura_cast_map_id_like_cpp(),
         );
+    }
+
+    pub(crate) fn send_aura_application_update_with_provenance(
+        &self,
+        hub: HubRef<'_>,
+        aura: &AuraApplication,
+        provenance: AuraCastProvenanceLikeCpp,
+    ) {
+        let Some(unit_guid) = hub.core.player_guid() else {
+            return;
+        };
+        let aura_info = player_aura_info_with_provenance(
+            aura,
+            hub.player_level_like_cpp(),
+            hub.core.player_map_id_like_cpp(),
+            Some(provenance),
+        );
+        hub.core
+            .send_packet(&wow_packet::packets::misc::AuraUpdate {
+                unit_guid,
+                update_all: false,
+                auras: vec![aura_info],
+            });
     }
 
     fn send_aura_update_applied_from_queries_like_cpp(

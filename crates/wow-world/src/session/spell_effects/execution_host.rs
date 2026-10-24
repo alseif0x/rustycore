@@ -109,6 +109,27 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
                 send_update,
             )
     }
+    fn apply_ghost_wisp_aura(
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        spell_info: &wow_data::SpellInfo,
+        duration_ms: u32,
+        aura_flags: u32,
+        effect_mask: u32,
+        provenance: wow_entities::AuraCastProvenanceLikeCpp,
+    ) -> Result<(), &'static str> {
+        self.player_aura_application_cx_like_cpp()
+            .apply_ghost_wisp_aura(
+                spell_id,
+                caster_guid,
+                spell_info,
+                duration_ms,
+                aura_flags,
+                effect_mask,
+                provenance,
+            )
+    }
     fn apply_durability_damage_effect_like_cpp(
         &mut self,
         effect: u32,

@@ -74,8 +74,6 @@ pub(crate) fn resurrect_player_native<H: CorpseHostLikeCpp>(
     // in case of faction change.
     host.remove_auras_due_to_spell_like_cpp(SPELL_WISP_SPIRIT_AURA_LIKE_CPP);
     host.remove_auras_due_to_spell_like_cpp(SPELL_GHOST_LIKE_CPP);
-    // C++ `AuraEffect::HandleAuraGhost` unapply removes PLAYER_FLAGS_GHOST.
-    crate::set_player_ghost_flag_like_cpp(host, false);
 
     let has_recruiter_link =
         host.core().is_a_recruiter_like_cpp() || host.core().recruiter_id_like_cpp() != 0;

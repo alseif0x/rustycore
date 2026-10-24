@@ -2,6 +2,9 @@
 
 use super::*;
 
+#[path = "scenarios_spell_state_27/ghost_wisp.rs"]
+mod ghost_wisp;
+
 const RESURRECT: u32 = 18;
 const RESURRECT_NEW: u32 = 113;
 const RESURRECT_WITH_AURA: u32 = 172;

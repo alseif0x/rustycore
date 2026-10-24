@@ -195,7 +195,6 @@ pub async fn build_player_repop_like_cpp<H: CorpseHostLikeCpp>(
             "Player owner changed after ghost aura cast",
         );
     }
-    crate::set_player_ghost_flag_like_cpp(host, true);
     host.remove_auras_with_interrupt_flags_like_cpp(SPELL_AURA_INTERRUPT_FLAG_RELEASE_LIKE_CPP, 0);
 
     let corpse_location = with_bound_player(host, binding, |player| {

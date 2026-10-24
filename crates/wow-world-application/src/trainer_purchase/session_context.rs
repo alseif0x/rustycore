@@ -250,6 +250,20 @@ pub(crate) fn trainer_buy_admission_context_like_cpp<H: TrainerSessionHostLikeCp
             .spell_catalogs
             .spell_shapeshift_form_store
             .as_deref(),
+        core.current_map_difficulty_id_like_cpp(),
+        session_catalogs.creatures.display_info_store.as_deref(),
+        session_catalogs
+            .creatures
+            .display_info_extra_store
+            .as_deref(),
+        session_catalogs.creatures.model_data_store.as_deref(),
+        session_catalogs.chr.races_store.as_deref(),
+        session_catalogs.chr.shapeshift_display_links_absent,
+        session_catalogs
+            .creatures
+            .template_lifecycle_store_like_cpp
+            .as_deref(),
+        session_catalogs.creatures.model_info_store.as_deref(),
         session_catalogs.map_store().map(AsRef::as_ref),
         wow_world_inventory::ItemModsCatalogsViewLikeCpp::new(
             session_catalogs.items.store.as_ref(),
@@ -592,6 +606,20 @@ pub(crate) fn trainer_list_publication_context_like_cpp<H: TrainerSessionHostLik
             .spell_catalogs
             .spell_shapeshift_form_store
             .as_deref(),
+        core.current_map_difficulty_id_like_cpp(),
+        session_catalogs.creatures.display_info_store.as_deref(),
+        session_catalogs
+            .creatures
+            .display_info_extra_store
+            .as_deref(),
+        session_catalogs.creatures.model_data_store.as_deref(),
+        session_catalogs.chr.races_store.as_deref(),
+        session_catalogs.chr.shapeshift_display_links_absent,
+        session_catalogs
+            .creatures
+            .template_lifecycle_store_like_cpp
+            .as_deref(),
+        session_catalogs.creatures.model_info_store.as_deref(),
         session_catalogs.map_store().map(AsRef::as_ref),
         wow_world_inventory::ItemModsCatalogsViewLikeCpp::new(
             session_catalogs.items.store.as_ref(),

@@ -72,7 +72,8 @@ pub use effect_session::{
     current_map_is_dungeon_like_cpp, hydrate_canonical_threat_relevant_auras_like_cpp,
     notify_other_players_visibility_changed_like_cpp, persist_player_homebind_like_cpp,
     player_current_map_instanceable_like_cpp, record_spell_execute_log_durability_damage_like_cpp,
-    represented_disallowed_mount_form_like_cpp, represented_homebind_like_cpp,
+    disallowed_mount_form_from_catalogs, represented_disallowed_mount_form_like_cpp,
+    represented_homebind_like_cpp,
     set_represented_homebind_like_cpp, sync_represented_creature_threat_to_canonical_like_cpp,
 };
 pub use execution_session::{

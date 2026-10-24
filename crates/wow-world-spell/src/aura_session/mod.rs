@@ -39,6 +39,10 @@ pub trait AuraHostLikeCpp: SpellbookHostLikeCpp {
     fn split_world_entities_ref(&self) -> (&WorldEntitiesState, HubRef<'_>);
     fn split_world_entities_mut(&mut self) -> (&mut WorldEntitiesState, HubMut<'_>);
     fn remove_aura(&mut self, slot: u8) -> Result<(), &'static str>;
+    fn apply_loaded_ghost_wisp_aura(
+        &mut self,
+        aura: &AuraApplication,
+    ) -> Result<(), &'static str>;
     /// The represented player aura modifier (#1363 slice 9e), moved from the
     /// World `session/spell_state/aura_application.rs` as this provided
     /// method so its 23 spell call sites keep their method form.

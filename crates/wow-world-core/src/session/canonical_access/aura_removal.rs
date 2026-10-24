@@ -100,6 +100,59 @@ impl SessionCore {
 }
 
 impl PlayerAuraRemovalAccessLikeCpp<'_> {
+    pub fn set_visible_aura_update_pending(&self, slot: u8, pending: bool) -> Option<()> {
+        self.core.with_owned_player_mut_like_cpp(|player| {
+            let visible_auras_to_update =
+                &mut player.unit_mut().subsystems_mut().auras.visible_auras_to_update;
+            if pending {
+                visible_auras_to_update.insert(slot);
+            } else {
+                visible_auras_to_update.remove(&slot);
+            };
+        })
+    }
+
+    pub fn set_ghost_aura(&self, ghost: bool) -> bool {
+        self.core.with_owned_player_mut_like_cpp(|player| {
+            if ghost {
+                player.set_player_flag(crate::session::PLAYER_FLAGS_GHOST_LIKE_CPP);
+            } else {
+                player.remove_player_flag(crate::session::PLAYER_FLAGS_GHOST_LIKE_CPP);
+            }
+            let visibility = if ghost { 0x2 } else { 0x1 };
+            player
+                .unit_mut()
+                .set_server_side_ghost_visibility_like_cpp(visibility);
+            player
+                .unit_mut()
+                .set_server_side_ghost_visibility_detect_like_cpp(visibility);
+        })
+        .is_some()
+    }
+
+    pub fn player_shape_display_state(&self) -> Option<(u8, u8, u32, u32, u32)> {
+        self.core.with_owned_player_like_cpp(|player| {
+            let unit = player.unit();
+            (
+                player.race_like_cpp(),
+                player.data().native_sex,
+                u32::from(unit.shapeshift_form_id_like_cpp()),
+                unit.subsystems().auras.transform_spell_like_cpp().max(0) as u32,
+                u32::try_from(unit.data().native_display_id).unwrap_or_default(),
+            )
+        })
+    }
+
+    pub fn set_player_display_model(&self, display_id: u32) -> Option<bool> {
+        self.core.with_owned_player_mut_like_cpp(|player| {
+            if u32::try_from(player.unit().data().display_id).unwrap_or_default() == display_id {
+                return false;
+            }
+            player.unit_mut().set_display_id(display_id, false);
+            true
+        })
+    }
+
     pub fn has_canonical_died_state_like_cpp(&self) -> Option<bool> {
         self.core.mutate_canonical_player_like_cpp(|player| {
             player

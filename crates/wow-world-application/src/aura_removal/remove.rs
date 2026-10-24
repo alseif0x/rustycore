@@ -5,6 +5,7 @@ use super::AuraRemovalCxLikeCpp;
 
 impl AuraRemovalCxLikeCpp<'_> {
     pub fn remove_aura_like_cpp(&mut self, slot: u8) -> Result<(), &'static str> {
+        let prepared_ghost_wisp = self.prepare_ghost_wisp_removal(slot)?;
         let removed = super::initial::remove_initial_phase_like_cpp(
             self.spell,
             &mut self.player,
@@ -12,6 +13,7 @@ impl AuraRemovalCxLikeCpp<'_> {
             slot,
         )?;
         super::threat::remove_threat_phase_like_cpp(&mut self.player, &removed, self.consumer_test);
+        self.remove_ghost_wisp_effects(&removed, prepared_ghost_wisp)?;
         self.remove_mount_control_phase_like_cpp(&removed);
         self.remove_movement_speed_phase_like_cpp(&removed);
         self.publish_aura_removal_like_cpp(slot);

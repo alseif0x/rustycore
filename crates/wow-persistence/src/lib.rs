@@ -291,7 +291,8 @@ pub use spell::{
     SpellTargetRestrictionsHotfixRowLikeCpp, SpellXSpellVisualHotfixRowLikeCpp,
 };
 pub use static_data_overlay::{
-    AreaTableHotfixRowLikeCpp, PowerTypeHotfixRowLikeCpp, SpellEnchantProcPersistenceRowLikeCpp,
+    AreaTableHotfixRowLikeCpp, ChrCustomizationDisplayInfoHotfixRow,
+    PowerTypeHotfixRowLikeCpp, SpellEnchantProcPersistenceRowLikeCpp,
     StaticDataOverlayPersistencePortLikeCpp, StaticDataRowsLoadOutcomeLikeCpp,
     UiMapXMapArtHotfixRowLikeCpp,
 };

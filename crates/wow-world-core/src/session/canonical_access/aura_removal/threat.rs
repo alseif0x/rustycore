@@ -40,6 +40,11 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
                                     | wow_data::spell::aura_types::SPELL_AURA_DAMAGE_IMMUNITY
                                     | wow_data::spell::aura_types::SPELL_AURA_MOD_CONFUSE
                                     | wow_data::spell::aura_types::SPELL_AURA_MOD_STUN
+                                    | wow_data::spell::aura_types::SPELL_AURA_GHOST
+                                    | wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED
+                                    | wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED
+                                    | wow_data::spell::aura_types::SPELL_AURA_TRANSFORM
+                                    | wow_data::spell::aura_types::SPELL_AURA_MOD_SHAPESHIFT
                             ))
                         .then(|| {
                             let amount = represented_effect_amounts

@@ -783,10 +783,43 @@ impl AuraMountControlAccessLikeCpp<'_> {
         presentation: &PlayerAuraRemovalAccessLikeCpp<'_>,
         effect: RepresentedAuraEffectLikeCpp,
     ) -> Option<i32> {
-        crate::session::state::SessionCore::max_represented_aura_amount_like_cpp_from_snapshot(
-            presentation.visible_auras_snapshot_like_cpp(),
-            effect,
-        )
+        let active_type = match effect {
+            RepresentedAuraEffectLikeCpp::Speed => {
+                Some(wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED)
+            }
+            RepresentedAuraEffectLikeCpp::SwimSpeed => {
+                Some(wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED)
+            }
+            _ => None,
+        };
+        let snapshot = presentation.aura_subsystem_snapshot_like_cpp()?;
+        let canonical = active_type.and_then(|aura_type| {
+            snapshot.applied_aura_types.get(&aura_type).map(|rows| {
+                let slots: std::collections::HashSet<_> =
+                    rows.iter().map(|aura| aura.slot).collect();
+                let amount = rows
+                    .iter()
+                    .map(|aura| snapshot.applied_aura_amounts.get(aura).copied().unwrap_or(0))
+                    .filter(|amount| *amount > 0)
+                    .max()
+                    .unwrap_or(0);
+                (slots, amount)
+            })
+        });
+        let mut result = canonical.as_ref().map_or(0, |(_, amount)| *amount);
+        for aura in snapshot
+            .runtime_applications_like_cpp()
+            .values()
+            .filter(|aura| aura.represented_effect == Some(effect))
+        {
+            let tracked = canonical
+                .as_ref()
+                .is_some_and(|(slots, _)| slots.contains(&aura.slot));
+            if !tracked {
+                result = result.max(aura.represented_amount.max(0));
+            }
+        }
+        Some(result)
     }
     fn max_negative_represented_aura_amount_like_cpp(
         &self,

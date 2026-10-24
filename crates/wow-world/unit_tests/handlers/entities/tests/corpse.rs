@@ -821,15 +821,62 @@ fn dead_player_session_without_corpse_port(
     (session, send_rx, realm_rx, player_guid)
 }
 
-/// Supplies only the primary aura metadata needed for the production triggered
-/// cast entry point to admit the mandatory release spells. Detailed DB2 effect
-/// rows and Ghost/Wisp aura semantics are outside these corpse-fence fixtures.
+/// Supplies the selected DB2 rows required by the production release casts.
 fn install_release_cast_spell_fixture(session: &mut WorldSession) {
     let mut spells = wow_data::SpellStore::new();
-    for spell_id in [
-        wow_world_entities::SPELL_GHOST_LIKE_CPP,
-        wow_world_entities::SPELL_WISP_SPIRIT_AURA_LIKE_CPP,
+    let mut misc_rows = Vec::new();
+    for (spell_id, aura_types, base_points, misc_value, attributes_1) in [
+        (
+            wow_world_entities::SPELL_GHOST_LIKE_CPP,
+            [
+                wow_data::spell::aura_types::SPELL_AURA_GHOST,
+                wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
+                wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED,
+            ],
+            [-20, 49, 49],
+            [0, 0, 0],
+            0x0000_0400,
+        ),
+        (
+            wow_world_entities::SPELL_WISP_SPIRIT_AURA_LIKE_CPP,
+            [
+                wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
+                wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED,
+                wow_data::spell::aura_types::SPELL_AURA_TRANSFORM,
+            ],
+            [74, 74, -1],
+            [0, 0, 12_861],
+            0x1000_0400,
+        ),
     ] {
+        let effects = aura_types
+            .into_iter()
+            .zip(base_points)
+            .zip(misc_value)
+            .enumerate()
+            .map(|(effect_index, ((effect_aura, effect_base_points), effect_misc_value_1))| {
+                wow_data::SpellEffectInfo {
+                    effect_index: effect_index as u32,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura,
+                    effect_base_points,
+                    effect_die_sides: 1,
+                    effect_misc_value_1,
+                    ..Default::default()
+                }
+            })
+            .collect::<Vec<_>>();
+        let mut attributes = [0; 15];
+        attributes[0] = 0x2D80_0100;
+        attributes[1] = attributes_1;
+        attributes[3] = 0x0010_0000;
+        misc_rows.push(wow_data::SpellMiscEntry {
+            id: spell_id as u32,
+            spell_id: spell_id as u32,
+            attributes: attributes.map(|value| value as i32),
+            duration_index: 21,
+            ..Default::default()
+        });
         spells.insert(
             spell_id,
             wow_data::SpellInfo {
@@ -838,17 +885,68 @@ fn install_release_cast_spell_fixture(session: &mut WorldSession) {
                 cooldown_ms: 0,
                 recovery_time_ms: 0,
                 effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
-                effect_base_points: 0,
+                effect_base_points: effects[0].effect_base_points,
                 effect_bonus_coefficient: 0.0,
-                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_DUMMY),
+                aura_type: Some(effects[0].effect_aura),
                 display_flags: 0,
                 requires_spell_focus: 0,
                 power_costs: Vec::new(),
-                effects: Vec::new(),
+                effects,
             },
         );
     }
     session.set_spell_store(Arc::new(spells));
+    session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries(misc_rows)));
+    session.set_spell_duration_store(Arc::new(wow_data::SpellDurationStore::from_entries([
+        wow_data::SpellDurationEntry {
+            id: 21,
+            duration: -1,
+            duration_per_level: 0,
+            max_duration: -1,
+        },
+    ])));
+    session.set_creature_template_lifecycle_store_like_cpp(Arc::new(
+        wow_data::CreatureTemplateLifecycleStoreLikeCpp::from_templates([wow_data::CreatureTemplateLifecycleRecordLikeCpp {
+            entry: 12_861,
+            name: "Wisp Spirit".into(),
+            scale: 1.0,
+            models: vec![wow_data::CreatureTemplateLifecycleModelLikeCpp {
+                creature_display_id: 1_825,
+                display_scale: 1.0,
+                probability: 1.0,
+            }],
+            ..Default::default()
+        }]),
+    ));
+    session.set_creature_model_info_store(Arc::new(
+        wow_data::CreatureModelInfoStoreLikeCpp::from_entries([wow_data::CreatureModelInfoLikeCpp {
+            display_id: 1_825,
+            bounding_radius: 0.5,
+            combat_reach: 1.5,
+            display_id_other_gender: 0,
+            is_trigger: false,
+        }]),
+    ));
+    session.set_creature_aggro_config_like_cpp(crate::session::CreatureAggroConfigLikeCpp {
+        spell_x_spell_visual_store: Some(Arc::new(
+            wow_data::SpellXSpellVisualStore::from_entries([wow_data::SpellXSpellVisualEntry {
+                id: 241_720,
+                difficulty_id: 0,
+                spell_visual_id: 886,
+                probability: 1.0,
+                flags: 0,
+                priority: 0,
+                spell_icon_file_id: 0,
+                active_icon_file_id: 0,
+                viewer_unit_condition_id: 0,
+                viewer_player_condition_id: 0,
+                caster_unit_condition_id: 0,
+                caster_player_condition_id: 0,
+                spell_id: wow_world_entities::SPELL_GHOST_LIKE_CPP as u32,
+            }]),
+        )),
+        ..Default::default()
+    });
 }
 
 fn dead_player_session_on_map_with_optional_port(

@@ -214,6 +214,36 @@ fn ghost_wisp_spell_data() {
         );
     }
 
+    let aura_options = SpellAuraOptionsStore::load(&data_dir, locale)
+        .expect("load SpellAuraOptions.db2");
+    let aura_options_table_hash = aura_options
+        .table_hash_like_cpp()
+        .expect("SpellAuraOptions.db2 store has its WDC4 table hash");
+    let mut aura_options_rows: Vec<_> = aura_options
+        .entries_like_cpp()
+        .filter(|row| spell_ids.contains(&row.spell_id))
+        .collect();
+    aura_options_rows.sort_unstable_by_key(|row| (row.spell_id, row.difficulty_id, row.id));
+    println!("# tableHash\tSpellAuraOptions.db2\t0x{aura_options_table_hash:08X}");
+    println!(
+        "SpellAuraOptions\tRecordID\tSpellID\tDifficulty\tCumulativeAura\tSelectedForDifficulty0"
+    );
+    for row in &aura_options_rows {
+        let selected = aura_options
+            .entry_for_spell_difficulty_like_cpp(row.spell_id, 0)
+            .is_some_and(|selected| selected.id == row.id);
+        println!(
+            "SpellAuraOptions\t{}\t{}\t{}\t{}\t{}",
+            row.id, row.spell_id, row.difficulty_id, row.cumulative_aura, selected,
+        );
+    }
+    for spell_id in SPELL_IDS {
+        let selected = aura_options
+            .entry_for_spell_difficulty_like_cpp(spell_id, 0)
+            .map(|row| (row.id, row.cumulative_aura));
+        println!("# SpellAuraOptionsSelected\t0\t{spell_id}\t{selected:?}");
+    }
+
     let durations = SpellDurationStore::load(&data_dir, locale).expect("load SpellDuration.db2");
     let duration_table_hash = durations
         .table_hash_like_cpp()
@@ -309,6 +339,58 @@ fn ghost_wisp_spell_data() {
                 .iter()
                 .filter(|row| row.spell_id == spell_id)
                 .count()
+        );
+    }
+
+    // Saveability boundary for the selected self-cast auras. In the pinned
+    // C++ source `SpellMgr.cpp:3278-3280` marks Aura::CanBeSaved false when
+    // `SpellAuraInterruptFlags::LeaveWorld` is present (`SpellDefines.h:92`,
+    // bit 0x00080000). This is raw installed DB2 evidence only; SQL/hotfix
+    // overlays are intentionally outside this diagnostic.
+    let interrupts = SpellInterruptsStore::load(&data_dir, locale)
+        .expect("load SpellInterrupts.db2");
+    let interrupt_table_hash = interrupts
+        .table_hash_like_cpp()
+        .expect("SpellInterrupts.db2 store has its WDC4 table hash");
+    let mut interrupt_rows: Vec<_> = interrupts
+        .entries_like_cpp()
+        .filter(|row| spell_ids.contains(&row.spell_id))
+        .collect();
+    interrupt_rows.sort_unstable_by_key(|row| (row.spell_id, row.difficulty_id, row.id));
+    println!("# tableHash\tSpellInterrupts.db2\t0x{interrupt_table_hash:08X}");
+    println!(
+        "SpellInterrupts\tRecordID\tSpellID\tDifficulty\tInterruptFlags\tAuraInterruptFlags[0]\tAuraInterruptFlags[1]\tChannelInterruptFlags[0]\tChannelInterruptFlags[1]\tLeaveWorld"
+    );
+    for row in &interrupt_rows {
+        let aura_flags = row.aura_interrupt_flags.map(|flags| flags as u32);
+        let leave_world = aura_flags[0] & 0x0008_0000 != 0;
+        println!(
+            "SpellInterrupts\t{}\t{}\t{}\t0x{:04X}\t0x{:08X}\t0x{:08X}\t0x{:08X}\t0x{:08X}\t{}",
+            row.id,
+            row.spell_id,
+            row.difficulty_id,
+            row.interrupt_flags as u16,
+            aura_flags[0],
+            aura_flags[1],
+            row.channel_interrupt_flags[0] as u32,
+            row.channel_interrupt_flags[1] as u32,
+            leave_world,
+        );
+    }
+    for spell_id in SPELL_IDS {
+        println!(
+            "# SpellInterruptsCount\tspell={spell_id}\trows={}\tleaveWorldRows={}",
+            interrupt_rows
+                .iter()
+                .filter(|row| row.spell_id == spell_id)
+                .count(),
+            interrupt_rows
+                .iter()
+                .filter(|row| {
+                    row.spell_id == spell_id
+                        && row.aura_interrupt_flags[0] as u32 & 0x0008_0000 != 0
+                })
+                .count(),
         );
     }
 }

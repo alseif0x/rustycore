@@ -14,6 +14,14 @@ pub struct AuraApplicationCatalogsLikeCpp<'a> {
     item_stats: Option<&'a Arc<wow_data::ItemStatsStore>>,
     item_effects: Option<&'a Arc<wow_data::ItemEffectStore>>,
     form_store: Option<&'a wow_data::SpellShapeshiftFormStore>,
+    map_difficulty_id: u8,
+    display_info_store: Option<&'a wow_data::CreatureDisplayInfoStore>,
+    display_info_extra_store: Option<&'a wow_data::CreatureDisplayInfoExtraStore>,
+    model_data_store: Option<&'a wow_data::CreatureModelDataStore>,
+    races_store: Option<&'a wow_data::character_progression::ChrRacesStore>,
+    shapeshift_display_links_absent: Option<bool>,
+    creature_template_store: Option<&'a wow_data::CreatureTemplateLifecycleStoreLikeCpp>,
+    creature_model_info_store: Option<&'a wow_data::CreatureModelInfoStoreLikeCpp>,
     map_store: Option<&'a wow_data::map::MapStore>,
     item_mod_catalogs: wow_world_inventory::ItemModsCatalogsViewLikeCpp<'a>,
 }
@@ -28,6 +36,14 @@ impl<'a> AuraApplicationCatalogsLikeCpp<'a> {
         item_stats: Option<&'a Arc<wow_data::ItemStatsStore>>,
         item_effects: Option<&'a Arc<wow_data::ItemEffectStore>>,
         form_store: Option<&'a wow_data::SpellShapeshiftFormStore>,
+        map_difficulty_id: u8,
+        display_info_store: Option<&'a wow_data::CreatureDisplayInfoStore>,
+        display_info_extra_store: Option<&'a wow_data::CreatureDisplayInfoExtraStore>,
+        model_data_store: Option<&'a wow_data::CreatureModelDataStore>,
+        races_store: Option<&'a wow_data::character_progression::ChrRacesStore>,
+        shapeshift_display_links_absent: Option<bool>,
+        creature_template_store: Option<&'a wow_data::CreatureTemplateLifecycleStoreLikeCpp>,
+        creature_model_info_store: Option<&'a wow_data::CreatureModelInfoStoreLikeCpp>,
         map_store: Option<&'a wow_data::map::MapStore>,
         item_mod_catalogs: wow_world_inventory::ItemModsCatalogsViewLikeCpp<'a>,
     ) -> Self {
@@ -40,6 +56,14 @@ impl<'a> AuraApplicationCatalogsLikeCpp<'a> {
             item_stats,
             item_effects,
             form_store,
+            map_difficulty_id,
+            display_info_store,
+            display_info_extra_store,
+            model_data_store,
+            races_store,
+            shapeshift_display_links_absent,
+            creature_template_store,
+            creature_model_info_store,
             map_store,
             item_mod_catalogs,
         }
@@ -130,6 +154,14 @@ impl<'a> AuraRemovalCxLikeCpp<'a> {
             item_stats: catalogs.item_stats,
             item_effects: catalogs.item_effects,
             form_store: catalogs.form_store,
+            map_difficulty_id: catalogs.map_difficulty_id,
+            display_info_store: catalogs.display_info_store,
+            display_info_extra_store: catalogs.display_info_extra_store,
+            model_data_store: catalogs.model_data_store,
+            races_store: catalogs.races_store,
+            shapeshift_display_links_absent: catalogs.shapeshift_display_links_absent,
+            creature_template_store: catalogs.creature_template_store,
+            creature_model_info_store: catalogs.creature_model_info_store,
             map_store: catalogs.map_store,
             item_mod_catalogs: catalogs.item_mod_catalogs,
             #[cfg(any(test, feature = "test-fixtures"))]
@@ -276,6 +308,17 @@ pub fn player_aura_application_cx_like_cpp<'a>(
             .spell_catalogs
             .spell_shapeshift_form_store
             .as_deref(),
+        core.current_map_difficulty_id_like_cpp(),
+        catalogs.creatures.display_info_store.as_deref(),
+        catalogs.creatures.display_info_extra_store.as_deref(),
+        catalogs.creatures.model_data_store.as_deref(),
+        catalogs.chr.races_store.as_deref(),
+        catalogs.chr.shapeshift_display_links_absent,
+        catalogs
+            .creatures
+            .template_lifecycle_store_like_cpp
+            .as_deref(),
+        catalogs.creatures.model_info_store.as_deref(),
         catalogs.map_store().map(AsRef::as_ref),
         wow_world_inventory::ItemModsCatalogsViewLikeCpp::new(
             catalogs.items.store.as_ref(),

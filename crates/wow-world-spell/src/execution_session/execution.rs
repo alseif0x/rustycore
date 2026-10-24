@@ -80,6 +80,14 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
     let server_triggered_resurrection_sickness = !metadata.from_client
         && metadata.triggered_ignores_global_cooldown_like_cpp
         && player_resurrection_sickness;
+    let server_triggered_player_ghost_wisp = super::resurrection_auras::is_selected_self_cast(
+        host,
+        spell_id,
+        target_guid,
+        caster_guid,
+        metadata.from_client,
+        metadata.triggered_ignores_global_cooldown_like_cpp,
+    );
 
     // Load spell metadata.
     let spell_info = host
@@ -142,7 +150,9 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
     } else {
         (Default::default(), metadata.cast_flags)
     };
-    let send_spell_go = if server_triggered_resurrection_sickness {
+    let send_spell_go = if server_triggered_resurrection_sickness
+        || server_triggered_player_ghost_wisp
+    {
         super::resurrection_sickness::should_send_resurrection_sickness_spell_go(
             host,
             spell_id,
@@ -726,6 +736,8 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         // caster. The represented player chain below is the host-cast path;
         // a creature target receives one canonical `AuraApplication`
         // carrying every applied effect slot.
+        let original_aura_caster_guid =
+            resolve_original_aura_caster_guid(host, caster_guid, metadata.original_caster_guid);
         if player_resurrection_sickness {
             super::resurrection_sickness::apply_resurrection_sickness_aura(
                 host,
@@ -736,9 +748,16 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                 spell_visual_id,
                 metadata.resurrection_sickness_remaining_ms,
             )?;
+        } else if server_triggered_player_ghost_wisp {
+            super::resurrection_auras::apply(
+                host,
+                spell_id,
+                original_aura_caster_guid.unwrap_or(player_guid),
+                &spell_info,
+                cast_id,
+                spell_visual_id,
+            )?;
         }
-        let original_aura_caster_guid =
-            resolve_original_aura_caster_guid(host, caster_guid, metadata.original_caster_guid);
         let mut creature_aura_applied = false;
         for effect in spell_info.effects().iter().filter(|effect| {
             effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
@@ -748,7 +767,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             // above for `SMSG_SPELL_GO`; this scoped value reaches only Aura
             // application caster fields and C++ `Aura::GenerateKey` identity.
             let aura_caster_guid = original_aura_caster_guid.unwrap_or(player_guid);
-            if player_resurrection_sickness {
+            if player_resurrection_sickness || server_triggered_player_ghost_wisp {
                 continue;
             }
             // The represented taunt path owns `SPELL_AURA_MOD_TAUNT` and

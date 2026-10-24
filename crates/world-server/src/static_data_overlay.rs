@@ -2,7 +2,8 @@
 
 use anyhow::{Result, bail};
 use wow_persistence::{
-    AreaTableHotfixRowLikeCpp, PowerTypeHotfixRowLikeCpp, SpellEnchantProcPersistenceRowLikeCpp,
+    AreaTableHotfixRowLikeCpp, ChrCustomizationDisplayInfoHotfixRow,
+    PowerTypeHotfixRowLikeCpp, SpellEnchantProcPersistenceRowLikeCpp,
     StaticDataOverlayPersistencePortLikeCpp, StaticDataRowsLoadOutcomeLikeCpp,
     UiMapXMapArtHotfixRowLikeCpp,
 };
@@ -12,6 +13,21 @@ fn loaded<T>(outcome: StaticDataRowsLoadOutcomeLikeCpp<T>) -> Result<T> {
         StaticDataRowsLoadOutcomeLikeCpp::Loaded(rows) => Ok(rows),
         StaticDataRowsLoadOutcomeLikeCpp::Failed { reason } => bail!(reason),
     }
+}
+
+pub(super) async fn shapeshift_display_links_absent(
+    db2: &wow_data::character_progression::ChrCustomizationDisplayInfoStore,
+    persistence: &dyn StaticDataOverlayPersistencePortLikeCpp,
+) -> Result<bool> {
+    let rows = loaded(persistence.load_chr_customization_display_info_rows().await)?;
+    Ok(display_link_gate(db2, &rows))
+}
+
+fn display_link_gate(
+    db2: &wow_data::character_progression::ChrCustomizationDisplayInfoStore,
+    overlays: &[ChrCustomizationDisplayInfoHotfixRow],
+) -> bool {
+    !db2.entries().any(|entry| entry.shapeshift_form_id != 0) && overlays.is_empty()
 }
 
 pub(super) async fn load_area_table_store_like_cpp(
@@ -135,6 +151,121 @@ pub(super) async fn load_spell_enchant_proc_store_like_cpp(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[derive(Clone)]
+    struct DisplayInfoOverlayPort {
+        rows: StaticDataRowsLoadOutcomeLikeCpp<Vec<ChrCustomizationDisplayInfoHotfixRow>>,
+    }
+
+    fn port_error<T>() -> StaticDataRowsLoadOutcomeLikeCpp<T> {
+        StaticDataRowsLoadOutcomeLikeCpp::Failed {
+            reason: "port unavailable".into(),
+        }
+    }
+
+    impl StaticDataOverlayPersistencePortLikeCpp for DisplayInfoOverlayPort {
+        fn load_area_table_hotfix_rows_like_cpp(
+            &self,
+        ) -> wow_persistence::PersistenceFutureLikeCpp<
+            '_ ,
+            StaticDataRowsLoadOutcomeLikeCpp<Vec<AreaTableHotfixRowLikeCpp>>,
+        > {
+            Box::pin(async { port_error() })
+        }
+
+        fn load_power_type_hotfix_rows_like_cpp(
+            &self,
+        ) -> wow_persistence::PersistenceFutureLikeCpp<
+            '_ ,
+            StaticDataRowsLoadOutcomeLikeCpp<(
+                Vec<PowerTypeHotfixRowLikeCpp>,
+                Vec<PowerTypeHotfixRowLikeCpp>,
+            )>,
+        > {
+            Box::pin(async { port_error() })
+        }
+
+        fn load_ui_map_x_map_art_hotfix_rows_like_cpp(
+            &self,
+        ) -> wow_persistence::PersistenceFutureLikeCpp<
+            '_ ,
+            StaticDataRowsLoadOutcomeLikeCpp<Vec<UiMapXMapArtHotfixRowLikeCpp>>,
+        > {
+            Box::pin(async { port_error() })
+        }
+
+        fn load_chr_customization_display_info_rows(
+            &self,
+        ) -> wow_persistence::PersistenceFutureLikeCpp<
+            '_ ,
+            StaticDataRowsLoadOutcomeLikeCpp<Vec<ChrCustomizationDisplayInfoHotfixRow>>,
+        > {
+            let rows = self.rows.clone();
+            Box::pin(async move { rows })
+        }
+
+        fn load_spell_enchant_proc_rows_like_cpp(
+            &self,
+        ) -> wow_persistence::PersistenceFutureLikeCpp<
+            '_ ,
+            StaticDataRowsLoadOutcomeLikeCpp<Vec<SpellEnchantProcPersistenceRowLikeCpp>>,
+        > {
+            Box::pin(async { port_error() })
+        }
+    }
+
+    fn display_info_port(
+        rows: StaticDataRowsLoadOutcomeLikeCpp<Vec<ChrCustomizationDisplayInfoHotfixRow>>,
+    ) -> DisplayInfoOverlayPort {
+        DisplayInfoOverlayPort { rows }
+    }
+
+    #[tokio::test]
+    async fn sql_form_link_fails_the_startup_gate_without_database_writes() {
+        let db2 = wow_data::character_progression::ChrCustomizationDisplayInfoStore::default();
+        let port = display_info_port(StaticDataRowsLoadOutcomeLikeCpp::Loaded(vec![
+            ChrCustomizationDisplayInfoHotfixRow {
+                id: 17,
+                shapeshift_form_id: 1,
+                display_id: 900,
+            },
+        ]));
+        assert!(!shapeshift_display_links_absent(&db2, &port)
+            .await
+            .unwrap());
+    }
+
+    #[test]
+    fn db2_form_link_fails_the_fallback_gate() {
+        use wow_data::character_progression::{
+            ChrCustomizationDisplayInfoEntry as Entry,
+            ChrCustomizationDisplayInfoStore as Store,
+        };
+        let db2 = Store::from_entries([Entry {
+            id: 17,
+            shapeshift_form_id: 1,
+            display_id: 900,
+            barber_shop_min_camera_distance: 0.0,
+            barber_shop_height_offset: 0.0,
+        }]);
+        assert!(!display_link_gate(&db2, &[]));
+    }
+
+    #[tokio::test]
+    async fn empty_effective_inputs_certify_only_the_fallback_dataset() {
+        let db2 = wow_data::character_progression::ChrCustomizationDisplayInfoStore::default();
+        let port = display_info_port(StaticDataRowsLoadOutcomeLikeCpp::Loaded(vec![]));
+        assert!(shapeshift_display_links_absent(&db2, &port)
+            .await
+            .unwrap());
+    }
+
+    #[tokio::test]
+    async fn failed_hotfix_read_is_not_treated_as_empty_by_startup_consumer() {
+        let db2 = wow_data::character_progression::ChrCustomizationDisplayInfoStore::default();
+        let port = display_info_port(port_error());
+        assert!(shapeshift_display_links_absent(&db2, &port).await.is_err());
+    }
 
     #[test]
     fn failure_is_not_converted_into_an_empty_overlay() {

@@ -753,6 +753,7 @@ pub fn represented_spell_is_positive_like_cpp(spell_info: &SpellInfo) -> bool {
                                 | aura_types::SPELL_AURA_MOD_ROOT
                                 | aura_types::SPELL_AURA_MOD_SILENCE
                                 | aura_types::SPELL_AURA_MOD_DECREASE_SPEED
+                                | aura_types::SPELL_AURA_GHOST
                                 | aura_types::SPELL_AURA_SCHOOL_HEAL_ABSORB
                         )
                         || (matches!(

@@ -77,6 +77,15 @@ pub async fn execute_server_triggered_spell_like_cpp<H: SpellExecutionHostLikeCp
             super::resurrection_sickness::resurrection_sickness_cast_metadata(host, spell_id)?;
         spell_visual.spell_visual_id = visual_id;
         metadata.cast_flags = cast_flags;
+    } else if super::resurrection_auras::is_selected_self_cast(
+        host,
+        spell_id,
+        target_guid,
+        caster_guid,
+        metadata.from_client,
+        metadata.triggered_ignores_global_cooldown_like_cpp,
+    ) {
+        spell_visual.spell_visual_id = super::resurrection_auras::cast_visual_id(host, spell_id)?;
     }
     let Some(cast_id) = host.next_represented_spell_cast_guid_like_cpp(spell_id) else {
         return Err("canonical Map cast identity unavailable for a triggered cast");
