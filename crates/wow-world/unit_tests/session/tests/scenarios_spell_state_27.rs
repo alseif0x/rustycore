@@ -239,6 +239,22 @@ fn install_spell(
     fixture.session.set_spell_store(Arc::new(store));
 }
 
+fn install_spell_with_die_sides(
+    fixture: &mut OfferFixture,
+    spell_id: i32,
+    effect: u32,
+    base_points: i32,
+    mana_amount: i32,
+    die_sides: i32,
+) {
+    let mut info = spell_info(spell_id, effect, base_points, mana_amount, 0);
+    info.effects[0].effect_die_sides = die_sides;
+    let mut store = wow_data::SpellStore::new();
+    store.insert(spell_id, info);
+    store.insert_spell_misc_attributes_like_cpp(spell_id, [0_u32; 15]);
+    fixture.session.set_spell_store(Arc::new(store));
+}
+
 async fn cast_offer(
     fixture: &mut OfferFixture,
     spell_id: i32,
@@ -418,6 +434,26 @@ async fn resurrect_new_admits_just_died_and_reads_the_players_current_pet() {
     let request = current_request(&fixture).expect("canonical request data");
     assert_eq!((request.health, request.mana), (31, 17));
     assert_eq!(request.resurrecter, fixture.caster);
+}
+
+#[tokio::test]
+async fn resurrect_new_uses_one_sided_die_for_data_style_effect_value() {
+    let mut fixture = offer_fixture(571, "enUS");
+    install_spell_with_die_sides(&mut fixture, SPELL_ID, RESURRECT_NEW, 31, 17, 1);
+
+    let target = fixture.target;
+    let caster = fixture.caster;
+    cast_offer(&mut fixture, SPELL_ID, target, caster).await;
+
+    let decoded = decode_offer(
+        &fixture
+            .realm_rx
+            .try_recv()
+            .expect("effect 113 sends its data-style resurrection offer"),
+    );
+    assert_eq!(decoded.spell_id, SPELL_ID);
+    let request = current_request(&fixture).expect("canonical request data");
+    assert_eq!((request.health, request.mana), (32, 17));
 }
 
 #[tokio::test]

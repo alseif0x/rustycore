@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, implementación previa a aceptación final — 2026-10-24, 15:41 UTC:**
+**#43, implementación previa a aceptación final — 2026-10-24, 16:00 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
 y productor desde hechizos están escritos y tienen feedback focalizado;
 **no hay aceptación final de este candidato**. Faltan completar el cálculo del
@@ -43,6 +43,31 @@ el proceso 3094551, binario `target/deploy/live/world-server`, SHA-256
 cero reinicios y sin packet dump activo. No es el candidato nuevo ni prueba viva
 de #43. Capturas de la acción y DB/reinicio/relogin conservan su aceptación
 propia y autorización de runtime; no se ha publicado, desplegado ni cerrado #43.
+
+Contraste de datos del productor, 2026-10-24: el diagnóstico opt-in mantenido
+`wow-data::spell_db2::tests::resurrection_effect_data` leyó el DataDir instalado
+`/home/server/woltk-server-core/Data`, locale enUS, con lectores productivos.
+`SpellEffect.db2` SHA-256
+`c786e3f82d69f6a2675cdcc7a0a6c48a2684044fb23344bd488425d982b525f8`:
+50 filas (18: 11; 113: 39; 172: 0), sin términos no cero de nivel, recursos,
+coeficiente o varianza. Las consultas SQL de solo lectura por los 50 SpellIDs
+y por tipos 18/113/172 no encontraron reemplazos en `hotfixes.spell_effect`
+ni `world.serverside_spell_effect`, ni estados de hotfix para sus RecordIDs
+y TableHash `0xF04238A5`. Las 50 filas correspondientes de SpellMisc tampoco
+tienen overlays ni estados de hotfix (TableHash `0xC603EE28`). Ninguna activa
+IGNORE_CASTER_MODIFIERS: esto NO exime el cálculo de modificadores del caster
+(`SpellInfo.cpp:1784–1816`). El motor general de modificadores y scripts de clase
+sigue en #32/#34; esta evidencia solo delimita la aritmética básica con estos
+datos, no declara paridad completa de `CalcValue` ni cubre otros datasets.
+Sobre base `5a8d500f3` más el delta de tests, el worker ejecutó
+`cargo test -p wow-data resurrection_effect_data -- --ignored --nocapture`
+con `RUSTYCORE_RESURRECTION_DATA_DIR` (1 passed) y
+`cargo test -p wow-world --lib scenarios_spell_state_27 -- --nocapture`
+(7 passed, incluido efecto 113: base 31 + dado 1 → salud 32, maná 17).
+Ambos salieron 0; también los checks de wow-data y wow-world. Logs:
+`/tmp/rustycore-unit6-resurrection-effect-data-20261024T155438186674823.log`
+y `/tmp/rustycore-unit6-spell-state-27-20261024T155512887112188.log`.
+Es feedback de implementación en aarch64, no aceptación final del candidato.
 
 Avance local, 14:41 UTC: el codec `ResurrectRequest` reproduce
 `SpellPackets.h:825–839` y `SpellPackets.cpp:852–866` del mismo C++ fijado:
