@@ -74,6 +74,74 @@ impl AuraRemovalCxLikeCpp<'_> {
             return Err("Resurrection ghost aura effects differ from the selected DB2 contract");
         }
 
+        let aura_snapshot = self
+            .player
+            .aura_subsystem_snapshot_like_cpp()
+            .ok_or("Missing canonical Player aura subsystem while applying resurrection aura")?;
+        let mut same_caster = aura_snapshot
+            .runtime_applications_like_cpp()
+            .values()
+            .filter(|aura| aura.spell_id == spell_id && aura.caster_guid == caster_guid)
+            .collect::<Vec<_>>();
+        same_caster.sort_by_key(|aura| aura.slot);
+        if same_caster.len() > 1 {
+            return Err("Multiple canonical resurrection aura applications share this caster");
+        }
+
+        let effect_updates = selected
+            .iter()
+            .map(|effect| {
+                let bit = 1_u32
+                    .checked_shl(effect.effect_index)
+                    .ok_or("Invalid selected resurrection aura effect index")?;
+                Ok((
+                    bit,
+                    effect.effect_aura,
+                    effect.calc_value_no_caster_like_cpp(),
+                    effect.effect_misc_value_1,
+                ))
+            })
+            .collect::<Result<Vec<_>, &'static str>>()?;
+        let base_amounts = selected
+            .iter()
+            .map(|effect| {
+                Ok((
+                    u8::try_from(effect.effect_index)
+                        .map_err(|_| "Invalid selected resurrection aura base index")?,
+                    effect.effect_base_points,
+                ))
+            })
+            .collect::<Result<Vec<_>, &'static str>>()?;
+        if let Some(existing) = same_caster.first() {
+            if existing.effect_mask != effect_mask {
+                return Err("Existing resurrection aura effect mask differs from selected contract");
+            }
+            let (run_amount_changed, swim_amount_changed) = self
+                .player
+                .refresh_resurrection_aura_application(
+                    spell_id,
+                    caster_guid,
+                    existing.slot,
+                    effect_mask,
+                    &effect_updates,
+                    &base_amounts,
+                )
+                .ok_or("Canonical Player disappeared while refreshing resurrection aura")??;
+            if run_amount_changed {
+                self.mount
+                    .recompute_represented_run_speed_rate_like_cpp(&self.player);
+            }
+            if swim_amount_changed {
+                self.mount
+                    .recompute_represented_swim_speed_rate_like_cpp(&self.player);
+            }
+            return Ok(());
+        }
+
+        let slot = (0..u8::MAX)
+            .find(|slot| !aura_snapshot.runtime_applications_like_cpp().contains_key(slot))
+            .ok_or("No free aura slot for resurrection ghost aura")?;
+
         // Validate the Wisp template before installing the aura so missing
         // selected data cannot leave a partially applied transform.
         let transform_display = if spell_id == WISP_SPELL {
@@ -87,10 +155,6 @@ impl AuraRemovalCxLikeCpp<'_> {
         } else {
             None
         };
-        let slot = wow_world_spell::SessionSpellState::next_player_visible_aura_slot_with_access_like_cpp(
-            &self.player,
-        )
-        .ok_or("No free aura slot for resurrection ghost aura")?;
 
         self.apply_aura_with_effect_mask_provenance_and_update_like_cpp(
             spell_id,
@@ -337,6 +401,7 @@ impl AuraRemovalCxLikeCpp<'_> {
             .get(&wow_data::spell::aura_types::SPELL_AURA_TRANSFORM)
             .into_iter()
             .flatten()
+            .rev()
             .filter(|applied| Some(applied.slot) != excluded_slot)
             .filter_map(|applied| {
                 snapshot
@@ -345,7 +410,6 @@ impl AuraRemovalCxLikeCpp<'_> {
                     .cloned()
             })
             .collect::<Vec<_>>();
-        transforms.sort_by(|left, right| right.applied_at.cmp(&left.applied_at));
 
         let mut selected_transform: Option<AuraApplicationLikeCpp> = None;
         for transform in transforms {
@@ -400,6 +464,7 @@ impl AuraRemovalCxLikeCpp<'_> {
             .and_then(|auras| {
                 auras
                     .iter()
+                    .rev()
                     .find(|aura| Some(aura.slot) != excluded_slot)
             })
             .and_then(|applied| snapshot.runtime_application_like_cpp(applied.slot));

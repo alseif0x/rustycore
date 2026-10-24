@@ -2,6 +2,9 @@ use super::*;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+#[path = "ghost_wisp/recast.rs"]
+mod recast;
+
 const GHOST: i32 = 8_326;
 const WISP: i32 = 20_584;
 const WISP_TEMPLATE: u32 = 12_861;

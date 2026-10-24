@@ -1,12 +1,13 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, implementación previa a aceptación final — 2026-10-24, 19:44 UTC:**
+**#43, implementación previa a aceptación final — 2026-10-24, 20:08 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
 y productor desde hechizos están escritos y tienen feedback focalizado;
 **no hay aceptación final de este candidato**. El cálculo básico del productor
 tiene contraste de datos registrado abajo; Ghost/Wisp tiene feedback focalizado
 tras reparar compilación, restauración de display y publicación de su visual.
-Sigue en revisión el recast de la misma aura/caster. Faltan su visibilidad y guardado,
+El recast de la misma aura/caster también tiene reparación y feedback focalizado.
+Faltan su visibilidad y guardado,
 participantes de limpieza al morir/resucitar, fallos de las otras operaciones
 del ciclo y capturas/QA viva. El usuario autoriza
 continuar los pendientes y la aceptación, no solo conservar el feedback anterior.
@@ -78,6 +79,35 @@ en `hotfixes.spell_aura_options` devolvió COUNT 0 a las 19:45 UTC.
 Esto respalda stack máximo por defecto, sin sustituir la selección de
 catálogos del código. La renovación debe preservar slot/procedencia y no
 reaplicar ghost/transform (`SpellAuraEffects.cpp:923–964,1718,1935`).
+Checkpoint local de esos participantes: `09451333d`, marcado UNVALIDATED.
+La revisión del consumidor encuentra además que
+`handlers/entities/corpse/host.rs::remove_auras_due_to_spell_like_cpp`
+descarta errores de eliminación y devuelve el número de slots intentados.
+Con las validaciones de display de Wisp, `resurrect_player_native` podría
+pasar a Alive conservando un aura cuya eliminación falló. La reparación de
+los fences de resurrección debe propagar ese fallo antes de Alive,
+visibilidad, bones y guardado, con un caso negativo de catálogo incompleto.
+No se presenta el feedback positivo anterior como cobertura de ese fallo.
+
+Renovación Ghost/Wisp, 20:08 UTC, sobre `09451333d` más el delta local:
+se reutilizan slot, procedencia y aplicación canónica del mismo spell/caster,
+incluso sin slots libres. Se recalculan los tres amounts, sus índices y los
+basepoints de metadatos cargados; se preservan otras fuentes y no se reaplican
+ghost/transform ni se emite velocidad cuando no cambia su valor. La lista de
+efectos por tipo refleja la nueva prioridad de registro de C++
+(`Unit.cpp:3567–3580`), sin usar otro reloj ni una copia mutable de autoridad.
+Los tests nuevos viven en `scenarios_spell_state_27/ghost_wisp/recast.rs`.
+`cargo check -p wow-world-application` pasó en 12.61 s, log
+`/tmp/rustycore-unit9b2-check-wow-world-application-20261024T195959Z-K4bOWd.log`.
+El grupo de hechizos ejecutó 13 passed y 1 failed en
+`/tmp/rustycore-unit9b2-test-scenarios-spell-state-27-20261024T200320Z-EtJsDs.log`;
+el fallo comparaba toda la aplicación de Wisp, incluidos los amounts que el
+refresh debe renovar. Corregida esa expectativa, solo su caso afectado pasó
+en `/tmp/rustycore-unit9b2-test-wisp-recast-20261024T200622Z-Kzesgz.log`
+(1 passed; compilación 1m14s). No se presenta como un run único de 14 verdes.
+El intento intermedio `200523Z-VGmTdK` fue interrumpido al acotar el filtro:
+no aporta evidencia. Los fallos previos de inferencia y montaje del submódulo
+también se repararon; ninguna de estas ejecuciones es aceptación final.
 
 Contraste de datos del productor, 2026-10-24: el diagnóstico opt-in mantenido
 `wow-data::spell_db2::tests::resurrection_effect_data` leyó el DataDir instalado
