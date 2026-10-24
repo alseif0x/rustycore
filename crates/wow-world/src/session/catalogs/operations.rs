@@ -243,6 +243,9 @@ impl WorldSession {
     pub fn set_max_player_level_config_like_cpp(&mut self, max_player_level_config: u32) {
         self.config.max_player_level_config_like_cpp = max_player_level_config;
     }
+    pub fn set_group_visibility_mode(&mut self, mode: i32) {
+        self.config.group_visibility_mode = mode;
+    }
     #[cfg(test)]
     pub(crate) fn set_rested_xp_config_like_cpp(
         &mut self,

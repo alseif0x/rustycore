@@ -1051,17 +1051,16 @@ async fn run_inner(
             .context("Failed to load ChrClasses.db2")?,
     );
     let chr_customization_display_info_store = Arc::new(
-        wow_data::character_progression::ChrCustomizationDisplayInfoStore::load(
-            &data_dir, &locale,
-        )
-        .context("Failed to load ChrCustomizationDisplayInfo.db2")?,
+        wow_data::character_progression::ChrCustomizationDisplayInfoStore::load(&data_dir, &locale)
+            .context("Failed to load ChrCustomizationDisplayInfo.db2")?,
     );
-    let shapeshift_display_links_absent = crate::static_data_overlay::shapeshift_display_links_absent(
-        &chr_customization_display_info_store,
-        &static_data_overlay_persistence,
-    )
-    .await
-    .context("Failed to certify effective shapeshift customization display links")?;
+    let shapeshift_display_links_absent =
+        crate::static_data_overlay::shapeshift_display_links_absent(
+            &chr_customization_display_info_store,
+            &static_data_overlay_persistence,
+        )
+        .await
+        .context("Failed to certify effective shapeshift customization display links")?;
     info!(
         "Loaded {} ChrCustomizationDisplayInfo DB2 rows; shapeshift fallback link gate: {}",
         chr_customization_display_info_store.len(),
@@ -5078,6 +5077,10 @@ async fn run_inner(
             repair_cost_rate: repair_cost_rate_like_cpp(&world_configs),
             durability_loss_on_death_rate: durability_loss_on_death_rate_like_cpp(&world_configs),
             death_policy: death_policy_like_cpp(&world_configs),
+            group_visibility_mode: world_configs
+                .get_int("CONFIG_GROUP_VISIBILITY")
+                .map(|value| value as i32)
+                .unwrap_or(1),
             stats_limits: stats_limits_like_cpp(&world_configs),
             reset_schedule: reset_schedule_like_cpp(&world_configs),
             offhand_check_at_spell_unlearn: world_config_bool(

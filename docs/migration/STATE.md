@@ -1,13 +1,14 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, implementación previa a aceptación final — 2026-10-24, 20:53 UTC:**
+**#43, implementación previa a aceptación final — 2026-10-24, 21:18 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
 y productor desde hechizos están escritos y tienen feedback focalizado;
 **no hay aceptación final de este candidato**. El cálculo básico del productor
 tiene contraste de datos registrado abajo; Ghost/Wisp tiene feedback focalizado
 tras reparar compilación, restauración de display y publicación de su visual.
 El recast de la misma aura/caster también tiene reparación y feedback focalizado.
-Faltan su visibilidad y guardado,
+Las consultas de visibilidad de criaturas y Players tienen feedback focalizado;
+faltan la publicación delta/removal a observadores y el guardado de Ghost/Wisp,
 participantes de limpieza al morir/resucitar, fallos de las otras operaciones
 del ciclo y capturas/QA viva. El usuario autoriza
 continuar los pendientes y la aceptación, no solo conservar el feedback anterior.
@@ -66,6 +67,36 @@ El primer filtro falló sus siete casos por fixtures sin inserción en celdas;
 se reparó la preparación mediante el helper indexado existente, sin debilitar
 el predicado. Siguen pendientes la consulta de Players/grupos y la publicación
 delta/removal de Ghost/Wisp a observadores.
+9c2c conecta la consulta de Players a sus celdas/viewpoint canónicos y al
+mismo predicado, con GroupMode firmado desde la configuración productiva:
+0/desconocido exige subgrupo, 1 grupo/raid, 2 equipo canónico y 3 desactiva
+esa excepción (`Player.cpp:2121–2143`, `World.cpp:1167`). El snapshot HOME
+del grupo requiere membresía actual; no se introduce un owner de grupos BG.
+La proyección CREATE del directorio conserva presencia, registro, handle y
+revisión de residencia, incluso al salir y volver al mismo mapa, y se ejecuta
+fuera del guard de selección. Se actualizaron solo las dos filas de inventario
+de CONFIG_GROUP_VISIBILITY/Visibility.GroupMode como represented_partial.
+Feedback del worker sobre base `bdfa32edb` más el delta local, aarch64/jobs=1:
+`cargo test -p wow-world --lib scenarios_visibility_2 -- --nocapture`,
+28 passed/exit 0 en
+`/tmp/rustycore-43-9c2c-world-tests-repaired-20261024T211129Z-3599528.log`.
+La primera ejecución terminó exit 101 por un nombre de método inexistente
+en el fixture del cadáver; se corrigió usando el insertor existente.
+`cargo check -p wow-world-entities --no-default-features` y
+`cargo check -p world-server` terminaron exit 0, logs
+`/tmp/rustycore-43-9c2c-entities-check-20261024T210933Z-3595883.log` y
+`/tmp/rustycore-43-9c2c-world-server-check-20261024T211347Z-3600372.log`.
+No es aceptación final ni evidencia de runtime del candidato comprometido.
+La revisión de esa publicación fija la selección de destinatarios en el
+momento de emitir el aura: `Player.cpp:6141–6149` y
+`GridNotifiersImpl.h:38–103` / `GridNotifiers.h:157–194` seleccionan fase,
+distancia, shared vision y HaveAtClient antes de SendPacket. El precedente
+Rust de `SendPlayerSpellIfVisibleLikeCpp` ya conserva esa decisión en la
+cola duradera existente. La entrega de Ghost/Wisp debe conservarla también,
+con protección de encarnación/residencia del receptor, sin recalcular
+HaveAtClient ni descartar una actualización comprometida porque el emisor
+haya salido después. El handle/residencia del emisor se comprueba al publicar.
+Esta es una decisión de implementación pendiente, no evidencia ejecutada.
 
 Feedback de Ghost/Wisp a las 19:40 UTC, sobre `6117a9dc5` más el delta local
 del worker (aarch64, un job; no aceptación del SHA ni campaña final):
@@ -168,8 +199,10 @@ invisibilidad y sigilo (`Object.cpp:1517–1627`). Feedback focal del worker:
 `can_see_or_detect_unit_like_cpp_applies_ghost_despawn_and_always_detectable_gates`,
 ambos exit 0. Logs `/tmp/rustycore-9c2a-visibility-context-20261024TIfvuo5.log`
 y `/tmp/rustycore-9c2a-existing-visibility-20261024TqnlmEM.log`.
-El cálculo desde Map/Player/cadáver y los consumidores productivos todavía
-no usan este contexto: es implementación parcial, no aceptación de visibilidad.
+En el checkpoint 9c2a todavía faltaba el cálculo desde Map/Player/cadáver.
+9c2b lo conecta a la consulta productiva de criaturas, con el feedback descrito
+arriba; 9c2c añade Player/grupos. Sigue pendiente la publicación a observadores
+y no hay aceptación final de visibilidad.
 La revisión de los participantes de muerte añade dos consumidores a cerrar:
 `canonical_access/player_stats.rs::sync_canonical_player_health_like_cpp`
 cambia el estado de muerte al recalcular salud, aunque `Unit.cpp:9214–9266`
@@ -181,6 +214,19 @@ el valor canónico al publicar. Además, el camino existente de
 `BattleGroundHandler.cpp:703–725` exige BuildPlayerRepop, ResurrectPlayer y
 después teleport. Se conectará ese consumidor existente, sin implementar
 el administrador completo de Battlefield ni ampliar a todo Stuck.
+Ese consumidor debe distinguir el retorno conocido de BuildPlayerRepop por
+cadáver ya presente (`Player.cpp:4285`) de un resultado incierto de los awaits:
+el C++ continúa con ResurrectPlayer después del primero. No se debe convertir
+el booleano actual en una nueva denegación ni continuar tras SQL incierto.
+La composición utilizará la continuación existente para toda la operación,
+sin instalar propietarios anidados para release y resurrección.
+La inicialización de autorresurrección también debe conservar el orden:
+`Player.cpp:24757–24784` añade Soulstone, Twisting Nether y Reincarnation
+en ese orden, y `Player.h:2738–2745` usa una lista dinámica con eliminación
+del primer elemento coincidente. El `BTreeSet` canónico actual alteraría ese
+orden al proyectarlo al cliente. El cierre de ese participante utilizará una
+sola colección ordenada y la codificación dinámica SelfResSpells existente,
+incluida su limpieza al volver a Alive; todavía no está implementado.
 
 Contraste de datos del productor, 2026-10-24: el diagnóstico opt-in mantenido
 `wow-data::spell_db2::tests::resurrection_effect_data` leyó el DataDir instalado

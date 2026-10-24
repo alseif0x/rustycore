@@ -12,8 +12,8 @@ mod deferred_visibility;
 use crate::canonical_player_access::{
     HonorStatsLikeCpp, canonical_player_aggro_unit_state_like_cpp,
     canonical_player_honor_stats_like_cpp, canonical_player_presentation_like_cpp,
-    canonical_player_reputation_standings_like_cpp, with_canonical_player_at_like_cpp,
-    with_canonical_player_at_mut_like_cpp,
+    canonical_player_reputation_standings_like_cpp, canonical_player_vitals_like_cpp,
+    with_canonical_player_at_like_cpp, with_canonical_player_at_mut_like_cpp,
 };
 use crate::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp;
 use crate::session::SharedCanonicalMapManager;

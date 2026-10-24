@@ -7,6 +7,49 @@
 
 use super::*;
 
+fn player_visibility_snapshot_from_projection(
+    guid: ObjectGuid,
+    identity: PlayerDirectoryIdentityLikeCpp,
+    position: Position,
+    level: u8,
+    vitals: crate::canonical_player_access::CanonicalPlayerVitalsLikeCpp,
+    party_member_party_type: [u8; 2],
+    presentation: crate::canonical_player_access::CanonicalPlayerPresentationLikeCpp,
+    transport: Option<TransportInfo>,
+) -> PlayerVisibilityCreateSnapshot {
+    let (display_id, visible_items, _, zone_id, customizations) = presentation;
+    PlayerVisibilityCreateSnapshot {
+        guid,
+        position,
+        race: identity.race,
+        class: identity.class,
+        sex: identity.sex,
+        level,
+        display_id,
+        zone_id,
+        current_health: vitals.current_health,
+        max_health: vitals.max_health,
+        power_type: vitals.power_type,
+        current_power: vitals.current_power,
+        max_power: vitals.max_power,
+        base_mana: vitals.base_mana,
+        transport,
+        visible_items: Arc::new(visible_items),
+        customizations: Arc::new(
+            customizations
+                .into_iter()
+                .map(
+                    |(option_id, choice_id)| ChrCustomizationChoiceValuesUpdate {
+                        option_id,
+                        choice_id,
+                    },
+                )
+                .collect(),
+        ),
+        party_member_party_type,
+    }
+}
+
 impl PlayerRegistry {
     /// Return this registration's locale only while its generation still owns
     /// the expected canonical Player incarnation.
@@ -756,7 +799,7 @@ impl PlayerRegistry {
                 if dx * dx + dy * dy >= reach * reach {
                     return None;
                 }
-                let (vitals, party_type, (display_id, visible_items, _, zone_id, customizations)) =
+                let (vitals, party_type, presentation) =
                     self.create_state(guid, placement.map_id, placement.instance_id)?;
                 let transport = self
                     .canonical_at(guid, placement.map_id, placement.instance_id, |player| {
@@ -773,37 +816,106 @@ impl PlayerRegistry {
                         prev_time: transport.prev_time,
                         vehicle_id: transport.vehicle_id,
                     });
-                Some(PlayerVisibilityCreateSnapshot {
+                Some(player_visibility_snapshot_from_projection(
                     guid,
-                    position: placement.position,
-                    race: identity.race,
-                    class: identity.class,
-                    sex: identity.sex,
-                    level: placement.level,
-                    display_id,
-                    zone_id,
-                    current_health: vitals.current_health,
-                    max_health: vitals.max_health,
-                    power_type: vitals.power_type,
-                    current_power: vitals.current_power,
-                    max_power: vitals.max_power,
-                    base_mana: vitals.base_mana,
+                    identity,
+                    placement.position,
+                    placement.level,
+                    vitals,
+                    party_type,
+                    presentation,
                     transport,
-                    visible_items: Arc::new(visible_items),
-                    customizations: Arc::new(
-                        customizations
-                            .into_iter()
-                            .map(
-                                |(option_id, choice_id)| ChrCustomizationChoiceValuesUpdate {
-                                    option_id,
-                                    choice_id,
-                                },
-                            )
-                            .collect(),
-                    ),
-                    party_member_party_type: party_type,
-                })
+                ))
             })
             .collect()
+    }
+
+    /// Project a selected Player only while the same session registration,
+    /// canonical incarnation and active residence remain current.
+    #[must_use]
+    pub fn player_visibility_create_snapshot_for_candidate(
+        &self,
+        registration: PlayerRegistration,
+        expected_handle: PlayerHandle,
+        expected_map: wow_map::MapKey,
+        expected_residence_revision: u64,
+    ) -> Option<PlayerVisibilityCreateSnapshot> {
+        if registration.guid() != expected_handle.guid() {
+            return None;
+        }
+        let identity = {
+            let entry = self.entries.get(&registration.guid())?;
+            if entry.generation != registration.generation
+                || entry.player_handle != Some(expected_handle)
+                || !entry.placement.is_in_world
+                || u32::from(entry.placement.map_id) != expected_map.map_id
+                || entry.placement.instance_id != expected_map.instance_id
+            {
+                return None;
+            }
+            entry.identity.clone()
+        };
+        let manager = self.canonical_map_manager_like_cpp()?;
+        let projection = {
+            let manager = manager.lock().ok()?;
+            if manager.player_active_residence_revision_like_cpp(expected_handle)
+                != Some((expected_map, expected_residence_revision))
+            {
+                return None;
+            }
+            manager.with_player_like_cpp(expected_handle, |player| {
+                let world = player.unit().world();
+                if !world.object().is_in_world()
+                    || world.map_id() != expected_map.map_id
+                    || world.instance_id() != expected_map.instance_id
+                {
+                    return None;
+                }
+                let transport =
+                    player
+                        .gameplay_state()
+                        .transport
+                        .clone()
+                        .map(|transport| TransportInfo {
+                            guid: transport.guid,
+                            x: transport.x,
+                            y: transport.y,
+                            z: transport.z,
+                            o: transport.orientation,
+                            seat: transport.seat,
+                            time: transport.time,
+                            prev_time: transport.prev_time,
+                            vehicle_id: transport.vehicle_id,
+                        });
+                Some((
+                    world.position(),
+                    u8::try_from(player.unit().data().level).unwrap_or_default(),
+                    canonical_player_vitals_like_cpp(player),
+                    player.data().party_type,
+                    canonical_player_presentation_like_cpp(player),
+                    transport,
+                ))
+            })??
+        };
+        let entry = self.entries.get(&registration.guid())?;
+        if entry.generation != registration.generation
+            || entry.player_handle != Some(expected_handle)
+            || !entry.placement.is_in_world
+            || u32::from(entry.placement.map_id) != expected_map.map_id
+            || entry.placement.instance_id != expected_map.instance_id
+        {
+            return None;
+        }
+        let (position, level, vitals, party_type, presentation, transport) = projection;
+        Some(player_visibility_snapshot_from_projection(
+            registration.guid(),
+            identity,
+            position,
+            level,
+            vitals,
+            party_type,
+            presentation,
+            transport,
+        ))
     }
 }

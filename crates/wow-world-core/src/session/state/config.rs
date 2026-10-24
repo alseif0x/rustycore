@@ -98,6 +98,8 @@ pub struct SessionWorldConfig {
     pub durability_loss_on_death_rate_like_cpp: f32,
     /// C++ `CONFIG_DEATH_*` policy read by the death/corpse lifecycle (#43).
     pub death_policy_like_cpp: DeathPolicyLikeCpp,
+    /// C++ `CONFIG_GROUP_VISIBILITY` used by the Ghost visibility Player bypass.
+    pub group_visibility_mode: i32,
     /// C++ `CONFIG_STATS_LIMITS_*` subset consumed by the represented
     /// `Player::UpdateBlockPercentage`/`UpdateDodgePercentage`/
     /// `UpdateParryPercentage`/`UpdateCritPercentage` caps.
@@ -175,6 +177,7 @@ impl Default for SessionWorldConfig {
             repair_cost_rate_like_cpp: 1.0,
             durability_loss_on_death_rate_like_cpp: 0.1,
             death_policy_like_cpp: DeathPolicyLikeCpp::default(),
+            group_visibility_mode: 1,
             stats_limits_like_cpp: StatsLimitsLikeCpp::default(),
             reset_schedule_like_cpp: ResetSchedule::default(),
 
