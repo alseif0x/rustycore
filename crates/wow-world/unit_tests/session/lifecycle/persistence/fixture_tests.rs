@@ -514,6 +514,7 @@ impl WorldSession {
             character,
             item_durability: None,
             resurrection_sickness: None,
+            ghost_wisp: None,
             spells,
             skills,
             glyphs,

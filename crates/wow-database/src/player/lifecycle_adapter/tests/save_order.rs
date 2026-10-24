@@ -76,6 +76,7 @@ fn character_save_adapter_preserves_the_frozen_statement_order_like_cpp() {
             },
         ]),
         resurrection_sickness: None,
+        ghost_wisp: None,
         spells: Some(PlayerSpellSaveGroupLikeCpp::Complete {
             rows: vec![PlayerSpellSaveLikeCpp {
                 spell_id: 100,
@@ -319,6 +320,141 @@ fn lifecycle_aura_family_is_optional_and_runs_between_actions_and_equipment_sets
         statement.sql() != CharStatements::INS_AURA.sql()
             && statement.sql() != CharStatements::INS_AURA_EFFECT.sql()
     }));
+}
+
+#[test]
+fn ghost_wisp_lifecycle_aura_families_reuse_scoped_sql_bindings_and_order() {
+    let mut request = minimal_character_request();
+    let without_authority = player_character_save_statements_like_cpp(&request);
+    assert!(without_authority.iter().all(|statement| {
+        statement.sql() != CharStatements::DEL_CHAR_AURA_BY_KEY.sql()
+            && statement.sql() != CharStatements::DEL_CHAR_AURA_EFFECT_BY_KEY.sql()
+            && statement.sql() != CharStatements::INS_AURA.sql()
+            && statement.sql() != CharStatements::INS_AURA_EFFECT.sql()
+    }));
+
+    let caster = [0xA5; 16];
+    request.ghost_wisp = Some(vec![
+        PlayerLifecycleAuraFamilySave {
+            spell_id: 8_326,
+            caster_guid_binary: caster,
+            auras: vec![PlayerLifecycleAuraSave {
+                difficulty: 1,
+                stack_count: 2,
+                max_duration: -1,
+                remaining_duration: -1,
+                charges: 3,
+                recalculate_mask: 0b111,
+                cast_item_id: 4_321,
+                cast_item_level: 77,
+                effects: vec![
+                    PlayerLifecycleAuraEffectSave {
+                        index: 2,
+                        amount: 50,
+                        base_amount: 49,
+                    },
+                    PlayerLifecycleAuraEffectSave {
+                        index: 0,
+                        amount: -20,
+                        base_amount: -21,
+                    },
+                    PlayerLifecycleAuraEffectSave {
+                        index: 1,
+                        amount: 50,
+                        base_amount: 49,
+                    },
+                ],
+            }],
+        },
+        PlayerLifecycleAuraFamilySave {
+            spell_id: 20_584,
+            caster_guid_binary: caster,
+            auras: Vec::new(),
+        },
+    ]);
+
+    let statements = player_character_save_statements_like_cpp(&request);
+    let aura_statements = statements
+        .iter()
+        .filter(|statement| {
+            let sql = statement.sql();
+            sql == CharStatements::DEL_CHAR_AURA_EFFECT_BY_KEY.sql()
+                || sql == CharStatements::DEL_CHAR_AURA_BY_KEY.sql()
+                || sql == CharStatements::INS_AURA.sql()
+                || sql == CharStatements::INS_AURA_EFFECT.sql()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        aura_statements
+            .iter()
+            .map(|statement| statement.sql())
+            .collect::<Vec<_>>(),
+        vec![
+            CharStatements::DEL_CHAR_AURA_EFFECT_BY_KEY.sql(),
+            CharStatements::DEL_CHAR_AURA_BY_KEY.sql(),
+            CharStatements::INS_AURA.sql(),
+            CharStatements::INS_AURA_EFFECT.sql(),
+            CharStatements::INS_AURA_EFFECT.sql(),
+            CharStatements::INS_AURA_EFFECT.sql(),
+            CharStatements::DEL_CHAR_AURA_EFFECT_BY_KEY.sql(),
+            CharStatements::DEL_CHAR_AURA_BY_KEY.sql(),
+        ],
+        "each family deletes effects before its aura, then inserts sorted rows"
+    );
+
+    let scoped_key = vec![
+        crate::SqlParam::U64(1),
+        crate::SqlParam::Bytes(caster.to_vec()),
+        crate::SqlParam::Bytes(vec![0; 16]),
+        crate::SqlParam::U32(8_326),
+    ];
+    assert_eq!(aura_statements[0].params(), scoped_key.as_slice());
+    assert_eq!(aura_statements[1].params(), scoped_key.as_slice());
+    assert_eq!(
+        aura_statements[2].params(),
+        &[
+            crate::SqlParam::U64(1),
+            crate::SqlParam::Bytes(caster.to_vec()),
+            crate::SqlParam::Bytes(vec![0; 16]),
+            crate::SqlParam::U32(8_326),
+            crate::SqlParam::U32(0b111),
+            crate::SqlParam::U32(0b111),
+            crate::SqlParam::U8(1),
+            crate::SqlParam::U8(2),
+            crate::SqlParam::I32(-1),
+            crate::SqlParam::I32(-1),
+            crate::SqlParam::U8(3),
+            crate::SqlParam::U32(4_321),
+            crate::SqlParam::I32(77),
+        ]
+    );
+    for (statement, index, amount, base_amount) in [
+        (&aura_statements[3], 0, -20, -21),
+        (&aura_statements[4], 1, 50, 49),
+        (&aura_statements[5], 2, 50, 49),
+    ] {
+        assert_eq!(
+            statement.params(),
+            &[
+                crate::SqlParam::U64(1),
+                crate::SqlParam::Bytes(caster.to_vec()),
+                crate::SqlParam::Bytes(vec![0; 16]),
+                crate::SqlParam::U32(8_326),
+                crate::SqlParam::U32(0b111),
+                crate::SqlParam::U8(index),
+                crate::SqlParam::I32(amount),
+                crate::SqlParam::I32(base_amount),
+            ]
+        );
+    }
+    let empty_wisp_key = vec![
+        crate::SqlParam::U64(1),
+        crate::SqlParam::Bytes(caster.to_vec()),
+        crate::SqlParam::Bytes(vec![0; 16]),
+        crate::SqlParam::U32(20_584),
+    ];
+    assert_eq!(aura_statements[6].params(), empty_wisp_key.as_slice());
+    assert_eq!(aura_statements[7].params(), empty_wisp_key.as_slice());
 }
 
 #[test]

@@ -52,6 +52,7 @@ fn minimal_character_request() -> PlayerCharacterSaveRequestLikeCpp {
         },
         item_durability: None,
         resurrection_sickness: None,
+        ghost_wisp: None,
         spells: None,
         skills: None,
         glyphs: None,

@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, implementación previa a aceptación final — 2026-10-24, 23:26 UTC:**
+**#43, implementación previa a aceptación final — 2026-10-24, 23:52 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
 y productor desde hechizos están escritos y tienen feedback focalizado;
 **no hay aceptación final de este candidato**. El cálculo básico del productor
@@ -9,7 +9,7 @@ tras reparar compilación, restauración de display y publicación de su visual.
 El recast de la misma aura/caster también tiene reparación y feedback focalizado.
 Las consultas de visibilidad de criaturas y Players tienen feedback focalizado;
 la publicación delta/removal a observadores tiene feedback focalizado; faltan
-el guardado de Ghost/Wisp, su fase productiva de actualización,
+la reconciliación de todas las claves de Ghost/Wisp, su fase productiva de actualización,
 participantes de limpieza al morir/resucitar, fallos de las otras operaciones
 del ciclo y capturas/QA viva. El usuario autoriza
 continuar los pendientes y la aceptación, no solo conservar el feedback anterior.
@@ -151,7 +151,27 @@ los binds SQL ni el orden transaccional. Feedback del worker sobre
 terminó exit 0, log `/tmp/rustycore-9d0-check-wow-database.XFfVvk`;
 `cargo test -p wow-database lifecycle_aura_family -- --nocapture` pasó dos
 casos, exit 0, log `/tmp/rustycore-9d0-test-wow-database.NBRdxq`.
-No se ha implementado aún el guardado de Ghost/Wisp en este checkpoint.
+9d1 implementa la captura del caster propio/item vacío y reutiliza esos pasos
+en la transacción completa de PlayerSave. El loader recalcula los bits 7/3,
+conserva Transform y los metadatos cargados y permite una nueva captura.
+Feedback sobre `7dc335021` más el delta local, aarch64/jobs=1:
+`cargo test -p wow-world ghost_wisp_persistence -- --nocapture` pasó cinco
+casos, exit 0, log `/tmp/rustycore-9d1-world-ghost-wisp.log`; los dos binarios
+de integración del mismo comando seleccionaron cero tests y no son evidencia
+de integración. El filtro DB `ghost_wisp_lifecycle_aura_families` pasó un caso,
+exit 0, log `/tmp/rustycore-9d1-database-aura-families.log`;
+`cargo check -p wow-world-core` terminó exit 0, log
+`/tmp/rustycore-9d1-core-check.log`. No es aceptación final ni durabilidad viva.
+La revisión de la operación completa añade un límite que debe cerrarse antes
+de aceptar ese guardado: `ResurrectPlayer` retira Ghost/Wisp de todos los
+casters, mientras una captura restringida al propio caster conservaría filas
+ajenas y podría reaplicarlas al relog. `Aura::CanBeSaved` no excluye por sí
+solo todo caster ajeno: las condiciones de single target/área son explícitas
+(`SpellAuras.cpp:1142–1155`, `SpellInfo.cpp:1861`). Los datos instalados tienen
+Attributes[5]=0 y target self. El paso 9d1 conserva el corte de implementación
+ya asignado; el cierre de la familia seleccionada debe reconciliar también
+esas claves válidas y las aplicaciones retiradas, sin borrar otras auras.
+No se aceptará el roundtrip del caster propio como prueba de ese límite.
 
 La fase seleccionada de publicación sigue pendiente: el pase de Session
 actual llama `tick_auras` cada cuatro ticks antes de los pases MapSession;
@@ -159,9 +179,17 @@ el C++ consume `m_visibleAurasToUpdate` en `Unit::_UpdateSpells`
 (`Unit.cpp:2872–2875`), después de MapSession y dentro del Player update
 (`Map.cpp:669–717`). `MapUpdatePlan.player_update_guids` es una selección,
 no un consumidor ejecutado. La reparación debe reutilizar el tick admitido,
-consumir solo Ghost/Wisp una vez después de la admisión/claim, conservar
+consumir solo Ghost/Wisp una vez bajo la admisión del MapTickPlan, conservar
 salidas efímeras y entregarlas fuera del guard antes del refresco de visibilidad.
 No añade reloj ni completa la convergencia general de #584.
+El corte revisado usa `canonical_map_tick_resume_with_creature_owner_like_cpp`
+después de respawns y antes del callback opcional de criaturas: el plan Map
+es consumible y no Clone/Copy (`manager/state_2.rs:969`), y el guard conserva
+época e incarnación durante la selección. No debe depender de la lease de
+criaturas, porque su rechazo o la ausencia de ese runtime no anula el update
+de los Players. Se retirará el consumo de Session desde la primera admisión
+World coordinada; el modo sin coordinador conserva un único fallback. Esta
+decisión todavía necesita implementación y pruebas productivas.
 
 Feedback de Ghost/Wisp a las 19:40 UTC, sobre `6117a9dc5` más el delta local
 del worker (aarch64, un job; no aceptación del SHA ni campaña final):

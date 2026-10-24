@@ -9,8 +9,8 @@ use crate::params::PreparedStatement;
 use crate::statements::CharStatements;
 use wow_persistence::{
     PlayerCharacterSaveRequestLikeCpp, PlayerEquipmentSetStateLikeCpp,
-    PlayerEquipmentSetTypeLikeCpp, PlayerLifecycleAuraSave, PlayerSpellSaveGroupLikeCpp,
-    PlayerSpellStateLikeCpp,
+    PlayerEquipmentSetTypeLikeCpp, PlayerLifecycleAuraFamilySave, PlayerLifecycleAuraSave,
+    PlayerSpellSaveGroupLikeCpp, PlayerSpellStateLikeCpp,
 };
 
 pub(super) fn player_character_save_statements_like_cpp(
@@ -236,42 +236,11 @@ pub(super) fn player_character_save_statements_like_cpp(
         }));
     }
     if let Some(aura_family) = &request.resurrection_sickness {
-        steps.push(Step::DeleteLifecycleAuraEffects {
-            guid,
-            caster_guid_binary: aura_family.caster_guid_binary,
-            spell_id: aura_family.spell_id,
-        });
-        steps.push(Step::DeleteLifecycleAuraFamily {
-            guid,
-            caster_guid_binary: aura_family.caster_guid_binary,
-            spell_id: aura_family.spell_id,
-        });
-        let effect_mask = |row: &PlayerLifecycleAuraSave| {
-            row.effects
-                .iter()
-                .fold(0_u32, |mask, effect| mask | (1_u32 << effect.index))
-        };
-        let mut auras = aura_family.auras.clone();
-        auras.sort_by_key(|row| (row.difficulty, effect_mask(row)));
-        for mut row in auras {
-            let mask = effect_mask(&row);
-            steps.push(Step::InsertLifecycleAura {
-                guid,
-                caster_guid_binary: aura_family.caster_guid_binary,
-                spell_id: aura_family.spell_id,
-                effect_mask: mask,
-                row: row.clone(),
-            });
-            row.effects.sort_by_key(|effect| effect.index);
-            steps.extend(row.effects.into_iter().map(|effect| {
-                Step::InsertLifecycleAuraEffect {
-                    guid,
-                    caster_guid_binary: aura_family.caster_guid_binary,
-                    spell_id: aura_family.spell_id,
-                    effect_mask: mask,
-                    row: effect,
-                }
-            }));
+        append_lifecycle_aura_family_steps(&mut steps, guid, aura_family);
+    }
+    if let Some(aura_families) = &request.ghost_wisp {
+        for aura_family in aura_families {
+            append_lifecycle_aura_family_steps(&mut steps, guid, aura_family);
         }
     }
     if let Some(equipment_sets) = &request.equipment_sets {
@@ -395,6 +364,52 @@ pub(super) fn player_character_save_statements_like_cpp(
         .iter()
         .map(player_character_save_statement_like_cpp)
         .collect()
+}
+
+fn append_lifecycle_aura_family_steps(
+    steps: &mut Vec<PlayerCharacterSaveStepLikeCpp>,
+    guid: u64,
+    aura_family: &PlayerLifecycleAuraFamilySave,
+) {
+    use PlayerCharacterSaveStepLikeCpp as Step;
+
+    steps.push(Step::DeleteLifecycleAuraEffects {
+        guid,
+        caster_guid_binary: aura_family.caster_guid_binary,
+        spell_id: aura_family.spell_id,
+    });
+    steps.push(Step::DeleteLifecycleAuraFamily {
+        guid,
+        caster_guid_binary: aura_family.caster_guid_binary,
+        spell_id: aura_family.spell_id,
+    });
+    let effect_mask = |row: &PlayerLifecycleAuraSave| {
+        row.effects
+            .iter()
+            .fold(0_u32, |mask, effect| mask | (1_u32 << effect.index))
+    };
+    let mut auras = aura_family.auras.clone();
+    auras.sort_by_key(|row| (row.difficulty, effect_mask(row)));
+    for mut row in auras {
+        let mask = effect_mask(&row);
+        steps.push(Step::InsertLifecycleAura {
+            guid,
+            caster_guid_binary: aura_family.caster_guid_binary,
+            spell_id: aura_family.spell_id,
+            effect_mask: mask,
+            row: row.clone(),
+        });
+        row.effects.sort_by_key(|effect| effect.index);
+        steps.extend(row.effects.into_iter().map(|effect| {
+            Step::InsertLifecycleAuraEffect {
+                guid,
+                caster_guid_binary: aura_family.caster_guid_binary,
+                spell_id: aura_family.spell_id,
+                effect_mask: mask,
+                row: effect,
+            }
+        }));
+    }
 }
 
 /// Build the tutorials statement for one account.

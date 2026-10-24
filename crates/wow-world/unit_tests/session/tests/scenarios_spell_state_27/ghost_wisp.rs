@@ -4,6 +4,8 @@ use std::time::{Duration, Instant};
 
 #[path = "ghost_wisp/observers.rs"]
 mod observers;
+#[path = "ghost_wisp/persistence.rs"]
+mod persistence;
 #[path = "ghost_wisp/recast.rs"]
 mod recast;
 

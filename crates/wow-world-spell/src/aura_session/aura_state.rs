@@ -51,6 +51,33 @@ fn sickness_recalculated_amount(
         .checked_mul(i32::from(stack_count))
 }
 
+fn ghost_wisp_recalculated_amount(
+    spell_id: u32,
+    effect_index: u32,
+    effect: &wow_data::SpellEffectInfo,
+    base_amount: i32,
+    stack_count: u8,
+) -> Option<i32> {
+    let expected_aura = match (spell_id, effect_index) {
+        (8_326, 0) => wow_data::spell::aura_types::SPELL_AURA_GHOST,
+        (8_326, 1) => wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
+        (8_326, 2) => wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED,
+        (20_584, 0) => wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
+        (20_584, 1) => wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED,
+        // Wisp's transform effect is deliberately restored from its stored
+        // amount; no selected Ghost/Wisp transform effect is recalculated.
+        _ => return None,
+    };
+    if effect.effect_aura != expected_aura {
+        return None;
+    }
+    let mut effect = effect.clone();
+    effect.effect_base_points = base_amount;
+    effect
+        .calc_value_no_caster_like_cpp()
+        .checked_mul(i32::from(stack_count))
+}
+
 fn represented_aura_visual_without_caster_like_cpp(
     spell_id: u32,
     difficulty_id: u8,
@@ -321,14 +348,25 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
             let stored_amount = saved_effect.map_or(0, |saved| saved.amount);
             let current_amount = if row.recalculate_mask & bit == 0 {
                 stored_amount
-            } else if selected_sickness_spell_id == Some(row.spell_id)
-                && let Some(amount) =
-                    sickness_recalculated_amount(effect, base_amount, row.stack_count)
-            {
+            } else if selected_sickness_spell_id == Some(row.spell_id) {
+                match sickness_recalculated_amount(effect, base_amount, row.stack_count) {
+                    Some(amount) => amount,
+                    None => {
+                        authority_complete = false;
+                        stored_amount
+                    }
+                }
+            } else if let Some(amount) = ghost_wisp_recalculated_amount(
+                row.spell_id,
+                effect.effect_index,
+                effect,
+                base_amount,
+                row.stack_count,
+            ) {
                 amount
             } else {
-                // Retain the database amount for unsupported recalculation
-                // families while preventing a partial sickness save snapshot.
+                // Preserve the stored amount for unsupported recalculation
+                // metadata while withholding complete aura authority.
                 authority_complete = false;
                 stored_amount
             };

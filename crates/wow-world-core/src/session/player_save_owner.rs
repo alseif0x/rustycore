@@ -40,6 +40,7 @@ use crate::session::{
 };
 
 mod resurrection_sickness;
+mod ghost_wisp;
 
 /// Lifecycle-owned values that join the canonical Player projection in one save request.
 pub struct PlayerSaveSessionInputsLikeCpp<'a> {
@@ -593,6 +594,7 @@ fn request(
 
     let resurrection_sickness =
         resurrection_sickness::capture(player, chr_races_store, spell_store, difficulty_store);
+    let ghost_wisp = ghost_wisp::capture(player, spell_store, difficulty_store);
 
     let spell_runtime = Some(&game.spells);
     let spells = if let Some(spells) = (game.spells.rows_loaded_like_cpp()
@@ -972,6 +974,7 @@ fn request(
         character,
         item_durability,
         resurrection_sickness,
+        ghost_wisp,
         spells,
         skills,
         glyphs,

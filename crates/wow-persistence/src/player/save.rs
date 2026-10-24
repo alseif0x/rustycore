@@ -22,6 +22,9 @@ pub struct PlayerCharacterSaveRequestLikeCpp {
     /// `None` preserves rows when canonical aura authority or catalogs are
     /// incomplete; `Some(empty)` removes only this scoped family.
     pub resurrection_sickness: Option<PlayerLifecycleAuraFamilySave>,
+    /// Self-cast Ghost and Wisp aura families scoped to the empty-item key.
+    /// `None` preserves rows when canonical aura authority or catalogs are incomplete.
+    pub ghost_wisp: Option<Vec<PlayerLifecycleAuraFamilySave>>,
     pub spells: Option<PlayerSpellSaveGroupLikeCpp>,
     pub skills: Option<Vec<PlayerSkillSaveLikeCpp>>,
     pub glyphs: Option<Vec<PlayerGlyphSaveLikeCpp>>,
