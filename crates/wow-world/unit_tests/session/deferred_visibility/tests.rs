@@ -9,7 +9,8 @@ use super::super::{
 #[allow(unused_imports)]
 use crate::canonical_creature_fixtures::*;
 use crate::session::mailbox::{
-    DestroyVisibleObjectLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand, SessionCommand,
+    DestroyVisibleObjectLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
+    SendIfVisibleLikeCppCommand, SendPlayerAuraUpdateCommand, SessionCommand,
 };
 use std::sync::{Arc, Mutex, RwLock};
 use wow_constants::ServerOpcodes;
@@ -660,6 +661,107 @@ fn retained_visibility_preserves_committed_prefix_before_presentation() {
             SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp,
             SessionCommand::SendIfVisibleLikeCpp(_),
         ]
+    ));
+}
+
+#[test]
+fn aura_update_remains_before_both_refresh_rails_after_an_older_gated_packet() {
+    let mut fixture = Fixture::new();
+    let intent = fixture.acknowledge();
+    let handle = fixture.session.core.player_handle_like_cpp.unwrap();
+    let residence_revision = fixture
+        .canonical
+        .lock()
+        .unwrap()
+        .player_active_residence_revision_like_cpp(handle)
+        .expect("active recipient residence")
+        .1;
+    let visibility = fixture.session.core.client_visible_guids_like_cpp.clone();
+    let aura_bytes = (ServerOpcodes::AuraUpdate as u16).to_le_bytes().to_vec();
+
+    {
+        let mut rail = fixture
+            .session
+            .core
+            .durable_creature_runtime_commands_like_cpp
+            .lock()
+            .unwrap();
+        assert!(
+            rail.publish_send_if_visible_like_cpp(SendIfVisibleLikeCppCommand {
+                queued_at: std::time::Instant::now(),
+                source_guid: fixture.creature,
+                map_id: KEY.map_id as u16,
+                instance_id: KEY.instance_id,
+                packet_bytes: vec![0x34, 0x12],
+            })
+        );
+        assert!(
+            rail.publish_destroy_visible_object_like_cpp(DestroyVisibleObjectLikeCppCommand {
+                object_guid: fixture.creature,
+                map_id: KEY.map_id as u16,
+                instance_id: KEY.instance_id,
+                map_incarnation: 1,
+            })
+        );
+        assert!(
+            rail.publish_player_aura_update(SendPlayerAuraUpdateCommand {
+                recipient_handle: handle,
+                map_key: KEY,
+                residence_revision,
+                committed_visibility: visibility,
+                packet_bytes: aura_bytes.clone(),
+            })
+        );
+    }
+
+    assert!(
+        fixture
+            .registry
+            .request_deferred_player_visibility_refresh_like_cpp(intent)
+    );
+    fixture
+        .session
+        .session_command_tx()
+        .try_send(SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp)
+        .unwrap();
+
+    let commands = fixture.session.core.drain_session_commands();
+    let aura_index = commands
+        .iter()
+        .position(|command| matches!(command, SessionCommand::SendPlayerAuraUpdate(_)))
+        .expect("committed AuraUpdate frame");
+    let destroy_index = commands
+        .iter()
+        .position(|command| matches!(command, SessionCommand::DestroyVisibleObjectLikeCpp(_)))
+        .expect("directed destroy frame");
+    let deferred_index = commands
+        .iter()
+        .position(|command| {
+            matches!(
+                command,
+                SessionCommand::RefreshDeferredPlayerVisibilityLikeCpp(_)
+            )
+        })
+        .expect("deferred visibility refresh");
+    let general_index = commands
+        .iter()
+        .position(|command| {
+            matches!(
+                command,
+                SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp
+            )
+        })
+        .expect("general visibility refresh");
+
+    assert!(
+        destroy_index < aura_index,
+        "directed Destroy retains FIFO order"
+    );
+    assert!(aura_index < deferred_index);
+    assert!(aura_index < general_index);
+    assert!(matches!(
+        commands.first(),
+        Some(SessionCommand::SendIfVisibleLikeCpp(_))
     ));
 }
 

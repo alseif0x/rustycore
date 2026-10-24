@@ -4,13 +4,13 @@
 use super::{AuraRemovalCxLikeCpp, RemovedAuraLikeCpp};
 
 impl AuraRemovalCxLikeCpp<'_> {
-    pub(super) fn publish_aura_removal_like_cpp(&self, slot: u8) {
-        self.spell
-            .send_aura_update_removed_with_publication_like_cpp(
-                self.player.player_guid_like_cpp(),
-                &self.player.packet_publication_like_cpp(),
-                slot,
-            );
+    pub(super) fn publish_aura_removal_like_cpp(&self, removed: &RemovedAuraLikeCpp) {
+        self.spell.send_aura_removal_for_spell(
+            self.player.player_guid_like_cpp(),
+            &self.player.packet_publication_like_cpp(),
+            removed.aura.spell_id,
+            removed.aura.slot,
+        );
     }
 
     pub(super) fn update_character_stats_phase(

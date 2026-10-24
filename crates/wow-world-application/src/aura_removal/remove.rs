@@ -16,7 +16,7 @@ impl AuraRemovalCxLikeCpp<'_> {
         self.remove_ghost_wisp_effects(&removed, prepared_ghost_wisp)?;
         self.remove_mount_control_phase_like_cpp(&removed);
         self.remove_movement_speed_phase_like_cpp(&removed);
-        self.publish_aura_removal_like_cpp(slot);
+        self.publish_aura_removal_like_cpp(&removed);
         if removed.aura.spell_id == wow_world_core::session::SPELL_PVP_RULES_ENABLED_LIKE_CPP {
             let _ = self.item_scaling_phase_like_cpp();
         }

@@ -2,6 +2,7 @@
 //! Current-incarnation command, packet, and runtime publication delivery.
 
 use super::*;
+use crate::session::mailbox::SendPlayerAuraUpdateCommand;
 
 impl PlayerRegistry {
     /// Every current registration whose player is in the world: the session
@@ -285,6 +286,21 @@ impl PlayerRegistry {
                     .lock()
                     .ok()
                     .map(|mut queue| queue.publish_player_spell_if_visible_like_cpp(command))
+            })
+            .unwrap_or(false)
+    }
+
+    pub fn publish_current_player_aura_update(
+        &self,
+        registration: PlayerRegistration,
+        command: SendPlayerAuraUpdateCommand,
+    ) -> bool {
+        self.with_current_durable_runtime(registration)
+            .and_then(|durable| {
+                durable
+                    .lock()
+                    .ok()
+                    .map(|mut queue| queue.publish_player_aura_update(command))
             })
             .unwrap_or(false)
     }

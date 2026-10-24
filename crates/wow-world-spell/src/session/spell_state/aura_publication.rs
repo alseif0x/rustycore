@@ -1,9 +1,10 @@
 use crate::SessionSpellState;
-use std::{collections::{HashMap, HashSet}, time::Instant};
-use wow_core::{ObjectGuid, guid::HighGuid};
-use wow_entities::{
-    AuraApplicationLikeCpp as AuraApplication, AuraCastProvenanceLikeCpp,
+use std::{
+    collections::{HashMap, HashSet},
+    time::Instant,
 };
+use wow_core::{ObjectGuid, guid::HighGuid};
+use wow_entities::{AuraApplicationLikeCpp as AuraApplication, AuraCastProvenanceLikeCpp};
 use wow_world_core::session::{AFLAG_SCALABLE_LIKE_CPP, HubMut, HubRef};
 
 pub const AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP: u32 = 0x0000_0080;
@@ -475,12 +476,19 @@ impl SessionSpellState {
             hub.core.player_map_id_like_cpp(),
             Some(provenance),
         );
-        hub.core
-            .send_packet(&wow_packet::packets::misc::AuraUpdate {
-                unit_guid,
-                update_all: false,
-                auras: vec![aura_info],
-            });
+        let packet = wow_packet::packets::misc::AuraUpdate {
+            unit_guid,
+            update_all: false,
+            auras: vec![aura_info],
+        };
+        if matches!(aura.spell_id, 8326 | 20584) {
+            use wow_packet::ServerPacket;
+            hub.core
+                .packet_publication_access_like_cpp()
+                .publish_selected_aura_update(unit_guid, &packet.to_bytes());
+        } else {
+            hub.core.send_packet(&packet);
+        }
     }
 
     fn send_aura_update_applied_from_queries_like_cpp(

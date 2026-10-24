@@ -68,6 +68,32 @@ impl PlayerRegistry {
         Some(entry.identity.locale.clone())
     }
 
+    /// Project the current directory endpoint for one map-selected aura
+    /// recipient. This runs only after the producer has released MapManager.
+    #[must_use]
+    pub fn selected_aura_recipient(
+        &self,
+        guid: ObjectGuid,
+        expected_handle: PlayerHandle,
+        expected_map: wow_map::MapKey,
+    ) -> Option<(PlayerRegistration, SharedClientVisibleGuidsLikeCpp)> {
+        let entry = self.entries.get(&guid)?;
+        if entry.player_handle != Some(expected_handle)
+            || !entry.placement.is_in_world
+            || u32::from(entry.placement.map_id) != expected_map.map_id
+            || entry.placement.instance_id != expected_map.instance_id
+        {
+            return None;
+        }
+        Some((
+            PlayerRegistration {
+                guid,
+                generation: entry.generation,
+            },
+            entry.client_visible_guids_like_cpp.clone(),
+        ))
+    }
+
     /// Snapshot the bounded facts used by runtime recipient selection.
     #[must_use]
     pub fn runtime_recipients(&self) -> Vec<PlayerRuntimeRecipient> {

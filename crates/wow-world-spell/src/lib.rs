@@ -3,6 +3,7 @@
 pub mod aura_effects;
 mod aura_rows;
 mod aura_session;
+mod aura_update_session;
 mod effect_session;
 mod execution_session;
 mod login_spell_application;
@@ -50,6 +51,7 @@ pub use aura_session::{
     represented_mount_aura_display_candidates_like_cpp,
     represented_player_aura_state_mask_like_cpp, represented_unit_aura_state_mask_like_cpp,
 };
+pub use aura_update_session::handle_player_aura_update;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use effect_session::{
     ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp,
@@ -69,11 +71,11 @@ pub use effect_session::{
 pub use effect_session::{
     SpellEffectHostLikeCpp, apply_block_effect_like_cpp, apply_parry_effect_like_cpp,
     canonical_threatened_by_me_owner_guids_like_cpp, current_map_dungeon_state_like_cpp,
-    current_map_is_dungeon_like_cpp, hydrate_canonical_threat_relevant_auras_like_cpp,
+    current_map_is_dungeon_like_cpp, disallowed_mount_form_from_catalogs,
+    hydrate_canonical_threat_relevant_auras_like_cpp,
     notify_other_players_visibility_changed_like_cpp, persist_player_homebind_like_cpp,
     player_current_map_instanceable_like_cpp, record_spell_execute_log_durability_damage_like_cpp,
-    disallowed_mount_form_from_catalogs, represented_disallowed_mount_form_like_cpp,
-    represented_homebind_like_cpp,
+    represented_disallowed_mount_form_like_cpp, represented_homebind_like_cpp,
     set_represented_homebind_like_cpp, sync_represented_creature_threat_to_canonical_like_cpp,
 };
 pub use execution_session::{

@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, implementación previa a aceptación final — 2026-10-24, 21:18 UTC:**
+**#43, implementación previa a aceptación final — 2026-10-24, 23:26 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
 y productor desde hechizos están escritos y tienen feedback focalizado;
 **no hay aceptación final de este candidato**. El cálculo básico del productor
@@ -8,7 +8,8 @@ tiene contraste de datos registrado abajo; Ghost/Wisp tiene feedback focalizado
 tras reparar compilación, restauración de display y publicación de su visual.
 El recast de la misma aura/caster también tiene reparación y feedback focalizado.
 Las consultas de visibilidad de criaturas y Players tienen feedback focalizado;
-faltan la publicación delta/removal a observadores y el guardado de Ghost/Wisp,
+la publicación delta/removal a observadores tiene feedback focalizado; faltan
+el guardado de Ghost/Wisp, su fase productiva de actualización,
 participantes de limpieza al morir/resucitar, fallos de las otras operaciones
 del ciclo y capturas/QA viva. El usuario autoriza
 continuar los pendientes y la aceptación, no solo conservar el feedback anterior.
@@ -86,7 +87,7 @@ en el fixture del cadáver; se corrigió usando el insertor existente.
 `cargo check -p world-server` terminaron exit 0, logs
 `/tmp/rustycore-43-9c2c-entities-check-20261024T210933Z-3595883.log` y
 `/tmp/rustycore-43-9c2c-world-server-check-20261024T211347Z-3600372.log`.
-No es aceptación final ni evidencia de runtime del candidato comprometido.
+No es aceptación final ni evidencia de runtime del commit resultante.
 La revisión de esa publicación fija la selección de destinatarios en el
 momento de emitir el aura: `Player.cpp:6141–6149` y
 `GridNotifiersImpl.h:38–103` / `GridNotifiers.h:157–194` seleccionan fase,
@@ -96,7 +97,39 @@ cola duradera existente. La entrega de Ghost/Wisp debe conservarla también,
 con protección de encarnación/residencia del receptor, sin recalcular
 HaveAtClient ni descartar una actualización comprometida porque el emisor
 haya salido después. El handle/residencia del emisor se comprueba al publicar.
-Esta es una decisión de implementación pendiente, no evidencia ejecutada.
+Esta decisión está implementada en 9c3 con el feedback descrito abajo;
+no constituye aceptación final.
+La cola necesita conservar además el prefijo de auras ya emitidas cuando
+combina refrescos de visibilidad: `mailbox/durable.rs` y `mailbox/pump.rs`
+insertan esos refrescos antes del primer paquete marcado como gated. Aplicar
+esa regla sin adaptación a un AuraUpdate comprometido podría emitir un
+DESTROY antes de su actualización. 9c3 conservará ese prefijo en ambos puntos
+de mezcla, manteniendo el comportamiento anterior cuando no haya esas auras,
+con pruebas del orden en cola. No se añade otra cola ni se promete atomicidad
+global entre productores/socket. La entrega propia de un Player canónico
+Detached se conserva sin fanout espacial; Detached no equivale a ausente.
+
+9c3 selecciona los observadores en celdas WORLD y conserva shared vision de
+Player/Creature, caster de DynamicObject y la ruta de Player en vehículo.
+La entrega usa la cola duradera existente con barreras de handle, GUID,
+residencia activa, estado LoggedIn, asignación de visibilidad y opcode.
+Feedback sobre `4f7fb9628` más el delta local, aarch64/jobs=1:
+`cargo check -p wow-world` terminó exit 0 en
+`/tmp/rustycore-43-9c3-cargo-check-wow-world-20261024T214030Z.log`;
+los filtros `scenarios_spell_state_27::ghost_wisp` y `deferred_visibility`
+pasaron 13 casos cada uno, exit 0, en
+`/tmp/rustycore-43-9c3-cargo-test-world-ghost-wisp-20261024T214031Z.log` y
+`/tmp/rustycore-43-9c3-cargo-test-world-deferred-visibility-20261024T214311Z.log`.
+El log `/tmp/rustycore-43-9c3-cargo-test-wow-map-aura-observers-20261024T214323Z.log`
+registra 2 passed para `selected_aura_observers`; el worker no recuperó el
+código de salida del proceso y no se presenta como exit 0 verificado.
+El intento inicial de World terminó exit 101 por un re-export faltante;
+se reparó antes de los resultados anteriores. La ruta inicial completa
+`send_initial_player_auras_like_cpp` sigue llamada por
+`wow-world-character/src/login_session/initial_packets.rs` y no se modificó;
+la afirmación del handoff de que no existía emisor productivo era incorrecta.
+Faltan la integración de la fase de actualización seleccionada y su evidencia,
+la aceptación del candidato comprometido, capturas y QA viva.
 
 Feedback de Ghost/Wisp a las 19:40 UTC, sobre `6117a9dc5` más el delta local
 del worker (aarch64, un job; no aceptación del SHA ni campaña final):
