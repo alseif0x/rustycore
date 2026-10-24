@@ -27,6 +27,7 @@ use crate::world_entities_host::WorldEntitiesHostLikeCpp;
 mod canonical_objects;
 mod deferred;
 mod dynamic_object_values;
+mod ghost_visibility;
 mod nearby;
 mod queries;
 mod session_visibility;

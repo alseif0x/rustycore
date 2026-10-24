@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, implementación previa a aceptación final — 2026-10-24, 20:35 UTC:**
+**#43, implementación previa a aceptación final — 2026-10-24, 20:53 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
 y productor desde hechizos están escritos y tienen feedback focalizado;
 **no hay aceptación final de este candidato**. El cálculo básico del productor
@@ -47,6 +47,25 @@ el proceso 3094551, binario `target/deploy/live/world-server`, SHA-256
 cero reinicios y sin packet dump activo. No es el candidato nuevo ni prueba viva
 de #43. Capturas de la acción y DB/reinicio/relogin conservan su aceptación
 propia y autorización de runtime; no se ha publicado, desplegado ni cerrado #43.
+
+Visibilidad de criaturas (9c2b): la consulta productiva usa el Player canónico
+con generación/residencia activa, las celdas del viewpoint y el cadáver del
+jugador resuelto una sola vez bajo el guard. Conserva las diferencias entre
+distancia desde el cuerpo al cadáver y distancia normal desde farsight, y
+la admisión del vehículo antes del bypass GM. Anclas C++ del mismo `a5f8da2`:
+`Object.cpp:1517–1627`, `Player.cpp:23337`, `CellImpl.h:62–66` y
+`Unit.cpp:11335`. No se amplía la consulta a todo el mapa ni se implementa
+el cinematic flyby ausente. Feedback del worker sobre `e113e657e` más el delta
+local, aarch64/jobs=1, no aceptación del candidato: siete casos pasaron en
+`/tmp/rustycore-43-9c2b-creature-visibility-indexed-fixture-20261024T205050Z.log`;
+la regresión `visible_creatures_skip_not_in_world_canonical_objects_like_cpp`
+pasó en `/tmp/rustycore-43-9c2b-existing-creature-query-20261024T205130Z.log`;
+`cargo check -p wow-world-entities --no-default-features` terminó exit 0 en
+`/tmp/rustycore-43-9c2b-entities-no-default-20261024T205138Z.log`.
+El primer filtro falló sus siete casos por fixtures sin inserción en celdas;
+se reparó la preparación mediante el helper indexado existente, sin debilitar
+el predicado. Siguen pendientes la consulta de Players/grupos y la publicación
+delta/removal de Ghost/Wisp a observadores.
 
 Feedback de Ghost/Wisp a las 19:40 UTC, sobre `6117a9dc5` más el delta local
 del worker (aarch64, un job; no aceptación del SHA ni campaña final):
@@ -151,6 +170,17 @@ ambos exit 0. Logs `/tmp/rustycore-9c2a-visibility-context-20261024TIfvuo5.log`
 y `/tmp/rustycore-9c2a-existing-visibility-20261024TqnlmEM.log`.
 El cálculo desde Map/Player/cadáver y los consumidores productivos todavía
 no usan este contexto: es implementación parcial, no aceptación de visibilidad.
+La revisión de los participantes de muerte añade dos consumidores a cerrar:
+`canonical_access/player_stats.rs::sync_canonical_player_health_like_cpp`
+cambia el estado de muerte al recalcular salud, aunque `Unit.cpp:9214–9266`
+lo conserva; esto puede adelantar JustDied a Corpse durante la retirada de
+auras. El setter nativo tampoco aplica aún la salud 1 del Player en DEAD.
+La reparación debe distinguir carga, estadísticas y resurrección, y conservar
+el valor canónico al publicar. Además, el camino existente de
+`login_session/lifecycle.rs::handle_hearth_and_resurrect` solo repone salud:
+`BattleGroundHandler.cpp:703–725` exige BuildPlayerRepop, ResurrectPlayer y
+después teleport. Se conectará ese consumidor existente, sin implementar
+el administrador completo de Battlefield ni ampliar a todo Stuck.
 
 Contraste de datos del productor, 2026-10-24: el diagnóstico opt-in mantenido
 `wow-data::spell_db2::tests::resurrection_effect_data` leyó el DataDir instalado
