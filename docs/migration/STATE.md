@@ -1,8 +1,11 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, sanador de espíritus — aceptación local en curso, 2026-10-23/24:** continuación de
+**#43, sanador de espíritus — aceptación local verde, 2026-10-24:** continuación de
 las partes integradas en #1482 (`bdfbe8e2a`, release/corpse/cementerio) y #1483
-(`408d11c12`, reclaim). Rama `43-spirit-healer`, base `408d11c12`. Contrato:
+(`408d11c12`, reclaim). Rama `43-spirit-healer`, base `408d11c12`; código guardado
+en el commit local `f4633801212a3ea6515978264e27526b4ddd0bf7`. Final verde:
+5.809 tests pasan y se conserva un helper manual ignorado; **sin publicación,
+captura nueva, QA viva ni despliegue; #43 no se cierra**. Contrato:
 `NPCHandler.cpp:331–376` del C++ objetivo `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
 admisión del NPC, retirada de muerte fingida, `ResurrectPlayer(0.5f, true)`,
 `DurabilityLossAll(0.25f, true)`, selección del cementerio desde la ubicación del
@@ -40,18 +43,47 @@ admisión de SpellGo. No supone una reparación general de lanzamientos internos
 Son datos inspeccionados, no prueba de los overlays efectivos del servidor vivo.
 Participantes necesarios de esta entrega: duración restante/expiración, aplicación
 conjunta de los efectos de la enfermedad y su multiplicador de estadísticas base
-(`SpellAuraEffects.cpp:3567–3601`, `Unit.cpp:9080–9094`). **NOT VALIDATED**:
-primera campaña local fallida; sin captura, QA viva ni despliegue.
-Código y pruebas permanecen sin commit en `43-spirit-healer`; `408d11c12` es
-la base, no un SHA que contenga o haya validado estos cambios. Se escribieron
+(`SpellAuraEffects.cpp:3567–3601`, `Unit.cpp:9080–9094`). La aceptación local
+se ejecutó con los cambios sin commit sobre `408d11c12`; después se guardaron
+sin alteraciones en `f46338012`. El manifiesto conserva `dirty: true` y el HEAD
+base real: no se presenta como una ejecución sobre el commit posterior.
+Se escribieron y ejecutaron
 escenarios en `crates/wow-world/unit_tests/handlers/entities/tests/spirit_healer.rs`
 (admisión, enfermedad por nivel/raza/configuración, renovación, estadísticas,
 durabilidad y cementerios) y `crates/wow-world/unit_tests/session/tests/aura_duration.rs`
 (duración restante, identidad y expiración), además del caso de multiplicadores
-en `crates/wow-data/src/player/stats.rs`. Los casos de World pasan en el feedback
-enfocado del implementador; la suite completa sigue pendiente. El soporte de pruebas del
+en `crates/wow-data/src/player/stats.rs`. Pasan tanto los casos enfocados como las
+suites completas seleccionadas por final. El soporte de pruebas del
 NPC usa los catálogos de la sesión; los escenarios completan el ACK del teleport
 de release y establecen LoggedIn para ejercitar el refresco de estadísticas.
+**Aceptación final del candidato 3:** mismo comando y entorno de abajo, sin
+`--keep-going`, aarch64/Rust 1.98.0. Manifiesto
+`target/validation-v2/manifests/20261024T001007.529334Z-3206589-final.json`,
+exit 0, verificado con `./tools/validation-v2 verify --manifest <ruta anterior>
+--require-profile final`. Runner 00:10:07.528–00:26:42.333 UTC:
+**994,804 s**; ventana completa con verificación y contraste de huellas hasta
+00:27:22.428 UTC: **1.034,900 s**. **Objetivo de 600 s incumplido.**
+El cierre de consumidores compiló en 719,221 s, incluyendo artefactos aún fríos
+de `world-server`/SQL; el lote de tests compiló y ejecutó en 131,328 s.
+No se repitió una campaña intacta solo para obtener un tiempo cálido menor.
+Pasan arquitectura/fixtures/firmas, censo, formato y nueve bibliotecas:
+`wow-data` 759, `wow-entities` 986, `wow-world` 3.764, `wow-world-application` 15,
+`wow-world-core` 224, `wow-world-entities` 2, `wow-world-interaction` 1,
+`wow-world-inventory` 33 y `wow-world-spell` 25. Única prueba ignorada:
+`handler_contract_tests::print_world_handler_contract_snapshot`, helper manual
+ya ignorado antes de esta entrega. La auditoría exhaustiva de persistencia no
+forma parte de final y sigue sin ejecutarse; no se reclama esa evidencia.
+Las huellas de los 44 archivos probados están en
+`target/validation-v2/evidence/43-spirit-healer-candidate-3.json`; se verificaron
+antes del commit, cuyo árbol es `a8098c58daac7c43b17886a1568087f049d42136`.
+Las tres corridas final, incluidas las fallidas de abajo, suman 1.807,132 s;
+los tiempos de reparación/feedback se conservan por separado. La aceptación
+de publicación del candidato commiteado y la aceptación viva siguen pendientes.
+El delta posterior es solo este checkpoint: `quick --base f46338012
+--require-changes --logs`, manifiesto local
+`target/validation-v2/manifests/20261024-43-spirit-healer-evidence-quick.json`;
+reutiliza el final anterior para código idéntico, sin atribuirle otro HEAD.
+
 Primera campaña en aarch64, árbol modificado sobre `408d11c12`:
 `PROTOC=/home/ubuntu/.local/protoc/bin/protoc CARGO_BUILD_JOBS=1
 CARGO_TARGET_DIR=/home/server/rustycore/target VALIDATION_V2_CARGO_JOBS=1
@@ -112,6 +144,13 @@ si la continuación de #43 amplía sus fixtures, separar sus decodificadores y d
 de hechizo antes de añadir escenarios de relog. No requiere excepción de 2.000 líneas.
 La issue completa sigue abierta: carga del cadáver al relog, participantes de
 movimiento y aceptación DB/restart/relogin conservan sus pendientes.
+Siguiente responsabilidad contrastada: `Player::LoadCorpse` (`Player.cpp:18157`)
+y su llamada tras entrada en mundo (`CharacterHandler.cpp:1227`, antes de restaurar
+auras de ghost/velocidad/water-walking). La carga actual de cadáveres del mapa en
+`wow-world-character/src/login_session/login_sequence.rs:349` no restaura por sí
+sola la ubicación de cadáver del Player, `AT_LOGIN_RESURRECT` y release timer.
+Este es el siguiente contrato de relog que debe implementarse y probarse, sin
+suponer que el objeto corpse esté en el mapa actual del jugador.
 El guardado general representado (`PlayerCharacterSaveRequestLikeCpp` y
 `wow-world-lifecycle/src/player_save.rs`) no captura auras ni durabilidad de los
 objetos: marcar el objeto como modificado y publicar sus valores no demuestra
