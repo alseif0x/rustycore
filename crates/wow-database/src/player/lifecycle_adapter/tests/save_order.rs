@@ -240,7 +240,7 @@ fn character_save_adapter_preserves_the_frozen_statement_order_like_cpp() {
 }
 
 #[test]
-fn resurrection_sickness_is_optional_and_runs_between_actions_and_equipment_sets() {
+fn lifecycle_aura_family_is_optional_and_runs_between_actions_and_equipment_sets() {
     let mut request = minimal_character_request();
     let without_authority =
         super::super::save_plan::player_character_save_statements_like_cpp(&request);
@@ -257,10 +257,10 @@ fn resurrection_sickness_is_optional_and_runs_between_actions_and_equipment_sets
             packed_action: 4,
         }],
     });
-    request.resurrection_sickness = Some(PlayerResurrectionSicknessSave {
+    request.resurrection_sickness = Some(PlayerLifecycleAuraFamilySave {
         spell_id: 15007,
         caster_guid_binary: [0x51; 16],
-        auras: vec![PlayerResurrectionSicknessAuraSave {
+        auras: vec![PlayerLifecycleAuraSave {
             difficulty: 0,
             stack_count: 1,
             max_duration: 60_000,
@@ -269,7 +269,7 @@ fn resurrection_sickness_is_optional_and_runs_between_actions_and_equipment_sets
             recalculate_mask: 0,
             cast_item_id: 0,
             cast_item_level: -1,
-            effects: vec![PlayerResurrectionSicknessEffectSave {
+            effects: vec![PlayerLifecycleAuraEffectSave {
                 index: 0,
                 amount: 12,
                 base_amount: 10,

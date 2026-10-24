@@ -9,7 +9,7 @@ use crate::params::PreparedStatement;
 use crate::statements::CharStatements;
 use wow_persistence::{
     PlayerCharacterSaveRequestLikeCpp, PlayerEquipmentSetStateLikeCpp,
-    PlayerEquipmentSetTypeLikeCpp, PlayerResurrectionSicknessAuraSave, PlayerSpellSaveGroupLikeCpp,
+    PlayerEquipmentSetTypeLikeCpp, PlayerLifecycleAuraSave, PlayerSpellSaveGroupLikeCpp,
     PlayerSpellStateLikeCpp,
 };
 
@@ -235,39 +235,39 @@ pub(super) fn player_character_save_statements_like_cpp(
             action_type: (button.packed_action >> 24) as u8,
         }));
     }
-    if let Some(sickness) = &request.resurrection_sickness {
-        steps.push(Step::DeleteResurrectionSicknessEffects {
+    if let Some(aura_family) = &request.resurrection_sickness {
+        steps.push(Step::DeleteLifecycleAuraEffects {
             guid,
-            caster_guid_binary: sickness.caster_guid_binary,
-            spell_id: sickness.spell_id,
+            caster_guid_binary: aura_family.caster_guid_binary,
+            spell_id: aura_family.spell_id,
         });
-        steps.push(Step::DeleteResurrectionSickness {
+        steps.push(Step::DeleteLifecycleAuraFamily {
             guid,
-            caster_guid_binary: sickness.caster_guid_binary,
-            spell_id: sickness.spell_id,
+            caster_guid_binary: aura_family.caster_guid_binary,
+            spell_id: aura_family.spell_id,
         });
-        let effect_mask = |row: &PlayerResurrectionSicknessAuraSave| {
+        let effect_mask = |row: &PlayerLifecycleAuraSave| {
             row.effects
                 .iter()
                 .fold(0_u32, |mask, effect| mask | (1_u32 << effect.index))
         };
-        let mut auras = sickness.auras.clone();
+        let mut auras = aura_family.auras.clone();
         auras.sort_by_key(|row| (row.difficulty, effect_mask(row)));
         for mut row in auras {
             let mask = effect_mask(&row);
-            steps.push(Step::InsertResurrectionSicknessAura {
+            steps.push(Step::InsertLifecycleAura {
                 guid,
-                caster_guid_binary: sickness.caster_guid_binary,
-                spell_id: sickness.spell_id,
+                caster_guid_binary: aura_family.caster_guid_binary,
+                spell_id: aura_family.spell_id,
                 effect_mask: mask,
                 row: row.clone(),
             });
             row.effects.sort_by_key(|effect| effect.index);
             steps.extend(row.effects.into_iter().map(|effect| {
-                Step::InsertResurrectionSicknessAuraEffect {
+                Step::InsertLifecycleAuraEffect {
                     guid,
-                    caster_guid_binary: sickness.caster_guid_binary,
-                    spell_id: sickness.spell_id,
+                    caster_guid_binary: aura_family.caster_guid_binary,
+                    spell_id: aura_family.spell_id,
                     effect_mask: mask,
                     row: effect,
                 }

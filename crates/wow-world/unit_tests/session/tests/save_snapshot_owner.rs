@@ -590,7 +590,7 @@ fn insert_sickness_application(
 
 fn capture_sickness(
     session: &mut WorldSession,
-) -> Option<wow_persistence::PlayerResurrectionSicknessSave> {
+) -> Option<wow_persistence::PlayerLifecycleAuraFamilySave> {
     session
         .prepare_player_save_like_cpp(1_700_000_000)
         .map(|prepared| prepared.request.resurrection_sickness)
@@ -698,12 +698,12 @@ fn sickness_capture_uses_race_spell_self_caster_effect_amounts_and_elapsed_durat
     assert_eq!(
         aura.effects,
         vec![
-            wow_persistence::PlayerResurrectionSicknessEffectSave {
+            wow_persistence::PlayerLifecycleAuraEffectSave {
                 index: 0,
                 amount: 777,
                 base_amount: 50,
             },
-            wow_persistence::PlayerResurrectionSicknessEffectSave {
+            wow_persistence::PlayerLifecycleAuraEffectSave {
                 index: 2,
                 amount: -123,
                 base_amount: -60,

@@ -3,8 +3,7 @@ use std::collections::{BTreeMap, HashSet};
 use wow_core::ObjectGuid;
 use wow_entities::Player;
 use wow_persistence::{
-    PlayerResurrectionSicknessAuraSave, PlayerResurrectionSicknessEffectSave,
-    PlayerResurrectionSicknessSave,
+    PlayerLifecycleAuraEffectSave, PlayerLifecycleAuraFamilySave, PlayerLifecycleAuraSave,
 };
 
 /// Capture the selected race's persistable sickness aura from canonical Unit state.
@@ -16,7 +15,7 @@ pub(super) fn capture(
     chr_races_store: Option<&wow_data::character_progression::ChrRacesStore>,
     spell_store: Option<&wow_data::SpellStore>,
     difficulty_store: Option<&wow_data::DifficultyStore>,
-) -> Option<PlayerResurrectionSicknessSave> {
+) -> Option<PlayerLifecycleAuraFamilySave> {
     let chr_races_store = chr_races_store?;
     let spell_store = spell_store?;
     let difficulty_store = difficulty_store?;
@@ -125,7 +124,7 @@ pub(super) fn capture(
                 }
                 recalculate_mask |= bit;
             }
-            effects.push(PlayerResurrectionSicknessEffectSave {
+            effects.push(PlayerLifecycleAuraEffectSave {
                 index,
                 amount,
                 base_amount,
@@ -138,7 +137,7 @@ pub(super) fn capture(
         }
         effects.sort_by_key(|effect| effect.index);
 
-        saved_auras.push(PlayerResurrectionSicknessAuraSave {
+        saved_auras.push(PlayerLifecycleAuraSave {
             difficulty: application.difficulty_id,
             stack_count: application.stack_count,
             max_duration,
@@ -159,7 +158,7 @@ pub(super) fn capture(
         (aura.difficulty, effect_mask)
     });
 
-    Some(PlayerResurrectionSicknessSave {
+    Some(PlayerLifecycleAuraFamilySave {
         spell_id,
         caster_guid_binary,
         auras: saved_auras,

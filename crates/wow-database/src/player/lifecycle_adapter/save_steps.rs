@@ -5,11 +5,11 @@ use super::save_plan::build_tutorials_save_statement_like_cpp;
 use crate::params::PreparedStatement;
 use crate::statements::CharStatements;
 use wow_persistence::{
-    PlayerCufProfileSaveLikeCpp, PlayerEquipmentSetSaveLikeCpp, PlayerResurrectionSicknessAuraSave,
-    PlayerResurrectionSicknessEffectSave, PlayerVoidStorageSaveLikeCpp,
+    PlayerCufProfileSaveLikeCpp, PlayerEquipmentSetSaveLikeCpp, PlayerLifecycleAuraEffectSave,
+    PlayerLifecycleAuraSave, PlayerVoidStorageSaveLikeCpp,
 };
 
-mod resurrection_sickness;
+mod lifecycle_auras;
 
 /// Private statement decomposition for the MariaDB adapter.
 ///
@@ -161,29 +161,29 @@ pub(super) enum PlayerCharacterSaveStepLikeCpp {
         action: u32,
         action_type: u8,
     },
-    DeleteResurrectionSickness {
+    DeleteLifecycleAuraFamily {
         guid: u64,
         caster_guid_binary: [u8; 16],
         spell_id: u32,
     },
-    DeleteResurrectionSicknessEffects {
+    DeleteLifecycleAuraEffects {
         guid: u64,
         caster_guid_binary: [u8; 16],
         spell_id: u32,
     },
-    InsertResurrectionSicknessAura {
+    InsertLifecycleAura {
         guid: u64,
         caster_guid_binary: [u8; 16],
         spell_id: u32,
         effect_mask: u32,
-        row: PlayerResurrectionSicknessAuraSave,
+        row: PlayerLifecycleAuraSave,
     },
-    InsertResurrectionSicknessAuraEffect {
+    InsertLifecycleAuraEffect {
         guid: u64,
         caster_guid_binary: [u8; 16],
         spell_id: u32,
         effect_mask: u32,
-        row: PlayerResurrectionSicknessEffectSave,
+        row: PlayerLifecycleAuraEffectSave,
     },
     InsertEquipmentSet {
         player_guid: u64,
@@ -566,36 +566,36 @@ pub(super) fn player_character_save_statement_like_cpp(
             stmt.set_u8(5, *action_type);
             stmt
         }
-        Step::DeleteResurrectionSickness {
+        Step::DeleteLifecycleAuraFamily {
             guid,
             caster_guid_binary,
             spell_id,
-        } => resurrection_sickness::delete(*guid, *caster_guid_binary, *spell_id),
-        Step::DeleteResurrectionSicknessEffects {
+        } => lifecycle_auras::delete(*guid, *caster_guid_binary, *spell_id),
+        Step::DeleteLifecycleAuraEffects {
             guid,
             caster_guid_binary,
             spell_id,
-        } => resurrection_sickness::delete_effects(*guid, *caster_guid_binary, *spell_id),
-        Step::InsertResurrectionSicknessAura {
+        } => lifecycle_auras::delete_effects(*guid, *caster_guid_binary, *spell_id),
+        Step::InsertLifecycleAura {
             guid,
             caster_guid_binary,
             spell_id,
             effect_mask,
             row,
-        } => resurrection_sickness::insert_aura(
+        } => lifecycle_auras::insert_aura(
             *guid,
             *caster_guid_binary,
             *spell_id,
             *effect_mask,
             row,
         ),
-        Step::InsertResurrectionSicknessAuraEffect {
+        Step::InsertLifecycleAuraEffect {
             guid,
             caster_guid_binary,
             spell_id,
             effect_mask,
             row,
-        } => resurrection_sickness::insert_effect(
+        } => lifecycle_auras::insert_effect(
             *guid,
             *caster_guid_binary,
             *spell_id,

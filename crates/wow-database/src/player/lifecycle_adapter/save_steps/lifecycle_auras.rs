@@ -3,7 +3,7 @@
 
 use crate::params::PreparedStatement;
 use crate::statements::CharStatements;
-use wow_persistence::{PlayerResurrectionSicknessAuraSave, PlayerResurrectionSicknessEffectSave};
+use wow_persistence::{PlayerLifecycleAuraSave, PlayerLifecycleAuraEffectSave};
 
 pub(super) fn delete(guid: u64, caster_guid_binary: [u8; 16], spell_id: u32) -> PreparedStatement {
     let mut statement = PreparedStatement::for_statement(CharStatements::DEL_CHAR_AURA_BY_KEY);
@@ -27,7 +27,7 @@ pub(super) fn insert_aura(
     caster_guid_binary: [u8; 16],
     spell_id: u32,
     effect_mask: u32,
-    row: &PlayerResurrectionSicknessAuraSave,
+    row: &PlayerLifecycleAuraSave,
 ) -> PreparedStatement {
     let mut statement = PreparedStatement::for_statement(CharStatements::INS_AURA);
     statement.set_u64(0, guid);
@@ -51,7 +51,7 @@ pub(super) fn insert_effect(
     caster_guid_binary: [u8; 16],
     spell_id: u32,
     effect_mask: u32,
-    row: PlayerResurrectionSicknessEffectSave,
+    row: PlayerLifecycleAuraEffectSave,
 ) -> PreparedStatement {
     let mut statement = PreparedStatement::for_statement(CharStatements::INS_AURA_EFFECT);
     statement.set_u64(0, guid);

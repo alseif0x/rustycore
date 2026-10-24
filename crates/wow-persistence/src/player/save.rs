@@ -21,7 +21,7 @@ pub struct PlayerCharacterSaveRequestLikeCpp {
     /// Selected race's self-cast resurrection-sickness aura family.
     /// `None` preserves rows when canonical aura authority or catalogs are
     /// incomplete; `Some(empty)` removes only this scoped family.
-    pub resurrection_sickness: Option<PlayerResurrectionSicknessSave>,
+    pub resurrection_sickness: Option<PlayerLifecycleAuraFamilySave>,
     pub spells: Option<PlayerSpellSaveGroupLikeCpp>,
     pub skills: Option<Vec<PlayerSkillSaveLikeCpp>>,
     pub glyphs: Option<Vec<PlayerGlyphSaveLikeCpp>>,
@@ -117,14 +117,14 @@ pub struct PlayerItemDurabilitySave {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PlayerResurrectionSicknessSave {
+pub struct PlayerLifecycleAuraFamilySave {
     pub spell_id: u32,
     pub caster_guid_binary: [u8; 16],
-    pub auras: Vec<PlayerResurrectionSicknessAuraSave>,
+    pub auras: Vec<PlayerLifecycleAuraSave>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PlayerResurrectionSicknessAuraSave {
+pub struct PlayerLifecycleAuraSave {
     pub difficulty: u8,
     pub stack_count: u8,
     pub max_duration: i32,
@@ -133,11 +133,11 @@ pub struct PlayerResurrectionSicknessAuraSave {
     pub recalculate_mask: u32,
     pub cast_item_id: u32,
     pub cast_item_level: i32,
-    pub effects: Vec<PlayerResurrectionSicknessEffectSave>,
+    pub effects: Vec<PlayerLifecycleAuraEffectSave>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PlayerResurrectionSicknessEffectSave {
+pub struct PlayerLifecycleAuraEffectSave {
     pub index: u8,
     pub amount: i32,
     pub base_amount: i32,

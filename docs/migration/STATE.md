@@ -131,6 +131,38 @@ la afirmación del handoff de que no existía emisor productivo era incorrecta.
 Faltan la integración de la fase de actualización seleccionada y su evidencia,
 la aceptación del candidato comprometido, capturas y QA viva.
 
+Decisión de persistencia seleccionada (9d, pendiente de implementación):
+reutilizar DTOs y pasos SQL de familia de aura, conservando el campo de
+sickness y su comportamiento. Añadir una captura opcional de las dos familias
+8326/20584 del propio caster y item vacío en la transacción completa existente.
+Una familia conocida y vacía limpia sus filas; autoridad/catálogos insuficientes
+producen None y conservan la DB. No se amplía al borrado de todas las auras.
+Las auras permanentes nuevas usan -1/-1 en SQL; Ghost tiene recalculateMask 7
+y Wisp 3, conservando metadata cargada. El loader recalcula los efectos
+seleccionados 95/31/58 desde baseAmount y dieSides con stack, y conserva el
+amount guardado de Transform. Anclas del C++ `a5f8da2`:
+`Player.cpp:19811–19865`, `SpellAuras.cpp:1134–1172,1218` y
+`SpellAuraEffects.cpp:619–626,679`. La prueba requerida une productor real,
+captura, binds de SavePlan y carga; no sustituye DB/reinicio/relogin reales.
+9d0 prepara esa unión con DTOs `PlayerLifecycleAura*` y el módulo privado
+`save_steps/lifecycle_auras.rs`, sin cambiar el campo resurrection_sickness,
+los binds SQL ni el orden transaccional. Feedback del worker sobre
+`e92832cac` más el delta local, aarch64/jobs=1: `cargo check -p wow-database`
+terminó exit 0, log `/tmp/rustycore-9d0-check-wow-database.XFfVvk`;
+`cargo test -p wow-database lifecycle_aura_family -- --nocapture` pasó dos
+casos, exit 0, log `/tmp/rustycore-9d0-test-wow-database.NBRdxq`.
+No se ha implementado aún el guardado de Ghost/Wisp en este checkpoint.
+
+La fase seleccionada de publicación sigue pendiente: el pase de Session
+actual llama `tick_auras` cada cuatro ticks antes de los pases MapSession;
+el C++ consume `m_visibleAurasToUpdate` en `Unit::_UpdateSpells`
+(`Unit.cpp:2872–2875`), después de MapSession y dentro del Player update
+(`Map.cpp:669–717`). `MapUpdatePlan.player_update_guids` es una selección,
+no un consumidor ejecutado. La reparación debe reutilizar el tick admitido,
+consumir solo Ghost/Wisp una vez después de la admisión/claim, conservar
+salidas efímeras y entregarlas fuera del guard antes del refresco de visibilidad.
+No añade reloj ni completa la convergencia general de #584.
+
 Feedback de Ghost/Wisp a las 19:40 UTC, sobre `6117a9dc5` más el delta local
 del worker (aarch64, un job; no aceptación del SHA ni campaña final):
 `cargo test -p wow-world --lib scenarios_spell_state_27 -- --nocapture`

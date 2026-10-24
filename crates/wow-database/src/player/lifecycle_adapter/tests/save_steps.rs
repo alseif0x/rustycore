@@ -4,8 +4,8 @@ use super::equipment_row;
 use crate::statements::CharStatements;
 use crate::statements::StatementDef;
 use wow_persistence::{
-    PlayerCufProfileSaveLikeCpp, PlayerResurrectionSicknessAuraSave,
-    PlayerResurrectionSicknessEffectSave, PlayerVoidStorageSaveLikeCpp,
+    PlayerCufProfileSaveLikeCpp, PlayerLifecycleAuraEffectSave, PlayerLifecycleAuraSave,
+    PlayerVoidStorageSaveLikeCpp,
 };
 
 #[test]
@@ -233,7 +233,7 @@ fn every_private_character_save_operation_maps_to_the_existing_mariadb_statement
             CharStatements::INS_CHAR_ACTION,
         ),
         (
-            Step::DeleteResurrectionSicknessEffects {
+            Step::DeleteLifecycleAuraEffects {
                 guid: 1,
                 caster_guid_binary: [2; 16],
                 spell_id: 3,
@@ -241,7 +241,7 @@ fn every_private_character_save_operation_maps_to_the_existing_mariadb_statement
             CharStatements::DEL_CHAR_AURA_EFFECT_BY_KEY,
         ),
         (
-            Step::DeleteResurrectionSickness {
+            Step::DeleteLifecycleAuraFamily {
                 guid: 1,
                 caster_guid_binary: [2; 16],
                 spell_id: 3,
@@ -249,12 +249,12 @@ fn every_private_character_save_operation_maps_to_the_existing_mariadb_statement
             CharStatements::DEL_CHAR_AURA_BY_KEY,
         ),
         (
-            Step::InsertResurrectionSicknessAura {
+            Step::InsertLifecycleAura {
                 guid: 1,
                 caster_guid_binary: [2; 16],
                 spell_id: 3,
                 effect_mask: 1,
-                row: PlayerResurrectionSicknessAuraSave {
+                row: PlayerLifecycleAuraSave {
                     difficulty: 4,
                     stack_count: 5,
                     max_duration: 6,
@@ -269,12 +269,12 @@ fn every_private_character_save_operation_maps_to_the_existing_mariadb_statement
             CharStatements::INS_AURA,
         ),
         (
-            Step::InsertResurrectionSicknessAuraEffect {
+            Step::InsertLifecycleAuraEffect {
                 guid: 1,
                 caster_guid_binary: [2; 16],
                 spell_id: 3,
                 effect_mask: 1,
-                row: PlayerResurrectionSicknessEffectSave {
+                row: PlayerLifecycleAuraEffectSave {
                     index: 0,
                     amount: 12,
                     base_amount: 13,
@@ -452,12 +452,12 @@ fn full_save_death_metadata_and_item_durability_use_exact_owner_scoped_binds() {
 }
 
 #[test]
-fn resurrection_sickness_uses_scoped_aura_keys_and_cpp_insert_bind_order() {
+fn lifecycle_aura_family_uses_scoped_aura_keys_and_insert_bind_order() {
     use PlayerCharacterSaveStepLikeCpp as Step;
 
     let caster = [0xA5; 16];
     let effect_delete =
-        player_character_save_statement_like_cpp(&Step::DeleteResurrectionSicknessEffects {
+        player_character_save_statement_like_cpp(&Step::DeleteLifecycleAuraEffects {
             guid: 77,
             caster_guid_binary: caster,
             spell_id: 15007,
@@ -476,11 +476,12 @@ fn resurrection_sickness_uses_scoped_aura_keys_and_cpp_insert_bind_order() {
         ]
     );
 
-    let aura_delete = player_character_save_statement_like_cpp(&Step::DeleteResurrectionSickness {
-        guid: 77,
-        caster_guid_binary: caster,
-        spell_id: 15007,
-    });
+    let aura_delete =
+        player_character_save_statement_like_cpp(&Step::DeleteLifecycleAuraFamily {
+            guid: 77,
+            caster_guid_binary: caster,
+            spell_id: 15007,
+        });
     assert_eq!(
         aura_delete.sql(),
         "DELETE FROM character_aura WHERE guid = ? AND casterGuid = ? AND itemGuid = ? AND spell = ?"
@@ -488,12 +489,12 @@ fn resurrection_sickness_uses_scoped_aura_keys_and_cpp_insert_bind_order() {
     assert_eq!(aura_delete.params(), effect_delete.params());
 
     let aura_insert =
-        player_character_save_statement_like_cpp(&Step::InsertResurrectionSicknessAura {
+        player_character_save_statement_like_cpp(&Step::InsertLifecycleAura {
             guid: 77,
             caster_guid_binary: caster,
             spell_id: 15007,
             effect_mask: 5,
-            row: PlayerResurrectionSicknessAuraSave {
+            row: PlayerLifecycleAuraSave {
                 difficulty: 2,
                 stack_count: 3,
                 max_duration: 60_000,
@@ -526,12 +527,12 @@ fn resurrection_sickness_uses_scoped_aura_keys_and_cpp_insert_bind_order() {
     );
 
     let effect_insert =
-        player_character_save_statement_like_cpp(&Step::InsertResurrectionSicknessAuraEffect {
+        player_character_save_statement_like_cpp(&Step::InsertLifecycleAuraEffect {
             guid: 77,
             caster_guid_binary: caster,
             spell_id: 15007,
             effect_mask: 5,
-            row: PlayerResurrectionSicknessEffectSave {
+            row: PlayerLifecycleAuraEffectSave {
                 index: 2,
                 amount: -6,
                 base_amount: -9,
