@@ -541,6 +541,44 @@ fn movement_under_map_applies_cpp_void_damage_and_flag() {
 }
 
 #[test]
+fn movement_under_map_sets_and_clears_canonical_out_of_bounds_flag() {
+    let (mut session, _send_rx) = make_session_with_send_rx();
+    let guid = ObjectGuid::create_player(1, 4_242);
+    session.set_player_guid(Some(guid));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().set_max_health(1_000);
+            player.unit_mut().set_health(1_000);
+        })
+        .expect("canonical Player vitals");
+
+    let mut info = MovementInfo::default();
+    info.position.z = -501.0;
+    apply_movement_side_effects_like_cpp(&mut session, Some(ClientOpcodes::MoveHeartbeat), &info);
+
+    let flags = session
+        .core
+        .with_owned_player_like_cpp(|player| player.data().player_flags)
+        .expect("canonical Player flags after under-map handling");
+    assert_ne!(flags & 0x0000_4000, 0, "C++ PLAYER_FLAGS_IS_OUT_OF_BOUNDS");
+
+    info.position.z = -499.0;
+    apply_movement_side_effects_like_cpp(&mut session, Some(ClientOpcodes::MoveHeartbeat), &info);
+
+    let flags = session
+        .core
+        .with_owned_player_like_cpp(|player| player.data().player_flags)
+        .expect("canonical Player flags above minimum height");
+    assert_eq!(
+        flags & 0x0000_4000,
+        0,
+        "C++ removes the flag above min height"
+    );
+}
+
+#[test]
 fn move_init_active_mover_complete_sets_cpp_transport_state() {
     let mut session = make_session();
     let before = crate::session::game_time_ms_like_cpp();

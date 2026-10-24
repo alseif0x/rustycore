@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, implementación previa a aceptación final — 2026-10-24, 16:00 UTC:**
+**#43, implementación previa a aceptación final — 2026-10-24, 16:15 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
 y productor desde hechizos están escritos y tienen feedback focalizado;
 **no hay aceptación final de este candidato**. Faltan completar el cálculo del
@@ -101,16 +101,42 @@ no sustituye inspeccionar las filas efectivas procedentes de DB2.
 
 La revisión de participantes corrige una premisa de los comentarios actuales:
 hay flags canónicos del Player/Object, identidad de reclutamiento y un helper
-productivo de efectos de objetos adquiridos. Falta conectarlos en la operación
-de resurrección: limpiar OUT_OF_BOUNDS (0x4000), restaurar REFER_A_FRIEND
-(0x80) cuando corresponde y `CastAllObtainSpells` sobre mochila y contenido de
-bolsas (`Player.cpp:4320–4376,8034–8076`). No se da esa integración por escrita.
+productivo de efectos de objetos adquiridos. Sobre `97d4d45c3` más el delta local
+se conectaron limpiar OUT_OF_BOUNDS (0x4000), restaurar REFER_A_FRIEND (0x80)
+cuando corresponde y limpiar la lista canónica de autorresurrección al pasar
+de muerto a vivo (`Player.cpp:4320–4356,1158–1198`). Movimiento bajo el mapa y
+RepopAtGraveyard escriben/limpian el mismo flag (`MovementHandler.cpp:437–467`,
+`Player.cpp:4790`). Check de wow-world-entities: exit 0, 1 s; filtros de
+wow-world `spirit_healer`: 11 passed, 114 s; `movement_under_map`: 2 passed,
+1 s; `repop_request_creates_saved_corpse_and_releases_to_graveyard_like_cpp`:
+1 passed, menos de 1 s. Logs `/tmp/rustycore-u7-*-20261024T161*.log`;
+el primer wrapper falló con exit 127 antes de Cargo por ausencia de
+`/usr/bin/time`; se corrigió el wrapper. Es feedback, no aceptación final.
+La lista SelfResSpells carece aún de proyección productiva hacia el campo
+dinámico del paquete: el test prueba el estado de admisión canónico, no la UI.
+Falta `CastAllObtainSpells` sobre mochila y contenido de bolsas
+(`Player.cpp:8034–8076`), además de los participantes de muerte pendientes.
 El tratamiento de fallos de release/reclaim/healer/login reutilizará la
 continuación canónica existente: un resultado SQL incierto o un await cancelado
 no permite repetir efectos ni capturar un guardado completo. C++ encola
 `Corpse::SaveToDB` (`Corpse.cpp:104–146`); la espera de confirmación del puerto
 Rust y su retención ante incertidumbre son un contrato explícito de durabilidad
 asíncrona, no una afirmación de que C++ espere ese mismo resultado.
+Decisión para el siguiente bloque de release: `BuildPlayerRepop` devolverá un
+resultado explícito, y sus callers de petición/timer no continuarán al
+cementerio tras fallo. La continuación del Player conservará las fases de
+auras/creación pendientes antes de suspenderse; cancelar no autoriza replay.
+El cadáver recién construido y su solicitud SQL serán valores locales de esa
+operación hasta confirmar el guardado, sin un guard de Map durante el await.
+La publicación en Map y `_corpseLocation` quedará después de la confirmación,
+con nueva comprobación de encarnación/residencia. Es una adaptación explícita
+de la frontera asíncrona: C++ registra con `AddCorpse`, encola SaveToDB y llama
+`AddToMap` sin esperar SQL (`Player.cpp:4288–4293,4493–4505`). No se atribuye a
+C++ un commit-before-publication que no tiene. Un fallo/cancelación conserva
+el bloqueo del guardado completo y la retención del dueño, sin reintentar una
+escritura de resultado desconocido. El estado ghost completo es la frontera
+de salida de BuildPlayerRepop; el teleport posterior conserva su propio
+contrato. Este bloque todavía no está implementado ni aceptado.
 
 La comprobación del productor sin features de fixtures detectó un defecto del
 propio candidato #43 en `login_sequence.rs`: el código de LoadCorpse accedía a

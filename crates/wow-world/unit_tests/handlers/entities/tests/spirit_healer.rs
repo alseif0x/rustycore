@@ -7,7 +7,7 @@ use super::corpse;
 use super::*;
 use crate::session::WorldSession;
 use wow_constants::ItemUpdateState;
-use wow_constants::unit::{NPCFlags1, UnitFlags2};
+use wow_constants::unit::{NPCFlags1, UnitDynFlags, UnitFlags2};
 use wow_constants::{CreatureTypeFlags, ItemContext};
 use wow_data::character_progression::ChrRacesStore;
 use wow_data::spell::aura_types::{
@@ -121,6 +121,32 @@ fn insert_healer(
         .insert_map_object_record(wow_entities::MapObjectRecord::new_creature(creature).unwrap())
         .unwrap();
     guid
+}
+
+async fn resurrect_with_recruiter_settings(
+    guid_counter: i64,
+    is_a_recruiter: bool,
+    recruiter_id: u32,
+) -> u32 {
+    let (mut session, _send_rx, _realm_rx, _port) = logged_in_released_ghost(guid_counter).await;
+    session.set_is_a_recruiter_like_cpp(is_a_recruiter);
+    session.set_recruiter_id_like_cpp(recruiter_id);
+    let position = session.player_position_like_cpp().expect("ghost position");
+    let healer = insert_healer(
+        &session,
+        guid_counter + 1,
+        position,
+        NPCFlags1::SPIRIT_HEALER.bits(),
+    );
+
+    session
+        .handle_spirit_healer_activate(healer_packet(healer))
+        .await;
+
+    session
+        .core
+        .with_owned_player_like_cpp(|player| player.unit().world().object().dynamic_flags())
+        .expect("canonical Player dynamic flags after resurrection")
 }
 
 fn install_sickness_data(session: &mut WorldSession, spell_id: i32, visual_id: Option<u32>) {
@@ -346,6 +372,62 @@ async fn spirit_healer_gate_rejects_wrong_flag_and_distant_npc() {
     assert!(!session.player_is_alive_like_cpp());
     assert!(crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
     assert!(send_rx.try_recv().is_err());
+}
+
+#[tokio::test]
+async fn spirit_healer_sets_recruiter_flag_for_either_session_predicate() {
+    let recruited = resurrect_with_recruiter_settings(43_301, true, 0).await;
+    let recruiter = resurrect_with_recruiter_settings(43_401, false, 42).await;
+    let ordinary = resurrect_with_recruiter_settings(43_501, false, 0).await;
+    let flag = UnitDynFlags::ReferAFriend as u32;
+
+    assert_ne!(recruited & flag, 0, "IsARecruiter sets REFER_A_FRIEND");
+    assert_ne!(
+        recruiter & flag,
+        0,
+        "nonzero recruiter ID sets REFER_A_FRIEND"
+    );
+    assert_eq!(ordinary & flag, 0, "neither predicate leaves the bit clear");
+}
+
+#[tokio::test]
+async fn spirit_healer_clears_canonical_self_res_and_out_of_bounds_state() {
+    let (mut session, _send_rx, _realm_rx, _port) = logged_in_released_ghost(43_601).await;
+    let player_guid = session.player_guid().expect("ghost Player GUID");
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.set_player_flag(0x0000_4000);
+            player
+                .resurrection_state_mut_like_cpp()
+                .self_res_spells
+                .insert(21_169);
+        })
+        .expect("canonical Player resurrection state");
+    let position = session.player_position_like_cpp().expect("ghost position");
+    let healer = insert_healer(&session, 43_602, position, NPCFlags1::SPIRIT_HEALER.bits());
+
+    session
+        .handle_spirit_healer_activate(healer_packet(healer))
+        .await;
+
+    let (is_alive, player_flags, self_res_spells) = session
+        .core
+        .with_owned_player_like_cpp(|player| {
+            (
+                player.unit().is_alive(),
+                player.data().player_flags,
+                player.resurrection_state_like_cpp().self_res_spells.clone(),
+            )
+        })
+        .expect("canonical Player after resurrection");
+    assert!(is_alive);
+    assert_eq!(player_flags & 0x0000_4000, 0, "ResurrectPlayer clears OOB");
+    assert!(
+        self_res_spells.is_empty(),
+        "alive-from-dead clears the Player-owned self-res spells"
+    );
+    assert_eq!(session.player_guid(), Some(player_guid));
 }
 
 #[tokio::test]

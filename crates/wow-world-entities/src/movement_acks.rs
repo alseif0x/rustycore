@@ -23,6 +23,7 @@ use wow_world_core::session::movement_protocol::{
 use wow_world_core::session::{DAMAGE_FALL_LIKE_CPP, DAMAGE_FALL_TO_VOID_LIKE_CPP};
 
 use crate::movement_host::PlayerMovementHostLikeCpp;
+use crate::player_resurrection::PLAYER_FLAGS_IS_OUT_OF_BOUNDS;
 
 pub fn handle_fall_like_cpp<H: PlayerMovementHostLikeCpp>(
     host: &mut H,
@@ -760,6 +761,9 @@ pub fn handle_under_map_like_cpp<H: PlayerMovementHostLikeCpp>(
         .hub_ref()
         .player_min_height_like_cpp(movement_info.position);
     if movement_info.position.z >= min_height {
+        let _ = host.core().with_owned_player_mut_like_cpp(|player| {
+            player.remove_player_flag(PLAYER_FLAGS_IS_OUT_OF_BOUNDS);
+        });
         #[cfg(any(test, feature = "test-fixtures"))]
         if let Some(fixtures) = host.test_fixtures_like_cpp() {
             fixtures.movement.player_out_of_bounds_like_cpp = false;
@@ -773,6 +777,9 @@ pub fn handle_under_map_like_cpp<H: PlayerMovementHostLikeCpp>(
         return None;
     }
 
+    let _ = host.core().with_owned_player_mut_like_cpp(|player| {
+        player.set_player_flag(PLAYER_FLAGS_IS_OUT_OF_BOUNDS);
+    });
     #[cfg(any(test, feature = "test-fixtures"))]
     if let Some(fixtures) = host.test_fixtures_like_cpp() {
         fixtures.movement.player_out_of_bounds_like_cpp = true;

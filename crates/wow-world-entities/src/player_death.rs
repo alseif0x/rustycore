@@ -35,6 +35,7 @@ use wow_packet::packets::misc::{CorpseReclaimDelay, DeathReleaseLoc, PreRessurec
 use wow_world_core::session::DeathPolicyLikeCpp;
 use wow_world_core::session::connection_identity::unix_now;
 
+use crate::player_resurrection::PLAYER_FLAGS_IS_OUT_OF_BOUNDS;
 use crate::{
     CorpseHostLikeCpp, CreatureSpawnCatalogsLikeCpp, TELE_REVIVE_AT_TELEPORT_LIKE_CPP,
     TELE_TO_NONE_LIKE_CPP,
@@ -957,7 +958,12 @@ pub async fn repop_at_graveyard_like_cpp<H: CorpseHostLikeCpp>(
         )
         .await;
     }
-    // RemovePlayerFlag(PLAYER_FLAGS_IS_OUT_OF_BOUNDS): not represented.
+    // C++ `Player::RepopAtGraveyard` clears this after teleport/homebind
+    // handling (`Player.cpp:4790`). Re-resolve the canonical Player after the
+    // awaited teleport rather than retaining an owner across it.
+    let _ = host.core().with_owned_player_mut_like_cpp(|player| {
+        player.remove_player_flag(PLAYER_FLAGS_IS_OUT_OF_BOUNDS);
+    });
 }
 
 // ── HandleRepopRequest ──────────────────────────────────────────────────────

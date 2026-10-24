@@ -834,12 +834,21 @@ async fn repop_request_creates_saved_corpse_and_releases_to_graveyard_like_cpp()
     let (mut session, send_rx, realm_rx, player_guid, port) =
         dead_player_session_with_graveyard_like_cpp(4_301);
     set_death_timer_for_driver(&mut session, 12_345);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| player.set_player_flag(0x0000_4000))
+        .expect("canonical Player for OOB setup");
 
     handle_repop_request(&mut session, repop_request_packet(true)).await;
 
     // BuildPlayerRepop: ghost at 1 health, corpse on the map at the death spot.
     assert!(!session.player_is_alive_like_cpp());
     assert!(crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
+    let player_flags = session
+        .core
+        .with_owned_player_like_cpp(|player| player.data().player_flags)
+        .expect("canonical Player flags after repop");
+    assert_eq!(player_flags & 0x0000_4000, 0, "RepopAtGraveyard clears OOB");
     assert_eq!(
         session.canonical_player_health_snapshot_like_cpp(),
         Some((1, 1_000))

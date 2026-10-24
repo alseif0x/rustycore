@@ -8,8 +8,7 @@
 //! C++ source of truth: `Player::ResurrectPlayer` (`Player.cpp:4320`) and
 //! `WorldSession::HandleReclaimCorpse` (`MiscHandler.cpp:416-445`).
 //!
-//! Not represented (no Rust owner yet): `RemovePlayerFlag(IS_OUT_OF_BOUNDS)`,
-//! the Recruit-a-Friend dynamic flag, `OutdoorPvPMgr::HandlePlayerResurrects`,
+//! Still outstanding: `OutdoorPvPMgr::HandlePlayerResurrects`,
 //! `Battleground::HandlePlayerResurrect` and `CastAllObtainSpells`.
 
 use tracing::warn;
@@ -19,12 +18,14 @@ use wow_packet::packets::misc::DeathReleaseLoc;
 use wow_world_core::session::connection_identity::unix_now;
 
 use crate::player_death::{
-    CORPSE_RECLAIM_RADIUS_LIKE_CPP, CorpseLifecycleCatalogsLikeCpp,
-    ResurrectionOperationCatalogs, SPELL_GHOST_LIKE_CPP, SPELL_WISP_SPIRIT_AURA_LIKE_CPP,
-    corpse_reclaim_delay_secs_like_cpp, player_death_expire_time_like_cpp,
-    terrain_zone_and_area_like_cpp, with_current_map_like_cpp,
+    CORPSE_RECLAIM_RADIUS_LIKE_CPP, CorpseLifecycleCatalogsLikeCpp, ResurrectionOperationCatalogs,
+    SPELL_GHOST_LIKE_CPP, SPELL_WISP_SPIRIT_AURA_LIKE_CPP, corpse_reclaim_delay_secs_like_cpp,
+    player_death_expire_time_like_cpp, terrain_zone_and_area_like_cpp, with_current_map_like_cpp,
 };
 use crate::{CorpseHostLikeCpp, player_corpse_like_cpp, player_in_arena_like_cpp};
+
+/// C++ `PLAYER_FLAGS_IS_OUT_OF_BOUNDS` (`Player.h:438`).
+pub(crate) const PLAYER_FLAGS_IS_OUT_OF_BOUNDS: u32 = 0x0000_4000;
 
 /// C++ `Player::ResurrectPlayer(restore_percent, applySickness)`.
 pub async fn resurrect_player_like_cpp<H: CorpseHostLikeCpp>(
@@ -63,6 +64,12 @@ pub(crate) fn resurrect_player_native<H: CorpseHostLikeCpp>(
     host.core()
         .send_packet_realm(&DeathReleaseLoc::cleared_like_cpp());
 
+    // C++ `Player::ResurrectPlayer` removes `PLAYER_FLAGS_IS_OUT_OF_BOUNDS`
+    // before aura cleanup (`Player.cpp:4331`).
+    let _ = host.core().with_owned_player_mut_like_cpp(|player| {
+        player.remove_player_flag(PLAYER_FLAGS_IS_OUT_OF_BOUNDS);
+    });
+
     // This must be called always even on Players with race != RACE_NIGHTELF
     // in case of faction change.
     host.remove_auras_due_to_spell_like_cpp(SPELL_WISP_SPIRIT_AURA_LIKE_CPP);
@@ -70,10 +77,33 @@ pub(crate) fn resurrect_player_native<H: CorpseHostLikeCpp>(
     // C++ `AuraEffect::HandleAuraGhost` unapply removes PLAYER_FLAGS_GHOST.
     crate::set_player_ghost_flag_like_cpp(host, false);
 
+    let has_recruiter_link =
+        host.core().is_a_recruiter_like_cpp() || host.core().recruiter_id_like_cpp() != 0;
     let alive = host.core().with_owned_player_mut_like_cpp(|player| {
+        // C++ restores REFER_A_FRIEND for either recruiter predicate before
+        // Player::setDeathState(ALIVE) (`Player.cpp:4337-4338`).
+        if has_recruiter_link {
+            player
+                .unit_mut()
+                .world_mut()
+                .object_mut()
+                .set_dynamic_flag(wow_constants::unit::UnitDynFlags::ReferAFriend as u32);
+        }
+
+        let was_alive = player.unit().is_alive();
         player
             .unit_mut()
             .set_death_state(wow_constants::DeathState::Alive);
+        if !was_alive && player.unit().is_alive() {
+            // C++ `Player::setDeathState` clears self-res spells on an
+            // alive-from-dead transition (`Player.cpp:1196-1198`).
+            // The current canonical Rust owner is this Player gameplay set;
+            // ActivePlayerData::SelfResSpells has no Player-side dirty writer yet.
+            player
+                .resurrection_state_mut_like_cpp()
+                .self_res_spells
+                .clear();
+        }
     });
     if alive.is_none() {
         return false;
