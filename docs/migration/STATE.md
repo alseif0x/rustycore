@@ -172,15 +172,31 @@ a ghosts/spirit healers (`Creature.cpp:1104–1106,1148–1152`). La consulta de
 visibilidad de otros Players filtra fase, sin el contrato ghost completo.
 Se conservarán las excepciones de cadáver cercano y grupo de
 `Object.cpp:1517–1595`, sin introducir estado mutable por observador.
+La excepción de grupo debe usar `Player.cpp:2121–2143`:
+`Visibility.GroupMode` (default 1 en `World.cpp:1167`) distingue subgrupo,
+raid, equipo y ninguna excepción; el helper Rust actual de pertenencia a grupo
+no demuestra por sí solo ese contrato.
 Además, el ejecutor genérico usa 30 segundos para auras/modificadores y omite
 parte de los grupos multiefecto. Antes de aceptar release deben contrastarse
 8326/20584 con sus filas DB2, duración, efectos y publicación; un retorno Ok
 del cast no demuestra su permanencia ni los efectos de ghost. Esto no exige
 portar todas las auras de #32, pero sí las necesarias para el ciclo de #43.
-Consultas SQL de solo lectura por 8326/20584 no encontraron filas en
-`hotfixes.spell_effect`, `hotfixes.spell_misc` ni
-`world.serverside_spell_effect`. Falta contrastar los RecordIDs y estados de
-hotfix con las filas DB2; estos ceros no prueban por sí solos el dato efectivo.
+El diagnóstico opt-in `wow-data::spell_db2::tests::resurrection_effect_data::ghost_wisp_spell_data`
+leyó los cinco DB2 instalados en enUS sobre `7c8e01858` más el delta de test:
+1 passed, exit 0; log `/tmp/rustycore-unit9a-ghost-wisp-data-20261024T170231Z.log`.
+8326 tiene efectos APPLY_AURA 95/31/58 (RecordIDs 686362–686364, índices 0–2,
+base/dado -21/1, 49/1, 49/1); 20584 tiene 31/58/56 (697054–697056,
+74/1, 74/1, -1/1), transform MiscValue=12861. Ambas usan dificultad 0,
+target self y DurationIndex 21: duración base/máxima -1, permanente. Misc IDs
+320590/329372; Ghost tiene XSpellVisual 241720 → visual 886 sin misil;
+Wisp no tiene relación visual. No se presume paridad completa de modificadores
+del caster a partir de estos valores base. Consultas SQL de solo lectura no
+encontraron overlays de efectos/Misc por ambos SpellIDs, ni Duration 21,
+XSpellVisual por ambos IDs/241720 o Visual 886; tampoco estados de hotfix por
+los RecordIDs y sus TableHash F04238A5/C603EE28/B423FA7A/27B7A01A/F72496D9.
+`world.serverside_spell_effect` tampoco tiene filas por ambos SpellIDs.
+El template SQL 12861 existe y tiene un único modelo: DisplayID 1825,
+escala 1, probabilidad 100. Esta lectura no ejecutó casts ni QA viva.
 
 La comprobación del productor sin features de fixtures detectó un defecto del
 propio candidato #43 en `login_sequence.rs`: el código de LoadCorpse accedía a
