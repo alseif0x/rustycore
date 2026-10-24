@@ -122,6 +122,7 @@ pub struct MaterializedCreatureSpawnLikeCpp {
     pub phase_group_id: u32,
     pub terrain_swap_map: i32,
     pub flags_extra: u32,
+    pub type_flags: u32,
     pub ground_movement_type: u8,
     pub swim_allowed: bool,
     pub flight_movement_type: u8,

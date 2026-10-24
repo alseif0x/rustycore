@@ -38,6 +38,7 @@ impl WorldEntitiesState {
             spawn.phase_group_id,
             spawn.terrain_swap_map,
             spawn.flags_extra,
+            spawn.type_flags,
             spawn.ground_movement_type,
             spawn.swim_allowed,
             spawn.flight_movement_type,

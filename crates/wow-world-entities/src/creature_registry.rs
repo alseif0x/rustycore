@@ -273,6 +273,7 @@ impl WorldEntitiesState {
         phase_group_id: u32,
         terrain_swap_map: i32,
         flags_extra: u32,
+        type_flags: u32,
         ground_movement_type: u8,
         swim_allowed: bool,
         flight_movement_type: u8,
@@ -306,6 +307,8 @@ impl WorldEntitiesState {
             );
         let mut canonical_creature = {
             let mut creature = wow_entities::Creature::new(false);
+            creature.set_type_flags_runtime_like_cpp(type_flags);
+            creature.initialize_ghost_visibility_from_type_flags(type_flags);
             creature.unit_mut().world_mut().object_mut().create(guid);
             creature
                 .unit_mut()
@@ -410,6 +413,7 @@ impl WorldEntitiesState {
                 creature.load_path_like_cpp(waypoint_path_id);
             }
             creature.apply_creatures_addon_lifecycle_like_cpp(addon.as_ref());
+            creature.override_ghost_visibility_after_addon(flags_extra);
             let effective_waypoint_path_id = creature.waypoint_path_id_like_cpp();
             if effective_waypoint_path_id != 0 {
                 creature.load_path_like_cpp(effective_waypoint_path_id);

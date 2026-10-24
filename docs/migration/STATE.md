@@ -88,6 +88,11 @@ pasar a Alive conservando un aura cuya eliminación falló. La reparación de
 los fences de resurrección debe propagar ese fallo antes de Alive,
 visibilidad, bones y guardado, con un caso negativo de catálogo incompleto.
 No se presenta el feedback positivo anterior como cobertura de ese fallo.
+La inspección de `resurrection_request::process_after_teleport` añade que
+`ResurrectPlayerInFlight` todavía permite volver a llamar al tramo nativo:
+conservar ese nombre de fase no garantiza por sí solo no repetir efectos.
+El cierre debe distinguir preparación de ejecución iniciada y probar que un
+fallo parcial no repite publicaciones ni avanza a bones/guardado al reentrar.
 
 Renovación Ghost/Wisp, 20:08 UTC, sobre `09451333d` más el delta local:
 se reutilizan slot, procedencia y aplicación canónica del mismo spell/caster,
@@ -108,6 +113,30 @@ en `/tmp/rustycore-unit9b2-test-wisp-recast-20261024T200622Z-Kzesgz.log`
 El intento intermedio `200523Z-VGmTdK` fue interrumpido al acotar el filtro:
 no aporta evidencia. Los fallos previos de inferencia y montaje del submódulo
 también se repararon; ninguna de estas ejecuciones es aceptación final.
+
+Máscaras de criaturas, 2026-10-24, 20:27 UTC: el delta sobre `2fbb6e587`
+aplica `VISIBLE_TO_GHOSTS` antes del addon y después la prioridad de las
+NPC flags efectivas de sanador/área o `GHOST_VISIBILITY`, tanto en creación
+nativa como en registro compatible. Anclas C++ del mismo `a5f8da2e`:
+`Creature.cpp:1104–1106,1148–1152`. La creación nativa recibe las flags de
+la dificultad en `world-server/src/creature_loaded_grid.rs:524`; el
+materializador compatible ahora conserva esa selección y su fallback.
+Los tests cubren criaturas normales, visibles en ambos estados, sanadores,
+flag extra y su prioridad; el caso de materialización recorre la función real
+mediante un adaptador disponible solo con fixtures. No se amplía su API de
+producción. Las consultas de visibilidad de Players/cadáver y la publicación
+de auras a observadores siguen pendientes; estas máscaras no las sustituyen.
+Feedback del worker (aarch64, un job, no aceptación final): check
+`wow-world-entities --no-default-features`, exit 0, log
+`/tmp/rustycore-unit9c1-check-wow-world-entities-20261024T202316Z.log`;
+filtro `ghost_visibility` de wow-entities, 1 passed, log
+`/tmp/rustycore-unit9c1-test-wow-entities-ghost-visibility-20261024T202323Z.log`;
+el mismo filtro de `wow-world --lib`, 2 passed, log
+`/tmp/rustycore-unit9c1-test-wow-world-ghost-visibility-20261024T202513Z.log`.
+Ambos tests salieron 0. Los intentos `202232Z` y `202345Z` fallaron al
+compilar fixtures (GUID y referencias) y se corrigieron. Tras el feedback
+se restauró el `type_flags = 0x20` del fixture general: la tabla nueva
+sobrescribe ese campo en cada caso; no se atribuye a la corrida un SHA posterior.
 
 Contraste de datos del productor, 2026-10-24: el diagnóstico opt-in mantenido
 `wow-data::spell_db2::tests::resurrection_effect_data` leyó el DataDir instalado
@@ -228,12 +257,12 @@ release manual, timer de seis minutos y creación/guardado tras worldport dieron
 Todos son feedback del delta de implementación en aarch64, jobs=1, no evidencia
 de aceptación final de un SHA posterior ni prueba de durabilidad con DB real.
 
-La revisión posterior de ghost confirma otro pendiente de #43:
-`set_player_ghost_flag_like_cpp` solo escribe PLAYER_FLAGS_GHOST; los setters
-de las máscaras Unit de visibilidad/detección ghost solo tienen callers de
-tests. Falta conectar el contrato de `HandleAuraGhost`
-(`SpellAuraEffects.cpp:1718–1743`) junto con las máscaras de criaturas visibles
-a ghosts/spirit healers (`Creature.cpp:1104–1106,1148–1152`). La consulta de
+La revisión previa de ghost encontró que el flag Player no conectaba las
+máscaras Unit de visibilidad/detección. `09451333d` conecta ese participante de
+`HandleAuraGhost` (`SpellAuraEffects.cpp:1718–1743`), con renovación posterior
+en `2fbb6e587`; ambos siguen sin aceptación final. Están en implementación
+las máscaras de criaturas visibles a ghosts/spirit healers
+(`Creature.cpp:1104–1106,1148–1152`). La consulta de
 visibilidad de otros Players filtra fase, sin el contrato ghost completo.
 Se conservarán las excepciones de cadáver cercano y grupo de
 `Object.cpp:1517–1595`, sin introducir estado mutable por observador.
@@ -241,10 +270,11 @@ La excepción de grupo debe usar `Player.cpp:2121–2143`:
 `Visibility.GroupMode` (default 1 en `World.cpp:1167`) distingue subgrupo,
 raid, equipo y ninguna excepción; el helper Rust actual de pertenencia a grupo
 no demuestra por sí solo ese contrato.
-Además, el ejecutor genérico usa 30 segundos para auras/modificadores y omite
-parte de los grupos multiefecto. Antes de aceptar release deben contrastarse
-8326/20584 con sus filas DB2, duración, efectos y publicación; un retorno Ok
-del cast no demuestra su permanencia ni los efectos de ghost. Esto no exige
+La ruta genérica usaba 30 segundos y omitía parte de los grupos multiefecto.
+La ruta seleccionada 8326/20584 ya aplica sus tres efectos permanentes y
+conserva su procedencia, con el contraste DB2 y feedback registrados arriba;
+faltan la publicación a observadores, persistencia y aceptación integrada.
+Un retorno Ok del cast no demuestra por sí solo esos contratos. Esto no exige
 portar todas las auras de #32, pero sí las necesarias para el ciclo de #43.
 El diagnóstico opt-in `wow-data::spell_db2::tests::resurrection_effect_data::ghost_wisp_spell_data`
 leyó los cinco DB2 instalados en enUS sobre `7c8e01858` más el delta de test:

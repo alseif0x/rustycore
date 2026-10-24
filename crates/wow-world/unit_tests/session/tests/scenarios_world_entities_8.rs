@@ -5,6 +5,9 @@
 
 use super::*;
 
+#[path = "scenarios_world_entities_8/ghost_visibility.rs"]
+mod ghost_visibility;
+
 #[test]
 fn creature_kill_reputation_applies_generic_and_faction_auras_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
@@ -394,6 +397,7 @@ fn register_world_creature_hydrates_db_waypoint_path_like_cpp() {
         0,
         -1,
         0,
+        0,
         wow_constants::CreatureGroundMovementType::Run as u8,
         true,
         0,
@@ -484,6 +488,7 @@ fn register_world_creature_applies_addon_lifecycle_like_cpp() {
         0,
         0,
         -1,
+        0,
         0,
         wow_constants::CreatureGroundMovementType::Run as u8,
         true,
@@ -604,6 +609,7 @@ fn registered_creature_addon_aura_effects_feed_canonical_consumers_like_cpp() {
         0,
         0,
         -1,
+        0,
         0,
         wow_constants::CreatureGroundMovementType::Run as u8,
         true,

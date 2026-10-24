@@ -66,6 +66,7 @@ pub use spawn::{
     normalize_creature_template_speed_run_like_cpp,
     normalize_creature_template_speed_walk_like_cpp, normalized_creature_wander_distance_like_cpp,
     spawn_difficulties_contains_spawn_mode_like_cpp,
+    materialize_creature_spawn_row_for_test,
 };
 pub use update::update_visibility_with_catalogs_like_cpp;
 
