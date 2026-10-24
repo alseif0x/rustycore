@@ -64,6 +64,7 @@ mod player_effects;
 mod post_spell_go;
 mod preparation;
 mod primary_effect_fallback;
+mod resurrection_offer;
 mod resurrection_sickness;
 mod target_resolution;
 

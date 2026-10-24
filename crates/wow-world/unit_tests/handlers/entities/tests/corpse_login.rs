@@ -53,13 +53,11 @@ async fn restore_corpse(
 ) {
     let generators = session.id_generators_for_test_like_cpp();
     let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
-    let graveyards = GraveyardStore::default();
     wow_world_entities::restore_player_corpse_after_login(
         session,
-        wow_world_entities::CorpseLifecycleCatalogsLikeCpp {
+        wow_world_entities::ResurrectionOperationCatalogs {
             item_guid_generator: generators.item.as_ref(),
             creature_spawns: &creature_spawns,
-            graveyards: &graveyards,
         },
         row,
     )

@@ -27,10 +27,14 @@ spirit-healer recovery. The death driver and its fresh captures are still pendin
 the scenarios below are acceptance requirements, not reports of completed runs.
 
 Use a committed debug `world-server` candidate under the runtime swap/restore
-guard. The proposed account scope is the existing `TESTBOT1@bot.local` and its
-sole offline character, with provisioning disabled. Runtime execution requires
-authorization for that account, the Rust and reference targets, restarts and the
-normal character writes caused by death, durability loss and logout. Do not seed
+guard. Read-only preflight on 2026-10-24 found TESTBOT1's sole character at level
+3, which cannot prove sickness. The proposed full scenario instead uses existing
+TESTBOT3 (character 16, level-80 mage) as the victim and TESTBOT2 (character 15,
+level-80 paladin) as the caster, with provisioning disabled. Both were offline
+on map 0 near (-8949.95, -132.493, 83.531). Recheck their state before execution.
+Runtime execution requires authorization for those accounts, the Rust and
+reference targets, restarts and the normal character writes caused by death,
+durability loss and logout. Do not seed
 or erase unrelated characters, inventory, auras or corpse rows to obtain a pass.
 
 The target reference is `woltk-trinity-legacy` at
@@ -50,10 +54,13 @@ golden is not an independent reference capture.
 | Recovery | Disconnect/relogin while dead and while ghost; corpse location and movement restored; repeated release/reclaim/request packets do not duplicate effects. Restart/relogin evidence remains a separate required observation. |
 | Interrupted transfer/save | Exercise the candidate's retained operation and failure fences; distinguish known rollback, uncertain in-flight effects and actual DB outcome. Mocked futures alone do not prove durability. |
 
-The offer scenario additionally needs an existing caster character/account and a
-known resurrection spell. Select and authorize that second identity explicitly;
-the proposed single-account fall/reclaim scope does not cover it. A reference
-target must actually provide the expected action before its capture is accepted.
+The read-only preflight found no persisted `character_spell` or
+`character_inventory` rows for characters 14–16. Verify the effective login spell
+list; the full scenario needs a known resurrection spell and durable equipment.
+Prepare an exact bounded fixture and its restoration before requesting runtime
+approval if those prerequisites are absent. Account provisioning being disabled
+does not authorize granting spells or adding items. A reference target must
+actually provide the expected action before its capture is accepted.
 
 For a scripted fall, use a non-instance map and a character without GM mode,
 flight, fall immunity or safe-fall auras. Pin the initial position and report the

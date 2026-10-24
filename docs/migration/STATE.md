@@ -1,10 +1,11 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, implementación previa a aceptación final — 2026-10-24, 14:34 UTC:**
-movimiento/timer, consumidor de resurrección y sus rutas de transferencia/logout
-están escritos y tienen feedback focalizado; **no hay aceptación final de este
-candidato**. Faltan productor desde hechizos, participantes de limpieza al morir,
-fallos de las otras operaciones del ciclo y capturas/QA viva. El usuario autoriza
+**#43, implementación previa a aceptación final — 2026-10-24, 15:41 UTC:**
+movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
+y productor desde hechizos están escritos y tienen feedback focalizado;
+**no hay aceptación final de este candidato**. Faltan completar el cálculo del
+productor, participantes de limpieza al morir/resucitar, fallos de las otras
+operaciones del ciclo y capturas/QA viva. El usuario autoriza
 continuar los pendientes y la aceptación, no solo conservar el feedback anterior.
 La revisión previa a la campaña detectó brechas en las llamadas de movimiento
 de muerte/release/resurrección/login y en las respuestas de resurrección inmediata
@@ -54,6 +55,66 @@ El productor desde hechizos sigue pendiente. La revisión de muerte identificó
 además que el daño de spell-click usa directamente `Corpse`; deberá entrar por
 la transición `JustDied` con los participantes existentes, en lugar de eludir
 KillPlayer y su timer. No se da esa corrección por implementada.
+
+Revisión del productor de ofertas, 15:04 UTC: `afa4681c8` conserva el codec
+como checkpoint **UNVALIDATED**; la integración de efectos 18/113/172 está en
+curso. `EffectResurrect`/`EffectResurrectNew` resuelven el dueño de un cadáver
+con `ObjectAccessor::FindPlayer`, aunque ya esté en otro mapa; 172 requiere
+un Player como unitTarget. La admisión se comprueba en el Player canónico y
+el envío queda ligado a la generación del registro y al mismo PlayerHandle.
+El locale pertenece a la identidad inmutable de la conexión; una consulta
+acotada evita copiarlo en cada snapshot espacial. El nombre localizado usa
+solo una traducción no vacía; sin ella conserva el nombre real de la criatura
+(`Creature.cpp:3109–3118`), también para mascotas con nombre propio. Los
+catálogos siguen siendo de proceso, sin nuevos campos de catálogo en Session.
+El cálculo provisional del productor usa el helper existente de base/dados;
+no prueba el `CalcValue` con caster de `SpellInfo.cpp:495–560`. El modelo DB2
+conserva escalado/varianza/recursos que la conversión al efecto runtime omite.
+La consulta de solo lectura a `hotfixes.spell_effect` y
+`world.serverside_spell_effect` no encontró filas de esos tres efectos; esto
+no sustituye inspeccionar las filas efectivas procedentes de DB2.
+
+La revisión de participantes corrige una premisa de los comentarios actuales:
+hay flags canónicos del Player/Object, identidad de reclutamiento y un helper
+productivo de efectos de objetos adquiridos. Falta conectarlos en la operación
+de resurrección: limpiar OUT_OF_BOUNDS (0x4000), restaurar REFER_A_FRIEND
+(0x80) cuando corresponde y `CastAllObtainSpells` sobre mochila y contenido de
+bolsas (`Player.cpp:4320–4376,8034–8076`). No se da esa integración por escrita.
+El tratamiento de fallos de release/reclaim/healer/login reutilizará la
+continuación canónica existente: un resultado SQL incierto o un await cancelado
+no permite repetir efectos ni capturar un guardado completo. C++ encola
+`Corpse::SaveToDB` (`Corpse.cpp:104–146`); la espera de confirmación del puerto
+Rust y su retención ante incertidumbre son un contrato explícito de durabilidad
+asíncrona, no una afirmación de que C++ espere ese mismo resultado.
+
+La comprobación del productor sin features de fixtures detectó un defecto del
+propio candidato #43 en `login_sequence.rs`: el código de LoadCorpse accedía a
+`SessionCatalogs.graveyard_store`, disponible solo con fixtures. Los checks
+anteriores con `--tests` no prueban esa composición de producción. La reparación
+seleccionada es pasar `ResurrectionOperationCatalogs` a la restauración del
+cadáver, que no utiliza cementerios, y retirar el catálogo vacío de fallback;
+no ampliar la visibilidad de un campo de pruebas. Se debe repetir el check sin
+fixtures y ejecutar las pruebas afectadas antes de aceptar la corrección.
+
+Feedback del productor, 15:41 UTC: sobre `afa4681c8` más su delta local,
+`cargo check -p wow-world-spell` y `cargo check -p wow-world
+--no-default-features` terminaron con exit 0 (el segundo, 17.13 s).
+`cargo test -p wow-data localized_name` pasó un test; `cargo test -p wow-world
+--lib scenarios_spell_state_27 -- --nocapture` pasó los seis tests nuevos
+(1 min 09 s de Cargo). `cargo check -p world-server --no-default-features`
+pasó en 4 min 13 s. Las seis pruebas ejecutan el productor e incluyen dueño
+de cadáver en otro mapa, estado JustDied, locale/pet/realm, trigger ausente o
+aura ya presente, duplicados y encarnación obsoleta. El check sin fixtures
+confirma la reparación de LoadCorpse; sus tests específicos no se ejecutaron
+en esta unidad. El primer filtro `resurrect` obtuvo 25 passes existentes y
+cinco fallos de preparación canónica; no seleccionaba el test de duplicados.
+Se corrigieron los fixtures usando install/attach reales y se ejecutó el módulo
+completo. Se conservan los logs de fallo y reparación separados bajo
+`/tmp/rustycore-spirit-offer-*`; el run verde del módulo es
+`wow-world-scenarios-27-tests-20261024T153316065477947.log` y el de producción
+`world-server-no-default-check-20261024T153440584980239.log`. Esto sigue siendo
+feedback de implementación, no campaña final ni prueba viva. La traza del worker
+`01a16e58-4407-7612-b4cc-1f8c17babadc` confirma `gpt-6-luna`/`max`.
 
 Avance local a las 12:46 UTC: movimiento y timer escritos, **sin compilar ni
 ejecutar todavía sus pruebas**. Worker `01a16ddf-f5d4-7702-a6f2-dec78c3d3767`:

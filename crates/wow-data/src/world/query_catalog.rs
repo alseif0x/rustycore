@@ -95,6 +95,19 @@ impl CreatureQueryCatalogLikeCpp {
         Some(row)
     }
 
+    /// Return only an explicit nonempty localized creature name. Resurrect
+    /// offer packets fall back to the live object's name when no locale row
+    /// exists, rather than the template's default name.
+    pub fn localized_name(&self, entry: u32, locale: &str) -> Option<&str> {
+        if locale.is_empty() || locale == "enUS" {
+            return None;
+        }
+        self.locales
+            .get(&(entry, locale.to_owned()))
+            .map(|row| row.name.as_str())
+            .filter(|name| !name.is_empty())
+    }
+
     pub fn len(&self) -> usize {
         self.templates.len()
     }
@@ -299,6 +312,41 @@ mod tests {
         assert_eq!(localized.displays, base.displays);
         assert_eq!(catalog.resolve_like_cpp(base.entry, "enUS"), Some(base));
         assert!(catalog.resolve_like_cpp(999, "esES").is_none());
+    }
+
+    #[test]
+    fn creature_localized_name_requires_an_explicit_nonempty_locale_row() {
+        let catalog = CreatureQueryCatalogLikeCpp::from_rows_like_cpp(
+            [creature_template()],
+            [
+                CreatureQueryLocaleLikeCpp {
+                    entry: 7,
+                    locale: "esES".into(),
+                    name: "nombre".into(),
+                    subname: String::new(),
+                    title_alt: String::new(),
+                },
+                CreatureQueryLocaleLikeCpp {
+                    entry: 7,
+                    locale: "frFR".into(),
+                    name: String::new(),
+                    subname: String::new(),
+                    title_alt: String::new(),
+                },
+            ],
+        );
+
+        assert_eq!(catalog.localized_name(7, "esES"), Some("nombre"));
+        assert_eq!(catalog.localized_name(7, "enUS"), None);
+        assert_eq!(catalog.localized_name(7, ""), None);
+        assert_eq!(catalog.localized_name(7, "frFR"), None);
+        assert_eq!(catalog.localized_name(7, "deDE"), None);
+        assert_eq!(catalog.localized_name(999, "esES"), None);
+        assert_eq!(catalog.resolve_like_cpp(7, "esES").unwrap().name, "nombre");
+        assert_eq!(
+            catalog.resolve_like_cpp(7, "frFR").unwrap().name,
+            "base name"
+        );
     }
 
     #[test]

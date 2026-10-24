@@ -180,16 +180,18 @@ fn player_registration_fixture_like_cpp(
     player_name: &str,
 ) -> PlayerSessionRegistrationLikeCpp {
     PlayerSessionRegistrationLikeCpp {
-        identity: PlayerDirectoryIdentityLikeCpp {
-            player_name: player_name.to_string(),
-            account_id: 1,
-            battlenet_account_id: 0,
-            recruiter_id: 0,
-            race: 1,
-            class: 1,
-            sex: 0,
-            active_expansion: 2,
-        },
+        identity: PlayerDirectoryIdentityLikeCpp::new_with_bnet(
+            player_name,
+            1,
+            0,
+            0,
+            1,
+            1,
+            0,
+            2,
+            "enUS",
+            None,
+        ),
         placement: PlayerDirectoryPlacementLikeCpp {
             map_id: 0,
             instance_id: 0,

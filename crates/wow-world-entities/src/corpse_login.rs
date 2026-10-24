@@ -7,9 +7,9 @@ use tracing::warn;
 use wow_core::Position;
 
 use crate::{
-    CorpseHostLikeCpp, CorpseLifecycleCatalogsLikeCpp, SPELL_GHOST_LIKE_CPP,
-    PLAYER_LOCAL_FLAG_RELEASE_TIMER, SPELL_WISP_SPIRIT_AURA_LIKE_CPP,
-    resurrect_player_like_cpp, spawn_corpse_bones_like_cpp,
+    CorpseHostLikeCpp, PLAYER_LOCAL_FLAG_RELEASE_TIMER, ResurrectionOperationCatalogs,
+    SPELL_GHOST_LIKE_CPP, SPELL_WISP_SPIRIT_AURA_LIKE_CPP, resurrect_player_like_cpp,
+    spawn_corpse_bones_like_cpp,
 };
 
 const AT_LOGIN_RESURRECT: u16 = 0x0100;
@@ -20,7 +20,7 @@ const NIGHT_ELF_RACE: u8 = 4;
 /// by `PlayerResurrectionStateLikeCpp`.
 pub async fn restore_player_corpse_after_login(
     host: &mut impl CorpseHostLikeCpp,
-    catalogs: CorpseLifecycleCatalogsLikeCpp<'_>,
+    catalogs: ResurrectionOperationCatalogs<'_>,
     row: Option<wow_persistence::PlayerCorpseLocationLoadRow>,
 ) {
     let Some((alive, resurrect_at_login)) = host.core().with_owned_player_like_cpp(|player| {
@@ -38,7 +38,7 @@ pub async fn restore_player_corpse_after_login(
 
     if !alive {
         if resurrect_at_login {
-            resurrect_player_like_cpp(host, catalogs.resurrection(), 0.5, false).await;
+            resurrect_player_like_cpp(host, catalogs, 0.5, false).await;
         } else if let Some((map_id, position, instanceable)) = corpse_location_from_row(host, row) {
             let installed = host.core().with_owned_player_mut_like_cpp(|player| {
                 player.resurrection_state_mut_like_cpp().corpse_location = Some((map_id, position));
@@ -100,7 +100,7 @@ fn corpse_location_from_row(
 
 async fn restore_ghost_auras(
     host: &mut impl CorpseHostLikeCpp,
-    catalogs: CorpseLifecycleCatalogsLikeCpp<'_>,
+    catalogs: ResurrectionOperationCatalogs<'_>,
 ) {
     let Some((is_dead, race, has_wisp)) = host.core().with_owned_player_like_cpp(|player| {
         (
@@ -117,7 +117,7 @@ async fn restore_ghost_auras(
     if race == NIGHT_ELF_RACE && !has_wisp {
         if !host
             .cast_triggered_self_spell_like_cpp(
-                catalogs.resurrection(),
+                catalogs,
                 SPELL_WISP_SPIRIT_AURA_LIKE_CPP,
                 None,
                 None,
@@ -134,12 +134,7 @@ async fn restore_ghost_auras(
         .with_owned_player_like_cpp(|player| !aura_spell_present(player, SPELL_GHOST_LIKE_CPP));
     if needs_ghost == Some(true)
         && !host
-            .cast_triggered_self_spell_like_cpp(
-                catalogs.resurrection(),
-                SPELL_GHOST_LIKE_CPP,
-                None,
-                None,
-            )
+            .cast_triggered_self_spell_like_cpp(catalogs, SPELL_GHOST_LIKE_CPP, None, None)
             .await
     {
         warn!("Failed to restore the persisted ghost aura during login");

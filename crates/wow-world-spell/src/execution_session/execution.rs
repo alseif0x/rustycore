@@ -273,6 +273,30 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_INSTAKILL => {
                 apply_instakill_like_cpp(host, item_guid_generator, spell_id, target_guid).await?;
             }
+            x if x == super::resurrection_offer::SPELL_EFFECT_RESURRECT
+                || x == super::resurrection_offer::SPELL_EFFECT_RESURRECT_NEW
+                || x == super::resurrection_offer::SPELL_EFFECT_RESURRECT_WITH_AURA =>
+            {
+                if let Some(effect_info) = spell_info
+                    .effects()
+                    .iter()
+                    .find(|effect| effect.effect_index == direct_effect_index)
+                {
+                    let hit_guid = if direct_effect_target_data.unit.is_empty() {
+                        target_guid
+                    } else {
+                        direct_effect_target_data.unit
+                    };
+                    super::resurrection_offer::apply_resurrection_offer(
+                        host,
+                        creature_spawn_catalogs,
+                        &spell_info,
+                        effect_info,
+                        caster_guid,
+                        hit_guid,
+                    );
+                }
+            }
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL => {
                 if let Ok(heal_amount) = u32::try_from(direct_effect_base_points) {
                     let heal_amount = represented_spell_healing_bonus_done_like_cpp(

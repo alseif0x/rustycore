@@ -4632,7 +4632,7 @@ async fn run_inner(
         core: SessionCoreCapabilitiesLikeCpp {
             packet_handlers: Arc::clone(&packet_handler_registry),
             handler_catalogs: Arc::new(wow_world::session::SessionHandlerCatalogsLikeCpp {
-                object_mgr: object_mgr_catalogs,
+                object_mgr: Arc::clone(&object_mgr_catalogs),
                 player_grid_loader,
                 area_triggers: Arc::new(wow_world::session::AreaTriggerCatalogsLikeCpp {
                     db2: Arc::clone(&area_trigger_db2_store),
@@ -4691,6 +4691,7 @@ async fn run_inner(
                     addons: Arc::clone(&creature_addon_store),
                     equipment: Arc::clone(&creature_equipment_store),
                     power_types: Arc::clone(&power_type_store),
+                    localized_names: Arc::clone(&object_mgr_catalogs.creature),
                 }),
                 progression: Arc::new(wow_world::session::ProgressionCatalogsLikeCpp {
                     no_reset_talent_cost: world_config_bool(

@@ -20,7 +20,6 @@ use crate::{
     CharacterLoginHostLikeCpp, send_initial_packets_after_add_to_map_with_catalogs_like_cpp,
 };
 use std::collections::HashMap;
-use std::sync::Arc;
 use tracing::{info, warn};
 use wow_constants::PowerType;
 use wow_core::guid::HighGuid;
@@ -794,20 +793,12 @@ pub async fn send_login_sequence<H: CharacterLoginHostLikeCpp>(
     .await;
 
     // C++ `Player::LoadCorpse` runs after map insertion and before login is
-    // published. Clone the process catalog first so the operation can mutate
-    // the canonical Player without holding a borrow into its Hub.
-    let graveyards = host
-        .hub_ref()
-        .catalogs
-        .graveyard_store
-        .clone()
-        .unwrap_or_else(|| Arc::new(wow_data::GraveyardStore::default()));
+    // published. Corpse restoration consumes only resurrection catalogs.
     wow_world_entities::restore_player_corpse_after_login(
         host,
-        wow_world_entities::CorpseLifecycleCatalogsLikeCpp {
+        wow_world_entities::ResurrectionOperationCatalogs {
             item_guid_generator,
             creature_spawns: creature_spawn_catalogs,
-            graveyards: graveyards.as_ref(),
         },
         persisted_corpse_location,
     )

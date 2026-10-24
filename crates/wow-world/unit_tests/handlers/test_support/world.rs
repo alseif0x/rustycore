@@ -331,16 +331,18 @@ pub(crate) fn broadcast_info_with_command_tx(
 ) -> PlayerSessionRegistrationLikeCpp {
     let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(4);
     PlayerSessionRegistrationLikeCpp {
-        identity: PlayerDirectoryIdentityLikeCpp {
-            player_name: "TestPlayer".to_string(),
-            account_id: 1,
-            battlenet_account_id: 0,
-            recruiter_id: 0,
-            race: 1,
-            class: 1,
-            sex: 0,
-            active_expansion: 2,
-        },
+        identity: PlayerDirectoryIdentityLikeCpp::new_with_bnet(
+            "TestPlayer",
+            1,
+            0,
+            0,
+            1,
+            1,
+            0,
+            2,
+            "enUS",
+            None,
+        ),
         placement: PlayerDirectoryPlacementLikeCpp {
             map_id: 571,
             instance_id: 0,

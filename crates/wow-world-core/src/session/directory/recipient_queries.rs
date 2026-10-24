@@ -8,6 +8,23 @@
 use super::*;
 
 impl PlayerRegistry {
+    /// Return this registration's locale only while its generation still owns
+    /// the expected canonical Player incarnation.
+    #[must_use]
+    pub fn current_player_locale(
+        &self,
+        registration: PlayerRegistration,
+        expected_handle: wow_map::PlayerHandle,
+    ) -> Option<String> {
+        let entry = self.entries.get(&registration.guid)?;
+        if entry.generation != registration.generation
+            || entry.player_handle != Some(expected_handle)
+        {
+            return None;
+        }
+        Some(entry.identity.locale.clone())
+    }
+
     /// Snapshot the bounded facts used by runtime recipient selection.
     #[must_use]
     pub fn runtime_recipients(&self) -> Vec<PlayerRuntimeRecipient> {

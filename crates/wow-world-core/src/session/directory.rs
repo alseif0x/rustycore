@@ -36,6 +36,7 @@ use std::sync::{
 use wow_constants::UnitFlags;
 use wow_core::{ObjectGuid, Position};
 use wow_loot::OwnedLootAuthority;
+use wow_map::PlayerHandle;
 use wow_packet::packets::movement::TransportInfo;
 use wow_packet::packets::party::{
     PartyMemberAuraState, PartyMemberPetStats, PartyMemberPhaseStates,
@@ -462,6 +463,9 @@ pub struct PlayerVisibilityCreateSnapshot {
 struct PlayerRegistryEntry {
     generation: u64,
     identity: PlayerDirectoryIdentityLikeCpp,
+    /// Canonical incarnation supplied by the registering session, never
+    /// inferred from a GUID lookup that could already name a replacement.
+    player_handle: Option<PlayerHandle>,
     placement: PlayerDirectoryPlacementLikeCpp,
     active_loot_rolls: Vec<LootRollCommandIdentityLikeCpp>,
     /// Delivery handles for this incarnation, private to the directory (#270).
@@ -578,7 +582,7 @@ impl PlayerRegistry {
         self.install_canonical_player_fixture_like_cpp(guid, &registration);
         let generation = self.next_generation();
         let PlayerSessionRegistrationLikeCpp {
-            identity,
+            mut identity,
             placement,
             active_loot_rolls,
             send_tx,
@@ -591,11 +595,13 @@ impl PlayerRegistry {
             advanced_combat_logging_enabled_like_cpp,
             visibility_refresh_pending_like_cpp,
         } = registration;
+        let player_handle = identity.take_player_handle();
         self.entries.insert(
             guid,
             PlayerRegistryEntry {
                 generation,
                 identity,
+                player_handle,
                 placement,
                 active_loot_rolls,
                 send_tx,

@@ -168,6 +168,7 @@ async fn run_login(session: &mut WorldSession, maps: &Arc<MapStore>) {
         addons: Arc::new(CreatureAddonStoreLikeCpp::default()),
         equipment: Arc::new(CreatureEquipmentStoreLikeCpp::default()),
         power_types: Arc::new(PowerTypeStore::from_entries([])),
+        localized_names: Arc::new(Default::default()),
     };
     let progression = ProgressionCatalogsLikeCpp {
         no_reset_talent_cost: false,

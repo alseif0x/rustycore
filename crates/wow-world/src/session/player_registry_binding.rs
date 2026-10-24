@@ -66,6 +66,8 @@ impl WorldSession {
                     class,
                     gender,
                     self.core.expansion,
+                    self.core.locale.clone(),
+                    self.core.player_handle_like_cpp,
                 ),
                 placement: crate::session::directory::PlayerDirectoryPlacementLikeCpp {
                     map_id,
