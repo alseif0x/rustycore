@@ -1,5 +1,183 @@
 # RustyCore — Honest Current State (single source of truth)
 
+**#43, preparación de aceptación final — 2026-10-24:** el usuario autoriza
+continuar los pendientes y la aceptación, no solo conservar el feedback anterior.
+La revisión previa a la campaña detecta brechas reales todavía abiertas: faltan
+las llamadas de movimiento en muerte/release/resurrección/login; las respuestas
+de resurrección inmediata y diferida aplican salud sin ejecutar la operación
+completa y el helper deja `Dead` sin convertir a `Alive`; la limpieza al morir
+no conecta todavía todos los participantes existentes. Anclas del mismo C++
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Player.cpp:1158–1198`,
+`4262–4441`, `24897–24937`, `Unit.cpp:12718–12757` y
+`CharacterHandler.cpp:1227–1241`. Se completarán las rutas afectadas antes de
+la campaña; no se presenta la inspección como prueba ejecutada.
+La inspección del único caller de `kill_player_like_cpp` detecta además que
+solo se ejecutaba al recibir RepopRequest y que `death_timer_active` no tenía
+cuenta atrás. Decisión de integración: reutilizar el pase existente que llama
+a `tick_player_regeneration_like_cpp` en `session/driver/mod.rs`, con KillPlayer
+después de regeneración y antes del timer de guardado, y la expiración antes
+del teleport diferido. C++: `Player.cpp:1053–1054,1101–1111`. El Player canónico
+conservará los milisegundos restantes, sustituyendo el booleano de producción;
+las consultas de actividad se derivarán de `remaining > 0`. No se crea otro
+reloj, tarea ni propietario. Se preserva la cuenta en mapas instanceables y
+con PREVENT_RESURRECTION; la expiración pone cero antes de BuildPlayerRepop y
+RepopAtGraveyard. Es una reparación de comportamiento, no un refactor ni prueba
+de que se haya completado la migración global de fases de runtime de #584.
+El worker reanudado ejecutó esta auditoría con Astra (informado por el runtime),
+sin nuevas ediciones ni Cargo; se cerró y se abrió un worker `luna_worker`
+explícito para implementar la unidad de movimiento. No se atribuye esa revisión
+a Luna. El padre conserva integración, políticas y aceptación.
+Plan de evidencia: candidato local revisado, una ejecución `final --architecture
+--timings --logs --base origin/3.4.3`, los objetivos de integración que no
+ejecute ese perfil y revisión exhaustiva del delta de persistencia requerido
+por los nuevos accesos SQL. El inventario exhaustivo tiene coste separado;
+se registrarán duración total, reparaciones y cualquier incumplimiento de 600 s.
+La comprobación de solo lectura `./tools/qa-runtime.sh snapshot` identifica
+el proceso 3094551, binario `target/deploy/live/world-server`, SHA-256
+`290353718a1c534b348d03cb082fe203cf2b7ab0e179ef34d8ef4a8933c80fa4`,
+cero reinicios y sin packet dump activo. No es el candidato nuevo ni prueba viva
+de #43. Capturas de la acción y DB/reinicio/relogin conservan su aceptación
+propia y autorización de runtime; no se ha publicado, desplegado ni cerrado #43.
+
+Avance local a las 12:46 UTC: movimiento y timer escritos, **sin compilar ni
+ejecutar todavía sus pruebas**. Worker `01a16ddf-f5d4-7702-a6f2-dec78c3d3767`:
+la traza efectiva confirma `gpt-6-luna`/`max` en sus tres turnos. Se reutilizan
+el contador y la publicación de movimiento existentes; water-walk es
+idempotente, ResurrectPlayer fuerza land-walk y los guards de logout/stun
+conservan root cuando corresponde. Ghost login restablece water-walk después
+de sus auras. El timer sustituye el booleano canónico, actualiza RELEASE_TIMER
+y no avanza con el Player separado del mundo. Las pruebas nuevas llaman al
+driver real con su entrada de paquetes viva; verifican límite, pausa, destino
+pendiente y orden realm sin confundir el envío del teleport con su ACK.
+La revisión corrigió esas expectativas antes de ejecutar evidencia. Continúa
+la operación de resurrección por solicitud; ningún test escrito en este avance
+se incluye en el recuento verde anterior.
+
+**#43, recuperación al reconectar — implementación local y feedback focalizado, 2026-10-24:**
+continuación autorizada sobre `d78b90750`, rama `43-spirit-healer`. Alcance:
+restaurar la ubicación personal del cadáver durante login y conservar enfermedad
+de resurrección y durabilidad al guardar/reconectar. Todavía **sin nueva aceptación**.
+La decisión de persistencia conserva el coordinador, captura canónica, transacción
+Characters y tratamiento de COMMIT desconocido/cancelación existentes. Se añaden
+participantes acotados: enfermedad seleccionada por ChrRaces y durabilidad de
+objetos propios; no se sustituye toda `character_aura` con una representación
+parcial ni se reconoce como guardado el resto del estado de Item. Una carga
+incompleta no autoriza borrados. Anclas revisadas en el C++ objetivo
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Player.cpp:19632–19646`
+(inventario/auras en SaveToDB), `19811–19865` (_SaveAuras),
+`19868–20000` (_SaveInventory), `18034–18145` (_LoadAuras, tiempo desconectado),
+`SpellAuras.cpp:1134–1174,1218–1244` (CanBeSaved y clave de efectos).
+La durabilidad actualiza filas existentes de item_instance, ligadas al dueño
+mediante character_inventory; esta entrega no sustituye la creación ni el
+guardado completo de Item. Se captura sin limpiar su estado general Changed/New;
+la enfermedad expirada debe retirar únicamente sus propias filas, conservando
+las auras ajenas. Participantes adicionales necesarios para la reconexión:
+`Player.cpp:19422,19557` guarda GetHealth, incluido el 1 del fantasma; el snapshot
+Rust activo lo convertía en 0 por `!is_alive`, causando el override a CORPSE
+de `Player.cpp:17776–17778`. Se corrige esa captura, conservando el cero del
+cadáver, y se añade `at_login` al mismo guardado para que la limpieza de
+AT_LOGIN_RESURRECT no se repita al reconectar (`18157–18178,19543`). El tiempo
+de penalización por muertes sucesivas pertenece al mismo Player
+(`17676–17679,19545`), con el límite de carga de tres pasos de cinco minutos.
+Se mantiene pendiente la prueba real DB/reinicio/relogin:
+requiere autorización de runtime, y ninguna prueba local de planes SQL o futuros
+simulados se presentará como evidencia de durabilidad real.
+La recuperación personal ya está conectada en `wow-world-character` después de
+los paquetes post-add y antes de LoggedIn: el puerto auxiliar lee
+`SEL_CORPSE_LOCATION` por GUID; `wow-world-entities::corpse_login` consume la fila
+local en el Player canónico, restaura ubicación/release timer y ejecuta las ramas
+alive/AT_LOGIN_RESURRECT. La carga de cadáveres del mapa conserva su operación.
+`wow-world-application::continue_login` restaura DEAD desde Ghost y después
+CORPSE si la salud guardada es cero (`Player.cpp:17717–17723,17776–17778`).
+Las auras 20584/8326 se recuperan independientemente según
+`CharacterHandler.cpp:1227–1241`; se reconoce tanto la aplicación runtime como
+el registro de aura del mismo Unit para no duplicar una ya cargada. Sigue fuera
+de esta parte `SetWaterWalking(true)` y la aceptación completa de movimiento
+fantasma. Las coordenadas incompletas/inválidas y mapas desconocidos no crean
+ubicación; consulta vacía y fallo se distinguen en el adaptador del flujo.
+Feedback de implementación del worker Luna/max (ruta efectiva verificada):
+`cargo check -p wow-world-entities` y `cargo check -p wow-world --tests`, con
+PROTOC local, un job y target de este checkout; compilación verde tras corregir
+los hallazgos. La última comprobación de wow-world terminó el 2026-10-24
+10:52:30 UTC (13,93 s). **En ese corte no se había ejecutado ningún test ni se
+reclamaba aceptación nueva**. Este feedback corresponde solo al delta de
+reconexión anterior a los participantes de guardado, aún no implementados en
+ese corte; no cubre los cambios posteriores. El feedback posterior figura abajo.
+Decisión de representación para la enfermedad: conservar en el subsistema de
+auras del Unit los metadatos de persistencia que antes se descartaban al cargar
+(GUID/identidad del objeto lanzador, máscara de recálculo, cargas y cantidades
+base por efecto). Su vida queda ligada al slot de la aplicación, como la
+procedencia de lanzamiento existente; sustituir, retirar o limpiar la aplicación
+retira esos metadatos. No se duplican duración, stacks ni cantidades actuales.
+Reconstruir siempre la cantidad base desde el catálogo perdería el valor leído
+de DB tras cambios de datos; extender la escritura a todas las auras borraría
+familias aún no representadas. Por ello la escritura queda acotada a la
+enfermedad propia seleccionada por raza, sin objeto lanzador, y las otras filas
+se conservan. La lectura conserva sus metadatos completos para ese límite.
+La revisión de la carga identifica dos reparaciones necesarias para ese contrato:
+el flujo pasaba cero como tiempo desconectado y trataba todas las auras como
+positivas; además publicaba una actualización anticipada con remaining=max.
+El flujo ahora descuenta el tiempo desconectado de la enfermedad negativa,
+aplica sus efectos cargados antes del cálculo inicial de estadísticas y
+publica su duración restante e identidad de lanzamiento en el AuraUpdate
+completo post-add existente. Anclas: `Player.cpp:17640,17718,18034–18145,
+23568–23635,24015–24035`; `SpellInfo.cpp:4725–4775` para los efectos negativos
+79/80. La clave de carga conserva caster/item/spell/effectMask, sin convertir
+un caster vacío en el jugador ni mezclar efectos de distintos objetos.
+Una fila incompleta, GUID binario inválido o aplicación no admitida deja
+incompleta la autoridad de persistencia; la expiración offline legítima sí
+permite retirar la familia propia en el siguiente guardado.
+`Aura::SetLoadedState` también recalcula los efectos cuyo bit está activo
+(`SpellAuras.cpp:1239–1257`, `SpellAuraEffects.h:74–75` y
+`SpellAuraEffects.cpp:659–725`). Para los efectos constantes 79/80/159 de la
+enfermedad se usa la base persistida, DieSides y stacks; un bit desactivado
+conserva amount. Esta parte no constituye un port completo de CalcValue,
+escalado ni scripts de auras arbitrarias.
+La aceptación pendiente de esta entrega debe incluir los escenarios de cadáver
+personal, proyección de guardado y fallos/COMMIT desconocido, SQL y orden del
+plan, carga/expiración/publicación del aura y consumidores de login. Los nuevos
+accesos SQL requieren revisar el delta del inventario de persistencia en esa
+campaña; no se ha regenerado su baseline ni ejecutado otra campaña final.
+Feedback posterior de implementación: `cargo check -p wow-world --tests`
+terminó con exit 0 el 2026-10-24 a las 11:55:19 UTC (inicio 11:53:40 UTC,
+99 s), sobre el árbol de trabajo modificado en HEAD `d78b90750`, con los
+participantes de guardado y la carga de auras ya escritos. Registro:
+`target/validation-v2/evidence/43-reconnect-wow-world-check.{meta,stderr.log}`.
+Este check no ejecuta tests ni constituye aceptación final. El feedback del
+worker terminó con **44 identidades de test distintas verdes**: wow-world,
+`sickness_loading::` (5), `save_snapshot_owner::` (15), `corpse_login::` (7)
+y `save_interleaving::` (11); wow-database, `resurrection_sickness` (2),
+`character_save_adapter_preserves_the_frozen_statement_order_like_cpp` (1)
+y `full_save_death_metadata_and_item_durability_use_exact_owner_scoped_binds`
+(1); wow-entities,
+`aura_cast_provenance_is_slot_scoped_and_cleared_on_replacement_like_cpp` (1);
+wow-data,
+`represented_spell_positivity_marks_resurrection_sickness_modifiers_negative`
+(1). Comandos: `cargo test -p <crate> --lib <filtro> -- --nocapture`, salvo
+el primer filtro sickness_loading, ejecutado sin `--lib`: sus dos objetivos
+de integración tuvieron cero casos ejecutados y **no aportan evidencia**.
+Los registros exactos son `target/validation-v2/evidence/43-reconnect-*.meta`,
+con stdout/stderr asociados. Se conservaron los primeros fallos: dos fixtures
+de guardado y dos de cadáver; se corrigieron la salud máxima inicial y el uso
+del oráculo antiguo, consultando el propietario real de guardado. Los reruns
+`wow-world-save-snapshot-owner-retry1` y `wow-world-corpse-login-retry1` pasan
+sin rebajar aserciones ni cambiar producción para acomodar las fixtures.
+La prueba nueva `handlers/character_tests/sickness_loading.rs` incluye
+carga→efectos canónicos→snapshot de guardado y paquete completo; expiración
+genera Some(grupo vacío), y una clave malformada conserva None para esa familia.
+
+Coste separado de desarrollo: ventana 11:53:40–12:11:30 UTC (1.070 s, incluidos
+revisión/reparación y pausas); suma registrada de comandos 872,57 s, incluidas
+compilaciones y primeros fallos. **Supera diez minutos** y no acredita el
+objetivo de rendimiento de una futura aceptación final. Todo corresponde al
+árbol modificado sobre `d78b90750`, con ajustes posteriores de fixtures; no se
+ha creado un nuevo commit, manifiesto final ni evidencia de publicación.
+Siguen pendientes la campaña final, su inventario de persistencia y la prueba
+real de DB/reinicio/relogin. No hubo push, despliegue ni cambios de runtime;
+**#43 permanece abierta**, incluidos el movimiento fantasma
+(`SetWaterWalking(true)`) y la limpieza general de auras al morir
+(`Player.cpp:17780`, `RemoveAllAurasOnDeath`).
+
 **#43, sanador de espíritus — aceptación local verde, 2026-10-24:** continuación de
 las partes integradas en #1482 (`bdfbe8e2a`, release/corpse/cementerio) y #1483
 (`408d11c12`, reclaim). Rama `43-spirit-healer`, base `408d11c12`; código guardado

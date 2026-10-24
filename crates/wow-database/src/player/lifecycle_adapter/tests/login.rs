@@ -241,6 +241,11 @@ fn player_login_auxiliary_requests_map_to_exact_character_statements_like_cpp() 
             CharStatements::SEL_CHAR_VOID_STORAGE.sql(),
             vec![crate::SqlParam::U64(77)],
         ),
+        (
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::CorpseLocation { player_guid: 77 },
+            CharStatements::SEL_CORPSE_LOCATION.sql(),
+            vec![crate::SqlParam::U64(77)],
+        ),
     ];
 
     for (request, expected_sql, expected_params) in cases {

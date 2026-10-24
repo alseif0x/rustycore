@@ -28,6 +28,27 @@ fn canonical_session(
     (session, port)
 }
 
+fn add_dirty_durability_item(session: &mut WorldSession, item_id: i64, durability: u32) {
+    let player_guid = session.player_guid().expect("selected player guid");
+    session
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .inventory_runtime_mut_like_cpp()
+                .set_equipment_inventory_authority_complete_like_cpp(true);
+            let mut item = wow_entities::Item::new(0);
+            item.object_mut()
+                .create(wow_core::ObjectGuid::create_item(1, item_id));
+            item.set_owner_guid(player_guid);
+            item.set_max_durability(100);
+            item.set_durability(durability);
+            item.force_state(wow_constants::ItemUpdateState::Changed);
+            player
+                .inventory_runtime_mut_like_cpp()
+                .store_item_object_like_cpp(item);
+        })
+        .unwrap();
+}
+
 #[tokio::test]
 async fn full_save_reads_native_map_and_level_despite_stale_session_staging() {
     // Player.cpp:19480-19495 saves GetLevel()/GetMapId(), not Session mirrors.
@@ -100,6 +121,8 @@ async fn full_save_ack_cleans_the_reputation_row_the_player_owns_per_list_id() {
 #[tokio::test]
 async fn full_save_ack_rebases_changed_new_spell_for_the_next_transaction() {
     let (mut session, port) = canonical_session(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
+    add_dirty_durability_item(&mut session, 20, 8);
+    let item_guid = wow_core::ObjectGuid::create_item(1, 20);
     let handle = session.core.player_handle_like_cpp.unwrap();
     let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     *port.during_save.lock().unwrap() = Some(Box::new(move || {
@@ -113,6 +136,12 @@ async fn full_save_ack_rebases_changed_new_spell_for_the_next_transaction() {
                     .row_mut_like_cpp(10)
                     .unwrap()
                     .favorite = true;
+                player
+                    .inventory_runtime_mut_like_cpp()
+                    .item_objects_mut()
+                    .get_mut(&item_guid)
+                    .unwrap()
+                    .set_durability(4);
             })
             .unwrap();
     }));
@@ -121,6 +150,22 @@ async fn full_save_ack_rebases_changed_new_spell_for_the_next_transaction() {
         session
             .with_owned_player_like_cpp(|p| p.gameplay_state().spells.rows_like_cpp()[&10].state),
         Some(wow_entities::PlayerSpellLoadState::Changed)
+    );
+    assert_eq!(
+        port.character_saves()[0].item_durability,
+        Some(vec![wow_persistence::PlayerItemDurabilitySave {
+            item_guid: 20,
+            durability: 8,
+        }]),
+        "the transaction captures only the pre-await canonical durability"
+    );
+    assert_eq!(
+        session.with_owned_player_like_cpp(|player| {
+            let item = &player.inventory_runtime_like_cpp().item_objects()[&item_guid];
+            (item.data().durability, item.update_state())
+        }),
+        Some((4, wow_constants::ItemUpdateState::Changed)),
+        "full-save acknowledgement does not clear or overwrite item state changed during I/O"
     );
     session.save_current_player_to_db_like_cpp().await;
     let requests = port.character_saves();
@@ -154,8 +199,25 @@ async fn full_save_rollback_and_unknown_leave_native_dirty_state_and_distinct_fe
             }
         };
         let (mut session, port) = canonical_session(outcome);
+        add_dirty_durability_item(&mut session, 30, 6);
         session.save_current_player_to_db_like_cpp().await;
         assert_eq!(port.character_saves().len(), 1);
+        assert_eq!(
+            port.character_saves()[0].item_durability,
+            Some(vec![wow_persistence::PlayerItemDurabilitySave {
+                item_guid: 30,
+                durability: 6,
+            }])
+        );
+        assert_eq!(
+            session.with_owned_player_like_cpp(|player| {
+                let item = &player.inventory_runtime_like_cpp().item_objects()
+                    [&wow_core::ObjectGuid::create_item(1, 30)];
+                (item.data().durability, item.update_state())
+            }),
+            Some((6, wow_constants::ItemUpdateState::Changed)),
+            "failed or indeterminate commits retain canonical dirty item durability"
+        );
         assert_eq!(
             session.with_owned_player_like_cpp(
                 |p| p.gameplay_state().spells.rows_like_cpp()[&10].state
@@ -442,9 +504,10 @@ fn full_save_receipt_intersects_committed_groups_before_acknowledging_rows_and_t
         .spell_catalogs
         .spell_store()
         .map(AsRef::as_ref);
-    let mut owner = session
-        .core
-        .player_save_operation_access_like_cpp(talent_store, spell_store);
+    let mut owner =
+        session
+            .core
+            .player_save_operation_access_like_cpp(talent_store, spell_store, None, None);
     let inputs = session.lifecycle.player_save_session_inputs_like_cpp(1_000);
     let captured = owner
         .capture_like_cpp(inputs)
@@ -516,9 +579,10 @@ async fn full_save_receipt_preserves_tutorials_changed_after_capture() {
         .spell_catalogs
         .spell_store()
         .map(AsRef::as_ref);
-    let mut owner = session
-        .core
-        .player_save_operation_access_like_cpp(talent_store, spell_store);
+    let mut owner =
+        session
+            .core
+            .player_save_operation_access_like_cpp(talent_store, spell_store, None, None);
     let inputs = session.lifecycle.player_save_session_inputs_like_cpp(1_000);
     let captured = owner
         .capture_like_cpp(inputs)

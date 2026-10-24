@@ -42,7 +42,7 @@ pub async fn apply_stuck_effect_like_cpp<H: SpellExecutionHostLikeCpp>(host: &mu
             else {
                 return;
             };
-            if !resurrection.death_timer_active {
+            if resurrection.death_timer_remaining_ms == 0 {
                 host.set_player_ghost_flag_like_cpp(true);
                 #[cfg(any(test, feature = "test-fixtures"))]
                 if let Some(fixtures) = host.test_fixtures_like_cpp() {

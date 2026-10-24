@@ -19,9 +19,11 @@
 //! guard is released. No Map guard crosses an await.
 //!
 //! Not represented here (no Rust owner yet; tracked in #43's follow-ups):
-//! `RemovePet(nullptr, PET_SAVE_NOT_IN_SLOT, true)`, `SetRooted`,
-//! `SetWaterWalking`, `StopMirrorTimers`, `PLAYER_LOCAL_FLAG_RELEASE_TIMER`,
-//! the battleground/battlefield graveyard selectors and `OnPlayerRepop`.
+//! the Player-specific `setDeathState(JUST_DIED)` cleanup (`Player.cpp:1177`;
+//! its lethal callers need a central audit),
+//! `RemovePet(nullptr, PET_SAVE_NOT_IN_SLOT, true)`, `StopMirrorTimers` (no
+//! canonical mirror-timer owner or effective inputs are available yet),
+//! battleground/battlefield graveyard selectors and `OnPlayerRepop`.
 
 use std::sync::Arc;
 
@@ -266,14 +268,17 @@ fn send_corpse_reclaim_delay_like_cpp<H: CorpseHostLikeCpp>(host: &H, delay_ms: 
 // ── KillPlayer ──────────────────────────────────────────────────────────────
 
 /// C++ `Player::KillPlayer` as `HandleRepopRequest` calls it for a Player
-/// still in `JUST_DIED`: `setDeathState(CORPSE)`, clear dynamic flags, arm
-/// the 6-minute death timer, `UpdateCorpseReclaimDelay`, and send the reclaim
-/// delay. The fall, root, mirror timers and release-timer local flag have no
-/// Rust owner yet.
+/// still in `JUST_DIED`: `setDeathState(CORPSE)`, clear dynamic flags,
+/// `UpdateCorpseReclaimDelay`, and send the reclaim delay. The Rust death
+/// bookkeeping is updated here; rooting is published here too. The six-minute
+/// `m_deathTimer` countdown advances separately in PlayerUpdate, after SaveTimer.
+/// Fall and mirror timers remain outside this operation.
 pub fn kill_player_like_cpp<H: CorpseHostLikeCpp>(host: &mut H) {
     let policy = host.hub_ref().config.death_policy_like_cpp;
     let now = unix_now();
     let pvp = player_pvp_death_like_cpp(host);
+    // C++ `Player::KillPlayer` roots before changing JUST_DIED to CORPSE.
+    host.hub_mut().set_player_rooted_like_cpp(true);
     let changed = host.core().with_owned_player_mut_like_cpp(|player| {
         player
             .unit_mut()
@@ -283,8 +288,34 @@ pub fn kill_player_like_cpp<H: CorpseHostLikeCpp>(host: &mut H) {
             .world_mut()
             .object_mut()
             .replace_all_dynamic_flags(0);
+    });
+    if changed.is_none() {
+        return;
+    }
+
+    // C++ `KillPlayer` Set/RemovePlayerLocalFlag(PLAYER_LOCAL_FLAG_RELEASE_TIMER)
+    // after clearing dynamic flags and before arming m_deathTimer (`Player.cpp:4417`).
+    let release_timer = current_map_entry_like_cpp(host)
+        .is_some_and(|entry| !entry.is_instanceable_like_cpp())
+        && !host
+            .hub_ref()
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_PREVENT_RESURRECTION,
+            )
+            .is_some_and(|effects| !effects.is_empty());
+    let _ = host
+        .hub_mut()
+        .mutate_active_player_update_state_like_cpp(|state| {
+            if release_timer {
+                state.active_local_flags |= crate::PLAYER_LOCAL_FLAG_RELEASE_TIMER;
+            } else {
+                state.active_local_flags &= !crate::PLAYER_LOCAL_FLAG_RELEASE_TIMER;
+            }
+        });
+
+    let changed = host.core().with_owned_player_mut_like_cpp(|player| {
         let state = player.resurrection_state_mut_like_cpp();
-        state.death_timer_active = true;
+        state.death_timer_remaining_ms = 360_000;
         state.death_expire_time =
             updated_death_expire_time_like_cpp(pvp, state.death_expire_time, now, policy);
     });
@@ -573,12 +604,27 @@ pub async fn build_player_repop_like_cpp<H: CorpseHostLikeCpp>(
         return;
     }
 
-    // convert player body to ghost: setDeathState(DEAD), SetHealth(1)
+    // Convert player body to ghost: setDeathState(DEAD), SetHealth(1).
     let _ = host.core().with_owned_player_mut_like_cpp(|player| {
         player
             .unit_mut()
             .set_death_state(wow_constants::DeathState::Dead);
         player.unit_mut().set_health(1);
+    });
+    host.hub_mut().set_player_water_walking(true);
+    let stunned = host
+        .core()
+        .with_owned_player_like_cpp(|player| {
+            player
+                .unit()
+                .has_unit_state(wow_constants::UnitState::STUNNED.bits())
+        })
+        .unwrap_or(true);
+    if !host.is_logging_out_for_repop() && !stunned {
+        host.hub_mut().set_player_rooted_like_cpp(false);
+    }
+
+    let _ = host.core().with_owned_player_mut_like_cpp(|player| {
         // BG - remove insignia related
         let flags = player.unit().unit_flags_like_cpp() - wow_constants::UnitFlags::SKINNABLE;
         player.unit_mut().set_unit_flags_like_cpp(flags);
@@ -598,6 +644,47 @@ pub async fn build_player_repop_like_cpp<H: CorpseHostLikeCpp>(
             corpse.reset_ghost_time(now);
         }
     });
+}
+
+/// C++ `Player::Update` death-timer phase (`Player.cpp:1101`): only a running
+/// timer on a known non-instanceable map without `SPELL_AURA_PREVENT_RESURRECTION`
+/// advances. At expiry, build the corpse before the graveyard repop.
+pub async fn tick_player_death_timer<H: CorpseHostLikeCpp>(
+    host: &mut H,
+    diff_ms: u32,
+    catalogs: CorpseLifecycleCatalogsLikeCpp<'_>,
+) {
+    let Some(remaining_ms) = host.core().with_owned_player_like_cpp(|player| {
+        player
+            .resurrection_state_like_cpp()
+            .death_timer_remaining_ms
+    }) else {
+        return;
+    };
+    if remaining_ms == 0
+        || !current_map_entry_like_cpp(host).is_some_and(|entry| !entry.is_instanceable_like_cpp())
+        || host
+            .hub_ref()
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_PREVENT_RESURRECTION,
+            )
+            .is_some_and(|effects| !effects.is_empty())
+    {
+        return;
+    }
+
+    let expired = diff_ms >= remaining_ms;
+    let remaining_after_tick = if expired { 0 } else { remaining_ms - diff_ms };
+    let _ = host.core().with_owned_player_mut_like_cpp(|player| {
+        player
+            .resurrection_state_mut_like_cpp()
+            .death_timer_remaining_ms = remaining_after_tick;
+    });
+
+    if expired {
+        build_player_repop_like_cpp(host, catalogs).await;
+        repop_at_graveyard_like_cpp(host, catalogs).await;
+    }
 }
 
 // ── RepopAtGraveyard / GetClosestGraveyard ──────────────────────────────────
@@ -714,7 +801,9 @@ pub fn closest_graveyard_like_cpp<H: CorpseHostLikeCpp>(
 /// build also counts each `RepopAtGraveyard`.
 fn stop_repop_countdown_like_cpp<H: CorpseHostLikeCpp>(host: &mut H) {
     let _ = host.core().with_owned_player_mut_like_cpp(|player| {
-        player.resurrection_state_mut_like_cpp().death_timer_active = false;
+        player
+            .resurrection_state_mut_like_cpp()
+            .death_timer_remaining_ms = 0;
     });
 
     #[cfg(any(test, feature = "test-fixtures"))]

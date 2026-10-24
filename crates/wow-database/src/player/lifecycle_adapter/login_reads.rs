@@ -218,6 +218,12 @@ pub(super) fn player_login_auxiliary_load_statement_like_cpp(
             statement.set_u64(0, player_guid);
             statement
         }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::CorpseLocation { player_guid } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_CORPSE_LOCATION);
+            statement.set_u64(0, player_guid);
+            statement
+        }
         PlayerLoginAuxiliaryLoadRequestLikeCpp::EquipmentInventory { player_guid } => {
             let mut statement =
                 PreparedStatement::for_statement(CharStatements::SEL_CHAR_EQUIPMENT);
@@ -347,6 +353,7 @@ pub(super) fn player_character_base_load_row_like_cpp(
         summoned_pet_number: result.try_read(38),
         at_login_flags: result.try_read(39),
         zone_id: result.try_read(40),
+        death_expire_time: result.try_read(42),
         dungeon_difficulty: result.try_read(44),
         chosen_title: result.try_read(48),
         health: result.try_read(51),

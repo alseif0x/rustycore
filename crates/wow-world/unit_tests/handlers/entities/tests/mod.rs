@@ -8,6 +8,7 @@ use super::*;
 use crate::handlers::test_support::*;
 
 mod corpse;
+mod corpse_login;
 mod gameobject;
 mod player;
 mod spirit_healer;

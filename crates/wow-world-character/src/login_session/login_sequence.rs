@@ -20,6 +20,7 @@ use crate::{
     CharacterLoginHostLikeCpp, send_initial_packets_after_add_to_map_with_catalogs_like_cpp,
 };
 use std::collections::HashMap;
+use std::sync::Arc;
 use tracing::{info, warn};
 use wow_constants::PowerType;
 use wow_core::guid::HighGuid;
@@ -29,6 +30,8 @@ use wow_packet::packets::misc::{AccountMount, SpellChargeEntry, SpellHistoryEntr
 use wow_packet::packets::movement::TransportInfo;
 use wow_packet::packets::update::{PlayerCombatStats, UpdateBlock, UpdateObject};
 use wow_persistence::{
+    PlayerCorpseLocationLoadRow, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
+    PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerLoginAuxiliaryLoadedLikeCpp,
     PlayerLoginTransportLoadOutcomeLikeCpp, PlayerLoginTransportLoadRequestLikeCpp,
 };
 use wow_world_core::session::map_admission::PlayerGridLoadResolverLikeCpp;
@@ -346,6 +349,9 @@ pub async fn send_login_sequence<H: CharacterLoginHostLikeCpp>(
     ) {
         return false;
     }
+    // C++ `LoginQueryHolder` carries `SEL_CORPSE_LOCATION` into
+    // `Player::LoadCorpse`; keep its row local until the Player is in the map.
+    let persisted_corpse_location = load_corpse_location_for_login(host, guid).await;
     let corpse_load_outcome =
         load_map_corpse_data_like_cpp(host, map_id as u16, grid_instance_id).await;
     if corpse_load_outcome.rows_seen != 0
@@ -787,6 +793,26 @@ pub async fn send_login_sequence<H: CharacterLoginHostLikeCpp>(
     )
     .await;
 
+    // C++ `Player::LoadCorpse` runs after map insertion and before login is
+    // published. Clone the process catalog first so the operation can mutate
+    // the canonical Player without holding a borrow into its Hub.
+    let graveyards = host
+        .hub_ref()
+        .catalogs
+        .graveyard_store
+        .clone()
+        .unwrap_or_else(|| Arc::new(wow_data::GraveyardStore::default()));
+    wow_world_entities::restore_player_corpse_after_login(
+        host,
+        wow_world_entities::CorpseLifecycleCatalogsLikeCpp {
+            item_guid_generator,
+            creature_spawns: creature_spawn_catalogs,
+            graveyards: graveyards.as_ref(),
+        },
+        persisted_corpse_location,
+    )
+    .await;
+
     // C++ does not deliver SMSG_ON_MONSTER_MOVE inside the initial
     // enter-world packet burst. Rust fan-out commands are queued from a
     // sessionless world tick, so remember the burst boundary and drop only
@@ -819,6 +845,68 @@ pub async fn send_login_sequence<H: CharacterLoginHostLikeCpp>(
         guid
     );
     true
+}
+
+async fn load_corpse_location_for_login<H: CharacterLoginHostLikeCpp>(
+    host: &H,
+    guid: ObjectGuid,
+) -> Option<PlayerCorpseLocationLoadRow> {
+    let Some(port) = host.lifecycle().player_lifecycle_port_like_cpp() else {
+        warn!(
+            player_guid = guid.counter(),
+            "Cannot load persisted Player corpse location without the lifecycle port"
+        );
+        return None;
+    };
+    let outcome = port
+        .load_login_auxiliary_like_cpp(PlayerLoginAuxiliaryLoadRequestLikeCpp::CorpseLocation {
+            player_guid: guid.counter() as u64,
+        })
+        .await;
+    match corpse_location_from_load_outcome(outcome) {
+        Ok(row) => row,
+        Err(reason) => {
+            warn!(player_guid = guid.counter(), %reason, "Failed to load persisted Player corpse location during login");
+            None
+        }
+    }
+}
+
+fn corpse_location_from_load_outcome(
+    outcome: PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
+) -> Result<Option<PlayerCorpseLocationLoadRow>, String> {
+    match outcome {
+        PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+            PlayerLoginAuxiliaryLoadedLikeCpp::CorpseLocation(row),
+        ) => Ok(row),
+        PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(_) => {
+            Err("unexpected auxiliary login payload for corpse location".to_owned())
+        }
+        PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => Err(reason),
+    }
+}
+
+#[cfg(test)]
+mod corpse_location_load_tests {
+    use super::corpse_location_from_load_outcome;
+    use wow_persistence::{
+        PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadedLikeCpp,
+    };
+
+    #[test]
+    fn empty_corpse_result_is_success_and_stays_distinct_from_query_failure() {
+        let empty =
+            corpse_location_from_load_outcome(PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                PlayerLoginAuxiliaryLoadedLikeCpp::CorpseLocation(None),
+            ));
+        let failed =
+            corpse_location_from_load_outcome(PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+                reason: "driver failure".to_owned(),
+            });
+
+        assert_eq!(empty, Ok(None));
+        assert_eq!(failed, Err("driver failure".to_owned()));
+    }
 }
 
 const DEFAULT_MOTD_LIKE_CPP: &str = "Welcome to a Trinity Core Server.";

@@ -5,8 +5,11 @@ use super::save_plan::build_tutorials_save_statement_like_cpp;
 use crate::params::PreparedStatement;
 use crate::statements::CharStatements;
 use wow_persistence::{
-    PlayerCufProfileSaveLikeCpp, PlayerEquipmentSetSaveLikeCpp, PlayerVoidStorageSaveLikeCpp,
+    PlayerCufProfileSaveLikeCpp, PlayerEquipmentSetSaveLikeCpp, PlayerResurrectionSicknessAuraSave,
+    PlayerResurrectionSicknessEffectSave, PlayerVoidStorageSaveLikeCpp,
 };
+
+mod resurrection_sickness;
 
 /// Private statement decomposition for the MariaDB adapter.
 ///
@@ -44,6 +47,16 @@ pub(super) enum PlayerCharacterSaveStepLikeCpp {
     Health {
         health: u32,
         guid: u64,
+    },
+    CharacterDeathMetadata {
+        at_login_flags: u16,
+        death_expire_time: i64,
+        guid: u64,
+    },
+    ItemDurability {
+        player_guid: u64,
+        item_guid: u64,
+        durability: u32,
     },
     Powers {
         powers: [i32; 10],
@@ -147,6 +160,30 @@ pub(super) enum PlayerCharacterSaveStepLikeCpp {
         button: u8,
         action: u32,
         action_type: u8,
+    },
+    DeleteResurrectionSickness {
+        guid: u64,
+        caster_guid_binary: [u8; 16],
+        spell_id: u32,
+    },
+    DeleteResurrectionSicknessEffects {
+        guid: u64,
+        caster_guid_binary: [u8; 16],
+        spell_id: u32,
+    },
+    InsertResurrectionSicknessAura {
+        guid: u64,
+        caster_guid_binary: [u8; 16],
+        spell_id: u32,
+        effect_mask: u32,
+        row: PlayerResurrectionSicknessAuraSave,
+    },
+    InsertResurrectionSicknessAuraEffect {
+        guid: u64,
+        caster_guid_binary: [u8; 16],
+        spell_id: u32,
+        effect_mask: u32,
+        row: PlayerResurrectionSicknessEffectSave,
     },
     InsertEquipmentSet {
         player_guid: u64,
@@ -284,6 +321,32 @@ pub(super) fn player_character_save_statement_like_cpp(
             let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_CHAR_HEALTH);
             stmt.set_u32(0, *health);
             stmt.set_u64(1, *guid);
+            stmt
+        }
+        Step::CharacterDeathMetadata {
+            at_login_flags,
+            death_expire_time,
+            guid,
+        } => {
+            let mut stmt =
+                PreparedStatement::for_statement(CharStatements::UPD_CHAR_DEATH_METADATA);
+            stmt.set_u16(0, *at_login_flags);
+            stmt.set_i64(1, *death_expire_time);
+            stmt.set_u64(2, *guid);
+            stmt
+        }
+        Step::ItemDurability {
+            player_guid,
+            item_guid,
+            durability,
+        } => {
+            let mut stmt = PreparedStatement::for_statement(
+                CharStatements::UPD_ITEM_INSTANCE_DURABILITY_OWNED,
+            );
+            stmt.set_u32(0, *durability);
+            stmt.set_u64(1, *item_guid);
+            stmt.set_u64(2, *player_guid);
+            stmt.set_u64(3, *player_guid);
             stmt
         }
         Step::Powers { powers, guid } => {
@@ -503,6 +566,42 @@ pub(super) fn player_character_save_statement_like_cpp(
             stmt.set_u8(5, *action_type);
             stmt
         }
+        Step::DeleteResurrectionSickness {
+            guid,
+            caster_guid_binary,
+            spell_id,
+        } => resurrection_sickness::delete(*guid, *caster_guid_binary, *spell_id),
+        Step::DeleteResurrectionSicknessEffects {
+            guid,
+            caster_guid_binary,
+            spell_id,
+        } => resurrection_sickness::delete_effects(*guid, *caster_guid_binary, *spell_id),
+        Step::InsertResurrectionSicknessAura {
+            guid,
+            caster_guid_binary,
+            spell_id,
+            effect_mask,
+            row,
+        } => resurrection_sickness::insert_aura(
+            *guid,
+            *caster_guid_binary,
+            *spell_id,
+            *effect_mask,
+            row,
+        ),
+        Step::InsertResurrectionSicknessAuraEffect {
+            guid,
+            caster_guid_binary,
+            spell_id,
+            effect_mask,
+            row,
+        } => resurrection_sickness::insert_effect(
+            *guid,
+            *caster_guid_binary,
+            *spell_id,
+            *effect_mask,
+            *row,
+        ),
         Step::InsertEquipmentSet { player_guid, row } => {
             let mut stmt = PreparedStatement::for_statement(CharStatements::INS_EQUIP_SET);
             stmt.set_u64(0, *player_guid);

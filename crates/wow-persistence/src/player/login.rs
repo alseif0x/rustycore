@@ -100,6 +100,9 @@ pub enum PlayerLoginAuxiliaryLoadRequestLikeCpp {
     CharacterAuraEffects {
         player_guid: u64,
     },
+    CorpseLocation {
+        player_guid: u64,
+    },
     EquipmentInventory {
         player_guid: u64,
     },
@@ -184,6 +187,7 @@ pub struct PlayerCharacterBaseLoadRowLikeCpp {
     pub summoned_pet_number: Option<u32>,
     pub at_login_flags: Option<u16>,
     pub zone_id: Option<u16>,
+    pub death_expire_time: Option<i64>,
     pub dungeon_difficulty: Option<u32>,
     pub chosen_title: Option<u32>,
     pub health: Option<u32>,
@@ -364,6 +368,18 @@ pub struct PlayerHomebindLocationLoadRowLikeCpp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlayerGuildMembershipLoadRowLikeCpp {
     pub guild_id: Option<u64>,
+}
+
+/// Raw columns returned by C++ `CHAR_SEL_CORPSE_LOCATION` for Player login.
+/// Missing columns remain unknown; the Player owner decides whether the
+/// location is usable.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlayerCorpseLocationLoadRow {
+    pub map_id: Option<u16>,
+    pub x: Option<f32>,
+    pub y: Option<f32>,
+    pub z: Option<f32>,
+    pub orientation: Option<f32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -553,6 +569,7 @@ pub struct PlayerReputationLoadRowLikeCpp {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerCharacterAuraLoadRowLikeCpp {
     pub caster_guid_binary: Vec<u8>,
+    pub item_guid_binary: Vec<u8>,
     pub spell_id: u32,
     pub effect_mask: u32,
     pub recalculate_mask: u32,
@@ -561,11 +578,14 @@ pub struct PlayerCharacterAuraLoadRowLikeCpp {
     pub max_duration_ms: i32,
     pub remain_time_ms: i32,
     pub remain_charges: u8,
+    pub cast_item_id: u32,
+    pub cast_item_level: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerCharacterAuraEffectLoadRowLikeCpp {
     pub caster_guid_binary: Vec<u8>,
+    pub item_guid_binary: Vec<u8>,
     pub spell_id: u32,
     pub effect_mask: u32,
     pub effect_index: u8,
@@ -646,7 +666,7 @@ pub struct PlayerTraitConfigLoadRowLikeCpp {
     pub name: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PlayerLoginAuxiliaryLoadedLikeCpp {
     Mail(Vec<PlayerMailLoadRowLikeCpp>),
     Customizations(Vec<PlayerCustomizationLoadRowLikeCpp>),
@@ -680,11 +700,12 @@ pub enum PlayerLoginAuxiliaryLoadedLikeCpp {
     EquipmentInventory(Vec<PlayerEquipmentInventoryLoadRowLikeCpp>),
     BagInventory(Vec<PlayerBagInventoryLoadRowLikeCpp>),
     VoidStorage(Vec<PlayerVoidStorageLoadRowLikeCpp>),
+    CorpseLocation(Option<PlayerCorpseLocationLoadRow>),
 }
 
 /// Read-only lifecycle loads have no unknown-COMMIT state: they either
 /// produced typed rows or failed before publication.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PlayerLoginAuxiliaryLoadOutcomeLikeCpp {
     Loaded(PlayerLoginAuxiliaryLoadedLikeCpp),
     Failed { reason: String },

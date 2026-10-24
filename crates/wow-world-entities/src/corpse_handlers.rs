@@ -73,6 +73,9 @@ pub trait CorpseHostLikeCpp: PlayerMovementHostLikeCpp {
         spell_id: i32,
         sickness_remaining_ms: Option<u32>,
     ) -> impl Future<Output = bool> + Send;
+    /// C++ `WorldSession::isLogingOut()` guard for `BuildPlayerRepop`
+    /// (`WorldSession.h:1001`).
+    fn is_logging_out_for_repop(&self) -> bool;
     /// C++ `WorldSession::PlayerLogoutWithSave`.
     fn player_logout_with_save_like_cpp(&self) -> bool;
     /// C++ `Player::SaveToDB()` as `SpawnCorpseBones` triggers it.

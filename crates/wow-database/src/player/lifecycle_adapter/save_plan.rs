@@ -9,7 +9,8 @@ use crate::params::PreparedStatement;
 use crate::statements::CharStatements;
 use wow_persistence::{
     PlayerCharacterSaveRequestLikeCpp, PlayerEquipmentSetStateLikeCpp,
-    PlayerEquipmentSetTypeLikeCpp, PlayerSpellSaveGroupLikeCpp, PlayerSpellStateLikeCpp,
+    PlayerEquipmentSetTypeLikeCpp, PlayerResurrectionSicknessAuraSave, PlayerSpellSaveGroupLikeCpp,
+    PlayerSpellStateLikeCpp,
 };
 
 pub(super) fn player_character_save_statements_like_cpp(
@@ -52,6 +53,11 @@ pub(super) fn player_character_save_statements_like_cpp(
             health: character.health,
             guid,
         },
+        Step::CharacterDeathMetadata {
+            at_login_flags: character.at_login_flags,
+            death_expire_time: character.death_expire_time,
+            guid,
+        },
     ];
     if let Some(powers) = character.powers {
         steps.push(Step::Powers { powers, guid });
@@ -67,6 +73,15 @@ pub(super) fn player_character_save_statements_like_cpp(
             guid,
         },
     ]);
+    if let Some(item_durability) = &request.item_durability {
+        let mut rows = item_durability.clone();
+        rows.sort_by_key(|row| row.item_guid);
+        steps.extend(rows.into_iter().map(|row| Step::ItemDurability {
+            player_guid: guid,
+            item_guid: row.item_guid,
+            durability: row.durability,
+        }));
+    }
 
     match &request.spells {
         Some(PlayerSpellSaveGroupLikeCpp::Complete { rows, .. }) => {
@@ -220,6 +235,45 @@ pub(super) fn player_character_save_statements_like_cpp(
             action_type: (button.packed_action >> 24) as u8,
         }));
     }
+    if let Some(sickness) = &request.resurrection_sickness {
+        steps.push(Step::DeleteResurrectionSicknessEffects {
+            guid,
+            caster_guid_binary: sickness.caster_guid_binary,
+            spell_id: sickness.spell_id,
+        });
+        steps.push(Step::DeleteResurrectionSickness {
+            guid,
+            caster_guid_binary: sickness.caster_guid_binary,
+            spell_id: sickness.spell_id,
+        });
+        let effect_mask = |row: &PlayerResurrectionSicknessAuraSave| {
+            row.effects
+                .iter()
+                .fold(0_u32, |mask, effect| mask | (1_u32 << effect.index))
+        };
+        let mut auras = sickness.auras.clone();
+        auras.sort_by_key(|row| (row.difficulty, effect_mask(row)));
+        for mut row in auras {
+            let mask = effect_mask(&row);
+            steps.push(Step::InsertResurrectionSicknessAura {
+                guid,
+                caster_guid_binary: sickness.caster_guid_binary,
+                spell_id: sickness.spell_id,
+                effect_mask: mask,
+                row: row.clone(),
+            });
+            row.effects.sort_by_key(|effect| effect.index);
+            steps.extend(row.effects.into_iter().map(|effect| {
+                Step::InsertResurrectionSicknessAuraEffect {
+                    guid,
+                    caster_guid_binary: sickness.caster_guid_binary,
+                    spell_id: sickness.spell_id,
+                    effect_mask: mask,
+                    row: effect,
+                }
+            }));
+        }
+    }
     if let Some(equipment_sets) = &request.equipment_sets {
         for row in equipment_sets {
             let step = match (row.state, row.set_type) {
@@ -337,7 +391,6 @@ pub(super) fn player_character_save_statements_like_cpp(
             },
         }));
     }
-
     steps
         .iter()
         .map(player_character_save_statement_like_cpp)

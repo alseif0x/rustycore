@@ -174,6 +174,10 @@ impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
         self.lifecycle.player_logout_like_cpp()
     }
 
+    fn is_logging_out_for_repop(&self) -> bool {
+        self.lifecycle.is_logging_out_like_cpp()
+    }
+
     fn save_player_after_corpse_bones_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,

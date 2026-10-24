@@ -73,7 +73,9 @@ mod tests {
         player
             .resurrection_state_mut_like_cpp()
             .delayed_after_teleport = Some(request);
-        player.resurrection_state_mut_like_cpp().death_timer_active = true;
+        player
+            .resurrection_state_mut_like_cpp()
+            .death_timer_remaining_ms = 360_000;
         player
             .resurrection_state_mut_like_cpp()
             .area_spirit_healer_guid = ObjectGuid::create_player(1, 88);
@@ -99,6 +101,11 @@ mod tests {
                 .self_res_spells
                 .contains(&21169)
         );
-        assert!(player.resurrection_state_like_cpp().death_timer_active);
+        assert_eq!(
+            player
+                .resurrection_state_like_cpp()
+                .death_timer_remaining_ms,
+            360_000
+        );
     }
 }

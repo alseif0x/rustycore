@@ -373,6 +373,7 @@ fn loaded_total_stat_percentage_uses_persisted_effect_amount_like_cpp() {
         session.load_represented_character_auras_like_cpp(
             [CharacterAuraRowLikeCpp {
                 caster_guid: player_guid,
+                item_guid: ObjectGuid::EMPTY,
                 spell_id: 20_600,
                 effect_mask: 1,
                 recalculate_mask: 0,
@@ -381,9 +382,12 @@ fn loaded_total_stat_percentage_uses_persisted_effect_amount_like_cpp() {
                 max_duration_ms: -1,
                 remain_time_ms: -1,
                 remain_charges: 0,
+                cast_item_id: 0,
+                cast_item_level: -1,
             }],
             [CharacterAuraEffectRowLikeCpp {
                 caster_guid: player_guid,
+                item_guid: ObjectGuid::EMPTY,
                 spell_id: 20_600,
                 effect_mask: 1,
                 effect_index: 0,
@@ -469,6 +473,7 @@ fn loaded_player_aura_recreates_cast_and_unconditional_visual_provenance_like_cp
         session.load_represented_character_auras_like_cpp(
             [CharacterAuraRowLikeCpp {
                 caster_guid: player_guid,
+                item_guid: ObjectGuid::EMPTY,
                 spell_id: spell_id as u32,
                 effect_mask: 1,
                 recalculate_mask: 0,
@@ -477,6 +482,8 @@ fn loaded_player_aura_recreates_cast_and_unconditional_visual_provenance_like_cp
                 max_duration_ms: -1,
                 remain_time_ms: -1,
                 remain_charges: 0,
+                cast_item_id: 0,
+                cast_item_level: -1,
             }],
             std::iter::empty::<CharacterAuraEffectRowLikeCpp>(),
             0,

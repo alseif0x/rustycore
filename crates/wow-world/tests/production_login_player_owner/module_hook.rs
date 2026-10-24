@@ -43,6 +43,7 @@ pub(super) fn empty_auxiliary_load(
         Request::Reputation { .. } => Loaded::Reputation(vec![]),
         Request::CharacterAuras { .. } => Loaded::CharacterAuras(vec![]),
         Request::CharacterAuraEffects { .. } => Loaded::CharacterAuraEffects(vec![]),
+        Request::CorpseLocation { .. } => Loaded::CorpseLocation(None),
         Request::EquipmentInventory { .. } => Loaded::EquipmentInventory(vec![]),
         Request::BagInventory { .. } => Loaded::BagInventory(vec![]),
         Request::VoidStorage { .. } => Loaded::VoidStorage(vec![]),

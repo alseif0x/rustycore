@@ -22,11 +22,11 @@ use wow_persistence::{
     PlayerCharacterSnapshotSaveLikeCpp, PlayerCufProfileSaveLikeCpp,
     PlayerCufProfileSlotSaveLikeCpp, PlayerEquipmentSetSaveLikeCpp, PlayerEquipmentSetStateLikeCpp,
     PlayerEquipmentSetTypeLikeCpp, PlayerFallbackSpellSaveLikeCpp, PlayerGlyphSaveLikeCpp,
-    PlayerInstanceLockTimeSaveLikeCpp, PlayerPlayedTimeSaveLikeCpp, PlayerPositionSaveLikeCpp,
-    PlayerReputationSaveLikeCpp, PlayerSkillSaveLikeCpp, PlayerSpellChargeSaveLikeCpp,
-    PlayerSpellCooldownSaveLikeCpp, PlayerSpellSaveGroupLikeCpp, PlayerSpellSaveLikeCpp,
-    PlayerSpellStateLikeCpp, PlayerTalentSaveLikeCpp, PlayerTutorialsSaveLikeCpp,
-    PlayerVoidStorageSaveLikeCpp, PlayerVoidStorageSlotSaveLikeCpp,
+    PlayerInstanceLockTimeSaveLikeCpp, PlayerItemDurabilitySave, PlayerPlayedTimeSaveLikeCpp,
+    PlayerPositionSaveLikeCpp, PlayerReputationSaveLikeCpp, PlayerSkillSaveLikeCpp,
+    PlayerSpellChargeSaveLikeCpp, PlayerSpellCooldownSaveLikeCpp, PlayerSpellSaveGroupLikeCpp,
+    PlayerSpellSaveLikeCpp, PlayerSpellStateLikeCpp, PlayerTalentSaveLikeCpp,
+    PlayerTutorialsSaveLikeCpp, PlayerVoidStorageSaveLikeCpp, PlayerVoidStorageSlotSaveLikeCpp,
 };
 
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -38,6 +38,8 @@ use crate::session::persistence_capabilities::{
 use crate::session::{
     RepresentedPlayerSkillStateLikeCpp, SessionCore, represented_player_skill_record_like_cpp,
 };
+
+mod resurrection_sickness;
 
 /// Lifecycle-owned values that join the canonical Player projection in one save request.
 pub struct PlayerSaveSessionInputsLikeCpp<'a> {
@@ -113,6 +115,8 @@ pub struct PlayerSaveOwnerAccessLikeCpp<'a> {
     core: &'a SessionCore,
     talent_store: Option<&'a wow_data::TalentStore>,
     spell_store: Option<&'a wow_data::SpellStore>,
+    chr_races_store: Option<&'a wow_data::character_progression::ChrRacesStore>,
+    difficulty_store: Option<&'a wow_data::DifficultyStore>,
 }
 
 impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
@@ -120,11 +124,15 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
         core: &'a SessionCore,
         talent_store: Option<&'a wow_data::TalentStore>,
         spell_store: Option<&'a wow_data::SpellStore>,
+        chr_races_store: Option<&'a wow_data::character_progression::ChrRacesStore>,
+        difficulty_store: Option<&'a wow_data::DifficultyStore>,
     ) -> Self {
         Self {
             core,
             talent_store,
             spell_store,
+            chr_races_store,
+            difficulty_store,
         }
     }
 
@@ -161,6 +169,8 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
                 self.core,
                 self.talent_store,
                 self.spell_store,
+                self.chr_races_store,
+                self.difficulty_store,
                 player,
                 &header,
                 &inputs,
@@ -250,11 +260,6 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
                 .max(1)
                 .min(u64::from(u32::MAX)) as u32;
             let canonical_health = player.unit().data().health.min(u64::from(u32::MAX)) as u32;
-            let health = if player.unit().is_alive() && canonical_health > 0 {
-                canonical_health
-            } else {
-                0
-            };
             snapshot = Some(PlayerSaveToDbSnapshotLikeCpp {
                 guid,
                 map_id,
@@ -263,7 +268,7 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
                 level,
                 xp,
                 money,
-                health,
+                health: canonical_health,
                 max_health,
                 powers,
             });
@@ -327,6 +332,8 @@ pub struct PlayerSaveOperationAccessLikeCpp<'a> {
     core: &'a mut SessionCore,
     talent_store: Option<&'a wow_data::TalentStore>,
     spell_store: Option<&'a wow_data::SpellStore>,
+    chr_races_store: Option<&'a wow_data::character_progression::ChrRacesStore>,
+    difficulty_store: Option<&'a wow_data::DifficultyStore>,
 }
 
 impl SessionCore {
@@ -335,11 +342,15 @@ impl SessionCore {
         &'a mut self,
         talent_store: Option<&'a wow_data::TalentStore>,
         spell_store: Option<&'a wow_data::SpellStore>,
+        chr_races_store: Option<&'a wow_data::character_progression::ChrRacesStore>,
+        difficulty_store: Option<&'a wow_data::DifficultyStore>,
     ) -> PlayerSaveOperationAccessLikeCpp<'a> {
         PlayerSaveOperationAccessLikeCpp {
             core: self,
             talent_store,
             spell_store,
+            chr_races_store,
+            difficulty_store,
         }
     }
 }
@@ -350,8 +361,14 @@ impl PlayerSaveOperationAccessLikeCpp<'_> {
         &self,
         inputs: PlayerSaveSessionInputsLikeCpp<'_>,
     ) -> Option<CapturedPlayerSaveLikeCpp> {
-        PlayerSaveOwnerAccessLikeCpp::new_like_cpp(&*self.core, self.talent_store, self.spell_store)
-            .capture_like_cpp(inputs)
+        PlayerSaveOwnerAccessLikeCpp::new_like_cpp(
+            &*self.core,
+            self.talent_store,
+            self.spell_store,
+            self.chr_races_store,
+            self.difficulty_store,
+        )
+        .capture_like_cpp(inputs)
     }
 
     /// Apply a committed receipt through the existing incarnation-bound owner.
@@ -443,12 +460,10 @@ fn player_save_header_like_cpp(
     let max_health = unit.data().max_health.clamp(1, u64::from(u32::MAX)) as u32;
     let health = match residence {
         PlayerResidenceLikeCpp::Active(_) => {
-            let health = unit.data().health.min(u64::from(u32::MAX)) as u32;
-            if unit.is_alive() && health > 0 {
-                health
-            } else {
-                0
-            }
+            // C++ Player::SaveToDB writes GetHealth() directly
+            // (Player.cpp:19422, 19557); BuildPlayerRepop leaves a ghost at
+            // health 1, so liveness is not a valid save-time filter.
+            unit.data().health.min(u64::from(u32::MAX)) as u32
         }
         PlayerResidenceLikeCpp::Detached => unit.data().health.min(u64::from(max_health)) as u32,
     };
@@ -470,6 +485,8 @@ fn request(
     core: &SessionCore,
     talent_store: Option<&wow_data::TalentStore>,
     spell_store: Option<&wow_data::SpellStore>,
+    chr_races_store: Option<&wow_data::character_progression::ChrRacesStore>,
+    difficulty_store: Option<&wow_data::DifficultyStore>,
     player: &Player,
     snapshot: &PlayerSaveToDbSnapshotLikeCpp,
     inputs: &PlayerSaveSessionInputsLikeCpp<'_>,
@@ -524,7 +541,48 @@ fn request(
         dungeon_difficulty,
         raid_difficulty,
         legacy_raid_difficulty,
+        at_login_flags: player.persistent_capability_state_like_cpp().at_login_flags,
+        death_expire_time: player.resurrection_state_like_cpp().death_expire_time,
     };
+
+    // C++ Item::SaveToDB (Item.cpp:383-425) persists durability for an
+    // existing item row. Capture only that field; other Item writes retain
+    // their current owners and transaction fences.
+    let item_durability = {
+        let runtime = player.inventory_runtime_like_cpp();
+        runtime
+            .equipment_inventory_authority_complete_like_cpp()
+            .then(|| {
+                let buyback_guids: HashSet<_> = runtime
+                    .buyback_items()
+                    .values()
+                    .map(|item| item.guid)
+                    .collect();
+                let mut rows = runtime
+                    .item_objects()
+                    .iter()
+                    .filter(|(guid, item)| {
+                        !buyback_guids.contains(guid)
+                            && item.owner_guid() == player.guid()
+                            && item.data().max_durability > 0
+                            && matches!(
+                                item.update_state(),
+                                wow_constants::ItemUpdateState::New
+                                    | wow_constants::ItemUpdateState::Changed
+                            )
+                    })
+                    .map(|(_, item)| PlayerItemDurabilitySave {
+                        item_guid: item.object().guid().counter() as u64,
+                        durability: item.data().durability,
+                    })
+                    .collect::<Vec<_>>();
+                rows.sort_by_key(|row| row.item_guid);
+                rows
+            })
+    };
+
+    let resurrection_sickness =
+        resurrection_sickness::capture(player, chr_races_store, spell_store, difficulty_store);
 
     let spell_runtime = Some(&game.spells);
     let spells = if let Some(spells) = (game.spells.rows_loaded_like_cpp()
@@ -902,6 +960,8 @@ fn request(
         account_id: core.account_id,
         wall_clock_unix_secs: inputs.now_unix_secs,
         character,
+        item_durability,
+        resurrection_sickness,
         spells,
         skills,
         glyphs,

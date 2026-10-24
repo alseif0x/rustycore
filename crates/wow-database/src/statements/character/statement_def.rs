@@ -801,6 +801,12 @@ impl StatementDef for CharStatements {
             Self::DEL_CHAR_ACTION => "DELETE FROM character_action WHERE guid = ?",
             Self::DEL_CHAR_AURA => "DELETE FROM character_aura WHERE guid = ?",
             Self::DEL_CHAR_AURA_EFFECT => "DELETE FROM character_aura_effect WHERE guid = ?",
+            Self::DEL_CHAR_AURA_BY_KEY => {
+                "DELETE FROM character_aura WHERE guid = ? AND casterGuid = ? AND itemGuid = ? AND spell = ?"
+            }
+            Self::DEL_CHAR_AURA_EFFECT_BY_KEY => {
+                "DELETE FROM character_aura_effect WHERE guid = ? AND casterGuid = ? AND itemGuid = ? AND spell = ?"
+            }
             Self::DEL_CHAR_GIFT => "DELETE FROM character_gifts WHERE guid = ?",
             Self::DEL_CHAR_INVENTORY => "DELETE FROM character_inventory WHERE guid = ?",
             Self::DEL_CHAR_QUESTSTATUS_REWARDED => {
@@ -1108,6 +1114,9 @@ impl StatementDef for CharStatements {
             }
             Self::SEL_CHAR_MONEY => "SELECT money FROM characters WHERE guid = ?",
             Self::UPD_CHAR_HEALTH => "UPDATE characters SET health = ? WHERE guid = ?",
+            Self::UPD_CHAR_DEATH_METADATA => {
+                "UPDATE characters SET at_login = ?, death_expire_time = ? WHERE guid = ?"
+            }
             Self::UPD_CHAR_POWERS => {
                 "UPDATE characters SET power1 = ?, power2 = ?, power3 = ?, power4 = ?, power5 = ?, power6 = ?, power7 = ?, power8 = ?, power9 = ?, power10 = ? WHERE guid = ?"
             }
@@ -1176,6 +1185,9 @@ impl StatementDef for CharStatements {
             Self::UPD_ITEM_INSTANCE_COUNT => "UPDATE item_instance SET count = ? WHERE guid = ?",
             Self::UPD_ITEM_INSTANCE_DURABILITY => {
                 "UPDATE item_instance SET durability = ? WHERE guid = ?"
+            }
+            Self::UPD_ITEM_INSTANCE_DURABILITY_OWNED => {
+                "UPDATE item_instance INNER JOIN character_inventory ON character_inventory.item = item_instance.guid SET item_instance.durability = ? WHERE item_instance.guid = ? AND item_instance.owner_guid = ? AND character_inventory.guid = ?"
             }
             Self::UPD_ITEM_INSTANCE_FLAGS => "UPDATE item_instance SET flags = ? WHERE guid = ?",
             Self::UPD_ITEM_INSTANCE_ENCHANTMENTS => {

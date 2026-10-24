@@ -761,6 +761,8 @@ pub fn represented_spell_is_positive_like_cpp(spell_info: &SpellInfo) -> bool {
                                 | aura_types::SPELL_AURA_MOD_INCREASE_HEALTH
                                 | aura_types::SPELL_AURA_MOD_INCREASE_HEALTH_PERCENT
                                 | aura_types::SPELL_AURA_MOD_SCALE
+                                | aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE
+                                | aura_types::SPELL_AURA_MOD_PERCENT_STAT
                         ) && amount < 0)))
         })
 }

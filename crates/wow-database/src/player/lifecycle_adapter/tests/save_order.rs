@@ -62,7 +62,20 @@ fn character_save_adapter_preserves_the_frozen_statement_order_like_cpp() {
             dungeon_difficulty: 0,
             raid_difficulty: 0,
             legacy_raid_difficulty: 0,
+            at_login_flags: 0x104,
+            death_expire_time: 1_700_000_123,
         },
+        item_durability: Some(vec![
+            PlayerItemDurabilitySave {
+                item_guid: 22,
+                durability: 82,
+            },
+            PlayerItemDurabilitySave {
+                item_guid: 21,
+                durability: 81,
+            },
+        ]),
+        resurrection_sickness: None,
         spells: Some(PlayerSpellSaveGroupLikeCpp::Complete {
             rows: vec![PlayerSpellSaveLikeCpp {
                 spell_id: 100,
@@ -181,8 +194,33 @@ fn character_save_adapter_preserves_the_frozen_statement_order_like_cpp() {
             },
         ]),
     };
+    let statements = player_character_save_statements_like_cpp(&request);
+    let durability_sql = CharStatements::UPD_ITEM_INSTANCE_DURABILITY_OWNED.sql();
+    let durability_binds = statements
+        .iter()
+        .filter(|statement| statement.sql() == durability_sql)
+        .map(PreparedStatement::params)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        durability_binds,
+        vec![
+            &[
+                crate::SqlParam::U32(81),
+                crate::SqlParam::U64(21),
+                crate::SqlParam::U64(1),
+                crate::SqlParam::U64(1),
+            ][..],
+            &[
+                crate::SqlParam::U32(82),
+                crate::SqlParam::U64(22),
+                crate::SqlParam::U64(1),
+                crate::SqlParam::U64(1),
+            ][..],
+        ],
+        "the adapter sorts per-item durability statements by item GUID"
+    );
     let mut runs: Vec<(String, usize)> = Vec::new();
-    for statement in player_character_save_statements_like_cpp(&request) {
+    for statement in statements {
         let sql = statement.sql().to_owned();
         match runs.last_mut() {
             Some((previous, count)) if *previous == sql => *count += 1,
@@ -199,6 +237,88 @@ fn character_save_adapter_preserves_the_frozen_statement_order_like_cpp() {
         "replace player-save-plan-order.json with:\n{}",
         serde_json::to_string_pretty(&runs).unwrap_or_default()
     );
+}
+
+#[test]
+fn resurrection_sickness_is_optional_and_runs_between_actions_and_equipment_sets() {
+    let mut request = minimal_character_request();
+    let without_authority =
+        super::super::save_plan::player_character_save_statements_like_cpp(&request);
+    assert!(without_authority.iter().all(|statement| {
+        statement.sql() != CharStatements::DEL_CHAR_AURA_BY_KEY.sql()
+            && statement.sql() != CharStatements::DEL_CHAR_AURA_EFFECT_BY_KEY.sql()
+    }));
+
+    request.action_buttons = Some(PlayerActionButtonsSaveLikeCpp {
+        spec: 1,
+        trait_config_id: 2,
+        rows: vec![PlayerActionButtonSaveLikeCpp {
+            button: 3,
+            packed_action: 4,
+        }],
+    });
+    request.resurrection_sickness = Some(PlayerResurrectionSicknessSave {
+        spell_id: 15007,
+        caster_guid_binary: [0x51; 16],
+        auras: vec![PlayerResurrectionSicknessAuraSave {
+            difficulty: 0,
+            stack_count: 1,
+            max_duration: 60_000,
+            remaining_duration: 45_000,
+            charges: 0,
+            recalculate_mask: 0,
+            cast_item_id: 0,
+            cast_item_level: -1,
+            effects: vec![PlayerResurrectionSicknessEffectSave {
+                index: 0,
+                amount: 12,
+                base_amount: 10,
+            }],
+        }],
+    });
+    request.equipment_sets = Some(vec![equipment_row()]);
+
+    let statements = super::super::save_plan::player_character_save_statements_like_cpp(&request);
+    let index_of = |sql: &str| {
+        statements
+            .iter()
+            .position(|statement| statement.sql() == sql)
+            .expect("expected save statement")
+    };
+    let action = index_of(CharStatements::INS_CHAR_ACTION.sql());
+    let effect_delete = index_of(CharStatements::DEL_CHAR_AURA_EFFECT_BY_KEY.sql());
+    let aura_delete = index_of(CharStatements::DEL_CHAR_AURA_BY_KEY.sql());
+    let aura_insert = index_of(CharStatements::INS_AURA.sql());
+    let effect_insert = index_of(CharStatements::INS_AURA_EFFECT.sql());
+    let equipment = index_of(CharStatements::INS_EQUIP_SET.sql());
+    assert!(action < effect_delete);
+    assert!(effect_delete < aura_delete);
+    assert!(aura_delete < aura_insert);
+    assert!(aura_insert < effect_insert);
+    assert!(effect_insert < equipment);
+
+    request
+        .resurrection_sickness
+        .as_mut()
+        .unwrap()
+        .auras
+        .clear();
+    let empty_family = super::super::save_plan::player_character_save_statements_like_cpp(&request);
+    assert_eq!(
+        empty_family
+            .iter()
+            .filter(|statement| {
+                statement.sql() == CharStatements::DEL_CHAR_AURA_BY_KEY.sql()
+                    || statement.sql() == CharStatements::DEL_CHAR_AURA_EFFECT_BY_KEY.sql()
+            })
+            .count(),
+        2,
+        "Some(empty) still clears only the selected sickness key"
+    );
+    assert!(empty_family.iter().all(|statement| {
+        statement.sql() != CharStatements::INS_AURA.sql()
+            && statement.sql() != CharStatements::INS_AURA_EFFECT.sql()
+    }));
 }
 
 #[test]

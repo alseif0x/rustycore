@@ -6,6 +6,7 @@
 //! Full post-instance player login sequence.
 
 use super::*;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Continue the player login after the instance socket is connected.
 ///
@@ -83,7 +84,7 @@ pub async fn handle_continue_player_login_with_catalogs_like_cpp<H: ContinueLogi
     let level = base_row.level;
     // C++ CHAR_SEL_CHARACTER column order:
     // 7=xp, 8=money, 14..18=position/map/orientation, 21=createMode, 23..24=played time,
-    // 28=resettalents_cost, 29=resettalents_time, 39=at_login, 40=zone.
+    // 28=resettalents_cost, 29=resettalents_time, 39=at_login, 40=zone, 42=death_expire_time.
     let mut zone: i32 = base_row.zone_id.unwrap_or(0) as i32; // smallint unsigned
     let at_login_flags = base_row.at_login_flags.unwrap_or(0);
     let create_mode = base_row.create_mode.unwrap_or(0);
@@ -653,6 +654,16 @@ pub async fn handle_continue_player_login_with_catalogs_like_cpp<H: ContinueLogi
     // C++ `Player::LoadFromDB` restores `fields.health` after `UpdateAllStats`,
     // clamping it to the recalculated max and preserving zero as corpse state.
     let saved_health = base_row.health;
+    let saved_death_expire_time = base_row.death_expire_time.map(|saved| {
+        // C++ Player::LoadFromDB clamps only values beyond its 15-minute
+        // death-reclaim window (Player.cpp:17676-17679).
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+            .min(i64::MAX as u64) as i64;
+        clamp_death_expire_time(saved, now)
+    });
     let loaded_powers = std::array::from_fn(|index| {
         base_row.powers[index].unwrap_or(0).min(i32::MAX as u32) as i32
     });
@@ -789,7 +800,19 @@ pub async fn handle_continue_player_login_with_catalogs_like_cpp<H: ContinueLogi
             .load_player_account_data_like_cpp(&mut hub, guid)
             .await
     };
-    load_character_auras_for_login_like_cpp(host, &player_lifecycle_port, guid).await;
+    let now_unix_secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let aura_timediff_secs = u32::try_from(now_unix_secs.saturating_sub(saved_logout_time_secs))
+        .unwrap_or(u32::MAX);
+    load_character_auras_for_login_like_cpp(
+        host,
+        &player_lifecycle_port,
+        guid,
+        aura_timediff_secs,
+    )
+    .await;
     // C++ `Player::LoadFromDB` runs `_LoadAuras` before `_LoadInventory`,
     // whose final `_ApplyAllItemMods` pass applies, for each equipment slot,
     // the item-set effect, regular equip spell, and enchantments before
@@ -812,6 +835,31 @@ pub async fn handle_continue_player_login_with_catalogs_like_cpp<H: ContinueLogi
         );
     }
     let loaded_enchantment_updates = initial_item_mods.enchantments;
+
+    // C++ `Player::LoadFromDB` restores `DeathState` after `_LoadAuras`:
+    // `PLAYER_FLAGS_GHOST` means DEAD, then saved health zero overrides it to
+    // CORPSE. Keep the saved-health check last, including for ghost rows.
+    if host
+        .core()
+        .with_owned_player_mut_like_cpp(|player| {
+            if let Some(death_expire_time) = saved_death_expire_time {
+                player.resurrection_state_mut_like_cpp().death_expire_time = death_expire_time;
+            }
+            let death_state = login_death_state(
+                saved_health,
+                player.has_player_flag(wow_world_core::session::PLAYER_FLAGS_GHOST_LIKE_CPP),
+            );
+            player.unit_mut().set_death_state(death_state);
+            if saved_health == Some(0) {
+                player.unit_mut().set_health(0);
+            }
+        })
+        .is_none()
+    {
+        host.core_mut()
+            .kick("canonical Player death-state owner unavailable during login hydration");
+        return;
+    }
 
     // C++ defers `UpdateAllStats` and the saved-health clamp until after
     // `_LoadAuras` and `_LoadInventory` have applied every aura and item
@@ -986,5 +1034,52 @@ pub async fn handle_continue_player_login_with_catalogs_like_cpp<H: ContinueLogi
         if let Some(event) = login_hook_event {
             host.player_login_hook_like_cpp(&event);
         }
+    }
+}
+
+fn login_death_state(saved_health: Option<u32>, ghost_flag: bool) -> wow_constants::DeathState {
+    if saved_health == Some(0) {
+        wow_constants::DeathState::Corpse
+    } else if ghost_flag {
+        wow_constants::DeathState::Dead
+    } else {
+        wow_constants::DeathState::Alive
+    }
+}
+
+fn clamp_death_expire_time(saved: i64, now: i64) -> i64 {
+    let maximum = now.saturating_add(900);
+    if saved > maximum {
+        maximum.saturating_sub(1)
+    } else {
+        saved
+    }
+}
+
+#[cfg(test)]
+mod corpse_death_state_tests {
+    use super::{clamp_death_expire_time, login_death_state};
+    use wow_constants::DeathState;
+
+    #[test]
+    fn ghost_flag_restores_dead_state_for_nonzero_saved_health() {
+        assert_eq!(login_death_state(Some(1), true), DeathState::Dead);
+    }
+
+    #[test]
+    fn zero_saved_health_overrides_ghost_flag() {
+        assert_eq!(login_death_state(Some(0), true), DeathState::Corpse);
+    }
+
+    #[test]
+    fn non_ghost_nonzero_health_restores_alive_state() {
+        assert_eq!(login_death_state(Some(12), false), DeathState::Alive);
+    }
+
+    #[test]
+    fn death_expire_time_clamps_only_values_beyond_cpp_window() {
+        assert_eq!(clamp_death_expire_time(1_900, 1_000), 1_900);
+        assert_eq!(clamp_death_expire_time(1_901, 1_000), 1_899);
+        assert_eq!(clamp_death_expire_time(-1, 1_000), -1);
     }
 }

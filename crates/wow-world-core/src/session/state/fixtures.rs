@@ -234,7 +234,7 @@ impl Default for SessionFixtures {
                 #[cfg(any(test, feature = "test-fixtures"))]
                 represented_delayed_resurrection_after_teleport_like_cpp: None,
                 #[cfg(any(test, feature = "test-fixtures"))]
-                represented_death_timer_active_like_cpp: false,
+                represented_death_timer_remaining_ms_like_cpp: 0,
                 #[cfg(any(test, feature = "test-fixtures"))]
                 represented_repop_at_graveyard_count: 0,
             },

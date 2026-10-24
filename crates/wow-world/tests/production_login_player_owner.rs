@@ -256,6 +256,7 @@ impl PlayerLifecyclePortLikeCpp for LoginPort {
                 summoned_pet_number: None,
                 at_login_flags: Some(0),
                 zone_id: Some(12),
+                death_expire_time: Some(0),
                 dungeon_difficulty: None,
                 chosen_title: None,
                 health: Some(100),

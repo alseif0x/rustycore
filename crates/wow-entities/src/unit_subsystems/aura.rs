@@ -39,6 +39,9 @@ pub struct AuraSubsystem {
     /// projection remains in the session adapter; lifetime and mutation live
     /// with the canonical Unit.
     runtime_applications_like_cpp: HashMap<u8, AuraApplicationLikeCpp>,
+    /// Player persistence provenance not represented by `AuraApplication`.
+    /// This is slot-scoped and expires with the canonical runtime application.
+    aura_persistence_metadata_by_slot: HashMap<u8, AuraPersistenceMetadata>,
     /// Provenance of the C++ `Aura` base associated with each active aura
     /// slot. The split-damage combat-log projection needs this identity, but
     /// it must not outlive the slot's application or leak into a replacement.
@@ -143,6 +146,21 @@ pub struct AuraApplicationLikeCpp {
     pub represented_misc_value: Option<i32>,
     pub represented_multiplier: f32,
     pub applied_at: Instant,
+}
+
+/// Persisted Aura fields retained for an admitted runtime slot.
+///
+/// Duration, stacks and current effect amounts remain owned by the runtime
+/// application and its effect snapshot; this record stores only provenance
+/// that those canonical values do not represent.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuraPersistenceMetadata {
+    pub item_guid: ObjectGuid,
+    pub cast_item_id: u32,
+    pub cast_item_level: i32,
+    pub recalculate_mask: u32,
+    pub charges: u8,
+    pub base_amounts: Vec<(u8, i32)>,
 }
 
 /// Cast identity retained by a C++ `Aura` base for split-damage log entries.
@@ -363,6 +381,7 @@ impl AuraSubsystem {
         // receive its provenance explicitly instead of inheriting the prior
         // Aura base's cast metadata.
         self.remove_aura_cast_provenance_like_cpp(aura.slot);
+        self.aura_persistence_metadata_by_slot.remove(&aura.slot);
         self.runtime_applications_like_cpp.insert(aura.slot, aura);
         self.invalidate_spell_hit_aura_authority_like_cpp();
     }
@@ -372,6 +391,7 @@ impl AuraSubsystem {
         slot: u8,
     ) -> Option<AuraApplicationLikeCpp> {
         let removed = self.runtime_applications_like_cpp.remove(&slot);
+        self.aura_persistence_metadata_by_slot.remove(&slot);
         if removed.is_some() {
             self.invalidate_spell_hit_aura_authority_like_cpp();
             self.remove_aura_cast_provenance_like_cpp(slot);
@@ -389,6 +409,7 @@ impl AuraSubsystem {
             self.runtime_applications_like_cpp.clear();
             self.invalidate_spell_hit_aura_authority_like_cpp();
         }
+        self.aura_persistence_metadata_by_slot.clear();
         for slot in removed_slots {
             self.remove_aura_cast_provenance_like_cpp(slot);
         }
@@ -396,6 +417,24 @@ impl AuraSubsystem {
         // clear is the character-identity boundary, where the reused canonical
         // Unit must not inherit the previous character's active transform.
         self.transform_spell_like_cpp = 0;
+    }
+
+    pub fn aura_persistence_metadata(&self, slot: u8) -> Option<&AuraPersistenceMetadata> {
+        self.aura_persistence_metadata_by_slot.get(&slot)
+    }
+
+    /// Store metadata only while the matching canonical runtime slot exists.
+    pub fn set_aura_persistence_metadata(
+        &mut self,
+        slot: u8,
+        metadata: AuraPersistenceMetadata,
+    ) -> bool {
+        if !self.runtime_applications_like_cpp.contains_key(&slot) {
+            return false;
+        }
+        self.aura_persistence_metadata_by_slot
+            .insert(slot, metadata);
+        true
     }
 
     /// Install the cast identity retained by the C++ `Aura` base for `slot`.

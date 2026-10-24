@@ -291,17 +291,20 @@ fn aura_login_phase_precedes_initial_item_mods_and_sets_authority() {
         .find("set_player_aura_authority_complete_like_cpp(false)")
         .expect("aura authority is reset before loading");
     let load_offset = aura_loading
-        .find("load_represented_character_auras_like_cpp(aura_rows, aura_effect_rows, 0)")
+        .find("host.load_represented_character_auras_like_cpp(")
         .expect("aura rows are applied after both queries");
     let authority_offset = aura_loading
         .find("aura_rows_complete && aura_effect_rows_complete")
         .expect("aura authority requires both queries");
     assert!(reset_offset < load_offset);
-    assert!(load_offset < authority_offset);
+    assert!(reset_offset < authority_offset && authority_offset < load_offset);
+    assert!(aura_loading.contains("timediff_secs"));
+    assert!(aura_loading.contains("object_guid_from_aura_db_binary"));
+    assert!(login.contains("now_unix_secs.saturating_sub(saved_logout_time_secs)"));
+    assert!(login.contains("u32::try_from(now_unix_secs.saturating_sub(saved_logout_time_secs))"));
     for marker in [
         "PlayerLoginAuxiliaryLoadRequestLikeCpp::CharacterAuras",
         "PlayerLoginAuxiliaryLoadRequestLikeCpp::CharacterAuraEffects",
-        "object_guid_from_db_binary_like_cpp",
         "CharacterAuraRowLikeCpp",
         "CharacterAuraEffectRowLikeCpp",
         "PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason }",

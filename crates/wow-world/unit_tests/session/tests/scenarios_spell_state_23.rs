@@ -333,6 +333,7 @@ fn initial_loaded_item_mods_follow_cpp_loaded_equip_enchant_aura_order() {
         session.load_represented_character_auras_like_cpp(
             [CharacterAuraRowLikeCpp {
                 caster_guid: player_guid,
+                item_guid: ObjectGuid::EMPTY,
                 spell_id: 30_104,
                 effect_mask: 1,
                 recalculate_mask: 0,
@@ -341,6 +342,8 @@ fn initial_loaded_item_mods_follow_cpp_loaded_equip_enchant_aura_order() {
                 max_duration_ms: -1,
                 remain_time_ms: -1,
                 remain_charges: 0,
+                cast_item_id: 0,
+                cast_item_level: -1,
             }],
             std::iter::empty::<CharacterAuraEffectRowLikeCpp>(),
             0,

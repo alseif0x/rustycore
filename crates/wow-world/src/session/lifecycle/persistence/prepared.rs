@@ -48,9 +48,14 @@ impl WorldSession {
             .spell_catalogs
             .spell_store()
             .map(AsRef::as_ref);
-        let mut owner = self
-            .core
-            .player_save_operation_access_like_cpp(talent_store, spell_store);
+        let chr_races_store = self.catalogs.chr.races_store.as_deref();
+        let difficulty_store = self.catalogs.difficulty_store.as_deref();
+        let mut owner = self.core.player_save_operation_access_like_cpp(
+            talent_store,
+            spell_store,
+            chr_races_store,
+            difficulty_store,
+        );
         let inputs = self.lifecycle.player_save_session_inputs_like_cpp(now);
         let captured = owner.capture_like_cpp(inputs)?;
         let (request, header, _receipt) = captured.into_parts_like_cpp();

@@ -48,7 +48,9 @@ fn canonical_player_resurrection_follows_active_detached_and_stale_ownership_lik
     assert!(
         session
             .with_owned_player_mut_like_cpp(|player| {
-                player.resurrection_state_mut_like_cpp().death_timer_active = true;
+                player
+                    .resurrection_state_mut_like_cpp()
+                    .death_timer_remaining_ms = 360_000;
             })
             .is_some()
     );
@@ -58,7 +60,7 @@ fn canonical_player_resurrection_follows_active_detached_and_stale_ownership_lik
             request: Some(request),
             delayed_after_teleport: Some(request),
             self_res_spells: BTreeSet::from([21169]),
-            death_timer_active: true,
+            death_timer_remaining_ms: 360_000,
             area_spirit_healer_guid: healer_guid,
             ..Default::default()
         })
@@ -125,7 +127,7 @@ fn canonical_player_resurrection_follows_active_detached_and_stale_ownership_lik
             request: Some(replacement_request),
             delayed_after_teleport: None,
             self_res_spells: BTreeSet::from([20608]),
-            death_timer_active: false,
+            death_timer_remaining_ms: 0,
             area_spirit_healer_guid: replacement_healer,
             ..Default::default()
         })

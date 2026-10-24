@@ -74,12 +74,41 @@ fn aura_cast_provenance_is_slot_scoped_and_cleared_on_replacement_like_cpp() {
         applied_at: std::time::Instant::now(),
     };
     auras.insert_runtime_application_like_cpp(runtime.clone());
+    let metadata = AuraPersistenceMetadata {
+        item_guid: ObjectGuid::EMPTY,
+        cast_item_id: 0,
+        cast_item_level: -1,
+        recalculate_mask: 0x5,
+        charges: 2,
+        base_amounts: vec![(0, 10), (2, -7)],
+    };
+    assert!(auras.set_aura_persistence_metadata(9, metadata.clone()));
+    assert_eq!(auras.aura_persistence_metadata(9), Some(&metadata));
+
+    let mut replacement = runtime.clone();
+    replacement.spell_id = 301;
+    auras.insert_runtime_application_like_cpp(replacement);
+    assert_eq!(auras.aura_persistence_metadata(9), None);
+    assert!(auras.set_aura_persistence_metadata(9, metadata.clone()));
     auras.set_aura_cast_provenance_like_cpp(9, provenance);
-    assert_eq!(auras.remove_runtime_application_like_cpp(9), Some(runtime));
+    assert_eq!(
+        auras
+            .remove_runtime_application_like_cpp(9)
+            .unwrap()
+            .spell_id,
+        301
+    );
+    assert_eq!(auras.aura_persistence_metadata(9), None);
     assert_eq!(
         auras.aura_cast_provenance_like_cpp(9),
         AuraCastProvenanceLikeCpp::default()
     );
+    assert!(!auras.set_aura_persistence_metadata(9, metadata.clone()));
+
+    auras.insert_runtime_application_like_cpp(runtime.clone());
+    assert!(auras.set_aura_persistence_metadata(9, metadata));
+    auras.clear_runtime_applications_like_cpp();
+    assert_eq!(auras.aura_persistence_metadata(9), None);
 }
 
 #[test]

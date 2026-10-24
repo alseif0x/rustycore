@@ -273,7 +273,10 @@ impl WorldSession {
                     .spell_state
                     .represented_self_res_spells_for_test_like_cpp()
                     .clone(),
-                death_timer_active: self.fixtures.combat.represented_death_timer_active_like_cpp,
+                death_timer_remaining_ms: self
+                    .fixtures
+                    .combat
+                    .represented_death_timer_remaining_ms_like_cpp,
                 area_spirit_healer_guid: self.fixtures.combat.area_spirit_healer_guid_like_cpp,
                 ..PlayerResurrectionStateLikeCpp::default()
             };

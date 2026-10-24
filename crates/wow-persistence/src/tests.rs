@@ -300,6 +300,7 @@ fn every_player_login_auxiliary_load_names_the_characters_database_like_cpp() {
         PlayerLoginAuxiliaryLoadRequestLikeCpp::EquipmentInventory { player_guid: 1 },
         PlayerLoginAuxiliaryLoadRequestLikeCpp::BagInventory { player_guid: 1 },
         PlayerLoginAuxiliaryLoadRequestLikeCpp::VoidStorage { player_guid: 1 },
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::CorpseLocation { player_guid: 1 },
     ] {
         assert_eq!(
             request.logical_database(),
@@ -397,6 +398,7 @@ fn character_aura_rows_keep_loaded_empty_and_failure_distinct_like_cpp() {
         PlayerLoginAuxiliaryLoadedLikeCpp::CharacterAuras(vec![
             PlayerCharacterAuraLoadRowLikeCpp {
                 caster_guid_binary: vec![1],
+                item_guid_binary: vec![0; 16],
                 spell_id: 133,
                 effect_mask: 1,
                 recalculate_mask: 0,
@@ -405,6 +407,8 @@ fn character_aura_rows_keep_loaded_empty_and_failure_distinct_like_cpp() {
                 max_duration_ms: 10_000,
                 remain_time_ms: 5_000,
                 remain_charges: 0,
+                cast_item_id: 0,
+                cast_item_level: -1,
             },
         ]),
     );

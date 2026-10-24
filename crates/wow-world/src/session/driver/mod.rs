@@ -172,11 +172,42 @@ impl WorldSession {
                 regen_game_tables.as_deref(),
                 catalogs.player_regeneration_rates.as_ref(),
             );
+            // C++ `Player::Update` returns at its entry when !IsInWorld and
+            // calls KillPlayer for JUST_DIED immediately after RegenerateAll
+            // and before the save timer (`Player.cpp:909`, `:1053`). The
+            // retained canonical Player can be detached during a far transfer.
+            if self.core.player_is_strictly_in_world_like_cpp() {
+                let just_died = self
+                    .core
+                    .with_owned_player_like_cpp(|player| {
+                        player.unit().death_state() == wow_constants::DeathState::JustDied
+                    })
+                    .unwrap_or(false);
+                if just_died {
+                    wow_world_entities::kill_player_like_cpp(self);
+                }
+            }
             // Aura expiry tick every 4 ticks (~200ms) — always, regardless of owner.
             if self.world_entities.creature_tick_like_cpp() % 4 == 0 {
                 wow_world_spell::tick_auras(self);
             }
             self.lifecycle.update_player_save_timer_like_cpp(diff_ms);
+            // C++ `Player::Update` advances m_deathTimer after SaveTimer and
+            // before its delayed teleport (`Player.cpp:1101`), only while its
+            // Player remains in world. The lifecycle operation owns expiry's
+            // BuildPlayerRepop → RepopAtGraveyard.
+            if self.core.player_is_strictly_in_world_like_cpp() {
+                wow_world_entities::tick_player_death_timer(
+                    self,
+                    diff_ms,
+                    wow_world_entities::CorpseLifecycleCatalogsLikeCpp {
+                        item_guid_generator: catalogs.id_generators.item.as_ref(),
+                        creature_spawns: catalogs.creature_spawns.as_ref(),
+                        graveyards: catalogs.graveyards.as_ref(),
+                    },
+                )
+                .await;
+            }
             self.revalidate_represented_tavern_resting_with_catalog_like_cpp(
                 catalogs.area_triggers.db2.as_ref(),
             );

@@ -9,9 +9,8 @@
 //! `WorldSession::HandleReclaimCorpse` (`MiscHandler.cpp:416-445`).
 //!
 //! Not represented (no Rust owner yet): `RemovePlayerFlag(IS_OUT_OF_BOUNDS)`,
-//! the Recruit-a-Friend dynamic flag, `SetWaterWalking(false)`/`SetRooted`,
-//! `OutdoorPvPMgr::HandlePlayerResurrects`, `Battleground::HandlePlayerResurrect`
-//! and `CastAllObtainSpells`.
+//! the Recruit-a-Friend dynamic flag, `OutdoorPvPMgr::HandlePlayerResurrects`,
+//! `Battleground::HandlePlayerResurrect` and `CastAllObtainSpells`.
 
 use tracing::warn;
 use wow_constants::PowerType;
@@ -54,11 +53,40 @@ pub async fn resurrect_player_like_cpp<H: CorpseHostLikeCpp>(
     // C++ `AuraEffect::HandleAuraGhost` unapply removes PLAYER_FLAGS_GHOST.
     crate::set_player_ghost_flag_like_cpp(host, false);
 
-    let restored = host.core().with_owned_player_mut_like_cpp(|player| {
+    let alive = host.core().with_owned_player_mut_like_cpp(|player| {
         player
             .unit_mut()
             .set_death_state(wow_constants::DeathState::Alive);
-        player.resurrection_state_mut_like_cpp().death_timer_active = false;
+    });
+    if alive.is_none() {
+        return;
+    }
+
+    // C++ adds this bit first so SetWaterWalking(false) always emits land-walk,
+    // including when the incoming Player did not have WATER_WALK set.
+    let _ = host.core().with_owned_player_mut_like_cpp(|player| {
+        let mut flags = player.unit().movement_flags_like_cpp();
+        flags.insert(wow_constants::MovementFlag::WATER_WALK);
+        player.unit_mut().set_movement_flags_like_cpp(flags);
+    });
+    host.hub_mut().set_player_water_walking(false);
+    let stunned = host
+        .core()
+        .with_owned_player_like_cpp(|player| {
+            player
+                .unit()
+                .has_unit_state(wow_constants::UnitState::STUNNED.bits())
+        })
+        .unwrap_or(true);
+    if !stunned {
+        host.hub_mut().set_player_rooted_like_cpp(false);
+    }
+
+    let restored = host.core().with_owned_player_mut_like_cpp(|player| {
+        // C++ clears m_deathTimer after land-walk and the guarded unroot.
+        player
+            .resurrection_state_mut_like_cpp()
+            .death_timer_remaining_ms = 0;
 
         // set health/powers (0- will be set in caller)
         if restore_percent > 0.0 {

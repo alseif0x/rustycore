@@ -42,11 +42,11 @@ pub fn player_resurrection_state_snapshot_like_cpp<H: SpellExecutionHostLikeCpp 
                 .spell_state()
                 .represented_self_res_spells_for_test_like_cpp()
                 .clone(),
-            death_timer_active: host
+            death_timer_remaining_ms: host
                 .hub_ref()
                 .fixtures
                 .combat
-                .represented_death_timer_active_like_cpp,
+                .represented_death_timer_remaining_ms_like_cpp,
             area_spirit_healer_guid: host
                 .hub_ref()
                 .fixtures

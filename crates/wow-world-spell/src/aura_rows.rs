@@ -10,6 +10,7 @@ use wow_core::ObjectGuid;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CharacterAuraRowLikeCpp {
     pub caster_guid: ObjectGuid,
+    pub item_guid: ObjectGuid,
     pub spell_id: u32,
     pub effect_mask: u32,
     pub recalculate_mask: u32,
@@ -18,11 +19,14 @@ pub struct CharacterAuraRowLikeCpp {
     pub max_duration_ms: i32,
     pub remain_time_ms: i32,
     pub remain_charges: u8,
+    pub cast_item_id: u32,
+    pub cast_item_level: i32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CharacterAuraEffectRowLikeCpp {
     pub caster_guid: ObjectGuid,
+    pub item_guid: ObjectGuid,
     pub spell_id: u32,
     pub effect_mask: u32,
     pub effect_index: u8,

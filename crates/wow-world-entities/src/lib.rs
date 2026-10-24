@@ -1,11 +1,14 @@
 //! Session-independent world-entity state and represented creature publication.
 
+pub(crate) const PLAYER_LOCAL_FLAG_RELEASE_TIMER: u32 = 0x0000_0008;
+
 mod aggro;
 mod catalogs;
 mod combat_handlers;
 mod combat_session;
 mod contracts;
 mod corpse_handlers;
+mod corpse_login;
 mod corpse_registrations;
 mod creature;
 pub mod creature_aggro_contracts;
@@ -94,6 +97,7 @@ pub use corpse_handlers::{
     CorpseHostLikeCpp, handle_reclaim_corpse, handle_repop_request,
     handle_request_cemetery_list_with_catalog_like_cpp, handle_resurrect_response,
 };
+pub use corpse_login::restore_player_corpse_after_login;
 pub use module_hooks::CreatureKillHookEventLikeCpp;
 pub use spirit_healer::send_spirit_resurrect;
 // The exact `ApplicationCorpse` owner facade the handler-contract checker
@@ -215,6 +219,7 @@ pub use player_death::{
     corpse_item_cache_like_cpp, corpse_reclaim_delay_secs_like_cpp, create_corpse_like_cpp,
     kill_player_like_cpp, player_corpse_like_cpp, player_corpse_location_like_cpp,
     player_in_arena_like_cpp, repop_at_graveyard_like_cpp, repop_request_like_cpp,
+    tick_player_death_timer,
     spawn_corpse_bones_like_cpp, updated_death_expire_time_like_cpp,
 };
 pub use player_resurrection::{reclaim_corpse_like_cpp, resurrect_player_like_cpp};

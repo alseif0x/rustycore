@@ -2,6 +2,96 @@
   "schema_version": 2,
   "workflows": [
     {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter::save_steps::resurrection_sickness",
+      "source": "crates/wow-database/src/player/lifecycle_adapter/save_steps/resurrection_sickness.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Characters statement construction for the selected resurrection-sickness family (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure bindings only; the lifecycle adapter appends all statements to its existing single Characters save transaction.",
+      "current_order": "Imports acquire no connection and impose no execution order.",
+      "failure_and_unknown_commit": "No I/O, acknowledgement or commit classification here; existing lifecycle rollback, unknown-COMMIT and cancellation fences remain authoritative."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter::save_steps::resurrection_sickness",
+      "source": "crates/wow-database/src/player/lifecycle_adapter/save_steps/resurrection_sickness.rs",
+      "enclosing": "fn delete",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Characters statement construction for the selected resurrection-sickness family (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure bindings only; the lifecycle adapter appends all statements to its existing single Characters save transaction.",
+      "current_order": "After actions and before equipment sets: delete effects, delete aura, then insert selected self-cast aura and effects. The key is player/caster/empty item/spell; foreign and item-cast aura families are preserved.",
+      "failure_and_unknown_commit": "No I/O, acknowledgement or commit classification here; existing lifecycle rollback, unknown-COMMIT and cancellation fences remain authoritative."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter::save_steps::resurrection_sickness",
+      "source": "crates/wow-database/src/player/lifecycle_adapter/save_steps/resurrection_sickness.rs",
+      "enclosing": "fn delete_effects",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Characters statement construction for the selected resurrection-sickness family (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure bindings only; the lifecycle adapter appends all statements to its existing single Characters save transaction.",
+      "current_order": "After actions and before equipment sets: delete effects, delete aura, then insert selected self-cast aura and effects. The key is player/caster/empty item/spell; foreign and item-cast aura families are preserved.",
+      "failure_and_unknown_commit": "No I/O, acknowledgement or commit classification here; existing lifecycle rollback, unknown-COMMIT and cancellation fences remain authoritative."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter::save_steps::resurrection_sickness",
+      "source": "crates/wow-database/src/player/lifecycle_adapter/save_steps/resurrection_sickness.rs",
+      "enclosing": "fn insert_aura",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Characters statement construction for the selected resurrection-sickness family (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure bindings only; the lifecycle adapter appends all statements to its existing single Characters save transaction.",
+      "current_order": "After actions and before equipment sets: delete effects, delete aura, then insert selected self-cast aura and effects. The key is player/caster/empty item/spell; foreign and item-cast aura families are preserved.",
+      "failure_and_unknown_commit": "No I/O, acknowledgement or commit classification here; existing lifecycle rollback, unknown-COMMIT and cancellation fences remain authoritative."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter::save_steps::resurrection_sickness",
+      "source": "crates/wow-database/src/player/lifecycle_adapter/save_steps/resurrection_sickness.rs",
+      "enclosing": "fn insert_effect",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Characters statement construction for the selected resurrection-sickness family (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure bindings only; the lifecycle adapter appends all statements to its existing single Characters save transaction.",
+      "current_order": "After actions and before equipment sets: delete effects, delete aura, then insert selected self-cast aura and effects. The key is player/caster/empty item/spell; foreign and item-cast aura families are preserved.",
+      "failure_and_unknown_commit": "No I/O, acknowledgement or commit classification here; existing lifecycle rollback, unknown-COMMIT and cancellation fences remain authoritative."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player::lifecycle_adapter::save_steps::resurrection_sickness",
+      "source": "crates/wow-database/src/player/lifecycle_adapter/save_steps/resurrection_sickness.rs",
+      "enclosing": "fn bind_key",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Private Characters statement construction for the selected resurrection-sickness family (#43)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure bindings only; the lifecycle adapter appends all statements to its existing single Characters save transaction.",
+      "current_order": "After actions and before equipment sets: delete effects, delete aura, then insert selected self-cast aura and effects. The key is player/caster/empty item/spell; foreign and item-cast aura families are preserved.",
+      "failure_and_unknown_commit": "No I/O, acknowledgement or commit classification here; existing lifecycle rollback, unknown-COMMIT and cancellation fences remain authoritative."
+    },
+    {
       "package": "bnet-server",
       "module": "crate",
       "source": "crates/bnet-server/src/main.rs",

@@ -15,6 +15,13 @@ pub struct PlayerCharacterSaveRequestLikeCpp {
     pub account_id: u32,
     pub wall_clock_unix_secs: i64,
     pub character: PlayerCharacterSnapshotSaveLikeCpp,
+    /// Absolute durability values for Player-owned item objects that were
+    /// already persisted by their creation/loot transaction.
+    pub item_durability: Option<Vec<PlayerItemDurabilitySave>>,
+    /// Selected race's self-cast resurrection-sickness aura family.
+    /// `None` preserves rows when canonical aura authority or catalogs are
+    /// incomplete; `Some(empty)` removes only this scoped family.
+    pub resurrection_sickness: Option<PlayerResurrectionSicknessSave>,
     pub spells: Option<PlayerSpellSaveGroupLikeCpp>,
     pub skills: Option<Vec<PlayerSkillSaveLikeCpp>>,
     pub glyphs: Option<Vec<PlayerGlyphSaveLikeCpp>>,
@@ -95,6 +102,45 @@ pub struct PlayerCharacterSnapshotSaveLikeCpp {
     pub dungeon_difficulty: u32,
     pub raid_difficulty: u32,
     pub legacy_raid_difficulty: u32,
+    /// C++ `Player::SaveToDB` persists `m_atLoginFlags`/`m_deathExpireTime`
+    /// (`Player.cpp:19543,19545`).
+    pub at_login_flags: u16,
+    pub death_expire_time: i64,
+}
+
+/// One dirty, already-persisted item whose current durability belongs to this
+/// character's full-save transaction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerItemDurabilitySave {
+    pub item_guid: u64,
+    pub durability: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerResurrectionSicknessSave {
+    pub spell_id: u32,
+    pub caster_guid_binary: [u8; 16],
+    pub auras: Vec<PlayerResurrectionSicknessAuraSave>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerResurrectionSicknessAuraSave {
+    pub difficulty: u8,
+    pub stack_count: u8,
+    pub max_duration: i32,
+    pub remaining_duration: i32,
+    pub charges: u8,
+    pub recalculate_mask: u32,
+    pub cast_item_id: u32,
+    pub cast_item_level: i32,
+    pub effects: Vec<PlayerResurrectionSicknessEffectSave>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerResurrectionSicknessEffectSave {
+    pub index: u8,
+    pub amount: i32,
+    pub base_amount: i32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

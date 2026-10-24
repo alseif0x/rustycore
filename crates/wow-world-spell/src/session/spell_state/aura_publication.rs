@@ -1,7 +1,9 @@
 use crate::SessionSpellState;
-use std::{collections::HashSet, time::Instant};
+use std::{collections::{HashMap, HashSet}, time::Instant};
 use wow_core::{ObjectGuid, guid::HighGuid};
-use wow_entities::AuraApplicationLikeCpp as AuraApplication;
+use wow_entities::{
+    AuraApplicationLikeCpp as AuraApplication, AuraCastProvenanceLikeCpp,
+};
 use wow_world_core::session::{AFLAG_SCALABLE_LIKE_CPP, HubMut, HubRef};
 
 pub const AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP: u32 = 0x0000_0080;
@@ -11,8 +13,36 @@ pub fn player_aura_info_like_cpp(
     player_level: u8,
     map_id: u16,
 ) -> wow_packet::packets::misc::AuraInfoLikeCpp {
+    player_aura_info_with_provenance(aura, player_level, map_id, None)
+}
+
+fn player_aura_info_with_provenance(
+    aura: &AuraApplication,
+    player_level: u8,
+    map_id: u16,
+    provenance: Option<AuraCastProvenanceLikeCpp>,
+) -> wow_packet::packets::misc::AuraInfoLikeCpp {
     let duration_ms = (aura.duration_total > 0).then_some(aura.duration_total);
     let remaining_ms = (aura.duration_remaining > 0).then_some(aura.duration_remaining);
+    let (cast_id, spell_visual_id) = provenance
+        .filter(|provenance| !provenance.cast_id.is_empty())
+        .map_or_else(
+            || {
+                (
+                    ObjectGuid::create_world_object(
+                        HighGuid::Cast,
+                        3,
+                        aura.caster_guid.realm_id().max(1),
+                        map_id,
+                        0,
+                        u32::try_from(aura.spell_id).unwrap_or(0),
+                        i64::from(aura.slot) + 1,
+                    ),
+                    0,
+                )
+            },
+            |provenance| (provenance.cast_id, provenance.spell_visual_id),
+        );
     let points = if aura.aura_flags & AFLAG_SCALABLE_LIKE_CPP != 0 {
         aura.represented_effect_amounts
             .iter()
@@ -28,17 +58,9 @@ pub fn player_aura_info_like_cpp(
     wow_packet::packets::misc::AuraInfoLikeCpp {
         slot: aura.slot,
         aura_data: Some(wow_packet::packets::misc::AuraDataInfoLikeCpp {
-            cast_id: ObjectGuid::create_world_object(
-                HighGuid::Cast,
-                3,
-                aura.caster_guid.realm_id().max(1),
-                map_id,
-                0,
-                u32::try_from(aura.spell_id).unwrap_or(0),
-                i64::from(aura.slot) + 1,
-            ),
+            cast_id,
             spell_id: aura.spell_id,
-            spell_visual_id: 0,
+            spell_visual_id,
             flags: aura.aura_flags.min(u32::from(u16::MAX)) as u16,
             active_flags: aura.effect_mask,
             caster_guid: aura.caster_guid,
@@ -53,7 +75,23 @@ pub fn player_aura_info_like_cpp(
 
 impl SessionSpellState {
     pub fn send_initial_player_auras_like_cpp(&self, hub: HubRef<'_>) {
-        let Some(visible_auras) = hub.resolved_player_visible_auras_like_cpp() else {
+        let canonical = hub.core.with_owned_player_like_cpp(|player| {
+            let auras = &player.unit().subsystems().auras;
+            let visible = auras.runtime_applications_like_cpp().clone();
+            let provenance = visible
+                .keys()
+                .map(|slot| (*slot, auras.aura_cast_provenance_like_cpp(*slot)))
+                .collect::<HashMap<_, _>>();
+            (visible, provenance)
+        });
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let projection = canonical.or_else(|| {
+            hub.resolved_player_visible_auras_like_cpp()
+                .map(|visible| (visible, HashMap::new()))
+        });
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let projection = canonical;
+        let Some((visible_auras, provenance_by_slot)) = projection else {
             return;
         };
         if visible_auras.is_empty() {
@@ -68,10 +106,11 @@ impl SessionSpellState {
         let auras = visible
             .into_iter()
             .map(|aura| {
-                player_aura_info_like_cpp(
+                player_aura_info_with_provenance(
                     aura,
                     hub.player_level_like_cpp(),
                     hub.core.player_map_id_like_cpp(),
+                    provenance_by_slot.get(&aura.slot).copied(),
                 )
             })
             .collect();
