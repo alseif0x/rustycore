@@ -2,9 +2,7 @@
 
 use super::*;
 use wow_core::{ObjectGuid, guid::HighGuid};
-use wow_data::{
-    DifficultyEntry, SpellAuraOptionsEntry, SpellAuraOptionsStore, SpellStore,
-};
+use wow_data::{DifficultyEntry, SpellAuraOptionsEntry, SpellAuraOptionsStore, SpellStore};
 
 const SPELL_ID: i32 = 8_326;
 
@@ -32,15 +30,7 @@ fn application(difficulty_id: u8) -> AuraApplication {
 
 fn provenance() -> AuraCastProvenance {
     AuraCastProvenance {
-        cast_id: ObjectGuid::create_world_object(
-            HighGuid::Cast,
-            3,
-            1,
-            571,
-            0,
-            SPELL_ID as u32,
-            52,
-        ),
+        cast_id: ObjectGuid::create_world_object(HighGuid::Cast, 3, 1, 571, 0, SPELL_ID as u32, 52),
         spell_visual_id: 7,
         caster_level: Some(80),
     }
@@ -88,15 +78,9 @@ fn selected_publication_catalogs_follow_4_to_3_to_0_and_choose_highest_record_id
     attributes[5] = 0x400;
     attributes[11] = 0x4;
     spells.insert_spell_misc_attributes_for_difficulty_like_cpp(SPELL_ID, 0, attributes);
-    let options = SpellAuraOptionsStore::from_entries([
-        options_row(3, 0, 2),
-        options_row(9, 0, 7),
-    ]);
-    let difficulties = DifficultyStore::from_entries([
-        difficulty(4, 3),
-        difficulty(3, 0),
-        difficulty(0, 0),
-    ]);
+    let options = SpellAuraOptionsStore::from_entries([options_row(3, 0, 2), options_row(9, 0, 7)]);
+    let difficulties =
+        DifficultyStore::from_entries([difficulty(4, 3), difficulty(3, 0), difficulty(0, 0)]);
 
     let facts = selected_aura_wire_facts(
         &application(4),
@@ -140,11 +124,8 @@ fn selected_publication_catalogs_stop_at_known_missing_difficulty_without_base_a
 
     let mut spells_with_requested_row = SpellStore::new();
     spells_with_requested_row.insert_spell_misc_attributes_like_cpp(SPELL_ID, base_attributes);
-    spells_with_requested_row.insert_spell_misc_attributes_for_difficulty_like_cpp(
-        SPELL_ID,
-        4,
-        [0; 15],
-    );
+    spells_with_requested_row
+        .insert_spell_misc_attributes_for_difficulty_like_cpp(SPELL_ID, 4, [0; 15]);
     let facts = selected_aura_wire_facts(
         &application(4),
         &provenance(),
@@ -164,7 +145,7 @@ fn selected_publication_catalogs_stop_at_known_missing_difficulty_without_base_a
 fn selected_publication_catalogs_hold_when_a_required_difficulty_store_is_unknown() {
     let mut spells = SpellStore::new();
     spells.insert_spell_misc_attributes_like_cpp(SPELL_ID, [0; 15]);
-    let options = SpellAuraOptionsStore::from_entries([]);
+    let options = SpellAuraOptionsStore::from_entries([options_row(1, 3, 1)]);
 
     assert!(selected_misc_attributes(&spells, SPELL_ID, 4, None).is_err());
     assert!(selected_aura_options_entry(&options, SPELL_ID as u32, 4, None).is_err());
@@ -180,21 +161,22 @@ fn selected_publication_catalogs_hold_when_a_required_difficulty_store_is_unknow
             difficulties: None,
         },
     );
-    assert!(result.is_err(), "an unknown fallback catalog holds publication");
+    assert!(
+        result.is_err(),
+        "an unknown fallback catalog holds publication"
+    );
 }
 
 #[test]
 fn selected_publication_catalogs_reject_difficulty_cycles() {
-    let spells = SpellStore::new();
-    let options = SpellAuraOptionsStore::from_entries([]);
-    let difficulties = DifficultyStore::from_entries([
-        difficulty(4, 3),
-        difficulty(3, 4),
-    ]);
+    let mut spells = SpellStore::new();
+    spells.insert_spell_misc_attributes_for_difficulty_like_cpp(SPELL_ID, 7, [0; 15]);
+    let options = SpellAuraOptionsStore::from_entries([options_row(1, 7, 1)]);
+    let difficulties = DifficultyStore::from_entries([difficulty(0, 3), difficulty(3, 0)]);
 
-    assert!(selected_misc_attributes(&spells, SPELL_ID, 4, Some(&difficulties)).is_err());
+    assert!(selected_misc_attributes(&spells, SPELL_ID, 0, Some(&difficulties)).is_err());
     assert!(
-        selected_aura_options_entry(&options, SPELL_ID as u32, 4, Some(&difficulties)).is_err()
+        selected_aura_options_entry(&options, SPELL_ID as u32, 0, Some(&difficulties)).is_err()
     );
 }
 
@@ -214,5 +196,8 @@ fn selected_publication_unknown_spellinfo_key_without_misc_stays_unavailable() {
             difficulties: Some(&difficulties),
         },
     );
-    assert!(result.is_err(), "an unknown SpellInfo key cannot imply zero attributes");
+    assert!(
+        result.is_err(),
+        "an unknown SpellInfo key cannot imply zero attributes"
+    );
 }

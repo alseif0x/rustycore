@@ -982,6 +982,32 @@ the worker reported GPT-6 without variant/effort telemetry. No existing producer
 load, or publication caller uses these rules yet. Metadata resolver corrections,
 canonical caster connection, full acceptance, and the rest of #43 remain open.
 
+9i3C3d2c connects the wire attributes/options adapter and caster-level fallback
+to one private selected catalog resolver. Exact rows decide before consulting
+the difficulty graph. A needed fallback follows actual known Difficulty rows,
+including zero; a known missing row stops, an unknown required store holds,
+and a needed cycle is rejected. A concrete metadata store with no row for this
+spell proves its Source default without requiring an irrelevant graph. Options,
+Levels, and raw Misc select the highest RecordID. Wire zero attributes require
+a reachable regular SpellInfo key when no Misc attributes resolve. Raw cast
+difficulty and existing canonical caster admission remain unchanged. Source:
+SpellMgr.cpp:675–693,2614–2687 at the same pinned SHA.
+
+On `fb241ddee` plus the reviewed seven-file delta, sequential aarch64/jobs=1
+Spell check and focused tests passed: `--lib selected_catalog` ran thirteen
+cases and `--lib selected_caster` ran ten, all exit 0. Logs are
+`/tmp/rustycore-9i3c3d2c-cargo-check-rerun.log`,
+`/tmp/rustycore-9i3c3d2c-test-selected-catalog-rerun.log`, and
+`/tmp/rustycore-9i3c3d2c-test-selected-caster.log`. The first catalog test
+compilation failed on a missing fixture import and ran zero cases; its log
+without `-rerun` is retained. Key-chain traversal uses explicit pure lookup
+inputs in tests; the positive known-key/no-Misc wire branch still has no
+dedicated consumer test. The unused raw Misc reader is reserved for the next
+duration consumer. The fixed worker role ran successfully; self-reported
+variant/effort telemetry was unavailable. This is focused coding feedback,
+not candidate final acceptance. Constructor activation, remaining cast/load
+metadata consumers, and all four macro blocks above remain open.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa

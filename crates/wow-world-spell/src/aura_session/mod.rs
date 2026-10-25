@@ -29,6 +29,7 @@ mod duration;
 mod mount;
 mod publication;
 mod selected_caster;
+pub(crate) mod selected_catalog;
 mod selected_flags;
 mod selected_lifetime;
 mod sources;

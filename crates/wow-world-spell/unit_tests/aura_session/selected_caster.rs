@@ -354,9 +354,9 @@ fn difficulty_cycle_is_reported_without_looping() {
     let owner_guid = ObjectGuid::create_player(1, 91_017);
     let missing_guid = ObjectGuid::create_player(1, 91_018);
     let owner = add_player(&mut manager, owner_guid, 70, Some(MAP));
-    let levels = spell_levels(std::iter::empty());
+    let levels = spell_levels([level_entry(1, SPELL_ID, 7, 88)]);
     let difficulties =
-        DifficultyStore::from_entries([difficulty_entry(2, 3), difficulty_entry(3, 2)]);
+        DifficultyStore::from_entries([difficulty_entry(0, 3), difficulty_entry(3, 0)]);
 
     assert_eq!(
         selected_caster_level(
@@ -364,7 +364,7 @@ fn difficulty_cycle_is_reported_without_looping() {
             owner,
             missing_guid,
             SPELL_ID,
-            2,
+            0,
             Some(&levels),
             Some(&difficulties),
         ),

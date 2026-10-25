@@ -5,6 +5,10 @@
 //! Borrowed catalog facts needed by selected Aura wire projection.
 
 use super::selected_wire::SelectedAuraWireFacts;
+use crate::aura_session::selected_catalog::{
+    SelectedCatalogError, selected_aura_options_entry as resolve_aura_options_entry,
+    selected_spell_attributes, selected_spell_info_key_difficulty,
+};
 use wow_data::character_progression::ChrRacesStore;
 use wow_data::{DifficultyStore, SpellAuraOptionsStore, SpellStore};
 use wow_entities::{
@@ -55,8 +59,8 @@ pub(crate) fn selected_aura_wire_facts(
     let spell_store = catalogs
         .spells
         .ok_or("selected aura spell catalog is unavailable")?;
-    let spell_id = u32::try_from(aura.spell_id)
-        .map_err(|_| "selected aura spell identity is invalid")?;
+    let spell_id =
+        u32::try_from(aura.spell_id).map_err(|_| "selected aura spell identity is invalid")?;
     let attributes = match selected_misc_attributes(
         spell_store,
         aura.spell_id,
@@ -64,26 +68,30 @@ pub(crate) fn selected_aura_wire_facts(
         catalogs.difficulties,
     )? {
         Some(attributes) => attributes,
-        None
-            if spell_store
-                .contains_spell_info_exact_like_cpp(spell_id, aura.difficulty_id) =>
-        {
-            // C++ initializes SpellInfo misc attributes to zero when the exact
-            // SpellInfo key exists without a SpellMisc row.
-            [0; 15]
+        None => {
+            if selected_spell_info_key_difficulty(
+                spell_store,
+                spell_id,
+                aura.difficulty_id,
+                catalogs.difficulties,
+            )
+            .map_err(|error| selected_spell_info_error(error))?
+            .is_some()
+            {
+                // C++ initializes SpellInfo misc attributes to zero when its
+                // resolved key exists without any SpellMisc row.
+                [0; 15]
+            } else {
+                return Err("selected aura spell attributes are unavailable");
+            }
         }
-        None => return Err("selected aura spell attributes are unavailable"),
     };
     let options = catalogs
         .aura_options
         .ok_or("selected aura options catalog is unavailable")?;
-    let catalog_stack_amount = selected_aura_options_entry(
-        options,
-        spell_id,
-        aura.difficulty_id,
-        catalogs.difficulties,
-    )?
-    .map_or(0, |entry| entry.cumulative_aura);
+    let catalog_stack_amount =
+        selected_aura_options_entry(options, spell_id, aura.difficulty_id, catalogs.difficulties)?
+            .map_or(0, |entry| entry.cumulative_aura);
 
     Ok(SelectedAuraWireFacts {
         captured_caster_level,
@@ -101,30 +109,8 @@ fn selected_misc_attributes(
     requested_difficulty: u8,
     difficulties: Option<&DifficultyStore>,
 ) -> Result<Option<[u32; 15]>, &'static str> {
-    let mut difficulty_id = requested_difficulty;
-    let mut visited = [false; 256];
-    loop {
-        if let Some(attributes) =
-            store.misc_attributes_for_exact_difficulty(spell_id, difficulty_id)
-        {
-            return Ok(Some(attributes));
-        }
-        if difficulty_id == 0 {
-            return Ok(None);
-        }
-        let seen = &mut visited[usize::from(difficulty_id)];
-        if *seen {
-            return Err("selected aura spell difficulty fallback contains a cycle");
-        }
-        *seen = true;
-        let Some(difficulty) = difficulties else {
-            return Err("selected aura spell difficulty catalog is unavailable");
-        };
-        let Some(entry) = difficulty.get(u32::from(difficulty_id)) else {
-            return Ok(None);
-        };
-        difficulty_id = entry.fallback_difficulty_id;
-    }
+    selected_spell_attributes(store, spell_id, requested_difficulty, difficulties)
+        .map_err(selected_spell_attributes_error)
 }
 
 fn selected_aura_options_entry<'a>(
@@ -133,36 +119,40 @@ fn selected_aura_options_entry<'a>(
     requested_difficulty: u8,
     difficulties: Option<&DifficultyStore>,
 ) -> Result<Option<&'a wow_data::SpellAuraOptionsEntry>, &'static str> {
-    let exact = |difficulty_id| {
-        store
-            .entries_like_cpp()
-            .filter(|entry| {
-                entry.spell_id == spell_id && entry.difficulty_id == difficulty_id
-            })
-            .max_by_key(|entry| entry.id)
-    };
+    resolve_aura_options_entry(store, spell_id, requested_difficulty, difficulties)
+        .map_err(selected_aura_options_error)
+}
 
-    let mut difficulty_id = requested_difficulty;
-    let mut visited = [false; 256];
-    loop {
-        if let Some(entry) = exact(difficulty_id) {
-            return Ok(Some(entry));
+fn selected_spell_attributes_error(error: SelectedCatalogError) -> &'static str {
+    match error {
+        SelectedCatalogError::DifficultyUnavailable => {
+            "selected aura spell difficulty catalog is unavailable"
         }
-        if difficulty_id == 0 {
-            return Ok(None);
+        SelectedCatalogError::DifficultyCycle => {
+            "selected aura spell difficulty fallback contains a cycle"
         }
-        let visited_entry = &mut visited[usize::from(difficulty_id)];
-        if *visited_entry {
-            return Err("selected aura options difficulty fallback contains a cycle");
+    }
+}
+
+fn selected_aura_options_error(error: SelectedCatalogError) -> &'static str {
+    match error {
+        SelectedCatalogError::DifficultyUnavailable => {
+            "selected aura options difficulty catalog is unavailable"
         }
-        *visited_entry = true;
-        let Some(difficulties) = difficulties else {
-            return Err("selected aura options difficulty catalog is unavailable");
-        };
-        let Some(entry) = difficulties.get(u32::from(difficulty_id)) else {
-            return Ok(None);
-        };
-        difficulty_id = entry.fallback_difficulty_id;
+        SelectedCatalogError::DifficultyCycle => {
+            "selected aura options difficulty fallback contains a cycle"
+        }
+    }
+}
+
+fn selected_spell_info_error(error: SelectedCatalogError) -> &'static str {
+    match error {
+        SelectedCatalogError::DifficultyUnavailable => {
+            "selected aura spell difficulty catalog is unavailable"
+        }
+        SelectedCatalogError::DifficultyCycle => {
+            "selected aura spell difficulty fallback contains a cycle"
+        }
     }
 }
 

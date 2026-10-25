@@ -2,6 +2,8 @@ use wow_core::ObjectGuid;
 use wow_data::{DifficultyStore, SpellLevelsStore};
 use wow_map::{MapKey, MapManager, PlayerHandle};
 
+use super::selected_catalog::{SelectedCatalogError, selected_spell_level};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SelectedCasterLevelError {
     OwnerUnavailable,
@@ -155,36 +157,12 @@ fn spell_level_fallback(
     difficulties: Option<&DifficultyStore>,
 ) -> Result<u8, SelectedCasterLevelError> {
     let spell_levels = spell_levels.ok_or(SelectedCasterLevelError::SpellLevelsUnavailable)?;
-    let mut current_difficulty = difficulty_id;
-    let mut visited = [false; 256];
-
-    loop {
-        let index = usize::from(current_difficulty);
-        if visited[index] {
-            return Err(SelectedCasterLevelError::DifficultyCycle);
+    selected_spell_level(spell_levels, spell_id, difficulty_id, difficulties).map_err(|error| {
+        match error {
+            SelectedCatalogError::DifficultyUnavailable => {
+                SelectedCasterLevelError::DifficultyUnavailable
+            }
+            SelectedCatalogError::DifficultyCycle => SelectedCasterLevelError::DifficultyCycle,
         }
-        visited[index] = true;
-
-        if let Some(entry) = spell_levels
-            .entries_like_cpp()
-            .filter(|entry| entry.spell_id == spell_id && entry.difficulty_id == current_difficulty)
-            .max_by_key(|entry| entry.id)
-        {
-            return Ok(entry.spell_level as u8);
-        }
-
-        if current_difficulty == 0 {
-            return Ok(0);
-        }
-        let difficulty_store =
-            difficulties.ok_or(SelectedCasterLevelError::DifficultyUnavailable)?;
-        let Some(next_difficulty) =
-            difficulty_store.fallback_difficulty_id_like_cpp(current_difficulty)
-        else {
-            // A known Difficulty store with no row for this id cannot supply
-            // C++'s fallback chain; SpellInfo's already-known level is zero.
-            return Ok(0);
-        };
-        current_difficulty = next_difficulty;
-    }
+    })
 }
