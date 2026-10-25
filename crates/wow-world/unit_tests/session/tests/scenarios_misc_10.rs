@@ -860,6 +860,49 @@ fn represented_faction_reaction_static_branch_uses_forced_rank_like_cpp() {
     );
 }
 #[test]
+fn represented_faction_reaction_adapter_preserves_lower_rule_order() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    session.set_faction_template_store(Arc::new(
+        wow_data::progression_rewards::FactionTemplateStore::from_entries([
+            faction_template_entry(
+                1,
+                72,
+                wow_data::progression_rewards::FACTION_TEMPLATE_FLAG_CONTESTED_GUARD_LIKE_CPP,
+                0,
+                0,
+            ),
+            faction_template_entry(2, 930, 0, 0, 0),
+        ]),
+    ));
+    session
+        .reputation_mgr_like_cpp_mut()
+        .apply_force_reaction_like_cpp(
+            72,
+            wow_data::reputation::ReputationRankLikeCpp::Hated,
+            true,
+        );
+
+    let mut input = RepresentedFactionReactionInputLikeCpp {
+        source_faction_template_id: 1,
+        target_faction_template_id: 2,
+        target_has_player_owner: true,
+        target_player_owner_is_current_session: true,
+        target_player_contested_pvp: true,
+        target_is_unit: true,
+        target_ignores_reputation: false,
+    };
+    assert_eq!(
+        session.represented_faction_reaction_to_like_cpp(input),
+        wow_data::reputation::ReputationRankLikeCpp::Hostile
+    );
+
+    input.target_faction_template_id = 99;
+    assert_eq!(
+        session.represented_faction_reaction_to_like_cpp(input),
+        wow_data::reputation::ReputationRankLikeCpp::Neutral
+    );
+}
+#[test]
 fn represented_get_reaction_wrapper_top_branches_match_cpp() {
     let (session, _pkt_tx, _send_rx) = make_session();
     let mut input = represented_get_reaction_input_like_cpp();

@@ -143,6 +143,7 @@ pub fn represented_handle_spell_click_plan_with_seat_like_cpp<H: PlayerCastHostL
                         self_ignores_reputation: false,
                         target_ignores_reputation: false,
                         target_is_unit: true,
+                        self_player_contested_pvp: false,
                         target_player_contested_pvp: false,
                     },
                 );

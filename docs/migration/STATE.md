@@ -901,6 +901,38 @@ No final campaign, packet capture, live runtime/DB operation, restart/relogin,
 publication, or issue completion is established by this checkpoint. Constructor
 flags and all remaining macro requirements above still apply.
 
+9i3C3d1 provides one Core faction-reaction rule over transient catalog references
+and distinct borrowed source/target reputation owners. Existing NPC capabilities
+use that rule through one synchronous canonical-owner callback; the selected
+Spell constructor is not connected yet. The old NPC reputation clone is retired.
+The controlled-player reputation branch now reads the source affecting Player's
+contested flag; the lower faction rule retains the target flag. Known missing
+templates remain distinct from unknown catalogs, and known empty friendship
+reactions use ordinary reputation thresholds. Trainer-price logic and the separate
+pre-existing Hub reputation helper are unchanged. Source anchors remain
+Object.cpp:2709–2864 and ReputationMgr.cpp:75–83,181–198 at the pinned SHA.
+
+Review corrected an intermediate adapter regression: the lower API must invoke
+the lower rule directly, preserving both-template admission and contested-before-
+forced ordering. Encoding it as an upper-reaction request changed that order.
+A World regression for contested plus forced rank and a missing target template
+is authored but not executed. Opcode registration, packets, persistence, runtime
+ownership, and clocks are unchanged. Source/target reputation is not copied or
+stored as another mutable authority.
+
+On `40afdb711` plus the reviewed delta, sequential aarch64/jobs=1 Core feedback
+passed: `cargo check -p wow-world-core` and `cargo test -p wow-world-core --lib
+faction_reaction` (seven cases). Logs:
+`/tmp/rustycore-9i3c3d1-check-wow-world-core-review-fix.log` and
+`/tmp/rustycore-9i3c3d1-test-faction-reaction-review-fix.log`, both exit 0.
+Earlier green runs preceded the adapter correction and are not counted twice.
+World adapter regressions and downstream Quest/Spell checks remain deferred to
+the single completed-delivery acceptance. The fresh fixed-role spawn succeeded;
+the worker self-reported GPT-6 with effort unavailable. This is an explicit
+behavior repair and shared rule boundary, not a move-only refactor or final
+acceptance. Selected metadata/polarity, constructor connection, and the remaining
+macro blocks above are still open.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -1083,6 +1115,20 @@ The selected effect polarity remains a separate SpellInfo decision from
 friendly-caster application flags. These decisions are pending implementation
 and focused feedback; they do not establish final acceptance or complete the
 general faction, summon, or aura engines.
+
+Selected metadata follow-up, 2026-10-25: keep cast difficulty distinct from the
+resolved SpellInfo key. Spell.cpp:7916–7919 returns the caster Map difficulty,
+AuraCreateInfo retains it (SpellAuras.cpp:59–60,463), and Player.cpp:19839 saves
+GetCastDifficulty; the loader passes the saved difficulty back at :18122.
+Do not rewrite that field to the difficulty of an inherited metadata row.
+SpellMgr.cpp:675–692 resolves the key separately, while :2610–2688 fills each
+missing metadata component along its own chain. Its loop does not special-case
+zero: a known Difficulty(0) overlay may provide a real fallback. Selected
+lookups must preserve that case, distinguish a known absent row from an unknown
+store, and reject a needed cycle instead of hanging or inventing a base row.
+A known metadata store without any row for the spell can still prove its
+Source default independently of the chain. This is a pending resolver correction,
+not evidence that the current zero-terminating selected helpers already do it.
 
 9g escrito y revisado sobre `a6da440dac37aa377c23c71fb084accff3fa1764`
 más delta local: máscaras normalizadas con lookup SQL original, efectos

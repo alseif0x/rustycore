@@ -138,6 +138,7 @@ impl NpcInteractionAccessLikeCpp<'_> {
                                 self_ignores_reputation: false,
                                 target_ignores_reputation: false,
                                 target_is_unit: true,
+                                self_player_contested_pvp: false,
                                 target_player_contested_pvp,
                             });
                     }

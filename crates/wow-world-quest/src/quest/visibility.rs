@@ -319,6 +319,7 @@ pub fn represented_can_see_spell_click_on_like_cpp(
                         self_ignores_reputation: false,
                         target_ignores_reputation: false,
                         target_is_unit: true,
+                        self_player_contested_pvp: false,
                         target_player_contested_pvp: false,
                     },
                 );

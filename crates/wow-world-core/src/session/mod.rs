@@ -131,8 +131,9 @@ mod chat;
 mod faction_reactions;
 mod social;
 pub use faction_reactions::{
-    AttackReputationFactionSnapshotLikeCpp, RepresentedFactionReactionInputLikeCpp,
-    RepresentedGetReactionInputLikeCpp, ReputationGainSourceLikeCpp,
+    AttackReputationFactionSnapshotLikeCpp, FactionReactionCatalogs, FactionReactionError,
+    FactionReactionOwner, RepresentedFactionReactionInputLikeCpp,
+    RepresentedGetReactionInputLikeCpp, ReputationGainSourceLikeCpp, resolve_faction_reaction,
 };
 mod combat;
 pub use combat::{
