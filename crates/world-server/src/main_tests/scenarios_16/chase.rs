@@ -94,7 +94,7 @@ async fn canonical_map_owner_swings_first_and_chases_a_player_out_of_range_like_
         })
         .unwrap();
     let player = ObjectGuid::create_player(1, 96_401);
-    let (mut session, send_rx) = d3b_session_like_cpp(
+    let (mut session, send_rx, _input_peer) = d3b_session_like_cpp(
         &world,
         player,
         "D3bChase",

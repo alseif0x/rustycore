@@ -30,8 +30,6 @@ pub(crate) struct CanonicalObjectVisibilityDestroyLikeCpp {
 
 #[derive(Debug, Default)]
 pub(crate) struct CanonicalSpawnGroupConditionTickSummaryLikeCpp {
-    pub(crate) selected_aura_updates:
-        Vec<wow_world_core::session::PreparedSelectedAuraUpdate>,
     pub(crate) player_visibility_refresh_intents:
         Vec<wow_map::PlayerVisibilityRefreshIntentLikeCpp>,
     pub(crate) object_values_updates: Vec<CanonicalMapObjectValuesUpdateLikeCpp>,

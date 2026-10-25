@@ -4,7 +4,6 @@
 //! Canonical refresh for the selected resurrection aura applications.
 
 use super::PlayerAuraRemovalAccessLikeCpp;
-use std::time::Instant;
 use wow_entities::{
     AppliedAuraRef, AuraPersistenceMetadata, AuraThreatSnapshotLikeCpp,
     RepresentedAuraEffectAmountLikeCpp, VisibleAuraEffectAmountLikeCpp,
@@ -239,6 +238,7 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
             if !auras.set_aura_persistence_metadata(slot, metadata) {
                 return Err("Selected AuraApplication disappeared while storing metadata");
             }
+            auras.visible_auras_to_update.insert(slot);
             Ok(())
         })
     }
@@ -439,7 +439,6 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
                 if refresh.refresh_timers {
                     application.duration_total = refresh.duration_total;
                     application.duration_remaining = refresh.duration_total;
-                    application.applied_at = Instant::now();
                 }
                 application.stack_count = 1;
                 application.represented_effect_amounts = represented_amounts.clone();

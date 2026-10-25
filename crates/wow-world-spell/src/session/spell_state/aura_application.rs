@@ -85,8 +85,8 @@ impl SessionSpellState {
         &self,
         target_guid: Option<wow_core::ObjectGuid>,
         publication: &wow_world_core::session::PacketPublicationAccessLikeCpp<'_>,
-        spell_id: i32,
         slot: u8,
+        selected_update: bool,
     ) {
         let Some(target_guid) = target_guid else {
             return;
@@ -99,7 +99,7 @@ impl SessionSpellState {
                 aura_data: None,
             }],
         };
-        if matches!(spell_id, 8326 | 20584) {
+        if selected_update {
             use wow_packet::ServerPacket;
             publication.publish_selected_aura_update(target_guid, &packet.to_bytes());
         } else {

@@ -176,6 +176,7 @@ pub fn remove_auras_with_interrupt_flags_like_cpp<H: AuraHostLikeCpp>(
 
 /// Check all active auras for expiry and remove those whose duration has elapsed.
 /// Called from the synchronous tick loop (~every 200ms via creature_tick).
+#[cfg(any(test, feature = "test-fixtures"))]
 pub fn tick_auras<H: AuraHostLikeCpp>(host: &mut H) {
     tick_auras_expiry_only(host);
     flush_pending_selected_aura_updates(host);
@@ -194,14 +195,31 @@ pub fn tick_auras_expiry_only<H: AuraHostLikeCpp>(host: &mut H) {
         return;
     }
 
+    // Without a known current-race row, a nonempty set cannot distinguish a
+    // selected sickness application from an unrelated aura. Keep the Player
+    // sweep fail-closed so it never claims the selected Unit clock; the
+    // creature sweep above retains its independent cadence.
+    let sickness_spell = {
+        let hub = host.hub_ref();
+        let Some(races) = hub.catalogs.chr.races_store.as_deref() else {
+            return;
+        };
+        let Some(race) = races.get(u32::from(hub.player_race_like_cpp())) else {
+            return;
+        };
+        if race.res_sickness_spell_id < 0 {
+            return;
+        }
+        race.res_sickness_spell_id
+    };
+
     // Collect expired slots (avoid borrow conflict)
     let expired: Vec<u8> = visible_auras
         .values()
         .filter(|a| {
-            // Preserve the legacy Session sweep for finite maxima. Signed
-            // negative durations are not nonnegative countdowns; selected
-            // expiry moves to its dedicated Map owner in a later unit.
-            a.duration_total > 0
+            !matches!(a.spell_id, 8_326 | 20_584)
+                && (sickness_spell == 0 || a.spell_id != sickness_spell)
+                && a.duration_total > 0
                 && a.duration_remaining >= 0
                 && a.applied_at.elapsed().as_millis() >= a.duration_remaining as u128
         })
@@ -221,7 +239,8 @@ pub fn tick_auras_expiry_only<H: AuraHostLikeCpp>(host: &mut H) {
 }
 
 /// Publish selected Ghost/Wisp deltas for an uncoordinated standalone Session
-/// driver. Production coordinated sessions leave these slots to MapManager.
+/// fixture. Production selected Player recovery owns these slots.
+#[cfg(any(test, feature = "test-fixtures"))]
 pub fn flush_pending_selected_aura_updates<H: AuraHostLikeCpp>(host: &mut H) {
     if host
         .hub_ref()

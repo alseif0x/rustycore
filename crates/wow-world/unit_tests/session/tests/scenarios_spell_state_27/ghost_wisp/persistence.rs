@@ -537,7 +537,7 @@ async fn ghost_wisp_persistence_saves_finite_item_key_but_source_loader_skips_it
     let captured = captured_families(&mut source).expect("complete item-aura snapshot");
     let saved = &family_for_key(&captured, WISP, source.player, item_guid).auras[0];
     assert_eq!(saved.max_duration, 60_000);
-    assert!(saved.remaining_duration > 0 && saved.remaining_duration <= 50_000);
+    assert_eq!(saved.remaining_duration, 50_000);
     assert_eq!(
         (
             saved.cast_item_id,
@@ -732,10 +732,12 @@ async fn ghost_wisp_persistence_native_resurrection_reconciles_foreign_keys() {
 }
 
 #[tokio::test]
-async fn ghost_wisp_persistence_emits_empty_family_for_known_expired_aura() {
+async fn ghost_wisp_persistence_emits_empty_family_after_selected_unit_expiry() {
     let mut fixture = fixture();
+    fixture.session.core.state = crate::session::SessionState::LoggedIn;
     install_difficulties(&mut fixture, [0]);
     set_aura_authority(&mut fixture, true);
+    super::selected_lifetime::install_race(&mut fixture.session, 0);
     cast_selected(&mut fixture, GHOST, None).await;
     let slot = {
         let manager = fixture.canonical.lock().expect("canonical manager");
@@ -764,11 +766,13 @@ async fn ghost_wisp_persistence_emits_empty_family_for_known_expired_aura() {
                 .expect("Ghost application");
             aura.duration_total = 1_000;
             aura.duration_remaining = 1;
-            aura.applied_at = Instant::now() - Duration::from_secs(1);
         })
         .expect("canonical Player");
 
-    let families = captured_families(&mut fixture).expect("known expired application");
+    let expired = wow_world_spell::tick_selected_aura_lifetimes(&mut fixture.session, 1)
+        .expect("selected Unit countdown removes the expired Ghost");
+    assert_eq!(expired.expired, 1);
+    let families = captured_families(&mut fixture).expect("known selected absence");
     assert!(family(&families, GHOST, fixture.player).auras.is_empty());
     assert!(family(&families, WISP, fixture.player).auras.is_empty());
 }

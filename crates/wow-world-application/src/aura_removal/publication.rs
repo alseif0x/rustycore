@@ -5,12 +5,16 @@ use super::stat_application::select_aura_stat_application;
 use super::{AuraRemovalCxLikeCpp, RemovedAuraLikeCpp};
 
 impl AuraRemovalCxLikeCpp<'_> {
-    pub(super) fn publish_aura_removal_like_cpp(&self, removed: &RemovedAuraLikeCpp) {
+    pub(super) fn publish_aura_removal_like_cpp(
+        &self,
+        removed: &RemovedAuraLikeCpp,
+        selected_update: bool,
+    ) {
         self.spell.send_aura_removal_for_spell(
             self.player.player_guid_like_cpp(),
             &self.player.packet_publication_like_cpp(),
-            removed.aura.spell_id,
             removed.aura.slot,
+            selected_update,
         );
     }
 

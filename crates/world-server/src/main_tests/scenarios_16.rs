@@ -24,6 +24,8 @@ use crate::runtime::canonical_creature_runtime::{
 // #1263 F6-8D3b-3: chase and the first creature swing, end to end.
 #[path = "scenarios_16/chase.rs"]
 mod chase;
+#[path = "scenarios_16/selected_recovery.rs"]
+mod selected_recovery;
 // #1444 H2: `world.update` on the booted loop, every tick guard released.
 #[path = "scenarios_16/world_hook.rs"]
 mod world_hook;
@@ -151,8 +153,12 @@ async fn d3b_session_like_cpp(
     player: ObjectGuid,
     name: &str,
     position: Position,
-) -> (wow_world::session::WorldSession, flume::Receiver<Vec<u8>>) {
-    let (_pkt_tx, pkt_rx) = flume::bounded(16);
+) -> (
+    wow_world::session::WorldSession,
+    flume::Receiver<Vec<u8>>,
+    flume::Sender<wow_packet::WorldPacket>,
+) {
+    let (pkt_tx, pkt_rx) = flume::bounded(16);
     let (send_tx, send_rx) = flume::unbounded();
     let mut session = wow_world::session::WorldSession::new(
         1,
@@ -181,7 +187,7 @@ async fn d3b_session_like_cpp(
             .await,
         "the canonical map admits the player"
     );
-    (session, send_rx)
+    (session, send_rx, pkt_tx)
 }
 
 /// The player swings at the creature: the attack state the session's
@@ -552,7 +558,7 @@ async fn canonical_map_owner_runs_the_session_kill_path_end_to_end_like_cpp() {
     let world = d3b_world_like_cpp(96_300);
     let player = ObjectGuid::create_player(1, 96_301);
     let player_position = Position::new(11.0, 10.0, 0.0, std::f32::consts::PI);
-    let (mut session, send_rx) =
+    let (mut session, send_rx, _input_peer) =
         d3b_session_like_cpp(&world, player, "D3bPlayer", player_position).await;
     assert!(
         session.client_sees_guid_for_test_like_cpp(world.creature),
@@ -740,7 +746,7 @@ async fn canonical_map_owner_runs_the_session_kill_path_end_to_end_like_cpp() {
 
     // Login near the respawned creature: a fresh session entering the map
     // gets the creature's CREATE from the canonical map.
-    let (newcomer, newcomer_rx) = d3b_session_like_cpp(
+    let (newcomer, newcomer_rx, _newcomer_input_peer) = d3b_session_like_cpp(
         &world,
         ObjectGuid::create_player(1, 96_302),
         "D3bNewcomer",

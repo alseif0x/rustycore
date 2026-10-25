@@ -135,7 +135,7 @@ fn current_race_sickness_and_ghost_wisp_are_prepared_in_slot_order_once() {
     let ghost = install(&mut manager, handle, 7, 8326);
     let sickness = install(&mut manager, handle, 2, SICKNESS);
     let wisp = install(&mut manager, handle, 5, 20584);
-    install(&mut manager, handle, 1, 15007);
+    install(&mut manager, handle, 1, 99_007);
     install(&mut manager, handle, 9, 118);
 
     let updates =
@@ -169,6 +169,49 @@ fn current_race_sickness_and_ghost_wisp_are_prepared_in_slot_order_once() {
 }
 
 #[test]
+fn separate_recovery_owners_collect_only_their_current_player_once() {
+    let (mut manager, first_handle) = fixture();
+    let second_guid = ObjectGuid::create_player(1, 84_200_003);
+    let second_handle = add_player(&mut manager, second_guid);
+    install(&mut manager, first_handle, 3, 8326);
+    install(&mut manager, second_handle, 6, SICKNESS);
+
+    let first = collect_player_pending_selected_aura_updates(
+        &mut manager,
+        first_handle,
+        Some(&races(SICKNESS)),
+    )
+    .unwrap();
+    assert_eq!(first.len(), 1);
+    assert!(pending(&manager, first_handle).is_empty());
+    assert_eq!(pending(&manager, second_handle), [6]);
+
+    let second = collect_player_pending_selected_aura_updates(
+        &mut manager,
+        second_handle,
+        Some(&races(SICKNESS)),
+    )
+    .unwrap();
+    assert_eq!(second.len(), 1);
+    assert!(pending(&manager, second_handle).is_empty());
+    assert!(!first.is_empty() && !second.is_empty());
+    assert_eq!(
+        collect_player_pending_selected_aura_updates(
+            &mut manager,
+            first_handle,
+            Some(&races(SICKNESS)),
+        )
+        .unwrap()
+        .len(),
+        0
+    );
+
+    assert!(first.iter().chain(&second).all(|update| update
+        .packet_bytes()
+        .starts_with(&(wow_constants::ServerOpcodes::AuraUpdate as u16).to_le_bytes())));
+}
+
+#[test]
 fn empty_pending_needs_no_race_lookup_but_classification_requires_known_metadata() {
     let (mut manager, handle) = fixture();
     let missing = ChrRacesStore::from_entries([]);
@@ -196,7 +239,7 @@ fn empty_pending_needs_no_race_lookup_but_classification_requires_known_metadata
             .len(),
         1
     );
-    install(&mut manager, handle, 4, 15007);
+    install(&mut manager, handle, 4, 99_007);
     assert!(
         collect_player_pending_selected_aura_updates(&mut manager, handle, Some(&races(0)))
             .unwrap()
@@ -236,7 +279,7 @@ fn incomplete_pending_snapshot_never_consumes_the_other_selected_slot() {
 
 #[test]
 fn stale_detached_or_invalid_canonical_sources_preserve_pending() {
-    for mode in 0..6 {
+    for mode in 0..7 {
         let (mut manager, handle) = fixture();
         install(&mut manager, handle, 0, 8326);
         let current = match mode {
@@ -248,6 +291,14 @@ fn stale_detached_or_invalid_canonical_sources_preserve_pending() {
             1 => {
                 manager.detach_player_like_cpp(handle).unwrap();
                 handle
+            }
+            6 => {
+                manager.detach_player_like_cpp(handle).unwrap();
+                assert!(manager.destroy_map(MAP.map_id, MAP.instance_id));
+                manager.create_world_map(MAP.map_id, MAP.instance_id);
+                let replacement = add_player(&mut manager, handle.guid());
+                install(&mut manager, replacement, 0, 8326);
+                replacement
             }
             _ => {
                 manager
@@ -288,15 +339,3 @@ fn stale_detached_or_invalid_canonical_sources_preserve_pending() {
     }
 }
 
-#[test]
-fn existing_global_collection_remains_ghost_wisp_only() {
-    let (mut manager, handle) = fixture();
-    install(&mut manager, handle, 0, SICKNESS);
-    install(&mut manager, handle, 1, 8326);
-    let plan = manager.begin_tick_like_cpp(100).into_started().unwrap();
-    assert_eq!(
-        collect_pending_selected_aura_updates(&mut manager, &plan).len(),
-        1
-    );
-    assert_eq!(pending(&manager, handle), [0]);
-}

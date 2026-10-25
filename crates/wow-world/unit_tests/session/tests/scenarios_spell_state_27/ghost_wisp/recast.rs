@@ -363,7 +363,6 @@ async fn ghost_recasts_refresh_the_loaded_self_application_in_place() {
             .removed_auras_count
     };
     let mut recast_ids = Vec::new();
-    let mut last_refresh_at = refreshed_application.applied_at;
     for _ in 0..2 {
         cast_selected(&mut fixture, GHOST, None).await;
         let packets = outgoing(&fixture);
@@ -399,8 +398,7 @@ async fn ghost_recasts_refresh_the_loaded_self_application_in_place() {
         assert_eq!(application.spell_id, refreshed_application.spell_id);
         assert_eq!(application.caster_guid, refreshed_application.caster_guid);
         assert_eq!(application.effect_mask, refreshed_application.effect_mask);
-        assert!(application.applied_at >= last_refresh_at);
-        last_refresh_at = application.applied_at;
+        assert_eq!(application.applied_at, refreshed_application.applied_at);
         assert_eq!(
             auras.aura_cast_provenance_like_cpp(self_slot),
             original_provenance
@@ -649,7 +647,7 @@ async fn wisp_recast_preserves_negative_transform_priority_and_display() {
         assert_eq!(refreshed.slot, fresh_application.slot);
         assert_eq!(refreshed.spell_id, fresh_application.spell_id);
         assert_eq!(refreshed.caster_guid, fresh_application.caster_guid);
-        assert_ne!(refreshed.applied_at, fresh_application.applied_at);
+        assert_eq!(refreshed.applied_at, fresh_application.applied_at);
         assert_eq!(refreshed.effect_mask, fresh_application.effect_mask);
         assert_eq!(refreshed.duration_total, -1);
         assert_eq!(refreshed.duration_remaining, -1);

@@ -263,8 +263,6 @@ pub(crate) fn continue_map_recovery_prelude(
         return None;
     }
 
-    let selected_aura_updates =
-        wow_world_spell::collect_pending_selected_aura_updates(manager, &prelude.plan);
     if let Some(creature_phase) = creature_phase {
         creature_phase(manager, &prelude.plan);
     }
@@ -292,11 +290,11 @@ pub(crate) fn continue_map_recovery_prelude(
             wow_map::MapObjectUpdateSelectionLikeCpp::NearbyCells,
         );
     if resumed != wow_map::MapTickResumeLikeCpp::Resumed {
-        // Earlier respawn, Creature and selected-aura phases may already have
+        // Earlier respawn and Creature phases may already have
         // mutated map state. Do not run or report the remaining tick tail.
         return None;
     }
-    canonical_map_tick_tail_like_cpp(manager, prelude.summary, map_store, selected_aura_updates)
+    canonical_map_tick_tail_like_cpp(manager, prelude.summary, map_store)
 }
 
 pub(crate) fn canonical_map_update_tick_set_inactive_like_cpp(
@@ -562,9 +560,7 @@ fn canonical_map_tick_tail_like_cpp(
     manager: &mut wow_map::MapManager,
     mut summary: CanonicalSpawnGroupConditionTickSummaryLikeCpp,
     map_store: &wow_data::MapStore,
-    selected_aura_updates: Vec<wow_world_core::session::PreparedSelectedAuraUpdate>,
 ) -> Option<CanonicalSpawnGroupConditionTickSummaryLikeCpp> {
-    summary.selected_aura_updates = selected_aura_updates;
     summary.player_visibility_refresh_intents =
         manager.take_player_visibility_refresh_intents_like_cpp();
     let map_incarnations = {
@@ -645,7 +641,6 @@ fn canonical_map_tick_tail_like_cpp(
         }
     });
     let has_work = !summary.respawn_db_saves.is_empty()
-        || !summary.selected_aura_updates.is_empty()
         || !summary.expired_pvp_combat_refs.is_empty()
         || !summary.player_visibility_refresh_intents.is_empty()
         || !summary.object_values_updates.is_empty()

@@ -158,22 +158,8 @@ fn capture_aura(
         return Some(CapturedAura::Skipped);
     }
 
-    let (max_duration, remaining_duration) =
-        match (application.duration_total, application.duration_remaining) {
-            (_, 0) => return Some(CapturedAura::Skipped),
-            (-1, remaining) => (-1, remaining),
-            (max_duration, remaining) if max_duration > 0 && remaining > 0 => {
-                let elapsed_ms =
-                    i32::try_from(application.applied_at.elapsed().as_millis()).unwrap_or(i32::MAX);
-                let remaining_ms = remaining.saturating_sub(elapsed_ms).max(0);
-                if remaining_ms == 0 {
-                    return Some(CapturedAura::Skipped);
-                }
-                (max_duration, remaining_ms)
-            }
-            (0, _) => return None,
-            (max_duration, remaining) => (max_duration, remaining),
-        };
+    let max_duration = application.duration_total;
+    let remaining_duration = application.duration_remaining;
     effects.sort_by_key(|effect| effect.index);
     Some(CapturedAura::Save(PlayerLifecycleAuraSave {
         difficulty: application.difficulty_id,
@@ -191,8 +177,8 @@ fn capture_aura(
 /// Capture the selected race's complete persistable sickness spell keyset.
 /// C++ anchors: Player.cpp Player::_LoadAuras (18034), Player::_SaveAuras
 /// (19811-19865), and SpellAuras.cpp Aura::CanBeSaved (1134), Aura::GenerateKey
-/// (1218). Finite remaining time still uses the existing elapsed-time capture;
-/// this does not establish the later map-clock countdown contract.
+/// (1218). The snapshot retains the canonical signed maximum and remaining
+/// duration; Unit removal runs before the periodic Player save phase.
 pub(super) fn capture(
     player: &Player,
     chr_races_store: Option<&wow_data::character_progression::ChrRacesStore>,

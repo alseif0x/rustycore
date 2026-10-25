@@ -7,6 +7,8 @@ use super::*;
 use crate::session::WorldSession;
 
 mod release;
+#[path = "corpse/selected_recovery.rs"]
+mod selected_recovery;
 
 async fn handle_resurrect_response(session: &mut WorldSession, pkt: WorldPacket) {
     let generators = session.id_generators_for_test_like_cpp();

@@ -7,14 +7,8 @@
 use super::aura_publication::player_aura_info_with_provenance;
 use wow_data::character_progression::ChrRacesStore;
 use wow_entities::{AuraApplicationLikeCpp as AuraApplication, AuraCastProvenanceLikeCpp};
-use wow_map::{
-    MapKey, MapManager, MapTickCoordinationStateLikeCpp, MapTickPlanLikeCpp, PlayerHandle,
-};
+use wow_map::{MapKey, MapManager, PlayerHandle};
 use wow_world_core::session::{PreparedSelectedAuraUpdate, prepare_selected_aura_update};
-
-#[cfg(test)]
-#[path = "selected_publication_tests.rs"]
-mod tests;
 
 #[cfg(test)]
 #[path = "../../../unit_tests/session/spell_state/selected_publication.rs"]
@@ -108,97 +102,6 @@ pub fn collect_player_pending_selected_aura_updates(
         Some(pending) => prepare_and_clear_pending_player_auras(manager, &pending),
         None => Ok(Vec::new()),
     }
-}
-
-/// Prepare and consume selected aura deltas for the maps admitted by one
-/// canonical map tick. The caller holds MapManager throughout; no directory
-/// access, packet delivery or await occurs here.
-pub fn collect_pending_selected_aura_updates(
-    manager: &mut MapManager,
-    plan: &MapTickPlanLikeCpp,
-) -> Vec<PreparedSelectedAuraUpdate> {
-    if manager.tick_coordination_like_cpp()
-        != MapTickCoordinationStateLikeCpp::AwaitingSessions(plan.epoch_like_cpp())
-    {
-        return Vec::new();
-    }
-
-    let mut pending_players = Vec::new();
-    for participant in plan.updated_maps_like_cpp() {
-        if manager.map_incarnation_like_cpp(participant.key) != Some(participant.incarnation) {
-            continue;
-        }
-        let Some(map) = manager
-            .find_map(participant.key.map_id, participant.key.instance_id)
-            .map(|managed| managed.map())
-        else {
-            continue;
-        };
-        let player_guids = map
-            .object_update_visit_plan_for_current_tick(plan.effective_diff_ms())
-            .player_update_guids;
-        for guid in player_guids {
-            let Some((handle, admitted_revision)) = manager.current_player_admission_like_cpp(guid)
-            else {
-                continue;
-            };
-            if manager.player_active_residence_revision_like_cpp(handle)
-                != Some((participant.key, admitted_revision))
-            {
-                continue;
-            }
-            let Some(snapshot) = manager
-                .with_player_like_cpp(handle, |player| {
-                    if player.guid() != guid
-                        || !player.unit().world().object().is_in_world()
-                        || player.unit().world().map_id() != participant.key.map_id
-                        || player.unit().world().instance_id() != participant.key.instance_id
-                    {
-                        return None;
-                    }
-                    let level = u8::try_from(player.unit().data().level).ok()?;
-                    let auras = &player.unit().subsystems().auras;
-                    let mut slots = auras
-                        .visible_auras_to_update
-                        .iter()
-                        .copied()
-                        .filter_map(|slot| {
-                            let aura = auras.runtime_application_like_cpp(slot)?;
-                            matches!(aura.spell_id, 8326 | 20584).then(|| {
-                                (
-                                    slot,
-                                    aura.clone(),
-                                    auras.aura_cast_provenance_like_cpp(slot),
-                                )
-                            })
-                        })
-                        .collect::<Vec<_>>();
-                    slots.sort_unstable_by_key(|(slot, _, _)| *slot);
-                    (!slots.is_empty()).then_some(PendingPlayerAuras {
-                        guid,
-                        handle,
-                        map_key: participant.key,
-                        map_incarnation: participant.incarnation,
-                        residence_revision: admitted_revision,
-                        level,
-                        slots,
-                    })
-                })
-                .flatten()
-            else {
-                continue;
-            };
-            pending_players.push(snapshot);
-        }
-    }
-
-    let mut prepared = Vec::new();
-    for pending in pending_players {
-        if let Ok(updates) = prepare_and_clear_pending_player_auras(manager, &pending) {
-            prepared.extend(updates);
-        }
-    }
-    prepared
 }
 
 fn prepare_and_clear_pending_player_auras(

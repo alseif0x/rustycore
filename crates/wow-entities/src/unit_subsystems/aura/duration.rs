@@ -62,12 +62,22 @@ mod tests {
             applied_at: Instant::now(),
         });
 
-        let zero_update = player.set_aura_duration(8_326, ObjectGuid::EMPTY, 0);
+        let zero_update = player.set_aura_duration(
+            8_326,
+            ObjectGuid::EMPTY,
+            0,
+            crate::AuraDurationUpdatePolicy::LegacyElapsed,
+        );
         assert_eq!(zero_update.len(), 1);
         assert_eq!(zero_update[0].0.duration_total, -1);
         assert_eq!(zero_update[0].0.duration_remaining, 0);
 
-        let negative_update = player.set_aura_duration(8_326, ObjectGuid::EMPTY, -1);
+        let negative_update = player.set_aura_duration(
+            8_326,
+            ObjectGuid::EMPTY,
+            -1,
+            crate::AuraDurationUpdatePolicy::LegacyElapsed,
+        );
         assert_eq!(negative_update.len(), 1);
         assert_eq!(negative_update[0].0.duration_total, -1);
         assert_eq!(negative_update[0].0.duration_remaining, -1);

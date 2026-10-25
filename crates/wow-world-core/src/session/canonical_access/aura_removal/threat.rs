@@ -11,6 +11,7 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
         spell_id: i32,
         difficulty: u8,
         effect_mask: u32,
+        selected_sickness: bool,
         represented_effect_amounts: &[wow_entities::RepresentedAuraEffectAmountLikeCpp],
     ) -> wow_entities::AuraThreatSnapshotLikeCpp {
         let interrupt_flags = spell_store
@@ -32,20 +33,28 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
                     .filter_map(|effect| {
                         let bit = 1u32.checked_shl(effect.effect_index)?;
                         let aura_type = effect.effect_aura;
-                        (effect_mask & bit != 0
+                        let selected_sickness_effect = selected_sickness
                             && matches!(
                                 aura_type,
-                                wow_data::spell::aura_types::SPELL_AURA_MOD_THREAT
-                                    | wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY
-                                    | wow_data::spell::aura_types::SPELL_AURA_DAMAGE_IMMUNITY
-                                    | wow_data::spell::aura_types::SPELL_AURA_MOD_CONFUSE
-                                    | wow_data::spell::aura_types::SPELL_AURA_MOD_STUN
-                                    | wow_data::spell::aura_types::SPELL_AURA_GHOST
-                                    | wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED
-                                    | wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED
-                                    | wow_data::spell::aura_types::SPELL_AURA_TRANSFORM
-                                    | wow_data::spell::aura_types::SPELL_AURA_MOD_SHAPESHIFT
-                            ))
+                                wow_data::spell::aura_types::SPELL_AURA_MOD_PERCENT_STAT
+                                    | wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE
+                                    | wow_data::spell::aura_types::SPELL_AURA_NO_PVP_CREDIT
+                            );
+                        (effect_mask & bit != 0
+                            && (selected_sickness_effect
+                                || matches!(
+                                    aura_type,
+                                    wow_data::spell::aura_types::SPELL_AURA_MOD_THREAT
+                                        | wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY
+                                        | wow_data::spell::aura_types::SPELL_AURA_DAMAGE_IMMUNITY
+                                        | wow_data::spell::aura_types::SPELL_AURA_MOD_CONFUSE
+                                        | wow_data::spell::aura_types::SPELL_AURA_MOD_STUN
+                                        | wow_data::spell::aura_types::SPELL_AURA_GHOST
+                                        | wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED
+                                        | wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED
+                                        | wow_data::spell::aura_types::SPELL_AURA_TRANSFORM
+                                        | wow_data::spell::aura_types::SPELL_AURA_MOD_SHAPESHIFT
+                                )))
                         .then(|| {
                             let amount = represented_effect_amounts
                                 .iter()
@@ -71,6 +80,7 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
         caster_guid: ObjectGuid,
         slot: u8,
         effect_mask: u32,
+        selected_sickness: bool,
         represented_effect_amounts: &[wow_entities::RepresentedAuraEffectAmountLikeCpp],
         spell_store: Option<&wow_data::SpellStore>,
         difficulty_store: Option<&wow_data::DifficultyStore>,
@@ -87,6 +97,7 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
                     spell_id,
                     difficulty,
                     effect_mask,
+                    selected_sickness,
                     represented_effect_amounts,
                 )
             });

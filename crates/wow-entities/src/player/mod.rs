@@ -10,6 +10,7 @@
 //! location, writer, mirror or runtime clock changed.
 
 mod auras;
+pub use auras::AuraDurationUpdatePolicy;
 mod away_status;
 mod collections;
 mod damage_control;

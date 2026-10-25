@@ -77,6 +77,103 @@ fn canonical_aura(
         .expect("canonical player owner")
 }
 
+fn install_known_empty_sickness_race(session: &mut WorldSession, race_id: u8) {
+    session
+        .with_owned_player_mut_like_cpp(|player| player.unit_mut().set_race(race_id))
+        .expect("canonical Player owner");
+    session.set_chr_races_store(std::sync::Arc::new(
+        wow_data::character_progression::ChrRacesStore::from_entries([
+            race_entry(u32::from(race_id), 0),
+        ]),
+    ));
+}
+
+fn race_entry(id: u32, res_sickness_spell_id: i32) -> wow_data::character_progression::ChrRacesEntry {
+    wow_data::character_progression::ChrRacesEntry {
+        id,
+        client_prefix: String::new(),
+        client_file_string: String::new(),
+        name: "Aura duration test race".into(),
+        flags: 0,
+        male_display_id: 0,
+        female_display_id: 0,
+        high_res_male_display_id: 0,
+        high_res_female_display_id: 0,
+        res_sickness_spell_id,
+        splash_sound_id: 0,
+        create_screen_file_data_id: 0,
+        select_screen_file_data_id: 0,
+        low_res_screen_file_data_id: 0,
+        altered_form_start_visual_kit_id: [0; 3],
+        altered_form_finish_visual_kit_id: [0; 3],
+        heritage_armor_achievement_id: 0,
+        starting_level: 1,
+        ui_display_order: 0,
+        playable_race_bit: 0,
+        female_skeleton_file_data_id: 0,
+        male_skeleton_file_data_id: 0,
+        helmet_anim_scaling_race_id: 0,
+        transmogrify_disabled_slot_mask: 0,
+        faction_id: 0,
+        cinematic_sequence_id: 0,
+        base_language: 0,
+        creature_type: 0,
+        alliance: 0,
+        race_related: 0,
+        unaltered_visual_race_id: 0,
+        default_class_id: 0,
+        neutral_race_id: 0,
+    }
+}
+
+fn selected_sickness_info(spell_id: i32) -> wow_data::SpellInfo {
+    use wow_data::spell::aura_types as aura;
+    use wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;
+
+    wow_data::SpellInfo {
+        spell_id,
+        cast_time_ms: 0,
+        cooldown_ms: 0,
+        recovery_time_ms: 0,
+        effect_type: SPELL_EFFECT_APPLY_AURA,
+        effect_base_points: -76,
+        effect_bonus_coefficient: 0.0,
+        aura_type: Some(aura::SPELL_AURA_MOD_PERCENT_STAT),
+        display_flags: 0,
+        requires_spell_focus: 0,
+        power_costs: Vec::new(),
+        effects: vec![
+            wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: SPELL_EFFECT_APPLY_AURA,
+                effect_aura: aura::SPELL_AURA_MOD_PERCENT_STAT,
+                effect_base_points: -76,
+                effect_die_sides: 1,
+                effect_misc_value_1: -1,
+                ..Default::default()
+            },
+            wow_data::SpellEffectInfo {
+                effect_index: 1,
+                effect: SPELL_EFFECT_APPLY_AURA,
+                effect_aura: aura::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE,
+                effect_base_points: -76,
+                effect_die_sides: 1,
+                effect_misc_value_1: 127,
+                ..Default::default()
+            },
+            wow_data::SpellEffectInfo {
+                effect_index: 2,
+                effect: SPELL_EFFECT_APPLY_AURA,
+                effect_aura: aura::SPELL_AURA_NO_PVP_CREDIT,
+                effect_base_points: -1,
+                effect_die_sides: 1,
+                effect_misc_value_1: 127,
+                ..Default::default()
+            },
+        ],
+    }
+}
+
 #[tokio::test]
 async fn set_aura_duration_updates_packet_provenance_and_remaining_lifetime() {
     let (mut session, _, send_rx) = make_session();
@@ -111,6 +208,7 @@ async fn set_aura_duration_updates_packet_provenance_and_remaining_lifetime() {
             wow_entities::AuraCastProvenanceLikeCpp::default(),
         )
         .expect("permanent aura application");
+    install_known_empty_sickness_race(&mut session, 4);
     let _ = drain_server_packet_bytes(&send_rx);
     let permanent_application = canonical_aura(&session, 1).0;
     let permanent_info =
@@ -120,7 +218,13 @@ async fn set_aura_duration_updates_packet_provenance_and_remaining_lifetime() {
     assert_eq!(permanent_data.remaining_ms, None);
 
     assert_eq!(
-        wow_world_spell::set_player_aura_duration(&mut session, 84_301, other_caster_guid, 120_000),
+        wow_world_spell::set_player_aura_duration(
+            &mut session,
+            84_301,
+            other_caster_guid,
+            120_000,
+            wow_entities::AuraDurationUpdatePolicy::LegacyElapsed,
+        ),
         0
     );
     assert_eq!(canonical_aura(&session, 0).0.duration_remaining, 600_000);
@@ -130,7 +234,13 @@ async fn set_aura_duration_updates_packet_provenance_and_remaining_lifetime() {
     );
 
     assert_eq!(
-        wow_world_spell::set_player_aura_duration(&mut session, 84_301, caster_guid, 120_000),
+        wow_world_spell::set_player_aura_duration(
+            &mut session,
+            84_301,
+            caster_guid,
+            120_000,
+            wow_entities::AuraDurationUpdatePolicy::LegacyElapsed,
+        ),
         1
     );
     let updates = drain_server_packet_bytes(&send_rx);
@@ -152,7 +262,13 @@ async fn set_aura_duration_updates_packet_provenance_and_remaining_lifetime() {
     assert_eq!(finite_provenance, provenance);
 
     assert_eq!(
-        wow_world_spell::set_player_aura_duration(&mut session, 84_301, caster_guid, 0),
+        wow_world_spell::set_player_aura_duration(
+            &mut session,
+            84_301,
+            caster_guid,
+            0,
+            wow_entities::AuraDurationUpdatePolicy::LegacyElapsed,
+        ),
         1
     );
     let zero_duration_update = drain_server_packet_bytes(&send_rx);
@@ -169,7 +285,12 @@ async fn set_aura_duration_updates_packet_provenance_and_remaining_lifetime() {
         .core
         .with_owned_player_mut_like_cpp(|player| {
             player
-                .set_aura_duration(84_301, caster_guid, -1)
+                .set_aura_duration(
+                    84_301,
+                    caster_guid,
+                    -1,
+                    wow_entities::AuraDurationUpdatePolicy::LegacyElapsed,
+                )
                 .into_iter()
                 .next()
                 .expect("matching canonical aura")
@@ -202,12 +323,24 @@ async fn set_aura_duration_updates_packet_provenance_and_remaining_lifetime() {
     );
 
     assert_eq!(
-        wow_world_spell::set_player_aura_duration(&mut session, 84_301, caster_guid, 120_000),
+        wow_world_spell::set_player_aura_duration(
+            &mut session,
+            84_301,
+            caster_guid,
+            120_000,
+            wow_entities::AuraDurationUpdatePolicy::LegacyElapsed,
+        ),
         1
     );
     let _ = drain_server_packet_bytes(&send_rx);
     assert_eq!(
-        wow_world_spell::set_player_aura_duration(&mut session, 84_301, caster_guid, u32::MAX),
+        wow_world_spell::set_player_aura_duration(
+            &mut session,
+            84_301,
+            caster_guid,
+            u32::MAX,
+            wow_entities::AuraDurationUpdatePolicy::LegacyElapsed,
+        ),
         0,
         "unsigned legacy values outside the signed duration range are rejected"
     );
@@ -215,7 +348,13 @@ async fn set_aura_duration_updates_packet_provenance_and_remaining_lifetime() {
     assert!(send_rx.try_recv().is_err());
 
     assert_eq!(
-        wow_world_spell::set_player_aura_duration(&mut session, 84_302, caster_guid, 0),
+        wow_world_spell::set_player_aura_duration(
+            &mut session,
+            84_302,
+            caster_guid,
+            0,
+            wow_entities::AuraDurationUpdatePolicy::LegacyElapsed,
+        ),
         1
     );
     let _ = drain_server_packet_bytes(&send_rx);
@@ -244,4 +383,187 @@ async fn set_aura_duration_updates_packet_provenance_and_remaining_lifetime() {
     assert!(remaining.values().any(|aura| {
         aura.spell_id == 84_302 && aura.duration_total == -1 && aura.duration_remaining == 0
     }));
+}
+
+#[test]
+fn legacy_player_sweep_keeps_nonempty_auras_when_race_classification_is_unknown() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 8_435);
+    let caster_guid = ObjectGuid::create_player(1, 8_436);
+    const UNRELATED_AURA: i32 = 92_017;
+    session.set_player_guid(Some(player_guid));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    install_known_empty_sickness_race(&mut session, 4);
+    session
+        .apply_aura_with_effect_mask_and_provenance_like_cpp(
+            UNRELATED_AURA,
+            caster_guid,
+            30_000,
+            1,
+            1,
+            wow_entities::AuraCastProvenanceLikeCpp::default(),
+        )
+        .expect("canonical unrelated Aura application");
+    let stale = std::time::Instant::now() - std::time::Duration::from_secs(60);
+    session
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .unit_mut()
+                .subsystems_mut()
+                .auras
+                .runtime_application_mut_like_cpp(0)
+                .unwrap()
+                .applied_at = stale;
+        })
+        .expect("canonical Player owner");
+    session.set_chr_races_store(std::sync::Arc::new(
+        wow_data::character_progression::ChrRacesStore::from_entries([]),
+    ));
+
+    wow_world_spell::tick_auras_expiry_only(&mut session);
+    assert!(canonical_aura(&session, 0).0.spell_id == UNRELATED_AURA);
+
+    install_known_empty_sickness_race(&mut session, 4);
+    wow_world_spell::tick_auras_expiry_only(&mut session);
+    assert!(session
+        .core
+        .with_owned_player_like_cpp(|player| player
+            .unit()
+            .subsystems()
+            .auras
+            .runtime_application_like_cpp(0)
+            .is_none())
+        .expect("canonical Player owner"));
+}
+
+#[test]
+fn selected_sickness_duration_update_keeps_unit_clock_and_waits_for_recovery() {
+    let (mut session, _, send_rx) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 8_433);
+    let caster_guid = ObjectGuid::create_player(1, 8_434);
+    const SICKNESS: i32 = 54_321;
+    session.set_player_guid(Some(player_guid));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    session
+        .with_owned_player_mut_like_cpp(|player| player.unit_mut().set_race(4))
+        .expect("canonical Player owner");
+    session.set_chr_races_store(std::sync::Arc::new(
+        wow_data::character_progression::ChrRacesStore::from_entries([
+            wow_data::character_progression::ChrRacesEntry {
+                id: 4,
+                client_prefix: String::new(),
+                client_file_string: String::new(),
+                name: "Selected sickness duration race".into(),
+                flags: 0,
+                male_display_id: 0,
+                female_display_id: 0,
+                high_res_male_display_id: 0,
+                high_res_female_display_id: 0,
+                res_sickness_spell_id: SICKNESS,
+                splash_sound_id: 0,
+                create_screen_file_data_id: 0,
+                select_screen_file_data_id: 0,
+                low_res_screen_file_data_id: 0,
+                altered_form_start_visual_kit_id: [0; 3],
+                altered_form_finish_visual_kit_id: [0; 3],
+                heritage_armor_achievement_id: 0,
+                starting_level: 1,
+                ui_display_order: 0,
+                playable_race_bit: 0,
+                female_skeleton_file_data_id: 0,
+                male_skeleton_file_data_id: 0,
+                helmet_anim_scaling_race_id: 0,
+                transmogrify_disabled_slot_mask: 0,
+                faction_id: 0,
+                cinematic_sequence_id: 0,
+                base_language: 0,
+                creature_type: 0,
+                alliance: 0,
+                race_related: 0,
+                unaltered_visual_race_id: 0,
+                default_class_id: 0,
+                neutral_race_id: 0,
+            },
+        ]),
+    ));
+    let mut spell_store = wow_data::SpellStore::new();
+    let spell_info = selected_sickness_info(SICKNESS);
+    spell_store.insert(SICKNESS, spell_info.clone());
+    session.set_spell_store(std::sync::Arc::new(spell_store));
+    session.set_chr_classes_store(std::sync::Arc::new(
+        wow_data::character_progression::ChrClassesStore::from_entries([
+            wow_data::character_progression::ChrClassesEntry {
+                id: 1,
+                starting_level: 1,
+                ..Default::default()
+            },
+        ]),
+    ));
+    session.set_player_stats(std::sync::Arc::new(wow_data::PlayerStatsStore::from_entries([(
+        (4, 1, 1),
+        wow_data::PlayerLevelStats {
+            strength: 10,
+            agility: 10,
+            stamina: 10,
+            intellect: 10,
+            spirit: 10,
+            base_mana: 100,
+        },
+    )])));
+    session
+        .player_aura_application_cx_like_cpp()
+        .apply_resurrection_sickness_aura(
+            SICKNESS,
+            caster_guid,
+            &spell_info,
+            600_000,
+            0,
+            0x88,
+            0,
+            0,
+            wow_entities::AuraCastProvenanceLikeCpp::default(),
+        )
+        .expect("canonical sickness application");
+    let _ = drain_server_packet_bytes(&send_rx);
+    let stale = std::time::Instant::now() - std::time::Duration::from_secs(60);
+    session
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .unit_mut()
+                .subsystems_mut()
+                .auras
+                .runtime_application_mut_like_cpp(0)
+                .expect("selected sickness application")
+                .applied_at = stale;
+        })
+        .expect("canonical Player owner");
+
+    assert_eq!(
+        wow_world_spell::set_player_aura_duration(
+            &mut session,
+            SICKNESS,
+            caster_guid,
+            120_000,
+            wow_entities::AuraDurationUpdatePolicy::SelectedUnitUpdate,
+        ),
+        1
+    );
+    assert!(send_rx.try_recv().is_err(), "Unit publication is deferred");
+    let (application, _) = canonical_aura(&session, 0);
+    assert_eq!(application.duration_total, 600_000);
+    assert_eq!(application.duration_remaining, 120_000);
+    assert_eq!(application.applied_at, stale);
+    assert!(session
+        .core
+        .with_owned_player_like_cpp(|player| player
+            .unit()
+            .subsystems()
+            .auras
+            .visible_auras_to_update
+            .contains(&0))
+        .expect("canonical Player owner"));
+
+    wow_world_spell::tick_auras_expiry_only(&mut session);
+    assert_eq!(canonical_aura(&session, 0).0.duration_remaining, 120_000);
+    assert!(send_rx.try_recv().is_err());
 }

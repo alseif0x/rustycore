@@ -6,6 +6,9 @@ use crate::session::mailbox::{
 use crate::session::tests::lifecycle_persistence::RecordingPortLikeCpp;
 use wow_persistence::PersistenceOutcomeLikeCpp;
 
+#[path = "recovery_timer/selected_recovery.rs"]
+mod selected_recovery;
+
 fn logged_in_recovery_session() -> (
     WorldSession,
     PlayerRecoveryAdmission,
@@ -353,3 +356,4 @@ async fn recovery_waits_for_periodic_save_before_later_player_work() {
         }
     }
 }
+

@@ -26,20 +26,26 @@ pub(super) async fn run_current_player_ticks(
     session.world_entities.advance_creature_tick_like_cpp();
 
     let coordinated = session.is_map_phase_coordinated_like_cpp();
+    let selected_result = if coordinated {
+        Ok(())
+    } else {
+        run_selected_unit_update(session, diff_ms)
+    };
+    let _ = crate::session::hub_mut(session).set_represented_can_delay_teleport_like_cpp(false);
+
+    if let Err(error) = selected_result {
+        tracing::debug!(
+            account = session.core.account_id,
+            %error,
+            "Selected aura Unit update could not be completed"
+        );
+        return;
+    }
     if !coordinated {
         run_regeneration_and_kill(session, diff_ms, catalogs);
     }
 
-    // Aura expiry remains on the existing Session tick until its Map-phase
-    // countdown owner is connected atomically in the next unit.
-    if session.world_entities.creature_tick_like_cpp() % 4 == 0 {
-        wow_world_spell::tick_auras_expiry_only(session);
-    }
-    if !coordinated {
-        wow_world_spell::flush_pending_selected_aura_updates(session);
-    }
-
-    let _ = crate::session::hub_mut(session).set_represented_can_delay_teleport_like_cpp(false);
+    run_legacy_aura_sweep(session);
     if !coordinated {
         advance_player_save_timer(session, diff_ms);
         let binding = capture_player_binding(session);
@@ -70,6 +76,15 @@ pub(super) async fn run_current_player_ticks(
     if !coordinated {
         process_delayed_teleport(session, catalogs).await;
     }
+}
+
+fn run_legacy_aura_sweep(session: &mut WorldSession) {
+    if session.world_entities.creature_tick_like_cpp() % 4 != 0 {
+        return;
+    }
+    let _ = crate::session::hub_mut(session).set_represented_can_delay_teleport_like_cpp(true);
+    wow_world_spell::tick_auras_expiry_only(session);
+    let _ = crate::session::hub_mut(session).set_represented_can_delay_teleport_like_cpp(false);
 }
 
 /// Consume one admitted Player timer pass from the existing Session phase rail.
@@ -146,9 +161,18 @@ async fn run_admitted_player_recovery(
     admission: &crate::session::mailbox::PlayerRecoveryAdmission,
     catalogs: &SessionHandlerCatalogsLikeCpp,
 ) -> PlayerRecoveryStatus {
-    // Recovery operations never inherit Player::Update's temporary delayed
-    // teleport window: release and timer teleports publish at their source point.
+    // C++ Unit::Update runs before Player regeneration, KillPlayer, SaveTimer,
+    // deathTimer, and delayed teleport (`Player.cpp:935-942,1053-1066,1101-1111`).
+    let _ = crate::session::hub_mut(session).set_represented_can_delay_teleport_like_cpp(true);
+    let selected_result = run_selected_unit_update(session, admission.diff_ms);
     let _ = crate::session::hub_mut(session).set_represented_can_delay_teleport_like_cpp(false);
+    if selected_result.is_err() {
+        return recovery_status(session, admission).unwrap_or(PlayerRecoveryStatus::Unavailable);
+    }
+    if let Some(status) = recovery_status(session, admission) {
+        return status;
+    }
+
     run_regeneration_and_kill(session, admission.diff_ms, catalogs);
     if let Some(status) = recovery_status(session, admission) {
         return status;
@@ -170,6 +194,51 @@ async fn run_admitted_player_recovery(
 
     process_delayed_teleport(session, catalogs).await;
     recovery_status(session, admission).unwrap_or(PlayerRecoveryStatus::Completed)
+}
+
+fn run_selected_unit_update(
+    session: &mut WorldSession,
+    diff_ms: u32,
+) -> Result<(), &'static str> {
+    let Some(handle) = session.core.player_handle_like_cpp else {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        {
+            wow_world_spell::flush_pending_selected_aura_updates(session);
+            return Ok(());
+        }
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        return Err("Selected aura Unit update has no canonical Player handle");
+    };
+
+    wow_world_spell::tick_selected_aura_lifetimes(session, diff_ms)?;
+
+    let manager = session
+        .core
+        .canonical_map_manager
+        .as_ref()
+        .ok_or("Selected aura Unit update has no canonical map manager")?
+        .clone();
+    let races = session.catalogs.chr.races_store.clone();
+    let prepared = {
+        let mut manager = manager
+            .lock()
+            .map_err(|_| "Selected aura map manager lock is unavailable")?;
+        wow_world_spell::collect_player_pending_selected_aura_updates(
+            &mut manager,
+            handle,
+            races.as_deref(),
+        )?
+    };
+    for update in &prepared {
+        if !session
+            .core
+            .packet_publication_access_like_cpp()
+            .publish_prepared_selected_aura_update(update)
+        {
+            return Err("Prepared selected aura source is no longer current");
+        }
+    }
+    Ok(())
 }
 
 #[derive(Clone, Copy)]

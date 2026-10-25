@@ -103,6 +103,11 @@ impl RecordingPortLikeCpp {
     pub(in crate::session::tests) fn character_save_count(&self) -> usize {
         self.character_saves.lock().unwrap().len()
     }
+    pub(in crate::session::tests) fn character_save_requests(
+        &self,
+    ) -> Vec<PlayerCharacterSaveRequestLikeCpp> {
+        self.character_saves.lock().unwrap().clone()
+    }
     fn marks(&self) -> Vec<PlayerOfflineMarkLikeCpp> {
         self.seen.lock().unwrap().clone()
     }

@@ -104,10 +104,13 @@ async fn selected_lifetime_sickness_expiry_restores_stats_through_map_values() {
     assert_eq!(result.expired, 1);
     assert!(visible_sickness_aura(&session, SICKNESS_SPELL).is_empty());
     let removal_packets = drain_packets(&send_rx);
-    assert!(
+    assert_eq!(
         removal_packets
             .iter()
-            .any(|bytes| packet_opcode(bytes) == ServerOpcodes::AuraUpdate as u16)
+            .filter(|bytes| packet_opcode(bytes) == ServerOpcodes::AuraUpdate as u16)
+            .count(),
+        1,
+        "selected sickness removal publishes exactly one AuraUpdate before stat delivery"
     );
     assert!(
         removal_packets

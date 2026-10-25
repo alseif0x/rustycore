@@ -165,38 +165,16 @@ pub(super) fn apply_resurrection_sickness_aura<H: SpellExecutionHostLikeCpp>(
     if let Some(remaining) = requested_remaining {
         let remaining = u32::try_from(remaining)
             .map_err(|_| "Resurrection sickness remaining duration is negative")?;
-        if crate::set_player_aura_duration(host, spell_id, caster_guid, remaining) == 0 {
+        if crate::set_player_aura_duration(
+            host,
+            spell_id,
+            caster_guid,
+            remaining,
+            wow_entities::AuraDurationUpdatePolicy::SelectedUnitUpdate,
+        ) == 0
+        {
             return Err("Resurrection sickness aura disappeared after application");
         }
-    } else {
-        publish_current_sickness_aura(host, spell_id, caster_guid)?;
-    }
-    Ok(())
-}
-
-fn publish_current_sickness_aura<H: SpellExecutionHostLikeCpp>(
-    host: &H,
-    spell_id: i32,
-    caster_guid: ObjectGuid,
-) -> Result<(), &'static str> {
-    let snapshots = host
-        .core()
-        .with_owned_player_like_cpp(|player| {
-            let auras = &player.unit().subsystems().auras;
-            auras
-                .runtime_applications_like_cpp()
-                .values()
-                .filter(|aura| aura.spell_id == spell_id && aura.caster_guid == caster_guid)
-                .map(|aura| (aura.clone(), auras.aura_cast_provenance_like_cpp(aura.slot)))
-                .collect::<Vec<_>>()
-        })
-        .ok_or("Canonical sickness Player disappeared before Aura publication")?;
-    if snapshots.len() != 1 {
-        return Err("Canonical sickness Aura is missing or ambiguous before publication");
-    }
-    let (state, hub) = host.split_spell_state_ref();
-    for (aura, provenance) in snapshots {
-        state.send_aura_application_update_with_provenance(hub, &aura, provenance);
     }
     Ok(())
 }

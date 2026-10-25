@@ -252,6 +252,25 @@ fn sync_canonical_threat_relevant_aura_like_cpp<H: SessionHubHostLikeCpp>(
             );
         return;
     }
+    let selected_sickness = {
+        let hub = host.hub_ref();
+        let race_id = hub.player_race_like_cpp();
+        // This pass replaces canonical effect registrations. Preserve them
+        // when race data cannot distinguish sickness from ordinary auras.
+        if race_id == 0 {
+            return;
+        }
+        let Some(races) = hub.catalogs.chr.races_store.as_deref() else {
+            return;
+        };
+        let Some(race) = races.get(u32::from(race_id)) else {
+            return;
+        };
+        if race.res_sickness_spell_id < 0 {
+            return;
+        }
+        race.res_sickness_spell_id > 0 && race.res_sickness_spell_id == spell_id
+    };
     let mut hub = host.hub_mut();
     let catalogs = hub.catalogs;
     let spell_store = catalogs.spell_store().map(AsRef::as_ref);
@@ -262,6 +281,7 @@ fn sync_canonical_threat_relevant_aura_like_cpp<H: SessionHubHostLikeCpp>(
             caster_guid,
             slot,
             effect_mask,
+            selected_sickness,
             represented_effect_amounts,
             spell_store,
             difficulty_store,

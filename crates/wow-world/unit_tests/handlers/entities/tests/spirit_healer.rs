@@ -155,6 +155,7 @@ async fn spirit_healer_clears_canonical_self_res_and_out_of_bounds_state() {
 #[tokio::test]
 async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_items() {
     let (mut session, send_rx, _realm_rx, port) = logged_in_released_ghost(43_201).await;
+    let _packet_peer = keep_recovery_input_open(&mut session);
     let player_guid = session.player_guid().unwrap();
     let position = session.player_position_like_cpp().unwrap();
     let healer = insert_healer(&session, 43_202, position, NPCFlags1::SPIRIT_HEALER.bits());
@@ -419,7 +420,34 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
         .flat_map(|bytes| decode_sickness_auras(bytes))
         .filter(|aura| aura.spell_id == SICKNESS_SPELL)
         .collect::<Vec<_>>();
-    assert_eq!(aura_updates.len(), 1, "sickness publishes one AuraUpdate");
+    assert!(
+        aura_updates.is_empty(),
+        "the sickness application remains pending until the selected Unit update"
+    );
+    let pending_slot = visible_sickness_aura(&session, SICKNESS_SPELL)
+        .first()
+        .expect("fresh sickness application")
+        .slot;
+    assert!(
+        session
+            .core
+            .with_owned_player_like_cpp(|player| player
+                .unit()
+                .subsystems()
+                .auras
+                .visible_auras_to_update
+                .contains(&pending_slot))
+            .expect("canonical sickness owner")
+    );
+    session.update(0).await;
+    let recovery_packets = drain_packets(&send_rx);
+    let aura_updates = recovery_packets
+        .iter()
+        .filter(|bytes| packet_opcode(bytes) == ServerOpcodes::AuraUpdate as u16)
+        .flat_map(|bytes| decode_sickness_auras(bytes))
+        .filter(|aura| aura.spell_id == SICKNESS_SPELL)
+        .collect::<Vec<_>>();
+    assert_eq!(aura_updates.len(), 1, "Recovery publishes one AuraUpdate");
     let sickness = &aura_updates[0];
     assert_eq!(sickness.cast_id, cast_id);
     assert_eq!(sickness.visual_id, 245_039);
@@ -480,7 +508,17 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
     let (refresh_cast_id, _, refresh_spell_id, _, _) = decode_spell_go(refresh_spell_go);
     assert_eq!(refresh_spell_id, SICKNESS_SPELL);
     assert_ne!(refresh_cast_id, original_provenance.cast_id);
-    let refreshed_updates = refreshed_packets
+    assert!(
+        refreshed_packets
+            .iter()
+            .filter(|bytes| packet_opcode(bytes) == ServerOpcodes::AuraUpdate as u16)
+            .flat_map(|bytes| decode_sickness_auras(bytes))
+            .all(|aura| aura.spell_id != SICKNESS_SPELL),
+        "the refreshed sickness remains pending until Recovery"
+    );
+    session.update(0).await;
+    let refreshed_recovery_packets = drain_packets(&send_rx);
+    let refreshed_updates = refreshed_recovery_packets
         .iter()
         .filter(|bytes| packet_opcode(bytes) == ServerOpcodes::AuraUpdate as u16)
         .flat_map(|bytes| decode_sickness_auras(bytes))
@@ -520,6 +558,26 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
     assert_eq!(single_stack_refresh[0].duration_remaining, 60_000);
     let (_, single_stack_metadata, _) = refreshed_sickness_state(&session, original_slot);
     assert_eq!(single_stack_metadata.charges, 0);
+    let single_stack_packets = drain_packets(&send_rx);
+    assert!(
+        single_stack_packets
+            .iter()
+            .filter(|bytes| packet_opcode(bytes) == ServerOpcodes::AuraUpdate as u16)
+            .flat_map(|bytes| decode_sickness_auras(bytes))
+            .all(|aura| aura.spell_id != SICKNESS_SPELL),
+        "the final refresh also waits for Recovery"
+    );
+    session.update(0).await;
+    let single_stack_recovery_packets = drain_packets(&send_rx);
+    assert_eq!(
+        single_stack_recovery_packets
+            .iter()
+            .filter(|bytes| packet_opcode(bytes) == ServerOpcodes::AuraUpdate as u16)
+            .flat_map(|bytes| decode_sickness_auras(bytes))
+            .filter(|aura| aura.spell_id == SICKNESS_SPELL)
+            .count(),
+        1
+    );
 
     let stale = std::time::Instant::now() - std::time::Duration::from_secs(121);
     session
@@ -533,7 +591,9 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
                 .applied_at = stale;
         })
         .expect("canonical Player aura owner");
-    wow_world_spell::tick_auras(&mut session);
+    let expired = wow_world_spell::tick_selected_aura_lifetimes(&mut session, 60_000)
+        .expect("the selected Unit update expires the sickness by its remaining duration");
+    assert_eq!(expired.expired, 1);
     assert!(visible_sickness_aura(&session, SICKNESS_SPELL).is_empty());
     let expired_stats = session
         .canonical_player_effective_combat_stats_like_cpp()
@@ -556,6 +616,7 @@ async fn sickness_uses_configured_threshold_and_race_spell_even_without_visible_
     ] {
         let base = 43_300 + case * 10;
         let (mut session, send_rx, _realm_rx, _port) = logged_in_released_ghost(base).await;
+        let _packet_peer = keep_recovery_input_open(&mut session);
         let healer = insert_healer(
             &session,
             base + 1,
@@ -596,12 +657,16 @@ async fn sickness_uses_configured_threshold_and_race_spell_even_without_visible_
                 .all(|bytes| packet_opcode(bytes) != ServerOpcodes::SpellGo as u16),
             "a missing visual mapping and no client-log attributes suppress only SpellGo"
         );
-        let updates = packets
+        let immediate_updates = packets
             .iter()
             .filter(|bytes| packet_opcode(bytes) == ServerOpcodes::AuraUpdate as u16)
             .flat_map(|bytes| decode_sickness_auras(bytes))
             .filter(|aura| aura.spell_id == CUSTOM_SICKNESS_SPELL)
             .collect::<Vec<_>>();
+        assert!(
+            immediate_updates.is_empty(),
+            "selected sickness waits for the actual Unit update"
+        );
         if let Some(expected_remaining) = expected_remaining {
             assert_eq!(
                 aura.len(),
@@ -611,6 +676,20 @@ async fn sickness_uses_configured_threshold_and_race_spell_even_without_visible_
             assert_eq!(aura[0].effect_mask, 0x7);
             assert_eq!(aura[0].duration_total, 600_000);
             assert_eq!(aura[0].duration_remaining, expected_remaining);
+            session.update(0).await;
+            let recovery_packets = drain_packets(&send_rx);
+            assert!(
+                recovery_packets
+                    .iter()
+                    .all(|bytes| packet_opcode(bytes) != ServerOpcodes::SpellGo as u16),
+                "Recovery publishes the pending aura without adding a SpellGo"
+            );
+            let updates = recovery_packets
+                .iter()
+                .filter(|bytes| packet_opcode(bytes) == ServerOpcodes::AuraUpdate as u16)
+                .flat_map(|bytes| decode_sickness_auras(bytes))
+                .filter(|aura| aura.spell_id == CUSTOM_SICKNESS_SPELL)
+                .collect::<Vec<_>>();
             assert_eq!(updates.len(), 1, "aura applies without SpellGo");
             assert_eq!(updates[0].visual_id, 0);
             assert_eq!(updates[0].duration_ms, Some(600_000));
@@ -624,7 +703,7 @@ async fn sickness_uses_configured_threshold_and_race_spell_even_without_visible_
                 "level below configured threshold gets no aura"
             );
             assert!(
-                updates.is_empty(),
+                immediate_updates.is_empty(),
                 "below-threshold cast sends no AuraUpdate"
             );
         }

@@ -59,6 +59,7 @@ fn install_unrelated_strength_aura(session: &mut WorldSession, spell_id: i32) {
 #[tokio::test]
 async fn lifecycle_stat_fresh_sickness_updates_canonical_stats_through_map_values() {
     let (mut session, send_rx, _realm_rx, _port) = logged_in_released_ghost(43_901).await;
+    let _packet_peer = keep_recovery_input_open(&mut session);
     let player_guid = session.player_guid().expect("canonical Player GUID");
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 11, 0);
     set_race_sickness_spell(&mut session, SICKNESS_SPELL);
@@ -85,7 +86,40 @@ async fn lifecycle_stat_fresh_sickness_updates_canonical_stats_through_map_value
     session
         .player_aura_application_cx_like_cpp()
         .apply_aura_with_effect_mask_like_cpp(SICKNESS_SPELL, player_guid, 600_000, 0x15, 0x7)
-        .expect("race-selected sickness applies through the canonical aura path");
+        .expect("generic selected sickness application defers publication");
+    wow_world_spell::hydrate_canonical_threat_relevant_auras_like_cpp(&mut session);
+    let (sickness_slot, sickness_snapshot) = session
+        .core
+        .with_owned_player_like_cpp(|player| {
+            let auras = &player.unit().subsystems().auras;
+            let slot = auras
+                .runtime_applications_like_cpp()
+                .values()
+                .find(|aura| aura.spell_id == SICKNESS_SPELL)
+                .expect("generic sickness application is canonical")
+                .slot;
+            (slot, auras.threat_snapshot_like_cpp(slot).cloned())
+        })
+        .expect("canonical Player owner");
+    let sickness_snapshot = sickness_snapshot.expect("selected sickness effect snapshot");
+    assert_eq!(
+        sickness_snapshot.effects(),
+        &[
+            (0b001, 80, -75, -1),
+            (0b010, 79, -75, 127),
+            (0b100, 159, 0, 127),
+        ],
+        "generic application and hydration preserve all selected sickness effects"
+    );
+    assert!(session
+        .core
+        .with_owned_player_like_cpp(|player| player
+            .unit()
+            .subsystems()
+            .auras
+            .visible_auras_to_update
+            .contains(&sickness_slot))
+        .expect("canonical Player owner"));
 
     let effective = session
         .canonical_player_effective_combat_stats_like_cpp()
@@ -107,10 +141,29 @@ async fn lifecycle_stat_fresh_sickness_updates_canonical_stats_through_map_value
     assert!(
         applied_packets
             .iter()
-            .any(|bytes| packet_opcode(bytes) == ServerOpcodes::AuraUpdate as u16)
+            .all(|bytes| packet_opcode(bytes) != ServerOpcodes::AuraUpdate as u16),
+        "selected sickness remains pending until the Unit update"
     );
     assert!(
         applied_packets
+            .iter()
+            .all(|bytes| packet_opcode(bytes) != ServerOpcodes::UpdateObject as u16)
+    );
+    session.update(0).await;
+    let recovery_packets = drain_packets(&send_rx);
+    let recovery_sickness = recovery_packets
+        .iter()
+        .filter(|bytes| packet_opcode(bytes) == ServerOpcodes::AuraUpdate as u16)
+        .flat_map(|bytes| decode_sickness_auras(bytes))
+        .filter(|aura| aura.spell_id == SICKNESS_SPELL)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        recovery_sickness.len(),
+        1,
+        "the actual Recovery consumer publishes the selected sickness once"
+    );
+    assert!(
+        recovery_packets
             .iter()
             .all(|bytes| packet_opcode(bytes) != ServerOpcodes::UpdateObject as u16)
     );

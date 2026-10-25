@@ -1,8 +1,31 @@
 use super::*;
 
+fn aura_update_removes_slot(bytes: &[u8], expected_slot: u8) -> bool {
+    let mut packet = wow_packet::WorldPacket::from_bytes(bytes);
+    if packet.server_opcode() != Some(ServerOpcodes::AuraUpdate) {
+        return false;
+    }
+    packet.skip_opcode();
+    let _update_all = packet.read_bit().expect("AuraUpdate update-all bit");
+    let count = packet.read_bits(9).expect("AuraUpdate slot count");
+    for _ in 0..count {
+        let slot = packet.read_uint8().expect("AuraUpdate slot");
+        let has_aura = packet.read_bit().expect("AuraUpdate presence bit");
+        if slot == expected_slot {
+            return !has_aura;
+        }
+        packet.reset_bits();
+        if has_aura {
+            return false;
+        }
+    }
+    false
+}
+
 #[tokio::test]
 async fn high_level_sickness_recast_preserves_duration_without_a_shortening_request() {
     let (mut session, send_rx, _realm_rx, _port) = logged_in_released_ghost(43_419).await;
+    let _packet_peer = keep_recovery_input_open(&mut session);
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 20, 0);
     set_race_sickness_spell(&mut session, SICKNESS_SPELL);
     install_sickness_data(&mut session, SICKNESS_SPELL, Some(245_039));
@@ -31,6 +54,23 @@ async fn high_level_sickness_recast_preserves_duration_without_a_shortening_requ
         .into_iter()
         .next()
         .expect("installed sickness Aura");
+    assert!(
+        drain_packets(&send_rx)
+            .iter()
+            .all(|bytes| packet_opcode(bytes) != ServerOpcodes::AuraUpdate as u16),
+        "fresh selected sickness is pending until Recovery"
+    );
+    session.update(0).await;
+    assert_eq!(
+        drain_packets(&send_rx)
+            .iter()
+            .filter(|bytes| packet_opcode(bytes) == ServerOpcodes::AuraUpdate as u16)
+            .flat_map(|bytes| decode_sickness_auras(bytes))
+            .filter(|aura| aura.spell_id == SICKNESS_SPELL)
+            .count(),
+        1,
+        "the actual Unit update publishes the fresh selected sickness"
+    );
     prepare_loaded_sickness_for_recast(&mut session, aura.slot, player_guid);
     let applied_at_before = session
         .core
@@ -46,6 +86,20 @@ async fn high_level_sickness_recast_preserves_duration_without_a_shortening_requ
         .expect("canonical Player owner");
     let _ = drain_packets(&send_rx);
 
+    let ghost_slot = session
+        .core
+        .with_owned_player_like_cpp(|player| {
+            player
+                .unit()
+                .subsystems()
+                .auras
+                .runtime_applications_like_cpp()
+                .values()
+                .find(|aura| aura.spell_id == 8_326)
+                .map(|aura| aura.slot)
+        })
+        .flatten()
+        .expect("Ghost aura remains active before ResurrectPlayer");
     let healer = insert_healer(
         &session,
         43_420,
@@ -81,6 +135,23 @@ async fn high_level_sickness_recast_preserves_duration_without_a_shortening_requ
     let (_, metadata, _) = refreshed_sickness_state(&session, aura.slot);
     assert_eq!(metadata.charges, 5);
 
+    let cast_packets = drain_packets(&send_rx);
+    assert!(
+        cast_packets
+            .iter()
+            .filter(|bytes| packet_opcode(bytes) == ServerOpcodes::AuraUpdate as u16)
+            .flat_map(|bytes| decode_sickness_auras(bytes))
+            .all(|aura| aura.spell_id != SICKNESS_SPELL),
+        "the current race sickness remains pending until Recovery"
+    );
+    assert!(
+        cast_packets
+            .iter()
+            .filter(|bytes| packet_opcode(bytes) == ServerOpcodes::AuraUpdate as u16)
+            .any(|bytes| aura_update_removes_slot(bytes, ghost_slot)),
+        "ResurrectPlayer publishes Ghost removal immediately"
+    );
+    session.update(0).await;
     let updates = drain_packets(&send_rx)
         .iter()
         .filter(|bytes| packet_opcode(bytes) == ServerOpcodes::AuraUpdate as u16)

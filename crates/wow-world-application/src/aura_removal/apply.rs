@@ -57,6 +57,7 @@ impl AuraRemovalCxLikeCpp<'_> {
         // MiscValueB selecting which stat update handlers run. The sickness
         // spell id comes from this Player's ChrRaces row, never a fixed race id.
         let required_sickness = self.is_current_race_sickness_spell(spell_id) == Some(true);
+        let selected_lifetime = required_sickness || matches!(spell_id, 8_326 | 20_584);
         let stat_application = select_aura_stat_application(
             self.spell_store.map(|store| store.as_ref()),
             spell_id,
@@ -150,13 +151,18 @@ impl AuraRemovalCxLikeCpp<'_> {
             caster_guid,
             slot,
             effect_mask,
+            required_sickness,
             &represented_effect_amounts,
             self.spell_store.map(|store| store.as_ref()),
             self.difficulty_store,
             self.consumer_test,
         );
 
-        if send_update {
+        if selected_lifetime {
+            self.player
+                .set_visible_aura_update_pending(slot, true)
+                .ok_or("Missing Player aura owner")?;
+        } else if send_update {
             self.spell.send_aura_update_applied_with_access_like_cpp(
                 &self.player,
                 spell_id,

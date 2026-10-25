@@ -76,7 +76,7 @@ fn add_observer(
     Observer { session, output }
 }
 
-fn aura_packets(packets: impl IntoIterator<Item = Vec<u8>>) -> Vec<Vec<u8>> {
+pub(super) fn aura_packets(packets: impl IntoIterator<Item = Vec<u8>>) -> Vec<Vec<u8>> {
     packets
         .into_iter()
         .filter(|bytes| opcode(bytes) == ServerOpcodes::AuraUpdate as u16)
@@ -290,6 +290,7 @@ async fn committed_observer_survives_visibility_and_source_changes_but_new_viewe
 #[tokio::test]
 async fn coordinated_world_tick_leaves_selected_delta_for_map_owned_delivery() {
     let mut fixture = fixture();
+    super::selected_lifetime::install_race(&mut fixture.session, 0);
     let registry = setup_registry(&mut fixture);
     let mut observer = add_observer(
         &fixture,
@@ -329,13 +330,13 @@ async fn coordinated_world_tick_leaves_selected_delta_for_map_owned_delivery() {
 
     let updates = {
         let mut manager = fixture.canonical.lock().expect("canonical manager");
-        let plan = manager
-            .begin_tick_like_cpp(100)
-            .into_started()
-            .expect("admitted map tick");
-        let updates = wow_world_spell::collect_pending_selected_aura_updates(&mut manager, &plan);
-        manager.abandon_tick_like_cpp(plan);
-        updates
+        let races = fixture.session.catalogs.chr.races_store.clone();
+        wow_world_spell::collect_player_pending_selected_aura_updates(
+            &mut manager,
+            fixture.session.core.player_handle_like_cpp.unwrap(),
+            races.as_deref(),
+        )
+        .expect("current Player's selected aura deltas prepare")
     };
     assert_eq!(updates.len(), 1);
     let expected = updates[0].packet_bytes().to_vec();

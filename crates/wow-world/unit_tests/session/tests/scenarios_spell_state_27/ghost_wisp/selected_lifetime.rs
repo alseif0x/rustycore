@@ -1,6 +1,6 @@
 use super::*;
 
-fn install_race(session: &mut crate::session::WorldSession, sickness_spell_id: i32) {
+pub(super) fn install_race(session: &mut crate::session::WorldSession, sickness_spell_id: i32) {
     session.set_chr_races_store(std::sync::Arc::new(
         wow_data::character_progression::ChrRacesStore::from_entries([
             wow_data::character_progression::ChrRacesEntry {
@@ -69,7 +69,7 @@ fn set_application_duration(
         .expect("current canonical Player")
 }
 
-fn selected_slot(fixture: &GhostFixture, spell_id: i32) -> u8 {
+pub(super) fn selected_slot(fixture: &GhostFixture, spell_id: i32) -> u8 {
     fixture
         .session
         .core
@@ -84,6 +84,17 @@ fn selected_slot(fixture: &GhostFixture, spell_id: i32) -> u8 {
         })
         .flatten()
         .expect("selected canonical Aura slot")
+}
+
+#[test]
+fn empty_selected_unit_step_does_not_require_race_metadata() {
+    let mut fixture = fixture();
+    fixture.session.core.state = crate::session::SessionState::LoggedIn;
+
+    let result = wow_world_spell::tick_selected_aura_lifetimes(&mut fixture.session, 50)
+        .expect("an empty canonical Player has no selected Aura to classify");
+
+    assert_eq!(result, wow_world_spell::SelectedAuraLifetimeResult::default());
 }
 
 #[tokio::test]

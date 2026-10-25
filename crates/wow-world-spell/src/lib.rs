@@ -32,8 +32,8 @@ pub use aura_rows::{CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use aura_session::update_represented_flight_flags_for_flight_aura_like_cpp;
 pub use aura_session::{
-    AuraHostLikeCpp, SelectedAuraLifetimeResult, flush_pending_selected_aura_updates,
-    insert_player_visible_aura_like_cpp, load_represented_character_auras_like_cpp,
+    AuraHostLikeCpp, SelectedAuraLifetimeResult, insert_player_visible_aura_like_cpp,
+    load_represented_character_auras_like_cpp,
     next_player_visible_aura_slot_like_cpp, remove_auras_with_interrupt_flags_like_cpp,
     remove_indoor_outdoor_auras_for_current_position_represented_like_cpp,
     remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp,
@@ -42,9 +42,11 @@ pub use aura_session::{
     represented_mount_capability_selection_for_type_like_cpp,
     represented_spell_area_autocast_source_is_empty_like_cpp,
     represented_trait_config_aura_source_is_empty_like_cpp, send_aura_update_applied,
-    set_player_aura_duration, tick_auras, tick_auras_expiry_only, tick_selected_aura_lifetimes,
+    set_player_aura_duration, tick_auras_expiry_only, tick_selected_aura_lifetimes,
     update_player_collision_height_like_cpp,
 };
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use aura_session::{flush_pending_selected_aura_updates, tick_auras};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use aura_session::{
     SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP, apply_represented_mounted_aura_like_cpp,
@@ -136,7 +138,7 @@ pub use records::{
 };
 pub use session::{
     AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP, RepresentedShapeshiftMutationLikeCpp,
-    collect_pending_selected_aura_updates, collect_player_pending_selected_aura_updates,
+    collect_player_pending_selected_aura_updates,
     player_aura_info_like_cpp, represented_aura_effect_amounts_like_cpp,
     shapeshift_form_of_spell_like_cpp, unit_owned_apply_aura_effect_mask_like_cpp,
 };

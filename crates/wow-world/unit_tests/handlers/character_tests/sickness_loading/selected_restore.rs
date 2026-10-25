@@ -246,7 +246,7 @@ fn selected_sickness_rejected_foreign_candidate_retires_prior_spell_application(
 }
 
 #[test]
-fn selected_sickness_unknown_duration_or_zero_stored_max_keeps_save_unknown() {
+fn selected_sickness_unknown_duration_holds_save_and_zero_max_is_captured_exactly() {
     let (mut missing_duration, player, _) =
         canonical_aura_session([sickness_catalog_info()], SICKNESS_SPELL_ID);
     missing_duration
@@ -283,12 +283,17 @@ fn selected_sickness_unknown_duration_or_zero_stored_max_keeps_save_unknown() {
     let zero_max_data = zero_max_info.aura_data.expect("source max-zero AuraInfo");
     assert_eq!(zero_max_data.duration_ms, None);
     assert_eq!(zero_max_data.remaining_ms, None);
-    // Save capture still withholds this raw edge while the selected countdown
-    // moves to the exact canonical duration snapshot in a later unit.
-    assert!(
-        capture_player_save_request(&zero_max)
-            .unwrap()
-            .resurrection_sickness
-            .is_none()
+    let saved = capture_player_save_request(&zero_max)
+        .unwrap()
+        .resurrection_sickness
+        .expect("a present zero-maximum selected Aura is a valid snapshot");
+    assert_eq!(saved.families.len(), 1);
+    assert_eq!(
+        (
+            saved.families[0].auras[0].max_duration,
+            saved.families[0].auras[0].remaining_duration,
+        ),
+        (0, 90_000),
+        "snapshot preserves the source maximum and remaining values literally"
     );
 }

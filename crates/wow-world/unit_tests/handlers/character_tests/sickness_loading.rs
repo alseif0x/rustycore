@@ -357,7 +357,7 @@ fn selected_sickness_recalculates_from_saved_base_and_publishes_full_aura() {
     );
     let saved_aura = &saved.families[0].auras[0];
     assert_eq!(saved_aura.max_duration, 600_000);
-    assert!((59_000..=60_000).contains(&saved_aura.remaining_duration));
+    assert_eq!(saved_aura.remaining_duration, 60_000);
     assert_eq!(
         (saved_aura.cast_item_id, saved_aura.cast_item_level),
         (6948, 80)
@@ -431,7 +431,7 @@ fn selected_sickness_capture_reconciles_foreign_and_item_keys() {
     );
     insert_runtime_sickness_key(
         &mut session,
-        selected_sickness_application(foreign_caster, 9, 0b100, 0, 0),
+        selected_sickness_application(foreign_caster, 9, 0b100, -1, -1),
         Some(wow_entities::AuraPersistenceMetadata {
             item_guid: permanent_item,
             cast_item_id: 1_234,
@@ -477,7 +477,7 @@ fn selected_sickness_capture_reconciles_foreign_and_item_keys() {
         ),
         (600_000, 3, 1, 6_948, 80)
     );
-    assert!((549_000..=550_000).contains(&foreign_aura.remaining_duration));
+    assert_eq!(foreign_aura.remaining_duration, 550_000);
     assert_eq!(foreign_aura.effects[0].amount, -75);
     assert_eq!(foreign_aura.effects[0].base_amount, -76);
 

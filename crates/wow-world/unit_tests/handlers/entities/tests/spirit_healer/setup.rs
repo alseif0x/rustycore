@@ -31,6 +31,12 @@ pub(super) fn drain_packets(receiver: &flume::Receiver<Vec<u8>>) -> Vec<Vec<u8>>
     std::iter::from_fn(|| receiver.try_recv().ok()).collect()
 }
 
+pub(super) fn keep_recovery_input_open(session: &mut WorldSession) -> flume::Sender<WorldPacket> {
+    let (packet_tx, packet_rx) = flume::bounded(8);
+    session.set_packet_rx(packet_rx);
+    packet_tx
+}
+
 pub(super) fn healer_packet(healer: ObjectGuid) -> WorldPacket {
     let mut packet = WorldPacket::new_empty();
     packet.write_packed_guid(&healer);

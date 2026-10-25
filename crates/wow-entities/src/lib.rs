@@ -261,7 +261,7 @@ pub use player::{
     PLAYER_HONOR_NEXT_LEVEL_XP_LIKE_CPP, PLAYER_LEVEL_MIN_HONOR_LIKE_CPP,
     PLAYER_MAX_GLYPH_SLOTS_LIKE_CPP, PLAYER_MAX_HONOR_LEVEL_LIKE_CPP,
     PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP, PLAYER_SLOT_END, PLAYER_TRADE_SLOT_COUNT_LIKE_CPP,
-    PLAYER_VOID_STORAGE_MAX_SLOTS_LIKE_CPP, Player, PlayerAchievementCriteriaRecord,
+    PLAYER_VOID_STORAGE_MAX_SLOTS_LIKE_CPP, AuraDurationUpdatePolicy, Player, PlayerAchievementCriteriaRecord,
     PlayerAchievementRecord, PlayerActionButtonRecord, PlayerBagStorage,
     PlayerBattlegroundQueueRecord, PlayerBattlegroundQueueSlotLikeCpp,
     PlayerBattlegroundQueueTypeIdLikeCpp, PlayerBattlegroundState, PlayerCinematicStateLikeCpp,

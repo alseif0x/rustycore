@@ -209,10 +209,10 @@ fn save_snapshot_keeps_ghost_health_and_captures_player_death_metadata() {
 
     session
         .with_owned_player_mut_like_cpp(|player| {
-            player.unit_mut().set_health(0);
             player
                 .unit_mut()
                 .set_death_state(wow_constants::DeathState::Corpse);
+            player.unit_mut().set_health(0);
         })
         .unwrap();
     assert_eq!(
@@ -463,7 +463,7 @@ fn save_snapshot_cannot_read_replacement_or_fallback_after_owner_loss() {
 }
 
 #[test]
-fn sickness_capture_uses_race_spell_all_keys_effect_amounts_and_elapsed_duration() {
+fn sickness_capture_uses_race_spell_all_keys_effect_amounts_and_exact_durations() {
     let (mut session, _, _) = make_session();
     let player_guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
     let spell_id = 54_321;
@@ -559,7 +559,7 @@ fn sickness_capture_uses_race_spell_all_keys_effect_amounts_and_elapsed_duration
     assert_eq!(aura.difficulty, 0);
     assert_eq!(aura.stack_count, 1);
     assert_eq!(aura.max_duration, 60_000);
-    assert!((39_000..=40_000).contains(&aura.remaining_duration));
+    assert_eq!(aura.remaining_duration, 45_000);
     assert_eq!(aura.charges, 0);
     assert_eq!(aura.recalculate_mask, 0b101);
     assert_eq!((aura.cast_item_id, aura.cast_item_level), (0, -1));
@@ -688,7 +688,7 @@ fn incomplete_aura_authority_preserves_rows_with_or_without_a_runtime_aura() {
 }
 
 #[test]
-fn partial_mask_unknown_fresh_effect_and_malformed_permanent_duration_fail_closed() {
+fn partial_mask_and_unknown_effect_fail_closed_while_zero_duration_is_saved_exactly() {
     let (mut partial, _, _) = make_session();
     let player_guid = install_canonical_player_owner_for_test(&mut partial, 571, 0);
     let spell_id = 54_321;
@@ -749,14 +749,23 @@ fn partial_mask_unknown_fresh_effect_and_malformed_permanent_duration_fail_close
         .unwrap();
     insert_sickness_application(
         &mut no_duration,
-        sickness_application(player_guid, spell_id, 2, 1, 0, 1, std::time::Instant::now()),
+        sickness_application(player_guid, spell_id, 2, 1, 0, 0, std::time::Instant::now()),
         Some(vec![(1, 80, 10, 0)]),
     );
-    assert_eq!(capture_sickness(&mut no_duration), None);
+    let saved = capture_sickness(&mut no_duration)
+        .expect("a present zero-maximum sickness application remains a valid snapshot");
+    assert_eq!(saved.families.len(), 1);
+    assert_eq!(
+        (
+            saved.families[0].auras[0].max_duration,
+            saved.families[0].auras[0].remaining_duration,
+        ),
+        (0, 0)
+    );
 }
 
 #[test]
-fn expired_finite_sickness_is_an_authoritative_empty_group() {
+fn stale_timestamp_keeps_the_present_finite_sickness_snapshot() {
     let (mut session, _, _) = make_session();
     let player_guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
     let spell_id = 54_321;
@@ -775,13 +784,21 @@ fn expired_finite_sickness_is_an_authoritative_empty_group() {
             2,
             1,
             30_000,
-            1,
+            0,
             std::time::Instant::now() - std::time::Duration::from_secs(5),
         ),
         Some(vec![(1, 80, 10, 0)]),
     );
     let saved = capture_sickness(&mut session).unwrap();
-    assert!(saved.families.is_empty());
+    assert_eq!(saved.families.len(), 1);
+    assert_eq!(
+        (
+            saved.families[0].auras[0].max_duration,
+            saved.families[0].auras[0].remaining_duration,
+        ),
+        (30_000, 0),
+        "a stale wall-clock timestamp does not rewrite a present application"
+    );
 }
 
 #[test]

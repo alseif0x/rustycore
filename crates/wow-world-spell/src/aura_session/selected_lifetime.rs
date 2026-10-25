@@ -111,7 +111,31 @@ pub fn tick_selected_aura_lifetimes<H: AuraHostLikeCpp>(
     let player_guid = host
         .player_guid()
         .ok_or("Selected Aura lifetime step has no current Player GUID")?;
-    let race_id = host.hub_ref().player_race_like_cpp();
+    let (race_id, has_auras) = host
+        .core()
+        .with_owned_player_like_cpp(|player| {
+            let world = player.unit().world();
+            (player.guid() == player_guid
+                && world.object().is_in_world()
+                && world.has_current_map()
+                && world.object().guid() == player_guid)
+                .then(|| {
+                    (
+                        player.race_like_cpp(),
+                        !player
+                            .unit()
+                            .subsystems()
+                            .auras
+                            .runtime_applications_like_cpp()
+                            .is_empty(),
+                    )
+                })
+        })
+        .flatten()
+        .ok_or("Selected Aura lifetime step has no current in-world canonical Player")?;
+    if !has_auras {
+        return Ok(SelectedAuraLifetimeResult::default());
+    }
     if race_id == 0 {
         return Err("Selected Aura lifetime step has no current race identity");
     }
@@ -142,8 +166,10 @@ pub fn tick_selected_aura_lifetimes<H: AuraHostLikeCpp>(
     let prepared = host
         .core()
         .with_owned_player_mut_like_cpp(|player| {
-            if player.unit().world().object().guid() != player_guid
+            if player.guid() != player_guid
+                || player.unit().world().object().guid() != player_guid
                 || !player.unit().world().object().is_in_world()
+                || !player.unit().world().has_current_map()
                 || player.race_like_cpp() != race_id
             {
                 return Err("Canonical Player is not the current in-world Session owner");

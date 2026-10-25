@@ -42,7 +42,6 @@ const WISP_EFFECTS: [(u8, i32, bool); 3] = [
 
 enum CapturedAura {
     Skipped,
-    Expired,
     Save(PlayerLifecycleAuraSave),
 }
 
@@ -155,19 +154,8 @@ fn capture_aura(
     if application.effect_mask & !expected_mask != 0 {
         return None;
     }
-    let (max_duration, remaining_duration, expired) =
-        match (application.duration_total, application.duration_remaining) {
-            (_, 0) => (application.duration_total, 0, true),
-            (-1, remaining) => (-1, remaining, false),
-            (max_duration, remaining) if max_duration > 0 && remaining > 0 => {
-                let elapsed_ms =
-                    i32::try_from(application.applied_at.elapsed().as_millis()).unwrap_or(i32::MAX);
-                let remaining_ms = remaining.saturating_sub(elapsed_ms).max(0);
-                (max_duration, remaining_ms, remaining_ms == 0)
-            }
-            (0, _) => return None,
-            (max_duration, remaining) => (max_duration, remaining, false),
-        };
+    let max_duration = application.duration_total;
+    let remaining_duration = application.duration_remaining;
 
     let mut stored_base_amounts = BTreeMap::new();
     if let Some(metadata) = metadata {
@@ -243,9 +231,6 @@ fn capture_aura(
     if effect_mask != application.effect_mask {
         return None;
     }
-    if expired {
-        return Some(CapturedAura::Expired);
-    }
     effects.sort_by_key(|effect| effect.index);
 
     Some(CapturedAura::Save(PlayerLifecycleAuraSave {
@@ -305,7 +290,7 @@ pub(super) fn capture(
             metadata.item_guid.to_raw_bytes()
         });
         let aura = match capture_aura(player, slot, application, spell_store, difficulty_store)? {
-            CapturedAura::Skipped | CapturedAura::Expired => continue,
+            CapturedAura::Skipped => continue,
             CapturedAura::Save(aura) => aura,
         };
         let key = (

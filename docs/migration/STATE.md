@@ -5,17 +5,18 @@ The macro remains open and has not passed final acceptance. Changes remain
 local to `43-spirit-healer`; this candidate has not been published or deployed.
 Recent checkpoints add canonical stats, reconciliation of all selected aura
 keys, selected load and refresh, signed durations, and an expiration executor
-driven by the admitted diff. That executor still has no production caller.
+driven by the admitted diff. 9i3C2 connects that executor, selected publication,
+and exact snapshots to PlayerRecovery. Its focused coding checks passed;
+this does not establish final acceptance or complete AuraUpdate metadata.
 The Map recovery pass now connects regeneration, KillPlayer, periodic save,
 deathTimer, and delayed teleport through the existing Session rail. Both its
 World consumer and Server coordinator have focused coding feedback.
-Activating the selected countdown, publication, and exact save snapshot remains
-pending; the design adds neither another clock nor another Player authority.
+Selected AuraUpdate metadata remains pending. The integration adds neither
+another clock nor another Player authority.
 
 Four blocks remain within the same macro:
 
-- Complete the selected Unit step in Map recovery, its publication and exact
-  snapshot; finish the selected AuraUpdate metadata.
+- Finish the selected AuraUpdate metadata and its consumers.
 - Connect existing death participants and complete recovery operations,
   including their login, transfer, and failure paths.
 - Complete the normal cast consumers those operations require, including
@@ -665,7 +666,7 @@ focused-feedback logs:
 `/tmp/rustycore-9i3b-check-world-server-r3.log`,
 `/tmp/rustycore-9i3b-test-world-recovery-timer-r3.log`,
 `/tmp/rustycore-9i3b-test-world-death-timer-r2.log`,
-`/tmp/rustycore-9i3b-test-world-server-map-session-pass-r2.log` y
+`/tmp/rustycore-9i3b-test-world-server-map-session-pass-r2.log` and
 `/tmp/rustycore-9i3b-test-world-server-post-respawn-participants.log`.
 Environment: aarch64, jobs=1, checkout-local target, and local PROTOC. Failed
 attempts remain in their logs: summary mutability, transport peers dropped by
@@ -700,6 +701,77 @@ logs are `/tmp/rustycore-9i3c1-check-spell-r1.log`,
 runtime operation, or DB mutation was performed for this unit. The resumed
 worker reported `gpt-6.1-sol`, with effort not exposed; C1 is not attributed
 to Luna. The next implementation worker must use a fresh fixed Luna role.
+
+9i3C2 activates the selected Unit step in the existing PlayerRecovery pass,
+before regeneration, KillPlayer, periodic save, deathTimer, and delayed
+teleport. It uses the admitted Map diff and the same body in standalone mode.
+The canDelayTeleport window closes on success and failure. Selected-step
+failure abandons this tick's tail through the existing permit; a retired
+binding remains PlayerLeft. C++ anchors at
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` are Player.cpp:935–942,
+1053–1066,1101–1111 and Unit.cpp:2854–2877.
+
+Selected countdowns leave the legacy Player wall-clock sweep, while unrelated
+Player expiry and the Creature sweep retain their cadence. Pending additions,
+refreshes, and SetDuration changes publish once in slot order at the Unit point,
+directly to self and through the existing observer rail. Automatic release
+creates Ghost/Wisp after that point, so they wait for the next Recovery. The
+global post-Creature collector, summary field, and delivery call are removed.
+The general aura application and threat-hydration consumers now preserve the
+complete selected sickness effect snapshot; an unknown race lookup must not
+rebuild it as known absence. Sickness removal publishes before its effect/stat
+handlers. Fresh and refreshed selected auras do not send an immediate duplicate.
+
+Both selected PlayerSaveOwner captures now retain exact signed maximum and
+remaining durations, including zero on a still-present application. They do
+not subtract Instant or infer expired absence: Unit removal owns that change.
+Source: Player::_SaveAuras, Player.cpp:19811–19865. A stale applied_at value
+therefore cannot change the DTO. Selected refresh and SetDuration preserve
+the application timestamp and mark the existing pending slot.
+
+On base `8b4fba80c` plus the reviewed local delta, all commands below exited 0,
+sequentially on aarch64 with jobs=1, checkout-local target, and local PROTOC:
+
+- World check: `/tmp/rustycore-9i3c2-check-wow-world-c2-final2.log`.
+- World selected_recovery, excluding ghost_wisp and sickness: 2 cases,
+  `/tmp/rustycore-9i3c2-test-selected-recovery-c2-final.log`.
+- World sickness: 28 cases,
+  `/tmp/rustycore-9i3c2-test-sickness-c2-final4.log`.
+- World ghost_wisp: 45 cases,
+  `/tmp/rustycore-9i3c2-test-ghost-wisp-c2-recheck.log`.
+- World aura_duration, excluding sickness: 2 cases,
+  `/tmp/rustycore-9i3c2-test-aura-duration-c2-final.log`.
+- World save_snapshot_owner, excluding sickness: 12 cases,
+  `/tmp/rustycore-9i3c2-test-save-snapshot-owner-c2-corpse-recheck.log`.
+- Spell selected_publication: 5 cases,
+  `/tmp/rustycore-9i3c2-test-spell-selected-publication-c2-final.log`.
+- Server selected_recovery: 1 real root/Session case,
+  `/tmp/rustycore-9i3c2-test-server-selected-recovery-c2-final.log`.
+
+These filters cover 95 distinct test identities; retries add no identities.
+The Server build took 6m01s of coding feedback, not a final warm acceptance
+campaign. The root case observes publication before the map tail and a second
+Recovery without a duplicate frame. The periodic-save case records the actual
+DTO before deathTimer advances. The generic sickness case also runs the real
+hydration consumer before Recovery and then checks canonical stats/P3.
+
+Retired global-collector coverage is mapped to per-Player independence and
+current binding checks in Spell, epoch/registration/residence rejection in
+player_recovery_admission, and the real Server root case without a Creature
+executor. The old global-only restriction that excluded sickness is intentionally
+retired. Prelude/continuation rejection coverage remains in map_tick_tests;
+the root's next epoch also proves continuation without the former global flush.
+
+Failed attempts included an unqualified debug macro, fixture imports/types,
+stale immediate-publication and duration expectations, missing race metadata,
+and map destruction before detaching its Player. The snapshot fixture now sets
+Corpse before SetHealth(0); the production setter correctly keeps Dead at one HP
+and was not changed. Available failed runs remain in the named C2 log family;
+the original Spell compiler-error log was overwritten by a later green run and
+is not claimed as retained. A fresh fixed luna_worker role was successfully
+spawned; the worker reported GPT-6 without exposing a variant or effort setting.
+No final campaign, capture, DB mutation, runtime swap, deployment, or whole-#584
+closure is established. Scalar metadata and the other macro requirements remain.
 
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
@@ -809,16 +881,36 @@ su duración 427 guarda -600000/60000/600000 (GetDuration toma el absoluto).
 Ghost, Wisp y sickness carecen de fila SpellAuraOptions en estos datos.
 El primer diagnóstico usó un filtro OR demasiado amplio; se corrigió a
 trigger 5 AND SpellID > 0 antes de usar estos conteos. No son capturas vivas.
-Hay dos contratos de metadata seleccionada pendientes de corrección:
-AuraDataInfo.Applications usa el stack real cuando IsUsingStacks y, en otro
-caso, charges; no stack_count menos uno (`SpellAuras.cpp:255–257`). El
-CastLevel se fija al crear el Aura desde el caster resuelto, o SpellLevel
-si no existe (`:398–410,463–468`), y no cambia al subir de nivel el target.
-La creación sí resuelve al propio owner si caster GUID coincide; no se presume
-que todas las auras cargadas carecen de caster. La procedencia canónica debe
-conservar ese nivel para delta y actualización inicial, sin duplicar autoridad.
-También sigue pendiente la rama any-positive de _InitFlags para caster
-extranjero vivo y amistoso; la rama actual cubre self/missing/hostile.
+Selected AuraUpdate metadata remains unfinished. The source contract reviewed
+on 2026-10-25 is `SpellAuras.cpp:249–289` at the pinned C++ SHA above:
+Applications is the actual stack count when IsUsingStacks (catalog StackAmount
+or runtime stack greater than one), otherwise the canonical charge count.
+CastLevel is captured once by the Aura constructor from its resolved caster,
+or SpellLevel when none resolves (`:398–410,463–468`); target level changes and
+refreshes must not replace it. Attr11 SCALES_WITH_ITEM_LEVEL selects the cast
+item level converted to uint16 instead. Preserve this origin in existing Aura
+provenance, with no second mutable charge, stack, or wire-count authority.
+The existing Core spell catalog already supplies SpellLevelsStore.
+
+The wire Duration flag and optional pair are derived from current maximum
+duration greater than zero and absence of Attr5 DO_NOT_DISPLAY_DURATION
+(`SharedDefines.h:626`, bit `0x400`), preserving exact signed remaining values.
+Scalable Points uses effect indexes, including zero-filled holes: active mask
+`0b101` produces three entries, not two. The selected effect types do not
+produce EstimatedPoints (`SpellAuraEffects.cpp:727–751`); this is not a claim
+about the complete aura engine. A non-Unit raw caster projects an empty CastUnit
+on the wire while its original GUID remains canonical provenance.
+
+The pending flag work is `_InitFlags` (`SpellAuras.cpp:110–161`), including its
+any-positive branch for a resolved friendly foreign caster. Self, missing, and
+hostile casters use the all-positive branch. These base flags are established
+at application creation, not recomputed from later friendship at publication.
+Caster resolution must preserve
+the self-owner fast path before world admission. A foreign Player must be in
+world and on the owner's map (`ObjectAccessor.cpp:206–239`); do not substitute
+the target's reputation for that caster's owner or acquire the Session directory
+under a map guard. Delta and initial full updates must share the selected
+projection. These are reviewed requirements, not implemented or accepted evidence.
 
 9g escrito y revisado sobre `a6da440dac37aa377c23c71fb084accff3fa1764`
 más delta local: máscaras normalizadas con lookup SQL original, efectos

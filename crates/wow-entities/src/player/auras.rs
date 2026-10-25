@@ -5,6 +5,12 @@ use crate::{
 use std::time::Instant;
 use wow_core::ObjectGuid;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AuraDurationUpdatePolicy {
+    LegacyElapsed,
+    SelectedUnitUpdate,
+}
+
 impl Player {
     /// C++ `Unit` owns the Player aura application map; Session owns only
     /// packet and catalog adaptation around these state transitions.
@@ -34,6 +40,7 @@ impl Player {
         spell_id: i32,
         caster_guid: ObjectGuid,
         duration_ms: i32,
+        policy: AuraDurationUpdatePolicy,
     ) -> Vec<(AuraApplicationLikeCpp, AuraCastProvenanceLikeCpp)> {
         let auras = &mut self.unit_mut().subsystems_mut().auras;
         let mut matching_slots = auras
@@ -48,10 +55,21 @@ impl Player {
             .into_iter()
             .filter_map(|slot| {
                 let provenance = auras.aura_cast_provenance_like_cpp(slot);
-                let application = auras.runtime_application_mut_like_cpp(slot)?;
-                application.duration_remaining = duration_ms;
-                application.applied_at = Instant::now();
-                Some((application.clone(), provenance))
+                let updated = {
+                    let application = auras.runtime_application_mut_like_cpp(slot)?;
+                    application.duration_remaining = duration_ms;
+                    match policy {
+                        AuraDurationUpdatePolicy::LegacyElapsed => {
+                            application.applied_at = Instant::now();
+                        }
+                        AuraDurationUpdatePolicy::SelectedUnitUpdate => {}
+                    }
+                    application.clone()
+                };
+                if policy == AuraDurationUpdatePolicy::SelectedUnitUpdate {
+                    auras.visible_auras_to_update.insert(slot);
+                }
+                Some((updated, provenance))
             })
             .collect()
     }

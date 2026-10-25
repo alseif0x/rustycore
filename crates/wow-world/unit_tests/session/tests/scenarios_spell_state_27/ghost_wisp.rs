@@ -10,6 +10,8 @@ mod observers;
 mod persistence;
 #[path = "ghost_wisp/recast.rs"]
 mod recast;
+#[path = "ghost_wisp/selected_recovery.rs"]
+mod selected_recovery;
 #[path = "ghost_wisp/resurrection.rs"]
 mod resurrection;
 #[path = "ghost_wisp/selected_lifetime.rs"]
