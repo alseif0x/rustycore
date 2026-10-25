@@ -595,14 +595,7 @@ where
     /// casters, summons and active non-Players. Players and Corpses are not
     /// included in the resulting ObjectUpdater GUID set.
     pub fn object_update_plan_for_current_tick_like_cpp(&self, diff_ms: u32) -> ObjectUpdatePlan {
-        let sources = self.map_update_player_sources_for_current_tick_like_cpp();
-
-        let visit_plan = self.map_update_visit_plan_like_cpp(
-            sources,
-            self.represented_active_non_player_sources_like_cpp(),
-            std::iter::empty(),
-            diff_ms,
-        );
+        let visit_plan = self.object_update_visit_plan_for_current_tick(diff_ms);
         let centers =
             visit_plan
                 .nearby_visit_centers
@@ -613,6 +606,20 @@ where
                 });
         let nearby = self.visit_nearby_cells_of_like_cpp(centers);
         self.object_update_plan_for_nearby_like_cpp(&nearby.nearby, diff_ms)
+    }
+
+    /// Complete source plan for this map's object update, including the
+    /// in-world Player set visited by the session/update phases.
+    pub fn object_update_visit_plan_for_current_tick(
+        &self,
+        diff_ms: u32,
+    ) -> MapUpdateVisitPlan {
+        self.map_update_visit_plan_like_cpp(
+            self.map_update_player_sources_for_current_tick_like_cpp(),
+            self.represented_active_non_player_sources_like_cpp(),
+            std::iter::empty(),
+            diff_ms,
+        )
     }
 
     pub fn reset_notify_flags_for_cells_like_cpp(

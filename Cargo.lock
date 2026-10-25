@@ -3115,9 +3115,11 @@ dependencies = [
  "wow-social",
  "wow-world",
  "wow-world-application",
+ "wow-world-core",
  "wow-world-inventory",
  "wow-world-lifecycle",
  "wow-world-social",
+ "wow-world-spell",
 ]
 
 [[package]]

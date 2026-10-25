@@ -287,6 +287,103 @@ async fn committed_observer_survives_visibility_and_source_changes_but_new_viewe
     );
 }
 
+#[tokio::test]
+async fn coordinated_world_tick_leaves_selected_delta_for_map_owned_delivery() {
+    let mut fixture = fixture();
+    let registry = setup_registry(&mut fixture);
+    let mut observer = add_observer(
+        &fixture,
+        &registry,
+        4_630_011,
+        Position::new(20.0, 0.0, 0.0, 0.0),
+        None,
+        true,
+    );
+    cast_selected(&mut fixture, WISP, None).await;
+    let _ = outgoing(&fixture);
+
+    fixture.session.mark_map_phase_coordinated_like_cpp();
+    fixture.session.update(1).await;
+    assert_eq!(
+        fixture.session.core.state,
+        crate::session::SessionState::LoggedIn,
+        "the fixture keeps its packet sender live through the coordinated update"
+    );
+    assert!(aura_packets(outgoing(&fixture)).is_empty());
+    assert!(
+        fixture
+            .canonical
+            .lock()
+            .expect("canonical manager")
+            .with_player_like_cpp(
+                fixture.session.core.player_handle_like_cpp.unwrap(),
+                |player| player
+                    .unit()
+                    .subsystems()
+                    .auras
+                    .visible_auras_to_update
+                    .contains(&0),
+            )
+            .unwrap()
+    );
+
+    let updates = {
+        let mut manager = fixture.canonical.lock().expect("canonical manager");
+        let plan = manager
+            .begin_tick_like_cpp(100)
+            .into_started()
+            .expect("admitted map tick");
+        let updates = wow_world_spell::collect_pending_selected_aura_updates(&mut manager, &plan);
+        manager.abandon_tick_like_cpp(plan);
+        updates
+    };
+    assert_eq!(updates.len(), 1);
+    let expected = updates[0].packet_bytes().to_vec();
+
+    // Source self delivery uses the selected command envelope without a
+    // HaveAtClient membership test; observer visibility remains committed.
+    fixture
+        .session
+        .core
+        .client_visible_guids_like_cpp
+        .remove(&fixture.player);
+    let source_handle = fixture.session.core.player_handle_like_cpp.unwrap();
+    assert!(registry
+        .selected_aura_recipient(
+            fixture.player,
+            source_handle,
+            wow_map::MapKey::new(571, 0),
+        )
+        .is_some());
+    updates[0].deliver_to_registry(&registry);
+    fixture
+        .session
+        .process_represented_session_commands_like_cpp()
+        .await;
+    flush_observer(&mut observer).await;
+
+    let source_packets = aura_packets(outgoing(&fixture));
+    let observer_packets = aura_packets(observer.output.try_iter().collect::<Vec<_>>());
+    assert_eq!(source_packets, vec![expected.clone()], "source self command");
+    assert_eq!(observer_packets, vec![expected], "committed observer command");
+    assert!(
+        fixture
+            .canonical
+            .lock()
+            .expect("canonical manager")
+            .with_player_like_cpp(
+                fixture.session.core.player_handle_like_cpp.unwrap(),
+                |player| player
+                    .unit()
+                    .subsystems()
+                    .auras
+                    .visible_auras_to_update
+                    .is_empty(),
+            )
+            .unwrap()
+    );
+}
+
 fn command_for(observer: &Observer, packet_bytes: Vec<u8>) -> SendPlayerAuraUpdateCommand {
     let handle = observer.session.core.player_handle_like_cpp.unwrap();
     let (map_key, residence_revision) = observer

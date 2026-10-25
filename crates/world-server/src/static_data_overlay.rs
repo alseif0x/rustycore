@@ -222,7 +222,7 @@ mod tests {
 
     #[tokio::test]
     async fn sql_form_link_fails_the_startup_gate_without_database_writes() {
-        let db2 = wow_data::character_progression::ChrCustomizationDisplayInfoStore::default();
+        let db2 = wow_data::character_progression::ChrCustomizationDisplayInfoStore::from_entries([]);
         let port = display_info_port(StaticDataRowsLoadOutcomeLikeCpp::Loaded(vec![
             ChrCustomizationDisplayInfoHotfixRow {
                 id: 17,
@@ -253,7 +253,7 @@ mod tests {
 
     #[tokio::test]
     async fn empty_effective_inputs_certify_only_the_fallback_dataset() {
-        let db2 = wow_data::character_progression::ChrCustomizationDisplayInfoStore::default();
+        let db2 = wow_data::character_progression::ChrCustomizationDisplayInfoStore::from_entries([]);
         let port = display_info_port(StaticDataRowsLoadOutcomeLikeCpp::Loaded(vec![]));
         assert!(shapeshift_display_links_absent(&db2, &port)
             .await
@@ -262,7 +262,7 @@ mod tests {
 
     #[tokio::test]
     async fn failed_hotfix_read_is_not_treated_as_empty_by_startup_consumer() {
-        let db2 = wow_data::character_progression::ChrCustomizationDisplayInfoStore::default();
+        let db2 = wow_data::character_progression::ChrCustomizationDisplayInfoStore::from_entries([]);
         let port = display_info_port(port_error());
         assert!(shapeshift_display_links_absent(&db2, &port).await.is_err());
     }

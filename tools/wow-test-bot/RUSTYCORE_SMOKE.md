@@ -22,7 +22,7 @@ Runtime swaps and destructive fixture modes retain their separate explicit guard
 
 ## Death lifecycle acceptance (#43, preparation)
 
-As of 2026-10-24, the login smoke does **not** exercise death/release/reclaim or
+As of 2026-10-25, the login smoke does **not** exercise death/release/reclaim or
 spirit-healer recovery. The death driver and its fresh captures are still pending;
 the scenarios below are acceptance requirements, not reports of completed runs.
 
@@ -43,6 +43,37 @@ and instance connections, including the client request and its ACKs. Record the
 candidate SHA/hash, reference SHA, account/character identity without credentials,
 ordered packets, scenario outcome and restoration outcome. A Rust-generated
 golden is not an independent reference capture.
+
+The Human victim/caster pair cannot prove Wisp Spirit or Reincarnation. Prepare
+separate disposable, legal Night Elf Hunter (race 4/class 3) and Orc Shaman
+(race 2/class 7) fixtures for those paths. Reincarnation must use the Shaman's
+actual learned 20608 and the 21169 cooldown check; granting a class spell to the
+Mage does not establish that contract. Record level and the effective
+ChrRaces-selected sickness spell. Include a level-11 case for the one-minute
+duration and a level-20-or-higher case for the full duration. Fixture preparation
+through SQL, if needed, remains a scoped runtime action; it does not prove
+character creation or the complete class system.
+
+Before the first fixture mutation, write a new mode-0600 recovery journal with
+exclusive creation and fsync. Preserve exact prior rows/values and allocated
+IDs for every touched table; recovery must target those identities and retain
+the journal until restoration is confirmed. Reuse the integrated bot's durable
+journal conventions. No fixture SQL has been executed by this preparation.
+Read-only schema inspection on 2026-10-25 confirmed that new `characters` rows
+need explicit `name` and `taximask`, and `item_instance` needs explicit
+`enchantments`; the other inspected non-null fields have defaults. Defaults
+alone do not make a playable fixture: pin homebind, location, native race/class
+appearance and the scenario's health/powers. Customization keys are
+`(guid, chrCustomizationOptionID)` and the choice value is
+`chrCustomizationChoiceID`. The Shaman cooldown fixture must inspect both
+`time` and `categoryEnd` in `character_spell_cooldown` for spell 21169. Recheck
+offline ownership and collisions before any later authorized fixture write.
+
+The death driver must retain raw request and response payloads, connection,
+opcode and observed order even when a scenario fails. Checksums alone cannot
+support byte comparison. Any normalization of GUIDs, clocks or counters needs
+an explicit field-level rule; it must preserve the connection, metadata and
+observable order being accepted. Observe-only collection cannot report a pass.
 
 | Scenario | Required observations |
 |---|---|

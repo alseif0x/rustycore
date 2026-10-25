@@ -42,7 +42,8 @@ pub use aura_session::{
     represented_mount_capability_selection_for_type_like_cpp,
     represented_spell_area_autocast_source_is_empty_like_cpp,
     represented_trait_config_aura_source_is_empty_like_cpp, send_aura_update_applied,
-    set_player_aura_duration, tick_auras, update_player_collision_height_like_cpp,
+    set_player_aura_duration, flush_pending_selected_aura_updates, tick_auras,
+    tick_auras_expiry_only, update_player_collision_height_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use aura_session::{
@@ -135,8 +136,9 @@ pub use records::{
 };
 pub use session::{
     AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP, RepresentedShapeshiftMutationLikeCpp,
-    player_aura_info_like_cpp, represented_aura_effect_amounts_like_cpp,
-    shapeshift_form_of_spell_like_cpp, unit_owned_apply_aura_effect_mask_like_cpp,
+    collect_pending_selected_aura_updates, player_aura_info_like_cpp,
+    represented_aura_effect_amounts_like_cpp, shapeshift_form_of_spell_like_cpp,
+    unit_owned_apply_aura_effect_mask_like_cpp,
 };
 pub use spell_acquisition_application::{
     EffectLearningRuntimeLikeCpp, PlayerSpellAcquisitionPersistenceOutcomeLikeCpp,

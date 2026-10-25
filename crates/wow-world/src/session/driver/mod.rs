@@ -189,7 +189,13 @@ impl WorldSession {
             }
             // Aura expiry tick every 4 ticks (~200ms) — always, regardless of owner.
             if self.world_entities.creature_tick_like_cpp() % 4 == 0 {
-                wow_world_spell::tick_auras(self);
+                wow_world_spell::tick_auras_expiry_only(self);
+            }
+            // Selected Ghost/Wisp publication has one production owner: the
+            // resumed canonical map tick. Keep the standalone Session path for
+            // callers that do not participate in coordinated map phases.
+            if !self.is_map_phase_coordinated_like_cpp() {
+                wow_world_spell::flush_pending_selected_aura_updates(self);
             }
             // C++ Player::Update closes the delayed-teleport window immediately
             // after Unit::Update (`Player.cpp:935-942`). The save and death

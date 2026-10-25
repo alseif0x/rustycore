@@ -177,6 +177,12 @@ pub fn remove_auras_with_interrupt_flags_like_cpp<H: AuraHostLikeCpp>(
 /// Check all active auras for expiry and remove those whose duration has elapsed.
 /// Called from the synchronous tick loop (~every 200ms via creature_tick).
 pub fn tick_auras<H: AuraHostLikeCpp>(host: &mut H) {
+    tick_auras_expiry_only(host);
+    flush_pending_selected_aura_updates(host);
+}
+
+/// Run the existing 200ms aura-expiry work without consuming selected deltas.
+pub fn tick_auras_expiry_only<H: AuraHostLikeCpp>(host: &mut H) {
     // C++ `Creature::Update` owns creature aura lifetimes; this session
     // expires the creature auras it applied through the same wall-clock
     // sweep it uses for its own auras.
@@ -209,6 +215,19 @@ pub fn tick_auras<H: AuraHostLikeCpp>(host: &mut H) {
             spell_id = spell_id,
             "Aura expired"
         );
+    }
+
+}
+
+/// Publish selected Ghost/Wisp deltas for an uncoordinated standalone Session
+/// driver. Production coordinated sessions leave these slots to MapManager.
+pub fn flush_pending_selected_aura_updates<H: AuraHostLikeCpp>(host: &mut H) {
+    if host
+        .hub_ref()
+        .resolved_player_visible_auras_like_cpp()
+        .is_none_or(|auras| auras.is_empty())
+    {
+        return;
     }
 
     // `Unit::m_visibleAurasToUpdate` is a slot-ordered set

@@ -154,7 +154,9 @@ pub use battleground_adapter::{
     RepresentedBattlemasterJoinArenaLikeCpp, RepresentedBattlemasterJoinLikeCpp,
     RepresentedBattlemasterJoinSkirmishLikeCpp, battleground_queue_type_id_from_packed_like_cpp,
 };
-pub use publication::PacketPublicationAccessLikeCpp;
+pub use publication::{
+    PacketPublicationAccessLikeCpp, PreparedSelectedAuraUpdate, prepare_selected_aura_update,
+};
 
 mod social_requests;
 pub use social_requests::RepresentedWargameInviteAcceptanceLikeCpp;

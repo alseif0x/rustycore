@@ -4,7 +4,7 @@
 use std::time::Instant;
 
 use crate::entity_update_bridge::player_values_update_to_update_object;
-use crate::session::SessionCore;
+use crate::session::{SessionCore, prepare_selected_aura_update};
 use crate::session::mailbox::{SendIfVisibleLikeCppCommand, SessionCommand};
 use wow_core::{ObjectGuid, Position};
 use wow_entities::PlayerValuesUpdate;
@@ -109,84 +109,20 @@ impl PacketPublicationAccessLikeCpp<'_> {
             return false;
         };
 
-        let selected = manager.lock().ok().and_then(|manager| {
-            let residence = manager.checked_player_residence_like_cpp(handle).ok()?;
-            match residence {
-                wow_map::PlayerResidenceLikeCpp::Detached => Some(None),
-                wow_map::PlayerResidenceLikeCpp::Active(source_key) => {
-                    let (active_key, _source_revision) =
-                        manager.player_active_residence_revision_like_cpp(handle)?;
-                    if active_key != source_key {
-                        return None;
-                    }
-                    let managed = manager.find_map(source_key.map_id, source_key.instance_id)?;
-                    let map = managed.map();
-                    let observers = map.selected_aura_update_observers(source_guid);
-                    let mut recipients = Vec::with_capacity(observers.len());
-                    for guid in observers {
-                        if guid == source_guid {
-                            // C++ processes shared vision for the source
-                            // Player, then excludes it at final delivery.
-                            continue;
-                        }
-                        let Some((recipient_handle, residence_revision)) =
-                            manager.current_player_admission_like_cpp(guid)
-                        else {
-                            continue;
-                        };
-                        let Some((map_key, current_revision)) =
-                            manager.player_active_residence_revision_like_cpp(recipient_handle)
-                        else {
-                            continue;
-                        };
-                        if map_key != source_key || current_revision != residence_revision {
-                            continue;
-                        }
-                        if !map
-                            .get_typed_player(guid)
-                            .is_some_and(|player| player.unit().world().object().is_in_world())
-                        {
-                            continue;
-                        }
-                        recipients.push((guid, recipient_handle, map_key, current_revision));
-                    }
-                    Some(Some(recipients))
-                }
-            }
-        });
-
-        let Some(recipients) = selected else {
+        let Some(plan) = manager.lock().ok().and_then(|manager| {
+            prepare_selected_aura_update(&manager, handle, packet_bytes.to_vec())
+        }) else {
             return false;
         };
 
         // Match Player::SendMessageToSet: the source's direct self packet is
-        // enqueued before any observer handoff. The selected recipients are
+        // published before observer handoff. The selected recipients are
         // already committed and are not re-evaluated at drain time.
-        self.core.send_raw_packet(packet_bytes);
-        let Some(recipients) = recipients else {
-            return true;
-        };
+        self.core.send_raw_packet(plan.packet_bytes());
         let Some(registry) = self.core.player_registry() else {
             return true;
         };
-        for (guid, recipient_handle, map_key, residence_revision) in recipients {
-            let Some((registration, committed_visibility)) =
-                registry.selected_aura_recipient(guid, recipient_handle, map_key)
-            else {
-                continue;
-            };
-            if !committed_visibility.contains(&source_guid) {
-                continue;
-            }
-            let command = crate::session::mailbox::SendPlayerAuraUpdateCommand {
-                recipient_handle,
-                map_key,
-                residence_revision,
-                committed_visibility,
-                packet_bytes: packet_bytes.to_vec(),
-            };
-            let _ = registry.publish_current_player_aura_update(registration, command);
-        }
+        plan.deliver_observers_to_registry(registry);
         true
     }
 

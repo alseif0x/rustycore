@@ -392,6 +392,12 @@ pub(crate) fn spawn_canonical_map_update_loop(
                 (tick_summary, creature_phases)
             };
 
+            if let Some(summary) = tick_summary.as_ref() {
+                for update in &summary.selected_aura_updates {
+                    update.deliver_to_registry(&player_registry);
+                }
+            }
+
             // C++ `Creature::Update` publishes as it runs, before the map's
             // `SendObjectUpdates`; the deferred creature output goes first.
             if let Some(phases) = creature_phases.as_ref() {

@@ -22,6 +22,7 @@ const PLAYER_FLAGS_BIT: usize = wow_entities::PLAYER_DATA_FLAGS_BIT;
 
 struct GhostFixture {
     session: crate::session::WorldSession,
+    _input: flume::Sender<wow_packet::WorldPacket>,
     canonical: SharedCanonicalMapManager,
     player: ObjectGuid,
     send_rx: flume::Receiver<Vec<u8>>,
@@ -189,7 +190,7 @@ fn install_wisp_templates(
 }
 
 fn fixture() -> GhostFixture {
-    let (mut session, _, send_rx) = make_session();
+    let (mut session, input, send_rx) = make_session();
     let player = ObjectGuid::create_player(1, 96_110);
     session.set_player_guid(Some(player));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
@@ -239,6 +240,7 @@ fn fixture() -> GhostFixture {
     let _ = send_rx.try_iter().collect::<Vec<_>>();
     GhostFixture {
         session,
+        _input: input,
         canonical,
         player,
         send_rx,

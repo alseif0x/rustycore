@@ -144,6 +144,8 @@ pub(crate) fn canonical_map_tick_resume_with_creature_owner_like_cpp(
         map_store,
         loaded_grid_creature_respawn_caches,
     );
+    let selected_aura_updates =
+        wow_world_spell::collect_pending_selected_aura_updates(manager, &plan);
     if let Some(creature_phase) = creature_phase {
         creature_phase(manager, &plan);
     }
@@ -171,11 +173,16 @@ pub(crate) fn canonical_map_tick_resume_with_creature_owner_like_cpp(
             wow_map::MapObjectUpdateSelectionLikeCpp::NearbyCells,
         );
     if resumed != wow_map::MapTickResumeLikeCpp::Resumed {
-        // The manager is not holding this tick any more: nothing was mutated and
-        // no tail may run, or the summary would report phases that never ran.
+        // Earlier respawn, Creature and selected-aura phases may already have
+        // mutated map state. Do not run or report the remaining tick tail.
         return None;
     }
-    canonical_map_tick_tail_like_cpp(manager, respawn_summary, map_store)
+    canonical_map_tick_tail_like_cpp(
+        manager,
+        respawn_summary,
+        map_store,
+        selected_aura_updates,
+    )
 }
 
 pub(crate) fn canonical_map_update_tick_set_inactive_like_cpp(
@@ -441,7 +448,9 @@ fn canonical_map_tick_tail_like_cpp(
     manager: &mut wow_map::MapManager,
     mut summary: CanonicalSpawnGroupConditionTickSummaryLikeCpp,
     map_store: &wow_data::MapStore,
+    selected_aura_updates: Vec<wow_world_core::session::PreparedSelectedAuraUpdate>,
 ) -> Option<CanonicalSpawnGroupConditionTickSummaryLikeCpp> {
+    summary.selected_aura_updates = selected_aura_updates;
     summary.player_visibility_refresh_intents =
         manager.take_player_visibility_refresh_intents_like_cpp();
     let map_incarnations = {
@@ -522,6 +531,7 @@ fn canonical_map_tick_tail_like_cpp(
         }
     });
     let has_work = !summary.respawn_db_saves.is_empty()
+        || !summary.selected_aura_updates.is_empty()
         || !summary.expired_pvp_combat_refs.is_empty()
         || !summary.player_visibility_refresh_intents.is_empty()
         || !summary.object_values_updates.is_empty()
@@ -654,3 +664,7 @@ fn append_map_object_values_updates_like_cpp(
             });
     }
 }
+
+#[cfg(test)]
+#[path = "map_tick_tests.rs"]
+mod tests;

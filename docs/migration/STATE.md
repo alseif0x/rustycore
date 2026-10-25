@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, implementación previa a aceptación final — 2026-10-25, 00:09 UTC:**
+**#43, implementación previa a aceptación final — 2026-10-25, 01:22 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
 y productor desde hechizos están escritos y tienen feedback focalizado;
 **no hay aceptación final de este candidato**. El cálculo básico del productor
@@ -8,8 +8,9 @@ tiene contraste de datos registrado abajo; Ghost/Wisp tiene feedback focalizado
 tras reparar compilación, restauración de display y publicación de su visual.
 El recast de la misma aura/caster también tiene reparación y feedback focalizado.
 Las consultas de visibilidad de criaturas y Players tienen feedback focalizado;
-la publicación delta/removal a observadores tiene feedback focalizado; faltan
-su fase productiva de actualización,
+la publicación delta/removal a observadores tiene feedback focalizado, y 9c4G
+conecta los pendientes permanentes al tick Map con feedback de composición.
+Faltan la integración finita de sickness,
 participantes de limpieza al morir/resucitar, fallos de las otras operaciones
 del ciclo y capturas/QA viva. El usuario autoriza
 continuar los pendientes y la aceptación, no solo conservar el feedback anterior.
@@ -192,8 +193,8 @@ todavía su unión mediante DB real, reinicio y relog. La elegibilidad de los
 dos spells conserva la comprobación de LiquidType de SpellMgr.cpp:3329
 como evidencia de datos pendiente para la campaña, sin declararla probada.
 
-La fase seleccionada de publicación sigue pendiente: el pase de Session
-actual llama `tick_auras` cada cuatro ticks antes de los pases MapSession;
+Antes de 9c4G, el pase de Session
+llamaba `tick_auras` cada cuatro ticks antes de los pases MapSession;
 el C++ consume `m_visibleAurasToUpdate` en `Unit::_UpdateSpells`
 (`Unit.cpp:2872–2875`), después de MapSession y dentro del Player update
 (`Map.cpp:669–717`). `MapUpdatePlan.player_update_guids` es una selección,
@@ -207,8 +208,40 @@ es consumible y no Clone/Copy (`manager/state_2.rs:969`), y el guard conserva
 época e incarnación durante la selección. No debe depender de la lease de
 criaturas, porque su rechazo o la ausencia de ese runtime no anula el update
 de los Players. Se retirará el consumo de Session desde la primera admisión
-World coordinada; el modo sin coordinador conserva un único fallback. Esta
-decisión todavía necesita implementación y pruebas productivas.
+World coordinada; el modo sin coordinador conserva un único fallback. 9c4G
+implementa ese corte para Ghost/Wisp; su aceptación final sigue pendiente.
+La inspección del consumidor coordinado confirma que el primer pase World
+marca `map_phase_coordinated_like_cpp` antes de `update`; no hace falta otro
+watermark ni esperar al primer pase Map para retirar el drenaje de Session.
+El worker tiene asignada esa conexión Ghost/Wisp y una prueba de composición
+world-server que recorre el resume real sin runtime opcional de criaturas.
+El feedback focalizado de esa conexión se registra a continuación.
+El target correcto es `world-server --lib`: main.rs solo delega en
+`world_server::run`, y lib.rs incluye runtime y main_tests. La indicación
+previa del padre de usar `--bin world-server` fue incorrecta: el filtro
+ejecutó cero tests tras 9m24s de compilación y no aporta evidencia de fase.
+Se registra como coste de feedback, fuera de la campaña final aún no iniciada.
+La campaña seleccionará también el target real de static_data_overlay.
+9c4G, sobre `1d2c7c691` más el delta local, aarch64/jobs=1: los checks de
+wow-map, wow-world-core, wow-world-spell, wow-world y world-server terminaron
+exit 0 (`/tmp/9c4g-check-*.log`). El filtro World
+`coordinated_world_tick_leaves_selected_delta_for_map_owned_delivery` pasó
+un caso, exit 0 (`/tmp/9c4g-test-wow-world-coordinated-aura-rerun2.log`).
+Sus intentos anteriores fallaron por el sender de entrada descartado por el
+fixture: update pasaba a Disconnecting y el receptor rechazaba correctamente
+la entrega. Se conserva el canal y una aserción LoggedIn, sin rebajar el gate;
+el primer archivo de fallo fue sobrescrito en una repetición, y su salida
+permanece en el transcript. `selected_publication` de Spell pasó tres casos,
+exit 0 (`/tmp/9c4g-test-wow-world-spell-selected-final.log`): todos los Players,
+consumo único y rechazo de época/incarnación preservando pending.
+El resume real con Creature=None pasó un caso, exit 0, en world-server --lib
+(`/tmp/9c4g-test-world-server-lib-map-tick-aura-rerun1.log`). Su primer intento
+lib terminó exit 101 al compilar tres fixtures de nuestro `09451333d` que
+usaban un constructor default inexistente. Se corrigieron a from_entries([])
+sin cambiar aserciones; static_data_overlay::tests pasó seis casos, exit 0
+(`/tmp/9c4g-test-world-server-lib-static-data-overlay.log`). La entrega ocurre
+fuera de los guards y antes de salidas Creature/visibilidad/VALUES; no se
+presenta ese feedback como campaña final ni como aceptación de sickness.
 La revisión del orden detecta también un paquete extra de release:
 `player_release.rs::publish_ghost_side_effects` emite HealthUpdate(1), pero
 `BuildPlayerRepop` usa SetHealth(1), que solo ensucia los update fields
@@ -219,6 +252,75 @@ Los callers Rust de caída/under-map también necesitan ese contraste. La
 conexión de HealthUpdate es REALM (`Opcodes.cpp:1564`), conservando su layout
 GUID/int64. Se revisará junto al orden de VALUES de resurrección y la fase
 seleccionada; todavía no se ha reparado ni capturado esa diferencia.
+
+Contraste pendiente del sanador: `Aura::SetDuration` solo marca actualización
+(`SpellAuras.cpp:897–907`), mientras el adaptador Rust de duración publica
+inmediatamente y solo al propio Player. El recast de sickness debe renovar
+amounts, basepoints, duración máxima y cargas sobre la misma aplicación,
+conservando slot/procedencia (`Unit.cpp:3224–3283`,
+`SpellAuras.cpp:933–953,1021–1096`). El ajuste corto por nivel sí selecciona
+el caster propio (`Player.cpp:4397`); no se presume un defecto de caster
+extranjero. La publicación inmediata de estadísticas de Inventory también
+necesita un corte seleccionado para que no adelante al AuraUpdate diferido.
+La proyección `PlayerEffectiveCombatStatsLikeCpp` no ensucia campos de red
+y el Player VALUES actual no la transporta: suprimir el envío sintético por
+sí solo perdería estadísticas. El diseño común debe reutilizar las fórmulas
+y las consultas puras existentes, aplicar el resultado al Player canónico
+antes del snapshot Map y entregar fuera del guard, sin Session ficticia,
+clonar/reemplazar Player ni una segunda autoridad mutable. Sigue pendiente
+el corte exacto de hechos/catálogos y la implementación; no se declara una
+convergencia general de estadísticas ni de #584.
+La duración finita seleccionada requiere el mismo dueño: C++ descuenta
+`diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
+(`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
+Instant cada 200 ms y los snapshots de guardado descuentan ese tiempo de
+pared. Antes de aceptar sickness, su countdown/expiry y su guardado deben
+usar una única duración canónica del tick admitido, sin doble descuento ni
+publicar estadísticas un pase después de la expiración. La reparación
+seleccionada conserva fuera de alcance los relojes de las demás auras.
+
+La carga de efectos seleccionados también conserva un residuo demostrado:
+`Aura::TryCreate` descarta máscara vacía y aplica solo el subconjunto activo
+(`SpellAuras.cpp:384–394,494–502`). La restauración Rust aplica Ghost y la
+selección de transform de Wisp sin consultar esos bits, y su retirada exige
+siempre los tres efectos. Se debe admitir el subconjunto válido de 8326/20584,
+sin activar 95/56 ausentes. La frontera canónica rechaza bits desconocidos;
+el loader debe seguir la normalización previa de C++ descrita a continuación.
+Todavía sin reparar.
+El contraste completo de `_LoadAuras` añade una corrección al contrato anterior:
+`TryCreate` intersecta la máscara SQL con los efectos soportados, pero los
+amounts/basepoints se buscan por la clave SQL original. Un subconjunto vacío
+no instala aura. Además, `_LoadAuras` llama `CanBeSaved` ANTES de
+`SetLoadedState` (`Player.cpp:18117–18145`, `SpellAuras.cpp:398–441,479–480`).
+Por tanto, un Ghost/Wisp con item GUID no vacío se considera permanente por
+su duración base y se descarta al cargar, aunque la fila guarde duración finita.
+La captura finita con item de 9d2 sigue siendo válida para Save, pero su test
+de roundtrip no demuestra fidelidad de Load y debe corregirse expresamente.
+La revisión de la operación completa corrige también la premisa de 9b2 de
+conservar otro caster al crear una aplicación nueva del mismo Ghost/Wisp:
+`Unit::_AddAura` ejecuta `_RemoveNoStackAurasDueToAura` antes de la aplicación
+(`Unit.cpp:3285–3289,3547–3564`); `Aura::CanStackWith` rechaza el mismo spell
+salvo sus excepciones (`SpellAuras.cpp:1593–1731`). Los datos seleccionados
+no tienen DOT_STACKING_RULE (attr3 0x80), ni son auras periódicas/multislot.
+Un refresh de la aplicación existente sigue siendo una ruta distinta que
+conserva identidad/procedencia. La corrección debe cubrir nueva aplicación,
+mask distinta y carga de varias filas, preservando orden de retirada antes
+de los efectos. En Load, la construcción y esa retirada preceden a
+CanBeSaved: una fila ligada a item puede retirar la anterior y luego ser
+descartada ella misma. No se atribuye fidelidad a los tests anteriores que
+esperaban conservar ambos casters; todavía sin reparar.
+La consulta SQL de solo lectura a las 01:18 UTC no encuentra membresía de
+8326/20584 en world.spell_group (287 filas globales; diez stack rules).
+No se usa ese resultado para declarar implementado el motor general de
+acumulación ni sus reglas para otros spells/datasets.
+Hay dos contratos de metadata seleccionada pendientes de corrección:
+AuraDataInfo.Applications usa el stack real cuando IsUsingStacks y, en otro
+caso, charges; no stack_count menos uno (`SpellAuras.cpp:255–257`). El
+CastLevel se fija al crear el Aura desde el caster resuelto, o SpellLevel
+si no existe (`:398–410,463–468`), y no cambia al subir de nivel el target.
+La creación sí resuelve al propio owner si caster GUID coincide; no se presume
+que todas las auras cargadas carecen de caster. La procedencia canónica debe
+conservar ese nivel para delta y actualización inicial, sin duplicar autoridad.
 
 Feedback de Ghost/Wisp a las 19:40 UTC, sobre `6117a9dc5` más el delta local
 del worker (aarch64, un job; no aceptación del SHA ni campaña final):
@@ -287,6 +389,15 @@ se inicializó a 1.000 y se repitió todo el grupo afectado, incluyendo
 aserciones de DeathState canónico en los casos de fallo. No se rebajó la
 aserción positiva. Esta evidencia no cubre aún las operaciones completas
 reclaim/healer/login ni DB/reinicio/relogin o aceptación final.
+El participante SelfRes pendiente debe conservar una sola lista ordenada:
+C++ añade Soulstone 3026, Twisting Nether 23700 y Reincarnation 21169 en ese
+orden (`Player.cpp:24757–24780`), y elimina solo la primera coincidencia
+(`Player.h:2738–2745`). El BTreeSet actual pierde ese orden. La autoridad
+de la lista debe pasar al campo dinámico ActivePlayerData SelfResSpells
+(bit 12, padre 0), con métodos de Player y su máscara de cambios; no mantener
+otra copia mutable en PlayerResurrectionState. La inicialización comprueba
+HasSpell(20608) y el cooldown de 21169, antes de la retirada de auras al morir.
+Este es el contrato decidido para el participante existente, aún sin implementar.
 
 Renovación Ghost/Wisp, 20:08 UTC, sobre `09451333d` más el delta local:
 se reutilizan slot, procedencia y aplicación canónica del mismo spell/caster,
