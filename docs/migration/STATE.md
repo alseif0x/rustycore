@@ -933,6 +933,24 @@ behavior repair and shared rule boundary, not a move-only refactor or final
 acceptance. Selected metadata/polarity, constructor connection, and the remaining
 macro blocks above are still open.
 
+9i3C3d2a retains the four raw inputs needed by selected effect polarity inside
+the existing SpellEffectInfo, as optional SpellEffectPolarityMetadata. DB2
+conversion supplies Some with exact attribute bits, RealPointsPerLevel,
+Coefficient, and Variance; legacy/synthetic effects retain None. An actual
+all-zero row is therefore distinguishable from unavailable metadata. No second
+store, cache, runtime authority, packet field, or SQL schema is added. The only
+production conversion into this model is the existing DB2 converter; server-side
+effect conversion uses a separate existing model. Source anchors are
+SpellInfo.cpp:430–444,496–623,4518–4541 at the same pinned SHA.
+
+On `bf140daa2` plus the reviewed four-file delta, sequential aarch64/jobs=1 Data
+check and `--lib selected_effect_polarity_metadata` passed, exit 0, one consumer
+case. Logs are `/tmp/rustycore-9i3c3d2a-check.VgCDA5.log` and
+`/tmp/rustycore-9i3c3d2a-test.Hj9U9m.log`. The case reads converted base and exact
+difficulty rows and preserves existing amounts/targets. The fixed worker role
+spawn succeeded; the worker exposed no actual model/effort telemetry. Downstream
+builds, classifier/constructor activation, and final acceptance remain unexecuted.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa

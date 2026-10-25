@@ -164,6 +164,12 @@ impl SpellStore {
             chain_targets: effect.effect_chain_targets,
             implicit_target_1: u32::try_from(effect.implicit_target[0]).unwrap_or(0),
             implicit_target_2: u32::try_from(effect.implicit_target[1]).unwrap_or(0),
+            polarity_metadata: Some(SpellEffectPolarityMetadata {
+                attributes: effect.effect_attributes as u32,
+                real_points_per_level: effect.effect_real_points_per_level,
+                scaling_coefficient: effect.coefficient,
+                scaling_variance: effect.variance,
+            }),
         }
     }
     pub(super) fn hydrate_primary_effect_like_cpp(info: &mut SpellInfo) {

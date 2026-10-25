@@ -52,7 +52,18 @@ pub struct SpellPowerCostInfoLikeCpp {
     pub optional_cost: u32,
 }
 
-/// Minimal `SpellEffectInfo` fields needed by C++ ConditionMgr validation.
+/// Raw `SpellEffect.db2` fields used by C++ polarity and scaling calculations.
+/// This type's default represents known zero values; `SpellEffectInfo` defaults
+/// its optional metadata to `None` when the raw values are unknown.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct SpellEffectPolarityMetadata {
+    pub attributes: u32,
+    pub real_points_per_level: f32,
+    pub scaling_coefficient: f32,
+    pub scaling_variance: f32,
+}
+
+/// Represented `SpellEffectInfo` fields used by current validation and effect logic.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct SpellEffectInfo {
     pub effect_index: u32,
@@ -84,6 +95,9 @@ pub struct SpellEffectInfo {
     pub chain_targets: i32,
     pub implicit_target_1: u32,
     pub implicit_target_2: u32,
+    /// Exact DB2 inputs used by C++ effect polarity and scaling checks.
+    /// `None` means a legacy or synthetic effect has no known raw metadata.
+    pub polarity_metadata: Option<SpellEffectPolarityMetadata>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
