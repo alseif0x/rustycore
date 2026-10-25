@@ -176,6 +176,8 @@ pub struct AuraPersistenceMetadata {
 pub struct AuraCastProvenanceLikeCpp {
     pub cast_id: ObjectGuid,
     pub spell_visual_id: i32,
+    /// Captured at selected Aura creation; `None` means the origin has no known level.
+    pub caster_level: Option<u8>,
 }
 
 impl Default for AuraCastProvenanceLikeCpp {
@@ -183,6 +185,7 @@ impl Default for AuraCastProvenanceLikeCpp {
         Self {
             cast_id: ObjectGuid::EMPTY,
             spell_visual_id: 0,
+            caster_level: None,
         }
     }
 }

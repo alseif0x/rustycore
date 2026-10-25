@@ -281,6 +281,12 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
     };
     let spell_store = host.hub_ref().catalogs.spell_store().cloned();
     let difficulty_store = host.hub_ref().catalogs.difficulty_store().cloned();
+    let spell_levels_store = host
+        .hub_ref()
+        .catalogs
+        .spell_catalogs
+        .spell_levels_store
+        .clone();
     let aura_options_store = host
         .hub_ref()
         .catalogs
@@ -639,10 +645,6 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
             row.difficulty,
             &host.hub_ref().config.creature_aggro_config_like_cpp,
         );
-        let provenance = wow_entities::AuraCastProvenanceLikeCpp {
-            cast_id,
-            spell_visual_id: i32::try_from(spell_visual_id).unwrap_or(i32::MAX),
-        };
         let selected_positive = if selected {
             let mut selected_spell_info = spell_info.clone();
             selected_spell_info.effects = spell_effects.to_vec();
@@ -729,6 +731,43 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
                 continue;
             }
         }
+        let caster_level = if selected {
+            let core = host.core();
+            let Some(owner) = core.player_handle_like_cpp else {
+                authority_complete = false;
+                continue;
+            };
+            let Some(manager) = core.canonical_map_manager.as_ref() else {
+                authority_complete = false;
+                continue;
+            };
+            let Ok(manager) = manager.lock() else {
+                authority_complete = false;
+                continue;
+            };
+            match super::selected_caster_level(
+                &manager,
+                owner,
+                caster_guid,
+                row.spell_id,
+                row.difficulty,
+                spell_levels_store.as_deref(),
+                difficulty_store_ref,
+            ) {
+                Ok(level) => Some(level),
+                Err(_) => {
+                    authority_complete = false;
+                    continue;
+                }
+            }
+        } else {
+            None
+        };
+        let provenance = wow_entities::AuraCastProvenanceLikeCpp {
+            cast_id,
+            spell_visual_id: i32::try_from(spell_visual_id).unwrap_or(i32::MAX),
+            caster_level,
+        };
         let Some(slot) = next_player_visible_aura_slot_like_cpp(host) else {
             authority_complete = false;
             break;

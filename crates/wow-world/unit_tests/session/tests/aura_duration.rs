@@ -186,6 +186,7 @@ async fn set_aura_duration_updates_packet_provenance_and_remaining_lifetime() {
     let provenance = wow_entities::AuraCastProvenanceLikeCpp {
         cast_id,
         spell_visual_id: 245_039,
+        caster_level: None,
     };
 
     session

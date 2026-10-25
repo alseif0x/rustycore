@@ -51,6 +51,7 @@ fn provenance() -> AuraCastProvenance {
     AuraCastProvenance {
         cast_id: ObjectGuid::create_world_object(HighGuid::Cast, 3, 1, 571, 0, SPELL_ID as u32, 55),
         spell_visual_id: 0x1122_3344,
+        caster_level: None,
     }
 }
 

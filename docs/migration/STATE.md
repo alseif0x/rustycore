@@ -793,6 +793,45 @@ initial full publication. Constructor flags/friendly-caster resolution and final
 acceptance remain open. The fresh fixed worker role reported GPT-6, with its
 variant and effort not exposed. These are focused aarch64/jobs=1 results only.
 
+9i3C3b captures optional caster_level in the existing Aura cast provenance.
+Legacy unrepresented origins retain None. Fresh selected casts and selected
+login loads capture the actual resolved Unit level, or the known SpellLevel
+when no Unit resolves; refresh preserves the old origin. This adds no SQL field
+or second mutable level authority. The private resolver borrows MapManager,
+accepts the detached self fast path, and does not require the lookup owner to be
+in world. Foreign Players must be in world on the same physical map; Creature
+and Pet lookup uses that map's canonical container. Inconsistent backing state
+is unavailable, distinct from a known absent caster. Missing level catalogs
+remain unknown; known empty data yields Source's zero default. Difficulty
+fallback and highest RecordID selection follow SpellMgr.cpp:2558,2610–2688.
+Other source anchors are SpellAuras.cpp:398–410,463–468 and
+ObjectAccessor.cpp:206–239 at the same pinned C++ SHA.
+
+Caller review corrected an initial parent assumption: sickness's visible caster
+may be self while execution.rs preserves a resolved foreign original Aura caster.
+That existing path is retained and captures the foreign level. The existing
+Ghost/Wisp self-caster restriction is unchanged. Tests cover the real sickness
+execution with original caster level 44, a refreshed Aura retaining level 11
+after its target becomes level 12, and new load-time origin capture. The latter
+healer refresh legitimately changes its requested duration from 60,000 to
+120,000 ms (Player.cpp:4381–4404); this does not replace the Aura's captured level.
+
+On `375eba176` plus the reviewed local delta, World check exited 0. Spell
+selected_caster passed ten cases, World sickness thirty, and World ghost_wisp
+forty-five, all exit 0: 85 distinct identities, with retries counted once.
+Logs are `/tmp/rustycore-9i3c3b-check-wow-world-attempt2.log`,
+`/tmp/rustycore-9i3c3b-test-selected-caster-attempt4.log`,
+`/tmp/rustycore-9i3c3b-test-sickness-attempt4.log`, and
+`/tmp/rustycore-9i3c3b-test-ghost-wisp-attempt1.log`.
+All ran sequentially on aarch64 with jobs=1, local PROTOC, and the checkout target.
+Earlier attempts retain visibility/type and fixture errors plus the stale
+one-minute post-level-change expectation in their separate attempt logs.
+The first worker turn stopped without edits because its generic GPT-6 self-label
+did not expose a variant. The parent supplied the successful enforced fixed-role
+spawn trace (gpt-6-luna/max); the same worker then continued, with no model/API
+fallback. Self-exposed effort remained unavailable. Selected wire production
+integration, constructor flags, and final acceptance remain unexecuted.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa

@@ -76,6 +76,13 @@ pub(super) fn apply<H: SpellExecutionHostLikeCpp>(
     if caster_guid != host.player_guid().unwrap_or(ObjectGuid::EMPTY) {
         return Err("Selected resurrection ghost aura requires the Player as its caster");
     }
+    let caster_level = host
+        .core()
+        .with_owned_player_like_cpp(|player| {
+            (player.guid() == caster_guid).then_some(player.unit().data().level as u8)
+        })
+        .flatten()
+        .ok_or("Missing canonical Player for selected resurrection ghost aura")?;
     let (duration_ms, aura_flags, effect_mask, stack_amount, attributes1, attributes5, charges) = {
         let hub = host.hub_ref();
         let difficulty = host.core().current_map_difficulty_id_like_cpp();
@@ -172,6 +179,7 @@ pub(super) fn apply<H: SpellExecutionHostLikeCpp>(
         wow_entities::AuraCastProvenanceLikeCpp {
             cast_id,
             spell_visual_id: i32::try_from(spell_visual_id).unwrap_or(i32::MAX),
+            caster_level: Some(caster_level),
         },
     )
 }

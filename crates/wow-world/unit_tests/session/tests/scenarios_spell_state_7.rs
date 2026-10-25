@@ -404,6 +404,7 @@ async fn generic_apply_aura_retains_cast_provenance_on_the_canonical_unit_like_c
         wow_entities::AuraCastProvenanceLikeCpp {
             cast_id,
             spell_visual_id: 7_270,
+            caster_level: None,
         }
     );
 }
@@ -486,6 +487,7 @@ async fn creature_apply_aura_retains_cast_provenance_on_the_canonical_unit_like_
         wow_entities::AuraCastProvenanceLikeCpp {
             cast_id,
             spell_visual_id: 7_290,
+            caster_level: None,
         }
     );
 }

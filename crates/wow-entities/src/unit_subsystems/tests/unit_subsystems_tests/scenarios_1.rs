@@ -20,6 +20,7 @@ fn aura_cast_provenance_is_slot_scoped_and_cleared_on_replacement_like_cpp() {
     let provenance = AuraCastProvenanceLikeCpp {
         cast_id: ObjectGuid::new(6, 77),
         spell_visual_id: 9_001,
+        caster_level: None,
     };
 
     auras.set_visible(7, first);

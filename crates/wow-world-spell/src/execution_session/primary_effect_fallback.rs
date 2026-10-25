@@ -30,6 +30,7 @@ pub(super) fn apply_primary_spell_effect_fallback_like_cpp<H: SpellExecutionHost
                     wow_entities::AuraCastProvenanceLikeCpp {
                         cast_id,
                         spell_visual_id: spell_visual_id.min(i32::MAX as u32) as i32,
+                        caster_level: None,
                     },
                     true,
                 )?;

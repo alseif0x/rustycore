@@ -502,6 +502,7 @@ fn loaded_player_aura_recreates_cast_and_unconditional_visual_provenance_like_cp
         .expect("canonical player aura provenance");
     assert!(!provenance.cast_id.is_empty());
     assert_eq!(provenance.spell_visual_id, 20_613);
+    assert_eq!(provenance.caster_level, None);
 }
 #[test]
 fn loaded_condition_counts_persisted_gems_without_socket_template_like_cpp() {

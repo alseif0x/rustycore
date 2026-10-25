@@ -104,6 +104,7 @@ fn install(manager: &mut MapManager, handle: PlayerHandle, slot: u8, spell_id: i
                 AuraCastProvenanceLikeCpp {
                     cast_id,
                     spell_visual_id: 42,
+                    caster_level: None,
                 },
             );
             auras.visible_auras_to_update.insert(slot);

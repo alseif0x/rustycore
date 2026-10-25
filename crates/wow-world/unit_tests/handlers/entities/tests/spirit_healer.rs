@@ -167,19 +167,53 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
     });
     set_race_sickness_spell(&mut session, SICKNESS_SPELL);
     install_sickness_data(&mut session, SICKNESS_SPELL, Some(69));
+    let original_player_level = session
+        .core
+        .with_owned_player_like_cpp(|player| player.unit().data().level)
+        .expect("canonical Player level");
+    let original_captured_level = u8::try_from(original_player_level).unwrap();
+    let refreshed_captured_level = original_captured_level
+        .checked_add(1)
+        .expect("test Player level can advance once");
+    assert_eq!(original_captured_level, 11);
+    assert_eq!(refreshed_captured_level, 12);
+    let spell_level_fallback = if original_captured_level == 239 {
+        238
+    } else {
+        239
+    };
+    session.set_spell_levels_store(Arc::new(wow_data::SpellLevelsStore::from_entries([
+        wow_data::SpellLevelsEntry {
+            id: 1,
+            difficulty_id: 0,
+            base_level: 0,
+            max_level: 0,
+            spell_level: i16::from(spell_level_fallback),
+            max_passive_aura_level: 0,
+            spell_id: SICKNESS_SPELL as u32,
+        },
+    ])));
     session.set_player_inventory_slot_count_like_cpp(wow_entities::INVENTORY_DEFAULT_SIZE);
 
-    session.set_player_stats(Arc::new(wow_data::PlayerStatsStore::from_entries([(
-        (1, 1, 11),
-        wow_data::PlayerLevelStats {
-            strength: 10,
-            agility: 10,
-            stamina: 10,
-            intellect: 10,
-            spirit: 10,
-            base_mana: 100,
-        },
-    )])));
+    let player_stats_for_test_level = || wow_data::PlayerLevelStats {
+        strength: 10,
+        agility: 10,
+        stamina: 10,
+        intellect: 10,
+        spirit: 10,
+        base_mana: 100,
+    };
+    session.set_player_stats(Arc::new(wow_data::PlayerStatsStore::from_entries([
+        ((1, 1, 11), player_stats_for_test_level()),
+        (
+            (1, 1, original_captured_level),
+            player_stats_for_test_level(),
+        ),
+        (
+            (1, 1, refreshed_captured_level),
+            player_stats_for_test_level(),
+        ),
+    ])));
     session.set_chr_classes_store(Arc::new(
         wow_data::character_progression::ChrClassesStore::from_entries([{
             let mut entry = wow_data::character_progression::ChrClassesEntry::default();
@@ -478,7 +512,22 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
         })
         .expect("canonical sickness Aura provenance");
     assert_eq!(original_provenance.cast_id, sickness.cast_id);
+    assert_eq!(
+        original_provenance.caster_level,
+        Some(original_captured_level)
+    );
+    assert_ne!(
+        original_provenance.caster_level,
+        Some(spell_level_fallback),
+        "the self caster uses the canonical Player level, not SpellLevels fallback"
+    );
     prepare_loaded_sickness_for_recast(&mut session, original_slot, sickness_auras[0].caster_guid);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().set_level(refreshed_captured_level)
+        })
+        .expect("canonical Player owner");
 
     // C++ permits invoking the healer again while alive. The existing
     // same-caster/mask aura is refreshed in place and cannot multiply BASE_PCT.
@@ -489,7 +538,7 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
     assert_eq!(refreshed.len(), 1);
     assert_eq!(refreshed[0].slot, original_slot);
     assert_eq!(refreshed[0].duration_total, 900_000);
-    assert_eq!(refreshed[0].duration_remaining, 60_000);
+    assert_eq!(refreshed[0].duration_remaining, 120_000);
     assert_eq!(refreshed[0].stack_count, 1);
     let refreshed_stats = session
         .canonical_player_effective_combat_stats_like_cpp()
@@ -528,7 +577,7 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
     assert_eq!(refreshed_updates[0].cast_id, sickness.cast_id);
     assert_eq!(refreshed_updates[0].visual_id, sickness.visual_id);
     assert_eq!(refreshed_updates[0].duration_ms, Some(900_000));
-    assert_eq!(refreshed_updates[0].remaining_ms, Some(60_000));
+    assert_eq!(refreshed_updates[0].remaining_ms, Some(120_000));
     // Every healer resurrection has its own `Player::ResurrectPlayer` full
     // values update. The Aura-specific focused test above checks that sickness
     // does not add a synthetic stat packet of its own.
@@ -542,6 +591,17 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
         vec![(0, -76), (1, -76), (2, -1)]
     );
     assert_eq!(refreshed_provenance, original_provenance);
+    assert_eq!(
+        refreshed_provenance.caster_level,
+        Some(original_captured_level)
+    );
+    assert_eq!(
+        session
+            .core
+            .with_owned_player_like_cpp(|player| player.unit().data().level),
+        Some(i32::from(refreshed_captured_level)),
+        "refresh keeps the original Aura level after the Player level changes"
+    );
 
     // Once the stack is one, the same non-unique Spell refreshes timers and
     // charges. The preceding 3-to-1 recast changed effects/stack but retained
@@ -555,7 +615,7 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
     assert_eq!(single_stack_refresh[0].slot, original_slot);
     assert_eq!(single_stack_refresh[0].stack_count, 1);
     assert_eq!(single_stack_refresh[0].duration_total, 600_000);
-    assert_eq!(single_stack_refresh[0].duration_remaining, 60_000);
+    assert_eq!(single_stack_refresh[0].duration_remaining, 120_000);
     let (_, single_stack_metadata, _) = refreshed_sickness_state(&session, original_slot);
     assert_eq!(single_stack_metadata.charges, 0);
     let single_stack_packets = drain_packets(&send_rx);
@@ -591,7 +651,7 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
                 .applied_at = stale;
         })
         .expect("canonical Player aura owner");
-    let expired = wow_world_spell::tick_selected_aura_lifetimes(&mut session, 60_000)
+    let expired = wow_world_spell::tick_selected_aura_lifetimes(&mut session, 120_000)
         .expect("the selected Unit update expires the sickness by its remaining duration");
     assert_eq!(expired.expired, 1);
     assert!(visible_sickness_aura(&session, SICKNESS_SPELL).is_empty());

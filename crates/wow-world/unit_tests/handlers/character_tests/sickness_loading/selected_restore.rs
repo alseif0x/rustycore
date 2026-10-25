@@ -28,6 +28,20 @@ fn authority(session: &WorldSession) -> Option<bool> {
     state.resolved_player_aura_authority_complete_like_cpp(hub)
 }
 
+fn set_sickness_spell_level(session: &mut WorldSession, spell_level: u8) {
+    session.set_spell_levels_store(Arc::new(wow_data::SpellLevelsStore::from_entries([
+        wow_data::SpellLevelsEntry {
+            id: 1,
+            difficulty_id: 0,
+            base_level: 0,
+            max_level: 0,
+            spell_level: i16::from(spell_level),
+            max_passive_aura_level: 0,
+            spell_id: SICKNESS_SPELL_ID as u32,
+        },
+    ])));
+}
+
 fn loaded_sickness(
     session: &WorldSession,
 ) -> Vec<(
@@ -63,6 +77,10 @@ fn selected_sickness_load_joins_original_mask_and_uses_only_active_effects() {
     let (mut session, player, _) =
         canonical_aura_session([sickness_catalog_info()], SICKNESS_SPELL_ID);
     session
+        .core
+        .with_owned_player_mut_like_cpp(|owner| owner.unit_mut().set_level(17))
+        .expect("canonical Player owner");
+    session
         .set_spell_aura_options_store(Arc::new(wow_data::SpellAuraOptionsStore::from_entries([])));
     let (mut aura, effects) = keyed_rows(player, player, ObjectGuid::EMPTY, 0b1001, 90_000);
     aura.remain_charges = 3;
@@ -81,6 +99,12 @@ fn selected_sickness_load_joins_original_mask_and_uses_only_active_effects() {
         loaded[0].1.charges, 0,
         "an absent AuraOptions row clears charges"
     );
+    assert_eq!(loaded[0].2.caster_level, Some(17));
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|owner| owner.unit_mut().set_level(22))
+        .expect("canonical Player owner");
+    assert_eq!(loaded_sickness(&session)[0].2.caster_level, Some(17));
     assert_eq!(authority(&session), Some(true));
 }
 
@@ -88,7 +112,8 @@ fn selected_sickness_load_joins_original_mask_and_uses_only_active_effects() {
 fn selected_sickness_zero_active_mask_is_known_absence_after_cast_id_allocation() {
     let (mut session, player, _) =
         canonical_aura_session([sickness_catalog_info()], SICKNESS_SPELL_ID);
-    let (aura, effects) = keyed_rows(player, player, ObjectGuid::EMPTY, 0b1000, 90_000);
+    let foreign = ObjectGuid::create_player(1, 98);
+    let (aura, effects) = keyed_rows(player, foreign, ObjectGuid::EMPTY, 0b1000, 90_000);
     let before =
         wow_world_spell::next_represented_spell_cast_guid_like_cpp(&session, SICKNESS_SPELL_ID)
             .expect("canonical Player cast sequence");
@@ -117,6 +142,7 @@ fn selected_sickness_zero_active_mask_is_known_absence_after_cast_id_allocation(
 fn selected_sickness_foreign_finite_item_replaces_and_saves_full_key() {
     let (mut session, player, _) =
         canonical_aura_session([sickness_catalog_info()], SICKNESS_SPELL_ID);
+    set_sickness_spell_level(&mut session, 239);
     let foreign = ObjectGuid::create_player(1, 99);
     let item = ObjectGuid::create_item(1, 88);
     let (first, mut first_effects) = keyed_rows(player, player, ObjectGuid::EMPTY, 0b111, 80_000);
@@ -137,6 +163,8 @@ fn selected_sickness_foreign_finite_item_replaces_and_saves_full_key() {
     assert_eq!(loaded.len(), 1);
     assert_eq!(loaded[0].0.caster_guid, foreign);
     assert_eq!(loaded[0].1.item_guid, item);
+    assert_eq!(loaded[0].2.caster_level, Some(239));
+    assert_ne!(loaded[0].2.caster_level, Some(80));
     assert_eq!(
         (loaded[0].1.cast_item_id, loaded[0].1.cast_item_level),
         (1_234, 44)
@@ -155,6 +183,21 @@ fn selected_sickness_foreign_finite_item_replaces_and_saves_full_key() {
     assert_eq!(saved.families[0].caster_guid_binary, foreign.to_raw_bytes());
     assert_eq!(saved.families[0].item_guid_binary, item.to_raw_bytes());
     assert_eq!(saved.families[0].auras[0].cast_item_id, 1_234);
+}
+
+#[test]
+fn selected_sickness_missing_foreign_level_marks_load_incomplete_and_skips_candidate() {
+    let (mut session, player, _) =
+        canonical_aura_session([sickness_catalog_info()], SICKNESS_SPELL_ID);
+    let foreign = ObjectGuid::create_player(1, 98_001);
+    let (aura, effects) = keyed_rows(player, foreign, ObjectGuid::EMPTY, 0b111, 90_000);
+
+    assert_eq!(
+        session.load_represented_character_auras_like_cpp([aura], effects, 0),
+        0
+    );
+    assert!(loaded_sickness(&session).is_empty());
+    assert_eq!(authority(&session), Some(false));
 }
 
 #[test]

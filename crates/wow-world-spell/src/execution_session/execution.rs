@@ -537,6 +537,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                     wow_entities::AuraCastProvenanceLikeCpp {
                         cast_id,
                         spell_visual_id: spell_visual_id.min(i32::MAX as u32) as i32,
+                        caster_level: None,
                     },
                 )?;
             }
@@ -800,6 +801,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                     wow_entities::AuraCastProvenanceLikeCpp {
                         cast_id,
                         spell_visual_id: spell_visual_id.min(i32::MAX as u32) as i32,
+                        caster_level: None,
                     },
                 )?;
                 continue;
@@ -865,6 +867,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                         wow_entities::AuraCastProvenanceLikeCpp {
                             cast_id,
                             spell_visual_id: spell_visual_id.min(i32::MAX as u32) as i32,
+                            caster_level: None,
                         },
                     )?;
                 }
@@ -1099,6 +1102,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                     wow_entities::AuraCastProvenanceLikeCpp {
                         cast_id,
                         spell_visual_id: spell_visual_id.min(i32::MAX as u32) as i32,
+                        caster_level: None,
                     },
                     true,
                 )?;

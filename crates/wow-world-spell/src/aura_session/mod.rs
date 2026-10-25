@@ -28,6 +28,7 @@ mod aura_state;
 mod duration;
 mod mount;
 mod publication;
+mod selected_caster;
 mod selected_lifetime;
 mod sources;
 
@@ -36,8 +37,13 @@ pub use aura_state::*;
 pub use duration::*;
 pub use mount::*;
 pub use publication::*;
+pub(super) use selected_caster::selected_caster_level;
 pub use selected_lifetime::*;
 pub use sources::*;
+
+#[cfg(test)]
+#[path = "../../unit_tests/aura_session/selected_caster.rs"]
+mod selected_caster_tests;
 
 /// C++ `AuraApplication::_InitFlags` derives the selected aura sign from its
 /// active effect mask, rather than the sign of every effect in the spell.

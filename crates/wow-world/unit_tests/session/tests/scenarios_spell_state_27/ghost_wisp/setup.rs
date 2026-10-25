@@ -100,8 +100,18 @@ pub(super) fn install_spell_catalog(
 
     let mut store = wow_data::SpellStore::new();
     let mut misc_rows = Vec::new();
+    let mut spell_level_rows = Vec::new();
     for spell in [ghost, wisp] {
         let spell_id = spell.spell_id;
+        spell_level_rows.push(wow_data::SpellLevelsEntry {
+            id: spell_id as u32,
+            difficulty_id: 0,
+            base_level: 0,
+            max_level: 0,
+            spell_level: 239,
+            max_passive_aura_level: 0,
+            spell_id: spell_id as u32,
+        });
         let attributes = selected_aura_attributes(spell_id);
         store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
         misc_rows.push(wow_data::SpellMiscEntry {
@@ -127,6 +137,9 @@ pub(super) fn install_spell_catalog(
         store.insert(spell.spell_id, spell);
     }
     session.set_spell_store(Arc::new(store));
+    session.set_spell_levels_store(Arc::new(wow_data::SpellLevelsStore::from_entries(
+        spell_level_rows,
+    )));
     session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries(misc_rows)));
     session.set_spell_duration_store(Arc::new(wow_data::SpellDurationStore::from_entries([
         wow_data::SpellDurationEntry {

@@ -306,6 +306,7 @@ fn legacy_creature_melee_tick_once_splits_player_victim_damage_like_cpp() {
                 wow_entities::AuraCastProvenanceLikeCpp {
                     cast_id: split_cast_id,
                     spell_visual_id: 7_364,
+                    caster_level: None,
                 },
             );
         })
@@ -572,6 +573,7 @@ fn legacy_creature_melee_tick_once_splits_creature_victim_damage_like_cpp() {
             wow_entities::AuraCastProvenanceLikeCpp {
                 cast_id: split_cast_id,
                 spell_visual_id: 7_374,
+                caster_level: None,
             },
         );
     }

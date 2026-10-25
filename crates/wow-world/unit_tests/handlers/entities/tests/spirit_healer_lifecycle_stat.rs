@@ -111,15 +111,17 @@ async fn lifecycle_stat_fresh_sickness_updates_canonical_stats_through_map_value
         ],
         "generic application and hydration preserve all selected sickness effects"
     );
-    assert!(session
-        .core
-        .with_owned_player_like_cpp(|player| player
-            .unit()
-            .subsystems()
-            .auras
-            .visible_auras_to_update
-            .contains(&sickness_slot))
-        .expect("canonical Player owner"));
+    assert!(
+        session
+            .core
+            .with_owned_player_like_cpp(|player| player
+                .unit()
+                .subsystems()
+                .auras
+                .visible_auras_to_update
+                .contains(&sickness_slot))
+            .expect("canonical Player owner")
+    );
 
     let effective = session
         .canonical_player_effective_combat_stats_like_cpp()
@@ -393,6 +395,90 @@ async fn lifecycle_stat_fresh_sickness_updates_canonical_stats_through_map_value
 }
 
 #[tokio::test]
+async fn sickness_original_same_map_player_caster_level_is_captured() {
+    let (mut session, send_rx, _realm_rx, _port) = logged_in_released_ghost(43_907).await;
+    let player_guid = session.player_guid().expect("canonical Player GUID");
+    session.set_loaded_player_identity_like_cpp(571, 1, 1, 11, 0);
+    set_race_sickness_spell(&mut session, SICKNESS_SPELL);
+    install_sickness_data(&mut session, SICKNESS_SPELL, Some(245_039));
+    install_stats_catalog(&mut session, 10);
+    let target_level = session
+        .core
+        .with_owned_player_like_cpp(|player| player.unit().data().level)
+        .expect("canonical Player owner");
+    let foreign_guid = ObjectGuid::create_player(1, 43_908);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .as_ref()
+        .cloned()
+        .expect("canonical MapManager");
+    {
+        let mut manager = manager.lock().expect("canonical MapManager");
+        let mut foreign = Box::new(wow_entities::Player::new(Some(43_908), false));
+        foreign
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(foreign_guid);
+        foreign.unit_mut().set_level(44);
+        let handle = manager
+            .install_detached_player_like_cpp(foreign)
+            .expect("foreign Player owner");
+        manager
+            .attach_player_like_cpp(handle, wow_map::MapKey::new(571, 0), Position::ZERO)
+            .expect("same-map foreign Player");
+    }
+
+    let generators = session.id_generators_for_test_like_cpp();
+    let spawns = session.creature_spawn_catalogs_for_test_like_cpp();
+    wow_world_spell::execute_server_triggered_spell_like_cpp(
+        &mut session,
+        generators.item.as_ref(),
+        &spawns,
+        SICKNESS_SPELL,
+        player_guid,
+        wow_entities::SpellCastMetadata {
+            triggered_ignores_global_cooldown_like_cpp: true,
+            original_caster_guid: Some(foreign_guid),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("selected sickness accepts a resolved same-map original caster");
+
+    let (application, provenance) = session
+        .core
+        .with_owned_player_like_cpp(|player| {
+            let auras = &player.unit().subsystems().auras;
+            let application = auras
+                .runtime_applications_like_cpp()
+                .values()
+                .find(|aura| aura.spell_id == SICKNESS_SPELL)
+                .expect("fresh selected sickness application");
+            (
+                application.clone(),
+                auras.aura_cast_provenance_like_cpp(application.slot),
+            )
+        })
+        .expect("canonical Player owner");
+    assert_eq!(application.caster_guid, foreign_guid);
+    assert_eq!(provenance.caster_level, Some(44));
+    assert_ne!(provenance.caster_level, Some(target_level as u8));
+
+    let spell_go = drain_packets(&send_rx)
+        .into_iter()
+        .find(|bytes| packet_opcode(bytes) == ServerOpcodes::SpellGo as u16)
+        .expect("self-visible sickness cast emits SpellGo");
+    let mut spell_go = wow_packet::WorldPacket::from_bytes(&spell_go);
+    assert_eq!(
+        spell_go.read_uint16().unwrap(),
+        ServerOpcodes::SpellGo as u16
+    );
+    assert_eq!(spell_go.read_packed_guid().unwrap(), player_guid);
+}
+
+#[tokio::test]
 async fn sickness_missing_planner_catalog_fails_before_aura_or_publication() {
     let (mut session, send_rx, _realm_rx, _port) = logged_in_released_ghost(43_902).await;
     let player_guid = session.player_guid().expect("canonical Player GUID");
@@ -496,6 +582,7 @@ async fn sickness_replaces_foreign_or_mask_mismatched_application_before_fresh_c
                 guid + 200,
             ),
             spell_visual_id: 245_039,
+            caster_level: None,
         };
         session
             .player_aura_application_cx_like_cpp()
@@ -576,6 +663,7 @@ async fn sickness_replaces_foreign_or_mask_mismatched_application_before_fresh_c
                 guid + 300,
             ),
             spell_visual_id: 245_039,
+            caster_level: None,
         };
         session
             .player_aura_application_cx_like_cpp()

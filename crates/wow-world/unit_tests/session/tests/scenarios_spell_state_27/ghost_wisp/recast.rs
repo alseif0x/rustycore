@@ -46,6 +46,11 @@ fn aura_update_cast_rows(packets: &[Vec<u8>]) -> Vec<(u8, i32, ObjectGuid, i32)>
 #[tokio::test]
 async fn ghost_recasts_refresh_the_loaded_self_application_in_place() {
     let mut fixture = fixture();
+    fixture
+        .session
+        .core
+        .with_owned_player_mut_like_cpp(|player| player.unit_mut().set_level(31))
+        .expect("canonical Player owner");
     let external_caster = ObjectGuid::create_player(1, 96_114);
     let aura_rows = [external_caster, fixture.player].map(|caster_guid| {
         let self_cast = caster_guid == fixture.player;
@@ -149,6 +154,12 @@ async fn ghost_recasts_refresh_the_loaded_self_application_in_place() {
             auras.applied_auras.clone(),
         )
     };
+    assert_eq!(original_provenance.caster_level, Some(31));
+    fixture
+        .session
+        .core
+        .with_owned_player_mut_like_cpp(|player| player.unit_mut().set_level(32))
+        .expect("canonical Player owner");
 
     cast_selected(&mut fixture, GHOST, None).await;
     let first_refresh_packets = outgoing(&fixture);
@@ -473,6 +484,11 @@ async fn ghost_recasts_refresh_the_loaded_self_application_in_place() {
 #[tokio::test]
 async fn wisp_recast_preserves_negative_transform_priority_and_display() {
     let mut fixture = fixture();
+    fixture
+        .session
+        .core
+        .with_owned_player_mut_like_cpp(|player| player.unit_mut().set_level(41))
+        .expect("canonical Player owner");
     let mut negative = aura_spell(
         NEGATIVE_TRANSFORM,
         [(wow_data::spell::aura_types::SPELL_AURA_TRANSFORM, 0, 12_862)],
@@ -518,6 +534,7 @@ async fn wisp_recast_preserves_negative_transform_priority_and_display() {
             auras.aura_cast_provenance_like_cpp(wisp.slot),
         )
     };
+    assert_eq!(initial_provenance.caster_level, Some(41));
     fixture
         .session
         .remove_aura(initial_wisp_slot)
@@ -528,6 +545,11 @@ async fn wisp_recast_preserves_negative_transform_priority_and_display() {
         1_826,
         "production Wisp removal restores the still-active negative transform"
     );
+    fixture
+        .session
+        .core
+        .with_owned_player_mut_like_cpp(|player| player.unit_mut().set_level(42))
+        .expect("canonical Player owner");
 
     cast_selected(&mut fixture, WISP, None).await;
     outgoing(&fixture);
@@ -559,6 +581,7 @@ async fn wisp_recast_preserves_negative_transform_priority_and_display() {
         )
     };
     assert_ne!(provenance, initial_provenance);
+    assert_eq!(provenance.caster_level, Some(42));
 
     // Model loaded AuraEffect state with every recalculation bit off and
     // unusual stored amounts in all slots. SetStackAmount still recalculates

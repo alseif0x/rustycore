@@ -103,9 +103,38 @@ pub(super) fn apply_resurrection_sickness_aura<H: SpellExecutionHostLikeCpp>(
                 .map_err(|_| "Resurrection sickness remaining duration exceeds the signed range")
         })
         .transpose()?;
+    let difficulty_id = host.core().current_map_difficulty_id_like_cpp();
+    let spell_levels_store = host
+        .hub_ref()
+        .catalogs
+        .spell_catalogs
+        .spell_levels_store
+        .clone();
+    let difficulty_store = host.hub_ref().catalogs.difficulty_store.clone();
+    let caster_level = {
+        let core = host.core();
+        let Some(owner) = core.player_handle_like_cpp else {
+            return Err("Missing canonical Player owner for resurrection sickness");
+        };
+        let Some(manager) = core.canonical_map_manager.as_ref() else {
+            return Err("Missing canonical MapManager for resurrection sickness");
+        };
+        let manager = manager
+            .lock()
+            .map_err(|_| "Canonical MapManager is unavailable for resurrection sickness")?;
+        crate::aura_session::selected_caster_level(
+            &manager,
+            owner,
+            caster_guid,
+            spell_id_u32,
+            difficulty_id,
+            spell_levels_store.as_deref(),
+            difficulty_store.as_deref(),
+        )
+        .map_err(|_| "Unable to resolve resurrection sickness caster level")?
+    };
     let (duration_total, stack_amount, attributes1, attributes5, charges) = {
         let hub = host.hub_ref();
-        let difficulty_id = host.core().current_map_difficulty_id_like_cpp();
         let misc = hub
             .catalogs
             .spell_catalogs
@@ -115,7 +144,7 @@ pub(super) fn apply_resurrection_sickness_aura<H: SpellExecutionHostLikeCpp>(
                 store.entry_for_spell_difficulty_with_fallback_like_cpp(
                     spell_id_u32,
                     difficulty_id,
-                    hub.catalogs.difficulty_store.as_deref(),
+                    difficulty_store.as_deref(),
                 )
             })
             .ok_or("Missing resurrection sickness SpellMisc row")?;
@@ -160,6 +189,7 @@ pub(super) fn apply_resurrection_sickness_aura<H: SpellExecutionHostLikeCpp>(
         wow_entities::AuraCastProvenanceLikeCpp {
             cast_id,
             spell_visual_id: spell_visual_id.min(i32::MAX as u32) as i32,
+            caster_level: Some(caster_level),
         },
     )?;
     if let Some(remaining) = requested_remaining {
