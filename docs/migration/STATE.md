@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, implementación previa a aceptación final — 2026-10-25, 06:19 UTC:**
+**#43, implementación previa a aceptación final — 2026-10-25, 06:27 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
 y productor desde hechizos están escritos y tienen feedback focalizado;
 **no hay aceptación final de este candidato**. El cálculo básico del productor
@@ -578,6 +578,15 @@ resuelta; no se acepta ese literal desde los tests verdes anteriores.
 Consulta adicional de solo lectura a las 06:19: `world.spell_group` no
 contiene filas con spell_id 15007, 8326 o 20584. Esto acota el contraste de
 CanStackWith para esos datos, no prueba cualquier overlay futuro.
+9i1 extrae sin cambios de comportamiento el cuerpo LoggedIn del driver a
+`driver/player_recovery.rs`, conservando su guard, traza, orden y awaits.
+Sobre `ae26ef615` más ese delta: check World exit 0; `--lib map_phase_pass`
+pasó 18 casos y `--lib death_timer` cuatro, exit 0, logs
+`/tmp/rustycore-9i1-check-20261025.log`,
+`/tmp/rustycore-9i1-map-phase-pass-20261025.log` y
+`/tmp/rustycore-9i1-death-timer-20261025.log`. Es preparación estructural
+para el corte admitido; no activa el ejecutor seleccionado ni demuestra
+aceptación del nuevo orden productivo.
 
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
