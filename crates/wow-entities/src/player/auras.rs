@@ -33,7 +33,7 @@ impl Player {
         &mut self,
         spell_id: i32,
         caster_guid: ObjectGuid,
-        duration_ms: u32,
+        duration_ms: i32,
     ) -> Vec<(AuraApplicationLikeCpp, AuraCastProvenanceLikeCpp)> {
         let auras = &mut self.unit_mut().subsystems_mut().auras;
         let mut matching_slots = auras

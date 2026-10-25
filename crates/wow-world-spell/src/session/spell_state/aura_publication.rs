@@ -4,7 +4,9 @@ use std::{
     time::Instant,
 };
 use wow_core::{ObjectGuid, guid::HighGuid};
-use wow_entities::{AuraApplicationLikeCpp as AuraApplication, AuraCastProvenanceLikeCpp};
+use wow_entities::{
+    AuraApplicationLikeCpp as AuraApplication, AuraCastProvenanceLikeCpp, legacy_aura_duration_pair,
+};
 use wow_world_core::session::{AFLAG_SCALABLE_LIKE_CPP, HubMut, HubRef};
 
 pub const AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP: u32 = 0x0000_0080;
@@ -23,8 +25,11 @@ pub(crate) fn player_aura_info_with_provenance(
     map_id: u16,
     provenance: Option<AuraCastProvenanceLikeCpp>,
 ) -> wow_packet::packets::misc::AuraInfoLikeCpp {
-    let duration_ms = (aura.duration_total > 0).then_some(aura.duration_total);
-    let remaining_ms = (aura.duration_remaining > 0).then_some(aura.duration_remaining);
+    let (duration_ms, remaining_ms) = if aura.duration_total > 0 {
+        (Some(aura.duration_total), Some(aura.duration_remaining))
+    } else {
+        (None, None)
+    };
     let (cast_id, spell_visual_id) = provenance
         .filter(|provenance| !provenance.cast_id.is_empty())
         .map_or_else(
@@ -415,12 +420,18 @@ impl SessionSpellState {
         flags: u32,
         effect_mask: u32,
     ) {
+        let Some((duration_total, duration_remaining)) =
+            legacy_aura_duration_pair(duration, duration)
+        else {
+            return;
+        };
         self.send_aura_update_applied_from_queries_like_cpp(
             &hub.core.packet_publication_access_like_cpp(),
             spell_id,
             slot,
             caster,
-            duration,
+            duration_total,
+            duration_remaining,
             flags,
             effect_mask,
             || hub.core.player_guid(),
@@ -441,12 +452,18 @@ impl SessionSpellState {
         effect_mask: u32,
         #[cfg(any(test, feature = "test-fixtures"))] fixture_level: &u8,
     ) {
+        let Some((duration_total, duration_remaining)) =
+            legacy_aura_duration_pair(duration, duration)
+        else {
+            return;
+        };
         self.send_aura_update_applied_from_queries_like_cpp(
             &player.packet_publication_like_cpp(),
             spell_id,
             slot,
             caster,
-            duration,
+            duration_total,
+            duration_remaining,
             flags,
             effect_mask,
             || player.player_guid_like_cpp(),
@@ -497,7 +514,8 @@ impl SessionSpellState {
         spell_id: i32,
         slot: u8,
         caster: ObjectGuid,
-        duration: u32,
+        duration_total: i32,
+        duration_remaining: i32,
         flags: u32,
         effect_mask: u32,
         target_guid: impl FnOnce() -> Option<ObjectGuid>,
@@ -513,8 +531,8 @@ impl SessionSpellState {
             difficulty_id: difficulty(),
             caster_guid: caster,
             slot,
-            duration_total: duration,
-            duration_remaining: duration,
+            duration_total,
+            duration_remaining,
             stack_count: 1,
             aura_flags: flags,
             effect_mask,

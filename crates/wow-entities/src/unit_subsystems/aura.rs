@@ -8,6 +8,9 @@
 use super::*;
 
 mod application_order;
+mod duration;
+
+pub use duration::legacy_aura_duration_pair;
 
 /// Minimal bridge for TrinityCore `Unit` aura containers.
 ///
@@ -135,8 +138,8 @@ pub struct AuraApplicationLikeCpp {
     pub difficulty_id: u8,
     pub caster_guid: ObjectGuid,
     pub slot: u8,
-    pub duration_total: u32,
-    pub duration_remaining: u32,
+    pub duration_total: i32,
+    pub duration_remaining: i32,
     pub stack_count: u8,
     pub aura_flags: u32,
     pub effect_mask: u32,

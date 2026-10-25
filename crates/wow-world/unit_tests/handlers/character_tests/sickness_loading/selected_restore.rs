@@ -174,7 +174,7 @@ fn selected_sickness_finite_base_loads_stored_permanent_item_then_capture_skips_
     );
     let loaded = loaded_sickness(&session);
     assert_eq!(loaded.len(), 1);
-    assert_eq!(loaded[0].0.duration_total, 0);
+    assert_eq!(loaded[0].0.duration_total, -1);
     assert_eq!(loaded[0].0.duration_remaining, 55_000);
     assert_eq!(loaded[0].1.item_guid, item);
     let saved = capture_player_save_request(&session)
@@ -271,10 +271,20 @@ fn selected_sickness_unknown_duration_or_zero_stored_max_keeps_save_unknown() {
     aura.max_duration_ms = 0;
     assert_eq!(
         zero_max.load_represented_character_auras_like_cpp([aura], effects, 0),
-        0
+        1,
+        "selected load retains source max 0 and positive remaining duration"
     );
-    assert!(loaded_sickness(&zero_max).is_empty());
-    assert_eq!(authority(&zero_max), Some(false));
+    let loaded = loaded_sickness(&zero_max);
+    assert_eq!(loaded.len(), 1);
+    assert_eq!(loaded[0].0.duration_total, 0);
+    assert_eq!(loaded[0].0.duration_remaining, 90_000);
+    assert_eq!(authority(&zero_max), Some(true));
+    let zero_max_info = wow_world_spell::player_aura_info_like_cpp(&loaded[0].0, 80, 571);
+    let zero_max_data = zero_max_info.aura_data.expect("source max-zero AuraInfo");
+    assert_eq!(zero_max_data.duration_ms, None);
+    assert_eq!(zero_max_data.remaining_ms, None);
+    // Save capture still withholds this raw edge while the selected countdown
+    // moves to the exact canonical duration snapshot in a later unit.
     assert!(
         capture_player_save_request(&zero_max)
             .unwrap()

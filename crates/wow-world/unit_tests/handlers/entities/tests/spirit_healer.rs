@@ -6,9 +6,9 @@
 use super::corpse;
 use super::*;
 use crate::session::WorldSession;
+use wow_constants::ItemContext;
 use wow_constants::ItemUpdateState;
 use wow_constants::unit::{NPCFlags1, UnitDynFlags};
-use wow_constants::ItemContext;
 use wow_entities::{EQUIPMENT_SLOT_CHEST, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START};
 
 const SICKNESS_SPELL: i32 = 15_007;
@@ -559,7 +559,10 @@ async fn sickness_uses_configured_threshold_and_race_spell_even_without_visible_
             assert_eq!(updates.len(), 1, "aura applies without SpellGo");
             assert_eq!(updates[0].visual_id, 0);
             assert_eq!(updates[0].duration_ms, Some(600_000));
-            assert_eq!(updates[0].remaining_ms, Some(expected_remaining));
+            assert_eq!(
+                updates[0].remaining_ms,
+                Some(u32::try_from(expected_remaining).expect("positive aura duration"))
+            );
         } else {
             assert!(
                 aura.is_empty(),

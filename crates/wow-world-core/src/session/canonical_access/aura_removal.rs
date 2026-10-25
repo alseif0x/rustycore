@@ -240,8 +240,8 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
                 let application = auras
                     .runtime_application_mut_like_cpp(slot)
                     .expect("resurrection AuraApplication validated above");
-                application.duration_total = 0;
-                application.duration_remaining = 0;
+                application.duration_total = -1;
+                application.duration_remaining = -1;
                 application.stack_count = 1;
                 application.represented_effect_amounts = represented_amounts.clone();
             }

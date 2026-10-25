@@ -16,6 +16,9 @@ pub fn set_player_aura_duration<H: AuraHostLikeCpp>(
     caster_guid: ObjectGuid,
     duration_ms: u32,
 ) -> usize {
+    let Ok(duration_ms) = i32::try_from(duration_ms) else {
+        return 0;
+    };
     let updated = host
         .core()
         .with_owned_player_mut_like_cpp(|player| {

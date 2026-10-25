@@ -141,6 +141,16 @@ items is not proof that any chosen item is reachable in the required inventory
 state. Validate the real pickup/load/cast path and charge semantics before
 selecting the obtain-spell fixture; do not manufacture reachability with SQL.
 
+Read-only World data inspection on 2026-10-25 found a creature-damage
+candidate: Kobold Vermin entry 6, faction 25, unit_flags 0, with difficulty-0
+MinLevel 1 / MaxLevel 2 in creature_template_difficulty. Existing spawn
+9005000 is on map 0 near (-8783.05, -161.565, 82.0352). Discover its live GUID
+and current health; neither this SQL row nor proximity proves retaliation.
+The driver may provoke it with the existing bot's packed-target
+CMSG_ATTACK_SWING (0x3255). It must fail if the victim kills the creature or
+no actual creature damage and Player death occur. These existing World rows
+are not fixture-owned and must not be modified or removed to obtain a pass.
+
 For a scripted fall, use a non-instance map and a character without GM mode,
 flight, fall immunity or safe-fall auras. Pin the initial position and report the
 sent height/landing sequence; a client-position update alone is not proof of

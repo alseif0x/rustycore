@@ -281,8 +281,8 @@ pub struct AuraDataInfoLikeCpp {
     pub caster_guid: ObjectGuid,
     pub cast_level: u16,
     pub applications: u8,
-    pub duration_ms: Option<u32>,
-    pub remaining_ms: Option<u32>,
+    pub duration_ms: Option<i32>,
+    pub remaining_ms: Option<i32>,
     pub points: Vec<f32>,
 }
 
@@ -308,10 +308,10 @@ impl AuraDataInfoLikeCpp {
             pkt.write_packed_guid(&self.caster_guid);
         }
         if let Some(duration_ms) = self.duration_ms {
-            pkt.write_uint32(duration_ms);
+            pkt.write_uint32(duration_ms as u32);
         }
         if let Some(remaining_ms) = self.remaining_ms {
-            pkt.write_uint32(remaining_ms);
+            pkt.write_uint32(remaining_ms as u32);
         }
         for point in &self.points {
             pkt.write_float(*point);

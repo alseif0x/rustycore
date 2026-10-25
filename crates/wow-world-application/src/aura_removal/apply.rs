@@ -7,7 +7,7 @@ use std::time::Instant;
 use wow_core::ObjectGuid;
 use wow_entities::{
     AuraApplicationLikeCpp as AuraApplication, RepresentedAuraEffectAmountLikeCpp,
-    RepresentedAuraEffectLikeCpp,
+    RepresentedAuraEffectLikeCpp, legacy_aura_duration_pair,
 };
 use wow_world_core::session::SPELL_PVP_RULES_ENABLED_LIKE_CPP;
 
@@ -41,6 +41,11 @@ impl AuraRemovalCxLikeCpp<'_> {
         provenance: wow_entities::AuraCastProvenanceLikeCpp,
         send_update: bool,
     ) -> Result<(), &'static str> {
+        let Some((duration_total, duration_remaining)) =
+            legacy_aura_duration_pair(duration_ms, duration_ms)
+        else {
+            return Err("Aura duration exceeds the signed application range");
+        };
         // Find a free slot (0-254) on the canonical Unit owner.
         let slot =
             wow_world_spell::SessionSpellState::next_player_visible_aura_slot_with_access_like_cpp(
@@ -111,8 +116,8 @@ impl AuraRemovalCxLikeCpp<'_> {
             difficulty_id: self.player.aura_difficulty_like_cpp(),
             caster_guid,
             slot,
-            duration_total: duration_ms,
-            duration_remaining: duration_ms,
+            duration_total,
+            duration_remaining,
             stack_count: 1,
             aura_flags,
             effect_mask,

@@ -14,7 +14,10 @@
 use std::time::Instant;
 
 use wow_core::ObjectGuid;
-use wow_entities::{AuraApplicationLikeCpp as AuraApplication, RepresentedAuraEffectLikeCpp};
+use wow_entities::{
+    AuraApplicationLikeCpp as AuraApplication, RepresentedAuraEffectLikeCpp,
+    legacy_aura_duration_pair,
+};
 use wow_world_core::session::{HubMut, HubRef};
 use wow_world_entities::WorldEntitiesState;
 
@@ -88,6 +91,11 @@ pub trait AuraHostLikeCpp: SpellbookHostLikeCpp {
     where
         Self: Sized,
     {
+        let Some((duration_total, duration_remaining)) =
+            legacy_aura_duration_pair(duration_ms, duration_ms)
+        else {
+            return Err("Aura duration exceeds the signed application range");
+        };
         let slot = next_player_visible_aura_slot_like_cpp(self)
             .ok_or("No free aura slots or missing Player aura owner")?;
 
@@ -96,8 +104,8 @@ pub trait AuraHostLikeCpp: SpellbookHostLikeCpp {
             difficulty_id: self.core().current_map_difficulty_id_like_cpp(),
             caster_guid,
             slot,
-            duration_total: duration_ms,
-            duration_remaining: duration_ms,
+            duration_total,
+            duration_remaining,
             stack_count: 1,
             aura_flags: 0x0000_0001,
             effect_mask: 1u32 << effect.effect_index,

@@ -2,8 +2,6 @@ use super::*;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-#[path = "ghost_wisp/setup.rs"]
-mod setup;
 #[path = "ghost_wisp/masks.rs"]
 mod masks;
 #[path = "ghost_wisp/observers.rs"]
@@ -14,6 +12,8 @@ mod persistence;
 mod recast;
 #[path = "ghost_wisp/resurrection.rs"]
 mod resurrection;
+#[path = "ghost_wisp/setup.rs"]
+mod setup;
 use setup::{
     GhostFixture, aura_spell, cast_selected, fixture, install_spell_catalog,
     install_wisp_templates, selected_aura_attributes,
@@ -232,8 +232,8 @@ async fn server_ghost_and_wisp_casts_apply_full_permanent_auras_and_publish_in_s
         let ghost = applications.get(&1).expect("Ghost application slot");
         for aura in [wisp, ghost] {
             assert_eq!(aura.effect_mask, 0b111);
-            assert_eq!(aura.duration_total, 0, "SpellDuration 21 is permanent");
-            assert_eq!(aura.duration_remaining, 0);
+            assert_eq!(aura.duration_total, -1, "SpellDuration 21 is permanent");
+            assert_eq!(aura.duration_remaining, -1);
             assert_eq!(
                 aura.aura_flags,
                 if aura.spell_id == GHOST {
@@ -351,7 +351,7 @@ async fn server_ghost_and_wisp_casts_apply_full_permanent_auras_and_publish_in_s
         auras
             .runtime_applications_like_cpp()
             .values()
-            .all(|aura| aura.duration_total == 0 && aura.duration_remaining == 0)
+            .all(|aura| aura.duration_total == -1 && aura.duration_remaining == -1)
     );
     drop(manager);
 
@@ -785,7 +785,7 @@ fn login_aura_loader_applies_ghost_effects_from_supplied_rows() {
     assert_eq!(auras.runtime_applications_like_cpp().len(), 2);
     assert!(auras.runtime_applications_like_cpp().values().all(|aura| {
         aura.effect_mask == 0b111
-            && aura.duration_total == 0
+            && aura.duration_total == -1
             && aura.aura_flags
                 == if aura.spell_id == GHOST {
                     0x0011

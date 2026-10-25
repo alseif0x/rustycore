@@ -141,7 +141,7 @@ fn capture_aura(
     }
     // C++ Aura::CanBeSaved excludes permanent item-triggered auras. A
     // complete selected-spell rewrite removes their former SQL row.
-    if application.duration_total == 0
+    if application.duration_total == -1
         && metadata.is_some_and(|metadata| metadata.item_guid != ObjectGuid::EMPTY)
     {
         return Some(CapturedAura::Skipped);
@@ -155,21 +155,19 @@ fn capture_aura(
     if application.effect_mask & !expected_mask != 0 {
         return None;
     }
-    let (max_duration, remaining_duration, expired) = if application.duration_total == 0 {
-        if application.duration_remaining != 0 {
-            return None;
-        }
-        (-1, -1, false)
-    } else {
-        let elapsed_ms =
-            u32::try_from(application.applied_at.elapsed().as_millis()).unwrap_or(u32::MAX);
-        let remaining_ms = application.duration_remaining.saturating_sub(elapsed_ms);
-        (
-            i32::try_from(application.duration_total).ok()?,
-            i32::try_from(remaining_ms).ok()?,
-            remaining_ms == 0,
-        )
-    };
+    let (max_duration, remaining_duration, expired) =
+        match (application.duration_total, application.duration_remaining) {
+            (_, 0) => (application.duration_total, 0, true),
+            (-1, remaining) => (-1, remaining, false),
+            (max_duration, remaining) if max_duration > 0 && remaining > 0 => {
+                let elapsed_ms =
+                    i32::try_from(application.applied_at.elapsed().as_millis()).unwrap_or(i32::MAX);
+                let remaining_ms = remaining.saturating_sub(elapsed_ms).max(0);
+                (max_duration, remaining_ms, remaining_ms == 0)
+            }
+            (0, _) => return None,
+            (max_duration, remaining) => (max_duration, remaining, false),
+        };
 
     let mut stored_base_amounts = BTreeMap::new();
     if let Some(metadata) = metadata {

@@ -157,8 +157,8 @@ async fn ghost_recasts_refresh_the_loaded_self_application_in_place() {
         assert_eq!(application.slot, initial_application.slot);
         assert_eq!(application.caster_guid, fixture.player);
         assert_eq!(application.stack_count, 1);
-        assert_eq!(application.duration_total, 0);
-        assert_eq!(application.duration_remaining, 0);
+        assert_eq!(application.duration_total, -1);
+        assert_eq!(application.duration_remaining, -1);
         assert_eq!(application.applied_at, initial_application.applied_at);
         assert_eq!(
             application.represented_effect_amounts,
@@ -303,8 +303,8 @@ async fn ghost_recasts_refresh_the_loaded_self_application_in_place() {
                 difficulty_id: 0,
                 caster_guid: fixture.player,
                 slot,
-                duration_total: 0,
-                duration_remaining: 0,
+                duration_total: -1,
+                duration_remaining: -1,
                 stack_count: 1,
                 aura_flags: 0,
                 effect_mask: 0,
@@ -523,8 +523,8 @@ async fn wisp_recast_preserves_negative_transform_priority_and_display() {
             .find(|aura| aura.spell_id == WISP)
             .expect("new Wisp AuraApplication after production removal");
         assert_eq!(application.slot, initial_wisp_slot);
-        assert_eq!(application.duration_total, 0);
-        assert_eq!(application.duration_remaining, 0);
+        assert_eq!(application.duration_total, -1);
+        assert_eq!(application.duration_remaining, -1);
         assert_eq!(auras.runtime_applications_like_cpp().len(), 2);
         (
             application.slot,

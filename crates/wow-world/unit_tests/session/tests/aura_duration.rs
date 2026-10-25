@@ -112,6 +112,12 @@ async fn set_aura_duration_updates_packet_provenance_and_remaining_lifetime() {
         )
         .expect("permanent aura application");
     let _ = drain_server_packet_bytes(&send_rx);
+    let permanent_application = canonical_aura(&session, 1).0;
+    let permanent_info =
+        wow_world_spell::player_aura_info_like_cpp(&permanent_application, 80, 571);
+    let permanent_data = permanent_info.aura_data.expect("permanent AuraInfo data");
+    assert_eq!(permanent_data.duration_ms, None);
+    assert_eq!(permanent_data.remaining_ms, None);
 
     assert_eq!(
         wow_world_spell::set_player_aura_duration(&mut session, 84_301, other_caster_guid, 120_000),
@@ -159,11 +165,54 @@ async fn set_aura_duration_updates_packet_provenance_and_remaining_lifetime() {
     assert_eq!(canonical_aura(&session, 0).0.duration_total, 600_000);
     assert_eq!(canonical_aura(&session, 0).0.duration_remaining, 0);
 
+    let signed_application = session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .set_aura_duration(84_301, caster_guid, -1)
+                .into_iter()
+                .next()
+                .expect("matching canonical aura")
+                .0
+        })
+        .expect("canonical player owner");
+    assert_eq!(signed_application.duration_total, 600_000);
+    assert_eq!(signed_application.duration_remaining, -1);
+    let signed_packet = wow_packet::packets::misc::AuraUpdate {
+        unit_guid: player_guid,
+        update_all: false,
+        auras: vec![wow_world_spell::player_aura_info_like_cpp(
+            &signed_application,
+            80,
+            571,
+        )],
+    };
+    let signed_bytes = wow_packet::ServerPacket::to_bytes(&signed_packet);
+    let signed_aura = decode_aura_update(&signed_bytes)
+        .pop()
+        .expect("signed duration AuraInfo");
+    assert_eq!(signed_aura.duration_ms, Some(600_000));
+    assert_eq!(signed_aura.remaining_ms, Some(u32::MAX));
+    assert_eq!(
+        signed_aura
+            .remaining_ms
+            .map(|bits| i32::from_ne_bytes(bits.to_ne_bytes())),
+        Some(-1),
+        "the packet keeps the signed -1 value as its unchanged u32 wire bits"
+    );
+
     assert_eq!(
         wow_world_spell::set_player_aura_duration(&mut session, 84_301, caster_guid, 120_000),
         1
     );
     let _ = drain_server_packet_bytes(&send_rx);
+    assert_eq!(
+        wow_world_spell::set_player_aura_duration(&mut session, 84_301, caster_guid, u32::MAX),
+        0,
+        "unsigned legacy values outside the signed duration range are rejected"
+    );
+    assert_eq!(canonical_aura(&session, 0).0.duration_remaining, 120_000);
+    assert!(send_rx.try_recv().is_err());
 
     assert_eq!(
         wow_world_spell::set_player_aura_duration(&mut session, 84_302, caster_guid, 0),
@@ -193,6 +242,6 @@ async fn set_aura_duration_updates_packet_provenance_and_remaining_lifetime() {
         .expect("canonical aura snapshot");
     assert!(!remaining.values().any(|aura| aura.spell_id == 84_301));
     assert!(remaining.values().any(|aura| {
-        aura.spell_id == 84_302 && aura.duration_total == 0 && aura.duration_remaining == 0
+        aura.spell_id == 84_302 && aura.duration_total == -1 && aura.duration_remaining == 0
     }));
 }

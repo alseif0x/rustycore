@@ -198,10 +198,12 @@ pub fn tick_auras_expiry_only<H: AuraHostLikeCpp>(host: &mut H) {
     let expired: Vec<u8> = visible_auras
         .values()
         .filter(|a| {
-            // Permanent auras (duration_total == 0) never expire. SetDuration
-            // changes the remaining lifetime while retaining the maximum.
+            // Preserve the legacy Session sweep for finite maxima. Signed
+            // negative durations are not nonnegative countdowns; selected
+            // expiry moves to its dedicated Map owner in a later unit.
             a.duration_total > 0
-                && a.applied_at.elapsed().as_millis() >= u128::from(a.duration_remaining)
+                && a.duration_remaining >= 0
+                && a.applied_at.elapsed().as_millis() >= a.duration_remaining as u128
         })
         .map(|a| a.slot)
         .collect();
@@ -216,7 +218,6 @@ pub fn tick_auras_expiry_only<H: AuraHostLikeCpp>(host: &mut H) {
             "Aura expired"
         );
     }
-
 }
 
 /// Publish selected Ghost/Wisp deltas for an uncoordinated standalone Session

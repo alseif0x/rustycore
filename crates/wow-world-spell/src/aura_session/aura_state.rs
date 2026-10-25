@@ -13,7 +13,7 @@ use wow_core::ObjectGuid;
 use wow_data::skill::SKILL_RIDING_LIKE_CPP;
 use wow_entities::{
     AuraApplicationLikeCpp as AuraApplication, AuraPersistenceMetadata, AuraThreatSnapshotLikeCpp,
-    RepresentedAuraEffectAmountLikeCpp,
+    RepresentedAuraEffectAmountLikeCpp, legacy_aura_duration_pair,
 };
 use wow_world_core::session::{
     AFLAG_NOCASTER_LIKE_CPP, CreatureAggroConfigLikeCpp,
@@ -613,8 +613,19 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
             )
             .unwrap_or([0; 2]);
         let canonical_snapshot = AuraThreatSnapshotLikeCpp::new(interrupt_flags, canonical_effects);
-        let duration_total = u32::try_from(row.max_duration_ms).unwrap_or(0);
-        let duration_remaining = u32::try_from(row.remain_time_ms).unwrap_or(0);
+        let (duration_total, duration_remaining) = if selected {
+            // Selected `_LoadAuras` rows retain the exact signed SQL values.
+            (row.max_duration_ms, row.remain_time_ms)
+        } else {
+            // Nonselected rows still use the previous unsigned Rust convention.
+            let legacy_max = u32::try_from(row.max_duration_ms).unwrap_or(0);
+            let legacy_remaining = u32::try_from(row.remain_time_ms).unwrap_or(0);
+            let Some(duration) = legacy_aura_duration_pair(legacy_max, legacy_remaining) else {
+                authority_complete = false;
+                continue;
+            };
+            duration
+        };
         // C++ `_LoadAuras` allocates this before `TryCreate`, including a
         // selected aura whose active effect mask later normalizes to zero.
         let Some(cast_id) =
@@ -715,12 +726,6 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
             ) {
                 // `_AddAura` conflict removal precedes `CanBeSaved`; the new
                 // aura is then discarded without applying its effects.
-                continue;
-            }
-            if row.max_duration_ms != -1 && row.max_duration_ms <= 0 {
-                // AuraApplicationLikeCpp uses duration_total == 0 for the
-                // source's -1 permanent value; source maxDuration 0 is distinct.
-                authority_complete = false;
                 continue;
             }
         }

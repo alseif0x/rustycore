@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, implementación previa a aceptación final — 2026-10-25, 04:07 UTC:**
+**#43, implementación previa a aceptación final — 2026-10-25, 05:13 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
 y productor desde hechizos están escritos y tienen feedback focalizado;
 **no hay aceptación final de este candidato**. El cálculo básico del productor
@@ -272,6 +272,16 @@ Los callers Rust de caída/under-map también necesitan ese contraste. La
 conexión de HealthUpdate es REALM (`Opcodes.cpp:1564`), conservando su layout
 GUID/int64. Se revisará junto al orden de VALUES de resurrección y la fase
 seleccionada; todavía no se ha reparado ni capturado esa diferencia.
+Contraste adicional del mismo registro (05:07 UTC): EnvironmentalDamageLog
+y DurabilityDamageDeath también usan REALM (`Opcodes.cpp:1373,1362`). No se
+debe deducir Instance del hecho de que se produzcan en una simulación Map.
+RuntimeEvent solo transporta bytes/distribución; la conexión debe llegar al
+emisor reutilizando los rails realm existentes, con identidad/residencia
+congeladas para los nuevos outputs Player y sin hacer I/O bajo el guard.
+El daño ambiental publica su log después de la limpieza mortal síncrona;
+la penalización específica de caída viene después (`Player.cpp:621–675`).
+Sigue pendiente esa integración y su prueba de conexión/orden; no se toma la
+inspección del registro como captura ni como cambio ya implementado.
 
 Contraste pendiente del sanador: `Aura::SetDuration` solo marca actualización
 (`SpellAuras.cpp:897–907`), mientras el adaptador Rust de duración publica
@@ -462,11 +472,49 @@ una aserción nueva confundía filas instaladas (dos) con la aplicación final
 tras reemplazo (una). Se corrigió el fixture, no el contador productivo,
 y se conservó `/tmp/rustycore-9h3b-sickness-r1.log`. El worker ejecutó además
 un `cargo check -p wow-world`, exit 0, 40,79 s
-(`/tmp/rustycore-9h3b-check-r1.log`), pese al brief que excluía checks separados;
-se registra ese coste y se reiteró la secuencia acotada para próximas unidades.
+(`/tmp/rustycore-9h3b-check-r1.log`). Corrección del integrador a las 04:56:
+el brief excluía ese check, pero .codex/agents/luna-worker.toml lo exige en
+developer_instructions junto con los tests focalizados. No se atribuye al worker
+incumplimiento de esa instrucción superior; se conserva su coste como feedback
+de implementación y se adapta la coordinación a la ruta efectiva.
 Los siete casos nuevos viven en sickness_loading/selected_restore.rs; los
 filtros anteriores ejecutaron casos reales y el formato precede al r2 verde.
 No se cambia countdown, refresh ni orden Map, y no hay aceptación final.
+9h3C migra los mismos dos campos de duración de AuraApplication a i32,
+sin otra autoridad paralela. El adapter comprobado conserva la convención
+de los callers legacy; selected Load retiene ahora los valores SQL firmados,
+incluido máximo cero. Se retira su hold de representación de 9h3B: el loader
+puede tener autoridad completa aunque el snapshot de guardado todavía
+conserve un hold para ese borde. La captura sigue usando elapsed para las
+duraciones positivas hasta conectar conjuntamente countdown/snapshot exacto.
+SetDuration(0) permanece literal cero y no se convierte en permanente.
+AuraDataInfo usa Optional<i32>, como SpellPackets.h:170–171; el transporte
+conserva los 32 bits y ambos campos si el máximo se muestra, incluso remaining
+cero o -1. El barrido legacy conserva su gate de máximo finito. Se revisaron
+sus consumidores y fixtures, incluidos refresh Ghost/Wisp y WorldServer;
+ese target WorldServer todavía no se ha compilado para este delta.
+Feedback sobre `519cec5e8` más delta, aarch64/jobs=1: Entities
+`canonical_duration` pasó dos casos; World `aura_duration` uno, `sickness` 22
+y `ghost_wisp` 39, todos exit 0. Logs finales
+`/tmp/rustycore-9h3c-entities-canonical-duration-r1.log`,
+`/tmp/rustycore-9h3c-world-aura-duration-r2.log`,
+`/tmp/rustycore-9h3c-world-sickness-r1.log`,
+`/tmp/rustycore-9h3c-world-ghost-wisp-r1.log`.
+El check World r1 falló por adaptar dos veces Taunt, y r2 terminó exit 0;
+el primer test World falló por comparar el valor firmado con bits u32 en un
+fixture. Se corrigieron los tipos, conservando los logs fallidos.
+La revisión detectó que Taunt permanente, fuera de las tres familias,
+cambiaba sus dos optional de FFFFFFFF a ausentes. Se conserva expresamente
+su metadata legacy en el adapter, sin declarar que eso sea paridad C++.
+Un test real de Taunt ejercita ahora ambos subcasos, finito y permanente,
+con el mismo nombre anterior: exit 0 en
+`/tmp/rustycore-9h3c-taunt-world-test-r4.log`. R1 tuvo un error de tipos al
+confundir AuraRef de Creature con AuraApplication; r2 repitió ese supuesto
+como aserción y falló; r3 pasó solo el caso permanente, antes de restaurar
+también la cobertura finita en r4. Check previo del código productivo: exit 0,
+8,5 s (`/tmp/rustycore-9h3c-taunt-world-check-r1.log`); después solo cambió
+ese test. No se repitieron los cuatro filtros disjuntos por esa corrección
+de adapter. Todo sigue sin aceptación final ni prueba viva del countdown.
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -488,8 +536,9 @@ y no filtra IsExpired: el pase Unit retira antes del save periódico, pero
 otro punto de guardado puede observar cero legítimamente. Por tanto, la
 captura seleccionada debe dejar de descontar Instant y de convertir una
 aura todavía presente en ausencia por sí sola. Esta decisión no está
-implementada ni aceptada; la carga cero no representable retendrá autoridad
-incompleta entretanto. El transporte debe conservar ambos valores cuando
+aceptada en la campaña final; 9h3C implementa la representación y retira el
+hold del loader, conservando el del snapshot hasta su siguiente reparación.
+El transporte debe conservar ambos valores cuando
 el flag de duración lo exige, incluso remaining cero o -1.
 Decisión del integrador para esa reparación (2026-10-25, antes de habilitarla):
 reutilizar el rail y los permisos de Session en un pase interno de recuperación

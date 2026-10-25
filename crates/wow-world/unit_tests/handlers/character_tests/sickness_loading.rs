@@ -190,8 +190,8 @@ fn selected_sickness_application(
     caster_guid: ObjectGuid,
     slot: u8,
     effect_mask: u32,
-    duration_total: u32,
-    duration_remaining: u32,
+    duration_total: i32,
+    duration_remaining: i32,
 ) -> wow_entities::AuraApplicationLikeCpp {
     wow_entities::AuraApplicationLikeCpp {
         spell_id: SICKNESS_SPELL_ID,

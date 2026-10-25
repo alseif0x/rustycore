@@ -419,8 +419,8 @@ pub use unit_subsystems::{
     UnitSubsystems, VehicleKitAddToWorldResetOutcomeLikeCpp, VehicleKitCreateOutcomeLikeCpp,
     VehicleKitInstallOutcomeLikeCpp, VehicleKitRemoveOutcomeLikeCpp, VehicleKitState,
     VehicleSubsystem, VisibleAuraApplicationLikeCpp, VisibleAuraEffectAmountLikeCpp,
-    make_unit_action_button_like_cpp, unit_action_button_action_like_cpp,
-    unit_action_button_type_like_cpp,
+    legacy_aura_duration_pair, make_unit_action_button_like_cpp,
+    unit_action_button_action_like_cpp, unit_action_button_type_like_cpp,
 };
 pub use update_fields::{
     ACTIVE_PLAYER_DATA_BITS, AREA_TRIGGER_DATA_BITS, CONTAINER_DATA_BITS, CONVERSATION_DATA_BITS,
