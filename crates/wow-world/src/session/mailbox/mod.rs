@@ -2,6 +2,8 @@
 
 mod pump;
 
+pub use wow_world_core::session::SessionPassKind;
+
 pub use wow_world_core::session::mailbox::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyGroupDifficultyLikeCppCommand,
     ApplyGroupJoinLikeCppCommand, ApplyGroupRemovalLikeCppCommand,
@@ -16,10 +18,11 @@ pub use wow_world_core::session::mailbox::{
     MAX_DURABLE_CREATURE_RUNTIME_COMMANDS_LIKE_CPP, MapPhaseAdmissionLikeCpp,
     MasterLootGiveCommand, MasterLootGiveResult, NotifyLootMoneyRemovedLikeCppCommand,
     PendingWorldPhaseFinalizationLikeCpp, PlayerMeleeCreatureKillLikeCpp, PlayerMeleeSwingLikeCpp,
-    ReconcilePvpCombatExpiryLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
-    ResetSeasonalQuestStatusCommand, RunMapPhasePassLikeCppCommand, RunMapPhasePassResultLikeCpp,
-    RunWorldPhasePassLikeCppRequest, RunWorldPhasePassResultLikeCpp,
-    SendAddonIfRegisteredLikeCppCommand, SendCreatureLootReleaseValuesUpdateLikeCppCommand,
+    PlayerRecoveryAdmission, ReconcilePvpCombatExpiryLikeCppCommand,
+    RefreshVisibleWorldCreaturesLikeCppCommand, ResetSeasonalQuestStatusCommand,
+    RunMapPhasePassLikeCppCommand, RunMapPhasePassResultLikeCpp, RunWorldPhasePassLikeCppRequest,
+    RunWorldPhasePassResultLikeCpp, SendAddonIfRegisteredLikeCppCommand,
+    SendCreatureLootReleaseValuesUpdateLikeCppCommand,
     SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand,
     SendPartyUpdateLikeCppCommand, SendPlayerAuraUpdateCommand,
     SendPlayerSpellIfVisibleLikeCppCommand, SendRealmPacketLikeCppCommand,

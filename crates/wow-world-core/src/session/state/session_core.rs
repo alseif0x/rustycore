@@ -207,7 +207,7 @@ impl SessionCore {
             },
             admission: SessionAdmissionState {
                 last_packet_time: Instant::now(),
-                last_phase_authority_like_cpp: [None, None],
+                last_phase_authority_like_cpp: [None, None, None],
                 map_phase_coordinated_like_cpp: false,
                 packet_spoof_config_like_cpp: PacketSpoofConfigLikeCpp::default(),
                 packet_throttling_like_cpp: HashMap::new(),

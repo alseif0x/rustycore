@@ -1,6 +1,30 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, implementación previa a aceptación final — 2026-10-25, 06:47 UTC:**
+**#43, resumen vigente — 2026-10-25, 07:04 UTC, rama `43-spirit-healer`:**
+la macro sigue abierta y sin aceptación final. La rama `43-spirit-healer`
+conserva los cambios locales; no se ha publicado ni desplegado este candidato.
+Los últimos checkpoints incorporan Stats canónicos, persistencia all-key,
+carga y refresh seleccionados, duraciones firmadas y un ejecutor de expiración
+por diff. Este último todavía no tiene caller productivo. El driver y el tick
+Map ya tienen separadas las responsabilidades necesarias para conectarlo;
+la validación canónica de su admisión está escrita y tiene feedback focalizado.
+
+Quedan cuatro bloques de la misma macro, sin crear otro plan de port:
+
+- Integrar el pase Map de recuperación, su publicación y el snapshot exacto;
+  completar la metadata seleccionada de AuraUpdate.
+- Conectar los participantes existentes de muerte y cerrar las operaciones
+  completas de recuperación, incluidas sus rutas de login/transfer/fallo.
+- Completar los consumidores normales de lanzamiento que esas operaciones
+  necesitan, incluidos SelfRes y recast de efectos de objetos llevados.
+- Terminar el driver de QA, ejecutar una campaña final del candidato y las
+  capturas/DB/reinicio/relogin autorizadas por separado.
+
+El feedback focalizado que sigue no sustituye ninguno de esos bloques.
+Se conservan abajo los checkpoints y contrastes fechados; las decisiones
+iniciales del timer en World son antecedentes del corte Map elegido después.
+
+**#43, contexto y evidencia previos — corte 2026-10-25, 06:47 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
 y productor desde hechizos están escritos y tienen feedback focalizado;
 **no hay aceptación final de este candidato**. El cálculo básico del productor
@@ -602,6 +626,17 @@ Logs `/tmp/rustycore-9i2-check-20261025.log`,
 `/tmp/rustycore-9i2-map-tick-20261025.log` y
 `/tmp/rustycore-9i2-death-timer-20261025.log`. Todo es feedback de
 implementación, sin campaña final, runtime ni escrituras de DB.
+9i3A mueve la validación de identidad Map a Core, conserva sus criterios
+previos y añade PlayerRecoveryAdmission con epochs separados. El guard de
+autoridad rechaza coordinadores retirados y epochs anteriores entre pases,
+permitiendo el mismo epoch una vez por kind. La nueva validación exige
+LoggedIn, registro/handle actuales, residencia e incarnación activas y el
+plan Map todavía admitido. No hay aún un request Recovery ni otro reloj.
+Sobre `f78641ac0` más delta, check World exit 0 y
+`cargo test -p wow-world --lib map_phase_pass` pasó 25 casos, exit 0;
+logs `/tmp/rustycore-9i3a-world-check-20261025.log` y
+`/tmp/rustycore-9i3a-map-phase-pass-20261025.log`. Incluye los 18 casos
+previos y siete nuevos; no es aceptación del candidato completo.
 
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes

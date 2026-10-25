@@ -148,6 +148,23 @@ pub struct MapPhaseAdmissionLikeCpp {
     pub diff_ms: u32,
 }
 
+/// Frozen identity facts for a selected Player recovery pass on one admitted
+/// Map tick. The coordinator epoch and Map plan epoch are independent spaces.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlayerRecoveryAdmission {
+    pub coordinator_id: u64,
+    /// Epoch assigned by the canonical session-phase coordinator.
+    pub tick_epoch: u64,
+    /// Epoch assigned by `MapManager::begin_tick_like_cpp`.
+    pub map_tick_epoch: u64,
+    pub registration: crate::session::directory::PlayerRegistration,
+    pub handle: wow_map::PlayerHandle,
+    pub map_key: wow_map::MapKey,
+    pub map_incarnation: u64,
+    pub residence_revision: u64,
+    pub diff_ms: u32,
+}
+
 /// The completion boundary of one map-phase pass.
 ///
 /// This is sent **after** the pass finished dispatching, not when the command

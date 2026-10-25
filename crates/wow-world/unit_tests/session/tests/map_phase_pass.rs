@@ -6,25 +6,32 @@
 
 use super::*;
 use crate::session::mailbox::{
-    RunMapPhasePassLikeCppCommand, SessionPhasePassOutcomeLikeCpp, SessionPhasePermitLikeCpp,
-    SessionPhasePermitStateLikeCpp,
+    RunMapPhasePassLikeCppCommand, SessionPassKind, SessionPhasePassOutcomeLikeCpp,
+    SessionPhasePermitLikeCpp, SessionPhasePermitStateLikeCpp,
 };
 use wow_handler::{PacketUpdatePhase, PlayerPacketResidence};
 
+#[path = "map_phase_pass/player_recovery_admission.rs"]
+mod player_recovery_admission;
+
 /// Put the session in the directory the way production does before the
 /// canonical producer can address its phase rail.
-fn register_session_for_phases(session: &mut WorldSession) {
+fn phase_registration_for(
+    session: &WorldSession,
+) -> (
+    wow_core::ObjectGuid,
+    crate::session::directory::PlayerSessionRegistrationLikeCpp,
+) {
     use crate::session::directory::{
-        PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp, PlayerRegistry,
+        PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp,
         PlayerSessionRegistrationLikeCpp,
     };
 
     let guid = session
         .player_guid()
         .expect("the fixture installed a player");
-    let registry = std::sync::Arc::new(PlayerRegistry::new());
     let (send_tx, _send_rx) = flume::bounded(8);
-    registry.register_or_replace(
+    (
         guid,
         PlayerSessionRegistrationLikeCpp {
             identity: PlayerDirectoryIdentityLikeCpp::new("PhasePass", 1, 0, 1, 1, 0, 2),
@@ -48,8 +55,15 @@ fn register_session_for_phases(session: &mut WorldSession) {
             advanced_combat_logging_enabled_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
         },
-        Default::default(),
-    );
+    )
+}
+
+fn register_session_for_phases(session: &mut WorldSession) {
+    use crate::session::directory::PlayerRegistry;
+
+    let (guid, registration) = phase_registration_for(session);
+    let registry = std::sync::Arc::new(PlayerRegistry::new());
+    registry.register_or_replace(guid, registration, Default::default());
     session.set_player_registry(registry);
     assert!(
         session
@@ -615,6 +629,17 @@ async fn the_world_and_map_phases_of_one_step_share_an_epoch_without_refusing_ea
         world_rx.try_recv().expect("reported").outcome,
         SessionPhasePassOutcomeLikeCpp::Ran
     );
+    assert!(!session.core.admission.accept_phase_authority(
+        SessionPassKind::PlayerRecovery,
+        2,
+        1_000
+    ));
+    assert!(
+        !session
+            .core
+            .admission
+            .accept_phase_authority(SessionPassKind::PlayerRecovery, 3, 11)
+    );
 
     let admission = session
         .current_map_phase_admission_for_test_like_cpp(3, 12, 50)
@@ -636,6 +661,18 @@ async fn the_world_and_map_phases_of_one_step_share_an_epoch_without_refusing_ea
     assert_eq!(
         map_rx.try_recv().expect("reported").outcome,
         SessionPhasePassOutcomeLikeCpp::Ran
+    );
+    assert!(
+        session
+            .core
+            .admission
+            .accept_phase_authority(SessionPassKind::PlayerRecovery, 3, 12)
+    );
+    assert!(
+        !session
+            .core
+            .admission
+            .accept_phase_authority(SessionPassKind::PlayerRecovery, 3, 12)
     );
 }
 

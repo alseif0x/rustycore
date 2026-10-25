@@ -307,7 +307,7 @@ pub use state::BattlegroundState;
 pub use state::hub_support::{
     default_display_id, player_team_for_race_cpp, player_team_id_for_race_cpp,
 };
-pub use state::{DeathPolicyLikeCpp, SessionWorldConfig};
+pub use state::{DeathPolicyLikeCpp, SessionPassKind, SessionWorldConfig};
 pub use state::{HubMut, HubRef};
 pub use state::{SessionCatalogs, SessionCore, SessionDriverPhaseLikeCpp};
 

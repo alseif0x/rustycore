@@ -20,7 +20,8 @@ use super::super::{SessionHandlerCatalogsLikeCpp, SessionState, WorldSession};
 use crate::session::mailbox::{
     MapPhaseAdmissionLikeCpp, PendingWorldPhaseFinalizationLikeCpp, RunMapPhasePassLikeCppCommand,
     RunMapPhasePassResultLikeCpp, RunWorldPhasePassLikeCppRequest, RunWorldPhasePassResultLikeCpp,
-    SessionPhaseClaimLikeCpp, SessionPhasePassOutcomeLikeCpp, SessionPhaseRequestLikeCpp,
+    SessionPassKind, SessionPhaseClaimLikeCpp, SessionPhasePassOutcomeLikeCpp,
+    SessionPhaseRequestLikeCpp,
 };
 
 impl WorldSession {
@@ -36,11 +37,11 @@ impl WorldSession {
     ) -> RunMapPhasePassResultLikeCpp {
         let admission = command.admission;
 
-        if !self.phase_authority_is_current_like_cpp(
-            PacketUpdatePhase::Map,
+        if !self.core.admission.accept_phase_authority(
+            SessionPassKind::Map,
             admission.coordinator_id,
             admission.tick_epoch,
-        ) || !self.admission_still_describes_this_session_like_cpp(&admission)
+        ) || !self.core.is_map_phase_admission_current(&admission)
         {
             command.permit.refuse_before_start_like_cpp();
             return RunMapPhasePassResultLikeCpp {
@@ -143,55 +144,6 @@ impl WorldSession {
             diff_ms,
         })
     }
-
-    /// Whether the identity frozen at admission still describes this session.
-    ///
-    /// Every check answers a way the world can have moved while no guard was
-    /// held: another session took the character, the map replaced the Player,
-    /// the player left, transferred, or left and came back to the same map.
-    fn admission_still_describes_this_session_like_cpp(
-        &self,
-        admission: &MapPhaseAdmissionLikeCpp,
-    ) -> bool {
-        if admission.phase != PacketUpdatePhase::Map {
-            return false;
-        }
-
-        // The directory incarnation: a `WorldSession` outlives a character, so
-        // the same control channel can belong to a later registration.
-        let Some(guid) = self.player_guid() else {
-            return false;
-        };
-        if admission.registration.guid() != guid {
-            return false;
-        }
-        let Some(registry) = self.player_registry() else {
-            return false;
-        };
-        if registry.lookup_current(admission.registration).is_none() {
-            return false;
-        }
-
-        // The map-owned incarnation, a separate generation space.
-        if self.core.player_handle_like_cpp != Some(admission.handle) {
-            return false;
-        }
-
-        // Residence, map incarnation and revision, observed now rather than
-        // trusted from the request. A→B→A is caught by the revision even though
-        // the key matches again.
-        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
-            return false;
-        };
-        let Ok(manager) = manager.lock() else {
-            return false;
-        };
-        if manager.map_incarnation_like_cpp(admission.map_key) != Some(admission.map_incarnation) {
-            return false;
-        }
-        manager.player_active_residence_revision_like_cpp(admission.handle)
-            == Some((admission.map_key, admission.residence_revision))
-    }
 }
 
 impl WorldSession {
@@ -206,37 +158,6 @@ impl WorldSession {
     #[must_use]
     pub fn session_phase_receiver_like_cpp(&self) -> flume::Receiver<SessionPhaseRequestLikeCpp> {
         self.phase.rx.clone()
-    }
-
-    /// Whether a request comes from the authority this session is serving.
-    ///
-    /// A later producer replaces an earlier one, but an earlier producer never
-    /// comes back, and no step of a producer is served twice: the permit is
-    /// new on a replay, so only this watermark can refuse it.
-    fn phase_authority_is_current_like_cpp(
-        &mut self,
-        phase: PacketUpdatePhase,
-        coordinator_id: u64,
-        tick_epoch: u64,
-    ) -> bool {
-        let slot = match phase {
-            PacketUpdatePhase::World => 0,
-            PacketUpdatePhase::Map => 1,
-        };
-        let accepted = match self.core.admission.last_phase_authority_like_cpp[slot] {
-            Some((last_coordinator, _)) if coordinator_id < last_coordinator => false,
-            Some((last_coordinator, last_epoch))
-                if coordinator_id == last_coordinator && tick_epoch <= last_epoch =>
-            {
-                false
-            }
-            _ => true,
-        };
-        if accepted {
-            self.core.admission.last_phase_authority_like_cpp[slot] =
-                Some((coordinator_id, tick_epoch));
-        }
-        accepted
     }
 
     /// Refuse every phase request already on the rail, before any effect.
@@ -345,8 +266,8 @@ impl WorldSession {
         request: RunWorldPhasePassLikeCppRequest,
         catalogs: &SessionHandlerCatalogsLikeCpp,
     ) -> RunWorldPhasePassResultLikeCpp {
-        if !self.phase_authority_is_current_like_cpp(
-            PacketUpdatePhase::World,
+        if !self.core.admission.accept_phase_authority(
+            SessionPassKind::World,
             request.coordinator_id,
             request.tick_epoch,
         ) {

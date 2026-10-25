@@ -134,14 +134,14 @@ pub struct SessionTransport {
 /// admitted traffic.
 pub struct SessionAdmissionState {
     pub last_packet_time: Instant,
-    /// The producer and step this session last accepted, per phase (#787).
+    /// The producer and step this session last accepted, per pass (#787).
     ///
     /// C++ has one caller and needs no such watermark. Here it is what rejects
     /// a foreign producer, a retired step and a replay of one already served,
     /// none of which the identity of the player can distinguish. It is kept per
-    /// phase because one step legitimately issues the world phase and then the
-    /// map phase under the same epoch (`World.cpp:2704` then `World.cpp:2748`).
-    pub last_phase_authority_like_cpp: [Option<(u64, u64)>; 2],
+    /// pass because one step legitimately issues World, Map and PlayerRecovery
+    /// under the same coordinator epoch.
+    pub last_phase_authority_like_cpp: [Option<(u64, u64)>; 3],
     /// Set by the first canonical map-phase request (#787). Until then this
     /// session has no coordinator and keeps draining its own queue.
     pub map_phase_coordinated_like_cpp: bool,
@@ -151,6 +151,24 @@ pub struct SessionAdmissionState {
     pub pending_packets: VecDeque<WorldPacket>,
     pub socket_timeout_deadline_like_cpp: Instant,
     pub socket_timeouts_like_cpp: SocketTimeoutsLikeCpp,
+}
+
+/// One canonical session pass whose coordinator authority is tracked.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SessionPassKind {
+    World,
+    Map,
+    PlayerRecovery,
+}
+
+impl SessionPassKind {
+    pub(crate) const fn slot(self) -> usize {
+        match self {
+            Self::World => 0,
+            Self::Map => 1,
+            Self::PlayerRecovery => 2,
+        }
+    }
 }
 
 /// The realm and instance policy the session admits play under: the realm's

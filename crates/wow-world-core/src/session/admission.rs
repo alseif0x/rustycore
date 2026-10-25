@@ -13,6 +13,39 @@ use tracing::warn;
 use wow_constants::ClientOpcodes;
 use wow_entities::PLAYER_SLOT_END;
 
+mod player_recovery;
+
+impl SessionAdmissionState {
+    /// Accept one coordinator-owned phase step before claiming its permit.
+    ///
+    /// Authority advances monotonically across all pass kinds: an older
+    /// coordinator cannot return, and one coordinator cannot move any pass
+    /// behind an epoch already observed by another pass. Equal epochs remain
+    /// valid once for each distinct kind in a single canonical tick.
+    pub fn accept_phase_authority(
+        &mut self,
+        kind: crate::session::SessionPassKind,
+        coordinator_id: u64,
+        tick_epoch: u64,
+    ) -> bool {
+        let accepted = self.last_phase_authority_like_cpp.iter().flatten().all(
+            |(last_coordinator, last_epoch)| {
+                coordinator_id >= *last_coordinator
+                    && (coordinator_id != *last_coordinator || tick_epoch >= *last_epoch)
+            },
+        ) && !self.last_phase_authority_like_cpp[kind.slot()].is_some_and(
+            |(last_coordinator, last_epoch)| {
+                coordinator_id == last_coordinator && tick_epoch <= last_epoch
+            },
+        );
+
+        if accepted {
+            self.last_phase_authority_like_cpp[kind.slot()] = Some((coordinator_id, tick_epoch));
+        }
+        accepted
+    }
+}
+
 impl SessionCore {
     pub fn reset_timeout_time_like_cpp(&mut self, only_active: bool) {
         let timeout_secs = if self.state == SessionState::LoggedIn {
