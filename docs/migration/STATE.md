@@ -773,6 +773,26 @@ spawned; the worker reported GPT-6 without exposing a variant or effort setting.
 No final campaign, capture, DB mutation, runtime swap, deployment, or whole-#584
 closure is established. Scalar metadata and the other macro requirements remain.
 
+9i3C3a adds a private selected_wire projection without changing production
+callers or the legacy builder yet. It derives duration presence, original caster
+level or item level, stack/charge applications, raw-caster wire projection, and
+sparse effect-indexed Points from explicit canonical facts. It rejects incomplete
+identity, flag, mask, or effect coverage before producing AuraInfo. No Session,
+catalog, clock, pending-set, packet DTO, or publication owner is added.
+On `d5d15a018` plus the local delta, Spell check and the six selected_wire
+serialization cases passed, exit 0. Logs:
+`/tmp/rustycore-9i3c3a-cargo-check-run2.log` and
+`/tmp/rustycore-9i3c3a-cargo-test-selected_wire-run2.log`.
+The first focused run passed one and failed five because the test decoder did
+not consume the CastUnit presence bit and sparse fixture amounts occupied the
+wrong tuple column; its log remains at
+`/tmp/rustycore-9i3c3a-cargo-test-selected_wire-run1.log`.
+The two new files were formatted. The temporary dead-code warnings are explicit:
+the next integration must capture caster level at creation and connect delta and
+initial full publication. Constructor flags/friendly-caster resolution and final
+acceptance remain open. The fresh fixed worker role reported GPT-6, with its
+variant and effort not exposed. These are focused aarch64/jobs=1 results only.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa

@@ -8,6 +8,7 @@ mod cast;
 mod catalog;
 mod cooldown;
 mod selected_publication;
+mod selected_wire;
 mod shapeshift;
 mod spell;
 mod spellbook;
