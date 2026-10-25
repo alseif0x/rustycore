@@ -5,6 +5,9 @@ use std::sync::Arc;
 use wow_core::guid::HighGuid;
 use wow_packet::ServerPacket;
 
+#[path = "sickness_loading/selected_restore.rs"]
+mod selected_restore;
+
 const SICKNESS_SPELL_ID: i32 = 15_007;
 const SICKNESS_VISUAL_ROW_ID: u32 = 245_039;
 
@@ -79,12 +82,49 @@ fn canonical_aura_session(
     race.res_sickness_spell_id = resurrection_sickness_spell_id;
     session.set_chr_races_store(Arc::new(ChrRacesStore::from_entries([race])));
     let mut spells = wow_data::SpellStore::new();
+    let mut misc_rows = Vec::new();
+    let mut aura_options_rows = Vec::new();
     for info in spell_infos {
         let spell_id = info.spell_id;
+        misc_rows.push(wow_data::SpellMiscEntry {
+            id: spell_id as u32,
+            spell_id: spell_id as u32,
+            duration_index: if spell_id == resurrection_sickness_spell_id {
+                427
+            } else {
+                0
+            },
+            ..Default::default()
+        });
+        if spell_id == resurrection_sickness_spell_id {
+            aura_options_rows.push(wow_data::SpellAuraOptionsEntry {
+                id: spell_id as u32,
+                difficulty_id: 0,
+                cumulative_aura: 0,
+                proc_category_recovery: 0,
+                proc_chance: 0,
+                proc_charges: 3,
+                spell_procs_per_minute_id: 0,
+                proc_type_mask: [0; 2],
+                spell_id: spell_id as u32,
+            });
+        }
         spells.insert(spell_id, info);
         spells.insert_spell_misc_attributes_like_cpp(spell_id, [0; 15]);
     }
     session.set_spell_store(Arc::new(spells));
+    session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries(misc_rows)));
+    session.set_spell_duration_store(Arc::new(wow_data::SpellDurationStore::from_entries([
+        wow_data::SpellDurationEntry {
+            id: 427,
+            duration: -600_000,
+            duration_per_level: 0,
+            max_duration: 600_000,
+        },
+    ])));
+    session.set_spell_aura_options_store(Arc::new(wow_data::SpellAuraOptionsStore::from_entries(
+        aura_options_rows,
+    )));
     session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_ids([0])));
     wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true);
     (session, player_guid, send_rx)

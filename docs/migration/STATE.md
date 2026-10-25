@@ -444,6 +444,29 @@ Los helpers privados de save_snapshot_owner se extrajeron con mount explícito;
 dos tests renombrados distinguen all-key y duración permanente malformada,
 sin retirar casos. Carga TryCreate, refresh y clock seleccionados siguen
 pendientes; estos tests no prueban DB/relogin/restart reales ni aceptación final.
+9h3B aplica a sickness la misma secuencia seleccionada de _LoadAuras que
+Ghost/Wisp: conserva la clave SQL original para relacionar efectos, usa el
+subconjunto activo 111, normaliza cargas con AuraOptions y asigna CastID antes
+de la ausencia por máscara vacía. Cada fila crea un candidato nuevo; la
+retirada de anteriores del mismo spell precede CanBeSaved y SetLoadedState.
+La validación de item usa la duración base: un item con base finita puede
+cargar aunque el máximo guardado sea permanente, y el snapshot posterior lo
+omite según el máximo restaurado. Wisp conserva su regla particular de recalc
+para transform. La duración cero no representable aún retiene autoridad
+incompleta; no se presenta esa retención como paridad de la fila C++.
+Feedback sobre `55a5b307b` más delta, aarch64/jobs=1:
+`cargo test -p wow-world --lib sickness` pasó 22 casos, exit 0,
+(`/tmp/rustycore-9h3b-sickness-r2.log`), y el filtro `ghost_wisp` pasó 39,
+exit 0 (`/tmp/rustycore-9h3b-ghost-wisp-r1.log`). El primer sickness pasó 21/22;
+una aserción nueva confundía filas instaladas (dos) con la aplicación final
+tras reemplazo (una). Se corrigió el fixture, no el contador productivo,
+y se conservó `/tmp/rustycore-9h3b-sickness-r1.log`. El worker ejecutó además
+un `cargo check -p wow-world`, exit 0, 40,79 s
+(`/tmp/rustycore-9h3b-check-r1.log`), pese al brief que excluía checks separados;
+se registra ese coste y se reiteró la secuencia acotada para próximas unidades.
+Los siete casos nuevos viven en sickness_loading/selected_restore.rs; los
+filtros anteriores ejecutaron casos reales y el formato precede al r2 verde.
+No se cambia countdown, refresh ni orden Map, y no hay aceptación final.
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -452,6 +475,22 @@ pared. Antes de aceptar sickness, su countdown/expiry y su guardado deben
 usar una única duración canónica del tick admitido, sin doble descuento ni
 publicar estadísticas un pase después de la expiración. La reparación
 seleccionada conserva fuera de alcance los relojes de las demás auras.
+Decisión de representación previa a ese countdown: AuraApplication conserva
+dos u32 con 0/0 como permanente; eso no distingue los valores C++ -1/-1 de
+SetDuration(0) o del máximo cero cargado. Se migrarán esos mismos dos campos
+a i32, con adaptación explícita de los callers legacy, sin otra duración
+seleccionada paralela. Los consumidores no seleccionados conservarán su
+comportamiento existente en ese adapter. Anclas: SpellAuras.h:176–177 separa
+IsExpired (remaining==0, sin drop event) de IsPermanent (max==-1);
+SpellAuras.cpp:818 descuenta diff solo con remaining>0. Un máximo permanente
+no exime un remaining cero de expirar. _SaveAuras guarda los valores reales
+y no filtra IsExpired: el pase Unit retira antes del save periódico, pero
+otro punto de guardado puede observar cero legítimamente. Por tanto, la
+captura seleccionada debe dejar de descontar Instant y de convertir una
+aura todavía presente en ausencia por sí sola. Esta decisión no está
+implementada ni aceptada; la carga cero no representable retendrá autoridad
+incompleta entretanto. El transporte debe conservar ambos valores cuando
+el flag de duración lo exige, incluso remaining cero o -1.
 Decisión del integrador para esa reparación (2026-10-25, antes de habilitarla):
 reutilizar el rail y los permisos de Session en un pase interno de recuperación
 admitido por Map, después de respawns y antes de Creature/P3. No se añade otro
