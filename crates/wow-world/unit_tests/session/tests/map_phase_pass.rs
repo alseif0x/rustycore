@@ -13,6 +13,8 @@ use wow_handler::{PacketUpdatePhase, PlayerPacketResidence};
 
 #[path = "map_phase_pass/player_recovery_admission.rs"]
 mod player_recovery_admission;
+#[path = "map_phase_pass/recovery_timer.rs"]
+mod recovery_timer;
 
 /// Put the session in the directory the way production does before the
 /// canonical producer can address its phase rail.

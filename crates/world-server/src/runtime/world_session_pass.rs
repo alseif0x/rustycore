@@ -56,7 +56,10 @@ pub(super) fn retain_unresolved_phase_permits_like_cpp(
     permits.retain(|permit| {
         !matches!(
             permit.state_like_cpp(),
-            State::Completed | State::RevokedBeforeStart | State::RefusedBeforeStart
+            State::Completed
+                | State::CompletedUnavailable
+                | State::RevokedBeforeStart
+                | State::RefusedBeforeStart
         )
     });
 }
@@ -173,6 +176,9 @@ async fn await_one_world_pass_like_cpp(
                         use wow_world::session::mailbox::SessionPhasePermitStateLikeCpp as State;
                         match state {
                             State::Completed => {
+                                summary.completed = summary.completed.saturating_add(1);
+                            }
+                            State::CompletedUnavailable => {
                                 summary.completed = summary.completed.saturating_add(1);
                             }
                             State::RevokedBeforeStart | State::RefusedBeforeStart => {

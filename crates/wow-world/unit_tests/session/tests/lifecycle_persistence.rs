@@ -34,9 +34,11 @@ use wow_persistence::{
     PlayerUncageItemStateRequestLikeCpp, PlayerXpPersistenceRequestLikeCpp,
 };
 
-struct RecordingPortLikeCpp {
+pub(in crate::session::tests) struct RecordingPortLikeCpp {
     during_save: Mutex<Option<Box<dyn FnOnce() + Send>>>,
     save_pending: std::sync::atomic::AtomicBool,
+    save_started: tokio::sync::Notify,
+    save_release: tokio::sync::Semaphore,
     seen: Mutex<Vec<PlayerOfflineMarkLikeCpp>>,
     collection_loads: Mutex<Vec<AccountCollectionLoadRequestLikeCpp>>,
     collections: Mutex<Vec<AccountCollectionSaveLikeCpp>>,
@@ -55,10 +57,12 @@ struct RecordingPortLikeCpp {
 }
 
 impl RecordingPortLikeCpp {
-    fn new(outcome: PersistenceOutcomeLikeCpp) -> Arc<Self> {
+    pub(in crate::session::tests) fn new(outcome: PersistenceOutcomeLikeCpp) -> Arc<Self> {
         Arc::new(Self {
             during_save: Mutex::new(None),
             save_pending: std::sync::atomic::AtomicBool::new(false),
+            save_started: tokio::sync::Notify::new(),
+            save_release: tokio::sync::Semaphore::new(0),
             seen: Mutex::new(Vec::new()),
             collection_loads: Mutex::new(Vec::new()),
             collections: Mutex::new(Vec::new()),
@@ -79,6 +83,25 @@ impl RecordingPortLikeCpp {
             ),
             outcome,
         })
+    }
+
+    pub(in crate::session::tests) fn hold_character_save(&self) {
+        self.save_pending
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    pub(in crate::session::tests) async fn wait_for_character_save(&self) {
+        self.save_started.notified().await;
+    }
+
+    pub(in crate::session::tests) fn release_character_save(&self) {
+        self.save_pending
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+        self.save_release.add_permits(1);
+    }
+
+    pub(in crate::session::tests) fn character_save_count(&self) -> usize {
+        self.character_saves.lock().unwrap().len()
     }
     fn marks(&self) -> Vec<PlayerOfflineMarkLikeCpp> {
         self.seen.lock().unwrap().clone()
@@ -382,7 +405,12 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
                 during_save();
             }
             if self.save_pending.load(std::sync::atomic::Ordering::SeqCst) {
-                std::future::pending::<()>().await;
+                self.save_started.notify_one();
+                self.save_release
+                    .acquire()
+                    .await
+                    .expect("the controlled save gate remains open")
+                    .forget();
             }
             PlayerCharacterSaveResultLikeCpp { outcome, committed }
         })

@@ -292,6 +292,46 @@ fn map_tick_keeps_session_owned_death_timer_unchanged() {
     );
 }
 
+#[test]
+fn player_recovery_participants_follow_the_post_respawn_object_visit_plan() {
+    let (mut manager, handle) = manager_with_pending_selected_aura(8_420_008);
+    let plan = manager
+        .begin_tick_like_cpp(100)
+        .into_started()
+        .expect("the map tick starts");
+    let expected_epoch = plan.epoch_like_cpp();
+    let expected_diff = plan.effective_diff_ms();
+    let (metadata, conditions, maps, caches) = tick_inputs();
+    let mut scheduler = CanonicalRespawnConditionSchedulerLikeCpp::new(1_000);
+    let prelude = prepare_map_recovery_prelude(
+        &mut manager,
+        plan,
+        &mut scheduler,
+        &metadata,
+        &conditions,
+        &maps,
+        &caches,
+    )
+    .expect("the admitted respawn prelude is prepared");
+
+    let guid = manager
+        .with_player_like_cpp(handle, |player| player.guid())
+        .unwrap();
+    let participants = player_recovery_pass_maps(&manager, &prelude);
+    assert_eq!(participants.len(), 1);
+    assert_eq!(participants[0].key, wow_map::MapKey::new(571, 0));
+    assert_eq!(
+        participants[0].incarnation,
+        prelude.plan().updated_maps_like_cpp()[0].incarnation
+    );
+    assert_eq!(participants[0].participants.len(), 1);
+    assert_eq!(participants[0].participants[0].guid, guid);
+    assert_eq!(prelude.plan().epoch_like_cpp(), expected_epoch);
+    assert_eq!(prelude.plan().effective_diff_ms(), expected_diff);
+
+    manager.abandon_tick_like_cpp(prelude.into_plan());
+}
+
 fn plan_epoch(manager: &wow_map::MapManager) -> u64 {
     match manager.tick_coordination_like_cpp() {
         wow_map::MapTickCoordinationStateLikeCpp::AwaitingSessions(epoch) => epoch,

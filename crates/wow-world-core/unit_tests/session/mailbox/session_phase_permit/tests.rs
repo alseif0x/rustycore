@@ -94,6 +94,25 @@ fn refusal_and_interruption_are_distinct_terminal_states_like_cpp() {
 }
 
 #[test]
+fn unavailable_completion_is_terminal_but_distinct_from_success() {
+    let permit = SessionPhasePermitLikeCpp::new_like_cpp();
+    assert_eq!(permit.claim_like_cpp(), SessionPhaseClaimLikeCpp::Claimed);
+    assert!(permit.complete_unavailable());
+    assert_eq!(
+        permit.state_like_cpp(),
+        SessionPhasePermitStateLikeCpp::CompletedUnavailable
+    );
+    assert_eq!(
+        permit.revoke_before_start_like_cpp(),
+        SessionPhaseRevokeLikeCpp::AlreadyResolved(
+            SessionPhasePermitStateLikeCpp::CompletedUnavailable
+        )
+    );
+    assert!(!permit.complete_like_cpp());
+    assert!(!permit.complete_unavailable());
+}
+
+#[test]
 fn a_pass_that_was_never_claimed_is_revocable_after_the_session_is_gone() {
     let permit = SessionPhasePermitLikeCpp::new_like_cpp();
     let session_side = Arc::clone(&permit);

@@ -63,6 +63,54 @@ impl CanonicalMapRecoveryPrelude {
     pub(crate) fn summary(&self) -> &CanonicalSpawnGroupConditionTickSummaryLikeCpp {
         &self.summary
     }
+
+    /// Mutable access for submitting this prelude's DB intents exactly once
+    /// while the existing respawn-order gate is held.
+    pub(crate) fn summary_mut(&mut self) -> &mut CanonicalSpawnGroupConditionTickSummaryLikeCpp {
+        &mut self.summary
+    }
+
+    /// Return the one owned plan when the producer must abandon this tick.
+    pub(crate) fn into_plan(self) -> wow_map::MapTickPlanLikeCpp {
+        self.plan
+    }
+}
+
+/// Freeze the Player set the admitted object-update visits will reach after
+/// respawns have run. Both map identity and Player residence are rechecked
+/// under the manager guard before the caller releases it for phase delivery.
+pub(crate) fn player_recovery_pass_maps(
+    manager: &wow_map::MapManager,
+    prelude: &CanonicalMapRecoveryPrelude,
+) -> Vec<CanonicalMapSessionPassMapLikeCpp> {
+    let diff_ms = prelude.plan.effective_diff_ms();
+    prelude
+        .plan
+        .updated_maps_like_cpp()
+        .iter()
+        .filter_map(|admitted| {
+            if manager.map_incarnation_like_cpp(admitted.key) != Some(admitted.incarnation) {
+                return None;
+            }
+            let map = manager.find_map(admitted.key.map_id, admitted.key.instance_id)?;
+            let visited = map
+                .map()
+                .object_update_visit_plan_for_current_tick(diff_ms)
+                .player_update_guids
+                .into_iter()
+                .collect::<std::collections::BTreeSet<_>>();
+            let participants = manager
+                .map_session_pass_participants_like_cpp(admitted.key)
+                .into_iter()
+                .filter(|participant| visited.contains(&participant.guid))
+                .collect();
+            Some(CanonicalMapSessionPassMapLikeCpp {
+                key: admitted.key,
+                incarnation: admitted.incarnation,
+                participants,
+            })
+        })
+        .collect()
 }
 
 /// A process-unique identity for one canonical map coordinator.

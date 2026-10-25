@@ -14,13 +14,13 @@ use wow_world::session::directory::{
     PlayerSessionRegistrationLikeCpp,
 };
 use wow_world::session::mailbox::{
-    DurableCreatureRuntimeCommandsLikeCpp, RunMapPhasePassLikeCppCommand,
-    RunMapPhasePassResultLikeCpp, SessionPhasePassOutcomeLikeCpp, SessionPhasePermitStateLikeCpp,
-    SessionPhaseRequestLikeCpp,
+    DurableCreatureRuntimeCommandsLikeCpp, PlayerRecoveryReply, PlayerRecoveryStatus,
+    RunMapPhasePassLikeCppCommand, RunMapPhasePassResultLikeCpp, RunPlayerRecoveryRequest,
+    SessionPhasePassOutcomeLikeCpp, SessionPhasePermitStateLikeCpp, SessionPhaseRequestLikeCpp,
 };
 
 use super::super::map_tick::CanonicalMapSessionPassMapLikeCpp;
-use super::run_map_phase_session_passes_like_cpp;
+use super::{run_map_phase_session_passes_like_cpp, run_player_recovery_passes};
 
 const COORDINATOR: u64 = 4242;
 
@@ -64,7 +64,13 @@ fn register(
 /// Build the admitted-map plan the way the canonical tick does: the identities
 /// come from a real manager, because a handle is only mintable there.
 fn one_map(guids: Vec<ObjectGuid>) -> Vec<CanonicalMapSessionPassMapLikeCpp> {
-    let key = wow_map::MapKey::new(1, 0);
+    one_map_at(guids, wow_map::MapKey::new(1, 0))
+}
+
+fn one_map_at(
+    guids: Vec<ObjectGuid>,
+    key: wow_map::MapKey,
+) -> Vec<CanonicalMapSessionPassMapLikeCpp> {
     let mut manager = wow_map::MapManager::new(wow_map::MIN_GRID_DELAY_MS, 10);
     manager.create_world_map(key.map_id, key.instance_id);
     let participants = guids
@@ -108,6 +114,43 @@ async fn await_request(
         panic!("expected a map-phase request");
     };
     command
+}
+
+async fn await_recovery_request(
+    rail: &flume::Receiver<SessionPhaseRequestLikeCpp>,
+) -> RunPlayerRecoveryRequest {
+    let request = tokio::time::timeout(Duration::from_secs(5), rail.recv_async())
+        .await
+        .expect("the producer sends a recovery request")
+        .expect("the rail stays open");
+    let SessionPhaseRequestLikeCpp::PlayerRecovery(request) = request else {
+        panic!("expected a PlayerRecovery request");
+    };
+    request
+}
+
+fn complete_recovery_request(request: RunPlayerRecoveryRequest, status: PlayerRecoveryStatus) {
+    assert!(matches!(
+        request.permit.claim_like_cpp(),
+        wow_world::session::mailbox::SessionPhaseClaimLikeCpp::Claimed
+    ));
+    let admission = request.admission;
+    if status == PlayerRecoveryStatus::Unavailable {
+        request.permit.complete_unavailable();
+    } else {
+        request.permit.complete_like_cpp();
+    }
+    request
+        .response_tx
+        .try_send(PlayerRecoveryReply {
+            coordinator_id: admission.coordinator_id,
+            tick_epoch: admission.tick_epoch,
+            map_tick_epoch: admission.map_tick_epoch,
+            outcome: SessionPhasePassOutcomeLikeCpp::Ran,
+            status: Some(status),
+            disconnecting: false,
+        })
+        .unwrap();
 }
 
 fn take_request(
@@ -171,7 +214,7 @@ async fn a_completed_pass_is_counted_once_with_its_dispatched_packets() {
 }
 
 #[tokio::test]
-async fn a_completion_for_another_tick_leaves_this_tick_unable_to_continue() {
+async fn a_wrong_tick_terminal_reply_abandons_this_tick_without_live_effects() {
     let registry = PlayerRegistry::new();
     let guid = ObjectGuid::create_player(1, 11);
     let rail = register(&registry, guid);
@@ -188,17 +231,16 @@ async fn a_completion_for_another_tick_leaves_this_tick_unable_to_continue() {
         ),
         async {
             tokio::task::yield_now().await;
-            // A report carrying the previous tick's epoch, produced by a pass
-            // that did claim and mutate.
+            // A terminal pass with the wrong epoch proves it is quiescent,
+            // while its untrusted lineage requires this tick to be abandoned.
             answer(&rail, 6, 9);
         }
     );
 
-    assert_eq!(pass.completed, 0);
+    assert_eq!(pass.completed, 1);
     assert_eq!(pass.dispatched, 0);
-    // The request this tick sent was claimed by someone; nothing here proves
-    // its effects ended, so the tick may not resume.
-    assert!(!pass.quiescent_like_cpp());
+    assert!(pass.quiescent_like_cpp());
+    assert!(pass.blocks_tick_tail);
 }
 
 #[tokio::test]
@@ -490,4 +532,321 @@ async fn an_unresolved_pass_stops_the_tick_and_hands_its_permit_to_the_producer(
         pass.unresolved_permits[0].state_like_cpp(),
         SessionPhasePermitStateLikeCpp::Running
     );
+}
+
+#[tokio::test]
+async fn player_recovery_passes_are_serial_and_carry_both_epoch_lineages() {
+    let registry = PlayerRegistry::new();
+    let first = ObjectGuid::create_player(1, 51);
+    let second = ObjectGuid::create_player(1, 52);
+    let first_rail = register(&registry, first);
+    let second_rail = register(&registry, second);
+    let participants = one_map(vec![first, second]);
+
+    let (summary, ()) = tokio::join!(
+        run_player_recovery_passes(
+            &participants,
+            &registry,
+            900,
+            41,
+            7,
+            37,
+            Duration::from_millis(20),
+        ),
+        async {
+            let first_request = await_recovery_request(&first_rail).await;
+            assert_eq!(first_request.admission.coordinator_id, 900);
+            assert_eq!(first_request.admission.tick_epoch, 41);
+            assert_eq!(first_request.admission.map_tick_epoch, 7);
+            assert_eq!(first_request.admission.diff_ms, 37);
+            complete_recovery_request(first_request, PlayerRecoveryStatus::Completed);
+
+            let second_request = await_recovery_request(&second_rail).await;
+            complete_recovery_request(second_request, PlayerRecoveryStatus::PlayerLeft);
+        }
+    );
+
+    assert_eq!(summary.participants, 2);
+    assert_eq!(summary.requested, 2);
+    assert_eq!(summary.completed, 2);
+    assert!(summary.quiescent_like_cpp());
+    assert!(!summary.blocks_tick_tail);
+}
+
+#[tokio::test]
+async fn player_recovery_passes_are_serial_across_maps() {
+    let registry = PlayerRegistry::new();
+    let first = ObjectGuid::create_player(1, 53);
+    let second = ObjectGuid::create_player(1, 54);
+    let first_rail = register(&registry, first);
+    let second_rail = register(&registry, second);
+    let participants = [
+        one_map_at(vec![first], wow_map::MapKey::new(1, 0))[0].clone(),
+        one_map_at(vec![second], wow_map::MapKey::new(2, 0))[0].clone(),
+    ];
+
+    let (summary, ()) = tokio::join!(
+        run_player_recovery_passes(
+            &participants,
+            &registry,
+            906,
+            47,
+            13,
+            46,
+            Duration::from_millis(20),
+        ),
+        async {
+            let first_request = await_recovery_request(&first_rail).await;
+            assert_eq!(first_request.admission.map_key.map_id, 1);
+            assert!(
+                second_rail.is_empty(),
+                "later maps wait for this map's pass"
+            );
+            complete_recovery_request(first_request, PlayerRecoveryStatus::Completed);
+            let second_request = await_recovery_request(&second_rail).await;
+            assert_eq!(second_request.admission.map_key.map_id, 2);
+            complete_recovery_request(second_request, PlayerRecoveryStatus::Completed);
+        }
+    );
+
+    assert_eq!(summary.participants, 2);
+    assert_eq!(summary.requested, 2);
+    assert_eq!(summary.completed, 2);
+    assert!(summary.quiescent_like_cpp());
+}
+
+#[tokio::test]
+async fn player_recovery_unavailable_is_terminal_but_blocks_and_stops_this_tick() {
+    let registry = PlayerRegistry::new();
+    let first = ObjectGuid::create_player(1, 61);
+    let second = ObjectGuid::create_player(1, 62);
+    let first_rail = register(&registry, first);
+    let second_rail = register(&registry, second);
+    let participants = one_map(vec![first, second]);
+
+    let (summary, ()) = tokio::join!(
+        run_player_recovery_passes(
+            &participants,
+            &registry,
+            901,
+            42,
+            8,
+            39,
+            Duration::from_millis(20),
+        ),
+        async {
+            let request = await_recovery_request(&first_rail).await;
+            complete_recovery_request(request, PlayerRecoveryStatus::Unavailable);
+            tokio::time::sleep(Duration::from_millis(5)).await;
+            assert!(second_rail.is_empty(), "Unavailable stops later Players");
+        }
+    );
+
+    assert!(summary.quiescent_like_cpp());
+    assert_eq!(summary.completed, 1);
+    assert!(summary.blocks_tick_tail);
+    assert!(summary.unresolved_permits.is_empty());
+}
+
+#[tokio::test]
+async fn player_recovery_unavailable_without_reply_still_blocks_the_tail() {
+    let registry = PlayerRegistry::new();
+    let first = ObjectGuid::create_player(1, 63);
+    let second = ObjectGuid::create_player(1, 64);
+    let first_rail = register(&registry, first);
+    let second_rail = register(&registry, second);
+    let participants = one_map(vec![first, second]);
+
+    let (summary, (permit, _response_tx)) = tokio::join!(
+        run_player_recovery_passes(
+            &participants,
+            &registry,
+            904,
+            45,
+            11,
+            44,
+            Duration::from_millis(20),
+        ),
+        async {
+            let request = await_recovery_request(&first_rail).await;
+            assert!(matches!(
+                request.permit.claim_like_cpp(),
+                wow_world::session::mailbox::SessionPhaseClaimLikeCpp::Claimed
+            ));
+            let permit = Arc::clone(&request.permit);
+            let response_tx = request.response_tx.clone();
+            assert!(request.permit.complete_unavailable());
+            // Leave the channel open without a reply. The coordinator's next
+            // timeout must recover the tail fence from the primary state.
+            drop(request);
+            (permit, response_tx)
+        }
+    );
+
+    assert!(summary.quiescent_like_cpp());
+    assert!(summary.blocks_tick_tail);
+    assert_eq!(summary.completed, 1);
+    assert!(summary.unresolved_permits.is_empty());
+    assert!(second_rail.is_empty(), "Unavailable stops later Players");
+    assert_eq!(
+        permit.state_like_cpp(),
+        SessionPhasePermitStateLikeCpp::CompletedUnavailable
+    );
+}
+
+#[tokio::test]
+async fn a_wrong_lineage_reply_revokes_a_recovery_request_that_has_not_started() {
+    let registry = PlayerRegistry::new();
+    let first = ObjectGuid::create_player(1, 65);
+    let second = ObjectGuid::create_player(1, 66);
+    let first_rail = register(&registry, first);
+    let second_rail = register(&registry, second);
+    let participants = one_map(vec![first, second]);
+
+    let (summary, permit) = tokio::join!(
+        run_player_recovery_passes(
+            &participants,
+            &registry,
+            905,
+            46,
+            12,
+            45,
+            Duration::from_millis(20),
+        ),
+        async {
+            let request = await_recovery_request(&first_rail).await;
+            let permit = Arc::clone(&request.permit);
+            let admission = request.admission;
+            request
+                .response_tx
+                .try_send(PlayerRecoveryReply {
+                    coordinator_id: admission.coordinator_id,
+                    tick_epoch: admission.tick_epoch,
+                    map_tick_epoch: admission.map_tick_epoch + 1,
+                    outcome: SessionPhasePassOutcomeLikeCpp::Ran,
+                    status: Some(PlayerRecoveryStatus::Completed),
+                    disconnecting: false,
+                })
+                .unwrap();
+            permit
+        }
+    );
+
+    assert!(summary.quiescent_like_cpp());
+    assert!(summary.blocks_tick_tail);
+    assert_eq!(summary.revoked_before_start, 1);
+    assert_eq!(summary.completed, 0);
+    assert!(summary.unresolved_permits.is_empty());
+    assert!(
+        second_rail.is_empty(),
+        "untrusted lineage stops later Players"
+    );
+    assert_eq!(
+        permit.claim_like_cpp(),
+        wow_world::session::mailbox::SessionPhaseClaimLikeCpp::Revoked
+    );
+    assert_eq!(
+        permit.state_like_cpp(),
+        SessionPhasePermitStateLikeCpp::RevokedBeforeStart
+    );
+}
+
+#[tokio::test]
+async fn player_recovery_does_not_treat_a_running_permit_reply_as_completion() {
+    let registry = PlayerRegistry::new();
+    let first = ObjectGuid::create_player(1, 71);
+    let second = ObjectGuid::create_player(1, 72);
+    let first_rail = register(&registry, first);
+    let second_rail = register(&registry, second);
+    let participants = one_map(vec![first, second]);
+
+    let (summary, permit) = tokio::join!(
+        run_player_recovery_passes(
+            &participants,
+            &registry,
+            902,
+            43,
+            9,
+            41,
+            Duration::from_millis(20),
+        ),
+        async {
+            let request = await_recovery_request(&first_rail).await;
+            assert!(matches!(
+                request.permit.claim_like_cpp(),
+                wow_world::session::mailbox::SessionPhaseClaimLikeCpp::Claimed
+            ));
+            let permit = Arc::clone(&request.permit);
+            let admission = request.admission;
+            request
+                .response_tx
+                .try_send(PlayerRecoveryReply {
+                    coordinator_id: admission.coordinator_id,
+                    tick_epoch: admission.tick_epoch,
+                    map_tick_epoch: admission.map_tick_epoch,
+                    outcome: SessionPhasePassOutcomeLikeCpp::Ran,
+                    status: Some(PlayerRecoveryStatus::Completed),
+                    disconnecting: false,
+                })
+                .unwrap();
+            permit
+        }
+    );
+
+    assert!(!summary.quiescent_like_cpp());
+    assert_eq!(summary.unresolved_after_start, 1);
+    assert_eq!(summary.unresolved_permits.len(), 1);
+    assert_eq!(
+        summary.unresolved_permits[0].state_like_cpp(),
+        SessionPhasePermitStateLikeCpp::Running
+    );
+    assert!(
+        second_rail.is_empty(),
+        "a receipt-like reply cannot advance Actor 2"
+    );
+    assert!(Arc::ptr_eq(&summary.unresolved_permits[0], &permit));
+    assert!(permit.complete_like_cpp());
+    assert_eq!(
+        permit.state_like_cpp(),
+        SessionPhasePermitStateLikeCpp::Completed
+    );
+}
+
+#[tokio::test]
+async fn player_recovery_refuses_a_full_bounded_phase_rail_without_effects() {
+    let registry = PlayerRegistry::new();
+    let guid = ObjectGuid::create_player(1, 81);
+    let rail = register(&registry, guid);
+    let address = registry.session_phase_address_like_cpp(guid).unwrap();
+    for epoch in 0..8 {
+        address
+            .try_send(SessionPhaseRequestLikeCpp::World(
+                wow_world::session::mailbox::RunWorldPhasePassLikeCppRequest {
+                    coordinator_id: 1,
+                    tick_epoch: epoch,
+                    diff_ms: 1,
+                    permit: wow_world::session::mailbox::SessionPhasePermitLikeCpp::new_like_cpp(),
+                    response_tx: flume::bounded(1).0,
+                },
+            ))
+            .unwrap();
+    }
+    let participants = one_map(vec![guid]);
+
+    let summary = run_player_recovery_passes(
+        &participants,
+        &registry,
+        903,
+        44,
+        10,
+        43,
+        Duration::from_millis(20),
+    )
+    .await;
+
+    assert_eq!(summary.participants, 1);
+    assert_eq!(summary.requested, 0);
+    assert_eq!(summary.send_failed, 1);
+    assert!(summary.quiescent_like_cpp());
+    assert_eq!(rail.len(), 8);
 }

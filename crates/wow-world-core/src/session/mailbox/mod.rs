@@ -43,7 +43,8 @@ pub use self::session_phase_permit::{
 };
 pub use self::session_phase_rail::{
     MapPhaseAdmissionLikeCpp, PendingWorldPhaseFinalizationLikeCpp, PlayerRecoveryAdmission,
-    RunMapPhasePassLikeCppCommand, RunMapPhasePassResultLikeCpp, RunWorldPhasePassLikeCppRequest,
+    PlayerRecoveryReply, PlayerRecoveryStatus, RunMapPhasePassLikeCppCommand,
+    RunMapPhasePassResultLikeCpp, RunPlayerRecoveryRequest, RunWorldPhasePassLikeCppRequest,
     RunWorldPhasePassResultLikeCpp, SessionPhasePassOutcomeLikeCpp, SessionPhaseRequestLikeCpp,
 };
 pub use self::trade_commit::{

@@ -18,10 +18,10 @@ use wow_world_application::{ResurrectionOperationCatalogs, run_logout_timer_with
 
 use super::super::{SessionHandlerCatalogsLikeCpp, SessionState, WorldSession};
 use crate::session::mailbox::{
-    MapPhaseAdmissionLikeCpp, PendingWorldPhaseFinalizationLikeCpp, RunMapPhasePassLikeCppCommand,
-    RunMapPhasePassResultLikeCpp, RunWorldPhasePassLikeCppRequest, RunWorldPhasePassResultLikeCpp,
-    SessionPassKind, SessionPhaseClaimLikeCpp, SessionPhasePassOutcomeLikeCpp,
-    SessionPhaseRequestLikeCpp,
+    MapPhaseAdmissionLikeCpp, PendingWorldPhaseFinalizationLikeCpp, PlayerRecoveryReply,
+    RunMapPhasePassLikeCppCommand, RunMapPhasePassResultLikeCpp, RunPlayerRecoveryRequest,
+    RunWorldPhasePassLikeCppRequest, RunWorldPhasePassResultLikeCpp, SessionPassKind,
+    SessionPhaseClaimLikeCpp, SessionPhasePassOutcomeLikeCpp, SessionPhaseRequestLikeCpp,
 };
 
 impl WorldSession {
@@ -181,6 +181,7 @@ impl WorldSession {
         let permit = match &request {
             SessionPhaseRequestLikeCpp::World(request) => &request.permit,
             SessionPhaseRequestLikeCpp::Map(command) => &command.permit,
+            SessionPhaseRequestLikeCpp::PlayerRecovery(request) => &request.permit,
         };
         let outcome = if permit.refuse_before_start_like_cpp() {
             SessionPhasePassOutcomeLikeCpp::RefusedBeforeStart
@@ -209,6 +210,17 @@ impl WorldSession {
                     outcome,
                     dispatched: 0,
                     stopped_at_ineligible_head: false,
+                    disconnecting: self.is_disconnecting(),
+                });
+            }
+            SessionPhaseRequestLikeCpp::PlayerRecovery(request) => {
+                let admission = request.admission;
+                let _ = request.response_tx.try_send(PlayerRecoveryReply {
+                    coordinator_id: admission.coordinator_id,
+                    tick_epoch: admission.tick_epoch,
+                    map_tick_epoch: admission.map_tick_epoch,
+                    outcome,
+                    status: None,
                     disconnecting: self.is_disconnecting(),
                 });
             }
@@ -248,6 +260,12 @@ impl WorldSession {
                     .run_admitted_map_phase_pass_like_cpp(command, catalogs)
                     .await;
                 let _ = response_tx.try_send(result);
+            }
+            SessionPhaseRequestLikeCpp::PlayerRecovery(request) => {
+                crate::session::driver::player_recovery::run_requested_player_recovery(
+                    self, request, catalogs,
+                )
+                .await;
             }
         }
         None

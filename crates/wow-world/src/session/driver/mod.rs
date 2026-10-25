@@ -332,13 +332,16 @@ impl WorldSession {
         self.core
             .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::CharacterRenameCallbacks);
         self.process_ready_character_rename_callbacks_like_cpp();
-        self.core
-            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PeriodicPlayerSave);
-        wow_world_application::process_pending_periodic_player_save_with_generator_like_cpp(
-            self,
-            catalogs.id_generators.item.as_ref(),
-        )
-        .await;
+        if !self.is_map_phase_coordinated_like_cpp() {
+            // Coordinated sessions consume this SaveTimer work in their
+            // admitted PlayerRecovery pass immediately before the death timer.
+            // Keep this compatibility consumer for standalone Sessions.
+            wow_world_application::process_pending_periodic_player_save_with_generator_like_cpp(
+                self,
+                catalogs.id_generators.item.as_ref(),
+            )
+            .await;
+        }
     }
 
     #[cfg(test)]

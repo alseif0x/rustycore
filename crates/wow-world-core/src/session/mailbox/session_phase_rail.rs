@@ -31,6 +31,8 @@ pub enum SessionPhaseRequestLikeCpp {
     /// C++ `Map::Update` driving its players' sessions with `MapSessionFilter`
     /// (`Map.cpp:669-680`, `WorldSession.cpp:64-86`).
     Map(RunMapPhasePassLikeCppCommand),
+    /// Player timer work admitted between the Map respawn prelude and tail.
+    PlayerRecovery(RunPlayerRecoveryRequest),
 }
 
 impl SessionPhaseRequestLikeCpp {
@@ -40,8 +42,37 @@ impl SessionPhaseRequestLikeCpp {
         match self {
             Self::World(request) => request.coordinator_id,
             Self::Map(command) => command.admission.coordinator_id,
+            Self::PlayerRecovery(request) => request.admission.coordinator_id,
         }
     }
+}
+
+/// One admitted Player recovery step on an already split Map tick.
+#[derive(Clone, Debug)]
+pub struct RunPlayerRecoveryRequest {
+    pub admission: PlayerRecoveryAdmission,
+    pub permit: Arc<SessionPhasePermitLikeCpp>,
+    pub response_tx: flume::Sender<PlayerRecoveryReply>,
+}
+
+/// The terminal result for an admitted Player recovery pass.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlayerRecoveryStatus {
+    Completed,
+    PlayerLeft,
+    Unavailable,
+}
+
+/// Completion is reported only after all work covered by the status has
+/// stopped. A claimed request with no known status leaves its permit running.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PlayerRecoveryReply {
+    pub coordinator_id: u64,
+    pub tick_epoch: u64,
+    pub map_tick_epoch: u64,
+    pub outcome: SessionPhasePassOutcomeLikeCpp,
+    pub status: Option<PlayerRecoveryStatus>,
+    pub disconnecting: bool,
 }
 
 /// One admitted world-phase pass.

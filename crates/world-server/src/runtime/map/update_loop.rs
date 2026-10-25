@@ -11,7 +11,9 @@ use crate::deliver_canonical_map_object_values_updates_like_cpp;
 use super::super::canonical_creature_runtime::{
     CanonicalCreatureRuntimeLikeCpp, deliver_canonical_creature_phases_like_cpp,
 };
-use super::super::map_tick::canonical_map_tick_resume_with_creature_owner_like_cpp;
+use super::super::map_tick::{
+    continue_map_recovery_prelude, player_recovery_pass_maps, prepare_map_recovery_prelude,
+};
 use super::super::{
     deferred_visibility, map_session_pass, submit_creature_lifecycle_respawn_db_mutations_like_cpp,
     world_session_pass,
@@ -237,52 +239,143 @@ pub(crate) fn spawn_canonical_map_update_loop(
                 );
             }
 
-            let (tick_summary, creature_phases) = {
-                let Some(plan) = session_plan else {
-                    continue;
-                };
-                if !session_pass_summary.quiescent_like_cpp() {
-                    unresolved_phase_permits
-                        .extend(session_pass_summary.unresolved_permits.clone());
-                    // An admitted pass was claimed and this tick could not
-                    // observe its end. Its mutations may still be running, so
-                    // the remaining phases of the tick must not run over them:
-                    // the tick is abandoned, with the unresolved permit retained
-                    // across steps until completion is actually established.
-                    tracing::error!(
-                        tick_epoch,
-                        unresolved_after_start = session_pass_summary.unresolved_after_start,
-                        "Abandoning the canonical map tick: an admitted session pass left live effects"
-                    );
+            let Some(session_plan) = session_plan else {
+                continue;
+            };
+            if !session_pass_summary.quiescent_like_cpp() {
+                unresolved_phase_permits.extend(session_pass_summary.unresolved_permits.clone());
+                tracing::error!(
+                    tick_epoch,
+                    unresolved_after_start = session_pass_summary.unresolved_after_start,
+                    "Abandoning the canonical map tick: an admitted session pass left live effects"
+                );
+                if let Ok(mut manager) = map_manager.lock() {
+                    manager.abandon_tick_like_cpp(session_plan.plan);
+                }
+                continue;
+            }
+            if session_pass_summary.blocks_tick_tail {
+                tracing::error!(
+                    tick_epoch,
+                    completed = session_pass_summary.completed,
+                    "Abandoning the canonical map tick after an untrusted terminal session-pass reply"
+                );
+                if let Ok(mut manager) = map_manager.lock() {
+                    manager.abandon_tick_like_cpp(session_plan.plan);
+                }
+                continue;
+            }
+            if active_session_registry.is_shutting_down_like_cpp() && !stop_after_tick {
+                if let Ok(mut manager) = map_manager.lock() {
+                    manager.abandon_tick_like_cpp(session_plan.plan);
+                }
+                continue;
+            }
+
+            // Run respawns and freeze the Players reached by this tick's real
+            // object-update visit before asking Sessions to advance timers.
+            // DB intents are submitted under the existing mutation-order gate
+            // before any Recovery request can suspend this producer.
+            let prepared = {
+                let _respawn_db_mutation_order = respawn_db_mutation_order
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                let prepared = {
                     let Ok(mut manager) = map_manager.lock() else {
                         tracing::error!(
                             "Canonical MapManager mutex poisoned; stopping map update loop"
                         );
                         break;
                     };
-                    manager.abandon_tick_like_cpp(plan.plan);
-                    drop(manager);
-                    continue;
-                }
-                if active_session_registry.is_shutting_down_like_cpp() && !stop_after_tick {
-                    if let Ok(mut manager) = map_manager.lock() {
-                        manager.abandon_tick_like_cpp(plan.plan);
+                    let Ok(canonical_spawn_metadata) = canonical_spawn_metadata.lock() else {
+                        tracing::error!(
+                            "CanonicalSpawnMetadataLikeCpp mutex poisoned; stopping map update loop"
+                        );
+                        break;
+                    };
+                    let epoch = session_plan.plan.epoch_like_cpp();
+                    if manager.tick_coordination_like_cpp()
+                        != wow_map::MapTickCoordinationStateLikeCpp::AwaitingSessions(epoch)
+                    {
+                        manager.abandon_tick_like_cpp(session_plan.plan);
+                        None
+                    } else {
+                        let prelude = prepare_map_recovery_prelude(
+                            &mut manager,
+                            session_plan.plan,
+                            &mut respawn_condition_scheduler,
+                            &canonical_spawn_metadata,
+                            condition_store.as_ref(),
+                            map_store.as_ref(),
+                            &loaded_grid_creature_respawn_caches,
+                        )
+                        .expect("the admitted map plan remains awaiting its Session phase");
+                        let recovery_maps = player_recovery_pass_maps(&manager, &prelude);
+                        Some((prelude, recovery_maps))
                     }
-                    continue;
+                };
+                if let Some((prelude, recovery_maps)) = prepared {
+                    let mut prelude = prelude;
+                    submit_respawn_db_mutations(prelude.summary_mut(), &respawn_db_writer_tx);
+                    Some((prelude, recovery_maps))
+                } else {
+                    None
                 }
-                // #1263 F6-8D3b-1: the registry snapshots the creature phases
-                // read, taken before any guard.
-                let creature_inputs = canonical_creature_runtime.as_ref().map(|runtime| {
-                    runtime.collect_inputs_like_cpp(
-                        &map_manager,
-                        &player_registry,
-                        world_module_hooks.creature_events_wanted_like_cpp(),
-                    )
-                });
-                // The persistence fence is re-taken for the half that produces
-                // respawn mutations, and its statements are still coalesced
-                // before it is released, so mailbox replacement order still
-                // matches mutation order.
+            };
+            let Some((prelude, recovery_maps)) = prepared else {
+                continue;
+            };
+
+            let recovery_summary = map_session_pass::run_player_recovery_passes(
+                &recovery_maps,
+                player_registry.as_ref(),
+                coordinator_id,
+                tick_epoch,
+                prelude.plan().epoch_like_cpp(),
+                prelude.plan().effective_diff_ms(),
+                phase_ack_timeout,
+            )
+            .await;
+            if !recovery_summary.quiescent_like_cpp() {
+                unresolved_phase_permits.extend(recovery_summary.unresolved_permits.clone());
+                tracing::error!(
+                    tick_epoch,
+                    unresolved_after_start = recovery_summary.unresolved_after_start,
+                    "Abandoning the canonical map tick: an admitted Player recovery pass left live effects"
+                );
+                if let Ok(mut manager) = map_manager.lock() {
+                    manager.abandon_tick_like_cpp(prelude.into_plan());
+                }
+                continue;
+            }
+            if recovery_summary.blocks_tick_tail {
+                tracing::error!(
+                    tick_epoch,
+                    completed_recovery_passes = recovery_summary.completed,
+                    "Abandoning the canonical map tick: a Player recovery pass reported unavailable"
+                );
+                if let Ok(mut manager) = map_manager.lock() {
+                    manager.abandon_tick_like_cpp(prelude.into_plan());
+                }
+                continue;
+            }
+            if active_session_registry.is_shutting_down_like_cpp() && !stop_after_tick {
+                if let Ok(mut manager) = map_manager.lock() {
+                    manager.abandon_tick_like_cpp(prelude.into_plan());
+                }
+                continue;
+            }
+
+            // Snapshot Creature inputs only after every admitted Recovery
+            // pass has reached a terminal boundary. No guard crosses delivery.
+            let creature_inputs = canonical_creature_runtime.as_ref().map(|runtime| {
+                runtime.collect_inputs_like_cpp(
+                    &map_manager,
+                    &player_registry,
+                    world_module_hooks.creature_events_wanted_like_cpp(),
+                )
+            });
+            let (tick_summary, creature_phases) = {
                 let _respawn_db_mutation_order = respawn_db_mutation_order
                     .lock()
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -316,12 +409,10 @@ pub(crate) fn spawn_canonical_map_update_loop(
                                 ));
                             }
                         };
-                    canonical_map_tick_resume_with_creature_owner_like_cpp(
+                    continue_map_recovery_prelude(
                         &mut manager,
-                        plan.plan,
-                        &mut respawn_condition_scheduler,
+                        prelude,
                         &canonical_spawn_metadata,
-                        condition_store.as_ref(),
                         map_store.as_ref(),
                         &loaded_grid_creature_respawn_caches,
                         Some(&mut creature_phase),
@@ -356,24 +447,7 @@ pub(crate) fn spawn_canonical_map_update_loop(
                                 .publish_current_pvp_combat_expiry(recipient.registration, command);
                         }
                     }
-                    for save in summary.respawn_db_saves.drain(..) {
-                        if respawn_db_writer_tx.send(save.mutation).is_err() {
-                            summary.respawn_db_save_failed += 1;
-                            tracing::error!(
-                                "Shared respawn DB writer stopped before canonical REP_RESPAWN submission"
-                            );
-                        }
-                    }
-                    // A timer can be created and consumed in one canonical
-                    // update. Submit deletes last so the final state wins.
-                    for delete in summary.respawn_db_deletes.drain(..) {
-                        if respawn_db_writer_tx.send(delete.mutation).is_err() {
-                            summary.respawn_db_delete_failed += 1;
-                            tracing::error!(
-                                "Shared respawn DB writer stopped before canonical DEL_RESPAWN submission"
-                            );
-                        }
-                    }
+                    submit_respawn_db_mutations(summary, &respawn_db_writer_tx);
                 }
                 // Still under the gate, the executor's lifecycle statements are
                 // submitted after every statement of the map tick summary above —
@@ -776,3 +850,31 @@ pub(crate) fn spawn_canonical_map_update_loop(
         }
     })
 }
+
+fn submit_respawn_db_mutations(
+    summary: &mut super::super::tick_summary::CanonicalSpawnGroupConditionTickSummaryLikeCpp,
+    writer: &RespawnDbWriterSenderLikeCpp,
+) {
+    for save in summary.respawn_db_saves.drain(..) {
+        if writer.send(save.mutation).is_err() {
+            summary.respawn_db_save_failed += 1;
+            tracing::error!(
+                "Shared respawn DB writer stopped before canonical REP_RESPAWN submission"
+            );
+        }
+    }
+    // A timer can be created and consumed in one canonical update. Submit
+    // deletes last so the final state wins within this respawn phase.
+    for delete in summary.respawn_db_deletes.drain(..) {
+        if writer.send(delete.mutation).is_err() {
+            summary.respawn_db_delete_failed += 1;
+            tracing::error!(
+                "Shared respawn DB writer stopped before canonical DEL_RESPAWN submission"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "update_loop_tests.rs"]
+mod tests;

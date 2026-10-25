@@ -1,13 +1,16 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, resumen vigente — 2026-10-25, 07:04 UTC, rama `43-spirit-healer`:**
+**#43, resumen vigente — 2026-10-25, rama `43-spirit-healer`:**
 la macro sigue abierta y sin aceptación final. La rama `43-spirit-healer`
 conserva los cambios locales; no se ha publicado ni desplegado este candidato.
 Los últimos checkpoints incorporan Stats canónicos, persistencia all-key,
 carga y refresh seleccionados, duraciones firmadas y un ejecutor de expiración
-por diff. Este último todavía no tiene caller productivo. El driver y el tick
-Map ya tienen separadas las responsabilidades necesarias para conectarlo;
-la validación canónica de su admisión está escrita y tiene feedback focalizado.
+por diff. Este último todavía no tiene caller productivo. El pase Map de
+recuperación ya conecta regeneración, KillPlayer, guardado periódico, deathTimer
+y teleport diferido por el rail existente de Session. Tiene feedback focalizado
+del consumidor World y del coordinador Server.
+La activación del countdown seleccionado y su publicación/snapshot exactos
+siguen pendientes, sin otro reloj ni una segunda autoridad de Player.
 
 Quedan cuatro bloques de la misma macro, sin crear otro plan de port:
 
@@ -637,6 +640,44 @@ Sobre `f78641ac0` más delta, check World exit 0 y
 logs `/tmp/rustycore-9i3a-world-check-20261025.log` y
 `/tmp/rustycore-9i3a-map-phase-pass-20261025.log`. Incluye los 18 casos
 previos y siete nuevos; no es aceptación del candidato completo.
+
+9i3B conecta el request PlayerRecovery al productor real, después del prelude
+de respawns y antes de Creature/P3, también cuando no hay ejecutor Creature.
+La selección conserva el orden de referencias de Player e intersecta los
+objetos que alcanza el plan actual; C++ llama Player::Update en ese orden
+(`Map.cpp:704–708`). No se presenta como resolución del intercalado restante
+de #584. El productor entrega los intents DB del prelude una vez, bajo el
+gate de orden existente, antes de soltarlo para esperar a Session. Los inputs
+Creature se capturan después de Recovery. Los timers coordinados dejan World;
+el consumidor comparte su cuerpo con el modo standalone y guarda antes de
+avanzar deathTimer, comprobando el binding después de los awaits.
+El mismo permiso atómico conserva un terminal CompletedUnavailable: prueba
+que el pase dejó de ejecutar, pero obliga a abandonar el tail de este tick
+incluso sin reply. Un permiso Running o Interrupted mantiene la barrera entre
+ticks; una respuesta no es prueba de terminación. Una respuesta terminal con
+lineage inválida también abandona el tick sin fabricar efectos aún vivos.
+Sobre `a66cf242a` más delta local, cuatro casos nuevos de Recovery y cuatro
+regresiones de deathTimer pasaron, exit 0, con los filtros World `recovery_timer`
+y `death_timer`. Server `map_session_pass` pasó 17 casos, incluido el prelude
+DB sin replay; el filtro exacto de participantes post-respawn pasó otro caso,
+ambos exit 0. Son 26 identidades distintas entre los cuatro filtros. Check
+Server terminó exit 0. Logs finales:
+`/tmp/rustycore-9i3b-check-world-server-r3.log`,
+`/tmp/rustycore-9i3b-test-world-recovery-timer-r3.log`,
+`/tmp/rustycore-9i3b-test-world-death-timer-r2.log`,
+`/tmp/rustycore-9i3b-test-world-server-map-session-pass-r2.log` y
+`/tmp/rustycore-9i3b-test-world-server-post-respawn-participants.log`.
+Entorno aarch64, jobs=1, target del checkout y PROTOC local. Los intentos
+fallidos quedan en sus logs: mutabilidad del summary, peers de transporte
+descartados por la fixture y rutas/tipos incorrectos en los tests Server.
+El primer filtro World `player_recovery` pasó siete casos de admisión 9i3A,
+pero no alcanzó el driver nuevo; no se cuenta como prueba de este último.
+Se corrigió además un test existente: el permiso terminal con reply de otro
+epoch sí prueba quietud, pero bloquea el tail; conserva esa cobertura bajo
+`a_wrong_tick_terminal_reply_abandons_this_tick_without_live_effects`.
+El caso controlado de Save prueba Applied y Unknown: durante el await no
+avanza deathTimer; Unknown conserva además la intención de teleport añadida
+durante ese await. No se ha ejecutado aceptación final ni QA viva.
 
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
