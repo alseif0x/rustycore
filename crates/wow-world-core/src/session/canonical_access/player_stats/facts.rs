@@ -75,15 +75,10 @@ impl<'a> PlayerStatFacts<'a> {
 
         let unit = player.unit();
         let aura_view = PlayerStatAuraView::new(
-            unit.subsystems()
-                .auras
-                .runtime_applications_like_cpp(),
+            unit.subsystems().auras.runtime_applications_like_cpp(),
             aura_catalogs,
         );
-        let item_bonuses = player
-            .gameplay_state()
-            .item_modifiers
-            .bonuses_like_cpp();
+        let item_bonuses = player.gameplay_state().item_modifiers.bonuses_like_cpp();
         let inventory = player.inventory_runtime_like_cpp();
 
         Some(Self {
@@ -92,7 +87,14 @@ impl<'a> PlayerStatFacts<'a> {
             level,
             can_parry: unit.can_parry_like_cpp(),
             can_block: unit.can_block_like_cpp(),
-            form_id: player.shapeshift_form_id_like_cpp(),
+            form_id: {
+                let form_id = unit.shapeshift_form_id_like_cpp();
+                if form_id != 0 {
+                    u32::from(form_id)
+                } else {
+                    player.shapeshift_form_id_like_cpp()
+                }
+            },
             item_bonuses,
             aura_view,
             main_hand: weapon_facts(inventory, EQUIPMENT_SLOT_MAINHAND),
@@ -102,7 +104,8 @@ impl<'a> PlayerStatFacts<'a> {
     }
 
     /// Build borrowed planner inputs for explicit fixtures without a mutable
-    /// Player mirror. The identity validity rule matches `from_player`.
+    /// Player mirror. An explicit projection request may supply identity even
+    /// when the fixture's stored identity is unset.
     #[cfg(any(test, feature = "test-fixtures"))]
     #[allow(clippy::too_many_arguments)]
     pub fn from_parts(
@@ -117,12 +120,8 @@ impl<'a> PlayerStatFacts<'a> {
         main_hand: Option<PlayerStatWeaponFacts>,
         off_hand: Option<PlayerStatWeaponFacts>,
         ranged: Option<PlayerStatWeaponFacts>,
-    ) -> Option<Self> {
-        if race == 0 || class == 0 || level == 0 {
-            return None;
-        }
-
-        Some(Self {
+    ) -> Self {
+        Self {
             race,
             class,
             level,
@@ -134,7 +133,7 @@ impl<'a> PlayerStatFacts<'a> {
             main_hand,
             off_hand,
             ranged,
-        })
+        }
     }
 
     pub fn race(&self) -> u8 {

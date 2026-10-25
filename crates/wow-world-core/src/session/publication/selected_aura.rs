@@ -84,7 +84,9 @@ pub fn prepare_selected_aura_update(
             if active_key != source_key {
                 return None;
             }
-            let map = manager.find_map(source_key.map_id, source_key.instance_id)?.map();
+            let map = manager
+                .find_map(source_key.map_id, source_key.instance_id)?
+                .map();
             let candidates = map.selected_aura_update_observers(source_guid);
             let mut observers = Vec::with_capacity(candidates.len());
             for guid in candidates {
@@ -136,11 +138,9 @@ fn enqueue(
     packet_bytes: &[u8],
     require_source_visibility: bool,
 ) {
-    let Some((registration, committed_visibility)) = registry.selected_aura_recipient(
-        recipient.guid,
-        recipient.handle,
-        recipient.map_key,
-    ) else {
+    let Some((registration, committed_visibility)) =
+        registry.selected_aura_recipient(recipient.guid, recipient.handle, recipient.map_key)
+    else {
         return;
     };
     if require_source_visibility && !committed_visibility.contains(&source_guid) {

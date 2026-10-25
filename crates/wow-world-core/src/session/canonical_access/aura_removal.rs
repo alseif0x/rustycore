@@ -21,9 +21,8 @@ use crate::session::SessionCore;
 use std::collections::HashMap;
 use wow_constants::UnitFlags;
 use wow_entities::{
-    AppliedAuraRef, AuraApplicationLikeCpp, AuraCastProvenanceLikeCpp,
-    AuraThreatSnapshotLikeCpp, RepresentedAuraEffectAmountLikeCpp, AuraSubsystem,
-    VisibleAuraEffectAmountLikeCpp,
+    AppliedAuraRef, AuraApplicationLikeCpp, AuraCastProvenanceLikeCpp, AuraSubsystem,
+    AuraThreatSnapshotLikeCpp, RepresentedAuraEffectAmountLikeCpp, VisibleAuraEffectAmountLikeCpp,
 };
 
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -180,8 +179,7 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
                     return Err("Canonical resurrection aura effect metadata changed");
                 }
                 let applied = AppliedAuraRef::new(spell_id, caster_guid, slot, bit);
-                let Some(current_amount) = auras.applied_aura_amounts.get(&applied).copied()
-                else {
+                let Some(current_amount) = auras.applied_aura_amounts.get(&applied).copied() else {
                     return Err("Canonical resurrection aura amount index is missing");
                 };
                 if !auras.applied_auras.contains(&applied)
@@ -255,12 +253,7 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
                     effects.retain(|known| *known != applied);
                     effects.push(applied);
                 }
-                auras.register_applied_aura_effect_like_cpp(
-                    applied,
-                    aura_type,
-                    amount,
-                    misc_value,
-                );
+                auras.register_applied_aura_effect_like_cpp(applied, aura_type, amount, misc_value);
                 refreshed_effects.push((bit, aura_type, amount, misc_value));
             }
             auras.insert_threat_snapshot_like_cpp(
@@ -288,8 +281,11 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
 
     pub fn set_visible_aura_update_pending(&self, slot: u8, pending: bool) -> Option<()> {
         self.core.with_owned_player_mut_like_cpp(|player| {
-            let visible_auras_to_update =
-                &mut player.unit_mut().subsystems_mut().auras.visible_auras_to_update;
+            let visible_auras_to_update = &mut player
+                .unit_mut()
+                .subsystems_mut()
+                .auras
+                .visible_auras_to_update;
             if pending {
                 visible_auras_to_update.insert(slot);
             } else {
@@ -299,21 +295,22 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
     }
 
     pub fn set_ghost_aura(&self, ghost: bool) -> bool {
-        self.core.with_owned_player_mut_like_cpp(|player| {
-            if ghost {
-                player.set_player_flag(crate::session::PLAYER_FLAGS_GHOST_LIKE_CPP);
-            } else {
-                player.remove_player_flag(crate::session::PLAYER_FLAGS_GHOST_LIKE_CPP);
-            }
-            let visibility = if ghost { 0x2 } else { 0x1 };
-            player
-                .unit_mut()
-                .set_server_side_ghost_visibility_like_cpp(visibility);
-            player
-                .unit_mut()
-                .set_server_side_ghost_visibility_detect_like_cpp(visibility);
-        })
-        .is_some()
+        self.core
+            .with_owned_player_mut_like_cpp(|player| {
+                if ghost {
+                    player.set_player_flag(crate::session::PLAYER_FLAGS_GHOST_LIKE_CPP);
+                } else {
+                    player.remove_player_flag(crate::session::PLAYER_FLAGS_GHOST_LIKE_CPP);
+                }
+                let visibility = if ghost { 0x2 } else { 0x1 };
+                player
+                    .unit_mut()
+                    .set_server_side_ghost_visibility_like_cpp(visibility);
+                player
+                    .unit_mut()
+                    .set_server_side_ghost_visibility_detect_like_cpp(visibility);
+            })
+            .is_some()
     }
 
     pub fn player_shape_display_state(&self) -> Option<(u8, u8, u32, u32, u32)> {

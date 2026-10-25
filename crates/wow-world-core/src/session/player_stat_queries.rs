@@ -10,9 +10,8 @@ impl super::PlayerStatsAccessLikeCpp<'_> {
         // multiplies that value by sqrt(Intellect). Aura percentages are a
         // separate producer and are intentionally not folded into this
         // equipment projection.
-        (stats[3].max(0) as f32).sqrt()
-            * stats[4] as f32
-            * self.catalogs.mana_regen_ratio_like_cpp(level, class)
+        self.stat_catalogs()
+            .mana_regen_from_stats(level, class, stats)
     }
 
     pub fn mana_regen_aura_multiplier_like_cpp(&self) -> f32 {

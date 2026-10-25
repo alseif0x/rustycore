@@ -4,8 +4,8 @@
 use std::time::Instant;
 
 use crate::entity_update_bridge::player_values_update_to_update_object;
-use crate::session::{SessionCore, prepare_selected_aura_update};
 use crate::session::mailbox::{SendIfVisibleLikeCppCommand, SessionCommand};
+use crate::session::{SessionCore, prepare_selected_aura_update};
 use wow_core::{ObjectGuid, Position};
 use wow_entities::PlayerValuesUpdate;
 use wow_entities::VISIBILITY_RADIUS_LIKE_CPP as VISIBILITY_RADIUS;

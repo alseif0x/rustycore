@@ -288,16 +288,18 @@ impl crate::session::HubMut<'_> {
 
 impl crate::session::state::SessionCatalogs {
     pub fn combat_rating_multiplier_like_cpp(&self, level: u8, rating: u32) -> f32 {
-        self.combat_ratings_game_table
-            .as_ref()
-            .map(|table| table.rating_multiplier_like_cpp(u16::from(level), rating))
-            .unwrap_or(1.0)
+        crate::session::PlayerStatCatalogs::from_session_catalogs(
+            self,
+            wow_data::StatsLimitsLikeCpp::default(),
+        )
+        .combat_rating_multiplier(level, rating)
     }
 
     pub fn mana_regen_ratio_like_cpp(&self, level: u8, class: u8) -> f32 {
-        self.regen_game_tables
-            .as_ref()
-            .map(|tables| tables.mana_regen_ratio_like_cpp(u16::from(level), class))
-            .unwrap_or(0.0)
+        crate::session::PlayerStatCatalogs::from_session_catalogs(
+            self,
+            wow_data::StatsLimitsLikeCpp::default(),
+        )
+        .mana_regen_ratio(level, class)
     }
 }

@@ -17,11 +17,13 @@ mod queries;
 
 mod aura_view;
 mod catalogs;
+mod computation;
 mod facts;
 mod inventory_scaling;
 
 pub use aura_view::{PlayerStatAuraCatalogs, PlayerStatAuraView};
 pub use catalogs::PlayerStatCatalogs;
+pub use computation::{PlayerStatCalculator, PlayerStatComputation, PlayerStatComputationRequest};
 pub use facts::{PlayerStatFacts, PlayerStatWeaponFacts};
 
 /// Borrowed fixture inputs consumed by the character-stats projection.
@@ -190,14 +192,62 @@ impl SessionCatalogs {
             self.spell_store()?.as_ref(),
             self.spell_catalogs.spell_group_store.as_deref(),
             self.spell_catalogs.spell_chain_store.as_deref(),
-            self.spell_catalogs
-                .spell_group_stack_rule_store
-                .as_deref(),
+            self.spell_catalogs.spell_group_stack_rule_store.as_deref(),
         ))
     }
 }
 
 impl PlayerStatsAccessLikeCpp<'_> {
+    /// Select the read-only catalogs used by the shared stats calculation.
+    pub fn stat_catalogs(&self) -> PlayerStatCatalogs<'_> {
+        PlayerStatCatalogs::from_session_catalogs(self.catalogs, self.config.stats_limits_like_cpp)
+    }
+
+    /// Run the supplied pure calculator against the generation-checked Player.
+    /// The callback completes under the borrowed owner and returns only owned values.
+    pub fn calculate_owned_player_stats(
+        &self,
+        calculator: PlayerStatCalculator,
+        request: &PlayerStatComputationRequest<'_>,
+    ) -> Option<PlayerStatComputation> {
+        let catalogs = self.stat_catalogs();
+        let aura_catalogs = catalogs.aura()?;
+        self.core.with_owned_player_like_cpp(|player| {
+            let facts = PlayerStatFacts::from_player(player, aura_catalogs)?;
+            calculator(&facts, &catalogs, request)
+        })?
+    }
+
+    /// Build facts from the existing handle-less Session fixtures only.
+    /// Production and stale-handle paths never fall back to these inputs.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn fixture_player_stat_facts<'a>(
+        &'a self,
+        item_bonuses: &'a wow_entities::PlayerItemBonusStateLikeCpp,
+        mut weapons: [Option<PlayerStatWeaponFacts>; 3],
+    ) -> Option<PlayerStatFacts<'a>> {
+        if self.core.player_handle_like_cpp.is_some() {
+            return None;
+        }
+        let aura_catalogs = self.stat_catalogs().aura()?;
+        let aura_view =
+            PlayerStatAuraView::new(self.fixtures.auras.visible_auras_like_cpp, aura_catalogs);
+        let (can_parry, can_block) = self.core.canonical_player_parry_block_snapshot_like_cpp();
+        Some(PlayerStatFacts::from_parts(
+            self.player_race_like_cpp(),
+            self.player_class_like_cpp(),
+            self.player_level_like_cpp(),
+            can_parry,
+            can_block,
+            *self.fixtures.auras.represented_shapeshift_form_like_cpp,
+            item_bonuses,
+            aura_view,
+            weapons[0].take(),
+            weapons[1].take(),
+            weapons[2].take(),
+        ))
+    }
+
     pub(super) fn with_aura_view<R>(
         &self,
         project: impl FnOnce(PlayerStatAuraView<'_>) -> R,
@@ -263,9 +313,7 @@ impl PlayerStatsAccessLikeCpp<'_> {
         self.with_aura_view(|view| view.stat_base_multipliers())
     }
 
-    pub fn resolved_represented_total_stat_buff_multipliers_like_cpp(
-        &self,
-    ) -> Option<[f32; 5]> {
+    pub fn resolved_represented_total_stat_buff_multipliers_like_cpp(&self) -> Option<[f32; 5]> {
         self.with_aura_view(|view| view.total_stat_buff_multipliers())
     }
 }
@@ -294,9 +342,7 @@ impl HubRef<'_> {
         self.resolved_represented_total_stat_multipliers_with_misc_like_cpp(true)
     }
 
-    pub fn resolved_represented_total_stat_buff_multipliers_like_cpp(
-        &self,
-    ) -> Option<[f32; 5]> {
+    pub fn resolved_represented_total_stat_buff_multipliers_like_cpp(&self) -> Option<[f32; 5]> {
         self.resolved_represented_total_stat_multipliers_with_misc_like_cpp(false)
     }
 }
@@ -473,13 +519,12 @@ impl PlayerStatsAccessLikeCpp<'_> {
         &self,
         class: u8,
     ) -> Option<(u8, u8, u8)> {
-        self.catalogs
-            .player_class_attack_power_coefficients_like_cpp(class)
+        self.stat_catalogs()
+            .player_class_attack_power_coefficients(class)
     }
 
     pub fn combat_rating_multiplier_like_cpp(&self, level: u8, rating: u32) -> f32 {
-        self.catalogs
-            .combat_rating_multiplier_like_cpp(level, rating)
+        self.stat_catalogs().combat_rating_multiplier(level, rating)
     }
 
     pub fn stats_limits_like_cpp(&self) -> StatsLimitsLikeCpp {
@@ -560,8 +605,8 @@ impl PlayerStatsAccessLikeCpp<'_> {
         spell_id: i32,
         weapon_item_id: Option<u32>,
     ) -> bool {
-        self.catalogs
-            .represented_aura_spell_fits_weapon_like_cpp(spell_id, weapon_item_id)
+        self.stat_catalogs()
+            .represented_aura_spell_fits_weapon(spell_id, weapon_item_id)
     }
 
     pub fn spell_spell_group_map_bounds_like_cpp(&self, spell_id: u32) -> &[u32] {
@@ -584,13 +629,7 @@ impl PlayerStatsAccessLikeCpp<'_> {
     }
 
     pub fn represented_weapon_delay_seconds_like_cpp(&self, item_id: u32) -> f32 {
-        self.catalogs
-            .items
-            .stats_store
-            .as_ref()
-            .and_then(|store| store.weapon_template(item_id))
-            .map(|weapon| f32::from(weapon.item_delay) / 1000.0)
-            .unwrap_or(0.0)
+        self.stat_catalogs().weapon_delay_seconds(item_id)
     }
 
     pub fn replace_player_effective_combat_stats_like_cpp(
@@ -607,7 +646,6 @@ impl PlayerStatsAccessLikeCpp<'_> {
         self.core.player_handle_like_cpp.is_none()
     }
 }
-
 
 impl HubMut<'_> {
     pub(crate) fn player_stats_access_like_cpp(&mut self) -> PlayerStatsAccessLikeCpp<'_> {

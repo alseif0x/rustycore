@@ -242,6 +242,17 @@ sin cambiar aserciones; static_data_overlay::tests pasó seis casos, exit 0
 (`/tmp/9c4g-test-world-server-lib-static-data-overlay.log`). La entrega ocurre
 fuera de los guards y antes de salidas Creature/visibilidad/VALUES; no se
 presenta ese feedback como campaña final ni como aceptación de sickness.
+La revisión del caller de visibilidad de resurrección confirma otro residuo
+de la operación: finish_resurrection_visibility llama al adaptador de
+movimiento, cuyo update_visibility_with_catalogs vuelve sin actualizar si el
+Player se ha movido menos de 50 yardas. C++ llama UpdateObjectVisibility()
+con forced=true por defecto (Player.h:2461, Player.cpp:23322–23337 y
+4373); actualiza a los demás y al propio Player. El setter Ghost Rust solo
+cambia flags/máscaras de detección, sin forzar ese refresh. KillPlayer también
+llama UpdateObjectVisibility en Player.cpp:4437, ausente en el helper actual.
+La reparación del ciclo usará la entrada forzada existente para esos puntos,
+con binding comprobado tras await; no se desactiva el umbral normal de
+movimiento ni se presenta la consulta aislada de 9c2 como prueba del caller.
 Inspección del productor actual, sin nueva prueba ejecutada: update_loop.rs
 espera el pase World quiescente antes de admitir Map, y
 map_session_pass.rs ejecuta las sesiones de cada mapa en serie. Un permiso
@@ -307,6 +318,21 @@ los constructores de fixture son cfg(test/test-fixtures). El último
 más delta terminó exit 0, aarch64/jobs=1
 (`/tmp/rustycore-9h2a-core-check-refs-20261025a.log`). No se ejecutaron tests
 ni se conectó aún el planner de Inventory; sigue siendo preparación estructural.
+9h2B conecta un único planner puro Inventory a los consumidores de stats y
+login. Core presta hechos/catálogos al callback de cálculo y recibe un
+resultado inmutable con gear/projection/effective; no hay Session ni lock
+dentro del planner. Se preservan la API de proyección explícita de creación,
+su None sin Player canónico, los fallbacks de fixture solo sin handle y las
+diferencias legacy de fórmula ya señaladas. No cambia todavía el setter de
+salud ni la publicación sintética de estadísticas. El filtro
+`cargo test -p wow-world --lib scenarios_player_items_12` pasó 18 casos,
+exit 0, sobre `c1c67cdf7` más delta local, aarch64/jobs=1
+(`/tmp/rustycore-9h2b-scenarios_player_items_12-run3.log`); compiló también
+los consumidores Core/Inventory/Character/World, sin ejecutar todos sus tests.
+Los dos intentos anteriores terminaron exit 101 por mutabilidad del array
+fixture y una vida de referencia sin nombrar; los logs run1/run2 se conservan.
+Se revisaron además seis archivos con formato incidental del mismo macro.
+No hay check adicional, campaña final ni evidencia de runtime de esta unidad.
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa

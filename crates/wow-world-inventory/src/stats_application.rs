@@ -6,23 +6,76 @@
 //! Character stat application operations.
 
 use crate::InventoryState;
-use wow_constants::WeaponAttackType;
+use crate::plan_player_stats;
+use wow_data::PlayerStatSystemProjectionLikeCpp;
 use wow_data::PlayerStatsStore;
-use wow_data::{
-    PlayerStatSystemInputLikeCpp, PlayerStatSystemProjectionLikeCpp,
-    calculate_player_stat_system_like_cpp,
-};
-use wow_world_core::session::state::hub_support::{
-    RepresentedPlayerGearStatsLikeCpp, SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP,
-};
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_world_core::session::PlayerStatWeaponFacts;
+use wow_world_core::session::state::hub_support::RepresentedPlayerGearStatsLikeCpp;
 use wow_world_core::session::{
-    PacketPublicationAccessLikeCpp, PlayerStatsAccessLikeCpp,
-    primary_power_type_for_player_class_like_cpp,
+    PacketPublicationAccessLikeCpp, PlayerStatComputation, PlayerStatComputationRequest,
+    PlayerStatsAccessLikeCpp, primary_power_type_for_player_class_like_cpp,
 };
 
+impl InventoryState {
+    fn calculate_player_stats_with_access(
+        &self,
+        access: &PlayerStatsAccessLikeCpp<'_>,
+        request: &PlayerStatComputationRequest<'_>,
+    ) -> Option<PlayerStatComputation> {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if access.owner_handle_absent_like_cpp() {
+            let item_bonuses = self
+                .player_item_test_fixture_like_cpp
+                .represented_item_modifier_runtime_like_cpp
+                .bonuses_like_cpp();
+            let weapons = self.fixture_weapon_facts();
+            let facts = access.fixture_player_stat_facts(item_bonuses, weapons)?;
+            let catalogs = access.stat_catalogs();
+            return plan_player_stats(&facts, &catalogs, request);
+        }
+
+        access.calculate_owned_player_stats(plan_player_stats, request)
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    fn fixture_weapon_facts(&self) -> [Option<PlayerStatWeaponFacts>; 3] {
+        use wow_entities::{
+            EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_RANGED,
+        };
+
+        [
+            EQUIPMENT_SLOT_MAINHAND,
+            EQUIPMENT_SLOT_OFFHAND,
+            EQUIPMENT_SLOT_RANGED,
+        ]
+        .map(|slot| {
+            let inventory_item = self
+                .player_item_test_fixture_like_cpp
+                .inventory_items
+                .get(&slot)?;
+            let item = self.inventory_item_objects.get(&inventory_item.guid)?;
+            if item.is_broken() {
+                return None;
+            }
+            let enchantment_ids = item
+                .data()
+                .enchantments
+                .iter()
+                .filter_map(|enchantment| u32::try_from(enchantment.id).ok())
+                .collect();
+            Some(PlayerStatWeaponFacts::from_parts(
+                inventory_item.entry_id,
+                enchantment_ids,
+            ))
+        })
+    }
+}
+
 /// The borrowed participants for a character-stat application operation.
-/// Catalog, aura, canonical-player and fixture access remains inside Core's
-/// typed role; Inventory contributes only its equipment projection.
+/// Catalog and canonical-player access remain in Core. Inventory supplies one
+/// pure stats calculation; this adapter applies its owned result and publishes
+/// the existing health, power, packet and trace effects in their current order.
 pub struct CharacterStatsApplicationCxLikeCpp<'a> {
     player: PlayerStatsAccessLikeCpp<'a>,
     inventory: &'a InventoryState,
@@ -66,125 +119,10 @@ impl<'a> CharacterStatsApplicationCxLikeCpp<'a> {
         level: u8,
         gear: &RepresentedPlayerGearStatsLikeCpp,
     ) -> Option<PlayerStatSystemProjectionLikeCpp> {
-        let base = *self
-            .player
-            .player_stats_store_like_cpp()?
-            .get(race, class, level)?;
-        let (attack_power_per_strength, attack_power_per_agility, ranged_attack_power_per_agility) =
-            self.player
-                .player_class_attack_power_coefficients_like_cpp(class)?;
-        let rating_bonuses = std::array::from_fn(|index| {
-            gear.combat_ratings[index] as f32
-                * self
-                    .player
-                    .combat_rating_multiplier_like_cpp(level, index as u32)
-        });
-        let (can_parry, can_block) = self.player.canonical_player_parry_block_snapshot_like_cpp();
-        let spell_bonus = self
-            .inventory
-            .represented_spell_bonus_like_cpp(&self.player, gear);
-
-        let projection = calculate_player_stat_system_like_cpp(PlayerStatSystemInputLikeCpp {
-            base,
-            class,
-            level,
-            attack_power_per_strength,
-            attack_power_per_agility,
-            ranged_attack_power_per_agility,
-            stat_base_multipliers: self.player.resolved_stat_base_multipliers()?,
-            stat_total_multipliers: self
-                .player
-                .resolved_represented_total_stat_multipliers_like_cpp()?,
-            stat_buff_total_multipliers: self
-                .player
-                .resolved_represented_total_stat_buff_multipliers_like_cpp()?,
-            gear_stats: gear.stats,
-            gear_health: gear.health,
-            gear_mana: gear.mana,
-            gear_armor: gear.armor,
-            armor_base_pct: self.player.represented_resistance_aura_multiplier_like_cpp(
-                wow_data::spell::aura_types::SPELL_AURA_MOD_BASE_RESISTANCE_PCT,
-                SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP,
-            ),
-            armor_flat_aura: self
-                .player
-                .represented_resistance_aura_flat_like_cpp(SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP)
-                as i32,
-            armor_of_stat_percent: self.player.represented_armor_of_stat_percent_like_cpp(),
-            armor_total_pct: self.player.represented_resistance_aura_multiplier_like_cpp(
-                wow_data::spell::aura_types::SPELL_AURA_MOD_RESISTANCE_PCT,
-                SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP,
-            ),
-            armor_bonus_pct: self.player.represented_total_aura_multiplier_like_cpp(
-                wow_data::spell::aura_types::SPELL_AURA_MOD_BONUS_ARMOR_PCT,
-            ),
-            spell_dodge_pct: self.player.represented_total_aura_modifier_like_cpp(
-                wow_data::spell::aura_types::SPELL_AURA_MOD_DODGE_PERCENT,
-            ),
-            spell_parry_pct: self.player.represented_total_aura_modifier_like_cpp(
-                wow_data::spell::aura_types::SPELL_AURA_MOD_PARRY_PERCENT,
-            ),
-            spell_block_pct: self.player.represented_total_aura_modifier_like_cpp(
-                wow_data::spell::aura_types::SPELL_AURA_MOD_BLOCK_PERCENT,
-            ),
-            crit_mainhand_aura_pct: self
-                .inventory
-                .represented_weapon_crit_aura_modifier_like_cpp(
-                    &self.player,
-                    WeaponAttackType::BaseAttack,
-                ),
-            crit_offhand_aura_pct: self
-                .inventory
-                .represented_weapon_crit_aura_modifier_like_cpp(
-                    &self.player,
-                    WeaponAttackType::OffAttack,
-                ),
-            crit_ranged_aura_pct: self
-                .inventory
-                .represented_weapon_crit_aura_modifier_like_cpp(
-                    &self.player,
-                    WeaponAttackType::RangedAttack,
-                ),
-            spell_crit_aura_pct: self.player.represented_total_aura_modifier_like_cpp(
-                wow_data::spell::aura_types::SPELL_AURA_MOD_SPELL_CRIT_CHANCE,
-            ) + self.player.represented_total_aura_modifier_like_cpp(
-                wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_PCT,
-            ),
-            gear_attack_power: gear.attack_power,
-            gear_ranged_attack_power: gear.ranged_attack_power,
-            attack_power_flat_aura: self.player.represented_attack_power_flat_aura_like_cpp(),
-            attack_power_total_pct: self.player.represented_total_aura_multiplier_like_cpp(
-                wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACK_POWER_PCT,
-            ),
-            ranged_attack_power_flat_aura: self
-                .player
-                .represented_ranged_attack_power_flat_aura_like_cpp(class),
-            ranged_attack_power_total_pct: self
-                .player
-                .represented_ranged_attack_power_total_pct_like_cpp(class),
-            attack_power_override_by_spell_power_pct: self
-                .player
-                .represented_override_attack_power_by_spell_power_pct_like_cpp(),
-            spell_bonus,
-            rating_bonuses,
-            can_parry,
-            can_block,
-        });
-        Some(self.apply_stats_limits_like_cpp(projection))
-    }
-
-    fn apply_stats_limits_like_cpp(
-        &self,
-        mut projection: PlayerStatSystemProjectionLikeCpp,
-    ) -> PlayerStatSystemProjectionLikeCpp {
-        let limits = self.player.stats_limits_like_cpp();
-        projection.block_pct = limits.clamp_block_like_cpp(projection.block_pct);
-        projection.dodge_pct = limits.clamp_dodge_like_cpp(projection.dodge_pct);
-        projection.parry_pct = limits.clamp_parry_like_cpp(projection.parry_pct);
-        projection.crit_pct = limits.clamp_crit_like_cpp(projection.crit_pct);
-        projection.ranged_crit_pct = limits.clamp_crit_like_cpp(projection.ranged_crit_pct);
-        projection.offhand_crit_pct = limits.clamp_crit_like_cpp(projection.offhand_crit_pct);
-        projection
+        let request = PlayerStatComputationRequest::new(Some((race, class, level)), Some(gear));
+        self.inventory
+            .calculate_player_stats_with_access(&self.player, &request)
+            .map(|calculation| calculation.projection)
     }
 }
 
@@ -218,29 +156,22 @@ impl CharacterStatsApplicationCxLikeCpp<'_> {
             return None;
         }
 
-        let gear = self.represented_player_gear_stats_like_cpp()?;
-        let projection = self.player_stat_system_projection_like_cpp(race, class, level, &gear)?;
-        self.inventory.publish_effective_stats_like_cpp(
-            &self.player,
-            level,
-            true,
-            projection,
-            &gear,
-        );
+        let request = PlayerStatComputationRequest::new(None, None);
+        let calculation = self
+            .inventory
+            .calculate_player_stats_with_access(&self.player, &request)?;
+        let gear = calculation.gear;
+        let projection = calculation.projection;
+        let effective = calculation.effective;
+        let weapon_damage = effective.weapon_damage;
+        self.player
+            .replace_player_effective_combat_stats_like_cpp(effective);
         let computed_max_health_u32 = max_health_u32_like_cpp(projection.max_health);
         let (health, max_health_for_update) = self
             .player
             .sync_canonical_player_max_health_like_cpp(computed_max_health_u32)?;
         let health = i64::from(health);
         let max_health = i64::from(max_health_for_update);
-
-        let weapon_damage = wow_data::player::effective_weapon_damage_ranges_like_cpp(
-            projection,
-            gear.weapon_damage,
-            gear.base_attack_time,
-            self.player
-                .represented_shapeshift_combat_round_time_like_cpp(),
-        );
 
         // Power for slot 0 (mana/rage/energy/runic). Keep current power from
         // the runtime player and update only the max, like C++ `SetMaxPower`.
@@ -515,18 +446,17 @@ impl CharacterStatsApplicationCxLikeCpp<'_> {
         [[f32; 2]; 3],
         [i32; 6],
     )> {
-        let gear = self.represented_player_gear_stats_like_cpp()?;
-        let projection = self.player_stat_system_projection_like_cpp(race, class, level, &gear)?;
-        self.inventory
-            .publish_player_effective_combat_stats_like_cpp(&self.player, level, projection, &gear);
-        let weapon_damage = wow_data::player::effective_weapon_damage_ranges_like_cpp(
-            projection,
-            gear.weapon_damage,
-            gear.base_attack_time,
-            self.player
-                .represented_shapeshift_combat_round_time_like_cpp(),
-        );
-        let school_resistances = self.player.represented_school_resistances_like_cpp(&gear);
+        let request = PlayerStatComputationRequest::new(Some((race, class, level)), None);
+        let calculation = self
+            .inventory
+            .calculate_player_stats_with_access(&self.player, &request)?;
+        let gear = calculation.gear;
+        let projection = calculation.projection;
+        let effective = calculation.effective;
+        let weapon_damage = effective.weapon_damage;
+        let school_resistances = std::array::from_fn(|index| effective.resistances[index + 1]);
+        self.player
+            .replace_player_effective_combat_stats_like_cpp(effective);
         Some((gear, projection, weapon_damage, school_resistances))
     }
 

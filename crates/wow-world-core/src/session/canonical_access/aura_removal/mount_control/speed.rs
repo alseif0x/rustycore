@@ -799,7 +799,13 @@ impl AuraMountControlAccessLikeCpp<'_> {
                     rows.iter().map(|aura| aura.slot).collect();
                 let amount = rows
                     .iter()
-                    .map(|aura| snapshot.applied_aura_amounts.get(aura).copied().unwrap_or(0))
+                    .map(|aura| {
+                        snapshot
+                            .applied_aura_amounts
+                            .get(aura)
+                            .copied()
+                            .unwrap_or(0)
+                    })
                     .filter(|amount| *amount > 0)
                     .max()
                     .unwrap_or(0);

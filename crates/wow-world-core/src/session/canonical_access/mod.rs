@@ -62,8 +62,9 @@ pub use player_condition::PlayerConditionAccessLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use player_condition::PlayerConditionFixtureRefsLikeCpp;
 pub use player_stats::{
-    PlayerStatAuraCatalogs, PlayerStatAuraView, PlayerStatCatalogs, PlayerStatFacts,
-    PlayerStatWeaponFacts, PlayerStatsAccessLikeCpp,
+    PlayerStatAuraCatalogs, PlayerStatAuraView, PlayerStatCalculator, PlayerStatCatalogs,
+    PlayerStatComputation, PlayerStatComputationRequest, PlayerStatFacts, PlayerStatWeaponFacts,
+    PlayerStatsAccessLikeCpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use player_stats::{StatsAuraFixtureRefs, StatsCombatFixtureRefs, StatsFixtureRefs};

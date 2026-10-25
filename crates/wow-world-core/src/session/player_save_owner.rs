@@ -39,8 +39,8 @@ use crate::session::{
     RepresentedPlayerSkillStateLikeCpp, SessionCore, represented_player_skill_record_like_cpp,
 };
 
-mod resurrection_sickness;
 mod ghost_wisp;
+mod resurrection_sickness;
 
 /// Lifecycle-owned values that join the canonical Player projection in one save request.
 pub struct PlayerSaveSessionInputsLikeCpp<'a> {

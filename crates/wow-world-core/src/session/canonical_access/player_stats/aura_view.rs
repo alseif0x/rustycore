@@ -37,7 +37,6 @@ impl<'a> PlayerStatAuraCatalogs<'a> {
             spell_group_stack_rule_store,
         }
     }
-
 }
 
 /// Pure read-only stat queries over one borrowed canonical aura snapshot.
@@ -63,10 +62,7 @@ impl<'a> PlayerStatAuraView<'a> {
         )
     }
 
-    pub fn effects_with_misc_values_by_aura_type(
-        &self,
-        aura_type: i32,
-    ) -> Vec<(i32, i32, i32)> {
+    pub fn effects_with_misc_values_by_aura_type(&self, aura_type: i32) -> Vec<(i32, i32, i32)> {
         crate::session::aura_effects_with_misc_values_from_snapshot_like_cpp(
             self.auras,
             self.catalogs.spell_store,
@@ -74,10 +70,7 @@ impl<'a> PlayerStatAuraView<'a> {
         )
     }
 
-    pub fn effects_with_spell_and_misc_by_aura_type(
-        &self,
-        aura_type: i32,
-    ) -> Vec<(i32, i32, i32)> {
+    pub fn effects_with_spell_and_misc_by_aura_type(&self, aura_type: i32) -> Vec<(i32, i32, i32)> {
         crate::session::aura_effects_with_spell_and_misc_from_snapshot_like_cpp(
             self.auras,
             self.catalogs.spell_store,
@@ -170,9 +163,7 @@ impl<'a> PlayerStatAuraView<'a> {
                 let amount = aura
                     .represented_effect_amounts
                     .iter()
-                    .find(|represented| {
-                        u32::from(represented.effect_index) == effect.effect_index
-                    })
+                    .find(|represented| u32::from(represented.effect_index) == effect.effect_index)
                     .map(|represented| represented.amount)
                     .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
 
@@ -260,13 +251,11 @@ impl<'a> PlayerStatAuraView<'a> {
     }
 
     pub fn mana_regen_interrupt_modifier(&self) -> f32 {
-        self.effects_by_aura_type(
-            wow_data::spell::aura_types::SPELL_AURA_MOD_MANA_REGEN_INTERRUPT,
-        )
-        .into_iter()
-        .map(|(_, amount)| amount)
-        .sum::<i32>()
-        .min(100) as f32
+        self.effects_by_aura_type(wow_data::spell::aura_types::SPELL_AURA_MOD_MANA_REGEN_INTERRUPT)
+            .into_iter()
+            .map(|(_, amount)| amount)
+            .sum::<i32>()
+            .min(100) as f32
             / 100.0
     }
 
@@ -321,12 +310,10 @@ impl<'a> PlayerStatAuraView<'a> {
         if class_uses_wands_like_cpp(class) {
             return 0;
         }
-        self.effects_by_aura_type(
-            wow_data::spell::aura_types::SPELL_AURA_MOD_RANGED_ATTACK_POWER,
-        )
-        .into_iter()
-        .map(|(_, amount)| amount)
-        .sum()
+        self.effects_by_aura_type(wow_data::spell::aura_types::SPELL_AURA_MOD_RANGED_ATTACK_POWER)
+            .into_iter()
+            .map(|(_, amount)| amount)
+            .sum()
     }
 
     /// C++ `GetPctModifierValue(UNIT_MOD_ATTACK_POWER_RANGED, TOTAL_PCT)`;
@@ -360,8 +347,7 @@ impl<'a> PlayerStatAuraView<'a> {
         std::array::from_fn(|index| {
             let school = index + 1;
             let mask = 1_i32 << school;
-            let mut value = gear.resistances[school]
-                as f32
+            let mut value = gear.resistances[school] as f32
                 * self.resistance_aura_multiplier(
                     wow_data::spell::aura_types::SPELL_AURA_MOD_BASE_RESISTANCE_PCT,
                     mask,
@@ -402,4 +388,3 @@ impl<'a> PlayerStatAuraView<'a> {
             .sum::<i32>() as f32
     }
 }
-

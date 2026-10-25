@@ -124,30 +124,10 @@ impl crate::session::state::SessionCatalogs {
         item_id: u32,
         equipped: &SpellEquippedItemsEntry,
     ) -> bool {
-        let Some(item) = self
-            .items
-            .store
-            .as_ref()
-            .and_then(|store| store.get(item_id))
-        else {
-            return false;
-        };
-
-        if equipped.equipped_item_class >= 0 {
-            if equipped.equipped_item_class != item.class_id as i8 {
-                return false;
-            }
-
-            if equipped.equipped_item_subclass != 0 {
-                let subclass = u32::from(item.subclass_id);
-                if subclass >= i32::BITS
-                    || (equipped.equipped_item_subclass & (1_i32 << subclass)) == 0
-                {
-                    return false;
-                }
-            }
-        }
-
-        true
+        crate::session::PlayerStatCatalogs::from_session_catalogs(
+            self,
+            wow_data::StatsLimitsLikeCpp::default(),
+        )
+        .represented_item_fits_spell_requirements(item_id, equipped)
     }
 }
