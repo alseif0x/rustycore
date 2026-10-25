@@ -3,10 +3,9 @@
 
 //! The race-selected self aura used by spirit-healer resurrection.
 //!
-//! C++ anchors: aura creation in `Spell.cpp:3225` and
-//! `Spell::EffectApplyAura` (`SpellEffects.cpp:1037-1050`),
-//! `Aura::TryRefreshStackOrCreate` (`SpellAuras.cpp:344-382`),
-//! `Unit::_TryStackingOrRefreshingExistingAura` (`Unit.cpp:3224-3283`) and
+//! C++ anchors: `Spell::EffectApplyAura` (`SpellEffects.cpp:1037-1050`),
+//! `Unit::_TryStackingOrRefreshingExistingAura` (`Unit.cpp:3224-3283`),
+//! `Aura::SetStackAmount` (`SpellAuras.cpp:1021-1096`) and
 //! `SpellInfo::GetDuration` (`SpellInfo.cpp:3905`).
 
 use wow_core::ObjectGuid;
@@ -98,10 +97,16 @@ pub(super) fn apply_resurrection_sickness_aura<H: SpellExecutionHostLikeCpp>(
 ) -> Result<(), &'static str> {
     let spell_id_u32 =
         u32::try_from(spell_id).map_err(|_| "Invalid resurrection sickness spell")?;
-    let (duration_ms, visible_auras) = {
+    let requested_remaining = remaining_ms
+        .map(|remaining| {
+            i32::try_from(remaining)
+                .map_err(|_| "Resurrection sickness remaining duration exceeds the signed range")
+        })
+        .transpose()?;
+    let (duration_total, stack_amount, attributes1, attributes5, charges) = {
         let hub = host.hub_ref();
         let difficulty_id = host.core().current_map_difficulty_id_like_cpp();
-        let duration_index = hub
+        let misc = hub
             .catalogs
             .spell_catalogs
             .spell_misc_store
@@ -113,71 +118,85 @@ pub(super) fn apply_resurrection_sickness_aura<H: SpellExecutionHostLikeCpp>(
                     hub.catalogs.difficulty_store.as_deref(),
                 )
             })
-            .map(|entry| u32::from(entry.duration_index))
             .ok_or("Missing resurrection sickness SpellMisc row")?;
-        let duration_ms = spell_duration_ms_like_cpp(
+        let duration_index = u32::from(misc.duration_index);
+        let duration_total = spell_duration_ms_like_cpp(
             duration_index,
             hub.catalogs.spell_catalogs.spell_duration_store.as_deref(),
         );
-        let duration_ms = u32::try_from(duration_ms)
+        let duration_total = i32::try_from(duration_total)
             .ok()
             .filter(|duration| *duration > 0)
             .ok_or("Missing finite resurrection sickness SpellDuration")?;
-        let visible_auras = hub
-            .resolved_player_visible_auras_like_cpp()
-            .ok_or("Missing canonical Player aura applications")?;
-        (duration_ms, visible_auras)
+        let options = hub
+            .catalogs
+            .spell_catalogs
+            .spell_aura_options_store
+            .as_deref()
+            .ok_or("Missing SpellAuraOptions catalog for resurrection sickness")?;
+        let charges = options.proc_charges_like_cpp(spell_id_u32, difficulty_id);
+        let stack_amount = options
+            .entry_for_spell_difficulty_like_cpp(spell_id_u32, difficulty_id)
+            .map_or(0, |entry| entry.cumulative_aura);
+        let attributes = misc.attributes.map(|value| value as u32);
+        (
+            duration_total,
+            stack_amount,
+            attributes[1],
+            attributes[5],
+            charges,
+        )
     };
 
-    let effect_mask = spell_info
-        .effects()
-        .iter()
-        .filter(|effect| {
-            effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
-        })
-        .try_fold(0u32, |mask, effect| {
-            let bit = 1u32
-                .checked_shl(effect.effect_index)
-                .ok_or("Invalid resurrection sickness effect index")?;
-            Ok::<_, &'static str>(mask | bit)
-        })?;
-    if effect_mask == 0 {
-        return Err("Resurrection sickness has no APPLY_AURA effects");
-    }
-
-    let existing = visible_auras.values().any(|aura| {
-        aura.spell_id == spell_id
-            && aura.caster_guid == caster_guid
-            && aura.effect_mask == effect_mask
-    });
-    if existing {
-        if crate::set_player_aura_duration(
-            host,
-            spell_id,
-            caster_guid,
-            remaining_ms.unwrap_or(duration_ms),
-        ) == 0
-        {
-            return Err("Resurrection sickness aura disappeared during refresh");
-        }
-        return Ok(());
-    }
-
-    let remaining_ms = remaining_ms.unwrap_or(duration_ms);
-    host.apply_aura_with_effect_mask_and_provenance_like_cpp(
+    host.apply_resurrection_sickness_aura(
         spell_id,
         caster_guid,
-        duration_ms,
-        0x0000_0015,
-        effect_mask,
+        spell_info,
+        duration_total,
+        stack_amount,
+        attributes1,
+        attributes5,
+        charges,
         wow_entities::AuraCastProvenanceLikeCpp {
             cast_id,
             spell_visual_id: spell_visual_id.min(i32::MAX as u32) as i32,
         },
-        false,
     )?;
-    if crate::set_player_aura_duration(host, spell_id, caster_guid, remaining_ms) == 0 {
-        return Err("Resurrection sickness aura disappeared after application");
+    if let Some(remaining) = requested_remaining {
+        let remaining = u32::try_from(remaining)
+            .map_err(|_| "Resurrection sickness remaining duration is negative")?;
+        if crate::set_player_aura_duration(host, spell_id, caster_guid, remaining) == 0 {
+            return Err("Resurrection sickness aura disappeared after application");
+        }
+    } else {
+        publish_current_sickness_aura(host, spell_id, caster_guid)?;
+    }
+    Ok(())
+}
+
+fn publish_current_sickness_aura<H: SpellExecutionHostLikeCpp>(
+    host: &H,
+    spell_id: i32,
+    caster_guid: ObjectGuid,
+) -> Result<(), &'static str> {
+    let snapshots = host
+        .core()
+        .with_owned_player_like_cpp(|player| {
+            let auras = &player.unit().subsystems().auras;
+            auras
+                .runtime_applications_like_cpp()
+                .values()
+                .filter(|aura| aura.spell_id == spell_id && aura.caster_guid == caster_guid)
+                .map(|aura| (aura.clone(), auras.aura_cast_provenance_like_cpp(aura.slot)))
+                .collect::<Vec<_>>()
+        })
+        .ok_or("Canonical sickness Player disappeared before Aura publication")?;
+    if snapshots.len() != 1 {
+        return Err("Canonical sickness Aura is missing or ambiguous before publication");
+    }
+    let (state, hub) = host.split_spell_state_ref();
+    for (aura, provenance) in snapshots {
+        state.send_aura_application_update_with_provenance(hub, &aura, provenance);
     }
     Ok(())
 }

@@ -48,6 +48,8 @@ pub use canonical_access::{
 };
 pub use canonical_access::{
     AuraMountControlAccessLikeCpp, AuraStatsAccessBuilderLikeCpp, PlayerAuraRemovalAccessLikeCpp,
+    SelectedAuraEffectRefresh, SelectedAuraKind, SelectedAuraRefresh,
+    selected_aura_refreshes_timers,
 };
 pub use canonical_access::{
     CoreXPGainAccessLikeCpp, EquipmentSetCombatAccessLikeCpp, EquipmentSetUseAccessLikeCpp,

@@ -16,6 +16,10 @@ const CUSTOM_SICKNESS_SPELL: i32 = 846_201;
 
 #[path = "spirit_healer_lifecycle_stat.rs"]
 mod lifecycle_stat;
+#[path = "spirit_healer/recast_policy.rs"]
+mod recast_policy;
+#[path = "spirit_healer/selected_lifetime.rs"]
+mod selected_lifetime;
 #[path = "spirit_healer/setup.rs"]
 mod setup;
 use setup::*;
@@ -437,6 +441,17 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
         [0.25; 7]
     );
 
+    let original_slot = sickness_auras[0].slot;
+    let original_provenance = session
+        .core
+        .with_owned_player_like_cpp(|player| {
+            let auras = &player.unit().subsystems().auras;
+            auras.aura_cast_provenance_like_cpp(original_slot)
+        })
+        .expect("canonical sickness Aura provenance");
+    assert_eq!(original_provenance.cast_id, sickness.cast_id);
+    prepare_loaded_sickness_for_recast(&mut session, original_slot, sickness_auras[0].caster_guid);
+
     // C++ permits invoking the healer again while alive. The existing
     // same-caster/mask aura is refreshed in place and cannot multiply BASE_PCT.
     session
@@ -444,6 +459,10 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
         .await;
     let refreshed = visible_sickness_aura(&session, SICKNESS_SPELL);
     assert_eq!(refreshed.len(), 1);
+    assert_eq!(refreshed[0].slot, original_slot);
+    assert_eq!(refreshed[0].duration_total, 900_000);
+    assert_eq!(refreshed[0].duration_remaining, 60_000);
+    assert_eq!(refreshed[0].stack_count, 1);
     let refreshed_stats = session
         .canonical_player_effective_combat_stats_like_cpp()
         .unwrap();
@@ -454,6 +473,13 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
     );
     assert_eq!(refreshed_stats.mod_damage_done_percent, [0.25; 7]);
     let refreshed_packets = drain_packets(&send_rx);
+    let refresh_spell_go = refreshed_packets
+        .iter()
+        .find(|bytes| packet_opcode(bytes) == ServerOpcodes::SpellGo as u16)
+        .expect("sickness recast publishes its own SpellGo");
+    let (refresh_cast_id, _, refresh_spell_id, _, _) = decode_spell_go(refresh_spell_go);
+    assert_eq!(refresh_spell_id, SICKNESS_SPELL);
+    assert_ne!(refresh_cast_id, original_provenance.cast_id);
     let refreshed_updates = refreshed_packets
         .iter()
         .filter(|bytes| packet_opcode(bytes) == ServerOpcodes::AuraUpdate as u16)
@@ -463,8 +489,37 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
     assert_eq!(refreshed_updates.len(), 1);
     assert_eq!(refreshed_updates[0].cast_id, sickness.cast_id);
     assert_eq!(refreshed_updates[0].visual_id, sickness.visual_id);
-    assert_eq!(refreshed_updates[0].duration_ms, Some(600_000));
+    assert_eq!(refreshed_updates[0].duration_ms, Some(900_000));
     assert_eq!(refreshed_updates[0].remaining_ms, Some(60_000));
+    // Every healer resurrection has its own `Player::ResurrectPlayer` full
+    // values update. The Aura-specific focused test above checks that sickness
+    // does not add a synthetic stat packet of its own.
+    let (refreshed_amounts, refreshed_metadata, refreshed_provenance) =
+        refreshed_sickness_state(&session, original_slot);
+    assert_eq!(refreshed_amounts, vec![-75, -75, 0]);
+    assert_eq!(refreshed_metadata.charges, 5);
+    assert_eq!(refreshed_metadata.recalculate_mask, 0);
+    assert_eq!(
+        refreshed_metadata.base_amounts,
+        vec![(0, -76), (1, -76), (2, -1)]
+    );
+    assert_eq!(refreshed_provenance, original_provenance);
+
+    // Once the stack is one, the same non-unique Spell refreshes timers and
+    // charges. The preceding 3-to-1 recast changed effects/stack but retained
+    // its old timer and charges, matching `Aura::ModStackAmount`'s pre-change
+    // refresh predicate.
+    session
+        .handle_spirit_healer_activate(healer_packet(healer))
+        .await;
+    let single_stack_refresh = visible_sickness_aura(&session, SICKNESS_SPELL);
+    assert_eq!(single_stack_refresh.len(), 1);
+    assert_eq!(single_stack_refresh[0].slot, original_slot);
+    assert_eq!(single_stack_refresh[0].stack_count, 1);
+    assert_eq!(single_stack_refresh[0].duration_total, 600_000);
+    assert_eq!(single_stack_refresh[0].duration_remaining, 60_000);
+    let (_, single_stack_metadata, _) = refreshed_sickness_state(&session, original_slot);
+    assert_eq!(single_stack_metadata.charges, 0);
 
     let stale = std::time::Instant::now() - std::time::Duration::from_secs(121);
     session

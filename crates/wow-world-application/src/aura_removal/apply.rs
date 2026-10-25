@@ -73,6 +73,9 @@ impl AuraRemovalCxLikeCpp<'_> {
         let stat_cause = stat_application
             .as_ref()
             .and_then(|selection| selection.cause);
+        if required_sickness && self.player.is_logged_in_like_cpp() {
+            self.preflight_selected_sickness_stats()?;
+        }
         let preserve_health_pct = matches!(
             stat_cause,
             Some(

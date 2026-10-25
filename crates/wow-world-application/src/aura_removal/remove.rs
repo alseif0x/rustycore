@@ -5,6 +5,28 @@ use super::AuraRemovalCxLikeCpp;
 
 impl AuraRemovalCxLikeCpp<'_> {
     pub fn remove_aura_like_cpp(&mut self, slot: u8) -> Result<(), &'static str> {
+        let removal_target = self
+            .player
+            .aura_subsystem_snapshot_like_cpp()
+            .and_then(|auras| auras.runtime_application_like_cpp(slot).cloned());
+        let selected_sickness = removal_target
+            .as_ref()
+            .is_some_and(|aura| self.is_current_race_sickness_spell(aura.spell_id) == Some(true));
+        if selected_sickness {
+            let aura = removal_target
+                .as_ref()
+                .expect("selected sickness came from the removal target");
+            let spell_info = self
+                .spell_store
+                .and_then(|store| store.get(aura.spell_id))
+                .ok_or("Missing SpellInfo for the race-selected sickness removal")?;
+            super::sickness::validate_selected_sickness_data(
+                aura.spell_id,
+                spell_info,
+                aura.effect_mask,
+            )?;
+            self.preflight_selected_sickness_stats()?;
+        }
         let prepared_ghost_wisp = self.prepare_ghost_wisp_removal(slot)?;
         let removed = super::initial::remove_initial_phase_like_cpp(
             self.spell,

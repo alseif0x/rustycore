@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, implementación previa a aceptación final — 2026-10-25, 05:13 UTC:**
+**#43, implementación previa a aceptación final — 2026-10-25, 06:19 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
 y productor desde hechizos están escritos y tienen feedback focalizado;
 **no hay aceptación final de este candidato**. El cálculo básico del productor
@@ -515,6 +515,70 @@ también la cobertura finita en r4. Check previo del código productivo: exit 0,
 8,5 s (`/tmp/rustycore-9h3c-taunt-world-check-r1.log`); después solo cambió
 ese test. No se repitieron los cuatro filtros disjuntos por esa corrección
 de adapter. Todo sigue sin aceptación final ni prueba viva del countdown.
+
+9h3D añade el refresh compartido de las tres familias, la aplicación de Stats
+tras refrescar sickness y su preflight antes de cambiar o retirar el Aura.
+El refresh recalcula todos los amounts desde sus bases aunque el bit de
+recálculo esté apagado; conserva esos bits y Transform los apaga. Esto es
+distinto de RecalculateAmount durante Load, que sí respeta el bit apagado
+(`SpellAuras.cpp:1021–1040`, `SpellAuraEffects.cpp:658–680`). La retirada
+acepta también las máscaras activas parciales válidas del loader.
+Feedback del worker sobre `476b00394` más delta, aarch64/jobs=1:
+World `sickness` pasó 25 casos y `ghost_wisp` 39, exit 0, logs
+`/tmp/rustycore-9h3d-sickness-r2-20261025.log` y
+`/tmp/rustycore-9h3d-ghost-wisp-r2-20261025.log`; check World r4 exit 0.
+El primer check falló por un import; el primer sickness tuvo tres
+expectativas incorrectas. Se conservaron los logs previos. Una aserción
+amplia contra cualquier UpdateObject confundía la publicación propia de
+ResurrectPlayer con Stats; la prueba causal de Stats conserva su prohibición
+de publicación inmediata.
+La revisión posterior de `SpellAuras.cpp:1078–1094` detecta un error en el
+contrato del integrador: al pasar de tres stacks cargados a uno, la condición
+`stackAmount >= GetStackAmount()` es falsa. Se recalculan amounts, pero
+RefreshTimers y SetCharges no se ejecutan. La llamada posterior explícita a
+SetDuration de sickness cambia solo remaining. Se corrigen código y pruebas
+antes de incorporar este delta; los 64 verdes anteriores no prueban esa
+corrección. El ejecutor seleccionado por diff (9h3E) se escribe por separado
+y aún no tiene caller productivo: barrido legacy y snapshot con elapsed
+permanecen hasta conectar conjuntamente el pase Map de recuperación.
+La misma corrección respeta que Player.cpp:4396–4403 solo llama SetDuration
+para los niveles con acortamiento; sin esa petición no se fuerza remaining
+al máximo para obtener una publicación. En el borde aritmético del nuevo
+ejecutor se conserva también la resta uint32 y conversión a int32 de
+SpellAuras.cpp:818 antes del clamp de negativos. No se cambia silenciosamente
+ese comportamiento por una resta i64: con remaining=5 y diff=UINT32_MAX la
+fuente obtiene 6, mientras un overrun normal expira en cero. El primer
+contrato del integrador proponía i64 y se corrigió durante la revisión.
+Corrección D y ejecutor E terminados localmente sobre `476b00394` más delta:
+check World exit 0 (`/tmp/rustycore-9h3e-check-final-20261025.log`);
+`cargo test -p wow-world --lib sickness`, 27 passed, exit 0
+(`/tmp/rustycore-9h3e-sickness-r3-20261025.log`);
+`--lib ghost_wisp`, 42 passed, exit 0
+(`/tmp/rustycore-9h3e-ghost-wisp-r2-20261025.log`);
+`--lib selected_lifetime`, 4 passed, exit 0
+(`/tmp/rustycore-9h3e-selected-lifetime-20261025.log`). Los cuatro últimos
+casos ya pertenecen a los otros dos filtros: 69 identidades distintas,
+no 73. Se ejecutaron secuencialmente, aarch64/jobs=1, con target local y
+PROTOC declarado. Los intentos anteriores conservan dos checks fallidos por
+referencia aritmética y exports; sickness primero falló al compilar una
+fixture y luego tuvo 19 passed/8 failed por faltar AuraOptions antes de
+release. Se añadió el catálogo vacío conocido a esa preparación, sin dar
+por conocido un catálogo ausente en producción. Ghost/Wisp tuvo 41 passed
+y un fallo en la expectativa de applied_at del stack 3; se corrigió según
+el predicado de refresh de la fuente. No hubo aceptación final ni QA viva.
+El ejecutor E usa el dueño canónico en mundo, valida el orden de spell y
+aplicación, modifica remaining y retira por los participantes existentes;
+el host todavía no representa AURA_REMOVE_BY_EXPIRE. No tiene caller
+productivo en este checkpoint. La publicación seleccionada aún requiere
+resolver su metadata pendiente: nivel capturado del caster, aplicaciones
+por stacks/cargas, CastUnit no Unit y flags de caster extranjero. En
+particular, sickness conserva el literal 0x15 al crear y debe derivar
+NOCASTER de la identidad real, incluida la procedencia original ahora
+resuelta; no se acepta ese literal desde los tests verdes anteriores.
+Consulta adicional de solo lectura a las 06:19: `world.spell_group` no
+contiene filas con spell_id 15007, 8326 o 20584. Esto acota el contraste de
+CanStackWith para esos datos, no prueba cualquier overlay futuro.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa

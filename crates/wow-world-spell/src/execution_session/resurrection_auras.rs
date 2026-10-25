@@ -8,7 +8,8 @@
 //! `SpellAuras.cpp:110-161` derives AuraApplication flags and `:225-267`
 //! projects the queued client update. Effect metadata comes from the selected
 //! SpellMisc/SpellDuration rows; the permanent Duration entry is represented
-//! by zero in the Rust runtime.
+//! by the canonical `-1/-1` lifetime pair (legacy `0/0` inputs are adapted at
+//! their boundary).
 
 use wow_core::ObjectGuid;
 
@@ -75,7 +76,7 @@ pub(super) fn apply<H: SpellExecutionHostLikeCpp>(
     if caster_guid != host.player_guid().unwrap_or(ObjectGuid::EMPTY) {
         return Err("Selected resurrection ghost aura requires the Player as its caster");
     }
-    let (duration_ms, aura_flags, effect_mask) = {
+    let (duration_ms, aura_flags, effect_mask, stack_amount, attributes1, attributes5, charges) = {
         let hub = host.hub_ref();
         let difficulty = host.core().current_map_difficulty_id_like_cpp();
         let misc = hub
@@ -114,6 +115,17 @@ pub(super) fn apply<H: SpellExecutionHostLikeCpp>(
         }
 
         let attrs = misc.attributes.map(|value| value as u32);
+        let spell_id_u32 =
+            u32::try_from(spell_id).map_err(|_| "Invalid selected resurrection ghost spell")?;
+        let options_store = hub
+            .catalogs
+            .spell_catalogs
+            .spell_aura_options_store
+            .as_deref()
+            .ok_or("Missing selected resurrection ghost SpellAuraOptions catalog")?;
+        let options = options_store.entry_for_spell_difficulty_like_cpp(spell_id_u32, difficulty);
+        let stack_amount = options.map_or(0, |row| row.cumulative_aura);
+        let charges = options_store.proc_charges_like_cpp(spell_id_u32, difficulty);
         let positive = crate::aura_session::selected_aura_effects_positive(spell_info, effect_mask)
             .ok_or("Selected resurrection aura effect mask is inconsistent")?;
         let mut aura_flags = AURA_FLAG_NO_CASTER;
@@ -135,7 +147,15 @@ pub(super) fn apply<H: SpellExecutionHostLikeCpp>(
         if attrs[8] & wow_data::spell::attributes::SPELL_ATTR8_AURA_POINTS_ON_CLIENT != 0 {
             aura_flags |= AURA_FLAG_SCALABLE;
         }
-        (0, aura_flags, effect_mask)
+        (
+            0,
+            aura_flags,
+            effect_mask,
+            stack_amount,
+            attrs[1],
+            attrs[5],
+            charges,
+        )
     };
 
     host.apply_ghost_wisp_aura(
@@ -145,6 +165,10 @@ pub(super) fn apply<H: SpellExecutionHostLikeCpp>(
         duration_ms,
         aura_flags,
         effect_mask,
+        stack_amount,
+        attributes1,
+        attributes5,
+        charges,
         wow_entities::AuraCastProvenanceLikeCpp {
             cast_id,
             spell_visual_id: i32::try_from(spell_visual_id).unwrap_or(i32::MAX),

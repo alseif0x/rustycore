@@ -83,11 +83,21 @@ impl AuraRemovalCxLikeCpp<'_> {
         duration_ms: u32,
         aura_flags: u32,
         effect_mask: u32,
+        stack_amount: u32,
+        attributes1: u32,
+        attributes5: u32,
+        charges: u8,
         provenance: wow_entities::AuraCastProvenanceLikeCpp,
     ) -> Result<(), &'static str> {
         if duration_ms != 0 || effect_mask != SELECTED_EFFECT_MASK {
             return Err("Resurrection ghost aura is not the expected permanent three-effect aura");
         }
+        wow_world_core::session::selected_aura_refreshes_timers(
+            stack_amount,
+            1,
+            attributes1,
+            attributes5,
+        )?;
         let selected = selected_effects_for_mask(spell_id, spell_info, effect_mask)?;
 
         let aura_snapshot = self
@@ -104,44 +114,71 @@ impl AuraRemovalCxLikeCpp<'_> {
             return Err("Multiple canonical resurrection aura applications share this caster");
         }
 
-        let effect_updates = selected
-            .iter()
-            .map(|effect| {
-                let bit = 1_u32
-                    .checked_shl(effect.effect_index)
-                    .ok_or("Invalid selected resurrection aura effect index")?;
-                Ok((
-                    bit,
-                    effect.effect_aura,
-                    effect.calc_value_no_caster_like_cpp(),
-                    effect.effect_misc_value_1,
-                ))
-            })
-            .collect::<Result<Vec<_>, &'static str>>()?;
-        let base_amounts = selected
-            .iter()
-            .map(|effect| {
-                Ok((
-                    u8::try_from(effect.effect_index)
-                        .map_err(|_| "Invalid selected resurrection aura base index")?,
-                    effect.effect_base_points,
-                ))
-            })
-            .collect::<Result<Vec<_>, &'static str>>()?;
         if let Some(existing) = same_caster
             .first()
             .filter(|existing| existing.effect_mask == effect_mask)
         {
+            let refresh_timers = wow_world_core::session::selected_aura_refreshes_timers(
+                stack_amount,
+                existing.stack_count,
+                attributes1,
+                attributes5,
+            )?;
+            let metadata = aura_snapshot
+                .aura_persistence_metadata(existing.slot)
+                .cloned()
+                .ok_or("Canonical resurrection aura persistence metadata is missing")?;
+            let snapshot = aura_snapshot
+                .threat_snapshot_like_cpp(existing.slot)
+                .ok_or("Canonical resurrection aura effect snapshot is missing")?;
+            let mut recalculate_mask = metadata.recalculate_mask;
+            let effect_updates = selected
+                .iter()
+                .map(|effect| {
+                    let bit = 1_u32
+                        .checked_shl(effect.effect_index)
+                        .ok_or("Invalid selected resurrection aura effect index")?;
+                    let _current = snapshot
+                        .effects()
+                        .iter()
+                        .find(|(current_bit, _, _, _)| *current_bit == bit)
+                        .ok_or("Canonical resurrection aura effect no longer matches refresh")?;
+                    if effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_TRANSFORM {
+                        recalculate_mask &= !bit;
+                    }
+                    Ok(wow_world_core::session::SelectedAuraEffectRefresh {
+                        effect_index: u8::try_from(effect.effect_index)
+                            .map_err(|_| "Invalid selected resurrection aura base index")?,
+                        aura_type: effect.effect_aura,
+                        amount: effect.calc_value_no_caster_like_cpp(),
+                        misc_value: effect.effect_misc_value_1,
+                        base_amount: effect.effect_base_points,
+                    })
+                })
+                .collect::<Result<Vec<_>, &'static str>>()?;
+            let kind = if spell_id == GHOST_SPELL {
+                wow_world_core::session::SelectedAuraKind::Ghost
+            } else {
+                wow_world_core::session::SelectedAuraKind::Wisp
+            };
+            let refresh = wow_world_core::session::SelectedAuraRefresh {
+                kind,
+                spell_id,
+                caster_guid,
+                slot: existing.slot,
+                effect_mask,
+                duration_total: -1,
+                stack_amount,
+                attributes1,
+                attributes5,
+                refresh_timers,
+                charges,
+                recalculate_mask,
+                effects: &effect_updates,
+            };
             let (run_amount_changed, swim_amount_changed) = self
                 .player
-                .refresh_resurrection_aura_application(
-                    spell_id,
-                    caster_guid,
-                    existing.slot,
-                    effect_mask,
-                    &effect_updates,
-                    &base_amounts,
-                )
+                .refresh_selected_aura_application(&refresh)
                 .ok_or("Canonical Player disappeared while refreshing resurrection aura")??;
             if run_amount_changed {
                 self.mount
@@ -196,6 +233,51 @@ impl AuraRemovalCxLikeCpp<'_> {
             provenance,
             false,
         )?;
+        let kind = if spell_id == GHOST_SPELL {
+            wow_world_core::session::SelectedAuraKind::Ghost
+        } else {
+            wow_world_core::session::SelectedAuraKind::Wisp
+        };
+        let recalculate_mask = selected.iter().fold(0_u32, |mask, effect| {
+            if effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_TRANSFORM {
+                mask
+            } else {
+                mask | (1_u32 << effect.effect_index)
+            }
+        });
+        let metadata = wow_entities::AuraPersistenceMetadata {
+            item_guid: wow_core::ObjectGuid::EMPTY,
+            cast_item_id: 0,
+            cast_item_level: -1,
+            recalculate_mask,
+            charges,
+            base_amounts: selected
+                .iter()
+                .map(|effect| {
+                    Ok((
+                        u8::try_from(effect.effect_index)
+                            .map_err(|_| "Invalid selected resurrection aura base index")?,
+                        effect.effect_base_points,
+                    ))
+                })
+                .collect::<Result<Vec<_>, &'static str>>()?,
+        };
+        let initial_effects = selected
+            .iter()
+            .map(|effect| {
+                Ok(wow_world_core::session::SelectedAuraEffectRefresh {
+                    effect_index: u8::try_from(effect.effect_index)
+                        .map_err(|_| "Invalid selected resurrection aura effect index")?,
+                    aura_type: effect.effect_aura,
+                    amount: effect.calc_value_no_caster_like_cpp(),
+                    misc_value: effect.effect_misc_value_1,
+                    base_amount: effect.effect_base_points,
+                })
+            })
+            .collect::<Result<Vec<_>, &'static str>>()?;
+        self.player
+            .initialize_selected_aura_metadata(kind, spell_id, slot, metadata, &initial_effects)
+            .ok_or("Canonical Player disappeared while initializing resurrection aura")??;
 
         for effect in selected {
             match effect.effect_aura {

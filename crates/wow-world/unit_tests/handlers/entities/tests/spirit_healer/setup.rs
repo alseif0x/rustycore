@@ -6,8 +6,8 @@
 use super::*;
 use crate::session::WorldSession;
 use std::sync::Arc;
-use wow_constants::unit::{NPCFlags1, UnitFlags2};
 use wow_constants::CreatureTypeFlags;
+use wow_constants::unit::{NPCFlags1, UnitFlags2};
 use wow_data::character_progression::{ChrClassesStore, ChrRacesStore};
 use wow_data::spell::aura_types::{
     SPELL_AURA_MOD_DAMAGE_PERCENT_DONE, SPELL_AURA_MOD_PERCENT_STAT, SPELL_AURA_NO_PVP_CREDIT,
@@ -158,25 +158,23 @@ pub(super) fn install_sickness_data(
             if let Some(info) = existing_spells.get(selected_spell) {
                 spells.insert(selected_spell, info.clone());
             }
-            if let Some(attributes) = existing_spells.misc_attributes_for_difficulty_like_cpp(
-                selected_spell,
-                0,
-                None,
-            ) {
+            if let Some(attributes) =
+                existing_spells.misc_attributes_for_difficulty_like_cpp(selected_spell, 0, None)
+            {
                 spells.insert_spell_misc_attributes_like_cpp(selected_spell, attributes);
             }
         }
     }
     spells.insert(spell_id, spell_info);
     session.set_spell_store(Arc::new(spells));
-    session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries([
-        wow_data::SpellMiscEntry {
-            id: spell_id as u32,
-            spell_id: spell_id as u32,
-            duration_index: 427,
-            ..Default::default()
-        },
-    ])));
+    let mut misc = wow_data::SpellMiscEntry {
+        id: spell_id as u32,
+        spell_id: spell_id as u32,
+        duration_index: 427,
+        ..Default::default()
+    };
+    misc.attributes[1] = 0x88;
+    session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries([misc])));
     session.set_spell_duration_store(Arc::new(wow_data::SpellDurationStore::from_entries([
         wow_data::SpellDurationEntry {
             id: 427,
@@ -185,6 +183,8 @@ pub(super) fn install_sickness_data(
             max_duration: 600_000,
         },
     ])));
+    session
+        .set_spell_aura_options_store(Arc::new(wow_data::SpellAuraOptionsStore::from_entries([])));
     let visual_rows = visual_id
         .map(|spell_visual_id| wow_data::SpellXSpellVisualEntry {
             id: 245_039,
@@ -232,6 +232,84 @@ pub(super) fn install_sickness_data(
     let mut class_entry = wow_data::character_progression::ChrClassesEntry::default();
     class_entry.id = u32::from(class);
     session.set_chr_classes_store(Arc::new(ChrClassesStore::from_entries([class_entry])));
+}
+
+pub(super) fn prepare_loaded_sickness_for_recast(
+    session: &mut WorldSession,
+    slot: u8,
+    caster_guid: ObjectGuid,
+) {
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            let auras = &mut player.unit_mut().subsystems_mut().auras;
+            let application = auras
+                .runtime_application_mut_like_cpp(slot)
+                .expect("fresh sickness AuraApplication");
+            application.duration_total = 900_000;
+            application.duration_remaining = 10_000;
+            application.stack_count = 3;
+            let mut metadata = auras
+                .aura_persistence_metadata(slot)
+                .cloned()
+                .expect("fresh sickness persistence metadata");
+            metadata.charges = 5;
+            metadata.recalculate_mask = 0;
+            metadata.base_amounts = vec![(0, -10), (1, -11), (2, -12)];
+            assert!(auras.set_aura_persistence_metadata(slot, metadata));
+            let snapshot = auras
+                .threat_snapshot_like_cpp(slot)
+                .cloned()
+                .expect("fresh sickness effect snapshot");
+            let mut effects = snapshot.effects().to_vec();
+            for (bit, _, amount, _) in &mut effects {
+                if *bit == 0b001 {
+                    *amount = -29;
+                    let applied = wow_entities::AppliedAuraRef::new(
+                        SICKNESS_SPELL as u32,
+                        caster_guid,
+                        slot,
+                        *bit,
+                    );
+                    auras.applied_aura_amounts.insert(applied, *amount);
+                }
+            }
+            auras.insert_threat_snapshot_like_cpp(
+                slot,
+                wow_entities::AuraThreatSnapshotLikeCpp::new(snapshot.interrupt_flags(), effects),
+            );
+        })
+        .expect("canonical sickness Aura owner");
+}
+
+pub(super) fn refreshed_sickness_state(
+    session: &WorldSession,
+    slot: u8,
+) -> (
+    Vec<i32>,
+    wow_entities::AuraPersistenceMetadata,
+    wow_entities::AuraCastProvenanceLikeCpp,
+) {
+    session
+        .core
+        .with_owned_player_like_cpp(|player| {
+            let auras = &player.unit().subsystems().auras;
+            (
+                auras
+                    .threat_snapshot_like_cpp(slot)
+                    .expect("refreshed sickness effect snapshot")
+                    .effects()
+                    .iter()
+                    .map(|effect| effect.2)
+                    .collect(),
+                auras
+                    .aura_persistence_metadata(slot)
+                    .cloned()
+                    .expect("refreshed sickness persistence metadata"),
+                auras.aura_cast_provenance_like_cpp(slot),
+            )
+        })
+        .expect("canonical refreshed sickness Aura")
 }
 
 pub(super) fn set_race_sickness_spell(session: &mut WorldSession, spell_id: i32) {

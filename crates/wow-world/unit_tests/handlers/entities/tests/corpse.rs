@@ -854,17 +854,19 @@ fn install_release_cast_spell_fixture(session: &mut WorldSession) {
             .zip(base_points)
             .zip(misc_value)
             .enumerate()
-            .map(|(effect_index, ((effect_aura, effect_base_points), effect_misc_value_1))| {
-                wow_data::SpellEffectInfo {
-                    effect_index: effect_index as u32,
-                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
-                    effect_aura,
-                    effect_base_points,
-                    effect_die_sides: 1,
-                    effect_misc_value_1,
-                    ..Default::default()
-                }
-            })
+            .map(
+                |(effect_index, ((effect_aura, effect_base_points), effect_misc_value_1))| {
+                    wow_data::SpellEffectInfo {
+                        effect_index: effect_index as u32,
+                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                        effect_aura,
+                        effect_base_points,
+                        effect_die_sides: 1,
+                        effect_misc_value_1,
+                        ..Default::default()
+                    }
+                },
+            )
             .collect::<Vec<_>>();
         let mut attributes = [0; 15];
         attributes[0] = 0x2D80_0100;
@@ -897,6 +899,8 @@ fn install_release_cast_spell_fixture(session: &mut WorldSession) {
     }
     session.set_spell_store(Arc::new(spells));
     session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries(misc_rows)));
+    session
+        .set_spell_aura_options_store(Arc::new(wow_data::SpellAuraOptionsStore::from_entries([])));
     session.set_spell_duration_store(Arc::new(wow_data::SpellDurationStore::from_entries([
         wow_data::SpellDurationEntry {
             id: 21,
@@ -906,30 +910,34 @@ fn install_release_cast_spell_fixture(session: &mut WorldSession) {
         },
     ])));
     session.set_creature_template_lifecycle_store_like_cpp(Arc::new(
-        wow_data::CreatureTemplateLifecycleStoreLikeCpp::from_templates([wow_data::CreatureTemplateLifecycleRecordLikeCpp {
-            entry: 12_861,
-            name: "Wisp Spirit".into(),
-            scale: 1.0,
-            models: vec![wow_data::CreatureTemplateLifecycleModelLikeCpp {
-                creature_display_id: 1_825,
-                display_scale: 1.0,
-                probability: 1.0,
-            }],
-            ..Default::default()
-        }]),
+        wow_data::CreatureTemplateLifecycleStoreLikeCpp::from_templates([
+            wow_data::CreatureTemplateLifecycleRecordLikeCpp {
+                entry: 12_861,
+                name: "Wisp Spirit".into(),
+                scale: 1.0,
+                models: vec![wow_data::CreatureTemplateLifecycleModelLikeCpp {
+                    creature_display_id: 1_825,
+                    display_scale: 1.0,
+                    probability: 1.0,
+                }],
+                ..Default::default()
+            },
+        ]),
     ));
     session.set_creature_model_info_store(Arc::new(
-        wow_data::CreatureModelInfoStoreLikeCpp::from_entries([wow_data::CreatureModelInfoLikeCpp {
-            display_id: 1_825,
-            bounding_radius: 0.5,
-            combat_reach: 1.5,
-            display_id_other_gender: 0,
-            is_trigger: false,
-        }]),
+        wow_data::CreatureModelInfoStoreLikeCpp::from_entries([
+            wow_data::CreatureModelInfoLikeCpp {
+                display_id: 1_825,
+                bounding_radius: 0.5,
+                combat_reach: 1.5,
+                display_id_other_gender: 0,
+                is_trigger: false,
+            },
+        ]),
     ));
     session.set_creature_aggro_config_like_cpp(crate::session::CreatureAggroConfigLikeCpp {
-        spell_x_spell_visual_store: Some(Arc::new(
-            wow_data::SpellXSpellVisualStore::from_entries([wow_data::SpellXSpellVisualEntry {
+        spell_x_spell_visual_store: Some(Arc::new(wow_data::SpellXSpellVisualStore::from_entries(
+            [wow_data::SpellXSpellVisualEntry {
                 id: 241_720,
                 difficulty_id: 0,
                 spell_visual_id: 886,
@@ -943,8 +951,8 @@ fn install_release_cast_spell_fixture(session: &mut WorldSession) {
                 caster_unit_condition_id: 0,
                 caster_player_condition_id: 0,
                 spell_id: wow_world_entities::SPELL_GHOST_LIKE_CPP as u32,
-            }]),
-        )),
+            }],
+        ))),
         ..Default::default()
     });
 }

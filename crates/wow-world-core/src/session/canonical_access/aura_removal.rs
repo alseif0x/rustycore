@@ -3,11 +3,17 @@
 
 //! Selected canonical authority for aura-removal transitions.
 
+#[path = "aura_removal/aura_refresh.rs"]
+mod aura_refresh;
 mod mount_control;
 mod pet_control;
 mod read_views;
 mod stats;
 mod threat;
+pub use aura_refresh::{
+    SelectedAuraEffectRefresh, SelectedAuraKind, SelectedAuraRefresh,
+    selected_aura_refreshes_timers,
+};
 pub use mount_control::AuraMountControlAccessLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use mount_control::AuraMountControlFixtureRefsLikeCpp;
@@ -20,10 +26,7 @@ use crate::session::SessionCore;
 #[cfg(any(test, feature = "test-fixtures"))]
 use std::collections::HashMap;
 use wow_constants::UnitFlags;
-use wow_entities::{
-    AppliedAuraRef, AuraApplicationLikeCpp, AuraCastProvenanceLikeCpp, AuraSubsystem,
-    AuraThreatSnapshotLikeCpp, RepresentedAuraEffectAmountLikeCpp, VisibleAuraEffectAmountLikeCpp,
-};
+use wow_entities::{AuraApplicationLikeCpp, AuraCastProvenanceLikeCpp, AuraSubsystem};
 
 #[cfg(any(test, feature = "test-fixtures"))]
 pub struct AuraRemovalFixtureRefsLikeCpp<'a> {
@@ -103,182 +106,6 @@ impl SessionCore {
 }
 
 impl PlayerAuraRemovalAccessLikeCpp<'_> {
-    /// Refresh one selected permanent resurrection aura in its existing Unit
-    /// slot. C++ `Unit::_TryStackingOrRefreshingExistingAura` and
-    /// `Aura::SetStackAmount` keep the Aura identity, recalculate each effect,
-    /// and mark its existing application for client update.
-    pub fn refresh_resurrection_aura_application(
-        &self,
-        spell_id: i32,
-        caster_guid: wow_core::ObjectGuid,
-        slot: u8,
-        effect_mask: u32,
-        effect_updates: &[(u32, i32, i32, i32)],
-        base_amounts: &[(u8, i32)],
-    ) -> Option<Result<(bool, bool), &'static str>> {
-        let spell_id = u32::try_from(spell_id).ok()?;
-        if !matches!(spell_id, 8_326 | 20_584) {
-            return Some(Err("Spell is not a selected resurrection aura"));
-        }
-
-        self.core.with_owned_player_mut_like_cpp(|player| {
-            let auras = &mut player.unit_mut().subsystems_mut().auras;
-            let Some(application) = auras.runtime_application_like_cpp(slot) else {
-                return Err("Canonical resurrection AuraApplication disappeared");
-            };
-            if application.spell_id != spell_id as i32
-                || application.caster_guid != caster_guid
-                || application.slot != slot
-                || application.effect_mask != effect_mask
-                || effect_mask != 0b111
-                || effect_updates.len() != 3
-                || base_amounts.len() != 3
-            {
-                return Err("Canonical resurrection AuraApplication no longer matches refresh");
-            }
-
-            let mut update_mask = 0_u32;
-            for (bit, _, _, _) in effect_updates {
-                if bit.count_ones() != 1 || effect_mask & bit == 0 || update_mask & bit != 0 {
-                    return Err("Resurrection aura refresh has an invalid effect mask");
-                }
-                update_mask |= bit;
-            }
-            if update_mask != effect_mask {
-                return Err("Resurrection aura refresh does not cover every selected effect");
-            }
-            let mut base_mask = 0_u32;
-            for &(effect_index, _) in base_amounts {
-                let Some(bit) = 1_u32.checked_shl(u32::from(effect_index)) else {
-                    return Err("Resurrection aura refresh has an invalid base effect index");
-                };
-                if base_mask & bit != 0 || effect_mask & bit == 0 {
-                    return Err("Resurrection aura refresh has duplicate base effect metadata");
-                }
-                base_mask |= bit;
-            }
-            if base_mask != effect_mask {
-                return Err("Resurrection aura refresh is missing base effect metadata");
-            }
-
-            let Some(snapshot) = auras.threat_snapshot_like_cpp(slot).cloned() else {
-                return Err("Canonical resurrection aura effect snapshot is missing");
-            };
-            if snapshot.effects().len() != effect_updates.len() {
-                return Err("Canonical resurrection aura effect snapshot is incomplete");
-            }
-
-            let mut ordered_updates = Vec::with_capacity(effect_updates.len());
-            let mut run_amount_changed = false;
-            let mut swim_amount_changed = false;
-            for &(bit, aura_type, amount, misc_value) in snapshot.effects() {
-                let Some(update) = effect_updates.iter().find(|update| update.0 == bit) else {
-                    return Err("Canonical resurrection aura effect no longer matches refresh");
-                };
-                if update.1 != aura_type || update.3 != misc_value {
-                    return Err("Canonical resurrection aura effect metadata changed");
-                }
-                let applied = AppliedAuraRef::new(spell_id, caster_guid, slot, bit);
-                let Some(current_amount) = auras.applied_aura_amounts.get(&applied).copied() else {
-                    return Err("Canonical resurrection aura amount index is missing");
-                };
-                if !auras.applied_auras.contains(&applied)
-                    || !auras
-                        .applied_aura_types
-                        .get(&aura_type)
-                        .is_some_and(|effects| effects.contains(&applied))
-                    || current_amount != amount
-                {
-                    return Err("Canonical resurrection aura amount index is inconsistent");
-                }
-                match aura_type {
-                    wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED => {
-                        run_amount_changed |= amount != update.2;
-                    }
-                    wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED => {
-                        swim_amount_changed |= amount != update.2;
-                    }
-                    _ => {}
-                }
-                ordered_updates.push(*update);
-            }
-
-            let mut persistence = auras.aura_persistence_metadata(slot).cloned();
-            if let Some(metadata) = persistence.as_mut() {
-                for &(effect_index, base_amount) in base_amounts {
-                    if let Some(existing) = metadata
-                        .base_amounts
-                        .iter_mut()
-                        .find(|(index, _)| *index == effect_index)
-                    {
-                        existing.1 = base_amount;
-                    } else {
-                        metadata.base_amounts.push((effect_index, base_amount));
-                    }
-                }
-                let cast_item_changed = !metadata.item_guid.is_empty();
-                metadata.item_guid = wow_core::ObjectGuid::EMPTY;
-                if cast_item_changed {
-                    metadata.cast_item_id = 0;
-                    metadata.cast_item_level = -1;
-                }
-                metadata.charges = 0;
-            }
-
-            // C++ keeps Aura/Application identity and effect ordering across a
-            // stack refresh. `_RegisterAuraEffect` promotes each effect to
-            // the head of its type index; Rust stores oldest-to-newest, so
-            // move each recast effect to the end while preserving slot order.
-            let represented_amounts: Vec<RepresentedAuraEffectAmountLikeCpp> = ordered_updates
-                .iter()
-                .map(|(bit, _, amount, _)| RepresentedAuraEffectAmountLikeCpp {
-                    effect_index: bit.trailing_zeros() as u8,
-                    amount: *amount,
-                })
-                .collect();
-            {
-                let application = auras
-                    .runtime_application_mut_like_cpp(slot)
-                    .expect("resurrection AuraApplication validated above");
-                application.duration_total = -1;
-                application.duration_remaining = -1;
-                application.stack_count = 1;
-                application.represented_effect_amounts = represented_amounts.clone();
-            }
-
-            let mut refreshed_effects = Vec::with_capacity(ordered_updates.len());
-            for (bit, aura_type, amount, misc_value) in ordered_updates {
-                let applied = AppliedAuraRef::new(spell_id, caster_guid, slot, bit);
-                if let Some(effects) = auras.applied_aura_types.get_mut(&aura_type) {
-                    effects.retain(|known| *known != applied);
-                    effects.push(applied);
-                }
-                auras.register_applied_aura_effect_like_cpp(applied, aura_type, amount, misc_value);
-                refreshed_effects.push((bit, aura_type, amount, misc_value));
-            }
-            auras.insert_threat_snapshot_like_cpp(
-                slot,
-                AuraThreatSnapshotLikeCpp::new(snapshot.interrupt_flags(), refreshed_effects),
-            );
-            if let Some(visible_application) =
-                auras.visible_aura_applications_like_cpp.get_mut(&slot)
-            {
-                visible_application.effect_amounts = represented_amounts
-                    .iter()
-                    .map(|effect| VisibleAuraEffectAmountLikeCpp {
-                        effect_index: effect.effect_index,
-                        amount: effect.amount,
-                    })
-                    .collect();
-            }
-            if let Some(metadata) = persistence {
-                let _ = auras.set_aura_persistence_metadata(slot, metadata);
-            }
-            auras.visible_auras_to_update.insert(slot);
-            Ok((run_amount_changed, swim_amount_changed))
-        })
-    }
-
     pub fn set_visible_aura_update_pending(&self, slot: u8, pending: bool) -> Option<()> {
         self.core.with_owned_player_mut_like_cpp(|player| {
             let visible_auras_to_update = &mut player

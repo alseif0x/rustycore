@@ -1,5 +1,6 @@
 //! Selected aura metadata for causal Player stat application.
 
+use super::AuraRemovalCxLikeCpp;
 use wow_world_core::session::PlayerStatApplicationCause;
 
 pub(super) struct AuraStatApplication {
@@ -124,4 +125,61 @@ pub(super) fn select_aura_stat_application(
         is_ability,
         total_stat_percentage_effects,
     }))
+}
+
+impl AuraRemovalCxLikeCpp<'_> {
+    pub(super) fn preflight_selected_sickness_stats(&mut self) -> Result<(), &'static str> {
+        if !self.player.is_logged_in_like_cpp() {
+            return Ok(());
+        }
+        let player = self.stats.reborrow_like_cpp(
+            &self.player,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &*self.shapeshift_form,
+        );
+        let stats = wow_world_inventory::CharacterStatsApplicationCxLikeCpp::new(
+            player,
+            &*self.inventory,
+            self.player.packet_publication_like_cpp(),
+        );
+        if stats.can_calculate_current_stats() {
+            Ok(())
+        } else {
+            Err("Unable to calculate stats for the race-selected sickness aura")
+        }
+    }
+
+    pub(super) fn apply_selected_sickness_stats(
+        &mut self,
+        spell_id: i32,
+        effect_mask: u32,
+    ) -> Result<(), &'static str> {
+        if !self.player.is_logged_in_like_cpp() {
+            return Ok(());
+        }
+        let selection = select_aura_stat_application(
+            self.spell_store.map(|store| store.as_ref()),
+            spell_id,
+            effect_mask,
+            true,
+        )?
+        .ok_or("Missing stat effects for the race-selected sickness aura")?;
+        let cause = selection
+            .cause
+            .ok_or("Race-selected sickness aura has no supported stat effects")?;
+        let player = self.stats.reborrow_like_cpp(
+            &self.player,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &*self.shapeshift_form,
+        );
+        let stats = wow_world_inventory::CharacterStatsApplicationCxLikeCpp::new(
+            player,
+            &*self.inventory,
+            self.player.packet_publication_like_cpp(),
+        );
+        stats
+            .apply_stats_for_values(cause)
+            .map(|_| ())
+            .ok_or("Unable to apply calculated Player stats after sickness refresh")
+    }
 }

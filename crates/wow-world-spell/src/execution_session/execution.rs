@@ -150,17 +150,16 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
     } else {
         (Default::default(), metadata.cast_flags)
     };
-    let send_spell_go = if server_triggered_resurrection_sickness
-        || server_triggered_player_ghost_wisp
-    {
-        super::resurrection_sickness::should_send_resurrection_sickness_spell_go(
-            host,
-            spell_id,
-            spell_visual.spell_visual_id,
-        )?
-    } else {
-        true
-    };
+    let send_spell_go =
+        if server_triggered_resurrection_sickness || server_triggered_player_ghost_wisp {
+            super::resurrection_sickness::should_send_resurrection_sickness_spell_go(
+                host,
+                spell_id,
+                spell_visual.spell_visual_id,
+            )?
+        } else {
+            true
+        };
     if send_spell_go {
         let go_pkt = SpellGoPkt {
             cast_data,
@@ -742,7 +741,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             super::resurrection_sickness::apply_resurrection_sickness_aura(
                 host,
                 spell_id,
-                caster_guid,
+                original_aura_caster_guid.unwrap_or(caster_guid),
                 &spell_info,
                 cast_id,
                 spell_visual_id,

@@ -12,6 +12,8 @@ mod persistence;
 mod recast;
 #[path = "ghost_wisp/resurrection.rs"]
 mod resurrection;
+#[path = "ghost_wisp/selected_lifetime.rs"]
+mod selected_lifetime;
 #[path = "ghost_wisp/setup.rs"]
 mod setup;
 use setup::{

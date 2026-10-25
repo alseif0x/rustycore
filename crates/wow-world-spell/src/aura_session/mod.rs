@@ -28,6 +28,7 @@ mod aura_state;
 mod duration;
 mod mount;
 mod publication;
+mod selected_lifetime;
 mod sources;
 
 pub use application::*;
@@ -35,6 +36,7 @@ pub use aura_state::*;
 pub use duration::*;
 pub use mount::*;
 pub use publication::*;
+pub use selected_lifetime::*;
 pub use sources::*;
 
 /// C++ `AuraApplication::_InitFlags` derives the selected aura sign from its

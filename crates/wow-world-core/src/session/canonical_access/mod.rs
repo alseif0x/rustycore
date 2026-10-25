@@ -13,6 +13,8 @@ pub use aura_removal::{
 };
 pub use aura_removal::{
     AuraMountControlAccessLikeCpp, AuraStatsAccessBuilderLikeCpp, PlayerAuraRemovalAccessLikeCpp,
+    SelectedAuraEffectRefresh, SelectedAuraKind, SelectedAuraRefresh,
+    selected_aura_refreshes_timers,
 };
 mod equipment_sets;
 mod group_difficulty;

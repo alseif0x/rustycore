@@ -104,6 +104,28 @@ async fn ghost_recasts_refresh_the_loaded_self_application_in_place() {
     wow_world_spell::tick_auras(&mut fixture.session);
     outgoing(&fixture);
 
+    let old_applied_at = std::time::Instant::now() - std::time::Duration::from_secs(3_600);
+    fixture
+        .session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            let auras = &mut player.unit_mut().subsystems_mut().auras;
+            let slot = auras
+                .runtime_applications_like_cpp()
+                .values()
+                .find_map(|aura| {
+                    (aura.spell_id == GHOST && aura.caster_guid == fixture.player)
+                        .then_some(aura.slot)
+                })
+                .expect("loaded self Ghost slot");
+            let application = auras
+                .runtime_application_mut_like_cpp(slot)
+                .expect("loaded self Ghost application");
+            application.applied_at = old_applied_at;
+            application.duration_remaining = 250_000;
+        })
+        .expect("canonical Player owner");
+
     let (self_slot, initial_application, original_provenance, applied_order) = {
         let manager = fixture.canonical.lock().expect("canonical manager");
         let auras = &manager
@@ -158,7 +180,7 @@ async fn ghost_recasts_refresh_the_loaded_self_application_in_place() {
         assert_eq!(application.caster_guid, fixture.player);
         assert_eq!(application.stack_count, 1);
         assert_eq!(application.duration_total, -1);
-        assert_eq!(application.duration_remaining, -1);
+        assert_eq!(application.duration_remaining, 250_000);
         assert_eq!(application.applied_at, initial_application.applied_at);
         assert_eq!(
             application.represented_effect_amounts,
@@ -341,6 +363,7 @@ async fn ghost_recasts_refresh_the_loaded_self_application_in_place() {
             .removed_auras_count
     };
     let mut recast_ids = Vec::new();
+    let mut last_refresh_at = refreshed_application.applied_at;
     for _ in 0..2 {
         cast_selected(&mut fixture, GHOST, None).await;
         let packets = outgoing(&fixture);
@@ -369,10 +392,15 @@ async fn ghost_recasts_refresh_the_loaded_self_application_in_place() {
             .unit()
             .subsystems()
             .auras;
-        assert_eq!(
-            auras.runtime_application_like_cpp(self_slot),
-            Some(&refreshed_application)
-        );
+        let application = auras
+            .runtime_application_like_cpp(self_slot)
+            .expect("same selected AuraApplication remains active");
+        assert_eq!(application.slot, refreshed_application.slot);
+        assert_eq!(application.spell_id, refreshed_application.spell_id);
+        assert_eq!(application.caster_guid, refreshed_application.caster_guid);
+        assert_eq!(application.effect_mask, refreshed_application.effect_mask);
+        assert!(application.applied_at >= last_refresh_at);
+        last_refresh_at = application.applied_at;
         assert_eq!(
             auras.aura_cast_provenance_like_cpp(self_slot),
             original_provenance
@@ -506,7 +534,7 @@ async fn wisp_recast_preserves_negative_transform_priority_and_display() {
     cast_selected(&mut fixture, WISP, None).await;
     outgoing(&fixture);
     assert_eq!(player_display(&fixture), 1_826);
-    let (wisp_slot, fresh_application, provenance) = {
+    let (wisp_slot, mut fresh_application, provenance) = {
         let manager = fixture.canonical.lock().expect("canonical manager");
         let auras = &manager
             .find_map(571, 0)
@@ -533,6 +561,65 @@ async fn wisp_recast_preserves_negative_transform_priority_and_display() {
         )
     };
     assert_ne!(provenance, initial_provenance);
+
+    // Model loaded AuraEffect state with every recalculation bit off and
+    // unusual stored amounts in all slots. SetStackAmount still recalculates
+    // each effect from new base points, while Transform remains non-recalculatable.
+    {
+        let mut manager = fixture.canonical.lock().expect("canonical manager");
+        let player = manager
+            .find_map_mut(571, 0)
+            .expect("Player map")
+            .map_mut()
+            .get_typed_player_mut(fixture.player)
+            .expect("canonical Player");
+        let auras = &mut player.unit_mut().subsystems_mut().auras;
+        let mut metadata = auras
+            .aura_persistence_metadata(wisp_slot)
+            .cloned()
+            .expect("fresh Wisp metadata");
+        metadata.recalculate_mask = 0;
+        assert!(auras.set_aura_persistence_metadata(wisp_slot, metadata));
+        let snapshot = auras
+            .threat_snapshot_like_cpp(wisp_slot)
+            .cloned()
+            .expect("fresh Wisp effects");
+        let mut effects = snapshot.effects().to_vec();
+        let stored_amounts = [17, 18, 17];
+        for (bit, aura_type, amount, _) in &mut effects {
+            let index = bit.trailing_zeros() as usize;
+            assert!(index < stored_amounts.len());
+            if index == 2 {
+                assert_eq!(
+                    *aura_type,
+                    wow_data::spell::aura_types::SPELL_AURA_TRANSFORM
+                );
+            }
+            *amount = stored_amounts[index];
+            let applied =
+                wow_entities::AppliedAuraRef::new(WISP as u32, fixture.player, wisp_slot, *bit);
+            auras.applied_aura_amounts.insert(applied, *amount);
+        }
+        auras.insert_threat_snapshot_like_cpp(
+            wisp_slot,
+            wow_entities::AuraThreatSnapshotLikeCpp::new(snapshot.interrupt_flags(), effects),
+        );
+        let application = auras
+            .runtime_application_mut_like_cpp(wisp_slot)
+            .expect("fresh Wisp application");
+        for (effect, amount) in application
+            .represented_effect_amounts
+            .iter_mut()
+            .zip(stored_amounts)
+        {
+            effect.amount = amount;
+        }
+        let old_applied_at = std::time::Instant::now() - std::time::Duration::from_secs(3_600);
+        application.applied_at = old_applied_at;
+        application.duration_remaining = 250_000;
+        fresh_application.applied_at = old_applied_at;
+        fresh_application.duration_remaining = 250_000;
+    }
 
     cast_selected(&mut fixture, WISP, None).await;
     let packets = outgoing(&fixture);
@@ -562,13 +649,10 @@ async fn wisp_recast_preserves_negative_transform_priority_and_display() {
         assert_eq!(refreshed.slot, fresh_application.slot);
         assert_eq!(refreshed.spell_id, fresh_application.spell_id);
         assert_eq!(refreshed.caster_guid, fresh_application.caster_guid);
-        assert_eq!(refreshed.applied_at, fresh_application.applied_at);
+        assert_ne!(refreshed.applied_at, fresh_application.applied_at);
         assert_eq!(refreshed.effect_mask, fresh_application.effect_mask);
-        assert_eq!(refreshed.duration_total, fresh_application.duration_total);
-        assert_eq!(
-            refreshed.duration_remaining,
-            fresh_application.duration_remaining
-        );
+        assert_eq!(refreshed.duration_total, -1);
+        assert_eq!(refreshed.duration_remaining, -1);
         assert_eq!(refreshed.stack_count, fresh_application.stack_count);
         assert_eq!(
             refreshed.represented_effect_amounts,
@@ -587,6 +671,14 @@ async fn wisp_recast_preserves_negative_transform_priority_and_display() {
                 },
             ],
             "refresh projects the selected speed and transform amounts"
+        );
+        assert_eq!(
+            auras
+                .aura_persistence_metadata(wisp_slot)
+                .expect("refreshed Wisp metadata")
+                .recalculate_mask,
+            0,
+            "recalculating Transform stores its new amount and clears its source bit"
         );
         let transform_order = auras
             .applied_aura_types

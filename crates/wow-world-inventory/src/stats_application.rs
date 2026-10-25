@@ -128,6 +128,15 @@ impl<'a> CharacterStatsApplicationCxLikeCpp<'a> {
 }
 
 impl CharacterStatsApplicationCxLikeCpp<'_> {
+    /// Check that the current canonical owner and its required catalogs can
+    /// produce a stats result without applying or publishing it.
+    pub fn can_calculate_current_stats(&self) -> bool {
+        let request = PlayerStatComputationRequest::new(None, None);
+        self.inventory
+            .calculate_player_stats_with_access(&self.player, &request)
+            .is_some()
+    }
+
     /// Calculate and apply the canonical derived-stat snapshot without
     /// producing an immediate synthetic stat packet.
     pub fn apply_stats_for_values(

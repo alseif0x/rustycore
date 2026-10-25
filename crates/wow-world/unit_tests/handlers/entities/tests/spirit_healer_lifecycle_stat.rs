@@ -340,7 +340,7 @@ async fn lifecycle_stat_fresh_sickness_updates_canonical_stats_through_map_value
 }
 
 #[tokio::test]
-async fn lifecycle_stat_missing_planner_catalog_propagates_without_applying_a_snapshot() {
+async fn sickness_missing_planner_catalog_fails_before_aura_or_publication() {
     let (mut session, send_rx, _realm_rx, _port) = logged_in_released_ghost(43_902).await;
     let player_guid = session.player_guid().expect("canonical Player GUID");
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 11, 0);
@@ -356,6 +356,17 @@ async fn lifecycle_stat_missing_planner_catalog_propagates_without_applying_a_sn
     let effective_before = session
         .canonical_player_effective_combat_stats_like_cpp()
         .expect("canonical effective stats before failed calculation");
+    let pending_aura_updates_before = session
+        .core
+        .with_owned_player_like_cpp(|player| {
+            player
+                .unit()
+                .subsystems()
+                .auras
+                .visible_auras_to_update
+                .clone()
+        })
+        .expect("canonical Player aura owner");
     let _ = drain_packets(&send_rx);
 
     let result = session
@@ -364,7 +375,7 @@ async fn lifecycle_stat_missing_planner_catalog_propagates_without_applying_a_sn
 
     assert_eq!(
         result,
-        Err("Unable to apply calculated Player stats"),
+        Err("Unable to calculate stats for the race-selected sickness aura"),
         "missing PlayerStatsStore cannot silently claim an applied calculation"
     );
     assert_eq!(
@@ -372,18 +383,182 @@ async fn lifecycle_stat_missing_planner_catalog_propagates_without_applying_a_sn
         Some(effective_before),
         "failed planning leaves the canonical derived snapshot untouched"
     );
-    assert_eq!(visible_sickness_aura(&session, SICKNESS_SPELL).len(), 1);
+    assert!(visible_sickness_aura(&session, SICKNESS_SPELL).is_empty());
+    assert_eq!(
+        session
+            .core
+            .with_owned_player_like_cpp(|player| {
+                player
+                    .unit()
+                    .subsystems()
+                    .auras
+                    .visible_auras_to_update
+                    .clone()
+            })
+            .expect("canonical Player aura owner"),
+        pending_aura_updates_before,
+        "a failed sickness plan leaves pre-existing pending Aura updates unchanged"
+    );
     let packets = drain_packets(&send_rx);
     assert!(
         packets
             .iter()
-            .any(|bytes| packet_opcode(bytes) == ServerOpcodes::AuraUpdate as u16)
+            .all(|bytes| packet_opcode(bytes) != ServerOpcodes::AuraUpdate as u16)
     );
     assert!(
         packets
             .iter()
             .all(|bytes| packet_opcode(bytes) != ServerOpcodes::UpdateObject as u16)
     );
+}
+
+#[tokio::test]
+async fn sickness_replaces_foreign_or_mask_mismatched_application_before_fresh_cast() {
+    for (guid, use_foreign_caster, old_mask) in [(43_905, true, 0b111), (43_906, false, 0b001)] {
+        let (mut session, _send_rx, _realm_rx, _port) = logged_in_released_ghost(guid).await;
+        let player_guid = session.player_guid().expect("canonical Player GUID");
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 11, 0);
+        set_race_sickness_spell(&mut session, SICKNESS_SPELL);
+        install_sickness_data(&mut session, SICKNESS_SPELL, None);
+        install_stats_catalog(&mut session, 10);
+        let spell_info = session
+            .catalogs
+            .spell_store()
+            .and_then(|store| store.get(SICKNESS_SPELL))
+            .cloned()
+            .expect("selected sickness SpellInfo");
+        let old_caster = if use_foreign_caster {
+            ObjectGuid::create_player(1, guid + 100)
+        } else {
+            player_guid
+        };
+        let old_provenance = wow_entities::AuraCastProvenanceLikeCpp {
+            cast_id: ObjectGuid::create_world_object(
+                wow_core::guid::HighGuid::Cast,
+                3,
+                1,
+                571,
+                0,
+                SICKNESS_SPELL as u32,
+                guid + 200,
+            ),
+            spell_visual_id: 245_039,
+        };
+        session
+            .player_aura_application_cx_like_cpp()
+            .apply_resurrection_sickness_aura(
+                SICKNESS_SPELL,
+                old_caster,
+                &spell_info,
+                900_000,
+                0,
+                0x88,
+                0,
+                0,
+                old_provenance,
+            )
+            .expect("install old foreign or mask-mismatched selected Aura");
+        let old = visible_sickness_aura(&session, SICKNESS_SPELL);
+        assert_eq!(old.len(), 1);
+        let old_slot = old[0].slot;
+        if old_mask != 0b111 {
+            session
+                .core
+                .with_owned_player_mut_like_cpp(|player| {
+                    let auras = &mut player.unit_mut().subsystems_mut().auras;
+                    let snapshot = auras
+                        .threat_snapshot_like_cpp(old_slot)
+                        .cloned()
+                        .expect("selected sickness effect snapshot");
+                    let effects = snapshot
+                        .effects()
+                        .iter()
+                        .copied()
+                        .filter(|(bit, _, _, _)| old_mask & *bit != 0)
+                        .collect::<Vec<_>>();
+                    for index in 0..3 {
+                        let bit = 1_u32 << index;
+                        if old_mask & bit == 0 {
+                            let applied = wow_entities::AppliedAuraRef::new(
+                                SICKNESS_SPELL as u32,
+                                old_caster,
+                                old_slot,
+                                bit,
+                            );
+                            auras.remove_applied(applied);
+                        }
+                    }
+                    auras.insert_threat_snapshot_like_cpp(
+                        old_slot,
+                        wow_entities::AuraThreatSnapshotLikeCpp::new(
+                            snapshot.interrupt_flags(),
+                            effects,
+                        ),
+                    );
+                    let application = auras
+                        .runtime_application_mut_like_cpp(old_slot)
+                        .expect("selected sickness AuraApplication");
+                    application.effect_mask = old_mask;
+                    let mut metadata = auras
+                        .aura_persistence_metadata(old_slot)
+                        .cloned()
+                        .expect("selected sickness persistence metadata");
+                    metadata.recalculate_mask &= old_mask;
+                    metadata
+                        .base_amounts
+                        .retain(|(index, _)| old_mask & (1_u32 << u32::from(*index)) != 0);
+                    assert!(auras.set_aura_persistence_metadata(old_slot, metadata));
+                })
+                .expect("canonical partial sickness owner");
+        }
+
+        let new_provenance = wow_entities::AuraCastProvenanceLikeCpp {
+            cast_id: ObjectGuid::create_world_object(
+                wow_core::guid::HighGuid::Cast,
+                3,
+                1,
+                571,
+                0,
+                SICKNESS_SPELL as u32,
+                guid + 300,
+            ),
+            spell_visual_id: 245_039,
+        };
+        session
+            .player_aura_application_cx_like_cpp()
+            .apply_resurrection_sickness_aura(
+                SICKNESS_SPELL,
+                player_guid,
+                &spell_info,
+                600_000,
+                0,
+                0x88,
+                0,
+                0,
+                new_provenance,
+            )
+            .expect("fresh selected application replaces the previous same-spell Aura");
+
+        let current = visible_sickness_aura(&session, SICKNESS_SPELL);
+        assert_eq!(current.len(), 1);
+        assert_eq!(current[0].slot, old_slot, "removed Aura slot is reused");
+        assert_eq!(current[0].caster_guid, player_guid);
+        assert_eq!(current[0].effect_mask, 0b111);
+        assert_eq!(
+            session
+                .core
+                .with_owned_player_like_cpp(|player| {
+                    player
+                        .unit()
+                        .subsystems()
+                        .auras
+                        .aura_cast_provenance_like_cpp(current[0].slot)
+                })
+                .expect("canonical new sickness provenance"),
+            new_provenance
+        );
+        assert_ne!(new_provenance, old_provenance);
+    }
 }
 
 fn forbidden_stats_calculator(
@@ -395,10 +570,18 @@ fn forbidden_stats_calculator(
 }
 
 #[tokio::test]
-async fn lifecycle_stat_stale_owner_does_not_fall_back_or_mutate_retired_player() {
-    let (mut session, _send_rx, _realm_rx, _port) = logged_in_released_ghost(43_904).await;
+async fn sickness_stale_owner_does_not_fall_back_or_mutate_retired_player() {
+    let (mut session, send_rx, _realm_rx, _port) = logged_in_released_ghost(43_904).await;
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 11, 0);
+    set_race_sickness_spell(&mut session, SICKNESS_SPELL);
     install_sickness_data(&mut session, SICKNESS_SPELL, None);
+    install_stats_catalog(&mut session, 10);
+    let spell_info = session
+        .catalogs
+        .spell_store()
+        .and_then(|store| store.get(SICKNESS_SPELL))
+        .cloned()
+        .expect("selected sickness SpellInfo");
 
     let handle = session
         .core
@@ -419,6 +602,12 @@ async fn lifecycle_stat_stale_owner_does_not_fall_back_or_mutate_retired_player(
         retired.unit().data().health,
         retired.unit().data().max_health,
     );
+    let aura_count_before = retired
+        .unit()
+        .subsystems()
+        .auras
+        .runtime_applications_like_cpp()
+        .len();
 
     let stats = session.core.player_stats_access_with_fixture_refs_like_cpp(
         &session.catalogs,
@@ -432,12 +621,21 @@ async fn lifecycle_stat_stale_owner_does_not_fall_back_or_mutate_retired_player(
                 &mut session.fixtures.combat.player_max_health_like_cpp,
                 &mut session.fixtures.combat.player_alive_like_cpp,
                 &mut session.fixtures.combat.represented_player_powers_like_cpp[0],
-                &mut session.fixtures.combat.represented_player_max_powers_like_cpp[0],
-                &mut session.fixtures.combat.represented_player_base_mana_like_cpp,
+                &mut session
+                    .fixtures
+                    .combat
+                    .represented_player_max_powers_like_cpp[0],
+                &mut session
+                    .fixtures
+                    .combat
+                    .represented_player_base_mana_like_cpp,
             ),
             wow_world_core::session::StatsAuraFixtureRefs::new_like_cpp(
                 &session.fixtures.auras.represented_shapeshift_form_like_cpp,
-                &session.fixtures.auras.player_aura_authority_complete_like_cpp,
+                &session
+                    .fixtures
+                    .auras
+                    .player_aura_authority_complete_like_cpp,
                 &session
                     .fixtures
                     .auras
@@ -457,6 +655,39 @@ async fn lifecycle_stat_stale_owner_does_not_fall_back_or_mutate_retired_player(
     );
 
     assert!(result.is_none(), "a stale handle remains unresolved");
+    let _ = drain_packets(&send_rx);
+    let player_guid = session.player_guid().expect("Player GUID");
+    let aura_result = session
+        .player_aura_application_cx_like_cpp()
+        .apply_resurrection_sickness_aura(
+            SICKNESS_SPELL,
+            player_guid,
+            &spell_info,
+            600_000,
+            0,
+            0x88,
+            0,
+            0,
+            wow_entities::AuraCastProvenanceLikeCpp::default(),
+        );
+    assert!(
+        aura_result.is_err(),
+        "a stale canonical handle cannot establish selected sickness ownership or fall back to fixtures"
+    );
+    assert_eq!(
+        retired
+            .unit()
+            .subsystems()
+            .auras
+            .runtime_applications_like_cpp()
+            .len(),
+        aura_count_before
+    );
+    assert!(
+        drain_packets(&send_rx)
+            .iter()
+            .all(|bytes| packet_opcode(bytes) != ServerOpcodes::AuraUpdate as u16)
+    );
     assert_eq!(
         *retired.effective_combat_stats_like_cpp(),
         effective_before,
