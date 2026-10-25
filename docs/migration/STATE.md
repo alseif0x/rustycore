@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, implementación previa a aceptación final — 2026-10-25, 02:03 UTC:**
+**#43, implementación previa a aceptación final — 2026-10-25, 04:07 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
 y productor desde hechizos están escritos y tienen feedback focalizado;
 **no hay aceptación final de este candidato**. El cálculo básico del productor
@@ -369,6 +369,39 @@ logs fallidos. El worker también hizo checks separados de Entities y Core,
 exit 0, antes del feedback focalizado; no son una campaña adicional ni prueba
 del macro completo. La aplicación seleccionada de stats y sickness sigue
 pendiente; no se habilita una publicación global ni se declara aceptación final.
+9h2D conecta la aplicación pura del cálculo al Player canónico y opta por
+VALUES solo para sickness de ChrRaces, Players no vivos o con continuación
+de resurrección. Las otras auras Alive conservan su publicación legacy.
+Las causas distinguen AllStats, stats seleccionados y daño: stamina puede
+recalcular salud, pero solo AllStats modifica el slot de maná ya existente;
+no cambia display power, índices ni BaseMana. La habilidad 137 conserva el
+porcentaje antes del clamp. Unit::set_health fuerza 1 para Player DEAD,
+sin convertir Alive con salud cero en otro estado; no cambia Creature DEAD.
+Anclas del mismo C++: StatSystem.cpp:105–152,199–230, Unit.cpp:9214–9268
+y SpellAuraEffects.cpp:3566–3602,3656–3705. El nuevo camino no repara todavía
+el sync legacy que cambia implícitamente DeathState ni la operación completa.
+Feedback del worker sobre `85ee6e345` más delta, aarch64/jobs=1:
+`cargo test -p wow-entities --lib lifecycle_stat` pasó dos casos y Core cuatro
+(`/tmp/rustycore-43-9h2d-entities-lifecycle-stat-20261025T0330Z.log`,
+`/tmp/rustycore-43-9h2d-core-lifecycle-stat-20261025T0330Z.log`). World pasó
+tres tras corregir la selección de publicación
+(`/tmp/rustycore-43-9h2d-world-lifecycle-stat-r3-20261025T0400Z.log`);
+el r2 verde precedía esa corrección y no prueba el resultado final. El primer
+intento World falló por dos tipos en fixtures. Un check World adicional
+terminó exit 0 antes de la corrección; tampoco se presenta como aceptación.
+El feedback suplementario `cargo test -p wow-world --lib spirit_healer`
+pasó 15 casos, incluidos propietario obsoleto, Map seal/bridge, retirada y
+duración por nivel/raza, en
+`/tmp/rustycore-43-9h2d-stale-fixture-world-spirit-healer-r5-20261025T0403Z.log`.
+Los r2/r3/r4 de ese prefijo fallaron 13/15: el setup sustituía SpellStore
+y perdía Ghost/Wisp necesarios para NativeRes. Se conservaron esas entradas
+y atributos, y se añadieron Stats/ChrClasses con la clave canónica. Los
+intentos fallidos se conservan; el caso sin catálogo lo elimina explícitamente.
+Se movieron helpers privados del fixture a spirit_healer/setup.rs sin cambiar
+las identidades de tests. No hay campaña final, capturas ni QA viva. Si falla
+el planner, el error se propaga y stats quedan intactos, pero la aura ya puede
+estar instalada/publicada: el preflight y la valla de la operación completa
+siguen pendientes, junto con refresh, persistencia all-key y duración finita.
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -377,6 +410,30 @@ pared. Antes de aceptar sickness, su countdown/expiry y su guardado deben
 usar una única duración canónica del tick admitido, sin doble descuento ni
 publicar estadísticas un pase después de la expiración. La reparación
 seleccionada conserva fuera de alcance los relojes de las demás auras.
+Decisión del integrador para esa reparación (2026-10-25, antes de habilitarla):
+reutilizar el rail y los permisos de Session en un pase interno de recuperación
+admitido por Map, después de respawns y antes de Creature/P3. No se añade otro
+reloj ni una fase de opcodes: World/Map conservan su registro. El pase usará el
+diff del plan, expirará las auras seleccionadas antes de regeneración y
+publicará sus pendientes en el punto Unit, antes de KillPlayer y deathTimer.
+Así, Ghost creado por automatic release después de ese punto esperará al
+siguiente pase, como en C++. El barrido legacy de las demás auras conserva su
+cadencia y se excluirán de él las familias con duración canónica seleccionada.
+La alternativa de mantenerlo en World conserva el orden/diff incorrectos; un
+segundo ejecutor nativo de todos esos participantes duplicaría dueños existentes.
+El nuevo corte debe soltar todos los guards antes de solicitar el pase y volver
+a comprobar generación, residencia, encarnación, epoch y permiso. Respawns
+ya aplicados conservarán sus intenciones DB: se enviarán una vez, bajo el gate
+de orden existente, antes del await; los intents de visibilidad siguen en Map
+hasta el tail legítimo. Cancelar el pase no autoriza perder ni repetir esos
+efectos. Los tests de composición deben probar esa frontera, también sin lease
+Creature. La inspección detectó además que SaveTimer solo marca un pendiente:
+el consumidor actual lo guarda después de deathTimer/dispatch, mientras C++
+guarda antes (`Player.cpp:1055–1066,1101`). El pase seleccionado consumirá ese
+save en su punto, reutilizando el owner/fences actuales y comprobando el binding
+tras await; no continuará recovery después de quarantine/desconexión. Las
+fronteras aún incompletas de melee/intercalado por Player de #584 permanecen
+explícitas. Esta decisión no es implementación ni aceptación de ese pase.
 
 La carga de efectos seleccionados tiene una corrección en curso (9g):
 `Aura::TryCreate` descarta máscara vacía y aplica solo el subconjunto activo

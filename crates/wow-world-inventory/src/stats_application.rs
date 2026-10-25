@@ -13,8 +13,9 @@ use wow_data::PlayerStatsStore;
 use wow_world_core::session::PlayerStatWeaponFacts;
 use wow_world_core::session::state::hub_support::RepresentedPlayerGearStatsLikeCpp;
 use wow_world_core::session::{
-    PacketPublicationAccessLikeCpp, PlayerStatComputation, PlayerStatComputationRequest,
-    PlayerStatsAccessLikeCpp, primary_power_type_for_player_class_like_cpp,
+    PacketPublicationAccessLikeCpp, PlayerStatApplicationCause, PlayerStatComputation,
+    PlayerStatComputationRequest, PlayerStatsAccessLikeCpp,
+    primary_power_type_for_player_class_like_cpp,
 };
 
 impl InventoryState {
@@ -127,6 +128,17 @@ impl<'a> CharacterStatsApplicationCxLikeCpp<'a> {
 }
 
 impl CharacterStatsApplicationCxLikeCpp<'_> {
+    /// Calculate and apply the canonical derived-stat snapshot without
+    /// producing an immediate synthetic stat packet.
+    pub fn apply_stats_for_values(
+        &self,
+        cause: PlayerStatApplicationCause,
+    ) -> Option<PlayerStatComputation> {
+        let request = PlayerStatComputationRequest::new(None, None);
+        self.player
+            .calculate_and_apply_stats_for_values(plan_player_stats, &request, cause)
+    }
+
     /// Build the complete stat-update packet values while preserving current
     /// health and primary power around the canonical maximum updates.
     pub fn player_stat_changes_like_cpp(
@@ -334,6 +346,12 @@ impl CharacterStatsApplicationCxLikeCpp<'_> {
 
     /// Recalculate stats and publish the C++ `UpdateAllStats` VALUES update.
     pub fn send_stat_update_like_cpp(&mut self) -> bool {
+        if self.player.defer_stat_packet_for_current_player() == Some(true) {
+            return self
+                .apply_stats_for_values(PlayerStatApplicationCause::AllStats)
+                .is_some();
+        }
+
         let Some((player_guid, changes)) =
             self.player_stat_changes_with_represented_item_bonuses_like_cpp(true)
         else {

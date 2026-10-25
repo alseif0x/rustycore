@@ -731,6 +731,10 @@ impl Unit {
     pub fn set_health(&mut self, mut value: u64) {
         if matches!(self.death_state, DeathState::JustDied | DeathState::Corpse) {
             value = 0;
+        } else if self.world().object().type_id() == TypeId::Player
+            && self.death_state == DeathState::Dead
+        {
+            value = 1;
         } else if value > self.data.max_health {
             value = self.data.max_health;
         }

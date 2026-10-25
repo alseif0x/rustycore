@@ -15,12 +15,14 @@ use wow_entities::PlayerEffectiveCombatStatsLikeCpp;
 #[path = "../player_stat_queries.rs"]
 mod queries;
 
+mod application;
 mod aura_view;
 mod catalogs;
 mod computation;
 mod facts;
 mod inventory_scaling;
 
+pub use application::{PlayerStatApplicationCause, apply_player_stat_computation};
 pub use aura_view::{PlayerStatAuraCatalogs, PlayerStatAuraView};
 pub use catalogs::PlayerStatCatalogs;
 pub use computation::{PlayerStatCalculator, PlayerStatComputation, PlayerStatComputationRequest};
@@ -216,6 +218,36 @@ impl PlayerStatsAccessLikeCpp<'_> {
             let facts = PlayerStatFacts::from_player(player, aura_catalogs)?;
             calculator(&facts, &catalogs, request)
         })?
+    }
+
+    /// Calculate and apply one owned result while holding the canonical
+    /// Player owner once. The callback is pure and returns no borrowed values.
+    pub fn calculate_and_apply_stats_for_values(
+        &self,
+        calculator: PlayerStatCalculator,
+        request: &PlayerStatComputationRequest<'_>,
+        cause: PlayerStatApplicationCause,
+    ) -> Option<PlayerStatComputation> {
+        let catalogs = self.stat_catalogs();
+        let aura_catalogs = catalogs.aura()?;
+        self.core.with_owned_player_mut_like_cpp(|player| {
+            let facts = PlayerStatFacts::from_player(player, aura_catalogs)?;
+            let calculation = calculator(&facts, &catalogs, request)?;
+            apply_player_stat_computation(player, &calculation, cause);
+            Some(calculation)
+        })?
+    }
+
+    /// Whether the current canonical Player needs VALUES publication instead
+    /// of the legacy immediate stat packet.
+    pub fn defer_stat_packet_for_current_player(&self) -> Option<bool> {
+        self.core.with_owned_player_like_cpp(|player| {
+            !player.unit().is_alive()
+                || player
+                    .resurrection_state_like_cpp()
+                    .delayed_after_teleport
+                    .is_some()
+        })
     }
 
     /// Build facts from the existing handle-less Session fixtures only.

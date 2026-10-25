@@ -3,6 +3,7 @@
 //! Moved out of the unit.rs root under #636; every test is unchanged.
 
 use super::*;
+use crate::{Creature, Player};
 
 #[test]
 fn values_update_sets_unit_object_type_bit() {
@@ -107,4 +108,46 @@ fn snapshot_preservation_copies_exact_authoritative_health_timeline_like_cpp() {
     assert!(snapshot.shares_health_state_revision_authority_like_cpp(
         &canonical.health_state_revision_authority_like_cpp()
     ));
+}
+
+#[test]
+fn lifecycle_stat_player_dead_health_is_one_without_flipping_death_state() {
+    let mut player = Player::new(Some(7), false);
+    let unit = player.unit_mut();
+    unit.set_max_health(20);
+    unit.set_health(20);
+    unit.set_death_state(DeathState::Dead);
+
+    unit.set_max_health(10);
+    assert_eq!(unit.data().health, 1);
+    unit.set_health(0);
+    assert_eq!(unit.data().health, 1);
+    assert_eq!(unit.death_state(), DeathState::Dead);
+
+    unit.set_death_state(DeathState::Alive);
+    unit.set_health(0);
+    assert_eq!(unit.data().health, 0);
+    assert_eq!(unit.death_state(), DeathState::Alive);
+
+    for death_state in [DeathState::JustDied, DeathState::Corpse] {
+        unit.set_death_state(death_state);
+        unit.set_health(10);
+        assert_eq!(unit.data().health, 0);
+        assert_eq!(unit.death_state(), death_state);
+    }
+}
+
+#[test]
+fn lifecycle_stat_creature_dead_health_does_not_use_player_minimum() {
+    let mut creature = Creature::new(false);
+    let unit = creature.unit_mut();
+    unit.set_max_health(20);
+    unit.set_health(20);
+    unit.set_death_state(DeathState::Dead);
+
+    unit.set_max_health(10);
+    assert_eq!(unit.data().health, 10);
+    unit.set_health(0);
+    assert_eq!(unit.data().health, 0);
+    assert_eq!(unit.death_state(), DeathState::Dead);
 }

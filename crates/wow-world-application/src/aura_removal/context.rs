@@ -123,6 +123,33 @@ impl<'a> AuraApplicationFixtureRefsLikeCpp<'a> {
 }
 
 impl<'a> AuraRemovalCxLikeCpp<'a> {
+    pub(super) fn is_current_race_sickness_spell(&mut self, spell_id: i32) -> Option<bool> {
+        let races_store = self.races_store?;
+        let race_id = {
+            let player = self.stats.reborrow_like_cpp(
+                &self.player,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &*self.shapeshift_form,
+            );
+            player.player_race_like_cpp()
+        };
+        races_store
+            .get(u32::from(race_id))
+            .map(|race| race.res_sickness_spell_id == spell_id)
+    }
+
+    pub(super) fn stat_application_uses_values(&mut self, required_sickness: bool) -> bool {
+        if required_sickness {
+            return true;
+        }
+        let player = self.stats.reborrow_like_cpp(
+            &self.player,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &*self.shapeshift_form,
+        );
+        player.defer_stat_packet_for_current_player() == Some(true)
+    }
+
     pub fn new(
         spell: &'a mut wow_world_spell::SessionSpellState,
         inventory: &'a mut wow_world_inventory::InventoryState,

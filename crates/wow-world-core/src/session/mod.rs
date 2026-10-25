@@ -59,11 +59,12 @@ pub use canonical_access::{
     OwnedLootAuthorityLookupOutcomeLikeCpp, OwnedPlayerCurrencyAccessLikeCpp,
     OwnedSpellAcquisitionAccessLikeCpp, PlayerAcquisitionOwnerAccessLikeCpp,
     PlayerConditionAccessLikeCpp, PlayerGroupOwnerAccessLikeCpp,
-    PlayerRegistryHydrationAccessLikeCpp, PlayerStatAuraCatalogs, PlayerStatAuraView,
-    PlayerStatCalculator, PlayerStatCatalogs, PlayerStatComputation, PlayerStatComputationRequest,
-    PlayerStatFacts, PlayerStatWeaponFacts, PlayerStatsAccessLikeCpp, QuestObjectiveAccessLikeCpp,
-    QuestRewardPlayerAccessLikeCpp, TrainerInteractionRoleAccessLikeCpp,
-    VisibilityRefreshAccessLikeCpp, looted_corpse_decay_secs_like_cpp,
+    PlayerRegistryHydrationAccessLikeCpp, PlayerStatApplicationCause, PlayerStatAuraCatalogs,
+    PlayerStatAuraView, PlayerStatCalculator, PlayerStatCatalogs, PlayerStatComputation,
+    PlayerStatComputationRequest, PlayerStatFacts, PlayerStatWeaponFacts, PlayerStatsAccessLikeCpp,
+    QuestObjectiveAccessLikeCpp, QuestRewardPlayerAccessLikeCpp,
+    TrainerInteractionRoleAccessLikeCpp, VisibilityRefreshAccessLikeCpp,
+    apply_player_stat_computation, looted_corpse_decay_secs_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use canonical_access::{CoreXPGainFixtureRefsLikeCpp, PlayerConditionFixtureRefsLikeCpp};

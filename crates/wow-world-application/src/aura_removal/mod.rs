@@ -10,6 +10,7 @@ mod mount_control;
 mod movement_speeds;
 mod publication;
 mod shapeshift;
+mod stat_application;
 mod threat;
 pub use item_effects::plan_item_set_aura_refresh_with_access_like_cpp;
 mod apply;
