@@ -241,12 +241,14 @@ fn character_save_adapter_preserves_the_frozen_statement_order_like_cpp() {
 }
 
 #[test]
-fn lifecycle_aura_family_is_optional_and_runs_between_actions_and_equipment_sets() {
+fn lifecycle_aura_spell_reconciles_all_keys_before_sorted_inserts() {
     let mut request = minimal_character_request();
     let without_authority =
         super::super::save_plan::player_character_save_statements_like_cpp(&request);
     assert!(without_authority.iter().all(|statement| {
-        statement.sql() != CharStatements::DEL_CHAR_AURA_BY_KEY.sql()
+        statement.sql() != CharStatements::DEL_CHAR_AURA_BY_SPELL.sql()
+            && statement.sql() != CharStatements::DEL_CHAR_AURA_EFFECT_BY_SPELL.sql()
+            && statement.sql() != CharStatements::DEL_CHAR_AURA_BY_KEY.sql()
             && statement.sql() != CharStatements::DEL_CHAR_AURA_EFFECT_BY_KEY.sql()
     }));
 
@@ -258,25 +260,43 @@ fn lifecycle_aura_family_is_optional_and_runs_between_actions_and_equipment_sets
             packed_action: 4,
         }],
     });
-    request.resurrection_sickness = Some(PlayerLifecycleAuraFamilySave {
-        spell_id: 15007,
-        caster_guid_binary: [0x51; 16],
-        item_guid_binary: [0; 16],
-        auras: vec![PlayerLifecycleAuraSave {
-            difficulty: 0,
-            stack_count: 1,
-            max_duration: 60_000,
-            remaining_duration: 45_000,
-            charges: 0,
-            recalculate_mask: 0,
-            cast_item_id: 0,
-            cast_item_level: -1,
-            effects: vec![PlayerLifecycleAuraEffectSave {
-                index: 0,
-                amount: 12,
-                base_amount: 10,
-            }],
+    let saved_aura = |amount| PlayerLifecycleAuraSave {
+        difficulty: 0,
+        stack_count: 1,
+        max_duration: 60_000,
+        remaining_duration: 45_000,
+        charges: 0,
+        recalculate_mask: 0,
+        cast_item_id: 0,
+        cast_item_level: -1,
+        effects: vec![PlayerLifecycleAuraEffectSave {
+            index: 0,
+            amount,
+            base_amount: amount - 2,
         }],
+    };
+    request.resurrection_sickness = Some(PlayerLifecycleAuraSpellSave {
+        spell_id: 15_007,
+        families: vec![
+            PlayerLifecycleAuraFamilySave {
+                spell_id: 15_007,
+                caster_guid_binary: [0x21; 16],
+                item_guid_binary: [0x22; 16],
+                auras: vec![saved_aura(21)],
+            },
+            PlayerLifecycleAuraFamilySave {
+                spell_id: 15_008,
+                caster_guid_binary: [0x31; 16],
+                item_guid_binary: [0x32; 16],
+                auras: vec![saved_aura(31)],
+            },
+            PlayerLifecycleAuraFamilySave {
+                spell_id: 15_007,
+                caster_guid_binary: [0x11; 16],
+                item_guid_binary: [0x12; 16],
+                auras: vec![saved_aura(11)],
+            },
+        ],
     });
     request.equipment_sets = Some(vec![equipment_row()]);
 
@@ -288,8 +308,8 @@ fn lifecycle_aura_family_is_optional_and_runs_between_actions_and_equipment_sets
             .expect("expected save statement")
     };
     let action = index_of(CharStatements::INS_CHAR_ACTION.sql());
-    let effect_delete = index_of(CharStatements::DEL_CHAR_AURA_EFFECT_BY_KEY.sql());
-    let aura_delete = index_of(CharStatements::DEL_CHAR_AURA_BY_KEY.sql());
+    let effect_delete = index_of(CharStatements::DEL_CHAR_AURA_EFFECT_BY_SPELL.sql());
+    let aura_delete = index_of(CharStatements::DEL_CHAR_AURA_BY_SPELL.sql());
     let aura_insert = index_of(CharStatements::INS_AURA.sql());
     let effect_insert = index_of(CharStatements::INS_AURA_EFFECT.sql());
     let equipment = index_of(CharStatements::INS_EQUIP_SET.sql());
@@ -298,28 +318,79 @@ fn lifecycle_aura_family_is_optional_and_runs_between_actions_and_equipment_sets
     assert!(aura_delete < aura_insert);
     assert!(aura_insert < effect_insert);
     assert!(effect_insert < equipment);
+    let aura_sql = statements
+        .iter()
+        .filter(|statement| {
+            let sql = statement.sql();
+            sql == CharStatements::DEL_CHAR_AURA_EFFECT_BY_SPELL.sql()
+                || sql == CharStatements::DEL_CHAR_AURA_BY_SPELL.sql()
+                || sql == CharStatements::DEL_CHAR_AURA_BY_KEY.sql()
+                || sql == CharStatements::DEL_CHAR_AURA_EFFECT_BY_KEY.sql()
+                || sql == CharStatements::INS_AURA.sql()
+                || sql == CharStatements::INS_AURA_EFFECT.sql()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        aura_sql
+            .iter()
+            .map(|statement| statement.sql())
+            .collect::<Vec<_>>(),
+        vec![
+            CharStatements::DEL_CHAR_AURA_EFFECT_BY_SPELL.sql(),
+            CharStatements::DEL_CHAR_AURA_BY_SPELL.sql(),
+            CharStatements::INS_AURA.sql(),
+            CharStatements::INS_AURA_EFFECT.sql(),
+            CharStatements::INS_AURA.sql(),
+            CharStatements::INS_AURA_EFFECT.sql(),
+        ]
+    );
+    assert_eq!(
+        aura_sql[0].params(),
+        &[crate::SqlParam::U64(1), crate::SqlParam::U32(15_007)]
+    );
+    assert_eq!(aura_sql[1].params(), aura_sql[0].params());
+    for (aura_index, effect_index, caster, item, amount) in [
+        (2, 3, [0x11; 16], [0x12; 16], 11),
+        (4, 5, [0x21; 16], [0x22; 16], 21),
+    ] {
+        let statement = aura_sql[aura_index];
+        assert_eq!(
+            &statement.params()[..5],
+            &[
+                crate::SqlParam::U64(1),
+                crate::SqlParam::Bytes(caster.to_vec()),
+                crate::SqlParam::Bytes(item.to_vec()),
+                crate::SqlParam::U32(15_007),
+                crate::SqlParam::U32(1),
+            ]
+        );
+        let effect_statement = aura_sql[effect_index];
+        assert_eq!(effect_statement.params()[6], crate::SqlParam::I32(amount));
+    }
 
     request
         .resurrection_sickness
         .as_mut()
         .unwrap()
-        .auras
+        .families
         .clear();
-    let empty_family = super::super::save_plan::player_character_save_statements_like_cpp(&request);
+    let empty_spell = super::super::save_plan::player_character_save_statements_like_cpp(&request);
     assert_eq!(
-        empty_family
+        empty_spell
             .iter()
             .filter(|statement| {
-                statement.sql() == CharStatements::DEL_CHAR_AURA_BY_KEY.sql()
-                    || statement.sql() == CharStatements::DEL_CHAR_AURA_EFFECT_BY_KEY.sql()
+                statement.sql() == CharStatements::DEL_CHAR_AURA_BY_SPELL.sql()
+                    || statement.sql() == CharStatements::DEL_CHAR_AURA_EFFECT_BY_SPELL.sql()
             })
             .count(),
         2,
-        "Some(empty) still clears only the selected sickness key"
+        "Some(empty) still clears the selected spell's complete keyset"
     );
-    assert!(empty_family.iter().all(|statement| {
+    assert!(empty_spell.iter().all(|statement| {
         statement.sql() != CharStatements::INS_AURA.sql()
             && statement.sql() != CharStatements::INS_AURA_EFFECT.sql()
+            && statement.sql() != CharStatements::DEL_CHAR_AURA_BY_KEY.sql()
+            && statement.sql() != CharStatements::DEL_CHAR_AURA_EFFECT_BY_KEY.sql()
     }));
 }
 

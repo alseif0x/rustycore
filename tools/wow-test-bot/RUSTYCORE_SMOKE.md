@@ -28,11 +28,24 @@ the scenarios below are acceptance requirements, not reports of completed runs.
 
 Use a committed debug `world-server` candidate under the runtime swap/restore
 guard. Read-only preflight on 2026-10-24 found TESTBOT1's sole character at level
-3, which cannot prove sickness. The proposed full scenario instead uses existing
-TESTBOT3 (character 16, level-80 mage) as the victim and TESTBOT2 (character 15,
-level-80 paladin) as the caster, with provisioning disabled. Both were offline
-on map 0 near (-8949.95, -132.493, 83.531). Recheck their state before execution.
-Runtime execution requires authorization for those accounts, the Rust and
+3, which cannot prove sickness. The revised fixture proposal on 2026-10-25
+preserves existing characters 16–18 and uses new disposable characters on
+existing accounts, with account provisioning disabled:
+
+| Account | Proposed character | Scenario role |
+|---|---|---|
+| TESTBOT3 (10) | Qadeathfall, Human Mage, level 80 | Fall, release, reclaim and healer victim. |
+| TESTBOT3 (10) | Qadeathmob, Human Mage, level 1 | Ordinary lethal creature damage without downgrading an existing character. |
+| TESTBOT3 (10) | Qadeathwisp, Night Elf Hunter, level 11 | Wisp Spirit and the one-minute sickness duration. |
+| TESTBOT5 (12) | Qadeathreinc, Orc Shaman, level 80 | Legal Reincarnation and its real reagent/cooldown checks. |
+| TESTBOT2 (9) | Existing character 15, Paladin, level 80 | Observer and resurrection caster. |
+
+These names and new GUIDs are unallocated candidates. Recheck collisions,
+account ownership and offline state before any authorized preparation. Select
+each new character by its journaled GUID using an in-memory bot configuration;
+do not overwrite the private credential configuration. The Mage and Paladin
+location candidate is map 0 near (-8949.95, -132.493, 83.531).
+Runtime execution requires authorization for those fixtures, the Rust and
 reference targets, restarts and the normal character writes caused by death,
 durability loss and logout. Do not seed
 or erase unrelated characters, inventory, auras or corpse rows to obtain a pass.
@@ -44,20 +57,26 @@ candidate SHA/hash, reference SHA, account/character identity without credential
 ordered packets, scenario outcome and restoration outcome. A Rust-generated
 golden is not an independent reference capture.
 
-The Human victim/caster pair cannot prove Wisp Spirit or Reincarnation. Prepare
-separate disposable, legal Night Elf Hunter (race 4/class 3) and Orc Shaman
-(race 2/class 7) fixtures for those paths. Reincarnation must use the Shaman's
+The Human victim/caster pair cannot prove Wisp Spirit or Reincarnation.
+The proposed Night Elf Hunter is race 4/class 3, and the Orc Shaman is
+race 2/class 7. Reincarnation must use the Shaman's
 actual learned 20608 and the 21169 cooldown check; granting a class spell to the
 Mage does not establish that contract. Record level and the effective
 ChrRaces-selected sickness spell. Include a level-11 case for the one-minute
 duration and a level-20-or-higher case for the full duration. Fixture preparation
-through SQL, if needed, remains a scoped runtime action; it does not prove
+through SQL remains a scoped runtime action; it does not prove
 character creation or the complete class system.
 
 Before the first fixture mutation, write a new mode-0600 recovery journal with
 exclusive creation and fsync. Preserve exact prior rows/values and allocated
 IDs for every touched table; recovery must target those identities and retain
-the journal until restoration is confirmed. Reuse the integrated bot's durable
+the journal until restoration is confirmed. Prepare and recover the new rows
+with World stopped: its running GUID generators must not be bypassed by
+inserting new characters/items behind them. Use a transaction with unique
+inserts and journal the exact allocated IDs before the first write. Recovery
+removes only this fixture's owned rows and restores any selected pre-existing
+Paladin spell row exactly; it does not restore entire auth tables or erase
+other account characters. Reuse the integrated bot's durable
 journal conventions. No fixture SQL has been executed by this preparation.
 Read-only schema inspection on 2026-10-25 confirmed that new `characters` rows
 need explicit `name` and `taximask`, and `item_instance` needs explicit
@@ -78,12 +97,23 @@ observable order being accepted. Observe-only collection cannot report a pass.
 | Scenario | Required observations |
 |---|---|
 | Lethal fall, then release | Actual server-applied lethal damage; root before release; one corpse for the owner; ghost auras and water-walk; realm `PreRessurect` before `DeathReleaseLoc`; near teleport completed by its ACK. |
+| Lethal creature damage | Real creature attack kills the level-1 victim; retain the damage, health/VALUES and subsequent KillPlayer/root order. A client movement packet or direct SQL health edit cannot substitute. |
 | Reclaim | Early/out-of-range requests leave the ghost unchanged; after the actual reclaim delay and return to the corpse, the player becomes alive, land-walk is restored and corpse rows become bones/deleted as applicable. |
 | Spirit healer | Valid ghost-visible healer and interaction distance; resurrection, selected sickness and equipped/inventory durability loss; normal save and relog preserve the resulting state. |
+| Sickness lifetime and visibility | Short duration, refresh and expiry change canonical stats at the required update point; owner and stationary observers receive the relevant aura/value/visibility changes without a movement threshold bypass. |
 | Resurrection offer | A real cast produces the realm offer and the canonical request; decline, wrong offerer and repeat response preserve the expected state. Acceptance verifies immediate/rejected teleport and admitted near/far ACK paths, requested health/mana, full energy/focus, original aura caster and corpse conversion. A request installed only by a test fixture does not prove this scenario. |
 | Automatic release | No manual release request; the existing update driver expires the six-minute timer exactly once on an eligible map. Instanceable maps and PREVENT_RESURRECTION pause the countdown. |
 | Recovery | Disconnect/relogin while dead and while ghost; corpse location and movement restored; repeated release/reclaim/request packets do not duplicate effects. Restart/relogin evidence remains a separate required observation. |
 | Interrupted transfer/save | Exercise the candidate's retained operation and failure fences; distinguish known rollback, uncertain in-flight effects and actual DB outcome. Mocked futures alone do not prove durability. |
+
+The ordinary offer sequence includes decline before acceptance, a wrong
+offerer, accepted near/far transfer and duplicate responses. An accepted request
+retains its lineage across the Rust async wait. A late decline cannot rewrite
+that accepted continuation. Static inspection of the reference's request-pointer
+reset and delayed unconditional dereference leaves the adversarial
+decline-before-near-ACK sequence uncertain; do not claim that reference behavior
+is proven or attempt a reference crash experiment under ordinary gameplay QA
+authorization.
 
 The read-only preflight found no persisted `character_spell` or
 `character_inventory` rows for characters 14–16. Verify the effective login spell
@@ -99,12 +129,17 @@ base 64, die sides 1 and mana 120: the basic offer is 65 health / 120 mana.
 This is a candidate spell, not proof that TESTBOT2 knows or can cast it.
 Spirit Healer entry 6491 has map-0 spawn rows 9008549 and 9008781 at
 (-8946.23, -183.477, 79.9953), and 9008741 at (-9340.7, 165.021, 61.6412).
+The Orc-side candidate is spawn 9008633 near (240.765, -4791, 10.256).
 Discover the live NPC identity and visibility; do not assume a database spawn
 counter is the runtime GUID or change the duplicate data for this test.
 Durable item templates still need verification through the installed DB2
 reader before choosing the exact equipment fixture. Use target-version slot
 constants: backpack starts at 35 and equipped bag slots are 30 through 33
 (`Player.h:671–683`), not the 3.3.5 inventory layout.
+The raw ItemEffect inventory of 86 positive OnPickup rows and 39 charged parent
+items is not proof that any chosen item is reachable in the required inventory
+state. Validate the real pickup/load/cast path and charge semantics before
+selecting the obtain-spell fixture; do not manufacture reachability with SQL.
 
 For a scripted fall, use a non-instance map and a character without GM mode,
 flight, fall immunity or safe-fall auras. Pin the initial position and report the

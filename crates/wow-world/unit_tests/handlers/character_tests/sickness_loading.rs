@@ -80,7 +80,9 @@ fn canonical_aura_session(
     session.set_chr_races_store(Arc::new(ChrRacesStore::from_entries([race])));
     let mut spells = wow_data::SpellStore::new();
     for info in spell_infos {
-        spells.insert(info.spell_id, info);
+        let spell_id = info.spell_id;
+        spells.insert(spell_id, info);
+        spells.insert_spell_misc_attributes_like_cpp(spell_id, [0; 15]);
     }
     session.set_spell_store(Arc::new(spells));
     session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_ids([0])));
@@ -142,6 +144,58 @@ fn sickness_rows(
         )
         .collect();
     (row, effects)
+}
+
+fn selected_sickness_application(
+    caster_guid: ObjectGuid,
+    slot: u8,
+    effect_mask: u32,
+    duration_total: u32,
+    duration_remaining: u32,
+) -> wow_entities::AuraApplicationLikeCpp {
+    wow_entities::AuraApplicationLikeCpp {
+        spell_id: SICKNESS_SPELL_ID,
+        difficulty_id: 0,
+        caster_guid,
+        slot,
+        duration_total,
+        duration_remaining,
+        stack_count: 1,
+        aura_flags: 0,
+        effect_mask,
+        aura_interrupt_flags: 0,
+        aura_interrupt_flags2: 0,
+        represented_effect: None,
+        represented_amount: 0,
+        represented_effect_amounts: Vec::new(),
+        represented_misc_value: None,
+        represented_multiplier: 1.0,
+        applied_at: std::time::Instant::now(),
+    }
+}
+
+fn insert_runtime_sickness_key(
+    session: &mut WorldSession,
+    application: wow_entities::AuraApplicationLikeCpp,
+    metadata: Option<wow_entities::AuraPersistenceMetadata>,
+    effects: Vec<(u32, i32, i32, i32)>,
+) {
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            let slot = application.slot;
+            let auras = &mut player.unit_mut().subsystems_mut().auras;
+            auras.insert_runtime_application_like_cpp(application);
+            auras.insert_threat_snapshot_like_cpp(
+                slot,
+                wow_entities::AuraThreatSnapshotLikeCpp::new([0; 2], effects),
+            );
+            if let Some(metadata) = metadata {
+                assert!(auras.set_aura_persistence_metadata(slot, metadata));
+            }
+            player.set_player_aura_authority_complete_like_cpp(true);
+        })
+        .expect("canonical Player owner");
 }
 
 fn install_sickness_visual(session: &mut WorldSession) {
@@ -252,8 +306,16 @@ fn selected_sickness_recalculates_from_saved_base_and_publishes_full_aura() {
         .resurrection_sickness
         .expect("complete selected sickness rows are persisted");
     assert_eq!(saved.spell_id, SICKNESS_SPELL_ID as u32);
-    assert_eq!(saved.auras.len(), 1);
-    let saved_aura = &saved.auras[0];
+    assert_eq!(saved.families.len(), 1);
+    assert_eq!(
+        saved.families[0].caster_guid_binary,
+        player_guid.to_raw_bytes()
+    );
+    assert_eq!(
+        saved.families[0].item_guid_binary,
+        ObjectGuid::EMPTY.to_raw_bytes()
+    );
+    let saved_aura = &saved.families[0].auras[0];
     assert_eq!(saved_aura.max_duration, 600_000);
     assert!((59_000..=60_000).contains(&saved_aura.remaining_duration));
     assert_eq!(
@@ -298,6 +360,172 @@ fn selected_sickness_recalculates_from_saved_base_and_publishes_full_aura() {
     assert_eq!(
         actual, expected,
         "post-add retains the full aura fields and cast provenance"
+    );
+}
+
+#[test]
+fn selected_sickness_capture_reconciles_foreign_and_item_keys() {
+    let (mut session, player_guid, _) =
+        canonical_aura_session([sickness_catalog_info()], SICKNESS_SPELL_ID);
+    let foreign_caster = ObjectGuid::create_player(1, 99);
+    let finite_item = ObjectGuid::create_item(1, 88);
+    let permanent_item = ObjectGuid::create_item(1, 89);
+    insert_runtime_sickness_key(
+        &mut session,
+        selected_sickness_application(foreign_caster, 7, 0b001, 600_000, 550_000),
+        Some(wow_entities::AuraPersistenceMetadata {
+            item_guid: finite_item,
+            cast_item_id: 6_948,
+            cast_item_level: 80,
+            recalculate_mask: 0b001,
+            charges: 3,
+            base_amounts: vec![(0, -76)],
+        }),
+        vec![(0b001, 80, -75, 0)],
+    );
+    insert_runtime_sickness_key(
+        &mut session,
+        selected_sickness_application(player_guid, 3, 0b010, 600_000, 550_000),
+        None,
+        vec![(0b010, 79, -25, 0)],
+    );
+    insert_runtime_sickness_key(
+        &mut session,
+        selected_sickness_application(foreign_caster, 9, 0b100, 0, 0),
+        Some(wow_entities::AuraPersistenceMetadata {
+            item_guid: permanent_item,
+            cast_item_id: 1_234,
+            cast_item_level: 40,
+            recalculate_mask: 0b100,
+            charges: 2,
+            base_amounts: vec![(2, -1)],
+        }),
+        vec![(0b100, 159, -1, 0)],
+    );
+
+    let request = capture_player_save_request(&session).expect("complete owner snapshot");
+    let saved = request
+        .resurrection_sickness
+        .expect("complete selected spell keyset");
+    assert_eq!(saved.spell_id, SICKNESS_SPELL_ID as u32);
+    assert_eq!(
+        saved.families.len(),
+        2,
+        "known permanent item key is skipped"
+    );
+    assert!(saved.families.windows(2).all(|pair| {
+        (pair[0].caster_guid_binary, pair[0].item_guid_binary)
+            < (pair[1].caster_guid_binary, pair[1].item_guid_binary)
+    }));
+
+    let foreign_family = saved
+        .families
+        .iter()
+        .find(|family| {
+            family.caster_guid_binary == foreign_caster.to_raw_bytes()
+                && family.item_guid_binary == finite_item.to_raw_bytes()
+        })
+        .expect("finite item family keeps its foreign caster and item key");
+    let foreign_aura = &foreign_family.auras[0];
+    assert_eq!(
+        (
+            foreign_aura.max_duration,
+            foreign_aura.charges,
+            foreign_aura.recalculate_mask,
+            foreign_aura.cast_item_id,
+            foreign_aura.cast_item_level,
+        ),
+        (600_000, 3, 1, 6_948, 80)
+    );
+    assert!((549_000..=550_000).contains(&foreign_aura.remaining_duration));
+    assert_eq!(foreign_aura.effects[0].amount, -75);
+    assert_eq!(foreign_aura.effects[0].base_amount, -76);
+
+    let self_family = saved
+        .families
+        .iter()
+        .find(|family| {
+            family.caster_guid_binary == player_guid.to_raw_bytes()
+                && family.item_guid_binary == ObjectGuid::EMPTY.to_raw_bytes()
+        })
+        .expect("self empty-item key remains in the complete spell snapshot");
+    assert_eq!(self_family.auras[0].effects[0].amount, -25);
+    assert!(!saved.families.iter().any(|family| {
+        family.caster_guid_binary == foreign_caster.to_raw_bytes()
+            && family.item_guid_binary == permanent_item.to_raw_bytes()
+    }));
+}
+
+#[test]
+fn selected_sickness_capture_holds_unknown_catalog_and_rejects_duplicate_family_masks() {
+    let (mut missing_attributes, _, _) =
+        canonical_aura_session([sickness_catalog_info()], SICKNESS_SPELL_ID);
+    let mut spells = wow_data::SpellStore::new();
+    spells.insert(SICKNESS_SPELL_ID, sickness_catalog_info());
+    missing_attributes.set_spell_store(Arc::new(spells));
+    wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut missing_attributes, true);
+    assert!(
+        capture_player_save_request(&missing_attributes)
+            .unwrap()
+            .resurrection_sickness
+            .is_none()
+    );
+
+    let (mut duplicate, player_guid, _) =
+        canonical_aura_session([sickness_catalog_info()], SICKNESS_SPELL_ID);
+    insert_runtime_sickness_key(
+        &mut duplicate,
+        selected_sickness_application(player_guid, 2, 1, 60_000, 50_000),
+        None,
+        vec![(1, 80, -75, 0)],
+    );
+    insert_runtime_sickness_key(
+        &mut duplicate,
+        selected_sickness_application(player_guid, 3, 1, 60_000, 50_000),
+        None,
+        vec![(1, 80, -75, 0)],
+    );
+    assert!(
+        capture_player_save_request(&duplicate)
+            .unwrap()
+            .resurrection_sickness
+            .is_none()
+    );
+}
+
+#[test]
+fn selected_sickness_capture_skips_known_foreign_limit_n_and_holds_unknown_targets() {
+    let (mut session, _, _) = canonical_aura_session([sickness_catalog_info()], SICKNESS_SPELL_ID);
+    let foreign_caster = ObjectGuid::create_player(1, 99);
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(SICKNESS_SPELL_ID, sickness_catalog_info());
+    let mut attributes = [0; 15];
+    attributes[5] = 0x20;
+    spell_store.insert_spell_misc_attributes_like_cpp(SICKNESS_SPELL_ID, attributes);
+    session.set_spell_store(Arc::new(spell_store));
+    insert_runtime_sickness_key(
+        &mut session,
+        selected_sickness_application(foreign_caster, 4, 1, 60_000, 50_000),
+        None,
+        vec![(1, 80, -75, 0)],
+    );
+    let saved = capture_player_save_request(&session)
+        .unwrap()
+        .resurrection_sickness
+        .expect("known source exclusion still completes the spell snapshot");
+    assert!(saved.families.is_empty());
+
+    let mut unsupported = sickness_catalog_info();
+    unsupported.effects[0].implicit_target_1 = 6;
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(SICKNESS_SPELL_ID, unsupported);
+    spell_store.insert_spell_misc_attributes_like_cpp(SICKNESS_SPELL_ID, [0; 15]);
+    session.set_spell_store(Arc::new(spell_store));
+    assert!(
+        capture_player_save_request(&session)
+            .unwrap()
+            .resurrection_sickness
+            .is_none()
     );
 }
 
@@ -447,7 +675,7 @@ fn offline_expiration_is_a_complete_empty_restore() {
         .expect("the real PlayerSaveOwner captures the Player after legitimate expiry")
         .resurrection_sickness
         .expect("complete empty sickness group authorizes its scoped delete");
-    assert!(saved.auras.is_empty());
+    assert!(saved.families.is_empty());
 }
 
 #[test]

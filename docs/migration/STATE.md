@@ -380,6 +380,20 @@ sin convertir Alive con salud cero en otro estado; no cambia Creature DEAD.
 Anclas del mismo C++: StatSystem.cpp:105–152,199–230, Unit.cpp:9214–9268
 y SpellAuraEffects.cpp:3566–3602,3656–3705. El nuevo camino no repara todavía
 el sync legacy que cambia implícitamente DeathState ni la operación completa.
+La retirada de ese sync debe migrar conjuntamente login y Hearth. En el C++
+objetivo, LoadFromDB establece DEAD después de cargar auras si Ghost está
+activo (`Player.cpp:17720–17722`), y después savedHealth==0 establece CORPSE,
+antes de limpieza por muerte y UpdateAllStats (`17776–17790`). La secuencia
+Rust llama al sync de salud en login_sequence.rs:515 sin esas decisiones
+explícitas; restore_player_corpse_after_login decide más tarde a partir de
+Unit::is_alive. No se puede retirar el cambio implícito y conservar ese
+caller sin migrar. El nuevo contrato deriva Ghost de la aura cargada, no de
+flags antiguos de SQL, y conserva la precedencia del cero guardado. Hearth
+debe usar BuildPlayerRepop → ResurrectPlayer(1) → homebind, tras los gates de
+vuelo/área (`BattleGroundHandler.cpp:703–725`), sin añadir gate dead-only ni
+bones explícitos. Los callers de stats/level-up/scaling deberán publicar los
+vitales realmente aplicados, incluidos CORPSE=0 y DEAD=1. Sigue siendo una
+decisión previa a implementación y a la prueba real de relog.
 Feedback del worker sobre `85ee6e345` más delta, aarch64/jobs=1:
 `cargo test -p wow-entities --lib lifecycle_stat` pasó dos casos y Core cuatro
 (`/tmp/rustycore-43-9h2d-entities-lifecycle-stat-20261025T0330Z.log`,
@@ -402,6 +416,34 @@ las identidades de tests. No hay campaña final, capturas ni QA viva. Si falla
 el planner, el error se propaga y stats quedan intactos, pero la aura ya puede
 estar instalada/publicada: el preflight y la valla de la operación completa
 siguen pendientes, junto con refresh, persistencia all-key y duración finita.
+9h3A implementa la persistencia all-key de sickness seleccionada por ChrRaces:
+el snapshot por spell contiene todas sus familias caster/item; None conserva
+SQL y una lista completa vacía autoriza retirar solo ese spell. El plan usa
+los borrados BySpell ya existentes, una vez antes de inserts con las claves
+reales, y no cambia la transacción ni sus resultados de COMMIT. La captura
+valida los tres tipos 80/79/159 y su subconjunto activo, conserva importes/base,
+recalc y procedencia de item, e incluye caster ajeno e item finito. La exclusión
+de item permanente se aplica según la convención canónica existente
+duration_total=0; C++ representa permanente como -1. No se declara una solución
+general a la representación de duraciones ni a CustomCannotSave, cargas
+dependientes de AuraOptions o single-target runtime. Todavía se conserva
+elapsed en la captura: countdown y snapshot cambiarán conjuntamente con el
+pase seleccionado, sin habilitar ahora otro dueño de duración.
+Feedback sobre `d413567d4` más delta, aarch64/jobs=1:
+`cargo test -p wow-database --lib lifecycle_aura` pasó tres casos, exit 0,
+(`/tmp/rustycore-9h3a-db-lifecycle-aura-20261025T0414Z.log`), y
+`cargo test -p wow-world --lib sickness` pasó 15, exit 0,
+(`/tmp/rustycore-9h3a-world-sickness-20261025T0419Z-r3.log`). El primer World
+falló por un helper que usaba un shim privado; r2 pasó 14/15 y descubrió un
+fixture expirado sin snapshot de efectos. Se corrigió su preparación y se
+conservó la validación de datos incompletos. Los logs previos 0415Z y
+0417Z-r2 se conservan. Después se aplicó rustfmt solo a las ocho rutas Rust
+propias, sin otro Cargo; el feedback anterior no se relabela como aceptación
+del commit posterior. Se revisó el wrapping incidental de un export vecino.
+Los helpers privados de save_snapshot_owner se extrajeron con mount explícito;
+dos tests renombrados distinguen all-key y duración permanente malformada,
+sin retirar casos. Carga TryCreate, refresh y clock seleccionados siguen
+pendientes; estos tests no prueban DB/relogin/restart reales ni aceptación final.
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa

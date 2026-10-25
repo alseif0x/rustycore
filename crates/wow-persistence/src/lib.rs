@@ -291,10 +291,9 @@ pub use spell::{
     SpellTargetRestrictionsHotfixRowLikeCpp, SpellXSpellVisualHotfixRowLikeCpp,
 };
 pub use static_data_overlay::{
-    AreaTableHotfixRowLikeCpp, ChrCustomizationDisplayInfoHotfixRow,
-    PowerTypeHotfixRowLikeCpp, SpellEnchantProcPersistenceRowLikeCpp,
-    StaticDataOverlayPersistencePortLikeCpp, StaticDataRowsLoadOutcomeLikeCpp,
-    UiMapXMapArtHotfixRowLikeCpp,
+    AreaTableHotfixRowLikeCpp, ChrCustomizationDisplayInfoHotfixRow, PowerTypeHotfixRowLikeCpp,
+    SpellEnchantProcPersistenceRowLikeCpp, StaticDataOverlayPersistencePortLikeCpp,
+    StaticDataRowsLoadOutcomeLikeCpp, UiMapXMapArtHotfixRowLikeCpp,
 };
 pub use stored_item::{
     InventoryItemCountPersistenceRequestLikeCpp, InventoryItemDestroyPersistenceRequestLikeCpp,
@@ -455,9 +454,9 @@ pub use player::{
     PlayerCufProfileSaveLikeCpp, PlayerCufProfileSlotSaveLikeCpp, PlayerEquipmentSetSaveLikeCpp,
     PlayerEquipmentSetStateLikeCpp, PlayerEquipmentSetTypeLikeCpp, PlayerFallbackSpellSaveLikeCpp,
     PlayerGlyphSaveLikeCpp, PlayerInstanceLockTimeSaveLikeCpp, PlayerItemDurabilitySave,
-    PlayerPlayedTimeSaveLikeCpp, PlayerPositionSaveLikeCpp, PlayerReputationSaveLikeCpp,
     PlayerLifecycleAuraEffectSave, PlayerLifecycleAuraFamilySave, PlayerLifecycleAuraSave,
-    PlayerSkillSaveLikeCpp, PlayerSpellChargeSaveLikeCpp,
+    PlayerLifecycleAuraSpellSave, PlayerPlayedTimeSaveLikeCpp, PlayerPositionSaveLikeCpp,
+    PlayerReputationSaveLikeCpp, PlayerSkillSaveLikeCpp, PlayerSpellChargeSaveLikeCpp,
     PlayerSpellCooldownSaveLikeCpp, PlayerSpellSaveGroupLikeCpp, PlayerSpellSaveLikeCpp,
     PlayerSpellStateLikeCpp, PlayerTalentResetPersistenceRequestLikeCpp,
     PlayerTalentResetSaveRowLikeCpp, PlayerTalentSaveLikeCpp, PlayerTutorialsSaveLikeCpp,

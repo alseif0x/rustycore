@@ -18,11 +18,12 @@ pub struct PlayerCharacterSaveRequestLikeCpp {
     /// Absolute durability values for Player-owned item objects that were
     /// already persisted by their creation/loot transaction.
     pub item_durability: Option<Vec<PlayerItemDurabilitySave>>,
-    /// Selected race's self-cast resurrection-sickness aura family.
-    /// `None` preserves rows when canonical aura authority or catalogs are
-    /// incomplete; `Some(empty)` removes only this scoped family.
-    pub resurrection_sickness: Option<PlayerLifecycleAuraFamilySave>,
-    /// Self-cast Ghost and Wisp aura families scoped to the empty-item key.
+    /// Selected race's complete sickness spell snapshot, including every
+    /// persistable caster/item family for that spell. `None` preserves rows
+    /// when canonical aura authority or catalogs are incomplete; an empty
+    /// `families` list authorizes deleting the selected spell's rows.
+    pub resurrection_sickness: Option<PlayerLifecycleAuraSpellSave>,
+    /// Complete selected Ghost and Wisp spell-key snapshots.
     /// `None` preserves rows when canonical aura authority or catalogs are incomplete.
     pub ghost_wisp: Option<Vec<PlayerLifecycleAuraFamilySave>>,
     pub spells: Option<PlayerSpellSaveGroupLikeCpp>,
@@ -117,6 +118,13 @@ pub struct PlayerCharacterSnapshotSaveLikeCpp {
 pub struct PlayerItemDurabilitySave {
     pub item_guid: u64,
     pub durability: u32,
+}
+
+/// One selected lifecycle spell and the complete persistable database-key set.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerLifecycleAuraSpellSave {
+    pub spell_id: u32,
+    pub families: Vec<PlayerLifecycleAuraFamilySave>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

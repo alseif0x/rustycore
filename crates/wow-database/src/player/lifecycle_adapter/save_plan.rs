@@ -235,8 +235,24 @@ pub(super) fn player_character_save_statements_like_cpp(
             action_type: (button.packed_action >> 24) as u8,
         }));
     }
-    if let Some(aura_family) = &request.resurrection_sickness {
-        append_lifecycle_aura_family_steps(&mut steps, guid, aura_family);
+    if let Some(aura_spell) = &request.resurrection_sickness {
+        steps.push(Step::DeleteLifecycleAuraEffectsBySpell {
+            guid,
+            spell_id: aura_spell.spell_id,
+        });
+        steps.push(Step::DeleteLifecycleAuraFamilyBySpell {
+            guid,
+            spell_id: aura_spell.spell_id,
+        });
+        let mut aura_families = aura_spell
+            .families
+            .iter()
+            .filter(|family| family.spell_id == aura_spell.spell_id)
+            .collect::<Vec<_>>();
+        aura_families.sort_by_key(|family| (family.caster_guid_binary, family.item_guid_binary));
+        for aura_family in aura_families {
+            append_lifecycle_aura_family_insert_steps(&mut steps, guid, aura_family);
+        }
     }
     if let Some(aura_families) = &request.ghost_wisp {
         for spell_id in [8_326, 20_584] {
@@ -379,28 +395,6 @@ pub(super) fn player_character_save_statements_like_cpp(
         .iter()
         .map(player_character_save_statement_like_cpp)
         .collect()
-}
-
-fn append_lifecycle_aura_family_steps(
-    steps: &mut Vec<PlayerCharacterSaveStepLikeCpp>,
-    guid: u64,
-    aura_family: &PlayerLifecycleAuraFamilySave,
-) {
-    use PlayerCharacterSaveStepLikeCpp as Step;
-
-    steps.push(Step::DeleteLifecycleAuraEffects {
-        guid,
-        caster_guid_binary: aura_family.caster_guid_binary,
-        item_guid_binary: aura_family.item_guid_binary,
-        spell_id: aura_family.spell_id,
-    });
-    steps.push(Step::DeleteLifecycleAuraFamily {
-        guid,
-        caster_guid_binary: aura_family.caster_guid_binary,
-        item_guid_binary: aura_family.item_guid_binary,
-        spell_id: aura_family.spell_id,
-    });
-    append_lifecycle_aura_family_insert_steps(steps, guid, aura_family);
 }
 
 fn append_lifecycle_aura_family_insert_steps(
