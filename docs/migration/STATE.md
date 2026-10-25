@@ -1,31 +1,31 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, resumen vigente — 2026-10-25, rama `43-spirit-healer`:**
-la macro sigue abierta y sin aceptación final. La rama `43-spirit-healer`
-conserva los cambios locales; no se ha publicado ni desplegado este candidato.
-Los últimos checkpoints incorporan Stats canónicos, persistencia all-key,
-carga y refresh seleccionados, duraciones firmadas y un ejecutor de expiración
-por diff. Este último todavía no tiene caller productivo. El pase Map de
-recuperación ya conecta regeneración, KillPlayer, guardado periódico, deathTimer
-y teleport diferido por el rail existente de Session. Tiene feedback focalizado
-del consumidor World y del coordinador Server.
-La activación del countdown seleccionado y su publicación/snapshot exactos
-siguen pendientes, sin otro reloj ni una segunda autoridad de Player.
+**#43 current summary — 2026-10-25, branch `43-spirit-healer`:**
+The macro remains open and has not passed final acceptance. Changes remain
+local to `43-spirit-healer`; this candidate has not been published or deployed.
+Recent checkpoints add canonical stats, reconciliation of all selected aura
+keys, selected load and refresh, signed durations, and an expiration executor
+driven by the admitted diff. That executor still has no production caller.
+The Map recovery pass now connects regeneration, KillPlayer, periodic save,
+deathTimer, and delayed teleport through the existing Session rail. Both its
+World consumer and Server coordinator have focused coding feedback.
+Activating the selected countdown, publication, and exact save snapshot remains
+pending; the design adds neither another clock nor another Player authority.
 
-Quedan cuatro bloques de la misma macro, sin crear otro plan de port:
+Four blocks remain within the same macro:
 
-- Integrar el pase Map de recuperación, su publicación y el snapshot exacto;
-  completar la metadata seleccionada de AuraUpdate.
-- Conectar los participantes existentes de muerte y cerrar las operaciones
-  completas de recuperación, incluidas sus rutas de login/transfer/fallo.
-- Completar los consumidores normales de lanzamiento que esas operaciones
-  necesitan, incluidos SelfRes y recast de efectos de objetos llevados.
-- Terminar el driver de QA, ejecutar una campaña final del candidato y las
-  capturas/DB/reinicio/relogin autorizadas por separado.
+- Complete the selected Unit step in Map recovery, its publication and exact
+  snapshot; finish the selected AuraUpdate metadata.
+- Connect existing death participants and complete recovery operations,
+  including their login, transfer, and failure paths.
+- Complete the normal cast consumers those operations require, including
+  SelfRes and recasting effects from carried items.
+- Finish the QA driver, run candidate final acceptance, and perform the
+  separately authorized captures, DB, restart, and relogin scenarios.
 
-El feedback focalizado que sigue no sustituye ninguno de esos bloques.
-Se conservan abajo los checkpoints y contrastes fechados; las decisiones
-iniciales del timer en World son antecedentes del corte Map elegido después.
+Focused feedback below does not replace these requirements. Dated checkpoints
+and source comparisons remain below; the initial World timer decisions are
+historical context for the Map cut selected later.
 
 **#43, contexto y evidencia previos — corte 2026-10-25, 06:47 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
@@ -641,43 +641,43 @@ logs `/tmp/rustycore-9i3a-world-check-20261025.log` y
 `/tmp/rustycore-9i3a-map-phase-pass-20261025.log`. Incluye los 18 casos
 previos y siete nuevos; no es aceptación del candidato completo.
 
-9i3B conecta el request PlayerRecovery al productor real, después del prelude
-de respawns y antes de Creature/P3, también cuando no hay ejecutor Creature.
-La selección conserva el orden de referencias de Player e intersecta los
-objetos que alcanza el plan actual; C++ llama Player::Update en ese orden
-(`Map.cpp:704–708`). No se presenta como resolución del intercalado restante
-de #584. El productor entrega los intents DB del prelude una vez, bajo el
-gate de orden existente, antes de soltarlo para esperar a Session. Los inputs
-Creature se capturan después de Recovery. Los timers coordinados dejan World;
-el consumidor comparte su cuerpo con el modo standalone y guarda antes de
-avanzar deathTimer, comprobando el binding después de los awaits.
-El mismo permiso atómico conserva un terminal CompletedUnavailable: prueba
-que el pase dejó de ejecutar, pero obliga a abandonar el tail de este tick
-incluso sin reply. Un permiso Running o Interrupted mantiene la barrera entre
-ticks; una respuesta no es prueba de terminación. Una respuesta terminal con
-lineage inválida también abandona el tick sin fabricar efectos aún vivos.
-Sobre `a66cf242a` más delta local, cuatro casos nuevos de Recovery y cuatro
-regresiones de deathTimer pasaron, exit 0, con los filtros World `recovery_timer`
-y `death_timer`. Server `map_session_pass` pasó 17 casos, incluido el prelude
-DB sin replay; el filtro exacto de participantes post-respawn pasó otro caso,
-ambos exit 0. Son 26 identidades distintas entre los cuatro filtros. Check
-Server terminó exit 0. Logs finales:
+9i3B connects PlayerRecovery requests to the production coordinator after the
+respawn prelude and before Creature/P3, including ticks without a Creature
+executor. Selection preserves Player reference order and intersects the
+objects reached by the current plan; C++ calls Player::Update in that order
+(`Map.cpp:704–708`). This does not resolve the remaining #584 interleaving.
+The producer submits prelude DB intents once under the existing ordering gate
+before releasing it to await Session. Creature inputs are captured after
+Recovery. Coordinated timers leave World; their consumer shares its body with
+standalone mode, saves before advancing deathTimer, and checks the binding
+after awaits.
+The same atomic permit retains a CompletedUnavailable terminal state: the
+pass has stopped executing, but this tick's tail must be abandoned even if
+the reply is lost. Running or Interrupted permits retain the barrier across
+ticks; a reply alone is not completion proof. A terminal reply with invalid
+lineage also abandons the tick without pretending effects are still running.
+On `a66cf242a` plus the local delta, the World filters `recovery_timer` and
+`death_timer` each passed four cases, exit 0. Server `map_session_pass` passed
+17 cases, including prelude DB submission without replay; the exact
+post-respawn participant filter passed one more, both exit 0. These four
+filters cover 26 distinct test identities. Server check exited 0. Final
+focused-feedback logs:
 `/tmp/rustycore-9i3b-check-world-server-r3.log`,
 `/tmp/rustycore-9i3b-test-world-recovery-timer-r3.log`,
 `/tmp/rustycore-9i3b-test-world-death-timer-r2.log`,
 `/tmp/rustycore-9i3b-test-world-server-map-session-pass-r2.log` y
 `/tmp/rustycore-9i3b-test-world-server-post-respawn-participants.log`.
-Entorno aarch64, jobs=1, target del checkout y PROTOC local. Los intentos
-fallidos quedan en sus logs: mutabilidad del summary, peers de transporte
-descartados por la fixture y rutas/tipos incorrectos en los tests Server.
-El primer filtro World `player_recovery` pasó siete casos de admisión 9i3A,
-pero no alcanzó el driver nuevo; no se cuenta como prueba de este último.
-Se corrigió además un test existente: el permiso terminal con reply de otro
-epoch sí prueba quietud, pero bloquea el tail; conserva esa cobertura bajo
+Environment: aarch64, jobs=1, checkout-local target, and local PROTOC. Failed
+attempts remain in their logs: summary mutability, transport peers dropped by
+the fixture, and incorrect module paths/types in Server tests. The initial
+World `player_recovery` filter passed seven 9i3A admission cases but did not
+reach the new driver; it is not counted as evidence for that driver.
+An existing test was corrected: a terminal permit with a reply for another
+epoch proves quiescence but blocks the tail. Its coverage is retained under
 `a_wrong_tick_terminal_reply_abandons_this_tick_without_live_effects`.
-El caso controlado de Save prueba Applied y Unknown: durante el await no
-avanza deathTimer; Unknown conserva además la intención de teleport añadida
-durante ese await. No se ha ejecutado aceptación final ni QA viva.
+The controlled Save case exercises Applied and Unknown: deathTimer does not
+advance during the await; Unknown also preserves a teleport intent added
+during that await. Neither final acceptance nor live QA has been run.
 
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
