@@ -64,8 +64,7 @@ fn ghost_wisp_recalculated_amount(
         (8_326, 2) => wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED,
         (20_584, 0) => wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
         (20_584, 1) => wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED,
-        // Wisp's transform effect is deliberately restored from its stored
-        // amount; no selected Ghost/Wisp transform effect is recalculated.
+        (20_584, 2) => wow_data::spell::aura_types::SPELL_AURA_TRANSFORM,
         _ => return None,
     };
     if effect.effect_aura != expected_aura {
@@ -76,6 +75,68 @@ fn ghost_wisp_recalculated_amount(
     effect
         .calc_value_no_caster_like_cpp()
         .checked_mul(i32::from(stack_count))
+}
+
+fn selected_ghost_wisp_effect_contract(
+    spell_id: u32,
+    effects: &[wow_data::SpellEffectInfo],
+) -> bool {
+    let expected = match spell_id {
+        8_326 => [
+            wow_data::spell::aura_types::SPELL_AURA_GHOST,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED,
+        ],
+        20_584 => [
+            wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED,
+            wow_data::spell::aura_types::SPELL_AURA_TRANSFORM,
+        ],
+        _ => return true,
+    };
+    if effects.len() != expected.len() {
+        return false;
+    }
+    let mut seen_mask = 0_u32;
+    for effect in effects {
+        let Some(bit) = 1_u32.checked_shl(effect.effect_index) else {
+            return false;
+        };
+        let Ok(index) = usize::try_from(effect.effect_index) else {
+            return false;
+        };
+        if index >= expected.len()
+            || seen_mask & bit != 0
+            || effect.effect != wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
+            || effect.effect_aura != expected[index]
+            || !matches!(effect.implicit_target_1, 0 | 1)
+            || effect.implicit_target_2 != 0
+        {
+            return false;
+        }
+        seen_mask |= bit;
+    }
+    seen_mask == 0b111
+}
+
+fn selected_ghost_wisp_can_be_saved(
+    caster_guid: ObjectGuid,
+    player_guid: ObjectGuid,
+    item_guid: ObjectGuid,
+    base_duration_ms: i32,
+    attributes: [u32; 15],
+    channeled: bool,
+) -> bool {
+    const SPELL_ATTR0_PASSIVE: u32 = 0x0000_0040;
+    const SPELL_ATTR5_LIMIT_N: u32 = 0x0000_0020;
+    // This is the selected-loader subset of C++ `Aura::CanBeSaved`. The
+    // installed selected effects have self targets and no area-aura targets,
+    // and Attr5 covers `SpellInfo::IsSingleTarget`; this loader does not model
+    // runtime `Aura::IsSingleTarget` or SpellInfo's custom cannot-save flag.
+    attributes[0] & SPELL_ATTR0_PASSIVE == 0
+        && !channeled
+        && !(caster_guid != player_guid && attributes[5] & SPELL_ATTR5_LIMIT_N != 0)
+        && !(item_guid != ObjectGuid::EMPTY && base_duration_ms == -1)
 }
 
 fn represented_aura_visual_without_caster_like_cpp(
@@ -197,6 +258,12 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
         .spell_catalogs
         .spell_aura_options_store
         .clone();
+    let spell_duration_store = host
+        .hub_ref()
+        .catalogs
+        .spell_catalogs
+        .spell_duration_store
+        .clone();
     let spell_misc_store = host
         .hub_ref()
         .catalogs
@@ -216,9 +283,11 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
     let mut authority_complete = true;
     let mut effects = Vec::new();
     for row in effect_rows {
+        let selected_ghost_wisp = matches!(row.spell_id, 8_326 | 20_584);
         if row.spell_id == 0
-            || row.effect_mask == 0
-            || u32::from(row.effect_index) >= wow_data::conditions::MAX_SPELL_EFFECTS_LIKE_CPP
+            || (!selected_ghost_wisp && row.effect_mask == 0)
+            || (!selected_ghost_wisp
+                && u32::from(row.effect_index) >= wow_data::conditions::MAX_SPELL_EFFECTS_LIKE_CPP)
         {
             authority_complete = false;
             continue;
@@ -228,11 +297,15 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
 
     let mut loaded = 0usize;
     for mut row in aura_rows {
+        let selected_ghost_wisp = matches!(row.spell_id, 8_326 | 20_584);
         let Ok(spell_id) = i32::try_from(row.spell_id) else {
             authority_complete = false;
             continue;
         };
-        if row.spell_id == 0 || row.effect_mask == 0 || row.stack_count == 0 {
+        if row.spell_id == 0
+            || (!selected_ghost_wisp && row.effect_mask == 0)
+            || row.stack_count == 0
+        {
             authority_complete = false;
             continue;
         }
@@ -266,6 +339,62 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
             authority_complete = false;
         }
         let spell_effects = spell_effects.unwrap_or(&[]);
+        if selected_ghost_wisp && !selected_ghost_wisp_effect_contract(row.spell_id, spell_effects)
+        {
+            authority_complete = false;
+            continue;
+        }
+        let active_effect_mask = if selected_ghost_wisp {
+            row.effect_mask & 0b111
+        } else {
+            row.effect_mask
+        };
+
+        let selected_metadata = if selected_ghost_wisp {
+            if aura_options_store.is_none() {
+                authority_complete = false;
+                continue;
+            }
+            let Some(spell_misc_store) = spell_misc_store.as_ref() else {
+                authority_complete = false;
+                continue;
+            };
+            let Some(misc) = spell_misc_store.entry_for_spell_difficulty_with_fallback_like_cpp(
+                row.spell_id,
+                row.difficulty,
+                difficulty_store_ref,
+            ) else {
+                authority_complete = false;
+                continue;
+            };
+            let Some(spell_duration_store) = spell_duration_store.as_deref() else {
+                authority_complete = false;
+                continue;
+            };
+            let base_duration_ms = wow_data::spell_duration_ms_like_cpp(
+                u32::from(misc.duration_index),
+                Some(spell_duration_store),
+            );
+            if base_duration_ms != -1 {
+                authority_complete = false;
+                continue;
+            }
+            let Some(attributes) = spell_store.misc_attributes_for_difficulty_like_cpp(
+                spell_id,
+                row.difficulty,
+                difficulty_store_ref,
+            ) else {
+                authority_complete = false;
+                continue;
+            };
+            Some((
+                attributes,
+                base_duration_ms,
+                spell_store.is_channeled_like_cpp(spell_id),
+            ))
+        } else {
+            None
+        };
 
         let aura_expires_offline = spell_misc_store
             .as_ref()
@@ -296,13 +425,23 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
                 row.remain_charges
             };
         }
-
-        let Some(slot) = next_player_visible_aura_slot_like_cpp(host) else {
-            authority_complete = false;
-            break;
+        let selected_cast_id = if selected_ghost_wisp {
+            let Some(cast_id) = host.next_represented_spell_cast_guid_like_cpp(spell_id) else {
+                authority_complete = false;
+                break;
+            };
+            Some(cast_id)
+        } else {
+            None
         };
+        if selected_ghost_wisp && active_effect_mask == 0 {
+            // The selected SpellInfo and charges are known, so this is a
+            // source-equivalent TryCreate absence after allocating its CastId.
+            continue;
+        }
 
         let caster_guid = row.caster_guid;
+        let mut selected_metadata_valid = true;
         let mut keyed_effect_rows = BTreeMap::new();
         for effect in effects.iter().filter(|effect| {
             effect.caster_guid == row.caster_guid
@@ -310,16 +449,30 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
                 && effect.spell_id == row.spell_id
                 && effect.effect_mask == row.effect_mask
         }) {
+            if selected_ghost_wisp {
+                let effect_bit = 1_u32.checked_shl(u32::from(effect.effect_index));
+                if effect_bit.is_none_or(|bit| active_effect_mask & bit == 0) {
+                    continue;
+                }
+            }
             if keyed_effect_rows
                 .insert(effect.effect_index, *effect)
                 .is_some()
             {
                 authority_complete = false;
+                if selected_ghost_wisp {
+                    selected_metadata_valid = false;
+                }
             }
         }
-        if row.recalculate_mask & !row.effect_mask != 0 {
+        if !selected_ghost_wisp && row.recalculate_mask & !row.effect_mask != 0 {
             authority_complete = false;
         }
+        let mut recalculate_mask = if selected_ghost_wisp {
+            row.recalculate_mask & active_effect_mask
+        } else {
+            row.recalculate_mask
+        };
         let mut covered_mask = 0_u32;
         let mut canonical_effects = Vec::new();
         let mut represented_effect_amounts = Vec::new();
@@ -328,7 +481,7 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
             let Some(bit) = 1_u32.checked_shl(effect.effect_index) else {
                 continue;
             };
-            if row.effect_mask & bit == 0 {
+            if active_effect_mask & bit == 0 {
                 continue;
             }
             let Ok(effect_index) = u8::try_from(effect.effect_index) else {
@@ -343,33 +496,49 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
             let saved_effect = keyed_effect_rows.get(&effect_index);
             if saved_effect.is_none() {
                 authority_complete = false;
+                if selected_ghost_wisp {
+                    selected_metadata_valid = false;
+                }
             }
             let base_amount = saved_effect.map_or(0, |saved| saved.base_amount);
             let stored_amount = saved_effect.map_or(0, |saved| saved.amount);
-            let current_amount = if row.recalculate_mask & bit == 0 {
-                stored_amount
-            } else if selected_sickness_spell_id == Some(row.spell_id) {
-                match sickness_recalculated_amount(effect, base_amount, row.stack_count) {
-                    Some(amount) => amount,
-                    None => {
-                        authority_complete = false;
-                        stored_amount
+            let loaded_transform_disables_recalculation = selected_ghost_wisp
+                && row.spell_id == 20_584
+                && effect.effect_index == 2
+                && effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_TRANSFORM;
+            let current_amount =
+                if recalculate_mask & bit == 0 {
+                    stored_amount
+                } else if selected_sickness_spell_id == Some(row.spell_id) {
+                    match sickness_recalculated_amount(effect, base_amount, row.stack_count) {
+                        Some(amount) => amount,
+                        None => {
+                            authority_complete = false;
+                            if selected_ghost_wisp {
+                                selected_metadata_valid = false;
+                            }
+                            stored_amount
+                        }
                     }
-                }
-            } else if let Some(amount) = ghost_wisp_recalculated_amount(
-                row.spell_id,
-                effect.effect_index,
-                effect,
-                base_amount,
-                row.stack_count,
-            ) {
-                amount
-            } else {
-                // Preserve the stored amount for unsupported recalculation
-                // metadata while withholding complete aura authority.
-                authority_complete = false;
-                stored_amount
-            };
+                } else if let Some(amount) = ghost_wisp_recalculated_amount(
+                    row.spell_id,
+                    effect.effect_index,
+                    effect,
+                    base_amount,
+                    row.stack_count,
+                ) {
+                    if loaded_transform_disables_recalculation {
+                        // C++ `CalculateAmount` recalculates Transform from
+                        // base points, then clears `CanBeRecalculated`.
+                        recalculate_mask &= !bit;
+                    }
+                    amount
+                } else {
+                    // Preserve the stored amount for unsupported recalculation
+                    // metadata while withholding complete aura authority.
+                    authority_complete = false;
+                    stored_amount
+                };
             if let Some(saved_effect) = saved_effect {
                 base_amounts.push((effect_index, saved_effect.base_amount));
             }
@@ -384,8 +553,14 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
                 effect.effect_misc_value_1,
             ));
         }
-        if covered_mask != row.effect_mask {
+        if covered_mask != active_effect_mask {
             authority_complete = false;
+            if selected_ghost_wisp {
+                selected_metadata_valid = false;
+            }
+        }
+        if selected_ghost_wisp && !selected_metadata_valid {
+            continue;
         }
 
         let interrupt_flags = spell_store
@@ -398,11 +573,11 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
         let canonical_snapshot = AuraThreatSnapshotLikeCpp::new(interrupt_flags, canonical_effects);
         let duration_total = u32::try_from(row.max_duration_ms).unwrap_or(0);
         let duration_remaining = u32::try_from(row.remain_time_ms).unwrap_or(0);
-        // C++ `Player::_LoadAuras` allocates a fresh `HighGuid::Cast` for
-        // every restored Aura base. With no live caster pointer,
-        // `Aura::Aura` resolves `GetSpellXSpellVisualId()` by skipping
-        // caster-conditioned rows and taking the first unconditional row.
-        let Some(cast_id) = host.next_represented_spell_cast_guid_like_cpp(spell_id) else {
+        // C++ `_LoadAuras` allocates this before `TryCreate`, including a
+        // selected aura whose active effect mask later normalizes to zero.
+        let Some(cast_id) =
+            selected_cast_id.or_else(|| host.next_represented_spell_cast_guid_like_cpp(spell_id))
+        else {
             authority_complete = false;
             break;
         };
@@ -415,27 +590,35 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
             cast_id,
             spell_visual_id: i32::try_from(spell_visual_id).unwrap_or(i32::MAX),
         };
-        let mut aura_flags = if wow_data::represented_spell_is_positive_like_cpp(spell_info) {
+        let selected_positive = if selected_ghost_wisp {
+            match super::selected_aura_effects_positive(spell_info, active_effect_mask) {
+                Some(positive) => positive,
+                None => {
+                    authority_complete = false;
+                    continue;
+                }
+            }
+        } else {
+            wow_data::represented_spell_is_positive_like_cpp(spell_info)
+        };
+        // The selected loader derives polarity from active effects. C++ also
+        // uses a live foreign caster's friendliness here; this load path does
+        // not resolve that caster, so foreign polarity is not parity evidence.
+        let mut aura_flags = if selected_positive {
             AFLAG_POSITIVE
         } else {
             AFLAG_NEGATIVE
         };
-        if matches!(row.spell_id, 8326 | 20584) && aura_flags & AFLAG_POSITIVE != 0 {
-            let attributes = spell_store
-                .misc_attributes_for_difficulty_like_cpp(
-                    row.spell_id as i32,
-                    row.difficulty,
-                    difficulty_store_ref,
-                )
-                .unwrap_or([0; 15]);
+        if selected_ghost_wisp && selected_positive {
+            let Some((attributes, _, _)) = selected_metadata else {
+                authority_complete = false;
+                continue;
+            };
             if attributes[0] as u32 & wow_data::spell::attributes::SPELL_ATTR0_PASSIVE == 0
-                && attributes[1] as u32
-                    & wow_data::spell::attributes::SPELL_ATTR1_NO_AURA_ICON
-                    == 0
+                && attributes[1] as u32 & wow_data::spell::attributes::SPELL_ATTR1_NO_AURA_ICON == 0
             {
-                // C++ AuraApplication::_InitFlags checks owner GUID == target
-                // GUID. These loaded applications are installed on the Player
-                // they target, even when the original caster was another unit.
+                // The aura owner and target are this Player, regardless of
+                // the persisted caster GUID.
                 aura_flags |= AFLAG_CANCELABLE;
             }
         }
@@ -445,6 +628,54 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
         if row.max_duration_ms > 0 {
             aura_flags |= AFLAG_DURATION;
         }
+
+        if selected_ghost_wisp {
+            let Some((attributes, base_duration_ms, channeled)) = selected_metadata else {
+                authority_complete = false;
+                continue;
+            };
+            // `_LoadAuras` uses `Aura::TryCreate`; every persisted row creates
+            // a new Aura and reaches `_AddAura` conflict removal. The refresh
+            // path belongs to fresh cast application, not login loading.
+            let Some(replaced_slots) = host.core().with_owned_player_like_cpp(|player| {
+                let auras = &player.unit().subsystems().auras;
+                auras.ordered_slots_for_spell_removal(spell_id)
+            }) else {
+                authority_complete = false;
+                continue;
+            };
+            let Ok(replaced_slots) = replaced_slots else {
+                authority_complete = false;
+                continue;
+            };
+            let mut removals_succeeded = true;
+            for slot in replaced_slots {
+                if host.remove_aura(slot).is_err() {
+                    authority_complete = false;
+                    removals_succeeded = false;
+                    break;
+                }
+            }
+            if !removals_succeeded {
+                continue;
+            }
+            if !selected_ghost_wisp_can_be_saved(
+                caster_guid,
+                player_guid,
+                row.item_guid,
+                base_duration_ms,
+                attributes,
+                channeled,
+            ) {
+                // `_AddAura` conflict removal precedes `CanBeSaved`; the new
+                // aura is then discarded without applying its effects.
+                continue;
+            }
+        }
+        let Some(slot) = next_player_visible_aura_slot_like_cpp(host) else {
+            authority_complete = false;
+            break;
+        };
         let aura = AuraApplication {
             spell_id,
             difficulty_id: row.difficulty,
@@ -454,7 +685,7 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
             duration_remaining,
             stack_count: row.stack_count,
             aura_flags,
-            effect_mask: row.effect_mask,
+            effect_mask: active_effect_mask,
             aura_interrupt_flags: interrupt_flags[0],
             aura_interrupt_flags2: interrupt_flags[1],
             represented_effect: None,
@@ -468,12 +699,12 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
             item_guid: row.item_guid,
             cast_item_id: row.cast_item_id,
             cast_item_level: row.cast_item_level,
-            recalculate_mask: row.recalculate_mask,
+            recalculate_mask,
             charges: row.remain_charges,
             base_amounts,
         };
-        let selected_ghost_wisp_application = matches!(row.spell_id, 8326 | 20584)
-            .then(|| aura.clone());
+        let selected_ghost_wisp_application =
+            matches!(row.spell_id, 8326 | 20584).then(|| aura.clone());
         let _fallback_snapshot = canonical_snapshot.clone();
         let _fallback_aura = aura.clone();
         let _fallback_metadata = persistence_metadata.clone();

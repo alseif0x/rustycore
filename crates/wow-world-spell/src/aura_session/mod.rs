@@ -34,15 +34,46 @@ pub use mount::*;
 pub use publication::*;
 pub use sources::*;
 
+/// C++ `AuraApplication::_InitFlags` derives the selected aura sign from its
+/// active effect mask, rather than the sign of every effect in the spell.
+pub(crate) fn selected_aura_effects_positive(
+    spell_info: &wow_data::SpellInfo,
+    effect_mask: u32,
+) -> Option<bool> {
+    if effect_mask == 0 {
+        return None;
+    }
+    let mut covered_mask = 0_u32;
+    let mut any_negative = false;
+    for effect in spell_info.effects() {
+        let Some(bit) = 1_u32.checked_shl(effect.effect_index) else {
+            continue;
+        };
+        if effect_mask & bit == 0 {
+            continue;
+        }
+        if effect.effect != wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA {
+            return None;
+        }
+        if covered_mask & bit != 0 {
+            return None;
+        }
+        covered_mask |= bit;
+        let mut single_effect = spell_info.clone();
+        single_effect.effects = vec![effect.clone()];
+        if !wow_data::represented_spell_is_positive_like_cpp(&single_effect) {
+            any_negative = true;
+        }
+    }
+    (covered_mask == effect_mask).then_some(!any_negative)
+}
+
 /// The World session as the auras' host (supertrait: the spellbook host).
 pub trait AuraHostLikeCpp: SpellbookHostLikeCpp {
     fn split_world_entities_ref(&self) -> (&WorldEntitiesState, HubRef<'_>);
     fn split_world_entities_mut(&mut self) -> (&mut WorldEntitiesState, HubMut<'_>);
     fn remove_aura(&mut self, slot: u8) -> Result<(), &'static str>;
-    fn apply_loaded_ghost_wisp_aura(
-        &mut self,
-        aura: &AuraApplication,
-    ) -> Result<(), &'static str>;
+    fn apply_loaded_ghost_wisp_aura(&mut self, aura: &AuraApplication) -> Result<(), &'static str>;
     /// The represented player aura modifier (#1363 slice 9e), moved from the
     /// World `session/spell_state/aura_application.rs` as this provided
     /// method so its 23 spell call sites keep their method form.

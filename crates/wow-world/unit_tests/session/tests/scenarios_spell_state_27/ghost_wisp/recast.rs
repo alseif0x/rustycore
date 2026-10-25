@@ -47,16 +47,11 @@ fn aura_update_cast_rows(packets: &[Vec<u8>]) -> Vec<(u8, i32, ObjectGuid, i32)>
 async fn ghost_recasts_refresh_the_loaded_self_application_in_place() {
     let mut fixture = fixture();
     let external_caster = ObjectGuid::create_player(1, 96_114);
-    let cast_item_guid = ObjectGuid::create_player(1, 96_115);
-    let aura_rows = [fixture.player, external_caster].map(|caster_guid| {
+    let aura_rows = [external_caster, fixture.player].map(|caster_guid| {
         let self_cast = caster_guid == fixture.player;
         wow_world_spell::CharacterAuraRowLikeCpp {
             caster_guid,
-            item_guid: if self_cast {
-                cast_item_guid
-            } else {
-                ObjectGuid::EMPTY
-            },
+            item_guid: ObjectGuid::EMPTY,
             spell_id: GHOST as u32,
             effect_mask: 0b111,
             recalculate_mask: if self_cast { 0b100 } else { 0 },
@@ -65,12 +60,16 @@ async fn ghost_recasts_refresh_the_loaded_self_application_in_place() {
             max_duration_ms: -1,
             remain_time_ms: -1,
             remain_charges: if self_cast { 2 } else { 0 },
-            cast_item_id: if self_cast { 777 } else { 0 },
-            cast_item_level: if self_cast { 62 } else { -1 },
+            cast_item_id: 0,
+            cast_item_level: -1,
         }
     });
     let effect_rows = [
-        (fixture.player, cast_item_guid, [(-19, -18), (25, 24), (30, 29)]),
+        (
+            fixture.player,
+            ObjectGuid::EMPTY,
+            [(-19, -18), (25, 24), (30, 29)],
+        ),
         (
             external_caster,
             ObjectGuid::EMPTY,
@@ -182,10 +181,13 @@ async fn ghost_recasts_refresh_the_loaded_self_application_in_place() {
             auras.aura_cast_provenance_like_cpp(self_slot),
             original_provenance
         );
-        assert_eq!(auras.runtime_applications_like_cpp().len(), 2);
-        assert!(auras.runtime_application_like_cpp(1).is_some_and(|aura| {
-            aura.spell_id == GHOST && aura.caster_guid == external_caster
-        }));
+        assert_eq!(auras.runtime_applications_like_cpp().len(), 1);
+        assert!(
+            auras
+                .runtime_applications_like_cpp()
+                .values()
+                .all(|aura| aura.caster_guid == fixture.player)
+        );
         assert_eq!(auras.applied_auras, applied_order);
         let self_effects = auras
             .threat_snapshot_like_cpp(self_slot)
@@ -194,12 +196,7 @@ async fn ghost_recasts_refresh_the_loaded_self_application_in_place() {
         assert_eq!(
             self_effects,
             &[
-                (
-                    0b001,
-                    wow_data::spell::aura_types::SPELL_AURA_GHOST,
-                    -20,
-                    0,
-                ),
+                (0b001, wow_data::spell::aura_types::SPELL_AURA_GHOST, -20, 0,),
                 (
                     0b010,
                     wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
@@ -215,11 +212,7 @@ async fn ghost_recasts_refresh_the_loaded_self_application_in_place() {
             ]
         );
         for (bit, aura_type, expected_amount) in [
-            (
-                0b001,
-                wow_data::spell::aura_types::SPELL_AURA_GHOST,
-                -20,
-            ),
+            (0b001, wow_data::spell::aura_types::SPELL_AURA_GHOST, -20),
             (
                 0b010,
                 wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
@@ -231,13 +224,12 @@ async fn ghost_recasts_refresh_the_loaded_self_application_in_place() {
                 50,
             ),
         ] {
-            let applied = wow_entities::AppliedAuraRef::new(
-                GHOST as u32,
-                fixture.player,
-                self_slot,
-                bit,
+            let applied =
+                wow_entities::AppliedAuraRef::new(GHOST as u32, fixture.player, self_slot, bit);
+            assert_eq!(
+                auras.applied_aura_amounts.get(&applied),
+                Some(&expected_amount)
             );
-            assert_eq!(auras.applied_aura_amounts.get(&applied), Some(&expected_amount));
             assert_eq!(
                 auras
                     .applied_aura_types
@@ -274,14 +266,26 @@ async fn ghost_recasts_refresh_the_loaded_self_application_in_place() {
         });
     }
     assert_ne!(refreshed_application, initial_application);
-    assert_eq!(aura_amount(&fixture, self_slot, wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED), Some(50));
+    assert_eq!(
+        aura_amount(
+            &fixture,
+            self_slot,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED
+        ),
+        Some(50)
+    );
 
     wow_world_spell::tick_auras(&mut fixture.session);
     let first_update = outgoing(&fixture);
     assert_eq!(aura_update_slots(&first_update), vec![self_slot]);
     assert_eq!(
         aura_update_cast_rows(&first_update),
-        vec![(self_slot, GHOST, original_provenance.cast_id, GHOST_VISUAL_ROW as i32)]
+        vec![(
+            self_slot,
+            GHOST,
+            original_provenance.cast_id,
+            GHOST_VISUAL_ROW as i32
+        )]
     );
 
     {
@@ -293,7 +297,7 @@ async fn ghost_recasts_refresh_the_loaded_self_application_in_place() {
             .get_typed_player_mut(fixture.player)
             .expect("canonical Player");
         let auras = &mut player.unit_mut().subsystems_mut().auras;
-        for slot in 2..u8::MAX {
+        for slot in 1..u8::MAX {
             auras.insert_runtime_application_like_cpp(wow_entities::AuraApplicationLikeCpp {
                 spell_id: 90_000 + i32::from(slot),
                 difficulty_id: 0,
@@ -314,7 +318,10 @@ async fn ghost_recasts_refresh_the_loaded_self_application_in_place() {
                 applied_at: Instant::now(),
             });
         }
-        assert_eq!(auras.runtime_applications_like_cpp().len(), usize::from(u8::MAX));
+        assert_eq!(
+            auras.runtime_applications_like_cpp().len(),
+            usize::from(u8::MAX)
+        );
         assert!(auras.visible_auras_to_update.is_empty());
     }
 
@@ -397,11 +404,20 @@ async fn ghost_recasts_refresh_the_loaded_self_application_in_place() {
                 Some(&refreshed_type_order[index])
             );
         }
-        assert_eq!(auras.runtime_applications_like_cpp().len(), usize::from(u8::MAX));
-        assert_eq!(auras.visible_auras_to_update, [self_slot].into_iter().collect());
-        assert!(auras.runtime_application_like_cpp(1).is_some_and(|aura| {
-            aura.spell_id == GHOST && aura.caster_guid == external_caster
-        }));
+        assert_eq!(
+            auras.runtime_applications_like_cpp().len(),
+            usize::from(u8::MAX)
+        );
+        assert_eq!(
+            auras.visible_auras_to_update,
+            [self_slot].into_iter().collect()
+        );
+        assert!(
+            auras
+                .runtime_applications_like_cpp()
+                .values()
+                .all(|aura| { aura.spell_id != GHOST || aura.caster_guid == fixture.player })
+        );
         assert_eq!(auras.removed_auras_count, removed_count);
     }
 
@@ -410,12 +426,22 @@ async fn ghost_recasts_refresh_the_loaded_self_application_in_place() {
     assert_eq!(aura_update_slots(&update_packets), vec![self_slot]);
     assert_eq!(
         aura_update_cast_rows(&update_packets),
-        vec![(self_slot, GHOST, original_provenance.cast_id, GHOST_VISUAL_ROW as i32)]
+        vec![(
+            self_slot,
+            GHOST,
+            original_provenance.cast_id,
+            GHOST_VISUAL_ROW as i32
+        )]
     );
-    assert!(!update_packets.iter().map(|packet| opcode(packet)).any(|opcode| {
-        opcode == ServerOpcodes::MoveSetRunSpeed as u16
-            || opcode == ServerOpcodes::MoveSetSwimSpeed as u16
-    }));
+    assert!(
+        !update_packets
+            .iter()
+            .map(|packet| opcode(packet))
+            .any(|opcode| {
+                opcode == ServerOpcodes::MoveSetRunSpeed as u16
+                    || opcode == ServerOpcodes::MoveSetSwimSpeed as u16
+            })
+    );
 }
 
 #[tokio::test]
@@ -511,10 +537,13 @@ async fn wisp_recast_preserves_negative_transform_priority_and_display() {
     cast_selected(&mut fixture, WISP, None).await;
     let packets = outgoing(&fixture);
     assert_eq!(player_display(&fixture), 1_826);
-    assert!(!packets.iter().map(|packet| opcode(packet)).any(|opcode| {
-        opcode == ServerOpcodes::MoveSetRunSpeed as u16
-            || opcode == ServerOpcodes::MoveSetSwimSpeed as u16
-    }), "an unchanged Wisp refresh emits no speed update");
+    assert!(
+        !packets.iter().map(|packet| opcode(packet)).any(|opcode| {
+            opcode == ServerOpcodes::MoveSetRunSpeed as u16
+                || opcode == ServerOpcodes::MoveSetSwimSpeed as u16
+        }),
+        "an unchanged Wisp refresh emits no speed update"
+    );
     {
         let manager = fixture.canonical.lock().expect("canonical manager");
         let auras = &manager
@@ -536,7 +565,10 @@ async fn wisp_recast_preserves_negative_transform_priority_and_display() {
         assert_eq!(refreshed.applied_at, fresh_application.applied_at);
         assert_eq!(refreshed.effect_mask, fresh_application.effect_mask);
         assert_eq!(refreshed.duration_total, fresh_application.duration_total);
-        assert_eq!(refreshed.duration_remaining, fresh_application.duration_remaining);
+        assert_eq!(
+            refreshed.duration_remaining,
+            fresh_application.duration_remaining
+        );
         assert_eq!(refreshed.stack_count, fresh_application.stack_count);
         assert_eq!(
             refreshed.represented_effect_amounts,
@@ -571,7 +603,10 @@ async fn wisp_recast_preserves_negative_transform_priority_and_display() {
         );
     }
 
-    fixture.session.remove_aura(wisp_slot).expect("remove Wisp source");
+    fixture
+        .session
+        .remove_aura(wisp_slot)
+        .expect("remove Wisp source");
     assert_eq!(
         player_display(&fixture),
         1_826,

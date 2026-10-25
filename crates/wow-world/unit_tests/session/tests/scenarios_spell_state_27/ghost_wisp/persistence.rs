@@ -212,7 +212,7 @@ async fn ghost_wisp_persistence_captures_casts_and_roundtrips_loaded_metadata() 
             restored_ghost.max_duration,
             restored_ghost.remaining_duration,
         ),
-        (1, 2, 3, 0b111, 4_321, 77, -1, -1)
+        (1, 2, 0, 0b111, 4_321, 77, -1, -1)
     );
     assert_eq!(
         restored_ghost
@@ -232,7 +232,7 @@ async fn ghost_wisp_persistence_captures_casts_and_roundtrips_loaded_metadata() 
             restored_wisp.cast_item_id,
             restored_wisp.cast_item_level,
         ),
-        (1, 2, 3, 0b011, 4_321, 77)
+        (1, 2, 0, 0b011, 4_321, 77)
     );
     assert_eq!(
         restored_wisp
@@ -488,7 +488,7 @@ async fn ghost_wisp_persistence_captures_foreign_auras_and_skips_permanent_item_
 }
 
 #[tokio::test]
-async fn ghost_wisp_persistence_roundtrips_finite_item_aura_key() {
+async fn ghost_wisp_persistence_saves_finite_item_key_but_source_loader_skips_it() {
     let mut source = fixture();
     install_difficulties(&mut source, [0]);
     set_aura_authority(&mut source, true);
@@ -555,7 +555,7 @@ async fn ghost_wisp_persistence_roundtrips_finite_item_aura_key() {
         restored
             .session
             .load_represented_character_auras_like_cpp(aura_rows, effect_rows, 0),
-        1
+        0
     );
     assert_eq!(
         crate::session::hub_ref(&restored.session)
@@ -569,17 +569,11 @@ async fn ghost_wisp_persistence_roundtrips_finite_item_aura_key() {
             }),
         Some(true)
     );
-    let recaptured = captured_families(&mut restored).expect("complete restored item key");
-    let restored_item_family = family_for_key(&recaptured, WISP, restored.player, item_guid);
-    assert_eq!(restored_item_family.auras.len(), 1);
-    assert_eq!(
-        (
-            restored_item_family.auras[0].cast_item_id,
-            restored_item_family.auras[0].cast_item_level,
-            restored_item_family.auras[0].recalculate_mask,
-        ),
-        (96_119, 70, 0b011)
-    );
+    let recaptured = captured_families(&mut restored).expect("authoritative selected absence");
+    assert!(family(&recaptured, WISP, restored.player).auras.is_empty());
+    assert!(!recaptured.iter().any(|family| {
+        family.spell_id == WISP as u32 && family.item_guid_binary == item_guid.to_raw_bytes()
+    }));
 }
 
 #[tokio::test]
@@ -636,12 +630,32 @@ async fn ghost_wisp_persistence_native_resurrection_reconciles_foreign_keys() {
     let mut resurrected = fixture();
     install_difficulties(&mut resurrected, [0]);
     set_aura_authority(&mut resurrected, true);
-    let (aura_rows, effect_rows) = loader_rows(&persisted);
+    let (mut aura_rows, effect_rows) = loader_rows(&persisted);
+    // Load the foreign Ghost last so native resurrection exercises removing
+    // the runtime source that survives source-compatible same-spell replacement.
+    aura_rows.sort_by_key(|row| row.caster_guid == foreign_caster);
     assert_eq!(
         resurrected
             .session
             .load_represented_character_auras_like_cpp(aura_rows, effect_rows, 0),
         3
+    );
+    assert!(
+        resurrected
+            .canonical
+            .lock()
+            .expect("canonical manager")
+            .find_map(571, 0)
+            .expect("Player map")
+            .map()
+            .get_typed_player(resurrected.player)
+            .expect("canonical Player")
+            .unit()
+            .subsystems()
+            .auras
+            .runtime_applications_like_cpp()
+            .values()
+            .any(|aura| aura.spell_id == GHOST && aura.caster_guid == foreign_caster)
     );
     resurrected
         .session

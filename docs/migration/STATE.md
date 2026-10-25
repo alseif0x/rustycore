@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, implementación previa a aceptación final — 2026-10-25, 01:22 UTC:**
+**#43, implementación previa a aceptación final — 2026-10-25, 02:03 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
 y productor desde hechizos están escritos y tienen feedback focalizado;
 **no hay aceptación final de este candidato**. El cálculo básico del productor
@@ -242,6 +242,15 @@ sin cambiar aserciones; static_data_overlay::tests pasó seis casos, exit 0
 (`/tmp/9c4g-test-world-server-lib-static-data-overlay.log`). La entrega ocurre
 fuera de los guards y antes de salidas Creature/visibilidad/VALUES; no se
 presenta ese feedback como campaña final ni como aceptación de sickness.
+Inspección del productor actual, sin nueva prueba ejecutada: update_loop.rs
+espera el pase World quiescente antes de admitir Map, y
+map_session_pass.rs ejecuta las sesiones de cada mapa en serie. Un permiso
+iniciado sin resultado retiene la barrera; el timeout no autoriza el tail.
+Por ello no se abre otro lock/owner para una supuesta publicación Map de
+bones durante el await de esas operaciones admitidas. LoadCorpse después de
+map-add también coincide con CharacterHandler.cpp:1202–1241. Los stamps de
+identidad/residencia y las continuaciones tras cancelación siguen siendo
+necesarios; esta inspección no prueba DB/reinicio ni completa #584.
 La revisión del orden detecta también un paquete extra de release:
 `player_release.rs::publish_ghost_side_effects` emite HealthUpdate(1), pero
 `BuildPlayerRepop` usa SetHealth(1), que solo ensucia los update fields
@@ -279,14 +288,14 @@ usar una única duración canónica del tick admitido, sin doble descuento ni
 publicar estadísticas un pase después de la expiración. La reparación
 seleccionada conserva fuera de alcance los relojes de las demás auras.
 
-La carga de efectos seleccionados también conserva un residuo demostrado:
+La carga de efectos seleccionados tiene una corrección en curso (9g):
 `Aura::TryCreate` descarta máscara vacía y aplica solo el subconjunto activo
 (`SpellAuras.cpp:384–394,494–502`). La restauración Rust aplica Ghost y la
 selección de transform de Wisp sin consultar esos bits, y su retirada exige
 siempre los tres efectos. Se debe admitir el subconjunto válido de 8326/20584,
 sin activar 95/56 ausentes. La frontera canónica rechaza bits desconocidos;
 el loader debe seguir la normalización previa de C++ descrita a continuación.
-Todavía sin reparar.
+El worker ha escrito la reparación; todavía no hay aceptación del candidato.
 El contraste completo de `_LoadAuras` añade una corrección al contrato anterior:
 `TryCreate` intersecta la máscara SQL con los efectos soportados, pero los
 amounts/basepoints se buscan por la clave SQL original. Un subconjunto vacío
@@ -308,11 +317,35 @@ mask distinta y carga de varias filas, preservando orden de retirada antes
 de los efectos. En Load, la construcción y esa retirada preceden a
 CanBeSaved: una fila ligada a item puede retirar la anterior y luego ser
 descartada ella misma. No se atribuye fidelidad a los tests anteriores que
-esperaban conservar ambos casters; todavía sin reparar.
+esperaban conservar ambos casters. La reparación local 9g sustituye esas
+expectativas; no convierte su feedback en aceptación final.
 La consulta SQL de solo lectura a las 01:18 UTC no encuentra membresía de
 8326/20584 en world.spell_group (287 filas globales; diez stack rules).
 No se usa ese resultado para declarar implementado el motor general de
 acumulación ni sus reglas para otros spells/datasets.
+La revisión del primer filtro verde de 9g (37 casos) rechazó un supuesto
+incorrecto del propio contrato: con Wisp transform y recalculateMask bit 2
+activo, SetLoadedState activa CanBeRecalculated y llama RecalculateAmount
+(`SpellAuras.cpp:1239–1255`, `SpellAuraEffects.h:74–77`). CalculateAmount
+calcula desde baseAmount, desactiva ese indicador para TRANSFORM y devuelve
+la cantidad nueva (`SpellAuraEffects.cpp:658–680,718–724`). Solo con el bit
+inactivo se conserva el amount SQL. Se corrigen loader y pruebas para ambos
+casos y para la recaptura sin ese bit; aquel verde no prueba este contrato.
+El diagnóstico ampliado de datos instalados (solo DB2, sin overlays SQL)
+identifica 21/21 ChrRaces con sickness 15007 y 26 LiquidType sin referencias
+a 8326/20584. ItemEffect tiene 24 713 filas y 86 con trigger 5 y SpellID > 0;
+85 tienen Item/ItemSparse y no llevan LEGACY, incluidas 39 con cargas no cero.
+Esto no prueba que estén en un inventario ni que sus spells estén portados,
+pero impide omitir CastItem/consumo alegando ausencia de datos alcanzables.
+RequiredLevel no se expone en el reader actual; no se inventa ese filtro.
+Log acotado: `/tmp/9g-data-ghost-wisp-load-boundary-items.log` (un diagnóstico
+real, no cero tests). Hashes de tabla: ChrRaces 0x53F1783C, LiquidType
+0x6613BED3, ItemEffect 0x4002A5B1, Item 0x50238EC2, ItemSparse 0x919BE54E.
+Sickness 15007 tiene efectos 80/79/159, basepoints -76/-76/-1 y dieSides 1;
+su duración 427 guarda -600000/60000/600000 (GetDuration toma el absoluto).
+Ghost, Wisp y sickness carecen de fila SpellAuraOptions en estos datos.
+El primer diagnóstico usó un filtro OR demasiado amplio; se corrigió a
+trigger 5 AND SpellID > 0 antes de usar estos conteos. No son capturas vivas.
 Hay dos contratos de metadata seleccionada pendientes de corrección:
 AuraDataInfo.Applications usa el stack real cuando IsUsingStacks y, en otro
 caso, charges; no stack_count menos uno (`SpellAuras.cpp:255–257`). El
@@ -321,6 +354,34 @@ si no existe (`:398–410,463–468`), y no cambia al subir de nivel el target.
 La creación sí resuelve al propio owner si caster GUID coincide; no se presume
 que todas las auras cargadas carecen de caster. La procedencia canónica debe
 conservar ese nivel para delta y actualización inicial, sin duplicar autoridad.
+También sigue pendiente la rama any-positive de _InitFlags para caster
+extranjero vivo y amistoso; la rama actual cubre self/missing/hostile.
+
+9g escrito y revisado sobre `a6da440dac37aa377c23c71fb084accff3fa1764`
+más delta local: máscaras normalizadas con lookup SQL original, efectos
+activos, CastId antes del skip vacío y sustitución del mismo spell antes de
+CanBeSaved. Load usa TryCreate incluso con caster/máscara iguales; el refresh
+de cast propio conserva identidad. Wisp recalc activo recalcula desde base
+y limpia su bit; inactivo conserva el amount guardado. Cargas se normalizan
+desde el catálogo explícito; los datos seleccionados tienen cero. La fila
+de item finito se guarda pero no sobrevive a la carga permanente, como fuente.
+No generaliza runtime SingleTarget, custom cannot-save, áreas ni stacking.
+La preparación de fixtures quedó privada en setup.rs (raíz 851 líneas).
+Feedback aarch64/jobs=1, no aceptación final: `cargo test -p wow-world
+--lib ghost_wisp` terminó exit 0, 39 passed/0 failed, en
+`/tmp/9g-test-wow-world-ghost-wisp-rerun6.log`. Incluye los dos caminos de
+Wisp y rechazo de target de área antes de retirar la aplicación anterior.
+El diagnóstico opt-in `wow-data::spell_db2::tests::resurrection_effect_data::
+ghost_wisp_spell_data` con RUSTYCORE_RESURRECTION_DATA_DIR instalado terminó
+exit 0, un caso real (`/tmp/9g-data-ghost-wisp-load-boundary-items.log`).
+Los checks Core/Spell/World en `/tmp/9g-check-*-rerun2.log` terminaron exit 0
+antes de la última reparación; no se atribuyen al delta posterior. El filtro
+World posterior sí compiló esos consumidores. Se preservan los fallos previos:
+primer intento de compilación y rerun1/rerun2 con fixtures/expectativas por
+corregir; rerun3 verde rechazado en revisión; rerun4 exit 101 por tupla de
+fixture y rerun5 exit 130 interrumpido antes de tests para corregir la
+expectativa numérica (base -1 + dieSides 1 = 0). No hay campaña final ni prueba
+durable en DB/reinicio/relogin de este candidato.
 
 Feedback de Ghost/Wisp a las 19:40 UTC, sobre `6117a9dc5` más el delta local
 del worker (aarch64, un job; no aceptación del SHA ni campaña final):

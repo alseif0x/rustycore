@@ -94,10 +94,7 @@ pub(super) fn apply<H: SpellExecutionHostLikeCpp>(
         let duration_index = u32::from(misc.duration_index);
         let duration = wow_data::spell_duration_ms_like_cpp(
             duration_index,
-            hub.catalogs
-                .spell_catalogs
-                .spell_duration_store
-                .as_deref(),
+            hub.catalogs.spell_catalogs.spell_duration_store.as_deref(),
         );
         if duration != -1 {
             return Err("Selected resurrection ghost aura is not permanent in SpellDuration");
@@ -117,18 +114,8 @@ pub(super) fn apply<H: SpellExecutionHostLikeCpp>(
         }
 
         let attrs = misc.attributes.map(|value| value as u32);
-        let mut any_negative_effect = false;
-        for effect in spell_info.effects().iter().filter(|effect| {
-            effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
-                && effect_mask & 1u32.checked_shl(effect.effect_index).unwrap_or(0) != 0
-        }) {
-            let mut single_effect = spell_info.clone();
-            single_effect.effects = vec![effect.clone()];
-            if !wow_data::represented_spell_is_positive_like_cpp(&single_effect) {
-                any_negative_effect = true;
-            }
-        }
-        let positive = !any_negative_effect;
+        let positive = crate::aura_session::selected_aura_effects_positive(spell_info, effect_mask)
+            .ok_or("Selected resurrection aura effect mask is inconsistent")?;
         let mut aura_flags = AURA_FLAG_NO_CASTER;
         if positive {
             aura_flags |= AURA_FLAG_POSITIVE;
