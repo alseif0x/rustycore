@@ -533,6 +533,8 @@ fn shapeshift_form(flags: i32) -> crate::spell_db2::SpellShapeshiftFormEntry {
     }
 }
 
+#[path = "spell_tests/exact_mechanic.rs"]
+mod exact_mechanic;
 #[path = "spell_tests/instance.rs"]
 mod instance;
 #[path = "spell_tests/misc.rs"]

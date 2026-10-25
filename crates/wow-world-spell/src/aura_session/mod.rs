@@ -32,6 +32,7 @@ mod selected_caster;
 pub(crate) mod selected_catalog;
 mod selected_flags;
 mod selected_lifetime;
+mod selected_metadata;
 mod sources;
 
 pub use application::*;
@@ -47,6 +48,9 @@ pub(crate) use selected_flags::{
 };
 pub(crate) use selected_lifetime::validate_application as validate_selected_aura_application;
 pub use selected_lifetime::*;
+pub(crate) use selected_metadata::{
+    SelectedSpellMetadata, SelectedSpellMetadataError, selected_spell_metadata,
+};
 pub use sources::*;
 
 #[cfg(test)]

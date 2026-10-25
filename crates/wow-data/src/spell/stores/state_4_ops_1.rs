@@ -127,6 +127,19 @@ impl SpellStore {
 
         has_metadata.then_some(metadata)
     }
+    /// Read only the `SpellCategories` mechanic row at the exact difficulty.
+    ///
+    /// `Some(0)` is an explicit category row and differs from no row. Callers
+    /// that need source-difficulty inheritance must resolve it separately.
+    pub fn spell_mechanic_for_exact_difficulty(
+        &self,
+        spell_id: i32,
+        difficulty_id: u8,
+    ) -> Option<i8> {
+        self.spell_hit_categories_by_difficulty
+            .get(&(spell_id, difficulty_id))
+            .map(|categories| categories.spell_mechanic)
+    }
     pub(in crate::spell) fn empty_spell_info_like_cpp(spell_id: i32) -> SpellInfo {
         SpellInfo {
             spell_id,

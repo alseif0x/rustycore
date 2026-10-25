@@ -1008,6 +1008,31 @@ variant/effort telemetry was unavailable. This is focused coding feedback,
 not candidate final acceptance. Constructor activation, remaining cast/load
 metadata consumers, and all four macro blocks above remain open.
 
+9i3C3d3a resolves effective attributes, family, and spell mechanic into the
+existing pure polarity classifier. The new Data reader distinguishes an exact
+category value of zero from a missing row. ClassOptions is available at Source
+difficulty zero and selects the highest RecordID; Categories follows its own
+field chain. Known missing fields use actual Source defaults. Unknown family
+or mechanic facts are required only if classification reaches their branches.
+The pinned spell-61882 effect-2 negativity preset is preserved. No constructor,
+load, wire consumer, or general spell-fix engine is activated by this adapter.
+Anchors: SpellMgr.cpp:2540–2544,2614–2687,4766–4769 and
+SpellInfo.cpp:1240–1258,4517–5000 at the pinned SHA.
+
+On `a069f9a36` plus the reviewed seven-code-file delta, sequential aarch64/jobs=1
+Data and Spell checks passed. Focused tests ran one `selected_spell_mechanic`,
+eight `selected_metadata`, and thirteen `selected_catalog` cases, all exit 0.
+Logs under `/tmp/rustycore-9i3c3d3a-` are `data-check.log`,
+`data-test-selected_spell_mechanic.log`, `spell-check-retry1.log`,
+`spell-test-selected_metadata.log`, and `spell-test-selected_catalog.log`.
+The initial `spell-check.log` retains an import/type failure, corrected before
+the green feedback. Tests exercise the actual seven effect types across all
+three selected families, including unavailable or irrelevant cyclic inputs.
+The regular-key/no-Misc positive consumer remains deferred. The worker's fixed
+role spawn succeeded; self-reported variant/effort telemetry was unavailable.
+This is coding feedback, not final acceptance. Actual creation, refresh, load,
+charge, and canonical friendly-caster consumers remain work in this macro.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -1216,6 +1241,36 @@ Unit.cpp:3224–3280 and SpellAuras.cpp:341–383 refresh before creating a new 
 do not introduce new friendship/level lookups as a prerequisite to refreshing an
 already matching application. This is the next connection contract, not an
 implemented change to those callers.
+
+Refresh/creation boundary decision: carry selected creation preparation as an
+owned Result of computed flags and the existing AuraCastProvenance through the
+current Spell host and Application capability. This result has no side effects,
+canonical storage, or new lifetime authority. The existing same-caster/full-mask
+refresh branch does not consume it and retains the old flags and provenance.
+Only the fresh branch requires success, before replacement/removal or insertion.
+An unavailable fresh caster or polarity fact must therefore reject fresh creation
+without rejecting a valid refresh or removing its previous application. This
+avoids a separate preflight query whose refresh decision could become stale
+between canonical borrows. Application receives primitive computed flags and
+existing provenance; it does not depend on Spell's classifier. Foreign caster
+level and friendship facts are captured under one borrowed manager guard, then
+all guards are released before publication. This is a pending integration
+contract, not evidence that those consumers have changed.
+
+Selected charge consumer review: the legacy AuraOptions helper clamps signed
+ProcCharges into u8, whereas Source preserves its uint32 assignment and final
+uint8 conversion. Fresh Aura::CalcMaxCharges also consults SpellProcEntry and
+the resolved caster's applicable spell modifiers; refresh calls CalcMaxCharges
+without a caster (SpellAuras.cpp:965–976,1090). Load normalization instead tests
+the full SpellInfo ProcCharges value before converting an empty saved charge
+count, and preserves an already nonzero saved count (Player.cpp:18108–18118).
+The selected producer/load consumers must use those distinct contracts; changing
+the general legacy helper is not required. Known absence must come from the
+effective catalogs, not from an unavailable proc/modifier source. The existing
+file diagnostic found no AuraOptions rows for 8326/20584/15007, but does not
+prove absence of SQL overrides or matching runtime modifiers. These charge
+consumer corrections remain pending and are not claimed by scalar projection
+or the metadata lookup tests.
 
 9g escrito y revisado sobre `a6da440dac37aa377c23c71fb084accff3fa1764`
 más delta local: máscaras normalizadas con lookup SQL original, efectos
