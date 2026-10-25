@@ -14,7 +14,9 @@ use crate::login_session::lifecycle::{
     load_map_corpse_data_like_cpp, load_player_customizations_like_cpp,
 };
 use crate::login_session::login_data::load_active_player_trait_configs_like_cpp;
-use crate::login_session::login_recovery::continue_login_after_grid_load_like_cpp;
+use crate::login_session::login_recovery::{
+    abort_partial_login_sequence_like_cpp, continue_login_after_grid_load_like_cpp,
+};
 use crate::login_session::world_entry::send_handle_player_login_packets_like_cpp;
 use crate::{
     CharacterLoginHostLikeCpp, send_initial_packets_after_add_to_map_with_catalogs_like_cpp,
@@ -782,7 +784,7 @@ pub async fn send_login_sequence<H: CharacterLoginHostLikeCpp>(
     }
 
     // ── Phase 4: SendInitialPacketsAfterAddToMap ──
-    send_initial_packets_after_add_to_map_with_catalogs_like_cpp(
+    if !send_initial_packets_after_add_to_map_with_catalogs_like_cpp(
         host,
         creature_spawn_catalogs,
         guid,
@@ -790,7 +792,11 @@ pub async fn send_login_sequence<H: CharacterLoginHostLikeCpp>(
         map_id,
         updateobject_trace_enabled,
     )
-    .await;
+    .await
+    {
+        abort_partial_login_sequence_like_cpp(host);
+        return false;
+    }
 
     // C++ `Player::LoadCorpse` runs after map insertion and before login is
     // published. Corpse restoration consumes only resurrection catalogs.

@@ -87,6 +87,13 @@ fn install_selected_ghost(session: &mut wow_world::session::WorldSession) -> (u8
             },
         ]),
     ));
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert_spell_misc_attributes_like_cpp(GHOST, [0; 15]);
+    session.set_spell_store(Arc::new(spell_store));
+    session.set_spell_aura_options_store(Arc::new(
+        wow_data::SpellAuraOptionsStore::from_entries([]),
+    ));
+    session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_ids([0])));
 
     let slot = 4;
     let stale = Instant::now() - Duration::from_secs(3_600);
@@ -126,12 +133,35 @@ fn install_selected_ghost(session: &mut wow_world::session::WorldSession) -> (u8
                 snapshot.clone(),
             );
             player.install_player_threat_aura_like_cpp(slot, snapshot, application);
-            player
-                .unit_mut()
-                .subsystems_mut()
-                .auras
-                .visible_auras_to_update
-                .insert(slot);
+            let auras = &mut player.unit_mut().subsystems_mut().auras;
+            auras.set_aura_cast_provenance_like_cpp(
+                slot,
+                wow_entities::AuraCastProvenanceLikeCpp {
+                    cast_id: ObjectGuid::create_world_object(
+                        wow_core::guid::HighGuid::Cast,
+                        3,
+                        1,
+                        571,
+                        0,
+                        GHOST as u32,
+                        96_392,
+                    ),
+                    spell_visual_id: 0,
+                    caster_level: Some(80),
+                },
+            );
+            assert!(auras.set_aura_persistence_metadata(
+                slot,
+                wow_entities::AuraPersistenceMetadata {
+                    item_guid: ObjectGuid::EMPTY,
+                    cast_item_id: 0,
+                    cast_item_level: 80,
+                    recalculate_mask: 0b111,
+                    charges: 0,
+                    base_amounts: vec![(0, 0), (1, 0), (2, 0)],
+                },
+            ));
+            auras.visible_auras_to_update.insert(slot);
         })
         .expect("canonical Player receives the selected Ghost");
     (slot, stale)

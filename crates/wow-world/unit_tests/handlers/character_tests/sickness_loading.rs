@@ -261,12 +261,68 @@ fn install_sickness_visual(session: &mut WorldSession) {
     });
 }
 
+fn full_aura_duration_pair(bytes: &[u8]) -> (u16, Option<i32>, Option<i32>) {
+    let mut packet = wow_packet::WorldPacket::from_bytes(bytes);
+    assert_eq!(
+        packet.server_opcode(),
+        Some(wow_constants::ServerOpcodes::AuraUpdate)
+    );
+    packet.skip_opcode();
+    assert!(packet.read_bit().unwrap());
+    assert_eq!(packet.read_bits(9).unwrap(), 1);
+    let _slot = packet.read_uint8().unwrap();
+    assert!(packet.read_bit().unwrap());
+    let _cast_id = packet.read_packed_guid().unwrap();
+    let _spell_id = packet.read_int32().unwrap();
+    let _visual_id = packet.read_int32().unwrap();
+    let flags = packet.read_uint16().unwrap();
+    let _active_flags = packet.read_uint32().unwrap();
+    let _cast_level = packet.read_uint16().unwrap();
+    let _applications = packet.read_uint8().unwrap();
+    let _content_tuning_id = packet.read_int32().unwrap();
+    let has_caster = packet.read_bit().unwrap();
+    let has_duration = packet.read_bit().unwrap();
+    let has_remaining = packet.read_bit().unwrap();
+    let _has_time_mod = packet.read_bit().unwrap();
+    let point_count = packet.read_bits(6).unwrap();
+    let _estimated_points = packet.read_bits(6).unwrap();
+    let _has_content_tuning = packet.read_bit().unwrap();
+    packet.reset_bits();
+    if has_caster {
+        let _caster = packet.read_packed_guid().unwrap();
+    }
+    let duration = has_duration.then(|| packet.read_int32().unwrap());
+    let remaining = has_remaining.then(|| packet.read_int32().unwrap());
+    for _ in 0..point_count {
+        let _point = packet.read_float().unwrap();
+    }
+    let _target = packet.read_packed_guid().unwrap();
+    assert_eq!(packet.remaining(), 0);
+    assert_eq!(has_duration, has_remaining);
+    (flags, duration, remaining)
+}
+
 #[test]
 fn selected_sickness_recalculates_from_saved_base_and_publishes_full_aura() {
     let (mut session, player_guid, send_rx) =
         canonical_aura_session([sickness_catalog_info()], 15_007);
     install_sickness_visual(&mut session);
-    let (row, effects) = sickness_rows(player_guid, 90_000);
+    session.set_spell_aura_options_store(Arc::new(
+        wow_data::SpellAuraOptionsStore::from_entries([wow_data::SpellAuraOptionsEntry {
+            id: SICKNESS_SPELL_ID as u32,
+            difficulty_id: 0,
+            cumulative_aura: 0,
+            proc_category_recovery: 0,
+            proc_chance: 0,
+            proc_charges: 3,
+            spell_procs_per_minute_id: 0,
+            proc_type_mask: [0; 2],
+            spell_id: SICKNESS_SPELL_ID as u32,
+        }]),
+    ));
+    let (mut row, effects) = sickness_rows(player_guid, 90_000);
+    row.stack_count = 1;
+    row.remain_charges = 0;
 
     assert_eq!(
         session.load_represented_character_auras_like_cpp([row], effects, 30),
@@ -372,35 +428,191 @@ fn selected_sickness_recalculates_from_saved_base_and_publishes_full_aura() {
         "the save snapshot sees recalculated live amounts while retaining DB bases"
     );
 
+    let legacy_aura = wow_entities::AuraApplicationLikeCpp {
+        spell_id: 99_007,
+        difficulty_id: 0,
+        caster_guid: player_guid,
+        slot: 10,
+        duration_total: -1,
+        duration_remaining: -1,
+        stack_count: 2,
+        aura_flags: 0x2,
+        effect_mask: 1,
+        aura_interrupt_flags: 0,
+        aura_interrupt_flags2: 0,
+        represented_effect: None,
+        represented_amount: 0,
+        represented_effect_amounts: Vec::new(),
+        represented_misc_value: None,
+        represented_multiplier: 1.0,
+        applied_at: std::time::Instant::now(),
+    };
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .unit_mut()
+                .subsystems_mut()
+                .auras
+                .insert_runtime_application_like_cpp(legacy_aura.clone());
+        })
+        .expect("canonical Player owns the legacy comparison Aura");
+
     let (state, hub) = crate::session::split_spell_state_ref(&session);
-    state.send_initial_player_auras_like_cpp(hub);
+    state
+        .send_initial_player_auras_like_cpp(hub)
+        .expect("selected sickness full update uses retained creation facts");
     let actual = send_rx
         .try_recv()
         .expect("post-add publishes the full aura list");
     let expected = wow_packet::packets::misc::AuraUpdate::full_for(
         player_guid,
-        vec![wow_packet::packets::misc::AuraInfoLikeCpp {
-            slot: application.slot,
-            aura_data: Some(wow_packet::packets::misc::AuraDataInfoLikeCpp {
-                cast_id: provenance.cast_id,
-                spell_id: SICKNESS_SPELL_ID,
-                spell_visual_id: SICKNESS_VISUAL_ROW_ID as i32,
-                flags: 0x15,
-                active_flags: 0b111,
-                caster_guid: player_guid,
-                cast_level: 80,
-                applications: 0,
-                duration_ms: Some(600_000),
-                remaining_ms: Some(60_000),
-                points: Vec::new(),
-            }),
-        }],
+        vec![
+            wow_packet::packets::misc::AuraInfoLikeCpp {
+                slot: application.slot,
+                aura_data: Some(wow_packet::packets::misc::AuraDataInfoLikeCpp {
+                    cast_id: provenance.cast_id,
+                    spell_id: SICKNESS_SPELL_ID,
+                    spell_visual_id: SICKNESS_VISUAL_ROW_ID as i32,
+                    flags: 0x15,
+                    active_flags: 0b111,
+                    caster_guid: player_guid,
+                    cast_level: 80,
+                    applications: 3,
+                    duration_ms: Some(600_000),
+                    remaining_ms: Some(60_000),
+                    points: Vec::new(),
+                }),
+            },
+            wow_world_spell::player_aura_info_like_cpp(&legacy_aura, 80, 571),
+        ],
     )
     .to_bytes();
     assert_eq!(
         actual, expected,
         "post-add retains the full aura fields and cast provenance"
     );
+}
+
+#[test]
+fn selected_initial_zero_duration_omits_the_duration_pair() {
+    let (mut session, player_guid, send_rx) =
+        canonical_aura_session([sickness_catalog_info()], SICKNESS_SPELL_ID);
+    let (row, effects) = sickness_rows(player_guid, 90_000);
+    assert_eq!(
+        session.load_represented_character_auras_like_cpp([row], effects, 30),
+        1
+    );
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            let auras = &mut player.unit_mut().subsystems_mut().auras;
+            let application = auras
+                .runtime_applications_like_cpp()
+                .values()
+                .find(|aura| aura.spell_id == SICKNESS_SPELL_ID)
+                .expect("loaded selected sickness")
+                .clone();
+            let aura = auras
+                .runtime_application_mut_like_cpp(application.slot)
+                .expect("selected sickness remains installed");
+            aura.duration_total = 0;
+            aura.duration_remaining = 0;
+        })
+        .expect("canonical Player owner");
+
+    let (state, hub) = crate::session::split_spell_state_ref(&session);
+    state
+        .send_initial_player_auras_like_cpp(hub)
+        .expect("zero-duration selected aura has complete metadata");
+    let bytes = send_rx.try_recv().expect("initial full aura frame");
+    let (flags, duration, remaining) = full_aura_duration_pair(&bytes);
+    assert_eq!(flags & 0x4, 0);
+    assert_eq!(duration, None);
+    assert_eq!(remaining, None);
+}
+
+#[test]
+fn selected_initial_missing_cast_level_fails_without_a_partial_full_frame() {
+    let (mut session, player_guid, send_rx) =
+        canonical_aura_session([sickness_catalog_info()], SICKNESS_SPELL_ID);
+    let (row, effects) = sickness_rows(player_guid, 90_000);
+    assert_eq!(
+        session.load_represented_character_auras_like_cpp([row], effects, 30),
+        1
+    );
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            let auras = &mut player.unit_mut().subsystems_mut().auras;
+            let slot = auras
+                .runtime_applications_like_cpp()
+                .values()
+                .find(|aura| aura.spell_id == SICKNESS_SPELL_ID)
+                .expect("loaded selected sickness")
+                .slot;
+            let mut provenance = auras.aura_cast_provenance_like_cpp(slot);
+            provenance.caster_level = None;
+            auras.set_aura_cast_provenance_like_cpp(slot, provenance);
+        })
+        .expect("canonical Player owner");
+
+    let (state, hub) = crate::session::split_spell_state_ref(&session);
+    assert!(state.send_initial_player_auras_like_cpp(hub).is_err());
+    assert!(send_rx.try_recv().is_err(), "failure sends no full AuraUpdate");
+}
+
+#[test]
+fn selected_initial_empty_visible_set_needs_no_catalogs_or_frame() {
+    let (mut session, send_rx) = make_session_with_send_capacity(8);
+    let player_guid = ObjectGuid::create_player(1, 15_009);
+    session.set_player_guid(Some(player_guid));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+
+    let (state, hub) = crate::session::split_spell_state_ref(&session);
+    state
+        .send_initial_player_auras_like_cpp(hub)
+        .expect("an empty visible aura set needs no selected catalog facts");
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[test]
+fn selected_initial_unknown_race_row_fails_without_a_full_frame() {
+    let (mut session, player_guid, send_rx) =
+        canonical_aura_session([sickness_catalog_info()], SICKNESS_SPELL_ID);
+    let (row, effects) = sickness_rows(player_guid, 90_000);
+    assert_eq!(
+        session.load_represented_character_auras_like_cpp([row], effects, 30),
+        1
+    );
+    session.set_chr_races_store(Arc::new(ChrRacesStore::from_entries([])));
+
+    let (state, hub) = crate::session::split_spell_state_ref(&session);
+    assert!(state.send_initial_player_auras_like_cpp(hub).is_err());
+    assert!(send_rx.try_recv().is_err(), "unknown race classification emits no frame");
+}
+
+#[test]
+fn selected_initial_lost_canonical_owner_fails_when_a_real_handle_remains() {
+    let (mut session, player_guid, send_rx) =
+        canonical_aura_session([sickness_catalog_info()], SICKNESS_SPELL_ID);
+    let (row, effects) = sickness_rows(player_guid, 90_000);
+    assert_eq!(
+        session.load_represented_character_auras_like_cpp([row], effects, 30),
+        1
+    );
+    let handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical Player fixture installs a real owner handle");
+    session.set_canonical_map_manager(Arc::new(std::sync::Mutex::new(
+        wow_map::MapManager::default(),
+    )));
+    assert_eq!(session.core.player_handle_like_cpp, Some(handle));
+
+    let (state, hub) = crate::session::split_spell_state_ref(&session);
+    assert!(state.send_initial_player_auras_like_cpp(hub).is_err());
+    assert!(send_rx.try_recv().is_err(), "lost canonical ownership emits no full frame");
 }
 
 #[test]

@@ -4,9 +4,15 @@
 
 //! Canonical preparation of pending selected Player aura deltas.
 
-use super::aura_publication::player_aura_info_with_provenance;
-use wow_data::character_progression::ChrRacesStore;
-use wow_entities::{AuraApplicationLikeCpp as AuraApplication, AuraCastProvenanceLikeCpp};
+use super::selected_catalog::{
+    SelectedAuraPublicationCatalogs, is_selected_aura_spell, selected_aura_wire_facts,
+    sickness_spell_for_race,
+};
+use super::selected_wire::selected_aura_info;
+use wow_entities::{
+    AuraApplicationLikeCpp as AuraApplication, AuraCastProvenanceLikeCpp,
+    AuraPersistenceMetadata, AuraThreatSnapshotLikeCpp,
+};
 use wow_map::{MapKey, MapManager, PlayerHandle};
 use wow_world_core::session::{PreparedSelectedAuraUpdate, prepare_selected_aura_update};
 
@@ -21,8 +27,15 @@ struct PendingPlayerAuras {
     map_key: MapKey,
     map_incarnation: u64,
     residence_revision: u64,
-    level: u8,
-    slots: Vec<(u8, AuraApplication, AuraCastProvenanceLikeCpp)>,
+    slots: Vec<(u8, FrozenSelectedAura)>,
+}
+
+#[derive(Debug)]
+struct FrozenSelectedAura {
+    application: AuraApplication,
+    provenance: AuraCastProvenanceLikeCpp,
+    snapshot: AuraThreatSnapshotLikeCpp,
+    persistence: Option<AuraPersistenceMetadata>,
 }
 
 /// Prepare this Player's selected visible updates under the caller's manager
@@ -32,7 +45,7 @@ struct PendingPlayerAuras {
 pub fn collect_player_pending_selected_aura_updates(
     manager: &mut MapManager,
     handle: PlayerHandle,
-    races: Option<&ChrRacesStore>,
+    catalogs: SelectedAuraPublicationCatalogs<'_>,
 ) -> Result<Vec<PreparedSelectedAuraUpdate>, &'static str> {
     let (map_key, residence_revision) =
         manager
@@ -55,51 +68,54 @@ pub fn collect_player_pending_selected_aura_updates(
             if auras.visible_auras_to_update.is_empty() {
                 return Ok(None);
             }
-            let sickness = races
-                .ok_or("selected aura source race catalog is unavailable")?
-                .get(u32::from(player.race_like_cpp()))
-                .ok_or("selected aura source race is unavailable")?
-                .res_sickness_spell_id;
-            if sickness < 0 {
-                return Err("selected aura source sickness spell is invalid");
-            }
+            let sickness = sickness_spell_for_race(catalogs, player.race_like_cpp())?;
+            let sickness_spell = (sickness > 0).then_some(sickness);
             let mut slots = Vec::new();
             for slot in auras.visible_auras_to_update.iter().copied() {
-                let aura = auras
+                let application = auras
                     .runtime_application_like_cpp(slot)
                     .ok_or("pending aura application is unavailable")?;
-                if matches!(aura.spell_id, 8326 | 20584)
-                    || (sickness != 0 && aura.spell_id == sickness)
-                {
-                    if aura.slot != slot {
+                if is_selected_aura_spell(application.spell_id, sickness) {
+                    if application.slot != slot {
                         return Err("pending selected aura slot is inconsistent");
                     }
+                    crate::validate_selected_aura_application(
+                        auras,
+                        application.spell_id,
+                        slot,
+                        sickness_spell,
+                    )?;
+                    let snapshot = auras
+                        .threat_snapshot_like_cpp(slot)
+                        .cloned()
+                        .ok_or("selected aura effect snapshot is unavailable")?;
                     slots.push((
                         slot,
-                        aura.clone(),
-                        auras.aura_cast_provenance_like_cpp(slot),
+                        FrozenSelectedAura {
+                            application: application.clone(),
+                            provenance: auras.aura_cast_provenance_like_cpp(slot),
+                            snapshot,
+                            persistence: auras.aura_persistence_metadata(slot).cloned(),
+                        },
                     ));
                 }
             }
             if slots.is_empty() {
                 return Ok(None);
             }
-            slots.sort_unstable_by_key(|(slot, _, _)| *slot);
-            let level = u8::try_from(player.unit().data().level)
-                .map_err(|_| "selected aura source level is invalid")?;
+            slots.sort_unstable_by_key(|(slot, _)| *slot);
             Ok(Some(PendingPlayerAuras {
                 guid: handle.guid(),
                 handle,
                 map_key,
                 map_incarnation,
                 residence_revision,
-                level,
                 slots,
             }))
         })
         .ok_or("selected aura source is unavailable")??;
     match pending {
-        Some(pending) => prepare_and_clear_pending_player_auras(manager, &pending),
+        Some(pending) => prepare_and_clear_pending_player_auras(manager, &pending, catalogs),
         None => Ok(Vec::new()),
     }
 }
@@ -107,15 +123,22 @@ pub fn collect_player_pending_selected_aura_updates(
 fn prepare_and_clear_pending_player_auras(
     manager: &mut MapManager,
     pending: &PendingPlayerAuras,
+    catalogs: SelectedAuraPublicationCatalogs<'_>,
 ) -> Result<Vec<PreparedSelectedAuraUpdate>, &'static str> {
     let mut prepared = Vec::with_capacity(pending.slots.len());
-    for (_, aura, provenance) in &pending.slots {
-        let aura_info = player_aura_info_with_provenance(
-            aura,
-            pending.level,
-            pending.map_key.map_id as u16,
-            Some(*provenance),
-        );
+    for (_, frozen) in &pending.slots {
+        let facts = selected_aura_wire_facts(
+            &frozen.application,
+            &frozen.provenance,
+            frozen.persistence.as_ref(),
+            catalogs,
+        )?;
+        let aura_info = selected_aura_info(
+            &frozen.application,
+            &frozen.provenance,
+            &frozen.snapshot,
+            facts,
+        )?;
         let packet = wow_packet::packets::misc::AuraUpdate {
             unit_guid: pending.guid,
             update_all: false,
@@ -146,14 +169,16 @@ fn prepare_and_clear_pending_player_auras(
             return false;
         }
         let auras = &mut player.unit_mut().subsystems_mut().auras;
-        if pending.slots.iter().any(|(slot, expected, provenance)| {
+        if pending.slots.iter().any(|(slot, expected)| {
             !auras.visible_auras_to_update.contains(slot)
-                || auras.runtime_application_like_cpp(*slot) != Some(expected)
-                || auras.aura_cast_provenance_like_cpp(*slot) != *provenance
+                || auras.runtime_application_like_cpp(*slot) != Some(&expected.application)
+                || auras.aura_cast_provenance_like_cpp(*slot) != expected.provenance
+                || auras.threat_snapshot_like_cpp(*slot) != Some(&expected.snapshot)
+                || auras.aura_persistence_metadata(*slot) != expected.persistence.as_ref()
         }) {
             return false;
         }
-        for (slot, _, _) in &pending.slots {
+        for (slot, _) in &pending.slots {
             auras.visible_auras_to_update.remove(slot);
         }
         true

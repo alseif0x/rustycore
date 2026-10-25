@@ -218,7 +218,16 @@ fn run_selected_unit_update(
         .as_ref()
         .ok_or("Selected aura Unit update has no canonical map manager")?
         .clone();
-    let races = session.catalogs.chr.races_store.clone();
+    let catalogs = wow_world_spell::SelectedAuraPublicationCatalogs {
+        races: session.catalogs.chr.races_store.as_deref(),
+        spells: session.catalogs.spell_catalogs.spell_store.as_deref(),
+        aura_options: session
+            .catalogs
+            .spell_catalogs
+            .spell_aura_options_store
+            .as_deref(),
+        difficulties: session.catalogs.difficulty_store.as_deref(),
+    };
     let prepared = {
         let mut manager = manager
             .lock()
@@ -226,7 +235,7 @@ fn run_selected_unit_update(
         wow_world_spell::collect_player_pending_selected_aura_updates(
             &mut manager,
             handle,
-            races.as_deref(),
+            catalogs,
         )?
     };
     for update in &prepared {

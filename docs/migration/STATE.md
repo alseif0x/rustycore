@@ -11,8 +11,10 @@ this does not establish final acceptance or complete AuraUpdate metadata.
 The Map recovery pass now connects regeneration, KillPlayer, periodic save,
 deathTimer, and delayed teleport through the existing Session rail. Both its
 World consumer and Server coordinator have focused coding feedback.
-Selected AuraUpdate metadata remains pending. The integration adds neither
-another clock nor another Player authority.
+9i3C3c connects the scalar wire projection to pending deltas and initial full
+updates, including rejection in login/worldport callers when preparation fails.
+Constructor flags and their polarity/friendly-caster inputs remain pending.
+The integration adds neither another clock nor another Player authority.
 
 Four blocks remain within the same macro:
 
@@ -832,6 +834,73 @@ spawn trace (gpt-6-luna/max); the same worker then continued, with no model/API
 fallback. Self-exposed effort remained unavailable. Selected wire production
 integration, constructor flags, and final acceptance remain unexecuted.
 
+9i3C3c connects selected_wire to the existing per-Player pending collector and
+the initial full AuraUpdate. A borrowed four-store catalog view resolves exact
+attributes and AuraOptions through the known difficulty chain. Known missing
+Difficulty rows stop fallback; an unavailable required store or an unknown
+SpellInfo key holds preparation. A known exact SpellInfo key without Misc
+retains Source's zero attributes. SpellStore now exposes an exact attributes
+reader and hydrates attributes in ascending RecordID order, correcting the
+previous HashMap-order overwrite. Source anchors at the pinned SHA are
+SpellMgr.cpp:2558–2562,2610–2688, SpellInfo.cpp:1167–1195, and
+SpellInfo.h:331–345. This does not repair every other DB2 contributor.
+
+Delta preparation freezes the application, original level/visual/cast identity,
+effect snapshot, and persistence metadata under the existing Manager owner.
+Every frame is prepared before any selected pending slot is cleared. Initial
+publication validates the same selected application facts and builds the whole
+full frame before sending it. Missing canonical backing never uses a handleless
+test fixture as a replacement. Legacy entries retain the old scalar builder.
+Initial full publication preserves pending deltas, following
+Player.cpp:24015–24035; the next admitted Unit update may legitimately send them.
+No new Player authority, packet DTO, persistence field, lock, or clock is added.
+
+Post-add initialization reports failure to its existing login and worldport
+callers. Login invokes the existing partial-login retirement and kick before
+corpse restoration or LoggedIn publication. Worldport retains its post-add and
+accepted-resurrection fences and stops before native completion/deferred save.
+The valid ACK still advances AwaitingTeleport to TeleportCompleted before that
+publication point; the new failure test must preserve that legitimate progress,
+not freeze the earlier phase. Its real handler test checks retained continuation
+and deferred save, unchanged pre-native health/death state, and no pet resummon,
+scaling, or LoggedIn transition. The separate login case exercises post-add
+rejection plus the existing abort policy; it is not full-login execution evidence.
+
+On `515acbb19` plus the reviewed local delta, focused aarch64/jobs=1 coding
+feedback passed: World check, Data selected_misc_attributes (one active case),
+Spell selected_publication (twelve), World sickness (thirty-five, including
+the five selected_initial cases), ghost_wisp (forty-five), selected_recovery
+excluding those two families (two), initial_aura_failure (two), and Server
+`--lib selected_recovery` (one): 98 distinct active test identities. Successful
+logs are `/tmp/rustycore-9i3c3c-04-check-wow-world.log`,
+`-07-test-wow-data-selected-misc.log`,
+`-08-test-wow-world-spell-selected-publication.log`,
+`-12-test-wow-world-sickness.log`, `-14-test-wow-world-ghost-wisp.log`,
+`-16-test-wow-world-selected-recovery.log`,
+`-19-test-wow-world-initial-aura-failure.log`, and
+`-20-test-world-server-selected-recovery.log`, all with the same
+`/tmp/rustycore-9i3c3c` prefix. The Server test executes the real root callback
+before the Map tail, including a coordinator without a Creature owner. Its
+6 min 12 s compilation is coding feedback cost, not the ordinary final campaign.
+The separate selected_initial command was not repeated because sickness already
+executed those identities. A transient inline sorting-only test was retired;
+the retained Data test checks the actual attributes selected by the loader.
+
+Failed attempts remain under the same prefix: 01/02 (visibility and syntax),
+06/09 (test imports/private helper access), 10/11 (incomplete fixture creation
+facts, stack/charge setup, lost catalogs, and missing level-20 stat data),
+13/15 (missing race/options/origin metadata), and 17 (the stale pre-ACK phase
+expectation). Repairs preserve the Source operation: no production metadata or
+stat fallback was added to make fixtures pass. The fresh enforced luna_worker
+role has a successful spawn trace for gpt-6-luna/max; the worker self-reported
+GPT-6 without exposing variant or effort. Its handoff shortened several log
+names incorrectly; the paths above were checked against the actual files.
+The known-key/no-Misc wire branch has no dedicated test in this checkpoint;
+the Data exact-key reader assertion is separate and is not claimed as that test.
+No final campaign, packet capture, live runtime/DB operation, restart/relogin,
+publication, or issue completion is established by this checkpoint. Constructor
+flags and all remaining macro requirements above still apply.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -970,6 +1039,50 @@ world and on the owner's map (`ObjectAccessor.cpp:206–239`); do not substitute
 the target's reputation for that caster's owner or acquire the Session directory
 under a map guard. Delta and initial full updates must share the selected
 projection. These are reviewed requirements, not implemented or accepted evidence.
+
+The existing installed-data diagnostic provides a concrete constructor check:
+SpellMisc records 320590/329372/325284 for 8326/20584/15007 all contain
+Attr0 AURA_IS_DEBUFF (`0x04000000`). They are not passive. Source therefore
+marks every effect negative before its per-aura-type or target checks
+(SpellInfo.cpp:4518–4541; SharedDefines.h:437,457). In particular, a selected
+partial mask does not make stock Ghost or sickness positive, and stock Wisp
+does not become cancelable from its speed effects. Both friendship branches
+produce negative flags for this known uniform polarity. Preserve the general
+mixed-polarity constructor contract; do not pretend an unresolved caster is
+hostile to obtain the uniform result. Evidence is the existing file-data log
+`/tmp/9g-data-ghost-wisp-load-boundary-items.log:248–250`, not a new effective
+SQL-overlay run or a client capture. The constructor repair remains pending.
+
+Constructor reaction decision, 2026-10-25: reuse the existing Core faction
+reaction algorithm through a transient borrowed input, rather than copying it
+into Spell or constructing a Session for the foreign caster. Each affecting
+Player supplies its own canonical reputation, race, and class. Existing NPC,
+quest, and spell-click adapters remain consumers of that one algorithm.
+Self, absent-caster, and already-decided reaction branches must not require
+unrelated faction catalogs. A catalog needed by an undecided branch must be
+known; a known missing row follows Source, whereas an absent store remains
+unavailable for selected construction. No Player or reputation clone, storage
+mirror, directory lookup under the Map guard, or new mutable owner is needed.
+
+The source comparison found a specific existing defect: the controlled-player
+reputation branch tests the source affecting Player's contested-PvP flag,
+while the current Rust input uses the target flag. The lower faction branch
+correctly tests the target flag. Repair these separately named facts when
+extracting the shared algorithm; this is an intentional behavior correction,
+not a move-only refactor. Anchors at the same pinned SHA are Object.cpp:
+2709–2864 and ReputationMgr.cpp:75–83,181–198. Friendship thresholds are needed
+only when the reached faction has a nonzero FriendshipRepID; a known store
+without reactions uses ordinary thresholds. Do not interpret an unavailable
+friendship store as that known absence.
+
+Owner resolution follows Object.cpp:2230–2275: direct resolved charmer/owner
+for the shared-owner comparison, and the bounded GetAffectingPlayer chain for
+reputation. It is not an arbitrary recursive ancestor search. Player raid
+comparison uses the current Group identity (Player.cpp:2139), not OriginalGroup.
+The selected effect polarity remains a separate SpellInfo decision from
+friendly-caster application flags. These decisions are pending implementation
+and focused feedback; they do not establish final acceptance or complete the
+general faction, summon, or aura engines.
 
 9g escrito y revisado sobre `a6da440dac37aa377c23c71fb084accff3fa1764`
 más delta local: máscaras normalizadas con lookup SQL original, efectos

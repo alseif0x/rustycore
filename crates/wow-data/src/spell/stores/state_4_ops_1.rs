@@ -5,6 +5,13 @@
 
 use super::*;
 
+fn spell_misc_rows_in_record_id_order(
+    store: &crate::spell_db2::SpellMiscStore,
+) -> Vec<&crate::spell_db2::SpellMiscEntry> {
+    let mut rows = store.entries_like_cpp().collect::<Vec<_>>();
+    rows.sort_unstable_by_key(|misc| misc.id);
+    rows
+}
 impl SpellStore {
     /// Create a new empty spell store.
     pub fn new() -> Self {
@@ -358,7 +365,7 @@ impl SpellStore {
             spell_effect_store,
         );
 
-        for misc in spell_misc_store.entries_like_cpp() {
+        for misc in spell_misc_rows_in_record_id_order(spell_misc_store) {
             let Ok(spell_id) = i32::try_from(misc.spell_id) else {
                 continue;
             };
@@ -719,6 +726,17 @@ impl SpellStore {
                 .map_or(0, |difficulty| difficulty.fallback_difficulty_id);
         }
         self.spell_misc_attributes.get(&spell_id).copied()
+    }
+    /// Read only the effective SpellInfo attributes hydrated for this exact
+    /// difficulty, without applying a fallback or base-difficulty lookup.
+    pub fn misc_attributes_for_exact_difficulty(
+        &self,
+        spell_id: i32,
+        difficulty_id: u8,
+    ) -> Option<[u32; 15]> {
+        self.spell_misc_attributes_by_difficulty
+            .get(&(spell_id, difficulty_id))
+            .copied()
     }
     pub fn has_attribute_for_difficulty_like_cpp(
         &self,

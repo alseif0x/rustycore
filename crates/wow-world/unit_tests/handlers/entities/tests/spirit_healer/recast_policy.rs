@@ -36,6 +36,19 @@ async fn high_level_sickness_recast_preserves_duration_without_a_shortening_requ
         .cloned()
         .expect("current race-selected sickness SpellInfo");
     let player_guid = session.player_guid().expect("canonical Player GUID");
+    let provenance = wow_entities::AuraCastProvenanceLikeCpp {
+        cast_id: wow_core::ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Cast,
+            3,
+            1,
+            571,
+            0,
+            SICKNESS_SPELL as u32,
+            43_419,
+        ),
+        spell_visual_id: 245_039,
+        caster_level: Some(20),
+    };
     session
         .player_aura_application_cx_like_cpp()
         .apply_resurrection_sickness_aura(
@@ -47,7 +60,7 @@ async fn high_level_sickness_recast_preserves_duration_without_a_shortening_requ
             0x88,
             0,
             0,
-            wow_entities::AuraCastProvenanceLikeCpp::default(),
+            provenance,
         )
         .expect("install source sickness Aura before high-level recast");
     let aura = visible_sickness_aura(&session, SICKNESS_SPELL)

@@ -8,17 +8,21 @@ use wow_entities::{
 };
 
 fn install_stats_catalog(session: &mut WorldSession, strength: u16) {
-    session.set_player_stats(Arc::new(wow_data::PlayerStatsStore::from_entries([(
-        (1, 1, 11),
-        wow_data::PlayerLevelStats {
-            strength,
-            agility: 10,
-            stamina: 10,
-            intellect: 10,
-            spirit: 10,
-            base_mana: 100,
-        },
-    )])));
+    session.set_player_stats(Arc::new(wow_data::PlayerStatsStore::from_entries(
+        [11, 20].map(|level| {
+            (
+                (1, 1, level),
+                wow_data::PlayerLevelStats {
+                    strength,
+                    agility: 10,
+                    stamina: 10,
+                    intellect: 10,
+                    spirit: 10,
+                    base_mana: 100,
+                },
+            )
+        }),
+    )));
     session.set_chr_classes_store(Arc::new(ChrClassesStore::from_entries([{
         let mut entry = wow_data::character_progression::ChrClassesEntry::default();
         entry.id = 1;
@@ -27,7 +31,18 @@ fn install_stats_catalog(session: &mut WorldSession, strength: u16) {
 }
 
 fn install_unrelated_strength_aura(session: &mut WorldSession, spell_id: i32) {
+    let existing_spells = session.catalogs.spell_store().cloned();
     let mut spells = wow_data::SpellStore::new();
+    if let Some(existing_spells) = existing_spells.as_deref() {
+        for info in existing_spells.iter() {
+            spells.insert(info.spell_id, info.clone());
+            if let Some(attributes) =
+                existing_spells.misc_attributes_for_exact_difficulty(info.spell_id, 0)
+            {
+                spells.insert_spell_misc_attributes_like_cpp(info.spell_id, attributes);
+            }
+        }
+    }
     spells.insert(
         spell_id,
         wow_data::SpellInfo {
@@ -64,6 +79,19 @@ async fn lifecycle_stat_fresh_sickness_updates_canonical_stats_through_map_value
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 11, 0);
     set_race_sickness_spell(&mut session, SICKNESS_SPELL);
     install_sickness_data(&mut session, SICKNESS_SPELL, None);
+    session.set_spell_aura_options_store(Arc::new(
+        wow_data::SpellAuraOptionsStore::from_entries([wow_data::SpellAuraOptionsEntry {
+            id: SICKNESS_SPELL as u32,
+            difficulty_id: 0,
+            cumulative_aura: 1,
+            proc_category_recovery: 0,
+            proc_chance: 0,
+            proc_charges: 3,
+            spell_procs_per_minute_id: 0,
+            proc_type_mask: [0; 2],
+            spell_id: SICKNESS_SPELL as u32,
+        }]),
+    ));
     install_stats_catalog(&mut session, 10);
 
     session.core.with_owned_player_mut_like_cpp(|player| {
@@ -83,11 +111,58 @@ async fn lifecycle_stat_fresh_sickness_updates_canonical_stats_through_map_value
     });
     let _ = drain_packets(&send_rx);
 
+    let cast_id = wow_core::ObjectGuid::create_world_object(
+        wow_core::guid::HighGuid::Cast,
+        3,
+        1,
+        571,
+        0,
+        SICKNESS_SPELL as u32,
+        43_901,
+    );
+    let provenance = wow_entities::AuraCastProvenanceLikeCpp {
+        cast_id,
+        spell_visual_id: 245_039,
+        caster_level: Some(11),
+    };
     session
         .player_aura_application_cx_like_cpp()
-        .apply_aura_with_effect_mask_like_cpp(SICKNESS_SPELL, player_guid, 600_000, 0x15, 0x7)
+        .apply_aura_with_effect_mask_provenance_and_update_like_cpp(
+            SICKNESS_SPELL,
+            player_guid,
+            600_000,
+            0x15,
+            0x7,
+            provenance,
+            false,
+        )
         .expect("generic selected sickness application defers publication");
     wow_world_spell::hydrate_canonical_threat_relevant_auras_like_cpp(&mut session);
+    session.core.with_owned_player_mut_like_cpp(|player| {
+        let auras = &mut player.unit_mut().subsystems_mut().auras;
+        let slot = auras
+            .runtime_applications_like_cpp()
+            .values()
+            .find(|aura| aura.spell_id == SICKNESS_SPELL)
+            .expect("generic sickness application is canonical")
+            .slot;
+        auras
+            .runtime_application_mut_like_cpp(slot)
+            .expect("generic sickness application remains canonical")
+            .stack_count = 3;
+        assert!(auras.set_aura_persistence_metadata(
+            slot,
+            wow_entities::AuraPersistenceMetadata {
+                item_guid: wow_core::ObjectGuid::EMPTY,
+                cast_item_id: 6_948,
+                cast_item_level: 80,
+                recalculate_mask: 0b111,
+                charges: 5,
+                base_amounts: vec![(0, -76), (1, -76), (2, -1)],
+            },
+        ));
+        player.unit_mut().set_level(20);
+    });
     let (sickness_slot, sickness_snapshot) = session
         .core
         .with_owned_player_like_cpp(|player| {
@@ -151,6 +226,35 @@ async fn lifecycle_stat_fresh_sickness_updates_canonical_stats_through_map_value
             .iter()
             .all(|bytes| packet_opcode(bytes) != ServerOpcodes::UpdateObject as u16)
     );
+    let (spell_state, hub) = crate::session::split_spell_state_ref(&session);
+    spell_state
+        .send_initial_player_auras_like_cpp(hub)
+        .expect("selected initial full update has complete creation facts");
+    let initial_packets = drain_packets(&send_rx);
+    let initial_sickness = initial_packets
+        .iter()
+        .filter(|bytes| packet_opcode(bytes) == ServerOpcodes::AuraUpdate as u16)
+        .flat_map(|bytes| decode_sickness_auras(bytes))
+        .find(|aura| aura.spell_id == SICKNESS_SPELL)
+        .expect("initial full update includes the selected sickness");
+    assert!(initial_sickness.update_all);
+    assert_eq!(initial_sickness.cast_id, cast_id);
+    assert_eq!(initial_sickness.cast_level, 11);
+    assert_eq!(initial_sickness.applications, 3);
+    assert_eq!(initial_sickness.duration_ms, Some(600_000));
+    assert_eq!(initial_sickness.remaining_ms, Some(600_000));
+    assert!(
+        session
+            .core
+            .with_owned_player_like_cpp(|player| player
+                .unit()
+                .subsystems()
+                .auras
+                .visible_auras_to_update
+                .contains(&sickness_slot))
+            .expect("canonical Player keeps initial full updates separate from pending deltas"),
+        "the full Player update does not consume the Unit pending delta"
+    );
     session.update(0).await;
     let recovery_packets = drain_packets(&send_rx);
     let recovery_sickness = recovery_packets
@@ -163,6 +267,31 @@ async fn lifecycle_stat_fresh_sickness_updates_canonical_stats_through_map_value
         recovery_sickness.len(),
         1,
         "the actual Recovery consumer publishes the selected sickness once"
+    );
+    let recovery_sickness = &recovery_sickness[0];
+    assert!(!recovery_sickness.update_all);
+    assert_eq!(
+        (
+            recovery_sickness.cast_id,
+            recovery_sickness.visual_id,
+            recovery_sickness.aura_flags,
+            recovery_sickness.active_flags,
+            recovery_sickness.cast_level,
+            recovery_sickness.applications,
+            recovery_sickness.duration_ms,
+            recovery_sickness.remaining_ms,
+        ),
+        (
+            initial_sickness.cast_id,
+            initial_sickness.visual_id,
+            initial_sickness.aura_flags,
+            initial_sickness.active_flags,
+            initial_sickness.cast_level,
+            initial_sickness.applications,
+            initial_sickness.duration_ms,
+            initial_sickness.remaining_ms,
+        ),
+        "initial and Recovery frames use the same selected Aura projection"
     );
     assert!(
         recovery_packets

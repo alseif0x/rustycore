@@ -881,6 +881,10 @@ fn install_release_cast_spell_fixture(session: &mut WorldSession) {
             duration_index: 21,
             ..Default::default()
         });
+        spells.insert_spell_misc_attributes_like_cpp(
+            spell_id,
+            attributes.map(|value| value as u32),
+        );
         spells.insert(
             spell_id,
             wow_data::SpellInfo {

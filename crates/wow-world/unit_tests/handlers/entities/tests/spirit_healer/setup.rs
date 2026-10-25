@@ -172,6 +172,7 @@ pub(super) fn install_sickness_data(
         }
     }
     spells.insert(spell_id, spell_info);
+    spells.insert_spell_misc_attributes_like_cpp(spell_id, [0; 15]);
     session.set_spell_store(Arc::new(spells));
     let mut misc = wow_data::SpellMiscEntry {
         id: spell_id as u32,
@@ -191,6 +192,7 @@ pub(super) fn install_sickness_data(
     ])));
     session
         .set_spell_aura_options_store(Arc::new(wow_data::SpellAuraOptionsStore::from_entries([])));
+    session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_ids([0])));
     let visual_rows = visual_id
         .map(|spell_visual_id| wow_data::SpellXSpellVisualEntry {
             id: 245_039,
@@ -328,7 +330,7 @@ pub(super) fn decode_sickness_auras(bytes: &[u8]) -> Vec<SicknessAuraUpdate> {
     let mut packet = WorldPacket::from_bytes(bytes);
     assert_eq!(packet.server_opcode(), Some(ServerOpcodes::AuraUpdate));
     packet.skip_opcode();
-    assert!(!packet.read_bit().unwrap());
+    let update_all = packet.read_bit().unwrap();
     let count = packet.read_bits(9).unwrap();
     let mut updates = Vec::new();
     for _ in 0..count {
@@ -342,8 +344,8 @@ pub(super) fn decode_sickness_auras(bytes: &[u8]) -> Vec<SicknessAuraUpdate> {
         let visual_id = packet.read_int32().unwrap();
         let aura_flags = packet.read_uint16().unwrap();
         let active_flags = packet.read_uint32().unwrap();
-        let _cast_level = packet.read_uint16().unwrap();
-        let _applications = packet.read_uint8().unwrap();
+        let cast_level = packet.read_uint16().unwrap();
+        let applications = packet.read_uint8().unwrap();
         let _content_tuning_id = packet.read_int32().unwrap();
         let has_caster = packet.read_bit().unwrap();
         let has_duration = packet.read_bit().unwrap();
@@ -362,11 +364,14 @@ pub(super) fn decode_sickness_auras(bytes: &[u8]) -> Vec<SicknessAuraUpdate> {
             let _point = packet.read_float().unwrap();
         }
         updates.push(SicknessAuraUpdate {
+            update_all,
             cast_id,
             spell_id,
             visual_id,
             aura_flags,
             active_flags,
+            cast_level,
+            applications,
             duration_ms,
             remaining_ms,
         });

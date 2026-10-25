@@ -223,7 +223,7 @@ pub async fn send_initial_packets_after_add_to_map_with_catalogs_like_cpp<
     position: &Position,
     map_id: i32,
     updateobject_trace_enabled: bool,
-) {
+) -> bool {
     if updateobject_trace_enabled {
         info!(guid = ?guid, "RUST_LOGIN before_initial_packets_after_add");
     }
@@ -256,7 +256,7 @@ pub async fn send_initial_packets_after_add_to_map_with_catalogs_like_cpp<
     }
 
     if !apply_post_add_zone_from_terrain_like_cpp(host, map_id, position) {
-        return;
+        return false;
     }
     let _ = {
         let (state, mut hub) = host.split_lifecycle_mut();
@@ -271,7 +271,7 @@ pub async fn send_initial_packets_after_add_to_map_with_catalogs_like_cpp<
     let Some((represented_zone_id, represented_area_id)) =
         host.hub_ref().player_zone_area_like_cpp()
     else {
-        return;
+        return false;
     };
     let world_states =
         load_initial_world_states_for_login_like_cpp(host, map_id, represented_area_id).await;
@@ -293,10 +293,13 @@ pub async fn send_initial_packets_after_add_to_map_with_catalogs_like_cpp<
     }
     // C++ `Player::SendInitialPacketsAfterAddToMap` calls
     // `SendAurasForTarget(this)` after movement aura state setup.
-    {
+    let aura_publication = {
         let (s, h) = host.split_spell_state_ref();
         s.send_initial_player_auras_like_cpp(h)
     };
+    if aura_publication.is_err() {
+        return false;
+    }
     // C++ calls PhasingHandler::OnMapChange(this) only after CUF profiles, the
     // login-effect/movement-aura work and SendAurasForTarget (Player.cpp:23600-23672).
     // This re-sends SMSG_PHASE_SHIFT_CHANGE (the second phase-shift of login,
@@ -308,7 +311,7 @@ pub async fn send_initial_packets_after_add_to_map_with_catalogs_like_cpp<
         .update_represented_item_level_area_based_scaling_with_publication_like_cpp(true)
         .is_none()
     {
-        return;
+        return false;
     }
     let _ = {
         let (state, mut hub) = host.split_lifecycle_mut();
@@ -335,6 +338,7 @@ pub async fn send_initial_packets_after_add_to_map_with_catalogs_like_cpp<
     if updateobject_trace_enabled {
         info!(guid = ?guid, "RUST_LOGIN after_initial_packets_after_add");
     }
+    true
 }
 
 pub async fn load_initial_world_states_for_login_like_cpp<H: CharacterLoginHostLikeCpp>(

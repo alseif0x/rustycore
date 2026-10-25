@@ -38,6 +38,7 @@ pub use duration::*;
 pub use mount::*;
 pub use publication::*;
 pub(super) use selected_caster::selected_caster_level;
+pub(crate) use selected_lifetime::validate_application as validate_selected_aura_application;
 pub use selected_lifetime::*;
 pub use sources::*;
 

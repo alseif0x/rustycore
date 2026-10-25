@@ -26,11 +26,14 @@ use setup::*;
 
 #[derive(Debug)]
 struct SicknessAuraUpdate {
+    update_all: bool,
     cast_id: ObjectGuid,
     spell_id: i32,
     visual_id: i32,
     aura_flags: u16,
     active_flags: u32,
+    cast_level: u16,
+    applications: u8,
     duration_ms: Option<u32>,
     remaining_ms: Option<u32>,
 }

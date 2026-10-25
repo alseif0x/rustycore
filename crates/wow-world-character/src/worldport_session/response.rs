@@ -185,7 +185,7 @@ pub async fn handle_world_port_response_with_catalogs_like_cpp<H: WorldportHostL
 
     // SendInitialPacketsAfterAddToMap: post-add phase shift, InitWorldStates resolved for
     // the destination map, the PhasingHandler::OnMapChange phase shift, CUF profiles, auras.
-    crate::send_initial_packets_after_add_to_map_with_catalogs_like_cpp(
+    if !crate::send_initial_packets_after_add_to_map_with_catalogs_like_cpp(
         host,
         creature_spawn_catalogs,
         guid,
@@ -193,7 +193,12 @@ pub async fn handle_world_port_response_with_catalogs_like_cpp<H: WorldportHostL
         new_map as i32,
         updateobject_trace_enabled,
     )
-    .await;
+    .await
+    {
+        host.core_mut()
+            .kick("worldport initial aura publication unavailable");
+        return;
+    }
 
     let Some((zone_id, area_id)) = host.hub_ref().player_zone_area_like_cpp() else {
         return;

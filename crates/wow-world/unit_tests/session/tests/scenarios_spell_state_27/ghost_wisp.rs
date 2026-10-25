@@ -805,8 +805,11 @@ fn login_aura_loader_applies_ghost_effects_from_supplied_rows() {
     );
     drop(manager);
 
+    selected_lifetime::install_race(&mut fixture.session, 0);
     let (state, hub) = crate::session::split_spell_state_ref(&fixture.session);
-    state.send_initial_player_auras_like_cpp(hub);
+    state
+        .send_initial_player_auras_like_cpp(hub)
+        .expect("selected initial Ghost and Wisp facts are available");
     let full_packets = outgoing(&fixture);
     let initial_opcodes = full_packets
         .iter()

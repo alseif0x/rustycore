@@ -271,6 +271,7 @@ fn exact_spell_info_key_does_not_fabricate_hydrated_payload() {
 
     assert!(store.contains_spell_info_exact_like_cpp(100, 0));
     assert!(store.get(100).is_none());
+    assert_eq!(store.misc_attributes_for_exact_difficulty(100, 0), None);
     assert_eq!(
         store.spell_info_keys_in_order_like_cpp(),
         [(100, 0), (200, 1), (200, 2)]

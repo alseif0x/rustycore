@@ -79,9 +79,9 @@ async fn cancelled_post_add_retains_rest_update_through_reentry() {
                 saved_values: PlayerInitialWorldStateRowsLikeCpp::Loaded(vec![]),
             }
         }));
-    session
+    assert!(session
         .send_initial_packets_after_add_to_map(guid, &position, 571, false)
-        .await;
+        .await);
     let after_resume = drain_server_opcodes(&send_rx);
     assert_eq!(
         after_resume.last(),

@@ -5,9 +5,28 @@ use std::{
 };
 use wow_core::{ObjectGuid, guid::HighGuid};
 use wow_entities::{
-    AuraApplicationLikeCpp as AuraApplication, AuraCastProvenanceLikeCpp, legacy_aura_duration_pair,
+    AuraApplicationLikeCpp as AuraApplication, AuraCastProvenanceLikeCpp,
+    AuraPersistenceMetadata, AuraThreatSnapshotLikeCpp, legacy_aura_duration_pair,
 };
 use wow_world_core::session::{AFLAG_SCALABLE_LIKE_CPP, HubMut, HubRef};
+use super::selected_catalog::{
+    SelectedAuraPublicationCatalogs, is_selected_aura_spell, selected_aura_wire_facts,
+    sickness_spell_for_race,
+};
+use super::selected_wire::selected_aura_info;
+
+enum InitialPlayerAura {
+    Selected {
+        application: AuraApplication,
+        provenance: AuraCastProvenanceLikeCpp,
+        snapshot: AuraThreatSnapshotLikeCpp,
+        persistence: Option<AuraPersistenceMetadata>,
+    },
+    Legacy {
+        application: AuraApplication,
+        provenance: Option<AuraCastProvenanceLikeCpp>,
+    },
+}
 
 pub const AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP: u32 = 0x0000_0080;
 
@@ -80,51 +99,150 @@ pub(crate) fn player_aura_info_with_provenance(
 }
 
 impl SessionSpellState {
-    pub fn send_initial_player_auras_like_cpp(&self, hub: HubRef<'_>) {
-        let canonical = hub.core.with_owned_player_like_cpp(|player| {
-            let auras = &player.unit().subsystems().auras;
-            let visible = auras.runtime_applications_like_cpp().clone();
-            let provenance = visible
-                .keys()
-                .map(|slot| (*slot, auras.aura_cast_provenance_like_cpp(*slot)))
-                .collect::<HashMap<_, _>>();
-            (visible, provenance)
-        });
-        #[cfg(any(test, feature = "test-fixtures"))]
-        let projection = canonical.or_else(|| {
-            hub.resolved_player_visible_auras_like_cpp()
-                .map(|visible| (visible, HashMap::new()))
-        });
-        #[cfg(not(any(test, feature = "test-fixtures")))]
-        let projection = canonical;
-        let Some((visible_auras, provenance_by_slot)) = projection else {
-            return;
-        };
-        if visible_auras.is_empty() {
-            return;
-        }
-        let Some(player_guid) = hub.core.player_guid() else {
-            return;
+    pub fn send_initial_player_auras_like_cpp(
+        &self,
+        hub: HubRef<'_>,
+    ) -> Result<(), &'static str> {
+        let catalogs = SelectedAuraPublicationCatalogs {
+            races: hub.catalogs.chr.races_store.as_deref(),
+            spells: hub.catalogs.spell_catalogs.spell_store.as_deref(),
+            aura_options: hub
+                .catalogs
+                .spell_catalogs
+                .spell_aura_options_store
+                .as_deref(),
+            difficulties: hub.catalogs.difficulty_store.as_deref(),
         };
 
-        let mut visible: Vec<_> = visible_auras.values().collect();
-        visible.sort_by_key(|aura| aura.slot);
-        let auras = visible
-            .into_iter()
-            .map(|aura| {
-                player_aura_info_with_provenance(
-                    aura,
-                    hub.player_level_like_cpp(),
-                    hub.core.player_map_id_like_cpp(),
-                    provenance_by_slot.get(&aura.slot).copied(),
-                )
-            })
-            .collect();
-        hub.core
-            .send_packet(&wow_packet::packets::misc::AuraUpdate::full_for(
-                player_guid,
-                auras,
-            ));
+        let canonical = hub.core.with_owned_player_like_cpp(|player| {
+            let auras = &player.unit().subsystems().auras;
+            let mut visible = auras
+                .runtime_applications_like_cpp()
+                .values()
+                .cloned()
+                .collect::<Vec<_>>();
+            visible.sort_by_key(|aura| aura.slot);
+            if visible.is_empty() {
+                return Ok(Some((player.guid(), Vec::new())));
+            }
+
+            let sickness = sickness_spell_for_race(catalogs, player.race_like_cpp())?;
+            let mut records = Vec::with_capacity(visible.len());
+            for application in visible {
+                let slot = application.slot;
+                let provenance = auras.aura_cast_provenance_like_cpp(slot);
+                if is_selected_aura_spell(application.spell_id, sickness) {
+                    crate::validate_selected_aura_application(
+                        auras,
+                        application.spell_id,
+                        slot,
+                        (sickness > 0).then_some(sickness),
+                    )?;
+                    records.push(InitialPlayerAura::Selected {
+                        application,
+                        provenance,
+                        snapshot: auras
+                            .threat_snapshot_like_cpp(slot)
+                            .cloned()
+                            .ok_or("selected aura effect snapshot is unavailable")?,
+                        persistence: auras.aura_persistence_metadata(slot).cloned(),
+                    });
+                } else {
+                    records.push(InitialPlayerAura::Legacy {
+                        application,
+                        provenance: Some(provenance),
+                    });
+                }
+            }
+            Ok(Some((player.guid(), records)))
+        });
+
+        let projection = if let Some(canonical) = canonical {
+            canonical?
+        } else {
+            #[cfg(any(test, feature = "test-fixtures"))]
+            {
+                if hub.core.player_handle_like_cpp.is_some() {
+                    return Err("initial aura canonical Player is unavailable");
+                }
+                let Some(mut visible) = hub.resolved_player_visible_auras_like_cpp() else {
+                    return Ok(());
+                };
+                if visible.is_empty() {
+                    return Ok(());
+                }
+                let sickness = sickness_spell_for_race(catalogs, hub.player_race_like_cpp())?;
+                let mut applications = visible.drain().map(|(_, aura)| aura).collect::<Vec<_>>();
+                applications.sort_by_key(|aura| aura.slot);
+                let mut records = Vec::with_capacity(applications.len());
+                for application in applications {
+                    if is_selected_aura_spell(application.spell_id, sickness) {
+                        return Err("selected aura canonical source is unavailable");
+                    }
+                    records.push(InitialPlayerAura::Legacy {
+                        application,
+                        provenance: None,
+                    });
+                }
+                Some((
+                    hub.core.player_guid().ok_or("initial aura target is unavailable")?,
+                    records,
+                ))
+            }
+            #[cfg(not(any(test, feature = "test-fixtures")))]
+            {
+                return Err("initial aura canonical Player is unavailable");
+            }
+        };
+        let Some((player_guid, records)) = projection else {
+            return Ok(());
+        };
+        if records.is_empty() {
+            return Ok(());
+        }
+        let Some(target_guid) = hub.core.player_guid() else {
+            return Err("initial aura target is unavailable");
+        };
+        if target_guid != player_guid {
+            return Err("initial aura target differs from its canonical Player");
+        }
+
+        let player_level = hub.player_level_like_cpp();
+        let map_id = hub.core.player_map_id_like_cpp();
+        let mut aura_infos = Vec::with_capacity(records.len());
+        for record in records {
+            let info = match record {
+                InitialPlayerAura::Selected {
+                    application,
+                    provenance,
+                    snapshot,
+                    persistence,
+                } => {
+                    let facts = selected_aura_wire_facts(
+                        &application,
+                        &provenance,
+                        persistence.as_ref(),
+                        catalogs,
+                    )?;
+                    selected_aura_info(&application, &provenance, &snapshot, facts)?
+                }
+                InitialPlayerAura::Legacy {
+                    application,
+                    provenance,
+                } => player_aura_info_with_provenance(
+                    &application,
+                    player_level,
+                    map_id,
+                    provenance,
+                ),
+            };
+            aura_infos.push(info);
+        }
+        let packet = wow_packet::packets::misc::AuraUpdate::full_for(player_guid, aura_infos);
+        if !hub.core.send_packet(&packet) {
+            return Err("initial aura frame was not accepted by the packet output");
+        }
+        Ok(())
     }
 
     /// Validate the exact active effect mask retained by one represented

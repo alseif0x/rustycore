@@ -329,12 +329,27 @@ async fn coordinated_world_tick_leaves_selected_delta_for_map_owned_delivery() {
     );
 
     let updates = {
+        let catalogs = wow_world_spell::SelectedAuraPublicationCatalogs {
+            races: fixture.session.catalogs.chr.races_store.as_deref(),
+            spells: fixture
+                .session
+                .catalogs
+                .spell_catalogs
+                .spell_store
+                .as_deref(),
+            aura_options: fixture
+                .session
+                .catalogs
+                .spell_catalogs
+                .spell_aura_options_store
+                .as_deref(),
+            difficulties: fixture.session.catalogs.difficulty_store.as_deref(),
+        };
         let mut manager = fixture.canonical.lock().expect("canonical manager");
-        let races = fixture.session.catalogs.chr.races_store.clone();
         wow_world_spell::collect_player_pending_selected_aura_updates(
             &mut manager,
             fixture.session.core.player_handle_like_cpp.unwrap(),
-            races.as_deref(),
+            catalogs,
         )
         .expect("current Player's selected aura deltas prepare")
     };

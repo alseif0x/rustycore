@@ -92,6 +92,9 @@ fn install_selected_sickness_snapshot(session: &mut WorldSession) -> i32 {
     );
     spell_store.insert_spell_misc_attributes_like_cpp(SPELL_ID, [0; 15]);
     session.set_spell_store(Arc::new(spell_store));
+    session.set_spell_aura_options_store(Arc::new(
+        wow_data::SpellAuraOptionsStore::from_entries([]),
+    ));
     session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_ids([0])));
     session.set_player_stats(Arc::new(wow_data::PlayerStatsStore::from_entries([(
         (2, 5, 80),
@@ -111,6 +114,19 @@ fn install_selected_sickness_snapshot(session: &mut WorldSession) -> i32 {
         .collect::<Vec<_>>();
     let snapshot = wow_entities::AuraThreatSnapshotLikeCpp::new([0; 2], effects);
     let slot = 3;
+    let provenance = wow_entities::AuraCastProvenanceLikeCpp {
+        cast_id: ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Cast,
+            3,
+            1,
+            571,
+            0,
+            SPELL_ID as u32,
+            74_321,
+        ),
+        spell_visual_id: 0,
+        caster_level: Some(80),
+    };
     let application = wow_entities::AuraApplicationLikeCpp {
         spell_id: SPELL_ID,
         difficulty_id: 0,
@@ -139,12 +155,20 @@ fn install_selected_sickness_snapshot(session: &mut WorldSession) -> i32 {
                 snapshot.clone(),
             );
             player.install_player_threat_aura_like_cpp(slot, snapshot, application);
-            player
-                .unit_mut()
-                .subsystems_mut()
-                .auras
-                .visible_auras_to_update
-                .insert(slot);
+            let auras = &mut player.unit_mut().subsystems_mut().auras;
+            assert!(auras.set_aura_persistence_metadata(
+                slot,
+                wow_entities::AuraPersistenceMetadata {
+                    item_guid: ObjectGuid::EMPTY,
+                    cast_item_id: 0,
+                    cast_item_level: -1,
+                    recalculate_mask: 0,
+                    charges: 0,
+                    base_amounts: vec![(0, 6), (1, -75), (2, 0)],
+                },
+            ));
+            auras.set_aura_cast_provenance_like_cpp(slot, provenance);
+            auras.visible_auras_to_update.insert(slot);
         })
         .expect("canonical selected sickness application");
     SPELL_ID

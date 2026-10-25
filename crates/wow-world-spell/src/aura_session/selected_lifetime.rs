@@ -46,7 +46,7 @@ fn expected_effect_types(spell_id: i32, sickness_spell_id: Option<i32>) -> Optio
     }
 }
 
-fn validate_application(
+pub(crate) fn validate_application(
     auras: &AuraSubsystem,
     spell_id: i32,
     slot: u8,
