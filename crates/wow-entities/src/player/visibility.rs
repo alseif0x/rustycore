@@ -34,6 +34,7 @@ impl Player {
                 values: self.active_data.clone(),
                 rest_info_change_masks: self.rest_info_change_masks,
             }),
+            derived_stats: self.derived_stats_values_update(include_active_player),
         }
     }
 }

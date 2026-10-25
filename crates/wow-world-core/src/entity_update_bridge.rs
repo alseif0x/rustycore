@@ -23,6 +23,7 @@ use wow_packet::packets::update::{
     UnitDataValuesDeltaUpdate, UpdateObject, VisibleItemValuesUpdate, VisualAnimValuesUpdate,
 };
 
+mod derived_stats;
 mod state_1;
 mod state_2;
 #[allow(unused_imports)]

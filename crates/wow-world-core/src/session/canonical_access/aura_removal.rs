@@ -755,6 +755,7 @@ impl SessionCore {
             }),
             player_data: None,
             active_player_data: None,
+            derived_stats: None,
         };
         if let Some(packet) = crate::entity_update_bridge::player_values_update_to_update_object(
             player_guid,

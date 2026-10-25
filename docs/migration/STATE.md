@@ -333,6 +333,42 @@ Los dos intentos anteriores terminaron exit 101 por mutabilidad del array
 fixture y una vida de referencia sin nombrar; los logs run1/run2 se conservan.
 Se revisaron además seis archivos con formato incidental del mismo macro.
 No hay check adicional, campaña final ni evidencia de runtime de esta unidad.
+El contraste del aplicador pendiente añade dos límites de fuente (03:06 UTC,
+sin nueva prueba): en el C++ objetivo, UpdateStats para INTELLECT no llama
+UpdateMaxPower, mientras UpdateAllStats sí lo hace para todos los poderes
+(`Entities/Unit/StatSystem.cpp:105–152,199–230,315–338`). AzerothCore sí
+actualiza el máximo de maná en ese primer camino; se conserva la operación
+del objetivo 3.4.3. Por tanto, el efecto 80 de sickness no debe aplicar sin
+distinción todos los máximos del planner de equipo. El resultado puro común
+no autoriza por sí solo esas mutaciones. Además, UpdateManaRegen solo escribe
+PowerRegenFlatModifier y PowerRegenInterruptedFlatModifier
+(`StatSystem.cpp:799–833`). La etiqueta legacy mana_regen_mp5 no demuestra un
+productor de ModPowerRegen: el campo figura para expansion < 2 en
+`UpdateFields.h:319`, sin escritor de gameplay encontrado. El nuevo transporte
+opt-in no ensuciará ese campo a partir de MP5. El brief inicial del integrador
+incluía ese mapeo erróneo; se corrigió antes de su integración y aceptación.
+9h2C añade el setter opt-in replace_effective_combat_stats_for_values y una
+proyección inmutable en PlayerValuesUpdate. Usa las máscaras Unit/ActivePlayer
+existentes y encola también el cambio exclusivo de ActivePlayerData. El bridge
+completa las secciones ya presentes, conserva los vitales de Unit y congela
+el índice de maná durante el seal Map; no escribe ModPowerRegen ni LocalFlags.
+El setter legacy no cambia, para evitar duplicar sus publicaciones antes de
+migrar los consumidores seleccionados. Feedback sobre `95cbf02a5` más delta,
+aarch64/jobs=1: `cargo test -p wow-entities --lib derived_stat` pasó tres casos,
+Core uno, Map uno y Visibility uno, con el mismo filtro y objetivo `--lib`.
+Logs finales `/tmp/rustycore-9h2c-wow-entities-derived-stat-r2.log`,
+`/tmp/rustycore-9h2c-wow-world-core-derived-stat-r2.log`,
+`/tmp/rustycore-9h2c-wow-map-derived-stat-r1.log` y
+`/tmp/rustycore-9h2c-wow-world-visibility-derived-stat-r2.log`, exit 0.
+Core ejercita Map → captura/clear → bridge/codificación y conserva los bytes
+tras mutar el Player; Visibility conserva Health público y retira los campos
+privados del observador. Los primeros intentos Entities fallaron por tipos
+mezclados en una macro y un fixture fuera de world; Visibility falló por Health
+sin cambio efectivo. Se corrigieron esos fixtures/código y se conservaron los
+logs fallidos. El worker también hizo checks separados de Entities y Core,
+exit 0, antes del feedback focalizado; no son una campaña adicional ni prueba
+del macro completo. La aplicación seleccionada de stats y sickness sigue
+pendiente; no se habilita una publicación global ni se declara aceptación final.
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa

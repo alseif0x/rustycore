@@ -870,6 +870,8 @@ mod creature_2;
 mod creature_3;
 #[path = "map_tests/creature_4.rs"]
 mod creature_4;
+#[path = "map_tests/derived_stats.rs"]
+mod derived_stats;
 #[path = "map_tests/gameobject_1.rs"]
 mod gameobject_1;
 #[path = "map_tests/gameobject_2.rs"]

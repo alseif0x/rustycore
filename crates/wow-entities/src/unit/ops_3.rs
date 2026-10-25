@@ -29,7 +29,7 @@ impl Unit {
             .object_mut()
             .add_to_object_update_if_needed();
     }
-    pub(super) fn mark_unit_data_array(
+    pub(crate) fn mark_unit_data_array(
         &mut self,
         parent_bit: usize,
         first_element_bit: usize,
@@ -41,7 +41,7 @@ impl Unit {
             .object_mut()
             .add_to_object_update_if_needed();
     }
-    pub(super) fn mark_unit_data_nested(&mut self, parent_bit: usize, bit: usize) {
+    pub(crate) fn mark_unit_data_nested(&mut self, parent_bit: usize, bit: usize) {
         self.unit_data_changes.set(parent_bit);
         self.unit_data_changes.set(bit);
         self.world_mut()

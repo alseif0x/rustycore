@@ -266,3 +266,58 @@ impl VisibilityState {
         sent
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wow_entities::{Player, PlayerEffectiveCombatStatsLikeCpp};
+
+    #[test]
+    fn derived_stat_fields_remain_owner_only_while_health_stays_public() {
+        let mut player = Player::new(Some(7), false);
+        player.unit_mut().set_max_health(100);
+        player.clear_data_changes();
+        player.unit_mut().set_health(50);
+        player.replace_effective_combat_stats_for_values(PlayerEffectiveCombatStatsLikeCpp {
+            stats: [1, 0, 0, 0, 0],
+            mainhand_expertise: 1.0,
+            ..Default::default()
+        });
+        let complete_update = player.values_update(true);
+
+        let mut owner_update = complete_update.clone();
+        filter_player_values_update_for_target_like_cpp(&mut owner_update, true);
+        let owner_unit = owner_update.unit_data.as_ref().unwrap();
+        assert!(owner_unit.mask.is_set(5), "Health is present for the owner");
+        assert!(
+            owner_unit.mask.is_set(175),
+            "derived Stats are present for the owner"
+        );
+        assert!(owner_update.active_player_data.is_some());
+        assert!(
+            owner_update
+                .active_player_data
+                .as_ref()
+                .unwrap()
+                .mask
+                .is_set(36)
+        );
+
+        let mut observer_update = complete_update;
+        filter_player_values_update_for_target_like_cpp(&mut observer_update, false);
+        let observer_unit = observer_update.unit_data.as_ref().unwrap();
+        assert!(
+            observer_unit.mask.is_set(5),
+            "public Health remains visible"
+        );
+        assert!(
+            !observer_unit.mask.is_set(175),
+            "derived Stats are owner-only"
+        );
+        assert!(observer_update.active_player_data.is_none());
+        assert_eq!(
+            observer_update.changed_object_type_mask & (1 << TYPEID_ACTIVE_PLAYER),
+            0
+        );
+    }
+}

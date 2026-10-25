@@ -36,6 +36,7 @@ impl SessionCore {
             }),
             player_data: None,
             active_player_data: None,
+            derived_stats: None,
         };
         player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), &update)
     }

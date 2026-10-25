@@ -41,3 +41,4 @@ fn mask_has_u64(mask: u64, bit: usize) -> bool {
 
 mod scenarios_1;
 mod scenarios_2;
+mod scenarios_3;

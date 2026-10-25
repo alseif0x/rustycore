@@ -48,7 +48,7 @@ mod world_local;
 pub use battleground::PlayerBattlegroundState;
 pub use cinematic::PlayerCinematicStateLikeCpp;
 pub use collection_state::PlayerCollectionStateLikeCpp;
-pub use effective_stats::PlayerEffectiveCombatStatsLikeCpp;
+pub use effective_stats::{PlayerDerivedStatValuesUpdate, PlayerEffectiveCombatStatsLikeCpp};
 pub use equipment_sets::PlayerEquipmentSetsLikeCpp;
 pub use item_modifiers::{
     PlayerItemBonusStateLikeCpp, PlayerItemLevelCapsLikeCpp, PlayerItemModifierRuntimeStateLikeCpp,
@@ -3531,6 +3531,7 @@ pub struct PlayerValuesUpdate {
     pub unit_data: Option<UnitDataUpdate>,
     pub player_data: Option<PlayerDataUpdate>,
     pub active_player_data: Option<ActivePlayerDataUpdate>,
+    pub derived_stats: Option<PlayerDerivedStatValuesUpdate>,
 }
 
 impl PlayerValuesUpdate {

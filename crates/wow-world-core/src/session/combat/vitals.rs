@@ -48,6 +48,7 @@ impl SessionCore {
             }),
             player_data: None,
             active_player_data: None,
+            derived_stats: None,
         };
 
         if let Some(packet) =

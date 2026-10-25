@@ -166,6 +166,14 @@ pub fn player_values_update_to_packet(
             Some(active_player_data_update_to_packet(active_player_data));
     }
 
+    if let Some(derived_stats) = &update.derived_stats {
+        super::derived_stats::merge(
+            derived_stats,
+            packet_update.unit_data.as_mut(),
+            packet_update.active_player_data.as_mut(),
+        );
+    }
+
     (packet_update.changed_object_type_mask != 0).then_some(packet_update)
 }
 
