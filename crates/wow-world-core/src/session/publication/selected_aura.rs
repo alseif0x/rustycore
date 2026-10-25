@@ -7,6 +7,10 @@ use crate::session::{directory::PlayerRegistry, mailbox::SendPlayerAuraUpdateCom
 use wow_core::ObjectGuid;
 use wow_map::{MapKey, MapManager, PlayerHandle, PlayerResidenceLikeCpp};
 
+#[cfg(test)]
+#[path = "../../../unit_tests/session/publication/selected_aura.rs"]
+mod tests;
+
 #[derive(Debug, Clone, Copy)]
 struct Recipient {
     guid: ObjectGuid,
@@ -27,6 +31,10 @@ pub struct PreparedSelectedAuraUpdate {
 }
 
 impl PreparedSelectedAuraUpdate {
+    pub(super) fn source_identity(&self) -> (ObjectGuid, PlayerHandle, Option<(MapKey, u64)>) {
+        (self.source_guid, self.source_handle, self.source_residence)
+    }
+
     pub fn packet_bytes(&self) -> &[u8] {
         &self.packet_bytes
     }

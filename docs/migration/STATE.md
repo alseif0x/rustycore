@@ -679,6 +679,28 @@ The controlled Save case exercises Applied and Unknown: deathTimer does not
 advance during the await; Unknown also preserves a teleport intent added
 during that await. Neither final acceptance nor live QA has been run.
 
+9i3C1 prepares selected AuraUpdates for one canonical Player. It resolves
+sickness from the current ChrRaces row, prepares every selected frame before
+clearing its pending slot, and preserves unrelated pending entries. Missing
+catalogs are unavailable when classification is required; a current Player
+with no pending entries needs no race lookup. The prepared publisher checks
+GUID, handle, residence, and active map identity again, drops the manager
+guard, sends directly to self, and then hands frozen observer candidates to
+the existing durable rail. Valid detached sources retain their existing
+self-only publication behavior. The global Ghost/Wisp collector and legacy
+expiry remain active until the next atomic countdown/snapshot integration.
+On code base `d494db074`, with documentation-only HEAD `891a734e5` plus the
+local delta, Spell check exited 0, Spell `selected_publication` passed eight
+cases, and Core `selected_aura` passed four, both exit 0. The eight Spell
+cases include three existing global-collector cases and five new cases.
+All commands ran sequentially on aarch64 with jobs=1 and the checkout target;
+logs are `/tmp/rustycore-9i3c1-check-spell-r1.log`,
+`/tmp/rustycore-9i3c1-test-spell-selected-publication-r1.log`, and
+`/tmp/rustycore-9i3c1-test-core-selected-aura-r1.log`. No retry, final campaign,
+runtime operation, or DB mutation was performed for this unit. The resumed
+worker reported `gpt-6.1-sol`, with effort not exposed; C1 is not attributed
+to Luna. The next implementation worker must use a fresh fixed Luna role.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa

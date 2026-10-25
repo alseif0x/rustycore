@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use crate::entity_update_bridge::player_values_update_to_update_object;
 use crate::session::mailbox::{SendIfVisibleLikeCppCommand, SessionCommand};
-use crate::session::{SessionCore, prepare_selected_aura_update};
+use crate::session::{PreparedSelectedAuraUpdate, SessionCore, prepare_selected_aura_update};
 use wow_core::{ObjectGuid, Position};
 use wow_entities::PlayerValuesUpdate;
 use wow_entities::VISIBILITY_RADIUS_LIKE_CPP as VISIBILITY_RADIUS;
@@ -123,6 +123,53 @@ impl PacketPublicationAccessLikeCpp<'_> {
             return true;
         };
         plan.deliver_observers_to_registry(registry);
+        true
+    }
+
+    /// Publish a prepared update directly to its current source Player before
+    /// handing the frozen observer decision to the established durable rails.
+    /// No directory lookup or delivery occurs while MapManager is borrowed.
+    pub fn publish_prepared_selected_aura_update(
+        &self,
+        prepared: &PreparedSelectedAuraUpdate,
+    ) -> bool {
+        let (guid, handle, residence) = prepared.source_identity();
+        if self.core.player_guid() != Some(guid) || self.core.player_handle_like_cpp != Some(handle)
+        {
+            return false;
+        }
+        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
+            return false;
+        };
+        let current = manager.lock().ok().is_some_and(|manager| {
+            use wow_map::PlayerResidenceLikeCpp;
+            let residence_matches = match manager.checked_player_residence_like_cpp(handle) {
+                Ok(PlayerResidenceLikeCpp::Detached) => residence.is_none(),
+                Ok(PlayerResidenceLikeCpp::Active(key)) => residence.is_some_and(|expected| {
+                    expected.0 == key
+                        && manager.player_active_residence_revision_like_cpp(handle)
+                            == Some(expected)
+                }),
+                Err(_) => false,
+            };
+            residence_matches
+                && manager.with_player_like_cpp(handle, |player| {
+                    let world = player.unit().world();
+                    player.guid() == guid
+                        && residence.is_none_or(|(key, _)| {
+                            world.object().is_in_world()
+                                && world.has_current_map()
+                                && wow_map::MapKey::new(world.map_id(), world.instance_id()) == key
+                        })
+                }) == Some(true)
+        });
+        if !current {
+            return false;
+        }
+        self.core.send_raw_packet(prepared.packet_bytes());
+        if let Some(registry) = self.core.player_registry() {
+            prepared.deliver_observers_to_registry(registry);
+        }
         true
     }
 

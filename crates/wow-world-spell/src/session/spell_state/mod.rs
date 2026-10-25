@@ -7,12 +7,14 @@ mod acquisition;
 mod cast;
 mod catalog;
 mod cooldown;
+mod selected_publication;
 mod shapeshift;
 mod spell;
 mod spellbook;
-mod selected_publication;
 
 pub use aura::{RepresentedShapeshiftMutationLikeCpp, shapeshift_form_of_spell_like_cpp};
 pub use aura_publication::{AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP, player_aura_info_like_cpp};
 pub use battle_pet_aura::represented_aura_effect_amounts_like_cpp;
-pub use selected_publication::collect_pending_selected_aura_updates;
+pub use selected_publication::{
+    collect_pending_selected_aura_updates, collect_player_pending_selected_aura_updates,
+};
