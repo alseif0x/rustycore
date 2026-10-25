@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, implementación previa a aceptación final — 2026-10-25, 06:27 UTC:**
+**#43, implementación previa a aceptación final — 2026-10-25, 06:47 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
 y productor desde hechizos están escritos y tienen feedback focalizado;
 **no hay aceptación final de este candidato**. El cálculo básico del productor
@@ -587,6 +587,21 @@ pasó 18 casos y `--lib death_timer` cuatro, exit 0, logs
 `/tmp/rustycore-9i1-death-timer-20261025.log`. Es preparación estructural
 para el corte admitido; no activa el ejecutor seleccionado ni demuestra
 aceptación del nuevo orden productivo.
+9i2 separa el prelude de respawns y su continuación en un DTO propietario
+de plan y resumen. El wrapper existente sigue llamando ambos inmediatamente:
+no hay aún una espera de recuperación ni cambia el orden de DB/publicación.
+Sobre `70c89baac` más delta, `cargo test -p world-server --lib map_tick`
+pasó seis casos, exit 0, con salida real retenida en
+`/tmp/rustycore-9i2-map-tick-rc-20261025.log`. El primer run también mostró
+seis verdes, pero su pipeline tee no retenía el exit de Cargo y no se usó
+como evidencia numérica. El check previo a renombrar los helpers termina
+en Finished dev (4 min 22 s), sin exit numérico retenido ni prueba del
+source renombrado; se conserva ese límite. El filtro adicional death_timer
+pasó uno, exit 0, ya incluido entre los seis; no añade otra identidad.
+Logs `/tmp/rustycore-9i2-check-20261025.log`,
+`/tmp/rustycore-9i2-map-tick-20261025.log` y
+`/tmp/rustycore-9i2-death-timer-20261025.log`. Todo es feedback de
+implementación, sin campaña final, runtime ni escrituras de DB.
 
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes

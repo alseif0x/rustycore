@@ -45,6 +45,26 @@ pub(crate) struct CanonicalMapSessionPassMapLikeCpp {
     pub(crate) participants: Vec<wow_map::MapSessionPassParticipantLikeCpp>,
 }
 
+/// The owned result of the admitted synchronous respawn prelude. The next
+/// producer step can inspect the plan and queued DB intents before consuming
+/// this value in the continuation.
+pub(crate) struct CanonicalMapRecoveryPrelude {
+    plan: wow_map::MapTickPlanLikeCpp,
+    summary: CanonicalSpawnGroupConditionTickSummaryLikeCpp,
+}
+
+impl CanonicalMapRecoveryPrelude {
+    /// The admitted map set used to prepare and resume this tick.
+    pub(crate) fn plan(&self) -> &wow_map::MapTickPlanLikeCpp {
+        &self.plan
+    }
+
+    /// Respawn DB intents and counts produced by the synchronous prelude.
+    pub(crate) fn summary(&self) -> &CanonicalSpawnGroupConditionTickSummaryLikeCpp {
+        &self.summary
+    }
+}
+
 /// A process-unique identity for one canonical map coordinator.
 ///
 /// Two coordinators would produce the same epoch sequence, so the epoch alone
@@ -122,11 +142,42 @@ pub(crate) fn canonical_map_tick_resume_with_creature_owner_like_cpp(
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
     creature_phase: Option<CanonicalMapCreaturePhaseLikeCpp<'_>>,
 ) -> Option<CanonicalSpawnGroupConditionTickSummaryLikeCpp> {
+    let prelude = prepare_map_recovery_prelude(
+        manager,
+        plan,
+        scheduler,
+        canonical_spawn_metadata,
+        condition_store,
+        map_store,
+        loaded_grid_creature_respawn_caches,
+    )?;
+    continue_map_recovery_prelude(
+        manager,
+        prelude,
+        canonical_spawn_metadata,
+        map_store,
+        loaded_grid_creature_respawn_caches,
+        creature_phase,
+    )
+}
+
+/// Run the existing respawn prelude while the manager still owns the same
+/// admitted tick. Invalid epochs are rejected before any respawn effects.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prepare_map_recovery_prelude(
+    manager: &mut wow_map::MapManager,
+    plan: wow_map::MapTickPlanLikeCpp,
+    scheduler: &mut CanonicalRespawnConditionSchedulerLikeCpp,
+    canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
+    condition_store: &wow_data::ConditionEntriesByTypeStore,
+    map_store: &wow_data::MapStore,
+    loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
+) -> Option<CanonicalMapRecoveryPrelude> {
     let effective_diff_ms = plan.effective_diff_ms();
     if manager.tick_coordination_like_cpp()
         != wow_map::MapTickCoordinationStateLikeCpp::AwaitingSessions(plan.epoch_like_cpp())
     {
-        // Respawn work is part of the same admitted tick.  Refuse it before
+        // Respawn work is part of the same admitted tick. Refuse it before
         // touching any map when the coordinator no longer owns that plan.
         return None;
     }
@@ -134,7 +185,7 @@ pub(crate) fn canonical_map_tick_resume_with_creature_owner_like_cpp(
     // the map's session pass and before ObjectUpdater (`Map.cpp:682-693`).
     // Keep that phase inside the admitted map incarnations, before the resume
     // method visits objects and captures SendObjectUpdates values.
-    let respawn_summary = canonical_map_tick_respawn_phase_like_cpp(
+    let summary = canonical_map_tick_respawn_phase_like_cpp(
         manager,
         plan.updated_maps_like_cpp(),
         effective_diff_ms,
@@ -144,17 +195,37 @@ pub(crate) fn canonical_map_tick_resume_with_creature_owner_like_cpp(
         map_store,
         loaded_grid_creature_respawn_caches,
     );
+    Some(CanonicalMapRecoveryPrelude { plan, summary })
+}
+
+/// Continue the same owned tick after its prelude. The manager's existing
+/// resume operation validates admitted map incarnations and runs the tick tail
+/// only when that plan successfully resumes.
+pub(crate) fn continue_map_recovery_prelude(
+    manager: &mut wow_map::MapManager,
+    prelude: CanonicalMapRecoveryPrelude,
+    canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
+    map_store: &wow_data::MapStore,
+    loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
+    creature_phase: Option<CanonicalMapCreaturePhaseLikeCpp<'_>>,
+) -> Option<CanonicalSpawnGroupConditionTickSummaryLikeCpp> {
+    if manager.tick_coordination_like_cpp()
+        != wow_map::MapTickCoordinationStateLikeCpp::AwaitingSessions(prelude.plan.epoch_like_cpp())
+    {
+        return None;
+    }
+
     let selected_aura_updates =
-        wow_world_spell::collect_pending_selected_aura_updates(manager, &plan);
+        wow_world_spell::collect_pending_selected_aura_updates(manager, &prelude.plan);
     if let Some(creature_phase) = creature_phase {
-        creature_phase(manager, &plan);
+        creature_phase(manager, &prelude.plan);
     }
     // The canonical map still carries an intentionally incomplete Creature
     // visitor. Production behaviour is owned by the legacy/session runtime;
     // declare that owner so this tick cannot mutate and discard a shadow plan.
     let resumed = manager
         .resume_tick_with_pool_update_loaded_grid_records_context_owner_and_selection_like_cpp(
-            plan,
+            prelude.plan,
             canonical_spawn_metadata.spawn_store(),
             canonical_spawn_metadata.pool_mgr_like_cpp(),
             |map, object_type, spawn_id| match object_type {
@@ -177,12 +248,7 @@ pub(crate) fn canonical_map_tick_resume_with_creature_owner_like_cpp(
         // mutated map state. Do not run or report the remaining tick tail.
         return None;
     }
-    canonical_map_tick_tail_like_cpp(
-        manager,
-        respawn_summary,
-        map_store,
-        selected_aura_updates,
-    )
+    canonical_map_tick_tail_like_cpp(manager, prelude.summary, map_store, selected_aura_updates)
 }
 
 pub(crate) fn canonical_map_update_tick_set_inactive_like_cpp(

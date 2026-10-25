@@ -35,10 +35,11 @@ fn empty_respawn_caches() -> LoadedGridCreatureRespawnCachesLikeCpp {
     }
 }
 
-#[test]
-fn map_tick_flushes_selected_aura_when_creature_owner_is_absent() {
+fn manager_with_pending_selected_aura(
+    guid_counter: i64,
+) -> (wow_map::MapManager, wow_map::PlayerHandle) {
     let key = wow_map::MapKey::new(571, 0);
-    let guid = ObjectGuid::create_player(1, 8_420_001);
+    let guid = ObjectGuid::create_player(1, guid_counter);
     let mut player = Box::new(Player::new(Some(1), false));
     player.unit_mut().world_mut().object_mut().create(guid);
     player.unit_mut().set_level(80);
@@ -78,13 +79,43 @@ fn map_tick_flushes_selected_aura_when_creature_owner_is_absent() {
     manager
         .attach_player_like_cpp(handle, key, Position::ZERO)
         .unwrap();
+    (manager, handle)
+}
 
-    let plan = canonical_map_tick_begin_like_cpp(&mut manager, 100)
-        .expect("canonical map tick begins");
-    let metadata = crate::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::default();
-    let conditions = wow_data::ConditionEntriesByTypeStore::default();
-    let maps = wow_data::MapStore::from_entries(std::iter::empty());
-    let caches = empty_respawn_caches();
+fn tick_inputs() -> (
+    crate::spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
+    wow_data::ConditionEntriesByTypeStore,
+    wow_data::MapStore,
+    LoadedGridCreatureRespawnCachesLikeCpp,
+) {
+    (
+        crate::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::default(),
+        wow_data::ConditionEntriesByTypeStore::default(),
+        wow_data::MapStore::from_entries(std::iter::empty()),
+        empty_respawn_caches(),
+    )
+}
+
+fn selected_aura_is_pending(manager: &wow_map::MapManager, handle: wow_map::PlayerHandle) -> bool {
+    manager
+        .with_player_like_cpp(handle, |player| {
+            player
+                .unit()
+                .subsystems()
+                .auras
+                .visible_auras_to_update
+                .contains(&7)
+        })
+        .unwrap()
+}
+
+#[test]
+fn map_tick_flushes_selected_aura_when_creature_owner_is_absent() {
+    let (mut manager, handle) = manager_with_pending_selected_aura(8_420_001);
+
+    let plan =
+        canonical_map_tick_begin_like_cpp(&mut manager, 100).expect("canonical map tick begins");
+    let (metadata, conditions, maps, caches) = tick_inputs();
     let mut scheduler = CanonicalRespawnConditionSchedulerLikeCpp::new(1_000);
 
     let summary = canonical_map_tick_resume_with_creature_owner_like_cpp(
@@ -105,12 +136,165 @@ fn map_tick_flushes_selected_aura_when_creature_owner_is_absent() {
         summary.selected_aura_updates[0].packet_bytes().get(..2),
         Some(aura_opcode.as_slice())
     );
-    assert!(manager
-        .with_player_like_cpp(handle, |player| player
-            .unit()
-            .subsystems()
-            .auras
-            .visible_auras_to_update
-            .is_empty())
-        .unwrap());
+    assert!(
+        manager
+            .with_player_like_cpp(handle, |player| player
+                .unit()
+                .subsystems()
+                .auras
+                .visible_auras_to_update
+                .is_empty())
+            .unwrap()
+    );
+}
+
+#[test]
+fn map_tick_recovery_prelude_continues_once_without_creature_owner() {
+    let (mut manager, handle) = manager_with_pending_selected_aura(8_420_002);
+    let plan =
+        canonical_map_tick_begin_like_cpp(&mut manager, 100).expect("canonical map tick begins");
+    let (metadata, conditions, maps, caches) = tick_inputs();
+    let mut scheduler = CanonicalRespawnConditionSchedulerLikeCpp::new(1_000);
+    let prelude = prepare_map_recovery_prelude(
+        &mut manager,
+        plan.plan,
+        &mut scheduler,
+        &metadata,
+        &conditions,
+        &maps,
+        &caches,
+    )
+    .expect("admitted respawn prelude is prepared");
+
+    assert_eq!(prelude.plan().epoch_like_cpp(), plan_epoch(&manager));
+    assert_eq!(prelude.summary().maps_evaluated, 0);
+    assert!(selected_aura_is_pending(&manager, handle));
+
+    let summary =
+        continue_map_recovery_prelude(&mut manager, prelude, &metadata, &maps, &caches, None)
+            .expect("prepared tick continues without a Creature callback");
+
+    assert_eq!(summary.selected_aura_updates.len(), 1);
+    assert!(!selected_aura_is_pending(&manager, handle));
+    assert_eq!(
+        manager.tick_coordination_like_cpp(),
+        wow_map::MapTickCoordinationStateLikeCpp::Idle
+    );
+}
+
+#[test]
+fn map_tick_prelude_rejects_stale_manager_epoch_before_effects() {
+    let (mut admitted_manager, _) = manager_with_pending_selected_aura(8_420_003);
+    let stale_plan = canonical_map_tick_begin_like_cpp(&mut admitted_manager, 100)
+        .expect("source map tick begins");
+    let (mut current_manager, current_handle) = manager_with_pending_selected_aura(8_420_004);
+    let (metadata, conditions, maps, caches) = tick_inputs();
+    let mut scheduler = CanonicalRespawnConditionSchedulerLikeCpp::new(1_000);
+
+    assert!(
+        prepare_map_recovery_prelude(
+            &mut current_manager,
+            stale_plan.plan,
+            &mut scheduler,
+            &metadata,
+            &conditions,
+            &maps,
+            &caches,
+        )
+        .is_none()
+    );
+    assert_eq!(
+        current_manager.tick_coordination_like_cpp(),
+        wow_map::MapTickCoordinationStateLikeCpp::Idle
+    );
+    assert!(selected_aura_is_pending(&current_manager, current_handle));
+}
+
+#[test]
+fn map_tick_continuation_rejects_stale_epoch_before_selected_collection_or_creature() {
+    let (mut prelude_manager, _) = manager_with_pending_selected_aura(8_420_005);
+    let plan = canonical_map_tick_begin_like_cpp(&mut prelude_manager, 100)
+        .expect("prelude source map tick begins");
+    let (metadata, conditions, maps, caches) = tick_inputs();
+    let mut scheduler = CanonicalRespawnConditionSchedulerLikeCpp::new(1_000);
+    let prelude = prepare_map_recovery_prelude(
+        &mut prelude_manager,
+        plan.plan,
+        &mut scheduler,
+        &metadata,
+        &conditions,
+        &maps,
+        &caches,
+    )
+    .expect("prelude source is admitted");
+
+    let (mut current_manager, current_handle) = manager_with_pending_selected_aura(8_420_006);
+    let mut creature_called = false;
+    let mut creature_phase = |_: &mut wow_map::MapManager, _: &wow_map::MapTickPlanLikeCpp| {
+        creature_called = true;
+    };
+    assert!(
+        continue_map_recovery_prelude(
+            &mut current_manager,
+            prelude,
+            &metadata,
+            &maps,
+            &caches,
+            Some(&mut creature_phase),
+        )
+        .is_none()
+    );
+
+    assert!(!creature_called);
+    assert!(selected_aura_is_pending(&current_manager, current_handle));
+    assert_eq!(
+        current_manager.tick_coordination_like_cpp(),
+        wow_map::MapTickCoordinationStateLikeCpp::Idle
+    );
+}
+
+#[test]
+fn map_tick_keeps_session_owned_death_timer_unchanged() {
+    let (mut manager, handle) = manager_with_pending_selected_aura(8_420_007);
+    manager
+        .with_player_mut_like_cpp(handle, |player| {
+            player
+                .resurrection_state_mut_like_cpp()
+                .death_timer_remaining_ms = 12_345;
+        })
+        .expect("canonical Player owner");
+
+    let plan =
+        canonical_map_tick_begin_like_cpp(&mut manager, 100).expect("canonical map tick begins");
+    let (metadata, conditions, maps, caches) = tick_inputs();
+    let mut scheduler = CanonicalRespawnConditionSchedulerLikeCpp::new(1_000);
+    let prelude = prepare_map_recovery_prelude(
+        &mut manager,
+        plan.plan,
+        &mut scheduler,
+        &metadata,
+        &conditions,
+        &maps,
+        &caches,
+    )
+    .expect("admitted respawn prelude is prepared");
+    let _summary =
+        continue_map_recovery_prelude(&mut manager, prelude, &metadata, &maps, &caches, None)
+            .expect("prepared map tick continues without a Creature callback");
+
+    assert_eq!(
+        manager
+            .with_player_like_cpp(handle, |player| player
+                .resurrection_state_like_cpp()
+                .death_timer_remaining_ms)
+            .expect("canonical Player owner"),
+        12_345
+    );
+}
+
+fn plan_epoch(manager: &wow_map::MapManager) -> u64 {
+    match manager.tick_coordination_like_cpp() {
+        wow_map::MapTickCoordinationStateLikeCpp::AwaitingSessions(epoch) => epoch,
+        state => panic!("prepared prelude should remain awaiting its session phase: {state:?}"),
+    }
 }
