@@ -951,6 +951,37 @@ difficulty rows and preserves existing amounts/targets. The fixed worker role
 spawn succeeded; the worker exposed no actual model/effort telemetry. Downstream
 builds, classifier/constructor activation, and final acceptance remain unexecuted.
 
+9i3C3d2b adds private pure selected-polarity and application-flag rules, without
+activating production callers. The classifier preserves pre-existing negativity,
+Source passive/debuff/buff/harmful/family/mechanic precedence, the seven selected
+aura types, and Transform's later-effect postpass. Whole-spell positivity is
+separate from the active application mask. Optional family/mechanic inputs and
+unknown effect metadata are required only when their Source branch needs them.
+Known enemy target 6 is backed by SpellInfo.cpp:249 and SharedDefines.h:2634;
+this is not the complete implicit-target engine.
+
+Stable signed CalcValue intervals preserve Source's int32-to-float-to-rounded
+base conversion. Required ambiguous, nonfinite, or out-of-range facts remain
+unavailable; no per-application polarity roll or new negativity cache is added.
+Transform checks implicit holes only within the source effect-vector bound,
+using their default targets. The complete _isPositiveTarget helper returns true
+for inactive effects (SpellInfo.cpp:4508–4514); an intermediate parent inference
+from the AURA_UNIQUE caller alone was corrected before accepting the rule.
+The flags builder implements self/nonfriendly ALL versus friendly ANY, uniform
+active-mask decisions without an unnecessary relationship lookup, and the exact
+NoCaster/cancelable/passive/scalable bits. Duration remains a wire projection.
+
+On `3cfd23d8e` plus the reviewed local delta, aarch64/jobs=1 Spell check and
+`--lib selected_flags` passed, exit 0, fifteen cases. Logs are
+`/tmp/rustycore-9i3c3d2b-check-retry2.log` and
+`/tmp/rustycore-9i3c3d2b-test-retry1.log`. Earlier check/test failures are retained
+in `-check.log` (postpass borrow) and `-test.log` (fixture GUID helper type), with
+the same prefix. The two new files were formatted; their unsuppressed unused
+private API warnings remain until integration. The fixed worker spawn succeeded;
+the worker reported GPT-6 without variant/effort telemetry. No existing producer,
+load, or publication caller uses these rules yet. Metadata resolver corrections,
+canonical caster connection, full acceptance, and the rest of #43 remain open.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -1147,6 +1178,18 @@ store, and reject a needed cycle instead of hanging or inventing a base row.
 A known metadata store without any row for the spell can still prove its
 Source default independently of the chain. This is a pending resolver correction,
 not evidence that the current zero-terminating selected helpers already do it.
+
+Constructor integration cut: Spell computes creation flags from the selected
+metadata and canonical caster facts; the existing application capability consumes
+them. Sickness currently supplies a fixed `0x15` in
+wow-world-application/src/aura_removal/sickness.rs, unlike Ghost/Wisp's existing
+flags argument. Replace that constant through the existing host/CX call chain,
+without making Application depend upward on Spell. The retained aura's original
+flags and captured level remain authoritative on refresh. Source
+Unit.cpp:3224–3280 and SpellAuras.cpp:341–383 refresh before creating a new Aura;
+do not introduce new friendship/level lookups as a prerequisite to refreshing an
+already matching application. This is the next connection contract, not an
+implemented change to those callers.
 
 9g escrito y revisado sobre `a6da440dac37aa377c23c71fb084accff3fa1764`
 más delta local: máscaras normalizadas con lookup SQL original, efectos

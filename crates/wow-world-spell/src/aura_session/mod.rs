@@ -29,6 +29,7 @@ mod duration;
 mod mount;
 mod publication;
 mod selected_caster;
+mod selected_flags;
 mod selected_lifetime;
 mod sources;
 
@@ -38,6 +39,11 @@ pub use duration::*;
 pub use mount::*;
 pub use publication::*;
 pub(super) use selected_caster::selected_caster_level;
+pub(crate) use selected_flags::{
+    SelectedAuraFlagsError, SelectedSpellMetadataFacts, SelectedSpellPolarity,
+    SelectedSpellPolarityError, build_selected_aura_application_flags,
+    classify_selected_spell_polarity,
+};
 pub(crate) use selected_lifetime::validate_application as validate_selected_aura_application;
 pub use selected_lifetime::*;
 pub use sources::*;
@@ -45,6 +51,10 @@ pub use sources::*;
 #[cfg(test)]
 #[path = "../../unit_tests/aura_session/selected_caster.rs"]
 mod selected_caster_tests;
+
+#[cfg(test)]
+#[path = "../../unit_tests/aura_session/selected_flags.rs"]
+mod selected_flags_tests;
 
 /// C++ `AuraApplication::_InitFlags` derives the selected aura sign from its
 /// active effect mask, rather than the sign of every effect in the spell.
