@@ -265,6 +265,28 @@ La inspección de `resurrection_request::process_after_teleport` añade que
 conservar ese nombre de fase no garantiza por sí solo no repetir efectos.
 El cierre debe distinguir preparación de ejecución iniciada y probar que un
 fallo parcial no repite publicaciones ni avanza a bones/guardado al reentrar.
+La misma revisión fija el orden de retirada seleccionada: C++
+`Unit::_UnapplyAura` llama `AuraApplication::_Remove` (AuraUpdate de retirada)
+antes de deshacer los efectos (`Unit.cpp:3479–3487`, `SpellAuras.cpp:100–107`).
+Application emitía Ghost/Wisp después de los cambios de velocidad; el arreglo
+seleccionado publicará una sola retirada tras la eliminación inicial validada
+y antes de sus efectos. No se extiende ese cambio a todo el motor de auras.
+9e implementa ese cambio y propaga los errores de retirada. La consulta de
+orden/completitud pertenece a AuraSubsystem; el adaptador World elimina los
+slots confirmados. Las continuaciones de request y teleport-revive distinguen
+Ready de InFlight y no repiten el tramo nativo iniciado tras un fallo.
+Feedback sobre `41674dddb` más el delta local, aarch64/jobs=1, 2026-10-25:
+`cargo test -p wow-world --lib ghost_wisp::resurrection` pasó cuatro casos,
+exit 0, log `/tmp/rustycore-9e-world-ghost-wisp-resurrection-final.log`;
+`resurrect_response` pasó otros cuatro, exit 0, log
+`/tmp/rustycore-9e-world-resurrect-response.log`.
+Los checks de wow-entities y wow-world-entities sin features por defecto,
+Application y World terminaron exit 0; logs `/tmp/rustycore-9e-*-check*.log`.
+El caso positivo nuevo falló dos veces por max_health=0 en el fixture;
+se inicializó a 1.000 y se repitió todo el grupo afectado, incluyendo
+aserciones de DeathState canónico en los casos de fallo. No se rebajó la
+aserción positiva. Esta evidencia no cubre aún las operaciones completas
+reclaim/healer/login ni DB/reinicio/relogin o aceptación final.
 
 Renovación Ghost/Wisp, 20:08 UTC, sobre `09451333d` más el delta local:
 se reutilizan slot, procedencia y aplicación canónica del mismo spell/caster,
@@ -349,6 +371,16 @@ del primer elemento coincidente. El `BTreeSet` canónico actual alteraría ese
 orden al proyectarlo al cliente. El cierre de ese participante utilizará una
 sola colección ordenada y la codificación dinámica SelfResSpells existente,
 incluida su limpieza al volver a Alive; todavía no está implementado.
+Para la limpieza nativa no basta con encolar trabajo de auras hasta el siguiente
+pase de Session: el mapa podría capturar VALUES con salud cero y máximos u
+otros efectos antiguos. El corte debe conservar la mutación canónica antes
+de SendObjectUpdates y diferir solo la entrega fuera del guard. Inventory ya
+construye `PlayerStatSystemInput` para un cálculo puro; se estudiará una sola
+aplicación común sobre hechos inmutables de estadísticas y catálogos acotados,
+usada tanto desde Session como desde el mapa. No se ha aprobado aún su corte
+de funciones ni implementado otra copia del cálculo. Las listas canónicas
+`AuraSubsystem.applied_auras/owned_auras` son Vec y conservan la inserción;
+permiten el orden estable por SpellID de `Unit.cpp:3350,4308` sin otro contador.
 
 Contraste de datos del productor, 2026-10-24: el diagnóstico opt-in mantenido
 `wow-data::spell_db2::tests::resurrection_effect_data` leyó el DataDir instalado

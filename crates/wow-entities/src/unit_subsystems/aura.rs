@@ -7,6 +7,8 @@
 
 use super::*;
 
+mod application_order;
+
 /// Minimal bridge for TrinityCore `Unit` aura containers.
 ///
 /// This is metadata/state only: it does not run aura scripts, periodic ticks, proc logic,

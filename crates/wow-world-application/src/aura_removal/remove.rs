@@ -12,11 +12,19 @@ impl AuraRemovalCxLikeCpp<'_> {
             self.spell_store.map(|store| store.as_ref()),
             slot,
         )?;
+        let selected_ghost_wisp = matches!(removed.aura.spell_id, 8_326 | 20_584);
+        if selected_ghost_wisp {
+            // C++ AuraApplication::_Remove publishes AuraUpdate before
+            // Unit::_UnapplyAura applies its effect-removal handlers.
+            self.publish_aura_removal_like_cpp(&removed);
+        }
         super::threat::remove_threat_phase_like_cpp(&mut self.player, &removed, self.consumer_test);
         self.remove_ghost_wisp_effects(&removed, prepared_ghost_wisp)?;
         self.remove_mount_control_phase_like_cpp(&removed);
         self.remove_movement_speed_phase_like_cpp(&removed);
-        self.publish_aura_removal_like_cpp(&removed);
+        if !selected_ghost_wisp {
+            self.publish_aura_removal_like_cpp(&removed);
+        }
         if removed.aura.spell_id == wow_world_core::session::SPELL_PVP_RULES_ENABLED_LIKE_CPP {
             let _ = self.item_scaling_phase_like_cpp();
         }

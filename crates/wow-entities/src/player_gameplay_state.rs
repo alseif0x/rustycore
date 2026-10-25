@@ -272,6 +272,7 @@ pub enum PlayerResurrectionPhase {
     TeleportInFlight,
     AwaitingTeleport,
     TeleportCompleted,
+    ResurrectPlayerReady,
     ResurrectPlayerInFlight,
     VisibilityInFlight,
     ApplyRequestValues,

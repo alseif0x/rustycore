@@ -8,6 +8,8 @@ mod observers;
 mod persistence;
 #[path = "ghost_wisp/recast.rs"]
 mod recast;
+#[path = "ghost_wisp/resurrection.rs"]
+mod resurrection;
 
 const GHOST: i32 = 8_326;
 const WISP: i32 = 20_584;

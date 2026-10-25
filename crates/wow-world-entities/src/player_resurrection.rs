@@ -34,7 +34,12 @@ pub async fn resurrect_player_like_cpp<H: CorpseHostLikeCpp>(
     restore_percent: f32,
     apply_sickness: bool,
 ) {
-    if !resurrect_player_native(host, restore_percent) {
+    if let Err(reason) = resurrect_player_native(host, restore_percent) {
+        warn!(
+            account = host.core().account_id,
+            reason,
+            "Native resurrection phase did not complete"
+        );
         return;
     }
     finish_resurrection_visibility(host, catalogs).await;
@@ -49,9 +54,9 @@ pub async fn resurrect_player_like_cpp<H: CorpseHostLikeCpp>(
 pub(crate) fn resurrect_player_native<H: CorpseHostLikeCpp>(
     host: &mut H,
     restore_percent: f32,
-) -> bool {
+) -> Result<(), &'static str> {
     if host.player_guid().is_none() {
-        return false;
+        return Err("Canonical Player identity is unavailable for resurrection");
     }
     // SetAreaSpiritHealer(nullptr)
     let _ = host.core().with_owned_player_mut_like_cpp(|player| {
@@ -72,8 +77,8 @@ pub(crate) fn resurrect_player_native<H: CorpseHostLikeCpp>(
 
     // This must be called always even on Players with race != RACE_NIGHTELF
     // in case of faction change.
-    host.remove_auras_due_to_spell_like_cpp(SPELL_WISP_SPIRIT_AURA_LIKE_CPP);
-    host.remove_auras_due_to_spell_like_cpp(SPELL_GHOST_LIKE_CPP);
+    host.remove_auras_due_to_spell_like_cpp(SPELL_WISP_SPIRIT_AURA_LIKE_CPP)?;
+    host.remove_auras_due_to_spell_like_cpp(SPELL_GHOST_LIKE_CPP)?;
 
     let has_recruiter_link =
         host.core().is_a_recruiter_like_cpp() || host.core().recruiter_id_like_cpp() != 0;
@@ -104,7 +109,7 @@ pub(crate) fn resurrect_player_native<H: CorpseHostLikeCpp>(
         }
     });
     if alive.is_none() {
-        return false;
+        return Err("Canonical Player disappeared before resurrection Alive transition");
     }
 
     // C++ adds this bit first so SetWaterWalking(false) always emits land-walk,
@@ -152,7 +157,7 @@ pub(crate) fn resurrect_player_native<H: CorpseHostLikeCpp>(
         player.values_update(true)
     });
     let Some(values_update) = restored else {
-        return false;
+        return Err("Canonical Player disappeared while publishing resurrection values");
     };
     host.sync_player_registry_state_like_cpp();
     host.core()
@@ -165,7 +170,7 @@ pub(crate) fn resurrect_player_native<H: CorpseHostLikeCpp>(
         host.update_zone_represented_like_cpp(zone_id, area_id);
     }
 
-    true
+    Ok(())
 }
 
 pub(crate) async fn finish_resurrection_visibility<H: CorpseHostLikeCpp>(

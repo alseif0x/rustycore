@@ -65,7 +65,7 @@ pub trait CorpseHostLikeCpp: PlayerMovementHostLikeCpp {
         &self,
     ) -> Option<std::sync::Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>>;
     /// C++ `Unit::RemoveAurasDueToSpell(spellId)`.
-    fn remove_auras_due_to_spell_like_cpp(&mut self, spell_id: i32) -> usize;
+    fn remove_auras_due_to_spell_like_cpp(&mut self, spell_id: i32) -> Result<usize, &'static str>;
     /// C++ `Player::DurabilityLossAll(0.25f, true)`.
     fn apply_spirit_healer_durability_loss(&mut self);
     /// C++ `Player::HasSpell`.

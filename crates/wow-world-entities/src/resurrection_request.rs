@@ -72,7 +72,7 @@ pub(crate) fn begin_teleport_revive(
             position,
             restore_percent: 0.5,
         },
-        phase: PlayerResurrectionPhase::ResurrectPlayerInFlight,
+        phase: PlayerResurrectionPhase::ResurrectPlayerReady,
     };
     let canonical = host
         .core()
@@ -263,6 +263,7 @@ pub fn mark_player_resurrection_teleport_completed(
             PlayerResurrectionPhase::TeleportCompleted,
         ),
         PlayerResurrectionPhase::TeleportCompleted
+        | PlayerResurrectionPhase::ResurrectPlayerReady
         | PlayerResurrectionPhase::ResurrectPlayerInFlight
         | PlayerResurrectionPhase::VisibilityInFlight
         | PlayerResurrectionPhase::ApplyRequestValues
@@ -323,6 +324,7 @@ pub(crate) async fn process_after_teleport(
     if matches!(
         continuation.phase,
         PlayerResurrectionPhase::VisibilityInFlight
+            | PlayerResurrectionPhase::ResurrectPlayerInFlight
             | PlayerResurrectionPhase::AuraInFlight
             | PlayerResurrectionPhase::BonesInFlight
             | PlayerResurrectionPhase::SavingPlayer
@@ -350,15 +352,28 @@ pub(crate) async fn process_after_teleport(
         if !advance_phase(
             host,
             PlayerResurrectionPhase::TeleportCompleted,
+            PlayerResurrectionPhase::ResurrectPlayerReady,
+        ) {
+            return false;
+        }
+        continuation.phase = PlayerResurrectionPhase::ResurrectPlayerReady;
+    }
+
+    if continuation.phase == PlayerResurrectionPhase::ResurrectPlayerReady {
+        if !advance_phase(
+            host,
+            PlayerResurrectionPhase::ResurrectPlayerReady,
             PlayerResurrectionPhase::ResurrectPlayerInFlight,
         ) {
             return false;
         }
         continuation.phase = PlayerResurrectionPhase::ResurrectPlayerInFlight;
-    }
-
-    if continuation.phase == PlayerResurrectionPhase::ResurrectPlayerInFlight {
-        if !super::player_resurrection::resurrect_player_native(host, 0.0) {
+        if let Err(reason) = super::player_resurrection::resurrect_player_native(host, 0.0) {
+            tracing::warn!(
+                account = host.core().account_id,
+                reason,
+                "Resurrection request native phase did not complete"
+            );
             return false;
         }
         if !advance_phase(
@@ -528,10 +543,23 @@ pub(crate) async fn run_teleport_revive(
     else {
         return false;
     };
-    if continuation.phase != PlayerResurrectionPhase::ResurrectPlayerInFlight {
+    if continuation.phase != PlayerResurrectionPhase::ResurrectPlayerReady {
         return false;
     }
-    if !super::player_resurrection::resurrect_player_native(host, restore_percent) {
+    if !advance_phase(
+        host,
+        PlayerResurrectionPhase::ResurrectPlayerReady,
+        PlayerResurrectionPhase::ResurrectPlayerInFlight,
+    ) {
+        return false;
+    }
+    if let Err(reason) = super::player_resurrection::resurrect_player_native(host, restore_percent)
+    {
+        tracing::warn!(
+            account = host.core().account_id,
+            reason,
+            "Teleport resurrection native phase did not complete"
+        );
         return false;
     }
     if !advance_phase(
