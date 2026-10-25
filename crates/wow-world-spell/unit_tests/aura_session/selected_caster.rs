@@ -74,6 +74,66 @@ fn detached_self_caster_uses_canonical_level_without_spell_levels() {
 }
 
 #[test]
+fn self_and_non_unit_fallback_do_not_require_active_owner_map_facts() {
+    let mut manager = manager_with_maps(&[MAP]);
+    let owner_guid = ObjectGuid::create_player(1, 91_030);
+    let owner = add_player(&mut manager, owner_guid, 73, Some(MAP));
+    manager
+        .with_player_mut_like_cpp(owner, |player| {
+            player.unit_mut().world_mut().object_mut().remove_from_world();
+            player.unit_mut().world_mut().reset_map().unwrap();
+        })
+        .unwrap();
+    let levels = spell_levels([level_entry(1, SPELL_ID, 0, 44)]);
+
+    assert_eq!(
+        selected_caster_level(&manager, owner, owner_guid, SPELL_ID, 0, None, None),
+        Ok(73),
+    );
+    assert_eq!(
+        selected_caster_level(
+            &manager,
+            owner,
+            ObjectGuid::EMPTY,
+            SPELL_ID,
+            0,
+            Some(&levels),
+            None,
+        ),
+        Ok(44),
+    );
+}
+
+#[test]
+fn known_out_of_world_player_without_map_assignment_uses_spell_level_fallback() {
+    let mut manager = manager_with_maps(&[MAP]);
+    let owner_guid = ObjectGuid::create_player(1, 91_031);
+    let caster_guid = ObjectGuid::create_player(1, 91_032);
+    let owner = add_player(&mut manager, owner_guid, 70, Some(MAP));
+    let caster = add_player(&mut manager, caster_guid, 52, Some(MAP));
+    manager
+        .with_player_mut_like_cpp(caster, |player| {
+            player.unit_mut().world_mut().object_mut().remove_from_world();
+            player.unit_mut().world_mut().reset_map().unwrap();
+        })
+        .unwrap();
+    let levels = spell_levels([level_entry(1, SPELL_ID, 0, 44)]);
+
+    assert_eq!(
+        selected_caster_level(
+            &manager,
+            owner,
+            caster_guid,
+            SPELL_ID,
+            0,
+            Some(&levels),
+            None,
+        ),
+        Ok(44),
+    );
+}
+
+#[test]
 fn assigned_owner_need_not_be_in_world_to_resolve_same_map_player() {
     let mut manager = manager_with_maps(&[MAP]);
     let owner_guid = ObjectGuid::create_player(1, 91_002);

@@ -33,6 +33,7 @@ pub(crate) mod selected_catalog;
 mod selected_flags;
 mod selected_lifetime;
 mod selected_metadata;
+mod selected_reaction;
 mod sources;
 
 pub use application::*;
@@ -41,6 +42,7 @@ pub use duration::*;
 pub use mount::*;
 pub use publication::*;
 pub(super) use selected_caster::selected_caster_level;
+pub(crate) use selected_reaction::selected_caster_is_friendly;
 pub(crate) use selected_flags::{
     SelectedAuraFlagsError, SelectedSpellMetadataFacts, SelectedSpellPolarity,
     SelectedSpellPolarityError, build_selected_aura_application_flags,

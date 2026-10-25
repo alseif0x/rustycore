@@ -11,7 +11,7 @@ use wow_entities::PlayerReputationStateLikeCpp;
 use wow_progression::ReputationMgrLikeCpp;
 
 mod rules;
-pub use rules::resolve_faction_reaction;
+pub use rules::{resolve_faction_reaction, resolve_faction_reaction_with_raid};
 
 #[derive(Clone, Copy)]
 pub struct FactionReactionCatalogs<'a> {
@@ -60,6 +60,7 @@ pub enum FactionReactionError {
     UnknownFriendshipReactionStore,
     UnknownSourcePlayerOwner,
     UnknownTargetPlayerOwner,
+    UnknownRaidRelation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -2,7 +2,10 @@ use super::super::{
     FactionReactionCatalogs, FactionReactionError, FactionReactionOwner,
     RepresentedFactionReactionInputLikeCpp, RepresentedGetReactionInputLikeCpp,
 };
-use super::{resolve_faction_reaction, resolve_faction_template_reaction};
+use super::{
+    resolve_faction_reaction, resolve_faction_reaction_with_raid,
+    resolve_faction_template_reaction,
+};
 use wow_constants::reputation::ReputationFlagsLikeCpp;
 use wow_data::progression_rewards::{
     FACTION_TEMPLATE_FLAG_CONTESTED_GUARD_LIKE_CPP, FactionEntry, FactionStore,
@@ -417,5 +420,86 @@ fn faction_reaction_uses_stock_rank_for_known_empty_friendship_reactions() {
             catalogs(Some(&factions), Some(&templates), None),
         ),
         Err(FactionReactionError::UnknownFriendshipReactionStore)
+    );
+}
+
+#[test]
+fn faction_reaction_resolves_raid_only_at_its_source_order_position() {
+    use std::cell::Cell;
+
+    let templates = templates(false);
+    let empty_templates = FactionTemplateStore::from_entries(Vec::<FactionTemplateEntry>::new());
+    let mut source_state = PlayerReputationStateLikeCpp::default();
+    source_state.set_forced_reaction_like_cpp(930, Some(ReputationRankLikeCpp::Friendly));
+    let target_state = PlayerReputationStateLikeCpp::default();
+    let mut forced = upper_input();
+    forced.self_has_player_owner = true;
+    forced.target_has_player_owner = true;
+    forced.self_unit_player_controlled = true;
+    forced.target_unit_player_controlled = true;
+    let forced_raid_calls = Cell::new(0);
+    assert_eq!(
+        resolve_faction_reaction_with_raid(
+            forced,
+            Some(owner(&source_state)),
+            Some(owner(&target_state)),
+            catalogs(None, Some(&templates), None),
+            || {
+                forced_raid_calls.set(forced_raid_calls.get() + 1);
+                Err(FactionReactionError::UnknownRaidRelation)
+            },
+        ),
+        Ok(ReputationRankLikeCpp::Friendly)
+    );
+    assert_eq!(forced_raid_calls.get(), 0);
+
+    let mut duel = upper_input();
+    duel.self_has_player_owner = true;
+    duel.target_has_player_owner = true;
+    duel.self_unit_player_controlled = true;
+    duel.target_unit_player_controlled = true;
+    duel.duel_in_progress = true;
+    let duel_raid_calls = Cell::new(0);
+    assert_eq!(
+        resolve_faction_reaction_with_raid(
+            duel,
+            Some(owner(&target_state)),
+            Some(owner(&target_state)),
+            catalogs(None, Some(&templates), None),
+            || {
+                duel_raid_calls.set(duel_raid_calls.get() + 1);
+                Err(FactionReactionError::UnknownRaidRelation)
+            },
+        ),
+        Ok(ReputationRankLikeCpp::Hostile)
+    );
+    assert_eq!(duel_raid_calls.get(), 0);
+
+    let mut controlled_ffa = upper_input();
+    controlled_ffa.self_has_player_owner = true;
+    controlled_ffa.target_has_player_owner = true;
+    controlled_ffa.self_unit_player_controlled = true;
+    controlled_ffa.target_unit_player_controlled = true;
+    controlled_ffa.self_ffa_pvp = true;
+    controlled_ffa.target_ffa_pvp = true;
+    assert_eq!(
+        resolve_faction_reaction_with_raid(
+            controlled_ffa,
+            Some(owner(&target_state)),
+            Some(owner(&target_state)),
+            catalogs(None, Some(&empty_templates), None),
+            || Err(FactionReactionError::UnknownRaidRelation),
+        ),
+        Err(FactionReactionError::UnknownRaidRelation)
+    );
+    assert_eq!(
+        resolve_faction_reaction_with_raid(
+            controlled_ffa,
+            Some(owner(&target_state)),
+            Some(owner(&target_state)),
+            catalogs(None, Some(&empty_templates), None),
+            || Ok(true),
+        ),
+        Ok(ReputationRankLikeCpp::Friendly)
     );
 }

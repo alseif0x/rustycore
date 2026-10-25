@@ -14,9 +14,9 @@ World consumer and Server coordinator have focused coding feedback.
 9i3C3c connects the scalar wire projection to pending deltas and initial full
 updates, including rejection in login/worldport callers when preparation fails.
 9i3C3d3b connects creation flags for fresh selected auras and preserves refresh
-provenance when creation-only facts are unavailable. Load, complete indexed
-effect metadata, charge consumers, and canonical friendly-caster resolution
-remain pending.
+provenance when creation-only facts are unavailable. 9i3C3d3c connects canonical
+foreign-caster reaction to that constructor and has focused consumer feedback.
+Load, complete indexed effect metadata, and charge consumers remain pending.
 The integration adds neither another clock nor another Player authority.
 
 Four blocks remain within the same macro:
@@ -1073,6 +1073,49 @@ GPT-6 without exact variant/effort telemetry. Source SHA and affected reference
 files were rechecked unchanged. No final campaign, live/DB action, capture,
 publication, deployment, or #43 completion is established by this checkpoint.
 
+9i3C3d3c connects the canonical foreign-caster reaction to selected construction.
+Player, Creature, and Pet reads remain borrowed under the existing manager
+guard; source and target affecting Players supply their own reputation facts.
+Level and relationship preparation share that guard and return owned values.
+The shared Core algorithm now accepts a lazy raid fact at its original branch;
+its existing API supplies the existing known boolean. Forced reaction and duel
+can therefore decide before an unavailable later raid fact. No new Session,
+Player clone, directory lookup, lock, or mutable reaction authority is added.
+
+Self level and non-Unit fallback do not require map assignment. A known
+out-of-world foreign Player is absent before map-consistency checks; an
+inconsistent in-world body holds. Pet control selects a nonempty charmer before
+checking the owner branch, including an otherwise conflicting unused Pet owner.
+The inherited raid wrapper compares current groups, helpful-raid Creature flags,
+or raw Creature faction-template values as appropriate. These are explicit
+source-order and lookup corrections, not a move-only change. Source anchors at
+the pinned SHA are Object.cpp:2230–2275,2709–2864; ObjectAccessor.cpp:206–239;
+Unit.cpp:11401–11419; Unit.h:834,1160–1165; and Player.cpp:2139.
+
+On `b28bf8038` plus the reviewed delta, sequential aarch64/jobs=1 worker feedback
+passed Core and Spell checks and 31 focused cases: Core faction_reaction (8),
+Spell selected_caster (12), Spell selected_reaction (10), and World
+selected_caster_reaction (1). The World case runs the actual selected producer,
+Session recovery, and AuraUpdate serializer: friendly group base/wire flags
+0x102/0x106, hostile duel 0x10/0x14, and captured caster level 44. It also
+refreshes after relationship data becomes unavailable and retains the original
+application flags and provenance. This is not a Server-coordinator or live test.
+Logs under `/tmp/rustycore-9i3c3d3c-` are `core-check.log`,
+`core-faction-reaction.log`, `spell-check-final.log`,
+`spell-selected-caster-retry2.log`, `spell-selected-reaction-final2.log`, and
+`world-selected-caster-reaction-final.log`, all exit 0. Filename suffixes do not
+denote the final acceptance profile. Earlier compilation and fixture failures
+required repairs; the first World execution failed its retained wire assertion.
+The corrected World fixture preserves Ghost/Wisp metadata alongside sickness
+and keeps its SpellStore and raw Misc attributes consistent. Those repairs
+were made together; no isolated cause for the missing packet was established.
+The original failed Spell check log was overwritten, so it is not retained
+evidence. The failed Spell test compilation and World retry2 logs remain.
+The fixed worker-role spawn succeeded; exact variant/effort self-telemetry was
+unavailable. Load, indexed metadata, charge consumers, and the other macro
+requirements remain open. No final campaign, capture, runtime/DB mutation,
+publication, deployment, or issue completion is established by this checkpoint.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -1225,7 +1268,8 @@ mixed-polarity constructor contract; do not pretend an unresolved caster is
 hostile to obtain the uniform result. Evidence is the existing file-data log
 `/tmp/9g-data-ghost-wisp-load-boundary-items.log:248–250`, not a new effective
 SQL-overlay run or a client capture. Fresh construction is repaired by
-9i3C3d3b; load and mixed foreign-caster integration remain pending.
+9i3C3d3b, and mixed foreign-caster construction is connected by 9i3C3d3c.
+The load constructor remains pending.
 
 Constructor reaction decision, 2026-10-25: reuse the existing Core faction
 reaction algorithm through a transient borrowed input, rather than copying it
@@ -1258,9 +1302,24 @@ shared identity, Player group relation, helpful-raid Creature static flag,
 or Creature faction equality, in that order. Its Player comparison uses
 IsInSameRaidWith and current Group identity (Player.cpp:2139), not OriginalGroup.
 Calling only the Player helper would omit the represented control branches.
+The final Creature/Creature comparison uses raw FactionTemplate values:
+Unit.h:834 defines GetFaction as that uint32 field, not the faction joined
+through FactionTemplateEntry. It requires no faction catalog. Preserve the
+stored field's bits when forming reaction inputs. Canonical owner identity
+validation precedes self lookup, but self level and non-Unit fallback must not
+require map facts; known out-of-world foreign Players are absent before any
+map-assignment comparison (ObjectAccessor.cpp:233–239).
+
+The adapter must also preserve forced-reaction and duel decisions before the
+inherited raid lookup. The selected control graph can be unavailable at that
+later lookup. Keep one Core algorithm and provide a narrow lazy raid-fact
+callback at its existing raid branch; the legacy entry supplies its existing
+known boolean. A needed unknown raid fact holds, while an earlier forced,
+same-owner, or duel decision does not request it. 9i3C3d3c connects this callback
+inside the current macro, without a second reaction algorithm or authority.
 The selected effect polarity remains a separate SpellInfo decision from
-friendly-caster application flags. The canonical friendly-caster adapter remains
-pending; the checkpointed pure rules and fresh consumers do not complete the
+friendly-caster application flags. The connected canonical adapter and its
+checkpointed fresh consumer feedback do not complete the
 general faction, summon, or aura engines.
 
 Selected metadata follow-up, 2026-10-25: keep cast difficulty distinct from the
@@ -1291,6 +1350,21 @@ so retaining inert rows does not accidentally activate them in unrelated casts.
 The completed key/field-chain tests do not establish this effect inheritance.
 This remains required selected metadata work before macro acceptance.
 
+Resolver ownership decision: Core's selected save adapters also read the
+legacy effect and attribute helpers. Put shared spell difficulty traversal,
+exact attribute resolution, and indexed effect-row resolution in Data; retain
+Spell's private aliases for its current callers. Core must not depend on Spell
+for catalog facts. The existing per-difficulty collection will retain inert
+winning rows, with an active prefix for its borrowed legacy projection.
+Highest-RecordID slot selection is an explicit common metadata correction,
+not a behavior-preserving move. No additional mutable effect catalog is needed.
+Dynamic base payloads may supply their existing explicit effect vector only
+when no raw per-difficulty rows for that spell exist; they must not mask a
+known missing or inert raw row. A malformed duplicate/index in a dynamic vector
+must remain unavailable rather than becoming a newly accepted selected Aura.
+Source identity, activation, capture, and save consumers still need integration
+and evidence after this Data cut; moving the resolver alone is not completion.
+
 Constructor integration cut, connected by 9i3C3d3b: Spell computes flags from selected
 metadata and canonical caster facts; the existing application capability consumes
 them. The fixed sickness `0x15` in Application is retired through the existing
@@ -1298,8 +1372,8 @@ host/CX call chain, without coupling Application to the classifier. The retained
 flags and captured level remain authoritative on refresh. Source
 Unit.cpp:3224–3280 and SpellAuras.cpp:341–383 refresh before creating a new Aura;
 do not introduce new friendship/level lookups as a prerequisite to refreshing an
-already matching application. The canonical foreign relationship remains
-unfinished; the creation/refresh boundary itself is connected.
+already matching application. 9i3C3d3c connects the canonical foreign relationship
+through the same creation/refresh boundary.
 
 Refresh/creation boundary decision: carry selected creation preparation as an
 owned Result of computed flags and the existing AuraCastProvenance through the
@@ -1312,10 +1386,10 @@ without rejecting a valid refresh or removing its previous application. This
 avoids a separate preflight query whose refresh decision could become stale
 between canonical borrows. Application receives primitive computed flags and
 existing provenance; it does not depend on Spell's classifier. Caster level
-is captured under one borrowed manager guard. The pending foreign relationship
-adapter must capture its facts in that same guard; all guards must be released
-before publication. The connected boundary is covered by 9i3C3d3b; this does
-not establish the pending relationship consumer.
+is captured under one borrowed manager guard. The connected foreign relationship
+adapter captures its facts in that same guard; all guards must be released
+before publication. The boundary is covered by 9i3C3d3b and its foreign
+relationship consumer by 9i3C3d3c; load remains a separate pending constructor.
 
 Selected charge consumer review: the legacy AuraOptions helper clamps signed
 ProcCharges into u8, whereas Source preserves its uint32 assignment and final

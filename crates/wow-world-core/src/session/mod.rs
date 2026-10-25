@@ -134,6 +134,7 @@ pub use faction_reactions::{
     AttackReputationFactionSnapshotLikeCpp, FactionReactionCatalogs, FactionReactionError,
     FactionReactionOwner, RepresentedFactionReactionInputLikeCpp,
     RepresentedGetReactionInputLikeCpp, ReputationGainSourceLikeCpp, resolve_faction_reaction,
+    resolve_faction_reaction_with_raid,
 };
 mod combat;
 pub use combat::{

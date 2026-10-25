@@ -19,6 +19,18 @@ pub fn resolve_faction_reaction(
     target_owner: Option<FactionReactionOwner<'_>>,
     catalogs: FactionReactionCatalogs<'_>,
 ) -> Result<ReputationRankLikeCpp, FactionReactionError> {
+    resolve_faction_reaction_with_raid(input, source_owner, target_owner, catalogs, || {
+        Ok(input.same_raid)
+    })
+}
+
+pub fn resolve_faction_reaction_with_raid(
+    input: RepresentedGetReactionInputLikeCpp,
+    source_owner: Option<FactionReactionOwner<'_>>,
+    target_owner: Option<FactionReactionOwner<'_>>,
+    catalogs: FactionReactionCatalogs<'_>,
+    raid_relation: impl FnOnce() -> Result<bool, FactionReactionError>,
+) -> Result<ReputationRankLikeCpp, FactionReactionError> {
     use ReputationRankLikeCpp::{Friendly, Hostile, Neutral};
 
     if input.same_object {
@@ -64,7 +76,7 @@ pub fn resolve_faction_reaction(
             if input.duel_in_progress {
                 return Ok(Hostile);
             }
-            if input.same_raid {
+            if raid_relation()? {
                 return Ok(Friendly);
             }
         }

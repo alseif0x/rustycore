@@ -1,8 +1,9 @@
 use wow_core::ObjectGuid;
 use wow_data::{DifficultyStore, SpellLevelsStore};
-use wow_map::{MapKey, MapManager, PlayerHandle};
+use wow_map::{MapManager, PlayerHandle};
 
 use super::selected_catalog::{SelectedCatalogError, selected_spell_level};
+use super::selected_reaction::{selected_owner_context, selected_owner_map, with_unit_in_map};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SelectedCasterLevelError {
@@ -12,6 +13,7 @@ pub(crate) enum SelectedCasterLevelError {
     SpellLevelsUnavailable,
     DifficultyUnavailable,
     DifficultyCycle,
+    ReactionUnavailable,
 }
 
 /// Resolve the caster level retained by a newly-created selected Aura.
@@ -29,122 +31,21 @@ pub(crate) fn selected_caster_level(
     spell_levels: Option<&SpellLevelsStore>,
     difficulties: Option<&DifficultyStore>,
 ) -> Result<u8, SelectedCasterLevelError> {
-    let Some((current_owner, _)) = manager.current_player_admission_like_cpp(owner.guid()) else {
-        return Err(SelectedCasterLevelError::OwnerUnavailable);
-    };
-    if current_owner != owner {
-        return Err(SelectedCasterLevelError::OwnerUnavailable);
-    }
-
-    let owner_snapshot = manager
-        .with_player_like_cpp(owner, |player| {
-            let world = player.unit().world();
-            let assigned_map = world
-                .has_current_map()
-                .then(|| MapKey::new(world.map_id(), world.instance_id()));
-            let owner_map_membership_matches = assigned_map.is_some_and(|key| {
-                manager
-                    .find_map(key.map_id, key.instance_id)
-                    .and_then(|managed| managed.map().get_typed_player(owner.guid()))
-                    .is_some_and(|member| std::ptr::eq(player, member))
-            });
-            (
-                player.guid() == owner.guid(),
-                player.unit().data().level,
-                assigned_map,
-                owner_map_membership_matches,
-            )
-        })
-        .ok_or(SelectedCasterLevelError::OwnerUnavailable)?;
-    if !owner_snapshot.0 {
-        return Err(SelectedCasterLevelError::OwnerUnavailable);
-    }
+    let owner_snapshot = selected_owner_context(manager, owner)?;
 
     if raw_caster_guid == owner.guid() {
-        return Ok(owner_snapshot.1 as u8);
+        return Ok(owner_snapshot.level);
     }
 
     if !raw_caster_guid.is_unit() {
         return spell_level_fallback(spell_id, difficulty_id, spell_levels, difficulties);
     }
 
-    let owner_map_key = owner_snapshot
-        .2
-        .filter(|_| owner_snapshot.3)
-        .ok_or(SelectedCasterLevelError::OwnerMapUnavailable)?;
-    let owner_map = manager
-        .find_map(owner_map_key.map_id, owner_map_key.instance_id)
-        .ok_or(SelectedCasterLevelError::OwnerMapUnavailable)?;
-
-    if raw_caster_guid.is_player() {
-        let Some((source_handle, _)) = manager.current_player_admission_like_cpp(raw_caster_guid)
-        else {
-            return spell_level_fallback(spell_id, difficulty_id, spell_levels, difficulties);
-        };
-        let source = manager
-            .with_player_like_cpp(source_handle, |player| {
-                let world = player.unit().world();
-                let source_map_key = world
-                    .has_current_map()
-                    .then(|| MapKey::new(world.map_id(), world.instance_id()));
-                let map_membership_matches = source_map_key.is_some_and(|key| {
-                    manager
-                        .find_map(key.map_id, key.instance_id)
-                        .and_then(|source_map| {
-                            source_map
-                                .map()
-                                .get_typed_player(raw_caster_guid)
-                                .map(|member| (source_map, member))
-                        })
-                        .is_some_and(|(source_map, member)| {
-                            std::ptr::eq(player, member)
-                                && (key != owner_map_key
-                                    || std::ptr::eq(owner_map.map(), source_map.map()))
-                        })
-                });
-                (
-                    player.guid() == raw_caster_guid,
-                    source_map_key,
-                    world.object().is_in_world(),
-                    map_membership_matches,
-                    player.unit().data().level as u8,
-                )
-            })
-            .ok_or(SelectedCasterLevelError::CasterUnavailable)?;
-        if !source.0 {
-            return Err(SelectedCasterLevelError::CasterUnavailable);
-        }
-        if !source.2 {
-            return spell_level_fallback(spell_id, difficulty_id, spell_levels, difficulties);
-        }
-        if let Some(source_map_key) = source.1 {
-            if !source.3 {
-                return Err(SelectedCasterLevelError::CasterUnavailable);
-            }
-            if source_map_key == owner_map_key {
-                return Ok(source.4);
-            }
-        } else {
-            return Err(SelectedCasterLevelError::CasterUnavailable);
-        }
-    } else if let Some(level) =
-        owner_map
-            .map()
-            .with_creature_or_pet_like_cpp(raw_caster_guid, |creature, _owner_guid| {
-                let world = creature.unit().world();
-                (
-                    creature.guid(),
-                    world
-                        .has_current_map()
-                        .then(|| MapKey::new(world.map_id(), world.instance_id())),
-                    creature.unit().data().level as u8,
-                )
-            })
-    {
-        if level.0 != raw_caster_guid || level.1 != Some(owner_map_key) {
-            return Err(SelectedCasterLevelError::CasterUnavailable);
-        }
-        return Ok(level.2);
+    let owner_map_key = selected_owner_map(manager, owner, owner_snapshot)?;
+    if let Some(level) = with_unit_in_map(manager, owner_map_key, raw_caster_guid, |unit| {
+        unit.unit().data().level as u8
+    })? {
+        return Ok(level);
     }
 
     spell_level_fallback(spell_id, difficulty_id, spell_levels, difficulties)

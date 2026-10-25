@@ -22,7 +22,14 @@ pub(super) fn prepare<H: SpellExecutionHostLikeCpp>(
         .ok_or("Missing canonical Player for selected aura creation")?;
     let difficulty_id = host.core().current_map_difficulty_id_like_cpp();
 
-    let (metadata, spell_levels, difficulties) = {
+    let (
+        metadata,
+        spell_levels,
+        difficulties,
+        faction_store,
+        faction_templates,
+        friendship_reactions,
+    ) = {
         let hub = host.hub_ref();
         let spell_store = hub
             .catalogs
@@ -46,10 +53,13 @@ pub(super) fn prepare<H: SpellExecutionHostLikeCpp>(
             metadata,
             hub.catalogs.spell_catalogs.spell_levels_store.clone(),
             hub.catalogs.difficulty_store.clone(),
+            hub.catalogs.factions.store.clone(),
+            hub.catalogs.factions.template_store.clone(),
+            hub.catalogs.friendship_rep_reaction_store.clone(),
         )
     };
 
-    let aura_flags = crate::aura_session::build_selected_aura_application_flags(
+    let known_flags = crate::aura_session::build_selected_aura_application_flags(
         metadata.polarity,
         active_effect_mask,
         caster_guid,
@@ -57,10 +67,14 @@ pub(super) fn prepare<H: SpellExecutionHostLikeCpp>(
         owner_guid,
         &metadata.attributes,
         None,
-    )
-    .map_err(|_| "Unable to build selected aura application flags")?;
+    );
+    let known_flags = match known_flags {
+        Ok(flags) => Some(flags),
+        Err(crate::aura_session::SelectedAuraFlagsError::UnknownForeignCasterRelation) => None,
+        Err(_) => return Err("Unable to build selected aura application flags"),
+    };
 
-    let caster_level = {
+    let (aura_flags, caster_level) = {
         let core = host.core();
         let owner = core
             .player_handle_like_cpp
@@ -72,7 +86,7 @@ pub(super) fn prepare<H: SpellExecutionHostLikeCpp>(
         let manager = manager
             .lock()
             .map_err(|_| "Canonical MapManager is unavailable for selected aura creation")?;
-        crate::aura_session::selected_caster_level(
+        let caster_level = crate::aura_session::selected_caster_level(
             &manager,
             owner,
             caster_guid,
@@ -81,7 +95,31 @@ pub(super) fn prepare<H: SpellExecutionHostLikeCpp>(
             spell_levels.as_deref(),
             difficulties.as_deref(),
         )
-        .map_err(|_| "Unable to resolve selected aura caster level")?
+        .map_err(|_| "Unable to resolve selected aura caster level")?;
+        let aura_flags = if let Some(flags) = known_flags {
+            flags
+        } else {
+            let friendly = crate::aura_session::selected_caster_is_friendly(
+                &manager,
+                owner,
+                caster_guid,
+                faction_store.as_deref(),
+                faction_templates.as_deref(),
+                friendship_reactions.as_deref(),
+            )
+            .map_err(|_| "Unable to resolve selected aura caster relation")?;
+            crate::aura_session::build_selected_aura_application_flags(
+                metadata.polarity,
+                active_effect_mask,
+                caster_guid,
+                owner_guid,
+                owner_guid,
+                &metadata.attributes,
+                Some(friendly),
+            )
+            .map_err(|_| "Unable to build selected aura application flags")?
+        };
+        (aura_flags, caster_level)
     };
 
     Ok((
