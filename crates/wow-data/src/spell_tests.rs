@@ -164,10 +164,7 @@ fn represented_spell_positivity_marks_resurrection_sickness_modifiers_negative()
 
 #[test]
 fn represented_spell_positivity_marks_ghost_aura_negative() {
-    let spell = test_spell_info_with_aura(
-        8_326,
-        crate::spell::aura_types::SPELL_AURA_GHOST,
-    );
+    let spell = test_spell_info_with_aura(8_326, crate::spell::aura_types::SPELL_AURA_GHOST);
 
     assert!(!represented_spell_is_positive_like_cpp(&spell));
 }
@@ -533,6 +530,8 @@ fn shapeshift_form(flags: i32) -> crate::spell_db2::SpellShapeshiftFormEntry {
     }
 }
 
+#[path = "spell_tests/effect_resolution.rs"]
+mod effect_resolution;
 #[path = "spell_tests/exact_mechanic.rs"]
 mod exact_mechanic;
 #[path = "spell_tests/instance.rs"]

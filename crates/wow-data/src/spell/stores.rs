@@ -9,6 +9,7 @@ use super::catalog::{SpellHitEffectMechanicRowLikeCpp, SpellInterruptRowLikeCpp}
 
 use super::*;
 
+mod effects;
 mod state_1;
 mod state_2;
 mod state_3;

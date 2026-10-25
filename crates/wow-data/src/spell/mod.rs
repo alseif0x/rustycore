@@ -11,11 +11,13 @@
 mod acquisition;
 mod catalog;
 mod corrections;
+mod resolution;
 mod stores;
 
 pub use acquisition::*;
 pub use catalog::*;
 pub use corrections::*;
+pub use resolution::*;
 pub use stores::*;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};

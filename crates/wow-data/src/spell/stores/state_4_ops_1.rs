@@ -1,7 +1,6 @@
-//! C++-shaped spell stores state definitions, part 4 of 4. operations, part 1 of 2.
+//! Spell metadata loading and exact field operations.
 //!
-//! The inherent impl is divided by responsibility under #646; every
-//! method keeps its original body.
+//! Indexed effect hydration and reads live in the sibling effects module.
 
 use super::*;
 
@@ -32,30 +31,6 @@ impl SpellStore {
     }
     pub(super) fn make_pair64_like_cpp(low: i32, high: i32) -> u64 {
         u64::from(low as u32) | (u64::from(high as u32) << 32)
-    }
-    pub fn effects_for_difficulty_like_cpp(
-        &self,
-        spell_id: i32,
-        requested_difficulty_id: u8,
-        difficulty_store: Option<&crate::difficulty::DifficultyStore>,
-    ) -> Option<&[SpellEffectInfo]> {
-        let mut difficulty_id = requested_difficulty_id;
-        let mut visited = HashSet::new();
-        loop {
-            if let Some(effects) = self
-                .spell_effects_by_difficulty
-                .get(&(spell_id, difficulty_id))
-            {
-                return Some(effects);
-            }
-            if difficulty_id == 0 || !visited.insert(difficulty_id) {
-                break;
-            }
-            difficulty_id = difficulty_store
-                .and_then(|store| store.get(u32::from(difficulty_id)))
-                .map_or(0, |difficulty| difficulty.fallback_difficulty_id);
-        }
-        self.spells.get(&spell_id).map(|spell| spell.effects())
     }
     /// Resolve the fields consumed by C++ spell-hit logic through the
     /// requested difficulty and its `FallbackDifficultyID` chain.
@@ -154,44 +129,6 @@ impl SpellStore {
             requires_spell_focus: 0,
             power_costs: Vec::new(),
             effects: Vec::new(),
-        }
-    }
-    pub(super) fn spell_effect_from_db2_like_cpp(
-        effect: &crate::spell_db2::SpellEffectDb2Entry,
-    ) -> SpellEffectInfo {
-        SpellEffectInfo {
-            effect_index: u32::try_from(effect.effect_index).unwrap_or(0),
-            effect: effect.effect,
-            effect_aura: i32::from(effect.effect_aura),
-            effect_base_points: effect.effect_base_points,
-            effect_mechanic: effect.effect_mechanic,
-            effect_amplitude: effect.effect_amplitude,
-            effect_die_sides: effect.effect_die_sides,
-            effect_bonus_coefficient_from_ap: effect.bonus_coefficient_from_ap,
-            effect_spell_class_mask: effect.effect_spell_class_mask,
-            effect_misc_value_1: effect.effect_misc_value[0],
-            effect_misc_value_2: effect.effect_misc_value[1],
-            effect_trigger_spell: effect.effect_trigger_spell,
-            effect_radius_index_1: effect.effect_radius_index[0],
-            position_facing: effect.effect_pos_facing,
-            chain_targets: effect.effect_chain_targets,
-            implicit_target_1: u32::try_from(effect.implicit_target[0]).unwrap_or(0),
-            implicit_target_2: u32::try_from(effect.implicit_target[1]).unwrap_or(0),
-            polarity_metadata: Some(SpellEffectPolarityMetadata {
-                attributes: effect.effect_attributes as u32,
-                real_points_per_level: effect.effect_real_points_per_level,
-                scaling_coefficient: effect.coefficient,
-                scaling_variance: effect.variance,
-            }),
-        }
-    }
-    pub(super) fn hydrate_primary_effect_like_cpp(info: &mut SpellInfo) {
-        info.effects.sort_by_key(|effect| effect.effect_index);
-        if let Some(primary) = info.effects.iter().find(|effect| effect.effect != 0) {
-            info.effect_type = primary.effect;
-            info.effect_base_points = primary.effect_base_points;
-            info.effect_bonus_coefficient = 0.0;
-            info.aura_type = Some(primary.effect_aura);
         }
     }
     /// Load the exact regular `SpellInfo` key authority that still has
@@ -403,31 +340,7 @@ impl SpellStore {
             store.spell_misc_attributes.insert(spell_id, attributes);
         }
 
-        for effect in spell_effect_store.entries_like_cpp() {
-            if effect.effect == 0 {
-                continue;
-            }
-            let Ok(spell_id) = i32::try_from(effect.spell_id) else {
-                continue;
-            };
-            let Ok(difficulty_id) = u8::try_from(effect.difficulty_id) else {
-                continue;
-            };
-            let converted = Self::spell_effect_from_db2_like_cpp(effect);
-            store
-                .spell_effects_by_difficulty
-                .entry((spell_id, difficulty_id))
-                .or_default()
-                .push(converted.clone());
-            if difficulty_id != 0 {
-                continue;
-            }
-            let spell = store
-                .spells
-                .entry(spell_id)
-                .or_insert_with(|| Self::empty_spell_info_like_cpp(spell_id));
-            spell.effects.push(converted);
-        }
+        store.hydrate_spell_effect_rows(spell_effect_store);
 
         for shapeshift in spell_shapeshift_store.entries_like_cpp() {
             if shapeshift.spell_id <= 0 {
@@ -446,10 +359,6 @@ impl SpellStore {
                     ),
                 ),
             );
-        }
-
-        for spell in store.spells.values_mut() {
-            Self::hydrate_primary_effect_like_cpp(spell);
         }
 
         store

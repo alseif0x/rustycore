@@ -16,7 +16,9 @@ updates, including rejection in login/worldport callers when preparation fails.
 9i3C3d3b connects creation flags for fresh selected auras and preserves refresh
 provenance when creation-only facts are unavailable. 9i3C3d3c connects canonical
 foreign-caster reaction to that constructor and has focused consumer feedback.
-Load, complete indexed effect metadata, and charge consumers remain pending.
+9i3C3d4a retains complete indexed effect rows and shares their resolver from Data.
+The selected load, creation, and save consumers still need that resolver;
+load construction and charge consumers also remain pending.
 The integration adds neither another clock nor another Player authority.
 
 Four blocks remain within the same macro:
@@ -1116,6 +1118,37 @@ unavailable. Load, indexed metadata, charge consumers, and the other macro
 requirements remain open. No final campaign, capture, runtime/DB mutation,
 publication, deployment, or issue completion is established by this checkpoint.
 
+9i3C3d4a moves the shared exact-first difficulty traversal and attribute reader
+to Data, retaining Spell's existing private names as aliases. The existing
+effect collection now keeps the highest surviving RecordID per difficulty and
+slot, including explicit inert rows. The indexed resolver inherits each slot
+independently and returns borrowed rows in index order. It retains needed-cycle
+and unknown-catalog errors, actual zero-difficulty fallback, and malformed
+dynamic-vector rejection. Invalid raw indexes retain their bits and are rejected
+by exact resolution instead of becoming missing effects or index zero.
+The borrowed legacy projection exposes its active prefix and continues its
+previous fallback for inert-only buckets. No additional mutable catalog is added.
+Source: DB2Store.h:83–87; DBStorageIterator.h:35–55;
+SpellMgr.cpp:2500–2508,2638–2640; and SpellInfo.cpp:1144–1163 at the pinned SHA.
+
+On `ca4973b37` plus the reviewed local delta, the worker reported sequential
+aarch64/jobs=1 checks for Data and Spell and 26 passing focused cases, all
+exit 0: Data effect_resolution (11),
+effective_effect_store_is_the_only_difficulty_zero_effect_authority_like_cpp (1),
+selected_effect_polarity_metadata_preserves_raw_db2_inputs_and_unknown_legacy_state
+(1), and Spell selected_catalog (13). The surviving-lower-ID regression starts
+from the effective input after removal; it is not a live hotfix mutation test.
+The command/result record is
+`/tmp/rustycore-43-C3d4a-feedback-20261025T163021Z.summary.log`;
+it is a manually recorded summary, not captured raw command output. The worker
+reported no failed or repeated green commands. Parent review corrected the
+initial raw-index filtering and the exact-reader fixture's storage-order
+expectation before feedback. The fixed worker-role spawn succeeded, while
+precise runtime variant/effort self-telemetry was unavailable. These are coding
+checks on the local delta, not final acceptance. Core save and Spell execution,
+load, and completion consumers remain pending. No live/DB/capture, publication,
+deployment, or #43 completion is established by this checkpoint.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -1356,14 +1389,23 @@ exact attribute resolution, and indexed effect-row resolution in Data; retain
 Spell's private aliases for its current callers. Core must not depend on Spell
 for catalog facts. The existing per-difficulty collection will retain inert
 winning rows, with an active prefix for its borrowed legacy projection.
+An inert-only bucket must continue the legacy getter's existing fallback,
+because that bucket was previously absent after filtering. The new exact
+resolver instead retains the inert slot as an explicit inheritance override.
 Highest-RecordID slot selection is an explicit common metadata correction,
 not a behavior-preserving move. No additional mutable effect catalog is needed.
 Dynamic base payloads may supply their existing explicit effect vector only
 when no raw per-difficulty rows for that spell exist; they must not mask a
 known missing or inert raw row. A malformed duplicate/index in a dynamic vector
 must remain unavailable rather than becoming a newly accepted selected Aura.
+Malformed raw effect indexes must likewise remain detectable by the exact
+resolver, rather than being discarded into apparent absence or rewritten to zero.
 Source identity, activation, capture, and save consumers still need integration
 and evidence after this Data cut; moving the resolver alone is not completion.
+The selected save adapters must also derive passive/channelled eligibility
+from each application's resolved attributes. A global base SpellInfo flag
+must not reject a valid application at another difficulty. Existing complete-
+authority and supported-family absence checks remain required for deletion.
 
 Constructor integration cut, connected by 9i3C3d3b: Spell computes flags from selected
 metadata and canonical caster facts; the existing application capability consumes
@@ -1390,6 +1432,13 @@ is captured under one borrowed manager guard. The connected foreign relationship
 adapter captures its facts in that same guard; all guards must be released
 before publication. The boundary is covered by 9i3C3d3b and its foreign
 relationship consumer by 9i3C3d3c; load remains a separate pending constructor.
+The shared constructor belongs in Aura's private module and can use the
+existing SessionHubHostLikeCpp bound already inherited by both caller hosts.
+It must receive the raw cast difficulty explicitly: current Map difficulty for
+execution, saved row difficulty for loading. Load must classify whole-spell
+offline expiration before requesting live caster facts, then prepare fresh
+flags and level before removing an existing application. This placement adds
+neither a new host trait nor a WorldSession method; implementation is pending.
 
 Selected charge consumer review: the legacy AuraOptions helper clamps signed
 ProcCharges into u8, whereas Source preserves its uint32 assignment and final
@@ -1405,6 +1454,24 @@ file diagnostic found no AuraOptions rows for 8326/20584/15007, but does not
 prove absence of SQL overrides or matching runtime modifiers. These charge
 consumer corrections remain pending and are not claimed by scalar projection
 or the metadata lookup tests.
+
+Charge lookup must distinguish the raw Aura cast difficulty from the resolved
+SpellInfo key: GetSpellProcEntry starts at SpellInfo::Difficulty
+(SpellMgr.cpp:490–509), then follows its chain. SQL proc rows are keyed using an
+already resolved SpellInfo (SpellMgr.cpp:1511–1517,1632); they do not contribute
+new SpellInfo keys. Fresh and refresh calculations consult that
+entry, including an explicit zero; saved-charge normalization does not.
+The existing canonical proc store can supply exact entries without using its
+legacy unguarded fallback loop.
+
+Zero family flags alone do not prove that caster modifiers are irrelevant.
+SpellInfo.cpp:1784–1813 supports both class-mask and label modifiers.
+Known IGNORE_CASTER_MODIFIERS, or known zero family flags together with known
+empty resolved labels, can prove no applicable modifier without a second
+runtime modifier store. SpellMgr.cpp:2555–2556,2649–2650 assigns labels at zero
+and inherits them along the metadata chain. The current file diagnostic does
+not establish label absence. Needed unknown facts remain unavailable; this is
+a pending selected-consumer contract, not a general spell-modifier engine.
 
 9g escrito y revisado sobre `a6da440dac37aa377c23c71fb084accff3fa1764`
 más delta local: máscaras normalizadas con lookup SQL original, efectos

@@ -4,67 +4,15 @@
 
 //! Exact selected spell catalog reads and their source difficulty chain.
 
+pub(crate) use wow_data::spell::{
+    DataSpellCatalogResolutionError as SelectedCatalogError,
+    resolve_spell_attributes as selected_spell_attributes,
+    resolve_spell_catalog_value as resolve_selected_value,
+};
 use wow_data::{
     DifficultyStore, SpellAuraOptionsEntry, SpellAuraOptionsStore, SpellClassOptionsStore,
     SpellLevelsStore, SpellMiscEntry, SpellMiscStore, SpellStore,
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SelectedCatalogError {
-    DifficultyUnavailable,
-    DifficultyCycle,
-}
-
-fn resolve_selected_value<T>(
-    requested_difficulty: u8,
-    difficulties: Option<&DifficultyStore>,
-    has_any_row: bool,
-    mut exact_value: impl FnMut(u8) -> Option<T>,
-) -> Result<Option<T>, SelectedCatalogError> {
-    if !has_any_row {
-        return Ok(None);
-    }
-
-    let mut current_difficulty = requested_difficulty;
-    let mut visited = [false; 256];
-    loop {
-        let index = usize::from(current_difficulty);
-        if visited[index] {
-            return Err(SelectedCatalogError::DifficultyCycle);
-        }
-        visited[index] = true;
-
-        if let Some(value) = exact_value(current_difficulty) {
-            return Ok(Some(value));
-        }
-
-        let difficulty_store = difficulties.ok_or(SelectedCatalogError::DifficultyUnavailable)?;
-        let Some(difficulty) = difficulty_store.get(u32::from(current_difficulty)) else {
-            return Ok(None);
-        };
-        current_difficulty = difficulty.fallback_difficulty_id;
-    }
-}
-
-pub(crate) fn selected_spell_attributes(
-    store: &SpellStore,
-    spell_id: i32,
-    requested_difficulty: u8,
-    difficulties: Option<&DifficultyStore>,
-) -> Result<Option<[u32; 15]>, SelectedCatalogError> {
-    let has_any_row = (u8::MIN..=u8::MAX).any(|difficulty_id| {
-        store
-            .misc_attributes_for_exact_difficulty(spell_id, difficulty_id)
-            .is_some()
-    });
-
-    resolve_selected_value(
-        requested_difficulty,
-        difficulties,
-        has_any_row,
-        |difficulty_id| store.misc_attributes_for_exact_difficulty(spell_id, difficulty_id),
-    )
-}
 
 /// Resolve the effective `SpellCategories` mechanic along a spell's source
 /// difficulty chain. An absent category row uses SpellInfo's zero default.
