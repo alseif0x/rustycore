@@ -123,6 +123,7 @@ pub struct PlayerItemDurabilitySave {
 pub struct PlayerLifecycleAuraFamilySave {
     pub spell_id: u32,
     pub caster_guid_binary: [u8; 16],
+    pub item_guid_binary: [u8; 16],
     pub auras: Vec<PlayerLifecycleAuraSave>,
 }
 

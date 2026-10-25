@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43, implementación previa a aceptación final — 2026-10-24, 23:52 UTC:**
+**#43, implementación previa a aceptación final — 2026-10-25, 00:09 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
 y productor desde hechizos están escritos y tienen feedback focalizado;
 **no hay aceptación final de este candidato**. El cálculo básico del productor
@@ -9,7 +9,7 @@ tras reparar compilación, restauración de display y publicación de su visual.
 El recast de la misma aura/caster también tiene reparación y feedback focalizado.
 Las consultas de visibilidad de criaturas y Players tienen feedback focalizado;
 la publicación delta/removal a observadores tiene feedback focalizado; faltan
-la reconciliación de todas las claves de Ghost/Wisp, su fase productiva de actualización,
+su fase productiva de actualización,
 participantes de limpieza al morir/resucitar, fallos de las otras operaciones
 del ciclo y capturas/QA viva. El usuario autoriza
 continuar los pendientes y la aceptación, no solo conservar el feedback anterior.
@@ -172,6 +172,25 @@ Attributes[5]=0 y target self. El paso 9d1 conserva el corte de implementación
 ya asignado; el cierre de la familia seleccionada debe reconciliar también
 esas claves válidas y las aplicaciones retiradas, sin borrar otras auras.
 No se aceptará el roundtrip del caster propio como prueba de ese límite.
+9d2 cierra ese límite de implementación: la captura incluye caster/item y
+una instantánea conocida reescribe exclusivamente 8326/20584 por guid+spell,
+insertando las aplicaciones válidas restantes con su clave completa.
+La enfermedad conserva su clave de item vacío y sus consultas anteriores.
+El cambio no escribe familias ajenas a esos dos IDs; None conserva los datos.
+Feedback sobre `95115552d` más el delta local, aarch64/jobs=1, 2026-10-25:
+el filtro World `ghost_wisp_persistence` pasó siete casos, exit 0, log
+`/tmp/rustycore-9d2-wow-world-ghost-wisp-persistence-20261025T0004Z.log`;
+el filtro DB `lifecycle_aura` pasó tres casos, exit 0, log final
+`/tmp/rustycore-9d2-wow-database-lifecycle-aura-final-20261025T000615Z.log`.
+Los checks de World y Database terminaron exit 0, logs
+`/tmp/rustycore-9d2-wow-world-check-20261025T000235Z.log` y
+`/tmp/rustycore-9d2-wow-database-check-final-20261025T000614Z.log`.
+Se retiró una variable sin uso del test DB antes de repetir su filtro.
+La prueba World recorre la resurrección nativa y después la captura/carga;
+la prueba DB comprueba los binds de SavePlan por separado. No se ha probado
+todavía su unión mediante DB real, reinicio y relog. La elegibilidad de los
+dos spells conserva la comprobación de LiquidType de SpellMgr.cpp:3329
+como evidencia de datos pendiente para la campaña, sin declararla probada.
 
 La fase seleccionada de publicación sigue pendiente: el pase de Session
 actual llama `tick_auras` cada cuatro ticks antes de los pases MapSession;
@@ -190,6 +209,16 @@ criaturas, porque su rechazo o la ausencia de ese runtime no anula el update
 de los Players. Se retirará el consumo de Session desde la primera admisión
 World coordinada; el modo sin coordinador conserva un único fallback. Esta
 decisión todavía necesita implementación y pruebas productivas.
+La revisión del orden detecta también un paquete extra de release:
+`player_release.rs::publish_ghost_side_effects` emite HealthUpdate(1), pero
+`BuildPlayerRepop` usa SetHealth(1), que solo ensucia los update fields
+(`Player.cpp:4297`, `Unit.cpp:9214`). El emisor C++ de HealthUpdate está en
+ModifyHealth para daño no mortal (`Unit.cpp:8127–8154`); DealDamage llama
+Kill para el mortal y ModifyHealth solo en la otra rama (`Unit.cpp:1016–1022`).
+Los callers Rust de caída/under-map también necesitan ese contraste. La
+conexión de HealthUpdate es REALM (`Opcodes.cpp:1564`), conservando su layout
+GUID/int64. Se revisará junto al orden de VALUES de resurrección y la fase
+seleccionada; todavía no se ha reparado ni capturado esa diferencia.
 
 Feedback de Ghost/Wisp a las 19:40 UTC, sobre `6117a9dc5` más el delta local
 del worker (aarch64, un job; no aceptación del SHA ni campaña final):

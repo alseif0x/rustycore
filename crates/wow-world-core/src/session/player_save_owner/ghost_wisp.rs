@@ -8,20 +8,40 @@ use wow_persistence::{
 
 const GHOST_SPELL_ID: i32 = 8326;
 const WISP_SPELL_ID: i32 = 20584;
+// C++ SharedDefines.h `SPELL_ATTR5_LIMIT_N`; SpellInfo::IsSingleTarget
+// (`SpellInfo.cpp:1864`).
+const SPELL_ATTR5_LIMIT_N: u32 = 0x0000_0020;
 
 const GHOST_EFFECTS: [(u8, i32, bool); 3] = [
     (0, wow_data::spell::aura_types::SPELL_AURA_GHOST, true),
-    (1, wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED, true),
-    (2, wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED, true),
+    (
+        1,
+        wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
+        true,
+    ),
+    (
+        2,
+        wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED,
+        true,
+    ),
 ];
 
 const WISP_EFFECTS: [(u8, i32, bool); 3] = [
-    (0, wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED, true),
-    (1, wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED, true),
+    (
+        0,
+        wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
+        true,
+    ),
+    (
+        1,
+        wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED,
+        true,
+    ),
     (2, wow_data::spell::aura_types::SPELL_AURA_TRANSFORM, false),
 ];
 
 enum CapturedAura {
+    Skipped,
     Expired,
     Save(PlayerLifecycleAuraSave),
 }
@@ -49,8 +69,22 @@ fn catalog_effects<'a>(
         difficulty_id,
         Some(difficulty_store),
     )?;
+    if effects.len() != expected.len() {
+        return None;
+    }
     let mut aura_effects = BTreeMap::new();
-    for effect in effects.iter().filter(|effect| effect.is_aura_like_cpp()) {
+    for effect in effects {
+        // The selected records are exactly three APPLY_AURA effects. C++
+        // Aura::CanBeSaved rejects area-targeting/area-aura effects for a
+        // foreign caster; the inspected selected data uses only no target
+        // (0), self (1), and no second target (0). Unknown target ids fail
+        // closed instead of being treated as harmless.
+        if effect.effect != wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
+            || !matches!(effect.implicit_target_1, 0 | 1)
+            || effect.implicit_target_2 != 0
+        {
+            return None;
+        }
         let index = u8::try_from(effect.effect_index).ok()?;
         if aura_effects.insert(index, effect).is_some() {
             return None;
@@ -97,7 +131,21 @@ fn capture_aura(
         return None;
     }
 
-    let metadata = player.unit().subsystems().auras.aura_persistence_metadata(slot);
+    let metadata = player
+        .unit()
+        .subsystems()
+        .auras
+        .aura_persistence_metadata(slot);
+    if application.caster_guid != player.guid() && attributes[5] & SPELL_ATTR5_LIMIT_N != 0 {
+        return Some(CapturedAura::Skipped);
+    }
+    // C++ Aura::CanBeSaved excludes permanent item-triggered auras. A
+    // complete selected-spell rewrite removes their former SQL row.
+    if application.duration_total == 0
+        && metadata.is_some_and(|metadata| metadata.item_guid != ObjectGuid::EMPTY)
+    {
+        return Some(CapturedAura::Skipped);
+    }
     if application.stack_count == 0 || application.effect_mask == 0 {
         return None;
     }
@@ -125,13 +173,15 @@ fn capture_aura(
 
     let mut stored_base_amounts = BTreeMap::new();
     if let Some(metadata) = metadata {
-        let recalculable_mask = expected.iter().fold(0_u32, |mask, (index, _, recalculable)| {
-            if *recalculable {
-                mask | (1_u32 << index)
-            } else {
-                mask
-            }
-        });
+        let recalculable_mask = expected
+            .iter()
+            .fold(0_u32, |mask, (index, _, recalculable)| {
+                if *recalculable {
+                    mask | (1_u32 << index)
+                } else {
+                    mask
+                }
+            });
         if metadata.recalculate_mask & !application.effect_mask != 0
             || metadata.recalculate_mask & !recalculable_mask != 0
         {
@@ -150,7 +200,11 @@ fn capture_aura(
         }
     }
 
-    let snapshot = player.unit().subsystems().auras.threat_snapshot_like_cpp(slot)?;
+    let snapshot = player
+        .unit()
+        .subsystems()
+        .auras
+        .threat_snapshot_like_cpp(slot)?;
     if snapshot.effects().len() != application.effect_mask.count_ones() as usize {
         return None;
     }
@@ -234,53 +288,58 @@ pub(super) fn capture(
     }
 
     let player_guid = player.guid();
-    let mut families = [GHOST_SPELL_ID, WISP_SPELL_ID]
-        .into_iter()
-        .map(|spell_id| PlayerLifecycleAuraFamilySave {
-            spell_id: u32::try_from(spell_id).unwrap_or_default(),
-            caster_guid_binary: player_guid.to_raw_bytes(),
-            auras: Vec::new(),
-        })
-        .collect::<Vec<_>>();
-    let mut keys = [HashSet::new(), HashSet::new()];
+    let player_guid_binary = player_guid.to_raw_bytes();
+    let empty_item_guid_binary = ObjectGuid::EMPTY.to_raw_bytes();
+    let mut families =
+        BTreeMap::<(i32, [u8; 16], [u8; 16]), (Vec<PlayerLifecycleAuraSave>, HashSet<u32>)>::new();
+    for spell_id in [GHOST_SPELL_ID, WISP_SPELL_ID] {
+        families.insert(
+            (spell_id, player_guid_binary, empty_item_guid_binary),
+            (Vec::new(), HashSet::new()),
+        );
+    }
     for (&slot, application) in auras.runtime_applications_like_cpp() {
-        if application.caster_guid != player_guid {
+        if !matches!(application.spell_id, GHOST_SPELL_ID | WISP_SPELL_ID) {
             continue;
         }
-        let family_index = match application.spell_id {
-            GHOST_SPELL_ID => 0,
-            WISP_SPELL_ID => 1,
-            _ => continue,
-        };
-        if auras
-            .aura_persistence_metadata(slot)
-            .is_some_and(|metadata| metadata.item_guid != ObjectGuid::EMPTY)
-        {
-            continue;
-        }
-        if !keys[family_index].insert(application.effect_mask) {
-            return None;
-        }
-        let aura = match capture_aura(
-            player,
-            slot,
-            application,
-            spell_store,
-            difficulty_store,
-        )? {
-            CapturedAura::Expired => continue,
+        let aura_metadata = auras.aura_persistence_metadata(slot);
+        let item_guid_binary = aura_metadata.map_or(empty_item_guid_binary, |metadata| {
+            metadata.item_guid.to_raw_bytes()
+        });
+        let aura = match capture_aura(player, slot, application, spell_store, difficulty_store)? {
+            CapturedAura::Skipped | CapturedAura::Expired => continue,
             CapturedAura::Save(aura) => aura,
         };
-        families[family_index].auras.push(aura);
+        let key = (
+            application.spell_id,
+            application.caster_guid.to_raw_bytes(),
+            item_guid_binary,
+        );
+        let (family_auras, effect_masks) = families.entry(key).or_default();
+        if !effect_masks.insert(application.effect_mask) {
+            return None;
+        }
+        family_auras.push(aura);
     }
-    for family in &mut families {
-        family.auras.sort_by_key(|aura| {
-            let effect_mask = aura
-                .effects
-                .iter()
-                .fold(0_u32, |mask, effect| mask | (1_u32 << effect.index));
-            (aura.difficulty, effect_mask)
-        });
-    }
+    let families = families
+        .into_iter()
+        .map(
+            |((spell_id, caster_guid_binary, item_guid_binary), (mut auras, _))| {
+                auras.sort_by_key(|aura| {
+                    let effect_mask = aura
+                        .effects
+                        .iter()
+                        .fold(0_u32, |mask, effect| mask | (1_u32 << effect.index));
+                    (aura.difficulty, effect_mask)
+                });
+                Some(PlayerLifecycleAuraFamilySave {
+                    spell_id: u32::try_from(spell_id).ok()?,
+                    caster_guid_binary,
+                    item_guid_binary,
+                    auras,
+                })
+            },
+        )
+        .collect::<Option<Vec<_>>>()?;
     Some(families)
 }

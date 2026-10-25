@@ -164,16 +164,27 @@ pub(super) enum PlayerCharacterSaveStepLikeCpp {
     DeleteLifecycleAuraFamily {
         guid: u64,
         caster_guid_binary: [u8; 16],
+        item_guid_binary: [u8; 16],
         spell_id: u32,
     },
     DeleteLifecycleAuraEffects {
         guid: u64,
         caster_guid_binary: [u8; 16],
+        item_guid_binary: [u8; 16],
+        spell_id: u32,
+    },
+    DeleteLifecycleAuraFamilyBySpell {
+        guid: u64,
+        spell_id: u32,
+    },
+    DeleteLifecycleAuraEffectsBySpell {
+        guid: u64,
         spell_id: u32,
     },
     InsertLifecycleAura {
         guid: u64,
         caster_guid_binary: [u8; 16],
+        item_guid_binary: [u8; 16],
         spell_id: u32,
         effect_mask: u32,
         row: PlayerLifecycleAuraSave,
@@ -181,6 +192,7 @@ pub(super) enum PlayerCharacterSaveStepLikeCpp {
     InsertLifecycleAuraEffect {
         guid: u64,
         caster_guid_binary: [u8; 16],
+        item_guid_binary: [u8; 16],
         spell_id: u32,
         effect_mask: u32,
         row: PlayerLifecycleAuraEffectSave,
@@ -569,22 +581,37 @@ pub(super) fn player_character_save_statement_like_cpp(
         Step::DeleteLifecycleAuraFamily {
             guid,
             caster_guid_binary,
+            item_guid_binary,
             spell_id,
-        } => lifecycle_auras::delete(*guid, *caster_guid_binary, *spell_id),
+        } => lifecycle_auras::delete(*guid, *caster_guid_binary, *item_guid_binary, *spell_id),
         Step::DeleteLifecycleAuraEffects {
             guid,
             caster_guid_binary,
+            item_guid_binary,
             spell_id,
-        } => lifecycle_auras::delete_effects(*guid, *caster_guid_binary, *spell_id),
+        } => lifecycle_auras::delete_effects(
+            *guid,
+            *caster_guid_binary,
+            *item_guid_binary,
+            *spell_id,
+        ),
+        Step::DeleteLifecycleAuraFamilyBySpell { guid, spell_id } => {
+            lifecycle_auras::delete_by_spell(*guid, *spell_id)
+        }
+        Step::DeleteLifecycleAuraEffectsBySpell { guid, spell_id } => {
+            lifecycle_auras::delete_effects_by_spell(*guid, *spell_id)
+        }
         Step::InsertLifecycleAura {
             guid,
             caster_guid_binary,
+            item_guid_binary,
             spell_id,
             effect_mask,
             row,
         } => lifecycle_auras::insert_aura(
             *guid,
             *caster_guid_binary,
+            *item_guid_binary,
             *spell_id,
             *effect_mask,
             row,
@@ -592,12 +619,14 @@ pub(super) fn player_character_save_statement_like_cpp(
         Step::InsertLifecycleAuraEffect {
             guid,
             caster_guid_binary,
+            item_guid_binary,
             spell_id,
             effect_mask,
             row,
         } => lifecycle_auras::insert_effect(
             *guid,
             *caster_guid_binary,
+            *item_guid_binary,
             *spell_id,
             *effect_mask,
             *row,

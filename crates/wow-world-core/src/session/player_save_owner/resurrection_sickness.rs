@@ -161,6 +161,7 @@ pub(super) fn capture(
     Some(PlayerLifecycleAuraFamilySave {
         spell_id,
         caster_guid_binary,
+        item_guid_binary: ObjectGuid::EMPTY.to_raw_bytes(),
         auras: saved_auras,
     })
 }

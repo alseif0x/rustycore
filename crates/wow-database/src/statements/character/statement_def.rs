@@ -807,6 +807,12 @@ impl StatementDef for CharStatements {
             Self::DEL_CHAR_AURA_EFFECT_BY_KEY => {
                 "DELETE FROM character_aura_effect WHERE guid = ? AND casterGuid = ? AND itemGuid = ? AND spell = ?"
             }
+            Self::DEL_CHAR_AURA_BY_SPELL => {
+                "DELETE FROM character_aura WHERE guid = ? AND spell = ?"
+            }
+            Self::DEL_CHAR_AURA_EFFECT_BY_SPELL => {
+                "DELETE FROM character_aura_effect WHERE guid = ? AND spell = ?"
+            }
             Self::DEL_CHAR_GIFT => "DELETE FROM character_gifts WHERE guid = ?",
             Self::DEL_CHAR_INVENTORY => "DELETE FROM character_inventory WHERE guid = ?",
             Self::DEL_CHAR_QUESTSTATUS_REWARDED => {

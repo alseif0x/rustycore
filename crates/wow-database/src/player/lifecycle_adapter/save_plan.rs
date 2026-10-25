@@ -239,8 +239,23 @@ pub(super) fn player_character_save_statements_like_cpp(
         append_lifecycle_aura_family_steps(&mut steps, guid, aura_family);
     }
     if let Some(aura_families) = &request.ghost_wisp {
+        for spell_id in [8_326, 20_584] {
+            steps.push(Step::DeleteLifecycleAuraEffectsBySpell { guid, spell_id });
+            steps.push(Step::DeleteLifecycleAuraFamilyBySpell { guid, spell_id });
+        }
+        let mut aura_families = aura_families
+            .iter()
+            .filter(|family| matches!(family.spell_id, 8_326 | 20_584))
+            .collect::<Vec<_>>();
+        aura_families.sort_by_key(|family| {
+            (
+                family.spell_id,
+                family.caster_guid_binary,
+                family.item_guid_binary,
+            )
+        });
         for aura_family in aura_families {
-            append_lifecycle_aura_family_steps(&mut steps, guid, aura_family);
+            append_lifecycle_aura_family_insert_steps(&mut steps, guid, aura_family);
         }
     }
     if let Some(equipment_sets) = &request.equipment_sets {
@@ -376,13 +391,25 @@ fn append_lifecycle_aura_family_steps(
     steps.push(Step::DeleteLifecycleAuraEffects {
         guid,
         caster_guid_binary: aura_family.caster_guid_binary,
+        item_guid_binary: aura_family.item_guid_binary,
         spell_id: aura_family.spell_id,
     });
     steps.push(Step::DeleteLifecycleAuraFamily {
         guid,
         caster_guid_binary: aura_family.caster_guid_binary,
+        item_guid_binary: aura_family.item_guid_binary,
         spell_id: aura_family.spell_id,
     });
+    append_lifecycle_aura_family_insert_steps(steps, guid, aura_family);
+}
+
+fn append_lifecycle_aura_family_insert_steps(
+    steps: &mut Vec<PlayerCharacterSaveStepLikeCpp>,
+    guid: u64,
+    aura_family: &PlayerLifecycleAuraFamilySave,
+) {
+    use PlayerCharacterSaveStepLikeCpp as Step;
+
     let effect_mask = |row: &PlayerLifecycleAuraSave| {
         row.effects
             .iter()
@@ -395,20 +422,24 @@ fn append_lifecycle_aura_family_steps(
         steps.push(Step::InsertLifecycleAura {
             guid,
             caster_guid_binary: aura_family.caster_guid_binary,
+            item_guid_binary: aura_family.item_guid_binary,
             spell_id: aura_family.spell_id,
             effect_mask: mask,
             row: row.clone(),
         });
         row.effects.sort_by_key(|effect| effect.index);
-        steps.extend(row.effects.into_iter().map(|effect| {
-            Step::InsertLifecycleAuraEffect {
-                guid,
-                caster_guid_binary: aura_family.caster_guid_binary,
-                spell_id: aura_family.spell_id,
-                effect_mask: mask,
-                row: effect,
-            }
-        }));
+        steps.extend(
+            row.effects
+                .into_iter()
+                .map(|effect| Step::InsertLifecycleAuraEffect {
+                    guid,
+                    caster_guid_binary: aura_family.caster_guid_binary,
+                    item_guid_binary: aura_family.item_guid_binary,
+                    spell_id: aura_family.spell_id,
+                    effect_mask: mask,
+                    row: effect,
+                }),
+        );
     }
 }
 
