@@ -61,7 +61,10 @@ pub use owned_inventory::OwnedInventoryAccessLikeCpp;
 pub use player_condition::PlayerConditionAccessLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use player_condition::PlayerConditionFixtureRefsLikeCpp;
-pub use player_stats::{PlayerStatAuraCatalogs, PlayerStatAuraView, PlayerStatsAccessLikeCpp};
+pub use player_stats::{
+    PlayerStatAuraCatalogs, PlayerStatAuraView, PlayerStatCatalogs, PlayerStatFacts,
+    PlayerStatWeaponFacts, PlayerStatsAccessLikeCpp,
+};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use player_stats::{StatsAuraFixtureRefs, StatsCombatFixtureRefs, StatsFixtureRefs};
 pub use quest_eligibility::QuestEligibilityAccessLikeCpp;

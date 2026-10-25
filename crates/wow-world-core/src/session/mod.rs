@@ -60,7 +60,8 @@ pub use canonical_access::{
     OwnedSpellAcquisitionAccessLikeCpp, PlayerAcquisitionOwnerAccessLikeCpp,
     PlayerConditionAccessLikeCpp, PlayerGroupOwnerAccessLikeCpp,
     PlayerRegistryHydrationAccessLikeCpp, PlayerStatAuraCatalogs, PlayerStatAuraView,
-    PlayerStatsAccessLikeCpp, QuestObjectiveAccessLikeCpp,
+    PlayerStatCatalogs, PlayerStatFacts, PlayerStatWeaponFacts, PlayerStatsAccessLikeCpp,
+    QuestObjectiveAccessLikeCpp,
     QuestRewardPlayerAccessLikeCpp, TrainerInteractionRoleAccessLikeCpp,
     VisibilityRefreshAccessLikeCpp, looted_corpse_decay_secs_like_cpp,
 };

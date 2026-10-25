@@ -299,6 +299,14 @@ su aplicación al Player y la publicación derivada siguen sin implementar;
 esta extracción no representa avance de gameplay ni aceptación productiva.
 Tras ese check se eliminaron tres getters nuevos sin consumer, sin cambiar
 consultas; no se etiqueta el check anterior como prueba de un SHA posterior.
+9h2A añade PlayerStatFacts/PlayerStatWeaponFacts y PlayerStatCatalogs, con
+entrada directa desde &Player o refs explícitas, sin owner lookup ni lock.
+La selección de arma y encantamientos conserva el comportamiento existente;
+los constructores de fixture son cfg(test/test-fixtures). El último
+`cargo check -p wow-world-core --features test-fixtures` sobre `24a1b4968`
+más delta terminó exit 0, aarch64/jobs=1
+(`/tmp/rustycore-9h2a-core-check-refs-20261025a.log`). No se ejecutaron tests
+ni se conectó aún el planner de Inventory; sigue siendo preparación estructural.
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa

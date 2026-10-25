@@ -16,9 +16,13 @@ use wow_entities::PlayerEffectiveCombatStatsLikeCpp;
 mod queries;
 
 mod aura_view;
+mod catalogs;
+mod facts;
 mod inventory_scaling;
 
 pub use aura_view::{PlayerStatAuraCatalogs, PlayerStatAuraView};
+pub use catalogs::PlayerStatCatalogs;
+pub use facts::{PlayerStatFacts, PlayerStatWeaponFacts};
 
 /// Borrowed fixture inputs consumed by the character-stats projection.
 ///
