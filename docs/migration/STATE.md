@@ -279,6 +279,26 @@ antes del snapshot Map y entregar fuera del guard, sin Session ficticia,
 clonar/reemplazar Player ni una segunda autoridad mutable. Sigue pendiente
 el corte exacto de hechos/catálogos y la implementación; no se declara una
 convergencia general de estadísticas ni de #584.
+Decisión del integrador tras inspección de consumers (02:10 UTC): primero
+extraer PlayerStatAuraView y sus cuatro catálogos prestados en Core; los
+adapters actuales conservan API/fallback y delegan las fórmulas a esa vista.
+Después, hechos mínimos de Player/armas/bonus y un planner Inventory puro,
+con aplicación sobre el mismo &mut Player. No se convierte el acceso de
+Session en un enum universal. Para publicación se reutilizarán las máscaras
+Unit/ActivePlayer ya existentes: values_update captura el snapshot derivado
+inmutable y el bridge copia sus campos faltantes con las mismas máscaras,
+sin otra autoridad ni otra máscara mutable paralela. Los vitales siguen en
+Unit y no se sobrescriben desde el snapshot derivado. La visibilidad por
+owner conserva UpdateFields.cpp:850–874 y el filtro actual de observadores.
+9h1 extrae la vista y sus cuatro catálogos prestados, y mantiene los adapters
+actuales con los mismos fallbacks y la conversión i32→f32→i32 de resistencias.
+`cargo check -p wow-world-core` terminó exit 0, aarch64/jobs=1, sobre
+`e6bd4342c` más el delta local (`/tmp/rustycore-43-9h1-core-check-final-20261025.log`).
+No se ejecutaron tests de esta extracción ni otra campaña. El planner común,
+su aplicación al Player y la publicación derivada siguen sin implementar;
+esta extracción no representa avance de gameplay ni aceptación productiva.
+Tras ese check se eliminaron tres getters nuevos sin consumer, sin cambiar
+consultas; no se etiqueta el check anterior como prueba de un SHA posterior.
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -382,6 +402,17 @@ corregir; rerun3 verde rechazado en revisión; rerun4 exit 101 por tupla de
 fixture y rerun5 exit 130 interrumpido antes de tests para corregir la
 expectativa numérica (base -1 + dieSides 1 = 0). No hay campaña final ni prueba
 durable en DB/reinicio/relogin de este candidato.
+Inspección adicional, solo lectura (02:14 UTC): la consulta
+`SELECT entry, attributes FROM world.spell_custom_attr WHERE entry IN
+(8326,20584,15007)` dentro de START TRANSACTION READ ONLY / ROLLBACK no
+devuelve filas. SpellMgr.cpp:3026–3043,3278–3280,3325–3329 deriva
+CU_AURA_CANNOT_BE_SAVED de ciertos tipos, LeaveWorld y líquidos; los tipos
+seleccionados y el diagnóstico DB2 anterior no activan esas ramas. Esto
+acota los datos actuales, no implementa el motor general de custom flags ni
+garantiza overlays futuros. En construcción, Unit.cpp:3294 fija SingleTarget
+desde caster && SpellInfo::IsSingleTarget; SpellInfo.cpp:1861–1868 solo
+consulta Attr5 LIMIT_N en esta referencia. Los cambios posteriores de una
+aura por otros productores conservan su propio contrato.
 
 Feedback de Ghost/Wisp a las 19:40 UTC, sobre `6117a9dc5` más el delta local
 del worker (aarch64, un job; no aceptación del SHA ni campaña final):

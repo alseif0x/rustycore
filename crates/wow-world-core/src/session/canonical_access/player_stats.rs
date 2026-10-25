@@ -6,7 +6,7 @@
 use crate::session::OwnedInventoryAccessLikeCpp;
 use crate::session::state::{HubMut, HubRef, SessionCore};
 use crate::session::{SessionCatalogs, SessionWorldConfig};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use wow_constants::PowerType;
 use wow_core::ObjectGuid;
 use wow_data::{PlayerStatsStore, StatsLimitsLikeCpp};
@@ -15,7 +15,10 @@ use wow_entities::PlayerEffectiveCombatStatsLikeCpp;
 #[path = "../player_stat_queries.rs"]
 mod queries;
 
+mod aura_view;
 mod inventory_scaling;
+
+pub use aura_view::{PlayerStatAuraCatalogs, PlayerStatAuraView};
 
 /// Borrowed fixture inputs consumed by the character-stats projection.
 ///
@@ -176,67 +179,122 @@ pub struct PlayerStatsAccessLikeCpp<'a> {
     fixtures: StatsFixtureRefs<'a>,
 }
 
-fn represented_total_stat_multiplier_from_snapshot_like_cpp(
-    catalogs: &SessionCatalogs,
-    spell_store: &wow_data::SpellStore,
-    visible_auras: &HashMap<u8, wow_entities::AuraApplicationLikeCpp>,
-    aura_type: i32,
-    stat: usize,
-    uses_misc_value_b: bool,
-) -> f32 {
-    let mut multiplier = 1.0f32;
-    let mut same_effect_spell_groups = BTreeMap::<u32, i32>::new();
+impl SessionCatalogs {
+    /// Select only the spell catalogs needed to query Player aura effects.
+    pub fn player_stat_aura_catalogs(&self) -> Option<PlayerStatAuraCatalogs<'_>> {
+        Some(PlayerStatAuraCatalogs::new(
+            self.spell_store()?.as_ref(),
+            self.spell_catalogs.spell_group_store.as_deref(),
+            self.spell_catalogs.spell_chain_store.as_deref(),
+            self.spell_catalogs
+                .spell_group_stack_rule_store
+                .as_deref(),
+        ))
+    }
+}
 
-    for aura in visible_auras.values() {
-        let Some(spell) = spell_store.get(aura.spell_id) else {
-            continue;
-        };
+impl PlayerStatsAccessLikeCpp<'_> {
+    pub(super) fn with_aura_view<R>(
+        &self,
+        project: impl FnOnce(PlayerStatAuraView<'_>) -> R,
+    ) -> Option<R> {
+        let auras = self.resolved_player_visible_auras_like_cpp()?;
+        let catalogs = self.catalogs.player_stat_aura_catalogs()?;
+        Some(project(PlayerStatAuraView::new(&auras, catalogs)))
+    }
 
-        for effect in spell.effects().iter().filter(|effect| {
-            1u32.checked_shl(effect.effect_index)
-                .is_some_and(|bit| aura.effect_mask & bit != 0)
-                && effect.effect_aura == aura_type
-                && if uses_misc_value_b {
-                    effect.effect_misc_value_2 == 0 || effect.effect_misc_value_2 & (1 << stat) != 0
-                } else {
-                    effect.effect_misc_value_1 == -1 || effect.effect_misc_value_1 == stat as i32
-                }
-        }) {
-            let amount = aura
-                .represented_effect_amounts
-                .iter()
-                .find(|represented| u32::from(represented.effect_index) == effect.effect_index)
-                .map(|represented| represented.amount)
-                .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
+    pub fn resolved_aura_effects_by_spell_aura_type_like_cpp(
+        &self,
+        aura_type: i32,
+    ) -> Option<Vec<(i32, i32)>> {
+        self.with_aura_view(|view| view.effects_by_aura_type(aura_type))
+    }
 
-            let same_effect_group = catalogs
-                .spell_spell_group_map_bounds_like_cpp(aura.spell_id as u32)
-                .iter()
-                .copied()
-                .find(|group_id| {
-                    catalogs
-                        .same_effect_stack_rule_aura_types_like_cpp(*group_id)
-                        .is_some_and(|aura_types| aura_types.contains(&aura_type))
-                });
-            if let Some(group_id) = same_effect_group {
-                same_effect_spell_groups
-                    .entry(group_id)
-                    .and_modify(|current| {
-                        if current.unsigned_abs() < amount.unsigned_abs() {
-                            *current = amount;
-                        }
-                    })
-                    .or_insert(amount);
+    pub fn resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp(
+        &self,
+        aura_type: i32,
+    ) -> Option<Vec<(i32, i32, i32)>> {
+        self.with_aura_view(|view| view.effects_with_misc_values_by_aura_type(aura_type))
+    }
+
+    pub fn resolved_aura_effects_with_spell_and_misc_like_cpp(
+        &self,
+        aura_type: i32,
+    ) -> Option<Vec<(i32, i32, i32)>> {
+        self.with_aura_view(|view| view.effects_with_spell_and_misc_by_aura_type(aura_type))
+    }
+
+    pub fn resolved_aura_effect_amounts_by_spell_like_cpp(
+        &self,
+        aura_type: i32,
+    ) -> Option<Vec<(i32, i32)>> {
+        self.with_aura_view(|view| view.effect_amounts_by_aura_type(aura_type))
+    }
+
+    pub fn resolved_total_aura_multiplier_by_spell_aura_type_and_misc_value_like_cpp(
+        &self,
+        aura_type: i32,
+        misc_value: i32,
+    ) -> Option<f32> {
+        self.with_aura_view(|view| {
+            view.total_aura_multiplier_by_type_and_misc_value(aura_type, misc_value)
+        })
+    }
+
+    pub fn resolved_total_aura_modifier_by_spell_aura_type_and_misc_value_like_cpp(
+        &self,
+        aura_type: i32,
+        misc_value: i32,
+    ) -> Option<i32> {
+        self.with_aura_view(|view| {
+            view.total_aura_modifier_by_type_and_misc_value(aura_type, misc_value)
+        })
+    }
+
+    pub fn resolved_represented_total_stat_multipliers_like_cpp(&self) -> Option<[f32; 5]> {
+        self.with_aura_view(|view| view.total_stat_multipliers())
+    }
+
+    pub fn resolved_stat_base_multipliers(&self) -> Option<[f32; 5]> {
+        self.with_aura_view(|view| view.stat_base_multipliers())
+    }
+
+    pub fn resolved_represented_total_stat_buff_multipliers_like_cpp(
+        &self,
+    ) -> Option<[f32; 5]> {
+        self.with_aura_view(|view| view.total_stat_buff_multipliers())
+    }
+}
+
+impl HubRef<'_> {
+    fn with_aura_view<R>(&self, project: impl FnOnce(PlayerStatAuraView<'_>) -> R) -> Option<R> {
+        let auras = self.resolved_player_visible_auras_like_cpp()?;
+        let catalogs = self.catalogs.player_stat_aura_catalogs()?;
+        Some(project(PlayerStatAuraView::new(&auras, catalogs)))
+    }
+
+    fn resolved_represented_total_stat_multipliers_with_misc_like_cpp(
+        &self,
+        uses_misc_value_b: bool,
+    ) -> Option<[f32; 5]> {
+        self.with_aura_view(|view| {
+            if uses_misc_value_b {
+                view.total_stat_multipliers()
             } else {
-                multiplier += multiplier * amount as f32 / 100.0;
+                view.total_stat_buff_multipliers()
             }
-        }
+        })
     }
 
-    for amount in same_effect_spell_groups.into_values() {
-        multiplier += multiplier * amount as f32 / 100.0;
+    pub fn resolved_represented_total_stat_multipliers_like_cpp(&self) -> Option<[f32; 5]> {
+        self.resolved_represented_total_stat_multipliers_with_misc_like_cpp(true)
     }
-    multiplier
+
+    pub fn resolved_represented_total_stat_buff_multipliers_like_cpp(
+        &self,
+    ) -> Option<[f32; 5]> {
+        self.resolved_represented_total_stat_multipliers_with_misc_like_cpp(false)
+    }
 }
 
 impl SessionCore {
@@ -472,160 +530,6 @@ impl PlayerStatsAccessLikeCpp<'_> {
             .map(|auras| auras.runtime_applications_like_cpp().clone())
     }
 
-    pub fn resolved_aura_effects_by_spell_aura_type_like_cpp(
-        &self,
-        aura_type: i32,
-    ) -> Option<Vec<(i32, i32)>> {
-        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
-        let spell_store = self.catalogs.spell_store()?;
-        Some(
-            crate::session::player_aura_effects_by_spell_aura_type_like_cpp(
-                &visible_auras,
-                spell_store,
-                aura_type,
-            ),
-        )
-    }
-
-    pub fn resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp(
-        &self,
-        aura_type: i32,
-    ) -> Option<Vec<(i32, i32, i32)>> {
-        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
-        let spell_store = self.catalogs.spell_store()?;
-        Some(
-            crate::session::aura_effects_with_misc_values_from_snapshot_like_cpp(
-                &visible_auras,
-                spell_store,
-                aura_type,
-            ),
-        )
-    }
-
-    pub fn resolved_aura_effects_with_spell_and_misc_like_cpp(
-        &self,
-        aura_type: i32,
-    ) -> Option<Vec<(i32, i32, i32)>> {
-        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
-        let spell_store = self.catalogs.spell_store()?;
-        Some(
-            crate::session::aura_effects_with_spell_and_misc_from_snapshot_like_cpp(
-                &visible_auras,
-                spell_store,
-                aura_type,
-            ),
-        )
-    }
-
-    pub fn resolved_aura_effect_amounts_by_spell_like_cpp(
-        &self,
-        aura_type: i32,
-    ) -> Option<Vec<(i32, i32)>> {
-        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
-        let spell_store = self.catalogs.spell_store()?;
-        Some(
-            crate::session::aura_effect_amounts_by_spell_from_snapshot_like_cpp(
-                &visible_auras,
-                spell_store,
-                aura_type,
-            ),
-        )
-    }
-
-    pub fn resolved_total_aura_multiplier_by_spell_aura_type_and_misc_value_like_cpp(
-        &self,
-        aura_type: i32,
-        misc_value: i32,
-    ) -> Option<f32> {
-        self.resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
-            .map(|effects| {
-                effects
-                    .into_iter()
-                    .filter(|(effect_misc_value, _)| *effect_misc_value == misc_value)
-                    .fold(1.0, |acc, (_, amount)| acc * (1.0 + amount as f32 / 100.0))
-            })
-    }
-
-    pub fn resolved_total_aura_modifier_by_spell_aura_type_and_misc_value_like_cpp(
-        &self,
-        aura_type: i32,
-        misc_value: i32,
-    ) -> Option<i32> {
-        self.resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
-            .map(|effects| {
-                effects
-                    .into_iter()
-                    .filter(|(effect_misc_value, _)| *effect_misc_value == misc_value)
-                    .map(|(_, amount)| amount)
-                    .sum()
-            })
-    }
-
-    pub fn resolved_represented_total_stat_multipliers_like_cpp(&self) -> Option<[f32; 5]> {
-        let mut multipliers = [1.0; 5];
-        for (stat, multiplier) in multipliers.iter_mut().enumerate() {
-            *multiplier =
-                self.resolved_represented_total_stat_multiplier_for_stat_like_cpp(stat, true)?;
-        }
-        Some(multipliers)
-    }
-
-    pub fn resolved_stat_base_multipliers(&self) -> Option<[f32; 5]> {
-        let mut multipliers = [1.0; 5];
-        for (stat, multiplier) in multipliers.iter_mut().enumerate() {
-            *multiplier = self.resolved_represented_stat_multiplier_for_stat(
-                wow_data::spell::aura_types::SPELL_AURA_MOD_PERCENT_STAT,
-                stat,
-                false,
-            )?;
-        }
-        Some(multipliers)
-    }
-
-    pub fn resolved_represented_total_stat_buff_multipliers_like_cpp(&self) -> Option<[f32; 5]> {
-        let mut multipliers = [1.0; 5];
-        for (stat, multiplier) in multipliers.iter_mut().enumerate() {
-            *multiplier =
-                self.resolved_represented_total_stat_multiplier_for_stat_like_cpp(stat, false)?;
-        }
-        Some(multipliers)
-    }
-
-    fn resolved_represented_total_stat_multiplier_for_stat_like_cpp(
-        &self,
-        stat: usize,
-        uses_misc_value_b: bool,
-    ) -> Option<f32> {
-        let spell_store = self.catalogs.spell_store()?;
-        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
-        Some(represented_total_stat_multiplier_from_snapshot_like_cpp(
-            self.catalogs,
-            spell_store,
-            &visible_auras,
-            wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE,
-            stat,
-            uses_misc_value_b,
-        ))
-    }
-
-    fn resolved_represented_stat_multiplier_for_stat(
-        &self,
-        aura_type: i32,
-        stat: usize,
-        uses_misc_value_b: bool,
-    ) -> Option<f32> {
-        let spell_store = self.catalogs.spell_store()?;
-        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
-        Some(represented_total_stat_multiplier_from_snapshot_like_cpp(
-            self.catalogs,
-            spell_store,
-            &visible_auras,
-            aura_type,
-            stat,
-            uses_misc_value_b,
-        ))
-    }
-
     pub fn represented_shapeshift_combat_round_time_like_cpp(&self) -> Option<f32> {
         self.core
             .represented_shapeshift_combat_round_time_with_fixture_refs_like_cpp(
@@ -700,35 +604,6 @@ impl PlayerStatsAccessLikeCpp<'_> {
     }
 }
 
-impl HubRef<'_> {
-    fn resolved_represented_total_stat_multipliers_with_misc_like_cpp(
-        &self,
-        uses_misc_value_b: bool,
-    ) -> Option<[f32; 5]> {
-        let mut multipliers = [1.0; 5];
-        for (stat, multiplier) in multipliers.iter_mut().enumerate() {
-            let spell_store = self.catalogs.spell_store()?;
-            let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
-            *multiplier = represented_total_stat_multiplier_from_snapshot_like_cpp(
-                self.catalogs,
-                spell_store,
-                &visible_auras,
-                wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE,
-                stat,
-                uses_misc_value_b,
-            );
-        }
-        Some(multipliers)
-    }
-
-    pub fn resolved_represented_total_stat_multipliers_like_cpp(&self) -> Option<[f32; 5]> {
-        self.resolved_represented_total_stat_multipliers_with_misc_like_cpp(true)
-    }
-
-    pub fn resolved_represented_total_stat_buff_multipliers_like_cpp(&self) -> Option<[f32; 5]> {
-        self.resolved_represented_total_stat_multipliers_with_misc_like_cpp(false)
-    }
-}
 
 impl HubMut<'_> {
     pub(crate) fn player_stats_access_like_cpp(&mut self) -> PlayerStatsAccessLikeCpp<'_> {
