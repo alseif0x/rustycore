@@ -82,13 +82,17 @@ fn install_known_empty_sickness_race(session: &mut WorldSession, race_id: u8) {
         .with_owned_player_mut_like_cpp(|player| player.unit_mut().set_race(race_id))
         .expect("canonical Player owner");
     session.set_chr_races_store(std::sync::Arc::new(
-        wow_data::character_progression::ChrRacesStore::from_entries([
-            race_entry(u32::from(race_id), 0),
-        ]),
+        wow_data::character_progression::ChrRacesStore::from_entries([race_entry(
+            u32::from(race_id),
+            0,
+        )]),
     ));
 }
 
-fn race_entry(id: u32, res_sickness_spell_id: i32) -> wow_data::character_progression::ChrRacesEntry {
+fn race_entry(
+    id: u32,
+    res_sickness_spell_id: i32,
+) -> wow_data::character_progression::ChrRacesEntry {
     wow_data::character_progression::ChrRacesEntry {
         id,
         client_prefix: String::new(),
@@ -426,15 +430,17 @@ fn legacy_player_sweep_keeps_nonempty_auras_when_race_classification_is_unknown(
 
     install_known_empty_sickness_race(&mut session, 4);
     wow_world_spell::tick_auras_expiry_only(&mut session);
-    assert!(session
-        .core
-        .with_owned_player_like_cpp(|player| player
-            .unit()
-            .subsystems()
-            .auras
-            .runtime_application_like_cpp(0)
-            .is_none())
-        .expect("canonical Player owner"));
+    assert!(
+        session
+            .core
+            .with_owned_player_like_cpp(|player| player
+                .unit()
+                .subsystems()
+                .auras
+                .runtime_application_like_cpp(0)
+                .is_none())
+            .expect("canonical Player owner")
+    );
 }
 
 #[test]
@@ -500,17 +506,19 @@ fn selected_sickness_duration_update_keeps_unit_clock_and_waits_for_recovery() {
             },
         ]),
     ));
-    session.set_player_stats(std::sync::Arc::new(wow_data::PlayerStatsStore::from_entries([(
-        (4, 1, 1),
-        wow_data::PlayerLevelStats {
-            strength: 10,
-            agility: 10,
-            stamina: 10,
-            intellect: 10,
-            spirit: 10,
-            base_mana: 100,
-        },
-    )])));
+    session.set_player_stats(std::sync::Arc::new(
+        wow_data::PlayerStatsStore::from_entries([(
+            (4, 1, 1),
+            wow_data::PlayerLevelStats {
+                strength: 10,
+                agility: 10,
+                stamina: 10,
+                intellect: 10,
+                spirit: 10,
+                base_mana: 100,
+            },
+        )]),
+    ));
     session
         .player_aura_application_cx_like_cpp()
         .apply_resurrection_sickness_aura(
@@ -522,7 +530,7 @@ fn selected_sickness_duration_update_keeps_unit_clock_and_waits_for_recovery() {
             0x88,
             0,
             0,
-            wow_entities::AuraCastProvenanceLikeCpp::default(),
+            Ok((0x0011, wow_entities::AuraCastProvenanceLikeCpp::default())),
         )
         .expect("canonical sickness application");
     let _ = drain_server_packet_bytes(&send_rx);
@@ -554,15 +562,17 @@ fn selected_sickness_duration_update_keeps_unit_clock_and_waits_for_recovery() {
     assert_eq!(application.duration_total, 600_000);
     assert_eq!(application.duration_remaining, 120_000);
     assert_eq!(application.applied_at, stale);
-    assert!(session
-        .core
-        .with_owned_player_like_cpp(|player| player
-            .unit()
-            .subsystems()
-            .auras
-            .visible_auras_to_update
-            .contains(&0))
-        .expect("canonical Player owner"));
+    assert!(
+        session
+            .core
+            .with_owned_player_like_cpp(|player| player
+                .unit()
+                .subsystems()
+                .auras
+                .visible_auras_to_update
+                .contains(&0))
+            .expect("canonical Player owner")
+    );
 
     wow_world_spell::tick_auras_expiry_only(&mut session);
     assert_eq!(canonical_aura(&session, 0).0.duration_remaining, 120_000);

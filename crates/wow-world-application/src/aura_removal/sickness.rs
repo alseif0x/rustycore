@@ -65,7 +65,7 @@ impl AuraRemovalCxLikeCpp<'_> {
         attributes1: u32,
         attributes5: u32,
         charges: u8,
-        provenance: wow_entities::AuraCastProvenanceLikeCpp,
+        creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp), &'static str>,
     ) -> Result<(), &'static str> {
         if self.is_current_race_sickness_spell(spell_id) != Some(true) {
             return Err("Spell is not the current race-selected sickness Aura");
@@ -178,6 +178,8 @@ impl AuraRemovalCxLikeCpp<'_> {
             return Ok(());
         }
 
+        let (aura_flags, provenance) = creation?;
+
         // `_AddAura` removes every existing same-spell application before it
         // admits a new Aura, including a same-caster application with a
         // different effect mask.
@@ -190,7 +192,7 @@ impl AuraRemovalCxLikeCpp<'_> {
             spell_id,
             caster_guid,
             duration_total,
-            0x0000_0015,
+            aura_flags,
             ACTIVE_EFFECT_MASK,
             provenance,
             false,

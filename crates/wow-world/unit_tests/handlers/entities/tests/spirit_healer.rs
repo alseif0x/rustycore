@@ -18,6 +18,8 @@ const CUSTOM_SICKNESS_SPELL: i32 = 846_201;
 mod lifecycle_stat;
 #[path = "spirit_healer/recast_policy.rs"]
 mod recast_policy;
+#[path = "spirit_healer/selected_creation.rs"]
+mod selected_creation;
 #[path = "spirit_healer/selected_lifetime.rs"]
 mod selected_lifetime;
 #[path = "spirit_healer/setup.rs"]
@@ -494,7 +496,7 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
     assert_eq!(sickness.active_flags, 0x7);
     let sickness_auras = visible_sickness_aura(&session, SICKNESS_SPELL);
     assert_eq!(sickness_auras.len(), 1);
-    assert_eq!(sickness_auras[0].aura_flags, 0x15);
+    assert_eq!(sickness_auras[0].aura_flags, 0x11);
     assert_eq!(sickness_auras[0].effect_mask, 0x7);
     assert_eq!(sickness_auras[0].duration_total, 600_000);
     assert_eq!(sickness_auras[0].duration_remaining, 60_000);

@@ -17,12 +17,6 @@ use super::SpellExecutionHostLikeCpp;
 
 const GHOST_SPELL: i32 = 8326;
 const WISP_SPELL: i32 = 20584;
-const AURA_FLAG_NO_CASTER: u32 = 0x0001;
-const AURA_FLAG_CANCELABLE: u32 = 0x0002;
-const AURA_FLAG_SCALABLE: u32 = 0x0008;
-const AURA_FLAG_NEGATIVE: u32 = 0x0010;
-const AURA_FLAG_POSITIVE: u32 = 0x0100;
-const AURA_FLAG_PASSIVE: u32 = 0x0200;
 
 pub(super) fn is_ghost_wisp_spell(spell_id: i32) -> bool {
     matches!(spell_id, GHOST_SPELL | WISP_SPELL)
@@ -76,29 +70,24 @@ pub(super) fn apply<H: SpellExecutionHostLikeCpp>(
     if caster_guid != host.player_guid().unwrap_or(ObjectGuid::EMPTY) {
         return Err("Selected resurrection ghost aura requires the Player as its caster");
     }
-    let caster_level = host
-        .core()
-        .with_owned_player_like_cpp(|player| {
-            (player.guid() == caster_guid).then_some(player.unit().data().level as u8)
-        })
-        .flatten()
-        .ok_or("Missing canonical Player for selected resurrection ghost aura")?;
-    let (duration_ms, aura_flags, effect_mask, stack_amount, attributes1, attributes5, charges) = {
+    let (duration_ms, effect_mask, stack_amount, attributes1, attributes5, charges) = {
         let hub = host.hub_ref();
         let difficulty = host.core().current_map_difficulty_id_like_cpp();
-        let misc = hub
+        let difficulties = hub.catalogs.difficulty_store.as_deref();
+        let misc_store = hub
             .catalogs
             .spell_catalogs
             .spell_misc_store
             .as_deref()
-            .and_then(|store| {
-                store.entry_for_spell_difficulty_with_fallback_like_cpp(
-                    u32::try_from(spell_id).ok()?,
-                    difficulty,
-                    hub.catalogs.difficulty_store.as_deref(),
-                )
-            })
-            .ok_or("Missing selected resurrection ghost SpellMisc row")?;
+            .ok_or("Missing selected resurrection ghost SpellMisc catalog")?;
+        let misc = crate::aura_session::selected_catalog::selected_spell_misc_entry(
+            misc_store,
+            u32::try_from(spell_id).map_err(|_| "Invalid selected resurrection ghost spell")?,
+            difficulty,
+            difficulties,
+        )
+        .map_err(|_| "Unable to resolve selected resurrection ghost SpellMisc row")?
+        .ok_or("Missing selected resurrection ghost SpellMisc row")?;
         let duration_index = u32::from(misc.duration_index);
         let duration = wow_data::spell_duration_ms_like_cpp(
             duration_index,
@@ -121,7 +110,6 @@ pub(super) fn apply<H: SpellExecutionHostLikeCpp>(
             return Err("Selected resurrection ghost aura does not use all three effect slots");
         }
 
-        let attrs = misc.attributes.map(|value| value as u32);
         let spell_id_u32 =
             u32::try_from(spell_id).map_err(|_| "Invalid selected resurrection ghost spell")?;
         let options_store = hub
@@ -130,56 +118,38 @@ pub(super) fn apply<H: SpellExecutionHostLikeCpp>(
             .spell_aura_options_store
             .as_deref()
             .ok_or("Missing selected resurrection ghost SpellAuraOptions catalog")?;
-        let options = options_store.entry_for_spell_difficulty_like_cpp(spell_id_u32, difficulty);
+        let options = crate::aura_session::selected_catalog::selected_aura_options_entry(
+            options_store,
+            spell_id_u32,
+            difficulty,
+            difficulties,
+        )
+        .map_err(|_| "Unable to resolve selected resurrection ghost SpellAuraOptions row")?;
         let stack_amount = options.map_or(0, |row| row.cumulative_aura);
         let charges = options_store.proc_charges_like_cpp(spell_id_u32, difficulty);
-        let positive = crate::aura_session::selected_aura_effects_positive(spell_info, effect_mask)
-            .ok_or("Selected resurrection aura effect mask is inconsistent")?;
-        let mut aura_flags = AURA_FLAG_NO_CASTER;
-        if positive {
-            aura_flags |= AURA_FLAG_POSITIVE;
-        } else {
-            aura_flags |= AURA_FLAG_NEGATIVE;
-        }
-        let passive = attrs[0] & wow_data::spell::attributes::SPELL_ATTR0_PASSIVE != 0;
-        if positive
-            && !passive
-            && attrs[1] & wow_data::spell::attributes::SPELL_ATTR1_NO_AURA_ICON == 0
-        {
-            aura_flags |= AURA_FLAG_CANCELABLE;
-        }
-        if passive {
-            aura_flags |= AURA_FLAG_PASSIVE;
-        }
-        if attrs[8] & wow_data::spell::attributes::SPELL_ATTR8_AURA_POINTS_ON_CLIENT != 0 {
-            aura_flags |= AURA_FLAG_SCALABLE;
-        }
-        (
-            0,
-            aura_flags,
-            effect_mask,
-            stack_amount,
-            attrs[1],
-            attrs[5],
-            charges,
-        )
+        let attrs = misc.attributes.map(|value| value as u32);
+        (0, effect_mask, stack_amount, attrs[1], attrs[5], charges)
     };
+    let creation = super::selected_creation::prepare(
+        host,
+        spell_id,
+        caster_guid,
+        spell_info,
+        effect_mask,
+        cast_id,
+        spell_visual_id,
+    );
 
     host.apply_ghost_wisp_aura(
         spell_id,
         caster_guid,
         spell_info,
         duration_ms,
-        aura_flags,
         effect_mask,
         stack_amount,
         attributes1,
         attributes5,
         charges,
-        wow_entities::AuraCastProvenanceLikeCpp {
-            cast_id,
-            spell_visual_id: i32::try_from(spell_visual_id).unwrap_or(i32::MAX),
-            caster_level: Some(caster_level),
-        },
+        creation,
     )
 }

@@ -115,13 +115,12 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
         caster_guid: ObjectGuid,
         spell_info: &wow_data::SpellInfo,
         duration_ms: u32,
-        aura_flags: u32,
         effect_mask: u32,
         stack_amount: u32,
         attributes1: u32,
         attributes5: u32,
         charges: u8,
-        provenance: wow_entities::AuraCastProvenanceLikeCpp,
+        creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp), &'static str>,
     ) -> Result<(), &'static str> {
         self.player_aura_application_cx_like_cpp()
             .apply_ghost_wisp_aura(
@@ -129,13 +128,12 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
                 caster_guid,
                 spell_info,
                 duration_ms,
-                aura_flags,
                 effect_mask,
                 stack_amount,
                 attributes1,
                 attributes5,
                 charges,
-                provenance,
+                creation,
             )
     }
     fn apply_resurrection_sickness_aura(
@@ -148,7 +146,7 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
         attributes1: u32,
         attributes5: u32,
         charges: u8,
-        provenance: wow_entities::AuraCastProvenanceLikeCpp,
+        creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp), &'static str>,
     ) -> Result<(), &'static str> {
         self.player_aura_application_cx_like_cpp()
             .apply_resurrection_sickness_aura(
@@ -160,7 +158,7 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
                 attributes1,
                 attributes5,
                 charges,
-                provenance,
+                creation,
             )
     }
     fn apply_durability_damage_effect_like_cpp(

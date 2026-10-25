@@ -45,19 +45,21 @@ pub(super) fn should_send_resurrection_sickness_spell_go<H: SpellExecutionHostLi
     let spell_id = u32::try_from(spell_id).map_err(|_| "Invalid resurrection sickness spell")?;
     let hub = host.hub_ref();
     let difficulty_id = host.core().current_map_difficulty_id_like_cpp();
-    let misc = hub
+    let difficulties = hub.catalogs.difficulty_store.as_deref();
+    let misc_store = hub
         .catalogs
         .spell_catalogs
         .spell_misc_store
         .as_deref()
-        .and_then(|store| {
-            store.entry_for_spell_difficulty_with_fallback_like_cpp(
-                spell_id,
-                difficulty_id,
-                hub.catalogs.difficulty_store.as_deref(),
-            )
-        })
-        .ok_or("Missing resurrection sickness SpellMisc row")?;
+        .ok_or("Missing resurrection sickness SpellMisc catalog")?;
+    let misc = crate::aura_session::selected_catalog::selected_spell_misc_entry(
+        misc_store,
+        spell_id,
+        difficulty_id,
+        difficulties,
+    )
+    .map_err(|_| "Unable to resolve resurrection sickness SpellMisc row")?
+    .ok_or("Missing resurrection sickness SpellMisc row")?;
     let attr1 = misc.attributes[1] as u32;
     let attr7 = misc.attributes[7] as u32;
     let attr8 = misc.attributes[8] as u32;
@@ -104,50 +106,23 @@ pub(super) fn apply_resurrection_sickness_aura<H: SpellExecutionHostLikeCpp>(
         })
         .transpose()?;
     let difficulty_id = host.core().current_map_difficulty_id_like_cpp();
-    let spell_levels_store = host
-        .hub_ref()
-        .catalogs
-        .spell_catalogs
-        .spell_levels_store
-        .clone();
-    let difficulty_store = host.hub_ref().catalogs.difficulty_store.clone();
-    let caster_level = {
-        let core = host.core();
-        let Some(owner) = core.player_handle_like_cpp else {
-            return Err("Missing canonical Player owner for resurrection sickness");
-        };
-        let Some(manager) = core.canonical_map_manager.as_ref() else {
-            return Err("Missing canonical MapManager for resurrection sickness");
-        };
-        let manager = manager
-            .lock()
-            .map_err(|_| "Canonical MapManager is unavailable for resurrection sickness")?;
-        crate::aura_session::selected_caster_level(
-            &manager,
-            owner,
-            caster_guid,
-            spell_id_u32,
-            difficulty_id,
-            spell_levels_store.as_deref(),
-            difficulty_store.as_deref(),
-        )
-        .map_err(|_| "Unable to resolve resurrection sickness caster level")?
-    };
     let (duration_total, stack_amount, attributes1, attributes5, charges) = {
         let hub = host.hub_ref();
-        let misc = hub
+        let difficulties = hub.catalogs.difficulty_store.as_deref();
+        let misc_store = hub
             .catalogs
             .spell_catalogs
             .spell_misc_store
             .as_deref()
-            .and_then(|store| {
-                store.entry_for_spell_difficulty_with_fallback_like_cpp(
-                    spell_id_u32,
-                    difficulty_id,
-                    difficulty_store.as_deref(),
-                )
-            })
-            .ok_or("Missing resurrection sickness SpellMisc row")?;
+            .ok_or("Missing resurrection sickness SpellMisc catalog")?;
+        let misc = crate::aura_session::selected_catalog::selected_spell_misc_entry(
+            misc_store,
+            spell_id_u32,
+            difficulty_id,
+            difficulties,
+        )
+        .map_err(|_| "Unable to resolve resurrection sickness SpellMisc row")?
+        .ok_or("Missing resurrection sickness SpellMisc row")?;
         let duration_index = u32::from(misc.duration_index);
         let duration_total = spell_duration_ms_like_cpp(
             duration_index,
@@ -163,10 +138,15 @@ pub(super) fn apply_resurrection_sickness_aura<H: SpellExecutionHostLikeCpp>(
             .spell_aura_options_store
             .as_deref()
             .ok_or("Missing SpellAuraOptions catalog for resurrection sickness")?;
+        let options_entry = crate::aura_session::selected_catalog::selected_aura_options_entry(
+            options,
+            spell_id_u32,
+            difficulty_id,
+            difficulties,
+        )
+        .map_err(|_| "Unable to resolve resurrection sickness SpellAuraOptions row")?;
         let charges = options.proc_charges_like_cpp(spell_id_u32, difficulty_id);
-        let stack_amount = options
-            .entry_for_spell_difficulty_like_cpp(spell_id_u32, difficulty_id)
-            .map_or(0, |entry| entry.cumulative_aura);
+        let stack_amount = options_entry.map_or(0, |entry| entry.cumulative_aura);
         let attributes = misc.attributes.map(|value| value as u32);
         (
             duration_total,
@@ -176,6 +156,27 @@ pub(super) fn apply_resurrection_sickness_aura<H: SpellExecutionHostLikeCpp>(
             charges,
         )
     };
+    let active_effect_mask = spell_info
+        .effects()
+        .iter()
+        .filter(|effect| {
+            effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
+        })
+        .try_fold(0_u32, |mask, effect| {
+            let bit = 1_u32
+                .checked_shl(effect.effect_index)
+                .ok_or("Invalid resurrection sickness effect index")?;
+            Ok::<_, &'static str>(mask | bit)
+        })?;
+    let creation = super::selected_creation::prepare(
+        host,
+        spell_id,
+        caster_guid,
+        spell_info,
+        active_effect_mask,
+        cast_id,
+        spell_visual_id,
+    );
 
     host.apply_resurrection_sickness_aura(
         spell_id,
@@ -186,11 +187,7 @@ pub(super) fn apply_resurrection_sickness_aura<H: SpellExecutionHostLikeCpp>(
         attributes1,
         attributes5,
         charges,
-        wow_entities::AuraCastProvenanceLikeCpp {
-            cast_id,
-            spell_visual_id: spell_visual_id.min(i32::MAX as u32) as i32,
-            caster_level: Some(caster_level),
-        },
+        creation,
     )?;
     if let Some(remaining) = requested_remaining {
         let remaining = u32::try_from(remaining)

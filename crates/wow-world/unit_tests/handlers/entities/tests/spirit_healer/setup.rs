@@ -172,16 +172,28 @@ pub(super) fn install_sickness_data(
         }
     }
     spells.insert(spell_id, spell_info);
-    spells.insert_spell_misc_attributes_like_cpp(spell_id, [0; 15]);
+    let mut attributes = [0; 15];
+    attributes[0] = 0x2C80_0100;
+    attributes[1] = 0x88;
+    spells.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
     session.set_spell_store(Arc::new(spells));
-    let mut misc = wow_data::SpellMiscEntry {
+
+    let mut misc_rows = crate::session::hub_ref(session)
+        .catalogs
+        .spell_catalogs
+        .spell_misc_store()
+        .map(|store| store.entries_like_cpp().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
+    misc_rows.retain(|row| !(row.spell_id == spell_id as u32 && row.difficulty_id == 0));
+    misc_rows.push(wow_data::SpellMiscEntry {
         id: spell_id as u32,
         spell_id: spell_id as u32,
+        difficulty_id: 0,
         duration_index: 427,
+        attributes: attributes.map(|value| value as i32),
         ..Default::default()
-    };
-    misc.attributes[1] = 0x88;
-    session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries([misc])));
+    });
+    session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries(misc_rows)));
     session.set_spell_duration_store(Arc::new(wow_data::SpellDurationStore::from_entries([
         wow_data::SpellDurationEntry {
             id: 427,
@@ -190,8 +202,17 @@ pub(super) fn install_sickness_data(
             max_duration: 600_000,
         },
     ])));
-    session
-        .set_spell_aura_options_store(Arc::new(wow_data::SpellAuraOptionsStore::from_entries([])));
+    let mut aura_options_rows = crate::session::hub_ref(session)
+        .catalogs
+        .spell_catalogs
+        .spell_aura_options_store
+        .as_deref()
+        .map(|store| store.entries_like_cpp().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
+    aura_options_rows.retain(|row| !(row.spell_id == spell_id as u32 && row.difficulty_id == 0));
+    session.set_spell_aura_options_store(Arc::new(wow_data::SpellAuraOptionsStore::from_entries(
+        aura_options_rows,
+    )));
     session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_ids([0])));
     let visual_rows = visual_id
         .map(|spell_visual_id| wow_data::SpellXSpellVisualEntry {

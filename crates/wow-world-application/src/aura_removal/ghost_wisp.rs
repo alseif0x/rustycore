@@ -81,13 +81,12 @@ impl AuraRemovalCxLikeCpp<'_> {
         caster_guid: wow_core::ObjectGuid,
         spell_info: &wow_data::SpellInfo,
         duration_ms: u32,
-        aura_flags: u32,
         effect_mask: u32,
         stack_amount: u32,
         attributes1: u32,
         attributes5: u32,
         charges: u8,
-        provenance: wow_entities::AuraCastProvenanceLikeCpp,
+        creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp), &'static str>,
     ) -> Result<(), &'static str> {
         if duration_ms != 0 || effect_mask != SELECTED_EFFECT_MASK {
             return Err("Resurrection ghost aura is not the expected permanent three-effect aura");
@@ -190,6 +189,8 @@ impl AuraRemovalCxLikeCpp<'_> {
             }
             return Ok(());
         }
+
+        let (aura_flags, provenance) = creation?;
 
         // Validate the Wisp template before installing the aura so missing
         // selected data cannot leave a partially applied transform.

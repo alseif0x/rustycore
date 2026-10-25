@@ -67,6 +67,7 @@ mod primary_effect_fallback;
 mod resurrection_auras;
 mod resurrection_offer;
 mod resurrection_sickness;
+mod selected_creation;
 mod target_resolution;
 
 pub use cast_state::*;
@@ -136,13 +137,12 @@ pub trait SpellExecutionHostLikeCpp:
         caster_guid: ObjectGuid,
         spell_info: &wow_data::SpellInfo,
         duration_ms: u32,
-        aura_flags: u32,
         effect_mask: u32,
         stack_amount: u32,
         attributes1: u32,
         attributes5: u32,
         charges: u8,
-        provenance: wow_entities::AuraCastProvenanceLikeCpp,
+        creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp), &'static str>,
     ) -> Result<(), &'static str>;
     fn apply_resurrection_sickness_aura(
         &mut self,
@@ -154,7 +154,7 @@ pub trait SpellExecutionHostLikeCpp:
         attributes1: u32,
         attributes5: u32,
         charges: u8,
-        provenance: wow_entities::AuraCastProvenanceLikeCpp,
+        creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp), &'static str>,
     ) -> Result<(), &'static str>;
     fn apply_durability_damage_effect_like_cpp(
         &mut self,

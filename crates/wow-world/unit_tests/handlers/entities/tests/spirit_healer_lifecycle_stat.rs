@@ -79,8 +79,8 @@ async fn lifecycle_stat_fresh_sickness_updates_canonical_stats_through_map_value
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 11, 0);
     set_race_sickness_spell(&mut session, SICKNESS_SPELL);
     install_sickness_data(&mut session, SICKNESS_SPELL, None);
-    session.set_spell_aura_options_store(Arc::new(
-        wow_data::SpellAuraOptionsStore::from_entries([wow_data::SpellAuraOptionsEntry {
+    session.set_spell_aura_options_store(Arc::new(wow_data::SpellAuraOptionsStore::from_entries(
+        [wow_data::SpellAuraOptionsEntry {
             id: SICKNESS_SPELL as u32,
             difficulty_id: 0,
             cumulative_aura: 1,
@@ -90,8 +90,8 @@ async fn lifecycle_stat_fresh_sickness_updates_canonical_stats_through_map_value
             spell_procs_per_minute_id: 0,
             proc_type_mask: [0; 2],
             spell_id: SICKNESS_SPELL as u32,
-        }]),
-    ));
+        }],
+    )));
     install_stats_catalog(&mut session, 10);
 
     session.core.with_owned_player_mut_like_cpp(|player| {
@@ -724,7 +724,14 @@ async fn sickness_replaces_foreign_or_mask_mismatched_application_before_fresh_c
                 0x88,
                 0,
                 0,
-                old_provenance,
+                Ok((
+                    if old_caster == player_guid {
+                        0x0011
+                    } else {
+                        0x0010
+                    },
+                    old_provenance,
+                )),
             )
             .expect("install old foreign or mask-mismatched selected Aura");
         let old = visible_sickness_aura(&session, SICKNESS_SPELL);
@@ -805,7 +812,7 @@ async fn sickness_replaces_foreign_or_mask_mismatched_application_before_fresh_c
                 0x88,
                 0,
                 0,
-                new_provenance,
+                Ok((0x0011, new_provenance)),
             )
             .expect("fresh selected application replaces the previous same-spell Aura");
 
@@ -938,7 +945,7 @@ async fn sickness_stale_owner_does_not_fall_back_or_mutate_retired_player() {
             0x88,
             0,
             0,
-            wow_entities::AuraCastProvenanceLikeCpp::default(),
+            Ok((0x0011, wow_entities::AuraCastProvenanceLikeCpp::default())),
         );
     assert!(
         aura_result.is_err(),

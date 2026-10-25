@@ -862,15 +862,11 @@ fn represented_faction_reaction_static_branch_uses_forced_rank_like_cpp() {
 #[test]
 fn represented_faction_reaction_adapter_preserves_lower_rule_order() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
+    let mut source = faction_template_entry(1, 72, 0, 0, 0);
+    source.flags = wow_data::progression_rewards::FACTION_TEMPLATE_FLAG_CONTESTED_GUARD_LIKE_CPP;
     session.set_faction_template_store(Arc::new(
         wow_data::progression_rewards::FactionTemplateStore::from_entries([
-            faction_template_entry(
-                1,
-                72,
-                wow_data::progression_rewards::FACTION_TEMPLATE_FLAG_CONTESTED_GUARD_LIKE_CPP,
-                0,
-                0,
-            ),
+            source,
             faction_template_entry(2, 930, 0, 0, 0),
         ]),
     ));

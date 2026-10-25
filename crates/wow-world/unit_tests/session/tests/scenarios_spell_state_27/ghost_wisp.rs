@@ -10,12 +10,12 @@ mod observers;
 mod persistence;
 #[path = "ghost_wisp/recast.rs"]
 mod recast;
-#[path = "ghost_wisp/selected_recovery.rs"]
-mod selected_recovery;
 #[path = "ghost_wisp/resurrection.rs"]
 mod resurrection;
 #[path = "ghost_wisp/selected_lifetime.rs"]
 mod selected_lifetime;
+#[path = "ghost_wisp/selected_recovery.rs"]
+mod selected_recovery;
 #[path = "ghost_wisp/setup.rs"]
 mod setup;
 use setup::{
@@ -98,6 +98,29 @@ fn aura_update_visual_rows(packets: &[Vec<u8>]) -> Vec<(i32, i32)> {
             let spell_id = packet.read_int32().ok()?;
             let visual_id = packet.read_int32().ok()?;
             Some((spell_id, visual_id))
+        })
+        .collect()
+}
+
+fn aura_update_flags(packets: &[Vec<u8>]) -> Vec<(i32, u16)> {
+    packets
+        .iter()
+        .filter_map(|bytes| {
+            let mut packet = wow_packet::WorldPacket::from_bytes(bytes);
+            if packet.read_uint16().ok()? != ServerOpcodes::AuraUpdate as u16 {
+                return None;
+            }
+            let _update_all = packet.read_bit().ok()?;
+            let count = packet.read_bits(9).ok()?;
+            assert_eq!(count, 1, "selected Aura deltas publish one slot each");
+            let _slot = packet.read_uint8().ok()?;
+            if !packet.read_bit().ok()? {
+                return None;
+            }
+            packet.read_packed_guid().ok()?;
+            let spell_id = packet.read_int32().ok()?;
+            let _visual_id = packet.read_int32().ok()?;
+            Some((spell_id, packet.read_uint16().ok()?))
         })
         .collect()
 }
@@ -238,14 +261,7 @@ async fn server_ghost_and_wisp_casts_apply_full_permanent_auras_and_publish_in_s
             assert_eq!(aura.effect_mask, 0b111);
             assert_eq!(aura.duration_total, -1, "SpellDuration 21 is permanent");
             assert_eq!(aura.duration_remaining, -1);
-            assert_eq!(
-                aura.aura_flags,
-                if aura.spell_id == GHOST {
-                    0x0011
-                } else {
-                    0x0101
-                }
-            );
+            assert_eq!(aura.aura_flags, 0x0011);
             assert!(
                 !auras
                     .aura_cast_provenance_like_cpp(aura.slot)
@@ -318,6 +334,10 @@ async fn server_ghost_and_wisp_casts_apply_full_permanent_auras_and_publish_in_s
     assert_eq!(
         aura_update_visual_rows(&update_packets),
         vec![(WISP, 0), (GHOST, GHOST_VISUAL_ROW as i32)]
+    );
+    assert_eq!(
+        aura_update_flags(&update_packets),
+        vec![(WISP, 0x0011), (GHOST, 0x0011)]
     );
     {
         let mut manager = fixture.canonical.lock().expect("canonical manager");
@@ -787,6 +807,7 @@ fn login_aura_loader_applies_ghost_effects_from_supplied_rows() {
         .subsystems()
         .auras;
     assert_eq!(auras.runtime_applications_like_cpp().len(), 2);
+    // Login hydration keeps its current Wisp flag path until the loader is addressed.
     assert!(auras.runtime_applications_like_cpp().values().all(|aura| {
         aura.effect_mask == 0b111
             && aura.duration_total == -1
