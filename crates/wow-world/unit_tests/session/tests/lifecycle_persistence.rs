@@ -34,7 +34,7 @@ use wow_persistence::{
     PlayerUncageItemStateRequestLikeCpp, PlayerXpPersistenceRequestLikeCpp,
 };
 
-pub(in crate::session::tests) struct RecordingPortLikeCpp {
+pub(crate) struct RecordingPortLikeCpp {
     during_save: Mutex<Option<Box<dyn FnOnce() + Send>>>,
     save_pending: std::sync::atomic::AtomicBool,
     save_started: tokio::sync::Notify,
@@ -57,7 +57,7 @@ pub(in crate::session::tests) struct RecordingPortLikeCpp {
 }
 
 impl RecordingPortLikeCpp {
-    pub(in crate::session::tests) fn new(outcome: PersistenceOutcomeLikeCpp) -> Arc<Self> {
+    pub(crate) fn new(outcome: PersistenceOutcomeLikeCpp) -> Arc<Self> {
         Arc::new(Self {
             during_save: Mutex::new(None),
             save_pending: std::sync::atomic::AtomicBool::new(false),
@@ -85,27 +85,25 @@ impl RecordingPortLikeCpp {
         })
     }
 
-    pub(in crate::session::tests) fn hold_character_save(&self) {
+    pub(crate) fn hold_character_save(&self) {
         self.save_pending
             .store(true, std::sync::atomic::Ordering::SeqCst);
     }
 
-    pub(in crate::session::tests) async fn wait_for_character_save(&self) {
+    pub(crate) async fn wait_for_character_save(&self) {
         self.save_started.notified().await;
     }
 
-    pub(in crate::session::tests) fn release_character_save(&self) {
+    pub(crate) fn release_character_save(&self) {
         self.save_pending
             .store(false, std::sync::atomic::Ordering::SeqCst);
         self.save_release.add_permits(1);
     }
 
-    pub(in crate::session::tests) fn character_save_count(&self) -> usize {
+    pub(crate) fn character_save_count(&self) -> usize {
         self.character_saves.lock().unwrap().len()
     }
-    pub(in crate::session::tests) fn character_save_requests(
-        &self,
-    ) -> Vec<PlayerCharacterSaveRequestLikeCpp> {
+    pub(crate) fn character_save_requests(&self) -> Vec<PlayerCharacterSaveRequestLikeCpp> {
         self.character_saves.lock().unwrap().clone()
     }
     fn marks(&self) -> Vec<PlayerOfflineMarkLikeCpp> {
@@ -150,6 +148,8 @@ impl RecordingPortLikeCpp {
         self.uncage_item_state_requests.lock().unwrap().clone()
     }
 }
+
+pub(crate) use RecordingPortLikeCpp as RecordingPlayerLifecyclePort;
 
 impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
     fn mark_offline_like_cpp<'a>(
@@ -424,6 +424,7 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
 
 #[path = "lifecycle_persistence/deferred_transfer.rs"]
 mod deferred_transfer;
+pub(crate) use deferred_transfer::install_worldport_ack_inputs;
 #[path = "lifecycle_persistence/save_interleaving.rs"]
 mod save_interleaving;
 

@@ -263,6 +263,16 @@ pub enum PlayerResurrectionOperation {
         position: wow_core::Position,
         restore_percent: f32,
     },
+    ReclaimCorpse {
+        restore_percent: f32,
+    },
+    SpiritHealer {
+        corpse_graveyard: Option<u32>,
+    },
+    CorpseLogin {
+        validated_corpse_location: Option<(u32, wow_core::Position, bool)>,
+    },
+    ForcedRepop,
     Repop,
     CreateCorpse,
 }
@@ -281,6 +291,15 @@ pub enum PlayerResurrectionPhase {
     ReadyToSavePlayer,
     SavingPlayer,
     PlayerSaveDeferred,
+    /// The exact native save receipt confirmed while this continuation was in
+    /// `SavingPlayer`; post-save recovery work still belongs to the operation.
+    PlayerSaveApplied,
+    RecoveryBonesReady,
+    RecoveryCorpseBonesInFlight,
+    RecoveryBonesConfirmed,
+    SpiritHealerDurabilityInFlight,
+    CorpseLoginGhostReady,
+    CorpseLoginGhostInFlight,
     ReleaseWispAuraInFlight,
     ReleaseGhostAuraInFlight,
     CorpseBonesInFlight,

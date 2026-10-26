@@ -176,7 +176,7 @@ pub(crate) async fn finish_resurrection_visibility<H: CorpseHostLikeCpp>(
         .await;
 }
 
-async fn apply_resurrection_sickness<H: CorpseHostLikeCpp>(
+pub(crate) async fn apply_resurrection_sickness<H: CorpseHostLikeCpp>(
     host: &mut H,
     catalogs: ResurrectionOperationCatalogs<'_>,
 ) {
@@ -294,20 +294,25 @@ pub async fn reclaim_corpse_like_cpp<H: CorpseHostLikeCpp>(
         return false;
     }
 
-    // resurrect
     let restore_percent = if host.hub_ref().player_in_represented_battleground_like_cpp() {
         1.0
     } else {
         0.5
     };
-    if resurrect_player_like_cpp(host, catalogs.resurrection(), restore_percent, false)
-        .await
-        .is_err()
-    {
+    if !crate::recovery_fences::begin(
+        host,
+        wow_entities::PlayerResurrectionOperation::ReclaimCorpse { restore_percent },
+        wow_entities::PlayerResurrectionPhase::ResurrectPlayerReady,
+    ) {
         return false;
     }
-
-    // spawn bones
-    crate::spawn_corpse_bones_like_cpp(host, catalogs.item_guid_generator, true).await;
-    true
+    match crate::recovery_fences::continue_operation(host, catalogs.resurrection()).await {
+        crate::recovery_fences::Progress::Complete => true,
+        crate::recovery_fences::Progress::Waiting => false,
+        crate::recovery_fences::Progress::Continue | crate::recovery_fences::Progress::Held => {
+            host.core_mut()
+                .kick("corpse reclaim recovery did not complete; retain Player owner");
+            false
+        }
+    }
 }

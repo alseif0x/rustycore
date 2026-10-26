@@ -53,6 +53,56 @@ fn save_ack_marks_only_rows_captured_and_preserves_later_new_and_changed_spells(
 }
 
 #[test]
+fn save_ack_promotes_only_the_exact_saving_resurrection_continuation() {
+    use crate::{
+        PlayerResurrectionContinuation, PlayerResurrectionOperation, PlayerResurrectionPhase,
+    };
+
+    let continuation = PlayerResurrectionContinuation {
+        operation: PlayerResurrectionOperation::ReclaimCorpse {
+            restore_percent: 0.5,
+        },
+        phase: PlayerResurrectionPhase::SavingPlayer,
+    };
+    let mut p = player();
+    p.resurrection_state_mut_like_cpp()
+        .delayed_after_teleport = Some(continuation);
+    let receipt = p.capture_save_acknowledgement_like_cpp();
+    p.acknowledge_saved_projection_like_cpp(receipt, PlayerSavedGroupsLikeCpp::default());
+    assert_eq!(
+        p.resurrection_state_like_cpp().delayed_after_teleport,
+        Some(PlayerResurrectionContinuation {
+            phase: PlayerResurrectionPhase::PlayerSaveApplied,
+            ..continuation
+        }),
+        "the receipt confirms the save without clearing post-save work"
+    );
+
+    p.resurrection_state_mut_like_cpp()
+        .delayed_after_teleport = Some(continuation);
+    let stale = p.capture_save_acknowledgement_like_cpp();
+    p.resurrection_state_mut_like_cpp()
+        .delayed_after_teleport
+        .as_mut()
+        .unwrap()
+        .phase = PlayerResurrectionPhase::RecoveryCorpseBonesInFlight;
+    p.acknowledge_saved_projection_like_cpp(stale, PlayerSavedGroupsLikeCpp::default());
+    assert_eq!(
+        p.resurrection_state_like_cpp().delayed_after_teleport.unwrap().phase,
+        PlayerResurrectionPhase::RecoveryCorpseBonesInFlight,
+        "a stale receipt cannot advance a changed operation phase"
+    );
+
+    p.resurrection_state_mut_like_cpp().delayed_after_teleport = None;
+    let ordinary_save = p.capture_save_acknowledgement_like_cpp();
+    p.acknowledge_saved_projection_like_cpp(
+        ordinary_save,
+        PlayerSavedGroupsLikeCpp::default(),
+    );
+    assert!(p.resurrection_state_like_cpp().delayed_after_teleport.is_none());
+}
+
+#[test]
 fn save_ack_rebases_insert_delete_relearn_without_retrying_duplicate_primary_keys() {
     use PlayerSpellLoadState::*;
     for previous in [New, Changed, Unchanged, Removed] {

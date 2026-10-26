@@ -675,6 +675,7 @@ async fn ghost_wisp_persistence_native_resurrection_reconciles_foreign_keys() {
         wow_world_entities::ResurrectionOperationCatalogs {
             item_guid_generator: generators.item.as_ref(),
             creature_spawns: &creature_spawns,
+            graveyards: None,
         },
         0.5,
         false,

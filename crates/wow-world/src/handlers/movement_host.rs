@@ -105,6 +105,7 @@ impl MovementHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession 
                 let resurrection_catalogs = wow_world_entities::ResurrectionOperationCatalogs {
                     item_guid_generator: catalogs.id_generators.item.as_ref(),
                     creature_spawns: catalogs.creature_spawns.as_ref(),
+                    graveyards: Some(catalogs.graveyards.as_ref()),
                 };
                 if wow_world_entities::mark_player_resurrection_teleport_completed(self) {
                     let completed = wow_world_entities::process_represented_delayed_resurrection_after_teleport_like_cpp(

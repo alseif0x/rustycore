@@ -111,6 +111,44 @@ impl Player {
         Some(continuation)
     }
 
+    /// Admit one complete native resurrection or corpse-recovery operation.
+    /// Existing work remains the sole owner until it is explicitly completed.
+    pub fn begin_resurrection_operation(
+        &mut self,
+        operation: PlayerResurrectionOperation,
+        phase: PlayerResurrectionPhase,
+    ) -> bool {
+        let state = &mut self.gameplay_state.resurrection;
+        if state.delayed_after_teleport.is_some() {
+            return false;
+        }
+        state.delayed_after_teleport = Some(PlayerResurrectionContinuation { operation, phase });
+        true
+    }
+
+    /// Atomically update operation-owned facts and advance its phase.
+    pub fn update_resurrection_operation(
+        &mut self,
+        expected: PlayerResurrectionPhase,
+        operation: PlayerResurrectionOperation,
+        next: PlayerResurrectionPhase,
+    ) -> bool {
+        let Some(continuation) = self
+            .gameplay_state
+            .resurrection
+            .delayed_after_teleport
+            .as_mut()
+        else {
+            return false;
+        };
+        if continuation.phase != expected {
+            return false;
+        }
+        continuation.operation = operation;
+        continuation.phase = next;
+        true
+    }
+
     pub fn advance_resurrection_continuation(
         &mut self,
         expected: PlayerResurrectionPhase,

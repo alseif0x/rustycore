@@ -457,6 +457,7 @@ async fn pending_far_disconnect(outcome: DisconnectDestination, explicit_logout:
         let resurrection_catalogs = wow_world_entities::ResurrectionOperationCatalogs {
             item_guid_generator: &generator,
             creature_spawns: &creature_spawns,
+            graveyards: None,
         };
         // Direct production adapter call proves LogoutPlayer ordering, not that
         // the LoggedIn-only network registration admits a packet during Transfer.
@@ -646,6 +647,7 @@ async fn pending_near_disconnect(outcome: PersistenceOutcomeLikeCpp) {
     let catalogs = wow_world_application::ResurrectionOperationCatalogs {
         item_guid_generator: &generator,
         creature_spawns: &creature_spawns,
+        graveyards: None,
     };
     let report = wow_world_application::finalize_session_with_resurrection_catalogs(
         &mut session,

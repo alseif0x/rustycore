@@ -129,6 +129,7 @@ async fn exercise(outcome: PersistenceOutcomeLikeCpp, cancel: bool) {
     let resurrection_catalogs = wow_world_entities::ResurrectionOperationCatalogs {
         item_guid_generator: &generator,
         creature_spawns: &creature_spawns,
+        graveyards: None,
     };
     let request = wow_packet::packets::misc::LogoutRequest { idle_logout: false };
     if cancel {
@@ -287,6 +288,7 @@ async fn production_explicit_logout_rejects_unavailable_source_save_without_reti
     let resurrection_catalogs = wow_world_entities::ResurrectionOperationCatalogs {
         item_guid_generator: &generator,
         creature_spawns: &creature_spawns,
+        graveyards: None,
     };
     wow_world_character::handle_logout_request_with_catalogs(
         &mut session,

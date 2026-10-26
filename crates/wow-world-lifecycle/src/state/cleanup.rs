@@ -23,20 +23,35 @@ impl SessionLifecycleState {
             return FinalizationOutcome::Unavailable;
         };
 
-        // C++ WorldSession::LogoutPlayer retires its exact Player*, not a fresh
-        // GUID lookup (WorldSession.cpp:660-672). Without an incarnation token
-        // this Session has no authority to remove any current map resident.
-        if manager.retire_player_like_cpp(handle).is_some() {
-            hub.core.player_handle_like_cpp = None;
-            FinalizationOutcome::Applied
-        } else {
-            // Retain the exact token on failure. Any later attempt must still
-            // target this incarnation, never adopt or search for a replacement.
-            warn!(
-                "Failed to retire canonical Player {:?}: stale handle or missing owner value",
-                handle.guid()
-            );
-            FinalizationOutcome::RetirementFailed
+        // A retained native recovery operation still owns this exact Player
+        // through its save/deletion fence. Inspect it through the already
+        // borrowed manager before retirement; do not acquire SessionCore under
+        // the map guard or substitute a GUID lookup.
+        let recovery = manager
+            .with_player_like_cpp(handle, |player| {
+                (player.guid() == handle.guid()).then_some(
+                    player
+                        .resurrection_state_like_cpp()
+                        .delayed_after_teleport
+                        .is_some(),
+                )
+            })
+            .flatten();
+        match recovery {
+            Some(true) => FinalizationOutcome::Deferred,
+            Some(false) if manager.retire_player_like_cpp(handle).is_some() => {
+                hub.core.player_handle_like_cpp = None;
+                FinalizationOutcome::Applied
+            }
+            _ => {
+                // Retain the exact token on failure. Any later attempt must still
+                // target this incarnation, never adopt or search for a replacement.
+                warn!(
+                    "Failed to retire canonical Player {:?}: stale handle or missing owner value",
+                    handle.guid()
+                );
+                FinalizationOutcome::RetirementFailed
+            }
         }
     }
 

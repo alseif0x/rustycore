@@ -3,6 +3,10 @@
 use super::*;
 use crate::session::PlayerSaveOutcomeLikeCpp;
 
+#[path = "deferred_transfer/recovery_fences.rs"]
+mod recovery_fences;
+pub(crate) use recovery_fences::install_worldport_ack_inputs;
+
 #[derive(Default)]
 struct RecordingCorpsePortForWorldport {
     saves: std::sync::Mutex<Vec<wow_persistence::CorpseSaveRequestLikeCpp>>,

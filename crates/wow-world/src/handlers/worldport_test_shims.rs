@@ -57,6 +57,7 @@ impl WorldSession {
             wow_world_entities::ResurrectionOperationCatalogs {
                 item_guid_generator: generators.item.as_ref(),
                 creature_spawns: &creature_spawns,
+                graveyards: None,
             },
         )
         .await

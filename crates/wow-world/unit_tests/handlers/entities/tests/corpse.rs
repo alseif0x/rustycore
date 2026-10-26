@@ -6,6 +6,8 @@
 use super::*;
 use crate::session::WorldSession;
 
+#[path = "corpse/recovery_fences.rs"]
+mod recovery_fences;
 mod release;
 #[path = "corpse/selected_recovery.rs"]
 mod selected_recovery;
@@ -18,6 +20,7 @@ async fn handle_resurrect_response(session: &mut WorldSession, pkt: WorldPacket)
         wow_world_entities::ResurrectionOperationCatalogs {
             item_guid_generator: generators.item.as_ref(),
             creature_spawns: &creature_spawns,
+            graveyards: None,
         },
         pkt,
     )
@@ -33,6 +36,7 @@ async fn continue_resurrection_after_valid_teleport(session: &mut WorldSession) 
         wow_world_entities::ResurrectionOperationCatalogs {
             item_guid_generator: generators.item.as_ref(),
             creature_spawns: &creature_spawns,
+            graveyards: None,
         },
     )
     .await
@@ -56,7 +60,7 @@ async fn handle_reclaim_corpse(session: &mut WorldSession, pkt: WorldPacket) {
     .await;
 }
 
-async fn handle_repop_request(session: &mut WorldSession, pkt: WorldPacket) {
+pub(super) async fn handle_repop_request(session: &mut WorldSession, pkt: WorldPacket) {
     let generators = session.id_generators_for_test_like_cpp();
     let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
     let graveyards = wow_data::GraveyardStore::default();
@@ -345,22 +349,8 @@ async fn resurrect_response_ignores_alive_player_like_cpp() {
 
 #[tokio::test]
 async fn repop_request_dead_non_ghost_sets_ghost_and_repop_count_like_cpp() {
-    let (mut session, _send_rx) = make_session();
-    let (realm_tx, realm_rx) = flume::bounded(16);
-    session.install_realm_send_channel_for_test(realm_tx);
-    let canonical = shared_canonical_map_manager_for_misc_test();
-    let player_guid = ObjectGuid::create_player(1, 42);
-    session.set_player_guid(Some(player_guid));
-    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
-    session.set_canonical_map_manager(Arc::clone(&canonical));
-    add_canonical_test_player_on_map_for_misc_test(
-        &canonical,
-        player_guid,
-        Position::new(1.0, 2.0, 3.0, 0.0),
-        571,
-        0,
-    );
-    wow_world_entities::set_player_alive_like_cpp(&mut session, false);
+    let (mut session, _send_rx, realm_rx, _player_guid, _port) =
+        dead_player_session_with_graveyard_like_cpp(42);
 
     handle_repop_request(&mut session, repop_request_packet(true)).await;
 
@@ -370,9 +360,7 @@ async fn repop_request_dead_non_ghost_sets_ghost_and_repop_count_like_cpp() {
         session.fixtures.combat.represented_repop_at_graveyard_count,
         1
     );
-    // C++ `BuildPlayerRepop` always starts with SMSG_PRE_RESSURECT; without a
-    // race faction the corpse cannot be created and the release stops there.
-    // SMSG_PRE_RESSURECT is a realm-connection opcode.
+    // SMSG_PRE_RESSURECT is the first realm-connection packet of BuildPlayerRepop.
     assert_eq!(
         sent_opcodes(&realm_rx).first().copied(),
         Some(ServerOpcodes::PreRessurect as u16)
@@ -646,12 +634,28 @@ fn water_walking_publication_is_idempotent_and_uses_the_unit_counter() {
     );
 }
 
-#[derive(Default)]
 pub(super) struct RecordingCorpsePortLikeCpp {
     saves: std::sync::Mutex<Vec<wow_persistence::CorpseSaveRequestLikeCpp>>,
     deletes: std::sync::Mutex<Vec<u64>>,
     fail_next_save: std::sync::atomic::AtomicBool,
     fail_next_delete: std::sync::atomic::AtomicBool,
+    delete_pending: std::sync::atomic::AtomicBool,
+    delete_started: tokio::sync::Notify,
+    delete_release: tokio::sync::Semaphore,
+}
+
+impl Default for RecordingCorpsePortLikeCpp {
+    fn default() -> Self {
+        Self {
+            saves: std::sync::Mutex::new(Vec::new()),
+            deletes: std::sync::Mutex::new(Vec::new()),
+            fail_next_save: std::sync::atomic::AtomicBool::new(false),
+            fail_next_delete: std::sync::atomic::AtomicBool::new(false),
+            delete_pending: std::sync::atomic::AtomicBool::new(false),
+            delete_started: tokio::sync::Notify::new(),
+            delete_release: tokio::sync::Semaphore::new(0),
+        }
+    }
 }
 
 impl RecordingCorpsePortLikeCpp {
@@ -659,7 +663,7 @@ impl RecordingCorpsePortLikeCpp {
         self.deletes.lock().unwrap().clone()
     }
 
-    fn fail_next_delete(&self) {
+    pub(super) fn fail_next_delete(&self) {
         self.fail_next_delete
             .store(true, std::sync::atomic::Ordering::SeqCst);
     }
@@ -667,6 +671,21 @@ impl RecordingCorpsePortLikeCpp {
     pub(super) fn fail_next_save(&self) {
         self.fail_next_save
             .store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    pub(super) fn hold_delete(&self) {
+        self.delete_pending
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    pub(super) async fn wait_for_delete(&self) {
+        self.delete_started.notified().await;
+    }
+
+    pub(super) fn release_delete(&self) {
+        self.delete_pending
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+        self.delete_release.add_permits(1);
     }
 }
 
@@ -717,6 +736,17 @@ impl wow_persistence::MapCorpsePersistencePortLikeCpp for RecordingCorpsePortLik
             .fail_next_delete
             .swap(false, std::sync::atomic::Ordering::SeqCst);
         Box::pin(async move {
+            if self
+                .delete_pending
+                .load(std::sync::atomic::Ordering::SeqCst)
+            {
+                self.delete_started.notify_one();
+                self.delete_release
+                    .acquire()
+                    .await
+                    .expect("the controlled corpse-delete gate remains open")
+                    .forget();
+            }
             if fail {
                 wow_persistence::CorpsePersistenceMutationOutcomeLikeCpp::Failed {
                     reason: "controlled unconfirmed corpse delete".into(),
@@ -770,7 +800,7 @@ pub(super) fn human_race_entry_with_faction(
 
 /// A dead (not yet released) human on map 571 with the Alliance default
 /// graveyard (WorldSafeLocs 4) on the same map.
-fn dead_player_session_with_graveyard_like_cpp(
+pub(super) fn dead_player_session_with_graveyard_like_cpp(
     guid_counter: i64,
 ) -> (
     WorldSession,
@@ -785,7 +815,7 @@ fn dead_player_session_with_graveyard_like_cpp(
     )
 }
 
-fn dead_player_session_on_map_like_cpp(
+pub(super) fn dead_player_session_on_map_like_cpp(
     guid_counter: i64,
     maps: Arc<wow_data::MapStore>,
 ) -> (
@@ -824,7 +854,7 @@ fn dead_player_session_without_corpse_port(
 }
 
 /// Supplies the selected DB2 rows required by the production release casts.
-fn install_release_cast_spell_fixture(session: &mut WorldSession) {
+pub(super) fn install_release_cast_spell_fixture(session: &mut WorldSession) {
     let mut spells = crate::selected_spell_fixtures::canonical_spell_store([
         (8326, 0),
         (20584, 0),
@@ -1386,8 +1416,12 @@ async fn repop_in_dungeon_skips_corpse_save_and_revives_at_teleport_like_cpp() {
         flags1: 0,
         flags2: 0,
     }]));
-    let (mut session, _send_rx, realm_rx, _player_guid, port) =
+    let (mut session, _send_rx, realm_rx, player_guid, port) =
         dead_player_session_on_map_like_cpp(4_304, maps);
+    let save_port = crate::session::RecordingPlayerLifecyclePort::new(
+        wow_persistence::PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+    );
+    session.set_player_lifecycle_port_like_cpp(save_port.clone());
 
     handle_repop_request(&mut session, repop_request_packet(true)).await;
 
@@ -1397,6 +1431,11 @@ async fn repop_in_dungeon_skips_corpse_save_and_revives_at_teleport_like_cpp() {
     // teleports with TELE_REVIVE_AT_TELEPORT, reviving at 50 %.
     assert_eq!(*port.deletes.lock().unwrap(), vec![4_304]);
     assert_eq!(
+        save_port.character_save_count(),
+        1,
+        "forced RepopAtGraveyard saves only after corpse deletion is confirmed"
+    );
+    assert_eq!(
         wow_world_entities::player_corpse_location_like_cpp(&session),
         None
     );
@@ -1405,10 +1444,23 @@ async fn repop_in_dungeon_skips_corpse_save_and_revives_at_teleport_like_cpp() {
         session.canonical_player_health_snapshot_like_cpp(),
         Some((500, 1_000))
     );
-    // Alive after the teleport: no DeathReleaseLoc.
+    let realm_packets = realm_rx.try_iter().collect::<Vec<_>>();
     assert_eq!(
-        sent_opcodes(&realm_rx),
-        vec![ServerOpcodes::PreRessurect as u16]
+        realm_packets,
+        vec![
+            wow_packet::ServerPacket::to_bytes(&wow_packet::packets::misc::PreRessurect {
+                player_guid,
+            }),
+            wow_packet::packets::misc::DeathReleaseLoc::cleared_like_cpp().to_bytes(),
+        ],
+        "BuildPlayerRepop precedes ResurrectPlayer's cleared DeathReleaseLoc; no grave destination packet is emitted after revival"
+    );
+    assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| {
+            player.resurrection_state_like_cpp().delayed_after_teleport
+        }),
+        Some(None),
+        "forced Repop hands the confirmed corpse phase to the existing teleport revive owner"
     );
 }
 
@@ -1790,6 +1842,9 @@ pub(super) async fn released_ghost_without_reclaim_delay_like_cpp(
 ) {
     let (mut session, send_rx, realm_rx, _player_guid, port) =
         dead_player_session_with_graveyard_like_cpp(guid_counter);
+    session.set_player_lifecycle_port_like_cpp(crate::session::RecordingPlayerLifecyclePort::new(
+        wow_persistence::PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+    ));
     session.set_death_policy_like_cpp(wow_world_core::session::DeathPolicyLikeCpp {
         corpse_reclaim_delay_pve: false,
         ..Default::default()
@@ -1809,6 +1864,10 @@ async fn reclaim_corpse_in_range_resurrects_half_and_spawns_bones_like_cpp() {
     let corpse_guid = current_corpse_guid_like_cpp(&session, player_guid).unwrap();
     // The ghost walks back to its corpse.
     session.set_player_position_like_cpp(Position::new(10.0, 2.0, 3.0, 0.0));
+    let save_port = crate::session::RecordingPlayerLifecyclePort::new(
+        wow_persistence::PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+    );
+    session.set_player_lifecycle_port_like_cpp(save_port.clone());
     // C++ ResurrectPlayer forces the water-walking bit on before
     // SetWaterWalking(false), so land-walk must publish even with no bit set.
     session.core.with_owned_player_mut_like_cpp(|player| {
@@ -1850,6 +1909,7 @@ async fn reclaim_corpse_in_range_resurrects_half_and_spawns_bones_like_cpp() {
     );
     // SpawnCorpseBones: corpse rows deleted, bones keep the corpse counter.
     assert_eq!(*port.deletes.lock().unwrap(), vec![4_401]);
+    assert_eq!(save_port.character_save_count(), 1);
     assert!(current_corpse_guid_like_cpp(&session, player_guid).is_none());
     assert_eq!(
         wow_world_entities::player_corpse_location_like_cpp(&session),

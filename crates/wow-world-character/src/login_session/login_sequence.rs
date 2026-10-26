@@ -812,6 +812,7 @@ pub async fn send_login_sequence<H: CharacterLoginHostLikeCpp>(
         wow_world_entities::ResurrectionOperationCatalogs {
             item_guid_generator,
             creature_spawns: creature_spawn_catalogs,
+            graveyards: None,
         },
         persisted_corpse_location,
     )

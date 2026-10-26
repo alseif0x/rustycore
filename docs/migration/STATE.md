@@ -79,8 +79,12 @@ The integration adds neither another clock nor another Player authority.
 Native resurrection errors now stop dependent reclaim, spirit-healer and
 login work, and the actual Character login consumer aborts on that error.
 The scoped checkpoint below records production compilation and 31 distinct
-World cases. Corpse-conversion uncertainty and the remaining recovery
-continuations still require their separate integration and acceptance.
+World cases. A subsequent recovery integration retains the native operation
+through corpse deletion, save acknowledgement, login and transfer completion,
+and prevents retirement while recovery is unresolved. Its scoped feedback
+covers 77 distinct World cases, including 33 new recovery cases, and the
+Server composition compiles. Native-death integration, complete resurrection
+cast participants and final acceptance remain open.
 
 Four blocks remain within the same macro:
 
@@ -2608,6 +2612,84 @@ native-death integration, normal casts, QA and complete candidate acceptance
 remain open. The sickness save gate was inspected but was not changed by this
 Ghost/Wisp unit. No parent Cargo, runtime, SQL, restart, capture or publication
 was performed.
+
+Recovery failure, receipt and retirement integration, 2026-10-26,
+base `1e2b1799315662eb0b1ad6cea328d4b932e845d1`:
+the existing Player resurrection continuation now owns complete reclaim,
+spirit-healer, login-corpse and forced-graveyard recovery operations. Private
+WorldEntities modules separate their phase execution without creating another
+Player, pending-deletion authority, clock, task or mutable save mirror.
+An absent corpse is not confirmation of an earlier uncertain deletion: failed
+or cancelled deletion retains its nonreplayable phase. A genuine no-corpse
+entry preserves the source's no-delete/no-save behavior. Login retains
+triggerSave=false, fresh post-deletion alive/AT_LOGIN_RESURRECT reads, the
+default applySickness=false, and its subsequent ghost restoration. Forced
+recovery waits for confirmed deletion/save before graveyard selection,
+countdown stop and teleport, rereading the current map and position.
+
+The incarnation-bound native save receipt promotes only its captured, matching
+SavingPlayer continuation to PlayerSaveApplied. It does not clear remaining
+post-save work. The admitted PlayerRecovery rail resumes confirmed work before
+Unit timers, rechecks admission after awaits and preserves Unavailable when an
+unresolved phase disconnects the session. Failed, unknown or cancelled
+pre-ACK saves cannot be retried as confirmed work. Spirit-healer durability
+and its cached corpse graveyard survive deferred saves without reapplication.
+A returned healer TeleportTo hands ACK ownership to the native transfer;
+cancellation before that return retains the in-flight operation. A registered
+worldport ACK leaves a newly admitted far transfer for its own ACK, while
+disconnect finalization finishes successive native transfers before saving.
+Application and lower lifecycle cleanup retain the exact Player incarnation
+and login claim while recovery remains unresolved. The existing Server
+finalization retention path remains the owner of an unresolved session.
+
+Source anchors at pinned `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` are
+Player.cpp:4262–4403,4509–4515,4743–4795,18157–18180,
+Player.h:2117, NPCHandler.cpp:347–370, MiscHandler.cpp:416–445,
+CharacterHandler.cpp:1227–1243, MovementHandler.cpp:234 and
+WorldSession.cpp:547,602. The retained failure phases describe the explicit
+async recovery contract; local controlled ports do not prove real database
+durability or restart recovery. Existing repop tests now use complete native
+fixtures and distinguish ResurrectPlayer's exact cleared DeathReleaseLoc from
+a graveyard-destination packet. The reclaim no-replay test inspects the real
+full-save health snapshot before worldport's final stat recalculation.
+
+Scoped coding feedback used PROTOC=/home/ubuntu/.local/protoc/bin/protoc,
+CARGO_BUILD_JOBS=1 and CARGO_TARGET_DIR=/home/server/rustycore/target:
+
+- `cargo check -p wow-world-application --lib`: exit 0, 18:46:49–18:47:21 UTC.
+- `cargo test -p wow-world --lib recovery_fences`: 33 passed, exit 0,
+  19:20:04–19:21:22; repeated after the repop fixture repairs at
+  19:25:47–19:25:48, again 33 passed, exit 0.
+- `cargo test -p wow-world --lib resurrection`: 25 passed, exit 0, 19:21:30.
+- `cargo test -p wow-world --lib corpse_login`: 13 passed, exit 0, 19:21:34.
+- `cargo test -p wow-world --lib repop`: 18 passed, exit 0, 19:24:30–19:25:43.
+- `cargo check -p world-server --bin world-server`: exit 0, 19:25:57–19:30:33.
+
+The four filters cover 77 distinct World test identities, including 33 new
+recovery cases. Logs and the deduplicated identities are retained in
+`/tmp/rustycore-recovery-fences-logs`. Initial compilation and fixture failures
+remain recorded. Run 08 ended with Cargo exit 101 after SIGTERM of the owned
+stalled test: 31 cases had passed, one failed and one was blocked. The parent
+stack trace proved a bounded fixture packet-channel send in CancelCombat,
+not a persistence or map-lock wait. The test now captures activation output
+and concurrently collects ACK output; production transport is unchanged.
+
+The parent reviewed the production consumers, failure contracts, fixtures and
+raw results, and verified all 77 hashes in `final-owned-files.sha256`, digest
+`260c9493ac665ffa120551a9559af59cf36ffbf3810f8afb17143d1c1064acb6`.
+Those hashes include 55 changed Rust inputs and 22 restored/unchanged files;
+the 55-input parent snapshot has digest
+`062fba4f72da8d09caca741f6acc2100ed94df5510c0f8a05a9651a3a218f86f`.
+They identify tested working inputs at the stated base, not final acceptance
+at a later commit. Effective worker effort telemetry remains unavailable.
+The 18:35:40–19:30:33 feedback/repair interval is 3293 seconds of coding
+feedback, not the completed-delivery campaign or proof of its 600-second
+ordinary performance target.
+
+This is an UNVALIDATED local macro checkpoint. The sibling sickness full-save
+entry gate, native-death integration, normal SelfRes/obtain casts, QA and
+complete candidate acceptance remain open. No runtime installation, SQL,
+restart, fresh capture, publication or issue closure was performed.
 
 Native resurrection error consumers, 2026-10-26, base `04583b7d3`:
 `resurrect_player_like_cpp` now returns the error already produced by the

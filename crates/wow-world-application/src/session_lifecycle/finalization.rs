@@ -300,6 +300,9 @@ async fn execute_finalization_step_with_catalogs<H: SessionLifecycleHostLikeCpp>
                 .await
         }
         Retirement => {
+            if let Some(outcome) = super::cleanup::recovery_retirement_outcome(host) {
+                return outcome;
+            }
             {
                 let (state, hub) = host.split_lifecycle_ref();
                 state.unregister_from_player_registry(hub)

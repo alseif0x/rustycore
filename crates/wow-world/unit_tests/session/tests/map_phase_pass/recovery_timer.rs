@@ -10,6 +10,8 @@ use wow_persistence::PersistenceOutcomeLikeCpp;
 mod native_spell_history;
 #[path = "recovery_timer/selected_recovery.rs"]
 mod selected_recovery;
+#[path = "recovery_timer/recovery_fences.rs"]
+mod recovery_fences;
 
 fn logged_in_recovery_session() -> (
     WorldSession,

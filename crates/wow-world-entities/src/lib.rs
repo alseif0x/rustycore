@@ -56,6 +56,7 @@ mod player_attack;
 mod player_death;
 mod player_release;
 mod player_resurrection;
+mod recovery_fences;
 mod player_vitals;
 mod resurrection_request;
 mod spawn;
@@ -225,6 +226,7 @@ pub use player_death::{
 };
 pub use player_release::{build_player_repop_like_cpp, create_corpse_like_cpp};
 pub use player_resurrection::{reclaim_corpse_like_cpp, resurrect_player_like_cpp};
+pub use recovery_fences::{RecoveryResumeState, resume_state as resurrection_recovery_resume_state};
 pub use player_vitals::{set_player_alive_like_cpp, set_player_ghost_flag_like_cpp};
 pub use resurrection_request::{
     continue_player_resurrection_after_teleport, mark_player_resurrection_teleport_completed,

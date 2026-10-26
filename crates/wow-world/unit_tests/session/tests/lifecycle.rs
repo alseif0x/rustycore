@@ -411,6 +411,62 @@ fn shared_runtime_cleanup_releases_the_login_claim_like_cpp() {
     next.release_character_login_claim_like_cpp();
 }
 
+#[test]
+fn recovery_fences_application_and_lower_retirement_keep_the_canonical_incarnation() {
+    let (mut session, _, _) = make_session();
+    let guid = ObjectGuid::create_player(1, 46_701);
+    assert!(session.try_claim_character_login_like_cpp(guid));
+    session.set_player_guid(Some(guid));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    let handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical Player handle");
+    let manager = session
+        .core
+        .canonical_map_manager
+        .as_ref()
+        .expect("canonical MapManager")
+        .clone();
+    session
+        .with_owned_player_mut_like_cpp(|player| {
+            assert!(player.begin_resurrection_operation(
+                wow_entities::PlayerResurrectionOperation::ReclaimCorpse {
+                    restore_percent: 0.5,
+                },
+                wow_entities::PlayerResurrectionPhase::RecoveryCorpseBonesInFlight,
+            ));
+        })
+        .unwrap();
+
+    let lower_outcome = {
+        let (state, mut hub) = crate::session::split_lifecycle_mut(&mut session);
+        state.unregister_canonical_player_from_map_like_cpp(&mut hub)
+    };
+    assert_eq!(
+        lower_outcome,
+        wow_world_lifecycle::FinalizationOutcome::Deferred
+    );
+    assert_eq!(session.core.player_handle_like_cpp, Some(handle));
+    assert!(
+        manager
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(handle, |player| player.guid() == guid)
+            .unwrap()
+    );
+
+    assert_eq!(
+        session.cleanup_shared_runtime_state(),
+        wow_world_lifecycle::FinalizationOutcome::Deferred,
+        "application cleanup refuses before registry unpublication or claim release"
+    );
+    assert_eq!(session.core.player_handle_like_cpp, Some(handle));
+    assert_eq!(session.player_guid(), Some(guid));
+    let mut replacement = make_session().0;
+    assert!(!replacement.try_claim_character_login_like_cpp(guid));
+}
+
 /// Cleanup is safe on a session that never selected a character — the
 /// disconnect path runs it unconditionally.
 #[test]

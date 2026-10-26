@@ -98,6 +98,7 @@ async fn resurrection_native_failure_is_nonreplayable_and_keeps_player_dead() {
     let catalogs = wow_world_entities::ResurrectionOperationCatalogs {
         item_guid_generator: generators.item.as_ref(),
         creature_spawns: &creature_spawns,
+        graveyards: None,
     };
 
     assert!(
@@ -197,6 +198,7 @@ async fn resurrection_native_failure_holds_when_applied_order_reference_is_missi
     let catalogs = wow_world_entities::ResurrectionOperationCatalogs {
         item_guid_generator: generators.item.as_ref(),
         creature_spawns: &creature_spawns,
+        graveyards: None,
     };
 
     assert!(
@@ -271,6 +273,7 @@ async fn resurrection_request_clears_ghost_and_wisp_before_completing() {
     let catalogs = wow_world_entities::ResurrectionOperationCatalogs {
         item_guid_generator: generators.item.as_ref(),
         creature_spawns: &creature_spawns,
+        graveyards: None,
     };
 
     assert!(

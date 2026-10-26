@@ -96,6 +96,7 @@ fn resurrection_operation_catalogs(
     wow_world_entities::ResurrectionOperationCatalogs {
         item_guid_generator: catalogs.id_generators.item.as_ref(),
         creature_spawns: catalogs.creature_spawns.as_ref(),
+        graveyards: Some(catalogs.graveyards.as_ref()),
     }
 }
 

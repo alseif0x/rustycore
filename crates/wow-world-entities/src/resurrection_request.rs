@@ -237,8 +237,9 @@ fn no_teleport_pending(host: &impl CorpseHostLikeCpp) -> bool {
         && !host.hub_ref().represented_far_teleport_pending_like_cpp()
 }
 
-/// A valid near or far ACK resolves an issued teleport, including one whose
-/// async TeleportTo continuation was cancelled after native pending state was set.
+/// A valid near or far ACK resolves only a continuation whose native owner has
+/// an ACK-resolvable phase. A cancelled healer TeleportTo future remains held:
+/// its ACK cannot prove that the awaited call returned.
 pub fn mark_player_resurrection_teleport_completed(
     host: &mut impl CorpseHostLikeCpp,
 ) -> bool {
@@ -250,6 +251,27 @@ pub fn mark_player_resurrection_teleport_completed(
         PlayerResurrectionOperation::Repop | PlayerResurrectionOperation::CreateCorpse
     ) {
         return false;
+    }
+    let recovery_operation = matches!(
+        continuation.operation,
+        PlayerResurrectionOperation::ReclaimCorpse { .. }
+            | PlayerResurrectionOperation::SpiritHealer { .. }
+            | PlayerResurrectionOperation::CorpseLogin { .. }
+            | PlayerResurrectionOperation::ForcedRepop
+    );
+    if recovery_operation {
+        return match continuation.phase {
+            PlayerResurrectionPhase::ResurrectPlayerReady
+            | PlayerResurrectionPhase::RecoveryBonesReady
+            | PlayerResurrectionPhase::RecoveryBonesConfirmed
+            | PlayerResurrectionPhase::ReadyToSavePlayer
+            | PlayerResurrectionPhase::PlayerSaveDeferred
+            | PlayerResurrectionPhase::PlayerSaveApplied
+            | PlayerResurrectionPhase::TeleportCompleted
+            | PlayerResurrectionPhase::CorpseLoginGhostReady
+            | PlayerResurrectionPhase::Complete => true,
+            _ => false,
+        };
     }
     match continuation.phase {
         PlayerResurrectionPhase::TeleportInFlight => advance_phase(
@@ -272,6 +294,13 @@ pub fn mark_player_resurrection_teleport_completed(
         | PlayerResurrectionPhase::ReadyToSavePlayer
         | PlayerResurrectionPhase::SavingPlayer
         | PlayerResurrectionPhase::PlayerSaveDeferred
+        | PlayerResurrectionPhase::PlayerSaveApplied
+        | PlayerResurrectionPhase::RecoveryBonesReady
+        | PlayerResurrectionPhase::RecoveryCorpseBonesInFlight
+        | PlayerResurrectionPhase::RecoveryBonesConfirmed
+        | PlayerResurrectionPhase::SpiritHealerDurabilityInFlight
+        | PlayerResurrectionPhase::CorpseLoginGhostReady
+        | PlayerResurrectionPhase::CorpseLoginGhostInFlight
         | PlayerResurrectionPhase::ReleaseWispAuraInFlight
         | PlayerResurrectionPhase::ReleaseGhostAuraInFlight
         | PlayerResurrectionPhase::CorpseBonesInFlight
@@ -315,6 +344,33 @@ pub(crate) async fn process_after_teleport(
     let Some(mut continuation) = continuation(host) else {
         return true;
     };
+    if matches!(
+        continuation.operation,
+        PlayerResurrectionOperation::ReclaimCorpse { .. }
+            | PlayerResurrectionOperation::SpiritHealer { .. }
+            | PlayerResurrectionOperation::CorpseLogin { .. }
+            | PlayerResurrectionOperation::ForcedRepop
+    ) {
+        if crate::recovery_fences::resume_state(host)
+            != crate::recovery_fences::RecoveryResumeState::Ready
+        {
+            return false;
+        }
+        return matches!(
+            crate::recovery_fences::continue_operation(
+                host,
+                catalogs,
+            )
+            .await,
+            crate::recovery_fences::Progress::Complete
+        );
+    }
+    if matches!(
+        continuation.operation,
+        PlayerResurrectionOperation::TeleportRevivePercent { .. }
+    ) {
+        return run_teleport_revive(host, catalogs).await;
+    }
     let PlayerResurrectionOperation::RequestData(request) = continuation.operation else {
         return false;
     };
@@ -340,6 +396,13 @@ pub(crate) async fn process_after_teleport(
     }
     if continuation.phase == PlayerResurrectionPhase::Complete {
         return clear_completed(host);
+    }
+    if continuation.phase == PlayerResurrectionPhase::PlayerSaveApplied {
+        return advance_phase(
+            host,
+            PlayerResurrectionPhase::PlayerSaveApplied,
+            PlayerResurrectionPhase::Complete,
+        ) && clear_completed(host);
     }
     if continuation.phase == PlayerResurrectionPhase::TeleportInFlight
         || continuation.phase == PlayerResurrectionPhase::AwaitingTeleport
@@ -498,7 +561,7 @@ async fn run_resurrection_save(
         crate::ResurrectionSaveOutcome::Applied => {
             if !advance_phase(
                 host,
-                PlayerResurrectionPhase::SavingPlayer,
+                PlayerResurrectionPhase::PlayerSaveApplied,
                 PlayerResurrectionPhase::Complete,
             ) {
                 return false;

@@ -3,6 +3,9 @@
 use super::*;
 use wow_persistence::PlayerCorpseLocationLoadRow;
 
+#[path = "corpse_login/recovery_fences.rs"]
+mod recovery_fences;
+
 const AT_LOGIN_RESURRECT: u16 = 0x0100;
 const RELEASE_TIMER: u32 = 0x0000_0008;
 
@@ -16,6 +19,20 @@ fn corpse_login_session(
     flume::Receiver<Vec<u8>>,
 ) {
     let (mut session, send_rx) = make_session();
+    build_corpse_login_session(session, send_rx, current_map, maps, dead)
+}
+
+fn build_corpse_login_session(
+    mut session: crate::session::WorldSession,
+    send_rx: flume::Receiver<Vec<u8>>,
+    current_map: u32,
+    maps: Arc<MapStore>,
+    dead: bool,
+) -> (
+    crate::session::WorldSession,
+    ObjectGuid,
+    flume::Receiver<Vec<u8>>,
+) {
     session.set_map_store(maps);
     let guid = ObjectGuid::create_player(1, 43);
     session.set_player_guid(Some(guid));
@@ -58,6 +75,7 @@ pub(super) async fn restore_corpse(
         wow_world_entities::ResurrectionOperationCatalogs {
             item_guid_generator: generators.item.as_ref(),
             creature_spawns: &creature_spawns,
+            graveyards: None,
         },
         row,
     )
@@ -223,7 +241,7 @@ async fn corpse_row_for_unknown_map_does_not_create_a_location() {
 
 #[tokio::test]
 async fn at_login_resurrect_ignores_saved_location_and_resurrects_player() {
-    let (mut session, _, _) = corpse_login_session(571, maps_with_world_and_instance(), true);
+    let (mut session, _, send_rx) = corpse_login_session(571, maps_with_world_and_instance(), true);
     session.core.with_owned_player_mut_like_cpp(|player| {
         player.set_at_login_flags_like_cpp(AT_LOGIN_RESURRECT);
     });
@@ -242,5 +260,12 @@ async fn at_login_resurrect_ignores_saved_location_and_resurrects_player() {
             .persistent_capability_state_like_cpp()
             .at_login_flags),
         Some(0)
+    );
+    assert!(
+        std::iter::from_fn(|| send_rx.try_recv().ok()).all(|packet| {
+            u16::from_le_bytes([packet[0], packet[1]])
+                != wow_constants::ServerOpcodes::SpellGo as u16
+        }),
+        "LoadCorpse calls ResurrectPlayer with its default applySickness=false"
     );
 }

@@ -79,12 +79,14 @@ pub struct CorpseLifecycleCatalogsLikeCpp<'a> {
     pub graveyards: &'a GraveyardStore,
 }
 
-/// Catalog inputs consumed by resurrection and its triggered aura casts.
-/// Graveyard lookup data stays at the callers that perform corpse search.
+/// Catalog inputs consumed by resurrection recovery and its triggered casts.
+/// Graveyard data is borrowed only by recovery phases that perform the
+/// post-save corpse or ghost graveyard search.
 #[derive(Clone, Copy)]
 pub struct ResurrectionOperationCatalogs<'a> {
     pub item_guid_generator: &'a ObjectGuidGenerator,
     pub creature_spawns: &'a CreatureSpawnCatalogsLikeCpp,
+    pub graveyards: Option<&'a GraveyardStore>,
 }
 
 impl<'a> CorpseLifecycleCatalogsLikeCpp<'a> {
@@ -92,6 +94,7 @@ impl<'a> CorpseLifecycleCatalogsLikeCpp<'a> {
         ResurrectionOperationCatalogs {
             item_guid_generator: self.item_guid_generator,
             creature_spawns: self.creature_spawns,
+            graveyards: Some(self.graveyards),
         }
     }
 }
@@ -585,7 +588,7 @@ pub fn closest_graveyard_like_cpp<H: CorpseHostLikeCpp>(
 
 /// C++ `m_deathTimer = 0` ("stop countdown until repop"); the World test
 /// build also counts each `RepopAtGraveyard`.
-fn stop_repop_countdown_like_cpp<H: CorpseHostLikeCpp>(host: &mut H) {
+pub(crate) fn stop_repop_countdown_like_cpp<H: CorpseHostLikeCpp>(host: &mut H) {
     let _ = host.core().with_owned_player_mut_like_cpp(|player| {
         player
             .resurrection_state_mut_like_cpp()
@@ -636,7 +639,27 @@ pub async fn repop_at_graveyard_like_cpp<H: CorpseHostLikeCpp>(
         || host.hub_ref().player_on_transport_state_like_cpp() == Some(true)
         || below_min_height;
     if should_resurrect {
-        spawn_corpse_bones_like_cpp(host, catalogs.item_guid_generator, true).await;
+        if !crate::recovery_fences::begin(
+            host,
+            wow_entities::PlayerResurrectionOperation::ForcedRepop,
+            wow_entities::PlayerResurrectionPhase::RecoveryBonesReady,
+        ) {
+            return;
+        }
+        match crate::recovery_fences::continue_operation(
+            host,
+            catalogs.resurrection(),
+        )
+        .await
+        {
+            crate::recovery_fences::Progress::Complete
+            | crate::recovery_fences::Progress::Waiting => {}
+            crate::recovery_fences::Progress::Continue | crate::recovery_fences::Progress::Held => {
+                host.core_mut()
+                    .kick("forced graveyard recovery did not complete; retain Player owner");
+            }
+        }
+        return;
     }
 
     // Battleground and battlefield graveyard selectors are not represented;

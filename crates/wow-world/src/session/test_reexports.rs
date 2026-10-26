@@ -6,6 +6,8 @@
 
 pub(crate) use super::gameobject_interaction::RepresentedCapturePointStateLikeCpp;
 pub(crate) use super::player_spell_records::RepresentedPlayerSkillLikeCpp;
+pub(crate) use super::tests::RecordingPlayerLifecyclePort;
+pub(crate) use super::tests::install_worldport_ack_inputs;
 pub(crate) use crate::entity_update_bridge::dynamic_object_values_update_to_update_object;
 pub(crate) use std::collections::HashSet;
 pub(crate) use wow_constants::currency::CurrencyGainSourceLikeCpp;

@@ -2,11 +2,11 @@ use super::*;
 
 const AT_LOGIN_RESURRECT: u16 = 0x0100;
 
-fn remove_ghost_spell_metadata(session: &mut WorldSession) {
+pub(crate) fn remove_ghost_spell_metadata(session: &mut WorldSession) {
     session.set_spell_store(Arc::new(wow_data::SpellStore::new()));
 }
 
-fn install_distinct_graveyards(
+pub(super) fn install_distinct_graveyards(
     session: &mut WorldSession,
     corpse_guid: ObjectGuid,
 ) -> Arc<wow_data::GraveyardStore> {
@@ -92,6 +92,7 @@ async fn native_resurrection_failure_returns_error_and_keeps_player_dead() {
         wow_world_entities::ResurrectionOperationCatalogs {
             item_guid_generator: generators.item.as_ref(),
             creature_spawns: &creature_spawns,
+            graveyards: None,
         },
         0.5,
         false,
@@ -128,6 +129,7 @@ async fn native_resurrection_success_returns_ok_for_canonical_player() {
         wow_world_entities::ResurrectionOperationCatalogs {
             item_guid_generator: generators.item.as_ref(),
             creature_spawns: &creature_spawns,
+            graveyards: None,
         },
         0.5,
         false,

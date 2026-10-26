@@ -13,6 +13,7 @@ use super::*;
 pub struct PlayerSaveAcknowledgementLikeCpp {
     guid: ObjectGuid,
     deferred_save: super::deferred_save::DeferredPlayerSave,
+    resurrection: Option<crate::PlayerResurrectionContinuation>,
     spells: BTreeMap<i32, PlayerKnownSpellRecord>,
     fallback: BTreeMap<i32, PlayerKnownSpellRecord>,
     skills: Vec<PlayerSkillRecord>,
@@ -36,6 +37,12 @@ impl Player {
         PlayerSaveAcknowledgementLikeCpp {
             guid: self.guid(),
             deferred_save: self.deferred_save,
+            resurrection: self
+                .resurrection_state_like_cpp()
+                .delayed_after_teleport
+                .filter(|continuation| {
+                    continuation.phase == crate::PlayerResurrectionPhase::SavingPlayer
+                }),
             spells: state.spells.rows.clone(),
             fallback: state.spells.fallback_rows.clone(),
             skills: state.skills.clone(),
@@ -57,6 +64,13 @@ impl Player {
         }
         self.deferred_save.acknowledge(saved.deferred_save);
         let state = &mut self.gameplay_state;
+        if let Some(captured) = saved.resurrection
+            && captured.phase == crate::PlayerResurrectionPhase::SavingPlayer
+            && let Some(current) = state.resurrection.delayed_after_teleport.as_mut()
+            && *current == captured
+        {
+            current.phase = crate::PlayerResurrectionPhase::PlayerSaveApplied;
+        }
         if groups.spells && state.spells.rows_loaded && state.spells.rows_complete {
             acknowledge_spells(&mut state.spells, saved.spells);
         }

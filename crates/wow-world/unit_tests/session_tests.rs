@@ -28,6 +28,8 @@ mod instance_occupancy;
 mod lifecycle;
 #[path = "session/tests/lifecycle_persistence.rs"]
 mod lifecycle_persistence;
+pub(crate) use lifecycle_persistence::RecordingPlayerLifecyclePort;
+pub(crate) use lifecycle_persistence::install_worldport_ack_inputs;
 #[path = "session/tests/login_auxiliary_persistence.rs"]
 mod login_auxiliary_persistence;
 #[path = "session/tests/mailbox_pump.rs"]

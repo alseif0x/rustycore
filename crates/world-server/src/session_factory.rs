@@ -452,6 +452,7 @@ pub(super) async fn create_session(
         wow_world_application::ResurrectionOperationCatalogs {
             item_guid_generator: resources.core.handler_catalogs.id_generators.item.as_ref(),
             creature_spawns: resources.core.handler_catalogs.creature_spawns.as_ref(),
+            graveyards: Some(resources.core.handler_catalogs.graveyards.as_ref()),
         },
         WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP,
     )

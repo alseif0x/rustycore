@@ -38,6 +38,9 @@ use selected_execution_effects::{
 };
 #[path = "spirit_healer/native_outcome.rs"]
 mod native_outcome;
+pub(super) use native_outcome::remove_ghost_spell_metadata;
+#[path = "spirit_healer/recovery_fences.rs"]
+mod recovery_fences;
 #[path = "spirit_healer/selected_lifetime.rs"]
 mod selected_lifetime;
 #[path = "spirit_healer/selected_visual.rs"]
@@ -45,6 +48,15 @@ mod selected_visual;
 #[path = "spirit_healer/setup.rs"]
 mod setup;
 use setup::*;
+
+pub(super) fn install_recovery_sickness_fixture(session: &mut WorldSession) {
+    set_race_sickness_spell(session, SICKNESS_SPELL);
+    install_sickness_data(session, SICKNESS_SPELL, Some(69));
+}
+
+pub(super) fn recovery_sickness_is_present(session: &WorldSession) -> bool {
+    !visible_sickness_aura(session, SICKNESS_SPELL).is_empty()
+}
 
 #[derive(Debug)]
 struct SicknessAuraUpdate {
@@ -60,7 +72,7 @@ struct SicknessAuraUpdate {
     remaining_ms: Option<u32>,
 }
 
-async fn logged_in_released_ghost(
+pub(super) async fn logged_in_released_ghost(
     guid_counter: i64,
 ) -> (
     WorldSession,
@@ -182,6 +194,10 @@ async fn spirit_healer_clears_canonical_self_res_and_out_of_bounds_state() {
 #[tokio::test]
 async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_items() {
     let (mut session, send_rx, _realm_rx, port) = logged_in_released_ghost(43_201).await;
+    let save_port = crate::session::RecordingPlayerLifecyclePort::new(
+        wow_persistence::PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+    );
+    session.set_player_lifecycle_port_like_cpp(save_port.clone());
     let _packet_peer = keep_recovery_input_open(&mut session);
     let player_guid = session.player_guid().unwrap();
     let position = session.player_position_like_cpp().unwrap();
@@ -366,6 +382,12 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
     session
         .handle_spirit_healer_activate(healer_packet(healer))
         .await;
+
+    assert_eq!(
+        save_port.character_save_count(),
+        1,
+        "the healer full save follows confirmed corpse deletion"
+    );
 
     let post_resurrection_vitals = session
         .core
@@ -561,6 +583,11 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
     session
         .handle_spirit_healer_activate(healer_packet(healer))
         .await;
+    assert_eq!(
+        save_port.character_save_count(),
+        1,
+        "the later no-corpse activation does not trigger another save"
+    );
     let refreshed = visible_sickness_aura(&session, SICKNESS_SPELL);
     assert_eq!(refreshed.len(), 1);
     assert_eq!(refreshed[0].slot, original_slot);

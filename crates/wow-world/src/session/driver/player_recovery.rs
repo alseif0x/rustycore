@@ -12,7 +12,7 @@ use crate::session::mailbox::{
 };
 use wow_core::ObjectGuid;
 use wow_map::{MapKey, PlayerHandle};
-use wow_world_core::session::SessionState;
+use wow_world_core::session::{SessionHubHostLikeCpp, SessionState};
 use wow_world_core::session::directory::PlayerRegistration;
 use wow_world_entities::update_pvp_flag_like_cpp;
 
@@ -21,11 +21,23 @@ pub(super) async fn run_current_player_ticks(
     diff_ms: u32,
     catalogs: &SessionHandlerCatalogsLikeCpp,
 ) {
+    let coordinated = session.is_map_phase_coordinated_like_cpp();
     update_pvp_flag_like_cpp(session, wow_entities::game_time_secs_like_cpp());
-    let _ = crate::session::hub_mut(session).set_represented_can_delay_teleport_like_cpp(true);
     session.world_entities.advance_creature_tick_like_cpp();
 
-    let coordinated = session.is_map_phase_coordinated_like_cpp();
+    if !coordinated {
+        let _ = crate::session::hub_mut(session).set_represented_can_delay_teleport_like_cpp(false);
+        let binding = capture_player_binding(session);
+        let resume = resume_ready_recovery_before_unit(session, catalogs).await;
+        if resume != RecoveryPreUpdate::Proceed
+            || session.core.state != SessionState::LoggedIn
+            || !binding_still_current(session, binding.as_ref())
+        {
+            return;
+        }
+    }
+
+    let _ = crate::session::hub_mut(session).set_represented_can_delay_teleport_like_cpp(true);
     let selected_result = if coordinated {
         Ok(())
     } else {
@@ -165,7 +177,7 @@ async fn run_admitted_player_recovery(
 ) -> PlayerRecoveryStatus {
     // C++ Unit::Update runs before Player regeneration, KillPlayer, SaveTimer,
     // deathTimer, and delayed teleport (`Player.cpp:935-942,1053-1066,1101-1111`).
-    let _ = crate::session::hub_mut(session).set_represented_can_delay_teleport_like_cpp(true);
+    let _ = crate::session::hub_mut(session).set_represented_can_delay_teleport_like_cpp(false);
     let binding = PlayerBinding {
         guid: admission.registration.guid(),
         registration: Some(admission.registration),
@@ -174,6 +186,22 @@ async fn run_admitted_player_recovery(
         map_incarnation: admission.map_incarnation,
         residence_revision: admission.residence_revision,
     };
+    let resume = resume_ready_recovery_before_unit(session, catalogs).await;
+    if resume == RecoveryPreUpdate::Unavailable {
+        return PlayerRecoveryStatus::Unavailable;
+    }
+    if !session.core.is_player_recovery_admission_current(admission) {
+        return PlayerRecoveryStatus::PlayerLeft;
+    }
+    if resume == RecoveryPreUpdate::PlayerLeft {
+        let _ = crate::session::hub_mut(session).set_represented_can_delay_teleport_like_cpp(false);
+        return PlayerRecoveryStatus::PlayerLeft;
+    }
+    if let Some(status) = recovery_status(session, admission) {
+        let _ = crate::session::hub_mut(session).set_represented_can_delay_teleport_like_cpp(false);
+        return status;
+    }
+    let _ = crate::session::hub_mut(session).set_represented_can_delay_teleport_like_cpp(true);
     let selected_result = run_selected_unit_update(
         session,
         admission.diff_ms,
@@ -209,6 +237,67 @@ async fn run_admitted_player_recovery(
 
     process_delayed_teleport(session, catalogs).await;
     recovery_status(session, admission).unwrap_or(PlayerRecoveryStatus::Completed)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RecoveryPreUpdate {
+    Proceed,
+    PlayerLeft,
+    Unavailable,
+}
+
+async fn resume_ready_recovery_before_unit(
+    session: &mut WorldSession,
+    catalogs: &SessionHandlerCatalogsLikeCpp,
+) -> RecoveryPreUpdate {
+    use wow_world_entities::RecoveryResumeState;
+
+    let state = wow_world_entities::resurrection_recovery_resume_state(session);
+    if state == RecoveryResumeState::Held {
+        session
+            .core_mut()
+            .kick("resurrection recovery has an unresolved in-flight phase");
+        return RecoveryPreUpdate::Unavailable;
+    }
+    if state == RecoveryResumeState::Ready {
+        let completed = wow_world_entities::continue_player_resurrection_after_teleport(
+            session,
+            wow_world_entities::ResurrectionOperationCatalogs {
+                item_guid_generator: catalogs.id_generators.item.as_ref(),
+                creature_spawns: catalogs.creature_spawns.as_ref(),
+                graveyards: Some(catalogs.graveyards.as_ref()),
+            },
+        )
+        .await;
+        if session.core.state == SessionState::Transfer
+            || session
+                .core
+                .with_owned_player_like_cpp(|player| {
+                    let state = player.teleport_state_like_cpp();
+                    state.post_add.is_some()
+                        || state.far_pending
+                            && state.recovery != wow_entities::PlayerTransferRecovery::Terminal
+                })
+                .unwrap_or(false)
+        {
+            return RecoveryPreUpdate::PlayerLeft;
+        }
+        let after = wow_world_entities::resurrection_recovery_resume_state(session);
+        if after == RecoveryResumeState::Waiting {
+            return RecoveryPreUpdate::PlayerLeft;
+        }
+        if !completed
+            && !matches!(after, RecoveryResumeState::None | RecoveryResumeState::Waiting)
+        {
+            session
+                .core_mut()
+                .kick("resurrection recovery could not resume from its confirmed phase");
+            return RecoveryPreUpdate::Unavailable;
+        }
+    } else if state == RecoveryResumeState::Waiting {
+        return RecoveryPreUpdate::PlayerLeft;
+    }
+    RecoveryPreUpdate::Proceed
 }
 
 fn run_selected_unit_update(
@@ -474,6 +563,7 @@ async fn process_delayed_teleport(
         wow_world_entities::ResurrectionOperationCatalogs {
             item_guid_generator: catalogs.id_generators.item.as_ref(),
             creature_spawns: catalogs.creature_spawns.as_ref(),
+            graveyards: Some(catalogs.graveyards.as_ref()),
         },
     )
     .await;

@@ -13,7 +13,7 @@ use wow_world_entities::PlayerTeleportHostLikeCpp;
 
 use super::WorldportHostLikeCpp;
 use super::completion::{
-    begin_worldport_post_add_like_cpp, finish_worldport_native_before_disconnect_like_cpp,
+    WorldportNativeOutcome, begin_worldport_post_add_like_cpp, finish_worldport_after_ack,
 };
 use super::recovery::{recover_rejected_worldport_like_cpp, recovery_worldport_ack_ready_like_cpp};
 use super::self_create::prepare_player_self_create_for_teleport_like_cpp;
@@ -52,6 +52,7 @@ pub async fn send_player_self_create_for_teleport_like_cpp<H: WorldportHostLikeC
 pub async fn handle_world_port_response_with_catalogs_like_cpp<H: WorldportHostLikeCpp>(
     host: &mut H,
     creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+    graveyards: Option<&wow_data::GraveyardStore>,
     trait_node_entries: &wow_data::trait_tree::TraitNodeEntryStore,
     item_guid_generator: &wow_core::ObjectGuidGenerator,
     _pkt: wow_packet::WorldPacket,
@@ -209,11 +210,16 @@ pub async fn handle_world_port_response_with_catalogs_like_cpp<H: WorldportHostL
     let resurrection_catalogs = wow_world_entities::ResurrectionOperationCatalogs {
         item_guid_generator,
         creature_spawns: creature_spawn_catalogs,
+        graveyards,
     };
-    if !finish_worldport_native_before_disconnect_like_cpp(host, resurrection_catalogs).await {
-        host.core_mut()
-            .kick("worldport native completion unavailable");
-        return;
+    match finish_worldport_after_ack(host, resurrection_catalogs).await {
+        WorldportNativeOutcome::Complete => {}
+        WorldportNativeOutcome::TransferPending => return,
+        WorldportNativeOutcome::Unavailable => {
+            host.core_mut()
+                .kick("worldport native completion unavailable");
+            return;
+        }
     }
 
     // Player.cpp:1494-1503: delayed resurrection precedes DELAYED_SAVE_PLAYER.

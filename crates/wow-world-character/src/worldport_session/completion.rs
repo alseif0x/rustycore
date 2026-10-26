@@ -37,7 +37,61 @@ pub async fn finish_worldport_native_before_disconnect_like_cpp<H: WorldportHost
     host: &mut H,
     resurrection_catalogs: wow_world_entities::ResurrectionOperationCatalogs<'_>,
 ) -> bool {
-    finish_worldport_native_before_disconnect_inner(host, Some(resurrection_catalogs)).await
+    if host.player_guid().is_none() {
+        return true;
+    }
+    let mut observed_transfers = Vec::new();
+    loop {
+        let Some(state) = host.hub_ref().player_teleport_state_snapshot_like_cpp() else {
+            return false;
+        };
+        if transfer_is_pending(&state) {
+            let Some(identity) = transfer_identity(host, state) else {
+                return false;
+            };
+            if observed_transfers.contains(&identity) {
+                return false;
+            }
+            observed_transfers.push(identity);
+        }
+
+        if !finish_worldport_native_one_pass(host, Some(resurrection_catalogs)).await {
+            return false;
+        }
+        let Some(state) = host.hub_ref().player_teleport_state_snapshot_like_cpp() else {
+            return false;
+        };
+        if !transfer_is_pending(&state) {
+            return true;
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum WorldportNativeOutcome {
+    Complete,
+    TransferPending,
+    Unavailable,
+}
+
+/// The registered client-ACK path completes the current entry exactly once.
+/// Delayed recovery may admit another far transfer; the caller must then wait
+/// for that transfer's own ACK before publishing readiness or saving again.
+pub(super) async fn finish_worldport_after_ack<H: WorldportHostLikeCpp>(
+    host: &mut H,
+    resurrection_catalogs: wow_world_entities::ResurrectionOperationCatalogs<'_>,
+) -> WorldportNativeOutcome {
+    if !finish_worldport_native_one_pass(host, Some(resurrection_catalogs)).await {
+        return WorldportNativeOutcome::Unavailable;
+    }
+    let Some(state) = host.hub_ref().player_teleport_state_snapshot_like_cpp() else {
+        return WorldportNativeOutcome::Unavailable;
+    };
+    if transfer_is_pending(&state) || state.post_add.is_some() {
+        WorldportNativeOutcome::TransferPending
+    } else {
+        WorldportNativeOutcome::Complete
+    }
 }
 
 /// Legacy finalization call sites without catalog ownership may complete native
@@ -47,10 +101,33 @@ pub async fn finish_worldport_native_without_resurrection_catalogs<
 >(
     host: &mut H,
 ) -> bool {
-    finish_worldport_native_before_disconnect_inner(host, None).await
+    finish_worldport_native_one_pass(host, None).await
 }
 
-async fn finish_worldport_native_before_disconnect_inner<H: WorldportHostLikeCpp>(
+#[derive(Clone, Copy, PartialEq)]
+struct TransferIdentity {
+    state: wow_entities::PlayerTeleportStateLikeCpp,
+    location: (u32, Position),
+}
+
+fn transfer_is_pending(state: &wow_entities::PlayerTeleportStateLikeCpp) -> bool {
+    state.far_pending && state.recovery != wow_entities::PlayerTransferRecovery::Terminal
+}
+
+fn transfer_identity<H: WorldportHostLikeCpp>(
+    host: &H,
+    state: wow_entities::PlayerTeleportStateLikeCpp,
+) -> Option<TransferIdentity> {
+    host.core()
+        .with_owned_player_like_cpp(|player| {
+            TransferIdentity {
+                state,
+                location: (player.unit().world().map_id(), player.unit().world().position()),
+            }
+        })
+}
+
+async fn finish_worldport_native_one_pass<H: WorldportHostLikeCpp>(
     host: &mut H,
     resurrection_catalogs: Option<wow_world_entities::ResurrectionOperationCatalogs<'_>>,
 ) -> bool {
