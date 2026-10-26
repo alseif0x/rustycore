@@ -550,3 +550,5 @@ mod spell_4;
 mod spell_5;
 #[path = "spell_tests/spell_6.rs"]
 mod spell_6;
+#[path = "spell_tests/visuals.rs"]
+mod visuals;

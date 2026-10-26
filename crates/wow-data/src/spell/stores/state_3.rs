@@ -654,6 +654,7 @@ impl SpellTargetPositionStoreLikeCpp {
 pub struct SpellStore {
     pub(crate) spells: HashMap<i32, SpellInfo>,
     pub(crate) spell_info_keys_like_cpp: crate::spell_info_keys::SpellInfoKeyStoreLikeCpp,
+    pub(super) regular_visual_override_targets: BTreeSet<u32>,
     pub(super) spell_effects_by_difficulty: HashMap<(i32, u8), Vec<SpellEffectInfo>>,
     pub(super) spell_misc_attributes: HashMap<i32, [u32; 15]>,
     pub(super) spell_misc_attributes_by_difficulty: HashMap<(i32, u8), [u32; 15]>,

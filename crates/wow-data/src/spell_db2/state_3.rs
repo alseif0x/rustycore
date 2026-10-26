@@ -73,27 +73,23 @@ impl SpellVisualMissileStore {
 
 impl SpellXSpellVisualStore {
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
-        load_store(data_dir, locale, "SpellXSpellVisual.db2", |id, idx, r| {
-            // Unlike the other relationship-backed Spell* tables loaded here,
-            // SpellXSpellVisual keeps its record ID as physical field 0.  The
-            // C++ DB2 metadata declares ID at logical column 0 and SpellID as
-            // the relationship column, so payload fields begin at field 1.
-            SpellXSpellVisualEntry {
-                id,
-                difficulty_id: r.get_field_u8(idx, 1),
-                spell_visual_id: r.get_field_u32(idx, 2),
-                probability: f32_field(r, idx, 3),
-                flags: r.get_field_u8(idx, 4),
-                priority: r.get_field_i32(idx, 5),
-                spell_icon_file_id: r.get_field_i32(idx, 6),
-                active_icon_file_id: r.get_field_i32(idx, 7),
-                viewer_unit_condition_id: r.get_field_u16(idx, 8),
-                viewer_player_condition_id: r.get_field_u32(idx, 9),
-                caster_unit_condition_id: r.get_field_u16(idx, 10),
-                caster_player_condition_id: r.get_field_u32(idx, 11),
-                spell_id: r.get_relationship_id(idx).unwrap_or(0),
-            }
-        })
+        load_store(
+            data_dir,
+            locale,
+            "SpellXSpellVisual.db2",
+            read_spell_x_spell_visual_entry,
+        )
+    }
+
+    /// Load the file only when every declared WDC4 record, including copies,
+    /// resolved through the reader.
+    pub fn load_complete(data_dir: &str, locale: &str) -> Result<Self> {
+        load_store_complete(
+            data_dir,
+            locale,
+            "SpellXSpellVisual.db2",
+            read_spell_x_spell_visual_entry,
+        )
     }
 
     /// Load C++'s effective spell-visual relation authority: DB2, official
@@ -104,7 +100,7 @@ impl SpellXSpellVisualStore {
         rows: impl IntoIterator<Item = SpellXSpellVisualEntry>,
         removals: &crate::Db2HotfixRemovalStoreLikeCpp,
     ) -> Result<Self> {
-        let mut store = Self::load(data_dir, locale)?;
+        let mut store = Self::load_complete(data_dir, locale)?;
         for entry in rows {
             store.overlay_effective_row_like_cpp(entry);
         }
@@ -130,10 +126,61 @@ impl SpellXSpellVisualStore {
     }
 }
 
+fn read_spell_x_spell_visual_entry(
+    id: u32,
+    idx: usize,
+    reader: &Wdc4Reader,
+) -> SpellXSpellVisualEntry {
+    // Unlike the other relationship-backed Spell* tables loaded here,
+    // SpellXSpellVisual keeps its record ID as physical field 0. The C++ DB2
+    // metadata declares ID at logical column 0 and SpellID as the relationship
+    // column, so payload fields begin at field 1.
+    SpellXSpellVisualEntry {
+        id,
+        difficulty_id: reader.get_field_u8(idx, 1),
+        spell_visual_id: reader.get_field_u32(idx, 2),
+        probability: f32_field(reader, idx, 3),
+        flags: reader.get_field_u8(idx, 4),
+        priority: reader.get_field_i32(idx, 5),
+        spell_icon_file_id: reader.get_field_i32(idx, 6),
+        active_icon_file_id: reader.get_field_i32(idx, 7),
+        viewer_unit_condition_id: reader.get_field_u16(idx, 8),
+        viewer_player_condition_id: reader.get_field_u32(idx, 9),
+        caster_unit_condition_id: reader.get_field_u16(idx, 10),
+        caster_player_condition_id: reader.get_field_u32(idx, 11),
+        spell_id: reader.get_relationship_id(idx).unwrap_or(0),
+    }
+}
+
 pub(super) fn load_store<T, S>(
     data_dir: &str,
     locale: &str,
     file_name: &str,
+    read: impl FnMut(u32, usize, &Wdc4Reader) -> T,
+) -> Result<S>
+where
+    S: FromEntries<T>,
+{
+    load_store_with_completeness(data_dir, locale, file_name, false, read)
+}
+
+pub(super) fn load_store_complete<T, S>(
+    data_dir: &str,
+    locale: &str,
+    file_name: &str,
+    read: impl FnMut(u32, usize, &Wdc4Reader) -> T,
+) -> Result<S>
+where
+    S: FromEntries<T>,
+{
+    load_store_with_completeness(data_dir, locale, file_name, true, read)
+}
+
+fn load_store_with_completeness<T, S>(
+    data_dir: &str,
+    locale: &str,
+    file_name: &str,
+    require_complete: bool,
     mut read: impl FnMut(u32, usize, &Wdc4Reader) -> T,
 ) -> Result<S>
 where
@@ -143,9 +190,19 @@ where
     let reader =
         Wdc4Reader::open(&path).with_context(|| format!("failed to open {}", path.display()))?;
 
-    let mut entries = Vec::with_capacity(reader.total_count());
+    let expected_records = reader.total_count();
+    let mut observed_records = 0;
+    let mut entries = Vec::with_capacity(expected_records);
     for (id, idx) in reader.iter_records() {
+        observed_records += 1;
         entries.push(read(id, idx, &reader));
+    }
+    if require_complete {
+        anyhow::ensure!(
+            observed_records == expected_records,
+            "{} contains unresolved WDC4 copy records: observed {observed_records} of {expected_records}",
+            path.display()
+        );
     }
 
     let mut store = S::from_entries(entries);

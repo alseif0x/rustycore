@@ -187,6 +187,7 @@ pub(super) struct SessionPlayerCatalogCapabilitiesLikeCpp {
 pub(super) struct SessionSpellCatalogCapabilitiesLikeCpp {
     pub(super) spell_chain_store: Arc<wow_data::SpellChainStoreLikeCpp>,
     pub(super) spell_store: Arc<wow_data::SpellStore>,
+    pub(super) serverside_spell_store: Arc<wow_data::ServersideSpellStoreLikeCpp>,
     /// Process-wide immutable acquisition projection composed from the
     /// effective spell metadata sources.
     pub(super) spell_acquisition_catalog: Arc<wow_data::SpellAcquisitionCatalogLikeCpp>,
@@ -415,6 +416,10 @@ impl SessionSpellCatalogCapabilitiesLikeCpp {
     /// Installs this complete capability group after bootstrap construction.
     pub(super) fn install_into_session_like_cpp(&self, session: &mut WorldSession) {
         session.set_spell_store(Arc::clone(&self.spell_store));
+        wow_world::session::install_serverside_spell_catalog(
+            session,
+            Arc::clone(&self.serverside_spell_store),
+        );
         session.set_spell_acquisition_catalog(Arc::clone(&self.spell_acquisition_catalog));
         session.set_spell_acquisition_static_authority_like_cpp(
             self.spell_acquisition_safe_cast_spell_ids.iter().copied(),

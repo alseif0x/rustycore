@@ -5,4 +5,4 @@
 use super::*;
 
 mod operations;
-pub use operations::install_condition_presence_catalog;
+pub use operations::{install_condition_presence_catalog, install_serverside_spell_catalog};

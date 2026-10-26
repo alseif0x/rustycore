@@ -484,6 +484,21 @@ impl ServersideSpellStoreLikeCpp {
                 difficulty_id,
             })
     }
+
+    /// Whether an accepted server-side spell payload could override this
+    /// cast's visual. This reports metadata potential, not active aura state.
+    pub fn may_override_spell_visual(&self, target_spell_id: u32) -> bool {
+        self.spell_infos_by_spell_and_difficulty
+            .values()
+            .any(|spell| {
+                spell.effects.iter().any(|effect| {
+                    u32::try_from(effect.effect).is_ok_and(|effect_type| {
+                        super::visuals::is_visual_override_aura(effect_type, effect.effect_aura)
+                            && effect.effect_misc_value[0] as u32 == target_spell_id
+                    })
+                })
+            })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

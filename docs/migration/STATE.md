@@ -24,8 +24,10 @@ connects selected completion polarity and exact initial-threat attributes, with
 required metadata checked before cast preparation. 9i3C3d4e connects selected
 load effects, whole-spell offline polarity, full-width charge normalization,
 and the shared fresh constructor. 9i3C3d4f adds effective condition-row presence
-and its startup/session composition. Visual resolution and fresh/refresh charge
-consumers remain pending.
+and its startup/session composition. 9i3C3d4g adds exact visual metadata,
+complete effect/visual file loading, override-potential queries, and server
+catalog composition. Actual visual consumers and fresh/refresh charges remain
+pending, including their remaining effective scalar inputs.
 The integration adds neither another clock nor another Player authority.
 
 Four blocks remain within the same macro:
@@ -1423,6 +1425,84 @@ This is another local UNVALIDATED checkpoint with focused feedback. No selected
 visual parity, final acceptance, runtime/DB mutation, capture, publication,
 deployment, or issue completion is established by it.
 
+9i3C3d4g adds the Data visual relation resolver and selector. Resolution inherits
+the first nonempty whole vector through the exact difficulty chain, including
+a real zero fallback, and orders rows by descending caster-player-condition ID
+then descending RecordID. Selection uses effective condition-row presence,
+including ID zero. Caster-incompatible constraints skip a row; a needed unknown
+predicate errors before a lower candidate rather than silently choosing it.
+Known absence of all visual rows returns zero without irrelevant catalog facts.
+
+SpellStore retains potential override targets from canonical full-domain raw
+effect slots before its existing i32-spell/u8-difficulty projection. Highest
+RecordID wins, including explicit inert winners. Queries also inspect retained
+canonical projected rows and dynamic/corrected payloads. That prevents a false
+absence when a second hydration retains a nonbase slot. A legacy primary
+override without explicit effect metadata remains conservative potential.
+The server-side query uses accepted SpellInfo effect payloads, not orphan rows.
+Persistent-area and all Source unit-owned Aura carriers are included. These
+are absence-supporting metadata queries, not active-Aura authority.
+
+Effective SpellEffect and SpellXSpellVisual loaders now use one checked reader
+pass and reject unresolved WDC4 copy sources before SQL overlays/removals.
+Their existing file-only load methods retain legacy behavior. The already-loaded
+server-side Arc is installed through the existing Spell capability and a narrow
+free composition adapter. No WorldSession method, broad mutable accessor, new
+gameplay owner, or general predicate/override engine is added.
+
+Source anchors at `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` are
+SpellMgr.cpp:2498–2508,2594–2606,2614–2688, SpellInfo.cpp:461–492,4446–4464,
+Unit.cpp:13548–13563, and SpellAuraEffects.h:56–57. The existing server-effect
+admission uses regular SpellInfo keys while parent spell rows use SpellName
+(SpellMgr.cpp:2753–2760,2859–2866). The added regression preserves that
+asymmetry; there is no new production admission change in this checkpoint.
+
+On `40b6d47d4` plus the reviewed delta, sequential aarch64/jobs=1 worker feedback
+passed Data `visual_metadata` (10), existing `effect_resolution` (11), and the
+explicit ignored `visual_file_diagnostic` (1): 22 distinct cases. They cover
+exact vector inheritance/order, condition presence and caster kind, necessary
+predicate errors, full-domain and dynamic override potential, inert winners,
+accepted versus orphan server effects, retained nonbase hydration, and complete
+loader failure before overlays. The first test compilation missed a test import;
+the next run passed nine and failed one server fixture. Both were corrected
+before the final focused run. Repeated cases are counted once.
+
+Raw logs use prefix `/tmp/rustycore-43-visual-metadata-`:
+`focused-tests-rerun2.log`, `effect-resolution.log`, and `file-diagnostic.log`,
+with corresponding exit files recording zero. The initial World Server check
+printed successful completion in 4m10s but lost its final shell status. Its
+session 37028 and exec cell 77 were authoritatively unavailable; it is not
+counted as retained exit evidence. One approved warm recovery
+`cargo check -p world-server --lib` then exited zero in 0.24s, recorded in
+`world-server-check-recovery.{stdout.log,stderr.log,exit}`. The parent reviewed
+the actual diff and did not launch a duplicate campaign. The fixed worker-role
+spawn succeeded; exact runtime variant/effort self-telemetry was unavailable.
+
+With `RUSTYCORE_VISUAL_DATA_DIR=/home/server/woltk-server-core/Data`, enUS,
+the complete FILE diagnostic loaded 69,504 SpellEffect and 33,467
+SpellXSpellVisual rows. It found no Aura 403 rows in the file, and file-only
+override potential was false for 8326, 20584, and 15007. Ghost's visual relation
+was RecordID 241720 and sickness's 245039, both difficulty zero with zero caster
+condition IDs. Wisp had no visual rows. The stored SpellVisualIDs (886 and 69)
+are distinct from those relation RecordIDs; Source returns the relation ID.
+Post-diagnostic SHA-256 identities were:
+
+- `SpellEffect.db2`:
+  `c786e3f82d69f6a2675cdcc7a0a6c48a2684044fb23344bd488425d982b525f8`.
+- `SpellXSpellVisual.db2`:
+  `893b2141d6250684968cccd76fb365b548177327f2fad508131fe46050276e86`.
+
+SQL additions/removals and accepted server-side rows were not part of that
+diagnostic. It does not prove the effective runtime dataset or actual cast/Aura
+visual parity. Those consumers and required evidence remain pending, along with
+the separately identified scalar/charge and lifecycle work. Physical review:
+the new Data metadata module is 133 lines and its main test child 509;
+spell_db2/state_2.rs is 902 after sharing the row decoder. App wiring adds one
+line to the existing startup coordinator, updating its temporary reviewed
+ceiling from 5,664 to 5,665 with the same #43 final-architecture review expiry.
+No architecture baseline was regenerated. This remains a local UNVALIDATED
+checkpoint, not final acceptance or authorization for runtime/publication.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -1830,6 +1910,26 @@ the selected loader's full-width normalization, including preservation of
 nonzero saved charges. Fresh and refresh CalcMaxCharges consumers remain
 pending and are not claimed by scalar projection or metadata lookup tests.
 
+Production-input review, 2026-10-26: AuraOptions, ClassOptions, Levels, and Labels
+are still loaded with file-only `.load` calls in world-server/app.rs. Exact
+in-memory lookup does not supply missing SQL payload overlays. Before claiming
+effective selected polarity, fallback caster levels, stack/charge limits, or
+absence of eligible label modifiers, connect these four stores through the
+existing core-spell Hotfix port, official/custom row replacement, and final
+removals. Source HotfixDatabase.cpp:1412–1416,1443–1446,1504–1506,1513–1516 owns
+their queries. Preserve each existing Data store and immutable session owner;
+no new persistence trait or parallel spell catalog is needed.
+
+Refresh charge calculation also belongs to the existing Aura's SpellInfo:
+SpellAuras.cpp:1088–1090 calls CalcMaxCharges without a caster on that Aura.
+Resolve its original difficulty and key, rather than using the new cast's
+difficulty. Fresh creation can require caster-modifier eligibility facts that
+this refresh does not need. Required scalar metadata must remain unavailable
+when unknown; creation-only modifier failures must not reject an otherwise
+valid matching refresh. The no-eligible-modifier proof requires effective
+family flags and labels, or IGNORE_CASTER_MODIFIERS; zero family flags alone
+do not exclude label modifiers (SpellInfo.cpp:1784–1813).
+
 Charge lookup must distinguish the raw Aura cast difficulty from the resolved
 SpellInfo key: GetSpellProcEntry starts at SpellInfo::Difficulty
 (SpellMgr.cpp:490–509), then follows its chain. SQL proc rows are keyed using an
@@ -1838,6 +1938,19 @@ new SpellInfo keys. Fresh and refresh calculations consult that
 entry, including an explicit zero; saved-charge normalization does not.
 The existing canonical proc store can supply exact entries without using its
 legacy unguarded fallback loop.
+
+Its production preparation also needs correction before selected charge
+acceptance. SpellProcStore::from_rows_and_stores currently projects every
+SpellStore payload as difficulty zero and builds its explicit-row lookup by
+spell ID alone. Source loads explicit SQL rows through GetSpellInfo(id,0),
+which can return a different key through a real zero fallback, and generates
+implicit rows for each actual SpellInfo key. Build those two views from the
+existing key authority and exact component readers, with the known Difficulty
+store; keep one canonical proc store. A missing entry in the current base-only
+projection is not proof of Source absence. Implicit charges equal the selected
+SpellInfo ProcCharges (SpellMgr.cpp:1871), but that equality does not repair an
+explicit row assigned to the wrong key. This is metadata preparation for the
+selected charge consumer, not a claim to have completed the general proc engine.
 
 Zero family flags alone do not prove that caster modifiers are irrelevant.
 SpellInfo.cpp:1784–1813 supports both class-mask and label modifiers.

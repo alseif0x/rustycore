@@ -17,6 +17,7 @@ impl SpellStore {
         Self {
             spells: HashMap::new(),
             spell_info_keys_like_cpp: crate::spell_info_keys::SpellInfoKeyStoreLikeCpp::default(),
+            regular_visual_override_targets: BTreeSet::new(),
             spell_effects_by_difficulty: HashMap::new(),
             spell_misc_attributes: HashMap::new(),
             spell_misc_attributes_by_difficulty: HashMap::new(),

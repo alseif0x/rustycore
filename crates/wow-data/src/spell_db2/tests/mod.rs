@@ -65,3 +65,5 @@ mod scenarios_1;
 mod resurrection_effect_data;
 #[path = "shapeshift_display_data.rs"]
 mod shapeshift_display_data;
+#[path = "visual_metadata_loading.rs"]
+mod visual_metadata_loading;

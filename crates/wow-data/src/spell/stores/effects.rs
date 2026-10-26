@@ -3,6 +3,46 @@
 use super::*;
 
 impl SpellStore {
+    /// Whether known regular spell metadata could override this cast's visual.
+    ///
+    /// This is metadata potential only. Aura application and caster/aura state
+    /// remain runtime facts. Dynamic and corrected payloads are inspected from
+    /// the canonical spell map on each query so no second mutable index exists.
+    pub fn may_override_spell_visual(&self, target_spell_id: u32) -> bool {
+        if self
+            .regular_visual_override_targets
+            .contains(&target_spell_id)
+        {
+            return true;
+        }
+
+        if self
+            .spell_effects_by_difficulty
+            .values()
+            .flatten()
+            .any(|effect| {
+                super::super::visuals::is_visual_override_aura(effect.effect, effect.effect_aura)
+                    && effect.effect_misc_value_1 as u32 == target_spell_id
+            })
+        {
+            return true;
+        }
+
+        self.spells.values().any(|spell| {
+            if spell.effects.is_empty() {
+                return super::super::visuals::is_visual_override_aura(
+                    spell.effect_type,
+                    spell.aura_type.unwrap_or_default(),
+                );
+            }
+
+            spell.effects.iter().any(|effect| {
+                super::super::visuals::is_visual_override_aura(effect.effect, effect.effect_aura)
+                    && effect.effect_misc_value_1 as u32 == target_spell_id
+            })
+        })
+    }
+
     fn has_raw_effect_rows_for_spell(&self, spell_id: i32) -> bool {
         (u8::MIN..=u8::MAX).any(|difficulty_id| {
             self.spell_effects_by_difficulty
@@ -71,6 +111,32 @@ impl SpellStore {
         &mut self,
         spell_effect_store: &crate::spell_db2::SpellEffectDb2Store,
     ) {
+        let mut visual_effect_winners =
+            BTreeMap::<(u32, i32, i32), &crate::spell_db2::SpellEffectDb2Entry>::new();
+        for row in spell_effect_store.entries_like_cpp() {
+            visual_effect_winners
+                .entry((row.spell_id, row.difficulty_id, row.effect_index))
+                .and_modify(|winner| {
+                    if row.id > winner.id {
+                        *winner = row;
+                    }
+                })
+                .or_insert(row);
+        }
+
+        self.regular_visual_override_targets.clear();
+        for row in visual_effect_winners.values() {
+            if row.effect != 0
+                && super::super::visuals::is_visual_override_aura(
+                    row.effect,
+                    i32::from(row.effect_aura),
+                )
+            {
+                self.regular_visual_override_targets
+                    .insert(row.effect_misc_value[0] as u32);
+            }
+        }
+
         let mut winners_by_difficulty = HashMap::<(i32, u8), Vec<(u32, SpellEffectInfo)>>::new();
 
         // SpellMgr.cpp:2500-2508 assigns each RecordID-ordered row into its
@@ -168,3 +234,7 @@ impl SpellStore {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "effects_visual_tests.rs"]
+mod tests;

@@ -4960,6 +4960,7 @@ async fn run_inner(
         spells: SessionSpellCatalogCapabilitiesLikeCpp {
             spell_chain_store: Arc::clone(&spell_chain_store),
             spell_store: Arc::clone(&spell_store),
+            serverside_spell_store: Arc::clone(&serverside_spell_store),
             spell_acquisition_catalog: Arc::clone(&spell_acquisition_catalog),
             spell_acquisition_safe_cast_spell_ids: Arc::clone(
                 &spell_acquisition_safe_cast_spell_ids,

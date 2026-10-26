@@ -288,6 +288,14 @@ pub fn install_condition_presence_catalog(
     session.catalogs.condition_presence = Some(catalog);
 }
 
+/// Install the effective server-side spell catalog as known session metadata.
+pub fn install_serverside_spell_catalog(
+    session: &mut WorldSession,
+    catalog: Arc<wow_data::ServersideSpellStoreLikeCpp>,
+) {
+    session.catalogs.spell_catalogs.serverside_spell_store = Some(catalog);
+}
+
 #[cfg(test)]
 #[path = "../../../unit_tests/session/catalogs/operations/f3_shims.rs"]
 mod f3_shims;

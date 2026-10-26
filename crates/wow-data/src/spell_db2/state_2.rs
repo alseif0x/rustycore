@@ -366,46 +366,13 @@ impl SpellReagentsCurrencyStore {
 
 impl SpellEffectDb2Store {
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
-        load_store(data_dir, locale, "SpellEffect.db2", |id, idx, r| {
-            SpellEffectDb2Entry {
-                id,
-                difficulty_id: r.get_field_i32(idx, 0),
-                effect_index: r.get_field_i32(idx, 1),
-                effect: r.get_field_u32(idx, 2),
-                effect_amplitude: f32_field(r, idx, 3),
-                effect_attributes: r.get_field_i32(idx, 4),
-                effect_aura: r.get_field_i16(idx, 5),
-                effect_aura_period: r.get_field_i32(idx, 6),
-                effect_base_points: r.get_field_i32(idx, 7),
-                effect_bonus_coefficient: f32_field(r, idx, 8),
-                effect_chain_amplitude: f32_field(r, idx, 9),
-                effect_chain_targets: r.get_field_i32(idx, 10),
-                effect_die_sides: r.get_field_i32(idx, 11),
-                effect_item_type: r.get_field_i32(idx, 12),
-                effect_mechanic: r.get_field_i32(idx, 13),
-                effect_points_per_resource: f32_field(r, idx, 14),
-                effect_pos_facing: f32_field(r, idx, 15),
-                effect_real_points_per_level: f32_field(r, idx, 16),
-                effect_trigger_spell: r.get_field_i32(idx, 17),
-                bonus_coefficient_from_ap: f32_field(r, idx, 18),
-                pvp_multiplier: f32_field(r, idx, 19),
-                coefficient: f32_field(r, idx, 20),
-                variance: f32_field(r, idx, 21),
-                resource_coefficient: f32_field(r, idx, 22),
-                group_size_base_points_coefficient: f32_field(r, idx, 23),
-                effect_misc_value: std::array::from_fn(|i| {
-                    r.get_array_element(idx, 24, i, 32) as i32
-                }),
-                effect_radius_index: std::array::from_fn(|i| r.get_array_element(idx, 25, i, 32)),
-                effect_spell_class_mask: std::array::from_fn(|i| {
-                    r.get_array_element(idx, 26, i, 32)
-                }),
-                implicit_target: std::array::from_fn(|i| {
-                    r.get_array_element(idx, 27, i, 16) as i16
-                }),
-                spell_id: r.get_relationship_id(idx).unwrap_or(0),
-            }
-        })
+        load_store(data_dir, locale, "SpellEffect.db2", read_spell_effect_entry)
+    }
+
+    /// Load the file only when every declared WDC4 record, including copies,
+    /// resolved through the reader.
+    pub fn load_complete(data_dir: &str, locale: &str) -> Result<Self> {
+        load_store_complete(data_dir, locale, "SpellEffect.db2", read_spell_effect_entry)
     }
 
     /// Load the effective C++ `sSpellEffectStore` authority: DB2 file,
@@ -417,7 +384,7 @@ impl SpellEffectDb2Store {
         rows: impl IntoIterator<Item = SpellEffectDb2Entry>,
         removals: &crate::Db2HotfixRemovalStoreLikeCpp,
     ) -> Result<Self> {
-        let mut store = Self::load(data_dir, locale)?;
+        let mut store = Self::load_complete(data_dir, locale)?;
         for entry in rows {
             store.overlay_effective_row_like_cpp(entry);
         }
@@ -440,6 +407,49 @@ impl SpellEffectDb2Store {
     ) {
         self.entries
             .retain(|record_id, _| !removals.contains_like_cpp(table_hash, *record_id as i32));
+    }
+}
+
+fn read_spell_effect_entry(id: u32, idx: usize, reader: &Wdc4Reader) -> SpellEffectDb2Entry {
+    SpellEffectDb2Entry {
+        id,
+        difficulty_id: reader.get_field_i32(idx, 0),
+        effect_index: reader.get_field_i32(idx, 1),
+        effect: reader.get_field_u32(idx, 2),
+        effect_amplitude: f32_field(reader, idx, 3),
+        effect_attributes: reader.get_field_i32(idx, 4),
+        effect_aura: reader.get_field_i16(idx, 5),
+        effect_aura_period: reader.get_field_i32(idx, 6),
+        effect_base_points: reader.get_field_i32(idx, 7),
+        effect_bonus_coefficient: f32_field(reader, idx, 8),
+        effect_chain_amplitude: f32_field(reader, idx, 9),
+        effect_chain_targets: reader.get_field_i32(idx, 10),
+        effect_die_sides: reader.get_field_i32(idx, 11),
+        effect_item_type: reader.get_field_i32(idx, 12),
+        effect_mechanic: reader.get_field_i32(idx, 13),
+        effect_points_per_resource: f32_field(reader, idx, 14),
+        effect_pos_facing: f32_field(reader, idx, 15),
+        effect_real_points_per_level: f32_field(reader, idx, 16),
+        effect_trigger_spell: reader.get_field_i32(idx, 17),
+        bonus_coefficient_from_ap: f32_field(reader, idx, 18),
+        pvp_multiplier: f32_field(reader, idx, 19),
+        coefficient: f32_field(reader, idx, 20),
+        variance: f32_field(reader, idx, 21),
+        resource_coefficient: f32_field(reader, idx, 22),
+        group_size_base_points_coefficient: f32_field(reader, idx, 23),
+        effect_misc_value: std::array::from_fn(|index| {
+            reader.get_array_element(idx, 24, index, 32) as i32
+        }),
+        effect_radius_index: std::array::from_fn(|index| {
+            reader.get_array_element(idx, 25, index, 32)
+        }),
+        effect_spell_class_mask: std::array::from_fn(|index| {
+            reader.get_array_element(idx, 26, index, 32)
+        }),
+        implicit_target: std::array::from_fn(|index| {
+            reader.get_array_element(idx, 27, index, 16) as i16
+        }),
+        spell_id: reader.get_relationship_id(idx).unwrap_or(0),
     }
 }
 
