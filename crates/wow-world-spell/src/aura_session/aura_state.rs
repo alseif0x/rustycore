@@ -21,152 +21,21 @@ use wow_world_core::session::{
 };
 use wow_world_lifecycle::adjusted_represented_pet_aura_remain_time_like_cpp;
 
-use super::{AuraHostLikeCpp, next_player_visible_aura_slot_like_cpp};
+use super::{
+    AuraHostLikeCpp, next_player_visible_aura_slot_like_cpp,
+    selected_load::{
+        SelectedAuraKind, ghost_wisp_recalculated_amount, normalize_loaded_charges,
+        resolve_selected_aura_metadata, selected_aura_can_be_saved, selected_aura_options,
+        sickness_recalculated_amount,
+    },
+};
 use crate::{CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp};
 
 // C++ SpellAuraDefines.h AURA_FLAGS values used by AuraApplication::_InitFlags
 // and BuildUpdatePacket for a restored player aura.
 const AFLAG_DURATION: u32 = 0x0000_0004;
-const AFLAG_CANCELABLE: u32 = 0x0000_0002;
 const AFLAG_NEGATIVE: u32 = 0x0000_0010;
 const AFLAG_POSITIVE: u32 = 0x0000_0100;
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum SelectedAuraKind {
-    Ghost,
-    Wisp,
-    Sickness,
-}
-
-impl SelectedAuraKind {
-    fn for_spell(spell_id: u32, sickness_spell_id: Option<u32>) -> Option<Self> {
-        match spell_id {
-            8_326 => Some(Self::Ghost),
-            20_584 => Some(Self::Wisp),
-            _ if sickness_spell_id == Some(spell_id) => Some(Self::Sickness),
-            _ => None,
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-struct SelectedAuraMetadata {
-    attributes: [u32; 15],
-    base_duration_ms: i32,
-    channeled: bool,
-}
-
-fn sickness_recalculated_amount(
-    effect: &wow_data::SpellEffectInfo,
-    base_amount: i32,
-    stack_count: u8,
-) -> Option<i32> {
-    if !matches!(
-        effect.effect_aura,
-        wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE
-            | wow_data::spell::aura_types::SPELL_AURA_MOD_PERCENT_STAT
-            | wow_data::spell::aura_types::SPELL_AURA_NO_PVP_CREDIT
-    ) {
-        return None;
-    }
-    let mut effect = effect.clone();
-    effect.effect_base_points = base_amount;
-    effect
-        .calc_value_no_caster_like_cpp()
-        .checked_mul(i32::from(stack_count))
-}
-
-fn ghost_wisp_recalculated_amount(
-    spell_id: u32,
-    effect_index: u32,
-    effect: &wow_data::SpellEffectInfo,
-    base_amount: i32,
-    stack_count: u8,
-) -> Option<i32> {
-    let expected_aura = match (spell_id, effect_index) {
-        (8_326, 0) => wow_data::spell::aura_types::SPELL_AURA_GHOST,
-        (8_326, 1) => wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
-        (8_326, 2) => wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED,
-        (20_584, 0) => wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
-        (20_584, 1) => wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED,
-        (20_584, 2) => wow_data::spell::aura_types::SPELL_AURA_TRANSFORM,
-        _ => return None,
-    };
-    if effect.effect_aura != expected_aura {
-        return None;
-    }
-    let mut effect = effect.clone();
-    effect.effect_base_points = base_amount;
-    effect
-        .calc_value_no_caster_like_cpp()
-        .checked_mul(i32::from(stack_count))
-}
-
-fn selected_aura_effect_contract(
-    kind: SelectedAuraKind,
-    effects: &[wow_data::SpellEffectInfo],
-) -> bool {
-    let expected = match kind {
-        SelectedAuraKind::Ghost => [
-            wow_data::spell::aura_types::SPELL_AURA_GHOST,
-            wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
-            wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED,
-        ],
-        SelectedAuraKind::Wisp => [
-            wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
-            wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED,
-            wow_data::spell::aura_types::SPELL_AURA_TRANSFORM,
-        ],
-        SelectedAuraKind::Sickness => [
-            wow_data::spell::aura_types::SPELL_AURA_MOD_PERCENT_STAT,
-            wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE,
-            wow_data::spell::aura_types::SPELL_AURA_NO_PVP_CREDIT,
-        ],
-    };
-    if effects.len() != expected.len() {
-        return false;
-    }
-    let mut seen_mask = 0_u32;
-    for effect in effects {
-        let Some(bit) = 1_u32.checked_shl(effect.effect_index) else {
-            return false;
-        };
-        let Ok(index) = usize::try_from(effect.effect_index) else {
-            return false;
-        };
-        if index >= expected.len()
-            || seen_mask & bit != 0
-            || effect.effect != wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
-            || effect.effect_aura != expected[index]
-            || !matches!(effect.implicit_target_1, 0 | 1)
-            || effect.implicit_target_2 != 0
-        {
-            return false;
-        }
-        seen_mask |= bit;
-    }
-    seen_mask == 0b111
-}
-
-fn selected_aura_can_be_saved(
-    caster_guid: ObjectGuid,
-    player_guid: ObjectGuid,
-    item_guid: ObjectGuid,
-    base_duration_ms: i32,
-    attributes: [u32; 15],
-    channeled: bool,
-) -> bool {
-    const SPELL_ATTR0_PASSIVE: u32 = 0x0000_0040;
-    const SPELL_ATTR5_LIMIT_N: u32 = 0x0000_0020;
-    // This is the selected-loader subset of C++ `Aura::CanBeSaved`. The
-    // selected effect contracts constrain the represented targets; Attr5
-    // covers `SpellInfo::IsSingleTarget`. Runtime `Aura::IsSingleTarget` and
-    // SpellInfo's custom cannot-save flag are not represented by this loader.
-    attributes[0] & SPELL_ATTR0_PASSIVE == 0
-        && !channeled
-        && !(caster_guid != player_guid && attributes[5] & SPELL_ATTR5_LIMIT_N != 0)
-        && !(item_guid != ObjectGuid::EMPTY && base_duration_ms == -1)
-}
 
 fn represented_aura_visual_without_caster_like_cpp(
     spell_id: u32,
@@ -281,12 +150,6 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
     };
     let spell_store = host.hub_ref().catalogs.spell_store().cloned();
     let difficulty_store = host.hub_ref().catalogs.difficulty_store().cloned();
-    let spell_levels_store = host
-        .hub_ref()
-        .catalogs
-        .spell_catalogs
-        .spell_levels_store
-        .clone();
     let aura_options_store = host
         .hub_ref()
         .catalogs
@@ -299,6 +162,12 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
         .spell_catalogs
         .spell_duration_store
         .clone();
+    let spell_class_options_store = host
+        .hub_ref()
+        .catalogs
+        .spell_catalogs
+        .spell_class_options_store()
+        .cloned();
     let spell_misc_store = host
         .hub_ref()
         .catalogs
@@ -365,95 +234,76 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
             }
             Some(store)
         };
-        let spell_effects = spell_store.effects_for_difficulty_like_cpp(
-            spell_id,
-            row.difficulty,
-            difficulty_store_ref,
-        );
-        if spell_effects.is_none() {
-            authority_complete = false;
-        }
-        let spell_effects = spell_effects.unwrap_or(&[]);
-        if let Some(kind) = selected_kind
-            && !selected_aura_effect_contract(kind, spell_effects)
-        {
-            authority_complete = false;
-            continue;
-        }
+        let selected_difficulties = if selected && row.difficulty == 0 {
+            difficulty_store.as_deref()
+        } else {
+            difficulty_store_ref
+        };
+        let selected_metadata = if let Some(kind) = selected_kind {
+            let metadata = resolve_selected_aura_metadata(
+                kind,
+                row.spell_id,
+                row.difficulty,
+                spell_store,
+                spell_misc_store.as_deref(),
+                spell_duration_store.as_deref(),
+                spell_class_options_store.as_deref(),
+                selected_difficulties,
+            );
+            let Ok(metadata) = metadata else {
+                authority_complete = false;
+                continue;
+            };
+            Some(metadata)
+        } else {
+            None
+        };
+        let legacy_effects = if selected_metadata.is_none() {
+            let effects = spell_store.effects_for_difficulty_like_cpp(
+                spell_id,
+                row.difficulty,
+                difficulty_store_ref,
+            );
+            if effects.is_none() {
+                authority_complete = false;
+            }
+            effects.unwrap_or(&[])
+        } else {
+            &[]
+        };
+        let spell_effects = selected_metadata
+            .as_ref()
+            .map_or(legacy_effects, |metadata| metadata.effects.as_slice());
         let active_effect_mask = if selected {
             row.effect_mask & 0b111
         } else {
             row.effect_mask
         };
-
-        let selected_metadata = if let Some(kind) = selected_kind {
-            if aura_options_store.is_none() {
-                authority_complete = false;
-                continue;
-            }
-            let Some(spell_misc_store) = spell_misc_store.as_ref() else {
-                authority_complete = false;
-                continue;
-            };
-            let Some(misc) = spell_misc_store.entry_for_spell_difficulty_with_fallback_like_cpp(
-                row.spell_id,
-                row.difficulty,
-                difficulty_store_ref,
-            ) else {
-                authority_complete = false;
-                continue;
-            };
-            let Some(spell_duration_store) = spell_duration_store.as_deref() else {
-                authority_complete = false;
-                continue;
-            };
-            let duration_index = u32::from(misc.duration_index);
-            let duration_entry = spell_duration_store.get(duration_index);
-            if kind == SelectedAuraKind::Sickness
-                && (duration_index == 0 || duration_entry.is_none())
-            {
-                authority_complete = false;
-                continue;
-            }
-            let base_duration_ms =
-                wow_data::spell_duration_ms_like_cpp(duration_index, Some(spell_duration_store));
-            let duration_is_supported = match kind {
-                SelectedAuraKind::Ghost | SelectedAuraKind::Wisp => base_duration_ms == -1,
-                SelectedAuraKind::Sickness => base_duration_ms > 0,
-            };
-            if !duration_is_supported {
-                authority_complete = false;
-                continue;
-            }
-            let Some(attributes) = spell_store.misc_attributes_for_difficulty_like_cpp(
-                spell_id,
-                row.difficulty,
-                difficulty_store_ref,
-            ) else {
-                authority_complete = false;
-                continue;
-            };
-            Some(SelectedAuraMetadata {
-                attributes,
-                base_duration_ms,
-                channeled: spell_store.is_channeled_like_cpp(spell_id),
-            })
+        let (is_positive, aura_expires_offline) = if let Some(metadata) = &selected_metadata {
+            (
+                metadata.spell.polarity.whole_spell_positive,
+                metadata.spell.attributes[4]
+                    & wow_data::spell::attributes::SPELL_ATTR4_AURA_EXPIRES_OFFLINE
+                    != 0,
+            )
         } else {
-            None
+            let expires_offline = spell_misc_store
+                .as_ref()
+                .and_then(|store| store.get_by_spell_id(row.spell_id))
+                .is_some_and(|misc| {
+                    (misc.attributes[4] as u32
+                        & wow_data::spell::attributes::SPELL_ATTR4_AURA_EXPIRES_OFFLINE)
+                        != 0
+                });
+            (
+                wow_data::represented_spell_is_positive_like_cpp(spell_info),
+                expires_offline,
+            )
         };
-
-        let aura_expires_offline = spell_misc_store
-            .as_ref()
-            .and_then(|store| store.get_by_spell_id(row.spell_id))
-            .is_some_and(|misc| {
-                (misc.attributes[4] as u32
-                    & wow_data::spell::attributes::SPELL_ATTR4_AURA_EXPIRES_OFFLINE)
-                    != 0
-            });
         let Some(remain_time_ms) = adjusted_represented_pet_aura_remain_time_like_cpp(
             row.remain_time_ms,
             timediff_secs,
-            wow_data::represented_spell_is_positive_like_cpp(spell_info),
+            is_positive,
             aura_expires_offline,
         ) else {
             // An aura that expires during logout is a legitimate loaded absence.
@@ -461,7 +311,18 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
         };
         row.remain_time_ms = remain_time_ms;
 
-        if let Some(store) = aura_options_store.as_ref() {
+        if selected {
+            let Ok(full_proc_charges) = selected_aura_options(
+                row.spell_id,
+                row.difficulty,
+                aura_options_store.as_deref(),
+                selected_difficulties,
+            ) else {
+                authority_complete = false;
+                continue;
+            };
+            row.remain_charges = normalize_loaded_charges(full_proc_charges, row.remain_charges);
+        } else if let Some(store) = aura_options_store.as_ref() {
             let proc_charges = store.proc_charges_like_cpp(row.spell_id, row.difficulty);
             row.remain_charges = if proc_charges == 0 {
                 0
@@ -615,7 +476,11 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
             .aura_interrupt_flags_for_difficulty_like_cpp(
                 spell_id,
                 row.difficulty,
-                difficulty_store_ref,
+                if selected {
+                    selected_difficulties
+                } else {
+                    difficulty_store_ref
+                },
             )
             .unwrap_or([0; 2]);
         let canonical_snapshot = AuraThreatSnapshotLikeCpp::new(interrupt_flags, canonical_effects);
@@ -634,8 +499,8 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
         };
         // C++ `_LoadAuras` allocates this before `TryCreate`, including a
         // selected aura whose active effect mask later normalizes to zero.
-        let Some(cast_id) =
-            selected_cast_id.or_else(|| host.next_represented_spell_cast_guid_like_cpp(spell_id))
+        let Some(cast_id) = selected_cast_id
+            .or_else(|| host.next_represented_spell_cast_guid_like_cpp(spell_id))
         else {
             authority_complete = false;
             break;
@@ -645,51 +510,49 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
             row.difficulty,
             &host.hub_ref().config.creature_aggro_config_like_cpp,
         );
-        let selected_positive = if selected {
-            let mut selected_spell_info = spell_info.clone();
-            selected_spell_info.effects = spell_effects.to_vec();
-            match super::selected_aura_effects_positive(&selected_spell_info, active_effect_mask) {
-                Some(positive) => positive,
-                None => {
-                    authority_complete = false;
-                    continue;
-                }
-            }
-        } else {
-            wow_data::represented_spell_is_positive_like_cpp(spell_info)
-        };
-        // The selected loader derives polarity from active effects. C++ also
-        // uses a live foreign caster's friendliness here; this load path does
-        // not resolve that caster, so foreign polarity is not parity evidence.
-        let mut aura_flags = if selected_positive {
-            AFLAG_POSITIVE
-        } else {
-            AFLAG_NEGATIVE
-        };
-        if selected && selected_positive {
-            let Some(metadata) = selected_metadata else {
+        let (aura_flags, provenance) = if selected {
+            let Some(metadata) = selected_metadata.as_ref() else {
                 authority_complete = false;
                 continue;
             };
-            if metadata.attributes[0] as u32 & wow_data::spell::attributes::SPELL_ATTR0_PASSIVE == 0
-                && metadata.attributes[1] as u32
-                    & wow_data::spell::attributes::SPELL_ATTR1_NO_AURA_ICON
-                    == 0
-            {
-                // The aura owner and target are this Player, regardless of
-                // the persisted caster GUID.
-                aura_flags |= AFLAG_CANCELABLE;
+            let Ok(creation) = super::prepare_selected_aura_creation(
+                host,
+                row.difficulty,
+                metadata.spell,
+                row.spell_id,
+                caster_guid,
+                active_effect_mask,
+                cast_id,
+                spell_visual_id,
+            ) else {
+                authority_complete = false;
+                continue;
+            };
+            creation
+        } else {
+            let positive = wow_data::represented_spell_is_positive_like_cpp(spell_info);
+            let mut flags = if positive {
+                AFLAG_POSITIVE
+            } else {
+                AFLAG_NEGATIVE
+            };
+            if caster_guid == player_guid {
+                flags |= AFLAG_NOCASTER_LIKE_CPP;
             }
-        }
-        if caster_guid == player_guid {
-            aura_flags |= AFLAG_NOCASTER_LIKE_CPP;
-        }
-        if row.max_duration_ms > 0 {
-            aura_flags |= AFLAG_DURATION;
-        }
-
+            if row.max_duration_ms > 0 {
+                flags |= AFLAG_DURATION;
+            }
+            (
+                flags,
+                wow_entities::AuraCastProvenanceLikeCpp {
+                    cast_id,
+                    spell_visual_id: i32::try_from(spell_visual_id).unwrap_or(i32::MAX),
+                    caster_level: None,
+                },
+            )
+        };
         if selected {
-            let Some(metadata) = selected_metadata else {
+            let Some(metadata) = selected_metadata.as_ref() else {
                 authority_complete = false;
                 continue;
             };
@@ -722,52 +585,13 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
                 caster_guid,
                 player_guid,
                 row.item_guid,
-                metadata.base_duration_ms,
-                metadata.attributes,
-                metadata.channeled,
+                metadata,
             ) {
                 // `_AddAura` conflict removal precedes `CanBeSaved`; the new
                 // aura is then discarded without applying its effects.
                 continue;
             }
         }
-        let caster_level = if selected {
-            let core = host.core();
-            let Some(owner) = core.player_handle_like_cpp else {
-                authority_complete = false;
-                continue;
-            };
-            let Some(manager) = core.canonical_map_manager.as_ref() else {
-                authority_complete = false;
-                continue;
-            };
-            let Ok(manager) = manager.lock() else {
-                authority_complete = false;
-                continue;
-            };
-            match super::selected_caster_level(
-                &manager,
-                owner,
-                caster_guid,
-                row.spell_id,
-                row.difficulty,
-                spell_levels_store.as_deref(),
-                difficulty_store_ref,
-            ) {
-                Ok(level) => Some(level),
-                Err(_) => {
-                    authority_complete = false;
-                    continue;
-                }
-            }
-        } else {
-            None
-        };
-        let provenance = wow_entities::AuraCastProvenanceLikeCpp {
-            cast_id,
-            spell_visual_id: i32::try_from(spell_visual_id).unwrap_or(i32::MAX),
-            caster_level,
-        };
         let Some(slot) = next_player_visible_aura_slot_like_cpp(host) else {
             authority_complete = false;
             break;

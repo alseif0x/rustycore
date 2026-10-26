@@ -7,9 +7,12 @@ use wow_packet::ServerPacket;
 
 #[path = "sickness_loading/selected_restore.rs"]
 mod selected_restore;
+#[path = "sickness_loading/selected_load.rs"]
+mod selected_load;
 
 const SICKNESS_SPELL_ID: i32 = 15_007;
 const SICKNESS_VISUAL_ROW_ID: u32 = 245_039;
+const SPELL_ATTR0_AURA_IS_DEBUFF: u32 = 0x0400_0000;
 
 fn sickness_effect(index: u32, aura: i32, base: i32, misc: i32) -> wow_data::SpellEffectInfo {
     wow_data::SpellEffectInfo {
@@ -86,6 +89,10 @@ fn canonical_aura_session(
     let mut aura_options_rows = Vec::new();
     for info in spell_infos {
         let spell_id = info.spell_id;
+        let mut attributes = [0; 15];
+        if spell_id == resurrection_sickness_spell_id {
+            attributes[0] = SPELL_ATTR0_AURA_IS_DEBUFF;
+        }
         misc_rows.push(wow_data::SpellMiscEntry {
             id: spell_id as u32,
             spell_id: spell_id as u32,
@@ -94,6 +101,7 @@ fn canonical_aura_session(
             } else {
                 0
             },
+            attributes: attributes.map(|attribute| attribute as i32),
             ..Default::default()
         });
         if spell_id == resurrection_sickness_spell_id {
@@ -110,7 +118,7 @@ fn canonical_aura_session(
             });
         }
         spells.insert(spell_id, info);
-        spells.insert_spell_misc_attributes_like_cpp(spell_id, [0; 15]);
+        spells.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
     }
     session.set_spell_store(Arc::new(spells));
     session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries(misc_rows)));
@@ -360,7 +368,7 @@ fn selected_sickness_recalculates_from_saved_base_and_publishes_full_aura() {
     );
     assert_eq!(application.duration_total, 600_000);
     assert_eq!(application.duration_remaining, 60_000);
-    assert_eq!(application.aura_flags, 0x15);
+    assert_eq!(application.aura_flags, 0x11);
     assert_eq!(application.effect_mask, 0b111);
     assert_eq!(metadata.base_amounts, [(0, -76), (1, -76), (2, -1)]);
     assert_eq!(

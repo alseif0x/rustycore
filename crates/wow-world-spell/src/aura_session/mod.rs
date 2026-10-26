@@ -30,8 +30,10 @@ mod mount;
 mod publication;
 mod selected_caster;
 pub(crate) mod selected_catalog;
+mod selected_creation;
 mod selected_flags;
 mod selected_lifetime;
+mod selected_load;
 mod selected_metadata;
 mod selected_reaction;
 mod sources;
@@ -42,6 +44,7 @@ pub use duration::*;
 pub use mount::*;
 pub use publication::*;
 pub(super) use selected_caster::selected_caster_level;
+pub(crate) use selected_creation::prepare_selected_aura_creation;
 pub(crate) use selected_reaction::selected_caster_is_friendly;
 pub(crate) use selected_flags::{
     SelectedAuraFlagsError, SelectedSpellMetadataFacts, SelectedSpellPolarity,
@@ -51,7 +54,7 @@ pub(crate) use selected_flags::{
 pub(crate) use selected_lifetime::validate_application as validate_selected_aura_application;
 pub use selected_lifetime::*;
 pub(crate) use selected_metadata::{
-    SelectedSpellMetadata, SelectedSpellMetadataError, selected_spell_metadata,
+    SelectedSpellMetadata, selected_spell_metadata,
 };
 pub use sources::*;
 
@@ -62,40 +65,6 @@ mod selected_caster_tests;
 #[cfg(test)]
 #[path = "../../unit_tests/aura_session/selected_flags.rs"]
 mod selected_flags_tests;
-
-/// C++ `AuraApplication::_InitFlags` derives the selected aura sign from its
-/// active effect mask, rather than the sign of every effect in the spell.
-pub(crate) fn selected_aura_effects_positive(
-    spell_info: &wow_data::SpellInfo,
-    effect_mask: u32,
-) -> Option<bool> {
-    if effect_mask == 0 {
-        return None;
-    }
-    let mut covered_mask = 0_u32;
-    let mut any_negative = false;
-    for effect in spell_info.effects() {
-        let Some(bit) = 1_u32.checked_shl(effect.effect_index) else {
-            continue;
-        };
-        if effect_mask & bit == 0 {
-            continue;
-        }
-        if effect.effect != wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA {
-            return None;
-        }
-        if covered_mask & bit != 0 {
-            return None;
-        }
-        covered_mask |= bit;
-        let mut single_effect = spell_info.clone();
-        single_effect.effects = vec![effect.clone()];
-        if !wow_data::represented_spell_is_positive_like_cpp(&single_effect) {
-            any_negative = true;
-        }
-    }
-    (covered_mask == effect_mask).then_some(!any_negative)
-}
 
 /// The World session as the auras' host (supertrait: the spellbook host).
 pub trait AuraHostLikeCpp: SpellbookHostLikeCpp {

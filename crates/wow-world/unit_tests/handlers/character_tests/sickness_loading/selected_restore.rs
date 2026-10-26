@@ -1,6 +1,6 @@
 use super::*;
 
-fn keyed_rows(
+pub(super) fn keyed_rows(
     player: ObjectGuid,
     caster: ObjectGuid,
     item: ObjectGuid,
@@ -23,7 +23,7 @@ fn keyed_rows(
     (aura, effects)
 }
 
-fn authority(session: &WorldSession) -> Option<bool> {
+pub(super) fn authority(session: &WorldSession) -> Option<bool> {
     let (state, hub) = crate::session::split_spell_state_ref(session);
     state.resolved_player_aura_authority_complete_like_cpp(hub)
 }
@@ -42,7 +42,7 @@ fn set_sickness_spell_level(session: &mut WorldSession, spell_level: u8) {
     ])));
 }
 
-fn loaded_sickness(
+pub(super) fn loaded_sickness(
     session: &WorldSession,
 ) -> Vec<(
     wow_entities::AuraApplicationLikeCpp,
@@ -82,7 +82,12 @@ fn selected_sickness_load_joins_original_mask_and_uses_only_active_effects() {
         .expect("canonical Player owner");
     session
         .set_spell_aura_options_store(Arc::new(wow_data::SpellAuraOptionsStore::from_entries([])));
-    let (mut aura, effects) = keyed_rows(player, player, ObjectGuid::EMPTY, 0b1001, 90_000);
+    let (mut aura, mut effects) = keyed_rows(player, player, ObjectGuid::EMPTY, 0b1001, 90_000);
+    let mut inactive_effect = effects[0].clone();
+    inactive_effect.effect_index = 3;
+    inactive_effect.amount = 123;
+    inactive_effect.base_amount = 124;
+    effects.push(inactive_effect);
     aura.remain_charges = 3;
 
     assert_eq!(
@@ -264,9 +269,25 @@ fn selected_sickness_rejected_foreign_candidate_retires_prior_spell_application(
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(SICKNESS_SPELL_ID, sickness_catalog_info());
     let mut attributes = [0; 15];
+    attributes[0] = SPELL_ATTR0_AURA_IS_DEBUFF;
     attributes[5] = 0x20;
     spell_store.insert_spell_misc_attributes_like_cpp(SICKNESS_SPELL_ID, attributes);
     session.set_spell_store(Arc::new(spell_store));
+    set_sickness_spell_level(&mut session, 44);
+    let mut misc_rows = crate::session::hub_ref(&session)
+        .catalogs
+        .spell_catalogs
+        .spell_misc_store()
+        .expect("sickness SpellMisc store")
+        .entries_like_cpp()
+        .cloned()
+        .collect::<Vec<_>>();
+    misc_rows
+        .iter_mut()
+        .find(|row| row.spell_id == SICKNESS_SPELL_ID as u32 && row.difficulty_id == 0)
+        .expect("sickness base SpellMisc row")
+        .attributes = attributes.map(|attribute| attribute as i32);
+    session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries(misc_rows)));
     let foreign = ObjectGuid::create_player(1, 100);
     let (first, mut effects) = keyed_rows(player, player, ObjectGuid::EMPTY, 0b111, 80_000);
     let (second, second_effects) = keyed_rows(player, foreign, ObjectGuid::EMPTY, 0b111, 70_000);

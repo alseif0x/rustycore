@@ -21,8 +21,10 @@ foreign-caster reaction to that constructor and has focused consumer feedback.
 uses each application's eligibility flags. 9i3C3d4c connects selected execution
 effects, sickness stat readers, and selected initial effect snapshots. 9i3C3d4d
 connects selected completion polarity and exact initial-threat attributes, with
-required metadata checked before cast preparation. Load construction and visual
-and charge consumers remain pending.
+required metadata checked before cast preparation. 9i3C3d4e connects selected
+load effects, whole-spell offline polarity, full-width charge normalization,
+and the shared fresh constructor. Visual resolution and fresh/refresh charge
+consumers remain pending.
 The integration adds neither another clock nor another Player authority.
 
 Four blocks remain within the same macro:
@@ -1281,6 +1283,73 @@ Load/visual/charge consumers, native lifecycle, normal casts, QA, and the macro'
 remaining acceptance are still pending. No live/DB mutation, capture, publication,
 deployment, or issue completion is established.
 
+9i3C3d4e connects the selected persisted-aura loader to indexed effects and exact
+metadata. The private `selected_load` module owns the bounded family shape,
+metadata, recalculation, and save-eligibility rules. Each component follows its
+own difficulty chain, including an actual Difficulty(0) fallback. The Aura keeps
+its saved raw difficulty and joins effect rows using the original SQL mask.
+Inactive saved effect rows remain ignored after mask normalization.
+
+Offline expiration uses complete-spell polarity and resolved EXPIRES_OFFLINE
+attributes before asking for live caster facts. Load charge normalization tests
+the full uint32 ProcCharges value, then truncates only when filling an empty
+saved count. A nonzero saved count remains unchanged when full ProcCharges is
+nonzero, including 256; signed -1 converts to 255 when filling an empty count.
+This is the load contract, not fresh/refresh CalcMaxCharges or caster modifiers.
+
+Execution and loading now share private Aura constructor preparation through
+the existing SessionHubHostLikeCpp bound. Load passes saved difficulty, resolves
+flags/level/relation before conflict removal, and still removes conflicts before
+CanBeSaved. Missing required constructor facts preserve the previous Aura. The
+legacy active-effect positivity helper is retired. Source DEBUFF Wisp loads with
+base flags 0x11; duration is a publication flag, so the existing finite sickness
+packet remains 0x15. Source anchors at the unchanged pinned SHA are
+Player.cpp:18035–18154, SpellAuras.cpp:110–161,398–410,463–468,1134–1174,
+SpellInfo.cpp:4518–4541, and SpellMgr.cpp:2500–2508,2638–2640. Relevant files and
+the reference HEAD were rechecked clean on 2026-10-26.
+
+On `b25bed7da` plus the reviewed local delta, sequential aarch64/jobs=1 worker
+feedback passed `cargo check -p wow-world-spell`,
+`cargo test -p wow-world --lib sickness_loading` (29 cases, including eight new
+consumer cases), and `cargo test -p wow-world --lib selected_creation` (4 cases).
+The 33 distinct cases cover indexed 4→3→0 and 0→3 load consumers, missing requested
+difficulty/cycles/malformed metadata, whole-spell DEBUFF expiration with positive
+effect metadata and an unavailable caster, full-width charges, pre-removal holds,
+conflict-removal order, Wisp provenance, canonical friendly foreign-caster mixed
+polarity, and the preserved execution constructor/refresh consumer. Existing
+mask/CastId and initial wire assertions remain exercised by these suites.
+
+Raw logs and exit files are under
+`/tmp/rustycore-43-selected-load-20261026-59iniw/`:
+`cargo-check-wow-world-spell-final2.{log,exit}`,
+`cargo-test-wow-world-sickness-loading-final.{log,exit}`, and
+`cargo-test-wow-world-selected-creation.{log,exit}`, all exit 0. Initial Spell
+compilation failed on extraction visibility; initial World test compilation
+failed on test-helper visibility. The first actual load suite passed 28 and
+failed one stale base-duration-flag assertion. The corrected assertion retains
+the actual packet duration-bit proof. Parent review also removed an overstrict
+inactive saved-row guard and strengthened the expiration counterfactual before
+the final run. Repeated runs are counted once. The parent reviewed the final
+consumer diff without a duplicate Cargo campaign.
+
+Physical review: `aura_state.rs` is 764 lines, selected load rules 252, and
+shared constructor preparation 103. The existing `sickness_loading.rs` root is
+1,022 lines and retains its shared fixture setup and earlier integration cases;
+the eight new consumer cases live in a separate 801-line child. Further growth
+of the root should extract its existing fixture setup rather than append another
+scenario group. No production visibility was widened for tests; three existing
+test helpers use parent-module visibility for their concrete sibling consumer.
+The fixed worker-role spawn succeeded; runtime model/effort self-telemetry was
+unavailable.
+
+The shared constructor and load metadata are implemented with focused coding
+feedback; this remains a local UNVALIDATED checkpoint. Visual selection still
+uses the previous loader helper and has not acquired caster/override/condition
+parity. Fresh/refresh charges, remaining native lifecycle operations, normal
+casts, QA, and macro acceptance remain pending. The preserved narrow family
+contract is not a general aura engine. No runtime, DB, capture, publication,
+deployment, or #43 completion is established by these checks.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -1504,14 +1573,15 @@ separate boundaries. Indexed inheritance is available from 9i3C3d4a, while
 its remaining execution/load consumers are identified below.
 
 Effect-field follow-up: execution now replaces selected effects before preparing
-the cast; the load helper still chooses a whole legacy effect vector.
+the cast; 9i3C3d4e also replaces the selected loader's whole legacy effect vector.
 Source fills each effect index independently along its difficulty chain
 (SpellMgr.cpp:2500–2508,2638–2640; SpellInfo.cpp:1144–1163). 9i3C3d4a repairs
 the former Data loss of explicit Effect=0 rows and duplicate slot selection.
 It retains complete indexed rows and a shared resolver in the existing catalog,
 with a separate active legacy projection. 9i3C3d4b connects the save adapters
 and 9i3C3d4c connects execution and sickness application/stat/snapshot readers.
-Loading still requires this metadata before macro acceptance.
+9i3C3d4e connects loading to indexed effects and exact selected metadata; visual
+and remaining charge consumers still require completion before macro acceptance.
 
 9i3C3d4d replaces the selected completion consumer's legacy represented positivity
 helper with the shared whole-spell decision. That helper read effect types and
@@ -1578,14 +1648,14 @@ existing provenance; it does not depend on Spell's classifier. Caster level
 is captured under one borrowed manager guard. The connected foreign relationship
 adapter captures its facts in that same guard; all guards must be released
 before publication. The boundary is covered by 9i3C3d3b and its foreign
-relationship consumer by 9i3C3d3c; load remains a separate pending constructor.
-The shared constructor belongs in Aura's private module and can use the
-existing SessionHubHostLikeCpp bound already inherited by both caller hosts.
-It must receive the raw cast difficulty explicitly: current Map difficulty for
-execution, saved row difficulty for loading. Load must classify whole-spell
-offline expiration before requesting live caster facts, then prepare fresh
-flags and level before removing an existing application. This placement adds
-neither a new host trait nor a WorldSession method; implementation is pending.
+relationship consumer by 9i3C3d3c. 9i3C3d4e shares the fresh constructor with load
+through Aura's private module, using the existing SessionHubHostLikeCpp bound
+already inherited by both caller hosts. It receives raw cast difficulty
+explicitly: current Map difficulty for execution, saved row difficulty for
+loading. Load classifies whole-spell offline expiration before requesting live
+caster facts, then prepares fresh flags and level before removing an existing
+application. It still removes conflicts before CanBeSaved, as Source does.
+This placement adds neither a new host trait nor a WorldSession method.
 Load visual selection is also pending: Aura's constructor calls the resolved
 Unit caster's visual method when available and uses the caster-free SpellInfo
 method otherwise (SpellAuras.cpp:463–468). Self resolution still supplies that
@@ -1606,6 +1676,22 @@ caster-free rejection of existing conditions; it does not evaluate a needed
 Unit condition. Neither condition ID zero nor an unavailable store by itself
 proves that no constraint exists. These catalog/visual connections remain pending.
 
+Condition-presence implementation decision, 2026-10-26: reuse Data's ID-store
+model for a dedicated effective PlayerCondition/UnitCondition presence catalog,
+combining file IDs, official/custom SQL additions, and final table-hash/record-ID
+removals. The existing typed PlayerCondition payload is file-only and cannot
+prove SQL-effective predicate values. A single condition-presence persistence
+capability can supply both ID sets without introducing a predicate engine or
+putting SQL in Data. Source DB2Store.cpp:127–134 loads official then custom;
+DB2DatabaseLoader.cpp:28–32 inverts its `custom` argument for VerifiedBuild.
+HotfixDatabase.cpp:1192 onward and :1853–1857 own the two table queries. Needed
+file/query/decode failures remain unavailable. WDC4 `iter_records` includes only
+copies whose source resolves in its direct-ID index; compare its observed count
+to `total_count` before claiming complete ID absence. An unresolved copy must
+withhold that proof rather than silently becoming a missing condition row.
+This is an implementation decision; the effective presence catalog is not yet
+connected or accepted.
+
 Selected charge consumer review: the legacy AuraOptions helper clamps signed
 ProcCharges into u8, whereas Source preserves its uint32 assignment and final
 uint8 conversion. Fresh Aura::CalcMaxCharges also consults SpellProcEntry and
@@ -1617,9 +1703,10 @@ The selected producer/load consumers must use those distinct contracts; changing
 the general legacy helper is not required. Known absence must come from the
 effective catalogs, not from an unavailable proc/modifier source. The existing
 file diagnostic found no AuraOptions rows for 8326/20584/15007, but does not
-prove absence of SQL overrides or matching runtime modifiers. These charge
-consumer corrections remain pending and are not claimed by scalar projection
-or the metadata lookup tests.
+prove absence of SQL overrides or matching runtime modifiers. 9i3C3d4e connects
+the selected loader's full-width normalization, including preservation of
+nonzero saved charges. Fresh and refresh CalcMaxCharges consumers remain
+pending and are not claimed by scalar projection or metadata lookup tests.
 
 Charge lookup must distinguish the raw Aura cast difficulty from the resolved
 SpellInfo key: GetSpellProcEntry starts at SpellInfo::Difficulty
