@@ -417,4 +417,26 @@ pub trait SpellCoreDb2HotfixPersistencePortLikeCpp: Send + Sync {
         '_,
         SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellXSpellVisualHotfixRowLikeCpp>,
     >;
+
+    fn load_spell_aura_options_rows(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellAuraOptionsHotfixRow>,
+    >;
+
+    fn load_spell_class_options_rows(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellClassOptionsHotfixRow>,
+    >;
+
+    fn load_spell_label_rows(
+        &self,
+    ) -> PersistenceFutureLikeCpp<'_, SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellLabelHotfixRow>>;
+
+    fn load_spell_levels_rows(
+        &self,
+    ) -> PersistenceFutureLikeCpp<'_, SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellLevelsHotfixRow>>;
 }

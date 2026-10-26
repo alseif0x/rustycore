@@ -32,10 +32,11 @@ preservation of signed wire bits. 9i3C3d4i connects selected self-cast visuals
 before execution preparation. Fresh/refresh charges and their effective scalar
 inputs remain pending, alongside ordinary client cast preparation.
 9i3C3d4j1 prepares complete/effective loading and SQL-free row types for the
-four scalar catalogs; their production SQL adapters and startup wiring remain
-pending.
+four scalar catalogs.
 9i3C3d4j2 normalizes source difficulty before regular/server effect indexing
 and preserves canonical server effect slots and duplicate-parent semantics.
+9i3C3d4j3 adds the four scalar Hotfix SQL methods and checked native decoding
+for all 23 core catalog projections. Their four startup consumers remain pending.
 The integration adds neither another clock nor another Player authority.
 
 Four blocks remain within the same macro:
@@ -1706,6 +1707,44 @@ unavailable. Physical review: corrections.rs is 772 lines, and the new private
 test child is 345. SQL decoder failure propagation, four scalar startup
 consumers, proc/charge preparation, native lifecycle, normal casts, QA and final
 acceptance remain required. This remains a local UNVALIDATED checkpoint.
+
+9i3C3d4j3 extends the existing core Hotfix persistence port with required
+AuraOptions, ClassOptions, Label and Levels row methods. Their adapter uses
+the target projections and reads official rows before custom rows. All 19
+previous core projections now also decode through the existing native Field
+getters. A query or conversion error fails the whole load; accepted earlier
+rows cannot become a partial successful result. SQL NULL still becomes
+numeric zero or an empty string. Error reasons retain table, row and field
+context. The existing documented rejection of text/DECIMAL numeric columns
+remains stricter than C++; no actual schema mismatch was observed or repaired.
+
+At target `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`, source anchors are
+HotfixDatabase.cpp:1412–1416,1443–1446,1504–1506,1513–1516,
+DB2LoadInfo.h:4655,4759,4984,5009, DB2Stores.cpp:555 and
+FieldValueConverters.h:62–70 / Field.cpp:62–76. Getter widths follow the
+existing DTOs except SpellEffect's four masks, which use GetInt32 before
+preserving their bits in uint32 fields. ClassOptions masks remain signed
+until composition. Levels retains signed int16 fields; no key authority or
+Difficulty enum width changes.
+
+On `c96f3c64c` plus this delta, aarch64/jobs=1 coding feedback passed
+`cargo check -p wow-database` (8.12s) and database library filters
+`core_db2_hotfix_adapter` (8) and `field_like_cpp` (4): 12 distinct cases.
+The adapter cases distinguish signed getters using int64 -1 and unsigned
+wide values, preserve high bits, reject narrow-field overflow, check visual
+condition positions, retain NULL defaults, and reject an entire malformed
+batch with its diagnostic context. They also pin the four SQL projections.
+These are modeled native-row tests, not real SQL dataset or runtime evidence.
+
+Raw logs and actual exit files are in `/tmp/rustycore-c3d4j3-logs/`: `01`,
+`03`, and `04` record zero. `02` retains a test-only missing-import compile
+failure (101); the import was fixed before the successful retry. Commands used
+the local PROTOC, checkout-local target and one job. The parent reviewed the
+diff and raw results without running another campaign. Physical review:
+the adapter root is 736 lines, its private decoder 396, and decoder tests 286.
+The four startup consumers, key/server/proc SQL guards, exact proc/charge
+preparation, native lifecycle, normal casts, QA and final acceptance remain
+required. This is a local UNVALIDATED checkpoint, not final acceptance.
 
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
