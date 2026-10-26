@@ -283,9 +283,7 @@ impl SpellStore {
             let Ok(spell_id) = i32::try_from(effect.spell_id) else {
                 continue;
             };
-            let Ok(difficulty_id) = u8::try_from(effect.difficulty_id) else {
-                continue;
-            };
+            let difficulty_id = effect.difficulty_id as u8;
             let Ok(effect_index) = u32::try_from(effect.effect_index) else {
                 continue;
             };

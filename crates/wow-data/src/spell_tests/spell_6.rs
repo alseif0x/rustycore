@@ -514,7 +514,7 @@ fn serverside_spell_effect_store_skips_invalid_rows_like_cpp() {
 }
 #[test]
 fn serverside_spell_effect_store_preserves_cpp_radius_warning_without_skip() {
-    let mut row = serverside_effect_row(100, -1);
+    let mut row = serverside_effect_row(100, 0);
     row.effect_radius_index_1 = 77;
     row.effect_radius_index_2 = 88;
 
@@ -542,7 +542,7 @@ fn serverside_spell_effect_store_preserves_cpp_radius_warning_without_skip() {
         .store
         .effects_for_spell_difficulty_like_cpp(100, 0)
         .expect("C++ still pushes effects with invalid radius rows");
-    assert_eq!(effects[0].effect_index, -1);
+    assert_eq!(effects[0].effect_index, 0);
     assert_eq!(effects[0].effect_radius_index, [77, 88]);
 }
 #[test]
@@ -688,8 +688,12 @@ fn serverside_spell_store_does_not_validate_main_row_difficulty_like_cpp() {
     assert!(
         outcome
             .store
-            .get_serverside_spell_like_cpp(100, 999)
+            .get_serverside_spell_like_cpp(100, 231)
             .is_some(),
-        "C++ LoadSpellInfoServerside validates DifficultyID for effect rows, not for the main serverside_spell row"
+        "C++ casts the main serverside_spell difficulty to its uint8 enum without validating it"
     );
+    assert!(outcome
+        .store
+        .get_serverside_spell_like_cpp(100, 999)
+        .is_none());
 }

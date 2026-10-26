@@ -112,10 +112,10 @@ impl SpellStore {
         spell_effect_store: &crate::spell_db2::SpellEffectDb2Store,
     ) {
         let mut visual_effect_winners =
-            BTreeMap::<(u32, i32, i32), &crate::spell_db2::SpellEffectDb2Entry>::new();
+            BTreeMap::<(u32, u8, i32), &crate::spell_db2::SpellEffectDb2Entry>::new();
         for row in spell_effect_store.entries_like_cpp() {
             visual_effect_winners
-                .entry((row.spell_id, row.difficulty_id, row.effect_index))
+                .entry((row.spell_id, row.difficulty_id as u8, row.effect_index))
                 .and_modify(|winner| {
                     if row.id > winner.id {
                         *winner = row;
@@ -145,9 +145,7 @@ impl SpellStore {
             let Ok(spell_id) = i32::try_from(row.spell_id) else {
                 continue;
             };
-            let Ok(difficulty_id) = u8::try_from(row.difficulty_id) else {
-                continue;
-            };
+            let difficulty_id = row.difficulty_id as u8;
             let effect = Self::spell_effect_from_db2(row);
             let slot_rows = winners_by_difficulty
                 .entry((spell_id, difficulty_id))

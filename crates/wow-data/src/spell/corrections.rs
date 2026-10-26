@@ -175,7 +175,8 @@ impl ServersideSpellEffectStoreLikeCpp {
                 continue;
             }
 
-            if row.difficulty_id != 0 && !difficulty_exists(row.difficulty_id) {
+            let difficulty_id = u32::from(row.difficulty_id as u8);
+            if difficulty_id != 0 && !difficulty_exists(difficulty_id) {
                 errors.push(ServersideSpellEffectLoadErrorLikeCpp {
                     row,
                     kind: ServersideSpellEffectLoadErrorKindLikeCpp::DifficultyMissing,
@@ -183,7 +184,10 @@ impl ServersideSpellEffectStoreLikeCpp {
                 continue;
             }
 
-            if row.effect_index >= MAX_SPELL_EFFECTS_LIKE_CPP {
+            // Negative indices are outside the source-valid input domain. The
+            // C++ path would index before its vector, so reject this malformed
+            // row defensively instead of claiming invalid-input parity.
+            if row.effect_index < 0 || row.effect_index >= MAX_SPELL_EFFECTS_LIKE_CPP {
                 errors.push(ServersideSpellEffectLoadErrorLikeCpp {
                     row,
                     kind: ServersideSpellEffectLoadErrorKindLikeCpp::EffectIndexOutOfRange,
@@ -239,9 +243,10 @@ impl ServersideSpellEffectStoreLikeCpp {
 
             let key = ServersideSpellEffectKeyLikeCpp {
                 spell_id: row.spell_id,
-                difficulty_id: row.difficulty_id,
+                difficulty_id,
             };
-            let effect = row.into_effect_like_cpp();
+            let mut effect = row.into_effect_like_cpp();
+            effect.difficulty_id = difficulty_id;
             store
                 .effects_by_spell_and_difficulty
                 .entry(key)
@@ -403,6 +408,55 @@ impl ServersideSpellInfoLikeCpp {
     }
 }
 
+fn canonical_server_effect_slots(
+    effects: &[ServersideSpellEffectLikeCpp],
+    difficulty_id: u32,
+) -> Vec<ServersideSpellEffectLikeCpp> {
+    let Some(max_effect_index) = effects.iter().map(|effect| effect.effect_index).max() else {
+        return Vec::new();
+    };
+
+    let mut canonical = (0..=max_effect_index)
+        .map(|effect_index| ServersideSpellEffectLikeCpp {
+            effect_index,
+            difficulty_id,
+            effect: 0,
+            effect_aura: 0,
+            effect_amplitude: 0.0,
+            effect_attributes: 0,
+            effect_aura_period: 0,
+            effect_bonus_coefficient: 0.0,
+            effect_chain_amplitude: 0.0,
+            effect_chain_targets: 0,
+            effect_item_type: 0,
+            effect_mechanic: 0,
+            effect_points_per_resource: 0.0,
+            effect_pos_facing: 0.0,
+            effect_real_points_per_level: 0.0,
+            effect_trigger_spell: 0,
+            bonus_coefficient_from_ap: 0.0,
+            pvp_multiplier: 0.0,
+            coefficient: 0.0,
+            variance: 0.0,
+            resource_coefficient: 0.0,
+            group_size_base_points_coefficient: 0.0,
+            effect_base_points: 0.0,
+            effect_misc_value: [0; 2],
+            effect_radius_index: [0; 2],
+            effect_spell_class_mask: [0; 4],
+            implicit_target: [0; 2],
+        })
+        .collect::<Vec<_>>();
+
+    for effect in effects {
+        let slot = &mut canonical[effect.effect_index as usize];
+        *slot = effect.clone();
+        slot.difficulty_id = difficulty_id;
+    }
+
+    canonical
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ServersideSpellLoadErrorKindLikeCpp {
     RegularSpellAlreadyLoaded,
@@ -444,25 +498,34 @@ impl ServersideSpellStoreLikeCpp {
                 continue;
             }
 
+            let difficulty_id = u32::from(row.difficulty_id as u8);
             let key = ServersideSpellEffectKeyLikeCpp {
                 spell_id: row.spell_id,
-                difficulty_id: row.difficulty_id,
+                difficulty_id,
             };
             let staged_effects = effects
-                .effects_for_spell_difficulty_like_cpp(row.spell_id, row.difficulty_id)
-                .map(|effects| effects.to_vec())
+                .effects_for_spell_difficulty_like_cpp(row.spell_id, difficulty_id)
+                .map(|effects| canonical_server_effect_slots(effects, difficulty_id))
                 .unwrap_or_default();
 
             store
                 .serverside_spell_names
                 .push((row.spell_id, row.spell_name.clone()));
-            store.spell_infos_by_spell_and_difficulty.insert(
-                key,
-                ServersideSpellInfoLikeCpp {
-                    row,
-                    effects: staged_effects,
-                },
-            );
+            let mut canonical_row = row;
+            canonical_row.difficulty_id = difficulty_id;
+            match store.spell_infos_by_spell_and_difficulty.entry(key) {
+                std::collections::btree_map::Entry::Occupied(mut entry) => {
+                    let first_name = entry.get().row.spell_name.clone();
+                    entry.get_mut().row = canonical_row;
+                    entry.get_mut().row.spell_name = first_name;
+                }
+                std::collections::btree_map::Entry::Vacant(entry) => {
+                    entry.insert(ServersideSpellInfoLikeCpp {
+                        row: canonical_row,
+                        effects: staged_effects,
+                    });
+                }
+            }
             loaded_spell_count += 1;
         }
 

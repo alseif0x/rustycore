@@ -34,6 +34,8 @@ inputs remain pending, alongside ordinary client cast preparation.
 9i3C3d4j1 prepares complete/effective loading and SQL-free row types for the
 four scalar catalogs; their production SQL adapters and startup wiring remain
 pending.
+9i3C3d4j2 normalizes source difficulty before regular/server effect indexing
+and preserves canonical server effect slots and duplicate-parent semantics.
 The integration adds neither another clock nor another Player authority.
 
 Four blocks remain within the same macro:
@@ -1668,6 +1670,43 @@ are unchanged. SQL failure propagation, source difficulty normalization,
 remaining scalar composition, charges, native lifecycle and macro acceptance
 remain required. This is a local UNVALIDATED checkpoint, not final acceptance.
 
+9i3C3d4j2 implements the target's uint8 Difficulty conversion at regular effect,
+hit-mechanic, server-effect and server-parent indexing boundaries. Aliased
+regular rows compete for the same slot by surviving RecordID, including inert
+winners. Server effects validate the normalized difficulty and join their
+normalized parent; their accepted vector applies the last input row per index
+and retains blank slots. A duplicate parent keeps its first name/effects while
+later input rows update scalars. Raw orphan effects still contribute no visual
+override potential. The existing uint8 regular key authority is unchanged.
+
+Source anchors at the pinned target are DBCEnums.h:833,
+SpellMgr.cpp:2508,2732,2772,2859,2870–2946 and
+SpellInfo.cpp:398–405,1337–1353. The explicit defensive negative-index contract
+recorded below is implemented with the existing range-error outcome before
+vector construction; it does not emulate or claim parity for undefined legacy
+input. The radius-warning fixture now uses a valid effect index so it isolates
+that existing behavior.
+
+On `71676ce68` plus the reviewed delta, aarch64/jobs=1 coding feedback passed
+`cargo check -p wow-data` (3.32s) and Data library filters
+`difficulty_normalization` (5), `effect_resolution` (11), `visual_metadata`
+(10), and `serverside_spell` (14): 40 distinct cases. The new cases cover
+regular 256/0 slot collisions, signed -1/255, mechanics and inert visual
+winners, server 256/0 and 999/231 joins, validation after conversion, ordered
+replacement, blank slots, first-name/last-scalar parents, orphans and invalid
+negative indices. They are modeled catalog evidence, not installed SQL or
+runtime data evidence.
+
+Raw logs and actual exit files are in `/tmp/rustycore-c3d4j2-logs/`: final `01`,
+`02`, `03`, `04`, and `06` record zero; `05` retains a temporary fixture-length
+expectation failure (101). Commands used the local PROTOC, checkout-local
+target and one job, with `cargo test -p wow-data --lib <filter>`. The parent
+reviewed the actual diff and retained raw results; worker effort telemetry was
+unavailable. Physical review: corrections.rs is 772 lines, and the new private
+test child is 345. SQL decoder failure propagation, four scalar startup
+consumers, proc/charge preparation, native lifecycle, normal casts, QA and final
+acceptance remain required. This remains a local UNVALIDATED checkpoint.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -2169,6 +2208,14 @@ boundary. Otherwise an aliased server effect can be detached from its admitted
 parent and wrongly disappear from the visual-override query. Preserve ordered
 row winners after normalization and keep orphan effects excluded. This requires
 focused alias regressions before visual/proc absence is accepted.
+Server SpellInfo construction also assigns effects by slot in query order,
+with the last row winning and empty slots retained (SpellInfo.cpp:1337–1353).
+Duplicate parent keys retain the first constructed name/effects while later
+rows overwrite scalar fields (SpellMgr.cpp:2870 onward). Preserve that sequence
+after normalization. Negative effect indices reach undefined vector access in
+the legacy constructor; the selected valid-input contract rejects them with
+the existing range error before slot construction. This explicit defensive
+boundary does not claim parity for the legacy undefined-input case.
 
 Zero family flags alone do not prove that caster modifiers are irrelevant.
 SpellInfo.cpp:1784–1813 supports both class-mask and label modifiers.

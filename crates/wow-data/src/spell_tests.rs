@@ -530,6 +530,8 @@ fn shapeshift_form(flags: i32) -> crate::spell_db2::SpellShapeshiftFormEntry {
     }
 }
 
+#[path = "spell_tests/difficulty_normalization.rs"]
+mod difficulty_normalization;
 #[path = "spell_tests/effect_resolution.rs"]
 mod effect_resolution;
 #[path = "spell_tests/exact_mechanic.rs"]
