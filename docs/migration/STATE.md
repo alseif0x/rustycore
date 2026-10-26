@@ -41,6 +41,8 @@ to their existing startup positions and immutable owners.
 9i3C3d4k adds checked key/server/proc/Difficulty inputs and effective PPM loading.
 9i3C3d4l1 normalizes canonical server effect base points and preserves full-width
 native proc-family metadata.
+9i3C3d4l2a shares the existing AuraOptions and regular-family readers from Data,
+retaining the World aliases and their previous behavior.
 Exact proc source preparation and fresh/refresh charge consumers remain pending.
 The integration adds neither another clock nor another Player authority.
 
@@ -1898,6 +1900,21 @@ lines, catalog.rs 862, state_2.rs 699, the adjusted alias fixture 345, and spell
 tests 875. Exact joint proc preparation, charge consumers and the other macro
 blocks remain required. This is a local UNVALIDATED checkpoint, not final or
 runtime acceptance.
+
+9i3C3d4l2a moves exactly two existing scalar readers into Data's private
+resolution module and exposes them through the existing spell exports.
+World retains its selected_aura_options_entry and selected_spell_family names
+as crate-private aliases. The parent reviewed identical bodies and argument /
+result types apart from the equivalent error alias and cross-crate visibility.
+The regular-family helper retains uint16 because its ClassSet input is uint8;
+native proc metadata still widens that value into uint32. Mechanic, level and
+raw-Misc readers remain in World. This structural move precedes the separate
+semantic proc-source correction; existing source anchors and behavior contracts
+remain unchanged. On base `4b3e10f4c`, no Cargo or validation was run under the
+explicit level-1 deferral. The files are 198 and 109 lines respectively. The
+next completed implementation will compile its consumers and exercise affected
+reader cases. No new trait, context, crate or mutable authority is introduced.
+This is a local UNVALIDATED structural checkpoint, not accepted evidence.
 
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes

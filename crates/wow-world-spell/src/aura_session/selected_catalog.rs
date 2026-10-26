@@ -6,13 +6,12 @@
 
 pub(crate) use wow_data::spell::{
     DataSpellCatalogResolutionError as SelectedCatalogError,
+    resolve_spell_aura_options_entry as selected_aura_options_entry,
     resolve_spell_attributes as selected_spell_attributes,
     resolve_spell_catalog_value as resolve_selected_value,
+    resolve_spell_family as selected_spell_family,
 };
-use wow_data::{
-    DifficultyStore, SpellAuraOptionsEntry, SpellAuraOptionsStore, SpellClassOptionsStore,
-    SpellLevelsStore, SpellMiscEntry, SpellMiscStore, SpellStore,
-};
+use wow_data::{DifficultyStore, SpellLevelsStore, SpellMiscEntry, SpellMiscStore, SpellStore};
 
 /// Resolve the effective `SpellCategories` mechanic along a spell's source
 /// difficulty chain. An absent category row uses SpellInfo's zero default.
@@ -35,53 +34,6 @@ pub(crate) fn selected_spell_mechanic(
         |difficulty_id| store.spell_mechanic_for_exact_difficulty(spell_id, difficulty_id),
     )
     .map(|mechanic| i32::from(mechanic.unwrap_or(0)))
-}
-
-/// Resolve SpellClassOptions from difficulty zero through the source chain.
-///
-/// The store is keyed by spell and record ID; its selected row is available
-/// only when the chain reaches difficulty zero. The highest record ID wins.
-pub(crate) fn selected_spell_family(
-    store: &SpellClassOptionsStore,
-    spell_id: i32,
-    requested_difficulty: u8,
-    difficulties: Option<&DifficultyStore>,
-) -> Result<(u16, [u32; 4]), SelectedCatalogError> {
-    let Some(row) = store
-        .entries_like_cpp()
-        .filter(|entry| entry.spell_id == spell_id)
-        .max_by_key(|entry| entry.id)
-    else {
-        return Ok((0, [0; 4]));
-    };
-
-    resolve_selected_value(requested_difficulty, difficulties, true, |difficulty_id| {
-        (difficulty_id == 0).then_some((u16::from(row.spell_class_set), row.spell_class_mask))
-    })
-    .map(|family| family.unwrap_or((0, [0; 4])))
-}
-
-pub(crate) fn selected_aura_options_entry<'a>(
-    store: &'a SpellAuraOptionsStore,
-    spell_id: u32,
-    requested_difficulty: u8,
-    difficulties: Option<&DifficultyStore>,
-) -> Result<Option<&'a SpellAuraOptionsEntry>, SelectedCatalogError> {
-    let has_any_row = store
-        .entries_like_cpp()
-        .any(|entry| entry.spell_id == spell_id);
-
-    resolve_selected_value(
-        requested_difficulty,
-        difficulties,
-        has_any_row,
-        |difficulty_id| {
-            store
-                .entries_like_cpp()
-                .filter(|entry| entry.spell_id == spell_id && entry.difficulty_id == difficulty_id)
-                .max_by_key(|entry| entry.id)
-        },
-    )
 }
 
 pub(crate) fn selected_spell_level(

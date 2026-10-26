@@ -2,6 +2,9 @@
 
 use super::{MAX_SPELL_EFFECTS_LIKE_CPP, SpellEffectInfo, SpellStore};
 use crate::difficulty::DifficultyStore;
+use crate::spell_db2::{SpellAuraOptionsEntry, SpellAuraOptionsStore, SpellClassOptionsStore};
+
+use self::resolve_spell_catalog_value as resolve_selected_value;
 
 /// A difficulty catalog failure while resolving spell metadata.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -63,6 +66,53 @@ pub fn resolve_spell_attributes(
         difficulties,
         has_any_row,
         |difficulty_id| store.misc_attributes_for_exact_difficulty(spell_id, difficulty_id),
+    )
+}
+
+/// Resolve SpellClassOptions from difficulty zero through the source chain.
+///
+/// The store is keyed by spell and record ID; its selected row is available
+/// only when the chain reaches difficulty zero. The highest record ID wins.
+pub fn resolve_spell_family(
+    store: &SpellClassOptionsStore,
+    spell_id: i32,
+    requested_difficulty: u8,
+    difficulties: Option<&DifficultyStore>,
+) -> Result<(u16, [u32; 4]), DataSpellCatalogResolutionError> {
+    let Some(row) = store
+        .entries_like_cpp()
+        .filter(|entry| entry.spell_id == spell_id)
+        .max_by_key(|entry| entry.id)
+    else {
+        return Ok((0, [0; 4]));
+    };
+
+    resolve_selected_value(requested_difficulty, difficulties, true, |difficulty_id| {
+        (difficulty_id == 0).then_some((u16::from(row.spell_class_set), row.spell_class_mask))
+    })
+    .map(|family| family.unwrap_or((0, [0; 4])))
+}
+
+pub fn resolve_spell_aura_options_entry<'a>(
+    store: &'a SpellAuraOptionsStore,
+    spell_id: u32,
+    requested_difficulty: u8,
+    difficulties: Option<&DifficultyStore>,
+) -> Result<Option<&'a SpellAuraOptionsEntry>, DataSpellCatalogResolutionError> {
+    let has_any_row = store
+        .entries_like_cpp()
+        .any(|entry| entry.spell_id == spell_id);
+
+    resolve_selected_value(
+        requested_difficulty,
+        difficulties,
+        has_any_row,
+        |difficulty_id| {
+            store
+                .entries_like_cpp()
+                .filter(|entry| entry.spell_id == spell_id && entry.difficulty_id == difficulty_id)
+                .max_by_key(|entry| entry.id)
+        },
     )
 }
 
