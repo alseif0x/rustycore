@@ -32,7 +32,13 @@ fn install_stats_catalog(session: &mut WorldSession, strength: u16) {
 
 fn install_unrelated_strength_aura(session: &mut WorldSession, spell_id: i32) {
     let existing_spells = session.catalogs.spell_store().cloned();
-    let mut spells = wow_data::SpellStore::new();
+    let exact_spell_keys = existing_spells
+        .as_deref()
+        .map(wow_data::SpellStore::spell_info_keys_in_order_like_cpp)
+        .unwrap_or_default()
+        .into_iter()
+        .chain([(spell_id as u32, 0)]);
+    let mut spells = crate::selected_spell_fixtures::canonical_spell_store(exact_spell_keys);
     if let Some(existing_spells) = existing_spells.as_deref() {
         for info in existing_spells.iter() {
             spells.insert(info.spell_id, info.clone());

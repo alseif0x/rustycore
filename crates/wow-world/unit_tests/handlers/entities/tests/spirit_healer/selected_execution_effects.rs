@@ -167,6 +167,15 @@ async fn selected_session_with_inputs(
             .expect("selected sickness SpellMisc fixture row");
         misc.attributes = attributes.map(|attribute| attribute as i32);
     }
+    let exact_spell_keys = misc_rows
+        .iter()
+        .map(|row| (row.spell_id, row.difficulty_id))
+        .chain(
+            effect_rows
+                .iter()
+                .map(|row| (row.spell_id, row.difficulty_id as u8)),
+        )
+        .collect::<Vec<_>>();
     let stores = wow_data::EffectiveCoreSpellDb2StoresLikeCpp::new(
         wow_data::spell_db2::SpellCategoriesStore::from_entries([]),
         wow_data::spell_db2::SpellMiscStore::from_entries(misc_rows.clone()),
@@ -180,7 +189,8 @@ async fn selected_session_with_inputs(
         wow_data::spell_db2::SpellPowerDifficultyStore::from_entries([]),
     );
     session.set_spell_store(Arc::new(
-        wow_data::SpellStore::new().hydrate_effective_core_db2_like_cpp(stores),
+        crate::selected_spell_fixtures::canonical_spell_store(exact_spell_keys)
+            .hydrate_effective_core_db2_like_cpp(stores),
     ));
     session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries(misc_rows)));
     session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_entries(

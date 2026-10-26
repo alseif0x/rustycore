@@ -305,7 +305,9 @@ fn install_mixed_sickness_polarity(session: &mut WorldSession) {
         .spell_store()
         .cloned()
         .expect("sickness SpellStore");
-    let mut spells = wow_data::SpellStore::new();
+    let mut spells = crate::selected_spell_fixtures::canonical_spell_store(
+        existing.spell_info_keys_in_order_like_cpp(),
+    );
     for spell_id in [8326, 20584, SICKNESS_SPELL] {
         if let Some(info) = existing.get(spell_id) {
             spells.insert(spell_id, info.clone());

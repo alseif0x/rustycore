@@ -29,6 +29,9 @@ pub use wow_world_core::{
 #[path = "../unit_tests/canonical_creature_fixtures.rs"]
 pub(crate) mod canonical_creature_fixtures;
 #[cfg(test)]
+#[path = "../unit_tests/selected_spell_fixtures.rs"]
+pub(crate) mod selected_spell_fixtures;
+#[cfg(test)]
 #[path = "../unit_tests/handler_contract_tests.rs"]
 mod handler_contract_tests;
 mod player;

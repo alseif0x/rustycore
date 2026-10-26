@@ -94,6 +94,21 @@ support byte comparison. Any normalization of GUIDs, clocks or counters needs
 an explicit field-level rule; it must preserve the connection, metadata and
 observable order being accepted. Observe-only collection cannot report a pass.
 
+The bot trace records logical decrypted, uncompressed opcode/body bytes.
+`bot/packets.rs::read_encrypted_packet` performs decryption and unwraps
+`SMSG_COMPRESSED_PACKET` before returning; do not label those returned bytes
+as encrypted frames. This matches capture-diff's packet model. At the pinned
+reference, `WorldSocket.cpp:526–532` logs server packets before queueing them
+for compression/encryption. A bot trace still records client arrival order,
+not the server's cross-socket enqueue order, and does not replace the required
+server captures and their candidate/process/fixture provenance. Retain both
+realm and instance routes with per-connection sequence and explicit action
+boundaries. Begin each connection's gameplay trace only after its authentication
+barrier; do not include authentication payloads. Use cancellation-safe readiness
+followed by a bounded complete frame read, as in `read_encrypted_packet_if_ready`;
+a frame timeout is terminal for that connection. Record send attempts and local
+write completion separately from server responses and scenario admission.
+
 | Scenario | Required observations |
 |---|---|
 | Lethal fall, then release | Actual server-applied lethal damage; root before release; one corpse for the owner; ghost auras and water-walk; realm `PreRessurect` before `DeathReleaseLoc`; near teleport completed by its ACK. |

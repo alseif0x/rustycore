@@ -47,6 +47,28 @@ pub fn resolve_spell_catalog_value<T>(
     }
 }
 
+/// Resolve the exact `SpellInfo` key difficulty through the known fallback
+/// chain. Payload hydration does not establish key existence.
+pub fn resolve_spell_info_key_difficulty(
+    store: &SpellStore,
+    spell_id: u32,
+    requested_difficulty: u8,
+    difficulties: Option<&DifficultyStore>,
+) -> Result<Option<u8>, DataSpellCatalogResolutionError> {
+    let has_any_row = store.contains_spell_info_any_difficulty_like_cpp(spell_id);
+
+    resolve_spell_catalog_value(
+        requested_difficulty,
+        difficulties,
+        has_any_row,
+        |difficulty_id| {
+            store
+                .contains_spell_info_exact_like_cpp(spell_id, difficulty_id)
+                .then_some(difficulty_id)
+        },
+    )
+}
+
 /// Resolve the `SpellMisc` attribute words for one spell through its source
 /// difficulty chain.
 pub fn resolve_spell_attributes(

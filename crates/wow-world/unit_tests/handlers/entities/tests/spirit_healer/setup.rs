@@ -155,7 +155,12 @@ pub(super) fn install_sickness_data(
         ],
     };
     let existing_spells = session.catalogs.spell_store().cloned();
-    let mut spells = wow_data::SpellStore::new();
+    let mut exact_spell_keys = existing_spells
+        .as_deref()
+        .map(wow_data::SpellStore::spell_info_keys_in_order_like_cpp)
+        .unwrap_or_default();
+    exact_spell_keys.push((spell_id as u32, 0));
+    let mut spells = crate::selected_spell_fixtures::canonical_spell_store(exact_spell_keys);
     if let Some(existing_spells) = existing_spells.as_deref() {
         for selected_spell in [
             wow_world_entities::SPELL_GHOST_LIKE_CPP,

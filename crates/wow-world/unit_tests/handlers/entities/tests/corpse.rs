@@ -825,7 +825,10 @@ fn dead_player_session_without_corpse_port(
 
 /// Supplies the selected DB2 rows required by the production release casts.
 fn install_release_cast_spell_fixture(session: &mut WorldSession) {
-    let mut spells = wow_data::SpellStore::new();
+    let mut spells = crate::selected_spell_fixtures::canonical_spell_store([
+        (8326, 0),
+        (20584, 0),
+    ]);
     let mut misc_rows = Vec::new();
     for (spell_id, aura_types, base_points, misc_value, attributes_1) in [
         (

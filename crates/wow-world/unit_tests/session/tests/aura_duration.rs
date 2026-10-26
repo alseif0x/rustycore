@@ -493,7 +493,10 @@ fn selected_sickness_duration_update_keeps_unit_clock_and_waits_for_recovery() {
             },
         ]),
     ));
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(
+        SICKNESS as u32,
+        0,
+    )]);
     let spell_info = selected_sickness_info(SICKNESS);
     spell_store.insert(SICKNESS, spell_info.clone());
     session.set_spell_store(std::sync::Arc::new(spell_store));

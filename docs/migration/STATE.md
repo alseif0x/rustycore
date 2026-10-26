@@ -48,6 +48,9 @@ builder to startup; its focused coding feedback is green. Fresh/refresh charge
 consumers remain pending.
 9i3C3d4m1 prepares selected charge calculation and fresh self-caster modifier
 admission as pure readers; their consumer wiring remains pending.
+9i3C3d4m2a shares the existing key-difficulty reader from Data and prepares
+loader-backed canonical keys in selected World fixtures. This preparatory
+delta has not been compiled or tested; feedback waits for its consumer unit.
 The integration adds neither another clock nor another Player authority.
 
 Four blocks remain within the same macro:
@@ -2012,6 +2015,44 @@ and the recorded original-refresh findings still need implementation. Saved
 load normalization remains unchanged. No workspace check, final campaign or
 runtime/SQL/capture evidence was run. This is a local UNVALIDATED checkpoint.
 
+9i3C3d4m2a moves the existing selected key-difficulty reader to Data as
+resolve_spell_info_key_difficulty, retaining World's previous name as an
+alias. The parent reviewed the same argument/result types and body, apart
+from equivalent shared resolver/error names. The exact-key authority and
+GetSpellInfo fallback contract remain unchanged; existing source anchors
+continue to apply. The next App consumer will use the same reader instead
+of inventing another key cache or treating hydrated payload as existence.
+
+Selected World fixtures now prepare keys through the existing production
+seed loader. A private test helper supplies complete empty WDC4 contributors,
+ordered Hotfix input batches, effective SpellNames and explicit keys; it
+does not fabricate a payload or expose a new Data setter. The new identity
+case asserts nonzero-only and high-bit keys, absent difficulty zero and no
+hydrated payload. It has not been executed. Positive release/sickness/mixed
+fixtures preserve their keys while replacing payload, and effect fixtures
+normalize difficulty before contributing keys. Parent inspection caught and
+removed a borrowed iterator across the moved effect vector, without a Cargo
+search loop. The unrelated inert-aura test retains its original store setup.
+
+Base is `dbc933d37` plus the reviewed ten-code-file delta. No Cargo, metadata,
+formatting or validation command was run under the explicit level-1 deferral.
+The parent reviewed actual diffs, consumers and all ten file hashes; the new
+fixture is 155 lines, Data resolution 220 and the World alias module 90.
+The existing corpse/lifecycle fixture files are 1,887/1,046 lines. Their
+cohesion review retains the current selected lifecycle groups; release-cast
+fixtures and provenance/stat subgroups are the next natural splits if needed
+at the macro's final physical review. No baseline was regenerated. The worker
+reported generic GPT-6 identity with no effort telemetry. Root exports,
+production charge admission/application and completed-consumer feedback remain
+pending; this is a local UNVALIDATED preparatory checkpoint.
+
+Independent read-only QA review also pins the bot's returned bytes to the
+logical decrypted/uncompressed capture-diff model. The operation guide records
+that client arrival order is not server cross-socket enqueue order; the bot
+trace does not replace required server captures and provenance. Reference
+WorldSocket.cpp:526–532 was clean relative to the pinned target in that file's
+scope. No bot, server, SQL, capture or restart operation was executed.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -2489,6 +2530,17 @@ cache, extra Player, operation lock or scheduling owner. The source anchors
 are SpellAuras.cpp:965–976,1078–1094, SpellInfo.cpp:1784–1817,
 SpellMgr.cpp:2555–2556,2649–2650, and Object.cpp:2274–2295 at the pinned target.
 This records the next consumer contract, not executed consumer acceptance.
+
+Consumer admission must preserve the already-supported sickness path with a
+resolved foreign original caster. The no-eligible-modifier predicate is also
+sufficient there: SpellInfo.cpp:1784–1817 returns false for every class-mask
+or label modifier under those facts, independently of which caster owns the
+modifier registry. Generalize the helper's self-caster naming/contract when
+wiring that path; do not introduce a self-only rejection or claim a general
+modifier engine. Separately, require the selected cast's actual SpellInfo key
+before execution publication. Missing cast existence is an admission failure,
+not a fresh-only constructor error that a matching refresh may ignore. Keep
+fresh-only modifier failures separate from that all-cast key requirement.
 
 The next selected refresh review must also retain the original SpellInfo's
 timer policy and duration, not just its proc difficulty. Unit.cpp:3244–3278

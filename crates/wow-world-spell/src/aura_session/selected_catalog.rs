@@ -10,6 +10,7 @@ pub(crate) use wow_data::spell::{
     resolve_spell_attributes as selected_spell_attributes,
     resolve_spell_catalog_value as resolve_selected_value,
     resolve_spell_family as selected_spell_family,
+    resolve_spell_info_key_difficulty as selected_spell_info_key_difficulty,
 };
 use wow_data::{DifficultyStore, SpellLevelsStore, SpellMiscEntry, SpellMiscStore, SpellStore};
 
@@ -80,26 +81,6 @@ pub(crate) fn selected_spell_misc_entry<'a>(
                 .entries_like_cpp()
                 .filter(|entry| entry.spell_id == spell_id && entry.difficulty_id == difficulty_id)
                 .max_by_key(|entry| entry.id)
-        },
-    )
-}
-
-pub(crate) fn selected_spell_info_key_difficulty(
-    store: &SpellStore,
-    spell_id: u32,
-    requested_difficulty: u8,
-    difficulties: Option<&DifficultyStore>,
-) -> Result<Option<u8>, SelectedCatalogError> {
-    let has_any_row = store.contains_spell_info_any_difficulty_like_cpp(spell_id);
-
-    resolve_selected_value(
-        requested_difficulty,
-        difficulties,
-        has_any_row,
-        |difficulty_id| {
-            store
-                .contains_spell_info_exact_like_cpp(spell_id, difficulty_id)
-                .then_some(difficulty_id)
         },
     )
 }
