@@ -30,10 +30,64 @@ pub(super) fn select_aura_stat_application(
         };
     };
 
-    let is_ability = spell_store.has_attribute0_like_cpp(
+    select_aura_stat_application_from_effects(
+        spell.effects().iter(),
+        spell_store.has_attribute0_like_cpp(
+            spell_id,
+            wow_data::spell::attributes::SPELL_ATTR0_IS_ABILITY,
+        ),
+        effect_mask,
+        required,
+    )
+}
+
+pub(super) fn select_selected_aura_stat_application(
+    spell_store: Option<&wow_data::SpellStore>,
+    spell_id: i32,
+    difficulty_id: u8,
+    difficulty_store: Option<&wow_data::DifficultyStore>,
+    effect_mask: u32,
+) -> Result<Option<AuraStatApplication>, &'static str> {
+    let Some(spell_store) = spell_store else {
+        return Err("Missing SpellStore for the race-selected sickness aura");
+    };
+    if spell_store.get(spell_id).is_none() {
+        return Err("Missing SpellInfo for the race-selected sickness aura");
+    }
+
+    let effects = wow_data::spell::resolve_spell_effect_rows(
+        spell_store,
         spell_id,
-        wow_data::spell::attributes::SPELL_ATTR0_IS_ABILITY,
-    );
+        difficulty_id,
+        difficulty_store,
+    )
+    .map_err(|_| "Unable to resolve selected aura effects")?;
+    let attributes = wow_data::spell::resolve_spell_attributes(
+        spell_store,
+        spell_id,
+        difficulty_id,
+        difficulty_store,
+    )
+    .map_err(|_| "Unable to resolve selected aura attributes")?;
+    let attributes = attributes.ok_or("Selected spell attributes are unavailable")?;
+    let is_ability = attributes[0] & wow_data::spell::attributes::SPELL_ATTR0_IS_ABILITY != 0;
+
+    select_aura_stat_application_from_effects(
+        effects.into_iter().filter(|effect| {
+            effect.effect != wow_data::spell::spell_effect_types::SPELL_EFFECT_NONE
+        }),
+        is_ability,
+        effect_mask,
+        true,
+    )
+}
+
+fn select_aura_stat_application_from_effects<'a>(
+    effects: impl IntoIterator<Item = &'a wow_data::SpellEffectInfo>,
+    is_ability: bool,
+    effect_mask: u32,
+    required: bool,
+) -> Result<Option<AuraStatApplication>, &'static str> {
     let mut has_stat_aura = false;
     let mut includes_all_stats = false;
     let mut stat_mask = 0_u8;
@@ -41,7 +95,7 @@ pub(super) fn select_aura_stat_application(
     let mut preserves_health_pct = false;
     let mut total_stat_percentage_effects = Vec::new();
 
-    for effect in spell.effects() {
+    for effect in effects {
         let Some(bit) = 1_u32.checked_shl(effect.effect_index) else {
             continue;
         };
@@ -153,15 +207,17 @@ impl AuraRemovalCxLikeCpp<'_> {
         &mut self,
         spell_id: i32,
         effect_mask: u32,
+        difficulty_id: u8,
     ) -> Result<(), &'static str> {
         if !self.player.is_logged_in_like_cpp() {
             return Ok(());
         }
-        let selection = select_aura_stat_application(
+        let selection = select_selected_aura_stat_application(
             self.spell_store.map(|store| store.as_ref()),
             spell_id,
+            difficulty_id,
+            self.difficulty_store,
             effect_mask,
-            true,
         )?
         .ok_or("Missing stat effects for the race-selected sickness aura")?;
         let cause = selection

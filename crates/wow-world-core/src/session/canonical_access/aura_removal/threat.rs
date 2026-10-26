@@ -12,6 +12,7 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
         difficulty: u8,
         effect_mask: u32,
         selected_sickness: bool,
+        exact_selected_effects: bool,
         represented_effect_amounts: &[wow_entities::RepresentedAuraEffectAmountLikeCpp],
     ) -> wow_entities::AuraThreatSnapshotLikeCpp {
         let interrupt_flags = spell_store
@@ -25,11 +26,23 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
             .unwrap_or([0; 2]);
         let effects = spell_store
             .and_then(|store| {
-                store.effects_for_difficulty_like_cpp(spell_id, difficulty, difficulty_store)
+                if exact_selected_effects {
+                    wow_data::spell::resolve_spell_effect_rows(
+                        store,
+                        spell_id,
+                        difficulty,
+                        difficulty_store,
+                    )
+                    .ok()
+                } else {
+                    store
+                        .effects_for_difficulty_like_cpp(spell_id, difficulty, difficulty_store)
+                        .map(|effects| effects.iter().collect())
+                }
             })
             .map(|effects| {
                 effects
-                    .iter()
+                    .into_iter()
                     .filter_map(|effect| {
                         let bit = 1u32.checked_shl(effect.effect_index)?;
                         let aura_type = effect.effect_aura;
@@ -41,6 +54,9 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
                                     | wow_data::spell::aura_types::SPELL_AURA_NO_PVP_CREDIT
                             );
                         (effect_mask & bit != 0
+                            && (!exact_selected_effects
+                                || effect.effect
+                                    != wow_data::spell::spell_effect_types::SPELL_EFFECT_NONE)
                             && (selected_sickness_effect
                                 || matches!(
                                     aura_type,
@@ -81,6 +97,7 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
         slot: u8,
         effect_mask: u32,
         selected_sickness: bool,
+        exact_selected_effects: bool,
         represented_effect_amounts: &[wow_entities::RepresentedAuraEffectAmountLikeCpp],
         spell_store: Option<&wow_data::SpellStore>,
         difficulty_store: Option<&wow_data::DifficultyStore>,
@@ -98,6 +115,7 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
                     difficulty,
                     effect_mask,
                     selected_sickness,
+                    exact_selected_effects,
                     represented_effect_amounts,
                 )
             });

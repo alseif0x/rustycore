@@ -20,6 +20,8 @@ mod lifecycle_stat;
 mod recast_policy;
 #[path = "spirit_healer/selected_creation.rs"]
 mod selected_creation;
+#[path = "spirit_healer/selected_execution_effects.rs"]
+mod selected_execution_effects;
 #[path = "spirit_healer/selected_lifetime.rs"]
 mod selected_lifetime;
 #[path = "spirit_healer/setup.rs"]

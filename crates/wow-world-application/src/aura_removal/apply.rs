@@ -58,12 +58,18 @@ impl AuraRemovalCxLikeCpp<'_> {
         // spell id comes from this Player's ChrRaces row, never a fixed race id.
         let required_sickness = self.is_current_race_sickness_spell(spell_id) == Some(true);
         let selected_lifetime = required_sickness || matches!(spell_id, 8_326 | 20_584);
-        let stat_application = select_aura_stat_application(
-            self.spell_store.map(|store| store.as_ref()),
-            spell_id,
-            effect_mask,
-            required_sickness,
-        )?;
+        let spell_store = self.spell_store.map(|store| store.as_ref());
+        let stat_application = if required_sickness {
+            super::stat_application::select_selected_aura_stat_application(
+                spell_store,
+                spell_id,
+                self.map_difficulty_id,
+                self.difficulty_store,
+                effect_mask,
+            )?
+        } else {
+            select_aura_stat_application(spell_store, spell_id, effect_mask, false)?
+        };
         let is_ability = stat_application
             .as_ref()
             .is_some_and(|selection| selection.is_ability);
@@ -152,8 +158,9 @@ impl AuraRemovalCxLikeCpp<'_> {
             slot,
             effect_mask,
             required_sickness,
+            selected_lifetime,
             &represented_effect_amounts,
-            self.spell_store.map(|store| store.as_ref()),
+            spell_store,
             self.difficulty_store,
             self.consumer_test,
         );

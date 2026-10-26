@@ -282,6 +282,7 @@ fn sync_canonical_threat_relevant_aura_like_cpp<H: SessionHubHostLikeCpp>(
             slot,
             effect_mask,
             selected_sickness,
+            false,
             represented_effect_amounts,
             spell_store,
             difficulty_store,

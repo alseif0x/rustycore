@@ -145,6 +145,7 @@ impl WorldEntitiesState {
             difficulty,
             effect_mask,
             false,
+            false,
             represented_effect_amounts,
         )
     }

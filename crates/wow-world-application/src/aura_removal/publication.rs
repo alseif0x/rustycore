@@ -29,13 +29,23 @@ impl AuraRemovalCxLikeCpp<'_> {
 
         let required_sickness =
             self.is_current_race_sickness_spell(removed.aura.spell_id) == Some(true);
-        let Some(selection) = select_aura_stat_application(
-            spell_store,
-            removed.aura.spell_id,
-            removed.aura.effect_mask,
-            required_sickness,
-        )?
-        else {
+        let selection = if required_sickness {
+            super::stat_application::select_selected_aura_stat_application(
+                spell_store,
+                removed.aura.spell_id,
+                removed.aura.difficulty_id,
+                self.difficulty_store,
+                removed.aura.effect_mask,
+            )?
+        } else {
+            select_aura_stat_application(
+                spell_store,
+                removed.aura.spell_id,
+                removed.aura.effect_mask,
+                false,
+            )?
+        };
+        let Some(selection) = selection else {
             return Ok(());
         };
         let Some(cause) = selection.cause else {

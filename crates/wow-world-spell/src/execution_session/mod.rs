@@ -68,6 +68,7 @@ mod resurrection_auras;
 mod resurrection_offer;
 mod resurrection_sickness;
 mod selected_creation;
+mod selected_effects;
 mod target_resolution;
 
 pub use cast_state::*;

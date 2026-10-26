@@ -17,14 +17,14 @@ const SICKNESS_AURA_TYPES: [i32; 3] = [
 
 fn selected_effects<'a>(
     spell_id: i32,
-    spell_info: &'a wow_data::SpellInfo,
+    rows: impl IntoIterator<Item = &'a SpellEffectInfo>,
     effect_mask: u32,
 ) -> Result<Vec<&'a SpellEffectInfo>, &'static str> {
-    if spell_id <= 0 || effect_mask != ACTIVE_EFFECT_MASK || spell_info.effects().len() != 3 {
+    if spell_id <= 0 || effect_mask != ACTIVE_EFFECT_MASK {
         return Err("Race-selected sickness SpellInfo is not the supported three-effect Aura");
     }
     let mut effects = BTreeMap::new();
-    for effect in spell_info.effects() {
+    for effect in rows {
         let index = usize::try_from(effect.effect_index)
             .map_err(|_| "Race-selected sickness effect index is invalid")?;
         if index >= SICKNESS_AURA_TYPES.len()
@@ -43,15 +43,15 @@ fn selected_effects<'a>(
     Ok(effects.into_values().collect())
 }
 
-pub(super) fn validate_selected_sickness_data(
+pub(super) fn validate_selected_sickness_data<'a>(
     spell_id: i32,
-    spell_info: &wow_data::SpellInfo,
+    rows: impl IntoIterator<Item = &'a SpellEffectInfo>,
     effect_mask: u32,
 ) -> Result<(), &'static str> {
     if effect_mask == 0 || effect_mask & !ACTIVE_EFFECT_MASK != 0 {
         return Err("Race-selected sickness application has an unsupported active mask");
     }
-    selected_effects(spell_id, spell_info, ACTIVE_EFFECT_MASK).map(|_| ())
+    selected_effects(spell_id, rows, ACTIVE_EFFECT_MASK).map(|_| ())
 }
 
 impl AuraRemovalCxLikeCpp<'_> {
@@ -79,7 +79,7 @@ impl AuraRemovalCxLikeCpp<'_> {
             attributes1,
             attributes5,
         )?;
-        let selected = selected_effects(spell_id, spell_info, ACTIVE_EFFECT_MASK)?;
+        let selected = selected_effects(spell_id, spell_info.effects().iter(), ACTIVE_EFFECT_MASK)?;
         let spell_store = self
             .spell_store
             .map(|store| store.as_ref())
@@ -87,11 +87,12 @@ impl AuraRemovalCxLikeCpp<'_> {
         if spell_store.get(spell_id).is_none() {
             return Err("Missing SpellInfo for the race-selected sickness Aura");
         }
-        let stat_application = super::stat_application::select_aura_stat_application(
+        let stat_application = super::stat_application::select_selected_aura_stat_application(
             Some(spell_store),
             spell_id,
+            self.map_difficulty_id,
+            self.difficulty_store,
             ACTIVE_EFFECT_MASK,
-            true,
         )?;
         if stat_application
             .as_ref()
@@ -122,6 +123,15 @@ impl AuraRemovalCxLikeCpp<'_> {
             .first()
             .filter(|aura| aura.effect_mask == ACTIVE_EFFECT_MASK)
         {
+            let original_rows = wow_data::spell::resolve_spell_effect_rows(
+                spell_store,
+                spell_id,
+                existing.difficulty_id,
+                self.difficulty_store,
+            )
+            .map_err(|_| "Unable to resolve existing sickness Aura effects")?;
+            let original_effects =
+                selected_effects(spell_id, original_rows.iter().copied(), ACTIVE_EFFECT_MASK)?;
             let refresh_timers = wow_world_core::session::selected_aura_refreshes_timers(
                 stack_amount,
                 existing.stack_count,
@@ -139,6 +149,11 @@ impl AuraRemovalCxLikeCpp<'_> {
                 .ok_or("Canonical sickness Aura effect snapshot is missing")?;
             let mut updates = Vec::with_capacity(selected.len());
             for effect in &selected {
+                let original = original_effects
+                    .iter()
+                    .find(|original| original.effect_index == effect.effect_index)
+                    .copied()
+                    .ok_or("Existing sickness Aura effect is missing during refresh")?;
                 let bit = 1_u32
                     .checked_shl(effect.effect_index)
                     .ok_or("Race-selected sickness effect index is invalid")?;
@@ -147,12 +162,14 @@ impl AuraRemovalCxLikeCpp<'_> {
                     .iter()
                     .find(|(active_bit, _, _, _)| *active_bit == bit)
                     .ok_or("Canonical sickness Aura effect no longer matches refresh")?;
+                let mut refreshed = (*original).clone();
+                refreshed.effect_base_points = effect.effect_base_points;
                 updates.push(SelectedAuraEffectRefresh {
                     effect_index: u8::try_from(effect.effect_index)
                         .map_err(|_| "Race-selected sickness effect index is invalid")?,
-                    aura_type: effect.effect_aura,
-                    amount: effect.calc_value_no_caster_like_cpp(),
-                    misc_value: effect.effect_misc_value_1,
+                    aura_type: original.effect_aura,
+                    amount: refreshed.calc_value_no_caster_like_cpp(),
+                    misc_value: original.effect_misc_value_1,
                     base_amount: effect.effect_base_points,
                 });
             }
@@ -174,7 +191,11 @@ impl AuraRemovalCxLikeCpp<'_> {
             self.player
                 .refresh_selected_aura_application(&refresh)
                 .ok_or("Canonical Player disappeared while refreshing sickness Aura")??;
-            self.apply_selected_sickness_stats(spell_id, ACTIVE_EFFECT_MASK)?;
+            self.apply_selected_sickness_stats(
+                spell_id,
+                ACTIVE_EFFECT_MASK,
+                existing.difficulty_id,
+            )?;
             return Ok(());
         }
 

@@ -88,15 +88,20 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         metadata.from_client,
         metadata.triggered_ignores_global_cooldown_like_cpp,
     );
+    let selected_execution_effects =
+        player_resurrection_sickness || server_triggered_player_ghost_wisp;
 
     // Load spell metadata.
-    let spell_info = host
+    let mut spell_info = host
         .hub_ref()
         .catalogs
         .spell_store()
         .and_then(|store| store.get(spell_id))
         .cloned()
         .ok_or("Spell not found")?;
+    if selected_execution_effects {
+        super::selected_effects::resolve(host, spell_id, &mut spell_info)?;
+    }
     let effect_type = spell_info.effect_type;
     let effect_base_points = spell_info.effect_base_points;
 
@@ -1135,6 +1140,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         player_guid,
         spell_info,
         metadata,
+        selected_execution_effects,
     )?;
 
     Ok(())

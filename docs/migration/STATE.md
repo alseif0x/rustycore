@@ -18,8 +18,9 @@ provenance when creation-only facts are unavailable. 9i3C3d3c connects canonical
 foreign-caster reaction to that constructor and has focused consumer feedback.
 9i3C3d4a retains complete indexed effect rows and shares their resolver from Data.
 9i3C3d4b connects selected save effects and attributes to that resolver and
-uses each application's eligibility flags. Selected load and creation still
-need indexed effects; load construction and charge consumers remain pending.
+uses each application's eligibility flags. 9i3C3d4c connects selected execution
+effects, sickness stat readers, and selected initial effect snapshots. Load
+construction, visual and charge consumers, and completion polarity remain pending.
 The integration adds neither another clock nor another Player authority.
 
 Four blocks remain within the same macro:
@@ -1182,6 +1183,52 @@ variant/effort self-telemetry was unavailable. Creation/load/completion consumer
 charges, native lifecycle work, and macro acceptance remain pending. No final
 campaign, capture, live/DB mutation, publication, or deployment is established.
 
+9i3C3d4c resolves selected execution effects before cast preparation and SpellGo,
+and completion keeps that owned vector instead of replacing it with a legacy
+whole-difficulty vector. Sickness application, refresh, removal, and stat-cause
+selection use exact selected effects and attributes. The selected initial aura
+snapshot also uses indexed rows; unrelated snapshot callers explicitly retain
+their legacy path. Inert rows are not activated by their aura-type field.
+Missing required selected attributes remain unavailable. No mutable catalog,
+Session method, or second aura authority is added.
+
+Refresh keeps its original Aura difficulty and effect properties, replacing
+base points and recalculating through those original properties. Source anchors
+at the pinned SHA are Unit.cpp:3224–3280, SpellMgr.cpp:2500–2508,2638–2640,
+SpellInfo.cpp:1144–1163, and SpellAuras.cpp:496–510. An explicit inert row reaches
+the existing unsupported sickness-shape error after SpellGo and creates no
+sickness Aura; that regression proves no active-base fallback, not a general
+partial-metadata aura implementation. Ghost/Wisp-specific execution regressions
+remain deferred; the actual new consumer tests exercise sickness.
+
+On `af58258f6` plus the reviewed delta, sequential aarch64/jobs=1 worker feedback
+passed Spell check and nine distinct World library cases: selected_execution_effects
+(5) and selected_creation (4). The new cases cover actual canonical Map difficulty
+4→3→0, actual 0→3 fallback, pre-SpellGo rejection of needed unknown/cyclic or
+malformed metadata, the inert-row hold, and cross-difficulty refresh through
+Session recovery and AuraUpdate. After the last test-only change, the focused
+refresh case passed again with new-row DieSides=1 and original DieSides=0, so
+using the wrong calculation properties would change the asserted amount.
+Other unchanged passing cases were not rerun after that fixture strengthening.
+Logs under `/tmp/rustycore-43-c3d4c-` are
+`wow-world-spell-check-20261026-004543.log`,
+`wow-world-selected-execution-effects-20261026-005135.log`,
+`wow-world-selected-creation-20261026-005053.log`, and
+`wow-world-refresh-original-properties-20261026-005305.log`, all exit 0.
+Earlier compile and failing consumer runs remain under the same prefix.
+
+The first World compilation used a nonexistent fixture spawn-mode method.
+The initial consumer run then passed one and failed three; it exposed real
+base-only stat/snapshot readers and an unsupported-shape fixture expectation.
+Repairs preserved the canonical snapshot consistency checks. Parent review also
+corrected missing-row versus unknown-store test inputs and added a real zero
+fallback scenario. The fixed worker-role spawn succeeded; exact variant/effort
+self-telemetry was unavailable. Relevant C++ files and SHA were rechecked clean.
+These are coding checks on the local delta, not a final campaign. Load/visual,
+charges, completion polarity/admission, native lifecycle, casts, QA, and the
+remaining macro requirements are not completed by this checkpoint. No runtime,
+DB, capture, publication, deployment, or #43 completion is established.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -1404,14 +1451,31 @@ Source default independently of the chain. The selected readers corrected in
 separate boundaries. Indexed inheritance is available from 9i3C3d4a, while
 its remaining execution/load consumers are identified below.
 
-Effect-field follow-up from current callers: execution still clones the base
-SpellInfo payload, and the load helper chooses a whole legacy effect vector.
+Effect-field follow-up: execution now replaces selected effects before preparing
+the cast; the load helper still chooses a whole legacy effect vector.
 Source fills each effect index independently along its difficulty chain
 (SpellMgr.cpp:2500–2508,2638–2640; SpellInfo.cpp:1144–1163). 9i3C3d4a repairs
 the former Data loss of explicit Effect=0 rows and duplicate slot selection.
 It retains complete indexed rows and a shared resolver in the existing catalog,
-with a separate active legacy projection. 9i3C3d4b connects the save adapters;
-execution and loading still require this metadata before macro acceptance.
+with a separate active legacy projection. 9i3C3d4b connects the save adapters
+and 9i3C3d4c connects execution and sickness application/stat/snapshot readers.
+Loading still requires this metadata before macro acceptance.
+
+The execution completion review also identifies a separate selected consumer:
+the legacy represented positivity helper reads effect types and amounts but
+ignores attributes such as AURA_IS_DEBUFF. Positive effect amounts can therefore
+disagree with Source whole-spell polarity even when indexed selection is correct.
+Selected completion must use the shared whole-spell decision at its required
+threat boundary (Spell.cpp:5558 onward), preserving Source no-initial-aggro gates
+and the matching-refresh treatment of creation-only facts. This correction is
+pending; retaining the selected effect vector alone does not establish it.
+Spell::IsPositive also checks the triggering aura when one exists
+(Spell.cpp:8067–8070). The direct lifecycle casts have no such trigger; their
+whole-spell decision must not be advertised as general triggered-spell parity.
+HasInitialAggro unconditionally excludes NO_HARMFUL_THREAT, in addition to
+NO_THREAT and NO_INITIAL_THREAT (SpellInfo.cpp:1721–1724). The current shared
+helper applies the former only to negative spells. This demonstrated gate
+mismatch also needs an explicit behavior correction and focused regression.
 
 Resolver ownership decision, implemented by 9i3C3d4a/b: shared spell difficulty
 traversal, exact attributes, and indexed effect resolution belong to Data;
@@ -1430,8 +1494,8 @@ known missing or inert raw row. A malformed duplicate/index in a dynamic vector
 must remain unavailable rather than becoming a newly accepted selected Aura.
 Malformed raw effect indexes must likewise remain detectable by the exact
 resolver, rather than being discarded into apparent absence or rewritten to zero.
-Execution, loading, and their source-identity consumers still need integration
-and evidence after the Data/save cuts. The connected selected save adapters
+Loading and remaining source-identity/polarity consumers still need integration
+and evidence after the Data/save/execution cuts. The connected selected save adapters
 derive passive/channelled eligibility from each application's resolved
 attributes. A global base SpellInfo flag must not reject a valid application
 at another difficulty. Existing complete-
@@ -1469,6 +1533,14 @@ execution, saved row difficulty for loading. Load must classify whole-spell
 offline expiration before requesting live caster facts, then prepare fresh
 flags and level before removing an existing application. This placement adds
 neither a new host trait nor a WorldSession method; implementation is pending.
+Load visual selection is also pending: Aura's constructor calls the resolved
+Unit caster's visual method when available and uses the caster-free SpellInfo
+method otherwise (SpellAuras.cpp:463–468). Self resolution still supplies that
+caster before world admission. Unit.cpp:13548–13563 applies active visual
+overrides first; SpellInfo.cpp:4446–4464 checks conditions only when their
+catalog rows exist. The current loader always chooses its caster-free helper.
+Precise visual inheritance and needed caster/condition facts must be resolved
+before replacement; missing facts must not be relabelled as visual zero.
 
 Selected charge consumer review: the legacy AuraOptions helper clamps signed
 ProcCharges into u8, whereas Source preserves its uint32 assignment and final

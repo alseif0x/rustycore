@@ -16,13 +16,23 @@ impl AuraRemovalCxLikeCpp<'_> {
             let aura = removal_target
                 .as_ref()
                 .expect("selected sickness came from the removal target");
-            let spell_info = self
+            let spell_store = self
                 .spell_store
-                .and_then(|store| store.get(aura.spell_id))
+                .map(|store| store.as_ref())
                 .ok_or("Missing SpellInfo for the race-selected sickness removal")?;
+            if spell_store.get(aura.spell_id).is_none() {
+                return Err("Missing SpellInfo for the race-selected sickness removal");
+            }
+            let effects = wow_data::spell::resolve_spell_effect_rows(
+                spell_store,
+                aura.spell_id,
+                aura.difficulty_id,
+                self.difficulty_store,
+            )
+            .map_err(|_| "Unable to resolve race-selected sickness removal effects")?;
             super::sickness::validate_selected_sickness_data(
                 aura.spell_id,
-                spell_info,
+                effects.iter().copied(),
                 aura.effect_mask,
             )?;
             self.preflight_selected_sickness_stats()?;

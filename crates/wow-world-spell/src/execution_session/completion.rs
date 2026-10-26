@@ -18,6 +18,7 @@ pub(super) fn complete_spell_execution_like_cpp<H: SpellExecutionHostLikeCpp>(
     player_guid: ObjectGuid,
     spell_info: wow_data::SpellInfo,
     metadata: SpellCastMetadata,
+    selected_execution_effects: bool,
 ) -> Result<(), &'static str> {
     // C++ `Spell::FinishTargetProcessing` (`Spell.cpp:8493-8496`) publishes
     // the execute log once every effect of the cast has resolved.
@@ -25,17 +26,19 @@ pub(super) fn complete_spell_execution_like_cpp<H: SpellExecutionHostLikeCpp>(
 
     let mut threat_spell_info = spell_info.clone();
     let difficulty = host.core().current_map_difficulty_id_like_cpp();
-    if let Some(effects) = host.hub_ref().catalogs.spell_store().and_then(|store| {
-        store.effects_for_difficulty_like_cpp(
-            spell_id,
-            difficulty,
-            host.hub_ref()
-                .catalogs
-                .difficulty_store()
-                .map(AsRef::as_ref),
-        )
-    }) {
-        threat_spell_info.effects = effects.to_vec();
+    if !selected_execution_effects {
+        if let Some(effects) = host.hub_ref().catalogs.spell_store().and_then(|store| {
+            store.effects_for_difficulty_like_cpp(
+                spell_id,
+                difficulty,
+                host.hub_ref()
+                    .catalogs
+                    .difficulty_store()
+                    .map(AsRef::as_ref),
+            )
+        }) {
+            threat_spell_info.effects = effects.to_vec();
+        }
     }
     apply_spell_initial_threat_like_cpp(
         host,
