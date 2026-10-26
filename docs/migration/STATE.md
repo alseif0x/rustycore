@@ -23,7 +23,8 @@ effects, sickness stat readers, and selected initial effect snapshots. 9i3C3d4d
 connects selected completion polarity and exact initial-threat attributes, with
 required metadata checked before cast preparation. 9i3C3d4e connects selected
 load effects, whole-spell offline polarity, full-width charge normalization,
-and the shared fresh constructor. Visual resolution and fresh/refresh charge
+and the shared fresh constructor. 9i3C3d4f adds effective condition-row presence
+and its startup/session composition. Visual resolution and fresh/refresh charge
 consumers remain pending.
 The integration adds neither another clock nor another Player authority.
 
@@ -1350,6 +1351,78 @@ casts, QA, and macro acceptance remain pending. The preserved narrow family
 contract is not a general aura engine. No runtime, DB, capture, publication,
 deployment, or #43 completion is established by these checks.
 
+9i3C3d4f implements the effective condition-record presence required by selected
+visual lookup. Data loads both complete WDC4 ID sets before SQL, retains each
+actual table hash, unions official/custom IDs, then applies final table-scoped
+removals. Unresolved WDC4 copy sources withhold complete presence instead of
+silently creating absence. The existing file-only ID loader retains its previous
+behavior. A final immutable catalog exposes player/unit presence, including ID
+zero; an explicit effective-ID constructor supports already-composed inputs.
+
+One SQLx-free condition-presence port supplies both ID sets. Its MariaDB adapter
+uses the two ID-only queries in official/custom order and the established
+native-width uint32 round-trip conversion. For example, Int32(-1) retains its
+bits while Int64(-1) cannot round-trip and is rejected. Missing/NULL/non-integer
+IDs do not become zero. Startup propagates file/query/decode failures before
+publishing an Arc. The existing Player catalog capability installs it through
+one free World composition function; there is no new WorldSession method,
+general mutable-catalog accessor, or gameplay authority. Typed PlayerCondition
+payloads remain file-only and are not relabelled SQL-effective predicates.
+
+Source anchors at `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` are DB2Store.cpp:127–134,
+DB2DatabaseLoader.cpp:28–32, DB2Stores.cpp:555, HotfixDatabase.cpp:1192 onward and
+:1853–1857, SpellInfo.cpp:4446–4464, Field.cpp:62–67, and
+FieldValueConverters.h:62–70. The unchanged DB2Stores anchor was verified against
+the pinned version despite its unrelated local change described below.
+
+On `0f29c68f9` plus the reviewed local delta, sequential aarch64/jobs=1 worker
+coding feedback passed `cargo check -p world-server --lib` and eleven distinct
+cases: Data `condition_presence` (3), Data `db2_id_store` (2), Database
+`condition_presence` (2), Server `condition_presence` (3), and the explicitly
+executed ignored Data installed-files diagnostic (1). The normal Data presence
+filter reported that diagnostic as ignored; its separate execution is the sole
+basis for counting it as passed. No initial compilation or test failures occurred.
+The first check took 4m35s; a post-edit check took 7.43s. Server test compilation
+took 6m28s. These are coding costs, not a timed ordinary final-acceptance campaign.
+
+Raw exit-0 logs use prefix `/tmp/rustycore-43-condition-presence-`:
+`cargo-check-world-server-post-edit.log`,
+`cargo-test-wow-data-condition-presence.log`,
+`cargo-test-wow-data-db2-id-store.log`, `cargo-test-wow-database.log`,
+`cargo-test-world-server.log`, and `installed-files.log`. The earlier successful
+check is retained as `cargo-check-world-server.log`. The fixed worker-role spawn
+succeeded; runtime model/effort self-telemetry was unavailable. Its initial
+read-only handoff exposed the private WorldSession catalog boundary. The parent
+settled the narrow free composition adapter and resumed implementation without
+widening that field or requesting a new approval.
+
+With `RUSTYCORE_CONDITION_DATA_DIR=/home/server/woltk-server-core/Data` and locale
+enUS, the diagnostic loaded 123 PlayerCondition IDs and 482 UnitCondition IDs;
+neither file contained ID zero. Post-diagnostic SHA-256 identities were:
+
+- `PlayerCondition.db2`:
+  `bd415ca301849bbfcde4ee1de765088d76d435cb1f2656b3c21332871e989e67`.
+- `UnitCondition.db2`:
+  `95e3a382588a6934ca33c134eec31bb777046f273ac7b855c844da2dda15b7e2`.
+
+Those are file-phase facts, not effective SQL/removal dataset proof. The actual
+visual consumer, required predicates/active overrides, and scoped capture/live
+evidence remain pending. New SQL also retains its required completed-delivery
+persistence-inventory review; the parent did not run another coding campaign.
+
+Physical review: the new Data catalog is 82 lines, SQL adapter 143, and Server
+loader 29. `world-server/src/app.rs` remains the existing startup coordinator at
+5,664 lines after twelve lines of bounded composition wiring; the new loader's
+logic is private outside it. Temporary ceiling 5,664, owner #43 integration,
+expires at the #43 final architecture review: splitting unrelated startup
+dependencies during this catalog repair would broaden the current operation.
+That review must resolve or explicitly renew the file-specific exception before
+macro closeout. No architecture baseline was regenerated here.
+
+This is another local UNVALIDATED checkpoint with focused feedback. No selected
+visual parity, final acceptance, runtime/DB mutation, capture, publication,
+deployment, or issue completion is established by it.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -1689,8 +1762,57 @@ file/query/decode failures remain unavailable. WDC4 `iter_records` includes only
 copies whose source resolves in its direct-ID index; compare its observed count
 to `total_count` before claiming complete ID absence. An unresolved copy must
 withhold that proof rather than silently becoming a missing condition row.
-This is an implementation decision; the effective presence catalog is not yet
-connected or accepted.
+9i3C3d4f implements that effective presence catalog and composes it at startup
+and into sessions. Its free composition adapter installs only this immutable
+capability, without exposing mutable catalogs or adding a WorldSession method.
+Visual selection and predicate evaluation are separate pending consumers;
+neither the catalog nor its coding feedback establishes macro acceptance.
+
+Visual-consumer review, 2026-10-26: a complete static override-absence proof must
+not inspect only SpellStore's narrowed i32-spell/u8-difficulty effect projection.
+Its hydration skips rows outside those domains, while an otherwise valid
+uint32 spell can carry an override targeting a selected lifecycle spell. Retain
+potential override targets from the complete effective regular effect domain
+before narrowing, and include existing dynamic payloads and the accepted
+server-side SpellInfo effects. A Data-owned derived metadata index is sufficient;
+it is not an active-Aura authority. The already-loaded server-side catalog needs
+production session composition before its absence can be consumed. An available
+potential override still requires its active source/order, not an assumption
+that it is active. Source anchors remain Unit.cpp:13548–13563 and
+SpellAuraEffects.h:56–57. The consumer and actual effective-data proof are pending.
+
+The same review identifies an owner-context correction for that constructor
+consumer. `selected_owner_map` currently requires the owner to be a physical Map
+member. Source Aura::Create can resolve a foreign caster against a target whose
+Map is already assigned before world admission: ObjectAccessor.cpp:206–213,
+236–238 calls the target's GetMap, and Object.h:604 requires that pointer rather
+than world/container membership. Accept the canonical detached target's valid
+assigned Map while preserving handle, residence, map, and active-member
+consistency checks. Self and non-Unit caster fast paths stay independent of Map
+membership. Add actual detached-owner/foreign-caster tests before claiming this
+load path complete; the earlier active-owner tests do not establish it.
+
+The visual consumer includes execution as well as loading. Spell.cpp:583 obtains
+the cast visual from the caster; Aura's constructor independently obtains its
+visual at SpellAuras.cpp:465. A supplied cast visual is therefore not creation
+proof for a fresh selected Aura. The current Ghost/Wisp overload also returns
+zero for Wisp without consulting effective visual rows, and the sickness
+overload uses the bounded creature helper. Connect the exact selected resolver
+at the cast boundary and the shared fresh constructor, preserving refresh's
+original Aura provenance. Preserve all uint32 visual-ID bits when projecting
+into the signed wire field (Spell.cpp:9283–9286), rather than clamping to
+INT32_MAX. Known absence of visual rows returns Source zero; unavailable needed
+metadata must remain an error. These consumers remain pending.
+
+Reference provenance for these metadata/visual reviews: the pinned HEAD remains
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`, but the reference checkout is not wholly
+clean. DB2Stores.cpp has a pre-existing specialization-bounds change after the
+unchanged LoadFromDB anchor. Spell.cpp has pre-existing template instantiations
+appended after the unchanged constructor/visual-conversion anchors. Those anchors
+were checked against `git show` at the pinned SHA. A separate LFGList.cpp change
+is outside this review. All three local changes are preserved. A future paired
+runtime/build record must retain the actual reference candidate and dirty state;
+these source reads are not evidence of a new reference build or capture.
 
 Selected charge consumer review: the legacy AuraOptions helper clamps signed
 ProcCharges into u8, whereas Source preserves its uint32 assignment and final

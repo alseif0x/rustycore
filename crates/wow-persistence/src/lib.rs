@@ -167,6 +167,9 @@ pub use hotfix::{
     ChrSpecializationHotfixRowLikeCpp, ChrSpecializationHotfixRowsLikeCpp,
 };
 pub use hotfix::{
+    ConditionPresenceLoadOutcome, ConditionPresencePersistencePort, ConditionPresenceRows,
+};
+pub use hotfix::{
     CreatureDisplayHotfixLoadOutcomeLikeCpp, CreatureDisplayHotfixPersistencePortLikeCpp,
     CreatureDisplayInfoHotfixRowLikeCpp, CreatureModelDataHotfixRowLikeCpp,
 };

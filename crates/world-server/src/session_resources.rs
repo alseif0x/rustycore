@@ -143,6 +143,7 @@ impl SessionInventoryCapabilitiesLikeCpp {
 pub(super) struct SessionPlayerCatalogCapabilitiesLikeCpp {
     pub(super) condition_store: Arc<wow_data::ConditionEntriesByTypeStore>,
     pub(super) player_condition_store: Arc<wow_data::PlayerConditionStore>,
+    pub(super) condition_presence_catalog: Arc<wow_data::ConditionPresenceCatalog>,
     pub(super) content_tuning_store: Arc<wow_data::progression_rewards::ContentTuningStore>,
     pub(super) curve_store: Arc<wow_data::progression_rewards::CurveStore>,
     pub(super) curve_point_store: Arc<wow_data::progression_rewards::CurvePointStore>,
@@ -378,6 +379,10 @@ impl SessionPlayerCatalogCapabilitiesLikeCpp {
     pub(super) fn install_into_session_like_cpp(&self, session: &mut WorldSession) {
         session.set_condition_store(Arc::clone(&self.condition_store));
         session.set_player_condition_store(Arc::clone(&self.player_condition_store));
+        wow_world::session::install_condition_presence_catalog(
+            session,
+            Arc::clone(&self.condition_presence_catalog),
+        );
         session.set_content_tuning_store(Arc::clone(&self.content_tuning_store));
         session.set_curve_store(Arc::clone(&self.curve_store));
         session.set_curve_point_store(Arc::clone(&self.curve_point_store));

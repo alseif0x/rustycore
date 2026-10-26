@@ -2060,6 +2060,17 @@ async fn run_inner(
         wow_data::PlayerConditionStore::load(&data_dir, &locale)
             .context("Failed to load PlayerCondition.db2 — check DataDir and DBC.Locale config")?,
     );
+    let condition_presence_persistence =
+        wow_database::MariaDbConditionPresencePersistenceAdapter::new(Arc::clone(&hotfix_db));
+    let condition_presence_catalog =
+        crate::hotfix::condition_presence::load_condition_presence_catalog(
+            &data_dir,
+            &locale,
+            &condition_presence_persistence,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective PlayerCondition/UnitCondition presence")?;
     let adventure_map_poi_store = Arc::new(
         wow_data::AdventureMapPoiStore::load(&data_dir, &locale)
             .context("Failed to load AdventureMapPOI.db2 — check DataDir and DBC.Locale config")?,
@@ -4918,6 +4929,7 @@ async fn run_inner(
         player: SessionPlayerCatalogCapabilitiesLikeCpp {
             condition_store: Arc::clone(&condition_store),
             player_condition_store: Arc::clone(&player_condition_store),
+            condition_presence_catalog: Arc::clone(&condition_presence_catalog),
             content_tuning_store: Arc::clone(&content_tuning_store),
             curve_store: Arc::clone(&curve_store),
             curve_point_store: Arc::clone(&curve_point_store),

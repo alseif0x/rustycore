@@ -280,6 +280,14 @@ impl WorldSession {
     }
 }
 
+/// Install the complete immutable condition-row presence catalog at composition.
+pub fn install_condition_presence_catalog(
+    session: &mut WorldSession,
+    catalog: Arc<wow_data::ConditionPresenceCatalog>,
+) {
+    session.catalogs.condition_presence = Some(catalog);
+}
+
 #[cfg(test)]
 #[path = "../../../unit_tests/session/catalogs/operations/f3_shims.rs"]
 mod f3_shims;

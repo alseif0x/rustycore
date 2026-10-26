@@ -21,16 +21,17 @@ use wow_data::reputation::{RepSpilloverTemplateStoreLikeCpp, ReputationRewardRat
 use wow_data::trait_tree::TraitDefinitionStore;
 use wow_data::{
     AccessRequirementStoreLikeCpp, AreaTableStore, CinematicSequencesStore,
-    CombatRatingsGameTableLikeCpp, ConditionEntriesByTypeStore, CurrencyTypesStore,
-    DifficultyStore, DisableMgrLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
-    DurabilityQualityStore, FishingBaseSkillStoreLikeCpp, GameObjectTemplateLifecycleStoreLikeCpp,
-    GemPropertiesStore, HeirloomStore, LfgDungeonsStore, LockStore, MountCapabilityStore,
-    MountDefinitionStoreLikeCpp, MountStore, MountTypeXCapabilityStore, MountXDisplayStore,
-    MovieStore, PhaseGroupStore, PhaseStore, PlayerConditionStore, PlayerStatsStore, PvpItemStore,
-    RandPropPointsStore, RegenGameTablesLikeCpp, ScriptNameInternerLikeCpp,
-    ShieldBlockRegularGameTableLikeCpp, SkillLineStore, SkillStore, SkillTiersStoreLikeCpp,
-    TalentStore, ToyStore, TrainerStoreLikeCpp, TransmogSetItemStore, TrinityStringStoreLikeCpp,
-    VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, WorldSafeLocStore,
+    CombatRatingsGameTableLikeCpp, ConditionEntriesByTypeStore, ConditionPresenceCatalog,
+    CurrencyTypesStore, DifficultyStore, DisableMgrLikeCpp, DungeonEncounterStore,
+    DurabilityCostsStore, DurabilityQualityStore, FishingBaseSkillStoreLikeCpp,
+    GameObjectTemplateLifecycleStoreLikeCpp, GemPropertiesStore, HeirloomStore, LfgDungeonsStore,
+    LockStore, MountCapabilityStore, MountDefinitionStoreLikeCpp, MountStore,
+    MountTypeXCapabilityStore, MountXDisplayStore, MovieStore, PhaseGroupStore, PhaseStore,
+    PlayerConditionStore, PlayerStatsStore, PvpItemStore, RandPropPointsStore,
+    RegenGameTablesLikeCpp, ScriptNameInternerLikeCpp, ShieldBlockRegularGameTableLikeCpp,
+    SkillLineStore, SkillStore, SkillTiersStoreLikeCpp, TalentStore, ToyStore, TrainerStoreLikeCpp,
+    TransmogSetItemStore, TrinityStringStoreLikeCpp, VehicleAccessoryStoreLikeCpp,
+    VehicleSeatStore, VehicleStore, WorldSafeLocStore,
 };
 use wow_loot::LootStores;
 
@@ -144,6 +145,9 @@ pub struct SessionCatalogs {
 
     // C++ PlayerCondition.db2 store used by ConditionMgr player-condition checks.
     pub player_condition_store: Option<Arc<PlayerConditionStore>>,
+
+    // Effective condition-row presence used by selected SpellXSpellVisual lookup.
+    pub condition_presence: Option<Arc<ConditionPresenceCatalog>>,
 
     // C++ AdventureMapPOI.db2 store used by Adventure Map quest starts.
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -323,6 +327,7 @@ impl Default for SessionCatalogs {
             loot_stores: None,
             condition_store: None,
             player_condition_store: None,
+            condition_presence: None,
             #[cfg(any(test, feature = "test-fixtures"))]
             adventure_map_poi_store: None,
             content_tuning_store: None,

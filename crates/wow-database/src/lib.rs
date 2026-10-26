@@ -112,6 +112,7 @@ pub use game::MariaDbGameEventPersistenceAdapterLikeCpp;
 pub use game::MariaDbGameEventWorldCatalogPersistenceAdapterLikeCpp;
 pub use game::MariaDbGameTeleCatalogPersistenceAdapterLikeCpp;
 pub use hotfix::MariaDbChrSpecializationHotfixPersistenceAdapterLikeCpp;
+pub use hotfix::MariaDbConditionPresencePersistenceAdapter;
 pub use hotfix::MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp;
 pub use hotfix::MariaDbDifficultyHotfixPersistenceAdapterLikeCpp;
 pub use hotfix::MariaDbLfgDungeonsHotfixPersistenceAdapterLikeCpp;

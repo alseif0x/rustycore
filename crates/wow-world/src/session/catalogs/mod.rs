@@ -5,3 +5,4 @@
 use super::*;
 
 mod operations;
+pub use operations::install_condition_presence_catalog;

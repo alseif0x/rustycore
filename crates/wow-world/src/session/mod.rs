@@ -72,6 +72,7 @@ use wow_world_creature::{
 };
 mod canonical_access;
 mod catalogs;
+pub use catalogs::install_condition_presence_catalog;
 mod chat;
 mod collections;
 mod lifecycle_ops;

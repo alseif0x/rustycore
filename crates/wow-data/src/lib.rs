@@ -15,6 +15,7 @@ pub mod battlemaster_list;
 pub mod character_progression;
 pub mod chr_specialization;
 pub mod condition_attachments;
+pub mod condition_presence;
 pub mod conditions;
 pub mod creature;
 pub mod currency;
@@ -119,6 +120,7 @@ pub use chr_specialization::{ChrSpecializationEntry, ChrSpecializationStore};
 pub use condition_attachments::{
     ConditionAttachmentReportLikeCpp, attach_loaded_conditions_like_cpp,
 };
+pub use condition_presence::{ConditionPresenceCatalog, ConditionPresenceCatalogFiles};
 pub use conditions::{
     Condition, ConditionContainer, ConditionEntriesByTypeStore, ConditionId, ConditionLoadReport,
     ConditionsByEntryMap, ConditionsReference,
@@ -455,9 +457,8 @@ pub use spell::{
     SpellCustomAttributeLoadOutcomeLikeCpp, SpellCustomAttributeRowLikeCpp,
     SpellCustomAttributeSourceSpellInfoLikeCpp, SpellCustomAttributeSourceVariantLikeCpp,
     SpellCustomAttributeStoreLikeCpp, SpellEffectInfo, SpellEffectPolarityMetadata,
-    SpellGroupLoadErrorKindLikeCpp,
-    SpellGroupLoadErrorLikeCpp, SpellGroupLoadOutcomeLikeCpp, SpellGroupRowLikeCpp,
-    SpellGroupStackRuleLikeCpp, SpellGroupStackRuleLoadErrorKindLikeCpp,
+    SpellGroupLoadErrorKindLikeCpp, SpellGroupLoadErrorLikeCpp, SpellGroupLoadOutcomeLikeCpp,
+    SpellGroupRowLikeCpp, SpellGroupStackRuleLikeCpp, SpellGroupStackRuleLoadErrorKindLikeCpp,
     SpellGroupStackRuleLoadErrorLikeCpp, SpellGroupStackRuleLoadOutcomeLikeCpp,
     SpellGroupStackRuleRowLikeCpp, SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp,
     SpellHitMetadataLikeCpp, SpellInfo, SpellLearnSkillEffectLikeCpp,
