@@ -55,18 +55,15 @@ fn expected_effects(spell_id: i32) -> Option<&'static [(u8, i32, bool)]> {
 
 fn catalog_effects<'a>(
     spell_id: i32,
-    difficulty_id: u8,
+    actual_difficulty_id: u8,
     spell_store: &'a wow_data::SpellStore,
     difficulty_store: &wow_data::DifficultyStore,
 ) -> Option<BTreeMap<u8, &'a wow_data::SpellEffectInfo>> {
-    if difficulty_id != 0 && !difficulty_store.contains(u32::from(difficulty_id)) {
-        return None;
-    }
     let expected = expected_effects(spell_id)?;
     let effects = wow_data::spell::resolve_spell_effect_rows(
         spell_store,
         spell_id,
-        difficulty_id,
+        actual_difficulty_id,
         Some(difficulty_store),
     )
     .ok()?;
@@ -243,18 +240,10 @@ pub(super) fn capture(
         return None;
     }
     for spell_id in [GHOST_SPELL_ID, WISP_SPELL_ID] {
-        if spell_store.get(spell_id).is_none()
-            || wow_data::spell::resolve_spell_attributes(
-                spell_store,
-                spell_id,
-                0,
-                Some(difficulty_store),
-            )
-            .ok()
-            .flatten()
-            .is_none()
-            || catalog_effects(spell_id, 0, spell_store, difficulty_store).is_none()
-        {
+        let Ok(spell_id_u32) = u32::try_from(spell_id) else {
+            return None;
+        };
+        if !spell_store.contains_spell_info_any_difficulty_like_cpp(spell_id_u32) {
             return None;
         }
     }
@@ -274,10 +263,25 @@ pub(super) fn capture(
         if !matches!(application.spell_id, GHOST_SPELL_ID | WISP_SPELL_ID) {
             continue;
         }
+        let spell_id_u32 = u32::try_from(application.spell_id).ok()?;
+        if application.difficulty_id != 0
+            && !difficulty_store.contains(u32::from(application.difficulty_id))
+        {
+            return None;
+        }
+        // C++ `_SaveAuras` reads the active Aura's original SpellInfo. Resolve
+        // its raw difficulty once and use the actual key for all component rows.
+        let actual_difficulty_id = wow_data::spell::resolve_spell_info_key_difficulty(
+            spell_store,
+            spell_id_u32,
+            application.difficulty_id,
+            Some(difficulty_store),
+        )
+        .ok()??;
         let attributes = wow_data::spell::resolve_spell_attributes(
             spell_store,
             application.spell_id,
-            application.difficulty_id,
+            actual_difficulty_id,
             Some(difficulty_store),
         )
         .ok()??;
@@ -291,7 +295,7 @@ pub(super) fn capture(
         }
         let spell_effects = catalog_effects(
             application.spell_id,
-            application.difficulty_id,
+            actual_difficulty_id,
             spell_store,
             difficulty_store,
         )?;

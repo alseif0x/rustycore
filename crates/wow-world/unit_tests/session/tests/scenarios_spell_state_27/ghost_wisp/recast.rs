@@ -489,19 +489,20 @@ async fn wisp_recast_preserves_negative_transform_priority_and_display() {
         .core
         .with_owned_player_mut_like_cpp(|player| player.unit_mut().set_level(41))
         .expect("canonical Player owner");
-    let mut negative = aura_spell(
+    super::selected_metadata::install_current_polarity_catalog(
+        &mut fixture,
         NEGATIVE_TRANSFORM,
-        [(wow_data::spell::aura_types::SPELL_AURA_TRANSFORM, 0, 12_862)],
+        true,
     );
-    negative.effects[0].implicit_target_1 = 2;
-    install_spell_catalog(&mut fixture.session, [negative]);
     install_wisp_templates(
         &mut fixture.session,
         &[(WISP_TEMPLATE, 1_825), (12_862, 1_826)],
     );
 
+    super::selected_metadata::move_player_to_difficulty(&mut fixture, 3);
     cast_selected(&mut fixture, WISP, None).await;
     outgoing(&fixture);
+    super::selected_metadata::move_player_to_difficulty(&mut fixture, 0);
     fixture
         .session
         .apply_aura(NEGATIVE_TRANSFORM, fixture.player, 0, 0x0010)
@@ -551,8 +552,10 @@ async fn wisp_recast_preserves_negative_transform_priority_and_display() {
         .with_owned_player_mut_like_cpp(|player| player.unit_mut().set_level(42))
         .expect("canonical Player owner");
 
+    super::selected_metadata::move_player_to_difficulty(&mut fixture, 3);
     cast_selected(&mut fixture, WISP, None).await;
     outgoing(&fixture);
+    super::selected_metadata::move_player_to_difficulty(&mut fixture, 0);
     assert_eq!(player_display(&fixture), 1_826);
     let (wisp_slot, mut fresh_application, provenance) = {
         let manager = fixture.canonical.lock().expect("canonical manager");
@@ -642,8 +645,10 @@ async fn wisp_recast_preserves_negative_transform_priority_and_display() {
         fresh_application.duration_remaining = 250_000;
     }
 
+    super::selected_metadata::move_player_to_difficulty(&mut fixture, 3);
     cast_selected(&mut fixture, WISP, None).await;
     let packets = outgoing(&fixture);
+    super::selected_metadata::move_player_to_difficulty(&mut fixture, 0);
     assert_eq!(player_display(&fixture), 1_826);
     assert!(
         !packets.iter().map(|packet| opcode(packet)).any(|opcode| {

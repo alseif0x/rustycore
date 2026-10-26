@@ -14,6 +14,8 @@ mod recast;
 mod resurrection;
 #[path = "ghost_wisp/selected_lifetime.rs"]
 mod selected_lifetime;
+#[path = "ghost_wisp/selected_metadata.rs"]
+mod selected_metadata;
 #[path = "ghost_wisp/selected_recovery.rs"]
 mod selected_recovery;
 #[path = "ghost_wisp/setup.rs"]

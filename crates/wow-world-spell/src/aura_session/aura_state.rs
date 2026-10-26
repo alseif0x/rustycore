@@ -217,9 +217,14 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
             authority_complete = false;
             continue;
         };
-        let Some(spell_info) = spell_store.get(spell_id) else {
-            authority_complete = false;
-            continue;
+        let spell_info = if selected {
+            None
+        } else {
+            let Some(spell_info) = spell_store.get(spell_id) else {
+                authority_complete = false;
+                continue;
+            };
+            Some(spell_info)
         };
         let difficulty_store_ref = if row.difficulty == 0 {
             None
@@ -287,6 +292,10 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
                     != 0,
             )
         } else {
+            let Some(spell_info) = spell_info else {
+                authority_complete = false;
+                continue;
+            };
             let expires_offline = spell_misc_store
                 .as_ref()
                 .and_then(|store| store.get_by_spell_id(row.spell_id))
@@ -529,6 +538,10 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
                 row.difficulty,
                 &host.hub_ref().config.creature_aggro_config_like_cpp,
             );
+            let Some(spell_info) = spell_info else {
+                authority_complete = false;
+                continue;
+            };
             let positive = wow_data::represented_spell_is_positive_like_cpp(spell_info);
             let mut flags = if positive {
                 AFLAG_POSITIVE

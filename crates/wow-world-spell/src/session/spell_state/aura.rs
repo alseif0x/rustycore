@@ -305,9 +305,9 @@ impl SessionSpellState {
                 .aura_subsystem_snapshot_like_cpp()
                 .map_or(0, |auras| auras.transform_spell_like_cpp());
             // C++ resolves the current transform through
-            // `sSpellMgr->GetSpellInfo(GetTransformSpell(), difficulty)`, so a
-            // zero or unloaded current spell is the `!transformSpellInfo`
-            // branch that always overwrites.
+            // `sSpellMgr->GetSpellInfo(GetTransformSpell(),
+            // GetBase()->GetCastDifficulty())`, so a zero or unloaded current
+            // spell is the `!transformSpellInfo` branch that always overwrites.
             let current_is_positive = (current != 0)
                 .then(|| store.get(current))
                 .flatten()

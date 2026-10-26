@@ -1,6 +1,6 @@
 use super::*;
 
-fn set_aura_authority(fixture: &mut GhostFixture, complete: bool) {
+pub(super) fn set_aura_authority(fixture: &mut GhostFixture, complete: bool) {
     fixture
         .session
         .with_owned_player_mut_like_cpp(|player| {
@@ -15,7 +15,7 @@ fn install_difficulties(fixture: &mut GhostFixture, ids: impl IntoIterator<Item 
         .set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_ids(ids)));
 }
 
-fn captured_families(
+pub(super) fn captured_families(
     fixture: &mut GhostFixture,
 ) -> Option<Vec<wow_persistence::PlayerLifecycleAuraFamilySave>> {
     fixture
@@ -50,7 +50,7 @@ fn family_for_key(
         .expect("selected Ghost/Wisp persistence key")
 }
 
-fn loader_rows(
+pub(super) fn loader_rows(
     families: &[wow_persistence::PlayerLifecycleAuraFamilySave],
 ) -> (
     Vec<wow_world_spell::CharacterAuraRowLikeCpp>,

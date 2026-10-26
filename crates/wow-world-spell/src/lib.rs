@@ -15,6 +15,7 @@ pub mod player_cast;
 mod player_cast_session;
 mod profession;
 mod records;
+mod selected_wisp_transform;
 mod self_resurrection;
 mod session;
 mod spell_acquisition;
@@ -140,6 +141,7 @@ pub use records::{
     canonical_player_spell_record_like_cpp, represented_player_spell_record_like_cpp,
     represented_player_spell_runtime_like_cpp,
 };
+pub use selected_wisp_transform::apply_selected_wisp_transform;
 pub use session::{
     AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP, RepresentedShapeshiftMutationLikeCpp,
     SelectedAuraPublicationCatalogs, collect_player_pending_selected_aura_updates,

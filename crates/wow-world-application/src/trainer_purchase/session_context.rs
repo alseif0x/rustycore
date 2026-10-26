@@ -248,6 +248,10 @@ pub(crate) fn trainer_buy_admission_context_like_cpp<H: TrainerSessionHostLikeCp
         session_catalogs.spell_catalogs.spell_misc_store.as_deref(),
         session_catalogs
             .spell_catalogs
+            .spell_class_options_store()
+            .map(AsRef::as_ref),
+        session_catalogs
+            .spell_catalogs
             .spell_duration_store
             .as_deref(),
         session_catalogs.spell_catalogs.spell_proc_store.as_deref(),
@@ -612,6 +616,10 @@ pub(crate) fn trainer_list_publication_context_like_cpp<H: TrainerSessionHostLik
             .spell_aura_options_store
             .as_deref(),
         session_catalogs.spell_catalogs.spell_misc_store.as_deref(),
+        session_catalogs
+            .spell_catalogs
+            .spell_class_options_store()
+            .map(AsRef::as_ref),
         session_catalogs
             .spell_catalogs
             .spell_duration_store

@@ -10,6 +10,7 @@ pub struct AuraApplicationCatalogsLikeCpp<'a> {
     spell_store: Option<&'a Arc<wow_data::SpellStore>>,
     spell_aura_options_store: Option<&'a wow_data::SpellAuraOptionsStore>,
     spell_misc_store: Option<&'a wow_data::SpellMiscStore>,
+    spell_class_options_store: Option<&'a wow_data::SpellClassOptionsStore>,
     spell_duration_store: Option<&'a wow_data::SpellDurationStore>,
     spell_proc_store: Option<&'a wow_data::SpellProcStoreLikeCpp>,
     classes_store: Option<&'a wow_data::character_progression::ChrClassesStore>,
@@ -36,6 +37,7 @@ impl<'a> AuraApplicationCatalogsLikeCpp<'a> {
         spell_store: Option<&'a Arc<wow_data::SpellStore>>,
         spell_aura_options_store: Option<&'a wow_data::SpellAuraOptionsStore>,
         spell_misc_store: Option<&'a wow_data::SpellMiscStore>,
+        spell_class_options_store: Option<&'a wow_data::SpellClassOptionsStore>,
         spell_duration_store: Option<&'a wow_data::SpellDurationStore>,
         spell_proc_store: Option<&'a wow_data::SpellProcStoreLikeCpp>,
         classes_store: Option<&'a wow_data::character_progression::ChrClassesStore>,
@@ -60,6 +62,7 @@ impl<'a> AuraApplicationCatalogsLikeCpp<'a> {
             spell_store,
             spell_aura_options_store,
             spell_misc_store,
+            spell_class_options_store,
             spell_duration_store,
             spell_proc_store,
             classes_store,
@@ -189,6 +192,7 @@ impl<'a> AuraRemovalCxLikeCpp<'a> {
             spell_store: catalogs.spell_store,
             spell_aura_options_store: catalogs.spell_aura_options_store,
             spell_misc_store: catalogs.spell_misc_store,
+            spell_class_options_store: catalogs.spell_class_options_store,
             spell_duration_store: catalogs.spell_duration_store,
             spell_proc_store: catalogs.spell_proc_store,
             classes_store: catalogs.classes_store,
@@ -344,6 +348,10 @@ pub fn player_aura_application_cx_like_cpp<'a>(
         catalogs.spell_catalogs.spell_store.as_ref(),
         catalogs.spell_catalogs.spell_aura_options_store.as_deref(),
         catalogs.spell_catalogs.spell_misc_store.as_deref(),
+        catalogs
+            .spell_catalogs
+            .spell_class_options_store()
+            .map(AsRef::as_ref),
         catalogs.spell_catalogs.spell_duration_store.as_deref(),
         catalogs.spell_catalogs.spell_proc_store.as_deref(),
         catalogs.chr.classes_store.as_deref(),

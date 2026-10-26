@@ -67,6 +67,11 @@ The native initializer participant is now prepared with 39 distinct focused
 cases across Spell, Data and shared fixtures. Its required Application death
 caller and the real gameplay producers remain open; this is not production
 SelfRes integration or final acceptance.
+Ghost/Wisp now use original Aura keys in loaded effects, transform ownership,
+removal and full-save capture. The selected loader no longer requires a
+legacy difficulty-zero payload. The scoped checkpoint records 54 passing
+World cases, including a genuine nonzero-only save/load roundtrip; this is
+coding feedback, not final macro or live acceptance.
 The existing Player Unit pass now maintains its native SpellHistory using a
 single frozen system-clock observation. The scoped history checkpoint records
 94 distinct cases; this does not complete SelfRes or final macro acceptance.
@@ -193,8 +198,61 @@ propagation to the other consumers and the login caller. Preserve source
 `LoadCorpse`'s bones-before-revive order (Player.cpp:18157–18180), rather than
 inventing rollback for an earlier completed phase. Source resurrection order
 remains Player.cpp:4320–4403 and NPCHandler.cpp:347–370 at the pinned C++ SHA.
-These are inspected consumer gaps awaiting focused reproduction and repair;
-no new test or runtime acceptance is claimed.
+These were inspected consumer gaps at this review point. The later Ghost/Wisp
+checkpoint records its focused repair; native-error propagation remains open.
+This review itself claimed no new test or runtime acceptance.
+The failure signal also exists for corpse conversion:
+`spawn_corpse_bones_like_cpp` returns false for unavailable/unconfirmed deletion
+or an unapplied Player save, but direct reclaim, healer and login callers
+currently discard it. Request resurrection already retains the single native
+continuation through `BonesInFlight` and save admission; the handler disconnects
+on an unresolved result. Core save capture and `Player::defer_save_if_transfer_pending_like_cpp`
+both read that same continuation. Extend that owner to the remaining recovery
+operations when completing their persistence/cancellation contract. A native
+error return alone does not establish confirmed corpse deletion, a safe retry
+after unknown COMMIT, or complete recovery acceptance. Preserve source
+Player.cpp:4509–4515 and its existing deletion-before-save order; do not add a
+second pending-deletion flag or turn an empty Map after conversion into proof
+that an uncertain database deletion succeeded.
+The selected native-error repair is to return the existing native error from
+`resurrect_player_like_cpp`, stop reclaim before bones and healer before
+durability/bones/teleport, and return failure from login corpse restoration
+before clearing AT_LOGIN_RESURRECT. The existing Character login consumer
+must then abort its partially completed login instead of publishing completion.
+Keep ordinary triggered-cast failure semantics distinct: source
+ResurrectPlayer ignores the sickness CastSpell return, and login continues
+after its ghost-cast attempts. Do not turn those cast results into an invented
+rollback of an already completed Alive transition. This decision is not yet
+implemented and does not close the separate corpse-conversion fence above.
+The concrete Ghost/Wisp regression run on `59f28568d`'s working candidate
+exposed two further metadata consumers. The first suite returned 46 passed
+and five new cases failed, exit 101 (2026-10-26, 15:18:52–15:23:34 UTC;
+`/tmp/rustycore-ghost-original-metadata-logs/cargo-test.log`). Four failures
+reached Wisp's transform owner, which still required legacy difficulty-zero
+effect/polarity data. The conflicting-difficulty fixture also incorrectly
+invalidated difficulty three as well as zero; correct that fixture error
+without weakening the real metadata case. A narrow canonical Wisp transform
+participant will reuse exact whole-spell polarity and the existing native
+transform mutation. Source SpellAuraEffects.cpp:1944 resolves the current
+transform at the new Aura's stored cast difficulty, rather than the target's
+current Map difficulty. Keep that distinction in the implementation and tests.
+The actual loader path has another unconditional legacy `get` gate at
+`aura_session/aura_state.rs:220`, before its selected metadata resolver. Remove
+that gate for selected auras using the already fallible actual-key resolver;
+keep it for the existing nonselected legacy path. Source Player.cpp:18085–18098
+requires the actual SpellInfo and preserves the nonzero raw-difficulty
+validity check. A real nonzero-only persisted-row roundtrip must exercise the
+corrected entry and callbacks. The earlier component checks do not prove this
+whole load path. The repairs had not passed their focused rerun at this review
+point; the later integration checkpoint records the completed coding feedback.
+Cohesion review for this working repair: `wow-world-application/src/aura_removal/ghost_wisp.rs`
+grows from 986 to 1042 lines. It still owns the selected Ghost/Wisp fresh,
+loaded and removal effects with their display-restoration decisions. The new
+canonical transform query/mutation lives separately in Spell; the Application
+file only wires the participant. The next natural structural cut is the
+existing display/model-selection group, not another mutable aura owner.
+Recheck the actual size and cohesion at #43 completed-delivery acceptance;
+no numeric baseline or blanket legacy exception was changed by this review.
 
 Selected stat-view decision at `c88cf6e87`, 2026-10-26: the application already
 selects sickness's stat cause from exact effects, but Inventory's pure planner
@@ -2441,6 +2499,76 @@ target. No parent Cargo, runtime, SQL, capture, restart or publication was
 performed. This is an UNVALIDATED local macro checkpoint, not final acceptance
 at a later commit. Native death, recovery, normal casts, QA and the complete
 candidate acceptance remain open.
+
+Ghost/Wisp original-metadata integration, 2026-10-26, base `59f28568d`:
+Application's loaded-effect and removal readers resolve each Aura's stored
+raw difficulty to its actual canonical SpellInfo key and then its indexed
+effects. The narrow Spell Wisp transform participant reuses whole-spell
+polarity, resolves the current transform at the incoming Aura's cast difficulty,
+and invokes the existing native transform operation. Difficulty errors remain
+errors; they do not become evidence that the current transform is absent.
+A positive Wisp does not overwrite a negative current transform or its display.
+Class-options input is borrowed through the existing Application catalogs and
+all three concrete constructors; generic transform behavior remains bounded
+by its existing consumers.
+
+The selected loader now uses its fallible selected metadata instead of requiring
+`SpellStore::get` at difficulty zero before that resolver can run. Nonselected
+legacy admission and all raw-difficulty, effect, charge, caster and duration
+checks remain in place. Full-save Ghost/Wisp capture also no longer requires
+zero-difficulty payloads: canonical family keys establish known families,
+known-empty families need no unrelated zero-difficulty attributes/effects,
+and each active Aura resolves its own actual key before eligibility and effect
+capture. Transaction, item/caster key, tombstone and publication semantics
+were not replaced. The existing indexed-save fixture now supplies real canonical
+keys rather than treating payload hydration as key authority.
+
+The tests exercise native capture, persisted-row conversion and the actual
+loader with both selected spells having only difficulty-three keys and no
+legacy payload. They verify complete aura authority, flags, visibility, speeds
+and Wisp display without repairing those values after loading. Additional cases
+cover conflicting zero-difficulty metadata, current-transform polarity at the
+incoming cast difficulty, retained negative-transform display, malformed graphs,
+missing active effects, missing keys and known-empty families.
+
+Source anchors at target `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+Player.cpp:18034–18140,19811–19851; SpellMgr.cpp:675–693;
+SpellAuras.cpp:1134–1195; SpellAuraEffects.cpp:1718–1742,1935–1951,
+3159–3174,3210–3218; Unit.cpp:10038–10100,11763–11870.
+
+Sequential worker coding feedback used the checkout's `target`, local PROTOC
+and one Cargo job. Raw commands, UTC times and actual exits are retained in
+`/tmp/rustycore-ghost-original-metadata-logs`:
+
+- Final production check: `cargo check -p wow-world-application --lib`,
+  exit 0, 16:11:32–16:11:52.
+- Final World feedback: `cargo test -p wow-world --lib ghost_wisp`,
+  54 passed, exit 0, 16:16:55–16:18:20. This is 46 existing and eight new cases.
+- The first World run failed with 46 passed/five failed, exit 101,
+  15:18:52–15:23:34. After the transform and loader changes, the next run
+  failed with 50 passed/three failed, exit 101, 15:59:18–16:01:32.
+  Native capture then exposed the remaining save entry gate. Its repair
+  produced 53 passed/one existing fixture failed, exit 101, 16:11:58–16:14:14;
+  that fixture gained canonical keys before the final passing run.
+
+The parent reviewed the production changes, actual callers, fixtures, test
+cases and raw results, and verified all 14 implementation file hashes in
+`owned-files-20261026T1618.sha256`, manifest SHA-256
+`c5d6604e304a6ea25edaf2a3496936f23e12abe9660d7f3fed5ec1e18a98cfe8`.
+This identifies the tested dirty working inputs at the stated base, not final
+acceptance at a later commit. Effective worker model/effort telemetry remains
+unavailable. The 15:18:24–16:18:20 feedback/repair interval is 3596 seconds of
+coding feedback, not the completed-delivery campaign or proof of its 600-second
+ordinary performance target. The Application file's 986→1042-line cohesion
+review is recorded above; the new test leaf is 822 lines. No numeric baseline
+was regenerated.
+
+This is an UNVALIDATED local macro checkpoint. Native-error propagation,
+remaining recovery continuations, the sibling sickness full-save entry gate,
+native-death integration, normal casts, QA and complete candidate acceptance
+remain open. The sickness save gate was inspected but was not changed by this
+Ghost/Wisp unit. No parent Cargo, runtime, SQL, restart, capture or publication
+was performed.
 
 Native SelfRes initializer participant, 2026-10-26, base `740b21234`:
 `wow-world-spell::initialize_self_resurrection_spells` borrows the canonical

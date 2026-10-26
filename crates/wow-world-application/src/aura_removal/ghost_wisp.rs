@@ -3,10 +3,12 @@
 
 //! Canonical participants for the two resurrection ghost auras.
 //!
-//! C++ anchors: `SpellAuraEffects.cpp:1718-1742` (ghost flag and server-side
-//! visibility), `:1935-2131` (transform ownership/display), `:3159-3174` and
-//! `:3210-3218` (run/swim speed updates), and `Unit.cpp:10038-10100`,
-//! `:11763-11870` (display restoration and form selection).
+//! C++ anchors: `SpellMgr.cpp:675-693` (exact difficulty key and fallback),
+//! `SpellAuraEffects.cpp:1718-1742` (ghost flag and server-side visibility),
+//! `:1935-2131` (transform ownership/display), `:3159-3174` and `:3210-3218`
+//! (run/swim speed updates), `Unit.cpp:10038-10100` and `:11763-11870`
+//! (display restoration and form selection), and `Player.cpp:4320-4403`
+//! (Wisp then Ghost removal before Alive).
 
 use super::{AuraRemovalCxLikeCpp, RemovedAuraLikeCpp};
 use std::collections::BTreeMap;
@@ -23,6 +25,33 @@ fn selected_effects_for_mask<'a>(
     effect_mask: u32,
 ) -> Result<Vec<&'a wow_data::SpellEffectInfo>, &'static str> {
     selected_effect_rows(spell_id, spell_info.effects(), effect_mask)
+}
+
+fn selected_original_effects<'a>(
+    spell_store: &'a wow_data::SpellStore,
+    difficulty_store: Option<&wow_data::DifficultyStore>,
+    spell_id: i32,
+    raw_difficulty: u8,
+    effect_mask: u32,
+) -> Result<Vec<&'a wow_data::SpellEffectInfo>, &'static str> {
+    let spell_id_u32 =
+        u32::try_from(spell_id).map_err(|_| "Invalid resurrection ghost aura SpellInfo key")?;
+    let actual_difficulty = wow_data::spell::resolve_spell_info_key_difficulty(
+        spell_store,
+        spell_id_u32,
+        raw_difficulty,
+        difficulty_store,
+    )
+    .map_err(|_| "Unable to resolve the original resurrection ghost aura SpellInfo key")?
+    .ok_or("Missing original resurrection ghost aura SpellInfo key")?;
+    let effects = wow_data::spell::resolve_spell_effect_rows(
+        spell_store,
+        spell_id,
+        actual_difficulty,
+        difficulty_store,
+    )
+    .map_err(|_| "Unable to resolve the original resurrection ghost aura effects")?;
+    selected_effect_rows(spell_id, effects, effect_mask)
 }
 
 fn selected_effect_rows<'a>(
@@ -371,16 +400,15 @@ impl AuraRemovalCxLikeCpp<'_> {
                 .aura_subsystem_snapshot_like_cpp()
                 .and_then(|auras| auras.runtime_application_like_cpp(slot).cloned())
                 .ok_or("Canonical Wisp AuraApplication disappeared after insertion")?;
-            if !self
-                .spell
-                .apply_represented_transform_aura_with_access_like_cpp(
-                    &mut self.player,
-                    self.spell_store.map(|store| store.as_ref()),
-                    &aura,
-                )
-            {
-                return Err("Wisp transform was not admitted by the canonical transform owner");
-            }
+            wow_world_spell::apply_selected_wisp_transform(
+                &mut self.player,
+                self.spell_store
+                    .map(|store| store.as_ref())
+                    .ok_or("Missing SpellStore while applying Wisp transform")?,
+                self.spell_class_options_store,
+                self.difficulty_store,
+                &aura,
+            )?;
             let selected = self
                 .player
                 .aura_subsystem_snapshot_like_cpp()
@@ -401,14 +429,23 @@ impl AuraRemovalCxLikeCpp<'_> {
         &mut self,
         aura: &AuraApplicationLikeCpp,
     ) -> Result<(), &'static str> {
+        if !matches!(aura.spell_id, GHOST_SPELL | WISP_SPELL) {
+            return Err("Aura is not a selected resurrection ghost aura");
+        }
+        let spell_store = self
+            .spell_store
+            .map(AsRef::as_ref)
+            .ok_or("Missing SpellStore while restoring selected resurrection aura effects")?;
+        let selected_effects = selected_original_effects(
+            spell_store,
+            self.difficulty_store,
+            aura.spell_id,
+            aura.difficulty_id,
+            aura.effect_mask,
+        )?;
         match aura.spell_id {
             GHOST_SPELL => {
-                let spell = self
-                    .spell_store
-                    .and_then(|store| store.get(GHOST_SPELL))
-                    .cloned()
-                    .ok_or("Missing Ghost SpellInfo while restoring selected effects")?;
-                for effect in selected_effects_for_mask(GHOST_SPELL, &spell, aura.effect_mask)? {
+                for effect in selected_effects {
                     match effect.effect_aura {
                         wow_data::spell::aura_types::SPELL_AURA_GHOST => {
                             if !self.player.set_ghost_aura(true) {
@@ -428,13 +465,8 @@ impl AuraRemovalCxLikeCpp<'_> {
                 }
             }
             WISP_SPELL => {
-                let spell = self
-                    .spell_store
-                    .and_then(|store| store.get(WISP_SPELL))
-                    .cloned()
-                    .ok_or("Missing Wisp SpellInfo while restoring selected effects")?;
                 let mut needs_display_restore = false;
-                for effect in selected_effects_for_mask(WISP_SPELL, &spell, aura.effect_mask)? {
+                for effect in selected_effects {
                     match effect.effect_aura {
                         wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED => self
                             .mount
@@ -485,14 +517,20 @@ impl AuraRemovalCxLikeCpp<'_> {
         let aura = snapshot
             .runtime_application_like_cpp(slot)
             .ok_or("Aura slot not found")?;
-        let spell = self
+        let spell_store = self
             .spell_store
-            .and_then(|store| store.get(aura.spell_id))
-            .ok_or("Missing resurrection ghost aura SpellInfo during removal")?;
-        let effect_types = selected_effects_for_mask(aura.spell_id, spell, aura.effect_mask)?
-            .into_iter()
-            .map(|effect| effect.effect_aura)
-            .collect::<Vec<_>>();
+            .map(AsRef::as_ref)
+            .ok_or("Missing SpellStore during resurrection ghost aura removal")?;
+        let effect_types = selected_original_effects(
+            spell_store,
+            self.difficulty_store,
+            aura.spell_id,
+            aura.difficulty_id,
+            aura.effect_mask,
+        )?
+        .into_iter()
+        .map(|effect| effect.effect_aura)
+        .collect::<Vec<_>>();
         let removes_ghost = aura.spell_id == GHOST_SPELL
             && effect_types.contains(&wow_data::spell::aura_types::SPELL_AURA_GHOST);
         let clear_ghost_flag = removes_ghost
@@ -775,16 +813,34 @@ impl AuraRemovalCxLikeCpp<'_> {
     }
 
     fn apply_display_restore(&mut self, plan: &DisplayRestorePlan) -> Result<(), &'static str> {
-        if let Some(transform) = plan.transform.as_ref()
-            && !self
+        if let Some(transform) = plan.transform.as_ref() {
+            if transform.spell_id == WISP_SPELL {
+                wow_world_spell::apply_selected_wisp_transform(
+                    &mut self.player,
+                    self.spell_store
+                        .map(|store| store.as_ref())
+                        .ok_or("Missing SpellStore while restoring Wisp transform")?,
+                    self.spell_class_options_store,
+                    self.difficulty_store,
+                    transform,
+                )?;
+                if !self
+                    .player
+                    .aura_subsystem_snapshot_like_cpp()
+                    .is_some_and(|auras| auras.transform_spell_like_cpp() == transform.spell_id)
+                {
+                    return Ok(());
+                }
+            } else if !self
                 .spell
                 .apply_represented_transform_aura_with_access_like_cpp(
                     &mut self.player,
                     self.spell_store.map(|store| store.as_ref()),
                     transform,
                 )
-        {
-            return Err("Selected transform aura was not applied by its canonical owner");
+            {
+                return Err("Selected transform aura was not applied by its canonical owner");
+            }
         }
         self.player
             .set_player_display_model(plan.display_id)

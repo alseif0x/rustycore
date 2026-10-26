@@ -63,6 +63,26 @@ fn spell_store(
     misc: Vec<wow_data::spell_db2::SpellMiscEntry>,
     effects: Vec<wow_data::spell_db2::SpellEffectDb2Entry>,
 ) -> wow_data::SpellStore {
+    spell_store_with_seed(wow_data::SpellStore::new(), misc, effects)
+}
+
+fn spell_store_with_keys(
+    keys: impl IntoIterator<Item = (u32, u8)>,
+    misc: Vec<wow_data::spell_db2::SpellMiscEntry>,
+    effects: Vec<wow_data::spell_db2::SpellEffectDb2Entry>,
+) -> wow_data::SpellStore {
+    spell_store_with_seed(
+        crate::selected_spell_fixtures::canonical_spell_store(keys),
+        misc,
+        effects,
+    )
+}
+
+fn spell_store_with_seed(
+    spell_store: wow_data::SpellStore,
+    misc: Vec<wow_data::spell_db2::SpellMiscEntry>,
+    effects: Vec<wow_data::spell_db2::SpellEffectDb2Entry>,
+) -> wow_data::SpellStore {
     let stores = wow_data::EffectiveCoreSpellDb2StoresLikeCpp::new(
         wow_data::spell_db2::SpellCategoriesStore::from_entries([]),
         wow_data::spell_db2::SpellMiscStore::from_entries(misc),
@@ -75,7 +95,7 @@ fn spell_store(
         wow_data::spell_db2::SpellPowerStore::from_entries([]),
         wow_data::spell_db2::SpellPowerDifficultyStore::from_entries([]),
     );
-    wow_data::SpellStore::new().hydrate_effective_core_db2_like_cpp(stores)
+    spell_store.hydrate_effective_core_db2_like_cpp(stores)
 }
 
 fn difficulty(id: u32, fallback: u8) -> wow_data::difficulty::DifficultyEntry {
@@ -474,7 +494,15 @@ fn ghost_wisp_save_uses_indexed_rows_and_application_attributes() {
             0,
         ));
     }
-    session.set_spell_store(std::sync::Arc::new(spell_store(misc, effects)));
+    session.set_spell_store(std::sync::Arc::new(spell_store_with_keys(
+        [
+            (ghost_spell as u32, 0),
+            (ghost_spell as u32, 4),
+            (wisp_spell as u32, 0),
+        ],
+        misc,
+        effects,
+    )));
     session.set_difficulty_store(std::sync::Arc::new(
         wow_data::DifficultyStore::from_entries([
             difficulty(0, 0),
