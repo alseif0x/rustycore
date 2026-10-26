@@ -63,6 +63,8 @@ mod scenarios_1;
 
 #[path = "resurrection_effect_data.rs"]
 mod resurrection_effect_data;
+#[path = "scalar_catalog_loading.rs"]
+mod scalar_catalog_loading;
 #[path = "shapeshift_display_data.rs"]
 mod shapeshift_display_data;
 #[path = "visual_metadata_loading.rs"]

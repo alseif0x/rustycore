@@ -7,10 +7,10 @@ use std::{
 
 static NEXT_FIXTURE_ID: AtomicU64 = AtomicU64::new(0);
 
-struct FixtureDirectory(PathBuf);
+pub(super) struct FixtureDirectory(PathBuf);
 
 impl FixtureDirectory {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         let nonce = NEXT_FIXTURE_ID.fetch_add(1, Ordering::Relaxed);
         let root = std::env::temp_dir().join(format!(
             "rustycore-visual-loader-copy-{}-{nonce}",
@@ -21,7 +21,7 @@ impl FixtureDirectory {
         Self(root)
     }
 
-    fn data_dir(&self) -> String {
+    pub(super) fn data_dir(&self) -> String {
         self.0
             .join("data")
             .to_str()
@@ -29,12 +29,88 @@ impl FixtureDirectory {
             .to_string()
     }
 
-    fn write_incomplete_copy(&self, file_name: &str) {
+    pub(super) fn write_incomplete_copy(&self, file_name: &str) {
         fs::write(
             self.0.join("data/dbc/enUS").join(file_name),
             unresolved_copy_wdc4(),
         )
         .expect("write unresolved-copy WDC4 fixture");
+    }
+
+    pub(super) fn write_invalid_file(&self, file_name: &str) {
+        fs::write(
+            self.0.join("data/dbc/enUS").join(file_name),
+            b"invalid WDC4 fixture",
+        )
+        .expect("write invalid WDC4 fixture");
+    }
+
+    pub(super) fn write_complete_empty(&self, file_name: &str, table_hash: u32) {
+        const HEADER_SIZE: usize = 72;
+        let mut bytes = vec![0; HEADER_SIZE];
+        put_u32(&mut bytes, 0, u32::from_le_bytes(*b"WDC4"));
+        put_u32(&mut bytes, 20, table_hash);
+        fs::write(self.0.join("data/dbc/enUS").join(file_name), bytes)
+            .expect("write complete empty WDC4 fixture");
+    }
+
+    pub(super) fn write_complete_records(
+        &self,
+        file_name: &str,
+        table_hash: u32,
+        first_record_id: u32,
+        record_count: u32,
+        field_widths: &[u16],
+    ) {
+        const HEADER_SIZE: usize = 72;
+        const SECTION_HEADER_SIZE: usize = 40;
+        const FIELD_META_SIZE: usize = 4;
+        const FIELD_STORAGE_INFO_SIZE: usize = 24;
+
+        assert!(record_count > 0, "record fixture must contain a row");
+        let field_count = field_widths.len();
+        let field_storage_offset =
+            HEADER_SIZE + SECTION_HEADER_SIZE + field_count * FIELD_META_SIZE;
+        let records_offset = field_storage_offset + field_count * FIELD_STORAGE_INFO_SIZE;
+        let record_bits = field_widths
+            .iter()
+            .map(|width| usize::from(*width))
+            .sum::<usize>();
+        let record_size = record_bits.div_ceil(8);
+        let record_count = usize::try_from(record_count).expect("fixture count fits usize");
+        let mut bytes = vec![0; records_offset + record_size * record_count];
+
+        put_u32(&mut bytes, 0, u32::from_le_bytes(*b"WDC4"));
+        put_u32(&mut bytes, 4, record_count as u32);
+        put_u32(&mut bytes, 8, field_count as u32);
+        put_u32(&mut bytes, 12, record_size as u32);
+        put_u32(&mut bytes, 20, table_hash);
+        put_u32(&mut bytes, 28, first_record_id);
+        put_u32(&mut bytes, 32, first_record_id + record_count as u32 - 1);
+        put_u16(&mut bytes, 42, u16::MAX);
+        put_u32(&mut bytes, 44, field_count as u32);
+        put_u32(
+            &mut bytes,
+            56,
+            (field_count * FIELD_STORAGE_INFO_SIZE) as u32,
+        );
+        put_u32(&mut bytes, 68, 1);
+
+        let section_offset = HEADER_SIZE;
+        put_u32(&mut bytes, section_offset + 8, records_offset as u32);
+        put_u32(&mut bytes, section_offset + 12, record_count as u32);
+
+        let mut field_offset = 0usize;
+        for (field, width) in field_widths.iter().enumerate() {
+            let info_offset = field_storage_offset + field * FIELD_STORAGE_INFO_SIZE;
+            put_u16(&mut bytes, info_offset, field_offset as u16);
+            put_u16(&mut bytes, info_offset + 2, *width);
+            put_u32(&mut bytes, info_offset + 8, 0);
+            field_offset += usize::from(*width);
+        }
+
+        fs::write(self.0.join("data/dbc/enUS").join(file_name), bytes)
+            .expect("write fixed-record WDC4 fixture");
     }
 }
 
@@ -69,7 +145,7 @@ fn put_u32(bytes: &mut [u8], offset: usize, value: u32) {
     bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
 }
 
-fn unresolved_error(result: anyhow::Result<impl Sized>) -> String {
+pub(super) fn unresolved_error(result: anyhow::Result<impl Sized>) -> String {
     let error = result
         .err()
         .expect("complete loader rejects unresolved WDC4 copy sources");

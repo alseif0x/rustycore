@@ -31,6 +31,9 @@ construction and loading, including canonical preworld owner context and
 preservation of signed wire bits. 9i3C3d4i connects selected self-cast visuals
 before execution preparation. Fresh/refresh charges and their effective scalar
 inputs remain pending, alongside ordinary client cast preparation.
+9i3C3d4j1 prepares complete/effective loading and SQL-free row types for the
+four scalar catalogs; their production SQL adapters and startup wiring remain
+pending.
 The integration adds neither another clock nor another Player authority.
 
 Four blocks remain within the same macro:
@@ -1629,6 +1632,42 @@ preparation, foreign-caster lifetime, active override source/order, effective
 scalar/charge inputs, native lifecycle, QA, captures, and final acceptance
 remain required. This is another local UNVALIDATED checkpoint.
 
+9i3C3d4j1 adds complete/effective loaders for AuraOptions, ClassOptions, Labels,
+and Levels. Each shares its typed decoder with the unchanged legacy file loader,
+requires all declared WDC4 rows before applying overlays, replaces RecordIDs
+in supplied official/custom order, and applies final removals using the file's
+table hash and full RecordID bits. Four SQL-free persistence DTOs retain the
+source getter widths, including signed class masks before later Data bit
+conversion. No required port method, SQL adapter, or startup call changes here;
+the four production stores still read files alone until that integration.
+
+Source anchors remain the four DB2LoadInfo definitions and HotfixDatabase
+queries recorded below, plus DB2Store.cpp:127–134 and
+DB2DatabaseLoader.cpp:28–32 for official/custom order. On `9d15f0308` plus the
+reviewed delta, sequential aarch64/jobs=1 coding feedback passed
+`cargo check -p wow-data` (7.22s), `cargo check -p wow-persistence` (2.24s),
+`cargo test -p wow-data --lib scalar_catalog_loading` (5 cases), and the
+affected existing `visual_metadata_loaders_require_complete_copy_resolution_before_overlays`
+case (1). The six distinct cases exercise actual public loaders with modeled
+fixed-record/empty files, overlay replacement, additions, scoped removals,
+high-bit and signed payloads, and missing/malformed/unresolved-copy failure.
+They do not establish installed file or SQL dataset contents.
+
+Logs and actual exit files are under `/tmp/rustycore-c3d4j1-logs/`: final
+`01-cargo-check-wow-data`, `02-cargo-check-wow-persistence`,
+`08-cargo-test-scalar-catalog-loading`, and
+`09-cargo-test-visual-metadata-regression` all record zero. `03` retains the
+initial fixture expectation failure (101); intermediate successes and the
+subsequently removed unused fixture wrapper warning are retained. The commands
+used local PROTOC, the checkout-local target and one Cargo job. The parent
+reviewed the diff; exact worker effort telemetry was unavailable.
+
+Physical review: the private scalar loader module is 124 lines, its test child
+528, and the shared test fixture child 211. Existing lookup/charge consumers
+are unchanged. SQL failure propagation, source difficulty normalization,
+remaining scalar composition, charges, native lifecycle and macro acceptance
+remain required. This is a local UNVALIDATED checkpoint, not final acceptance.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -2101,12 +2140,35 @@ resolves against the joint map (SpellMgr.cpp:675–693,1511–1517), and implici
 generation traverses that same map (:1742–1752). Reuse the already-loaded
 server-side catalog, including its direct full-width proc fields
 (:2916–2921), rather than projecting regular spells alone. Preserve admitted
-server keys and difficulty widths; orphan effect rows remain excluded. Its
+server keys; orphan effect rows remain excluded. Its
 SQL float base points first enter the signed int32 SpellEffectEntry field
 (:2755; DB2Structure.h:3504 onward), before SpellEffectInfo calculations.
 Do not round that assignment or silently narrow server spell-family metadata:
 SpellInfo.h:409 and SpellMgr.h:317 retain uint32 family names even though the
 explicit proc SQL field itself uses GetUInt16 (:1533).
+
+Further input review, 2026-10-26: all nineteen existing core Hotfix DTO numeric
+widths match DB2LoadInfo; the four SpellEffect class masks intentionally keep
+the signed getter's bits in unsigned Data fields. Their adapter still substitutes
+defaults or drops rows after failed SQL decoding. The key adapter also casts
+wide integers without the source round-trip check. Before claiming effective
+catalog failure/absence semantics, use the existing native Field getters and
+propagate conversion failures, preserving Source NULL-to-zero separately.
+FieldValueConverters.h:62–70 and Field.cpp:62–67 own this contract. No installed
+SQL schema drift or affected runtime row was demonstrated by this source review.
+
+Difficulty normalization has a separate source rule: DBCEnums.h:833 declares
+`Difficulty : uint8`. Regular SpellEffect rows cast their int32 difficulty into
+that enum before indexing (SpellMgr.cpp:2508); server effects and parent rows
+cast their SQL uint32 values before validation/keying (:2732,2772,2859).
+Do not widen the canonical key authority to raw uint32 difficulty or confuse
+the raw getter width with the enum conversion. Existing regular key folding is
+intentional, but regular payload hydration currently drops out-of-u8 rows and
+the server models key raw uint32 values. Normalize these at the same source
+boundary. Otherwise an aliased server effect can be detached from its admitted
+parent and wrongly disappear from the visual-override query. Preserve ordered
+row winners after normalization and keep orphan effects excluded. This requires
+focused alias regressions before visual/proc absence is accepted.
 
 Zero family flags alone do not prove that caster modifiers are irrelevant.
 SpellInfo.cpp:1784–1813 supports both class-mask and label modifiers.

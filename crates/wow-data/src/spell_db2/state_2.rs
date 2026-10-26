@@ -2,6 +2,7 @@
 //!
 //! Separated from the spell_db2.rs root under #646. Behaviour is preserved.
 
+use super::selected_scalars::{read_spell_label_entry, read_spell_levels_entry};
 use super::*;
 
 impl SpellNameStore {
@@ -600,13 +601,7 @@ impl SpellKeyboundOverrideStore {
 
 impl SpellLabelStore {
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
-        load_store(data_dir, locale, "SpellLabel.db2", |id, idx, r| {
-            SpellLabelEntry {
-                id,
-                label_id: r.get_field_u32(idx, 0),
-                spell_id: r.get_relationship_id(idx).unwrap_or(0),
-            }
-        })
+        load_store(data_dir, locale, "SpellLabel.db2", read_spell_label_entry)
     }
 }
 
@@ -625,17 +620,7 @@ impl SpellLearnSpellStore {
 
 impl SpellLevelsStore {
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
-        load_store(data_dir, locale, "SpellLevels.db2", |id, idx, r| {
-            SpellLevelsEntry {
-                id,
-                difficulty_id: r.get_field_u8(idx, 0),
-                base_level: r.get_field_i16(idx, 1),
-                max_level: r.get_field_i16(idx, 2),
-                spell_level: r.get_field_i16(idx, 3),
-                max_passive_aura_level: r.get_field_u8(idx, 4),
-                spell_id: r.get_relationship_id(idx).unwrap_or(0),
-            }
-        })
+        load_store(data_dir, locale, "SpellLevels.db2", read_spell_levels_entry)
     }
 
     pub fn entry_for_spell_difficulty_like_cpp(

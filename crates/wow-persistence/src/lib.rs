@@ -283,15 +283,17 @@ pub use spell::{
     SpellWorldCatalogLoadOutcomeLikeCpp, SpellWorldCatalogPersistencePortLikeCpp,
 };
 pub use spell::{
-    SpellAuraRestrictionsHotfixRowLikeCpp, SpellCastTimesHotfixRowLikeCpp,
-    SpellCastingRequirementsHotfixRowLikeCpp, SpellCategoriesHotfixRowLikeCpp,
-    SpellCategoryHotfixRowLikeCpp, SpellCooldownsHotfixRowLikeCpp,
-    SpellCoreDb2HotfixLoadOutcomeLikeCpp, SpellCoreDb2HotfixPersistencePortLikeCpp,
-    SpellDurationHotfixRowLikeCpp, SpellEffectHotfixRowLikeCpp, SpellEquippedItemsHotfixRowLikeCpp,
-    SpellInterruptsHotfixRowLikeCpp, SpellMiscHotfixRowLikeCpp, SpellNameHotfixRowLikeCpp,
-    SpellPowerDifficultyHotfixRowLikeCpp, SpellPowerHotfixRowLikeCpp, SpellRadiusHotfixRowLikeCpp,
-    SpellRangeHotfixRowLikeCpp, SpellShapeshiftHotfixRowLikeCpp,
-    SpellTargetRestrictionsHotfixRowLikeCpp, SpellXSpellVisualHotfixRowLikeCpp,
+    SpellAuraOptionsHotfixRow, SpellAuraRestrictionsHotfixRowLikeCpp,
+    SpellCastTimesHotfixRowLikeCpp, SpellCastingRequirementsHotfixRowLikeCpp,
+    SpellCategoriesHotfixRowLikeCpp, SpellCategoryHotfixRowLikeCpp, SpellClassOptionsHotfixRow,
+    SpellCooldownsHotfixRowLikeCpp, SpellCoreDb2HotfixLoadOutcomeLikeCpp,
+    SpellCoreDb2HotfixPersistencePortLikeCpp, SpellDurationHotfixRowLikeCpp,
+    SpellEffectHotfixRowLikeCpp, SpellEquippedItemsHotfixRowLikeCpp,
+    SpellInterruptsHotfixRowLikeCpp, SpellLabelHotfixRow, SpellLevelsHotfixRow,
+    SpellMiscHotfixRowLikeCpp, SpellNameHotfixRowLikeCpp, SpellPowerDifficultyHotfixRowLikeCpp,
+    SpellPowerHotfixRowLikeCpp, SpellRadiusHotfixRowLikeCpp, SpellRangeHotfixRowLikeCpp,
+    SpellShapeshiftHotfixRowLikeCpp, SpellTargetRestrictionsHotfixRowLikeCpp,
+    SpellXSpellVisualHotfixRowLikeCpp,
 };
 pub use static_data_overlay::{
     AreaTableHotfixRowLikeCpp, ChrCustomizationDisplayInfoHotfixRow, PowerTypeHotfixRowLikeCpp,

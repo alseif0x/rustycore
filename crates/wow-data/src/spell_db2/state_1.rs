@@ -2,6 +2,7 @@
 //!
 //! Separated from the spell_db2.rs root under #646. Behaviour is preserved.
 
+use super::selected_scalars::{read_spell_aura_options_entry, read_spell_class_options_entry};
 use super::*;
 
 pub const MAX_SPELL_REAGENTS: usize = 8;
@@ -518,19 +519,12 @@ impl SpellAuraOptionsStore {
     }
 
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
-        load_store(data_dir, locale, "SpellAuraOptions.db2", |id, idx, r| {
-            SpellAuraOptionsEntry {
-                id,
-                difficulty_id: r.get_field_u8(idx, 0),
-                cumulative_aura: r.get_field_u32(idx, 1),
-                proc_category_recovery: r.get_field_i32(idx, 2),
-                proc_chance: r.get_field_u8(idx, 3),
-                proc_charges: r.get_field_i32(idx, 4),
-                spell_procs_per_minute_id: r.get_field_u16(idx, 5),
-                proc_type_mask: std::array::from_fn(|i| r.get_array_element(idx, 6, i, 32) as i32),
-                spell_id: r.get_relationship_id(idx).unwrap_or(0),
-            }
-        })
+        load_store(
+            data_dir,
+            locale,
+            "SpellAuraOptions.db2",
+            read_spell_aura_options_entry,
+        )
     }
 }
 
@@ -796,15 +790,12 @@ impl SpellClassOptionsStore {
     }
 
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
-        load_store(data_dir, locale, "SpellClassOptions.db2", |id, idx, r| {
-            SpellClassOptionsEntry {
-                id,
-                spell_id: r.get_field_i32(idx, 0),
-                modal_next_spell: r.get_field_u32(idx, 1),
-                spell_class_set: r.get_field_u8(idx, 2),
-                spell_class_mask: std::array::from_fn(|i| r.get_array_element(idx, 3, i, 32)),
-            }
-        })
+        load_store(
+            data_dir,
+            locale,
+            "SpellClassOptions.db2",
+            read_spell_class_options_entry,
+        )
     }
 }
 
