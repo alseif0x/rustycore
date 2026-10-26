@@ -47,7 +47,7 @@ pub use mount::*;
 pub use publication::*;
 pub(super) use selected_caster::selected_caster_level;
 pub use selected_charges::selected_aura_max_charges;
-pub(crate) use selected_charges::validate_fresh_selected_self_caster_modifiers;
+pub(crate) use selected_charges::validate_selected_aura_modifier_absence;
 pub(crate) use selected_creation::prepare_selected_aura_creation;
 pub(crate) use selected_reaction::selected_caster_is_friendly;
 pub(crate) use selected_flags::{

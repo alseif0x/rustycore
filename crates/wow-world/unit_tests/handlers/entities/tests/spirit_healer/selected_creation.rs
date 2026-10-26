@@ -45,7 +45,7 @@ fn apply_sickness(
     caster_guid: ObjectGuid,
     spell_info: &wow_data::SpellInfo,
     duration_total: i32,
-    creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp), &'static str>,
+    creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp, u8), &'static str>,
 ) -> Result<(), &'static str> {
     session
         .player_aura_application_cx_like_cpp()
@@ -56,7 +56,6 @@ fn apply_sickness(
             duration_total,
             0,
             0x88,
-            0,
             0,
             creation,
         )
@@ -156,7 +155,7 @@ async fn selected_creation_same_key_refresh_ignores_failure_and_retains_original
         player_guid,
         &spell_info,
         900_000,
-        Ok((0x0011, old_provenance)),
+        Ok((0x0011, old_provenance, 0)),
     )
     .expect("install initial selected sickness Aura");
     let application = visible_sickness_aura(&session, SICKNESS_SPELL)
@@ -236,7 +235,7 @@ async fn selected_creation_failure_preserves_existing_foreign_caster_sickness() 
         old_caster,
         &spell_info,
         900_000,
-        Ok((0x0010, provenance(43_823, 24))),
+        Ok((0x0010, provenance(43_823, 24), 0)),
     )
     .expect("install foreign-caster sickness Aura");
     let old = visible_sickness_aura(&session, SICKNESS_SPELL)

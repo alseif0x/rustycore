@@ -8,6 +8,8 @@ use std::sync::Arc;
 pub struct AuraApplicationCatalogsLikeCpp<'a> {
     mount_capabilities: Option<&'a wow_data::MountCapabilityStore>,
     spell_store: Option<&'a Arc<wow_data::SpellStore>>,
+    spell_aura_options_store: Option<&'a wow_data::SpellAuraOptionsStore>,
+    spell_proc_store: Option<&'a wow_data::SpellProcStoreLikeCpp>,
     classes_store: Option<&'a wow_data::character_progression::ChrClassesStore>,
     difficulty_store: Option<&'a wow_data::DifficultyStore>,
     item_store: Option<&'a Arc<wow_data::ItemStore>>,
@@ -30,6 +32,8 @@ impl<'a> AuraApplicationCatalogsLikeCpp<'a> {
     pub fn new(
         mount_capabilities: Option<&'a wow_data::MountCapabilityStore>,
         spell_store: Option<&'a Arc<wow_data::SpellStore>>,
+        spell_aura_options_store: Option<&'a wow_data::SpellAuraOptionsStore>,
+        spell_proc_store: Option<&'a wow_data::SpellProcStoreLikeCpp>,
         classes_store: Option<&'a wow_data::character_progression::ChrClassesStore>,
         difficulty_store: Option<&'a wow_data::DifficultyStore>,
         item_store: Option<&'a Arc<wow_data::ItemStore>>,
@@ -50,6 +54,8 @@ impl<'a> AuraApplicationCatalogsLikeCpp<'a> {
         Self {
             mount_capabilities,
             spell_store,
+            spell_aura_options_store,
+            spell_proc_store,
             classes_store,
             difficulty_store,
             item_store,
@@ -175,6 +181,8 @@ impl<'a> AuraRemovalCxLikeCpp<'a> {
             consumer_test,
             mount_capabilities: catalogs.mount_capabilities,
             spell_store: catalogs.spell_store,
+            spell_aura_options_store: catalogs.spell_aura_options_store,
+            spell_proc_store: catalogs.spell_proc_store,
             classes_store: catalogs.classes_store,
             difficulty_store: catalogs.difficulty_store,
             item_store: catalogs.item_store,
@@ -326,6 +334,8 @@ pub fn player_aura_application_cx_like_cpp<'a>(
     let catalogs = AuraApplicationCatalogsLikeCpp::new(
         catalogs.mount_capability_store.as_deref(),
         catalogs.spell_catalogs.spell_store.as_ref(),
+        catalogs.spell_catalogs.spell_aura_options_store.as_deref(),
+        catalogs.spell_catalogs.spell_proc_store.as_deref(),
         catalogs.chr.classes_store.as_deref(),
         catalogs.difficulty_store().map(AsRef::as_ref),
         catalogs.items.store.as_ref(),

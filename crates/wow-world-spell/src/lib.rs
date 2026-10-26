@@ -45,6 +45,7 @@ pub use aura_session::{
     set_player_aura_duration, tick_auras_expiry_only, tick_selected_aura_lifetimes,
     update_player_collision_height_like_cpp,
 };
+pub use aura_session::selected_aura_max_charges;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use aura_session::{flush_pending_selected_aura_updates, tick_auras};
 #[cfg(any(test, feature = "test-fixtures"))]

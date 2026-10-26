@@ -146,10 +146,126 @@ async fn selected_session_with_inputs(
     attributes_override: Option<[u32; 15]>,
     raw_misc_rows: Option<Vec<wow_data::SpellMiscEntry>>,
 ) -> (WorldSession, flume::Receiver<Vec<u8>>, ObjectGuid) {
+    selected_session_with_visual_inputs(
+        guid_counter,
+        map_difficulty,
+        effect_rows,
+        difficulty_rows,
+        attributes_override,
+        raw_misc_rows,
+        0,
+    )
+    .await
+}
+
+pub(super) async fn selected_session_with_visual_inputs(
+    guid_counter: i64,
+    map_difficulty: u8,
+    effect_rows: Vec<SpellEffectDb2Entry>,
+    difficulty_rows: Vec<wow_data::DifficultyEntry>,
+    attributes_override: Option<[u32; 15]>,
+    raw_misc_rows: Option<Vec<wow_data::SpellMiscEntry>>,
+    visual_difficulty: u8,
+) -> (WorldSession, flume::Receiver<Vec<u8>>, ObjectGuid) {
+    selected_session_with_visual_inputs_and_key_seed(
+        guid_counter,
+        map_difficulty,
+        effect_rows,
+        difficulty_rows,
+        attributes_override,
+        raw_misc_rows,
+        visual_difficulty,
+        true,
+        Vec::new(),
+    )
+    .await
+}
+
+pub(super) async fn selected_session_with_visual_inputs_and_cooldowns(
+    guid_counter: i64,
+    map_difficulty: u8,
+    effect_rows: Vec<SpellEffectDb2Entry>,
+    difficulty_rows: Vec<wow_data::DifficultyEntry>,
+    attributes_override: Option<[u32; 15]>,
+    raw_misc_rows: Option<Vec<wow_data::SpellMiscEntry>>,
+    visual_difficulty: u8,
+    cooldown_rows: Vec<wow_data::spell_db2::SpellCooldownsEntry>,
+) -> (WorldSession, flume::Receiver<Vec<u8>>, ObjectGuid) {
+    selected_session_with_visual_inputs_and_key_seed(
+        guid_counter,
+        map_difficulty,
+        effect_rows,
+        difficulty_rows,
+        attributes_override,
+        raw_misc_rows,
+        visual_difficulty,
+        true,
+        cooldown_rows,
+    )
+    .await
+}
+
+/// Retain hydrated DB2 payload rows while omitting the selected SpellInfo key seed.
+pub(super) async fn selected_session_without_selected_spell_info_key(
+    guid_counter: i64,
+    map_difficulty: u8,
+    effect_rows: Vec<SpellEffectDb2Entry>,
+    difficulty_rows: Vec<wow_data::DifficultyEntry>,
+    attributes_override: Option<[u32; 15]>,
+    raw_misc_rows: Option<Vec<wow_data::SpellMiscEntry>>,
+    visual_difficulty: u8,
+) -> (WorldSession, flume::Receiver<Vec<u8>>, ObjectGuid) {
+    selected_session_with_visual_inputs_and_key_seed(
+        guid_counter,
+        map_difficulty,
+        effect_rows,
+        difficulty_rows,
+        attributes_override,
+        raw_misc_rows,
+        visual_difficulty,
+        false,
+        Vec::new(),
+    )
+    .await
+}
+
+async fn selected_session_with_visual_inputs_and_key_seed(
+    guid_counter: i64,
+    map_difficulty: u8,
+    effect_rows: Vec<SpellEffectDb2Entry>,
+    difficulty_rows: Vec<wow_data::DifficultyEntry>,
+    attributes_override: Option<[u32; 15]>,
+    raw_misc_rows: Option<Vec<wow_data::SpellMiscEntry>>,
+    visual_difficulty: u8,
+    seed_selected_spell_info_key: bool,
+    cooldown_rows: Vec<wow_data::spell_db2::SpellCooldownsEntry>,
+) -> (WorldSession, flume::Receiver<Vec<u8>>, ObjectGuid) {
     let (mut session, send_rx, _realm_rx, _port) = logged_in_released_ghost(guid_counter).await;
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 11, 0);
     set_race_sickness_spell(&mut session, SICKNESS_SPELL);
     install_sickness_data(&mut session, SICKNESS_SPELL, Some(245_039));
+
+    let selected_visuals = vec![wow_data::SpellXSpellVisualEntry {
+        id: 245_039,
+        difficulty_id: visual_difficulty,
+        spell_visual_id: 245_039,
+        probability: 1.0,
+        flags: 0,
+        priority: 0,
+        spell_icon_file_id: 0,
+        active_icon_file_id: 0,
+        viewer_unit_condition_id: 0,
+        viewer_player_condition_id: 0,
+        caster_unit_condition_id: 0,
+        caster_player_condition_id: 0,
+        spell_id: SICKNESS_SPELL as u32,
+    }];
+    session.set_creature_aggro_config_like_cpp(crate::session::CreatureAggroConfigLikeCpp {
+        spell_x_spell_visual_store: Some(Arc::new(
+            wow_data::SpellXSpellVisualStore::from_entries(selected_visuals.clone()),
+        )),
+        ..Default::default()
+    });
 
     let mut misc_rows = crate::session::hub_ref(&session)
         .catalogs
@@ -167,15 +283,29 @@ async fn selected_session_with_inputs(
             .expect("selected sickness SpellMisc fixture row");
         misc.attributes = attributes.map(|attribute| attribute as i32);
     }
-    let exact_spell_keys = misc_rows
-        .iter()
-        .map(|row| (row.spell_id, row.difficulty_id))
+    let existing_spell_keys = session
+        .catalogs
+        .spell_store()
+        .map(|store| store.spell_info_keys_in_order_like_cpp())
+        .unwrap_or_default();
+    let mut exact_spell_keys = existing_spell_keys
+        .into_iter()
+        .filter(|(spell_id, _)| *spell_id != SICKNESS_SPELL as u32)
+        .chain(misc_rows.iter().map(|row| (row.spell_id, row.difficulty_id)))
         .chain(
             effect_rows
                 .iter()
                 .map(|row| (row.spell_id, row.difficulty_id as u8)),
         )
+        .chain(
+            selected_visuals
+                .iter()
+                .map(|row| (row.spell_id, row.difficulty_id)),
+        )
         .collect::<Vec<_>>();
+    if !seed_selected_spell_info_key {
+        exact_spell_keys.retain(|(spell_id, _)| *spell_id != SICKNESS_SPELL as u32);
+    }
     let stores = wow_data::EffectiveCoreSpellDb2StoresLikeCpp::new(
         wow_data::spell_db2::SpellCategoriesStore::from_entries([]),
         wow_data::spell_db2::SpellMiscStore::from_entries(misc_rows.clone()),
@@ -183,7 +313,7 @@ async fn selected_session_with_inputs(
         wow_data::spell_db2::SpellShapeshiftStore::from_entries([]),
         wow_data::spell_db2::SpellInterruptsStore::from_entries([]),
         wow_data::spell_db2::SpellCastTimesStore::from_entries([]),
-        wow_data::spell_db2::SpellCooldownsStore::from_entries([]),
+        wow_data::spell_db2::SpellCooldownsStore::from_entries(cooldown_rows),
         wow_data::spell_db2::SpellCastingRequirementsStore::from_entries([]),
         wow_data::spell_db2::SpellPowerStore::from_entries([]),
         wow_data::spell_db2::SpellPowerDifficultyStore::from_entries([]),
@@ -207,7 +337,7 @@ async fn selected_session_with_inputs(
     (session, send_rx, player_guid)
 }
 
-fn install_player_on_difficulty_map(session: &mut WorldSession, difficulty: u8) {
+pub(super) fn install_player_on_difficulty_map(session: &mut WorldSession, difficulty: u8) {
     let player_guid = session.player_guid().expect("canonical Player GUID");
     let handle = session
         .core
@@ -572,7 +702,7 @@ async fn selected_sickness_explicit_inert_row_does_not_inherit_the_active_base_e
 }
 
 #[tokio::test]
-async fn selected_sickness_effect_resolution_failures_precede_spellgo_and_aura_mutation() {
+async fn selected_sickness_key_and_effect_resolution_failures_precede_spellgo_and_aura_mutation() {
     let base = base_effect_rows();
     let cycle = vec![difficulty(0, 0), difficulty(3, 4), difficulty(4, 3)];
     let mut invalid = base.clone();
@@ -585,10 +715,28 @@ async fn selected_sickness_effect_resolution_failures_precede_spellgo_and_aura_m
         -1,
     ));
 
-    for (case, rows, difficulties, missing_difficulty_catalog) in [
-        (0_i64, base, complete_difficulty_chain(), true),
-        (1, base_effect_rows(), cycle, false),
-        (2, invalid, complete_difficulty_chain(), false),
+    for (case, rows, difficulties, missing_difficulty_catalog, expected_error) in [
+        (
+            0_i64,
+            base,
+            complete_difficulty_chain(),
+            true,
+            "Unable to resolve selected spell key",
+        ),
+        (
+            1,
+            base_effect_rows(),
+            cycle,
+            false,
+            "Unable to resolve selected spell key",
+        ),
+        (
+            2,
+            invalid,
+            complete_difficulty_chain(),
+            false,
+            "Unable to resolve selected spell effects",
+        ),
     ] {
         let guid_counter = 44_300 + case * 10;
         let (mut session, send_rx, player_guid) =
@@ -618,7 +766,7 @@ async fn selected_sickness_effect_resolution_failures_precede_spellgo_and_aura_m
         }
 
         let result = session.execute_spell(SICKNESS_SPELL, player_guid).await;
-        assert_eq!(result, Err("Unable to resolve selected spell effects"));
+        assert_eq!(result, Err(expected_error));
         assert!(
             drain_packets(&send_rx).is_empty(),
             "malformed or unknown selected effects fail before SpellGo or AuraUpdate"

@@ -109,6 +109,13 @@ followed by a bounded complete frame read, as in `read_encrypted_packet_if_ready
 a frame timeout is terminal for that connection. Record send attempts and local
 write completion separately from server responses and scenario admission.
 
+One shared-login prerequisite remains before using the death driver:
+`bot/void_storage_2.rs` currently logs an encryption-key prefix and the
+`SMSG_CONNECT_TO` continuation key. Remove those values from diagnostics;
+authentication/control trace events must contain phase and routing metadata
+without key-bearing bodies. This is pending implementation, not an executed
+death-driver or capture result.
+
 | Scenario | Required observations |
 |---|---|
 | Lethal fall, then release | Actual server-applied lethal damage; root before release; one corpse for the owner; ghost auras and water-walk; realm `PreRessurect` before `DeathReleaseLoc`; near teleport completed by its ACK. |

@@ -1,6 +1,4 @@
-use super::{
-    selected_aura_max_charges, validate_fresh_selected_self_caster_modifiers,
-};
+use super::{selected_aura_max_charges, validate_selected_aura_modifier_absence};
 use wow_data::{
     DifficultyEntry, DifficultyStore, SpellAuraOptionsEntry, SpellAuraOptionsStore,
     SpellClassOptionsEntry, SpellClassOptionsStore, SpellLabelEntry, SpellLabelStore,
@@ -139,14 +137,14 @@ fn label_row(id: u32, spell_id: u32, label_id: u32) -> SpellLabelEntry {
     }
 }
 
-fn validate_self(
+fn validate_selected_aura(
     attributes: [u32; 15],
     class_options: Option<&SpellClassOptionsStore>,
     labels: Option<&SpellLabelStore>,
     difficulty: u8,
     difficulties: Option<&DifficultyStore>,
 ) -> Result<(), &'static str> {
-    validate_fresh_selected_self_caster_modifiers(
+    validate_selected_aura_modifier_absence(
         SPELL_ID,
         difficulty,
         attributes,
@@ -417,7 +415,7 @@ fn required_graph_errors_and_known_missing_nodes_remain_distinct() {
 fn ignore_caster_modifiers_bypasses_unknown_modifier_catalogs_only() {
     let mut attributes = [0; 15];
     attributes[3] = 0x2000_0000;
-    assert_eq!(validate_self(attributes, None, None, 4, None), Ok(()));
+    assert_eq!(validate_selected_aura(attributes, None, None, 4, None), Ok(()));
 
     assert!(selected_aura_max_charges(SPELL_ID, 4, None, None, None).is_err());
     assert_eq!(
@@ -440,7 +438,7 @@ fn class_mask_admission_uses_highest_record_and_requires_known_zero_flags() {
     ]);
     let empty_labels = SpellLabelStore::from_entries([]);
     assert_eq!(
-        validate_self([0; 15], Some(&lower_nonzero), Some(&empty_labels), 0, None),
+        validate_selected_aura([0; 15], Some(&lower_nonzero), Some(&empty_labels), 0, None),
         Ok(()),
     );
 
@@ -449,8 +447,8 @@ fn class_mask_admission_uses_highest_record_and_requires_known_zero_flags() {
         class_row(20, SPELL_ID as i32, [0, 0, 0, 7]),
     ]);
     assert_eq!(
-        validate_self([0; 15], Some(&highest_nonzero), None, 0, None),
-        Err("Selected self-cast may have applicable class-mask SpellMods"),
+        validate_selected_aura([0; 15], Some(&highest_nonzero), None, 0, None),
+        Err("Selected aura may have applicable class-mask SpellMods"),
     );
 
     let high_bit_spell_id = 0x8001_2345;
@@ -460,7 +458,7 @@ fn class_mask_admission_uses_highest_record_and_requires_known_zero_flags() {
         [0, 0, 0, 1],
     )]);
     assert_eq!(
-        validate_fresh_selected_self_caster_modifiers(
+        validate_selected_aura_modifier_absence(
             high_bit_spell_id,
             0,
             [0; 15],
@@ -468,7 +466,7 @@ fn class_mask_admission_uses_highest_record_and_requires_known_zero_flags() {
             None,
             None,
         ),
-        Err("Selected self-cast may have applicable class-mask SpellMods"),
+        Err("Selected aura may have applicable class-mask SpellMods"),
     );
 }
 
@@ -483,26 +481,26 @@ fn label_zero_counts_and_labels_inherit_only_after_reaching_difficulty_zero() {
     ]);
 
     assert_eq!(
-        validate_self(
+        validate_selected_aura(
             [0; 15],
             Some(&empty_classes),
             Some(&label_zero),
             4,
             Some(&difficulties),
         ),
-        Err("Selected self-cast may have applicable label SpellMods"),
+        Err("Selected aura may have applicable label SpellMods"),
     );
     assert_eq!(
-        validate_self([0; 15], Some(&empty_classes), Some(&label_zero), 0, None),
-        Err("Selected self-cast may have applicable label SpellMods"),
+        validate_selected_aura([0; 15], Some(&empty_classes), Some(&label_zero), 0, None),
+        Err("Selected aura may have applicable label SpellMods"),
     );
 
     let empty_labels = SpellLabelStore::from_entries([label_row(2, OTHER_SPELL_ID, 99)]);
     assert_eq!(
-        validate_self([0; 15], Some(&empty_classes), Some(&empty_labels), 4, None),
+        validate_selected_aura([0; 15], Some(&empty_classes), Some(&empty_labels), 4, None),
         Ok(()),
     );
-    assert!(validate_self([0; 15], Some(&empty_classes), None, 0, None).is_err());
+    assert!(validate_selected_aura([0; 15], Some(&empty_classes), None, 0, None).is_err());
 }
 
 #[test]
@@ -512,12 +510,12 @@ fn unresolved_class_or_label_metadata_is_an_error_not_modifier_absence() {
     let labels = SpellLabelStore::from_entries([]);
     let unreachable_nonzero_class =
         SpellClassOptionsStore::from_entries([class_row(1, SPELL_ID as i32, [0, 0, 0, 9])]);
-    assert!(validate_self([0; 15], None, Some(&labels), 0, None).is_err());
-    assert!(validate_self([0; 15], Some(&base_class_options), None, 0, None).is_err());
+    assert!(validate_selected_aura([0; 15], None, Some(&labels), 0, None).is_err());
+    assert!(validate_selected_aura([0; 15], Some(&base_class_options), None, 0, None).is_err());
 
     let missing_node = DifficultyStore::from_entries([]);
     assert_eq!(
-        validate_self(
+        validate_selected_aura(
             [0; 15],
             Some(&unreachable_nonzero_class),
             Some(&labels),
@@ -526,11 +524,11 @@ fn unresolved_class_or_label_metadata_is_an_error_not_modifier_absence() {
         ),
         Ok(()),
     );
-    assert!(validate_self([0; 15], Some(&unreachable_nonzero_class), Some(&labels), 4, None).is_err());
+    assert!(validate_selected_aura([0; 15], Some(&unreachable_nonzero_class), Some(&labels), 4, None).is_err());
 
     let label_rows = SpellLabelStore::from_entries([label_row(1, SPELL_ID, 0)]);
     assert_eq!(
-        validate_self(
+        validate_selected_aura(
             [0; 15],
             Some(&SpellClassOptionsStore::from_entries([])),
             Some(&label_rows),
@@ -539,9 +537,9 @@ fn unresolved_class_or_label_metadata_is_an_error_not_modifier_absence() {
         ),
         Ok(()),
     );
-    assert!(validate_self([0; 15], Some(&SpellClassOptionsStore::from_entries([])), Some(&label_rows), 4, None).is_err());
+    assert!(validate_selected_aura([0; 15], Some(&SpellClassOptionsStore::from_entries([])), Some(&label_rows), 4, None).is_err());
 
     let cycle = DifficultyStore::from_entries([difficulty(4, 3), difficulty(3, 4)]);
-    assert!(validate_self([0; 15], Some(&unreachable_nonzero_class), Some(&labels), 4, Some(&cycle)).is_err());
-    assert!(validate_self([0; 15], Some(&SpellClassOptionsStore::from_entries([])), Some(&label_rows), 4, Some(&cycle)).is_err());
+    assert!(validate_selected_aura([0; 15], Some(&unreachable_nonzero_class), Some(&labels), 4, Some(&cycle)).is_err());
+    assert!(validate_selected_aura([0; 15], Some(&SpellClassOptionsStore::from_entries([])), Some(&label_rows), 4, Some(&cycle)).is_err());
 }

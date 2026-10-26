@@ -241,6 +241,11 @@ pub(crate) fn trainer_buy_admission_context_like_cpp<H: TrainerSessionHostLikeCp
     let aura_catalogs = crate::AuraApplicationCatalogsLikeCpp::new(
         session_catalogs.mount_capability_store.as_deref(),
         session_catalogs.spell_catalogs.spell_store.as_ref(),
+        session_catalogs
+            .spell_catalogs
+            .spell_aura_options_store
+            .as_deref(),
+        session_catalogs.spell_catalogs.spell_proc_store.as_deref(),
         session_catalogs.chr.classes_store.as_deref(),
         session_catalogs.difficulty_store().map(AsRef::as_ref),
         session_catalogs.items.store.as_ref(),
@@ -597,6 +602,11 @@ pub(crate) fn trainer_list_publication_context_like_cpp<H: TrainerSessionHostLik
     let aura_catalogs = crate::AuraApplicationCatalogsLikeCpp::new(
         session_catalogs.mount_capability_store.as_deref(),
         session_catalogs.spell_catalogs.spell_store.as_ref(),
+        session_catalogs
+            .spell_catalogs
+            .spell_aura_options_store
+            .as_deref(),
+        session_catalogs.spell_catalogs.spell_proc_store.as_deref(),
         session_catalogs.chr.classes_store.as_deref(),
         session_catalogs.difficulty_store().map(AsRef::as_ref),
         session_catalogs.items.store.as_ref(),

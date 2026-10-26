@@ -22,6 +22,7 @@ pub(super) fn complete_spell_execution_like_cpp<H: SpellExecutionHostLikeCpp>(
     player_guid: ObjectGuid,
     spell_info: wow_data::SpellInfo,
     metadata: SpellCastMetadata,
+    selected_full_server_aura: bool,
     selected_cast_threat_plan: SelectedCastThreatPlan,
 ) -> Result<(), &'static str> {
     // C++ `Spell::FinishTargetProcessing` (`Spell.cpp:8493-8496`) publishes
@@ -66,7 +67,15 @@ pub(super) fn complete_spell_execution_like_cpp<H: SpellExecutionHostLikeCpp>(
         ),
     }
 
-    if caster_guid == player_guid {
+    // The selected route uses TRIGGERED_FULL_MASK, including
+    // TRIGGERED_IGNORE_SPELL_AND_CATEGORY_CD (SpellDefines.h:243-261).
+    // Spell::SendSpellCooldown delegates to SpellHistory::HandleCooldowns,
+    // which returns for that flag (Spell.cpp:4195-4203;
+    // SpellHistory.cpp:252-255). Skip this route's represented cooldown
+    // bookkeeping and event without changing already stored history; this
+    // gate is scoped to the selected healer auras, not every FULL-mask cast
+    // or every cast carrying generic ignore-GCD metadata.
+    if caster_guid == player_guid && !selected_full_server_aura {
         // This represented cooldown state belongs to the session player.
         // A triggered creature cast (for example innkeeper bind spell
         // 3286) must not start or advertise a player cooldown.

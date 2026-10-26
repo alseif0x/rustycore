@@ -30,6 +30,7 @@ pub struct SelectedAuraRefresh<'a> {
     pub spell_id: i32,
     pub caster_guid: wow_core::ObjectGuid,
     pub slot: u8,
+    pub difficulty_id: u8,
     pub effect_mask: u32,
     pub duration_total: i32,
     pub stack_amount: u32,
@@ -275,6 +276,7 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
             if application.spell_id != refresh.spell_id
                 || application.caster_guid != refresh.caster_guid
                 || application.slot != refresh.slot
+                || application.difficulty_id != refresh.difficulty_id
                 || application.effect_mask != refresh.effect_mask
             {
                 return Err("Canonical selected AuraApplication no longer matches refresh");

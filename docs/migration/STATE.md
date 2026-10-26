@@ -46,11 +46,16 @@ retaining the World aliases and their previous behavior.
 9i3C3d4l2b prepares exact regular/server proc sources and connects the fallible
 builder to startup; its focused coding feedback is green. Fresh/refresh charge
 consumers remain pending.
-9i3C3d4m1 prepares selected charge calculation and fresh self-caster modifier
-admission as pure readers; their consumer wiring remains pending.
+9i3C3d4m1 prepares selected charge calculation and modifier admission as pure
+readers; 9i3C3d4m2b connects their selected consumers.
 9i3C3d4m2a shares the existing key-difficulty reader from Data and prepares
-loader-backed canonical keys in selected World fixtures. This preparatory
-delta has not been compiled or tested; feedback waits for its consumer unit.
+loader-backed canonical keys in selected World fixtures. Its initially
+deferred compilation and identity test are covered by 9i3C3d4m2b feedback.
+9i3C3d4m2b connects fresh and existing-aura charge consumers, canonical key
+admission, the bounded nonzero-only selected FULL projection, and its cooldown
+correction. Production compilation and 50 distinct World cases have focused
+coding feedback. Original refresh policy, duration and Ghost/Wisp effect
+properties remain pending; none of this establishes final acceptance.
 The integration adds neither another clock nor another Player authority.
 
 Four blocks remain within the same macro:
@@ -2053,6 +2058,58 @@ trace does not replace required server captures and provenance. Reference
 WorldSocket.cpp:526–532 was clean relative to the pinned target in that file's
 scope. No bot, server, SQL, capture or restart operation was executed.
 
+9i3C3d4m2b wires the selected charge readers into fresh creation and existing
+timer refresh. Fresh preparation returns flags, provenance and charges as one
+fallible result; a matching refresh still ignores fresh-only failures. Refresh
+charges resolve the stored raw difficulty to the existing SpellInfo key and
+use CalcMaxCharges without a caster. Non-timer refresh preserves charges
+without querying the proc catalog. The Core refresh witness now checks raw
+difficulty before mutation. Shared persisted-load construction is unchanged.
+The modifier-absence proof is caster-independent, preserving the supported
+foreign-original-caster sickness operation. Immutable catalog references flow
+through the existing application context and both trainer constructors.
+
+The actual-key requirement precedes execution publication. Positive sparse
+fixtures retain genuinely nonzero-only keys; the transient selected FULL
+projection and explicit completion cooldown gate implement the bounded
+contract recorded below. They do not complete ordinary sparse cast metadata
+or the general FULL-mask engine. Source remains the pinned target
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`, with anchors recorded in that
+contract and the charge decision. The parent reviewed the actual application,
+Core, spell, World and fixture diffs and their consumers. The execution file
+is 1,178 lines; its selected projection is a separate 220-line module. New
+charge tests are 789 lines. No physical baseline or ownership ceiling changed.
+
+Focused worker feedback used base HEAD
+`e005b5fc897706b3b91518d4e52ddd7a11f963b5` plus the reviewed uncommitted
+sources, on this aarch64 host, sequentially with PROTOC set, one Cargo job
+and this checkout's target directory. Final commands and raw logs under
+`/tmp/rustycore-c3d4m2b-logs/` are:
+
+- `cargo check -p world-server --lib`: exit 0, 47.85 seconds,
+  `world-server-check-completion-final.log`, 10:23:05–10:23:53 UTC.
+- `cargo test -p wow-world --lib spirit_healer`: exit 0, 48 passed,
+  `world-spirit-healer-cooldown-final.log`, 10:24:04–10:25:57 UTC.
+- `cargo test -p wow-world --lib selected_charge_fixture_preserves_exact_canonical_spell_info_keys_without_payloads`:
+  exit 0, one passed,
+  `world-selected-charge-fixture-final.log`, completed 10:26:08 UTC.
+- `cargo test -p wow-world --lib repop_request_creates_saved_corpse_and_releases_to_graveyard_like_cpp`:
+  exit 0, one passed,
+  `world-corpse-final.log`, completed 10:26:19 UTC.
+
+These are 50 distinct World cases, not 50 new cases or a final campaign.
+Earlier wrapper/compile failures, the ten initial integration findings and
+the later foreign-caster fixture failure remain in the same log directory.
+Repairs include real nonzero keys and projection, generated-proc flags,
+preserving the proc store while dropping only ClassOptions, and attaching the
+foreign Player to the owner's actual map instance. The final healer run also
+covers Base0 and sparse selected FULL cooldown behavior, preserving existing
+history and emitting no CooldownEvent. Coding and repair time is not evidence
+for the 600-second ordinary acceptance budget. The worker reports generic
+GPT-6 with effort telemetry unavailable. No parent Cargo, final campaign,
+runtime, SQL or capture operation was performed. This remains UNVALIDATED at
+macro level; original refresh findings and the other three blocks stay open.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -2541,6 +2598,32 @@ modifier engine. Separately, require the selected cast's actual SpellInfo key
 before execution publication. Missing cast existence is an admission failure,
 not a fresh-only constructor error that a matching refresh may ignore. Keep
 fresh-only modifier failures separate from that all-cast key requirement.
+
+The m2b feedback exposed a distinct production projection gap: a selected
+nonzero-only SpellInfo can have exact effects/attributes and a canonical key
+while the legacy base-payload getter is empty. Execution and sickness admission
+must not reinterpret that as missing SpellInfo, or manufacture a difficulty-zero
+key in a positive fixture. The settled correction permits a transient existing
+SpellInfo carrier only in the selected server-triggered FULL path, after exact
+key resolution, no difficulty-zero key, the supported three-effect Aura shape
+and known non-channelled attributes. No carrier is installed in the catalog.
+Under a complete exact key authority, absence of zero also excludes the
+zero-only CastingRequirements contributor, so focus is zero. The selected FULL
+direct path does not consume the otherwise unused cast-time or client
+power-debit fields. The reader audit also found unconditional cooldown
+bookkeeping/event publication in Rust completion: pass the existing explicit
+selected-FULL decision to completion and skip that cooldown block, preserving
+any existing cooldown. Spell.cpp:4195–4203,8036–8039 and
+SpellHistory.cpp:252–255 return before handling cooldowns under the FULL
+IGNORE_SPELL_AND_CATEGORY_CD flag. This is a required selected-path behavior
+correction, not a structural move or general FULL-engine completion. Canonical
+effects and the separate exact Aura metadata readers remain authoritative.
+SpellDefines.h:244–261,446 and Spell.cpp:3540,3816,5977 establish the other
+parts of that bounded contract. Ordinary client,
+channelled and general sparse-payload cast preparation remain required in their
+existing normal-cast owner; this is not general scalar/periodic-cost parity.
+9i3C3d4m2b implements these repairs and records the affected green feedback
+above. They are not final accepted production or runtime evidence.
 
 The next selected refresh review must also retain the original SpellInfo's
 timer policy and duration, not just its proc difficulty. Unit.cpp:3244–3278

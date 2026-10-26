@@ -910,6 +910,11 @@ fn install_release_cast_spell_fixture(session: &mut WorldSession) {
     session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries(misc_rows)));
     session
         .set_spell_aura_options_store(Arc::new(wow_data::SpellAuraOptionsStore::from_entries([])));
+    session.set_spell_proc_store(Arc::new(wow_data::SpellProcStoreLikeCpp::default()));
+    session.set_spell_class_options_store(Arc::new(
+        wow_data::SpellClassOptionsStore::from_entries([]),
+    ));
+    session.set_spell_label_store(Arc::new(wow_data::SpellLabelStore::from_entries([])));
     session.set_spell_duration_store(Arc::new(wow_data::SpellDurationStore::from_entries([
         wow_data::SpellDurationEntry {
             id: 21,

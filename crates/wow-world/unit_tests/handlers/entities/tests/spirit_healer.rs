@@ -24,8 +24,14 @@ mod selected_cast_threat;
 mod selected_cast_visual;
 #[path = "spirit_healer/selected_creation.rs"]
 mod selected_creation;
+#[path = "spirit_healer/selected_charges.rs"]
+mod selected_charges;
 #[path = "spirit_healer/selected_execution_effects.rs"]
 mod selected_execution_effects;
+use selected_execution_effects::{
+    cast_sickness, difficulty, effect_row, install_player_on_difficulty_map,
+    selected_session_with_visual_inputs, selected_session_without_selected_spell_info_key,
+};
 #[path = "spirit_healer/selected_lifetime.rs"]
 mod selected_lifetime;
 #[path = "spirit_healer/selected_visual.rs"]

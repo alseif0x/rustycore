@@ -2,7 +2,7 @@
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Resolve selected aura charges and bound fresh self-caster modifier admission.
+//! Resolve selected aura charges and prove fresh selected modifier absence.
 //!
 //! The explicit difficulty is the canonical selected `SpellInfo` difficulty,
 //! not the raw Aura cast or map difficulty. Callers must resolve it from the
@@ -76,16 +76,15 @@ pub fn selected_aura_max_charges(
     Ok(proc_entry.map_or(aura_options_charges, |entry| entry.charges) as u8)
 }
 
-/// Admit fresh selected self-cast charge calculation only when no unresolved
-/// SpellMod can apply. This is deliberately limited to the selected Player
-/// casting on itself; `Object.cpp:2274` establishes that Player as its own
-/// modifier owner. The general SpellMod registry and application engine remain
-/// outside this proof.
+/// Admit fresh selected charge calculation only when no unresolved SpellMod
+/// can apply. The selected attribute, family masks, and inherited labels make
+/// this proof independent of which caster owns the modifier set. The general
+/// SpellMod registry and application engine remain outside this proof.
 ///
 /// `actual_difficulty` must be resolved from the canonical selected
 /// `SpellInfo` key, not copied from raw Aura/map difficulty. The attribute
 /// array is the exact selected SpellInfo attribute set.
-pub(crate) fn validate_fresh_selected_self_caster_modifiers(
+pub(crate) fn validate_selected_aura_modifier_absence(
     spell_id: u32,
     actual_difficulty: u8,
     attributes: [u32; 15],
@@ -98,7 +97,7 @@ pub(crate) fn validate_fresh_selected_self_caster_modifiers(
     }
 
     let class_options = class_options
-        .ok_or("Missing effective SpellClassOptions for selected self-cast modifier admission")?;
+        .ok_or("Missing effective SpellClassOptions for selected aura modifier admission")?;
     // SpellClassOptions stores the same uint32 SpellInfo key bits in a signed
     // field; preserve that identity for IDs with the high bit set.
     let signed_spell_id = spell_id as i32;
@@ -112,11 +111,11 @@ pub(crate) fn validate_fresh_selected_self_caster_modifiers(
     .map_err(catalog_error)?;
 
     if family_flags.into_iter().any(|flags| flags != 0) {
-        return Err("Selected self-cast may have applicable class-mask SpellMods");
+        return Err("Selected aura may have applicable class-mask SpellMods");
     }
 
     let labels = labels
-        .ok_or("Missing effective SpellLabel store for selected self-cast modifier admission")?;
+        .ok_or("Missing effective SpellLabel store for selected aura modifier admission")?;
     let has_label_row = labels
         .entries_like_cpp()
         .any(|entry| entry.spell_id == spell_id);
@@ -133,7 +132,7 @@ pub(crate) fn validate_fresh_selected_self_caster_modifiers(
     .map_err(catalog_error)?;
 
     match resolved_label_presence {
-        Some(true) => Err("Selected self-cast may have applicable label SpellMods"),
+        Some(true) => Err("Selected aura may have applicable label SpellMods"),
         Some(false) | None => Ok(()),
     }
 }

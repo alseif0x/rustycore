@@ -99,7 +99,7 @@ pub(super) fn apply_resurrection_sickness_aura<H: SpellExecutionHostLikeCpp>(
         })
         .transpose()?;
     let difficulty_id = host.core().current_map_difficulty_id_like_cpp();
-    let (duration_total, stack_amount, attributes1, attributes5, charges) = {
+    let (duration_total, stack_amount, attributes1, attributes5) = {
         let hub = host.hub_ref();
         let difficulties = hub.catalogs.difficulty_store.as_deref();
         let misc_store = hub
@@ -138,7 +138,6 @@ pub(super) fn apply_resurrection_sickness_aura<H: SpellExecutionHostLikeCpp>(
             difficulties,
         )
         .map_err(|_| "Unable to resolve resurrection sickness SpellAuraOptions row")?;
-        let charges = options.proc_charges_like_cpp(spell_id_u32, difficulty_id);
         let stack_amount = options_entry.map_or(0, |entry| entry.cumulative_aura);
         let attributes = misc.attributes.map(|value| value as u32);
         (
@@ -146,7 +145,6 @@ pub(super) fn apply_resurrection_sickness_aura<H: SpellExecutionHostLikeCpp>(
             stack_amount,
             attributes[1],
             attributes[5],
-            charges,
         )
     };
     let active_effect_mask = spell_info
@@ -178,7 +176,6 @@ pub(super) fn apply_resurrection_sickness_aura<H: SpellExecutionHostLikeCpp>(
         stack_amount,
         attributes1,
         attributes5,
-        charges,
         creation,
     )?;
     if let Some(remaining) = requested_remaining {

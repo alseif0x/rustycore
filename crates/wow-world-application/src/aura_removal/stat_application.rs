@@ -51,9 +51,16 @@ pub(super) fn select_selected_aura_stat_application(
     let Some(spell_store) = spell_store else {
         return Err("Missing SpellStore for the race-selected sickness aura");
     };
-    if spell_store.get(spell_id).is_none() {
-        return Err("Missing SpellInfo for the race-selected sickness aura");
-    }
+    let spell_id_u32 = u32::try_from(spell_id)
+        .map_err(|_| "Invalid selected aura SpellInfo key")?;
+    wow_data::spell::resolve_spell_info_key_difficulty(
+        spell_store,
+        spell_id_u32,
+        difficulty_id,
+        difficulty_store,
+    )
+    .map_err(|_| "Unable to resolve selected aura SpellInfo key")?
+    .ok_or("Missing SpellInfo for the race-selected sickness aura")?;
 
     let effects = wow_data::spell::resolve_spell_effect_rows(
         spell_store,

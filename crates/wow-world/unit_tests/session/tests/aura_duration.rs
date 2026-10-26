@@ -532,8 +532,7 @@ fn selected_sickness_duration_update_keeps_unit_clock_and_waits_for_recovery() {
             0,
             0x88,
             0,
-            0,
-            Ok((0x0011, wow_entities::AuraCastProvenanceLikeCpp::default())),
+            Ok((0x0011, wow_entities::AuraCastProvenanceLikeCpp::default(), 0)),
         )
         .expect("canonical sickness application");
     let _ = drain_server_packet_bytes(&send_rx);

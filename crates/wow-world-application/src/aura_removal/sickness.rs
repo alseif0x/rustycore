@@ -64,8 +64,7 @@ impl AuraRemovalCxLikeCpp<'_> {
         stack_amount: u32,
         attributes1: u32,
         attributes5: u32,
-        charges: u8,
-        creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp), &'static str>,
+        creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp, u8), &'static str>,
     ) -> Result<(), &'static str> {
         if self.is_current_race_sickness_spell(spell_id) != Some(true) {
             return Err("Spell is not the current race-selected sickness Aura");
@@ -84,9 +83,16 @@ impl AuraRemovalCxLikeCpp<'_> {
             .spell_store
             .map(|store| store.as_ref())
             .ok_or("Missing SpellStore for the race-selected sickness Aura")?;
-        if spell_store.get(spell_id).is_none() {
-            return Err("Missing SpellInfo for the race-selected sickness Aura");
-        }
+        let spell_id_u32 = u32::try_from(spell_id)
+            .map_err(|_| "Invalid race-selected sickness SpellInfo key")?;
+        wow_data::spell::resolve_spell_info_key_difficulty(
+            spell_store,
+            spell_id_u32,
+            self.map_difficulty_id,
+            self.difficulty_store,
+        )
+        .map_err(|_| "Unable to resolve race-selected sickness SpellInfo key")?
+        .ok_or("Missing SpellInfo for the race-selected sickness Aura")?;
         let stat_application = super::stat_application::select_selected_aura_stat_application(
             Some(spell_store),
             spell_id,
@@ -138,6 +144,34 @@ impl AuraRemovalCxLikeCpp<'_> {
                 attributes1,
                 attributes5,
             )?;
+            let charges = if refresh_timers {
+                let spell_store = self
+                    .spell_store
+                    .map(AsRef::as_ref)
+                    .ok_or("Missing SpellStore for existing sickness aura charges")?;
+                let spell_id_u32 =
+                    u32::try_from(spell_id).map_err(|_| "Invalid selected sickness spell")?;
+                let actual_difficulty = wow_data::spell::resolve_spell_info_key_difficulty(
+                    spell_store,
+                    spell_id_u32,
+                    existing.difficulty_id,
+                    self.difficulty_store,
+                )
+                .map_err(|_| "Unable to resolve existing sickness SpellInfo key")?
+                .ok_or("Existing sickness SpellInfo key is missing")?;
+                wow_world_spell::selected_aura_max_charges(
+                    spell_id_u32,
+                    actual_difficulty,
+                    self.spell_aura_options_store,
+                    self.spell_proc_store,
+                    self.difficulty_store,
+                )?
+            } else {
+                aura_snapshot
+                    .aura_persistence_metadata(existing.slot)
+                    .ok_or("Canonical sickness Aura persistence metadata is missing")?
+                    .charges
+            };
             let metadata = aura_snapshot
                 .aura_persistence_metadata(existing.slot)
                 .ok_or("Canonical sickness Aura persistence metadata is missing")?;
@@ -178,6 +212,7 @@ impl AuraRemovalCxLikeCpp<'_> {
                 spell_id,
                 caster_guid,
                 slot: existing.slot,
+                difficulty_id: existing.difficulty_id,
                 effect_mask: ACTIVE_EFFECT_MASK,
                 duration_total,
                 stack_amount,
@@ -199,7 +234,7 @@ impl AuraRemovalCxLikeCpp<'_> {
             return Ok(());
         }
 
-        let (aura_flags, provenance) = creation?;
+        let (aura_flags, provenance, charges) = creation?;
 
         // `_AddAura` removes every existing same-spell application before it
         // admits a new Aura, including a same-caster application with a

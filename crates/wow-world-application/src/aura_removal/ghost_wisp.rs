@@ -85,8 +85,7 @@ impl AuraRemovalCxLikeCpp<'_> {
         stack_amount: u32,
         attributes1: u32,
         attributes5: u32,
-        charges: u8,
-        creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp), &'static str>,
+        creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp, u8), &'static str>,
     ) -> Result<(), &'static str> {
         if duration_ms != 0 || effect_mask != SELECTED_EFFECT_MASK {
             return Err("Resurrection ghost aura is not the expected permanent three-effect aura");
@@ -127,6 +126,31 @@ impl AuraRemovalCxLikeCpp<'_> {
                 .aura_persistence_metadata(existing.slot)
                 .cloned()
                 .ok_or("Canonical resurrection aura persistence metadata is missing")?;
+            let charges = if refresh_timers {
+                let spell_store = self
+                    .spell_store
+                    .map(AsRef::as_ref)
+                    .ok_or("Missing SpellStore for existing resurrection aura charges")?;
+                let spell_id_u32 =
+                    u32::try_from(spell_id).map_err(|_| "Invalid selected resurrection spell")?;
+                let actual_difficulty = wow_data::spell::resolve_spell_info_key_difficulty(
+                    spell_store,
+                    spell_id_u32,
+                    existing.difficulty_id,
+                    self.difficulty_store,
+                )
+                .map_err(|_| "Unable to resolve existing resurrection SpellInfo key")?
+                .ok_or("Existing resurrection SpellInfo key is missing")?;
+                wow_world_spell::selected_aura_max_charges(
+                    spell_id_u32,
+                    actual_difficulty,
+                    self.spell_aura_options_store,
+                    self.spell_proc_store,
+                    self.difficulty_store,
+                )?
+            } else {
+                metadata.charges
+            };
             let snapshot = aura_snapshot
                 .threat_snapshot_like_cpp(existing.slot)
                 .ok_or("Canonical resurrection aura effect snapshot is missing")?;
@@ -165,6 +189,7 @@ impl AuraRemovalCxLikeCpp<'_> {
                 spell_id,
                 caster_guid,
                 slot: existing.slot,
+                difficulty_id: existing.difficulty_id,
                 effect_mask,
                 duration_total: -1,
                 stack_amount,
@@ -190,7 +215,7 @@ impl AuraRemovalCxLikeCpp<'_> {
             return Ok(());
         }
 
-        let (aura_flags, provenance) = creation?;
+        let (aura_flags, provenance, charges) = creation?;
 
         // Validate the Wisp template before installing the aura so missing
         // selected data cannot leave a partially applied transform.

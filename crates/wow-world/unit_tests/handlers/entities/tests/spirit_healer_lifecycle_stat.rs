@@ -729,7 +729,6 @@ async fn sickness_replaces_foreign_or_mask_mismatched_application_before_fresh_c
                 0,
                 0x88,
                 0,
-                0,
                 Ok((
                     if old_caster == player_guid {
                         0x0011
@@ -737,6 +736,7 @@ async fn sickness_replaces_foreign_or_mask_mismatched_application_before_fresh_c
                         0x0010
                     },
                     old_provenance,
+                    0,
                 )),
             )
             .expect("install old foreign or mask-mismatched selected Aura");
@@ -817,8 +817,7 @@ async fn sickness_replaces_foreign_or_mask_mismatched_application_before_fresh_c
                 0,
                 0x88,
                 0,
-                0,
-                Ok((0x0011, new_provenance)),
+                Ok((0x0011, new_provenance, 0)),
             )
             .expect("fresh selected application replaces the previous same-spell Aura");
 
@@ -950,8 +949,7 @@ async fn sickness_stale_owner_does_not_fall_back_or_mutate_retired_player() {
             0,
             0x88,
             0,
-            0,
-            Ok((0x0011, wow_entities::AuraCastProvenanceLikeCpp::default())),
+            Ok((0x0011, wow_entities::AuraCastProvenanceLikeCpp::default(), 0)),
         );
     assert!(
         aura_result.is_err(),

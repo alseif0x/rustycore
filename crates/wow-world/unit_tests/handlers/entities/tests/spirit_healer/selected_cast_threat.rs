@@ -175,6 +175,7 @@ pub(super) fn drop_class_options_for_refresh(session: &mut WorldSession) {
     let spell_duration_store = catalogs.spell_duration_store.clone();
     let spell_aura_options_store = catalogs.spell_aura_options_store.clone();
     let spell_levels_store = catalogs.spell_levels_store.clone();
+    let spell_proc_store = catalogs.spell_proc_store.clone();
     drop(catalogs);
 
     let catalogs = &mut session.catalogs.spell_catalogs;
@@ -184,6 +185,7 @@ pub(super) fn drop_class_options_for_refresh(session: &mut WorldSession) {
     catalogs.spell_duration_store = spell_duration_store;
     catalogs.spell_aura_options_store = spell_aura_options_store;
     catalogs.spell_levels_store = spell_levels_store;
+    catalogs.spell_proc_store = spell_proc_store;
 }
 
 #[tokio::test]
@@ -390,6 +392,7 @@ async fn selected_cast_requires_initial_threat_polarity_before_spell_go() {
     )
     .await;
     let _packet_peer = keep_recovery_input_open(&mut session);
+    drop_class_options_for_refresh(&mut session);
     assert!(session.catalogs.spell_class_options_store().is_none());
     install_initial_threat_entry(&mut session);
 
@@ -402,7 +405,7 @@ async fn selected_cast_requires_initial_threat_polarity_before_spell_go() {
 }
 
 #[tokio::test]
-async fn selected_cast_with_no_resolved_effects_fails_before_spell_go() {
+async fn selected_cast_without_a_spell_info_key_fails_before_spell_go() {
     let (mut session, send_rx, player_guid) = selected_session_with_spell_attributes(
         50_601,
         4,
@@ -431,7 +434,7 @@ async fn selected_cast_with_no_resolved_effects_fails_before_spell_go() {
 
     assert_eq!(
         cast_sickness(&mut session, player_guid, 50_602).await,
-        Err("Unable to resolve selected spell effects")
+        Err("Spell not found")
     );
     assert!(drain_packets(&send_rx).is_empty());
     assert!(visible_sickness_aura(&session, SICKNESS_SPELL).is_empty());

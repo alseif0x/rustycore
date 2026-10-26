@@ -51,7 +51,7 @@ pub(super) fn apply<H: SpellExecutionHostLikeCpp>(
     if caster_guid != host.player_guid().unwrap_or(ObjectGuid::EMPTY) {
         return Err("Selected resurrection ghost aura requires the Player as its caster");
     }
-    let (duration_ms, effect_mask, stack_amount, attributes1, attributes5, charges) = {
+    let (duration_ms, effect_mask, stack_amount, attributes1, attributes5) = {
         let hub = host.hub_ref();
         let difficulty = host.core().current_map_difficulty_id_like_cpp();
         let difficulties = hub.catalogs.difficulty_store.as_deref();
@@ -93,23 +93,17 @@ pub(super) fn apply<H: SpellExecutionHostLikeCpp>(
 
         let spell_id_u32 =
             u32::try_from(spell_id).map_err(|_| "Invalid selected resurrection ghost spell")?;
-        let options_store = hub
-            .catalogs
-            .spell_catalogs
-            .spell_aura_options_store
-            .as_deref()
-            .ok_or("Missing selected resurrection ghost SpellAuraOptions catalog")?;
         let options = crate::aura_session::selected_catalog::selected_aura_options_entry(
-            options_store,
+            hub.catalogs.spell_catalogs.spell_aura_options_store.as_deref()
+                .ok_or("Missing selected resurrection ghost SpellAuraOptions catalog")?,
             spell_id_u32,
             difficulty,
             difficulties,
         )
         .map_err(|_| "Unable to resolve selected resurrection ghost SpellAuraOptions row")?;
         let stack_amount = options.map_or(0, |row| row.cumulative_aura);
-        let charges = options_store.proc_charges_like_cpp(spell_id_u32, difficulty);
         let attrs = misc.attributes.map(|value| value as u32);
-        (0, effect_mask, stack_amount, attrs[1], attrs[5], charges)
+        (0, effect_mask, stack_amount, attrs[1], attrs[5])
     };
     let creation = super::selected_creation::prepare(
         host,
@@ -129,7 +123,6 @@ pub(super) fn apply<H: SpellExecutionHostLikeCpp>(
         stack_amount,
         attributes1,
         attributes5,
-        charges,
         creation,
     )
 }

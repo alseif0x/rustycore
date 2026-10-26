@@ -143,8 +143,7 @@ pub trait SpellExecutionHostLikeCpp:
         stack_amount: u32,
         attributes1: u32,
         attributes5: u32,
-        charges: u8,
-        creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp), &'static str>,
+        creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp, u8), &'static str>,
     ) -> Result<(), &'static str>;
     fn apply_resurrection_sickness_aura(
         &mut self,
@@ -155,8 +154,7 @@ pub trait SpellExecutionHostLikeCpp:
         stack_amount: u32,
         attributes1: u32,
         attributes5: u32,
-        charges: u8,
-        creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp), &'static str>,
+        creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp, u8), &'static str>,
     ) -> Result<(), &'static str>;
     fn apply_durability_damage_effect_like_cpp(
         &mut self,

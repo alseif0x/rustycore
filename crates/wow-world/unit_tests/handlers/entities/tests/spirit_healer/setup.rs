@@ -218,6 +218,29 @@ pub(super) fn install_sickness_data(
     session.set_spell_aura_options_store(Arc::new(wow_data::SpellAuraOptionsStore::from_entries(
         aura_options_rows,
     )));
+    let class_options_rows = crate::session::hub_ref(session)
+        .catalogs
+        .spell_catalogs
+        .spell_class_options_store()
+        .map(|store| store.entries_like_cpp().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
+    session.set_spell_class_options_store(Arc::new(
+        wow_data::SpellClassOptionsStore::from_entries(class_options_rows),
+    ));
+    let label_rows = crate::session::hub_ref(session)
+        .catalogs
+        .spell_catalogs
+        .spell_label_store()
+        .map(|store| store.entries_like_cpp().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
+    session.set_spell_label_store(Arc::new(wow_data::SpellLabelStore::from_entries(label_rows)));
+    let proc_store = crate::session::hub_ref(session)
+        .catalogs
+        .spell_catalogs
+        .spell_proc_store
+        .clone()
+        .unwrap_or_else(|| Arc::new(wow_data::SpellProcStoreLikeCpp::default()));
+    session.set_spell_proc_store(proc_store);
     session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_ids([0])));
     crate::session::install_condition_presence_catalog(
         session,

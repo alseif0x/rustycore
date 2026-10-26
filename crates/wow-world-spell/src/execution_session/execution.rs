@@ -88,22 +88,47 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         metadata.from_client,
         metadata.triggered_ignores_global_cooldown_like_cpp,
     );
+    let selected_full_server_aura =
+        server_triggered_resurrection_sickness || server_triggered_player_ghost_wisp;
     let selected_execution_effects =
         player_resurrection_sickness || server_triggered_player_ghost_wisp;
     if selected_execution_effects {
         spell_visual.spell_visual_id = super::selected_cast_visual::resolve(host, spell_id)?;
     }
 
-    // Load spell metadata.
-    let mut spell_info = host
-        .hub_ref()
-        .catalogs
-        .spell_store()
-        .and_then(|store| store.get(spell_id))
-        .cloned()
-        .ok_or("Spell not found")?;
+    // Load the legacy difficulty-zero payload when it exists. A full-mask
+    // selected server aura may instead use a transient carrier after its
+    // exact nonzero key is proven; its effects and attributes come from the
+    // selected rows, and the carrier is never installed in SpellStore.
+    let (legacy_spell_info, has_difficulty_zero_key) = {
+        let spell_store = host
+            .hub_ref()
+            .catalogs
+            .spell_store()
+            .ok_or("Spell not found")?;
+        let has_difficulty_zero_key = u32::try_from(spell_id)
+            .ok()
+            .is_some_and(|spell_id| spell_store.contains_spell_info_exact_like_cpp(spell_id, 0));
+        (spell_store.get(spell_id).cloned(), has_difficulty_zero_key)
+    };
+    let mut transient_selected_threat_plan = None;
+    let mut spell_info = match legacy_spell_info {
+        Some(spell_info) => spell_info,
+        None
+            if selected_full_server_aura && !has_difficulty_zero_key =>
+        {
+            let (spell_info, threat_plan) =
+                super::selected_effects::resolve_transient_full_aura(host, spell_id)?;
+            transient_selected_threat_plan = Some(threat_plan);
+            spell_info
+        }
+        None => return Err("Spell not found"),
+    };
     let selected_cast_threat_plan = if selected_execution_effects {
-        super::selected_effects::resolve(host, spell_id, &mut spell_info)?
+        match transient_selected_threat_plan {
+            Some(threat_plan) => threat_plan,
+            None => super::selected_effects::resolve(host, spell_id, &mut spell_info)?,
+        }
     } else {
         super::selected_effects::SelectedCastThreatPlan::Legacy
     };
@@ -1145,6 +1170,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         player_guid,
         spell_info,
         metadata,
+        selected_full_server_aura,
         selected_cast_threat_plan,
     )?;
 

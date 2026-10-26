@@ -14,34 +14,57 @@ pub(super) fn prepare<H: SpellExecutionHostLikeCpp>(
     spell_info: &wow_data::SpellInfo,
     active_effect_mask: u32,
     cast_id: ObjectGuid,
-) -> Result<(u32, wow_entities::AuraCastProvenanceLikeCpp), &'static str> {
+) -> Result<(u32, wow_entities::AuraCastProvenanceLikeCpp, u8), &'static str> {
     host.player_guid()
         .ok_or("Missing canonical Player for selected aura creation")?;
     let spell_id_u32 = u32::try_from(spell_id).map_err(|_| "Invalid selected aura spell id")?;
     let difficulty_id = host.core().current_map_difficulty_id_like_cpp();
 
-    let metadata = {
-        let catalogs = host.hub_ref().catalogs;
-        let spell_store = catalogs
+    let catalogs = host.hub_ref().catalogs;
+    let spell_store = catalogs
+        .spell_store()
+        .ok_or("Missing SpellStore for selected aura creation")?;
+    let difficulties = catalogs.difficulty_store().map(AsRef::as_ref);
+    let actual_difficulty = crate::aura_session::selected_catalog::selected_spell_info_key_difficulty(
+        spell_store,
+        spell_id_u32,
+        difficulty_id,
+        difficulties,
+    )
+    .map_err(|_| "Unable to resolve selected aura SpellInfo key")?
+    .ok_or("Spell not found")?;
+    let class_options = catalogs
+        .spell_catalogs
+        .spell_class_options_store()
+        .map(|store| store.as_ref());
+    let metadata = crate::aura_session::selected_spell_metadata(
+        spell_store,
+        spell_id,
+        actual_difficulty,
+        spell_info.effects(),
+        class_options,
+        difficulties,
+    )
+    .map_err(|_| "Unable to resolve selected aura polarity metadata")?;
+    crate::aura_session::validate_selected_aura_modifier_absence(
+        spell_id_u32,
+        actual_difficulty,
+        metadata.attributes,
+        class_options,
+        catalogs.spell_catalogs.spell_label_store().map(AsRef::as_ref),
+        difficulties,
+    )?;
+    let charges = crate::aura_session::selected_aura_max_charges(
+        spell_id_u32,
+        actual_difficulty,
+        catalogs
             .spell_catalogs
-            .spell_store
-            .as_deref()
-            .ok_or("Missing SpellStore for selected aura creation")?;
-        crate::aura_session::selected_spell_metadata(
-            spell_store,
-            spell_id,
-            difficulty_id,
-            spell_info.effects(),
-            catalogs
-                .spell_catalogs
-                .spell_class_options_store()
-                .map(|store| store.as_ref()),
-            catalogs.difficulty_store.as_deref(),
-        )
-        .map_err(|_| "Unable to resolve selected aura polarity metadata")?
-    };
-
-    crate::aura_session::prepare_selected_aura_creation(
+            .spell_aura_options_store
+            .as_deref(),
+        catalogs.spell_catalogs.spell_proc_store.as_deref(),
+        difficulties,
+    )?;
+    let (flags, provenance) = crate::aura_session::prepare_selected_aura_creation(
         host,
         difficulty_id,
         metadata,
@@ -49,5 +72,6 @@ pub(super) fn prepare<H: SpellExecutionHostLikeCpp>(
         caster_guid,
         active_effect_mask,
         cast_id,
-    )
+    )?;
+    Ok((flags, provenance, charges))
 }

@@ -34,6 +34,8 @@ pub struct AuraRemovalCxLikeCpp<'a> {
     stats: wow_world_core::session::AuraStatsAccessBuilderLikeCpp<'a>,
     mount_capabilities: Option<&'a wow_data::MountCapabilityStore>,
     spell_store: Option<&'a std::sync::Arc<wow_data::SpellStore>>,
+    spell_aura_options_store: Option<&'a wow_data::SpellAuraOptionsStore>,
+    spell_proc_store: Option<&'a wow_data::SpellProcStoreLikeCpp>,
     classes_store: Option<&'a wow_data::character_progression::ChrClassesStore>,
     difficulty_store: Option<&'a wow_data::DifficultyStore>,
     item_sets: wow_world_core::session::OwnedItemSetAccessLikeCpp<'a>,

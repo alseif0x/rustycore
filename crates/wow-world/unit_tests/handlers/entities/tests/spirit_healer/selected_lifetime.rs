@@ -31,8 +31,7 @@ async fn selected_lifetime_sickness_expiry_restores_stats_through_map_values() {
             0,
             0x88,
             0,
-            0,
-            Ok((0x0011, wow_entities::AuraCastProvenanceLikeCpp::default())),
+            Ok((0x0011, wow_entities::AuraCastProvenanceLikeCpp::default(), 0)),
         )
         .expect("apply sickness through the canonical owner");
 

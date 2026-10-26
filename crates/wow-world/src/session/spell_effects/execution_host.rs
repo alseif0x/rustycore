@@ -119,8 +119,7 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
         stack_amount: u32,
         attributes1: u32,
         attributes5: u32,
-        charges: u8,
-        creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp), &'static str>,
+        creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp, u8), &'static str>,
     ) -> Result<(), &'static str> {
         self.player_aura_application_cx_like_cpp()
             .apply_ghost_wisp_aura(
@@ -132,7 +131,6 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
                 stack_amount,
                 attributes1,
                 attributes5,
-                charges,
                 creation,
             )
     }
@@ -145,8 +143,7 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
         stack_amount: u32,
         attributes1: u32,
         attributes5: u32,
-        charges: u8,
-        creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp), &'static str>,
+        creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp, u8), &'static str>,
     ) -> Result<(), &'static str> {
         self.player_aura_application_cx_like_cpp()
             .apply_resurrection_sickness_aura(
@@ -157,7 +154,6 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
                 stack_amount,
                 attributes1,
                 attributes5,
-                charges,
                 creation,
             )
     }
