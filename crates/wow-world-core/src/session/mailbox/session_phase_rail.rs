@@ -194,6 +194,8 @@ pub struct PlayerRecoveryAdmission {
     pub map_incarnation: u64,
     pub residence_revision: u64,
     pub diff_ms: u32,
+    /// One Unix-nanosecond snapshot shared by every Player admitted in this tick.
+    pub unix_time_ns: u128,
 }
 
 /// The completion boundary of one map-phase pass.

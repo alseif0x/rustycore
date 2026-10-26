@@ -104,6 +104,7 @@ pub(crate) fn spawn_canonical_map_update_loop(
             // same `GameTime` after the sessions ran. `now` is therefore taken
             // here, before the session passes, and is not re-captured.
             let now = Instant::now();
+            let unix_time_ns = wow_core::GameTime::unix_time_nanos();
             let mut diff_ms = now
                 .duration_since(last_tick)
                 .as_millis()
@@ -333,6 +334,7 @@ pub(crate) fn spawn_canonical_map_update_loop(
                 tick_epoch,
                 prelude.plan().epoch_like_cpp(),
                 prelude.plan().effective_diff_ms(),
+                unix_time_ns,
                 phase_ack_timeout,
             )
             .await;

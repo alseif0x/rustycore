@@ -42,6 +42,7 @@ fn start_recovery_admission(
         map_incarnation: map_admission.map_incarnation,
         residence_revision: map_admission.residence_revision,
         diff_ms,
+        unix_time_ns: 50_000_000_000,
     }
 }
 

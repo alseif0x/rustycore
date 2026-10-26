@@ -195,6 +195,7 @@ pub(crate) async fn run_player_recovery_passes(
     tick_epoch: u64,
     map_tick_epoch: u64,
     diff_ms: u32,
+    unix_time_ns: u128,
     ack_timeout: Duration,
 ) -> MapSessionPassSummaryLikeCpp {
     let mut summary = MapSessionPassSummaryLikeCpp::default();
@@ -221,6 +222,7 @@ pub(crate) async fn run_player_recovery_passes(
                     map_incarnation: admitted_map.incarnation,
                     residence_revision: participant.residence_revision,
                     diff_ms,
+                    unix_time_ns,
                 },
                 permit: Arc::clone(&permit),
                 response_tx,

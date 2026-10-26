@@ -541,17 +541,21 @@ impl SpellHistory {
     }
 
     pub fn update(&mut self, now_ms: u64) {
+        self.update_at_unix_nanos(u128::from(now_ms) * 1_000_000);
+    }
+
+    pub fn update_at_unix_nanos(&mut self, now_ns: u128) {
         self.category_cooldowns.retain(|_, spell_id| {
             self.cooldowns
                 .get(spell_id)
-                .is_some_and(|cooldown| cooldown.on_hold || cooldown.category_end_ms >= now_ms)
+                .is_some_and(|cooldown| u128::from(cooldown.category_end_ms) * 1_000_000 >= now_ns)
         });
 
         let expired: Vec<u32> = self
             .cooldowns
             .iter()
             .filter_map(|(spell_id, cooldown)| {
-                (!cooldown.on_hold && cooldown.cooldown_end_ms < now_ms).then_some(*spell_id)
+                (u128::from(cooldown.cooldown_end_ms) * 1_000_000 < now_ns).then_some(*spell_id)
             })
             .collect();
         for spell_id in expired {
@@ -561,7 +565,7 @@ impl SpellHistory {
         for queue in self.charges.values_mut() {
             while queue
                 .front()
-                .is_some_and(|charge| charge.recharge_end_ms <= now_ms)
+                .is_some_and(|charge| u128::from(charge.recharge_end_ms) * 1_000_000 <= now_ns)
             {
                 queue.pop_front();
             }

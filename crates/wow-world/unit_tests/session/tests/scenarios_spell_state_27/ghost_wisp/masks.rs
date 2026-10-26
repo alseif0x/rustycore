@@ -571,7 +571,10 @@ async fn foreign_limit_n_aura_is_skipped_after_replacing_existing_same_spell() {
             ),
         ],
     );
-    let mut store = wow_data::SpellStore::new();
+    let mut store = crate::selected_spell_fixtures::canonical_spell_store([
+        (GHOST as u32, 0),
+        (WISP as u32, 0),
+    ]);
     let mut ghost_attributes = selected_aura_attributes(GHOST);
     ghost_attributes[5] = 0x20;
     store.insert_spell_misc_attributes_like_cpp(GHOST, ghost_attributes);

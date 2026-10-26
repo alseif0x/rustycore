@@ -22,6 +22,9 @@ use wow_world::session::mailbox::{
 use super::super::map_tick::CanonicalMapSessionPassMapLikeCpp;
 use super::{run_map_phase_session_passes_like_cpp, run_player_recovery_passes};
 
+#[path = "tests/recovery_timestamp.rs"]
+mod recovery_timestamp;
+
 const COORDINATOR: u64 = 4242;
 
 fn register(
@@ -551,6 +554,7 @@ async fn player_recovery_passes_are_serial_and_carry_both_epoch_lineages() {
             41,
             7,
             37,
+            50_000_000_000,
             Duration::from_millis(20),
         ),
         async {
@@ -593,6 +597,7 @@ async fn player_recovery_passes_are_serial_across_maps() {
             47,
             13,
             46,
+            50_000_000_000,
             Duration::from_millis(20),
         ),
         async {
@@ -632,6 +637,7 @@ async fn player_recovery_unavailable_is_terminal_but_blocks_and_stops_this_tick(
             42,
             8,
             39,
+            50_000_000_000,
             Duration::from_millis(20),
         ),
         async {
@@ -665,6 +671,7 @@ async fn player_recovery_unavailable_without_reply_still_blocks_the_tail() {
             45,
             11,
             44,
+            50_000_000_000,
             Duration::from_millis(20),
         ),
         async {
@@ -711,6 +718,7 @@ async fn a_wrong_lineage_reply_revokes_a_recovery_request_that_has_not_started()
             46,
             12,
             45,
+            50_000_000_000,
             Duration::from_millis(20),
         ),
         async {
@@ -768,6 +776,7 @@ async fn player_recovery_does_not_treat_a_running_permit_reply_as_completion() {
             43,
             9,
             41,
+            50_000_000_000,
             Duration::from_millis(20),
         ),
         async {
@@ -840,6 +849,7 @@ async fn player_recovery_refuses_a_full_bounded_phase_rail_without_effects() {
         44,
         10,
         43,
+        50_000_000_000,
         Duration::from_millis(20),
     )
     .await;

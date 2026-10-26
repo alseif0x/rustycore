@@ -6,10 +6,23 @@ use crate::session::mailbox::{
 use crate::session::tests::lifecycle_persistence::RecordingPortLikeCpp;
 use wow_persistence::PersistenceOutcomeLikeCpp;
 
+#[path = "recovery_timer/native_spell_history.rs"]
+mod native_spell_history;
 #[path = "recovery_timer/selected_recovery.rs"]
 mod selected_recovery;
 
 fn logged_in_recovery_session() -> (
+    WorldSession,
+    PlayerRecoveryAdmission,
+    flume::Sender<WorldPacket>,
+    flume::Receiver<Vec<u8>>,
+) {
+    logged_in_recovery_session_at(50_000_000_000)
+}
+
+fn logged_in_recovery_session_at(
+    unix_time_ns: u128,
+) -> (
     WorldSession,
     PlayerRecoveryAdmission,
     flume::Sender<WorldPacket>,
@@ -50,6 +63,7 @@ fn logged_in_recovery_session() -> (
         map_incarnation: map_admission.map_incarnation,
         residence_revision: map_admission.residence_revision,
         diff_ms,
+        unix_time_ns,
     };
     (session, admission, packet_tx, send_rx)
 }

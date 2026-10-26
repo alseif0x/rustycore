@@ -166,7 +166,7 @@ impl SessionSpellState {
 
     pub fn reset_represented_character_spell_cooldowns_like_cpp(&mut self, hub: &mut HubMut<'_>) {
         let _ = self.mutate_player_spell_history_like_cpp(hub, |history| {
-            history.cooldowns.clear();
+            history.reset_all_cooldowns();
             history.cooldowns_loaded = false;
         });
     }
@@ -205,6 +205,11 @@ impl SessionSpellState {
                     on_hold: false,
                 },
             );
+            // C++ LoadFromDB assigns the cooldown, then indexes nonzero categories
+            // (`Spells/SpellHistory.cpp:153-164`).
+            if category_id != 0 {
+                history.category_cooldowns.insert(category_id, spell_id);
+            }
         });
     }
 

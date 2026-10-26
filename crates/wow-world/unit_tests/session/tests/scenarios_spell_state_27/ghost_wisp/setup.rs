@@ -98,7 +98,10 @@ pub(super) fn install_spell_catalog(
         ],
     );
 
-    let mut store = wow_data::SpellStore::new();
+    let mut store = crate::selected_spell_fixtures::canonical_spell_store([
+        (GHOST as u32, 0),
+        (WISP as u32, 0),
+    ]);
     let mut misc_rows = Vec::new();
     let mut spell_level_rows = Vec::new();
     for spell in [ghost, wisp] {
@@ -151,6 +154,11 @@ pub(super) fn install_spell_catalog(
     ])));
     session
         .set_spell_aura_options_store(Arc::new(wow_data::SpellAuraOptionsStore::from_entries([])));
+    session.set_spell_proc_store(Arc::new(wow_data::SpellProcStoreLikeCpp::default()));
+    session.set_spell_class_options_store(Arc::new(
+        wow_data::SpellClassOptionsStore::from_entries([]),
+    ));
+    session.set_spell_label_store(Arc::new(wow_data::SpellLabelStore::from_entries([])));
     crate::session::install_condition_presence_catalog(
         session,
         Arc::new(wow_data::ConditionPresenceCatalog::from_effective_ids(

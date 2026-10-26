@@ -2,7 +2,7 @@ use super::*;
 use crate::session::tests::lifecycle_persistence::RecordingPortLikeCpp;
 use wow_persistence::PersistenceOutcomeLikeCpp;
 
-fn install_selected_sickness_snapshot(session: &mut WorldSession) -> i32 {
+pub(super) fn install_selected_sickness_snapshot(session: &mut WorldSession) -> i32 {
     const SPELL_ID: i32 = 74_321;
     let player_guid = session.player_guid().expect("canonical Player GUID");
     session.set_loaded_player_identity_like_cpp(571, 2, 5, 80, 0);

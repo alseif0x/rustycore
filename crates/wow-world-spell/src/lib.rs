@@ -20,6 +20,7 @@ mod spell_acquisition;
 mod spell_acquisition_application;
 pub mod spell_cast_adapter;
 mod spell_click_session;
+mod spell_history_maintenance;
 mod spell_state_session;
 mod spellbook_session;
 mod state;
@@ -176,6 +177,7 @@ pub use spell_click_session::{
     execute_represented_spell_click_plan_with_generator_like_cpp,
     represented_handle_spell_click_plan_like_cpp,
 };
+pub use spell_history_maintenance::update_player_spell_history;
 pub use spell_state_session::{
     SpellStateHostLikeCpp, apply_login_known_spell_proficiencies_like_cpp,
     has_represented_self_res_spell_like_cpp, interrupt_non_melee_spells_for_far_teleport_like_cpp,

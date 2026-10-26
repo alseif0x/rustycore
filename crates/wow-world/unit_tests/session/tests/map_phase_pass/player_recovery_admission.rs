@@ -43,6 +43,7 @@ fn recovery_admission(session: &WorldSession, map_tick_epoch: u64) -> PlayerReco
         map_incarnation: map_admission.map_incarnation,
         residence_revision: map_admission.residence_revision,
         diff_ms: map_admission.diff_ms,
+        unix_time_ns: 50_000_000_000,
     }
 }
 

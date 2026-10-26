@@ -29,7 +29,9 @@ pub(super) async fn run_current_player_ticks(
     let selected_result = if coordinated {
         Ok(())
     } else {
-        run_selected_unit_update(session, diff_ms)
+        let unix_time_ns = wow_core::GameTime::unix_time_nanos();
+        let binding = capture_player_binding(session);
+        run_selected_unit_update(session, diff_ms, unix_time_ns, binding)
     };
     let _ = crate::session::hub_mut(session).set_represented_can_delay_teleport_like_cpp(false);
 
@@ -164,7 +166,20 @@ async fn run_admitted_player_recovery(
     // C++ Unit::Update runs before Player regeneration, KillPlayer, SaveTimer,
     // deathTimer, and delayed teleport (`Player.cpp:935-942,1053-1066,1101-1111`).
     let _ = crate::session::hub_mut(session).set_represented_can_delay_teleport_like_cpp(true);
-    let selected_result = run_selected_unit_update(session, admission.diff_ms);
+    let binding = PlayerBinding {
+        guid: admission.registration.guid(),
+        registration: Some(admission.registration),
+        handle: admission.handle,
+        map_key: admission.map_key,
+        map_incarnation: admission.map_incarnation,
+        residence_revision: admission.residence_revision,
+    };
+    let selected_result = run_selected_unit_update(
+        session,
+        admission.diff_ms,
+        admission.unix_time_ns,
+        Some(binding),
+    );
     let _ = crate::session::hub_mut(session).set_represented_can_delay_teleport_like_cpp(false);
     if selected_result.is_err() {
         return recovery_status(session, admission).unwrap_or(PlayerRecoveryStatus::Unavailable);
@@ -199,6 +214,8 @@ async fn run_admitted_player_recovery(
 fn run_selected_unit_update(
     session: &mut WorldSession,
     diff_ms: u32,
+    unix_time_ns: u128,
+    binding: Option<PlayerBinding>,
 ) -> Result<(), &'static str> {
     let Some(handle) = session.core.player_handle_like_cpp else {
         #[cfg(any(test, feature = "test-fixtures"))]
@@ -210,7 +227,10 @@ fn run_selected_unit_update(
         return Err("Selected aura Unit update has no canonical Player handle");
     };
 
-    wow_world_spell::tick_selected_aura_lifetimes(session, diff_ms)?;
+    let binding = binding.ok_or("Selected aura Unit update has no current Player binding")?;
+    if binding.handle != handle || session.player_guid() != Some(binding.guid) {
+        return Err("Selected aura Unit update Player binding is no longer current");
+    }
 
     let manager = session
         .core
@@ -218,6 +238,24 @@ fn run_selected_unit_update(
         .as_ref()
         .ok_or("Selected aura Unit update has no canonical map manager")?
         .clone();
+    {
+        let mut manager = manager
+            .lock()
+            .map_err(|_| "Selected aura map manager lock is unavailable")?;
+        if !wow_world_spell::update_player_spell_history(
+            &mut manager,
+            handle,
+            binding.map_key,
+            binding.map_incarnation,
+            binding.residence_revision,
+            unix_time_ns,
+        ) {
+            return Err("Native Player spell history has no current admitted residence");
+        }
+    }
+
+    wow_world_spell::tick_selected_aura_lifetimes(session, diff_ms)?;
+
     let catalogs = wow_world_spell::SelectedAuraPublicationCatalogs {
         races: session.catalogs.chr.races_store.as_deref(),
         spells: session.catalogs.spell_catalogs.spell_store.as_deref(),

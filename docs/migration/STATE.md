@@ -63,6 +63,9 @@ establishes final acceptance.
 The ordered SelfRes field now has one native Player owner and both CREATE and
 VALUES consumers, with production compilation and 19 distinct focused cases.
 Death-time initialization and the ordinary SelfRes cast contract remain open.
+The existing Player Unit pass now maintains its native SpellHistory using a
+single frozen system-clock observation. The scoped history checkpoint records
+94 distinct cases; this does not complete SelfRes or final macro acceptance.
 The integration adds neither another clock nor another Player authority.
 
 Four blocks remain within the same macro:
@@ -163,8 +166,46 @@ adding a persistent cache. The source anchors are Unit.cpp:4818–4875,
 9033–9073 and SpellAuraEffects.cpp:3566–3604,4525–4548 at the pinned target.
 The actual caller chain reaches Inventory stat_planning/projection.rs,
 equipment.rs and spell_bonus.rs, then the existing native effective-stat
-snapshot used by damage. This is a settled next implementation contract,
-not executed consumer evidence or a rewrite of all generic aura queries.
+snapshot used by damage. Its implementation and scoped coding evidence are
+recorded in the selected stat-view checkpoint below; this is not a rewrite
+of all generic aura queries or final macro acceptance.
+
+Native SpellHistory prerequisite review at `09600e731`, 2026-10-26: Player
+already owns the live history at `Unit.subsystems.spells.history`; the Session
+cooldown adapter projects that same owner. No second Player history is needed.
+At that base, the existing native `SpellHistory::update` had no discovered
+production Player caller. Pinned `Unit.cpp:418–432,2836–2838` runs maintenance in
+`_UpdateSpells`, before later Unit work. `SpellHistory.cpp:220–244` removes
+cooldowns with end strictly before the captured system-clock time and elapsed
+charges with end at or before it. The existing Player Unit pass is the required
+integration point, before selected Aura lifetimes, through its current phase
+rail and admission. The implementation and scoped coding evidence are now
+recorded in the native history checkpoint below; live acceptance is pending.
+
+The coordinated pass will carry one immutable epoch-nanosecond observation
+captured beside the producer's existing pre-World-pass Instant, without adding
+a scheduler, clock owner or mutable cache. `GameTime.cpp:103–107` captures the
+full system-clock time point. Flooring that observation to milliseconds loses
+the strict cooldown boundary when now is an aligned deadline plus one
+nanosecond. Existing native deadlines remain epoch milliseconds and compare
+after lossless u128 scaling; the legacy millisecond update entry delegates to
+the same algorithm. The Creature logical clock and movement's wrapping
+timestamp must not be substituted. Standalone execution retains its existing
+Unit pass and uses the same system-clock domain. Admission facts must be
+rechecked under the guard that mutates history. This also matters for the
+pending SelfRes initializer: Source `SpellHistory::HasCooldown`
+(`SpellHistory.cpp:670–693`) tests spell/category membership and an applicable
+ignore-cooldown aura, rather than expiring entries inside that query. The
+initializer must not silently replace that predicate with the legacy native
+remaining-time helper or treat a missing load as an empty history.
+
+Source refinement during that implementation: an on-hold cooldown has a month
+deadline (`SpellHistory.cpp:35,424–428`), not a permanent exemption from
+`Update`. Its elapsed deadline still expires in the source's comparison loop.
+The native updater's old unconditional on-hold exemption is therefore part of
+the correction, with representative future-held and elapsed-held tests. This
+is an intentional behavior repair in the first production Player integration,
+not a move-only refactor or a claim that the earlier focused run tested it.
 
 **#43, contexto y evidencia previos — corte 2026-10-25, 06:47 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
@@ -2344,6 +2385,87 @@ target. No parent Cargo, runtime, SQL, capture, restart or publication was
 performed. This is an UNVALIDATED local macro checkpoint, not final acceptance
 at a later commit. Native death, recovery, normal casts, QA and the complete
 candidate acceptance remain open.
+
+Native Player SpellHistory integration, 2026-10-26, base `09600e731`: the
+existing coordinated producer captures one Unix-nanosecond observation beside
+its pre-World-pass Instant and forwards it unchanged through every
+PlayerRecoveryAdmission in that tick. Standalone execution samples the same
+system-clock domain once for its existing Unit pass. The native Spell helper
+checks handle, active residence, map incarnation, GUID and world binding under
+the manager guard that reaches the canonical Player. It updates the existing
+Unit SpellHistory before selected Aura lifetimes and releases the guard before
+Aura work, delivery or await. There is no new scheduler, clock owner, mutable
+history mirror or config callback.
+
+The existing millisecond update entry delegates to one precise algorithm.
+Native u64 millisecond deadlines scale losslessly to u128 nanoseconds, preserving
+source cooldown/category strict-before and charge at-or-before comparisons.
+An elapsed held deadline expires too; the source's +MONTH representation is
+not a permanent exemption. The loaded-row adapter now installs its nonzero
+category index with direct assignment semantics, including a shorter replacement
+deadline, and reset clears both cooldown maps. This is an intentional source
+behavior correction, not structural movement.
+
+Seven new World cases exercise actual admitted recovery, loaded-row projection
+and reset, exact and fractional timestamp boundaries, a completed history update
+before later Aura refusal, stale handle/map/residence, and replay with a later
+timestamp that would otherwise expire another entry. One new Server case
+checks identical full-precision forwarding to two participants; one Entity case
+covers strict equality, a one-nanosecond advance, charges and elapsed +MONTH.
+The later Aura refusal remains an unavailable overall recovery outcome; it is
+not reported as a completed whole operation merely because history advanced.
+
+Pinned source `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` anchors are
+Unit.cpp:418–432,2836–2845; SpellHistory.cpp:153–164,220–244,424–428 and
+SpellHistory.h:49,185; GameTime.cpp:103–107; Duration.h:42. The initializer's
+remaining dependency is Player.cpp:24757–24780. The inspected history/time
+source files have no local changes at this pin.
+
+Worker feedback used the base SHA plus the reviewed delta on aarch64, PROTOC
+set, one Cargo job and `/home/server/rustycore/target`. Full commands, source
+hashes, UTC times, exits and identities are in
+`/tmp/rustycore-player-history-unit-logs/`. Corrected-candidate evidence:
+
+- `cargo check -p world-server --lib`: exit 0, 13:41:24–13:42:56 UTC,
+  `04-world-server-check.log`.
+- `cargo test -p wow-entities --lib spell_history`: exit 0, six passed,
+  13:52:36–13:52:46 UTC, `10-wow-entities-spell-history-test.log`.
+- `cargo test -p world-server --lib recovery`: exit 0, eleven passed,
+  13:48:35–13:51:01 UTC, `08-world-server-recovery-test.log`.
+- `cargo test -p wow-world --lib recovery`: exit 0, 33 passed,
+  13:59:32–14:00:46 UTC, `11-wow-world-recovery-fixture-rerun.log`.
+- `cargo test -p wow-world --lib ghost_wisp`: exit 0, 46 passed,
+  14:02:38–14:03:36 UTC, `12-wow-world-ghost-wisp-test.log`.
+
+The identity union is 94, with two World recovery cases shared between filters;
+there are nine new cases. Earlier millisecond greens are superseded, not
+precision evidence. The interrupted narrow World command retained exit 130
+before any test ran when the requested filter changed. The earlier corrected
+recovery run retained exit 101, 30 passed and three failed, exposing older
+fixtures without sickness attributes or complete G/W key/catalog inputs.
+Their positive inputs were repaired without changing production gates; the
+later full G/W run also repaired its positive mask fixture. Deliberately empty
+negative catalogs remain. The first broad Entity run preceded a test-only
+correction to use the source +MONTH deadline; its repeated cases are not counted
+again.
+
+The native helper, World test leaf, Entity test leaf and Server forwarding leaf
+are 49/376/69/38 lines; the existing Server fixture root is 862 lines. Physical
+baselines are unchanged. The parent reviewed the source and fixture deltas and
+verified all 21 file hashes against the worker content manifest, whose hash is
+`8006586521161c7ca121ee041495d460b04e7b9243ed05ef224d4a152a2f00ba`.
+The helper hash is
+`339af8b19211e0c82e6bd922aaf4ea74755682f2b8c30edbd8be19906fbe67d7`;
+the precise native algorithm file hash is
+`77775a15d908178e38d73deffd90537fff01e83516f5a90da8e05217ca0e485f`.
+Effective worker model/effort telemetry was unavailable and is not inferred.
+
+The 13:21:20–14:03:36 feedback/repair interval is 2536 seconds, with earlier
+implementation time separate. It is not a final campaign or evidence that the
+complete ordinary acceptance meets 600 seconds. No parent Cargo, runtime, DB,
+capture, restart or publication occurred. This remains an UNVALIDATED macro
+checkpoint. The native death choreography, SelfRes initialization and ordinary
+casts, recovery failures/durability, QA and full candidate acceptance remain open.
 
 SelfRes field integration, 2026-10-26, base `c88cf6e87`: the live BTreeSet has
 been removed from PlayerResurrectionState. Player::active_data now owns the
