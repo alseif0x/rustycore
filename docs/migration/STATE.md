@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43 current summary — 2026-10-25, branch `43-spirit-healer`:**
+**#43 current summary — 2026-10-26, branch `43-spirit-healer`:**
 The macro remains open and has not passed final acceptance. Changes remain
 local to `43-spirit-healer`; this candidate has not been published or deployed.
 Recent checkpoints add canonical stats, reconciliation of all selected aura
@@ -17,8 +17,9 @@ updates, including rejection in login/worldport callers when preparation fails.
 provenance when creation-only facts are unavailable. 9i3C3d3c connects canonical
 foreign-caster reaction to that constructor and has focused consumer feedback.
 9i3C3d4a retains complete indexed effect rows and shares their resolver from Data.
-The selected load, creation, and save consumers still need that resolver;
-load construction and charge consumers also remain pending.
+9i3C3d4b connects selected save effects and attributes to that resolver and
+uses each application's eligibility flags. Selected load and creation still
+need indexed effects; load construction and charge consumers remain pending.
 The integration adds neither another clock nor another Player authority.
 
 Four blocks remain within the same macro:
@@ -1149,6 +1150,38 @@ checks on the local delta, not final acceptance. Core save and Spell execution,
 load, and completion consumers remain pending. No live/DB/capture, publication,
 deployment, or #43 completion is established by this checkpoint.
 
+9i3C3d4b connects Core's selected Ghost/Wisp and race-selected sickness save
+adapters to Data's exact indexed effects and attribute resolver. Each
+application's passive/channelled attributes now skip it before effect-shape
+validation, preserving Aura::CanBeSaved's order. Global base passive/channelled
+flags no longer reject an active application at another difficulty. Complete
+aura authority and known selected-base catalog/shape guards still protect empty
+deletion. Saved difficulty, signed duration, charges, family identity, and exact
+snapshot amounts retain their existing authority. This intentionally corrects
+metadata selection and eligibility; it is not a move-only refactor or general
+CanBeSaved completion. Source at the pinned SHA: SpellAuras.cpp:1134–1174
+and Player.cpp:19811–19865.
+
+Worker feedback on `4f43bfeb7` plus the reviewed local delta passed sequentially
+on aarch64/jobs=1: `cargo check -p wow-world-core` and
+`cargo test -p wow-world save_snapshot_owner -- --nocapture` (21 library cases).
+That suite includes five new indexed consumer cases. After adding final Wisp
+assertions to the existing grouped case, `cargo test -p wow-world
+selected_aura_indexed -- --nocapture` passed those five again; the other sixteen
+cases were not rerun after that test-only change. The filtered binary targets
+ran zero cases and are not counted. Logs are
+`/tmp/rustycore-c3d4b-cargo-check-wow-world-core-20261025.log`,
+`/tmp/rustycore-c3d4b-cargo-test-wow-world-save-snapshot-owner-20261025.log`,
+and `/tmp/rustycore-c3d4b-cargo-test-wow-world-selected-aura-indexed-v2-20261025.log`,
+all exit 0. The initial focused log without `-v2` also remains; compilation
+cost was 4m56s there and 1m19s for the changed test, not final campaign timing.
+Parent review renamed one test from unknown to missing fallback: its absent
+Difficulty row is known absence, not an unknown store. Feedback preceded this
+name-only correction. The fixed worker-role spawn succeeded; precise runtime
+variant/effort self-telemetry was unavailable. Creation/load/completion consumers,
+charges, native lifecycle work, and macro acceptance remain pending. No final
+campaign, capture, live/DB mutation, publication, or deployment is established.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -1368,27 +1401,24 @@ store, and reject a needed cycle instead of hanging or inventing a base row.
 A known metadata store without any row for the spell can still prove its
 Source default independently of the chain. The selected readers corrected in
 9i3C3d2c/9i3C3d3a follow this contract; the general legacy helpers retain their
-separate boundaries, and indexed effect inheritance remains pending below.
+separate boundaries. Indexed inheritance is available from 9i3C3d4a, while
+its remaining execution/load consumers are identified below.
 
 Effect-field follow-up from current callers: execution still clones the base
 SpellInfo payload, and the load helper chooses a whole legacy effect vector.
 Source fills each effect index independently along its difficulty chain
-(SpellMgr.cpp:2500–2508,2638–2640; SpellInfo.cpp:1144–1163). The current Data
-hydration also discards explicit Effect=0 rows and appends duplicate slot rows
-without highest-RecordID selection. An exact getter alone cannot recover those
-lost facts. Preserve complete indexed rows in the existing canonical per-
-difficulty collection, then give selected consumers a shared indexed resolver;
-do not add another mutable effect store. Review the legacy projection separately
-so retaining inert rows does not accidentally activate them in unrelated casts.
-The completed key/field-chain tests do not establish this effect inheritance.
-This remains required selected metadata work before macro acceptance.
+(SpellMgr.cpp:2500–2508,2638–2640; SpellInfo.cpp:1144–1163). 9i3C3d4a repairs
+the former Data loss of explicit Effect=0 rows and duplicate slot selection.
+It retains complete indexed rows and a shared resolver in the existing catalog,
+with a separate active legacy projection. 9i3C3d4b connects the save adapters;
+execution and loading still require this metadata before macro acceptance.
 
-Resolver ownership decision: Core's selected save adapters also read the
-legacy effect and attribute helpers. Put shared spell difficulty traversal,
-exact attribute resolution, and indexed effect-row resolution in Data; retain
-Spell's private aliases for its current callers. Core must not depend on Spell
-for catalog facts. The existing per-difficulty collection will retain inert
-winning rows, with an active prefix for its borrowed legacy projection.
+Resolver ownership decision, implemented by 9i3C3d4a/b: shared spell difficulty
+traversal, exact attributes, and indexed effect resolution belong to Data;
+Spell retains private aliases and Core save adapters consume Data directly.
+Core must not depend on Spell for catalog facts. The existing per-difficulty
+collection retains inert winning rows, with an active prefix for its borrowed
+legacy projection.
 An inert-only bucket must continue the legacy getter's existing fallback,
 because that bucket was previously absent after filtering. The new exact
 resolver instead retains the inert slot as an explicit inheritance override.
@@ -1400,11 +1430,11 @@ known missing or inert raw row. A malformed duplicate/index in a dynamic vector
 must remain unavailable rather than becoming a newly accepted selected Aura.
 Malformed raw effect indexes must likewise remain detectable by the exact
 resolver, rather than being discarded into apparent absence or rewritten to zero.
-Source identity, activation, capture, and save consumers still need integration
-and evidence after this Data cut; moving the resolver alone is not completion.
-The selected save adapters must also derive passive/channelled eligibility
-from each application's resolved attributes. A global base SpellInfo flag
-must not reject a valid application at another difficulty. Existing complete-
+Execution, loading, and their source-identity consumers still need integration
+and evidence after the Data/save cuts. The connected selected save adapters
+derive passive/channelled eligibility from each application's resolved
+attributes. A global base SpellInfo flag must not reject a valid application
+at another difficulty. Existing complete-
 authority and supported-family absence checks remain required for deletion.
 
 Constructor integration cut, connected by 9i3C3d3b: Spell computes flags from selected

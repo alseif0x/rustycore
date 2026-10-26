@@ -6,6 +6,9 @@ use super::*;
 mod sickness_support;
 use sickness_support::*;
 
+#[path = "save_snapshot_owner/selected_aura_indexed.rs"]
+mod selected_aura_indexed;
+
 #[test]
 fn save_request_consumes_frozen_header_without_replaying_or_rereading_runtime() {
     let (mut session, _, _) = make_session();

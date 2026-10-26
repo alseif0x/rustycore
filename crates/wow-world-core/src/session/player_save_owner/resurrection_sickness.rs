@@ -31,11 +31,13 @@ fn catalog_effects<'a>(
     if difficulty_id != 0 && !difficulty_store.contains(u32::from(difficulty_id)) {
         return None;
     }
-    let effects = spell_store.effects_for_difficulty_like_cpp(
+    let effects = wow_data::spell::resolve_spell_effect_rows(
+        spell_store,
         spell_id,
         difficulty_id,
         Some(difficulty_store),
-    )?;
+    )
+    .ok()?;
     if effects.len() != SICKNESS_EFFECTS.len() {
         return None;
     }
@@ -68,10 +70,6 @@ fn capture_aura(
     spell_effects: &BTreeMap<u8, &wow_data::SpellEffectInfo>,
     attributes: [u32; 15],
 ) -> Option<CapturedAura> {
-    if attributes[0] & wow_data::spell::attributes::SPELL_ATTR0_PASSIVE != 0 {
-        return Some(CapturedAura::Skipped);
-    }
-
     if application.stack_count == 0 || application.effect_mask == 0 {
         return None;
     }
@@ -199,12 +197,14 @@ pub(super) fn capture(
     }
     let selected_spell_id = i32::try_from(spell_id).ok()?;
     spell_store.get(selected_spell_id)?;
-    catalog_effects(selected_spell_id, 0, spell_store, difficulty_store)?;
-    spell_store.misc_attributes_for_difficulty_like_cpp(
+    wow_data::spell::resolve_spell_attributes(
+        spell_store,
         selected_spell_id,
         0,
         Some(difficulty_store),
-    )?;
+    )
+    .ok()??;
+    catalog_effects(selected_spell_id, 0, spell_store, difficulty_store)?;
 
     let mut families =
         BTreeMap::<([u8; 16], [u8; 16]), (Vec<PlayerLifecycleAuraSave>, HashSet<u32>)>::new();
@@ -212,17 +212,13 @@ pub(super) fn capture(
         if application.spell_id != selected_spell_id {
             continue;
         }
-        let spell_effects = catalog_effects(
-            selected_spell_id,
-            application.difficulty_id,
+        let attributes = wow_data::spell::resolve_spell_attributes(
             spell_store,
-            difficulty_store,
-        )?;
-        let attributes = spell_store.misc_attributes_for_difficulty_like_cpp(
             selected_spell_id,
             application.difficulty_id,
             Some(difficulty_store),
-        )?;
+        )
+        .ok()??;
         if attributes[0] & wow_data::spell::attributes::SPELL_ATTR0_PASSIVE != 0
             || attributes[1]
                 & (wow_data::spell::attributes::SPELL_ATTR1_IS_CHANNELLED
@@ -231,6 +227,12 @@ pub(super) fn capture(
         {
             continue;
         }
+        let spell_effects = catalog_effects(
+            selected_spell_id,
+            application.difficulty_id,
+            spell_store,
+            difficulty_store,
+        )?;
         let aura = match capture_aura(player, slot, application, &spell_effects, attributes)? {
             CapturedAura::Skipped => continue,
             CapturedAura::Save(aura) => aura,

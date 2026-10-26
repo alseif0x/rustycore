@@ -63,11 +63,13 @@ fn catalog_effects<'a>(
         return None;
     }
     let expected = expected_effects(spell_id)?;
-    let effects = spell_store.effects_for_difficulty_like_cpp(
+    let effects = wow_data::spell::resolve_spell_effect_rows(
+        spell_store,
         spell_id,
         difficulty_id,
         Some(difficulty_store),
-    )?;
+    )
+    .ok()?;
     if effects.len() != expected.len() {
         return None;
     }
@@ -107,28 +109,11 @@ fn capture_aura(
     player: &Player,
     slot: u8,
     application: &wow_entities::AuraApplicationLikeCpp,
-    spell_store: &wow_data::SpellStore,
-    difficulty_store: &wow_data::DifficultyStore,
+    spell_effects: &BTreeMap<u8, &wow_data::SpellEffectInfo>,
+    attributes: [u32; 15],
 ) -> Option<CapturedAura> {
     let spell_id = application.spell_id;
     let expected = expected_effects(spell_id)?;
-    let spell_effects = catalog_effects(
-        spell_id,
-        application.difficulty_id,
-        spell_store,
-        difficulty_store,
-    )?;
-    let attributes = spell_store.misc_attributes_for_difficulty_like_cpp(
-        spell_id,
-        application.difficulty_id,
-        Some(difficulty_store),
-    )?;
-    if spell_store.is_passive_like_cpp(spell_id)
-        || spell_store.is_channeled_like_cpp(spell_id)
-        || attributes[0] & wow_data::spell::attributes::SPELL_ATTR0_PASSIVE != 0
-    {
-        return None;
-    }
 
     let metadata = player
         .unit()
@@ -259,11 +244,15 @@ pub(super) fn capture(
     }
     for spell_id in [GHOST_SPELL_ID, WISP_SPELL_ID] {
         if spell_store.get(spell_id).is_none()
-            || spell_store.is_passive_like_cpp(spell_id)
-            || spell_store.is_channeled_like_cpp(spell_id)
-            || spell_store
-                .misc_attributes_for_difficulty_like_cpp(spell_id, 0, Some(difficulty_store))
-                .is_none()
+            || wow_data::spell::resolve_spell_attributes(
+                spell_store,
+                spell_id,
+                0,
+                Some(difficulty_store),
+            )
+            .ok()
+            .flatten()
+            .is_none()
             || catalog_effects(spell_id, 0, spell_store, difficulty_store).is_none()
         {
             return None;
@@ -285,11 +274,32 @@ pub(super) fn capture(
         if !matches!(application.spell_id, GHOST_SPELL_ID | WISP_SPELL_ID) {
             continue;
         }
+        let attributes = wow_data::spell::resolve_spell_attributes(
+            spell_store,
+            application.spell_id,
+            application.difficulty_id,
+            Some(difficulty_store),
+        )
+        .ok()??;
+        if attributes[0] & wow_data::spell::attributes::SPELL_ATTR0_PASSIVE != 0
+            || attributes[1]
+                & (wow_data::spell::attributes::SPELL_ATTR1_IS_CHANNELLED
+                    | wow_data::spell::attributes::SPELL_ATTR1_IS_SELF_CHANNELLED)
+                != 0
+        {
+            continue;
+        }
+        let spell_effects = catalog_effects(
+            application.spell_id,
+            application.difficulty_id,
+            spell_store,
+            difficulty_store,
+        )?;
         let aura_metadata = auras.aura_persistence_metadata(slot);
         let item_guid_binary = aura_metadata.map_or(empty_item_guid_binary, |metadata| {
             metadata.item_guid.to_raw_bytes()
         });
-        let aura = match capture_aura(player, slot, application, spell_store, difficulty_store)? {
+        let aura = match capture_aura(player, slot, application, &spell_effects, attributes)? {
             CapturedAura::Skipped => continue,
             CapturedAura::Save(aura) => aura,
         };
