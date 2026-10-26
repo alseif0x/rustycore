@@ -5,7 +5,11 @@
 //! Final cast bookkeeping after the represented effect phases have completed.
 
 use super::SpellExecutionHostLikeCpp;
-use crate::effect_session::{apply_spell_initial_threat_like_cpp, send_spell_execute_log_like_cpp};
+use super::selected_effects::SelectedCastThreatPlan;
+use crate::effect_session::{
+    apply_selected_spell_initial_threat, apply_spell_initial_threat_like_cpp,
+    send_spell_execute_log_like_cpp,
+};
 use std::time::Instant;
 use wow_core::ObjectGuid;
 use wow_entities::SpellCastMetadata;
@@ -18,35 +22,49 @@ pub(super) fn complete_spell_execution_like_cpp<H: SpellExecutionHostLikeCpp>(
     player_guid: ObjectGuid,
     spell_info: wow_data::SpellInfo,
     metadata: SpellCastMetadata,
-    selected_execution_effects: bool,
+    selected_cast_threat_plan: SelectedCastThreatPlan,
 ) -> Result<(), &'static str> {
     // C++ `Spell::FinishTargetProcessing` (`Spell.cpp:8493-8496`) publishes
     // the execute log once every effect of the cast has resolved.
     send_spell_execute_log_like_cpp(host, spell_id, caster_guid);
 
-    let mut threat_spell_info = spell_info.clone();
-    let difficulty = host.core().current_map_difficulty_id_like_cpp();
-    if !selected_execution_effects {
-        if let Some(effects) = host.hub_ref().catalogs.spell_store().and_then(|store| {
-            store.effects_for_difficulty_like_cpp(
+    match selected_cast_threat_plan {
+        SelectedCastThreatPlan::Legacy => {
+            let mut threat_spell_info = spell_info.clone();
+            let difficulty = host.core().current_map_difficulty_id_like_cpp();
+            if let Some(effects) = host.hub_ref().catalogs.spell_store().and_then(|store| {
+                store.effects_for_difficulty_like_cpp(
+                    spell_id,
+                    difficulty,
+                    host.hub_ref()
+                        .catalogs
+                        .difficulty_store()
+                        .map(AsRef::as_ref),
+                )
+            }) {
+                threat_spell_info.effects = effects.to_vec();
+            }
+            apply_spell_initial_threat_like_cpp(
+                host,
                 spell_id,
-                difficulty,
-                host.hub_ref()
-                    .catalogs
-                    .difficulty_store()
-                    .map(AsRef::as_ref),
-            )
-        }) {
-            threat_spell_info.effects = effects.to_vec();
+                caster_guid,
+                target_guid,
+                wow_data::represented_spell_is_positive_like_cpp(&threat_spell_info),
+            );
         }
+        SelectedCastThreatPlan::ExcludedByAttributes => {}
+        SelectedCastThreatPlan::Selected {
+            whole_spell_positive,
+            attributes,
+        } => apply_selected_spell_initial_threat(
+            host,
+            spell_id,
+            caster_guid,
+            target_guid,
+            whole_spell_positive,
+            &attributes,
+        ),
     }
-    apply_spell_initial_threat_like_cpp(
-        host,
-        spell_id,
-        caster_guid,
-        target_guid,
-        wow_data::represented_spell_is_positive_like_cpp(&threat_spell_info),
-    );
 
     if caster_guid == player_guid {
         // This represented cooldown state belongs to the session player.

@@ -18,6 +18,8 @@ const CUSTOM_SICKNESS_SPELL: i32 = 846_201;
 mod lifecycle_stat;
 #[path = "spirit_healer/recast_policy.rs"]
 mod recast_policy;
+#[path = "spirit_healer/selected_cast_threat.rs"]
+mod selected_cast_threat;
 #[path = "spirit_healer/selected_creation.rs"]
 mod selected_creation;
 #[path = "spirit_healer/selected_execution_effects.rs"]

@@ -19,8 +19,10 @@ foreign-caster reaction to that constructor and has focused consumer feedback.
 9i3C3d4a retains complete indexed effect rows and shares their resolver from Data.
 9i3C3d4b connects selected save effects and attributes to that resolver and
 uses each application's eligibility flags. 9i3C3d4c connects selected execution
-effects, sickness stat readers, and selected initial effect snapshots. Load
-construction, visual and charge consumers, and completion polarity remain pending.
+effects, sickness stat readers, and selected initial effect snapshots. 9i3C3d4d
+connects selected completion polarity and exact initial-threat attributes, with
+required metadata checked before cast preparation. Load construction and visual
+and charge consumers remain pending.
 The integration adds neither another clock nor another Player authority.
 
 Four blocks remain within the same macro:
@@ -1229,6 +1231,56 @@ charges, completion polarity/admission, native lifecycle, casts, QA, and the
 remaining macro requirements are not completed by this checkpoint. No runtime,
 DB, capture, publication, deployment, or #43 completion is established.
 
+9i3C3d4d prepares a transient selected cast-threat decision before cast
+preparation and SpellGo. Empty or unavailable required selected effects are
+rejected there. Exact attributes can exclude initial threat without demanding
+unneeded polarity facts; otherwise the shared complete-spell polarity and
+attributes are carried through completion. The shared initial-threat algorithm
+uses those attributes for NO_HELPFUL_THREAT and unconditionally honors
+NO_HARMFUL_THREAT for both polarities. Amount calculation remains after effects.
+There is no new mutable authority, Session method, queue, or lock.
+
+Source anchors at `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` are
+SpellInfo.cpp:1721–1724,4518–4541 and Spell.cpp:5558–5625,8067–8070.
+The selected direct lifecycle casts have no triggering Aura. This checkpoint
+does not establish the additional triggering-Aura polarity rule for general
+Aura-triggered casts, or replace unrelated legacy metadata consumers.
+
+On `f3b69e930` plus the reviewed local delta, sequential aarch64/jobs=1 worker
+feedback passed `cargo check -p wow-world-spell` and eight distinct World library
+cases: `selected_cast_threat` (6), `legacy_initial_threat_no_harmful` (1), and
+`selected_caster_reaction_uses_actual_foreign_group_and_duel` (1). The six new
+consumer cases cover DEBUFF versus positive effect amounts, a positive assisting
+counterfactual, exact 0→3 NO_HELPFUL_THREAT fallback, actual first creation then
+matching refresh after class metadata becomes unavailable, a required-polarity
+hold with a known nonzero threat entry, and missing requested difficulty despite
+known base effects. The shared gate case exercises both polarities. The existing
+foreign-caster case additionally retains its refresh after group/faction data
+loss; it is not the class-metadata-loss case.
+
+Raw exit-0 feedback is retained at:
+
+- `/tmp/rustycore-43-c3d4d-feedback-20261026T011148Z/spell-check.stdout.log`
+  and `spell-check.stderr.log` (Spell check).
+- `/tmp/rustycore-43-c3d4-polarity-proof-20261026T/1792977934450565938/`
+  (final six-case consumer run, `stdout.log`, `stderr.log`, `status.txt`).
+- `/tmp/rustycore-43-c3d4-focused-20261026T/1792977602206539795/`
+  (`case-2.stdout.log`, `case-2.stderr.log`, `status.txt`, shared gate case).
+- `/tmp/rustycore-43-c3d4-mixed-caster-20261026T/1792978159001387499/`
+  (existing foreign-caster case, `stdout.log`, `stderr.log`, `status.txt`).
+
+The initial compilation failed on fixture/API errors, and the first consumer
+execution passed five and failed one. Those runs are retained separately under
+the same feedback prefixes. Subsequent fixture changes strengthened actual
+creation, source-valid refresh flags, nonzero threat, and exact fallback proofs;
+their repeated executions are counted once. The assigned fixed worker-role spawn
+succeeded; exact model variant/effort self-telemetry was unavailable. The parent
+reviewed the code and final fixtures without another Cargo run. This is a local
+UNVALIDATED checkpoint with coding feedback, not candidate final acceptance.
+Load/visual/charge consumers, native lifecycle, normal casts, QA, and the macro's
+remaining acceptance are still pending. No live/DB mutation, capture, publication,
+deployment, or issue completion is established.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -1461,21 +1513,22 @@ with a separate active legacy projection. 9i3C3d4b connects the save adapters
 and 9i3C3d4c connects execution and sickness application/stat/snapshot readers.
 Loading still requires this metadata before macro acceptance.
 
-The execution completion review also identifies a separate selected consumer:
-the legacy represented positivity helper reads effect types and amounts but
-ignores attributes such as AURA_IS_DEBUFF. Positive effect amounts can therefore
-disagree with Source whole-spell polarity even when indexed selection is correct.
-Selected completion must use the shared whole-spell decision at its required
-threat boundary (Spell.cpp:5558 onward), preserving Source no-initial-aggro gates
-and the matching-refresh treatment of creation-only facts. This correction is
-pending; retaining the selected effect vector alone does not establish it.
+9i3C3d4d replaces the selected completion consumer's legacy represented positivity
+helper with the shared whole-spell decision. That helper read effect types and
+amounts but ignored attributes such as AURA_IS_DEBUFF, so positive effect amounts
+could disagree with Source polarity despite correct indexed selection. Required
+selected effects, attributes, and polarity are now prepared before cast
+preparation and SpellGo. Source no-initial-aggro attributes bypass unnecessary
+polarity requirements, preserving matching refresh when creation-only facts are
+unavailable. Completion retains the prepared decision and samples threat amounts
+after effects, at the existing threat boundary (Spell.cpp:5558–5625).
 Spell::IsPositive also checks the triggering aura when one exists
 (Spell.cpp:8067–8070). The direct lifecycle casts have no such trigger; their
 whole-spell decision must not be advertised as general triggered-spell parity.
 HasInitialAggro unconditionally excludes NO_HARMFUL_THREAT, in addition to
-NO_THREAT and NO_INITIAL_THREAT (SpellInfo.cpp:1721–1724). The current shared
-helper applies the former only to negative spells. This demonstrated gate
-mismatch also needs an explicit behavior correction and focused regression.
+NO_THREAT and NO_INITIAL_THREAT (SpellInfo.cpp:1721–1724). The shared threat
+algorithm now preserves that unconditional gate for both selected and legacy
+callers; its positive and negative regressions passed in worker coding feedback.
 
 Resolver ownership decision, implemented by 9i3C3d4a/b: shared spell difficulty
 traversal, exact attributes, and indexed effect resolution belong to Data;
@@ -1541,6 +1594,17 @@ overrides first; SpellInfo.cpp:4446–4464 checks conditions only when their
 catalog rows exist. The current loader always chooses its caster-free helper.
 Precise visual inheritance and needed caster/condition facts must be resolved
 before replacement; missing facts must not be relabelled as visual zero.
+Visual absence proof must cover complete effective regular and server-side
+effect metadata. Misc values are static SpellEffectInfo properties
+(SpellAuraEffects.h:56–57), so a proven absence of any matching visual-override
+effect can avoid an unrelated runtime-aura completeness requirement. If a
+potential override exists, its active source and order still require resolution;
+catalog potential alone is not proof that it is active. Condition-row presence
+also needs an effective catalog, including Hotfix additions and removals.
+An ID-only UnitCondition catalog is sufficient for known absence and for
+caster-free rejection of existing conditions; it does not evaluate a needed
+Unit condition. Neither condition ID zero nor an unavailable store by itself
+proves that no constraint exists. These catalog/visual connections remain pending.
 
 Selected charge consumer review: the legacy AuraOptions helper clamps signed
 ProcCharges into u8, whereas Source preserves its uint32 assignment and final

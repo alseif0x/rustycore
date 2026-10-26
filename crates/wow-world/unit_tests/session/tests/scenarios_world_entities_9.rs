@@ -8,6 +8,9 @@ use wow_constants::UnitFlags;
 use wow_core::ObjectGuid;
 use wow_world_core::phasing::init_db_phase_shift_like_cpp;
 
+#[path = "scenarios_world_entities_9/initial_threat_attributes.rs"]
+mod initial_threat_attributes;
+
 #[test]
 fn represented_gameobject_runtime_state_upserts_into_player_instance_like_cpp() {
     let (mut session, _, _) = make_session();

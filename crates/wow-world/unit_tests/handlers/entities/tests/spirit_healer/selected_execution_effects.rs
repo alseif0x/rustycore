@@ -8,7 +8,7 @@ use wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;
 use wow_data::spell_db2::SpellEffectDb2Entry;
 use wow_packet::packets::spell::{SpellCastVisual, SpellTargetData};
 
-fn effect_row(
+pub(super) fn effect_row(
     id: u32,
     difficulty_id: u8,
     effect_index: u32,
@@ -75,7 +75,7 @@ fn base_effect_rows() -> Vec<SpellEffectDb2Entry> {
     .collect()
 }
 
-fn difficulty(id: u32, fallback: u8) -> wow_data::DifficultyEntry {
+pub(super) fn difficulty(id: u32, fallback: u8) -> wow_data::DifficultyEntry {
     wow_data::DifficultyEntry {
         id,
         instance_type: 0,
@@ -91,20 +91,85 @@ async fn selected_session(
     effect_rows: Vec<SpellEffectDb2Entry>,
     difficulty_rows: Vec<wow_data::DifficultyEntry>,
 ) -> (WorldSession, flume::Receiver<Vec<u8>>, ObjectGuid) {
+    selected_session_with_inputs(
+        guid_counter,
+        map_difficulty,
+        effect_rows,
+        difficulty_rows,
+        None,
+        None,
+    )
+    .await
+}
+
+pub(super) async fn selected_session_with_spell_attributes(
+    guid_counter: i64,
+    map_difficulty: u8,
+    effect_rows: Vec<SpellEffectDb2Entry>,
+    difficulty_rows: Vec<wow_data::DifficultyEntry>,
+    attributes: [u32; 15],
+) -> (WorldSession, flume::Receiver<Vec<u8>>, ObjectGuid) {
+    selected_session_with_inputs(
+        guid_counter,
+        map_difficulty,
+        effect_rows,
+        difficulty_rows,
+        Some(attributes),
+        None,
+    )
+    .await
+}
+
+pub(super) async fn selected_session_with_raw_misc_rows(
+    guid_counter: i64,
+    map_difficulty: u8,
+    effect_rows: Vec<SpellEffectDb2Entry>,
+    difficulty_rows: Vec<wow_data::DifficultyEntry>,
+    raw_misc_rows: Vec<wow_data::SpellMiscEntry>,
+) -> (WorldSession, flume::Receiver<Vec<u8>>, ObjectGuid) {
+    selected_session_with_inputs(
+        guid_counter,
+        map_difficulty,
+        effect_rows,
+        difficulty_rows,
+        None,
+        Some(raw_misc_rows),
+    )
+    .await
+}
+
+async fn selected_session_with_inputs(
+    guid_counter: i64,
+    map_difficulty: u8,
+    effect_rows: Vec<SpellEffectDb2Entry>,
+    difficulty_rows: Vec<wow_data::DifficultyEntry>,
+    attributes_override: Option<[u32; 15]>,
+    raw_misc_rows: Option<Vec<wow_data::SpellMiscEntry>>,
+) -> (WorldSession, flume::Receiver<Vec<u8>>, ObjectGuid) {
     let (mut session, send_rx, _realm_rx, _port) = logged_in_released_ghost(guid_counter).await;
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 11, 0);
     set_race_sickness_spell(&mut session, SICKNESS_SPELL);
     install_sickness_data(&mut session, SICKNESS_SPELL, Some(245_039));
 
-    let misc_rows = crate::session::hub_ref(&session)
+    let mut misc_rows = crate::session::hub_ref(&session)
         .catalogs
         .spell_catalogs
         .spell_misc_store()
         .map(|store| store.entries_like_cpp().cloned().collect::<Vec<_>>())
         .unwrap_or_default();
+    if let Some(raw_misc_rows) = raw_misc_rows {
+        misc_rows.retain(|row| row.spell_id != SICKNESS_SPELL as u32);
+        misc_rows.extend(raw_misc_rows);
+    } else if let Some(attributes) = attributes_override {
+        let misc = misc_rows
+            .iter_mut()
+            .find(|row| row.spell_id == SICKNESS_SPELL as u32 && row.difficulty_id == 0)
+            .expect("selected sickness SpellMisc fixture row");
+        misc.attributes = attributes.map(|attribute| attribute as i32);
+    }
     let stores = wow_data::EffectiveCoreSpellDb2StoresLikeCpp::new(
         wow_data::spell_db2::SpellCategoriesStore::from_entries([]),
-        wow_data::spell_db2::SpellMiscStore::from_entries(misc_rows),
+        wow_data::spell_db2::SpellMiscStore::from_entries(misc_rows.clone()),
         wow_data::spell_db2::SpellEffectDb2Store::from_entries(effect_rows),
         wow_data::spell_db2::SpellShapeshiftStore::from_entries([]),
         wow_data::spell_db2::SpellInterruptsStore::from_entries([]),
@@ -117,6 +182,7 @@ async fn selected_session(
     session.set_spell_store(Arc::new(
         wow_data::SpellStore::new().hydrate_effective_core_db2_like_cpp(stores),
     ));
+    session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries(misc_rows)));
     session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_entries(
         difficulty_rows,
     )));
@@ -170,7 +236,7 @@ fn install_player_on_difficulty_map(session: &mut WorldSession, difficulty: u8) 
     assert_eq!(configured_map.spawn_mode(), difficulty);
 }
 
-async fn cast_sickness(
+pub(super) async fn cast_sickness(
     session: &mut WorldSession,
     player_guid: ObjectGuid,
     guid_counter: i64,
@@ -259,7 +325,7 @@ fn assert_sickness_aura_update(packets: &[Vec<u8>], expected_effect_mask: u32) {
     assert_eq!(updates[0].aura_flags, 0x0015);
 }
 
-fn complete_difficulty_chain() -> Vec<wow_data::DifficultyEntry> {
+pub(super) fn complete_difficulty_chain() -> Vec<wow_data::DifficultyEntry> {
     vec![difficulty(0, 0), difficulty(3, 0), difficulty(4, 3)]
 }
 

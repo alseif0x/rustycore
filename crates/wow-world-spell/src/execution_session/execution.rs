@@ -99,9 +99,11 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         .and_then(|store| store.get(spell_id))
         .cloned()
         .ok_or("Spell not found")?;
-    if selected_execution_effects {
-        super::selected_effects::resolve(host, spell_id, &mut spell_info)?;
-    }
+    let selected_cast_threat_plan = if selected_execution_effects {
+        super::selected_effects::resolve(host, spell_id, &mut spell_info)?
+    } else {
+        super::selected_effects::SelectedCastThreatPlan::Legacy
+    };
     let effect_type = spell_info.effect_type;
     let effect_base_points = spell_info.effect_base_points;
 
@@ -1140,7 +1142,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         player_guid,
         spell_info,
         metadata,
-        selected_execution_effects,
+        selected_cast_threat_plan,
     )?;
 
     Ok(())
