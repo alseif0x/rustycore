@@ -21,3 +21,7 @@ pub use state_1::*;
 pub use state_2::*;
 #[allow(unused_imports)]
 pub use state_3::*;
+
+#[cfg(test)]
+#[path = "stores/category_tests.rs"]
+mod category_tests;

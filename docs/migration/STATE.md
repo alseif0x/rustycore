@@ -63,6 +63,10 @@ establishes final acceptance.
 The ordered SelfRes field now has one native Player owner and both CREATE and
 VALUES consumers, with production compilation and 19 distinct focused cases.
 Death-time initialization and the ordinary SelfRes cast contract remain open.
+The native initializer participant is now prepared with 39 distinct focused
+cases across Spell, Data and shared fixtures. Its required Application death
+caller and the real gameplay producers remain open; this is not production
+SelfRes integration or final acceptance.
 The existing Player Unit pass now maintains its native SpellHistory using a
 single frozen system-clock observation. The scoped history checkpoint records
 94 distinct cases; this does not complete SelfRes or final macro acceptance.
@@ -108,6 +112,19 @@ only the shared request/result contract needed by the lower callers; moving
 the pure stats planner or adding an Inventory dependency to WorldEntities is
 not selected. These available functions do not by themselves make aura
 removal complete.
+The selected transport is a required application operation at each existing
+damage admission, rather than an optional post-death callback. Session callers
+will reach Application through required methods on the existing movement and
+spell-click host contracts (the spell-effect host already inherits the latter).
+Map-owned melee, share and split callers will receive the same complete,
+synchronous operation through their existing combat-phase inputs. Its shared
+request/result types belong to Core; its implementation remains in Application.
+It must receive the already locked manager, check the current Player binding,
+and scope successive native borrows under that one guard. No second manager
+lock, Player clone, mailbox round trip or packet delivery under the guard is
+permitted. The operation returns ordered owned publication for delivery after
+the guard. This transport decision is not installed; the complete participants
+and their source phase order remain prerequisites to enabling any caller.
 The current stat aura view also reads legacy base payloads, so a genuinely
 nonzero-only aura needs its exact component consumer reviewed before claiming
 stats parity. No new dependency edge or runtime callback was installed.
@@ -139,6 +156,45 @@ preserve this operation and order; assigning FAILED and deleting items alone
 does not implement it. The inspected Player, Unit and SpellHandler source
 files have no local changes at that pin. No native death integration or new
 acceptance run is claimed by this review.
+
+Quest-log authority refinement at `740b21234`, 2026-10-26: pinned
+Player.cpp:15983–15995 sets and removes individual `QuestLog::StateFlags`
+bits; it does not recompute them from `QuestStatusData::Status`.
+`CompleteQuest` (:14496–14505) sets COMPLETE, while `FailQuest`
+(:14928–14959) subsequently adds FAIL. The permitted completed timed quest
+with no objectives therefore retains both bits during that live transition.
+The current Rust `quest_log_create_entries_like_cpp` derives exactly one of
+those bits from status, and `PlayerQuestStatusRecord` has no independent
+quest-log flag authority. That projection cannot establish this death
+participant's parity. Preserve the distinct native field and its writers
+when implementing failure; do not repair this by inventing a status value or
+discarding COMPLETE. Reconnect the existing CREATE and VALUES readers to
+that same authority. Source `_LoadQuestStatus` (:18680–18706) initializes the
+log from durable status on login, and `_LoadQuestStatusObjectives`
+(:18709–18748) then restores objective flag bits; live flag retention must
+not accidentally become a new database persistence contract. This is
+read-only source and consumer review, not an implemented quest-log change
+or executed death acceptance.
+
+Selected resurrection consumer review at `740b21234`, 2026-10-26: the
+earlier sparse-key expiration case covers sickness, not both ghost auras.
+Application's `apply_loaded_ghost_wisp_aura` and
+`prepare_ghost_wisp_removal` still require the legacy difficulty-zero
+`SpellStore::get` payload. Those readers must use the active Aura's original
+difficulty, actual SpellInfo key and indexed effects before claiming
+nonzero-only Ghost/Wisp load and removal. The existing loader records a
+selected-effect restoration error as incomplete aura authority; that is a
+failure boundary, not successful restoration.
+Also, `resurrect_player_like_cpp` currently returns unit after logging a
+native error. Its reclaim and spirit-healer consumers then continue to bones
+or durability loss without a success result. The request continuation already
+holds `ResurrectPlayerInFlight` on that error; extend truthful failure
+propagation to the other consumers and the login caller. Preserve source
+`LoadCorpse`'s bones-before-revive order (Player.cpp:18157–18180), rather than
+inventing rollback for an earlier completed phase. Source resurrection order
+remains Player.cpp:4320–4403 and NPCHandler.cpp:347–370 at the pinned C++ SHA.
+These are inspected consumer gaps awaiting focused reproduction and repair;
+no new test or runtime acceptance is claimed.
 
 Selected stat-view decision at `c88cf6e87`, 2026-10-26: the application already
 selects sickness's stat cause from exact effects, but Inventory's pure planner
@@ -2385,6 +2441,85 @@ target. No parent Cargo, runtime, SQL, capture, restart or publication was
 performed. This is an UNVALIDATED local macro checkpoint, not final acceptance
 at a later commit. Native death, recovery, normal casts, QA and the complete
 candidate acceptance remain open.
+
+Native SelfRes initializer participant, 2026-10-26, base `740b21234`:
+`wow-world-spell::initialize_self_resurrection_spells` borrows the canonical
+Player, checks immutable inputs before clear or RNG, and rebuilds the existing
+ordered native field. It scans active indexed DUMMY effects, preserves the
+Soulstone/Nether else-if and every eligible ten-percent roll, then appends
+3026, 23700 and 21169 in source order. Identical roll probabilities and constant
+assignments permit counting every Nether roll without another ordering owner.
+Zero active masks contribute nothing; unknown aura authority, missing active
+rows and non-aura active bits reject before list or dirty-mask mutation.
+`HasSpell(20608)` reads the native row, accepts inactive rows and rejects
+disabled/Removed rows; incomplete absence remains unknown.
+
+Regular and server keys share exact-before-fallback lookup at each difficulty.
+Original Aura difficulty and current-map Reincarnation difficulty stay distinct.
+Regular effects/family use the existing Data readers; server effects, category
+and full-width family use their canonical payload. The cooldown predicate
+checks Aura 383 first, including generic-family and same-family zero-mask
+wildcards and all 128 mask bits. A matching ignore aura makes Reincarnation
+eligible. Otherwise it reads direct/category membership without expiration
+arithmetic; the existing Unit pass owns that maintenance. Unused catalogs do
+not become prerequisites for an unrelated candidate.
+
+Data now distinguishes a completely hydrated empty SpellCategories component
+from an unhydrated SpellStore. Only the complete typed hydrator establishes
+that provenance; an individual hit-metadata insertion does not. The category
+index producer preserves high unsigned spell IDs instead of dropping them at
+an `i32::try_from` conversion. Exact zero stops fallback and the highest record
+ID still wins. The session-free canonical key fixture moved to the existing
+dev-only test-support crate, with the old World alias retained. Its existing
+test identity moved from `wow-world:selected_spell_fixtures` to
+`wow-world-test-support:spell_catalog::selected_keys`, with the same function
+name, test configuration and non-ignored state.
+
+The source is target `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+Player.cpp:24757–24780,3764–3771; SpellHistory.cpp:670–693,1000–1043;
+SpellInfo.cpp:461–492,1770–1782; SpellMgr.cpp:675–693,2850–2880,2938–2939;
+SpellAuras.cpp:69–99,163–185 and Unit.cpp:3567–3580,4671–4679.
+`CooldownAuraSpellId` defaults to zero (SpellInfo.h:371); the inspected pinned
+server source has no assignment to activate that branch. This is a bounded
+base-server finding, not a new external-module contract.
+
+Worker coding feedback on this dirty working candidate, aarch64, used
+`PROTOC=/home/ubuntu/.local/protoc/bin/protoc`, `CARGO_BUILD_JOBS=1` and
+`CARGO_TARGET_DIR=/home/server/rustycore/target`, sequentially. Raw commands,
+UTC times and real exits are in `/tmp/rustycore-self-res-initializer-logs`:
+
+- `cargo check -p wow-world-spell --lib`: exit 0, 14:51:15–14:51:18.
+- `cargo test -p wow-world-spell --lib self_resurrection`: 32 passed,
+  exit 0, 14:53:21–14:53:34.
+- `cargo test -p wow-data --lib category_`: six passed, exit 0,
+  14:53:54–14:54:49, including five new category-reader cases.
+- `cargo test -p wow-world-test-support --lib selected_charge_fixture_preserves_exact_canonical_spell_info_keys_without_payloads`:
+  one passed, exit 0, 14:55:01–14:55:38.
+
+These are 39 distinct cases, 37 new and two existing. The first production
+check failed with an Option-closure typing error (exit 101, 14:49:51–14:50:36);
+the first test build failed on imports without executing tests (exit 101,
+14:51:29–14:52:58). Those logs are retained. Parent source review also corrected
+the initial ignore-cooldown inverse and its test oracles, unknown-empty aura
+admission, and the missing persistent-area effect kind before green feedback.
+The 14:49:51–14:55:38 feedback/repair interval is 347 seconds, not a final
+campaign or evidence that the ordinary 600-second macro acceptance target is met.
+The parent reviewed the actual production changes, consumers, moved fixture,
+test cases and raw results. The 20 implementation files predate their passing
+checks; their reviewed content manifest is
+`/tmp/rustycore-self-res-initializer-logs/parent-reviewed-files.sha256`, SHA-256
+`d6d3349945f3a5a07033902025ea19ce6eb7177511b14a5bee549aa58fc73075`.
+This identifies the working inputs, not final acceptance at a later commit.
+Effective worker model/effort telemetry is unavailable; the configured role
+is not reported as observed model execution.
+
+This is an UNVALIDATED local macro checkpoint. No native-death caller was
+enabled: Application still owns the complete preamble before NoDeath failure
+and Unit aura removal. Actual Soulstone/Nether producers, normal SelfRes cast
+preparation, physical-item/reagent handling, the other recovery consumers and
+complete candidate acceptance remain open. The existing persisted-aura marker
+does not prove every upstream producer. No runtime, SQL, restart, capture or
+publication was performed.
 
 Native Player SpellHistory integration, 2026-10-26, base `09600e731`: the
 existing coordinated producer captures one Unix-nanosecond observation beside

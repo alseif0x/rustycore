@@ -33,6 +33,13 @@ pub struct SpellHitMetadataLikeCpp {
     pub effect_mechanics: BTreeMap<u32, i32>,
 }
 
+/// Why an effective spell-category read could not produce a value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpellCategoryReadError {
+    MetadataUnavailable,
+    Catalog(crate::spell::DataSpellCatalogResolutionError),
+}
+
 /// Missing or malformed data that prevents safe C++ primary-profession
 /// classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

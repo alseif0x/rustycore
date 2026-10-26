@@ -3874,6 +3874,7 @@ dependencies = [
  "wow-world-inventory",
  "wow-world-lifecycle",
  "wow-world-spell",
+ "wow-world-test-support",
 ]
 
 [[package]]

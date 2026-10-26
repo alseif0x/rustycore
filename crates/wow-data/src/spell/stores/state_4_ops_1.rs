@@ -24,6 +24,7 @@ impl SpellStore {
             spell_interrupt_flags: HashMap::new(),
             spell_interrupt_rows_by_id: BTreeMap::new(),
             spell_hit_categories_by_difficulty: HashMap::new(),
+            spell_categories_loaded: false,
             spell_hit_misc_by_difficulty: HashMap::new(),
             spell_hit_effect_mechanics_by_difficulty: HashMap::new(),
             spell_shapeshift_masks: HashMap::new(),
@@ -115,6 +116,39 @@ impl SpellStore {
         self.spell_hit_categories_by_difficulty
             .get(&(spell_id, difficulty_id))
             .map(|categories| categories.spell_mechanic)
+    }
+
+    /// Read the effective spell category at the selected `SpellInfo` key's
+    /// difficulty. A loaded category catalog with no row means category zero;
+    /// an unhydrated catalog remains unknown.
+    pub fn category_id_at_difficulty(
+        &self,
+        spell_id: u32,
+        requested_difficulty_id: u8,
+        difficulties: Option<&crate::difficulty::DifficultyStore>,
+    ) -> Result<u32, SpellCategoryReadError> {
+        if !self.spell_categories_loaded {
+            return Err(SpellCategoryReadError::MetadataUnavailable);
+        }
+
+        let spell_key = spell_id as i32;
+        let has_any_row = self
+            .spell_hit_categories_by_difficulty
+            .keys()
+            .any(|(candidate_id, _)| *candidate_id == spell_key);
+        let category_id = crate::spell::resolve_spell_catalog_value(
+            requested_difficulty_id,
+            difficulties,
+            has_any_row,
+            |difficulty_id| {
+                self.spell_hit_categories_by_difficulty
+                    .get(&(spell_key, difficulty_id))
+                    .map(|row| row.category_id)
+            },
+        )
+        .map_err(SpellCategoryReadError::Catalog)?;
+
+        Ok(category_id.unwrap_or(0))
     }
     pub(in crate::spell) fn empty_spell_info_like_cpp(spell_id: i32) -> SpellInfo {
         SpellInfo {
@@ -239,9 +273,9 @@ impl SpellStore {
         spell_effect_store: &crate::spell_db2::SpellEffectDb2Store,
     ) {
         for categories in spell_categories_store.entries_like_cpp() {
-            let Ok(spell_id) = i32::try_from(categories.spell_id) else {
-                continue;
-            };
+            // C++ carries this relationship as uint32. Retain its full-width
+            // bit pattern in the signed Rust key used by the hit index.
+            let spell_id = categories.spell_id as i32;
             let row = SpellHitCategoriesRowLikeCpp {
                 record_id: categories.id,
                 // C++ assigns the signed DB2 fields directly into the
@@ -260,6 +294,7 @@ impl SpellStore {
                 })
                 .or_insert(row);
         }
+        self.spell_categories_loaded = true;
 
         for misc in spell_misc_store.entries_like_cpp() {
             let Ok(spell_id) = i32::try_from(misc.spell_id) else {

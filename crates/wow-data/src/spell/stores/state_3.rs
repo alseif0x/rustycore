@@ -644,6 +644,9 @@ pub struct SpellStore {
     pub(super) spell_interrupt_flags: HashMap<(i32, u8), ([u32; 2], [u32; 2])>,
     pub(super) spell_interrupt_rows_by_id: BTreeMap<u32, SpellInterruptRowLikeCpp>,
     pub(super) spell_hit_categories_by_difficulty: HashMap<(i32, u8), SpellHitCategoriesRowLikeCpp>,
+    /// Completeness provenance for the category component populated from a
+    /// complete typed `SpellCategoriesStore` by the effective DB2 hydrator.
+    pub(super) spell_categories_loaded: bool,
     pub(super) spell_hit_misc_by_difficulty: HashMap<(i32, u8), SpellHitMiscRowLikeCpp>,
     pub(super) spell_hit_effect_mechanics_by_difficulty:
         HashMap<(i32, u8), BTreeMap<u32, SpellHitEffectMechanicRowLikeCpp>>,

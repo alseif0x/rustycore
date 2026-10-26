@@ -15,6 +15,7 @@ pub mod player_cast;
 mod player_cast_session;
 mod profession;
 mod records;
+mod self_resurrection;
 mod session;
 mod spell_acquisition;
 mod spell_acquisition_application;
@@ -147,6 +148,7 @@ pub use session::{
 };
 
 pub(crate) use aura_session::validate_selected_aura_application;
+pub use self_resurrection::{SelfResurrectionError, initialize_self_resurrection_spells};
 pub use spell_acquisition_application::{
     EffectLearningRuntimeLikeCpp, PlayerSpellAcquisitionPersistenceOutcomeLikeCpp,
     PlayerSpellAcquisitionPrepareErrorLikeCpp, PlayerSpellAcquisitionPublicationFaultPointLikeCpp,
