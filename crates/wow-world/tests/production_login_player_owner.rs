@@ -29,6 +29,7 @@ struct LoginPort {
     /// `module_hook`: every load answers empty so the login runs to its end,
     /// and the online mark is recorded instead of refused.
     full_login: AtomicBool,
+    seed_self_res_spells_on_customizations_load: AtomicBool,
     events: std::sync::Mutex<Vec<&'static str>>,
 }
 
@@ -299,6 +300,25 @@ impl PlayerLifecyclePortLikeCpp for LoginPort {
         request: PlayerLoginAuxiliaryLoadRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PlayerLoginAuxiliaryLoadOutcomeLikeCpp> {
         if self.full_login.load(Ordering::SeqCst) {
+            if matches!(
+                &request,
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::Customizations { .. }
+            ) && self
+                .seed_self_res_spells_on_customizations_load
+                .swap(false, Ordering::SeqCst)
+            {
+                let player_guid = ObjectGuid::create_player(1, 42);
+                let mut manager = self.manager.lock().unwrap();
+                let player = manager
+                    .find_map_mut(0, 0)
+                    .expect("login map exists before self CREATE")
+                    .map_mut()
+                    .get_typed_player_mut(player_guid)
+                    .expect("canonical login Player exists before self CREATE");
+                for spell_id in [3026, 21169, 3026] {
+                    player.add_self_res_spell(spell_id);
+                }
+            }
             return module_hook::empty_auxiliary_load(request);
         }
         match request {
@@ -388,6 +408,7 @@ async fn hydrate(
         stop_at_pet_load,
         manager: Arc::clone(&manager),
         full_login: AtomicBool::new(false),
+        seed_self_res_spells_on_customizations_load: AtomicBool::new(false),
         events: std::sync::Mutex::new(Vec::new()),
     });
     let maps = Arc::new(MapStore::from_entries([MapEntry {

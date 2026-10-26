@@ -100,12 +100,7 @@ pub(crate) fn resurrect_player_native<H: CorpseHostLikeCpp>(
         if !was_alive && player.unit().is_alive() {
             // C++ `Player::setDeathState` clears self-res spells on an
             // alive-from-dead transition (`Player.cpp:1196-1198`).
-            // The current canonical Rust owner is this Player gameplay set;
-            // ActivePlayerData::SelfResSpells has no Player-side dirty writer yet.
-            player
-                .resurrection_state_mut_like_cpp()
-                .self_res_spells
-                .clear();
+            player.clear_self_res_spells();
         }
     });
     if alive.is_none() {

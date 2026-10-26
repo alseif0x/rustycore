@@ -1,4 +1,5 @@
-use super::Player;
+use super::{ACTIVE_PLAYER_DATA_SELF_RES_SPELLS_BIT, Player};
+use crate::player_rules::set_dynamic_update_mask_index;
 use crate::{
     PlayerResurrectionContinuation, PlayerResurrectionOperation, PlayerResurrectionPhase,
     PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp,
@@ -12,6 +13,61 @@ impl Player {
 
     pub fn resurrection_state_mut_like_cpp(&mut self) -> &mut PlayerResurrectionStateLikeCpp {
         &mut self.gameplay_state.resurrection
+    }
+
+    /// Append one C++ `ActivePlayerData::SelfResSpells` value.
+    pub fn add_self_res_spell(&mut self, spell_id: i32) {
+        let index = self.active_data.self_res_spells.len();
+        self.active_data.self_res_spells.push(spell_id);
+        set_dynamic_update_mask_index(&mut self.active_data.self_res_spells_update_mask, index);
+        self.mark_active_player_data(ACTIVE_PLAYER_DATA_SELF_RES_SPELLS_BIT);
+    }
+
+    /// Remove the first matching value, preserving the order of the remaining
+    /// C++ `DynamicUpdateField` entries.
+    pub fn remove_self_res_spell(&mut self, spell_id: i32) -> bool {
+        let Some(index) = self
+            .active_data
+            .self_res_spells
+            .iter()
+            .position(|value| *value == spell_id)
+        else {
+            return false;
+        };
+
+        let previous_len = self.active_data.self_res_spells.len();
+        let mut update_mask = self
+            .active_data
+            .self_res_spells_update_mask
+            .take()
+            .unwrap_or_else(|| vec![u32::MAX; previous_len.div_ceil(32)]);
+        update_mask.resize(previous_len.div_ceil(32), 0);
+        self.active_data.self_res_spells.remove(index);
+
+        let new_len = self.active_data.self_res_spells.len();
+        if previous_len != 0 {
+            let removed_last_index = previous_len - 1;
+            update_mask[removed_last_index / 32] &= !(1 << (removed_last_index % 32));
+        }
+        for shifted_index in index..new_len {
+            let block = shifted_index / 32;
+            update_mask[block] |= 1 << (shifted_index % 32);
+        }
+        update_mask.truncate(new_len.div_ceil(32));
+        self.active_data.self_res_spells_update_mask = Some(update_mask);
+        self.mark_active_player_data(ACTIVE_PLAYER_DATA_SELF_RES_SPELLS_BIT);
+        true
+    }
+
+    /// Clear the dynamic field and publish its empty size even when already empty.
+    pub fn clear_self_res_spells(&mut self) {
+        self.active_data.self_res_spells.clear();
+        self.active_data.self_res_spells_update_mask = Some(Vec::new());
+        self.mark_active_player_data(ACTIVE_PLAYER_DATA_SELF_RES_SPELLS_BIT);
+    }
+
+    pub fn self_res_spells(&self) -> &[i32] {
+        &self.active_data.self_res_spells
     }
 
     /// C++ `Player::SetPvPDeath` (`Player.h:1147`): `PLAYER_EXTRA_PVP_DEATH`.
@@ -109,10 +165,7 @@ mod tests {
         };
 
         player.set_resurrection_request_like_cpp(request);
-        player
-            .resurrection_state_mut_like_cpp()
-            .self_res_spells
-            .insert(21169);
+        player.add_self_res_spell(21169);
         player
             .resurrection_state_mut_like_cpp()
             .death_timer_remaining_ms = 360_000;
@@ -121,12 +174,7 @@ mod tests {
             .area_spirit_healer_guid = ObjectGuid::create_player(1, 88);
 
         assert_eq!(player.resurrection_state_like_cpp().request, Some(request));
-        assert!(
-            player
-                .resurrection_state_like_cpp()
-                .self_res_spells
-                .contains(&21169)
-        );
+        assert_eq!(player.self_res_spells(), &[21169]);
         assert_eq!(
             player
                 .resurrection_state_like_cpp()
@@ -168,4 +216,5 @@ mod tests {
             .accept_resurrection_request(request.resurrecter)
             .is_none());
     }
+
 }

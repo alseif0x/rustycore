@@ -289,13 +289,12 @@ pub enum PlayerResurrectionPhase {
     Complete,
 }
 
-/// C++ Player-owned resurrection lifecycle state: `_resurrectionData`,
-/// `SelfResSpells`, `m_deathTimer`, delayed resurrection and spirit-healer queue.
+/// Player-owned resurrection lifecycle state: `_resurrectionData`,
+/// `m_deathTimer`, delayed resurrection and spirit-healer queue.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct PlayerResurrectionStateLikeCpp {
     pub request: Option<PlayerResurrectionRequestLikeCpp>,
     pub delayed_after_teleport: Option<PlayerResurrectionContinuation>,
-    pub self_res_spells: BTreeSet<i32>,
     /// Remaining C++ `Player::m_deathTimer` countdown in milliseconds.
     pub death_timer_remaining_ms: u32,
     pub area_spirit_healer_guid: ObjectGuid,

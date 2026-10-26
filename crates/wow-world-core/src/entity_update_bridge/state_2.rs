@@ -174,6 +174,8 @@ pub(super) fn active_player_data_update_to_packet(
     packet_update.conditional_transmog = update.values.conditional_transmog.clone();
     packet_update.conditional_transmog_update_mask =
         update.values.conditional_transmog_update_mask.clone();
+    packet_update.self_res_spells = update.values.self_res_spells.clone();
+    packet_update.self_res_spells_update_mask = update.values.self_res_spells_update_mask.clone();
     packet_update.quest_completed = update.values.quest_completed;
     packet_update
 }

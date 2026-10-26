@@ -59,6 +59,9 @@ properties are corrected by 9i3C3d4m3, with production compilation, 54 World
 cases and four Core duration cases. Selected stat-view consumers still need
 the nonzero-only difficulty review recorded below. None of this establishes
 final acceptance.
+The ordered SelfRes field now has one native Player owner and both CREATE and
+VALUES consumers, with production compilation and 19 distinct focused cases.
+Death-time initialization and the ordinary SelfRes cast contract remain open.
 The integration adds neither another clock nor another Player authority.
 
 Four blocks remain within the same macro:
@@ -113,6 +116,35 @@ and the inventory/aura consequences in the native integration. The existing
 inebriation owner is PlayerData::Inebriation with a dirty writer; reuse that
 canonical field rather than adding a second drunkenness state.
 These are integration findings, not additional accepted gameplay evidence.
+
+Selected stat-view decision at `c88cf6e87`, 2026-10-26: the application already
+selects sickness's stat cause from exact effects, but Inventory's pure planner
+then calls PlayerStatAuraView, whose effect queries and stat multipliers still
+use the legacy difficulty-zero payload. Correct that borrowed view before
+claiming nonzero-only sickness penalties complete. Resolve an active Aura's
+stored raw difficulty to its actual SpellInfo key and then its indexed effect
+rows; retain the canonical represented amount for each active effect. All
+stat multiplier, weapon-damage percentage and per-school damage percentage
+queries must use the same selection. Preserve group rules and existing
+arithmetic; no new Player, amount cache, mutable Aura mirror or general
+modifier engine is required.
+
+The view will validate required immutable reads at construction so its
+existing Option-returning owner adapters can reject missing keys or unresolved
+difficulty/effects before applying stats. G/W and every configured race
+sickness spell require canonical keys, even if a legacy payload exists.
+Other auras with canonical keys use the same exact component reader;
+keyless legacy consumers retain their existing bounded behavior without
+acquiring a parity claim. Borrow Difficulty and race metadata from existing
+catalogs; catalog unavailability is not proof that a custom spell is absent.
+The selected sickness cast already requires the race catalog before admission.
+Keep these facts borrowed and repeat only invariant-checked reads, rather than
+adding a persistent cache. The source anchors are Unit.cpp:4818–4875,
+9033–9073 and SpellAuraEffects.cpp:3566–3604,4525–4548 at the pinned target.
+The actual caller chain reaches Inventory stat_planning/projection.rs,
+equipment.rs and spell_bonus.rs, then the existing native effective-stat
+snapshot used by damage. This is a settled next implementation contract,
+not executed consumer evidence or a rewrite of all generic aura queries.
 
 **#43, contexto y evidencia previos — corte 2026-10-25, 06:47 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
@@ -2203,6 +2235,88 @@ and new test bodies are unchanged; the earlier feedback is not relabelled as
 a final run at the subsequent commit. The parent reviewed the actual M3 diffs
 and retained hashes for the policy, Core, application and test files.
 
+SelfRes field integration, 2026-10-26, base `c88cf6e87`: the live BTreeSet has
+been removed from PlayerResurrectionState. Player::active_data now owns the
+ordered i32 vector and its nested update mask. Named Player operations append
+duplicates, remove the first matching value while marking shifted indices,
+and clear the field even when already empty. Publication resets nested mask
+bits without making the next append resend old values. Signed IDs and mask
+boundaries above 32 entries are retained. Handle-less test fixtures use the
+same ordered semantics; production and stale-handle paths do not fall back to
+them. No second live list or stored snapshot was introduced.
+
+Membership, removal, both represented revival consumers, and resurrection
+snapshots use the new owner. The VALUES bridge copies the native vector and
+mask. The owner CREATE serializer writes its real size and ordered payload;
+both login_sequence and worldport self_create read that same native list.
+The non-owner path does not expose it. The production-linked login case
+seeds the canonical list through the existing fake persistence fixture,
+observes the actual CREATE packet, and verifies the getter did not reinitialize
+the list. This fixture performs no database integration or runtime operation.
+
+Pinned target source `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+Player.h:2738–2745; Player.cpp:1196–1198; UpdateField.h:143–205,806–905;
+UpdateField.cpp:21–41; UpdateFields.h:637; and
+UpdateFields.cpp:3042,3096–3098,3153–3160,3327–3329,3476–3480.
+The VALUES oracle preserves little-endian scalar fields and MSB-first packed
+mask/size bits, followed by selected little-endian i32 values. The parent
+checked that byte derivation against C++, rather than treating an earlier
+incorrect test expectation or the Rust writer as proof.
+
+Focused worker feedback ran sequentially on aarch64 with PROTOC set,
+CARGO_BUILD_JOBS=1 and this checkout's absolute target directory. Logs and
+command/start/exit/end metadata are in `/tmp/rustycore-self-res-list-logs/`:
+
+- `cargo check -p world-server --lib`: final exit 0, 47 seconds,
+  11:38:18–11:39:05 UTC, `world-server-check-reexport.{log,meta}`. The preceding
+  corrected check also passed before the required field-bit re-export.
+- `cargo test -p wow-entities self_res`: exit 0, three passed,
+  `wow-entities-self-res.{log,meta}`, 11:29:36–11:29:56 UTC.
+- `cargo test -p wow-packet self_res`: final exit 0, four passed,
+  `wow-packet-self-res-mounted.{log,meta}`, 11:37:45–11:37:54 UTC. The rerun
+  verifies the three new cases after their private module relocation.
+- `cargo test -p wow-world-core self_res`: final exit 0, two passed,
+  `wow-world-core-self-res-final.{log,meta}`, 11:32:32–11:32:58 UTC.
+- `cargo test -p wow-world self_res`: exit 0, eight passed,
+  `wow-world-self-res.{log,meta}`, 11:33:04–11:37:02 UTC. This includes the real
+  worldport CREATE consumer and retains the original XP assertions.
+- `cargo test -p wow-world --test production_login_player_owner production_login_create_projects_ordered_self_res_spells`:
+  final exit 0, one passed, `wow-world-production-login-self-res-final.{log,meta}`,
+  11:45:05–11:45:14 UTC. Zero-test integration targets in the broader filtered
+  command are not additional evidence.
+- The exact World library case
+  `session::tests::scenarios_misc_5::canonical_player_resurrection_follows_active_detached_and_stale_ownership_like_cpp`
+  passed once, exit 0, 11:56:39–11:57:53 UTC,
+  `wow-world-canonical-resurrection-ownership.{log,meta}`. This restores the
+  native list assertions removed from the old lifecycle-state snapshot and
+  checks active, detached and stale/replacement ownership directly.
+
+These are 19 distinct cases, including nine new cases. The earlier import
+failure, Core test re-export failure, incorrect packet oracle and skipped
+login-fixture seed remain in their raw failure logs. The coding/repair
+feedback interval, including final review and its ownership correction, was
+11:25:23–11:57:53 UTC (1,950 seconds); this is not the
+complete ordinary final campaign or evidence that it meets the 600-second
+target. The initial worker reports generic GPT-6 with effort telemetry
+unavailable. Its resumed ownership correction instead reports gpt-6.1-sol;
+the tool's fixed luna_worker route and that report disagree, so the effective
+variant/effort is not claimed. The parent reviewed the correction and its raw
+one-case result independently, then closed that worker.
+No parent Cargo, workspace/architecture/final campaign, runtime, SQL, capture
+or restart operation was run.
+
+The new Entity and Packet test modules are 79/81 lines; the native operations
+remain in the 220-line resurrection module. The bridge fixture is 956 lines,
+and the login integration fixture/root are 339/533. The Player root grew seven
+field/default/mask lines to 4,737, with its coherent methods kept outside it.
+Review ceiling 4,737 expires at #43 final physical review; the next natural
+cut is its ActivePlayerData value and mask responsibility under #584. No
+physical baseline was regenerated. The parent reviewed the actual consumers,
+diffs and retained file hashes. This is an UNVALIDATED local macro checkpoint;
+ordinary cast admission/attempt timing, death-time Soulstone/Twisting Nether/
+Reincarnation initialization, native death and the other #43 blocks remain
+required. The field work alone is not complete SelfRes behavior.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -2937,12 +3051,14 @@ second mutable list in PlayerResurrectionState. Clear marks the field even
 when empty. UpdateField.h:186–205 shifts values on removal and marks shifted
 indices; clear empties both values and nested mask. Initialization checks
 HasSpell(20608) and cooldown 21169 before death removes auras. This remains
-an implementation contract, not a completed participant.
+an initialization obligation. The SelfRes field integration checkpoint above
+implements the ordered list contract and its wire consumers; it does not
+complete death-time initialization or the ordinary cast operation.
 
 The 2026-10-26 consumer review at `31e8f06d0` also identifies both wire paths:
 entity_update_bridge/state_2.rs must project the native list and nested mask
 for VALUES, and PlayerCreateData/state_2.rs must write its real size and
-ordered payload for self CREATE. Current CREATE hardcodes size zero. Connect
+ordered payload for self CREATE. At that review CREATE hardcoded size zero. Connect
 both login_sequence and worldport self_create to the same live list; never
 initialize SelfRes merely because login loads a dead Player. Pinned
 UpdateFields.cpp:3042,3096–3098,3327–3329,3476–3480 and

@@ -489,6 +489,8 @@ mod quest;
 mod quest_state;
 #[path = "player_tests/reputation.rs"]
 mod reputation;
+#[path = "player_tests/resurrection.rs"]
+mod resurrection;
 #[path = "player_tests/rest.rs"]
 mod rest;
 #[path = "player_tests/skill.rs"]

@@ -157,9 +157,15 @@ pub fn apply_self_resurrect_effect_like_cpp<H: SpellExecutionHostLikeCpp>(
                 )
             };
             let health = health.min(max_health);
+            let was_alive = player.unit().is_alive();
             player
                 .unit_mut()
                 .set_death_state(wow_constants::DeathState::Alive);
+            if !was_alive && player.unit().is_alive() {
+                // C++ `Player::setDeathState` clears this field on revival;
+                // `Spell::EffectSelfResurrect` reaches it through ResurrectPlayer.
+                player.clear_self_res_spells();
+            }
             player.unit_mut().set_health(u64::from(health));
             player.unit_mut().set_power(PowerType::Mana, mana);
             player.unit_mut().set_power(PowerType::Rage, 0);

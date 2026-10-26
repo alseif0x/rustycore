@@ -53,10 +53,9 @@ pub struct SessionSpellState {
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) represented_spell_history_packets_like_cpp:
         (Vec<SpellHistoryEntry>, Vec<SpellChargeEntry>),
-    /// C++ `ActivePlayerData::SelfResSpells`, represented until update-field
-    /// ownership is canonical.
+    /// Ordered handle-less fixture values used by self-res spell tests.
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) represented_self_res_spells_like_cpp: BTreeSet<i32>,
+    pub(crate) represented_self_res_spells_like_cpp: Vec<i32>,
     /// C++ `Player::m_overrideSpells`, represented until active player spell
     /// cast resolution owns override lookup.
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -112,7 +111,7 @@ impl SessionSpellState {
             #[cfg(any(test, feature = "test-fixtures"))]
             represented_spell_history_packets_like_cpp: (Vec::new(), Vec::new()),
             #[cfg(any(test, feature = "test-fixtures"))]
-            represented_self_res_spells_like_cpp: BTreeSet::new(),
+            represented_self_res_spells_like_cpp: Vec::new(),
             #[cfg(any(test, feature = "test-fixtures"))]
             represented_override_spells_like_cpp: HashMap::new(),
             #[cfg(any(test, feature = "test-fixtures"))]
@@ -228,11 +227,11 @@ impl SessionSpellState {
 
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn add_represented_self_res_spell_for_test_like_cpp(&mut self, spell_id: i32) {
-        self.represented_self_res_spells_like_cpp.insert(spell_id);
+        self.represented_self_res_spells_like_cpp.push(spell_id);
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn represented_self_res_spells_for_test_like_cpp(&self) -> &BTreeSet<i32> {
+    pub fn represented_self_res_spells_for_test_like_cpp(&self) -> &[i32] {
         &self.represented_self_res_spells_like_cpp
     }
 

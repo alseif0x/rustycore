@@ -936,6 +936,7 @@ pub const ACTIVE_PLAYER_DATA_HEIRLOOM_FLAGS_BIT: usize = 8;
 pub const ACTIVE_PLAYER_DATA_TOYS_BIT: usize = 9;
 pub const ACTIVE_PLAYER_DATA_TRANSMOG_BIT: usize = 10;
 pub const ACTIVE_PLAYER_DATA_CONDITIONAL_TRANSMOG_BIT: usize = 11;
+pub const ACTIVE_PLAYER_DATA_SELF_RES_SPELLS_BIT: usize = 12;
 pub const ACTIVE_PLAYER_DATA_HONOR_PARENT_BIT: usize = 102;
 pub const ACTIVE_PLAYER_DATA_HONOR_BIT: usize = 109;
 pub const ACTIVE_PLAYER_DATA_HONOR_NEXT_LEVEL_BIT: usize = 110;
@@ -3468,6 +3469,8 @@ pub struct ActivePlayerDataValues {
     pub transmog_update_mask: Option<Vec<u32>>,
     pub conditional_transmog: Vec<i32>,
     pub conditional_transmog_update_mask: Option<Vec<u32>>,
+    pub self_res_spells: Vec<i32>,
+    pub self_res_spells_update_mask: Option<Vec<u32>>,
     pub quest_completed: [u64; QUESTS_COMPLETED_BITS_SIZE],
 }
 
@@ -3507,6 +3510,8 @@ impl Default for ActivePlayerDataValues {
             transmog_update_mask: None,
             conditional_transmog: Vec::new(),
             conditional_transmog_update_mask: None,
+            self_res_spells: Vec::new(),
+            self_res_spells_update_mask: None,
             quest_completed: [0; QUESTS_COMPLETED_BITS_SIZE],
         }
     }
@@ -3901,6 +3906,8 @@ impl Player {
     pub fn clear_active_player_data_changes(&mut self) {
         self.active_player_data_changes.reset_all();
         self.rest_info_change_masks = [0; 2];
+        self.active_data.self_res_spells_update_mask =
+            Some(vec![0; self.active_data.self_res_spells.len().div_ceil(32)]);
     }
 
     pub fn clear_data_changes(&mut self) {

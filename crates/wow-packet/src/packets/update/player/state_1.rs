@@ -927,6 +927,8 @@ pub struct PlayerCreateData {
     /// appearance masks into `Player::m_activePlayerData->Transmog` before
     /// `ActivePlayerData::WriteCreate`.
     pub transmog: Vec<u32>,
+    /// ActivePlayerData::SelfResSpells dynamic field values, in owner order.
+    pub self_res_spells: Vec<i32>,
     /// ActivePlayerData::TraitConfigs.
     pub trait_configs: Vec<TraitConfigCreateData>,
 }

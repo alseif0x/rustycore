@@ -193,15 +193,20 @@ impl crate::SessionSpellState {
         hub: &mut wow_world_core::session::HubMut<'_>,
         spell_id: i32,
     ) -> bool {
-        let canonical = hub.core.with_owned_player_mut_like_cpp(|player| {
-            player
-                .resurrection_state_mut_like_cpp()
-                .self_res_spells
-                .remove(&spell_id)
-        });
+        let canonical = hub
+            .core
+            .with_owned_player_mut_like_cpp(|player| player.remove_self_res_spell(spell_id));
         #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && hub.core.player_handle_like_cpp.is_none() {
-            return self.represented_self_res_spells_like_cpp.remove(&spell_id);
+            let Some(index) = self
+                .represented_self_res_spells_like_cpp
+                .iter()
+                .position(|represented| *represented == spell_id)
+            else {
+                return false;
+            };
+            self.represented_self_res_spells_like_cpp.remove(index);
+            return true;
         }
         canonical.unwrap_or(false)
     }

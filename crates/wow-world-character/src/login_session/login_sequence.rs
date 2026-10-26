@@ -599,6 +599,12 @@ pub async fn send_login_sequence<H: CharacterLoginHostLikeCpp>(
         let Some(player_money) = host.resolved_player_money_like_cpp() else {
             return false;
         };
+        let Some(self_res_spells) = host
+            .core()
+            .with_owned_player_like_cpp(|player| player.self_res_spells().to_vec())
+        else {
+            return false;
+        };
         info!(
             toys = account_toys.len(),
             heirlooms = account_heirlooms.len(),
@@ -671,6 +677,7 @@ pub async fn send_login_sequence<H: CharacterLoginHostLikeCpp>(
             account_transmog,
             trait_configs,
         );
+        player_pkt.set_player_self_res_spells(self_res_spells);
         let Some(action_buttons) = host
             .hub_ref()
             .represented_action_buttons_snapshot_like_cpp()

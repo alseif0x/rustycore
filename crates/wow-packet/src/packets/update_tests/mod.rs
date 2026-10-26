@@ -207,6 +207,7 @@ fn test_player_create_data_with_farsight(farsight_object: ObjectGuid) -> PlayerC
         heirloom_flags: Vec::new(),
         toys: Vec::new(),
         transmog: Vec::new(),
+        self_res_spells: Vec::new(),
         trait_configs: Vec::new(),
     }
 }
@@ -216,3 +217,4 @@ mod scenarios_2;
 mod scenarios_3;
 mod scenarios_4;
 mod scenarios_5;
+mod self_res;

@@ -107,6 +107,7 @@ fn fixture() -> Fixture {
         stop_at_pet_load: false,
         manager: Arc::clone(&manager),
         full_login: AtomicBool::new(true),
+        seed_self_res_spells_on_customizations_load: AtomicBool::new(false),
         events: std::sync::Mutex::new(Vec::new()),
     });
     let maps = Arc::new(MapStore::from_entries([MapEntry {
@@ -275,4 +276,64 @@ async fn production_login_with_zero_modules_sends_no_greeting() {
     let packets: Vec<Vec<u8>> = fixture.send_rx.try_iter().collect();
     assert!(!packets.is_empty());
     assert!(!packets.iter().any(|bytes| carries(bytes, GREETING)));
+}
+
+#[tokio::test]
+async fn production_login_create_projects_ordered_self_res_spells() {
+    let mut fixture = fixture();
+    fixture
+        .port
+        .seed_self_res_spells_on_customizations_load
+        .store(true, Ordering::SeqCst);
+
+    run_login(&mut fixture.session, &fixture.maps).await;
+    assert_eq!(*fixture.port.events.lock().unwrap(), vec!["online"]);
+    assert!(!fixture
+        .port
+        .seed_self_res_spells_on_customizations_load
+        .load(Ordering::SeqCst));
+
+    const SELF_RES_VALUES: [u8; 12] = [
+        0xD2, 0x0B, 0, 0, // 3026
+        0xB1, 0x52, 0, 0, // 21169
+        0xD2, 0x0B, 0, 0, // duplicate 3026
+    ];
+    const SELF_RES_SIZES: [u8; 12] = [
+        0, 0, 0, 0, // ConditionalTransmog.Size
+        3, 0, 0, 0, // SelfResSpells.Size
+        0, 0, 0, 0, // CharacterRestrictions.Size
+    ];
+    let packets: Vec<Vec<u8>> = fixture.send_rx.try_iter().collect();
+    let self_create = packets
+        .iter()
+        .find(|packet| {
+            packet.len() >= 2
+                && u16::from_le_bytes([packet[0], packet[1]])
+                    == wow_constants::ServerOpcodes::UpdateObject as u16
+                && packet
+                    .windows(SELF_RES_VALUES.len())
+                    .any(|window| window == SELF_RES_VALUES)
+        })
+        .expect("login self CREATE carries the canonical self-res list");
+    assert!(
+        self_create
+            .windows(SELF_RES_SIZES.len())
+            .any(|window| window == SELF_RES_SIZES),
+        "the owner CREATE includes the SelfResSpells size slot"
+    );
+    assert_eq!(
+        fixture
+            .manager
+            .lock()
+            .unwrap()
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(ObjectGuid::create_player(1, 42))
+            .unwrap()
+            .self_res_spells()
+            .to_vec(),
+        vec![3026, 21169, 3026],
+        "building login CREATE reads without reinitializing the canonical list"
+    );
 }

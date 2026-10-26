@@ -695,6 +695,7 @@ impl UpdateObject {
             heirloom_flags: Vec::new(),
             toys: Vec::new(),
             transmog: Vec::new(),
+            self_res_spells: Vec::new(),
             trait_configs: Vec::new(),
             quest_log,
         };
@@ -768,6 +769,20 @@ impl UpdateObject {
                     heirlooms.into_iter().map(|(_, flags)| flags).collect();
                 create_data.transmog = transmog;
                 create_data.trait_configs = trait_configs;
+                return;
+            }
+        }
+    }
+    /// Populate ActivePlayerData::SelfResSpells on the self CREATE block.
+    pub fn set_player_self_res_spells(&mut self, self_res_spells: Vec<i32>) {
+        for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject {
+                create_data,
+                is_self: true,
+                ..
+            } = block
+            {
+                create_data.self_res_spells = self_res_spells;
                 return;
             }
         }

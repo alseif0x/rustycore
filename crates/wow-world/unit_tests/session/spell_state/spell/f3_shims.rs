@@ -141,17 +141,9 @@ impl WorldSession {
         .unwrap_or_default()
     }
     pub(crate) fn add_represented_self_res_spell_like_cpp(&mut self, spell_id: i32) {
-        if spell_id == 0 {
-            return;
-        }
         let _canonical = self
             .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player
-                    .resurrection_state_mut_like_cpp()
-                    .self_res_spells
-                    .insert(spell_id)
-            })
+            .with_owned_player_mut_like_cpp(|player| player.add_self_res_spell(spell_id))
             .is_some();
         #[cfg(test)]
         if _canonical || self.core.player_handle_like_cpp.is_none() {

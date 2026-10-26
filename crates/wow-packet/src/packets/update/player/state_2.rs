@@ -789,7 +789,7 @@ impl PlayerCreateData {
 
         // ConditionalTransmog.Size, SelfResSpells.Size, CharacterRestrictions.Size
         buf.write_int32(0);
-        buf.write_int32(0);
+        buf.write_int32(self.self_res_spells.len() as i32);
         buf.write_int32(0);
 
         // SpellPctModByLabel.Size, SpellFlatModByLabel.Size, TaskQuests.Size
@@ -835,6 +835,9 @@ impl PlayerCreateData {
         }
         for value in &self.transmog {
             buf.write_uint32(*value);
+        }
+        for value in &self.self_res_spells {
+            buf.write_int32(*value);
         }
         trace(buf, "dynamic_payloads");
 

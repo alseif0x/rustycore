@@ -88,11 +88,22 @@ async fn cancel_cast_mismatch_cancels_pending_but_preserves_active_like_cpp() {
 async fn self_res_listed_spell_casts_and_removes_self_res_spell_like_cpp() {
     let (mut session, send_rx) = make_session();
     let spell_id = 20_001;
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 20_001);
 
-    session.set_player_guid(Some(ObjectGuid::create_player(1, 20_001)));
+    install_canonical_player(&mut session, &canonical, player_guid);
     session.set_spell_store(self_res_spell_store(spell_id));
-    session.set_player_health_like_cpp(0, 100);
-    session.add_represented_self_res_spell_like_cpp(spell_id);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.add_self_res_spell(spell_id);
+            player.unit_mut().set_max_health(100);
+            player.unit_mut().set_health(0);
+            player
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::Dead);
+        })
+        .expect("owned Player with an admitted self-res spell");
 
     session.handle_self_res(int32_spell_packet(spell_id)).await;
 

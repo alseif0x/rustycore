@@ -141,12 +141,9 @@ async fn spirit_healer_clears_canonical_self_res_and_out_of_bounds_state() {
         .core
         .with_owned_player_mut_like_cpp(|player| {
             player.set_player_flag(0x0000_4000);
-            player
-                .resurrection_state_mut_like_cpp()
-                .self_res_spells
-                .insert(21_169);
+            player.add_self_res_spell(21_169);
         })
-        .expect("canonical Player resurrection state");
+        .expect("canonical Player");
     let position = session.player_position_like_cpp().expect("ghost position");
     let healer = insert_healer(&session, 43_602, position, NPCFlags1::SPIRIT_HEALER.bits());
 
@@ -154,13 +151,15 @@ async fn spirit_healer_clears_canonical_self_res_and_out_of_bounds_state() {
         .handle_spirit_healer_activate(healer_packet(healer))
         .await;
 
-    let (is_alive, player_flags, self_res_spells) = session
+    let (is_alive, player_flags, self_res_spells, self_res_mask, active_changes) = session
         .core
         .with_owned_player_like_cpp(|player| {
             (
                 player.unit().is_alive(),
                 player.data().player_flags,
-                player.resurrection_state_like_cpp().self_res_spells.clone(),
+                player.self_res_spells().to_vec(),
+                player.active_data().self_res_spells_update_mask.clone(),
+                player.active_player_data_changes_mask().clone(),
             )
         })
         .expect("canonical Player after resurrection");
@@ -170,6 +169,9 @@ async fn spirit_healer_clears_canonical_self_res_and_out_of_bounds_state() {
         self_res_spells.is_empty(),
         "alive-from-dead clears the Player-owned self-res spells"
     );
+    assert_eq!(self_res_mask, Some(Vec::new()));
+    assert!(active_changes.is_set(wow_entities::ACTIVE_PLAYER_DATA_SELF_RES_SPELLS_BIT));
+    assert!(active_changes.is_set(wow_entities::ACTIVE_PLAYER_DATA_PARENT_BIT));
     assert_eq!(session.player_guid(), Some(player_guid));
 }
 
