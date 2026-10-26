@@ -1,5 +1,12 @@
 //! Composition boundary for the Hotfix DB2 rows that hydrate core `SpellInfo`.
 
+mod selected_scalars;
+
+pub(crate) use selected_scalars::{
+    load_spell_aura_options_store, load_spell_class_options_store, load_spell_label_store,
+    load_spell_levels_store,
+};
+
 use anyhow::{Result, anyhow};
 use wow_data::{
     Db2HotfixRemovalStoreLikeCpp, EffectiveCoreSpellDb2StoresLikeCpp, SpellAuraRestrictionsEntry,

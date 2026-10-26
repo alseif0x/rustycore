@@ -36,7 +36,8 @@ four scalar catalogs.
 9i3C3d4j2 normalizes source difficulty before regular/server effect indexing
 and preserves canonical server effect slots and duplicate-parent semantics.
 9i3C3d4j3 adds the four scalar Hotfix SQL methods and checked native decoding
-for all 23 core catalog projections. Their four startup consumers remain pending.
+for all 23 core catalog projections. 9i3C3d4j4 connects those four scalar stores
+to their existing startup positions and immutable owners.
 The integration adds neither another clock nor another Player authority.
 
 Four blocks remain within the same macro:
@@ -1746,6 +1747,45 @@ The four startup consumers, key/server/proc SQL guards, exact proc/charge
 preparation, native lifecycle, normal casts, QA and final acceptance remain
 required. This is a local UNVALIDATED checkpoint, not final acceptance.
 
+9i3C3d4j4 connects AuraOptions, ClassOptions, Label and Levels to the existing
+core-spell composition. A private child awaits the four existing port methods,
+converts their payloads, and calls the complete/effective Data loaders. Signed
+ClassOptions masks retain every bit in the existing uint32 Data fields; signed
+Levels and full-width AuraOptions payloads remain intact. The same four Arc
+owners are installed at their previous startup positions. Only construction of
+the existing Core adapter moves immediately before SpellLevels, so that its
+first new consumer can use it. SQL errors still stop composition through the
+existing Failed-to-Err boundary. No second catalog, port or runtime owner is
+introduced.
+
+The mapping retains DB2LoadInfo.h:4655–4673,4759–4775,4984–4994,5009–5024
+at the pinned target; ordered overlays and final removals use the Data loading
+contract reviewed in j1 and the SQL contract reviewed in j3. On `4217cb194`
+plus this delta, aarch64/jobs=1 coding feedback passed
+`cargo check -p world-server --lib` and library filters `selected_scalars`
+(1 case covering all four payloads) and
+`empty_and_failure_remain_distinct_before_publication` (2 cases: core and
+key composition). Three distinct cases passed. No Data suite was rerun.
+
+Raw logs and actual exit files are in `/tmp/rustycore-c3d4j4-logs/`, `01`–`03`,
+all zero. Cargo reported 4m24s for check, 6m43s for the test-profile build, and
+0.24s for the second filter. Those coding commands alone total approximately
+667 seconds; they are not the completed-candidate acceptance campaign and do
+not demonstrate its 600-second target. The parent reviewed the actual diff
+and raw results without another Cargo run. The worker-role execution reported
+GPT-6 with no exact effort telemetry.
+
+Physical review: the new private composition child is 120 lines and its tests
+84. The existing core composition root is 1,119 lines after seven declaration
+and re-export lines; production mapping stays in the cohesive child. App grows
+5,665 to 5,689 (+24) for four asynchronous capability calls at required startup
+positions, with no gameplay logic moved into it. The temporary reviewed app
+ceiling is 5,689, owned by #43 integration and expiring at the same #43 final
+architecture review. The tracked physical policy has not been regenerated or
+claimed passing. Key/server/proc and Difficulty input guards, effective PPM,
+exact proc/charge preparation, native lifecycle, normal casts, QA and final
+acceptance remain required. This remains a local UNVALIDATED checkpoint.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -2160,15 +2200,15 @@ the selected loader's full-width normalization, including preservation of
 nonzero saved charges. Fresh and refresh CalcMaxCharges consumers remain
 pending and are not claimed by scalar projection or metadata lookup tests.
 
-Production-input review, 2026-10-26: AuraOptions, ClassOptions, Levels, and Labels
-are still loaded with file-only `.load` calls in world-server/app.rs. Exact
-in-memory lookup does not supply missing SQL payload overlays. Before claiming
-effective selected polarity, fallback caster levels, stack/charge limits, or
-absence of eligible label modifiers, connect these four stores through the
-existing core-spell Hotfix port, official/custom row replacement, and final
-removals. Source HotfixDatabase.cpp:1412–1416,1443–1446,1504–1506,1513–1516 owns
-their queries. Preserve each existing Data store and immutable session owner;
-no new persistence trait or parallel spell catalog is needed.
+Production-input review, 2026-10-26, identified file-only AuraOptions,
+ClassOptions, Levels and Label calls in world-server/app.rs. Exact in-memory
+lookup could not supply missing SQL payload overlays. j1/j3/j4 now connect
+these four stores through the existing core-spell Hotfix port, official/custom
+replacement and final removals, preserving their Data and immutable session
+owners. Source HotfixDatabase.cpp:1412–1416,1443–1446,1504–1506,1513–1516 owns
+their queries. This closes those composition gaps; it is not actual SQL data
+or runtime evidence for selected polarity, fallback caster levels, stack/charge
+limits or absence of eligible label modifiers.
 
 The SQL decoder widths are fixed by DB2LoadInfo.h:4655–4673,4759–4775,
 4984–4994,5009–5024 at the pinned reference SHA. AuraOptions keeps signed
@@ -2213,6 +2253,19 @@ SpellInfo ProcCharges (SpellMgr.cpp:1871), but that equality does not repair an
 explicit row assigned to the wrong key. This is metadata preparation for the
 selected charge consumer, not a claim to have completed the general proc engine.
 
+The equality of implicit Charges and SpellInfo ProcCharges is only an exact-key
+fact, not permission to skip implicit-entry presence. GetSpellProcEntry follows
+the difficulty fallback when the exact entry is absent (:490–509). A generated
+zero-charge entry can stop that search; suppressing it can expose a fallback
+entry with nonzero charges. Source's infinite-loop guard (:1873–1888) depends
+on ProcBasePPM when charges are zero, so the file-only SpellProcsPerMinute store
+cannot establish effective entry presence. Connect its complete FILE loading,
+official/custom SQL overlays and final removals before accepting that needed
+fact, or keep it unavailable. HotfixDatabase.cpp:1542 and
+DB2LoadInfo.h:5109–5118 specify uint32 ID, float BaseProcRate and uint8 Flags.
+This is a dependency of the selected charge lookup, not a general proc-runtime
+completion claim. No new parallel charge store is required.
+
 The source views also include accepted server-side SpellInfo rows: explicit SQL
 resolves against the joint map (SpellMgr.cpp:675–693,1511–1517), and implicit
 generation traverses that same map (:1742–1752). Reuse the already-loaded
@@ -2227,13 +2280,25 @@ explicit proc SQL field itself uses GetUInt16 (:1533).
 
 Further input review, 2026-10-26: all nineteen existing core Hotfix DTO numeric
 widths match DB2LoadInfo; the four SpellEffect class masks intentionally keep
-the signed getter's bits in unsigned Data fields. Their adapter still substitutes
-defaults or drops rows after failed SQL decoding. The key adapter also casts
-wide integers without the source round-trip check. Before claiming effective
-catalog failure/absence semantics, use the existing native Field getters and
-propagate conversion failures, preserving Source NULL-to-zero separately.
+the signed getter's bits in unsigned Data fields. Their adapter substituted
+defaults or dropped rows after failed SQL decoding; j3 replaces that behavior
+with the existing native Field getters and whole-load failure. The key adapter
+still casts wide integers without the source round-trip check and remains
+pending before effective catalog failure/absence semantics can be accepted.
+Preserve Source NULL-to-zero separately from conversion failure.
 FieldValueConverters.h:62–70 and Field.cpp:62–67 own this contract. No installed
 SQL schema drift or affected runtime row was demonstrated by this source review.
+
+The production Difficulty composition already applies SQL overlays and final
+removals; it is not a file-only store. Its adapter nevertheless erases native
+width before checking an i128 range. That can admit int64 -1 as uint8 255 where
+Source's round-trip rejects it, and it treats SQL NULL as failure rather than
+zero. Use the existing native getters for the consumed fields (projection
+columns 0/2/5/8/10; DB2LoadInfo.h:1534–1555, HotfixDatabase.cpp:519–521).
+The FILE reader also needs to reject unresolved copy rows before this graph
+can establish complete fallback absence. Preserve the current store, port,
+startup position and overlay/removal order; no second graph is required.
+This is input inspection, not a report of an affected installed SQL row.
 
 Difficulty normalization has a separate source rule: DBCEnums.h:833 declares
 `Difficulty : uint8`. Regular SpellEffect rows cast their int32 difficulty into
@@ -2241,12 +2306,11 @@ that enum before indexing (SpellMgr.cpp:2508); server effects and parent rows
 cast their SQL uint32 values before validation/keying (:2732,2772,2859).
 Do not widen the canonical key authority to raw uint32 difficulty or confuse
 the raw getter width with the enum conversion. Existing regular key folding is
-intentional, but regular payload hydration currently drops out-of-u8 rows and
-the server models key raw uint32 values. Normalize these at the same source
-boundary. Otherwise an aliased server effect can be detached from its admitted
-parent and wrongly disappear from the visual-override query. Preserve ordered
-row winners after normalization and keep orphan effects excluded. This requires
-focused alias regressions before visual/proc absence is accepted.
+intentional. j2 now normalizes the regular payload and server-model boundaries
+and preserves ordered row winners, so aliased effects join their admitted
+parent. Its focused alias regressions are recorded above; orphan effects stay
+excluded. This does not replace effective SQL inputs or actual dataset evidence
+before accepting visual/proc absence.
 Server SpellInfo construction also assigns effects by slot in query order,
 with the last row winning and empty slots retained (SpellInfo.cpp:1337–1353).
 Duplicate parent keys retain the first constructed name/effects while later

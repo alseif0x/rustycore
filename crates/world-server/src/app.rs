@@ -1098,18 +1098,24 @@ async fn run_inner(
         "Loaded {} creature family rows from CreatureFamily.db2",
         creature_family_store.len()
     );
-    let spell_levels_store = Arc::new(
-        wow_data::SpellLevelsStore::load(&data_dir, &locale)
-            .context("Failed to load SpellLevels.db2")?,
-    );
-    info!(
-        "Loaded {} spell level rows from SpellLevels.db2",
-        spell_levels_store.len()
-    );
     let spell_core_hotfix_persistence =
         wow_database::MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::new(Arc::clone(
             &hotfix_db,
         ));
+    let spell_levels_store = Arc::new(
+        spell::core_db2_hotfix::load_spell_levels_store(
+            &data_dir,
+            &locale,
+            &spell_core_hotfix_persistence,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellLevels store")?,
+    );
+    info!(
+        "Loaded {} effective spell level rows",
+        spell_levels_store.len()
+    );
     let spell_acquisition_startup_persistence =
         wow_database::MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::new(
             Arc::clone(&hotfix_db),
@@ -1228,11 +1234,17 @@ async fn run_inner(
         spell_category_store.len()
     );
     let spell_aura_options_store = Arc::new(
-        wow_data::SpellAuraOptionsStore::load(&data_dir, &locale)
-            .context("Failed to load SpellAuraOptions.db2")?,
+        spell::core_db2_hotfix::load_spell_aura_options_store(
+            &data_dir,
+            &locale,
+            &spell_core_hotfix_persistence,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellAuraOptions store")?,
     );
     info!(
-        "Loaded {} spell aura options rows",
+        "Loaded {} effective spell aura options rows",
         spell_aura_options_store.len()
     );
     let spell_aura_restrictions_store = Arc::new(
@@ -1264,20 +1276,32 @@ async fn run_inner(
         spell_casting_requirements_store.len()
     );
     let spell_class_options_store = Arc::new(
-        wow_data::SpellClassOptionsStore::load(&data_dir, &locale)
-            .context("Failed to load SpellClassOptions.db2")?,
+        spell::core_db2_hotfix::load_spell_class_options_store(
+            &data_dir,
+            &locale,
+            &spell_core_hotfix_persistence,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellClassOptions store")?,
     );
     info!(
-        "Loaded {} spell class options rows",
+        "Loaded {} effective spell class options rows",
         spell_class_options_store.len()
     );
     // C++ `sSpellMgr` label authority, read by `SpellInfo::HasLabel`
     // (`SpellInfo.cpp`) for the damage-taken-from-caster-by-label term.
     let spell_label_store = Arc::new(
-        wow_data::SpellLabelStore::load(&data_dir, &locale)
-            .context("Failed to load SpellLabel.db2")?,
+        spell::core_db2_hotfix::load_spell_label_store(
+            &data_dir,
+            &locale,
+            &spell_core_hotfix_persistence,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellLabel store")?,
     );
-    info!("Loaded {} spell label rows", spell_label_store.len());
+    info!("Loaded {} effective spell label rows", spell_label_store.len());
     let spell_equipped_items_store = Arc::new(
         spell::core_db2_hotfix::load_spell_equipped_items_store_like_cpp(
             &data_dir,
