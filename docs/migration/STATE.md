@@ -46,6 +46,8 @@ retaining the World aliases and their previous behavior.
 9i3C3d4l2b prepares exact regular/server proc sources and connects the fallible
 builder to startup; its focused coding feedback is green. Fresh/refresh charge
 consumers remain pending.
+9i3C3d4m1 prepares selected charge calculation and fresh self-caster modifier
+admission as pure readers; their consumer wiring remains pending.
 The integration adds neither another clock nor another Player authority.
 
 Four blocks remain within the same macro:
@@ -1972,6 +1974,44 @@ same final architecture review; no baseline was regenerated. The charge
 consumers and remaining macro blocks are still required. This is a local
 UNVALIDATED checkpoint, not final, SQL, runtime or capture acceptance.
 
+9i3C3d4m1 adds pure selected max-charge calculation and a separate fresh
+self-caster modifier-admission proof in WorldSpell. The caller must supply
+the actual resolved SpellInfo difficulty, not raw Aura/map difficulty.
+AuraOptions preserves its full signed-input uint32 bits; the canonical proc
+entry at that key or its guarded fallback overrides the value even when zero.
+Only the final result converts to uint8. Required stores remain unavailable
+when absent; known empty effective catalogs avoid irrelevant graph traversal.
+Fresh admission uses exact Attr3 IGNORE_CASTER_MODIFIERS or known zero family
+flags plus an empty inherited label list, including LabelID zero. A known
+finite chain ending before the base row keeps source defaults; an unavailable
+graph or required cycle remains an error. ClassOptions signed keys preserve
+high-bit uint32 identities. Possible class-mask/label modifiers remain a
+preparation error until their canonical runtime owner exists. Source anchors
+are SpellAuras.cpp:965–976,1088–1090, SpellMgr.cpp:490–509,2555–2556,2649–2650,
+SpellInfo.cpp:1784–1817, and Object.cpp:2274 at the pinned target.
+
+On base `4f3841423` plus the reviewed three-file delta, aarch64/jobs=1 worker
+feedback ran `cargo test -p wow-world-spell --lib selected_charges`: the final
+run passed all ten cases, exit zero, in 5.188 seconds. Its exact command,
+timestamps, exit and raw output are in
+`/tmp/rustycore-c3d4m1-logs/focused-selected-charges-final-fixture-rerun.{txt,log}`.
+The first attempt retains a moved FnMut test capture failure (101). After an
+earlier 10/10 pass, parent review strengthened the generated-zero fixture so
+the exact zero and nonzero fallback coexist, and added an unreachable nonzero
+class-row case. That correction retains a test-only name-shadowing failure
+(101) before the final green run. Earlier green iterations add no distinct
+cases. The parent reviewed all code, corrected known-absence/high-ID rules,
+and verified all three hashes without another Cargo run. Production and test
+children are 150/547 lines. The worker reported generic GPT-6 without effort
+telemetry; the exact runtime variant/effort is unavailable.
+
+These helpers have no production caller yet; their module exports and unused
+warnings do not establish application integration. Root export, actual-key
+resolution, fresh creation and existing-aura refresh consumers, their fixtures,
+and the recorded original-refresh findings still need implementation. Saved
+load normalization remains unchanged. No workspace check, final campaign or
+runtime/SQL/capture evidence was run. This is a local UNVALIDATED checkpoint.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -2436,7 +2476,11 @@ IGNORE_CASTER_MODIFIERS (`0x20000000`) applies, or effective family flags are
 all zero and the effective label list is empty. Every label row counts,
 including LabelID zero; labels are inherited as a list when the difficulty
 chain reaches their difficulty-zero source. Missing effective catalogs are
-not known absence. The selected paths have no canonical SpellMod registry
+not known absence. A known missing difficulty node instead terminates a
+finite chain and preserves default family flags and an empty label list;
+do not reinterpret that proven absence as an unavailable catalog. Signed
+ClassOptions SpellID storage preserves uint32 identity bits. The selected
+paths have no canonical SpellMod registry
 from which to calculate an otherwise eligible modifier, so that case remains
 a preparation error before conflicting auras are removed. This does not
 retire the broader modifier owner or claim its implementation. Reuse immutable
@@ -2445,6 +2489,22 @@ cache, extra Player, operation lock or scheduling owner. The source anchors
 are SpellAuras.cpp:965–976,1078–1094, SpellInfo.cpp:1784–1817,
 SpellMgr.cpp:2555–2556,2649–2650, and Object.cpp:2274–2295 at the pinned target.
 This records the next consumer contract, not executed consumer acceptance.
+
+The next selected refresh review must also retain the original SpellInfo's
+timer policy and duration, not just its proc difficulty. Unit.cpp:3244–3278
+copies new base points into existing effects; SpellAuras.cpp:1021–1094 then
+uses the existing Aura for stack policy, recalculation and timer refresh.
+RefreshTimers at :933–952 calculates the original maximum without a caster
+and applies Attr13 PERIODIC_REFRESH_EXTENDS_DURATION when set. Current
+sickness refresh preserves original effect properties, but its policy/duration
+arguments still come from the new cast; Ghost/Wisp refresh also recalculates
+from the new effect properties. These are identified consumer findings, not
+implemented fixes or permission to claim selected metadata complete. Preserve
+raw cast difficulty on the canonical application, resolve its actual SpellInfo
+key through the immutable catalogs, and validate the snapshot's difficulty
+when committing the existing-slot mutation. No new stored SpellInfo mirror
+is needed. Complete these findings within #43 after charge calculation and
+its consumer wiring.
 
 Its production preparation also needs correction before selected charge
 acceptance. SpellProcStore::from_rows_and_stores currently projects every

@@ -30,6 +30,7 @@ mod mount;
 mod publication;
 mod selected_caster;
 pub(crate) mod selected_catalog;
+mod selected_charges;
 mod selected_creation;
 mod selected_flags;
 mod selected_lifetime;
@@ -45,6 +46,8 @@ pub use duration::*;
 pub use mount::*;
 pub use publication::*;
 pub(super) use selected_caster::selected_caster_level;
+pub use selected_charges::selected_aura_max_charges;
+pub(crate) use selected_charges::validate_fresh_selected_self_caster_modifiers;
 pub(crate) use selected_creation::prepare_selected_aura_creation;
 pub(crate) use selected_reaction::selected_caster_is_friendly;
 pub(crate) use selected_flags::{
@@ -63,6 +66,10 @@ pub use sources::*;
 #[cfg(test)]
 #[path = "../../unit_tests/aura_session/selected_caster.rs"]
 mod selected_caster_tests;
+
+#[cfg(test)]
+#[path = "../../unit_tests/aura_session/selected_charges.rs"]
+mod selected_charges_tests;
 
 #[cfg(test)]
 #[path = "../../unit_tests/aura_session/selected_visual.rs"]
