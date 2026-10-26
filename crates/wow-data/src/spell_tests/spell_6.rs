@@ -645,6 +645,8 @@ fn serverside_spell_effect_store_skips_invalid_rows_like_cpp() {
     let mut missing_difficulty = serverside_effect_row(20, 0);
     missing_difficulty.difficulty_id = 3;
     let effect_index = serverside_effect_row(30, MAX_SPELL_EFFECTS_LIKE_CPP);
+    let mut negative_effect_type = serverside_effect_row(35, 0);
+    negative_effect_type.effect = -1;
     let mut effect_type = serverside_effect_row(40, 0);
     effect_type.effect = TOTAL_SPELL_EFFECTS_LIKE_CPP;
     let mut aura_type = serverside_effect_row(50, 0);
@@ -660,6 +662,7 @@ fn serverside_spell_effect_store_skips_invalid_rows_like_cpp() {
             regular_spell,
             missing_difficulty,
             effect_index,
+            negative_effect_type,
             effect_type,
             aura_type,
             target_a,
@@ -681,6 +684,7 @@ fn serverside_spell_effect_store_skips_invalid_rows_like_cpp() {
             ServersideSpellEffectLoadErrorKindLikeCpp::RegularSpellAlreadyLoaded,
             ServersideSpellEffectLoadErrorKindLikeCpp::DifficultyMissing,
             ServersideSpellEffectLoadErrorKindLikeCpp::EffectIndexOutOfRange,
+            ServersideSpellEffectLoadErrorKindLikeCpp::EffectTypeOutOfRange,
             ServersideSpellEffectLoadErrorKindLikeCpp::EffectTypeOutOfRange,
             ServersideSpellEffectLoadErrorKindLikeCpp::AuraTypeOutOfRange,
             ServersideSpellEffectLoadErrorKindLikeCpp::ImplicitTarget1OutOfRange,
@@ -868,8 +872,10 @@ fn serverside_spell_store_does_not_validate_main_row_difficulty_like_cpp() {
             .is_some(),
         "C++ casts the main serverside_spell difficulty to its uint8 enum without validating it"
     );
-    assert!(outcome
-        .store
-        .get_serverside_spell_like_cpp(100, 999)
-        .is_none());
+    assert!(
+        outcome
+            .store
+            .get_serverside_spell_like_cpp(100, 999)
+            .is_none()
+    );
 }

@@ -11,6 +11,7 @@
 mod acquisition;
 mod catalog;
 mod corrections;
+mod proc_sources;
 mod resolution;
 mod stores;
 mod visuals;

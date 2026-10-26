@@ -142,9 +142,7 @@ impl SpellStore {
         // SpellMgr.cpp:2500-2508 assigns each RecordID-ordered row into its
         // Effects[EffectIndex] slot, so the greatest surviving ID wins.
         for row in spell_effect_store.entries_like_cpp() {
-            let Ok(spell_id) = i32::try_from(row.spell_id) else {
-                continue;
-            };
+            let spell_id = row.spell_id as i32;
             let difficulty_id = row.difficulty_id as u8;
             let effect = Self::spell_effect_from_db2(row);
             let slot_rows = winners_by_difficulty

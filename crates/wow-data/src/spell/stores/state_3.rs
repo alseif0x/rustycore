@@ -344,42 +344,25 @@ impl SpellProcStoreLikeCpp {
     pub fn from_rows_and_stores_like_cpp<I>(
         rows: I,
         spells: &SpellStore,
+        serverside_spells: &ServersideSpellStoreLikeCpp,
         spell_chains: &SpellChainStoreLikeCpp,
+        difficulties: &crate::difficulty::DifficultyStore,
         spell_aura_options: &crate::spell_db2::SpellAuraOptionsStore,
-        spell_misc: &crate::spell_db2::SpellMiscStore,
         spell_class_options: &crate::spell_db2::SpellClassOptionsStore,
         spell_procs_per_minute: &crate::spell_db2::SpellProcsPerMinuteStore,
-    ) -> SpellProcLoadOutcomeLikeCpp
+    ) -> Result<SpellProcLoadOutcomeLikeCpp>
     where
         I: IntoIterator<Item = SpellProcRowLikeCpp>,
     {
-        let spell_infos = spells
-            .iter()
-            .filter_map(|spell| {
-                let spell_id = u32::try_from(spell.spell_id).ok()?;
-                SpellProcSourceSpellInfoLikeCpp::from_loaded_spell_like_cpp(
-                    spell_id,
-                    0,
-                    spells,
-                    spell_chains,
-                    spell_aura_options,
-                    spell_misc,
-                    spell_class_options,
-                    spell_procs_per_minute,
-                )
-            })
-            .collect::<Vec<_>>();
-
-        let spell_infos_by_id = spell_infos
-            .iter()
-            .cloned()
-            .map(|spell_info| (spell_info.spell_id, spell_info))
-            .collect::<BTreeMap<_, _>>();
-
-        Self::from_rows_and_spell_infos_like_cpp(
+        super::super::proc_sources::load_from_sources(
             rows,
-            |spell_id| spell_infos_by_id.get(&spell_id).cloned(),
-            spell_infos,
+            spells,
+            serverside_spells,
+            spell_chains,
+            difficulties,
+            spell_aura_options,
+            spell_class_options,
+            spell_procs_per_minute,
         )
     }
 

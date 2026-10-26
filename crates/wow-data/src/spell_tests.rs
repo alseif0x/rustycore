@@ -540,6 +540,8 @@ mod exact_mechanic;
 mod instance;
 #[path = "spell_tests/misc.rs"]
 mod misc;
+#[path = "spell_tests/proc_sources.rs"]
+mod proc_sources;
 #[path = "spell_tests/spell_1.rs"]
 mod spell_1;
 #[path = "spell_tests/spell_2.rs"]

@@ -321,9 +321,7 @@ impl SpellStore {
         );
 
         for misc in spell_misc_rows_in_record_id_order(spell_misc_store) {
-            let Ok(spell_id) = i32::try_from(misc.spell_id) else {
-                continue;
-            };
+            let spell_id = misc.spell_id as i32;
             let difficulty_id = misc.difficulty_id;
             let attributes = misc.attributes.map(|attribute| attribute as u32);
             store

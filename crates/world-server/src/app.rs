@@ -3996,9 +3996,10 @@ async fn run_inner(
     let spell_proc_outcome = crate::spell::world_catalog::load_spell_proc_like_cpp(
         &spell_world_catalog_persistence,
         &spell_store,
+        serverside_spell_store.as_ref(),
         spell_chain_store.as_ref(),
+        difficulty_store.as_ref(),
         spell_aura_options_store.as_ref(),
-        spell_misc_store.as_ref(),
         spell_class_options_store.as_ref(),
         spell_procs_per_minute_store.as_ref(),
     )

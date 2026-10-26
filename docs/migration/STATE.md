@@ -43,7 +43,9 @@ to their existing startup positions and immutable owners.
 native proc-family metadata.
 9i3C3d4l2a shares the existing AuraOptions and regular-family readers from Data,
 retaining the World aliases and their previous behavior.
-Exact proc source preparation and fresh/refresh charge consumers remain pending.
+9i3C3d4l2b prepares exact regular/server proc sources and connects the fallible
+builder to startup; its focused coding feedback is green. Fresh/refresh charge
+consumers remain pending.
 The integration adds neither another clock nor another Player authority.
 
 Four blocks remain within the same macro:
@@ -1916,6 +1918,60 @@ next completed implementation will compile its consumers and exercise affected
 reader cases. No new trait, context, crate or mutable authority is introduced.
 This is a local UNVALIDATED structural checkpoint, not accepted evidence.
 
+9i3C3d4l2b replaces the payload-only/difficulty-zero proc projection with
+the existing exact regular SpellInfo keys and accepted server-side sources.
+One temporary source map supplies explicit SQL/rank lookup through the known
+difficulty-zero fallback and implicit generation at every actual key. A second
+temporary key lookup records only calls the row loader can reach, respecting
+non-first all-ranks rejection and duplicate-entry stops. It holds no runtime
+authority. Known total absence avoids irrelevant graph cycles; required cycles
+and producer overlap fail construction before the canonical proc Arc is
+installed. Errors retain the affected exact key or SQL/rank lookup context.
+
+Regular sources use the shared effective AuraOptions/family readers and the
+SpellStore's canonical attributes and indexed effects, without a separate raw
+Misc snapshot. Key-only SpellInfos retain source defaults. Effect vectors are
+dense through the highest resolved slot, with zero holes and explicit inert
+fallback stoppers. The two relevant effect/attribute hydration sites preserve
+uint32 SpellID key bits through signed storage. TriggerSpell also preserves
+its signed-input bits when projected into uint32. Other legacy high-ID
+hydration sites are not claimed repaired. Accepted server sources retain their
+full-width proc/family fields, canonical int32 base points, and Attr3 word.
+Negative raw server effect types are rejected: C++ assigns GetInt32 into the
+unsigned Effect field before its upper-bound check. Source anchors at the
+pinned target are SpellMgr.cpp:490–509,1500–1634,1730–1888,2500–2665,2735,
+2786–2792 and SpellInfo.cpp:407–435,1148–1164,1337–1353. This is metadata and
+entry-presence preparation, not general CalcValue/scaling/proc-runtime parity.
+
+On base `9d8b22194` plus the reviewed delta, aarch64/jobs=1 coding feedback
+passed `cargo check -p world-server --lib` and 33 distinct cases: Data
+`proc_source_preparation` (13), the existing loaded-source and invalid-server
+effect cases (one each), four existing SQL/rank/implicit regressions, and
+WorldSpell `selected_catalog` (13, including five publication-reader cases),
+and its separate family-alias case (one). These exercise the l2a consumers.
+Full command logs, real exits
+and timings remain in `/tmp/rustycore-c3d4l2b-logs/`. The initial successful
+server check (224.93 seconds) preceded the shared-resolver correction. Its
+rerun retained a missing-macro-import failure (101), then passed in 34.59
+seconds. Data retained two fixture type errors (101), then a 12/13 run whose
+incorrect expected family mask was repaired from SpellMgr.cpp:1811–1815:
+implicit masks come from effect SpellClassMask. The final 13/13 run passed in
+9.18 seconds; the WorldSpell filter passed in 81.53 seconds. These are coding
+feedback, not a completed-candidate campaign or proof of its 600-second target.
+No positive WorldServer proc-composition test was found or claimed.
+The worker reported generic GPT-6 identity without effort telemetry; the exact
+runtime variant/effort is unavailable.
+
+The parent reviewed the actual diff, callers, source anchors, raw outcomes and
+all thirteen code-file hashes without a duplicate Cargo run. The new private
+preparation/test children are 264/760 lines; catalog.rs is 897 and the adjusted
+existing proc tests are 907. App grows 5,695 to 5,696 (+1) for the two joint
+source arguments replacing raw Misc at the same startup call. Temporary
+reviewed ceiling 5,696 retains #43 integration ownership and expires at the
+same final architecture review; no baseline was regenerated. The charge
+consumers and remaining macro blocks are still required. This is a local
+UNVALIDATED checkpoint, not final, SQL, runtime or capture acceptance.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -2369,6 +2425,26 @@ new SpellInfo keys. Fresh and refresh calculations consult that
 entry, including an explicit zero; saved-charge normalization does not.
 The existing canonical proc store can supply exact entries without using its
 legacy unguarded fallback loop.
+
+Selected charge integration decision, 2026-10-26: keep fresh-only charge
+preparation outside the shared constructor used by persisted aura loading.
+The application selects a matching full-mask aura before observing any fresh
+creation failure. A timer-refreshing match reads charges from its existing
+SpellInfo difficulty with no caster; a non-refreshing match does not request
+charge metadata. Fresh self-casts may bypass modifier lookup only when Attr3
+IGNORE_CASTER_MODIFIERS (`0x20000000`) applies, or effective family flags are
+all zero and the effective label list is empty. Every label row counts,
+including LabelID zero; labels are inherited as a list when the difficulty
+chain reaches their difficulty-zero source. Missing effective catalogs are
+not known absence. The selected paths have no canonical SpellMod registry
+from which to calculate an otherwise eligible modifier, so that case remains
+a preparation error before conflicting auras are removed. This does not
+retire the broader modifier owner or claim its implementation. Reuse immutable
+catalog borrows and the existing canonical proc store; introduce no charge
+cache, extra Player, operation lock or scheduling owner. The source anchors
+are SpellAuras.cpp:965–976,1078–1094, SpellInfo.cpp:1784–1817,
+SpellMgr.cpp:2555–2556,2649–2650, and Object.cpp:2274–2295 at the pinned target.
+This records the next consumer contract, not executed consumer acceptance.
 
 Its production preparation also needs correction before selected charge
 acceptance. SpellProcStore::from_rows_and_stores currently projects every

@@ -206,7 +206,7 @@ impl ServersideSpellEffectStoreLikeCpp {
                 continue;
             }
 
-            if row.effect >= TOTAL_SPELL_EFFECTS_LIKE_CPP {
+            if row.effect < 0 || row.effect >= TOTAL_SPELL_EFFECTS_LIKE_CPP {
                 errors.push(ServersideSpellEffectLoadErrorLikeCpp {
                     row,
                     kind: ServersideSpellEffectLoadErrorKindLikeCpp::EffectTypeOutOfRange,

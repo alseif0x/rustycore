@@ -263,32 +263,69 @@ pub struct SpellProcSourceSpellInfoLikeCpp {
 impl SpellProcSourceSpellInfoLikeCpp {
     pub fn from_loaded_spell_like_cpp(
         spell_id: u32,
-        difficulty: u32,
+        difficulty_id: u8,
         spells: &SpellStore,
+        difficulties: &crate::difficulty::DifficultyStore,
         spell_chains: &SpellChainStoreLikeCpp,
         spell_aura_options: &crate::spell_db2::SpellAuraOptionsStore,
-        spell_misc: &crate::spell_db2::SpellMiscStore,
         spell_class_options: &crate::spell_db2::SpellClassOptionsStore,
         spell_procs_per_minute: &crate::spell_db2::SpellProcsPerMinuteStore,
-    ) -> Option<Self> {
-        let spell = spells.get(i32::try_from(spell_id).ok()?)?;
-        let difficulty_id = u8::try_from(difficulty).unwrap_or(0);
-        let aura_options =
-            spell_aura_options.entry_for_spell_difficulty_like_cpp(spell_id, difficulty_id);
-        let spell_misc = spell_misc.entry_for_spell_difficulty_like_cpp(spell_id, difficulty_id);
-        let spell_class_options = spell_class_options.entry_for_spell_like_cpp(spell_id);
+    ) -> Result<Option<Self>> {
+        if !spells.contains_spell_info_exact_like_cpp(spell_id, difficulty_id) {
+            return Ok(None);
+        }
 
-        Some(Self {
+        let spell_id_key = spell_id as i32;
+        let aura_options = resolve_spell_aura_options_entry(
+            spell_aura_options,
             spell_id,
-            difficulty,
+            difficulty_id,
+            Some(difficulties),
+        )
+        .map_err(|error| anyhow::anyhow!("failed to resolve proc aura options: {error:?}"))?;
+        let (spell_family_name, _) = resolve_spell_family(
+            spell_class_options,
+            spell_id_key,
+            difficulty_id,
+            Some(difficulties),
+        )
+        .map_err(|error| anyhow::anyhow!("failed to resolve proc spell family: {error:?}"))?;
+        let attributes =
+            resolve_spell_attributes(spells, spell_id_key, difficulty_id, Some(difficulties))
+                .map_err(|error| {
+                    anyhow::anyhow!("failed to resolve proc spell attributes: {error:?}")
+                })?;
+        let resolved_effects =
+            resolve_spell_effect_rows(spells, spell_id_key, difficulty_id, Some(difficulties))
+                .map_err(|error| {
+                    anyhow::anyhow!("failed to resolve proc spell effects: {error:?}")
+                })?;
+
+        let effects_len = resolved_effects
+            .last()
+            .map_or(0, |effect| effect.effect_index as usize + 1);
+        let mut effects = (0..effects_len)
+            .map(|effect_index| SpellEffectInfo {
+                effect_index: effect_index as u32,
+                polarity_metadata: Some(SpellEffectPolarityMetadata::default()),
+                ..SpellEffectInfo::default()
+            })
+            .collect::<Vec<_>>();
+        for effect in resolved_effects {
+            let effect_index = usize::try_from(effect.effect_index)
+                .map_err(|_| anyhow::anyhow!("resolved proc effect index is not addressable"))?;
+            effects[effect_index] = effect.clone();
+        }
+
+        Ok(Some(Self {
+            spell_id,
+            difficulty: u32::from(difficulty_id),
             first_rank_spell_id: spell_chains.first_spell_in_chain_like_cpp(spell_id),
             next_rank_spell_id: match spell_chains.next_spell_in_chain_like_cpp(spell_id) {
                 0 => None,
                 next => Some(next),
             },
-            spell_family_name: spell_class_options
-                .map(|entry| u32::from(entry.spell_class_set))
-                .unwrap_or(0),
+            spell_family_name: u32::from(spell_family_name),
             proc_flags: aura_options
                 .map(|entry| {
                     [
@@ -312,11 +349,9 @@ impl SpellProcSourceSpellInfoLikeCpp {
                 })
                 .map(|entry| entry.base_proc_rate)
                 .unwrap_or(0.0),
-            attributes3: spell_misc
-                .map(|entry| entry.attributes[3] as u32)
-                .unwrap_or(0),
-            effects: spell.effects().to_vec(),
-        })
+            attributes3: attributes.map(|attributes| attributes[3]).unwrap_or(0),
+            effects,
+        }))
     }
 
     pub fn is_ranked_like_cpp(&self) -> bool {
@@ -344,7 +379,7 @@ impl SpellProcSourceSpellInfoLikeCpp {
                     aura_type: effect.effect_aura,
                     spell_class_mask: effect.effect_spell_class_mask,
                     calc_value: effect.calc_value_no_caster_like_cpp(),
-                    trigger_spell: u32::try_from(effect.effect_trigger_spell).unwrap_or(0),
+                    trigger_spell: effect.effect_trigger_spell as u32,
                 })
                 .collect(),
         }
