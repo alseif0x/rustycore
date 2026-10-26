@@ -29,8 +29,8 @@ complete effect/visual file loading, override-potential queries, and server
 catalog composition. 9i3C3d4h connects those visuals to fresh selected Aura
 construction and loading, including canonical preworld owner context and
 preservation of signed wire bits. 9i3C3d4i connects selected self-cast visuals
-before execution preparation. Fresh/refresh charges and their effective scalar
-inputs remain pending, alongside ordinary client cast preparation.
+before execution preparation. Subsequent charge and effective scalar work is
+recorded below; ordinary client cast preparation remains pending.
 9i3C3d4j1 prepares complete/effective loading and SQL-free row types for the
 four scalar catalogs.
 9i3C3d4j2 normalizes source difficulty before regular/server effect indexing
@@ -44,8 +44,8 @@ native proc-family metadata.
 9i3C3d4l2a shares the existing AuraOptions and regular-family readers from Data,
 retaining the World aliases and their previous behavior.
 9i3C3d4l2b prepares exact regular/server proc sources and connects the fallible
-builder to startup; its focused coding feedback is green. Fresh/refresh charge
-consumers remain pending.
+builder to startup; its focused coding feedback is green. 9i3C3d4m2b connects
+its selected fresh and refresh charge consumers.
 9i3C3d4m1 prepares selected charge calculation and modifier admission as pure
 readers; 9i3C3d4m2b connects their selected consumers.
 9i3C3d4m2a shares the existing key-difficulty reader from Data and prepares
@@ -55,7 +55,10 @@ deferred compilation and identity test are covered by 9i3C3d4m2b feedback.
 admission, the bounded nonzero-only selected FULL projection, and its cooldown
 correction. Production compilation and 50 distinct World cases have focused
 coding feedback. Original refresh policy, duration and Ghost/Wisp effect
-properties remain pending; none of this establishes final acceptance.
+properties are corrected by 9i3C3d4m3, with production compilation, 54 World
+cases and four Core duration cases. Selected stat-view consumers still need
+the nonzero-only difficulty review recorded below. None of this establishes
+final acceptance.
 The integration adds neither another clock nor another Player authority.
 
 Four blocks remain within the same macro:
@@ -85,6 +88,31 @@ the admitted mutation point. Include all these writers in the same integration,
 with owned publication after the Map guard; no Session mailbox cleanup after
 P3 or parallel Player owner. This is source/caller inspection, not executed
 death acceptance or a report that this participant is implemented.
+
+Read-only participant refinement at `31e8f06d0`: the stats bridge already has
+an actor-borrowed input, `PlayerStatFacts::from_player`, a pure
+`wow_world_inventory::plan_player_stats`, the existing `PlayerStatCalculator`
+function type, and Core's synchronous `apply_player_stat_computation`.
+They can support the native death operation without looking up or cloning a
+second Player. Do not call the Session owner-locking wrapper while Map is
+already borrowed. Placement of the complete choreography is still pending;
+these available functions do not by themselves make aura removal complete.
+The current stat aura view also reads legacy base payloads, so a genuinely
+nonzero-only aura needs its exact component consumer reviewed before claiming
+stats parity. No new dependency edge or runtime callback was installed.
+
+NoDeath quest failure is also an operation, not just a status assignment.
+Pinned Player.cpp:14928–14989 selects quest-log slots, accepts incomplete
+quests or the source's specific completed timed case, updates status/log and
+timer, publishes the appropriate failure, and destroys quest-bound objective
+and quest-drop items. Existing Player quest status and inventory destruction
+planners are available; no complete native FailQuest consumer was found.
+Source Player.cpp:1182–1191 orders SelfRes initialization before that failure
+and criteria updates, with Unit aura removal afterward. Preserve that order
+and the inventory/aura consequences in the native integration. The existing
+inebriation owner is PlayerData::Inebriation with a dirty writer; reuse that
+canonical field rather than adding a second drunkenness state.
+These are integration findings, not additional accepted gameplay evidence.
 
 **#43, contexto y evidencia previos — corte 2026-10-25, 06:47 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
@@ -2110,6 +2138,71 @@ GPT-6 with effort telemetry unavailable. No parent Cargo, final campaign,
 runtime, SQL or capture operation was performed. This remains UNVALIDATED at
 macro level; original refresh findings and the other three blocks stay open.
 
+9i3C3d4m3 corrects the original selected Aura refresh findings. The pure
+selected_aura_refresh_policy reader resolves the stored raw difficulty to
+the original SpellInfo key before reading its stack policy, attributes and
+duration. Both application consumers use those old facts and the old actual
+key for charges and effects. Ghost/Wisp now copies only incoming base points
+into the original effect rows, retaining their DieSides, aura type and misc
+data. The slot, raw difficulty, provenance, indexed amounts and recalculation
+mask remain canonical. Fresh-only stack and duration checks follow the
+matching refresh branch. Existing no-timer application refreshes do not read
+unused duration or proc catalogs; the complete cast still retains its own
+admission requirements.
+
+Core computes the refreshed lifetime under the canonical mutation borrow,
+using its current remaining duration before changing any state. Attr13's
+extension uses the source's f32 percentage and truncation, with a checked
+addition; overflow leaves the Aura and effect metadata unchanged. A normal
+refresh accepts signed remaining values such as -1 and restores the old base
+duration. Invalid duration INT_MIN is rejected instead of saturating its
+absolute value. The selected sickness removal guard now resolves the Aura's
+actual key instead of requiring a legacy difficulty-zero payload. A positive
+nonzero-only expiry and a keyless negative removal case cover that consumer.
+
+Source is pinned target `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+Unit.cpp:3244–3278, SpellAuras.cpp:869–895,933–952,1021–1094,
+SpellInfo.cpp:3905–3910, common/Utilities/Util.h:72–75 and
+Miscellaneous/SharedDefines.h:932. No new modifier engine, cumulative stacking
+implementation, stored SpellInfo mirror, Player owner, lock or clock was
+introduced. The existing general MaxAuraStacks and effect modifier boundaries
+remain; this checkpoint does not retire them or establish capture parity.
+
+Worker coding feedback on this aarch64 host used HEAD `31e8f06d0` plus the
+reviewed uncommitted source delta, PROTOC set, one Cargo job and this checkout's
+target directory. Raw logs are in `/tmp/rustycore-c3d4m3-logs/`:
+
+- `cargo check -p world-server --lib`: exit 0, 3 minutes 51 seconds,
+  `01-world-server-check.log`, 10:55:14–10:59:05 UTC.
+- `cargo test -p wow-world --lib spirit_healer`: exit 0, 54 passed,
+  `02-world-spirit-healer-tests.log`, 10:59:14–11:02:37 UTC.
+- `cargo test -p wow-world-core --lib selected_duration_tests`: exit 0,
+  four passed, `04-world-core-selected-duration-tests.log`,
+  11:03:37 UTC. The preceding `selected_refresh_duration` filter ran zero
+  tests in `03-world-core-selected-refresh-duration.log` and proves nothing.
+
+These are 58 distinct focused cases, including six new World cases and four
+new Core cases. The unit's 10:55:14–11:03:37 feedback interval is not a final
+campaign or evidence that the complete ordinary acceptance fits 600 seconds.
+Parent review corrected arithmetic oracles, signed-remaining handling and
+INT_MIN admission before the feedback, made effect-property fixtures
+deterministic, and kept the keyless fixture's fabricated base payload strictly
+inside its negative case. The policy reader, Core implementation, mirrored
+duration tests and new World refresh tests are 104/534/39/740 lines;
+Ghost/Wisp is 986 lines. Physical baselines remain unchanged. No parent Cargo,
+runtime, SQL, capture or restart operation was executed. This is an UNVALIDATED
+local macro checkpoint; native death, recovery, normal casts, QA and final
+acceptance remain open.
+
+The worker reported generic GPT-6 with effort telemetry unavailable. Its
+recursive rustfmt invocation also touched earlier #43 modules outside M3.
+After the feedback and the worker's ownership confirmation, the parent removed
+those formatter-only file deltas, retaining the sibling charge-test helper
+visibility changes and formatting in semantic M3 files. The source behavior
+and new test bodies are unchanged; the earlier feedback is not relabelled as
+a final run at the subsequent commit. The parent reviewed the actual M3 diffs
+and retained hashes for the policy, Core, application and test files.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -2625,16 +2718,16 @@ existing normal-cast owner; this is not general scalar/periodic-cost parity.
 9i3C3d4m2b implements these repairs and records the affected green feedback
 above. They are not final accepted production or runtime evidence.
 
-The next selected refresh review must also retain the original SpellInfo's
-timer policy and duration, not just its proc difficulty. Unit.cpp:3244–3278
+The original selected refresh finding, corrected by 9i3C3d4m3, requires the
+original SpellInfo's timer policy and duration, not just its proc difficulty. Unit.cpp:3244–3278
 copies new base points into existing effects; SpellAuras.cpp:1021–1094 then
 uses the existing Aura for stack policy, recalculation and timer refresh.
 RefreshTimers at :933–952 calculates the original maximum without a caster
-and applies Attr13 PERIODIC_REFRESH_EXTENDS_DURATION when set. Current
-sickness refresh preserves original effect properties, but its policy/duration
-arguments still come from the new cast; Ghost/Wisp refresh also recalculates
-from the new effect properties. These are identified consumer findings, not
-implemented fixes or permission to claim selected metadata complete. Preserve
+and applies Attr13 PERIODIC_REFRESH_EXTENDS_DURATION when set. At that review,
+sickness refresh already preserved original effect properties, while its
+policy/duration arguments came from the new cast; Ghost/Wisp also recalculated
+from new effect properties. 9i3C3d4m3 corrects these consumers with focused
+feedback above; it does not establish complete selected metadata acceptance. Preserve
 raw cast difficulty on the canonical application, resolve its actual SpellInfo
 key through the immutable catalogs, and validate the snapshot's difficulty
 when committing the existing-slot mutation. No new stored SpellInfo mirror
@@ -2834,15 +2927,32 @@ se inicializó a 1.000 y se repitió todo el grupo afectado, incluyendo
 aserciones de DeathState canónico en los casos de fallo. No se rebajó la
 aserción positiva. Esta evidencia no cubre aún las operaciones completas
 reclaim/healer/login ni DB/reinicio/relogin o aceptación final.
-El participante SelfRes pendiente debe conservar una sola lista ordenada:
-C++ añade Soulstone 3026, Twisting Nether 23700 y Reincarnation 21169 en ese
-orden (`Player.cpp:24757–24780`), y elimina solo la primera coincidencia
-(`Player.h:2738–2745`). El BTreeSet actual pierde ese orden. La autoridad
-de la lista debe pasar al campo dinámico ActivePlayerData SelfResSpells
-(bit 12, padre 0), con métodos de Player y su máscara de cambios; no mantener
-otra copia mutable en PlayerResurrectionState. La inicialización comprueba
-HasSpell(20608) y el cooldown de 21169, antes de la retirada de auras al morir.
-Este es el contrato decidido para el participante existente, aún sin implementar.
+The pending SelfRes participant must retain one ordered list. C++ appends
+Soulstone 3026, Twisting Nether 23700 and Reincarnation 21169 in that order
+(`Player.cpp:24757–24780`); Add permits duplicates and Remove erases the first
+match (`Player.h:2738–2745`). Move authority from the current BTreeSet to
+Player's ActivePlayerData SelfResSpells dynamic field (bit 12, parent 0),
+with named Player operations and its nested change mask. Do not retain a
+second mutable list in PlayerResurrectionState. Clear marks the field even
+when empty. UpdateField.h:186–205 shifts values on removal and marks shifted
+indices; clear empties both values and nested mask. Initialization checks
+HasSpell(20608) and cooldown 21169 before death removes auras. This remains
+an implementation contract, not a completed participant.
+
+The 2026-10-26 consumer review at `31e8f06d0` also identifies both wire paths:
+entity_update_bridge/state_2.rs must project the native list and nested mask
+for VALUES, and PlayerCreateData/state_2.rs must write its real size and
+ordered payload for self CREATE. Current CREATE hardcodes size zero. Connect
+both login_sequence and worldport self_create to the same live list; never
+initialize SelfRes merely because login loads a dead Player. Pinned
+UpdateFields.cpp:3042,3096–3098,3327–3329,3476–3480 and
+UpdateFields.h:637 establish the layouts. SpellHandler.cpp:416–429 first
+requires membership, resolvable SpellInfo, and no preventing aura unless
+Attr7 permits bypass. It then calls ordinary CastSpell and removes the first
+match after the attempt, including a failed cast. Rust currently removes
+only after success and omits that aura admission check. These remain required
+consumer fixes alongside ordinary cast preparation and reagents; correcting
+the list alone must not be reported as complete SelfRes behavior.
 
 Renovación Ghost/Wisp, 20:08 UTC, sobre `09451333d` más el delta local:
 se reutilizan slot, procedencia y aplicación canónica del mismo spell/caster,

@@ -37,6 +37,7 @@ mod selected_lifetime;
 mod selected_load;
 mod selected_metadata;
 mod selected_reaction;
+mod selected_refresh;
 mod selected_visual;
 mod sources;
 
@@ -49,7 +50,6 @@ pub(super) use selected_caster::selected_caster_level;
 pub use selected_charges::selected_aura_max_charges;
 pub(crate) use selected_charges::validate_selected_aura_modifier_absence;
 pub(crate) use selected_creation::prepare_selected_aura_creation;
-pub(crate) use selected_reaction::selected_caster_is_friendly;
 pub(crate) use selected_flags::{
     SelectedAuraFlagsError, SelectedSpellMetadataFacts, SelectedSpellPolarity,
     SelectedSpellPolarityError, build_selected_aura_application_flags,
@@ -57,9 +57,9 @@ pub(crate) use selected_flags::{
 };
 pub(crate) use selected_lifetime::validate_application as validate_selected_aura_application;
 pub use selected_lifetime::*;
-pub(crate) use selected_metadata::{
-    SelectedSpellMetadata, selected_spell_metadata,
-};
+pub(crate) use selected_metadata::{SelectedSpellMetadata, selected_spell_metadata};
+pub(crate) use selected_reaction::selected_caster_is_friendly;
+pub use selected_refresh::{SelectedAuraRefreshPolicy, selected_aura_refresh_policy};
 pub(crate) use selected_visual::selected_aura_spell_visual_id;
 pub use sources::*;
 

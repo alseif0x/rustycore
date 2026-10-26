@@ -69,22 +69,13 @@ impl AuraRemovalCxLikeCpp<'_> {
         if self.is_current_race_sickness_spell(spell_id) != Some(true) {
             return Err("Spell is not the current race-selected sickness Aura");
         }
-        if duration_total <= 0 {
-            return Err("Race-selected sickness duration is invalid");
-        }
-        wow_world_core::session::selected_aura_refreshes_timers(
-            stack_amount,
-            1,
-            attributes1,
-            attributes5,
-        )?;
         let selected = selected_effects(spell_id, spell_info.effects().iter(), ACTIVE_EFFECT_MASK)?;
         let spell_store = self
             .spell_store
             .map(|store| store.as_ref())
             .ok_or("Missing SpellStore for the race-selected sickness Aura")?;
-        let spell_id_u32 = u32::try_from(spell_id)
-            .map_err(|_| "Invalid race-selected sickness SpellInfo key")?;
+        let spell_id_u32 =
+            u32::try_from(spell_id).map_err(|_| "Invalid race-selected sickness SpellInfo key")?;
         wow_data::spell::resolve_spell_info_key_difficulty(
             spell_store,
             spell_id_u32,
@@ -129,39 +120,50 @@ impl AuraRemovalCxLikeCpp<'_> {
             .first()
             .filter(|aura| aura.effect_mask == ACTIVE_EFFECT_MASK)
         {
+            let policy = wow_world_spell::selected_aura_refresh_policy(
+                spell_id_u32,
+                existing.difficulty_id,
+                spell_store,
+                self.spell_misc_store,
+                None,
+                self.spell_aura_options_store,
+                self.difficulty_store,
+            )?;
             let original_rows = wow_data::spell::resolve_spell_effect_rows(
                 spell_store,
                 spell_id,
-                existing.difficulty_id,
+                policy.actual_difficulty,
                 self.difficulty_store,
             )
             .map_err(|_| "Unable to resolve existing sickness Aura effects")?;
             let original_effects =
                 selected_effects(spell_id, original_rows.iter().copied(), ACTIVE_EFFECT_MASK)?;
             let refresh_timers = wow_world_core::session::selected_aura_refreshes_timers(
-                stack_amount,
+                policy.stack_amount,
                 existing.stack_count,
-                attributes1,
-                attributes5,
+                policy.attributes1,
+                policy.attributes5,
             )?;
-            let charges = if refresh_timers {
-                let spell_store = self
-                    .spell_store
-                    .map(AsRef::as_ref)
-                    .ok_or("Missing SpellStore for existing sickness aura charges")?;
-                let spell_id_u32 =
-                    u32::try_from(spell_id).map_err(|_| "Invalid selected sickness spell")?;
-                let actual_difficulty = wow_data::spell::resolve_spell_info_key_difficulty(
-                    spell_store,
+            let base_duration_ms = if refresh_timers {
+                wow_world_spell::selected_aura_refresh_policy(
                     spell_id_u32,
                     existing.difficulty_id,
+                    spell_store,
+                    self.spell_misc_store,
+                    self.spell_duration_store,
+                    self.spell_aura_options_store,
                     self.difficulty_store,
-                )
-                .map_err(|_| "Unable to resolve existing sickness SpellInfo key")?
-                .ok_or("Existing sickness SpellInfo key is missing")?;
+                )?
+                .base_duration_ms
+                .filter(|duration| *duration > 0)
+                .ok_or("Missing finite existing sickness Aura duration")?
+            } else {
+                0
+            };
+            let charges = if refresh_timers {
                 wow_world_spell::selected_aura_max_charges(
                     spell_id_u32,
-                    actual_difficulty,
+                    policy.actual_difficulty,
                     self.spell_aura_options_store,
                     self.spell_proc_store,
                     self.difficulty_store,
@@ -214,10 +216,11 @@ impl AuraRemovalCxLikeCpp<'_> {
                 slot: existing.slot,
                 difficulty_id: existing.difficulty_id,
                 effect_mask: ACTIVE_EFFECT_MASK,
-                duration_total,
-                stack_amount,
-                attributes1,
-                attributes5,
+                duration_total: base_duration_ms,
+                stack_amount: policy.stack_amount,
+                attributes1: policy.attributes1,
+                attributes5: policy.attributes5,
+                attributes13: policy.attributes13,
                 refresh_timers,
                 charges,
                 recalculate_mask: metadata.recalculate_mask,
@@ -234,6 +237,15 @@ impl AuraRemovalCxLikeCpp<'_> {
             return Ok(());
         }
 
+        if duration_total <= 0 {
+            return Err("Race-selected sickness duration is invalid");
+        }
+        wow_world_core::session::selected_aura_refreshes_timers(
+            stack_amount,
+            1,
+            attributes1,
+            attributes5,
+        )?;
         let (aura_flags, provenance, charges) = creation?;
 
         // `_AddAura` removes every existing same-spell application before it

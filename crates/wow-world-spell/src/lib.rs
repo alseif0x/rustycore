@@ -29,12 +29,13 @@ mod test_support;
 mod toy_session;
 
 pub use aura_rows::{CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp};
+pub use aura_session::selected_aura_max_charges;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use aura_session::update_represented_flight_flags_for_flight_aura_like_cpp;
 pub use aura_session::{
     AuraHostLikeCpp, SelectedAuraLifetimeResult, insert_player_visible_aura_like_cpp,
-    load_represented_character_auras_like_cpp,
-    next_player_visible_aura_slot_like_cpp, remove_auras_with_interrupt_flags_like_cpp,
+    load_represented_character_auras_like_cpp, next_player_visible_aura_slot_like_cpp,
+    remove_auras_with_interrupt_flags_like_cpp,
     remove_indoor_outdoor_auras_for_current_position_represented_like_cpp,
     remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp,
     remove_represented_auras_due_to_spell_like_cpp,
@@ -45,9 +46,6 @@ pub use aura_session::{
     set_player_aura_duration, tick_auras_expiry_only, tick_selected_aura_lifetimes,
     update_player_collision_height_like_cpp,
 };
-pub use aura_session::selected_aura_max_charges;
-#[cfg(any(test, feature = "test-fixtures"))]
-pub use aura_session::{flush_pending_selected_aura_updates, tick_auras};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use aura_session::{
     SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP, apply_represented_mounted_aura_like_cpp,
@@ -55,6 +53,9 @@ pub use aura_session::{
     represented_mount_aura_display_candidates_like_cpp,
     represented_player_aura_state_mask_like_cpp, represented_unit_aura_state_mask_like_cpp,
 };
+pub use aura_session::{SelectedAuraRefreshPolicy, selected_aura_refresh_policy};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use aura_session::{flush_pending_selected_aura_updates, tick_auras};
 pub use aura_update_session::handle_player_aura_update;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use effect_session::{
@@ -139,8 +140,7 @@ pub use records::{
 };
 pub use session::{
     AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP, RepresentedShapeshiftMutationLikeCpp,
-    SelectedAuraPublicationCatalogs,
-    collect_player_pending_selected_aura_updates,
+    SelectedAuraPublicationCatalogs, collect_player_pending_selected_aura_updates,
     player_aura_info_like_cpp, represented_aura_effect_amounts_like_cpp,
     shapeshift_form_of_spell_like_cpp, unit_owned_apply_aura_effect_mask_like_cpp,
 };

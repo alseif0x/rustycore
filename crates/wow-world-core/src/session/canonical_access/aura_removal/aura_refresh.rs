@@ -9,6 +9,10 @@ use wow_entities::{
     RepresentedAuraEffectAmountLikeCpp, VisibleAuraEffectAmountLikeCpp,
 };
 
+#[cfg(test)]
+#[path = "../../../../unit_tests/session/canonical_access/aura_removal/selected_refresh_duration.rs"]
+mod selected_duration_tests;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SelectedAuraKind {
     Ghost,
@@ -36,6 +40,7 @@ pub struct SelectedAuraRefresh<'a> {
     pub stack_amount: u32,
     pub attributes1: u32,
     pub attributes5: u32,
+    pub attributes13: u32,
     pub charges: u8,
     pub refresh_timers: bool,
     pub recalculate_mask: u32,
@@ -65,6 +70,28 @@ pub fn selected_aura_refreshes_timers(
     Ok(1 >= current_stack
         && attributes1 & ATTR1_AURA_UNIQUE == 0
         && attributes5 & ATTR5_AURA_UNIQUE_PER_CASTER == 0)
+}
+
+const ATTR13_PERIODIC_REFRESH_EXTENDS_DURATION: u32 = 0x0010_0000;
+
+fn selected_refreshed_duration(
+    base_duration: i32,
+    old_remaining: i32,
+    attributes13: u32,
+) -> Result<i32, &'static str> {
+    // SpellAuras.cpp:933-947 applies this after resolving the old Aura's
+    // duration; Attr13 uses Util.h:72-75's f32 calculation and truncation.
+    if attributes13 & ATTR13_PERIODIC_REFRESH_EXTENDS_DURATION == 0 {
+        return Ok(base_duration);
+    }
+
+    // Util.h:72-75 calculates percentages in f32 before truncating to int32.
+    let pandemic_cap = (base_duration as f32 * 30.0_f32 / 100.0_f32) as i32;
+    let extended = pandemic_cap
+        .min(old_remaining)
+        .checked_add(base_duration)
+        .ok_or("Selected Aura pandemic duration exceeds the supported range")?;
+    Ok(old_remaining.max(extended))
 }
 
 fn expected_aura_types(kind: SelectedAuraKind, spell_id: i32) -> Option<[i32; 3]> {
@@ -255,10 +282,13 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
         if refresh.effect_mask != 0b111
             || refresh.effects.len() != expected.len()
             || refresh.recalculate_mask & !refresh.effect_mask != 0
-            || match refresh.kind {
-                SelectedAuraKind::Ghost | SelectedAuraKind::Wisp => refresh.duration_total != -1,
-                SelectedAuraKind::Sickness => refresh.duration_total <= 0,
-            }
+            || (refresh.refresh_timers
+                && match refresh.kind {
+                    SelectedAuraKind::Ghost | SelectedAuraKind::Wisp => {
+                        refresh.duration_total != -1
+                    }
+                    SelectedAuraKind::Sickness => refresh.duration_total <= 0,
+                })
         {
             return Some(Err("Selected aura refresh data is incomplete or invalid"));
         }
@@ -290,6 +320,15 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
             if refresh.refresh_timers != current_refresh_timers {
                 return Err("Selected Aura refresh policy differs from its canonical stack");
             }
+            let refreshed_duration = if refresh.refresh_timers {
+                Some(selected_refreshed_duration(
+                    refresh.duration_total,
+                    application.duration_remaining,
+                    refresh.attributes13,
+                )?)
+            } else {
+                None
+            };
 
             let mut updates = [None; 3];
             let mut update_mask = 0_u32;
@@ -438,9 +477,9 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
                 let application = auras
                     .runtime_application_mut_like_cpp(refresh.slot)
                     .expect("selected AuraApplication validated above");
-                if refresh.refresh_timers {
-                    application.duration_total = refresh.duration_total;
-                    application.duration_remaining = refresh.duration_total;
+                if let Some(duration) = refreshed_duration {
+                    application.duration_total = duration;
+                    application.duration_remaining = duration;
                 }
                 application.stack_count = 1;
                 application.represented_effect_amounts = represented_amounts.clone();

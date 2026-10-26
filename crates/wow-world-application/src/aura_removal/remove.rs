@@ -20,13 +20,20 @@ impl AuraRemovalCxLikeCpp<'_> {
                 .spell_store
                 .map(|store| store.as_ref())
                 .ok_or("Missing SpellInfo for the race-selected sickness removal")?;
-            if spell_store.get(aura.spell_id).is_none() {
-                return Err("Missing SpellInfo for the race-selected sickness removal");
-            }
+            let spell_id = u32::try_from(aura.spell_id)
+                .map_err(|_| "Invalid race-selected sickness SpellInfo key")?;
+            let actual_difficulty = wow_data::spell::resolve_spell_info_key_difficulty(
+                spell_store,
+                spell_id,
+                aura.difficulty_id,
+                self.difficulty_store,
+            )
+            .map_err(|_| "Unable to resolve race-selected sickness removal key")?
+            .ok_or("Missing SpellInfo for the race-selected sickness removal")?;
             let effects = wow_data::spell::resolve_spell_effect_rows(
                 spell_store,
                 aura.spell_id,
-                aura.difficulty_id,
+                actual_difficulty,
                 self.difficulty_store,
             )
             .map_err(|_| "Unable to resolve race-selected sickness removal effects")?;

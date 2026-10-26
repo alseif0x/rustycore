@@ -22,12 +22,14 @@ mod recast_policy;
 mod selected_cast_threat;
 #[path = "spirit_healer/selected_cast_visual.rs"]
 mod selected_cast_visual;
-#[path = "spirit_healer/selected_creation.rs"]
-mod selected_creation;
 #[path = "spirit_healer/selected_charges.rs"]
 mod selected_charges;
+#[path = "spirit_healer/selected_creation.rs"]
+mod selected_creation;
 #[path = "spirit_healer/selected_execution_effects.rs"]
 mod selected_execution_effects;
+#[path = "spirit_healer/selected_refresh.rs"]
+mod selected_refresh;
 use selected_execution_effects::{
     cast_sickness, difficulty, effect_row, install_player_on_difficulty_map,
     selected_session_with_visual_inputs, selected_session_without_selected_spell_info_key,

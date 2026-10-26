@@ -10,13 +10,21 @@ fn sickness_effect_rows(difficulties: &[u8]) -> Vec<wow_data::spell_db2::SpellEf
         .iter()
         .flat_map(|&difficulty_id| {
             [
-                (0, wow_data::spell::aura_types::SPELL_AURA_MOD_PERCENT_STAT, -40),
+                (
+                    0,
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_PERCENT_STAT,
+                    -40,
+                ),
                 (
                     1,
                     wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE,
                     -50,
                 ),
-                (2, wow_data::spell::aura_types::SPELL_AURA_NO_PVP_CREDIT, -60),
+                (
+                    2,
+                    wow_data::spell::aura_types::SPELL_AURA_NO_PVP_CREDIT,
+                    -60,
+                ),
             ]
             .into_iter()
             .map(move |(effect_index, aura, points)| {
@@ -33,7 +41,11 @@ fn sickness_effect_rows(difficulties: &[u8]) -> Vec<wow_data::spell_db2::SpellEf
         .collect()
 }
 
-fn sickness_misc_row(difficulty_id: u8, attributes1: u32, attributes3: u32) -> wow_data::SpellMiscEntry {
+fn sickness_misc_row(
+    difficulty_id: u8,
+    attributes1: u32,
+    attributes3: u32,
+) -> wow_data::SpellMiscEntry {
     let mut attributes = [0; 15];
     attributes[0] = 0x2C80_0100;
     attributes[1] = attributes1;
@@ -154,9 +166,9 @@ fn install_aura_options(session: &mut WorldSession, entries: &[(u8, i32)]) {
             spell_id: SICKNESS_SPELL as u32,
         }
     }));
-    session.set_spell_aura_options_store(Arc::new(
-        wow_data::SpellAuraOptionsStore::from_entries(rows),
-    ));
+    session.set_spell_aura_options_store(Arc::new(wow_data::SpellAuraOptionsStore::from_entries(
+        rows,
+    )));
 }
 
 fn install_generated_proc_store(session: &mut WorldSession) -> usize {
@@ -167,7 +179,10 @@ fn install_generated_proc_store(session: &mut WorldSession) -> usize {
             .spell_store
             .as_deref()
             .expect("canonical SpellStore");
-        let difficulties = catalogs.difficulty_store.as_deref().expect("DifficultyStore");
+        let difficulties = catalogs
+            .difficulty_store
+            .as_deref()
+            .expect("DifficultyStore");
         let aura_options = catalogs
             .spell_catalogs
             .spell_aura_options_store
@@ -222,7 +237,7 @@ fn application_charge(session: &WorldSession) -> (u8, u8) {
     application_charge_for_spell(session, SICKNESS_SPELL)
 }
 
-async fn cast_full_selected_spell(
+pub(super) async fn cast_full_selected_spell(
     session: &mut WorldSession,
     spell_id: i32,
     target_guid: ObjectGuid,
@@ -245,7 +260,7 @@ async fn cast_full_selected_spell(
     .await
 }
 
-async fn cast_full_sickness(
+pub(super) async fn cast_full_sickness(
     session: &mut WorldSession,
     target_guid: ObjectGuid,
     original_caster_guid: Option<ObjectGuid>,
@@ -313,9 +328,9 @@ fn install_wisp_aura_options(session: &mut WorldSession, proc_charges: i32) {
         proc_type_mask: [wow_data::spell::PROC_FLAG_KILL_LIKE_CPP as i32, 0],
         spell_id: WISP_SPELL as u32,
     });
-    session.set_spell_aura_options_store(Arc::new(
-        wow_data::SpellAuraOptionsStore::from_entries(rows),
-    ));
+    session.set_spell_aura_options_store(Arc::new(wow_data::SpellAuraOptionsStore::from_entries(
+        rows,
+    )));
 }
 
 #[tokio::test]
@@ -400,8 +415,9 @@ async fn selected_full_sickness_skips_cooldown_event_and_preserves_history() {
         session.set_spell_proc_store(Arc::new(wow_data::SpellProcStoreLikeCpp::default()));
 
         let spell_store = session.catalogs.spell_store().expect("selected SpellStore");
-        assert!(spell_store
-            .contains_spell_info_exact_like_cpp(SICKNESS_SPELL as u32, info_difficulty));
+        assert!(
+            spell_store.contains_spell_info_exact_like_cpp(SICKNESS_SPELL as u32, info_difficulty)
+        );
         assert_eq!(
             spell_store.contains_spell_info_exact_like_cpp(SICKNESS_SPELL as u32, 0),
             info_difficulty == 0
@@ -497,12 +513,16 @@ async fn selected_charge_cast_rejects_hydrated_spell_without_canonical_info_key(
         Err("Spell not found"),
         "hydrated payload and DB2 rows do not substitute for a canonical SpellInfo key"
     );
-    assert!(drain_packets(&send_rx).is_empty(), "no SpellGo is published");
+    assert!(
+        drain_packets(&send_rx).is_empty(),
+        "no SpellGo is published"
+    );
     assert!(visible_sickness_aura(&session, SICKNESS_SPELL).is_empty());
 }
 
 #[tokio::test]
-async fn selected_charge_transient_payload_rejects_channelled_or_incomplete_shape_before_spell_go() {
+async fn selected_charge_transient_payload_rejects_channelled_or_incomplete_shape_before_spell_go()
+{
     for (index, channelled, omit_third_effect) in [(0_i64, false, true), (1, true, false)] {
         let mut effects = sickness_effect_rows(&[3]);
         if omit_third_effect {
@@ -533,7 +553,10 @@ async fn selected_charge_transient_payload_rejects_channelled_or_incomplete_shap
             cast_full_sickness(&mut session, player_guid, None).await,
             Err(expected_error)
         );
-        assert!(drain_packets(&send_rx).is_empty(), "unsupported projection sends no SpellGo");
+        assert!(
+            drain_packets(&send_rx).is_empty(),
+            "unsupported projection sends no SpellGo"
+        );
         assert!(visible_sickness_aura(&session, SICKNESS_SPELL).is_empty());
     }
 }
@@ -586,9 +609,9 @@ async fn selected_wisp_charge_generation_uses_transform_proc_metadata() {
     session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_ids([0])));
     install_wisp_aura_options(&mut session, 9);
     session.set_creature_aggro_config_like_cpp(crate::session::CreatureAggroConfigLikeCpp {
-        spell_x_spell_visual_store: Some(Arc::new(
-            wow_data::SpellXSpellVisualStore::from_entries([]),
-        )),
+        spell_x_spell_visual_store: Some(Arc::new(wow_data::SpellXSpellVisualStore::from_entries(
+            [],
+        ))),
         ..Default::default()
     });
     assert!(install_generated_proc_store(&mut session) >= 1);
@@ -664,10 +687,9 @@ async fn selected_charge_refresh_uses_original_key_and_ignores_fresh_modifier_fa
 
     let spell_store = session.catalogs.spell_store().expect("selected SpellStore");
     for difficulty_id in [0, 3, 4] {
-        assert!(spell_store.contains_spell_info_exact_like_cpp(
-            SICKNESS_SPELL as u32,
-            difficulty_id,
-        ));
+        assert!(
+            spell_store.contains_spell_info_exact_like_cpp(SICKNESS_SPELL as u32, difficulty_id,)
+        );
     }
     let proc_store = session
         .catalogs

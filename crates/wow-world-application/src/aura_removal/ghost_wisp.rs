@@ -22,6 +22,14 @@ fn selected_effects_for_mask<'a>(
     spell_info: &'a wow_data::SpellInfo,
     effect_mask: u32,
 ) -> Result<Vec<&'a wow_data::SpellEffectInfo>, &'static str> {
+    selected_effect_rows(spell_id, spell_info.effects(), effect_mask)
+}
+
+fn selected_effect_rows<'a>(
+    spell_id: i32,
+    rows: impl IntoIterator<Item = &'a wow_data::SpellEffectInfo>,
+    effect_mask: u32,
+) -> Result<Vec<&'a wow_data::SpellEffectInfo>, &'static str> {
     let expected = match spell_id {
         GHOST_SPELL => [
             wow_data::spell::aura_types::SPELL_AURA_GHOST,
@@ -39,7 +47,7 @@ fn selected_effects_for_mask<'a>(
         return Err("Resurrection aura effect mask contains unsupported effects");
     }
     let mut catalog = BTreeMap::new();
-    for effect in spell_info.effects() {
+    for effect in rows {
         let Ok(index) = usize::try_from(effect.effect_index) else {
             return Err("Resurrection aura effect index is invalid");
         };
@@ -87,15 +95,9 @@ impl AuraRemovalCxLikeCpp<'_> {
         attributes5: u32,
         creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp, u8), &'static str>,
     ) -> Result<(), &'static str> {
-        if duration_ms != 0 || effect_mask != SELECTED_EFFECT_MASK {
+        if effect_mask != SELECTED_EFFECT_MASK {
             return Err("Resurrection ghost aura is not the expected permanent three-effect aura");
         }
-        wow_world_core::session::selected_aura_refreshes_timers(
-            stack_amount,
-            1,
-            attributes1,
-            attributes5,
-        )?;
         let selected = selected_effects_for_mask(spell_id, spell_info, effect_mask)?;
 
         let aura_snapshot = self
@@ -116,34 +118,50 @@ impl AuraRemovalCxLikeCpp<'_> {
             .first()
             .filter(|existing| existing.effect_mask == effect_mask)
         {
-            let refresh_timers = wow_world_core::session::selected_aura_refreshes_timers(
-                stack_amount,
-                existing.stack_count,
-                attributes1,
-                attributes5,
+            let spell_store = self
+                .spell_store
+                .map(AsRef::as_ref)
+                .ok_or("Missing SpellStore for existing resurrection aura")?;
+            let spell_id_u32 =
+                u32::try_from(spell_id).map_err(|_| "Invalid selected resurrection spell")?;
+            let policy = wow_world_spell::selected_aura_refresh_policy(
+                spell_id_u32,
+                existing.difficulty_id,
+                spell_store,
+                self.spell_misc_store,
+                None,
+                self.spell_aura_options_store,
+                self.difficulty_store,
             )?;
+            let refresh_timers = wow_world_core::session::selected_aura_refreshes_timers(
+                policy.stack_amount,
+                existing.stack_count,
+                policy.attributes1,
+                policy.attributes5,
+            )?;
+            let base_duration_ms = if refresh_timers {
+                wow_world_spell::selected_aura_refresh_policy(
+                    spell_id_u32,
+                    existing.difficulty_id,
+                    spell_store,
+                    self.spell_misc_store,
+                    self.spell_duration_store,
+                    self.spell_aura_options_store,
+                    self.difficulty_store,
+                )?
+                .base_duration_ms
+                .ok_or("Missing existing resurrection Aura duration")?
+            } else {
+                0
+            };
             let metadata = aura_snapshot
                 .aura_persistence_metadata(existing.slot)
                 .cloned()
                 .ok_or("Canonical resurrection aura persistence metadata is missing")?;
             let charges = if refresh_timers {
-                let spell_store = self
-                    .spell_store
-                    .map(AsRef::as_ref)
-                    .ok_or("Missing SpellStore for existing resurrection aura charges")?;
-                let spell_id_u32 =
-                    u32::try_from(spell_id).map_err(|_| "Invalid selected resurrection spell")?;
-                let actual_difficulty = wow_data::spell::resolve_spell_info_key_difficulty(
-                    spell_store,
-                    spell_id_u32,
-                    existing.difficulty_id,
-                    self.difficulty_store,
-                )
-                .map_err(|_| "Unable to resolve existing resurrection SpellInfo key")?
-                .ok_or("Existing resurrection SpellInfo key is missing")?;
                 wow_world_spell::selected_aura_max_charges(
                     spell_id_u32,
-                    actual_difficulty,
+                    policy.actual_difficulty,
                     self.spell_aura_options_store,
                     self.spell_proc_store,
                     self.difficulty_store,
@@ -151,6 +169,14 @@ impl AuraRemovalCxLikeCpp<'_> {
             } else {
                 metadata.charges
             };
+            let original_rows = wow_data::spell::resolve_spell_effect_rows(
+                spell_store,
+                spell_id,
+                policy.actual_difficulty,
+                self.difficulty_store,
+            )
+            .map_err(|_| "Unable to resolve existing resurrection Aura effects")?;
+            let original_effects = selected_effect_rows(spell_id, original_rows, effect_mask)?;
             let snapshot = aura_snapshot
                 .threat_snapshot_like_cpp(existing.slot)
                 .ok_or("Canonical resurrection aura effect snapshot is missing")?;
@@ -158,6 +184,11 @@ impl AuraRemovalCxLikeCpp<'_> {
             let effect_updates = selected
                 .iter()
                 .map(|effect| {
+                    let original = original_effects
+                        .iter()
+                        .find(|original| original.effect_index == effect.effect_index)
+                        .copied()
+                        .ok_or("Existing resurrection Aura effect is missing during refresh")?;
                     let bit = 1_u32
                         .checked_shl(effect.effect_index)
                         .ok_or("Invalid selected resurrection aura effect index")?;
@@ -166,15 +197,17 @@ impl AuraRemovalCxLikeCpp<'_> {
                         .iter()
                         .find(|(current_bit, _, _, _)| *current_bit == bit)
                         .ok_or("Canonical resurrection aura effect no longer matches refresh")?;
-                    if effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_TRANSFORM {
+                    if original.effect_aura == wow_data::spell::aura_types::SPELL_AURA_TRANSFORM {
                         recalculate_mask &= !bit;
                     }
+                    let mut refreshed = (*original).clone();
+                    refreshed.effect_base_points = effect.effect_base_points;
                     Ok(wow_world_core::session::SelectedAuraEffectRefresh {
-                        effect_index: u8::try_from(effect.effect_index)
+                        effect_index: u8::try_from(original.effect_index)
                             .map_err(|_| "Invalid selected resurrection aura base index")?,
-                        aura_type: effect.effect_aura,
-                        amount: effect.calc_value_no_caster_like_cpp(),
-                        misc_value: effect.effect_misc_value_1,
+                        aura_type: original.effect_aura,
+                        amount: refreshed.calc_value_no_caster_like_cpp(),
+                        misc_value: original.effect_misc_value_1,
                         base_amount: effect.effect_base_points,
                     })
                 })
@@ -191,10 +224,11 @@ impl AuraRemovalCxLikeCpp<'_> {
                 slot: existing.slot,
                 difficulty_id: existing.difficulty_id,
                 effect_mask,
-                duration_total: -1,
-                stack_amount,
-                attributes1,
-                attributes5,
+                duration_total: base_duration_ms,
+                stack_amount: policy.stack_amount,
+                attributes1: policy.attributes1,
+                attributes5: policy.attributes5,
+                attributes13: policy.attributes13,
                 refresh_timers,
                 charges,
                 recalculate_mask,
@@ -215,6 +249,15 @@ impl AuraRemovalCxLikeCpp<'_> {
             return Ok(());
         }
 
+        if duration_ms != 0 {
+            return Err("Resurrection ghost aura is not the expected permanent three-effect aura");
+        }
+        wow_world_core::session::selected_aura_refreshes_timers(
+            stack_amount,
+            1,
+            attributes1,
+            attributes5,
+        )?;
         let (aura_flags, provenance, charges) = creation?;
 
         // Validate the Wisp template before installing the aura so missing

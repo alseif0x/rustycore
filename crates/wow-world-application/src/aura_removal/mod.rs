@@ -35,6 +35,8 @@ pub struct AuraRemovalCxLikeCpp<'a> {
     mount_capabilities: Option<&'a wow_data::MountCapabilityStore>,
     spell_store: Option<&'a std::sync::Arc<wow_data::SpellStore>>,
     spell_aura_options_store: Option<&'a wow_data::SpellAuraOptionsStore>,
+    spell_misc_store: Option<&'a wow_data::SpellMiscStore>,
+    spell_duration_store: Option<&'a wow_data::SpellDurationStore>,
     spell_proc_store: Option<&'a wow_data::SpellProcStoreLikeCpp>,
     classes_store: Option<&'a wow_data::character_progression::ChrClassesStore>,
     difficulty_store: Option<&'a wow_data::DifficultyStore>,
