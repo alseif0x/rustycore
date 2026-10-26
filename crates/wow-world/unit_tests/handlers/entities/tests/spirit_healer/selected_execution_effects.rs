@@ -261,9 +261,9 @@ async fn selected_session_with_visual_inputs_and_key_seed(
         spell_id: SICKNESS_SPELL as u32,
     }];
     session.set_creature_aggro_config_like_cpp(crate::session::CreatureAggroConfigLikeCpp {
-        spell_x_spell_visual_store: Some(Arc::new(
-            wow_data::SpellXSpellVisualStore::from_entries(selected_visuals.clone()),
-        )),
+        spell_x_spell_visual_store: Some(Arc::new(wow_data::SpellXSpellVisualStore::from_entries(
+            selected_visuals.clone(),
+        ))),
         ..Default::default()
     });
 
@@ -283,15 +283,19 @@ async fn selected_session_with_visual_inputs_and_key_seed(
             .expect("selected sickness SpellMisc fixture row");
         misc.attributes = attributes.map(|attribute| attribute as i32);
     }
-    let existing_spell_keys = session
-        .catalogs
-        .spell_store()
-        .map(|store| store.spell_info_keys_in_order_like_cpp())
+    let existing_spells = session.catalogs.spell_store().cloned();
+    let existing_spell_keys = existing_spells
+        .as_deref()
+        .map(wow_data::SpellStore::spell_info_keys_in_order_like_cpp)
         .unwrap_or_default();
     let mut exact_spell_keys = existing_spell_keys
         .into_iter()
         .filter(|(spell_id, _)| *spell_id != SICKNESS_SPELL as u32)
-        .chain(misc_rows.iter().map(|row| (row.spell_id, row.difficulty_id)))
+        .chain(
+            misc_rows
+                .iter()
+                .map(|row| (row.spell_id, row.difficulty_id)),
+        )
         .chain(
             effect_rows
                 .iter()
@@ -318,10 +322,27 @@ async fn selected_session_with_visual_inputs_and_key_seed(
         wow_data::spell_db2::SpellPowerStore::from_entries([]),
         wow_data::spell_db2::SpellPowerDifficultyStore::from_entries([]),
     );
-    session.set_spell_store(Arc::new(
-        crate::selected_spell_fixtures::canonical_spell_store(exact_spell_keys)
-            .hydrate_effective_core_db2_like_cpp(stores),
-    ));
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store(exact_spell_keys)
+        .hydrate_effective_core_db2_like_cpp(stores);
+    if let Some(existing_spells) = existing_spells.as_deref() {
+        for selected_spell in [
+            wow_world_entities::SPELL_GHOST_LIKE_CPP,
+            wow_world_entities::SPELL_WISP_SPIRIT_AURA_LIKE_CPP,
+        ] {
+            if !existing_spells.contains_spell_info_exact_like_cpp(selected_spell as u32, 0) {
+                continue;
+            }
+            if let Some(info) = existing_spells.get(selected_spell) {
+                spell_store.insert(selected_spell, info.clone());
+            }
+            if let Some(attributes) =
+                existing_spells.misc_attributes_for_difficulty_like_cpp(selected_spell, 0, None)
+            {
+                spell_store.insert_spell_misc_attributes_like_cpp(selected_spell, attributes);
+            }
+        }
+    }
+    session.set_spell_store(Arc::new(spell_store));
     session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries(misc_rows)));
     session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_entries(
         difficulty_rows,
@@ -743,21 +764,23 @@ async fn selected_sickness_key_and_effect_resolution_failures_precede_spellgo_an
             selected_session(guid_counter, 4, rows, difficulties).await;
         session.set_creature_aggro_config_like_cpp(crate::session::CreatureAggroConfigLikeCpp {
             spell_x_spell_visual_store: Some(Arc::new(
-                wow_data::SpellXSpellVisualStore::from_entries([wow_data::SpellXSpellVisualEntry {
-                    id: 44_399,
-                    difficulty_id: 4,
-                    spell_visual_id: 245_039,
-                    probability: 1.0,
-                    flags: 0,
-                    priority: 0,
-                    spell_icon_file_id: 0,
-                    active_icon_file_id: 0,
-                    viewer_unit_condition_id: 0,
-                    viewer_player_condition_id: 0,
-                    caster_unit_condition_id: 0,
-                    caster_player_condition_id: 0,
-                    spell_id: SICKNESS_SPELL as u32,
-                }]),
+                wow_data::SpellXSpellVisualStore::from_entries([
+                    wow_data::SpellXSpellVisualEntry {
+                        id: 44_399,
+                        difficulty_id: 4,
+                        spell_visual_id: 245_039,
+                        probability: 1.0,
+                        flags: 0,
+                        priority: 0,
+                        spell_icon_file_id: 0,
+                        active_icon_file_id: 0,
+                        viewer_unit_condition_id: 0,
+                        viewer_player_condition_id: 0,
+                        caster_unit_condition_id: 0,
+                        caster_player_condition_id: 0,
+                        spell_id: SICKNESS_SPELL as u32,
+                    },
+                ]),
             )),
             ..Default::default()
         });

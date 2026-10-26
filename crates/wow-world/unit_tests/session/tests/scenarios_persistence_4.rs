@@ -368,6 +368,9 @@ fn loaded_total_stat_percentage_uses_persisted_effect_amount_like_cpp() {
         },
     );
     session.set_spell_store(Arc::new(spell_store));
+    session.set_chr_races_store(std::sync::Arc::new(
+        wow_data::character_progression::ChrRacesStore::from_entries([]),
+    ));
 
     assert_eq!(
         session.load_represented_character_auras_like_cpp(

@@ -77,7 +77,7 @@ impl<'a> PlayerStatFacts<'a> {
         let aura_view = PlayerStatAuraView::new(
             unit.subsystems().auras.runtime_applications_like_cpp(),
             aura_catalogs,
-        );
+        )?;
         let item_bonuses = player.gameplay_state().item_modifiers.bonuses_like_cpp();
         let inventory = player.inventory_runtime_like_cpp();
 

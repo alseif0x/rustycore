@@ -192,6 +192,8 @@ impl SessionCatalogs {
     pub fn player_stat_aura_catalogs(&self) -> Option<PlayerStatAuraCatalogs<'_>> {
         Some(PlayerStatAuraCatalogs::new(
             self.spell_store()?.as_ref(),
+            self.difficulty_store.as_deref(),
+            self.chr.races_store.as_deref(),
             self.spell_catalogs.spell_group_store.as_deref(),
             self.spell_catalogs.spell_chain_store.as_deref(),
             self.spell_catalogs.spell_group_stack_rule_store.as_deref(),
@@ -263,7 +265,7 @@ impl PlayerStatsAccessLikeCpp<'_> {
         }
         let aura_catalogs = self.stat_catalogs().aura()?;
         let aura_view =
-            PlayerStatAuraView::new(self.fixtures.auras.visible_auras_like_cpp, aura_catalogs);
+            PlayerStatAuraView::new(self.fixtures.auras.visible_auras_like_cpp, aura_catalogs)?;
         let (can_parry, can_block) = self.core.canonical_player_parry_block_snapshot_like_cpp();
         Some(PlayerStatFacts::from_parts(
             self.player_race_like_cpp(),
@@ -286,7 +288,8 @@ impl PlayerStatsAccessLikeCpp<'_> {
     ) -> Option<R> {
         let auras = self.resolved_player_visible_auras_like_cpp()?;
         let catalogs = self.catalogs.player_stat_aura_catalogs()?;
-        Some(project(PlayerStatAuraView::new(&auras, catalogs)))
+        let view = PlayerStatAuraView::new(&auras, catalogs)?;
+        Some(project(view))
     }
 
     pub fn resolved_aura_effects_by_spell_aura_type_like_cpp(
@@ -354,7 +357,8 @@ impl HubRef<'_> {
     fn with_aura_view<R>(&self, project: impl FnOnce(PlayerStatAuraView<'_>) -> R) -> Option<R> {
         let auras = self.resolved_player_visible_auras_like_cpp()?;
         let catalogs = self.catalogs.player_stat_aura_catalogs()?;
-        Some(project(PlayerStatAuraView::new(&auras, catalogs)))
+        let view = PlayerStatAuraView::new(&auras, catalogs)?;
+        Some(project(view))
     }
 
     fn resolved_represented_total_stat_multipliers_with_misc_like_cpp(

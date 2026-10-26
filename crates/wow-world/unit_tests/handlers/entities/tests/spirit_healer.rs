@@ -30,6 +30,8 @@ mod selected_creation;
 mod selected_execution_effects;
 #[path = "spirit_healer/selected_refresh.rs"]
 mod selected_refresh;
+#[path = "spirit_healer/selected_stats.rs"]
+mod selected_stats;
 use selected_execution_effects::{
     cast_sickness, difficulty, effect_row, install_player_on_difficulty_map,
     selected_session_with_visual_inputs, selected_session_without_selected_spell_info_key,

@@ -568,6 +568,9 @@ fn login_total_stat_percentage_aura_records_cpp_multiplier_and_misc_b_mask() {
     attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_PASSIVE;
     spell_store.insert_spell_misc_attributes_like_cpp(20_598, attributes);
     session.set_spell_store(Arc::new(spell_store));
+    session.set_chr_races_store(std::sync::Arc::new(
+        wow_data::character_progression::ChrRacesStore::from_entries([]),
+    ));
 
     assert_eq!(session.apply_login_passive_known_spell_auras_like_cpp(), 1);
     assert_eq!(

@@ -5,8 +5,10 @@
 
 use std::collections::{BTreeMap, HashMap};
 
+use wow_data::character_progression::ChrRacesStore;
 use wow_data::{
-    SpellChainStoreLikeCpp, SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp, SpellStore,
+    DifficultyStore, SpellChainStoreLikeCpp, SpellEffectInfo, SpellGroupStackRuleStoreLikeCpp,
+    SpellGroupStoreLikeCpp, SpellStore,
 };
 use wow_entities::AuraApplicationLikeCpp;
 
@@ -14,10 +16,15 @@ use crate::session::state::hub_support::{
     RepresentedPlayerGearStatsLikeCpp, SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP, class_uses_wands_like_cpp,
 };
 
+const GHOST_AURA_SPELL_ID: i32 = 8326;
+const WISP_AURA_SPELL_ID: i32 = 20584;
+
 /// Immutable spell catalogs required to interpret active Player aura effects.
 #[derive(Clone, Copy)]
 pub struct PlayerStatAuraCatalogs<'a> {
     spell_store: &'a SpellStore,
+    difficulty_store: Option<&'a DifficultyStore>,
+    chr_races_store: Option<&'a ChrRacesStore>,
     spell_group_store: Option<&'a SpellGroupStoreLikeCpp>,
     spell_chain_store: Option<&'a SpellChainStoreLikeCpp>,
     spell_group_stack_rule_store: Option<&'a SpellGroupStackRuleStoreLikeCpp>,
@@ -26,12 +33,16 @@ pub struct PlayerStatAuraCatalogs<'a> {
 impl<'a> PlayerStatAuraCatalogs<'a> {
     pub fn new(
         spell_store: &'a SpellStore,
+        difficulty_store: Option<&'a DifficultyStore>,
+        chr_races_store: Option<&'a ChrRacesStore>,
         spell_group_store: Option<&'a SpellGroupStoreLikeCpp>,
         spell_chain_store: Option<&'a SpellChainStoreLikeCpp>,
         spell_group_stack_rule_store: Option<&'a SpellGroupStackRuleStoreLikeCpp>,
     ) -> Self {
         Self {
             spell_store,
+            difficulty_store,
+            chr_races_store,
             spell_group_store,
             spell_chain_store,
             spell_group_stack_rule_store,
@@ -50,40 +61,54 @@ impl<'a> PlayerStatAuraView<'a> {
     pub fn new(
         auras: &'a HashMap<u8, AuraApplicationLikeCpp>,
         catalogs: PlayerStatAuraCatalogs<'a>,
-    ) -> Self {
-        Self { auras, catalogs }
+    ) -> Option<Self> {
+        let view = Self { auras, catalogs };
+        view.validate_canonical_effects()?;
+        Some(view)
     }
 
     pub fn effects_by_aura_type(&self, aura_type: i32) -> Vec<(i32, i32)> {
-        crate::session::player_aura_effects_by_spell_aura_type_like_cpp(
-            self.auras,
-            self.catalogs.spell_store,
-            aura_type,
-        )
+        let mut effects = Vec::new();
+        self.visit_aura_effects_in_slot_order(|_, effect, amount| {
+            if effect.effect_aura == aura_type {
+                effects.push((effect.effect_misc_value_1, amount));
+            }
+        });
+        effects
     }
 
     pub fn effects_with_misc_values_by_aura_type(&self, aura_type: i32) -> Vec<(i32, i32, i32)> {
-        crate::session::aura_effects_with_misc_values_from_snapshot_like_cpp(
-            self.auras,
-            self.catalogs.spell_store,
-            aura_type,
-        )
+        let mut effects = Vec::new();
+        self.visit_aura_effects_in_slot_order(|_, effect, amount| {
+            if effect.effect_aura == aura_type {
+                effects.push((
+                    effect.effect_misc_value_1,
+                    effect.effect_misc_value_2,
+                    amount,
+                ));
+            }
+        });
+        effects
     }
 
     pub fn effects_with_spell_and_misc_by_aura_type(&self, aura_type: i32) -> Vec<(i32, i32, i32)> {
-        crate::session::aura_effects_with_spell_and_misc_from_snapshot_like_cpp(
-            self.auras,
-            self.catalogs.spell_store,
-            aura_type,
-        )
+        let mut effects = Vec::new();
+        self.visit_aura_effects_in_slot_order(|aura, effect, amount| {
+            if effect.effect_aura == aura_type {
+                effects.push((aura.spell_id, effect.effect_misc_value_1, amount));
+            }
+        });
+        effects
     }
 
     pub fn effect_amounts_by_aura_type(&self, aura_type: i32) -> Vec<(i32, i32)> {
-        crate::session::aura_effect_amounts_by_spell_from_snapshot_like_cpp(
-            self.auras,
-            self.catalogs.spell_store,
-            aura_type,
-        )
+        let mut effects = Vec::new();
+        self.visit_aura_effects_in_slot_order(|aura, effect, amount| {
+            if effect.effect_aura == aura_type {
+                effects.push((aura.spell_id, amount));
+            }
+        });
+        effects
     }
 
     pub fn total_aura_multiplier_by_type_and_misc_value(
@@ -144,29 +169,15 @@ impl<'a> PlayerStatAuraView<'a> {
         let mut same_effect_spell_groups = BTreeMap::<u32, i32>::new();
 
         for aura in self.auras.values() {
-            let Some(spell) = self.catalogs.spell_store.get(aura.spell_id) else {
-                continue;
-            };
-
-            for effect in spell.effects().iter().filter(|effect| {
-                1u32.checked_shl(effect.effect_index)
-                    .is_some_and(|bit| aura.effect_mask & bit != 0)
-                    && effect.effect_aura == aura_type
-                    && if uses_misc_value_b {
-                        effect.effect_misc_value_2 == 0
-                            || effect.effect_misc_value_2 & (1 << stat) != 0
-                    } else {
-                        effect.effect_misc_value_1 == -1
-                            || effect.effect_misc_value_1 == stat as i32
-                    }
-            }) {
-                let amount = aura
-                    .represented_effect_amounts
-                    .iter()
-                    .find(|represented| u32::from(represented.effect_index) == effect.effect_index)
-                    .map(|represented| represented.amount)
-                    .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
-
+            self.visit_active_aura_effects(aura, |effect, amount| {
+                let selected_stat = if uses_misc_value_b {
+                    effect.effect_misc_value_2 == 0 || effect.effect_misc_value_2 & (1 << stat) != 0
+                } else {
+                    effect.effect_misc_value_1 == -1 || effect.effect_misc_value_1 == stat as i32
+                };
+                if effect.effect_aura != aura_type || !selected_stat {
+                    return;
+                }
                 let same_effect_group = self
                     .spell_group_map_bounds(aura.spell_id as u32)
                     .iter()
@@ -187,13 +198,130 @@ impl<'a> PlayerStatAuraView<'a> {
                 } else {
                     multiplier += multiplier * amount as f32 / 100.0;
                 }
-            }
+            });
         }
 
         for amount in same_effect_spell_groups.into_values() {
             multiplier += multiplier * amount as f32 / 100.0;
         }
         multiplier
+    }
+
+    fn validate_canonical_effects(&self) -> Option<()> {
+        for aura in self.auras.values() {
+            let spell_id = aura.spell_id as u32;
+            let key_requirement = self.canonical_key_requirement(aura.spell_id);
+            let has_canonical_keys = self
+                .catalogs
+                .spell_store
+                .contains_spell_info_any_difficulty_like_cpp(spell_id);
+            if !has_canonical_keys && key_requirement != Some(false) {
+                return None;
+            }
+            if !has_canonical_keys {
+                continue;
+            }
+
+            let actual_difficulty = wow_data::spell::resolve_spell_info_key_difficulty(
+                self.catalogs.spell_store,
+                spell_id,
+                aura.difficulty_id,
+                self.catalogs.difficulty_store,
+            )
+            .ok()??;
+            let effects = wow_data::spell::resolve_spell_effect_rows(
+                self.catalogs.spell_store,
+                aura.spell_id,
+                actual_difficulty,
+                self.catalogs.difficulty_store,
+            )
+            .ok()?;
+            let resolved_mask = effects.iter().try_fold(0u32, |mask, effect| {
+                Some(mask | 1u32.checked_shl(effect.effect_index)?)
+            })?;
+            if aura.effect_mask & !resolved_mask != 0 {
+                return None;
+            }
+            if key_requirement == Some(true) && aura.effect_mask & resolved_mask == 0 {
+                return None;
+            }
+        }
+        Some(())
+    }
+
+    fn canonical_key_requirement(&self, spell_id: i32) -> Option<bool> {
+        if matches!(spell_id, GHOST_AURA_SPELL_ID | WISP_AURA_SPELL_ID) {
+            return Some(true);
+        }
+        self.catalogs
+            .chr_races_store
+            .map(|races| races.is_resurrection_sickness_spell(spell_id))
+    }
+
+    fn effects_for_aura(&self, aura: &AuraApplicationLikeCpp) -> Vec<&'a SpellEffectInfo> {
+        if self
+            .catalogs
+            .spell_store
+            .contains_spell_info_any_difficulty_like_cpp(aura.spell_id as u32)
+        {
+            let actual_difficulty = wow_data::spell::resolve_spell_info_key_difficulty(
+                self.catalogs.spell_store,
+                aura.spell_id as u32,
+                aura.difficulty_id,
+                self.catalogs.difficulty_store,
+            )
+            .expect("canonical Aura key graph was validated at view construction")
+            .expect("canonical Aura key was validated at view construction");
+            return wow_data::spell::resolve_spell_effect_rows(
+                self.catalogs.spell_store,
+                aura.spell_id,
+                actual_difficulty,
+                self.catalogs.difficulty_store,
+            )
+            .expect("canonical Aura effect rows were validated at view construction");
+        }
+
+        self.catalogs
+            .spell_store
+            .get(aura.spell_id)
+            .map(|spell| spell.effects().iter().collect())
+            .unwrap_or_default()
+    }
+
+    fn visit_active_aura_effects(
+        &self,
+        aura: &AuraApplicationLikeCpp,
+        mut visit: impl FnMut(&SpellEffectInfo, i32),
+    ) {
+        for effect in self.effects_for_aura(aura) {
+            let Some(bit) = 1u32.checked_shl(effect.effect_index) else {
+                continue;
+            };
+            if aura.effect_mask & bit == 0 {
+                continue;
+            }
+            let amount = aura
+                .represented_effect_amounts
+                .iter()
+                .find(|represented| u32::from(represented.effect_index) == effect.effect_index)
+                .map(|represented| represented.amount)
+                .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
+            visit(effect, amount);
+        }
+    }
+
+    fn visit_aura_effects_in_slot_order(
+        &self,
+        mut visit: impl FnMut(&AuraApplicationLikeCpp, &SpellEffectInfo, i32),
+    ) {
+        let mut slots = self.auras.keys().copied().collect::<Vec<_>>();
+        slots.sort_unstable();
+        for slot in slots {
+            let aura = &self.auras[&slot];
+            self.visit_active_aura_effects(aura, |effect, amount| {
+                visit(aura, effect, amount);
+            });
+        }
     }
 
     pub fn spell_group_map_bounds(&self, spell_id: u32) -> &[u32] {

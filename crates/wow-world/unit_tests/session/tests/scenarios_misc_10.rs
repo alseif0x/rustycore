@@ -353,6 +353,9 @@ fn total_stat_percentage_uses_each_active_effect_amount_and_selector_like_cpp() 
         },
     );
     session.set_spell_store(Arc::new(spell_store));
+    session.set_chr_races_store(std::sync::Arc::new(
+        wow_data::character_progression::ChrRacesStore::from_entries([]),
+    ));
 
     session
         .apply_aura_with_effect_mask_without_update_like_cpp(

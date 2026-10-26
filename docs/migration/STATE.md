@@ -56,9 +56,10 @@ admission, the bounded nonzero-only selected FULL projection, and its cooldown
 correction. Production compilation and 50 distinct World cases have focused
 coding feedback. Original refresh policy, duration and Ghost/Wisp effect
 properties are corrected by 9i3C3d4m3, with production compilation, 54 World
-cases and four Core duration cases. Selected stat-view consumers still need
-the nonzero-only difficulty review recorded below. None of this establishes
-final acceptance.
+cases and four Core duration cases. The selected stat-view integration now
+uses the Aura's actual difficulty key and indexed effect rows; its focused
+coding feedback and remaining boundary are recorded below. None of this
+establishes final acceptance.
 The ordered SelfRes field now has one native Player owner and both CREATE and
 VALUES consumers, with production compilation and 19 distinct focused cases.
 Death-time initialization and the ordinary SelfRes cast contract remain open.
@@ -98,8 +99,12 @@ an actor-borrowed input, `PlayerStatFacts::from_player`, a pure
 function type, and Core's synchronous `apply_player_stat_computation`.
 They can support the native death operation without looking up or cloning a
 second Player. Do not call the Session owner-locking wrapper while Map is
-already borrowed. Placement of the complete choreography is still pending;
-these available functions do not by themselves make aura removal complete.
+already borrowed. The complete choreography will belong to Application,
+which already composes Spell, Inventory, Quest and Lifecycle. Core will retain
+only the shared request/result contract needed by the lower callers; moving
+the pure stats planner or adding an Inventory dependency to WorldEntities is
+not selected. These available functions do not by themselves make aura
+removal complete.
 The current stat aura view also reads legacy base payloads, so a genuinely
 nonzero-only aura needs its exact component consumer reviewed before claiming
 stats parity. No new dependency edge or runtime callback was installed.
@@ -116,6 +121,21 @@ and the inventory/aura consequences in the native integration. The existing
 inebriation owner is PlayerData::Inebriation with a dirty writer; reuse that
 canonical field rather than adding a second drunkenness state.
 These are integration findings, not additional accepted gameplay evidence.
+
+Further NoDeath ordering review at `c7829b4f9`, 2026-10-26: on the pinned
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` source, `FailQuest`
+(`Player.cpp:14928–14989`) calls `SetQuestStatus` before setting the quest-log
+failure flag, clearing the timer and sending the failure packet. That setter
+(`:15557–15573`) invokes both quest-status script callbacks and
+`SendQuestUpdate` (`:15624–15678`). The latter evaluates quest-bound spell-area
+requirements, resolves conflicting cast/remove sets, casts missing eligible
+auras before removing rejected ones, and refreshes visible gameobjects or
+spell-click eligibility. These consequences occur before failed-quest item
+destruction and before Unit death-aura removal. A native implementation must
+preserve this operation and order; assigning FAILED and deleting items alone
+does not implement it. The inspected Player, Unit and SpellHandler source
+files have no local changes at that pin. No native death integration or new
+acceptance run is claimed by this review.
 
 Selected stat-view decision at `c88cf6e87`, 2026-10-26: the application already
 selects sickness's stat cause from exact effects, but Inventory's pure planner
@@ -2234,6 +2254,96 @@ visibility changes and formatting in semantic M3 files. The source behavior
 and new test bodies are unchanged; the earlier feedback is not relabelled as
 a final run at the subsequent commit. The parent reviewed the actual M3 diffs
 and retained hashes for the policy, Core, application and test files.
+
+Selected stat-view integration, 2026-10-26, base `c7829b4f9`: the borrowed
+`PlayerStatAuraView` now resolves an existing Aura's stored raw difficulty to
+its actual SpellInfo key and indexed effect rows. Its four effect-query
+delegates and stat multipliers share active-mask selection and prefer the
+canonical represented amount for each effect index. The existing no-caster
+CalcValue fallback remains for the fresh calculation before selected metadata
+initialization; this is not a new general modifier engine or amount authority.
+Original effect properties remain selected across a refresh from another map
+difficulty. Group rules, arithmetic and traversal policy are preserved.
+
+Construction is fallible through the four existing Option-returning adapters.
+G/W and every nonzero sickness spell configured by any race require real keys,
+including a sickness spell carried by a Player of another race. Other known
+canonical keys use the exact reader too. An unresolved key, graph or active
+effect rejects the calculation before native stats change. A missing race
+catalog is unknown, so a keyless application cannot silently enter the legacy
+path; an authoritative race catalog can prove it is an ordinary keyless aura.
+No production setter, mutable Aura mirror, Player clone, lock or clock is added.
+
+The new mirrored World test module exercises a true difficulty-three-only
+fresh cast, original properties with incoming amounts on refresh, expiry,
+represented amounts distinct from base points, required keyless rejection,
+unresolvable difficulty, fixed G/W keys, missing race authority and ordinary
+same-effect grouping. Fresh/refresh/expiry assertions read the resulting
+native stats immediately, without a later forced stat update repairing the
+operation. Five existing positive legacy fixtures now install an authoritative
+empty race catalog; their expected health, amount and selector behavior is
+unchanged, and the generic session fixture still has no fabricated authority.
+
+Source anchors at `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` are
+`Unit.cpp:4818–4875,9033–9073` and
+`SpellAuraEffects.cpp:3566–3604,4525–4548`. The test oracles also retain
+`SpellInfo.cpp:495–524` (DieSides zero adds nothing) and source f32 operation
+order, rather than replacing `1 - 60 / 100` with the differently rounded
+literal `0.4`. The inspected source files have no local changes at this pin.
+
+Worker coding feedback used `c7829b4f94e110f5ffbebf039f6bccaf694d4bc2`
+plus the reviewed source delta on this aarch64 host, with PROTOC set, one
+Cargo job and `/home/server/rustycore/target`. Raw commands, UTC times and
+real exits are retained in `/tmp/rustycore-selected-stat-view-logs/`:
+
+- `cargo check -p world-server --lib`: exit 0, 39.77 seconds,
+  `cargo-check-world-server-lib.log`, 12:19:42–12:20:21 UTC.
+- `cargo test -p wow-world --lib selected_stats`: exit 0, seven passed,
+  `cargo-test-wow-world-selected-stats-attempt6.log`, 12:32:46–12:34:03 UTC.
+- `cargo test -p wow-world --lib total_stat_percentage`: exit 0, five passed,
+  `cargo-test-wow-world-total-stat-percentage-attempt2.log`,
+  12:35:55–12:37:06 UTC.
+- `cargo test -p wow-world --lib spell_group_stack_rule`: exit 0, two passed,
+  `cargo-test-wow-world-spell-group-stack-rule.log`, 12:37:12–12:37:13 UTC.
+- The focused native Map VALUES sickness case passed at 12:39:44 UTC in
+  `cargo-test-wow-world-spirit-healer-lifecycle-stat.log`; it is also covered
+  by the final Spirit Healer filter below and is not counted twice.
+- After shared-fixture repair, `cargo check -p wow-world --lib`: exit 0,
+  `cargo-check-wow-world-after-ghost-fixture-preservation.log`,
+  12:47:52–12:48:57 UTC.
+- `cargo test -p wow-world --lib spirit_healer`: exit 0, 61 passed,
+  `cargo-test-wow-world-spirit-healer-after-ghost-fixture-preservation.log`,
+  12:49:08–12:50:34 UTC. This includes the seven new cases.
+
+The union is 68 distinct World cases, seven new. Earlier failures are retained:
+test tuple arity; an incomplete fixture reset leaving stale same-slot effect
+snapshots; DieSides/f32 oracle errors; missing race authority in five legacy
+fixtures; and 19 failures in the broader Spirit Healer filter. The last group
+came from preserving released Ghost/Wisp keys while dropping their original
+payload/effect data when rebuilding the selected fixture's store. That fixture
+now restores only its original G/W payloads and attributes under already
+loader-proven zero keys. The positive nonzero-only sickness fixture still has
+no zero key or legacy sickness payload. Production rejection was not weakened.
+
+The Core view and new World tests are 518 and 574 lines. The existing Data
+character-progression file is 1040 lines after its nine-line predicate; the
+predicate belongs to its existing ChrRacesStore implementation and adds no
+new owner. The repaired shared World fixture is 802 lines. No physical
+baseline was regenerated. The worker-owned patch hash is
+`7333ec7fb9c4f4ed9b0ee610a99b72bad80fb6e32d87e5e6e086d93c85413232`;
+the view and new test hashes are respectively
+`43d82fc0e27f5faebe58bfed92fe8823e257bf6e4c7499f02949ddd3c7d5287f`
+and `5de9d5a57256973988cab809bb5421727fcf2613bf62458f226bb56d4a1da493`.
+The parent reviewed the actual production, fixture and test changes. The
+worker reports that effective model/effort metadata is unavailable; the
+configured route is not claimed as observed execution telemetry.
+
+The 12:19:42–12:50:34 interval is 1852 seconds of coding, repair and focused
+feedback, not a final campaign or proof of the 600-second ordinary acceptance
+target. No parent Cargo, runtime, SQL, capture, restart or publication was
+performed. This is an UNVALIDATED local macro checkpoint, not final acceptance
+at a later commit. Native death, recovery, normal casts, QA and the complete
+candidate acceptance remain open.
 
 SelfRes field integration, 2026-10-26, base `c88cf6e87`: the live BTreeSet has
 been removed from PlayerResurrectionState. Player::active_data now owns the

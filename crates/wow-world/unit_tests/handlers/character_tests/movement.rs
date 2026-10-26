@@ -18,6 +18,9 @@ fn total_stat_percentage_ability_preserves_health_pct_on_apply_and_remove_like_c
     session.set_spell_store(Arc::new(total_stat_percentage_spell_store_like_cpp(
         spell_id, true,
     )));
+    session.set_chr_races_store(std::sync::Arc::new(
+        wow_data::character_progression::ChrRacesStore::from_entries([]),
+    ));
     session.set_state(crate::session::SessionState::LoggedIn);
 
     session
