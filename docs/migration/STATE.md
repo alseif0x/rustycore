@@ -28,8 +28,9 @@ and its startup/session composition. 9i3C3d4g adds exact visual metadata,
 complete effect/visual file loading, override-potential queries, and server
 catalog composition. 9i3C3d4h connects those visuals to fresh selected Aura
 construction and loading, including canonical preworld owner context and
-preservation of signed wire bits. Cast visual preparation and fresh/refresh
-charges remain pending, including their remaining effective scalar inputs.
+preservation of signed wire bits. 9i3C3d4i connects selected self-cast visuals
+before execution preparation. Fresh/refresh charges and their effective scalar
+inputs remain pending, alongside ordinary client cast preparation.
 The integration adds neither another clock nor another Player authority.
 
 Four blocks remain within the same macro:
@@ -45,6 +46,20 @@ Four blocks remain within the same macro:
 Focused feedback below does not replace these requirements. Dated checkpoints
 and source comparisons remain below; the initial World timer decisions are
 historical context for the Map cut selected later.
+
+Native-death caller review at `1d9946d0e`, 2026-10-26: the shared damage method
+is on HubMut and already has immutable catalog access. Its five current caller
+paths coexist with direct Map-owned melee writers. In particular,
+world-creature/player_melee_application.rs:161–187 subtracts Player-victim health
+without setting JUST_DIED; player_tick.rs:489 consumes that path. Creature
+melee, share, and split set only the bare Unit death state. Unit::set_health
+does not promote zero health into death, and a later stats synchronization
+must not substitute CORPSE for the missing transition. Source Unit.cpp:1016,
+10457–10614,8527–8585 and Player.cpp:1158–1200 require the native operation at
+the admitted mutation point. Include all these writers in the same integration,
+with owned publication after the Map guard; no Session mailbox cleanup after
+P3 or parallel Player owner. This is source/caller inspection, not executed
+death acceptance or a report that this participant is implemented.
 
 **#43, contexto y evidencia previos — corte 2026-10-25, 06:47 UTC:**
 movimiento/timer, consumidor de resurrección, sus rutas de transferencia/logout
@@ -1566,6 +1581,54 @@ in children. Cast visual preparation, effective scalar/charge inputs, native
 lifecycle work, normal casts, QA and macro acceptance remain required. This is
 a local UNVALIDATED checkpoint, with no runtime/capture or publication claim.
 
+9i3C3d4i connects the selected self-cast execution boundary to the same visual
+resolver. It replaces a supplied visual before preparation, power consumption,
+or publication. Native server-triggered allocation consumes the existing Map
+CastID before visual resolution, with no second allocation. Wisp now consults
+effective rows instead of returning a constant zero; known empty rows still
+allow the existing client-log predicate to suppress SpellGo. The sickness
+visual no longer uses the creature-only helper. Its existing cast-flag
+preparation is separate and retains its current behavior for the later normal
+cast work. The Aura constructor remains independent, so refresh can publish a
+new SpellGo visual while preserving the existing Aura's original provenance.
+
+The visual helper resolves the canonical active Map and its difficulty under
+one existing MapManager guard. Review caught and removed a draft nested-lock
+call to Core's difficulty getter before it was executed. No guard crosses
+packet delivery or await. This reuses the existing cast-admission gate without
+changing the Aura/load preworld cases. Source at the pinned reference remains
+Spell.cpp:580–583,8072–8077,9283–9286, SpellInfo.cpp:4446–4464,
+Unit.cpp:13548–13563 and SpellAuras.cpp:463–468. The separate ScriptVisualID
+field is already ignored by the 3.4.3 wire; this change does not alter that layout.
+
+On `1d9946d0e` plus the reviewed delta, sequential aarch64/jobs=1 coding
+feedback passed `cargo check -p wow-world-spell` and World library filters
+`selected_cast_visual` (2), `selected_visual` (7), `selected_creation` (4),
+`selected_execution_effects` (5), `selected_cast_threat` (6), and `ghost_wisp`
+(46). One case is shared by two filters: the union is 69 distinct passing
+cases, not 70. Commands used `cargo test -p wow-world --lib <filter>`, the local
+PROTOC and checkout-local target. They cover actual SpellGo relation IDs and
+high bits, difficulty/vector priority, Wisp's empty/nonempty visual rows,
+missing or override-potential metadata before power/publication, one native
+CastID allocation on rejection, and refresh's independent cast/Aura visuals.
+
+Retained raw logs and actual zero exit files use `/tmp/rustycore-c3d4i-`:
+`01-check-wow-world-spell`, `04-world-selected_cast_visual`,
+`05-world-selected_visual`, `06-world-selected_creation`,
+`08-world-selected_execution_effects`, `09-world-selected_cast_threat`, and
+`10-world-ghost_wisp`. Earlier attempts `02`, `03`, and `07` retain their 101
+exits: a test assumed an unsupported SpellInfo Default, a fallback fixture
+lacked required class facts, and an effect-negative case needed an exact
+visual row to reach its intended failure. The parent reviewed the actual diff
+and exits; no final campaign ran. The worker reported GPT-6 with unavailable
+effort telemetry, alongside the retained fixed-role spawn evidence.
+
+Physical review: the private cast helper is 48 lines and the two affected
+visual test children are 472 and 111. Ordinary client SpellStart visual
+preparation, foreign-caster lifetime, active override source/order, effective
+scalar/charge inputs, native lifecycle, QA, captures, and final acceptance
+remain required. This is another local UNVALIDATED checkpoint.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -2032,6 +2095,18 @@ projection is not proof of Source absence. Implicit charges equal the selected
 SpellInfo ProcCharges (SpellMgr.cpp:1871), but that equality does not repair an
 explicit row assigned to the wrong key. This is metadata preparation for the
 selected charge consumer, not a claim to have completed the general proc engine.
+
+The source views also include accepted server-side SpellInfo rows: explicit SQL
+resolves against the joint map (SpellMgr.cpp:675–693,1511–1517), and implicit
+generation traverses that same map (:1742–1752). Reuse the already-loaded
+server-side catalog, including its direct full-width proc fields
+(:2916–2921), rather than projecting regular spells alone. Preserve admitted
+server keys and difficulty widths; orphan effect rows remain excluded. Its
+SQL float base points first enter the signed int32 SpellEffectEntry field
+(:2755; DB2Structure.h:3504 onward), before SpellEffectInfo calculations.
+Do not round that assignment or silently narrow server spell-family metadata:
+SpellInfo.h:409 and SpellMgr.h:317 retain uint32 family names even though the
+explicit proc SQL field itself uses GetUInt16 (:1533).
 
 Zero family flags alone do not prove that caster modifiers are irrelevant.
 SpellInfo.cpp:1784–1813 supports both class-mask and label modifiers.

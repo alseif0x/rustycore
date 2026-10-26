@@ -57,6 +57,7 @@ pub use selected_lifetime::*;
 pub(crate) use selected_metadata::{
     SelectedSpellMetadata, selected_spell_metadata,
 };
+pub(crate) use selected_visual::selected_aura_spell_visual_id;
 pub use sources::*;
 
 #[cfg(test)]

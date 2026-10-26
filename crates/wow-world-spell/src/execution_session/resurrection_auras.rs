@@ -37,25 +37,6 @@ pub(super) fn is_selected_self_cast<H: SpellExecutionHostLikeCpp>(
         && is_ghost_wisp_spell(spell_id)
 }
 
-pub(super) fn cast_visual_id<H: SpellExecutionHostLikeCpp>(
-    host: &H,
-    spell_id: i32,
-) -> Result<u32, &'static str> {
-    if spell_id == WISP_SPELL {
-        return Ok(0);
-    }
-    if spell_id != GHOST_SPELL {
-        return Err("Spell is not a selected resurrection ghost aura");
-    }
-    let difficulty = host.core().current_map_difficulty_id_like_cpp();
-    wow_world_entities::creature_spell_metadata::creature_ai_spell_x_spell_visual_id_like_cpp(
-        u32::try_from(spell_id).map_err(|_| "Invalid Ghost spell id")?,
-        difficulty,
-        &host.hub_ref().config.creature_aggro_config_like_cpp,
-    )
-    .map_err(|()| "Ghost SpellXSpellVisual is missing or conditional")
-}
-
 pub(super) fn apply<H: SpellExecutionHostLikeCpp>(
     host: &mut H,
     spell_id: i32,

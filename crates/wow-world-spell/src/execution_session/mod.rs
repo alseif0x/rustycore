@@ -67,6 +67,7 @@ mod primary_effect_fallback;
 mod resurrection_auras;
 mod resurrection_offer;
 mod resurrection_sickness;
+mod selected_cast_visual;
 mod selected_creation;
 mod selected_effects;
 mod target_resolution;

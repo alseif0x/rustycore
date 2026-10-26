@@ -20,7 +20,7 @@ use super::selected_reaction::{
 /// The caller supplies its already-held canonical MapManager guard. Runtime
 /// aura-403 state is intentionally not read here; either catalog reporting
 /// override potential leaves the active override source and order unresolved.
-pub(super) fn selected_aura_spell_visual_id(
+pub(crate) fn selected_aura_spell_visual_id(
     manager: &MapManager,
     owner: PlayerHandle,
     raw_caster_guid: ObjectGuid,

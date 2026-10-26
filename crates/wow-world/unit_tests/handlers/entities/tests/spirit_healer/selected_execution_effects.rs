@@ -583,6 +583,26 @@ async fn selected_sickness_effect_resolution_failures_precede_spellgo_and_aura_m
         let guid_counter = 44_300 + case * 10;
         let (mut session, send_rx, player_guid) =
             selected_session(guid_counter, 4, rows, difficulties).await;
+        session.set_creature_aggro_config_like_cpp(crate::session::CreatureAggroConfigLikeCpp {
+            spell_x_spell_visual_store: Some(Arc::new(
+                wow_data::SpellXSpellVisualStore::from_entries([wow_data::SpellXSpellVisualEntry {
+                    id: 44_399,
+                    difficulty_id: 4,
+                    spell_visual_id: 245_039,
+                    probability: 1.0,
+                    flags: 0,
+                    priority: 0,
+                    spell_icon_file_id: 0,
+                    active_icon_file_id: 0,
+                    viewer_unit_condition_id: 0,
+                    viewer_player_condition_id: 0,
+                    caster_unit_condition_id: 0,
+                    caster_player_condition_id: 0,
+                    spell_id: SICKNESS_SPELL as u32,
+                }]),
+            )),
+            ..Default::default()
+        });
         if missing_difficulty_catalog {
             session.catalogs.difficulty_store = None;
         }

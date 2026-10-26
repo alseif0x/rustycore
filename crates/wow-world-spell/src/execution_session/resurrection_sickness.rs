@@ -13,28 +13,21 @@ use wow_data::spell_duration_ms_like_cpp;
 
 use super::SpellExecutionHostLikeCpp;
 
-pub(super) fn resurrection_sickness_cast_metadata<H: SpellExecutionHostLikeCpp>(
+pub(super) fn resurrection_sickness_cast_flags<H: SpellExecutionHostLikeCpp>(
     host: &H,
     spell_id: i32,
-) -> Result<(u32, u32), &'static str> {
+) -> Result<u32, &'static str> {
     let spell_id = u32::try_from(spell_id).map_err(|_| "Invalid resurrection sickness spell")?;
     let hub = host.hub_ref();
     let difficulty_id = host.core().current_map_difficulty_id_like_cpp();
     let config = &hub.config.creature_aggro_config_like_cpp;
-    let visual_id =
-        wow_world_entities::creature_spell_metadata::creature_ai_spell_x_spell_visual_id_like_cpp(
-            spell_id,
-            difficulty_id,
-            config,
-        )
-        .map_err(|()| "Resurrection sickness visual metadata is missing or conditional")?;
     let cast_flags =
         wow_world_entities::creature_spell_metadata::creature_ai_spell_go_cast_flags_like_cpp(
             spell_id,
             difficulty_id,
             config,
         ) | 0x0000_0001;
-    Ok((visual_id, cast_flags))
+    Ok(cast_flags)
 }
 
 pub(super) fn should_send_resurrection_sickness_spell_go<H: SpellExecutionHostLikeCpp>(

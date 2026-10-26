@@ -38,7 +38,7 @@ fn positive_sickness_effect_rows() -> Vec<wow_data::spell_db2::SpellEffectDb2Ent
     .collect()
 }
 
-fn install_known_positive_class(session: &mut WorldSession) {
+pub(super) fn install_known_positive_class(session: &mut WorldSession) {
     session.set_spell_class_options_store(Arc::new(
         wow_data::SpellClassOptionsStore::from_entries([wow_data::SpellClassOptionsEntry {
             id: 1,
@@ -167,9 +167,10 @@ fn canonical_creature_threat(
         .threat_value(player_guid)
 }
 
-fn drop_class_options_for_refresh(session: &mut WorldSession) {
+pub(super) fn drop_class_options_for_refresh(session: &mut WorldSession) {
     let catalogs = std::mem::take(&mut session.catalogs.spell_catalogs);
     let spell_store = catalogs.spell_store.clone();
+    let serverside_spell_store = catalogs.serverside_spell_store.clone();
     let spell_misc_store = catalogs.spell_misc_store.clone();
     let spell_duration_store = catalogs.spell_duration_store.clone();
     let spell_aura_options_store = catalogs.spell_aura_options_store.clone();
@@ -178,6 +179,7 @@ fn drop_class_options_for_refresh(session: &mut WorldSession) {
 
     let catalogs = &mut session.catalogs.spell_catalogs;
     catalogs.spell_store = spell_store;
+    catalogs.serverside_spell_store = serverside_spell_store;
     catalogs.spell_misc_store = spell_misc_store;
     catalogs.spell_duration_store = spell_duration_store;
     catalogs.spell_aura_options_store = spell_aura_options_store;

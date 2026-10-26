@@ -68,7 +68,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
     spell_id: i32,
     target_guid: ObjectGuid,
     cast_id: ObjectGuid,
-    spell_visual: wow_packet::packets::spell::SpellCastVisual,
+    mut spell_visual: wow_packet::packets::spell::SpellCastVisual,
     target_data: SpellTargetData,
     metadata: SpellCastMetadata,
 ) -> Result<(), &'static str> {
@@ -90,6 +90,9 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
     );
     let selected_execution_effects =
         player_resurrection_sickness || server_triggered_player_ghost_wisp;
+    if selected_execution_effects {
+        spell_visual.spell_visual_id = super::selected_cast_visual::resolve(host, spell_id)?;
+    }
 
     // Load spell metadata.
     let mut spell_info = host
