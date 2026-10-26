@@ -284,3 +284,35 @@ fn malformed_row_in_a_batch_classifies_the_whole_load_as_failed_with_context() {
         }
     }
 }
+
+#[test]
+fn ppm_native_projection_preserves_float_and_flags_widths() {
+    let rate = f32::from_bits(0x3F9E_0652);
+    let decoded = spell_procs_per_minute(&[
+        Native::UInt32(u32::MAX),
+        Native::Float(rate),
+        Native::UInt8(u8::MAX),
+    ])
+    .unwrap();
+    assert_eq!(decoded.id, u32::MAX);
+    assert_eq!(decoded.base_proc_rate.to_bits(), rate.to_bits());
+    assert_eq!(decoded.flags, u8::MAX);
+
+    let null = spell_procs_per_minute(&[Native::Null, Native::Null, Native::Null]).unwrap();
+    assert_eq!(null.id, 0);
+    assert_eq!(null.base_proc_rate, 0.0);
+    assert_eq!(null.flags, 0);
+
+    assert!(spell_procs_per_minute(&[
+        Native::UInt32(1),
+        Native::Double(1.1),
+        Native::UInt8(0),
+    ])
+    .is_err());
+    assert!(spell_procs_per_minute(&[
+        Native::UInt32(1),
+        Native::Float(1.5),
+        Native::UInt16(256),
+    ])
+    .is_err());
+}

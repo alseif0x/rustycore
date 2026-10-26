@@ -38,6 +38,8 @@ and preserves canonical server effect slots and duplicate-parent semantics.
 9i3C3d4j3 adds the four scalar Hotfix SQL methods and checked native decoding
 for all 23 core catalog projections. 9i3C3d4j4 connects those four scalar stores
 to their existing startup positions and immutable owners.
+9i3C3d4k adds checked key/server/proc/Difficulty inputs and effective PPM loading.
+Exact proc source preparation and fresh/refresh charge consumers remain pending.
 The integration adds neither another clock nor another Player authority.
 
 Four blocks remain within the same macro:
@@ -1786,6 +1788,75 @@ claimed passing. Key/server/proc and Difficulty input guards, effective PPM,
 exact proc/charge preparation, native lifecycle, normal casts, QA and final
 acceptance remain required. This remains a local UNVALIDATED checkpoint.
 
+9i3C3d4k replaces width-erasing key and Difficulty SQL reads and the selected
+server/proc defaulting decoders with the existing native Field getters. The
+twenty key contributors retain their order, with PowerDifficulty read after
+Power, and official rows before custom rows. Seven signed SpellID contributors
+use GetInt32 before preserving the bits in uint32 keys. SpellEffect difficulty
+uses GetInt32 before the uint8 enum conversion; the nine byte-difficulty
+contributors and PowerDifficulty use checked GetUInt8. No key authority or DTO
+difficulty is widened. Row failures preserve table/row/field context and fail
+the whole load rather than exposing earlier accepted rows.
+
+Server effect Aura/target fields use GetInt16 before widening to the existing
+DTOs; their masks retain signed getters, and SQL base points remain raw float.
+The server parent's full uint32 proc/family fields remain intact. Proc SQL
+retains its narrower uint16 family and uint8 charges. This is decoder work,
+not the pending server effect quantization or joint proc-source preparation.
+Seven acquisition Option hotfix source families and nine other World catalogs
+retain their prior behavior; this unit does not claim them repaired.
+
+Difficulty composition now requires complete FILE copy resolution before
+querying its existing overlay port. Its legacy file-only load mode remains
+available. PPM adds one SQL-free DTO and required method on the existing Core
+port, checked official/custom SQL, complete/effective Data loading with final
+removals, and the existing WorldServer Arc at the same startup position. Its
+legacy and complete loaders share one typed decoder. PPM modifiers are not
+needed for the ProcBasePPM presence predicate and are outside this operation.
+
+Source anchors at the pinned target are DB2LoadInfo.h's contributor definitions,
+Difficulty :1534–1555 and PPM :5109–5118; HotfixDatabase.cpp:519–521,1542;
+SpellMgr.cpp:1500–1548,2727–2766,2852–2946; and
+SpellInfo.cpp:1213–1216. The lookup/presence dependency remains
+SpellMgr.cpp:490–509,1873–1888 and SpellAuras.cpp:965–976. Native getter
+strictness for text/DECIMAL numeric columns remains the existing documented
+departure from C++; no actual SQL schema mismatch was demonstrated.
+
+The actual parent-verified base is `3c41e8b80` plus the reviewed delta. The
+worker's handoff named an older base; it does not replace Git identity. On
+aarch64/jobs=1, coding feedback passed the WorldServer library check and 39
+distinct cases: database `spell::` (23), database `hotfix::difficulty_adapter`
+(3), Data `scalar_catalog_loading` (8), WorldServer selected scalars (2), and
+WorldServer `hotfix::difficulty` (3). The key getter tests freeze independent
+seven-signed/nine-byte matrices. They distinguish native widths, enum folding,
+NULL defaults, overflow and whole-load failure. Other cases cover server
+payloads, fractional raw SQL base points, proc limits, complete PPM replacement
+and removals, incomplete copies, and composition.
+
+Raw logs and exit files are `/tmp/rustycore-c3d4k-logs/01`–`09` with their full
+command names. Final `01/03/04/06/07/08/09` exit zero. `02` retains a missing
+column diagnostic failure (22/23); `05` retains a test-only trait-method compile
+failure. A private field-context helper repairs the first; removing the
+redundant test assertion repairs the second. Database `08` repeats the same
+23 cases after narrowing the two server decoders to private visibility; it
+adds no distinct cases. The initial WorldServer check (4m17s) predates those
+private diagnostic/visibility changes; subsequent database and WorldServer
+tests compile them. It is not relabeled as final committed-candidate evidence.
+Reported completed commands alone total over 654 seconds, excluding the failed
+Data compile; this is coding feedback, not proof of the ordinary acceptance
+campaign's 600-second target. No duplicate parent campaign was run.
+
+The parent inspected the actual diff, raw outcomes and all twenty code-file
+hashes. The new server decoder/test children are 219/113 lines; key and World
+adapters are 624/666, Data loading tests 636, and World scalar composition/tests
+144/97. The existing Core composition root remains 1,119. App grows 5,689 to
+5,695 (+6) for the required asynchronous PPM call; temporary reviewed ceiling
+5,695 retains #43 integration ownership and the same final architecture review
+expiry. No architecture baseline was regenerated. Exact joint proc preparation,
+charge consumers, native lifecycle, normal casts, QA and final acceptance remain
+required. These modeled fixtures are not real SQL/runtime/capture evidence.
+This remains a local UNVALIDATED checkpoint.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -2258,10 +2329,10 @@ fact, not permission to skip implicit-entry presence. GetSpellProcEntry follows
 the difficulty fallback when the exact entry is absent (:490–509). A generated
 zero-charge entry can stop that search; suppressing it can expose a fallback
 entry with nonzero charges. Source's infinite-loop guard (:1873–1888) depends
-on ProcBasePPM when charges are zero, so the file-only SpellProcsPerMinute store
-cannot establish effective entry presence. Connect its complete FILE loading,
-official/custom SQL overlays and final removals before accepting that needed
-fact, or keep it unavailable. HotfixDatabase.cpp:1542 and
+on ProcBasePPM when charges are zero, so file-only PPM could not establish
+effective entry presence. C3d4k now connects its complete FILE loading,
+official/custom SQL overlays and final removals; the joint proc preparation and
+charge lookup still need to consume that input correctly. HotfixDatabase.cpp:1542 and
 DB2LoadInfo.h:5109–5118 specify uint32 ID, float BaseProcRate and uint8 Flags.
 This is a dependency of the selected charge lookup, not a general proc-runtime
 completion claim. No new parallel charge store is required.
@@ -2282,23 +2353,23 @@ Further input review, 2026-10-26: all nineteen existing core Hotfix DTO numeric
 widths match DB2LoadInfo; the four SpellEffect class masks intentionally keep
 the signed getter's bits in unsigned Data fields. Their adapter substituted
 defaults or dropped rows after failed SQL decoding; j3 replaces that behavior
-with the existing native Field getters and whole-load failure. The key adapter
-still casts wide integers without the source round-trip check and remains
-pending before effective catalog failure/absence semantics can be accepted.
-Preserve Source NULL-to-zero separately from conversion failure.
+with the existing native Field getters and whole-load failure. C3d4k applies
+that boundary to the key adapter's consumed fields as well. Source NULL-to-zero
+remains distinct from conversion failure. These input repairs do not establish
+the actual effective dataset or complete selected proc/charge consumers.
 FieldValueConverters.h:62–70 and Field.cpp:62–67 own this contract. No installed
 SQL schema drift or affected runtime row was demonstrated by this source review.
 
 The production Difficulty composition already applies SQL overlays and final
-removals; it is not a file-only store. Its adapter nevertheless erases native
-width before checking an i128 range. That can admit int64 -1 as uint8 255 where
-Source's round-trip rejects it, and it treats SQL NULL as failure rather than
-zero. Use the existing native getters for the consumed fields (projection
-columns 0/2/5/8/10; DB2LoadInfo.h:1534–1555, HotfixDatabase.cpp:519–521).
-The FILE reader also needs to reject unresolved copy rows before this graph
-can establish complete fallback absence. Preserve the current store, port,
-startup position and overlay/removal order; no second graph is required.
-This is input inspection, not a report of an affected installed SQL row.
+removals; it is not a file-only store. Its former adapter erased native width
+before checking an i128 range, admitting int64 -1 as uint8 255 where Source's
+round-trip rejects it and treating SQL NULL as failure rather than zero.
+C3d4k now uses native getters for the consumed fields (projection columns
+0/2/5/8/10; DB2LoadInfo.h:1534–1555, HotfixDatabase.cpp:519–521). Its production
+FILE reader also rejects unresolved copy rows, preserving the current store,
+port, startup position and overlay/removal order. No second graph is added.
+This is modeled input-repair evidence, not a report of an affected installed
+SQL row or actual fallback lifecycle acceptance.
 
 Difficulty normalization has a separate source rule: DBCEnums.h:833 declares
 `Difficulty : uint8`. Regular SpellEffect rows cast their int32 difficulty into

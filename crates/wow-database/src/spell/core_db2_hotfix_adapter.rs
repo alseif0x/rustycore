@@ -13,7 +13,8 @@ use wow_persistence::{
     SpellEffectHotfixRowLikeCpp, SpellEquippedItemsHotfixRowLikeCpp,
     SpellInterruptsHotfixRowLikeCpp, SpellMiscHotfixRowLikeCpp, SpellNameHotfixRowLikeCpp,
     SpellLabelHotfixRow, SpellLevelsHotfixRow, SpellPowerDifficultyHotfixRowLikeCpp,
-    SpellPowerHotfixRowLikeCpp, SpellRadiusHotfixRowLikeCpp, SpellRangeHotfixRowLikeCpp,
+    SpellPowerHotfixRowLikeCpp, SpellProcsPerMinuteHotfixRow, SpellRadiusHotfixRowLikeCpp,
+    SpellRangeHotfixRowLikeCpp,
     SpellShapeshiftHotfixRowLikeCpp,
     SpellTargetRestrictionsHotfixRowLikeCpp, SpellXSpellVisualHotfixRowLikeCpp,
 };
@@ -131,6 +132,8 @@ const SPELL_LEVELS_SQL: &str = concat!(
     "SELECT ID, DifficultyID, BaseLevel, MaxLevel, SpellLevel, MaxPassiveAuraLevel, SpellID ",
     "FROM spell_levels WHERE (`VerifiedBuild` > 0) = ?"
 );
+const SPELL_PROCS_PER_MINUTE_SQL: &str =
+    "SELECT ID, BaseProcRate, Flags FROM spell_procs_per_minute WHERE (`VerifiedBuild` > 0) = ?";
 const OFFICIAL_THEN_CUSTOM_LIKE_CPP: [bool; 2] = [true, false];
 
 #[cfg(test)]
@@ -650,6 +653,25 @@ impl SpellCoreDb2HotfixPersistencePortLikeCpp
             )
         })
     }
+
+    fn load_spell_procs_per_minute_rows(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellProcsPerMinuteHotfixRow>,
+    > {
+        Box::pin(async move {
+            classify_rows_like_cpp(
+                query_official_then_custom_like_cpp(
+                    &self.hotfix_db,
+                    HotfixStatements::base(SPELL_PROCS_PER_MINUTE_SQL),
+                    "spell_procs_per_minute",
+                    decode::spell_procs_per_minute,
+                )
+                .await,
+            )
+        })
+    }
 }
 
 #[cfg(test)]
@@ -731,6 +753,10 @@ mod tests {
                 "MaxPassiveAuraLevel, SpellID FROM spell_levels ",
                 "WHERE (`VerifiedBuild` > 0) = ?"
             )
+        );
+        assert_eq!(
+            SPELL_PROCS_PER_MINUTE_SQL,
+            "SELECT ID, BaseProcRate, Flags FROM spell_procs_per_minute WHERE (`VerifiedBuild` > 0) = ?"
         );
     }
 }

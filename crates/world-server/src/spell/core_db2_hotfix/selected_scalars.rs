@@ -2,11 +2,12 @@ use anyhow::Result;
 use wow_data::{
     Db2HotfixRemovalStoreLikeCpp, SpellAuraOptionsEntry, SpellAuraOptionsStore,
     SpellClassOptionsEntry, SpellClassOptionsStore, SpellLabelEntry, SpellLabelStore,
-    SpellLevelsEntry, SpellLevelsStore,
+    SpellLevelsEntry, SpellLevelsStore, SpellProcsPerMinuteEntry, SpellProcsPerMinuteStore,
 };
 use wow_persistence::{
     SpellAuraOptionsHotfixRow, SpellClassOptionsHotfixRow,
     SpellCoreDb2HotfixPersistencePortLikeCpp, SpellLabelHotfixRow, SpellLevelsHotfixRow,
+    SpellProcsPerMinuteHotfixRow,
 };
 
 use super::loaded_rows_like_cpp;
@@ -71,6 +72,21 @@ pub(crate) async fn load_spell_levels_store(
     )
 }
 
+pub(crate) async fn load_spell_procs_per_minute_store(
+    data_dir: &str,
+    locale: &str,
+    persistence: &dyn SpellCoreDb2HotfixPersistencePortLikeCpp,
+    removals: &Db2HotfixRemovalStoreLikeCpp,
+) -> Result<SpellProcsPerMinuteStore> {
+    let rows = loaded_rows_like_cpp(persistence.load_spell_procs_per_minute_rows().await)?;
+    SpellProcsPerMinuteStore::load_effective_from_hotfix_rows(
+        data_dir,
+        locale,
+        rows.into_iter().map(spell_procs_per_minute_entry),
+        removals,
+    )
+}
+
 fn spell_aura_options_entry(row: SpellAuraOptionsHotfixRow) -> SpellAuraOptionsEntry {
     SpellAuraOptionsEntry {
         id: row.id,
@@ -112,6 +128,14 @@ fn spell_levels_entry(row: SpellLevelsHotfixRow) -> SpellLevelsEntry {
         spell_level: row.spell_level,
         max_passive_aura_level: row.max_passive_aura_level,
         spell_id: row.spell_id,
+    }
+}
+
+fn spell_procs_per_minute_entry(row: SpellProcsPerMinuteHotfixRow) -> SpellProcsPerMinuteEntry {
+    SpellProcsPerMinuteEntry {
+        id: row.id,
+        base_proc_rate: row.base_proc_rate,
+        flags: row.flags,
     }
 }
 

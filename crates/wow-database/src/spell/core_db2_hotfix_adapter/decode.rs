@@ -9,7 +9,8 @@ use wow_persistence::{
     SpellEffectHotfixRowLikeCpp, SpellEquippedItemsHotfixRowLikeCpp,
     SpellInterruptsHotfixRowLikeCpp, SpellLabelHotfixRow, SpellLevelsHotfixRow,
     SpellMiscHotfixRowLikeCpp, SpellNameHotfixRowLikeCpp, SpellPowerDifficultyHotfixRowLikeCpp,
-    SpellPowerHotfixRowLikeCpp, SpellRadiusHotfixRowLikeCpp, SpellRangeHotfixRowLikeCpp,
+    SpellPowerHotfixRowLikeCpp, SpellProcsPerMinuteHotfixRow, SpellRadiusHotfixRowLikeCpp,
+    SpellRangeHotfixRowLikeCpp,
     SpellShapeshiftHotfixRowLikeCpp, SpellTargetRestrictionsHotfixRowLikeCpp,
     SpellXSpellVisualHotfixRowLikeCpp,
 };
@@ -388,6 +389,16 @@ pub(super) fn spell_levels(row: &[NativeFieldLikeCpp]) -> Result<SpellLevelsHotf
         spell_level: row.get_like_cpp(4, "spell_levels.SpellLevel")?,
         max_passive_aura_level: row.get_like_cpp(5, "spell_levels.MaxPassiveAuraLevel")?,
         spell_id: row.get_like_cpp(6, "spell_levels.SpellID")?,
+    })
+}
+
+pub(super) fn spell_procs_per_minute(
+    row: &[NativeFieldLikeCpp],
+) -> Result<SpellProcsPerMinuteHotfixRow> {
+    Ok(SpellProcsPerMinuteHotfixRow {
+        id: row.get_like_cpp(0, "spell_procs_per_minute.ID")?,
+        base_proc_rate: row.get_like_cpp(1, "spell_procs_per_minute.BaseProcRate")?,
+        flags: row.get_like_cpp(2, "spell_procs_per_minute.Flags")?,
     })
 }
 

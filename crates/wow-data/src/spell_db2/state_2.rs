@@ -231,13 +231,12 @@ impl SpellMiscStore {
 
 impl SpellProcsPerMinuteStore {
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
-        load_store(data_dir, locale, "SpellProcsPerMinute.db2", |id, idx, r| {
-            SpellProcsPerMinuteEntry {
-                id,
-                base_proc_rate: f32_field(r, idx, 0),
-                flags: r.get_field_u8(idx, 1),
-            }
-        })
+        load_store(
+            data_dir,
+            locale,
+            "SpellProcsPerMinute.db2",
+            super::selected_scalars::read_spell_procs_per_minute_entry,
+        )
     }
 }
 

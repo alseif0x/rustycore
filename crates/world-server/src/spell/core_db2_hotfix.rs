@@ -4,7 +4,7 @@ mod selected_scalars;
 
 pub(crate) use selected_scalars::{
     load_spell_aura_options_store, load_spell_class_options_store, load_spell_label_store,
-    load_spell_levels_store,
+    load_spell_levels_store, load_spell_procs_per_minute_store,
 };
 
 use anyhow::{Result, anyhow};

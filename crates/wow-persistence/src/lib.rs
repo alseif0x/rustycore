@@ -291,7 +291,8 @@ pub use spell::{
     SpellEffectHotfixRowLikeCpp, SpellEquippedItemsHotfixRowLikeCpp,
     SpellInterruptsHotfixRowLikeCpp, SpellLabelHotfixRow, SpellLevelsHotfixRow,
     SpellMiscHotfixRowLikeCpp, SpellNameHotfixRowLikeCpp, SpellPowerDifficultyHotfixRowLikeCpp,
-    SpellPowerHotfixRowLikeCpp, SpellRadiusHotfixRowLikeCpp, SpellRangeHotfixRowLikeCpp,
+    SpellPowerHotfixRowLikeCpp, SpellProcsPerMinuteHotfixRow, SpellRadiusHotfixRowLikeCpp,
+    SpellRangeHotfixRowLikeCpp,
     SpellShapeshiftHotfixRowLikeCpp, SpellTargetRestrictionsHotfixRowLikeCpp,
     SpellXSpellVisualHotfixRowLikeCpp,
 };

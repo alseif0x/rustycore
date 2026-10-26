@@ -82,3 +82,16 @@ fn scalar_entry_mapping_preserves_source_payload_widths() {
         }
     );
 }
+
+#[test]
+fn ppm_entry_mapping_keeps_float_bits_and_flags() {
+    let rate = f32::from_bits(0x3F9E_0652);
+    let entry = spell_procs_per_minute_entry(SpellProcsPerMinuteHotfixRow {
+        id: u32::MAX,
+        base_proc_rate: rate,
+        flags: u8::MAX,
+    });
+    assert_eq!(entry.id, u32::MAX);
+    assert_eq!(entry.base_proc_rate.to_bits(), rate.to_bits());
+    assert_eq!(entry.flags, u8::MAX);
+}

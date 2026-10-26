@@ -287,6 +287,13 @@ pub struct SpellLevelsHotfixRow {
     pub spell_id: u32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SpellProcsPerMinuteHotfixRow {
+    pub id: u32,
+    pub base_proc_rate: f32,
+    pub flags: u8,
+}
+
 /// Hotfix DB capability for the core DB2 contributors used to build the
 /// represented `SpellInfo` authority. Every method returns official rows
 /// followed by custom rows, matching C++ `DB2StorageBase::LoadFromDB`.
@@ -439,4 +446,11 @@ pub trait SpellCoreDb2HotfixPersistencePortLikeCpp: Send + Sync {
     fn load_spell_levels_rows(
         &self,
     ) -> PersistenceFutureLikeCpp<'_, SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellLevelsHotfixRow>>;
+
+    fn load_spell_procs_per_minute_rows(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellProcsPerMinuteHotfixRow>,
+    >;
 }

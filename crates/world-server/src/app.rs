@@ -1369,8 +1369,14 @@ async fn run_inner(
         pet_family_spell_store.family_count()
     );
     let spell_procs_per_minute_store = Arc::new(
-        wow_data::SpellProcsPerMinuteStore::load(&data_dir, &locale)
-            .context("Failed to load SpellProcsPerMinute.db2")?,
+        spell::core_db2_hotfix::load_spell_procs_per_minute_store(
+            &data_dir,
+            &locale,
+            &spell_core_hotfix_persistence,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellProcsPerMinute store")?,
     );
     info!(
         "Loaded {} spell procs-per-minute rows",

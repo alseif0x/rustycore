@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use super::{
     Db2StoreTableHashLikeCpp, SpellAuraOptionsEntry, SpellAuraOptionsStore, SpellClassOptionsEntry,
     SpellClassOptionsStore, SpellLabelEntry, SpellLabelStore, SpellLevelsEntry, SpellLevelsStore,
-    load_store_complete,
+    SpellProcsPerMinuteEntry, SpellProcsPerMinuteStore, load_store_complete,
 };
 use crate::{Db2HotfixRemovalStoreLikeCpp, wdc4::Wdc4Reader};
 
@@ -65,6 +65,18 @@ pub(super) fn read_spell_levels_entry(
     }
 }
 
+pub(super) fn read_spell_procs_per_minute_entry(
+    id: u32,
+    idx: usize,
+    reader: &Wdc4Reader,
+) -> SpellProcsPerMinuteEntry {
+    SpellProcsPerMinuteEntry {
+        id,
+        base_proc_rate: reader.get_field_f32(idx, 0),
+        flags: reader.get_field_u8(idx, 1),
+    }
+}
+
 macro_rules! impl_selected_scalar_loaders {
     ($store:ty, $entry:ty, $file_name:literal, $reader:ident) => {
         impl $store {
@@ -121,4 +133,10 @@ impl_selected_scalar_loaders!(
     SpellLevelsEntry,
     "SpellLevels.db2",
     read_spell_levels_entry
+);
+impl_selected_scalar_loaders!(
+    SpellProcsPerMinuteStore,
+    SpellProcsPerMinuteEntry,
+    "SpellProcsPerMinute.db2",
+    read_spell_procs_per_minute_entry
 );

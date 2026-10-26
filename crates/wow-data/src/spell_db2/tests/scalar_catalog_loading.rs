@@ -1,14 +1,16 @@
 use super::visual_metadata_loading::{FixtureDirectory, unresolved_error};
 use crate::{
-    Db2HotfixRemovalStoreLikeCpp, SpellAuraOptionsEntry, SpellAuraOptionsStore,
-    SpellClassOptionsEntry, SpellClassOptionsStore, SpellLabelEntry, SpellLabelStore,
-    SpellLevelsEntry, SpellLevelsStore,
+    Db2HotfixRemovalStoreLikeCpp, DifficultyStore, SpellAuraOptionsEntry,
+    SpellAuraOptionsStore, SpellClassOptionsEntry, SpellClassOptionsStore, SpellLabelEntry,
+    SpellLabelStore, SpellLevelsEntry, SpellLevelsStore, SpellProcsPerMinuteEntry,
+    SpellProcsPerMinuteStore,
 };
 
 const AURA_TABLE_HASH: u32 = 0xA0A0_0101;
 const CLASS_TABLE_HASH: u32 = 0xA0A0_0202;
 const LABEL_TABLE_HASH: u32 = 0xA0A0_0303;
 const LEVELS_TABLE_HASH: u32 = 0xA0A0_0404;
+const PPM_TABLE_HASH: u32 = 0xA0A0_0505;
 
 fn aura_entry(
     id: u32,
@@ -105,6 +107,14 @@ fn empty_levels_file_entry(id: u32) -> SpellLevelsEntry {
         spell_level: 0,
         max_passive_aura_level: 0,
         spell_id: 0,
+    }
+}
+
+fn ppm_entry(id: u32, base_proc_rate: f32, flags: u8) -> SpellProcsPerMinuteEntry {
+    SpellProcsPerMinuteEntry {
+        id,
+        base_proc_rate,
+        flags,
     }
 }
 
@@ -525,4 +535,102 @@ fn scalar_complete_loaders_reject_unresolved_copies_before_overlays() {
         [levels_entry(1, 2, 3, 4, 5)],
         &removals,
     ));
+}
+
+#[test]
+fn ppm_effective_loader_composes_complete_file_rows_overlays_and_removals() {
+    let fixtures = FixtureDirectory::new();
+    fixtures.write_complete_records(
+        "SpellProcsPerMinute.db2",
+        PPM_TABLE_HASH,
+        100,
+        2,
+        &[32, 8],
+    );
+    let data_dir = fixtures.data_dir();
+    let file = SpellProcsPerMinuteStore::load_complete(&data_dir, "enUS")
+        .expect("load complete PPM DB2 file");
+    assert_eq!(file.len(), 2);
+    assert_eq!(file.get(100), Some(&ppm_entry(100, 0.0, 0)));
+
+    let removals = Db2HotfixRemovalStoreLikeCpp::from_status_rows_like_cpp([
+        (PPM_TABLE_HASH, 300, 2),
+        (PPM_TABLE_HASH ^ 1, 100, 2),
+    ]);
+    let effective = SpellProcsPerMinuteStore::load_effective_from_hotfix_rows(
+        &data_dir,
+        "enUS",
+        [
+            ppm_entry(100, 0.75, 5),
+            ppm_entry(200, 2.5, 7),
+            ppm_entry(300, 3.5, 9),
+            ppm_entry(100, 0.123_456_79, u8::MAX),
+        ],
+        &removals,
+    )
+    .expect("overlay PPM rows after a complete file load");
+    assert_eq!(effective.len(), 3);
+    let replacement = effective.get(100).expect("custom replacement row");
+    assert_eq!(replacement.base_proc_rate.to_bits(), 0.123_456_79_f32.to_bits());
+    assert_eq!(replacement.flags, u8::MAX);
+    assert_eq!(effective.get(101), Some(&ppm_entry(101, 0.0, 0)));
+    assert_eq!(effective.get(200), Some(&ppm_entry(200, 2.5, 7)));
+    assert!(effective.get(300).is_none());
+}
+
+#[test]
+fn ppm_effective_loader_rejects_missing_invalid_and_unresolved_files() {
+    let fixtures = FixtureDirectory::new();
+    let data_dir = fixtures.data_dir();
+    let removals = Db2HotfixRemovalStoreLikeCpp::default();
+    assert!(SpellProcsPerMinuteStore::load_complete(&data_dir, "enUS").is_err());
+    assert!(
+        SpellProcsPerMinuteStore::load_effective_from_hotfix_rows(
+            &data_dir,
+            "enUS",
+            [ppm_entry(1, 1.0, 1)],
+            &removals,
+        )
+        .is_err()
+    );
+
+    fixtures.write_invalid_file("SpellProcsPerMinute.db2");
+    assert!(SpellProcsPerMinuteStore::load_complete(&data_dir, "enUS").is_err());
+    assert!(
+        SpellProcsPerMinuteStore::load_effective_from_hotfix_rows(
+            &data_dir,
+            "enUS",
+            [ppm_entry(1, 1.0, 1)],
+            &removals,
+        )
+        .is_err()
+    );
+
+    fixtures.write_incomplete_copy("SpellProcsPerMinute.db2");
+    assert!(
+        SpellProcsPerMinuteStore::load(&data_dir, "enUS")
+            .expect("legacy PPM loader keeps incomplete-copy behavior")
+            .is_empty()
+    );
+    unresolved_error(SpellProcsPerMinuteStore::load_complete(&data_dir, "enUS"));
+    unresolved_error(SpellProcsPerMinuteStore::load_effective_from_hotfix_rows(
+        &data_dir,
+        "enUS",
+        [ppm_entry(1, 1.0, 1)],
+        &removals,
+    ));
+}
+
+#[test]
+fn difficulty_complete_loader_rejects_unresolved_copy_rows_and_legacy_load_is_preserved() {
+    let fixtures = FixtureDirectory::new();
+    fixtures.write_incomplete_copy("Difficulty.db2");
+    let data_dir = fixtures.data_dir();
+
+    assert!(
+        DifficultyStore::load(&data_dir, "enUS")
+            .expect("legacy Difficulty loader retains incomplete-copy behavior")
+            .is_empty()
+    );
+    unresolved_error(DifficultyStore::load_complete(&data_dir, "enUS"));
 }
