@@ -32,7 +32,7 @@ impl SessionLifecycleState {
     ) -> Option<crate::PlayerSaveOutcomeLikeCpp> {
         let mut owner = hub
             .core
-            .player_save_operation_access_like_cpp(None, None, None, None);
+            .player_save_operation_access_like_cpp(None, None, None, None, None, None, None);
         self.defer_player_save_for_transfer_with_owner_like_cpp(&mut owner)
     }
 

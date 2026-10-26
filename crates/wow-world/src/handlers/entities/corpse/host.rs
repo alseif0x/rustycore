@@ -161,6 +161,20 @@ impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
             .unwrap_or(false)
     }
 
+    fn cast_all_obtain_spells_like_cpp<'a>(
+        &'a mut self,
+        catalogs: wow_world_entities::ResurrectionOperationCatalogs<'a>,
+    ) -> impl std::future::Future<Output = Result<(), &'static str>> + Send + 'a {
+        async move {
+            Box::pin(wow_world_spell::cast_all_obtain_spells_like_cpp(
+                self,
+                catalogs.item_guid_generator,
+                catalogs.creature_spawns,
+            ))
+            .await
+        }
+    }
+
     fn cast_triggered_self_spell_like_cpp(
         &mut self,
         catalogs: wow_world_entities::ResurrectionOperationCatalogs<'_>,
@@ -182,7 +196,7 @@ impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
                 player_guid,
                 wow_entities::SpellCastMetadata {
                     cast_flags: 0x0000_0001,
-                    triggered_ignores_global_cooldown_like_cpp: true,
+                    trigger_cast_flags_like_cpp: wow_entities::TRIGGERED_FULL_MASK_LIKE_CPP,
                     resurrection_sickness_remaining_ms: sickness_remaining_ms,
                     original_caster_guid,
                     ..wow_entities::SpellCastMetadata::default()

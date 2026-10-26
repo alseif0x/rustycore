@@ -106,6 +106,12 @@ impl SessionCore {
 }
 
 impl PlayerAuraRemovalAccessLikeCpp<'_> {
+    pub fn set_no_reagent_cost_mask_like_cpp(&self, mask: [u32; 4]) -> Option<()> {
+        self.core.with_owned_player_mut_like_cpp(|player| {
+            player.set_no_reagent_cost_mask_like_cpp(mask);
+        })
+    }
+
     pub fn set_visible_aura_update_pending(&self, slot: u8, pending: bool) -> Option<()> {
         self.core.with_owned_player_mut_like_cpp(|player| {
             let visible_auras_to_update = &mut player
@@ -359,6 +365,13 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
     ) -> Option<std::collections::HashMap<u8, AuraApplicationLikeCpp>> {
         self.aura_subsystem_snapshot_like_cpp()
             .map(|auras| auras.runtime_applications_like_cpp().clone())
+    }
+
+    pub fn player_aura_authority_ready_like_cpp(&self) -> Option<bool> {
+        self.aura_subsystem_snapshot_like_cpp().map(|auras| {
+            auras.persisted_player_aura_authority_complete_like_cpp()
+                && !auras.spell_hit_aura_authority_tombstoned_like_cpp()
+        })
     }
 
     pub fn player_has_visible_aura_spell_like_cpp(&self, spell_id: i32) -> Option<bool> {

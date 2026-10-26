@@ -132,6 +132,11 @@ pub(super) fn prepare(
         .subsystems()
         .auras
         .persisted_player_aura_authority_complete_like_cpp()
+        || player
+            .unit()
+            .subsystems()
+            .auras
+            .spell_hit_aura_authority_tombstoned_like_cpp()
     {
         return Err(SelfResurrectionError::AuraStateUnavailable);
     }
@@ -320,6 +325,91 @@ fn aura_ignores_spell_cooldown(
         }
     }
     Ok(false)
+}
+
+pub(crate) fn active_spell_cooldown_aura_affects_like_cpp(
+    player: &Player,
+    target_spell_id: u32,
+    target_difficulty: u8,
+    spells: &SpellStore,
+    serverside_spells: &ServersideSpellStoreLikeCpp,
+    class_options: Option<&SpellClassOptionsStore>,
+    difficulties: Option<&DifficultyStore>,
+) -> Result<bool, SelfResurrectionError> {
+    let auras = &player.unit().subsystems().auras;
+    if !auras.persisted_player_aura_authority_complete_like_cpp()
+        || auras.spell_hit_aura_authority_tombstoned_like_cpp()
+    {
+        return Err(SelfResurrectionError::AuraStateUnavailable);
+    }
+
+    let mut applications = auras
+        .runtime_applications_like_cpp()
+        .values()
+        .filter(|application| application.effect_mask != 0)
+        .collect::<Vec<_>>();
+    applications.sort_unstable_by_key(|application| application.slot);
+
+    let mut ignore_cooldown_auras = Vec::new();
+    for application in applications {
+        let spell_id = application.spell_id as u32;
+        let source = resolve_spell_source(
+            spell_id,
+            application.difficulty_id,
+            spells,
+            serverside_spells,
+            difficulties,
+        )?;
+        let regular_effects = match &source {
+            SpellSource::Regular { difficulty } => wow_data::spell::resolve_spell_effect_rows(
+                spells,
+                spell_id as i32,
+                *difficulty,
+                difficulties,
+            )
+            .map_err(SelfResurrectionError::EffectCatalog)?,
+            SpellSource::Server(_) => Vec::new(),
+        };
+        let mut family = None;
+        for effect_index in 0..MAX_EFFECTS {
+            if application.effect_mask & (1u32 << effect_index) == 0 {
+                continue;
+            }
+            let effect = source.active_effect(effect_index, &regular_effects).ok_or(
+                SelfResurrectionError::ActiveEffectUnavailable {
+                    spell_id,
+                    effect_index,
+                },
+            )?;
+            if effect.aura_type != wow_data::spell::aura_types::SPELL_AURA_IGNORE_SPELL_COOLDOWN {
+                continue;
+            }
+            let current_family = match family {
+                Some(family) => family,
+                None => {
+                    let resolved = source.family(spell_id, class_options, difficulties)?;
+                    family = Some(resolved);
+                    resolved
+                }
+            };
+            ignore_cooldown_auras.push((current_family, effect.class_mask));
+        }
+    }
+
+    let target = resolve_spell_source(
+        target_spell_id,
+        target_difficulty,
+        spells,
+        serverside_spells,
+        difficulties,
+    )?;
+    aura_ignores_spell_cooldown(
+        &ignore_cooldown_auras,
+        &target,
+        target_spell_id,
+        class_options,
+        difficulties,
+    )
 }
 
 fn affected_spell(target: FamilyInfo, aura: FamilyInfo, class_mask: [u32; 4]) -> bool {

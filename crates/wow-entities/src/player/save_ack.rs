@@ -6,6 +6,7 @@
 //! The application binds this single-use receipt to a generation-checked PlayerHandle.
 
 use super::*;
+use crate::{PlayerCurrency, PlayerCurrencyState};
 
 /// Owned, short-lived acknowledgement data. No ECS/SQL/Session dependency or whole Player copy.
 /// Consumed exactly once by the application after confirmed commit for its exact incarnation.
@@ -19,6 +20,8 @@ pub struct PlayerSaveAcknowledgementLikeCpp {
     skills: Vec<PlayerSkillRecord>,
     equipment: BTreeMap<u64, PlayerEquipmentSetLikeCpp>,
     reputations: Vec<PlayerFactionStateLikeCpp>,
+    inventory_items: Vec<(ObjectGuid, Item)>,
+    currencies: Vec<(u32, PlayerCurrency)>,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -28,11 +31,24 @@ pub struct PlayerSavedGroupsLikeCpp {
     pub skills: bool,
     pub equipment: bool,
     pub reputations: bool,
+    pub inventory_items: bool,
+    pub currencies: bool,
 }
 
 impl Player {
     /// Must run in the same admitted owner read as the complete save projection.
     pub fn capture_save_acknowledgement_like_cpp(&self) -> PlayerSaveAcknowledgementLikeCpp {
+        self.capture_save_acknowledgement_with_inventory_like_cpp(&[], &[])
+    }
+
+    /// Capture only the item and currency rows selected for the same full-save
+    /// request. These immutable values let the later receipt acknowledge the
+    /// exact state written without clearing newer mutations.
+    pub fn capture_save_acknowledgement_with_inventory_like_cpp(
+        &self,
+        item_guids: &[ObjectGuid],
+        currency_ids: &[u32],
+    ) -> PlayerSaveAcknowledgementLikeCpp {
         let state = self.gameplay_state();
         PlayerSaveAcknowledgementLikeCpp {
             guid: self.guid(),
@@ -51,6 +67,20 @@ impl Player {
             // and the Player now owns it in that shape, so a shadowed duplicate
             // row can no longer exist to be acknowledged (#735).
             reputations: state.reputation.factions_like_cpp().cloned().collect(),
+            inventory_items: item_guids
+                .iter()
+                .filter_map(|guid| {
+                    self.inventory_runtime_like_cpp()
+                        .item_objects()
+                        .get(guid)
+                        .cloned()
+                        .map(|item| (*guid, item))
+                })
+                .collect(),
+            currencies: currency_ids
+                .iter()
+                .filter_map(|id| state.currencies.get(id).copied().map(|row| (*id, row)))
+                .collect(),
         }
     }
 
@@ -66,6 +96,8 @@ impl Player {
         let state = &mut self.gameplay_state;
         if let Some(captured) = saved.resurrection
             && captured.phase == crate::PlayerResurrectionPhase::SavingPlayer
+            && groups.inventory_items
+            && groups.currencies
             && let Some(current) = state.resurrection.delayed_after_teleport.as_mut()
             && *current == captured
         {
@@ -109,6 +141,54 @@ impl Player {
                 }) {
                     // Send/visual state is independent of durable standing/flags.
                     current.need_save = false;
+                }
+            }
+        }
+        if groups.inventory_items {
+            for (guid, captured) in saved.inventory_items {
+                let Some(current) = self
+                    .inventory_runtime_like_cpp()
+                    .item_objects()
+                    .get(&guid)
+                    .filter(|current| current.has_same_persistent_save_state_like_cpp(&captured))
+                    .map(|current| current.update_state())
+                else {
+                    if let Some(current) = self
+                        .inventory_runtime_mut_like_cpp()
+                        .item_objects_mut()
+                        .get_mut(&guid)
+                        && captured.update_state() == ItemUpdateState::New
+                        && current.update_state() == ItemUpdateState::New
+                    {
+                        current.force_state(ItemUpdateState::Changed);
+                    }
+                    continue;
+                };
+                if current == ItemUpdateState::Removed {
+                    self.inventory_runtime_mut_like_cpp()
+                        .remove_item_object_like_cpp(guid);
+                } else {
+                    self.inventory_runtime_mut_like_cpp()
+                        .item_objects_mut()
+                        .get_mut(&guid)
+                        .expect("captured inventory item remains owned")
+                        .set_state(ItemUpdateState::Unchanged);
+                }
+            }
+        }
+        if groups.currencies {
+            for (currency_id, captured) in saved.currencies {
+                if let Some(current) = self
+                    .gameplay_state_mut()
+                    .currencies
+                    .get_mut(&currency_id)
+                    .filter(|current| **current == captured)
+                    && matches!(
+                        current.state,
+                        PlayerCurrencyState::New | PlayerCurrencyState::Changed
+                    )
+                {
+                    current.state = PlayerCurrencyState::Unchanged;
                 }
             }
         }

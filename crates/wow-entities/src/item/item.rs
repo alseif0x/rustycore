@@ -232,6 +232,59 @@ impl Item {
         self.update_state
     }
 
+    /// Compare the item values represented by the full character inventory
+    /// save while ignoring transient update-field masks and queue bookkeeping.
+    pub(crate) fn has_same_persistent_save_state_like_cpp(&self, other: &Self) -> bool {
+        const SAVED_MODIFIERS: [ItemModifier; 22] = [
+            ItemModifier::TransmogAppearanceAllSpecs,
+            ItemModifier::TransmogAppearanceSpec1,
+            ItemModifier::TransmogAppearanceSpec2,
+            ItemModifier::TransmogAppearanceSpec3,
+            ItemModifier::TransmogAppearanceSpec4,
+            ItemModifier::TransmogAppearanceSpec5,
+            ItemModifier::EnchantIllusionAllSpecs,
+            ItemModifier::EnchantIllusionSpec1,
+            ItemModifier::EnchantIllusionSpec2,
+            ItemModifier::EnchantIllusionSpec3,
+            ItemModifier::EnchantIllusionSpec4,
+            ItemModifier::EnchantIllusionSpec5,
+            ItemModifier::TransmogSecondaryAppearanceAllSpecs,
+            ItemModifier::TransmogSecondaryAppearanceSpec1,
+            ItemModifier::TransmogSecondaryAppearanceSpec2,
+            ItemModifier::TransmogSecondaryAppearanceSpec3,
+            ItemModifier::TransmogSecondaryAppearanceSpec4,
+            ItemModifier::TransmogSecondaryAppearanceSpec5,
+            ItemModifier::BattlePetSpeciesId,
+            ItemModifier::BattlePetBreedData,
+            ItemModifier::BattlePetLevel,
+            ItemModifier::BattlePetDisplayId,
+        ];
+        self.object.guid() == other.object.guid()
+            && self.object.entry() == other.object.entry()
+            && self.data.owner == other.data.owner
+            && self.data.creator == other.data.creator
+            && self.data.gift_creator == other.data.gift_creator
+            && self.data.stack_count == other.data.stack_count
+            && self.data.expiration == other.data.expiration
+            && self.data.dynamic_flags == other.data.dynamic_flags
+            && self.data.spell_charges == other.data.spell_charges
+            && self.data.enchantments == other.data.enchantments
+            && self.data.durability == other.data.durability
+            && self.data.create_played_time == other.data.create_played_time
+            && self.data.gems == other.data.gems
+            && self.data.random_properties_id == other.data.random_properties_id
+            && self.data.property_seed == other.data.property_seed
+            && self.data.context == other.data.context
+            && SAVED_MODIFIERS
+                .into_iter()
+                .all(|modifier| self.get_modifier(modifier) == other.get_modifier(modifier))
+            && self.slot == other.slot
+            && self.container == other.container
+            && self.container_slot == other.container_slot
+            && self.text == other.text
+            && self.update_state == other.update_state
+    }
+
     pub const fn queue_pos(&self) -> i16 {
         self.queue_pos
     }

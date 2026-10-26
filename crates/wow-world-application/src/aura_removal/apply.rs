@@ -140,6 +140,7 @@ impl AuraRemovalCxLikeCpp<'_> {
             represented_multiplier,
             applied_at: Instant::now(),
         };
+        let no_reagent_mask = self.no_reagent_mask_after_aura_apply_like_cpp(&aura)?;
 
         if !self
             .spell
@@ -151,6 +152,11 @@ impl AuraRemovalCxLikeCpp<'_> {
             )
         {
             return Err("Missing Player aura owner");
+        }
+        if let Some(mask) = no_reagent_mask {
+            self.player
+                .set_no_reagent_cost_mask_like_cpp(mask)
+                .ok_or("Missing Player owner for NoReagentCostMask")?;
         }
         self.player.apply_player_threat_aura_for_consumer_like_cpp(
             spell_id,

@@ -241,7 +241,7 @@ pub trait InventoryStorageMoveHostLikeCpp {
         &'a mut self,
         item_guid_generator: &'a wow_core::ObjectGuidGenerator,
         creature_spawn_catalogs: &'a wow_world_entities::CreatureSpawnCatalogsLikeCpp,
-        entry_id: u32,
+        item_guid: wow_core::ObjectGuid,
     ) -> impl std::future::Future<Output = ()> + Send + 'a;
 
     /// cfg(test) observation record for the C++ TitanGrip penalty action.

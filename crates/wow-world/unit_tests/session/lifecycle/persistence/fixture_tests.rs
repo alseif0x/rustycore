@@ -513,6 +513,8 @@ impl WorldSession {
             wall_clock_unix_secs: now_unix_secs,
             character,
             item_durability: None,
+            inventory_items: None,
+            currencies: None,
             resurrection_sickness: None,
             ghost_wisp: None,
             spells,

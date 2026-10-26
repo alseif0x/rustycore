@@ -696,6 +696,7 @@ impl UpdateObject {
             toys: Vec::new(),
             transmog: Vec::new(),
             self_res_spells: Vec::new(),
+            no_reagent_cost_mask: [0; 4],
             trait_configs: Vec::new(),
             quest_log,
         };
@@ -783,6 +784,20 @@ impl UpdateObject {
             } = block
             {
                 create_data.self_res_spells = self_res_spells;
+                return;
+            }
+        }
+    }
+    /// Populate ActivePlayerData::NoReagentCostMask on the self CREATE block.
+    pub fn set_player_no_reagent_cost_mask_like_cpp(&mut self, mask: [u32; 4]) {
+        for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject {
+                create_data,
+                is_self: true,
+                ..
+            } = block
+            {
+                create_data.no_reagent_cost_mask = mask;
                 return;
             }
         }

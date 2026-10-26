@@ -929,6 +929,8 @@ pub struct PlayerCreateData {
     pub transmog: Vec<u32>,
     /// ActivePlayerData::SelfResSpells dynamic field values, in owner order.
     pub self_res_spells: Vec<i32>,
+    /// ActivePlayerData::NoReagentCostMask.
+    pub no_reagent_cost_mask: [u32; 4],
     /// ActivePlayerData::TraitConfigs.
     pub trait_configs: Vec<TraitConfigCreateData>,
 }

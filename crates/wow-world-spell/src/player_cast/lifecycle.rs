@@ -11,6 +11,11 @@ use wow_entities::{PendingSpellCastRequestLikeCpp, SpellCastState, SpellCastVisu
 
 pub trait Runtime {
     fn spell(&self, id: i32) -> Option<SpellInfo>;
+    /// Resolve C++ `GetSpellInfo(id, mapDifficulty)` and return its actual key.
+    fn spell_for_difficulty(&self, id: i32, difficulty_id: u8) -> Option<(SpellInfo, u8)>;
+    /// `true` for a still-installed non-instant generic cast. Source
+    /// `IsNonMeleeSpellCast(..., skipInstant=true)` permits instant nesting.
+    fn server_normal_busy(&mut self) -> Option<bool>;
     fn known(&self, id: i32) -> bool;
     fn resolve_override(&self, original: &SpellInfo) -> SpellInfo;
     fn passive(&self, spell: i32) -> bool;
@@ -22,11 +27,41 @@ pub trait Runtime {
     fn prepare_mapping(&mut self, client: ObjectGuid, server: ObjectGuid);
     fn disabled(&self, spell: i32) -> bool;
     fn on_cooldown(&self, spell: &SpellInfo) -> Option<bool>;
+    /// Source `SpellHistory::IsReady` over the selected native spell key,
+    /// history ledger, cooldown category, charges, aura modifiers and item.
+    fn server_normal_on_cooldown(
+        &self,
+        spell: &SpellInfo,
+        actual_difficulty_id: u8,
+        metadata: wow_entities::SpellCastMetadata,
+    ) -> Option<bool>;
+    /// Native SpellHistory GCD membership for the selected recovery category.
+    fn server_normal_global_cooldown_state(
+        &self,
+        spell: &SpellInfo,
+        actual_difficulty_id: u8,
+    ) -> Option<(u32, bool)>;
+    /// C++ Attr12 calls SendSpellCooldown during prepare, before START and
+    /// before the direct-cast branch. This operation also validates the
+    /// required cooldown authorities for the later pre-GO path.
+    fn server_normal_cooldown_at_cast_start(
+        &mut self,
+        spell: &SpellInfo,
+        actual_difficulty_id: u8,
+        metadata: wow_entities::SpellCastMetadata,
+    ) -> Option<()>;
     fn check_power(
         &mut self,
         spell: &SpellInfo,
         cast: ObjectGuid,
         visual: &SpellCastVisualLikeCpp,
+    ) -> bool;
+    fn check_server_normal_costs(
+        &mut self,
+        spell: &SpellInfo,
+        cast: ObjectGuid,
+        visual: &SpellCastVisualLikeCpp,
+        metadata: wow_entities::SpellCastMetadata,
     ) -> bool;
     fn check_preconditions(
         &mut self,
@@ -36,6 +71,9 @@ pub trait Runtime {
         metadata: wow_entities::SpellCastMetadata,
     ) -> bool;
     fn install(&mut self, cast: SpellCastState) -> bool;
+    /// Admission for a direct native `CastSpell` preparation. The production
+    /// adapter performs the busy check and install under the same map owner.
+    fn install_server_normal(&mut self, cast: SpellCastState) -> bool;
     fn start(&mut self, cast: &SpellCastState, spell: &SpellInfo);
     /// C++ `Unit::ModCastingSpeed` product for this caster
     /// (`Unit::ApplyCastTimePercentMod`). `1.0` when the caster has none.
@@ -185,6 +223,140 @@ pub fn prepare(runtime: &mut impl Runtime, request: PendingSpellCastRequestLikeC
     }
     runtime.start(&cast, &spell);
     cast.cast_time_ms == 0
+}
+
+/// Prepare a normal Player `CastSpell` call without client request admission.
+/// Returns true only for an instant cast that must execute before the caller
+/// returns. Timed casts remain in canonical active state for the cast driver.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ServerNormalPrepareOutcomeLikeCpp {
+    Rejected,
+    Started,
+    Instant,
+    Direct(SpellCastState),
+}
+
+pub fn prepare_server_normal(
+    runtime: &mut impl Runtime,
+    spell_id: i32,
+    requested_difficulty_id: u8,
+    target_guid: ObjectGuid,
+    mut metadata: wow_entities::SpellCastMetadata,
+) -> ServerNormalPrepareOutcomeLikeCpp {
+    let Some((spell, actual_difficulty_id)) =
+        runtime.spell_for_difficulty(spell_id, requested_difficulty_id)
+    else {
+        return ServerNormalPrepareOutcomeLikeCpp::Rejected;
+    };
+    let Some(visual) = runtime.visual(&spell) else {
+        return ServerNormalPrepareOutcomeLikeCpp::Rejected;
+    };
+    let Some((cast_id, revision)) = runtime.allocate(spell.spell_id) else {
+        return ServerNormalPrepareOutcomeLikeCpp::Rejected;
+    };
+    if runtime.disabled(spell.spell_id) {
+        runtime.failure(
+            cast_id,
+            spell.spell_id,
+            visual,
+            SpellCastResult::SpellUnavailable as i32,
+        );
+        return ServerNormalPrepareOutcomeLikeCpp::Rejected;
+    }
+    metadata.from_client = false;
+    metadata.client_cast_id = None;
+    metadata.prepared_residence_revision = revision;
+    metadata.actual_spell_difficulty_id_like_cpp = Some(actual_difficulty_id);
+    metadata.server_normal_cast_like_cpp = true;
+    match runtime.server_normal_busy() {
+        Some(false) => {}
+        Some(true) => {
+            runtime.failure(
+                cast_id,
+                spell.spell_id,
+                visual,
+                SpellCastResult::SpellInProgress as i32,
+            );
+            return ServerNormalPrepareOutcomeLikeCpp::Rejected;
+        }
+        None => return ServerNormalPrepareOutcomeLikeCpp::Rejected,
+    }
+    let ignore_gcd =
+        metadata.trigger_cast_flags_like_cpp & wow_entities::TRIGGERED_IGNORE_GCD_LIKE_CPP != 0;
+    let Some((gcd_category_id, gcd_active)) = (if ignore_gcd {
+        Some((0, false))
+    } else {
+        runtime.server_normal_global_cooldown_state(&spell, actual_difficulty_id)
+    }) else {
+        return ServerNormalPrepareOutcomeLikeCpp::Rejected;
+    };
+    if gcd_active {
+        runtime.failure(
+            cast_id,
+            spell.spell_id,
+            visual,
+            SpellCastResult::NotReady as i32,
+        );
+        return ServerNormalPrepareOutcomeLikeCpp::Rejected;
+    }
+    if metadata.trigger_cast_flags_like_cpp
+        & wow_entities::TRIGGERED_IGNORE_SPELL_AND_CATEGORY_CD_LIKE_CPP
+        == 0
+        && runtime.server_normal_on_cooldown(&spell, actual_difficulty_id, metadata) != Some(false)
+    {
+        runtime.failure(
+            cast_id,
+            spell.spell_id,
+            visual,
+            SpellCastResult::NotReady as i32,
+        );
+        return ServerNormalPrepareOutcomeLikeCpp::Rejected;
+    }
+    let direct =
+        metadata.trigger_cast_flags_like_cpp & wow_entities::TRIGGERED_CAST_DIRECTLY_LIKE_CPP != 0;
+    metadata.server_normal_started_global_cooldown =
+        spell.cooldown_ms != 0 && gcd_category_id != 0 && !ignore_gcd && !direct;
+    metadata.client_started_global_cooldown = false;
+    if !runtime.check_preconditions(&spell, cast_id, &visual, metadata)
+        || !runtime.check_server_normal_costs(&spell, cast_id, &visual, metadata)
+        || (metadata.cast_item_guid.is_none()
+            && metadata.trigger_cast_flags_like_cpp
+                & wow_entities::TRIGGERED_IGNORE_POWER_AND_REAGENT_COST_LIKE_CPP
+                == 0
+            && !runtime.check_power(&spell, cast_id, &visual))
+    {
+        return ServerNormalPrepareOutcomeLikeCpp::Rejected;
+    }
+
+    let cast_time_ms = (spell.cast_time_ms as f32 * runtime.cast_time_multiplier()).max(0.0) as u32;
+    let cast = SpellCastState {
+        spell_id: spell.spell_id,
+        target_guid,
+        target_data: Default::default(),
+        cast_id,
+        cast_start_time: std::time::Instant::now(),
+        cast_time_ms,
+        spell_visual: visual,
+        metadata,
+    };
+    if runtime
+        .server_normal_cooldown_at_cast_start(&spell, actual_difficulty_id, metadata)
+        .is_none()
+    {
+        return ServerNormalPrepareOutcomeLikeCpp::Rejected;
+    }
+    if direct {
+        return ServerNormalPrepareOutcomeLikeCpp::Direct(cast);
+    }
+    if !runtime.install_server_normal(cast.clone()) {
+        return ServerNormalPrepareOutcomeLikeCpp::Rejected;
+    }
+    runtime.start(&cast, &spell);
+    if cast.cast_time_ms == 0 {
+        ServerNormalPrepareOutcomeLikeCpp::Instant
+    } else {
+        ServerNormalPrepareOutcomeLikeCpp::Started
+    }
 }
 
 #[cfg(test)]

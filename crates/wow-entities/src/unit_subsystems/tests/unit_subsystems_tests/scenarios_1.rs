@@ -456,6 +456,26 @@ fn spell_history_cooldowns_track_spell_category_hold_and_update_like_cpp() {
 }
 
 #[test]
+fn spell_history_ready_gate_uses_raw_membership_until_unit_maintenance() {
+    let mut history = SpellHistory::default();
+    history.cooldowns_loaded = true;
+    assert!(history.start_cooldown(100, 21169, 0, 5, 42, 0, false));
+    assert!(history.start_cooldown(100, 30000, 0, 0, 43, 0, true));
+
+    assert!(history.has_cooldown_membership_like_cpp(21169, 0));
+    assert!(history.has_cooldown_membership_like_cpp(90000, 42));
+    assert!(history.has_cooldown_membership_like_cpp(30000, 43));
+
+    // Clock expiry alone does not remove the source map entry. Unit::Update
+    // performs maintenance; a prepare before that point still sees it.
+    assert!(!history.has_cooldown(21169, 0, 106));
+    assert!(history.has_cooldown_membership_like_cpp(21169, 0));
+    history.update(106);
+    assert!(!history.has_cooldown_membership_like_cpp(21169, 0));
+    assert!(history.has_cooldown_membership_like_cpp(30000, 43));
+}
+
+#[test]
 fn spell_history_charges_school_locks_gcd_and_duel_snapshot_match_cpp_shape() {
     let mut history = SpellHistory::default();
 

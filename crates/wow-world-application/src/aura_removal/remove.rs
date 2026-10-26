@@ -44,6 +44,7 @@ impl AuraRemovalCxLikeCpp<'_> {
             )?;
             self.preflight_selected_sickness_stats()?;
         }
+        let no_reagent_mask = self.no_reagent_mask_after_aura_remove_like_cpp(slot)?;
         let prepared_ghost_wisp = self.prepare_ghost_wisp_removal(slot)?;
         let removed = super::initial::remove_initial_phase_like_cpp(
             self.spell,
@@ -51,6 +52,11 @@ impl AuraRemovalCxLikeCpp<'_> {
             self.spell_store.map(|store| store.as_ref()),
             slot,
         )?;
+        if let Some(mask) = no_reagent_mask {
+            self.player
+                .set_no_reagent_cost_mask_like_cpp(mask)
+                .ok_or("Missing Player owner for NoReagentCostMask")?;
+        }
         let selected_update = matches!(removed.aura.spell_id, 8_326 | 20_584) || selected_sickness;
         if selected_update {
             // C++ AuraApplication::_Remove publishes AuraUpdate before

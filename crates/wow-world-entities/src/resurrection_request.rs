@@ -288,6 +288,7 @@ pub fn mark_player_resurrection_teleport_completed(
         | PlayerResurrectionPhase::ResurrectPlayerReady
         | PlayerResurrectionPhase::ResurrectPlayerInFlight
         | PlayerResurrectionPhase::VisibilityInFlight
+        | PlayerResurrectionPhase::ObtainSpellsInFlight
         | PlayerResurrectionPhase::ApplyRequestValues
         | PlayerResurrectionPhase::AuraInFlight
         | PlayerResurrectionPhase::BonesInFlight
@@ -380,6 +381,7 @@ pub(crate) async fn process_after_teleport(
     if matches!(
         continuation.phase,
         PlayerResurrectionPhase::VisibilityInFlight
+            | PlayerResurrectionPhase::ObtainSpellsInFlight
             | PlayerResurrectionPhase::ResurrectPlayerInFlight
             | PlayerResurrectionPhase::AuraInFlight
             | PlayerResurrectionPhase::BonesInFlight
@@ -453,6 +455,20 @@ pub(crate) async fn process_after_teleport(
         if !advance_phase(
             host,
             PlayerResurrectionPhase::VisibilityInFlight,
+            PlayerResurrectionPhase::ObtainSpellsInFlight,
+        ) {
+            return false;
+        }
+        continuation.phase = PlayerResurrectionPhase::ObtainSpellsInFlight;
+    }
+    if continuation.phase == PlayerResurrectionPhase::ObtainSpellsInFlight {
+        if let Err(reason) = host.cast_all_obtain_spells_like_cpp(catalogs).await {
+            tracing::warn!(reason, "Request resurrection obtain-spell phase failed");
+            return false;
+        }
+        if !advance_phase(
+            host,
+            PlayerResurrectionPhase::ObtainSpellsInFlight,
             PlayerResurrectionPhase::ApplyRequestValues,
         ) {
             return false;
@@ -636,6 +652,17 @@ pub(crate) async fn run_teleport_revive(
     if !advance_phase(
         host,
         PlayerResurrectionPhase::VisibilityInFlight,
+        PlayerResurrectionPhase::ObtainSpellsInFlight,
+    ) {
+        return false;
+    }
+    if let Err(reason) = host.cast_all_obtain_spells_like_cpp(catalogs).await {
+        tracing::warn!(reason, "Teleport resurrection obtain-spell phase failed");
+        return false;
+    }
+    if !advance_phase(
+        host,
+        PlayerResurrectionPhase::ObtainSpellsInFlight,
         PlayerResurrectionPhase::Complete,
     ) {
         return false;

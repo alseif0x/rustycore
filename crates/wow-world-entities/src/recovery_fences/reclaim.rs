@@ -33,12 +33,16 @@ pub(super) async fn continue_reclaim(
             }
             crate::player_resurrection::finish_resurrection_visibility(host, catalogs).await;
             if !owner_is_current(host, owner)
-                || !advance(
-                    host,
-                    owner,
-                    Phase::VisibilityInFlight,
-                    Phase::RecoveryBonesReady,
-                )
+                || !advance(host, owner, Phase::VisibilityInFlight, Phase::ObtainSpellsInFlight)
+            {
+                return Progress::Held;
+            }
+            if let Err(reason) = host.cast_all_obtain_spells_like_cpp(catalogs).await {
+                tracing::warn!(reason, "Reclaim resurrection obtain-spell phase failed");
+                return Progress::Held;
+            }
+            if !owner_is_current(host, owner)
+                || !advance(host, owner, Phase::ObtainSpellsInFlight, Phase::RecoveryBonesReady)
             {
                 return Progress::Held;
             }

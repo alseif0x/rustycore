@@ -264,7 +264,8 @@ pub use spell::{
     SpellAcquisitionStartupPersistencePortLikeCpp, SpellCustomAttributePersistenceRowLikeCpp,
     SpellEffectHotfixPersistenceRowLikeCpp, SpellLearnSpellHotfixPersistenceRowLikeCpp,
     SpellLearnSpellWorldPersistenceRowLikeCpp, SpellLevelsHotfixPersistenceRowLikeCpp,
-    SpellMiscHotfixPersistenceRowLikeCpp, SpellReagentsPersistenceRowLikeCpp,
+    SpellMiscHotfixPersistenceRowLikeCpp, SpellReagentsCurrencyPersistenceRowLikeCpp,
+    SpellReagentsPersistenceRowLikeCpp,
     SummonPropertiesHotfixPersistenceRowLikeCpp, TalentHotfixPersistenceRowLikeCpp,
     TrainerSpellAuditPersistenceCatalogLikeCpp,
 };
@@ -460,6 +461,7 @@ pub use player::{
     PlayerCufProfileSaveLikeCpp, PlayerCufProfileSlotSaveLikeCpp, PlayerEquipmentSetSaveLikeCpp,
     PlayerEquipmentSetStateLikeCpp, PlayerEquipmentSetTypeLikeCpp, PlayerFallbackSpellSaveLikeCpp,
     PlayerGlyphSaveLikeCpp, PlayerInstanceLockTimeSaveLikeCpp, PlayerItemDurabilitySave,
+    PlayerItemGemSaveLikeCpp, PlayerItemSaveLikeCpp, PlayerItemSaveStateLikeCpp,
     PlayerLifecycleAuraEffectSave, PlayerLifecycleAuraFamilySave, PlayerLifecycleAuraSave,
     PlayerLifecycleAuraSpellSave, PlayerPlayedTimeSaveLikeCpp, PlayerPositionSaveLikeCpp,
     PlayerReputationSaveLikeCpp, PlayerSkillSaveLikeCpp, PlayerSpellChargeSaveLikeCpp,

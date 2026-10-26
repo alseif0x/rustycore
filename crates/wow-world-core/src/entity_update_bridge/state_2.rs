@@ -176,6 +176,7 @@ pub(super) fn active_player_data_update_to_packet(
         update.values.conditional_transmog_update_mask.clone();
     packet_update.self_res_spells = update.values.self_res_spells.clone();
     packet_update.self_res_spells_update_mask = update.values.self_res_spells_update_mask.clone();
+    packet_update.no_reagent_cost_mask = update.values.no_reagent_cost_mask;
     packet_update.quest_completed = update.values.quest_completed;
     packet_update
 }

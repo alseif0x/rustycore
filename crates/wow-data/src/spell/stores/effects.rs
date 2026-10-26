@@ -220,7 +220,7 @@ impl SpellStore {
         }
     }
 
-    fn hydrate_primary_effect(info: &mut SpellInfo) {
+    pub(super) fn hydrate_primary_effect(info: &mut SpellInfo) {
         info.effects.sort_by_key(|effect| effect.effect_index);
         if let Some(primary) = info.effects.iter().find(|effect| effect.effect != 0) {
             info.effect_type = primary.effect;

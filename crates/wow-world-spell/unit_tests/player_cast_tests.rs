@@ -1,5 +1,6 @@
 use super::*;
 use std::cell::Cell;
+use wow_entities::SpellCastMetadata;
 
 struct Fixture {
     spell: SpellInfo,
@@ -8,6 +9,7 @@ struct Fixture {
     power: bool,
     admits_install: bool,
     visual_available: bool,
+    native_gcd: (u32, bool),
     pending: Option<PendingSpellCastRequestLikeCpp>,
     active: Option<SpellCastState>,
     allocated: Cell<u32>,
@@ -37,6 +39,7 @@ impl Fixture {
             power: true,
             admits_install: true,
             visual_available: true,
+            native_gcd: (133, false),
             pending: None,
             active: None,
             allocated: Cell::new(0),
@@ -64,6 +67,16 @@ impl Fixture {
 impl Runtime for Fixture {
     fn spell(&self, id: i32) -> Option<SpellInfo> {
         (id == 133).then(|| self.spell.clone())
+    }
+    fn spell_for_difficulty(&self, id: i32, requested_difficulty: u8) -> Option<(SpellInfo, u8)> {
+        (id == 133).then(|| (self.spell.clone(), requested_difficulty))
+    }
+    fn server_normal_busy(&mut self) -> Option<bool> {
+        Some(
+            self.active
+                .as_ref()
+                .is_some_and(|active| active.cast_time_ms != 0),
+        )
     }
     fn known(&self, _: i32) -> bool {
         self.known
@@ -105,9 +118,39 @@ impl Runtime for Fixture {
     fn on_cooldown(&self, _: &SpellInfo) -> Option<bool> {
         Some(false)
     }
+    fn server_normal_on_cooldown(
+        &self,
+        _: &SpellInfo,
+        _: u8,
+        _: wow_entities::SpellCastMetadata,
+    ) -> Option<bool> {
+        Some(false)
+    }
+    fn server_normal_global_cooldown_state(&self, _: &SpellInfo, _: u8) -> Option<(u32, bool)> {
+        Some(self.native_gcd)
+    }
+    fn server_normal_cooldown_at_cast_start(
+        &mut self,
+        _: &SpellInfo,
+        _: u8,
+        _: wow_entities::SpellCastMetadata,
+    ) -> Option<()> {
+        self.events.push("cast-start-cooldown");
+        Some(())
+    }
     fn check_power(&mut self, _: &SpellInfo, _: ObjectGuid, _: &SpellCastVisualLikeCpp) -> bool {
         self.events.push("power");
         self.power
+    }
+    fn check_server_normal_costs(
+        &mut self,
+        _: &SpellInfo,
+        _: ObjectGuid,
+        _: &SpellCastVisualLikeCpp,
+        _: wow_entities::SpellCastMetadata,
+    ) -> bool {
+        self.events.push("normal-costs");
+        true
     }
     fn check_preconditions(
         &mut self,
@@ -126,9 +169,63 @@ impl Runtime for Fixture {
         self.active = Some(cast);
         true
     }
+    fn install_server_normal(&mut self, cast: SpellCastState) -> bool {
+        self.events.push("install-server-normal");
+        if self
+            .active
+            .as_ref()
+            .is_some_and(|active| active.cast_time_ms != 0)
+            || !self.admits_install
+        {
+            return false;
+        }
+        self.active = Some(cast);
+        true
+    }
     fn start(&mut self, _: &SpellCastState, _: &SpellInfo) {
         self.events.push("start");
     }
+}
+
+#[test]
+fn normal_prepare_checks_native_gcd_category_without_timestamp_fallback() {
+    let mut runtime = Fixture::new(0);
+    runtime.native_gcd = (133, true);
+    assert_eq!(
+        prepare_server_normal(&mut runtime, 133, 0, ObjectGuid::EMPTY, Default::default(),),
+        ServerNormalPrepareOutcomeLikeCpp::Rejected
+    );
+    assert_eq!(runtime.failures, [SpellCastResult::NotReady as i32]);
+    assert!(!runtime.events.contains(&"start"));
+}
+
+#[test]
+fn direct_normal_prepare_skips_active_start_and_gcd_but_still_checks_gcd() {
+    let mut runtime = Fixture::new(0);
+    let mut metadata = wow_entities::SpellCastMetadata {
+        trigger_cast_flags_like_cpp: wow_entities::TRIGGERED_CAST_DIRECTLY_LIKE_CPP,
+        ..Default::default()
+    };
+    assert!(matches!(
+        prepare_server_normal(&mut runtime, 133, 0, ObjectGuid::EMPTY, metadata),
+        ServerNormalPrepareOutcomeLikeCpp::Direct(_)
+    ));
+    assert!(runtime.active.is_none());
+    assert!(!runtime.events.contains(&"install-server-normal"));
+    assert!(!runtime.events.contains(&"start"));
+    assert!(runtime.events.contains(&"cast-start-cooldown"));
+
+    runtime.events.clear();
+    runtime.failures.clear();
+    runtime.native_gcd = (133, true);
+    metadata.trigger_cast_flags_like_cpp |=
+        wow_entities::TRIGGERED_IGNORE_POWER_AND_REAGENT_COST_LIKE_CPP;
+    assert_eq!(
+        prepare_server_normal(&mut runtime, 133, 0, ObjectGuid::EMPTY, metadata),
+        ServerNormalPrepareOutcomeLikeCpp::Rejected
+    );
+    assert_eq!(runtime.failures, [SpellCastResult::NotReady as i32]);
+    assert!(!runtime.events.contains(&"power"));
 }
 
 #[test]
@@ -215,4 +312,45 @@ fn unresolvable_visual_reports_a_cancellation_instead_of_dropping_the_request() 
     assert_eq!(runtime.events, ["failure"]);
     assert_eq!(runtime.failures, [SpellCastResult::DontReport as i32]);
     assert_eq!(runtime.allocated.get(), 0);
+}
+
+#[test]
+fn server_normal_spell_go_keeps_empty_original_cast_id() {
+    let cast_id = ObjectGuid::new(6, 0xCA57);
+    assert_eq!(
+        crate::execution_session::spell_go_original_cast_id_like_cpp(
+            SpellCastMetadata {
+                server_normal_cast_like_cpp: true,
+                ..Default::default()
+            },
+            cast_id,
+            false,
+        ),
+        ObjectGuid::EMPTY,
+        "Source normal casts leave OriginalCastID at its explicit default"
+    );
+
+    let original = ObjectGuid::new(6, 0xA11);
+    assert_eq!(
+        crate::execution_session::spell_go_original_cast_id_like_cpp(
+            SpellCastMetadata {
+                server_normal_cast_like_cpp: true,
+                original_cast_id: original,
+                ..Default::default()
+            },
+            cast_id,
+            false,
+        ),
+        original,
+        "an explicitly supplied OriginalCastID remains intact"
+    );
+    assert_eq!(
+        crate::execution_session::spell_go_original_cast_id_like_cpp(
+            SpellCastMetadata::default(),
+            cast_id,
+            false,
+        ),
+        cast_id,
+        "existing non-normal behavior retains its fallback"
+    );
 }

@@ -298,6 +298,13 @@ impl SpellHistory {
                     .is_some_and(|cooldown| cooldown.on_hold || cooldown.category_end_ms > now_ms))
     }
 
+    /// C++ `SpellHistory::HasCooldown` tests map membership. Expired entries
+    /// remain blocking until Unit's normal history maintenance removes them.
+    pub fn has_cooldown_membership_like_cpp(&self, spell_id: u32, category_id: u32) -> bool {
+        self.cooldowns.contains_key(&spell_id)
+            || (category_id != 0 && self.category_cooldowns.contains_key(&category_id))
+    }
+
     pub fn remaining_cooldown_ms(&self, spell_id: u32, category_id: u32, now_ms: u64) -> u64 {
         if let Some(cooldown) = self.cooldowns.get(&spell_id) {
             return cooldown.cooldown_end_ms.saturating_sub(now_ms);

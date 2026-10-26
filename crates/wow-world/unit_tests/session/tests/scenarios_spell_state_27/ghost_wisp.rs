@@ -505,7 +505,7 @@ async fn selected_resurrection_ghost_cast_rejects_external_original_caster() {
         GHOST,
         fixture.player,
         SpellCastMetadata {
-            triggered_ignores_global_cooldown_like_cpp: true,
+            trigger_cast_flags_like_cpp: wow_entities::TRIGGERED_FULL_MASK_LIKE_CPP,
             original_caster_guid: Some(observer),
             ..Default::default()
         },

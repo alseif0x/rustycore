@@ -192,6 +192,27 @@ impl SetCurrency {
             overflown_currency_id: None,
         }
     }
+
+    /// C++ `CurrencyDestroyReason::Spell` (`Player::RemoveCurrency`).
+    pub fn spell_loss(type_id: i32, quantity: i32, amount: i32) -> Self {
+        Self {
+            type_id,
+            quantity,
+            flags: 0,
+            weekly_quantity: None,
+            tracked_quantity: None,
+            max_quantity: None,
+            total_earned: None,
+            suppress_chat_log: false,
+            quantity_change: Some(-amount),
+            quantity_gain_source: None,
+            quantity_lost_source: Some(1),
+            first_craft_operation_id: None,
+            next_recharge_time: None,
+            recharge_cycle_start_time: None,
+            overflown_currency_id: None,
+        }
+    }
 }
 
 impl ServerPacket for SetCurrency {

@@ -4130,6 +4130,9 @@ async fn run_inner(
         )
         .await
         .context("Failed to audit normal trainer wrapper authority")?;
+    spell_store.install_effective_cast_costs_like_cpp(
+        trainer_spell_static_authority.cast_cost_store.clone(),
+    );
     let spell_acquisition_safe_cast_spell_ids =
         Arc::new(trainer_spell_static_authority.safe_cast_spell_ids);
     let spell_acquisition_valid_craft_spell_ids =

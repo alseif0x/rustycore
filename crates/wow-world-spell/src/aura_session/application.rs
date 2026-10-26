@@ -63,6 +63,126 @@ pub fn remove_represented_auras_due_to_spell_like_cpp<H: AuraHostLikeCpp>(
     removed
 }
 
+fn item_spell_aura_slots_like_cpp(
+    auras: &wow_entities::AuraSubsystem,
+    spell_id: i32,
+    item_guid: ObjectGuid,
+) -> Result<Vec<u8>, &'static str> {
+    let mut slots = Vec::new();
+    for aura in auras
+        .runtime_applications_like_cpp()
+        .values()
+        .filter(|aura| aura.spell_id == spell_id)
+    {
+        let metadata = auras
+            .aura_persistence_metadata(aura.slot)
+            .ok_or("item provenance unavailable for matching looted aura")?;
+        if metadata.item_guid == item_guid {
+            slots.push(aura.slot);
+        }
+    }
+    slots.sort_unstable();
+    Ok(slots)
+}
+
+/// Remove only applications created by the selected physical item, matching
+/// C++ `Unit::RemoveAurasDueToItemSpell(spellId, castItemGuid)`.
+pub fn remove_represented_auras_due_to_item_spell_like_cpp<H: AuraHostLikeCpp>(
+    host: &mut H,
+    spell_id: i32,
+    item_guid: ObjectGuid,
+) -> Result<usize, &'static str> {
+    if item_guid.is_empty() {
+        return Err("physical item GUID unavailable for looted-aura removal");
+    }
+    let auras = host
+        .hub_ref()
+        .player_aura_subsystem_snapshot_like_cpp()
+        .ok_or("Player aura applications unavailable for looted-aura removal")?;
+    if !auras.persisted_player_aura_authority_complete_like_cpp()
+        || auras.spell_hit_aura_authority_tombstoned_like_cpp()
+    {
+        return Err(
+            "complete untombstoned Player aura authority unavailable for looted-aura removal",
+        );
+    }
+    let slots = item_spell_aura_slots_like_cpp(&auras, spell_id, item_guid)?;
+    let removed = slots.len();
+    for slot in slots {
+        host.remove_aura(slot)
+            .map_err(|_| "failed to remove item-owned aura")?;
+    }
+    Ok(removed)
+}
+
+#[cfg(test)]
+mod item_spell_removal_tests {
+    use super::*;
+
+    fn aura(spell_id: i32, slot: u8) -> wow_entities::AuraApplicationLikeCpp {
+        wow_entities::AuraApplicationLikeCpp {
+            spell_id,
+            difficulty_id: 0,
+            caster_guid: ObjectGuid::create_player(1, 7),
+            slot,
+            duration_total: 30_000,
+            duration_remaining: 30_000,
+            stack_count: 1,
+            aura_flags: 1,
+            effect_mask: 1,
+            aura_interrupt_flags: 0,
+            aura_interrupt_flags2: 0,
+            represented_effect: None,
+            represented_amount: 0,
+            represented_effect_amounts: Vec::new(),
+            represented_misc_value: None,
+            represented_multiplier: 1.0,
+            applied_at: Instant::now(),
+        }
+    }
+
+    fn persistence(item_guid: ObjectGuid) -> wow_entities::AuraPersistenceMetadata {
+        wow_entities::AuraPersistenceMetadata {
+            item_guid,
+            cast_item_id: 0,
+            cast_item_level: 0,
+            recalculate_mask: 0,
+            charges: 0,
+            base_amounts: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn item_spell_removal_selects_only_the_matching_spell_and_physical_item() {
+        let first_item = ObjectGuid::create_item(1, 101);
+        let other_item = ObjectGuid::create_item(1, 202);
+        let mut auras = wow_entities::AuraSubsystem::default();
+        for application in [aura(700, 2), aura(700, 3), aura(701, 4)] {
+            let slot = application.slot;
+            auras.insert_runtime_application_like_cpp(application);
+            auras.set_aura_persistence_metadata(
+                slot,
+                persistence(if slot == 3 { other_item } else { first_item }),
+            );
+        }
+
+        assert_eq!(
+            item_spell_aura_slots_like_cpp(&auras, 700, first_item)
+                .expect("all matching spell applications have item provenance"),
+            [2],
+            "other item GUIDs, different spells and unknown item provenance remain"
+        );
+        assert_eq!(
+            item_spell_aura_slots_like_cpp(&auras, 700, other_item)
+                .expect("all matching spell applications have item provenance"),
+            [3]
+        );
+
+        auras.insert_runtime_application_like_cpp(aura(700, 5));
+        assert!(item_spell_aura_slots_like_cpp(&auras, 700, first_item).is_err());
+    }
+}
+
 pub fn apply_represented_provide_spell_focus_aura_like_cpp<H: AuraHostLikeCpp>(
     host: &mut H,
     spell_id: i32,

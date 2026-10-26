@@ -10,7 +10,8 @@ use crate::statements::CharStatements;
 use wow_persistence::{
     PlayerCharacterSaveRequestLikeCpp, PlayerEquipmentSetStateLikeCpp,
     PlayerEquipmentSetTypeLikeCpp, PlayerLifecycleAuraFamilySave, PlayerLifecycleAuraSave,
-    PlayerSpellSaveGroupLikeCpp, PlayerSpellStateLikeCpp,
+    PlayerItemSaveLikeCpp, PlayerItemSaveStateLikeCpp, PlayerSpellSaveGroupLikeCpp,
+    PlayerSpellStateLikeCpp,
 };
 
 pub(super) fn player_character_save_statements_like_cpp(
@@ -82,6 +83,7 @@ pub(super) fn player_character_save_statements_like_cpp(
             durability: row.durability,
         }));
     }
+    let item_statement_position = steps.len();
 
     match &request.spells {
         Some(PlayerSpellSaveGroupLikeCpp::Complete { rows, .. }) => {
@@ -378,6 +380,7 @@ pub(super) fn player_character_save_statements_like_cpp(
             flags: reputation.flags,
         });
     }
+    let currency_statement_position = steps.len();
     if let Some(profiles) = &request.cuf_profiles {
         steps.extend(profiles.iter().map(|slot| match &slot.profile {
             Some(row) => Step::ReplaceCufProfile {
@@ -391,10 +394,139 @@ pub(super) fn player_character_save_statements_like_cpp(
             },
         }));
     }
-    steps
-        .iter()
-        .map(player_character_save_statement_like_cpp)
-        .collect()
+    let mut statements = Vec::new();
+    for index in 0..=steps.len() {
+        if index == item_statement_position
+            && let Some(items) = &request.inventory_items
+        {
+            for item in items {
+                append_player_item_save_statements_like_cpp(
+                    &mut statements,
+                    request.player_guid,
+                    item,
+                );
+            }
+        }
+        if index == currency_statement_position
+            && let Some(currencies) = &request.currencies
+        {
+            statements.extend(super::player_currency_save_statements_like_cpp(currencies));
+        }
+        if let Some(step) = steps.get(index) {
+            statements.push(player_character_save_statement_like_cpp(step));
+        }
+    }
+    statements
+}
+
+fn append_player_item_save_statements_like_cpp(
+    statements: &mut Vec<PreparedStatement>,
+    player_guid: u64,
+    item: &PlayerItemSaveLikeCpp,
+) {
+    match item.state {
+        PlayerItemSaveStateLikeCpp::New | PlayerItemSaveStateLikeCpp::Changed => {
+            let mut link = PreparedStatement::for_statement(CharStatements::REP_CHAR_INVENTORY_ITEM);
+            link.set_u64(0, player_guid);
+            link.set_u64(1, item.bag_guid);
+            link.set_u8(2, item.slot);
+            link.set_u64(3, item.item_guid);
+            statements.push(link);
+
+            let kind = if item.state == PlayerItemSaveStateLikeCpp::New {
+                CharStatements::REP_ITEM_INSTANCE
+            } else {
+                CharStatements::UPD_ITEM_INSTANCE
+            };
+            let mut item_statement = PreparedStatement::for_statement(kind);
+            item_statement.set_u32(0, item.item_entry);
+            item_statement.set_u64(1, item.owner_guid);
+            item_statement.set_u64(2, item.creator_guid);
+            item_statement.set_u64(3, item.gift_creator_guid);
+            item_statement.set_u32(4, item.count);
+            item_statement.set_u32(5, item.expiration);
+            item_statement.set_string(6, &item.charges);
+            item_statement.set_u32(7, item.dynamic_flags);
+            item_statement.set_string(8, &item.enchantments);
+            item_statement.set_u16(9, item.durability as u16);
+            item_statement.set_u32(10, item.played_time);
+            item_statement.set_string(11, &item.text);
+            item_statement.set_u32(12, item.battle_pet_species_id);
+            item_statement.set_u32(13, item.battle_pet_breed_data);
+            item_statement.set_u32(14, item.battle_pet_level);
+            item_statement.set_u32(15, item.battle_pet_display_id);
+            item_statement.set_i32(16, item.random_properties_id);
+            item_statement.set_i32(17, item.property_seed);
+            item_statement.set_u8(18, item.context);
+            item_statement.set_u64(19, item.item_guid);
+            statements.push(item_statement);
+
+            if item.state == PlayerItemSaveStateLikeCpp::Changed && item.wrapped {
+                let mut gift = PreparedStatement::for_statement(CharStatements::UPD_GIFT_OWNER);
+                gift.set_u64(0, item.owner_guid);
+                gift.set_u64(1, item.item_guid);
+                statements.push(gift);
+            }
+
+            let mut delete_gems =
+                PreparedStatement::for_statement(CharStatements::DEL_ITEM_INSTANCE_GEMS);
+            delete_gems.set_u64(0, item.item_guid);
+            statements.push(delete_gems);
+            if let Some(gems) = &item.gems {
+                let mut insert_gems =
+                    PreparedStatement::for_statement(CharStatements::INS_ITEM_INSTANCE_GEMS);
+                insert_gems.set_u64(0, item.item_guid);
+                for (index, gem) in gems.iter().enumerate() {
+                    let offset = 1 + index * 3;
+                    insert_gems.set_u32(offset, gem.item_id);
+                    insert_gems.set_string(offset + 1, &gem.bonus_list_ids);
+                    insert_gems.set_u8(offset + 2, gem.context);
+                }
+                statements.push(insert_gems);
+            }
+
+            let mut delete_transmog =
+                PreparedStatement::for_statement(CharStatements::DEL_ITEM_INSTANCE_TRANSMOG);
+            delete_transmog.set_u64(0, item.item_guid);
+            statements.push(delete_transmog);
+            if let Some(transmog) = item.transmog {
+                let mut insert_transmog =
+                    PreparedStatement::for_statement(CharStatements::INS_ITEM_INSTANCE_TRANSMOG);
+                insert_transmog.set_u64(0, item.item_guid);
+                for (index, value) in transmog.into_iter().enumerate() {
+                    insert_transmog.set_u32(index + 1, value);
+                }
+                statements.push(insert_transmog);
+            }
+            return;
+        }
+        PlayerItemSaveStateLikeCpp::Removed => {
+            let mut delete_link =
+                PreparedStatement::for_statement(CharStatements::DEL_CHAR_INVENTORY_ITEM);
+            delete_link.set_u64(0, player_guid);
+            delete_link.set_u64(1, item.item_guid);
+            statements.push(delete_link);
+
+            let mut delete_item = PreparedStatement::for_statement(CharStatements::DEL_ITEM_INSTANCE);
+            delete_item.set_u64(0, item.item_guid);
+            statements.push(delete_item);
+
+            for kind in [
+                CharStatements::DEL_ITEM_INSTANCE_GEMS,
+                CharStatements::DEL_ITEM_INSTANCE_TRANSMOG,
+            ] {
+                let mut delete = PreparedStatement::for_statement(kind);
+                delete.set_u64(0, item.item_guid);
+                statements.push(delete);
+            }
+            if item.wrapped {
+                let mut delete_gift = PreparedStatement::for_statement(CharStatements::DEL_GIFT);
+                delete_gift.set_u64(0, item.item_guid);
+                statements.push(delete_gift);
+            }
+            return;
+        }
+    }
 }
 
 fn append_lifecycle_aura_family_insert_steps(

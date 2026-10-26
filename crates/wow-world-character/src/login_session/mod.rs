@@ -168,6 +168,7 @@ pub trait CharacterLoginHostLikeCpp:
     fn cleanup_shared_runtime_state(&mut self) -> FinalizationOutcome;
     fn begin_represented_trait_config_authority_load_like_cpp(&mut self);
     fn clear_player_currencies_like_cpp(&mut self) -> bool;
+    fn set_player_currencies_loaded_like_cpp(&mut self, loaded: bool) -> bool;
     fn complete_represented_trait_config_authority_load_like_cpp(
         &mut self,
         configs: impl IntoIterator<Item = (i32, i32, i32, i32)>,

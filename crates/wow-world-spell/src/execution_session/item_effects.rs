@@ -12,7 +12,7 @@ use wow_entities::{INVENTORY_SLOT_BAG_END, SpellCastMetadata};
 use wow_world_entities::CreatureSpawnCatalogsLikeCpp;
 use wow_world_inventory::VendorSessionHostLikeCpp;
 
-use super::SpellExecutionHostLikeCpp;
+use crate::PlayerCastHostLikeCpp;
 use crate::SpellEffectHostLikeCpp;
 
 /// C++ `Spell::EffectDurabilityDamage` (`SpellEffects.cpp:4316-4352`).
@@ -75,67 +75,133 @@ pub fn apply_durability_damage_effect_like_cpp<
 
 /// C++ `Player::ApplyItemObtainSpells(item, true)` after `_StoreItem`.
 pub async fn apply_inventory_item_obtain_spells_with_generator_like_cpp<
-    H: SpellExecutionHostLikeCpp,
+    H: PlayerCastHostLikeCpp,
 >(
     host: &mut H,
     item_guid_generator: &wow_core::ObjectGuidGenerator,
     creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
-    item_entry: u32,
-) -> Vec<i32> {
-    if host
+    item_guid: ObjectGuid,
+) -> Result<Vec<i32>, &'static str> {
+    let (item_entry, item_level) = host
+        .server_normal_physical_item_facts_like_cpp(item_guid)
+        .ok_or("physical obtain item owner or effective item level unavailable")?;
+    let item_flags = host
         .hub_ref()
         .catalogs
         .item_template_flags(item_entry)
-        .is_some_and(|flags| flags.contains(ItemFlags::LEGACY))
-    {
-        return Vec::new();
+        .ok_or("physical obtain item template unavailable")?;
+    if item_flags.contains(ItemFlags::LEGACY) {
+        return Ok(Vec::new());
     }
-    let spell_ids = host
+    let effect_store = host
         .hub_ref()
         .catalogs
         .items
         .effect_store
         .as_ref()
-        .map(|store| {
-            store
-                .item_effects_for_item_id_like_cpp(item_entry)
-                .into_iter()
-                .filter(|effect| {
-                    effect.trigger_type == ItemSpelltriggerType::OnPickup as i8
-                        && effect.spell_id > 0
-                })
-                .map(|effect| effect.spell_id)
-                .collect::<Vec<_>>()
+        .ok_or("ItemEffect catalog unavailable for obtain spell")?;
+    let spell_ids = effect_store
+        .item_effects_for_item_id_like_cpp(item_entry)
+        .into_iter()
+        .filter(|effect| {
+            effect.trigger_type == ItemSpelltriggerType::OnPickup as i8 && effect.spell_id > 0
         })
-        .unwrap_or_default();
+        .map(|effect| effect.spell_id)
+        .collect::<Vec<_>>();
     let Some(player_guid) = host.player_guid() else {
-        return Vec::new();
-    };
-    let Some(visible_auras) = host.hub_ref().resolved_player_visible_auras_like_cpp() else {
-        return Vec::new();
+        return Err("Player identity unavailable for obtain spell");
     };
     let mut applied = Vec::new();
     for spell_id in spell_ids {
-        if visible_auras.values().any(|aura| aura.spell_id == spell_id) {
+        let has_aura = {
+            let hub = host.hub_ref();
+            if hub.player_aura_authority_ready_like_cpp() != Some(true) {
+                return Err("complete untombstoned Player aura authority unavailable");
+            }
+            hub.resolved_player_visible_auras_like_cpp()
+                .ok_or("Player aura applications unavailable")?
+                .values()
+                .any(|aura| aura.spell_id == spell_id)
+        };
+        if has_aura {
             continue;
         }
-        // C++ `Player::ApplyItemObtainSpells` uses
-        // `CastSpellExtraArgs().SetCastItem(item)`, whose default trigger
-        // flags are TRIGGERED_NONE: not a triggered cast, and the global
-        // cooldown applies.
-        if crate::execute_server_triggered_spell_like_cpp(
+        let metadata = SpellCastMetadata {
+            cast_item_entry: Some(item_entry),
+            cast_item_guid: Some(item_guid),
+            cast_item_level: Some(item_level),
+            ..SpellCastMetadata::default()
+        };
+        // C++ `ApplyItemObtainSpells` uses normal `CastSpell` with a physical
+        // cast item and default CastSpellExtraArgs trigger flags.
+        if crate::cast_server_normal_player_spell_with_generator_like_cpp(
             host,
             item_guid_generator,
             creature_spawn_catalogs,
             spell_id,
             player_guid,
-            SpellCastMetadata::default(),
+            metadata,
         )
         .await
-        .is_ok()
         {
             applied.push(spell_id);
         }
     }
-    applied
+    Ok(applied)
+}
+
+/// C++ `Player::CastAllObtainSpells` over the live backpack and equipped-bag
+/// positions. Each physical item and each `HasAura` query is resolved again
+/// from the current owner after the preceding cast returns.
+pub async fn cast_all_obtain_spells_like_cpp<H: PlayerCastHostLikeCpp>(
+    host: &mut H,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+) -> Result<(), &'static str> {
+    let positions = host
+        .core()
+        .with_owned_player_like_cpp(|player| player.cast_all_obtain_item_positions_like_cpp())
+        .ok_or("canonical inventory owner unavailable for obtain scan")?
+        .ok_or("complete backpack and bag inventory authority unavailable")?;
+
+    for (bag, slot) in positions {
+        let item_guid = host
+            .core()
+            .with_owned_player_like_cpp(|player| {
+                if !player
+                    .inventory_runtime_like_cpp()
+                    .equipment_inventory_authority_complete_like_cpp()
+                {
+                    return Err("inventory authority became unavailable during obtain scan");
+                }
+                let Some(item_guid) = player.get_item_by_pos(bag, slot) else {
+                    return Ok(None);
+                };
+                let Some(item) = player
+                    .inventory_runtime_like_cpp()
+                    .item_objects()
+                    .get(&item_guid)
+                else {
+                    return Err("live obtain slot has no canonical physical item");
+                };
+                if item.owner_guid() != player.guid()
+                    || item.update_state() == wow_constants::ItemUpdateState::Removed
+                {
+                    return Err("live obtain slot physical item identity is invalid");
+                }
+                Ok(Some(item_guid))
+            })
+            .ok_or("canonical inventory owner disappeared during obtain scan")??;
+        let Some(item_guid) = item_guid else {
+            continue;
+        };
+        Box::pin(apply_inventory_item_obtain_spells_with_generator_like_cpp(
+            host,
+            item_guid_generator,
+            creature_spawn_catalogs,
+            item_guid,
+        ))
+        .await?;
+    }
+    Ok(())
 }

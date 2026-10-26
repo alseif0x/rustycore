@@ -1,11 +1,64 @@
-//! The World session as the host of the spell execution moved to
-//! `wow_world_spell` (#1363 slice 9d). Each operation names the inherent
-//! `WorldSession` method by path.
+//! The World session as the host of spell execution moved to `wow_world_spell`.
+//! Cross-domain normal Player costs are delegated to the Application owner.
 
 use super::*;
 use std::future::Future;
 
 impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
+    fn server_normal_physical_item_facts_like_cpp(
+        &self,
+        item_guid: ObjectGuid,
+    ) -> Option<(u32, u32)> {
+        let item = self.core.with_owned_player_like_cpp(|player| {
+            player
+                .inventory_runtime_like_cpp()
+                .item_objects()
+                .get(&item_guid)
+                .filter(|item| {
+                    item.owner_guid() == player.guid()
+                        && !item.is_in_trade()
+                        && item.update_state() != wow_constants::ItemUpdateState::Removed
+                })
+                .cloned()
+        })??;
+        let entry_id = item.object().entry();
+        let item_level = self.inventory.represented_item_level_with_access_like_cpp(
+            &self.core.inventory_valuation_access_like_cpp(),
+            &self.core.owned_item_modifiers_access_like_cpp(),
+            &self.catalogs.inventory_valuation_catalog_view_like_cpp(),
+            entry_id,
+            Some(&item),
+            Self::MIN_ITEM_LEVEL_LIKE_CPP,
+            Self::MAX_ITEM_LEVEL_LIKE_CPP,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_level,
+        )?;
+        Some((entry_id, item_level))
+    }
+
+    fn server_normal_pre_go_like_cpp(
+        &mut self,
+        spell_info: &wow_data::SpellInfo,
+        cast_id: ObjectGuid,
+        visual: &wow_packet::packets::spell::SpellCastVisual,
+        metadata: wow_entities::SpellCastMetadata,
+    ) -> Result<
+        wow_world_spell::ServerNormalPreGoPlanLikeCpp,
+        wow_world_spell::ServerNormalPreGoFailureLikeCpp,
+    > {
+        wow_world_application::server_normal_pre_go_like_cpp(
+            self, spell_info, cast_id, visual, metadata,
+        )
+    }
+
+    fn take_server_normal_cast_item_like_cpp(
+        &mut self,
+        spell_info: &wow_data::SpellInfo,
+        metadata: wow_entities::SpellCastMetadata,
+    ) -> bool {
+        wow_world_application::take_server_normal_cast_item_like_cpp(self, spell_info, metadata)
+    }
+
     fn spell_cast_hook_wanted_like_cpp(&self) -> bool {
         self.module_hooks
             .wants_player_hook_like_cpp(wow_module_api::PlayerHook::SpellCast)

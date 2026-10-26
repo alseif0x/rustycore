@@ -84,7 +84,14 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
     }
     fn clear_player_currencies_like_cpp(&mut self) -> bool {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.set_player_currencies_like_cpp(&mut hub, HashMap::new())
+        if !state.set_player_currencies_like_cpp(&mut hub, HashMap::new()) {
+            return false;
+        }
+        hub.core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_currencies_loaded_like_cpp(false);
+            })
+            .is_some()
     }
     fn complete_represented_trait_config_authority_load_like_cpp(
         &mut self,
@@ -193,12 +200,24 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
         effect_rows: impl IntoIterator<Item = CharacterAuraEffectRowLikeCpp>,
         timediff_secs: u32,
     ) -> usize {
-        wow_world_spell::load_represented_character_auras_like_cpp(
+        let loaded = wow_world_spell::load_represented_character_auras_like_cpp(
             self,
             aura_rows,
             effect_rows,
             timediff_secs,
-        )
+        );
+        // The login loader publishes authority before applying restored
+        // applications. Rebuild NoReagentCostMask after that complete pass so
+        // early incremental aura callbacks never become consumption proof.
+        if let Err(reason) = self
+            .player_aura_application_cx_like_cpp()
+            .recompute_no_reagent_mask_from_active_auras_like_cpp()
+        {
+            tracing::warn!(reason, "Unable to publish complete NoReagentCostMask after aura load");
+            let (spell, mut hub) = crate::session::split_spell_state_mut(self);
+            spell.tombstone_player_spell_hit_aura_authority_like_cpp(&mut hub);
+        }
+        loaded
     }
     #[allow(clippy::too_many_arguments)]
     fn load_represented_equipment_set_row_like_cpp(
@@ -342,6 +361,13 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
     fn set_player_currencies_like_cpp(&mut self, currencies: HashMap<u32, PlayerCurrency>) -> bool {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.set_player_currencies_like_cpp(&mut hub, currencies)
+    }
+    fn set_player_currencies_loaded_like_cpp(&mut self, loaded: bool) -> bool {
+        self.core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_currencies_loaded_like_cpp(loaded);
+            })
+            .is_some()
     }
     fn set_player_aura_authority_complete_like_cpp(&mut self, complete: bool) -> bool {
         wow_world_spell::set_player_aura_authority_complete_like_cpp(self, complete)

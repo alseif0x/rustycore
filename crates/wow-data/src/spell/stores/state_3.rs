@@ -647,11 +647,23 @@ pub struct SpellStore {
     /// Completeness provenance for the category component populated from a
     /// complete typed `SpellCategoriesStore` by the effective DB2 hydrator.
     pub(super) spell_categories_loaded: bool,
+    /// Completeness provenance for the school and launch fields populated
+    /// from a complete typed `SpellMiscStore` by the effective DB2 hydrator.
+    pub(super) spell_misc_loaded: bool,
     pub(super) spell_hit_misc_by_difficulty: HashMap<(i32, u8), SpellHitMiscRowLikeCpp>,
     pub(super) spell_hit_effect_mechanics_by_difficulty:
         HashMap<(i32, u8), BTreeMap<u32, SpellHitEffectMechanicRowLikeCpp>>,
     pub(super) spell_shapeshift_masks: HashMap<i32, (u64, u64)>,
     pub(super) implicit_target_conditions: HashMap<(i32, u32), ConditionsReference>,
+    pub(super) cast_costs_like_cpp: Option<SpellCastCostStoreLikeCpp>,
+    pub(super) cast_times_by_difficulty_like_cpp: HashMap<(i32, u8), (u16, Option<u32>)>,
+    pub(super) cast_time_payload_loaded_like_cpp: bool,
+    pub(super) cooldowns_by_difficulty_like_cpp: HashMap<(i32, u8), (u32, u32, u32)>,
+    pub(super) cooldown_payload_loaded_like_cpp: bool,
+    pub(super) power_costs_by_difficulty_like_cpp:
+        HashMap<(i32, u8), Vec<SpellPowerCostInfoLikeCpp>>,
+    pub(super) power_cost_payload_loaded_like_cpp: bool,
+    pub(super) spell_focus_requirements_like_cpp: HashMap<i32, u32>,
 }
 
 /// Effective DB2 authorities consumed together by C++

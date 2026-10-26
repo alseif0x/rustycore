@@ -507,7 +507,15 @@ fn full_save_receipt_intersects_committed_groups_before_acknowledging_rows_and_t
     let mut owner =
         session
             .core
-            .player_save_operation_access_like_cpp(talent_store, spell_store, None, None);
+            .player_save_operation_access_like_cpp(
+                talent_store,
+                spell_store,
+                None,
+                None,
+                None,
+                None,
+                None,
+            );
     let inputs = session.lifecycle.player_save_session_inputs_like_cpp(1_000);
     let captured = owner
         .capture_like_cpp(inputs)
@@ -582,7 +590,15 @@ async fn full_save_receipt_preserves_tutorials_changed_after_capture() {
     let mut owner =
         session
             .core
-            .player_save_operation_access_like_cpp(talent_store, spell_store, None, None);
+            .player_save_operation_access_like_cpp(
+                talent_store,
+                spell_store,
+                None,
+                None,
+                None,
+                None,
+                None,
+            );
     let inputs = session.lifecycle.player_save_session_inputs_like_cpp(1_000);
     let captured = owner
         .capture_like_cpp(inputs)

@@ -72,9 +72,25 @@ mod selected_creation;
 mod selected_effects;
 mod target_resolution;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServerNormalPreGoFailureLikeCpp {
+    MissingReagent(u32),
+    MissingCurrency(u16),
+    Power,
+    Unavailable(&'static str),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ServerNormalPreGoPlanLikeCpp {
+    pub metadata: SpellCastMetadata,
+    pub take_cast_item: bool,
+    pub take_cast_item_before_effects: bool,
+}
+
 pub use cast_state::*;
 pub use checks::*;
 pub use destinations::*;
+pub(crate) use execution::spell_go_original_cast_id_like_cpp;
 pub use execution::*;
 pub use farsight::*;
 pub use item_effects::*;
@@ -90,6 +106,30 @@ pub use player_effects::*;
 pub trait SpellExecutionHostLikeCpp:
     SpellEffectHostLikeCpp + wow_world_inventory::BattlePetSessionHostLikeCpp
 {
+    /// Resolve a physical Player item through its canonical owner and the
+    /// existing effective item-level catalogs before a normal cast retains it.
+    fn server_normal_physical_item_facts_like_cpp(
+        &self,
+        item_guid: ObjectGuid,
+    ) -> Option<(u32, u32)>;
+    /// Source `TakePower`/`TakeReagents`/`SendSpellCooldown` operation. It
+    /// applies canonical native costs and history before SpellGo and returns
+    /// only the deferred physical cast-item action.
+    fn server_normal_pre_go_like_cpp(
+        &mut self,
+        spell_info: &wow_data::SpellInfo,
+        cast_id: ObjectGuid,
+        visual: &wow_packet::packets::spell::SpellCastVisual,
+        metadata: SpellCastMetadata,
+    ) -> Result<ServerNormalPreGoPlanLikeCpp, ServerNormalPreGoFailureLikeCpp>;
+    /// Source `TakeCastItem`, called at its actual hit-delay phase. The World
+    /// adapter re-reads the retained physical item here, after any intervening
+    /// effects, and recomputes charge/count consumption.
+    fn take_server_normal_cast_item_like_cpp(
+        &mut self,
+        spell_info: &wow_data::SpellInfo,
+        metadata: SpellCastMetadata,
+    ) -> bool;
     fn mutate_cast_execution_like_cpp<R>(
         &mut self,
         f: impl FnOnce(&mut wow_entities::CastExecutionStateLikeCpp) -> R,

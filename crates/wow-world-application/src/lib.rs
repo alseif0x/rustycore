@@ -11,6 +11,7 @@ pub use character_account_handlers::{
 mod continue_login;
 mod player_cast_session;
 mod player_handlers;
+mod player_spell_costs;
 mod session_lifecycle;
 pub use continue_login::{
     ContinueLoginHostLikeCpp, PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP,
@@ -29,6 +30,11 @@ pub use player_cast_session::{
     interrupt_non_melee_spell_cast_for_loot_like_cpp, remaining_active_spell_cast_ms_like_cpp,
     remaining_global_cooldown_ms_like_cpp, request_represented_spell_cast_like_cpp,
     tick_pending_spell_cast_request_with_generator_like_cpp,
+};
+pub use player_spell_costs::{
+    apply_server_normal_cooldown_at_cast_start_like_cpp, server_normal_cast_cost_facts_like_cpp,
+    server_normal_cooldown_facts_like_cpp, server_normal_pre_go_like_cpp,
+    take_server_normal_cast_item_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use session_lifecycle::{

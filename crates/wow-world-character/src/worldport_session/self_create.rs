@@ -82,9 +82,14 @@ pub fn prepare_player_self_create_for_teleport_like_cpp<H: WorldportHostLikeCpp>
     let Some(customizations) = host.hub_ref().owned_player_customizations_like_cpp() else {
         return None;
     };
-    let Some(self_res_spells) = host
+    let Some((self_res_spells, no_reagent_cost_mask)) = host
         .core()
-        .with_owned_player_like_cpp(|player| player.self_res_spells().to_vec())
+        .with_owned_player_like_cpp(|player| {
+            (
+                player.self_res_spells().to_vec(),
+                player.no_reagent_cost_mask_like_cpp(),
+            )
+        })
     else {
         return None;
     };
@@ -198,6 +203,7 @@ pub fn prepare_player_self_create_for_teleport_like_cpp<H: WorldportHostLikeCpp>
         trait_configs,
     );
     player_pkt.set_player_self_res_spells(self_res_spells);
+    player_pkt.set_player_no_reagent_cost_mask_like_cpp(no_reagent_cost_mask);
     let Some(action_buttons) = host
         .hub_ref()
         .represented_action_buttons_snapshot_like_cpp()

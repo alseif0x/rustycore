@@ -405,7 +405,7 @@ async fn unavailable_visual_rejects_before_power_and_server_cast_id_is_allocated
         cast_server_triggered_sickness(
             &mut session,
             wow_entities::SpellCastMetadata {
-                triggered_ignores_global_cooldown_like_cpp: true,
+                trigger_cast_flags_like_cpp: wow_entities::TRIGGERED_FULL_MASK_LIKE_CPP,
                 ..Default::default()
             },
         )

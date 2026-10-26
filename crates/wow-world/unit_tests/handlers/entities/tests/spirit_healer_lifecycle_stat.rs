@@ -574,7 +574,7 @@ async fn sickness_original_same_map_player_caster_level_is_captured() {
         SICKNESS_SPELL,
         player_guid,
         wow_entities::SpellCastMetadata {
-            triggered_ignores_global_cooldown_like_cpp: true,
+            trigger_cast_flags_like_cpp: wow_entities::TRIGGERED_FULL_MASK_LIKE_CPP,
             original_caster_guid: Some(foreign_guid),
             ..Default::default()
         },

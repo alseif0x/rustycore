@@ -208,6 +208,7 @@ fn test_player_create_data_with_farsight(farsight_object: ObjectGuid) -> PlayerC
         toys: Vec::new(),
         transmog: Vec::new(),
         self_res_spells: Vec::new(),
+        no_reagent_cost_mask: [0; 4],
         trait_configs: Vec::new(),
     }
 }

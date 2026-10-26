@@ -86,7 +86,10 @@ pub(super) fn complete_spell_execution_like_cpp<H: SpellExecutionHostLikeCpp>(
                 // server cast carries `TRIGGERED_IGNORE_GCD` and never
                 // starts one.
                 if metadata.client_cast_id.is_none()
-                    && !metadata.triggered_ignores_global_cooldown_like_cpp
+                    && metadata.trigger_cast_flags_like_cpp
+                        & wow_entities::TRIGGERED_IGNORE_GCD_LIKE_CPP
+                        == 0
+                    && !metadata.server_normal_cast_like_cpp
                 {
                     state.last_cast_time = Some(Instant::now());
                 }
@@ -98,21 +101,22 @@ pub(super) fn complete_spell_execution_like_cpp<H: SpellExecutionHostLikeCpp>(
         {
             return Ok(());
         }
-        {
+        if !metadata.server_normal_cast_like_cpp {
             let (s, mut h) = host.split_spell_state_mut();
             s.record_cast_character_spell_cooldown_like_cpp(
                 &mut h,
                 spell_id,
                 spell_info.recovery_time_ms.max(spell_info.cooldown_ms),
-            )
-        };
+            );
 
-        // Notify the owning player so the action bar shows the cooldown.
-        use wow_packet::packets::spell::CooldownEvent;
-        host.send_packet(&CooldownEvent {
-            spell_id,
-            is_pet: false,
-        });
+            // Client casts retain their existing represented cooldown event.
+            // Normal Player casts publish their native cooldown before GO.
+            use wow_packet::packets::spell::CooldownEvent;
+            host.send_packet(&CooldownEvent {
+                spell_id,
+                is_pet: false,
+            });
+        }
     }
 
     Ok(())

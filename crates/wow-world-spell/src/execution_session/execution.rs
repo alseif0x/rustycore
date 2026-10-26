@@ -7,6 +7,18 @@
 
 use super::*;
 
+pub(crate) fn spell_go_original_cast_id_like_cpp(
+    metadata: SpellCastMetadata,
+    cast_id: ObjectGuid,
+    server_triggered_resurrection_sickness: bool,
+) -> ObjectGuid {
+    if metadata.server_normal_cast_like_cpp || server_triggered_resurrection_sickness {
+        metadata.original_cast_id
+    } else {
+        metadata.original_cast_id_or(cast_id)
+    }
+}
+
 /// Represented aura duration for a creature target: the same bounded 30-second
 /// convention the player self-cast chain uses until `SpellDuration.db2` is
 /// consumed for every represented aura.
@@ -70,7 +82,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
     cast_id: ObjectGuid,
     mut spell_visual: wow_packet::packets::spell::SpellCastVisual,
     target_data: SpellTargetData,
-    metadata: SpellCastMetadata,
+    mut metadata: SpellCastMetadata,
 ) -> Result<(), &'static str> {
     let player_guid = host.player_guid().ok_or("No player GUID")?;
     let caster_guid = metadata.caster_guid_override.unwrap_or(player_guid);
@@ -78,7 +90,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         && caster_guid == player_guid
         && super::resurrection_sickness::is_resurrection_sickness_spell(host, spell_id);
     let server_triggered_resurrection_sickness = !metadata.from_client
-        && metadata.triggered_ignores_global_cooldown_like_cpp
+        && metadata.trigger_cast_flags_like_cpp == wow_entities::TRIGGERED_FULL_MASK_LIKE_CPP
         && player_resurrection_sickness;
     let server_triggered_player_ghost_wisp = super::resurrection_auras::is_selected_self_cast(
         host,
@@ -86,7 +98,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         target_guid,
         caster_guid,
         metadata.from_client,
-        metadata.triggered_ignores_global_cooldown_like_cpp,
+        metadata.trigger_cast_flags_like_cpp == wow_entities::TRIGGERED_FULL_MASK_LIKE_CPP,
     );
     let selected_full_server_aura =
         server_triggered_resurrection_sickness || server_triggered_player_ghost_wisp;
@@ -96,11 +108,14 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         spell_visual.spell_visual_id = super::selected_cast_visual::resolve(host, spell_id)?;
     }
 
-    // Load the legacy difficulty-zero payload when it exists. A full-mask
+    // Native normal Player casts execute the exact key admitted during
+    // prepare and resolve each represented payload family through the
+    // canonical difficulty chain. They do not borrow the legacy key-zero
+    // payload. A full-mask
     // selected server aura may instead use a transient carrier after its
     // exact nonzero key is proven; its effects and attributes come from the
     // selected rows, and the carrier is never installed in SpellStore.
-    let (legacy_spell_info, has_difficulty_zero_key) = {
+    let (legacy_spell_info, has_difficulty_zero_key, normal_spell_info) = {
         let spell_store = host
             .hub_ref()
             .catalogs
@@ -109,20 +124,51 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         let has_difficulty_zero_key = u32::try_from(spell_id)
             .ok()
             .is_some_and(|spell_id| spell_store.contains_spell_info_exact_like_cpp(spell_id, 0));
-        (spell_store.get(spell_id).cloned(), has_difficulty_zero_key)
+        let normal_spell_info = if metadata.server_normal_cast_like_cpp {
+            let actual_difficulty = metadata
+                .actual_spell_difficulty_id_like_cpp
+                .ok_or("Normal Player cast lost selected SpellInfo difficulty")?;
+            let difficulties = host
+                .hub_ref()
+                .catalogs
+                .difficulty_store()
+                .map(AsRef::as_ref);
+            Some(
+                spell_store
+                    .spell_info_for_exact_key_like_cpp(spell_id, actual_difficulty, difficulties)
+                    .map_err(|error| {
+                        tracing::warn!(
+                            spell_id,
+                            actual_difficulty,
+                            ?error,
+                            "Normal Player cast SpellInfo payload unavailable"
+                        );
+                        "Normal Player cast SpellInfo payload unavailable"
+                    })?
+                    .ok_or("Normal Player cast exact SpellInfo key unavailable")?,
+            )
+        } else {
+            None
+        };
+        (
+            spell_store.get(spell_id).cloned(),
+            has_difficulty_zero_key,
+            normal_spell_info,
+        )
     };
     let mut transient_selected_threat_plan = None;
-    let mut spell_info = match legacy_spell_info {
+    let mut spell_info = match normal_spell_info {
         Some(spell_info) => spell_info,
-        None
-            if selected_full_server_aura && !has_difficulty_zero_key =>
-        {
-            let (spell_info, threat_plan) =
-                super::selected_effects::resolve_transient_full_aura(host, spell_id)?;
-            transient_selected_threat_plan = Some(threat_plan);
-            spell_info
-        }
-        None => return Err("Spell not found"),
+        None => match legacy_spell_info {
+            Some(spell_info) => spell_info,
+            None if selected_full_server_aura && !has_difficulty_zero_key => {
+                let (spell_info, threat_plan) =
+                    super::selected_effects::resolve_transient_full_aura(host, spell_id)?;
+                transient_selected_threat_plan = Some(threat_plan);
+                spell_info
+            }
+            None => return Err("Spell not found"),
+        },
     };
     let selected_cast_threat_plan = if selected_execution_effects {
         match transient_selected_threat_plan {
@@ -172,6 +218,65 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         represented_focus_object,
     );
 
+    let mut deferred_server_normal_cast_item_use = false;
+    let mut take_server_normal_cast_item_before_effects = false;
+    if metadata.server_normal_cast_like_cpp {
+        match host.server_normal_pre_go_like_cpp(&spell_info, cast_id, &spell_visual, metadata) {
+            Ok(plan) => {
+                metadata = plan.metadata;
+                deferred_server_normal_cast_item_use = plan.take_cast_item;
+                take_server_normal_cast_item_before_effects = plan.take_cast_item_before_effects;
+            }
+            Err(failure) => {
+                let (reason, fail_arg1, fail_arg2) = match failure {
+                    super::ServerNormalPreGoFailureLikeCpp::MissingReagent(entry_id) => (
+                        wow_constants::SpellCastResult::Reagents as i32,
+                        entry_id as i32,
+                        0,
+                    ),
+                    super::ServerNormalPreGoFailureLikeCpp::MissingCurrency(currency_id) => (
+                        wow_constants::SpellCastResult::Reagents as i32,
+                        -1,
+                        i32::from(currency_id),
+                    ),
+                    super::ServerNormalPreGoFailureLikeCpp::Power => {
+                        (wow_constants::SpellCastResult::DontReport as i32, 0, 0)
+                    }
+                    super::ServerNormalPreGoFailureLikeCpp::Unavailable(reason) => {
+                        tracing::warn!(
+                            spell_id,
+                            reason,
+                            "Normal Player pre-GO authority unavailable"
+                        );
+                        (
+                            wow_constants::SpellCastResult::SpellUnavailable as i32,
+                            0,
+                            0,
+                        )
+                    }
+                };
+                if !matches!(failure, super::ServerNormalPreGoFailureLikeCpp::Power) {
+                    host.send_packet(&wow_packet::packets::spell::CastFailed {
+                        cast_id,
+                        spell_id,
+                        visual: spell_visual.clone(),
+                        reason,
+                        fail_arg1,
+                        fail_arg2,
+                    });
+                }
+                publish_player_cast_interrupted_frames_like_cpp(
+                    host,
+                    metadata,
+                    cast_id,
+                    spell_id,
+                    &spell_visual,
+                );
+                return Ok(());
+            }
+        }
+    }
+
     // Send SMSG_SPELL_GO
     use wow_packet::packets::spell::SpellGoPkt;
 
@@ -180,7 +285,9 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
     // above. Triggered consumers keep their own explicit metadata flags;
     // normal client defaults are never imposed on them.
     let go_phase = crate::PlayerCastPublicationPhaseLikeCpp::Go;
-    let (cast_data, cast_flags) = if metadata.client_cast_id.is_some() {
+    let publishes_player_cast =
+        metadata.client_cast_id.is_some() || metadata.server_normal_cast_like_cpp;
+    let (cast_data, cast_flags) = if publishes_player_cast {
         player_cast_publication_like_cpp(host, &spell_info, &metadata, go_phase)
     } else {
         (Default::default(), metadata.cast_flags)
@@ -196,15 +303,20 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             true
         };
     if send_spell_go {
+        let go_caster_guid = if metadata.server_normal_cast_like_cpp {
+            metadata.cast_item_guid.unwrap_or(caster_guid)
+        } else {
+            caster_guid
+        };
         let go_pkt = SpellGoPkt {
             cast_data,
-            caster: caster_guid,
+            caster: go_caster_guid,
             cast_id,
-            original_cast_id: if server_triggered_resurrection_sickness {
-                metadata.original_cast_id
-            } else {
-                metadata.original_cast_id_or(cast_id)
-            },
+            original_cast_id: spell_go_original_cast_id_like_cpp(
+                metadata,
+                cast_id,
+                server_triggered_resurrection_sickness,
+            ),
             spell_id,
             visual: spell_visual,
             cast_flags,
@@ -214,7 +326,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             hit_targets: vec![target_guid],
             miss_targets: Vec::new(),
         };
-        if metadata.client_cast_id.is_some() {
+        if publishes_player_cast {
             publish_player_cast_frame_like_cpp(
                 host,
                 metadata,
@@ -230,6 +342,9 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             );
         }
     }
+    if take_server_normal_cast_item_before_effects && deferred_server_normal_cast_item_use {
+        let _ = host.take_server_normal_cast_item_like_cpp(&spell_info, metadata);
+    }
     // #1444 H3: TrinityCore `Spell::_cast` raises `OnPlayerSpellCast` for a
     // player caster (`Spell.cpp:3671`). Modules observe a cast that already
     // happened, so it is raised once SMSG_SPELL_GO is out and before the
@@ -240,7 +355,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             spell_id: spell_id as u32,
             cast_id,
             target_guid,
-            triggered: metadata.triggered_ignores_global_cooldown_like_cpp,
+            triggered: metadata.trigger_cast_flags_like_cpp != 0,
         });
     }
     apply_post_spell_go_target_effects_like_cpp(
@@ -1161,6 +1276,10 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         cast_id,
         spell_visual_id,
     )?;
+
+    if deferred_server_normal_cast_item_use && !take_server_normal_cast_item_before_effects {
+        let _ = host.take_server_normal_cast_item_like_cpp(&spell_info, metadata);
+    }
 
     complete_spell_execution_like_cpp(
         host,

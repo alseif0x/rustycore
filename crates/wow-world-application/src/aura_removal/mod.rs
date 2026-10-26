@@ -8,6 +8,7 @@ mod initial;
 mod item_effects;
 mod mount_control;
 mod movement_speeds;
+mod no_reagent;
 mod publication;
 mod shapeshift;
 mod sickness;
@@ -34,6 +35,7 @@ pub struct AuraRemovalCxLikeCpp<'a> {
     stats: wow_world_core::session::AuraStatsAccessBuilderLikeCpp<'a>,
     mount_capabilities: Option<&'a wow_data::MountCapabilityStore>,
     spell_store: Option<&'a std::sync::Arc<wow_data::SpellStore>>,
+    serverside_spell_store: Option<&'a std::sync::Arc<wow_data::ServersideSpellStoreLikeCpp>>,
     spell_aura_options_store: Option<&'a wow_data::SpellAuraOptionsStore>,
     spell_misc_store: Option<&'a wow_data::SpellMiscStore>,
     spell_class_options_store: Option<&'a wow_data::SpellClassOptionsStore>,

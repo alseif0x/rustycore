@@ -323,7 +323,7 @@ pub struct SpellRangeEntry {
     pub range_max: [f32; 2],
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpellReagentsEntry {
     pub id: u32,
     pub spell_id: i32,
@@ -331,7 +331,7 @@ pub struct SpellReagentsEntry {
     pub reagent_count: [i16; MAX_SPELL_REAGENTS],
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpellReagentsCurrencyEntry {
     pub id: u32,
     pub spell_id: u32,

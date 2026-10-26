@@ -8,6 +8,7 @@ use std::sync::Arc;
 pub struct AuraApplicationCatalogsLikeCpp<'a> {
     mount_capabilities: Option<&'a wow_data::MountCapabilityStore>,
     spell_store: Option<&'a Arc<wow_data::SpellStore>>,
+    serverside_spell_store: Option<&'a Arc<wow_data::ServersideSpellStoreLikeCpp>>,
     spell_aura_options_store: Option<&'a wow_data::SpellAuraOptionsStore>,
     spell_misc_store: Option<&'a wow_data::SpellMiscStore>,
     spell_class_options_store: Option<&'a wow_data::SpellClassOptionsStore>,
@@ -60,6 +61,7 @@ impl<'a> AuraApplicationCatalogsLikeCpp<'a> {
         Self {
             mount_capabilities,
             spell_store,
+            serverside_spell_store: None,
             spell_aura_options_store,
             spell_misc_store,
             spell_class_options_store,
@@ -82,6 +84,14 @@ impl<'a> AuraApplicationCatalogsLikeCpp<'a> {
             map_store,
             item_mod_catalogs,
         }
+    }
+
+    pub fn with_serverside_spell_store_like_cpp(
+        mut self,
+        store: Option<&'a Arc<wow_data::ServersideSpellStoreLikeCpp>>,
+    ) -> Self {
+        self.serverside_spell_store = store;
+        self
     }
 }
 
@@ -190,6 +200,7 @@ impl<'a> AuraRemovalCxLikeCpp<'a> {
             consumer_test,
             mount_capabilities: catalogs.mount_capabilities,
             spell_store: catalogs.spell_store,
+            serverside_spell_store: catalogs.serverside_spell_store,
             spell_aura_options_store: catalogs.spell_aura_options_store,
             spell_misc_store: catalogs.spell_misc_store,
             spell_class_options_store: catalogs.spell_class_options_store,
@@ -383,6 +394,9 @@ pub fn player_aura_application_cx_like_cpp<'a>(
             catalogs.shield_block_regular_game_table.as_ref(),
             catalogs.spell_catalogs.spell_shapeshift_form_store(),
         ),
+    )
+    .with_serverside_spell_store_like_cpp(
+        catalogs.spell_catalogs.serverside_spell_store.as_ref(),
     );
     AuraRemovalCxLikeCpp::new(
         spell_state,

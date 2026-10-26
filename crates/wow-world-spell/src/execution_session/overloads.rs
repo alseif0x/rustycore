@@ -64,7 +64,7 @@ pub async fn execute_server_triggered_spell_like_cpp<H: SpellExecutionHostLikeCp
     let player_guid = host.player_guid().ok_or("No player GUID")?;
     let caster_guid = metadata.caster_guid_override.unwrap_or(player_guid);
     if !metadata.from_client
-        && metadata.triggered_ignores_global_cooldown_like_cpp
+        && metadata.trigger_cast_flags_like_cpp == wow_entities::TRIGGERED_FULL_MASK_LIKE_CPP
         && target_guid == player_guid
         && caster_guid == player_guid
         && super::resurrection_sickness::is_resurrection_sickness_spell(host, spell_id)

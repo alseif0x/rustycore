@@ -260,7 +260,7 @@ pub async fn apply_represented_first_login_cast_spells_with_catalogs_like_cpp<
             player_guid,
             SpellCastMetadata {
                 cast_flags: CAST_FLAG_PENDING_LIKE_CPP,
-                triggered_ignores_global_cooldown_like_cpp: true,
+                trigger_cast_flags_like_cpp: wow_entities::TRIGGERED_FULL_MASK_LIKE_CPP,
                 ..SpellCastMetadata::default()
             },
         )

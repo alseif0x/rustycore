@@ -15,7 +15,7 @@ async fn cast_wisp(session: &mut WorldSession) -> Result<(), &'static str> {
         WISP_SPELL,
         player_guid,
         wow_entities::SpellCastMetadata {
-            triggered_ignores_global_cooldown_like_cpp: true,
+            trigger_cast_flags_like_cpp: wow_entities::TRIGGERED_FULL_MASK_LIKE_CPP,
             ..Default::default()
         },
     )

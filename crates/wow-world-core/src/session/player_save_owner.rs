@@ -22,11 +22,11 @@ use wow_persistence::{
     PlayerCharacterSnapshotSaveLikeCpp, PlayerCufProfileSaveLikeCpp,
     PlayerCufProfileSlotSaveLikeCpp, PlayerEquipmentSetSaveLikeCpp, PlayerEquipmentSetStateLikeCpp,
     PlayerEquipmentSetTypeLikeCpp, PlayerFallbackSpellSaveLikeCpp, PlayerGlyphSaveLikeCpp,
-    PlayerInstanceLockTimeSaveLikeCpp, PlayerItemDurabilitySave, PlayerPlayedTimeSaveLikeCpp,
-    PlayerPositionSaveLikeCpp, PlayerReputationSaveLikeCpp, PlayerSkillSaveLikeCpp,
-    PlayerSpellChargeSaveLikeCpp, PlayerSpellCooldownSaveLikeCpp, PlayerSpellSaveGroupLikeCpp,
-    PlayerSpellSaveLikeCpp, PlayerSpellStateLikeCpp, PlayerTalentSaveLikeCpp,
-    PlayerTutorialsSaveLikeCpp, PlayerVoidStorageSaveLikeCpp, PlayerVoidStorageSlotSaveLikeCpp,
+    PlayerInstanceLockTimeSaveLikeCpp, PlayerPlayedTimeSaveLikeCpp, PlayerPositionSaveLikeCpp,
+    PlayerReputationSaveLikeCpp, PlayerSkillSaveLikeCpp, PlayerSpellChargeSaveLikeCpp,
+    PlayerSpellCooldownSaveLikeCpp, PlayerSpellSaveGroupLikeCpp, PlayerSpellSaveLikeCpp,
+    PlayerSpellStateLikeCpp, PlayerTalentSaveLikeCpp, PlayerTutorialsSaveLikeCpp,
+    PlayerVoidStorageSaveLikeCpp, PlayerVoidStorageSlotSaveLikeCpp,
 };
 
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -39,7 +39,9 @@ use crate::session::{
     RepresentedPlayerSkillStateLikeCpp, SessionCore, represented_player_skill_record_like_cpp,
 };
 
+mod currency;
 mod ghost_wisp;
+mod inventory;
 mod resurrection_sickness;
 
 /// Lifecycle-owned values that join the canonical Player projection in one save request.
@@ -118,6 +120,9 @@ pub struct PlayerSaveOwnerAccessLikeCpp<'a> {
     spell_store: Option<&'a wow_data::SpellStore>,
     chr_races_store: Option<&'a wow_data::character_progression::ChrRacesStore>,
     difficulty_store: Option<&'a wow_data::DifficultyStore>,
+    item_effect_store: Option<&'a wow_data::ItemEffectStore>,
+    enchantment_store: Option<&'a wow_data::SpellItemEnchantmentStore>,
+    currency_types_store: Option<&'a wow_data::CurrencyTypesStore>,
 }
 
 impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
@@ -127,6 +132,9 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
         spell_store: Option<&'a wow_data::SpellStore>,
         chr_races_store: Option<&'a wow_data::character_progression::ChrRacesStore>,
         difficulty_store: Option<&'a wow_data::DifficultyStore>,
+        item_effect_store: Option<&'a wow_data::ItemEffectStore>,
+        enchantment_store: Option<&'a wow_data::SpellItemEnchantmentStore>,
+        currency_types_store: Option<&'a wow_data::CurrencyTypesStore>,
     ) -> Self {
         Self {
             core,
@@ -134,6 +142,9 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
             spell_store,
             chr_races_store,
             difficulty_store,
+            item_effect_store,
+            enchantment_store,
+            currency_types_store,
         }
     }
 
@@ -181,14 +192,48 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
                 self.spell_store,
                 self.chr_races_store,
                 self.difficulty_store,
+                self.item_effect_store,
+                self.enchantment_store,
+                self.currency_types_store,
                 player,
                 &header,
                 &inputs,
             )?;
+            let saved_item_ids = request
+                .inventory_items
+                .as_ref()
+                .map(|items| {
+                    items
+                        .iter()
+                        .map(|item| item.item_guid)
+                        .collect::<HashSet<_>>()
+                })
+                .unwrap_or_default();
+            let saved_item_guids = player
+                .inventory_runtime_like_cpp()
+                .item_objects()
+                .keys()
+                .filter(|guid| saved_item_ids.contains(&(guid.counter() as u64)))
+                .copied()
+                .collect::<Vec<_>>();
+            let saved_currency_ids = request
+                .currencies
+                .as_ref()
+                .map(|currencies| {
+                    currencies
+                        .rows
+                        .iter()
+                        .map(|row| u32::from(row.currency_id))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
             Some(CapturedPlayerSaveLikeCpp {
                 receipt: PlayerSaveReceiptLikeCpp {
                     handle,
-                    owner: player.capture_save_acknowledgement_like_cpp(),
+                    owner: player.capture_save_acknowledgement_with_inventory_like_cpp(
+                        &saved_item_guids,
+                        &saved_currency_ids,
+                    ),
                     expected: request.committed_groups_like_cpp(),
                     tutorials: request.tutorials.clone(),
                 },
@@ -301,6 +346,8 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
             tutorials_changed: expected.tutorials_changed && committed.tutorials_changed,
             tutorials_insert: expected.tutorials_insert && committed.tutorials_insert,
             reputation: expected.reputation && committed.reputation,
+            inventory_items: expected.inventory_items && committed.inventory_items,
+            currencies: expected.currencies && committed.currencies,
         };
         let handle = receipt.handle;
         if core.player_handle_like_cpp != Some(handle) || core.player_guid() != Some(handle.guid())
@@ -321,6 +368,8 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
                             skills: groups.player_skills,
                             equipment: groups.equipment_sets,
                             reputations: groups.reputation,
+                            inventory_items: groups.inventory_items,
+                            currencies: groups.currencies,
                         },
                     );
                 })
@@ -344,6 +393,9 @@ pub struct PlayerSaveOperationAccessLikeCpp<'a> {
     spell_store: Option<&'a wow_data::SpellStore>,
     chr_races_store: Option<&'a wow_data::character_progression::ChrRacesStore>,
     difficulty_store: Option<&'a wow_data::DifficultyStore>,
+    item_effect_store: Option<&'a wow_data::ItemEffectStore>,
+    enchantment_store: Option<&'a wow_data::SpellItemEnchantmentStore>,
+    currency_types_store: Option<&'a wow_data::CurrencyTypesStore>,
 }
 
 impl SessionCore {
@@ -354,6 +406,9 @@ impl SessionCore {
         spell_store: Option<&'a wow_data::SpellStore>,
         chr_races_store: Option<&'a wow_data::character_progression::ChrRacesStore>,
         difficulty_store: Option<&'a wow_data::DifficultyStore>,
+        item_effect_store: Option<&'a wow_data::ItemEffectStore>,
+        enchantment_store: Option<&'a wow_data::SpellItemEnchantmentStore>,
+        currency_types_store: Option<&'a wow_data::CurrencyTypesStore>,
     ) -> PlayerSaveOperationAccessLikeCpp<'a> {
         PlayerSaveOperationAccessLikeCpp {
             core: self,
@@ -361,6 +416,9 @@ impl SessionCore {
             spell_store,
             chr_races_store,
             difficulty_store,
+            item_effect_store,
+            enchantment_store,
+            currency_types_store,
         }
     }
 }
@@ -377,6 +435,9 @@ impl PlayerSaveOperationAccessLikeCpp<'_> {
             self.spell_store,
             self.chr_races_store,
             self.difficulty_store,
+            self.item_effect_store,
+            self.enchantment_store,
+            self.currency_types_store,
         )
         .capture_like_cpp(inputs)
     }
@@ -498,6 +559,9 @@ fn request(
     spell_store: Option<&wow_data::SpellStore>,
     chr_races_store: Option<&wow_data::character_progression::ChrRacesStore>,
     difficulty_store: Option<&wow_data::DifficultyStore>,
+    item_effect_store: Option<&wow_data::ItemEffectStore>,
+    enchantment_store: Option<&wow_data::SpellItemEnchantmentStore>,
+    currency_types_store: Option<&wow_data::CurrencyTypesStore>,
     player: &Player,
     snapshot: &PlayerSaveToDbSnapshotLikeCpp,
     inputs: &PlayerSaveSessionInputsLikeCpp<'_>,
@@ -559,38 +623,22 @@ fn request(
     // C++ Item::SaveToDB (Item.cpp:383-425) persists durability for an
     // existing item row. Capture only that field; other Item writes retain
     // their current owners and transaction fences.
-    let item_durability = {
-        let runtime = player.inventory_runtime_like_cpp();
-        runtime
-            .equipment_inventory_authority_complete_like_cpp()
-            .then(|| {
-                let buyback_guids: HashSet<_> = runtime
-                    .buyback_items()
-                    .values()
-                    .map(|item| item.guid)
-                    .collect();
-                let mut rows = runtime
-                    .item_objects()
-                    .iter()
-                    .filter(|(guid, item)| {
-                        !buyback_guids.contains(guid)
-                            && item.owner_guid() == player.guid()
-                            && item.data().max_durability > 0
-                            && matches!(
-                                item.update_state(),
-                                wow_constants::ItemUpdateState::New
-                                    | wow_constants::ItemUpdateState::Changed
-                            )
-                    })
-                    .map(|(_, item)| PlayerItemDurabilitySave {
-                        item_guid: item.object().guid().counter() as u64,
-                        durability: item.data().durability,
-                    })
-                    .collect::<Vec<_>>();
-                rows.sort_by_key(|row| row.item_guid);
-                rows
-            })
+    let mut item_durability = inventory::capture_durability(player);
+    let inventory_items = if player
+        .inventory_runtime_like_cpp()
+        .equipment_inventory_authority_complete_like_cpp()
+    {
+        let rows = inventory::capture_item_saves(player, item_effect_store, enchantment_store)?;
+        if let Some(durability) = item_durability.as_mut() {
+            let covered = rows.iter().map(|row| row.item_guid).collect::<HashSet<_>>();
+            durability.retain(|row| !covered.contains(&row.item_guid));
+        }
+        Some(rows)
+    } else {
+        None
     };
+
+    let currencies = currency::capture(player, currency_types_store, guid_counter);
 
     let resurrection_sickness =
         resurrection_sickness::capture(player, chr_races_store, spell_store, difficulty_store);
@@ -973,6 +1021,8 @@ fn request(
         wall_clock_unix_secs: inputs.now_unix_secs,
         character,
         item_durability,
+        inventory_items,
+        currencies,
         resurrection_sickness,
         ghost_wisp,
         spells,

@@ -44,6 +44,10 @@ pub struct InventoryStorageMovePlanLikeCpp {
     pub source_count: u32,
     pub existing_updates: Vec<ExistingStorageStackUpdateLikeCpp>,
     pub moved_destination: Option<(u8, u8, u32)>,
+    /// Physical item identity for each accepted ItemPosCount, in allocator
+    /// order. Empty/remainder destinations refer to the source item; occupied
+    /// merge destinations refer to the existing stack.
+    pub destination_items_in_order: Vec<(u8, u8, ObjectGuid)>,
 }
 
 /// Validate the result of a storage allocator without taking a `Player` or a
@@ -72,6 +76,7 @@ where
     let destination_count_len = destinations.len();
     let mut existing_updates = Vec::new();
     let mut moved_destination = None;
+    let mut destination_items_in_order = Vec::with_capacity(destinations.len());
     let mut planned_count = 0u32;
 
     for destination in destinations {
@@ -97,6 +102,7 @@ where
             {
                 return Err(InventoryResult::InternalBagError);
             }
+            destination_items_in_order.push((bag, slot, source.guid));
             continue;
         }
 
@@ -114,6 +120,7 @@ where
             if new_count > max_stack {
                 return Err(InventoryResult::CantStack);
             }
+            destination_items_in_order.push((bag, slot, existing.guid));
             existing_updates.push(ExistingStorageStackUpdateLikeCpp {
                 item: existing,
                 bag,
@@ -127,6 +134,8 @@ where
             // One Item instance can supply merges plus at most one remainder
             // stack.  Preserve the existing handler's error and order.
             return Err(InventoryResult::InternalBagError);
+        } else {
+            destination_items_in_order.push((bag, slot, source.guid));
         }
     }
 
@@ -141,6 +150,7 @@ where
         source_count,
         existing_updates,
         moved_destination,
+        destination_items_in_order,
     })
 }
 

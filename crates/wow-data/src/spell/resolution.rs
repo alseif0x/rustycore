@@ -147,6 +147,24 @@ pub enum SpellEffectResolutionError {
     DuplicateEffectIndex { effect_index: u32 },
 }
 
+/// A payload family required to construct the selected native `SpellInfo`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpellInfoPayloadComponentLikeCpp {
+    Misc,
+    CastTime,
+    Cooldowns,
+    PowerCosts,
+}
+
+/// Why the selected exact `SpellInfo` key could not receive its effective
+/// difficulty-fallback payload.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpellInfoPayloadResolutionErrorLikeCpp {
+    Catalog(DataSpellCatalogResolutionError),
+    AuthorityUnavailable(SpellInfoPayloadComponentLikeCpp),
+    EffectRows(SpellEffectResolutionError),
+}
+
 /// Resolve each indexed effect independently through the spell's difficulty
 /// chain. Returned rows are borrowed from the canonical store and ordered by
 /// effect index; explicit inert rows remain present and stop inheritance.

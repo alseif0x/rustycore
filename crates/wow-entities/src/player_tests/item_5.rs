@@ -6,6 +6,80 @@
 use super::*;
 
 #[test]
+fn cast_all_obtain_item_sequence_is_backpack_then_inventory_bags_only() {
+    let player_guid = ObjectGuid::create_player(1, 410);
+    let mut player = Player::new(None, false);
+    player
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    player.set_inventory_slot_count(2);
+    player
+        .inventory_runtime_mut_like_cpp()
+        .set_equipment_inventory_authority_complete_like_cpp(true);
+
+    let backpack = [
+        ObjectGuid::create_item(1, 411),
+        ObjectGuid::create_item(1, 412),
+    ];
+    let bag_guid = ObjectGuid::create_item(1, 413);
+    let bag_item = ObjectGuid::create_item(1, 414);
+    let keyring = ObjectGuid::create_item(1, 415);
+    let bank = ObjectGuid::create_item(1, 416);
+
+    for (slot, guid) in [
+        (INVENTORY_SLOT_ITEM_START, backpack[0]),
+        (INVENTORY_SLOT_ITEM_START + 1, backpack[1]),
+        (INVENTORY_SLOT_BAG_START, bag_guid),
+        (KEYRING_SLOT_START, keyring),
+        (BANK_SLOT_ITEM_START, bank),
+    ] {
+        player.store_top_level_item(slot, guid).unwrap();
+    }
+    player
+        .register_bag_storage(INVENTORY_SLOT_BAG_START, bag_guid, 2)
+        .unwrap();
+    player
+        .store_bag_item(INVENTORY_SLOT_BAG_START, 1, bag_item)
+        .unwrap();
+
+    for guid in [backpack[0], backpack[1], bag_guid, bag_item, keyring, bank] {
+        let mut item = Item::default();
+        item.object_mut().create(guid);
+        item.set_owner_guid(player_guid);
+        player
+            .inventory_runtime_mut_like_cpp()
+            .store_item_object_like_cpp(item);
+    }
+
+    let obtain_positions = player
+        .cast_all_obtain_item_positions_like_cpp()
+        .expect("complete backpack and bag topology");
+    assert_eq!(
+        obtain_positions,
+        [
+            (INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START),
+            (INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START + 1),
+            (INVENTORY_SLOT_BAG_START, 0),
+            (INVENTORY_SLOT_BAG_START, 1),
+        ]
+    );
+    assert_eq!(
+        obtain_positions
+            .into_iter()
+            .filter_map(|(bag, slot)| player.get_item_by_pos(bag, slot))
+            .collect::<Vec<_>>(),
+        [backpack[0], backpack[1], bag_item]
+    );
+
+    player
+        .inventory_runtime_mut_like_cpp()
+        .set_equipment_inventory_authority_complete_like_cpp(false);
+    assert_eq!(player.cast_all_obtain_item_positions_like_cpp(), None);
+}
+
+#[test]
 fn destroy_item_count_by_entry_plan_matches_cpp_scan_order_and_partial_stop() {
     let player = Player::new(None, false);
     let mut inventory = Item::default();
@@ -114,6 +188,294 @@ fn destroy_zone_limited_item_plan_matches_cpp_scan_order() {
         ]
     );
 }
+
+#[test]
+fn normal_spell_costs_debit_canonical_inventory_and_currency_owners() {
+    let player_guid = ObjectGuid::create_player(1, 420);
+    let item_guid = ObjectGuid::create_item(1, 421);
+    let mut player = Player::new(None, false);
+    player
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    player.set_inventory_slot_count(2);
+    player
+        .inventory_runtime_mut_like_cpp()
+        .set_equipment_inventory_authority_complete_like_cpp(true);
+    player
+        .store_top_level_item(INVENTORY_SLOT_ITEM_START, item_guid)
+        .unwrap();
+
+    let mut item = Item::default();
+    item.object_mut().create(item_guid);
+    item.object_mut().set_entry(700);
+    item.set_owner_guid(player_guid);
+    item.set_count(2);
+    item.set_state(ItemUpdateState::Unchanged);
+    player
+        .inventory_runtime_mut_like_cpp()
+        .store_item_object_like_cpp(item);
+
+    player.gameplay_state_mut().currencies_loaded_like_cpp = true;
+    player.gameplay_state_mut().currencies.insert(
+        395,
+        crate::PlayerCurrency {
+            state: crate::PlayerCurrencyState::Unchanged,
+            quantity: 9,
+            weekly_quantity: 0,
+            tracked_quantity: 0,
+            increased_cap_quantity: 0,
+            earned_quantity: 0,
+            flags: 0,
+        },
+    );
+
+    let plan = player
+        .plan_spell_cast_resource_debits_like_cpp(&[(700, 1)], &[(395, 5)])
+        .expect("complete native owners plan both costs");
+    assert_eq!(plan.item_actions().len(), 1);
+    assert_eq!(plan.item_actions()[0].item_guid(), item_guid);
+    assert_eq!(plan.item_actions()[0].remaining_count(), 1);
+    assert_eq!(plan.currency_actions()[0].remaining_quantity(), 4);
+
+    let outcome = player
+        .apply_spell_cast_resource_debits_like_cpp(&plan)
+        .expect("the unchanged snapshot still matches at synchronous apply");
+    assert_eq!(outcome.item_actions.as_slice(), plan.item_actions());
+    assert_eq!(outcome.currency_actions.as_slice(), plan.currency_actions());
+    let item = &player.inventory_runtime_like_cpp().item_objects()[&item_guid];
+    assert_eq!(item.count(), 1);
+    assert_eq!(item.update_state(), ItemUpdateState::Changed);
+    assert_eq!(player.gameplay_state().currencies[&395].quantity, 4);
+    assert_eq!(
+        player.gameplay_state().currencies[&395].state,
+        crate::PlayerCurrencyState::Changed
+    );
+}
+
+#[test]
+fn normal_currency_only_cost_does_not_require_inventory_topology() {
+    let player_guid = ObjectGuid::create_player(1, 424);
+    let mut player = Player::new(None, false);
+    player
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    player.gameplay_state_mut().currencies_loaded_like_cpp = true;
+    player.gameplay_state_mut().currencies.insert(
+        395,
+        crate::PlayerCurrency {
+            state: crate::PlayerCurrencyState::Unchanged,
+            quantity: 9,
+            weekly_quantity: 0,
+            tracked_quantity: 0,
+            increased_cap_quantity: 0,
+            earned_quantity: 0,
+            flags: 0,
+        },
+    );
+
+    let plan = player
+        .plan_spell_cast_resource_debits_like_cpp(&[], &[(395, 5)])
+        .expect("currency-only costs do not depend on unrelated inventory authority");
+    assert!(plan.item_actions().is_empty());
+    assert_eq!(plan.currency_actions()[0].remaining_quantity(), 4);
+}
+
+#[test]
+fn normal_spell_reagent_step_rejects_stale_state_without_partial_mutation() {
+    let player_guid = ObjectGuid::create_player(1, 425);
+    let item_guid = ObjectGuid::create_item(1, 426);
+    let mut player = Player::new(None, false);
+    player
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    player.set_inventory_slot_count(2);
+    player
+        .inventory_runtime_mut_like_cpp()
+        .set_equipment_inventory_authority_complete_like_cpp(true);
+    player
+        .store_top_level_item(INVENTORY_SLOT_ITEM_START, item_guid)
+        .unwrap();
+    let mut item = Item::default();
+    item.object_mut().create(item_guid);
+    item.object_mut().set_entry(702);
+    item.set_owner_guid(player_guid);
+    item.set_count(2);
+    item.force_state(ItemUpdateState::Unchanged);
+    player
+        .inventory_runtime_mut_like_cpp()
+        .store_item_object_like_cpp(item);
+
+    let action = player
+        .plan_spell_cast_reagent_step_like_cpp(702, 2)
+        .expect("one physical step is available");
+    player
+        .inventory_runtime_mut_like_cpp()
+        .item_objects_mut()
+        .get_mut(&item_guid)
+        .unwrap()
+        .set_count(1);
+    assert!(
+        player
+            .apply_spell_cast_reagent_step_like_cpp(action)
+            .is_none()
+    );
+    assert_eq!(
+        player.inventory_runtime_like_cpp().item_objects()[&item_guid].count(),
+        1,
+        "stale action is rejected before any further debit"
+    );
+}
+
+#[test]
+fn normal_spell_cast_item_use_updates_charges_and_consumes_one_physical_item() {
+    let player_guid = ObjectGuid::create_player(1, 422);
+    let item_guid = ObjectGuid::create_item(1, 423);
+    let mut player = Player::new(None, false);
+    player
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    player.set_inventory_slot_count(2);
+    player
+        .inventory_runtime_mut_like_cpp()
+        .set_equipment_inventory_authority_complete_like_cpp(true);
+    player
+        .store_top_level_item(INVENTORY_SLOT_ITEM_START, item_guid)
+        .unwrap();
+
+    let mut item = Item::default();
+    item.object_mut().create(item_guid);
+    item.object_mut().set_entry(701);
+    item.set_owner_guid(player_guid);
+    item.set_count(2);
+    item.set_spell_charges(0, 1);
+    item.set_state(ItemUpdateState::Unchanged);
+    player
+        .inventory_runtime_mut_like_cpp()
+        .store_item_object_like_cpp(item);
+
+    let plan = PlayerSpellCastItemUsePlanLikeCpp {
+        item_guid,
+        entry_id: 701,
+        expected_charges: [1, 0, 0, 0, 0],
+        updated_charges: [0, 0, 0, 0, 0],
+        writes_charges: true,
+        marks_item_changed: true,
+        consumes_one_item: true,
+    };
+    let outcome = player
+        .apply_spell_cast_item_use_like_cpp(plan)
+        .expect("canonical physical item still matches its charge snapshot");
+    assert!(outcome.removed_one);
+    assert!(!outcome.removed_stack);
+    assert_eq!(outcome.remaining_count, 1);
+    let item = &player.inventory_runtime_like_cpp().item_objects()[&item_guid];
+    assert_eq!(item.count(), 1);
+    assert_eq!(item.data().spell_charges[0], 0);
+    assert_eq!(item.update_state(), ItemUpdateState::Changed);
+}
+
+#[test]
+fn normal_resource_plan_tombstones_a_consumed_new_item() {
+    let player_guid = ObjectGuid::create_player(1, 427);
+    let item_guid = ObjectGuid::create_item(1, 428);
+    let mut player = Player::new(None, false);
+    player
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    player.set_inventory_slot_count(2);
+    player
+        .inventory_runtime_mut_like_cpp()
+        .set_equipment_inventory_authority_complete_like_cpp(true);
+    player
+        .store_top_level_item(INVENTORY_SLOT_ITEM_START, item_guid)
+        .unwrap();
+
+    let mut item = Item::default();
+    item.object_mut().create(item_guid);
+    item.object_mut().set_entry(703);
+    item.set_owner_guid(player_guid);
+    item.set_count(1);
+    item.force_state(ItemUpdateState::New);
+    player
+        .inventory_runtime_mut_like_cpp()
+        .store_item_object_like_cpp(item);
+
+    let plan = player
+        .plan_spell_cast_resource_debits_like_cpp(&[(703, 1)], &[])
+        .expect("new physical stack is available");
+    player
+        .apply_spell_cast_resource_debits_like_cpp(&plan)
+        .expect("the complete resource plan still matches");
+    let removed = &player.inventory_runtime_like_cpp().item_objects()[&item_guid];
+    assert_eq!(removed.update_state(), ItemUpdateState::Removed);
+    assert_eq!(removed.slot(), NULL_SLOT);
+    assert!(
+        player
+            .get_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
+            .is_none()
+    );
+}
+
+#[test]
+fn normal_cast_item_use_tombstones_a_consumed_new_item() {
+    let player_guid = ObjectGuid::create_player(1, 429);
+    let item_guid = ObjectGuid::create_item(1, 430);
+    let mut player = Player::new(None, false);
+    player
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    player.set_inventory_slot_count(2);
+    player
+        .inventory_runtime_mut_like_cpp()
+        .set_equipment_inventory_authority_complete_like_cpp(true);
+    player
+        .store_top_level_item(INVENTORY_SLOT_ITEM_START, item_guid)
+        .unwrap();
+
+    let mut item = Item::default();
+    item.object_mut().create(item_guid);
+    item.object_mut().set_entry(704);
+    item.set_owner_guid(player_guid);
+    item.set_count(1);
+    item.force_state(ItemUpdateState::New);
+    player
+        .inventory_runtime_mut_like_cpp()
+        .store_item_object_like_cpp(item);
+
+    let outcome = player
+        .apply_spell_cast_item_use_like_cpp(PlayerSpellCastItemUsePlanLikeCpp {
+            item_guid,
+            entry_id: 704,
+            expected_charges: [0; crate::MAX_ITEM_SPELLS],
+            updated_charges: [0; crate::MAX_ITEM_SPELLS],
+            writes_charges: false,
+            marks_item_changed: false,
+            consumes_one_item: true,
+        })
+        .expect("physical cast item remains at its canonical position");
+    assert!(outcome.removed_stack);
+    let removed = &player.inventory_runtime_like_cpp().item_objects()[&item_guid];
+    assert_eq!(removed.update_state(), ItemUpdateState::Removed);
+    assert_eq!(removed.slot(), NULL_SLOT);
+    assert!(
+        player
+            .get_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
+            .is_none()
+    );
+}
+
 #[test]
 fn destroy_conjured_items_plan_matches_cpp_scan_order_without_keyring() {
     let player = Player::new(None, false);

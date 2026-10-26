@@ -54,6 +54,37 @@ fn active_player_self_res_values_update_writes_nested_mask_and_selected_values()
 }
 
 #[test]
+fn active_player_create_writes_native_no_reagent_mask() {
+    let mut create = test_player_create_data_with_farsight(ObjectGuid::EMPTY);
+    create.no_reagent_cost_mask = [0x0102_0304, 0x1122_3344, 0, u32::MAX];
+
+    let mut packet = WorldPacket::new_empty();
+    create.write_active_player_data(&mut packet);
+    assert!(packet.data().windows(16).any(|window| {
+        window
+            == [
+                4, 3, 2, 1, 0x44, 0x33, 0x22, 0x11, 0, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0xFF,
+            ]
+    }));
+}
+
+#[test]
+fn active_player_values_update_projects_no_reagent_mask_children() {
+    let mut data = ActivePlayerDataValuesUpdate::default();
+    for bit in [0, 615, 616, 618, 619] {
+        set_active_player_bit(&mut data, bit);
+    }
+    data.no_reagent_cost_mask = [0xAABB_CCDD, 2, 0x1122_3344, 4];
+
+    let mut packet = WorldPacket::new_empty();
+    write_active_player_data_values_update_section(&mut packet, &data);
+    let bytes = packet.into_data();
+    assert!(bytes.windows(8).any(|window| window == [0xDD, 0xCC, 0xBB, 0xAA, 0x44, 0x33, 0x22, 0x11]));
+    assert!(bytes.windows(4).any(|window| window == [4, 0, 0, 0]));
+    assert!(!bytes.windows(4).any(|window| window == [2, 0, 0, 0]));
+}
+
+#[test]
 fn self_res_create_setter_does_not_populate_non_owner_player_create() {
     let mut packet = UpdateObject::create_player(
         ObjectGuid::create_player(1, 42),

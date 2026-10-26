@@ -30,7 +30,22 @@ fn all() -> PlayerSavedGroupsLikeCpp {
         skills: true,
         equipment: true,
         reputations: true,
+        inventory_items: true,
+        currencies: true,
     }
+}
+
+fn dirty_item(player: &mut Player, guid: ObjectGuid) {
+    let mut item = Item::new(0);
+    item.object_mut().create(guid);
+    item.object_mut().set_entry(6948);
+    item.set_owner_guid(player.guid());
+    item.set_count(1);
+    item.set_durability(20);
+    item.force_state(ItemUpdateState::New);
+    player
+        .inventory_runtime_mut_like_cpp()
+        .store_item_object_like_cpp(item);
 }
 
 #[test]
@@ -65,10 +80,9 @@ fn save_ack_promotes_only_the_exact_saving_resurrection_continuation() {
         phase: PlayerResurrectionPhase::SavingPlayer,
     };
     let mut p = player();
-    p.resurrection_state_mut_like_cpp()
-        .delayed_after_teleport = Some(continuation);
+    p.resurrection_state_mut_like_cpp().delayed_after_teleport = Some(continuation);
     let receipt = p.capture_save_acknowledgement_like_cpp();
-    p.acknowledge_saved_projection_like_cpp(receipt, PlayerSavedGroupsLikeCpp::default());
+    p.acknowledge_saved_projection_like_cpp(receipt, all());
     assert_eq!(
         p.resurrection_state_like_cpp().delayed_after_teleport,
         Some(PlayerResurrectionContinuation {
@@ -78,28 +92,203 @@ fn save_ack_promotes_only_the_exact_saving_resurrection_continuation() {
         "the receipt confirms the save without clearing post-save work"
     );
 
-    p.resurrection_state_mut_like_cpp()
-        .delayed_after_teleport = Some(continuation);
+    p.resurrection_state_mut_like_cpp().delayed_after_teleport = Some(continuation);
     let stale = p.capture_save_acknowledgement_like_cpp();
     p.resurrection_state_mut_like_cpp()
         .delayed_after_teleport
         .as_mut()
         .unwrap()
         .phase = PlayerResurrectionPhase::RecoveryCorpseBonesInFlight;
-    p.acknowledge_saved_projection_like_cpp(stale, PlayerSavedGroupsLikeCpp::default());
+    p.acknowledge_saved_projection_like_cpp(stale, all());
     assert_eq!(
-        p.resurrection_state_like_cpp().delayed_after_teleport.unwrap().phase,
+        p.resurrection_state_like_cpp()
+            .delayed_after_teleport
+            .unwrap()
+            .phase,
         PlayerResurrectionPhase::RecoveryCorpseBonesInFlight,
         "a stale receipt cannot advance a changed operation phase"
     );
 
     p.resurrection_state_mut_like_cpp().delayed_after_teleport = None;
     let ordinary_save = p.capture_save_acknowledgement_like_cpp();
-    p.acknowledge_saved_projection_like_cpp(
-        ordinary_save,
-        PlayerSavedGroupsLikeCpp::default(),
+    p.acknowledge_saved_projection_like_cpp(ordinary_save, all());
+    assert!(
+        p.resurrection_state_like_cpp()
+            .delayed_after_teleport
+            .is_none()
     );
-    assert!(p.resurrection_state_like_cpp().delayed_after_teleport.is_none());
+}
+
+#[test]
+fn applied_save_with_missing_resource_groups_keeps_costs_dirty_and_recovery_saving() {
+    use crate::{
+        PlayerCurrency, PlayerCurrencyState, PlayerResurrectionContinuation,
+        PlayerResurrectionOperation, PlayerResurrectionPhase,
+    };
+
+    let mut p = player();
+    let item_guid = ObjectGuid::create_item(1, 99);
+    dirty_item(&mut p, item_guid);
+    p.gameplay_state_mut().currencies.insert(
+        395,
+        PlayerCurrency {
+            state: PlayerCurrencyState::Changed,
+            quantity: 7,
+            weekly_quantity: 0,
+            tracked_quantity: 0,
+            increased_cap_quantity: 0,
+            earned_quantity: 0,
+            flags: 0,
+        },
+    );
+    let continuation = PlayerResurrectionContinuation {
+        operation: PlayerResurrectionOperation::ReclaimCorpse {
+            restore_percent: 0.5,
+        },
+        phase: PlayerResurrectionPhase::SavingPlayer,
+    };
+    p.resurrection_state_mut_like_cpp().delayed_after_teleport = Some(continuation);
+    let receipt = p.capture_save_acknowledgement_with_inventory_like_cpp(&[item_guid], &[395]);
+
+    p.acknowledge_saved_projection_like_cpp(
+        receipt,
+        PlayerSavedGroupsLikeCpp {
+            inventory_items: true,
+            currencies: false,
+            ..all()
+        },
+    );
+
+    assert_eq!(
+        p.inventory_runtime_like_cpp().item_objects()[&item_guid].update_state(),
+        ItemUpdateState::Unchanged,
+        "the independently committed inventory group acknowledges its captured item"
+    );
+    assert_eq!(
+        p.gameplay_state().currencies[&395].state,
+        PlayerCurrencyState::Changed,
+        "an absent committed currency group cannot acknowledge the native currency cost"
+    );
+    assert_eq!(
+        p.resurrection_state_like_cpp().delayed_after_teleport,
+        Some(continuation),
+        "Applied with an incomplete resource receipt must remain in SavingPlayer"
+    );
+}
+
+#[test]
+fn item_save_ack_ignores_wire_masks_and_retains_new_persistent_values() {
+    let mut p = player();
+    let guid = ObjectGuid::create_item(1, 101);
+    dirty_item(&mut p, guid);
+    p.inventory_runtime_mut_like_cpp()
+        .item_objects_mut()
+        .get_mut(&guid)
+        .unwrap()
+        .force_state(ItemUpdateState::Changed);
+    let receipt = p.capture_save_acknowledgement_with_inventory_like_cpp(&[guid], &[]);
+
+    let item = p
+        .inventory_runtime_mut_like_cpp()
+        .item_objects_mut()
+        .get_mut(&guid)
+        .unwrap();
+    item.set_durability(item.data().durability);
+    p.acknowledge_saved_projection_like_cpp(
+        receipt,
+        PlayerSavedGroupsLikeCpp {
+            inventory_items: true,
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        p.inventory_runtime_like_cpp().item_objects()[&guid].update_state(),
+        ItemUpdateState::Unchanged,
+        "the captured persistent row is durable despite a wire-only update mask"
+    );
+
+    let receipt = p.capture_save_acknowledgement_with_inventory_like_cpp(&[guid], &[]);
+    p.inventory_runtime_mut_like_cpp()
+        .item_objects_mut()
+        .get_mut(&guid)
+        .unwrap()
+        .set_durability(19);
+    p.acknowledge_saved_projection_like_cpp(
+        receipt,
+        PlayerSavedGroupsLikeCpp {
+            inventory_items: true,
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        p.inventory_runtime_like_cpp().item_objects()[&guid].update_state(),
+        ItemUpdateState::Changed,
+        "a persistent write made during the save remains dirty"
+    );
+}
+
+#[test]
+fn consumed_new_item_survives_inflight_insert_until_delete_acknowledges() {
+    let mut p = player();
+    let item_guid = ObjectGuid::create_item(1, 6949);
+    let slot = INVENTORY_SLOT_ITEM_START;
+    p.set_inventory_slot_count(2);
+    p.inventory_runtime_mut_like_cpp()
+        .set_equipment_inventory_authority_complete_like_cpp(true);
+    p.store_top_level_item(slot, item_guid).unwrap();
+
+    let mut item = Item::new(0);
+    item.object_mut().create(item_guid);
+    item.object_mut().set_entry(6948);
+    item.set_owner_guid(p.guid());
+    item.set_contained_in(p.guid());
+    item.set_slot(slot);
+    item.set_count(1);
+    item.force_state(ItemUpdateState::New);
+    p.inventory_runtime_mut_like_cpp()
+        .store_item_object_like_cpp(item);
+
+    let in_flight_insert =
+        p.capture_save_acknowledgement_with_inventory_like_cpp(&[item_guid], &[]);
+    let debit = p
+        .plan_spell_cast_reagent_step_like_cpp(6948, 1)
+        .expect("the new physical stack can be consumed");
+    p.apply_spell_cast_reagent_step_like_cpp(debit)
+        .expect("canonical stack is still at the planned position");
+    assert_eq!(
+        p.inventory_runtime_like_cpp().item_objects()[&item_guid].update_state(),
+        ItemUpdateState::Removed,
+        "consumption retains a delete tombstone even while the insert save is pending"
+    );
+
+    p.acknowledge_saved_projection_like_cpp(
+        in_flight_insert,
+        PlayerSavedGroupsLikeCpp {
+            inventory_items: true,
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        p.inventory_runtime_like_cpp().item_objects()[&item_guid].update_state(),
+        ItemUpdateState::Removed,
+        "the in-flight NEW receipt cannot retire a newer removal"
+    );
+
+    let confirmed_delete =
+        p.capture_save_acknowledgement_with_inventory_like_cpp(&[item_guid], &[]);
+    p.acknowledge_saved_projection_like_cpp(
+        confirmed_delete,
+        PlayerSavedGroupsLikeCpp {
+            inventory_items: true,
+            ..Default::default()
+        },
+    );
+    assert!(
+        !p.inventory_runtime_like_cpp()
+            .item_objects()
+            .contains_key(&item_guid),
+        "only the matching DELETE receipt retires the tombstone"
+    );
 }
 
 #[test]

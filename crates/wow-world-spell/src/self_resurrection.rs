@@ -99,6 +99,28 @@ pub fn initialize_self_resurrection_spells(
     Ok(())
 }
 
+/// Resolve C++ `HasAuraTypeWithAffectMask(SPELL_AURA_IGNORE_SPELL_COOLDOWN)`
+/// against every active Player aura and the target's selected family data.
+pub fn active_spell_cooldown_aura_affects_like_cpp(
+    player: &Player,
+    target_spell_id: u32,
+    target_difficulty: u8,
+    spells: &SpellStore,
+    serverside_spells: &ServersideSpellStoreLikeCpp,
+    class_options: Option<&SpellClassOptionsStore>,
+    difficulties: Option<&DifficultyStore>,
+) -> Result<bool, SelfResurrectionError> {
+    catalog::active_spell_cooldown_aura_affects_like_cpp(
+        player,
+        target_spell_id,
+        target_difficulty,
+        spells,
+        serverside_spells,
+        class_options,
+        difficulties,
+    )
+}
+
 impl SelfResurrectionPlan {
     pub(super) const fn new(
         has_soulstone: bool,

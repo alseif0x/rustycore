@@ -18,6 +18,13 @@ pub struct PlayerCharacterSaveRequestLikeCpp {
     /// Absolute durability values for Player-owned item objects that were
     /// already persisted by their creation/loot transaction.
     pub item_durability: Option<Vec<PlayerItemDurabilitySave>>,
+    /// Complete dirty inventory-object snapshot and its position in the
+    /// character inventory. `None` preserves item rows when inventory
+    /// authority or required item metadata is incomplete.
+    pub inventory_items: Option<Vec<PlayerItemSaveLikeCpp>>,
+    /// Dirty currency rows selected from the canonical Player currency owner.
+    /// `None` preserves rows when CurrencyTypes authority is unavailable.
+    pub currencies: Option<crate::PlayerCurrencySaveRequestLikeCpp>,
     /// Selected race's complete sickness spell snapshot, including every
     /// persistable caster/item family for that spell. `None` preserves rows
     /// when canonical aura authority or catalogs are incomplete; an empty
@@ -66,6 +73,8 @@ impl PlayerCharacterSaveRequestLikeCpp {
                 .as_ref()
                 .is_some_and(|tutorials| !tutorials.already_persisted),
             reputation: !self.reputations.is_empty(),
+            inventory_items: self.inventory_items.is_some(),
+            currencies: self.currencies.is_some(),
         }
     }
 }
@@ -79,6 +88,10 @@ pub struct PlayerCharacterCommittedGroupsLikeCpp {
     pub tutorials_changed: bool,
     pub tutorials_insert: bool,
     pub reputation: bool,
+    /// A coherent inventory-item group was included in this transaction.
+    pub inventory_items: bool,
+    /// A coherent currency group was included in this transaction.
+    pub currencies: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -118,6 +131,52 @@ pub struct PlayerCharacterSnapshotSaveLikeCpp {
 pub struct PlayerItemDurabilitySave {
     pub item_guid: u64,
     pub durability: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerItemSaveStateLikeCpp {
+    New,
+    Changed,
+    Removed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerItemGemSaveLikeCpp {
+    pub item_id: u32,
+    pub bonus_list_ids: String,
+    pub context: u8,
+}
+
+/// One complete `Item::SaveToDB` projection plus the `Player::_SaveInventory`
+/// link operation for the same object.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerItemSaveLikeCpp {
+    pub state: PlayerItemSaveStateLikeCpp,
+    pub item_guid: u64,
+    pub item_entry: u32,
+    pub owner_guid: u64,
+    pub creator_guid: u64,
+    pub gift_creator_guid: u64,
+    pub count: u32,
+    pub expiration: u32,
+    pub charges: String,
+    pub dynamic_flags: u32,
+    pub enchantments: String,
+    pub durability: u32,
+    pub played_time: u32,
+    pub text: String,
+    pub battle_pet_species_id: u32,
+    pub battle_pet_breed_data: u32,
+    pub battle_pet_level: u32,
+    pub battle_pet_display_id: u32,
+    pub random_properties_id: i32,
+    pub property_seed: i32,
+    pub context: u8,
+    pub bag_guid: u64,
+    pub slot: u8,
+    pub gems: Option<[PlayerItemGemSaveLikeCpp; 3]>,
+    pub transmog: Option<[u32; 18]>,
+    pub wrapped: bool,
 }
 
 /// One selected lifecycle spell and the complete persistable database-key set.

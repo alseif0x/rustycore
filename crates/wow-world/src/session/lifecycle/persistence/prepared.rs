@@ -50,11 +50,21 @@ impl WorldSession {
             .map(AsRef::as_ref);
         let chr_races_store = self.catalogs.chr.races_store.as_deref();
         let difficulty_store = self.catalogs.difficulty_store.as_deref();
+        let item_effect_store = self.catalogs.items.effect_store.as_deref();
+        let enchantment_store = self
+            .catalogs
+            .spell_catalogs
+            .spell_item_enchantment_store
+            .as_deref();
+        let currency_types_store = self.catalogs.currency_types_store.as_deref();
         let mut owner = self.core.player_save_operation_access_like_cpp(
             talent_store,
             spell_store,
             chr_races_store,
             difficulty_store,
+            item_effect_store,
+            enchantment_store,
+            currency_types_store,
         );
         let inputs = self.lifecycle.player_save_session_inputs_like_cpp(now);
         let captured = owner.capture_like_cpp(inputs)?;
@@ -85,5 +95,7 @@ pub(in crate::session) fn committed_groups_like_cpp(
         tutorials_changed: expected.tutorials_changed && committed.tutorials_changed,
         tutorials_insert: expected.tutorials_insert && committed.tutorials_insert,
         reputation: expected.reputation && committed.reputation,
+        inventory_items: expected.inventory_items && committed.inventory_items,
+        currencies: expected.currencies && committed.currencies,
     }
 }

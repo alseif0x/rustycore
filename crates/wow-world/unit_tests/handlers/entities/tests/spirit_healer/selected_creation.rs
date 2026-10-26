@@ -377,7 +377,7 @@ async fn execute_mixed_sickness(
         SICKNESS_SPELL,
         target,
         wow_entities::SpellCastMetadata {
-            triggered_ignores_global_cooldown_like_cpp: true,
+            trigger_cast_flags_like_cpp: wow_entities::TRIGGERED_FULL_MASK_LIKE_CPP,
             original_caster_guid: Some(caster),
             ..Default::default()
         },

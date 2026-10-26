@@ -9,6 +9,7 @@
 //! responsibility. Every public type and data contract is unchanged.
 
 mod acquisition;
+mod cast_costs;
 mod catalog;
 mod corrections;
 mod proc_sources;
@@ -17,6 +18,7 @@ mod stores;
 mod visuals;
 
 pub use acquisition::*;
+pub use cast_costs::*;
 pub use catalog::*;
 pub use corrections::*;
 pub use resolution::*;
@@ -65,6 +67,10 @@ pub use state_1::*;
 pub use state_2::*;
 
 pub mod attributes {
+    /// C++ `SPELL_ATTR7_BYPASS_NO_RESURRECT_AURA` (`SharedDefines.h:717`).
+    pub const SPELL_ATTR7_BYPASS_NO_RESURRECT_AURA: u32 = 0x0800_0000;
+    /// C++ `SPELL_ATTR5_NO_REAGENT_COST_WITH_AURA`.
+    pub const SPELL_ATTR5_NO_REAGENT_COST_WITH_AURA: u32 = 0x0000_0002;
     /// C++ `SPELL_ATTR0_IS_ABILITY` (`SharedDefines.h`).
     pub const SPELL_ATTR0_IS_ABILITY: u32 = 0x0000_0010;
     /// C++ `SPELL_ATTR0_PASSIVE` (`SharedDefines.h`).

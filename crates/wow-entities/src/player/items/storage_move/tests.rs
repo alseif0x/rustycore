@@ -34,6 +34,10 @@ fn empty_destination_becomes_moved_stack_without_object_or_template_reads() {
     assert_eq!(plan.source, source);
     assert!(plan.existing_updates.is_empty());
     assert_eq!(
+        plan.destination_items_in_order,
+        vec![(INVENTORY_SLOT_BAG_0, BANK_SLOT_ITEM_START, plan.source.guid)]
+    );
+    assert_eq!(
         plan.moved_destination,
         Some((INVENTORY_SLOT_BAG_0, BANK_SLOT_ITEM_START, 3))
     );
@@ -84,6 +88,17 @@ fn merge_then_remainder_preserves_destination_and_read_order() {
     assert_eq!(plan.existing_updates[0].item.guid, existing.guid);
     assert_eq!(plan.existing_updates[0].new_count, 10);
     assert_eq!(
+        plan.destination_items_in_order,
+        vec![
+            (INVENTORY_SLOT_BAG_0, BANK_SLOT_ITEM_START, existing.guid),
+            (
+                INVENTORY_SLOT_BAG_0,
+                BANK_SLOT_ITEM_START + 1,
+                plan.source.guid,
+            ),
+        ]
+    );
+    assert_eq!(
         plan.moved_destination,
         Some((INVENTORY_SLOT_BAG_0, BANK_SLOT_ITEM_START + 1, 3))
     );
@@ -116,6 +131,21 @@ fn remainder_then_merge_preserves_both_allocated_destinations() {
     assert_eq!(plan.existing_updates[0].bag, INVENTORY_SLOT_BAG_0);
     assert_eq!(plan.existing_updates[0].slot, BANK_SLOT_ITEM_START + 1);
     assert_eq!(plan.existing_updates[0].new_count, 7);
+    assert_eq!(
+        plan.destination_items_in_order,
+        vec![
+            (
+                INVENTORY_SLOT_BAG_0,
+                BANK_SLOT_ITEM_START,
+                plan.source.guid,
+            ),
+            (
+                INVENTORY_SLOT_BAG_0,
+                BANK_SLOT_ITEM_START + 1,
+                existing.guid,
+            ),
+        ]
+    );
     assert_eq!(
         plan.moved_destination,
         Some((INVENTORY_SLOT_BAG_0, BANK_SLOT_ITEM_START, 2))
@@ -165,6 +195,13 @@ fn full_merge_keeps_existing_update_order_without_remainder() {
     assert_eq!(plan.existing_updates[1].item.guid, second.guid);
     assert_eq!(plan.existing_updates[1].new_count, 7);
     assert_eq!(plan.moved_destination, None);
+    assert_eq!(
+        plan.destination_items_in_order,
+        vec![
+            (INVENTORY_SLOT_BAG_0, BANK_SLOT_ITEM_START, first.guid),
+            (INVENTORY_SLOT_BAG_0, BANK_SLOT_ITEM_START + 1, second.guid),
+        ]
+    );
 }
 
 #[test]

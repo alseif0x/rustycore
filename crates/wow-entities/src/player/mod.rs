@@ -61,6 +61,11 @@ pub use items::{
     plan_inventory_storage_move_like_cpp,
 };
 pub use items::{
+    PlayerSpellCastCurrencyDebitActionLikeCpp, PlayerSpellCastItemDebitActionLikeCpp,
+    PlayerSpellCastItemUseOutcomeLikeCpp, PlayerSpellCastItemUsePlanLikeCpp,
+    PlayerSpellCastResourceDebitOutcomeLikeCpp, PlayerSpellCastResourceDebitPlanLikeCpp,
+};
+pub use items::{
     represented_avg_total_item_level_maybe_replace_slot_like_cpp,
     represented_total_avg_equipment_slot_candidates_like_cpp,
 };
@@ -937,6 +942,8 @@ pub const ACTIVE_PLAYER_DATA_TOYS_BIT: usize = 9;
 pub const ACTIVE_PLAYER_DATA_TRANSMOG_BIT: usize = 10;
 pub const ACTIVE_PLAYER_DATA_CONDITIONAL_TRANSMOG_BIT: usize = 11;
 pub const ACTIVE_PLAYER_DATA_SELF_RES_SPELLS_BIT: usize = 12;
+pub const ACTIVE_PLAYER_DATA_NO_REAGENT_COST_MASK_PARENT_BIT: usize = 615;
+pub const ACTIVE_PLAYER_DATA_NO_REAGENT_COST_MASK_FIRST_BIT: usize = 616;
 pub const ACTIVE_PLAYER_DATA_HONOR_PARENT_BIT: usize = 102;
 pub const ACTIVE_PLAYER_DATA_HONOR_BIT: usize = 109;
 pub const ACTIVE_PLAYER_DATA_HONOR_NEXT_LEVEL_BIT: usize = 110;
@@ -3471,6 +3478,7 @@ pub struct ActivePlayerDataValues {
     pub conditional_transmog_update_mask: Option<Vec<u32>>,
     pub self_res_spells: Vec<i32>,
     pub self_res_spells_update_mask: Option<Vec<u32>>,
+    pub no_reagent_cost_mask: [u32; 4],
     pub quest_completed: [u64; QUESTS_COMPLETED_BITS_SIZE],
 }
 
@@ -3512,6 +3520,7 @@ impl Default for ActivePlayerDataValues {
             conditional_transmog_update_mask: None,
             self_res_spells: Vec::new(),
             self_res_spells_update_mask: None,
+            no_reagent_cost_mask: [0; 4],
             quest_completed: [0; QUESTS_COMPLETED_BITS_SIZE],
         }
     }

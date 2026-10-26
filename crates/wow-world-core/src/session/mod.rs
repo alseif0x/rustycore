@@ -27,7 +27,7 @@ pub use battle_pet_adapter::{
 pub mod connection_identity;
 pub use connection_identity::{
     PacketCounterLikeCpp, PacketSpoofPendingBanLikeCpp, PacketSpoofPendingBanTargetLikeCpp,
-    SessionState, virtual_realm_address_like_cpp,
+    SessionState, unix_now_ms_like_cpp, virtual_realm_address_like_cpp,
 };
 
 // #1263 C2 capture surface: the login/detach/fallback location observation record

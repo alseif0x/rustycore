@@ -70,6 +70,12 @@ pub trait CorpseHostLikeCpp: PlayerMovementHostLikeCpp {
     fn apply_spirit_healer_durability_loss(&mut self);
     /// C++ `Player::HasSpell`.
     fn player_has_spell_like_cpp(&self, spell_id: i32) -> bool;
+    /// C++ `Player::CastAllObtainSpells`, called by `ResurrectPlayer` after
+    /// visibility and before its optional sickness cast.
+    fn cast_all_obtain_spells_like_cpp<'a>(
+        &'a mut self,
+        catalogs: crate::ResurrectionOperationCatalogs<'a>,
+    ) -> impl Future<Output = Result<(), &'static str>> + Send + 'a;
     /// C++ `CastSpell(this, spellId, true)`: a triggered self cast through
     /// the spell executor.
     fn cast_triggered_self_spell_like_cpp(

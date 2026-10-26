@@ -280,8 +280,9 @@ impl ItemEffectStore {
         item_id: u32,
         spell_id: i32,
     ) -> Option<&ItemEffectEntry> {
-        self.values()
-            .find(|entry| entry.parent_item_id == item_id && entry.spell_id == spell_id)
+        self.item_effects_for_item_id_like_cpp(item_id)
+            .into_iter()
+            .find(|entry| entry.spell_id == spell_id)
     }
 
     /// C++ `DB2Manager::GetItemEffectsForItemId`.
@@ -290,7 +291,10 @@ impl ItemEffectStore {
             .values()
             .filter(|entry| entry.parent_item_id == item_id)
             .collect();
-        effects.sort_by_key(|entry| entry.legacy_slot_index);
+        // C++ ItemTemplate::Effects preserves DB2 ItemEffect record order.
+        // LegacySlotIndex selects an item's spell-charge cell; it does not
+        // order effects for lookup, casting, or removal.
+        effects.sort_by_key(|entry| entry.id);
         effects
     }
 }
@@ -418,6 +422,65 @@ mod tests {
                 .effect_for_item_spell_like_cpp(30_000, 99_999)
                 .is_none()
         );
+    }
+
+    #[test]
+    fn item_effect_views_preserve_record_order_for_first_matching_spell() {
+        let item_id = 30_000;
+        let entries = [
+            ItemEffectEntry {
+                id: 50,
+                legacy_slot_index: 0,
+                trigger_type: 0,
+                charges: 0,
+                cooldown_msec: 5_000,
+                category_cooldown_msec: 6_000,
+                spell_category_id: 15,
+                spell_id: 12_345,
+                chr_specialization_id: 0,
+                parent_item_id: item_id,
+            },
+            ItemEffectEntry {
+                id: 20,
+                legacy_slot_index: 4,
+                trigger_type: 0,
+                charges: 0,
+                cooldown_msec: 3_000,
+                category_cooldown_msec: 4_000,
+                spell_category_id: 14,
+                spell_id: 77_777,
+                chr_specialization_id: 0,
+                parent_item_id: item_id,
+            },
+            ItemEffectEntry {
+                id: 10,
+                legacy_slot_index: 2,
+                trigger_type: 0,
+                charges: 0,
+                cooldown_msec: 1_000,
+                category_cooldown_msec: 2_000,
+                spell_category_id: 13,
+                spell_id: 12_345,
+                chr_specialization_id: 0,
+                parent_item_id: item_id,
+            },
+        ];
+        let store = ItemEffectStore::from_entries(entries);
+
+        assert_eq!(
+            store
+                .item_effects_for_item_id_like_cpp(item_id)
+                .into_iter()
+                .map(|entry| entry.id)
+                .collect::<Vec<_>>(),
+            [10, 20, 50],
+            "record order wins even when slots disagree and input is unsorted"
+        );
+        let first_spell = store
+            .effect_for_item_spell_like_cpp(item_id, 12_345)
+            .expect("first record with this spell exists");
+        assert_eq!(first_spell.id, 10);
+        assert_eq!(first_spell.cooldown_msec, 1_000);
     }
 
     #[test]

@@ -51,6 +51,8 @@ fn minimal_character_request() -> PlayerCharacterSaveRequestLikeCpp {
             death_expire_time: 0,
         },
         item_durability: None,
+        inventory_items: None,
+        currencies: None,
         resurrection_sickness: None,
         ghost_wisp: None,
         spells: None,

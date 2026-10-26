@@ -707,7 +707,7 @@ async fn resurrection_original_caster_attribution_keeps_spell_go_self_identity()
             },
             SpellCastMetadata {
                 cast_flags: 0x0000_0001,
-                triggered_ignores_global_cooldown_like_cpp: true,
+                trigger_cast_flags_like_cpp: wow_entities::TRIGGERED_FULL_MASK_LIKE_CPP,
                 original_caster_guid: Some(resurrecter),
                 ..SpellCastMetadata::default()
             },

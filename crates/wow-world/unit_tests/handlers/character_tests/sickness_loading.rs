@@ -5,10 +5,10 @@ use std::sync::Arc;
 use wow_core::guid::HighGuid;
 use wow_packet::ServerPacket;
 
-#[path = "sickness_loading/selected_restore.rs"]
-mod selected_restore;
 #[path = "sickness_loading/selected_load.rs"]
 mod selected_load;
+#[path = "sickness_loading/selected_restore.rs"]
+mod selected_restore;
 #[path = "sickness_loading/selected_visual.rs"]
 mod selected_visual;
 
@@ -167,6 +167,12 @@ fn capture_player_save_request(
         hub.catalogs.spell_catalogs.spell_store().map(AsRef::as_ref),
         hub.catalogs.chr.races_store.as_deref(),
         hub.catalogs.difficulty_store.as_deref(),
+        hub.catalogs.items.effect_store.as_deref(),
+        hub.catalogs
+            .spell_catalogs
+            .spell_item_enchantment_store
+            .as_deref(),
+        hub.catalogs.currency_types_store().map(AsRef::as_ref),
     );
     owner
         .capture_like_cpp(lifecycle.player_save_session_inputs_like_cpp(1_700_000_000))
@@ -334,8 +340,8 @@ fn selected_sickness_recalculates_from_saved_base_and_publishes_full_aura() {
     let (mut session, player_guid, send_rx) =
         canonical_aura_session([sickness_catalog_info()], 15_007);
     install_sickness_visual(&mut session);
-    session.set_spell_aura_options_store(Arc::new(
-        wow_data::SpellAuraOptionsStore::from_entries([wow_data::SpellAuraOptionsEntry {
+    session.set_spell_aura_options_store(Arc::new(wow_data::SpellAuraOptionsStore::from_entries(
+        [wow_data::SpellAuraOptionsEntry {
             id: SICKNESS_SPELL_ID as u32,
             difficulty_id: 0,
             cumulative_aura: 0,
@@ -345,8 +351,8 @@ fn selected_sickness_recalculates_from_saved_base_and_publishes_full_aura() {
             spell_procs_per_minute_id: 0,
             proc_type_mask: [0; 2],
             spell_id: SICKNESS_SPELL_ID as u32,
-        }]),
-    ));
+        }],
+    )));
     let (mut row, effects) = sickness_rows(player_guid, 90_000);
     row.stack_count = 1;
     row.remain_charges = 0;
@@ -588,7 +594,10 @@ fn selected_initial_missing_cast_level_fails_without_a_partial_full_frame() {
 
     let (state, hub) = crate::session::split_spell_state_ref(&session);
     assert!(state.send_initial_player_auras_like_cpp(hub).is_err());
-    assert!(send_rx.try_recv().is_err(), "failure sends no full AuraUpdate");
+    assert!(
+        send_rx.try_recv().is_err(),
+        "failure sends no full AuraUpdate"
+    );
 }
 
 #[test]
@@ -618,7 +627,10 @@ fn selected_initial_unknown_race_row_fails_without_a_full_frame() {
 
     let (state, hub) = crate::session::split_spell_state_ref(&session);
     assert!(state.send_initial_player_auras_like_cpp(hub).is_err());
-    assert!(send_rx.try_recv().is_err(), "unknown race classification emits no frame");
+    assert!(
+        send_rx.try_recv().is_err(),
+        "unknown race classification emits no frame"
+    );
 }
 
 #[test]
@@ -641,7 +653,10 @@ fn selected_initial_lost_canonical_owner_fails_when_a_real_handle_remains() {
 
     let (state, hub) = crate::session::split_spell_state_ref(&session);
     assert!(state.send_initial_player_auras_like_cpp(hub).is_err());
-    assert!(send_rx.try_recv().is_err(), "lost canonical ownership emits no full frame");
+    assert!(
+        send_rx.try_recv().is_err(),
+        "lost canonical ownership emits no full frame"
+    );
 }
 
 #[test]

@@ -75,6 +75,8 @@ fn character_save_adapter_preserves_the_frozen_statement_order_like_cpp() {
                 durability: 81,
             },
         ]),
+        inventory_items: None,
+        currencies: None,
         resurrection_sickness: None,
         ghost_wisp: None,
         spells: Some(PlayerSpellSaveGroupLikeCpp::Complete {

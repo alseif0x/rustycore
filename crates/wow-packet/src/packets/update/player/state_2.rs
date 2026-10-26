@@ -706,8 +706,8 @@ impl PlayerCreateData {
         buf.write_int32(0);
 
         // NoReagentCostMask[4]
-        for _ in 0..4 {
-            buf.write_uint32(0);
+        for value in self.no_reagent_cost_mask {
+            buf.write_uint32(value);
         }
 
         // PetSpellPower

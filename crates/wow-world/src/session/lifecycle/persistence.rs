@@ -95,6 +95,13 @@ impl wow_world_lifecycle::PlayerSaveHostLikeCpp for WorldSession {
             .map(AsRef::as_ref);
         let chr_races_store = self.catalogs.chr.races_store.as_deref();
         let difficulty_store = self.catalogs.difficulty_store.as_deref();
+        let item_effect_store = self.catalogs.items.effect_store.as_deref();
+        let enchantment_store = self
+            .catalogs
+            .spell_catalogs
+            .spell_item_enchantment_store
+            .as_deref();
+        let currency_types_store = self.catalogs.currency_types_store.as_deref();
         wow_world_lifecycle::PlayerSaveParticipantsLikeCpp {
             lifecycle: &mut self.lifecycle,
             operation: self.core.player_save_operation_access_like_cpp(
@@ -102,6 +109,9 @@ impl wow_world_lifecycle::PlayerSaveHostLikeCpp for WorldSession {
                 spell_store,
                 chr_races_store,
                 difficulty_store,
+                item_effect_store,
+                enchantment_store,
+                currency_types_store,
             ),
         }
     }

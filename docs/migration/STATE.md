@@ -83,8 +83,11 @@ World cases. A subsequent recovery integration retains the native operation
 through corpse deletion, save acknowledgement, login and transfer completion,
 and prevents retirement while recovery is unresolved. Its scoped feedback
 covers 77 distinct World cases, including 33 new recovery cases, and the
-Server composition compiles. Native-death integration, complete resurrection
-cast participants and final acceptance remain open.
+Server composition compiles. Normal Player casts now connect pre-GO costs,
+native cooldowns and physical-item consumption to the existing save owners;
+45 distinct focused cases and Server compilation provide coding feedback.
+The common resurrection obtain phase and complete SelfRes effect integration
+remain open, alongside native-death integration and final acceptance.
 
 Four blocks remain within the same macro:
 
@@ -2690,6 +2693,78 @@ This is an UNVALIDATED local macro checkpoint. The sibling sickness full-save
 entry gate, native-death integration, normal SelfRes/obtain casts, QA and
 complete candidate acceptance remain open. No runtime installation, SQL,
 restart, fresh capture, publication or issue closure was performed.
+
+Normal Player cast pre-GO participants, 2026-10-26, base
+`4ef33343d954860996c0f86751bbde3384db0bf8` plus working inputs:
+Application owns resource/cooldown choreography before GO; Spell retains pure
+policy and Entities retains canonical inventory, currency and SpellHistory.
+Physical-item charges are consumed at the Source hit-delay/channel phase,
+with live facts read again there. Consumed New and persisted items remain
+Removed until the existing save/delete acknowledgement permits retirement.
+The same full-save DTO and transaction carry costs, currencies and charges.
+Native cooldown timestamps use the persisted Unix clock domain. Default
+StartCooldown publication is distinct from SendCooldownEvent. Cast-item GUID
+and actor CasterUnit remain distinct, and normal OriginalCastId is empty.
+
+NoReagentCostMask has one native owner, owner update projection and aura-256
+apply/remove/load consumers. Item destruction removes obtain spell families
+and the first OnLooted spell for that physical item. ItemEffect iteration and
+first-match cooldown lookup follow ascending DB2 record ID, not legacy slot
+or HashMap order. Normal and selected FULL trigger contracts remain separate.
+
+Source anchors at pinned `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+Spell.cpp:3819–3842,5310–5380,5504–5556,7306–7376,8857;
+SpellHistory.cpp:279,504–525,529,670–689 and SpellHistory.h:49;
+Player.cpp:8503–8520,11712,24706–24724;
+SpellAuraEffects.cpp:4628–4643; SpellDefines.h:479;
+DB2Stores.cpp:1193–1194, DB2Store.h:86, DBStorageIterator.h:49–58 and
+ObjectMgr.cpp:3331–3333. SpellInfo.h:389–390 and SpellInfo.cpp:1144–1195,1726
+establish known absent Misc defaults, separately from unavailable catalogs.
+Production owners include Application `player_spell_costs`, Spell
+`player_cast/normal_costs` and execution hooks, Entities item/save owners,
+Persistence DTOs, Database save plans and Server acquisition composition.
+
+Sequential worker coding feedback used `PROTOC=/home/ubuntu/.local/protoc/bin/protoc`,
+`CARGO_BUILD_JOBS=1`, `CARGO_TARGET_DIR=/home/server/rustycore/target`:
+
+| Cargo command | Log prefix | UTC interval | Result |
+| --- | --- | --- | --- |
+| `check -p wow-entities --lib` | 02 | 22:30:08–22:30:15 | exit 0 |
+| `test -p wow-entities normal_` | 04 | 22:30:55–22:31:16 | 6 relevant + 1 unrelated, exit 0 |
+| `test -p wow-entities consumed_new_item_survives_inflight_insert_until_delete_acknowledges` | 05 | 22:31:21–22:31:22 | 1 passed |
+| `test -p wow-data category_tests` | 10 | 22:33:51–22:34:47 | 11 passed |
+| `test -p wow-data payload_tests` | 11 | 22:35:20–22:35:21 | 6 passed |
+| `check -p wow-data --lib` | 27 | 22:57:42–22:57:46 | exit 0 |
+| `test -p wow-data item_effect_views_preserve_record_order_for_first_matching_spell` | 28 | 22:57:50–22:58:35 | 1 passed |
+| `check -p wow-world-spell --lib` | 30 | 22:59:25–22:59:27 | exit 0 |
+| `test -p wow-world-spell normal_` | 31 | 22:59:31–23:00:20 | 14 passed |
+| `test -p wow-world-spell item_spell_removal_selects_only_the_matching_spell_and_physical_item` | 32 | 23:00:28 | 1 passed |
+| `check -p wow-world-application --lib` | 33 | 23:00:40–23:00:50 | exit 0 |
+| `test -p wow-world-application item_removal_` | 34 | 23:00:53–23:01:13 | 3 passed |
+| `check -p wow-world --lib` | 35 | 23:01:24–23:01:27 | exit 0 |
+| `test -p wow-world server_normal_` | 36 | 23:01:31–23:05:46 | 2 passed |
+| `check -p world-server --bin world-server` | 37 | 23:08:43–23:13:28 | exit 0 |
+
+Logs remain in `/tmp/rustycore-normal-resurrection-casts-logs`. The parent
+verified 45 distinct relevant identities: Entities 7, Data 18, Spell 15,
+Application 3, World 2. Zero-test targets and the unrelated creature case are
+not credited. Failed iterations 01,03,06,08,09,12,14,15,16,18,20,21,23,24,26,29
+retain exit 101 and their actual failures; repeated passes are not added.
+The 22:29:16–23:13:28 coding/repair interval is 2652 seconds, not final
+acceptance or evidence of the ordinary 600-second campaign target.
+
+The parent verified all 114 changed inputs (102 tracked, 12 new), without
+uncovered or unchanged paths. `owned-inputs.sha256` digest is
+`e3194ac05f34b2a61e7f4c55a0e2cfb91c7cbbc3f99db922826a8c5771e9d060`;
+the tracked binary diff digest is
+`c613324452ea12389e920d74af30c24891782f7b6d5420bfabfdce2f496818cf`.
+These identify working inputs at the stated base, not testing of a later
+commit. Effective model/effort telemetry is unavailable.
+
+This is an UNVALIDATED local macro checkpoint. Full common resurrection
+obtain integration, SelfRes execution, native-death participants, the sibling
+sickness save gate, QA and final acceptance remain open. No real DB durability,
+runtime, fresh capture, publication or issue completion is established.
 
 Native resurrection error consumers, 2026-10-26, base `04583b7d3`:
 `resurrect_player_like_cpp` now returns the error already produced by the

@@ -4,7 +4,7 @@ mod checked_rows;
 
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result, anyhow};
 use wow_persistence::{
     BattlePetSpeciesHotfixPersistenceRowLikeCpp, PersistenceFutureLikeCpp,
     ServersideSpellEffectPersistenceRowLikeCpp, ServersideSpellPersistenceRowLikeCpp,
@@ -13,7 +13,8 @@ use wow_persistence::{
     SpellCustomAttributePersistenceRowLikeCpp, SpellEffectHotfixPersistenceRowLikeCpp,
     SpellLearnSpellHotfixPersistenceRowLikeCpp, SpellLearnSpellWorldPersistenceRowLikeCpp,
     SpellLevelsHotfixPersistenceRowLikeCpp, SpellMiscHotfixPersistenceRowLikeCpp,
-    SpellReagentsPersistenceRowLikeCpp, SummonPropertiesHotfixPersistenceRowLikeCpp,
+    SpellReagentsCurrencyPersistenceRowLikeCpp, SpellReagentsPersistenceRowLikeCpp,
+    SummonPropertiesHotfixPersistenceRowLikeCpp,
     TalentHotfixPersistenceRowLikeCpp, TrainerSpellAuditPersistenceCatalogLikeCpp,
 };
 
@@ -43,6 +44,7 @@ const SPELL_REAGENTS_SQL: &str = concat!(
     "ReagentCount3, ReagentCount4, ReagentCount5, ReagentCount6, ",
     "ReagentCount7, ReagentCount8 FROM spell_reagents WHERE (`VerifiedBuild` > 0) = ?"
 );
+const SPELL_REAGENTS_CURRENCY_SQL: &str = "SELECT ID, SpellID, CurrencyTypesID, CurrencyCount FROM spell_reagents_currency WHERE (`VerifiedBuild` > 0) = ?";
 
 fn raw_i64_like_cpp(result: &SqlResult, column: usize) -> Option<i64> {
     result
@@ -58,6 +60,55 @@ fn raw_i64_like_cpp(result: &SqlResult, column: usize) -> Option<i64> {
         .or_else(|| result.try_read::<u32>(column).map(i64::from))
         .or_else(|| result.try_read::<u16>(column).map(i64::from))
         .or_else(|| result.try_read::<u8>(column).map(i64::from))
+}
+
+fn required_i32_like_cpp(result: &SqlResult, column: usize, field: &str) -> Result<i32> {
+    let raw = raw_i64_like_cpp(result, column)
+        .ok_or_else(|| anyhow!("missing or unsupported numeric value for {field}"))?;
+    i32::try_from(raw).with_context(|| format!("{field} is outside the signed 32-bit range"))
+}
+
+fn required_i16_like_cpp(result: &SqlResult, column: usize, field: &str) -> Result<i16> {
+    let raw = raw_i64_like_cpp(result, column)
+        .ok_or_else(|| anyhow!("missing or unsupported numeric value for {field}"))?;
+    i16::try_from(raw).with_context(|| format!("{field} is outside the signed 16-bit range"))
+}
+
+fn required_u32_like_cpp(result: &SqlResult, column: usize, field: &str) -> Result<u32> {
+    if let Some(value) = result.try_read::<u32>(column) {
+        return Ok(value);
+    }
+    let raw = raw_i64_like_cpp(result, column)
+        .ok_or_else(|| anyhow!("missing or unsupported numeric value for {field}"))?;
+    u32::try_from(raw).with_context(|| format!("{field} is outside the unsigned 32-bit range"))
+}
+
+fn required_u16_like_cpp(result: &SqlResult, column: usize, field: &str) -> Result<u16> {
+    let raw = raw_i64_like_cpp(result, column)
+        .ok_or_else(|| anyhow!("missing or unsupported numeric value for {field}"))?;
+    u16::try_from(raw).with_context(|| format!("{field} is outside the unsigned 16-bit range"))
+}
+
+fn required_spell_id_like_cpp(result: &SqlResult, column: usize, field: &str) -> Result<i32> {
+    if let Some(value) = result.try_read::<u32>(column) {
+        return Ok(value as i32);
+    }
+    required_i32_like_cpp(result, column, field)
+}
+
+fn required_array_like_cpp<T, const N: usize>(
+    mut read: impl FnMut(usize, &str) -> Result<T>,
+    first_column: usize,
+    field: &str,
+) -> Result<[T; N]>
+where
+    T: Copy + Default,
+{
+    let mut values = [T::default(); N];
+    for (index, value) in values.iter_mut().enumerate() {
+        *value = read(first_column + index, &format!("{field}{}", index + 1))?;
+    }
+    Ok(values)
 }
 
 fn f32_bits_like_cpp(result: &SqlResult, column: usize) -> Option<u32> {
@@ -220,10 +271,51 @@ async fn load_spell_reagents_like_cpp(
     }
     loop {
         rows.push(SpellReagentsPersistenceRowLikeCpp {
-            id: result.try_read(0).unwrap_or(0),
-            spell_id: result.try_read(1).unwrap_or(0),
-            reagent: std::array::from_fn(|i| result.try_read(2 + i).unwrap_or(0)),
-            reagent_count: std::array::from_fn(|i| result.try_read(10 + i).unwrap_or(0)),
+            id: required_u32_like_cpp(&result, 0, "spell_reagents.ID")?,
+            spell_id: required_spell_id_like_cpp(&result, 1, "spell_reagents.SpellID")?,
+            reagent: required_array_like_cpp(
+                |column, field| required_i32_like_cpp(&result, column, field),
+                2,
+                "spell_reagents.Reagent",
+            )?,
+            reagent_count: required_array_like_cpp(
+                |column, field| required_i16_like_cpp(&result, column, field),
+                10,
+                "spell_reagents.ReagentCount",
+            )?,
+        });
+        if !result.next_row() {
+            break;
+        }
+    }
+    Ok(rows)
+}
+
+async fn load_spell_reagents_currency_like_cpp(
+    db: &HotfixDatabase,
+    official: bool,
+) -> Result<Vec<SpellReagentsCurrencyPersistenceRowLikeCpp>> {
+    let mut statement = db.prepare(HotfixStatements::base(SPELL_REAGENTS_CURRENCY_SQL));
+    statement.set_bool(0, official);
+    let mut result = db.query(&statement).await?;
+    let mut rows = Vec::with_capacity(result.count());
+    if result.is_empty() {
+        return Ok(rows);
+    }
+    loop {
+        rows.push(SpellReagentsCurrencyPersistenceRowLikeCpp {
+            id: required_u32_like_cpp(&result, 0, "spell_reagents_currency.ID")?,
+            spell_id: required_u32_like_cpp(&result, 1, "spell_reagents_currency.SpellID")?,
+            currency_types_id: required_u16_like_cpp(
+                &result,
+                2,
+                "spell_reagents_currency.CurrencyTypesID",
+            )?,
+            currency_count: required_u16_like_cpp(
+                &result,
+                3,
+                "spell_reagents_currency.CurrencyCount",
+            )?,
         });
         if !result.next_row() {
             break;
@@ -394,6 +486,20 @@ impl SpellAcquisitionStartupPersistencePortLikeCpp
     > {
         Box::pin(async move {
             classify_like_cpp(load_spell_reagents_like_cpp(&self.hotfix_db, official).await)
+        })
+    }
+
+    fn load_spell_reagents_currency_overlay_like_cpp(
+        &self,
+        official: bool,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellAcquisitionStartupLoadOutcomeLikeCpp<Vec<SpellReagentsCurrencyPersistenceRowLikeCpp>>,
+    > {
+        Box::pin(async move {
+            classify_like_cpp(
+                load_spell_reagents_currency_like_cpp(&self.hotfix_db, official).await,
+            )
         })
     }
 }

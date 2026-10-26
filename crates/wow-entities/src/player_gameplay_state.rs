@@ -119,6 +119,8 @@ pub struct PlayerGameplayState {
     pub achievement_criteria: Vec<PlayerAchievementCriteriaRecord>,
     /// C++ `Player::_currencyStorage`, including its per-row persistence state.
     pub currencies: HashMap<u32, PlayerCurrency>,
+    /// True only after the matching character currency query completed.
+    pub currencies_loaded_like_cpp: bool,
     pub spell_cooldowns: Vec<PlayerSpellCooldownRecord>,
     pub spell_charges: Vec<PlayerSpellChargeRecord>,
     pub rest: PlayerRestState,
@@ -285,6 +287,7 @@ pub enum PlayerResurrectionPhase {
     ResurrectPlayerReady,
     ResurrectPlayerInFlight,
     VisibilityInFlight,
+    ObtainSpellsInFlight,
     ApplyRequestValues,
     AuraInFlight,
     BonesInFlight,

@@ -42,6 +42,7 @@ pub async fn resurrect_player_like_cpp<H: CorpseHostLikeCpp>(
         return Err(reason);
     }
     finish_resurrection_visibility(host, catalogs).await;
+    host.cast_all_obtain_spells_like_cpp(catalogs).await?;
     if apply_sickness {
         apply_resurrection_sickness(host, catalogs).await;
     }

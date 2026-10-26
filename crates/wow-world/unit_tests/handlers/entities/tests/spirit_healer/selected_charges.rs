@@ -252,7 +252,7 @@ pub(super) async fn cast_full_selected_spell(
         spell_id,
         target_guid,
         wow_entities::SpellCastMetadata {
-            triggered_ignores_global_cooldown_like_cpp: true,
+            trigger_cast_flags_like_cpp: wow_entities::TRIGGERED_FULL_MASK_LIKE_CPP,
             original_caster_guid,
             ..Default::default()
         },
