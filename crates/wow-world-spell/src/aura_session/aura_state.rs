@@ -505,11 +505,6 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
             authority_complete = false;
             break;
         };
-        let spell_visual_id = represented_aura_visual_without_caster_like_cpp(
-            row.spell_id,
-            row.difficulty,
-            &host.hub_ref().config.creature_aggro_config_like_cpp,
-        );
         let (aura_flags, provenance) = if selected {
             let Some(metadata) = selected_metadata.as_ref() else {
                 authority_complete = false;
@@ -523,13 +518,17 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
                 caster_guid,
                 active_effect_mask,
                 cast_id,
-                spell_visual_id,
             ) else {
                 authority_complete = false;
                 continue;
             };
             creation
         } else {
+            let spell_visual_id = represented_aura_visual_without_caster_like_cpp(
+                row.spell_id,
+                row.difficulty,
+                &host.hub_ref().config.creature_aggro_config_like_cpp,
+            );
             let positive = wow_data::represented_spell_is_positive_like_cpp(spell_info);
             let mut flags = if positive {
                 AFLAG_POSITIVE

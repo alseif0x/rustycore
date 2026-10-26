@@ -478,6 +478,7 @@ fn selected_load_expiry_uses_whole_debuff_polarity_without_caster_resolution() {
     for effect in &mut saved {
         effect.amount = 50;
     }
+    session.set_creature_aggro_config_like_cpp(Default::default());
 
     assert_eq!(
         session.load_represented_character_auras_like_cpp([aura], saved, 60),

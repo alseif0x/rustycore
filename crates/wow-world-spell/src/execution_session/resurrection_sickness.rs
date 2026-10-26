@@ -94,7 +94,7 @@ pub(super) fn apply_resurrection_sickness_aura<H: SpellExecutionHostLikeCpp>(
     caster_guid: ObjectGuid,
     spell_info: &wow_data::SpellInfo,
     cast_id: ObjectGuid,
-    spell_visual_id: u32,
+    _spell_visual_id: u32,
     remaining_ms: Option<u32>,
 ) -> Result<(), &'static str> {
     let spell_id_u32 =
@@ -175,7 +175,6 @@ pub(super) fn apply_resurrection_sickness_aura<H: SpellExecutionHostLikeCpp>(
         spell_info,
         active_effect_mask,
         cast_id,
-        spell_visual_id,
     );
 
     host.apply_resurrection_sickness_aura(

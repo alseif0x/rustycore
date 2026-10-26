@@ -14,7 +14,6 @@ pub(super) fn prepare<H: SpellExecutionHostLikeCpp>(
     spell_info: &wow_data::SpellInfo,
     active_effect_mask: u32,
     cast_id: ObjectGuid,
-    spell_visual_id: u32,
 ) -> Result<(u32, wow_entities::AuraCastProvenanceLikeCpp), &'static str> {
     host.player_guid()
         .ok_or("Missing canonical Player for selected aura creation")?;
@@ -50,6 +49,5 @@ pub(super) fn prepare<H: SpellExecutionHostLikeCpp>(
         caster_guid,
         active_effect_mask,
         cast_id,
-        spell_visual_id,
     )
 }

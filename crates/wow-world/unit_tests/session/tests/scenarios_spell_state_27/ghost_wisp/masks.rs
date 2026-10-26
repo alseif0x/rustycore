@@ -101,7 +101,7 @@ fn aura_authority(fixture: &GhostFixture) -> bool {
 }
 
 #[tokio::test]
-async fn loaded_ghost_speed_subset_uses_active_sign_and_does_not_set_ghost_flag() {
+async fn loaded_ghost_speed_subset_obeys_spell_debuff_and_does_not_set_ghost_flag() {
     let mut fixture = fixture();
     set_authority(&mut fixture, true);
     let row = aura_row(GHOST, fixture.player, ObjectGuid::EMPTY, 0b110, 0);
@@ -120,14 +120,14 @@ async fn loaded_ghost_speed_subset_uses_active_sign_and_does_not_set_ghost_flag(
     };
     assert_eq!(ghost.effect_mask, 0b110);
     assert_eq!(
-        ghost.aura_flags & 0x0100,
-        0x0100,
-        "active speed effects are positive"
+        ghost.aura_flags,
+        0x0011,
+        "SpellInfo AURA_IS_DEBUFF precedes the speed aura effect polarity",
     );
     assert_eq!(
         ghost.aura_flags & 0x0002,
-        0x0002,
-        "positive selected aura is cancelable"
+        0,
+        "a debuff Aura is not cancelable",
     );
     assert!(
         !is_ghost_flag_set(&fixture),

@@ -36,6 +36,7 @@ mod selected_lifetime;
 mod selected_load;
 mod selected_metadata;
 mod selected_reaction;
+mod selected_visual;
 mod sources;
 
 pub use application::*;
@@ -61,6 +62,10 @@ pub use sources::*;
 #[cfg(test)]
 #[path = "../../unit_tests/aura_session/selected_caster.rs"]
 mod selected_caster_tests;
+
+#[cfg(test)]
+#[path = "../../unit_tests/aura_session/selected_visual.rs"]
+mod selected_visual_tests;
 
 #[cfg(test)]
 #[path = "../../unit_tests/aura_session/selected_flags.rs"]

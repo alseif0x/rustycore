@@ -26,8 +26,10 @@ load effects, whole-spell offline polarity, full-width charge normalization,
 and the shared fresh constructor. 9i3C3d4f adds effective condition-row presence
 and its startup/session composition. 9i3C3d4g adds exact visual metadata,
 complete effect/visual file loading, override-potential queries, and server
-catalog composition. Actual visual consumers and fresh/refresh charges remain
-pending, including their remaining effective scalar inputs.
+catalog composition. 9i3C3d4h connects those visuals to fresh selected Aura
+construction and loading, including canonical preworld owner context and
+preservation of signed wire bits. Cast visual preparation and fresh/refresh
+charges remain pending, including their remaining effective scalar inputs.
 The integration adds neither another clock nor another Player authority.
 
 Four blocks remain within the same macro:
@@ -1503,6 +1505,67 @@ ceiling from 5,664 to 5,665 with the same #43 final-architecture review expiry.
 No architecture baseline was regenerated. This remains a local UNVALIDATED
 checkpoint, not final acceptance or authorization for runtime/publication.
 
+9i3C3d4h connects the selected Aura constructor and persisted load to exact visual
+selection. It resolves the raw caster through the canonical Player/assigned Map,
+keeps physical Player versus Creature/Pet condition semantics, and checks both
+regular and accepted server-side override potential for a resolved caster.
+Needed unknown predicates or active override ordering remain unavailable.
+NoCaster skips Unit override checks; known empty visual rows yield zero.
+Flags, caster level, and visual leave one existing MapManager guard as owned
+values, without packet delivery or await under that guard. The Aura independently
+selects its visual instead of copying the supplied cast visual, retaining every
+uint32 bit in its signed provenance and AuraUpdate field. Matching refresh keeps
+the original provenance even when fresh-constructor facts are unavailable.
+Selected load prepares these facts before conflict removal; offline expiry
+still precedes caster/visual requirements. The legacy caster-free visual helper
+now belongs only to the nonselected load branch.
+
+Canonical detached targets with an assigned existing Map can resolve a foreign
+caster before admission. An active target outside the world retains its existing
+positive lookup case when its canonical Map member and assignment agree.
+Explicit residence diagnostics distinguish these cases from inconsistent bodies;
+there is no full-map scan or change to cast-identity admission. Source anchors
+at the pinned reference are SpellAuras.cpp:110–161,398–410,463–468,
+ObjectAccessor.cpp:206–213,236–238, Object.h:604, Unit.cpp:13548–13563,
+SpellInfo.cpp:4446–4464 and Spell.cpp:9283–9286. Ghost/Wisp fixture expectations
+now retain Source's DEBUFF precedence, including an inactive Ghost effect;
+this corrects stale tests rather than introducing another polarity rule.
+
+On `8d0fe9b4a` plus the reviewed delta, sequential aarch64/jobs=1 worker coding
+feedback passed `cargo check -p wow-world-spell` and 121 distinct cases:
+Spell library filters `selected_caster` (14), `selected_visual` (8), and World
+library filters `sickness_loading` (32), `selected_creation` (5),
+`selected_execution_effects` (5), `selected_cast_threat` (6), `ghost_wisp` (46),
+and the affected corpse fixture's `reclaim_corpse` (5).
+Tests used `cargo test -p <crate> --lib <filter>`, the checkout-local target,
+and the configured local PROTOC. New coverage includes raw-difficulty fallback,
+priority, real condition ID zero, known absence versus unknown catalogs,
+override holds before removal, detached foreign casters, constructor independence,
+high visual bits in actual AuraUpdate, and refresh provenance.
+
+Raw logs and actual exit files use `/tmp/rustycore-43-aura-visual-` with final
+suffixes `cargo-check-wow-world-spell-repair-3`,
+`test-wow-world-spell-selected-caster-repair-3`,
+`test-wow-world-spell-selected-visual-final-1`,
+`test-wow-world-sickness-loading-final-3`,
+`test-wow-world-selected-creation-1`,
+`test-wow-world-selected-execution-effects-1`,
+`test-wow-world-selected-cast-threat-1`, `test-wow-world-ghost-wisp-final-2`,
+and `test-wow-world-reclaim-corpse-1`.
+All record exit zero. Earlier logs retain the owner-context and group-fixture
+failures, two fixture type errors, a missing visual fixture, and stale Ghost/Wisp
+expectations. These coding/repair costs are not a final acceptance campaign.
+The parent reviewed the actual diff and retained the original preworld positive
+test. Worker-role spawn evidence is retained; exact runtime variant/effort
+self-telemetry remains unavailable.
+
+Physical review: the private visual consumer is 88 lines, its Spell tests 414,
+and new World test children 162 and 117. The existing load-test root is 1,043
+after bounded catalog-fixture/registration changes; the new scenarios remain
+in children. Cast visual preparation, effective scalar/charge inputs, native
+lifecycle work, normal casts, QA and macro acceptance remain required. This is
+a local UNVALIDATED checkpoint, with no runtime/capture or publication claim.
+
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes
 (`SpellAuras.cpp:778–825`, `Unit.cpp:2836–2877`). El barrido Rust actual usa
@@ -1871,6 +1934,13 @@ assigned Map while preserving handle, residence, map, and active-member
 consistency checks. Self and non-Unit caster fast paths stay independent of Map
 membership. Add actual detached-owner/foreign-caster tests before claiming this
 load path complete; the earlier active-owner tests do not establish it.
+The existing active-owner test also preserves foreign-caster lookup while the
+requester is out of world but still has its canonical Map member and assignment.
+Do not replace its positive expectation with an execution-admission rejection.
+Both residence-query APIs apply world-admission checks; use their explicit
+diagnostics with the borrowed canonical body and assigned Map to distinguish
+that case from an inconsistent active key or a detached assigned target.
+This metadata read needs neither a new residence API nor a scan of every Map.
 
 The visual consumer includes execution as well as loading. Spell.cpp:583 obtains
 the cast visual from the caster; Aura's constructor independently obtains its
@@ -1919,6 +1989,17 @@ existing core-spell Hotfix port, official/custom row replacement, and final
 removals. Source HotfixDatabase.cpp:1412–1416,1443–1446,1504–1506,1513–1516 owns
 their queries. Preserve each existing Data store and immutable session owner;
 no new persistence trait or parallel spell catalog is needed.
+
+The SQL decoder widths are fixed by DB2LoadInfo.h:4655–4673,4759–4775,
+4984–4994,5009–5024 at the pinned reference SHA. AuraOptions keeps signed
+32-bit recovery, charges, and proc masks; Levels keeps signed 16-bit base,
+maximum, and spell levels. ClassOptions reads its four class masks through
+signed 32-bit getters, then preserves those bits in the existing unsigned
+Data fields. Its SpellID is also signed; Label fields are unsigned 32-bit.
+Reuse the existing native-width Field getters and round-trip checks. Do not
+silently drop malformed rows or substitute zero for a failed conversion.
+The implementation must preserve C++ NULL-to-zero behavior separately from
+conversion failure, and fail startup before installing a partial catalog.
 
 Refresh charge calculation also belongs to the existing Aura's SpellInfo:
 SpellAuras.cpp:1088–1090 calls CalcMaxCharges without a caster on that Aura.

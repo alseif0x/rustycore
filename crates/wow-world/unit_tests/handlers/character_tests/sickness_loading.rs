@@ -9,6 +9,8 @@ use wow_packet::ServerPacket;
 mod selected_restore;
 #[path = "sickness_loading/selected_load.rs"]
 mod selected_load;
+#[path = "sickness_loading/selected_visual.rs"]
+mod selected_visual;
 
 const SICKNESS_SPELL_ID: i32 = 15_007;
 const SICKNESS_VISUAL_ROW_ID: u32 = 245_039;
@@ -134,6 +136,23 @@ fn canonical_aura_session(
         aura_options_rows,
     )));
     session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_ids([0])));
+    crate::session::install_condition_presence_catalog(
+        &mut session,
+        Arc::new(wow_data::ConditionPresenceCatalog::from_effective_ids(
+            [],
+            [],
+        )),
+    );
+    crate::session::install_serverside_spell_catalog(
+        &mut session,
+        Arc::new(wow_data::ServersideSpellStoreLikeCpp::default()),
+    );
+    session.set_creature_aggro_config_like_cpp(crate::session::CreatureAggroConfigLikeCpp {
+        spell_x_spell_visual_store: Some(Arc::new(wow_data::SpellXSpellVisualStore::from_entries(
+            [],
+        ))),
+        ..Default::default()
+    });
     wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true);
     (session, player_guid, send_rx)
 }
@@ -269,7 +288,7 @@ fn install_sickness_visual(session: &mut WorldSession) {
     });
 }
 
-fn full_aura_duration_pair(bytes: &[u8]) -> (u16, Option<i32>, Option<i32>) {
+fn full_aura_visual_duration_fields(bytes: &[u8]) -> (i32, u16, Option<i32>, Option<i32>) {
     let mut packet = wow_packet::WorldPacket::from_bytes(bytes);
     assert_eq!(
         packet.server_opcode(),
@@ -282,7 +301,7 @@ fn full_aura_duration_pair(bytes: &[u8]) -> (u16, Option<i32>, Option<i32>) {
     assert!(packet.read_bit().unwrap());
     let _cast_id = packet.read_packed_guid().unwrap();
     let _spell_id = packet.read_int32().unwrap();
-    let _visual_id = packet.read_int32().unwrap();
+    let visual_id = packet.read_int32().unwrap();
     let flags = packet.read_uint16().unwrap();
     let _active_flags = packet.read_uint32().unwrap();
     let _cast_level = packet.read_uint16().unwrap();
@@ -307,7 +326,7 @@ fn full_aura_duration_pair(bytes: &[u8]) -> (u16, Option<i32>, Option<i32>) {
     let _target = packet.read_packed_guid().unwrap();
     assert_eq!(packet.remaining(), 0);
     assert_eq!(has_duration, has_remaining);
-    (flags, duration, remaining)
+    (visual_id, flags, duration, remaining)
 }
 
 #[test]
@@ -506,6 +525,7 @@ fn selected_sickness_recalculates_from_saved_base_and_publishes_full_aura() {
 fn selected_initial_zero_duration_omits_the_duration_pair() {
     let (mut session, player_guid, send_rx) =
         canonical_aura_session([sickness_catalog_info()], SICKNESS_SPELL_ID);
+    install_sickness_visual(&mut session);
     let (row, effects) = sickness_rows(player_guid, 90_000);
     assert_eq!(
         session.load_represented_character_auras_like_cpp([row], effects, 30),
@@ -534,7 +554,8 @@ fn selected_initial_zero_duration_omits_the_duration_pair() {
         .send_initial_player_auras_like_cpp(hub)
         .expect("zero-duration selected aura has complete metadata");
     let bytes = send_rx.try_recv().expect("initial full aura frame");
-    let (flags, duration, remaining) = full_aura_duration_pair(&bytes);
+    let (visual_id, flags, duration, remaining) = full_aura_visual_duration_fields(&bytes);
+    assert_eq!(visual_id, SICKNESS_VISUAL_ROW_ID as i32);
     assert_eq!(flags & 0x4, 0);
     assert_eq!(duration, None);
     assert_eq!(remaining, None);

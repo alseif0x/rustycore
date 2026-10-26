@@ -62,7 +62,7 @@ pub(super) fn apply<H: SpellExecutionHostLikeCpp>(
     caster_guid: ObjectGuid,
     spell_info: &wow_data::SpellInfo,
     cast_id: ObjectGuid,
-    spell_visual_id: u32,
+    _spell_visual_id: u32,
 ) -> Result<(), &'static str> {
     if !is_ghost_wisp_spell(spell_id) {
         return Err("Spell is not a selected resurrection ghost aura");
@@ -137,7 +137,6 @@ pub(super) fn apply<H: SpellExecutionHostLikeCpp>(
         spell_info,
         effect_mask,
         cast_id,
-        spell_visual_id,
     );
 
     host.apply_ghost_wisp_aura(

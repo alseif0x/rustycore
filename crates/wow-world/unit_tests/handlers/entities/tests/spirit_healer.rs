@@ -26,6 +26,8 @@ mod selected_creation;
 mod selected_execution_effects;
 #[path = "spirit_healer/selected_lifetime.rs"]
 mod selected_lifetime;
+#[path = "spirit_healer/selected_visual.rs"]
+mod selected_visual;
 #[path = "spirit_healer/setup.rs"]
 mod setup;
 use setup::*;

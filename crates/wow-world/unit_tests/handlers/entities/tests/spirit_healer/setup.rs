@@ -214,6 +214,17 @@ pub(super) fn install_sickness_data(
         aura_options_rows,
     )));
     session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_ids([0])));
+    crate::session::install_condition_presence_catalog(
+        session,
+        Arc::new(wow_data::ConditionPresenceCatalog::from_effective_ids(
+            [],
+            [],
+        )),
+    );
+    crate::session::install_serverside_spell_catalog(
+        session,
+        Arc::new(wow_data::ServersideSpellStoreLikeCpp::default()),
+    );
     let visual_rows = visual_id
         .map(|spell_visual_id| wow_data::SpellXSpellVisualEntry {
             id: 245_039,

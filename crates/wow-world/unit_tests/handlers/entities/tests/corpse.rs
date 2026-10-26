@@ -961,6 +961,17 @@ fn install_release_cast_spell_fixture(session: &mut WorldSession) {
         ))),
         ..Default::default()
     });
+    crate::session::install_condition_presence_catalog(
+        session,
+        Arc::new(wow_data::ConditionPresenceCatalog::from_effective_ids(
+            [],
+            [],
+        )),
+    );
+    crate::session::install_serverside_spell_catalog(
+        session,
+        Arc::new(wow_data::ServersideSpellStoreLikeCpp::default()),
+    );
 }
 
 fn dead_player_session_on_map_with_optional_port(

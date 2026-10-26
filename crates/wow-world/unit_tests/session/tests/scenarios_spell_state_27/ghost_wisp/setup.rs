@@ -151,6 +151,17 @@ pub(super) fn install_spell_catalog(
     ])));
     session
         .set_spell_aura_options_store(Arc::new(wow_data::SpellAuraOptionsStore::from_entries([])));
+    crate::session::install_condition_presence_catalog(
+        session,
+        Arc::new(wow_data::ConditionPresenceCatalog::from_effective_ids(
+            [],
+            [],
+        )),
+    );
+    crate::session::install_serverside_spell_catalog(
+        session,
+        Arc::new(wow_data::ServersideSpellStoreLikeCpp::default()),
+    );
 }
 
 pub(super) fn install_wisp_templates(

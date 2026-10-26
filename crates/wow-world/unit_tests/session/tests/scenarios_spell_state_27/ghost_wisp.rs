@@ -807,16 +807,11 @@ fn login_aura_loader_applies_ghost_effects_from_supplied_rows() {
         .subsystems()
         .auras;
     assert_eq!(auras.runtime_applications_like_cpp().len(), 2);
-    // Login hydration keeps its current Wisp flag path until the loader is addressed.
+    // The modeled Ghost and Wisp SpellInfo rows both carry AURA_IS_DEBUFF.
     assert!(auras.runtime_applications_like_cpp().values().all(|aura| {
         aura.effect_mask == 0b111
             && aura.duration_total == -1
-            && aura.aura_flags
-                == if aura.spell_id == GHOST {
-                    0x0011
-                } else {
-                    0x0101
-                }
+            && aura.aura_flags == 0x0011
     }));
     assert_eq!(
         auras.total_aura_modifier_like_cpp(

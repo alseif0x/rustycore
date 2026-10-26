@@ -10,7 +10,7 @@ use wow_data::progression_rewards::{
 };
 use wow_data::reputation::ReputationRankLikeCpp;
 use wow_entities::{Creature, Player, Unit};
-use wow_map::{MapKey, MapManager, PlayerHandle, PlayerResidenceLikeCpp};
+use wow_map::{MapKey, MapManager, PlayerHandle, PlayerOwnerError, PlayerResidenceLikeCpp};
 use wow_world_core::session::{
     FactionReactionCatalogs, FactionReactionError, FactionReactionOwner,
     RepresentedGetReactionInputLikeCpp, resolve_faction_reaction,
@@ -110,6 +110,13 @@ pub(super) fn selected_owner_map(
     let key = context
         .map_key
         .ok_or(SelectedCasterLevelError::OwnerMapUnavailable)?;
+    let Some((current_owner, _)) = manager.current_player_admission_like_cpp(owner.guid()) else {
+        return Err(SelectedCasterLevelError::OwnerUnavailable);
+    };
+    if current_owner != owner {
+        return Err(SelectedCasterLevelError::OwnerUnavailable);
+    }
+    let residence = manager.checked_player_residence_like_cpp(owner);
     manager
         .with_player_like_cpp(owner, |player| {
             let world = player.unit().world();
@@ -119,12 +126,36 @@ pub(super) fn selected_owner_map(
             {
                 return Err(SelectedCasterLevelError::OwnerMapUnavailable);
             }
-            let member = manager
+            let managed = manager
                 .find_map(key.map_id, key.instance_id)
-                .and_then(|managed| managed.map().get_typed_player(owner.guid()))
                 .ok_or(SelectedCasterLevelError::OwnerMapUnavailable)?;
-            if !ptr::eq(player, member) {
-                return Err(SelectedCasterLevelError::OwnerUnavailable);
+            let member = managed.map().get_typed_player(owner.guid());
+            match residence {
+                Ok(PlayerResidenceLikeCpp::Active(residence_key)) if residence_key == key => {
+                    let member = member.ok_or(SelectedCasterLevelError::OwnerMapUnavailable)?;
+                    if !ptr::eq(player, member) {
+                        return Err(SelectedCasterLevelError::OwnerUnavailable);
+                    }
+                }
+                Err(PlayerOwnerError::ActivePlayerNotInWorld { guid })
+                    if guid == owner.guid()
+                        && !world.object().is_in_world()
+                        && member.is_some_and(|member| ptr::eq(player, member)) => {}
+                Err(PlayerOwnerError::DetachedPlayerStillBound {
+                    guid,
+                    key: bound_key,
+                }) if guid == owner.guid()
+                    && bound_key == key
+                    && !world.object().is_in_world() =>
+                {
+                    if member.is_some() {
+                        return Err(SelectedCasterLevelError::OwnerUnavailable);
+                    }
+                }
+                Ok(PlayerResidenceLikeCpp::Detached) => {
+                    return Err(SelectedCasterLevelError::OwnerUnavailable);
+                }
+                _ => return Err(SelectedCasterLevelError::OwnerUnavailable),
             }
             Ok(key)
         })

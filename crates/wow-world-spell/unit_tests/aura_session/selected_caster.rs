@@ -1,8 +1,9 @@
 use super::selected_caster::SelectedCasterLevelError;
 use super::*;
+use wow_constants::unit::UnitFlags;
 use wow_core::{ObjectGuid, Position};
 use wow_data::{DifficultyEntry, DifficultyStore, SpellLevelsEntry, SpellLevelsStore};
-use wow_entities::{Creature, MapObjectRecord, Player};
+use wow_entities::{Creature, MapObjectRecord, Player, PlayerGroupState};
 use wow_map::{MapKey, MapManager, PlayerHandle};
 
 const MAP: MapKey = MapKey::new(571, 0);
@@ -153,6 +154,93 @@ fn assigned_owner_need_not_be_in_world_to_resolve_same_map_player() {
     assert_eq!(
         selected_caster_level(&manager, owner, caster_guid, SPELL_ID, 0, None, None),
         Ok(52),
+    );
+}
+
+#[test]
+fn detached_owner_with_assigned_map_resolves_foreign_caster_level_and_reaction() {
+    let mut manager = manager_with_maps(&[MAP]);
+    let owner_guid = ObjectGuid::create_player(1, 91_032);
+    let owner = add_player(&mut manager, owner_guid, 70, None);
+    manager
+        .with_player_mut_like_cpp(owner, |player| {
+            player
+                .unit_mut()
+                .world_mut()
+                .set_map(MAP.map_id, MAP.instance_id)
+                .unwrap();
+        })
+        .unwrap();
+    let caster_guid = ObjectGuid::create_player(1, 91_033);
+    let caster = add_player(&mut manager, caster_guid, 52, Some(MAP));
+
+    assert_eq!(
+        selected_caster_level(&manager, owner, caster_guid, SPELL_ID, 0, None, None),
+        Ok(52),
+        "ObjectAccessor resolves a foreign caster through the detached target's assigned Map",
+    );
+
+    let group_guid = ObjectGuid::create_group(91_034);
+    for handle in [owner, caster] {
+        manager
+            .with_player_mut_like_cpp(handle, |player| {
+                player
+                    .unit_mut()
+                    .set_unit_flags_like_cpp(UnitFlags::PLAYER_CONTROLLED);
+                player.set_group_like_cpp(Some(PlayerGroupState {
+                    group_guid,
+                    leader_guid: owner_guid,
+                    role_mask: 0,
+                    subgroup: 0,
+                }));
+            })
+            .unwrap();
+    }
+    let known_empty_templates =
+        wow_data::progression_rewards::FactionTemplateStore::from_entries(
+            Vec::<wow_data::progression_rewards::FactionTemplateEntry>::new(),
+        );
+    assert_eq!(
+        selected_caster_is_friendly(
+            &manager,
+            owner,
+            caster_guid,
+            None,
+            Some(&known_empty_templates),
+            None,
+        ),
+        Ok(true),
+        "the same assigned Map context resolves the foreign caster's group relation",
+    );
+}
+
+#[test]
+fn active_owner_map_inconsistency_is_not_admitted_as_detached_assigned_context() {
+    let mut manager = manager_with_maps(&[MAP, OTHER_MAP]);
+    let owner_guid = ObjectGuid::create_player(1, 91_035);
+    let caster_guid = ObjectGuid::create_player(1, 91_036);
+    let owner = add_player(&mut manager, owner_guid, 70, Some(MAP));
+    add_player(&mut manager, caster_guid, 52, Some(MAP));
+    manager
+        .with_player_mut_like_cpp(owner, |player| {
+            player
+                .unit_mut()
+                .world_mut()
+                .object_mut()
+                .remove_from_world();
+            player.unit_mut().world_mut().reset_map().unwrap();
+            player
+                .unit_mut()
+                .world_mut()
+                .set_map(OTHER_MAP.map_id, OTHER_MAP.instance_id)
+                .unwrap();
+            player.unit_mut().world_mut().object_mut().add_to_world();
+        })
+        .unwrap();
+
+    assert_eq!(
+        selected_caster_level(&manager, owner, caster_guid, SPELL_ID, 0, None, None),
+        Err(SelectedCasterLevelError::OwnerUnavailable),
     );
 }
 
