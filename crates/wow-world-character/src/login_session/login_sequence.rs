@@ -807,7 +807,7 @@ pub async fn send_login_sequence<H: CharacterLoginHostLikeCpp>(
 
     // C++ `Player::LoadCorpse` runs after map insertion and before login is
     // published. Corpse restoration consumes only resurrection catalogs.
-    wow_world_entities::restore_player_corpse_after_login(
+    if let Err(reason) = wow_world_entities::restore_player_corpse_after_login(
         host,
         wow_world_entities::ResurrectionOperationCatalogs {
             item_guid_generator,
@@ -815,7 +815,12 @@ pub async fn send_login_sequence<H: CharacterLoginHostLikeCpp>(
         },
         persisted_corpse_location,
     )
-    .await;
+    .await
+    {
+        warn!(?guid, reason, "Login corpse restoration did not complete");
+        abort_partial_login_sequence_like_cpp(host);
+        return false;
+    }
 
     // C++ does not deliver SMSG_ON_MONSTER_MOVE inside the initial
     // enter-world packet burst. Rust fan-out commands are queued from a

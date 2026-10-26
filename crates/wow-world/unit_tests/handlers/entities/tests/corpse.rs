@@ -1168,7 +1168,7 @@ async fn spawn_corpse_bones_deletes_rows_and_leaves_bones_like_cpp() {
 
 #[tokio::test]
 async fn failed_bones_delete_disconnects_and_fences_immediate_resurrection() {
-    let (mut session, _send_rx, _realm_rx, player_guid, port) =
+    let (mut session, send_rx, _realm_rx, player_guid, port) =
         dead_player_session_with_graveyard_like_cpp(4_311);
     handle_repop_request(&mut session, repop_request_packet(true)).await;
     assert_eq!(
@@ -1192,6 +1192,7 @@ async fn failed_bones_delete_disconnects_and_fences_immediate_resurrection() {
         }
     ));
 
+    let _release_packets: Vec<_> = send_rx.try_iter().collect();
     handle_resurrect_response(&mut session, resurrect_response_packet(resurrecter, 0)).await;
 
     assert_eq!(session.state(), crate::session::SessionState::Disconnecting);

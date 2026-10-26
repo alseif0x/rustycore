@@ -33,19 +33,19 @@ pub async fn resurrect_player_like_cpp<H: CorpseHostLikeCpp>(
     catalogs: ResurrectionOperationCatalogs<'_>,
     restore_percent: f32,
     apply_sickness: bool,
-) {
+) -> Result<(), &'static str> {
     if let Err(reason) = resurrect_player_native(host, restore_percent) {
         warn!(
             account = host.core().account_id,
-            reason,
-            "Native resurrection phase did not complete"
+            reason, "Native resurrection phase did not complete"
         );
-        return;
+        return Err(reason);
     }
     finish_resurrection_visibility(host, catalogs).await;
     if apply_sickness {
         apply_resurrection_sickness(host, catalogs).await;
     }
+    Ok(())
 }
 
 /// Synchronous half of C++ `Player::ResurrectPlayer`, through its value and
@@ -300,7 +300,12 @@ pub async fn reclaim_corpse_like_cpp<H: CorpseHostLikeCpp>(
     } else {
         0.5
     };
-    resurrect_player_like_cpp(host, catalogs.resurrection(), restore_percent, false).await;
+    if resurrect_player_like_cpp(host, catalogs.resurrection(), restore_percent, false)
+        .await
+        .is_err()
+    {
+        return false;
+    }
 
     // spawn bones
     crate::spawn_corpse_bones_like_cpp(host, catalogs.item_guid_generator, true).await;

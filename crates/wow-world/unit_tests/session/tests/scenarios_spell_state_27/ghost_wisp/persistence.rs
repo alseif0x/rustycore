@@ -679,7 +679,8 @@ async fn ghost_wisp_persistence_native_resurrection_reconciles_foreign_keys() {
         0.5,
         false,
     )
-    .await;
+    .await
+    .expect("native resurrection removes the loaded Ghost and Wisp applications");
 
     let after_resurrection =
         captured_families(&mut resurrected).expect("complete post-resurrection snapshot");

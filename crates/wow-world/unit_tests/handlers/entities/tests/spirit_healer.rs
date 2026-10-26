@@ -36,6 +36,8 @@ use selected_execution_effects::{
     cast_sickness, difficulty, effect_row, install_player_on_difficulty_map,
     selected_session_with_visual_inputs, selected_session_without_selected_spell_info_key,
 };
+#[path = "spirit_healer/native_outcome.rs"]
+mod native_outcome;
 #[path = "spirit_healer/selected_lifetime.rs"]
 mod selected_lifetime;
 #[path = "spirit_healer/selected_visual.rs"]

@@ -76,6 +76,11 @@ The existing Player Unit pass now maintains its native SpellHistory using a
 single frozen system-clock observation. The scoped history checkpoint records
 94 distinct cases; this does not complete SelfRes or final macro acceptance.
 The integration adds neither another clock nor another Player authority.
+Native resurrection errors now stop dependent reclaim, spirit-healer and
+login work, and the actual Character login consumer aborts on that error.
+The scoped checkpoint below records production compilation and 31 distinct
+World cases. Corpse-conversion uncertainty and the remaining recovery
+continuations still require their separate integration and acceptance.
 
 Four blocks remain within the same macro:
 
@@ -134,6 +139,30 @@ The current stat aura view also reads legacy base payloads, so a genuinely
 nonzero-only aura needs its exact component consumer reviewed before claiming
 stats parity. No new dependency edge or runtime callback was installed.
 
+Durability participant review at `04583b7d3`, 2026-10-26: the current
+WorldEntities combat command first admits Session state, Player/map identity
+and health revision, then calls Inventory's
+`publish_creature_melee_death_durability_loss_like_cpp`. Despite its name,
+that function mutates item durability before sending the death-loss message.
+Consequently, rejecting a presentation command can also skip the native
+penalty. The complete death operation must apply that penalty at the admitted
+Map mutation and return owned publication; it must not depend on Session
+delivery or call the owner-locking inventory/modifier accessors under that
+Map guard. Native Player inventory update and item-modifier action methods
+already exist, as do the borrowed stat planner and synchronous application
+described above. Their existence does not establish a complete borrowed
+durability participant or its persistence/publication integration.
+Pinned source Unit.cpp:10632–10652 sets PvP death before the penalty and
+selects PvE or the configured PvP branch. World.cpp:761 loads
+`DurabilityLoss.InPvP`; no corresponding Rust consumer was found in the
+inspected Server, Core or World domains. Player.cpp:4522–4562,4590–4620
+requires equipment-slot order, the aura multiplier, removal of broken-item
+mods before writing zero durability, and `ITEM_CHANGED`. The fall caller
+has a distinct source order and message percentage at Player.cpp:655–673;
+preserve it instead of applying the creature-kill message formula to all
+deaths. This is source/caller inspection only. No durability change, new
+acceptance result or runtime authority is claimed here.
+
 NoDeath quest failure is also an operation, not just a status assignment.
 Pinned Player.cpp:14928–14989 selects quest-log slots, accepts incomplete
 quests or the source's specific completed timed case, updates status/log and
@@ -161,6 +190,14 @@ preserve this operation and order; assigning FAILED and deleting items alone
 does not implement it. The inspected Player, Unit and SpellHandler source
 files have no local changes at that pin. No native death integration or new
 acceptance run is claimed by this review.
+The current Spell `aura_session/sources.rs` predicate only proves whether an
+unrepresented autocast could exist; Quest's completion record still marks
+spell-area execution and status scripts as unrepresented. Neither is an
+executor for this transition. In particular, the source's ordered `if` /
+`else if` in SendQuestUpdate checks fit for AUTOREMOVE, then selects AUTOCAST
+unless IGNORE_AUTOCAST_ON_QUEST_STATUS_CHANGE is set. Preserve that exact
+branching, including an AUTOCAST-only row, rather than substituting the
+conservative absence predicate as the execution rule.
 
 Quest-log authority refinement at `740b21234`, 2026-10-26: pinned
 Player.cpp:15983–15995 sets and removes individual `QuestLog::StateFlags`
@@ -199,7 +236,8 @@ propagation to the other consumers and the login caller. Preserve source
 inventing rollback for an earlier completed phase. Source resurrection order
 remains Player.cpp:4320–4403 and NPCHandler.cpp:347–370 at the pinned C++ SHA.
 These were inspected consumer gaps at this review point. The later Ghost/Wisp
-checkpoint records its focused repair; native-error propagation remains open.
+checkpoint records its focused repair; the later native-error checkpoint
+records the dependent consumer repair.
 This review itself claimed no new test or runtime acceptance.
 The failure signal also exists for corpse conversion:
 `spawn_corpse_bones_like_cpp` returns false for unavailable/unconfirmed deletion
@@ -222,8 +260,9 @@ must then abort its partially completed login instead of publishing completion.
 Keep ordinary triggered-cast failure semantics distinct: source
 ResurrectPlayer ignores the sickness CastSpell return, and login continues
 after its ghost-cast attempts. Do not turn those cast results into an invented
-rollback of an already completed Alive transition. This decision is not yet
-implemented and does not close the separate corpse-conversion fence above.
+rollback of an already completed Alive transition. The native-error checkpoint
+below records this implementation; the separate corpse-conversion fence above
+remains open.
 The concrete Ghost/Wisp regression run on `59f28568d`'s working candidate
 exposed two further metadata consumers. The first suite returned 46 passed
 and five new cases failed, exit 101 (2026-10-26, 15:18:52–15:23:34 UTC;
@@ -2569,6 +2608,82 @@ native-death integration, normal casts, QA and complete candidate acceptance
 remain open. The sickness save gate was inspected but was not changed by this
 Ghost/Wisp unit. No parent Cargo, runtime, SQL, restart, capture or publication
 was performed.
+
+Native resurrection error consumers, 2026-10-26, base `04583b7d3`:
+`resurrect_player_like_cpp` now returns the error already produced by the
+native phase. Reclaim returns false before bones on that error, and the
+spirit healer returns before durability loss, graveyard lookup, bones or
+teleport. Login corpse restoration returns an error before clearing
+AT_LOGIN_RESURRECT or restoring ghost auras; the actual Character login
+sequence invokes its existing partial-login abort and returns false.
+Missing canonical ownership is also reported by corpse restoration.
+The successful paths retain their previous order. Ordinary sickness and
+login ghost-cast failure remain ignored as in the source; no rollback of an
+already completed Alive transition is introduced. Login preserves the
+source's earlier bones-before-revive phase even when native revival fails.
+Request resurrection retains its existing nonreplayable native continuation.
+
+Source anchors are Player.cpp:4320–4403,18157–18180,
+NPCHandler.cpp:347–370, MiscHandler.cpp:416–445 and
+CharacterHandler.cpp:1227–1243 at pinned
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`. These source functions assume
+available native authority; this change propagates the port's existing
+explicit failure rather than claiming that C++ returns the same Result.
+The parent rechecked the affected Player, Unit, NPC and World source files;
+those files have no local changes at that pin.
+
+Focused coding feedback on this aarch64 host used
+`PROTOC=/home/ubuntu/.local/protoc/bin/protoc`, `CARGO_BUILD_JOBS=1` and
+`CARGO_TARGET_DIR=/home/server/rustycore/target`, sequentially:
+
+- `cargo check -p wow-world-character --lib`: exit 0,
+  16:34:16–16:34:24 UTC; the final production check also returned 0 at
+  16:46:36. This includes the actual Character login consumer.
+- `cargo test -p wow-world --lib resurrection`: exit 0,
+  17:01:09–17:02:33 UTC, 24 passed and no failures.
+- `cargo test -p wow-world --lib corpse_login`: exit 0,
+  17:02:48–17:02:49 UTC, seven passed and no failures.
+
+The two filters cover 31 distinct cases, including seven new native-outcome
+cases. They exercise failure and success through real canonical Player,
+corpse and inventory state, the login flag, and the existing request replay
+and save fences. The actual complete Character login failure sequence was
+compiled and reviewed, not exercised through a full login fixture or client.
+
+Raw evidence is retained in
+`/tmp/rustycore-resurrection-native-outcome-logs`. The first resurrection run
+and its rerun exited 101 after bounded SIGTERM of their verified test child;
+they were not passing runs. The first also exposed two new fixture mistakes:
+an Orc Ghost fixture incorrectly expected Wisp, and the healer's graveyard
+precondition resolved the default instead of the intended distinct grave.
+Those fixture corrections did not change production behavior. The remaining
+existing failed-bones case blocked synchronously before corpse deletion.
+The parent's detached GDB trace in `parent-gdb-stack.log` identifies
+`flume::Sender::send` from `SessionCore::send_packet`, reached through
+`resurrection_request::set_request_values`. Its unconsumed instance test
+channel had capacity 16. The test now captures its completed repop/ACK
+packet burst before handling resurrection, retaining every original failure,
+disconnect, owner-retention, duplicate-response and save-fence assertion.
+Production transport and persistence were unchanged. Temporary diagnostic
+markers and the diagnostic timeout/early return were removed before the
+passing run. GDB and its missing libraries were extracted under `/tmp` for
+this test inspection; no system package installation or live server action
+was performed.
+
+The parent reviewed the final production diff, callers and cases, and verified
+all nine implementation hashes in `sha256-manifest.txt`, manifest SHA-256
+`53af6724063da29757f82397c29d63106055090960567b3ed22f8c5e73ac47e0`.
+This binds the tested dirty inputs at the stated base; it does not relabel
+them as final evidence at a later committed SHA. The configured worker role
+was `luna_worker`; reported model telemetry identifies only GPT-6, with effort
+and effective role unavailable. No effective Luna claim is made. The 16:34:16–17:02:49
+feedback/repair interval is 1713 seconds, not a final acceptance campaign or
+proof of its 600-second ordinary performance target. The new test leaf has
+384 lines. This remains an UNVALIDATED local macro checkpoint. Unconfirmed
+corpse deletion/save, cancellation and transfer continuations, native death,
+normal casts, remaining selected metadata, QA and full final/live acceptance
+remain open. No runtime, SQL, restart, client capture, publication or merge
+was authorized or performed by this unit.
 
 Native SelfRes initializer participant, 2026-10-26, base `740b21234`:
 `wow-world-spell::initialize_self_resurrection_spells` borrows the canonical

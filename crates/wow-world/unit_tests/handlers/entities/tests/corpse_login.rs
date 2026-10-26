@@ -47,10 +47,10 @@ fn corpse_location_row(map_id: u16) -> PlayerCorpseLocationLoadRow {
     }
 }
 
-async fn restore_corpse(
+pub(super) async fn restore_corpse(
     session: &mut crate::session::WorldSession,
     row: Option<PlayerCorpseLocationLoadRow>,
-) {
+) -> Result<(), &'static str> {
     let generators = session.id_generators_for_test_like_cpp();
     let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
     wow_world_entities::restore_player_corpse_after_login(
@@ -61,7 +61,7 @@ async fn restore_corpse(
         },
         row,
     )
-    .await;
+    .await
 }
 
 fn maps_with_world_and_instance() -> Arc<MapStore> {
@@ -96,7 +96,9 @@ async fn alive_player_clears_stale_canonical_corpse_location_and_resurrect_flag(
         player.set_at_login_flags_like_cpp(AT_LOGIN_RESURRECT);
     });
 
-    restore_corpse(&mut session, Some(corpse_location_row(33))).await;
+    restore_corpse(&mut session, Some(corpse_location_row(33)))
+        .await
+        .expect("alive corpse login restoration completes");
 
     assert_eq!(
         wow_world_entities::player_corpse_location_like_cpp(&session),
@@ -118,7 +120,9 @@ async fn dead_player_restores_other_instance_corpse_and_clears_release_timer() {
         state.active_local_flags |= RELEASE_TIMER;
     });
 
-    restore_corpse(&mut session, Some(corpse_location_row(33))).await;
+    restore_corpse(&mut session, Some(corpse_location_row(33)))
+        .await
+        .expect("dead corpse location restoration completes");
 
     assert_eq!(
         wow_world_entities::player_corpse_location_like_cpp(&session),
@@ -130,9 +134,11 @@ async fn dead_player_restores_other_instance_corpse_and_clears_release_timer() {
         }),
         Some(0)
     );
-    assert!(crate::session::hub_ref(&session)
-        .player_movement_flags_like_cpp()
-        .contains(wow_constants::MovementFlag::WATER_WALK));
+    assert!(
+        crate::session::hub_ref(&session)
+            .player_movement_flags_like_cpp()
+            .contains(wow_constants::MovementFlag::WATER_WALK)
+    );
     let opcodes = std::iter::from_fn(|| send_rx.try_recv().ok())
         .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
         .collect::<Vec<_>>();
@@ -150,7 +156,9 @@ async fn dead_player_current_world_corpse_sets_release_timer() {
         state.active_local_flags &= !RELEASE_TIMER;
     });
 
-    restore_corpse(&mut session, Some(corpse_location_row(571))).await;
+    restore_corpse(&mut session, Some(corpse_location_row(571)))
+        .await
+        .expect("world corpse location restoration completes");
 
     assert_eq!(
         wow_world_entities::player_corpse_location_like_cpp(&session),
@@ -168,7 +176,9 @@ async fn dead_player_current_world_corpse_sets_release_timer() {
 async fn dead_player_without_corpse_keeps_location_empty() {
     let (mut session, _, _) = corpse_login_session(571, maps_with_world_and_instance(), true);
 
-    restore_corpse(&mut session, None).await;
+    restore_corpse(&mut session, None)
+        .await
+        .expect("missing corpse row retains the current login behavior");
 
     assert_eq!(
         wow_world_entities::player_corpse_location_like_cpp(&session),
@@ -187,7 +197,9 @@ async fn invalid_corpse_coordinates_do_not_replace_canonical_location() {
     let mut invalid = corpse_location_row(33);
     invalid.x = Some(f32::NAN);
 
-    restore_corpse(&mut session, Some(invalid)).await;
+    restore_corpse(&mut session, Some(invalid))
+        .await
+        .expect("invalid corpse row retains the current login behavior");
 
     assert_eq!(
         wow_world_entities::player_corpse_location_like_cpp(&session),
@@ -199,7 +211,9 @@ async fn invalid_corpse_coordinates_do_not_replace_canonical_location() {
 async fn corpse_row_for_unknown_map_does_not_create_a_location() {
     let (mut session, _, _) = corpse_login_session(571, maps_with_world_and_instance(), true);
 
-    restore_corpse(&mut session, Some(corpse_location_row(60_000))).await;
+    restore_corpse(&mut session, Some(corpse_location_row(60_000)))
+        .await
+        .expect("unknown corpse map retains the current login behavior");
 
     assert_eq!(
         wow_world_entities::player_corpse_location_like_cpp(&session),
@@ -214,7 +228,9 @@ async fn at_login_resurrect_ignores_saved_location_and_resurrects_player() {
         player.set_at_login_flags_like_cpp(AT_LOGIN_RESURRECT);
     });
 
-    restore_corpse(&mut session, Some(corpse_location_row(33))).await;
+    restore_corpse(&mut session, Some(corpse_location_row(33)))
+        .await
+        .expect("at-login resurrection completes with valid metadata");
 
     assert!(session.player_is_alive_like_cpp());
     assert_eq!(

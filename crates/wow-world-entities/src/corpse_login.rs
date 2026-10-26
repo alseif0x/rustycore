@@ -22,14 +22,14 @@ pub async fn restore_player_corpse_after_login(
     host: &mut impl CorpseHostLikeCpp,
     catalogs: ResurrectionOperationCatalogs<'_>,
     row: Option<wow_persistence::PlayerCorpseLocationLoadRow>,
-) {
+) -> Result<(), &'static str> {
     let Some((alive, resurrect_at_login)) = host.core().with_owned_player_like_cpp(|player| {
         (
             player.unit().is_alive(),
             player.persistent_capability_state_like_cpp().at_login_flags & AT_LOGIN_RESURRECT != 0,
         )
     }) else {
-        return;
+        return Err("Canonical Player is unavailable during corpse restoration");
     };
 
     if alive || resurrect_at_login {
@@ -38,7 +38,7 @@ pub async fn restore_player_corpse_after_login(
 
     if !alive {
         if resurrect_at_login {
-            resurrect_player_like_cpp(host, catalogs, 0.5, false).await;
+            resurrect_player_like_cpp(host, catalogs, 0.5, false).await?;
         } else if let Some((map_id, position, instanceable)) = corpse_location_from_row(host, row) {
             let installed = host.core().with_owned_player_mut_like_cpp(|player| {
                 player.resurrection_state_mut_like_cpp().corpse_location = Some((map_id, position));
@@ -56,10 +56,14 @@ pub async fn restore_player_corpse_after_login(
         }
     }
 
-    host.core().with_owned_player_mut_like_cpp(|player| {
+    let cleared_at_login_flag = host.core().with_owned_player_mut_like_cpp(|player| {
         player.remove_at_login_flags_like_cpp(AT_LOGIN_RESURRECT);
     });
+    if cleared_at_login_flag.is_none() {
+        return Err("Canonical Player disappeared before login corpse restoration completed");
+    }
     restore_ghost_auras(host, catalogs).await;
+    Ok(())
 }
 
 fn corpse_location_from_row(
