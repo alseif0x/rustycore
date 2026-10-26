@@ -204,7 +204,7 @@ pub(super) fn implicit_proc_aura_spell_type_mask_like_cpp(aura_type: i32) -> u32
 pub struct ImplicitSpellProcSourceLikeCpp {
     pub spell_id: u32,
     pub difficulty: u32,
-    pub spell_family_name: u16,
+    pub spell_family_name: u32,
     pub proc_flags: [u32; 2],
     pub proc_chance: f32,
     pub proc_cooldown_ms: u32,

@@ -39,6 +39,8 @@ and preserves canonical server effect slots and duplicate-parent semantics.
 for all 23 core catalog projections. 9i3C3d4j4 connects those four scalar stores
 to their existing startup positions and immutable owners.
 9i3C3d4k adds checked key/server/proc/Difficulty inputs and effective PPM loading.
+9i3C3d4l1 normalizes canonical server effect base points and preserves full-width
+native proc-family metadata.
 Exact proc source preparation and fresh/refresh charge consumers remain pending.
 The integration adds neither another clock nor another Player authority.
 
@@ -1856,6 +1858,46 @@ expiry. No architecture baseline was regenerated. Exact joint proc preparation,
 charge consumers, native lifecycle, normal casts, QA and final acceptance remain
 required. These modeled fixtures are not real SQL/runtime/capture evidence.
 This remains a local UNVALIDATED checkpoint.
+
+9i3C3d4l1 makes canonical server-effect base points int32, retaining raw float
+in the input row and SQL DTO. Fallible row conversion truncates valid fractions
+toward zero before the accepted effect vector is built; blank slots retain
+integer zero. Nonfinite values and values outside [-2147483648,2147483648)
+return the original row with BasePointsOutOfRange. This is an explicit defensive
+valid-input boundary for legacy undefined float-to-int conversions, not claimed
+parity for those invalid inputs. Radius warnings retain the raw row. Existing
+difficulty normalization, input order and duplicate-parent rules are unchanged.
+
+Native ProcEntry, ProcEventSpellInfo, ProcSource and ImplicitProcSource family
+fields and matching arguments are now uint32. SQL proc rows and their DTO remain
+uint16; entry construction widens their values without changing them. Regular
+ClassOptions class-set fields remain uint8. Source anchors at the pinned target
+are SpellMgr.cpp:2755, DB2Structure.h:3514, SpellInfo.cpp:407–435,
+SpellInfo.h:409,514, SpellMgr.h:317 and SpellMgr.cpp:1533. The parent reviewed
+those scalar boundaries and the actual Rust callers; no SQL or WorldServer
+consumer change is needed by this unit.
+
+On `21ae4503d` plus the reviewed delta, aarch64/jobs=1 coding feedback passed
+`cargo check -p wow-data` and library filters `serverside_effect_base_points`
+(3), `serverside_spell_effect_store_` (3), `spell_family_name_` (2), and
+`spell_proc_source_builds_from_loaded_spell_and_db2_stores_like_cpp` (1).
+These are nine distinct cases, including fractional signs, representable
+boundaries, NaN/infinity rejection, raw diagnostics, dense blank slots,
+full-family generated matching and unchanged SQL-family widening.
+
+Raw logs, real exit files, timings and the final patch are in
+`/tmp/rustycore-c3d4l1-logs/`. The five `*-candidate` check/filter logs exit
+zero; their Cargo-reported durations are 0.11s, 15.72s, 0.11s, 0.13s and 0.10s.
+The initial `test-serverside-effect-base-points` compile failure (101) is retained:
+a test moved its captured source from an FnMut closure, corrected before the
+passing candidate. Earlier successful working iterations are retained separately
+and add no distinct cases or acceptance verdict. The parent reviewed the diff,
+outcomes and all five code-file hashes without another Cargo run. Worker model
+and effort telemetry were unavailable. Physical review: corrections.rs is 792
+lines, catalog.rs 862, state_2.rs 699, the adjusted alias fixture 345, and spell_6
+tests 875. Exact joint proc preparation, charge consumers and the other macro
+blocks remain required. This is a local UNVALIDATED checkpoint, not final or
+runtime acceptance.
 
 La duración finita seleccionada requiere el mismo dueño: C++ descuenta
 `diff` en `Aura::Update` y retira expiradas antes de publicar pendientes

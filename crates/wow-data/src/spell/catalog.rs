@@ -146,7 +146,7 @@ impl SpellLinkedSpellInfoLikeCpp {
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpellProcEntryLikeCpp {
     pub school_mask: u8,
-    pub spell_family_name: u16,
+    pub spell_family_name: u32,
     pub spell_family_mask: [u32; 4],
     pub proc_flags: [u32; 2],
     pub spell_type_mask: u32,
@@ -164,7 +164,7 @@ impl SpellProcEntryLikeCpp {
     pub(super) fn from_row_like_cpp(row: &SpellProcRowLikeCpp) -> Self {
         Self {
             school_mask: row.school_mask,
-            spell_family_name: row.spell_family_name,
+            spell_family_name: u32::from(row.spell_family_name),
             spell_family_mask: row.spell_family_mask,
             proc_flags: row.proc_flags,
             spell_type_mask: row.spell_type_mask,
@@ -186,12 +186,12 @@ impl SpellProcEntryLikeCpp {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpellProcEventSpellInfoLikeCpp {
-    pub spell_family_name: u16,
+    pub spell_family_name: u32,
     pub spell_family_mask: [u32; 4],
 }
 
 impl SpellProcEventSpellInfoLikeCpp {
-    pub fn is_affected_like_cpp(&self, family_name: u16, family_mask: [u32; 4]) -> bool {
+    pub fn is_affected_like_cpp(&self, family_name: u32, family_mask: [u32; 4]) -> bool {
         if family_name == 0 {
             return true;
         }
@@ -250,7 +250,7 @@ pub struct SpellProcSourceSpellInfoLikeCpp {
     pub difficulty: u32,
     pub first_rank_spell_id: u32,
     pub next_rank_spell_id: Option<u32>,
-    pub spell_family_name: u16,
+    pub spell_family_name: u32,
     pub proc_flags: [u32; 2],
     pub proc_charges: u32,
     pub proc_chance: f32,
@@ -287,7 +287,7 @@ impl SpellProcSourceSpellInfoLikeCpp {
                 next => Some(next),
             },
             spell_family_name: spell_class_options
-                .map(|entry| u16::from(entry.spell_class_set))
+                .map(|entry| u32::from(entry.spell_class_set))
                 .unwrap_or(0),
             proc_flags: aura_options
                 .map(|entry| {

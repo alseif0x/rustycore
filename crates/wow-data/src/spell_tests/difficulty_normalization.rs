@@ -57,7 +57,7 @@ fn blank_server_effect(index: i32, difficulty_id: u32) -> ServersideSpellEffectL
         variance: 0.0,
         resource_coefficient: 0.0,
         group_size_base_points_coefficient: 0.0,
-        effect_base_points: 0.0,
+        effect_base_points: 0,
         effect_misc_value: [0; 2],
         effect_radius_index: [0; 2],
         effect_spell_class_mask: [0; 4],

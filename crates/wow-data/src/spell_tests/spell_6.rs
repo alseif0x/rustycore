@@ -14,6 +14,63 @@ fn spell_proc_event_spell_info_is_affected_matches_cpp_zero_family_name() {
 
     assert!(event_spell.is_affected_like_cpp(0, [0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF]));
 }
+
+#[test]
+fn spell_family_name_u32_survives_generated_proc_matching() {
+    let family_name = 0x1_0001;
+    let mut source = test_spell_proc_source_like_cpp(80, 80, None);
+    source.spell_family_name = family_name;
+    source.proc_flags = [PROC_FLAG_DEAL_HARMFUL_SPELL_LIKE_CPP, 0];
+    source.effects = vec![SpellEffectInfo {
+        effect_index: 0,
+        effect: spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+        effect_aura: aura_types::SPELL_AURA_PROC_TRIGGER_SPELL,
+        effect_spell_class_mask: [1, 0, 0, 0],
+        effect_trigger_spell: 900,
+        ..SpellEffectInfo::default()
+    }];
+
+    let implicit = source.implicit_proc_source_like_cpp();
+    let entry = implicit_spell_proc_entry_like_cpp(&implicit).unwrap();
+    let event_spell = SpellProcEventSpellInfoLikeCpp {
+        spell_family_name: family_name,
+        spell_family_mask: [1, 0, 0, 0],
+    };
+
+    assert_eq!(source.spell_family_name, family_name);
+    assert_eq!(implicit.spell_family_name, family_name);
+    assert_eq!(entry.spell_family_name, family_name);
+    assert!(event_spell.is_affected_like_cpp(family_name, [1, 0, 0, 0]));
+    assert!(!event_spell.is_affected_like_cpp(1, [1, 0, 0, 0]));
+
+    let mut event = test_spell_proc_event_like_cpp(PROC_FLAG_DEAL_HARMFUL_SPELL_LIKE_CPP);
+    event.spell_phase_mask = PROC_SPELL_PHASE_HIT_LIKE_CPP;
+    event.spell_info = Some(event_spell);
+    assert!(can_spell_trigger_proc_on_event_like_cpp(&entry, &event));
+
+    event.spell_info = Some(SpellProcEventSpellInfoLikeCpp {
+        spell_family_name: 1,
+        spell_family_mask: [1, 0, 0, 0],
+    });
+    assert!(!can_spell_trigger_proc_on_event_like_cpp(&entry, &event));
+}
+
+#[test]
+fn spell_family_name_sql_u16_maps_without_change() {
+    let family_name: u16 = u16::MAX;
+    let row = SpellProcRowLikeCpp {
+        spell_family_name: family_name,
+        ..test_spell_proc_row_like_cpp(81)
+    };
+    let source = test_spell_proc_source_like_cpp(81, 81, None);
+    let outcome = SpellProcStoreLikeCpp::from_rows_like_cpp([row], |_| Some(source.clone()));
+
+    let entry = outcome
+        .store
+        .spell_proc_entry_like_cpp(81, 0)
+        .expect("SQL proc row should be carried into its entry");
+    assert_eq!(entry.spell_family_name, u32::from(family_name));
+}
 #[test]
 fn implicit_proc_aura_info_matches_cpp_trigger_table() {
     assert_eq!(
@@ -463,6 +520,125 @@ fn serverside_spell_effect_store_groups_valid_effects_like_cpp() {
         [implicit_targets::TARGET_DEST_DB as i32, 0]
     );
 }
+
+#[test]
+fn serverside_effect_base_points_truncate_toward_zero_and_preserve_raw_warning() {
+    let mut positive = serverside_effect_row(101, 0);
+    positive.effect_base_points = 3.75;
+    positive.effect_radius_index_1 = 77;
+    let positive_raw = positive.clone();
+    let mut negative = serverside_effect_row(101, 1);
+    negative.effect_base_points = -3.75;
+
+    let outcome = ServersideSpellEffectStoreLikeCpp::from_rows_like_cpp(
+        [positive, negative],
+        |_| false,
+        |_| true,
+        |_| false,
+    );
+
+    assert_eq!(outcome.loaded_effect_count, 2);
+    assert!(outcome.errors.is_empty());
+    assert_eq!(outcome.warnings.len(), 1);
+    assert_eq!(outcome.warnings[0].row, positive_raw);
+    let effects = outcome
+        .store
+        .effects_for_spell_difficulty_like_cpp(101, 0)
+        .expect("both valid effect rows should be staged");
+    assert_eq!(effects[0].effect_base_points, 3);
+    assert_eq!(effects[1].effect_base_points, -3);
+}
+
+#[test]
+fn serverside_effect_base_points_accept_i32_boundaries_and_reject_invalid_floats() {
+    let mut minimum = serverside_effect_row(102, 0);
+    minimum.effect_base_points = i32::MIN as f32;
+    let mut highest_f32 = serverside_effect_row(102, 1);
+    highest_f32.effect_base_points = 2_147_483_520.0;
+    let valid = ServersideSpellEffectStoreLikeCpp::from_rows_like_cpp(
+        [minimum, highest_f32],
+        |_| false,
+        |_| true,
+        |_| true,
+    );
+
+    assert_eq!(valid.loaded_effect_count, 2);
+    assert!(valid.errors.is_empty());
+    let effects = valid
+        .store
+        .effects_for_spell_difficulty_like_cpp(102, 0)
+        .expect("representable boundary values should be staged");
+    assert_eq!(effects[0].effect_base_points, i32::MIN);
+    assert_eq!(effects[1].effect_base_points, 2_147_483_520);
+
+    let out_of_range_max = i32::MAX as f32;
+    assert_eq!(out_of_range_max, 2_147_483_648.0);
+    let invalid_values = [
+        f32::NAN,
+        f32::INFINITY,
+        f32::NEG_INFINITY,
+        out_of_range_max,
+        -2_147_483_904.0,
+    ];
+    let invalid_rows = invalid_values
+        .into_iter()
+        .enumerate()
+        .map(|(index, value)| {
+            let mut row = serverside_effect_row(200 + index as u32, 0);
+            row.effect_base_points = value;
+            row
+        })
+        .collect::<Vec<_>>();
+    let original_base_point_bits = invalid_rows
+        .iter()
+        .map(|row| row.effect_base_points.to_bits())
+        .collect::<Vec<_>>();
+    let invalid = ServersideSpellEffectStoreLikeCpp::from_rows_like_cpp(
+        invalid_rows,
+        |_| false,
+        |_| true,
+        |_| true,
+    );
+
+    assert_eq!(invalid.loaded_effect_count, 0);
+    assert!(invalid.store.effects_by_spell_and_difficulty.is_empty());
+    assert_eq!(invalid.errors.len(), invalid_values.len());
+    for (error, original_bits) in invalid.errors.iter().zip(original_base_point_bits) {
+        assert_eq!(
+            error.kind,
+            ServersideSpellEffectLoadErrorKindLikeCpp::BasePointsOutOfRange
+        );
+        assert_eq!(error.row.effect_base_points.to_bits(), original_bits);
+    }
+}
+
+#[test]
+fn serverside_effect_base_points_blank_slot_is_zero() {
+    let mut first = serverside_effect_row(103, 0);
+    first.effect_base_points = 5.5;
+    let mut third = serverside_effect_row(103, 2);
+    third.effect_base_points = -2.5;
+    let effect_outcome = ServersideSpellEffectStoreLikeCpp::from_rows_like_cpp(
+        [first, third],
+        |_| false,
+        |_| true,
+        |_| true,
+    );
+    let spell_outcome = ServersideSpellStoreLikeCpp::from_rows_like_cpp(
+        [serverside_spell_row(103, 0)],
+        &effect_outcome.store,
+        |_| false,
+    );
+
+    let info = spell_outcome
+        .store
+        .get_serverside_spell_like_cpp(103, 0)
+        .expect("server spell should contain its canonical effect slots");
+    assert_eq!(info.effects.len(), 3);
+    assert_eq!(info.effects[1].effect_index, 1);
+    assert_eq!(info.effects[1].effect_base_points, 0);
+}
+
 #[test]
 fn serverside_spell_effect_store_skips_invalid_rows_like_cpp() {
     let mut regular_spell = serverside_effect_row(10, 0);
