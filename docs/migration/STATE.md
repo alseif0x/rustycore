@@ -137,6 +137,18 @@ programmes to finish this issue.
 The dirty-save stabilization now has focused coding feedback. The next delivery
 is the native death operation and its necessary participants, followed by the
 complete recovery acceptance.
+The pet-save persistence participant now accepts the two independent native
+transactions and preserves their statement order and exact bindings. The
+parent reviewed `Pet.cpp:452–546,1129–1176,1288–1347`,
+`SpellHistory.cpp:182–218`, and `CharacterDatabase.cpp:664–686` at the pinned
+target SHA. On the dirty tree based at `4ba72acbe`, aarch64, the worker ran
+`cargo check -p wow-database` (exit 0) and
+`cargo test -p wow-database pet_save --lib` (2 passed, exit 0 after repairing
+a missing test import). Both used the declared PROTOC, one job and this
+checkout's target directory. Subsequent changes only format those files and
+add license headers. This is coding feedback; no live transaction or final
+acceptance ran. The production RemovePet caller, canonical aura save capture,
+reagent refund and failure/cancellation continuation remain unfinished.
 Any newly discovered prerequisite must name the failing scenario and the
 smallest repair. A generic domain defect is not automatically a #43 blocker.
 

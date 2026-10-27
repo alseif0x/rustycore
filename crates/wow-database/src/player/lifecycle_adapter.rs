@@ -43,11 +43,12 @@ use wow_persistence::{
     PlayerMailLoadRowLikeCpp, PlayerMoneyTransactionOutcomeLikeCpp,
     PlayerMoneyTransactionRequestLikeCpp, PlayerMoneyWriteRequestLikeCpp, PlayerOfflineMarkLikeCpp,
     PlayerOnlineMarkRequestLikeCpp, PlayerPetAuraEffectLoadRowLikeCpp, PlayerPetAuraLoadRowLikeCpp,
-    PlayerPetDeclinedNamesLoadRowLikeCpp, PlayerPetSpellChargeLoadRowLikeCpp,
-    PlayerPetSpellCooldownLoadRowLikeCpp, PlayerPetSpellLoadRowLikeCpp,
-    PlayerPetStableLoadRowLikeCpp, PlayerRealmCharacterCountRefreshRequestLikeCpp,
-    PlayerReputationLoadRowLikeCpp, PlayerSkillLoadRowLikeCpp, PlayerSpellChargeLoadRowLikeCpp,
-    PlayerSpellCooldownLoadRowLikeCpp, PlayerSpellLoadRowLikeCpp, PlayerTalentLoadRowLikeCpp,
+    PlayerPetDeclinedNamesLoadRowLikeCpp, PlayerPetSaveTransactionLikeCpp,
+    PlayerPetSpellChargeLoadRowLikeCpp, PlayerPetSpellCooldownLoadRowLikeCpp,
+    PlayerPetSpellLoadRowLikeCpp, PlayerPetStableLoadRowLikeCpp,
+    PlayerRealmCharacterCountRefreshRequestLikeCpp, PlayerReputationLoadRowLikeCpp,
+    PlayerSkillLoadRowLikeCpp, PlayerSpellChargeLoadRowLikeCpp, PlayerSpellCooldownLoadRowLikeCpp,
+    PlayerSpellLoadRowLikeCpp, PlayerTalentLoadRowLikeCpp,
     PlayerTalentResetPersistenceRequestLikeCpp, PlayerTraitConfigLoadRowLikeCpp,
     PlayerTraitEntryLoadRowLikeCpp, PlayerTransmogOutfitLoadRowLikeCpp,
     PlayerUncageItemStateLikeCpp, PlayerUncageItemStateLoadOutcomeLikeCpp,
@@ -102,6 +103,8 @@ use login_writes::{
     player_homebind_persistence_statement_like_cpp, player_login_item_repair_statements_like_cpp,
     player_login_pet_talent_reset_statements_like_cpp, player_online_mark_statement_like_cpp,
 };
+mod pet_save;
+use pet_save::player_pet_save_statements_like_cpp;
 mod save_plan;
 mod save_steps;
 use save_plan::player_character_save_statements_like_cpp;
@@ -1483,6 +1486,37 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
             PlayerLoginPetTalentResetOutcomeLikeCpp {
                 spell_delete,
                 specialization_reset,
+            }
+        })
+    }
+
+    fn persist_pet_save_transaction_like_cpp<'a>(
+        &'a self,
+        request: PlayerPetSaveTransactionLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async move {
+            let statements = player_pet_save_statements_like_cpp(request);
+            let rows = statements.len() as u64;
+            let mut transaction = SqlTransaction::new();
+            for statement in statements {
+                transaction.append(statement);
+            }
+
+            match transaction
+                .commit_with_outcome_like_cpp(self.character_db.pool())
+                .await
+            {
+                Ok(()) => PersistenceOutcomeLikeCpp::Applied { rows },
+                Err(SqlTransactionCommitError::DefinitelyRolledBack(error)) => {
+                    PersistenceOutcomeLikeCpp::Failed {
+                        reason: error.to_string(),
+                    }
+                }
+                Err(SqlTransactionCommitError::CommitOutcomeUnknown(error)) => {
+                    PersistenceOutcomeLikeCpp::Unknown {
+                        reason: error.to_string(),
+                    }
+                }
             }
         })
     }

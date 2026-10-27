@@ -353,6 +353,7 @@ pub use battle_pet::{
 
 pub use player::{
     PlayerHomebindPersistenceRequestLikeCpp, PlayerLifecyclePortLikeCpp, PlayerOfflineMarkLikeCpp,
+    PlayerPetSaveTransactionLikeCpp, PlayerPetSpellSaveOperationLikeCpp,
 };
 
 mod session_administration;
