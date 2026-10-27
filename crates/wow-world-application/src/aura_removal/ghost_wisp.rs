@@ -261,6 +261,9 @@ impl AuraRemovalCxLikeCpp<'_> {
                 refresh_timers,
                 charges,
                 recalculate_mask,
+                cast_item_guid: wow_core::ObjectGuid::EMPTY,
+                cast_item_id: 0,
+                cast_item_level: -1,
                 effects: &effect_updates,
             };
             let (run_amount_changed, swim_amount_changed) = self

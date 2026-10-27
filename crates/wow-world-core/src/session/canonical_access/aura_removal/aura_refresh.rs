@@ -44,6 +44,9 @@ pub struct SelectedAuraRefresh<'a> {
     pub charges: u8,
     pub refresh_timers: bool,
     pub recalculate_mask: u32,
+    pub cast_item_guid: wow_core::ObjectGuid,
+    pub cast_item_id: u32,
+    pub cast_item_level: i32,
     pub effects: &'a [SelectedAuraEffectRefresh],
 }
 
@@ -455,11 +458,10 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
             if base_amount_mask != refresh.effect_mask {
                 return Err("Selected aura refresh base effect metadata is incomplete");
             }
-            let cast_item_changed = !metadata.item_guid.is_empty();
-            metadata.item_guid = wow_core::ObjectGuid::EMPTY;
-            if cast_item_changed {
-                metadata.cast_item_id = 0;
-                metadata.cast_item_level = -1;
+            if metadata.item_guid != refresh.cast_item_guid {
+                metadata.item_guid = refresh.cast_item_guid;
+                metadata.cast_item_id = refresh.cast_item_id;
+                metadata.cast_item_level = refresh.cast_item_level;
             }
             metadata.recalculate_mask = refresh.recalculate_mask;
             if refresh.refresh_timers {

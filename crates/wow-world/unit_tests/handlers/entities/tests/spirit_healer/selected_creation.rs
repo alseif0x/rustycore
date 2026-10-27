@@ -58,6 +58,7 @@ fn apply_sickness(
             0x88,
             0,
             creation,
+            wow_entities::SpellCastMetadata::default(),
         )
 }
 

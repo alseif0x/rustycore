@@ -60,6 +60,7 @@ async fn high_level_sickness_recast_preserves_duration_without_a_shortening_requ
             0x88,
             0,
             Ok((0x0011, provenance, 0)),
+            wow_entities::SpellCastMetadata::default(),
         )
         .expect("install source sickness Aura before high-level recast");
     let aura = visible_sickness_aura(&session, SICKNESS_SPELL)

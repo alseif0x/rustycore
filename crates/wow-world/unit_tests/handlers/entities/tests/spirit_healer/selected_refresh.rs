@@ -2,6 +2,9 @@ use super::*;
 use std::sync::Arc;
 use wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;
 
+#[path = "selected_refresh_cast_item_origin.rs"]
+mod cast_item_origin;
+
 const IGNORE_CASTER_MODIFIERS: u32 = 0x2000_0000;
 const AURA_UNIQUE: u32 = 0x0000_0800;
 const PANDEMIC: u32 = 0x0010_0000;
@@ -445,6 +448,7 @@ async fn non_timer_refresh_does_not_require_proc_or_duration_catalogs() {
                 wow_entities::AuraCastProvenanceLikeCpp::default(),
                 7,
             )),
+            wow_entities::SpellCastMetadata::default(),
         )
         .expect("create the source Aura without duration or proc reads");
     let before = visible_sickness_aura(&session, SICKNESS_SPELL)
@@ -475,6 +479,7 @@ async fn non_timer_refresh_does_not_require_proc_or_duration_catalogs() {
             0,
             0,
             Err("fresh creation must be ignored on a matching Aura"),
+            wow_entities::SpellCastMetadata::default(),
         )
         .expect("old non-timer policy ignores fresh stack and duration facts");
     let after = visible_sickness_aura(&session, SICKNESS_SPELL)

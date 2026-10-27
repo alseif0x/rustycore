@@ -875,6 +875,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                 cast_id,
                 spell_visual_id,
                 metadata.resurrection_sickness_remaining_ms,
+                metadata,
             )?;
         } else if server_triggered_player_ghost_wisp {
             super::resurrection_auras::apply(

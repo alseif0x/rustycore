@@ -87,10 +87,11 @@ Server composition compiles. Normal Player casts now connect pre-GO costs,
 native cooldowns and physical-item consumption to the existing save owners;
 45 distinct focused cases and Server compilation provide coding feedback.
 Common resurrection obtain calls now use live inventory and checked normal
-cast outcomes, but are not accepted: a real World regression shows that the
-created Aura loses its physical cast-item provenance. That assertion remains
-in the candidate. The constructor/refresh fix, complete SelfRes effect,
-native-death integration and final acceptance remain open.
+cast outcomes. The selected sickness constructor/refresh now retains its
+physical cast-item provenance and passes the restored real regression.
+Broader recovery, login and repop regressions still fail, and a selected
+refresh test aborts with stack overflow. This integration is not accepted.
+Complete SelfRes, native-death integration and final acceptance remain open.
 
 Four blocks remain within the same macro:
 
@@ -2709,6 +2710,52 @@ This is an UNVALIDATED local macro checkpoint. The sibling sickness full-save
 entry gate, native-death integration, normal SelfRes/obtain casts, QA and
 complete candidate acceptance remain open. No runtime installation, SQL,
 restart, fresh capture, publication or issue closure was performed.
+
+Selected sickness cast-item origin, 2026-10-27, base
+`b545669132cb191ca5abaecf3dcaaa52dfb729df` plus 14 Rust working inputs:
+the existing SpellCastMetadata now reaches the sickness constructor. Fresh
+AuraPersistenceMetadata retains physical GUID, entry and level, including
+explicit retained level with an empty GUID. The existing ephemeral
+SelectedAuraRefresh carries those inputs; its canonical operation updates
+all three only when GUID changes. Same-GUID refresh retains old ID/level;
+ordinary no-item refresh clears them after a physical GUID. Ghost/Wisp
+callers preserve their empty defaults. No second canonical item owner or
+post-cast stamping pass was introduced.
+
+Source anchors at pinned `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+Object.cpp:2898–2940; Spell.cpp:3416–3421; SpellAuras.cpp:464–465,1218;
+Unit.cpp:3265–3272; Player.cpp:19811–19866. The parent reviewed the actual
+constructor, refresh and direct signature consumers. All 14 input hashes
+match `exact-changed-input-sha256.txt` under
+`/tmp/rustycore-aura-cast-item-origin-logs`, manifest digest
+`d542d5a1e85ff4aeb32efa0d0495b0b5bef52f9f2f5c0b6803155cdfe14cd402`.
+The tracked diff digest is
+`fb0da73daf9517e453633014e698c00944ed5967665be602fd068902dda707c8`.
+
+Sequential feedback used the same PROTOC, one Cargo job and checkout target
+as the preceding checkpoint. `cargo check -p wow-world` exited 0 at
+00:23:27–00:23:51 UTC. The restored real reclaim/obtain regression passed
+at 00:24:01–00:26:26; `cargo test -p wow-world sickness_cast_item_origin`
+passed two cases at 00:26:30–00:26:31. They exercise constructor and refresh
+with same/new/empty GUIDs and retained level. Zero-test targets are not proof.
+
+The broader current candidate is red: `spirit_healer` exited 101 after
+44 passes and 15 reported failures, then a stack overflow in the pandemic
+refresh test aborted its process (00:26:37–00:26:38). `recovery_fences`
+passed 15/failed 18; `resurrection` passed 19/failed 7; `corpse_login` passed
+11/failed 2; `repop` passed 16/failed 2 (00:27:12–00:27:29). These overlapping
+counts are not a completion total. Their current causes require grouped
+review: many stop at the new obtain phase with incomplete inventory fixtures,
+and the remaining save/residence and stack failures are not yet classified.
+Baseline status was not rerun or assumed. Full stdout/stderr, UTC and exit
+receipts remain in the named log directory. The 242-second interval is
+coding feedback, not final acceptance or proof of its performance target.
+The worker reported the GPT-6 family; specific model/effort are unavailable.
+
+This remains an UNVALIDATED local checkpoint. Fix the affected regression
+inputs and any demonstrated production findings, then rerun affected evidence.
+The sibling sickness original-key save gate, complete SelfRes, native death,
+QA, final acceptance and authorized live evidence remain open.
 
 Live common resurrection obtain integration, 2026-10-26/27, base
 `d63c12ce0eb8e6136225f6a43c4e9eba06ce831d` plus 20 working Rust inputs:

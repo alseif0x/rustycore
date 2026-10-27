@@ -89,6 +89,7 @@ pub(super) fn apply_resurrection_sickness_aura<H: SpellExecutionHostLikeCpp>(
     cast_id: ObjectGuid,
     _spell_visual_id: u32,
     remaining_ms: Option<u32>,
+    cast_metadata: wow_entities::SpellCastMetadata,
 ) -> Result<(), &'static str> {
     let spell_id_u32 =
         u32::try_from(spell_id).map_err(|_| "Invalid resurrection sickness spell")?;
@@ -177,6 +178,7 @@ pub(super) fn apply_resurrection_sickness_aura<H: SpellExecutionHostLikeCpp>(
         attributes1,
         attributes5,
         creation,
+        cast_metadata,
     )?;
     if let Some(remaining) = requested_remaining {
         let remaining = u32::try_from(remaining)

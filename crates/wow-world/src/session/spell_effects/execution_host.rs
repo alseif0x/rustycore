@@ -197,6 +197,7 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
         attributes1: u32,
         attributes5: u32,
         creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp, u8), &'static str>,
+        cast_metadata: wow_entities::SpellCastMetadata,
     ) -> Result<(), &'static str> {
         self.player_aura_application_cx_like_cpp()
             .apply_resurrection_sickness_aura(
@@ -208,6 +209,7 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
                 attributes1,
                 attributes5,
                 creation,
+                cast_metadata,
             )
     }
     fn apply_durability_damage_effect_like_cpp(

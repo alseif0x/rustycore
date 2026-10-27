@@ -195,6 +195,7 @@ pub trait SpellExecutionHostLikeCpp:
         attributes1: u32,
         attributes5: u32,
         creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp, u8), &'static str>,
+        cast_metadata: SpellCastMetadata,
     ) -> Result<(), &'static str>;
     fn apply_durability_damage_effect_like_cpp(
         &mut self,

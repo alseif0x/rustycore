@@ -738,6 +738,7 @@ async fn sickness_replaces_foreign_or_mask_mismatched_application_before_fresh_c
                     old_provenance,
                     0,
                 )),
+                wow_entities::SpellCastMetadata::default(),
             )
             .expect("install old foreign or mask-mismatched selected Aura");
         let old = visible_sickness_aura(&session, SICKNESS_SPELL);
@@ -818,6 +819,7 @@ async fn sickness_replaces_foreign_or_mask_mismatched_application_before_fresh_c
                 0x88,
                 0,
                 Ok((0x0011, new_provenance, 0)),
+                wow_entities::SpellCastMetadata::default(),
             )
             .expect("fresh selected application replaces the previous same-spell Aura");
 
@@ -950,6 +952,7 @@ async fn sickness_stale_owner_does_not_fall_back_or_mutate_retired_player() {
             0x88,
             0,
             Ok((0x0011, wow_entities::AuraCastProvenanceLikeCpp::default(), 0)),
+            wow_entities::SpellCastMetadata::default(),
         );
     assert!(
         aura_result.is_err(),

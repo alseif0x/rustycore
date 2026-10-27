@@ -65,7 +65,15 @@ impl AuraRemovalCxLikeCpp<'_> {
         attributes1: u32,
         attributes5: u32,
         creation: Result<(u32, wow_entities::AuraCastProvenanceLikeCpp, u8), &'static str>,
+        cast_metadata: wow_entities::SpellCastMetadata,
     ) -> Result<(), &'static str> {
+        let cast_item_guid = cast_metadata
+            .cast_item_guid
+            .unwrap_or(wow_core::ObjectGuid::EMPTY);
+        let cast_item_id = cast_metadata.cast_item_entry.unwrap_or(0);
+        let cast_item_level = cast_metadata
+            .cast_item_level
+            .map_or(-1, |level| level as i32);
         if self.is_current_race_sickness_spell(spell_id) != Some(true) {
             return Err("Spell is not the current race-selected sickness Aura");
         }
@@ -224,6 +232,9 @@ impl AuraRemovalCxLikeCpp<'_> {
                 refresh_timers,
                 charges,
                 recalculate_mask: metadata.recalculate_mask,
+                cast_item_guid,
+                cast_item_id,
+                cast_item_level,
                 effects: &updates,
             };
             self.player
@@ -278,9 +289,9 @@ impl AuraRemovalCxLikeCpp<'_> {
             })
             .ok_or("Canonical sickness Aura disappeared after application")?;
         let metadata = wow_entities::AuraPersistenceMetadata {
-            item_guid: wow_core::ObjectGuid::EMPTY,
-            cast_item_id: 0,
-            cast_item_level: -1,
+            item_guid: cast_item_guid,
+            cast_item_id,
+            cast_item_level,
             // Fresh AuraEffect instances start recalculatable. These three
             // handlers do not clear that state in CalculateAmount.
             recalculate_mask: ACTIVE_EFFECT_MASK,
