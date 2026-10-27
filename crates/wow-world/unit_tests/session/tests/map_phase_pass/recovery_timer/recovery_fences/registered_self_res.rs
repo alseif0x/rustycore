@@ -11,6 +11,9 @@ const SELF_RES_TEST_SPELL: i32 = 61_043;
 const REAGENT_ITEM: u32 = 17_030;
 const DIFFICULTY: u8 = 3;
 
+#[path = "registered_self_res_cast_item_provenance.rs"]
+mod cast_item_provenance;
+
 fn move_recovery_player_to_difficulty_three(session: &mut WorldSession) {
     let guid = session.player_guid().expect("recovery Player GUID");
     let handle = session
@@ -54,6 +57,22 @@ fn move_recovery_player_to_difficulty_three(session: &mut WorldSession) {
 }
 
 fn install_exact_self_res_spell(session: &mut WorldSession) {
+    install_exact_test_spell(
+        session,
+        SELF_RES_TEST_SPELL,
+        wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT,
+        20,
+        false,
+    );
+}
+
+fn install_exact_test_spell(
+    session: &mut WorldSession,
+    spell_id: i32,
+    spell_effect_type: u32,
+    effect_base_points: i32,
+    has_hit_delay: bool,
+) {
     session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_entries([
         wow_data::DifficultyEntry {
             id: u32::from(DIFFICULTY),
@@ -91,17 +110,19 @@ fn install_exact_self_res_spell(session: &mut WorldSession) {
     ));
 
     let mut attributes = [0; 15];
-    attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_ALLOW_CAST_WHILE_DEAD as i32;
+    if spell_effect_type == wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT {
+        attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_ALLOW_CAST_WHILE_DEAD as i32;
+    }
     let spell_effect = SpellEffectDb2Entry {
         id: 1,
         difficulty_id: i32::from(DIFFICULTY),
         effect_index: 0,
-        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT,
+        effect: spell_effect_type,
         effect_amplitude: 0.0,
         effect_attributes: 0,
         effect_aura: 0,
         effect_aura_period: 0,
-        effect_base_points: 20,
+        effect_base_points,
         effect_bonus_coefficient: 0.0,
         effect_chain_amplitude: 0.0,
         effect_chain_targets: 0,
@@ -122,7 +143,7 @@ fn install_exact_self_res_spell(session: &mut WorldSession) {
         effect_radius_index: [0; 2],
         effect_spell_class_mask: [0; 4],
         implicit_target: [0; 2],
-        spell_id: SELF_RES_TEST_SPELL as u32,
+        spell_id: spell_id as u32,
     };
     let effective = wow_data::EffectiveCoreSpellDb2StoresLikeCpp::new(
         wow_data::spell_db2::SpellCategoriesStore::from_entries([SpellCategoriesEntry {
@@ -135,13 +156,14 @@ fn install_exact_self_res_spell(session: &mut WorldSession) {
             prevention_type: 0,
             start_recovery_category: 0,
             charge_category: 0,
-            spell_id: SELF_RES_TEST_SPELL as u32,
+            spell_id: spell_id as u32,
         }]),
         wow_data::spell_db2::SpellMiscStore::from_entries([SpellMiscEntry {
             id: 1,
             attributes,
             difficulty_id: DIFFICULTY,
-            spell_id: SELF_RES_TEST_SPELL as u32,
+            speed: if has_hit_delay { 10.0 } else { 0.0 },
+            spell_id: spell_id as u32,
             ..Default::default()
         }]),
         wow_data::spell_db2::SpellEffectDb2Store::from_entries([spell_effect]),
@@ -153,7 +175,7 @@ fn install_exact_self_res_spell(session: &mut WorldSession) {
             difficulty_id: DIFFICULTY,
             category_recovery_time: 10_000,
             recovery_time: 10_000,
-            spell_id: SELF_RES_TEST_SPELL as u32,
+            spell_id: spell_id as u32,
             ..Default::default()
         }]),
         wow_data::spell_db2::SpellCastingRequirementsStore::from_entries([]),
@@ -161,23 +183,23 @@ fn install_exact_self_res_spell(session: &mut WorldSession) {
         wow_data::spell_db2::SpellPowerDifficultyStore::from_entries([]),
     );
     let mut spells = crate::selected_spell_fixtures::canonical_spell_store([(
-        SELF_RES_TEST_SPELL as u32,
+        spell_id as u32,
         DIFFICULTY,
     )])
     .hydrate_effective_core_db2_like_cpp(effective);
-    assert!(spells.get(SELF_RES_TEST_SPELL).is_none());
+    assert!(spells.get(spell_id).is_none());
     spells.install_effective_cast_costs_like_cpp(wow_data::SpellCastCostStoreLikeCpp::from_effective_rows_like_cpp(
         [SpellReagentsEntry {
             id: 1,
-            spell_id: SELF_RES_TEST_SPELL,
+            spell_id,
             reagent: [REAGENT_ITEM as i32, 0, 0, 0, 0, 0, 0, 0],
             reagent_count: [1, 0, 0, 0, 0, 0, 0, 0],
         }],
         [],
     ));
-    assert!(spells.contains_spell_info_exact_like_cpp(SELF_RES_TEST_SPELL as u32, DIFFICULTY));
-    assert!(!spells.contains_spell_info_exact_like_cpp(SELF_RES_TEST_SPELL as u32, 0));
-    assert!(spells.get(SELF_RES_TEST_SPELL).is_none());
+    assert!(spells.contains_spell_info_exact_like_cpp(spell_id as u32, DIFFICULTY));
+    assert!(!spells.contains_spell_info_exact_like_cpp(spell_id as u32, 0));
+    assert!(spells.get(spell_id).is_none());
     session.set_spell_store(Arc::new(spells));
     session.set_serverside_spell_store(Arc::new(
         wow_data::ServersideSpellStoreLikeCpp::default(),

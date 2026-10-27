@@ -108,8 +108,10 @@ cases, native death, QA and final acceptance remain open.
 The native SetDrunkValue participant now serves the existing EffectInebriate
 consumer, and Player update-field changes now enter the existing Map queue.
 Its scoped feedback covers 26 relevant cases plus one matched duration
-regression. The native-death caller is still absent; normal casts also retain
-an upstream cast-item provenance gap described in this checkpoint.
+regression. The native-death caller is still absent. Normal casts now clear
+exhausted cast-item provenance at the Source phase and propagate unavailable
+consumption; seven distinct cases provide scoped feedback for that repair.
+Silent success from other unimplemented mutating effects remains open.
 
 Four blocks remain within the same macro:
 
@@ -276,6 +278,25 @@ log from durable status on login, and `_LoadQuestStatusObjectives`
 not accidentally become a new database persistence contract. This is
 read-only source and consumer review, not an implemented quest-log change
 or executed death acceptance.
+
+Quest-log lifetime refinement at `b18321dad`, 2026-10-27: pinned
+`RemoveActiveQuest` (Player.cpp:15575–15593) erases status/objective entries
+and may call SendQuestUpdate, but does not clear the QuestLog update fields.
+Callers clear their slot separately. `SetQuestSlot` (:15964–15974) resets
+QuestID, flags, end time and objective counters independently. Keeping the
+new live flags inside PlayerQuestStatusRecord would therefore give them the
+wrong lifetime. The native QuestLog slot must own its actual update-field
+values and masks; this is semantically required state rather than another
+mutable wire projection of status. Source UpdateFields.h:350–359 declares
+int64 EndTime, int32 QuestID, uint32 StateFlags and 24 uint16 objective values,
+with 29 change bits per row. SetQuestSlotEndTime casts to uint32 before its
+int64 assignment (:16000), which is separate from the field's wire width.
+The required integration must connect coherent live writers, CREATE and
+Map-owned VALUES to that authority, while preserving durable quest-status
+and objective data as distinct Source responsibilities. The existing legacy
+record's slot must not remain a competing live slot authority. This finding
+selects the required owner; it adds no native QuestLog implementation, SQL
+column, acceptance evidence or gameplay completion.
 
 Selected resurrection consumer review at `740b21234`, 2026-10-26: the
 earlier sparse-key expiration case covers sickness, not both ghost auras.
@@ -2877,6 +2898,63 @@ or evidence for its ordinary 600-second performance target. This remains an
 UNVALIDATED macro checkpoint. Registered SelfRes composition, native death,
 QA, final acceptance and authorized live/capture/durability evidence remain
 open. No push, installation, SQL or restart was performed.
+
+Normal cast-item lifetime and failure propagation, 2026-10-27, base
+`b18321dad32f4915f58f62f5bf7023e86c6200a6` plus six Rust working inputs:
+Application's existing TakeCastItem owner now returns updated execution
+metadata or an explicit unavailable error. Its Spell host and World adapter
+retain that distinction; both executor sites assign the returned metadata
+and propagate errors. Consuming an expendable item clears only the logical
+cast-item GUID and entry, including when one unit remains in the physical
+stack. The cached item level and all other metadata remain unchanged.
+No-item, ignored-item and non-expendable use preserve the logical pointer.
+This corrects the upstream provenance gap recorded by the preceding native
+drunkenness checkpoint without adding per-effect item-existence guesses.
+
+Pinned `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` Source anchors are
+Spell.cpp:3842–3854,4025,5310–5380. GO precedes TakeCastItem; delayed
+nonchannel spells take it before effects and immediate spells afterward.
+The Source clears its logical item pointer after charge exhaustion even when
+DestroyItemCount leaves a surviving stack. TakeReagents' earlier clear was
+already represented and was preserved. These tests establish execution-phase
+ordering, not an implementation of projectile travel timing.
+
+One-job aarch64 feedback used the same PROTOC and checkout-local target
+environment as above. `cargo check -p wow-world` passed at
+05:35:38.763–05:36:23.426 UTC, instrumented 44.662 seconds. Four existing
+registered SelfRes cases and one new real-Application owner case passed in
+the focused `registered_self_res --lib` runs. The new owner case checks a
+surviving stack, unchanged cached metadata, ordinary no-item/ignore and
+non-expendable paths, and missing physical item/entry errors.
+
+The two executor cases initially exposed incomplete fixture item catalogs,
+then missing prepared residence stamps. An interim seven-case pass after
+removing GO assertions is superseded for those two cases and earns no final
+credit for them. Parent review required actual canonical cast IDs and
+residence stamps and restored GO assertions. The final
+`cargo test -p wow-world normal_cast_execution --lib` passed both corrected
+cases at 05:43:51.983–05:45:08.026 UTC, instrumented 76.043 seconds.
+They execute through the real World host with normal-cast metadata, distinct
+physical reagents and cast items, selected difficulty-three hit-delay data
+and Realm threshold packets. They are executor cases, not two additional
+registered-opcode cases. Combined evidence covers seven distinct cases
+across runs; only the two changed cases were rerun after that last fixture
+repair, and no production inputs changed after the check.
+
+Per-command argv, UTC bounds, monotonic durations, exits and retained failure
+logs are in `/tmp/rustycore-cast-item-lifetime-logs`. Parent review verified
+all six final Rust file hashes. The tracked Rust diff digest is
+`fd66468b537857db91ef81fac01d7b80ef92e2a1b7cff5d8b71ed2e7184e895b`;
+the new test leaf digest is
+`84d5b3bb1e3f058354fa0387ed1dfcad415d458df5d5e868805fffa5a45586bc`.
+The shared test fixture is 596 lines and its new private leaf is 469 lines.
+Runtime turn-context telemetry confirms the fresh worker used Luna max.
+This remains an UNVALIDATED macro checkpoint at the stated working base and
+inputs, not evidence for its later commit. Implementation and repair time
+are separate from the unstarted final acceptance campaign and its ordinary
+600-second target. Unknown mutating-effect execution, native death, remaining
+SelfRes admission/timing cases, QA and authorized runtime/capture/DB/relogin
+evidence remain open. No push, installation, SQL or restart was performed.
 
 Native SetDrunkValue and Player field publication, 2026-10-27, base
 `3f354d8f02999d03c0bd35b61a6b9ffb80c36e46` plus 21 Rust working inputs:

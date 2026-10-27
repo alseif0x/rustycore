@@ -633,13 +633,13 @@ where
 pub fn take_server_normal_cast_item_like_cpp<H>(
     host: &mut H,
     spell_info: &wow_data::SpellInfo,
-    metadata: SpellCastMetadata,
-) -> bool
+    mut metadata: SpellCastMetadata,
+) -> Result<SpellCastMetadata, &'static str>
 where
     H: SpellExecutionHostLikeCpp + ItemSessionHostLikeCpp + QuestItemStorageHostLikeCpp,
 {
     let Some(item_guid) = metadata.cast_item_guid else {
-        return true;
+        return Ok(metadata);
     };
     let item = host
         .core()
@@ -661,7 +661,7 @@ where
         .flatten();
     let Some(item) = item else {
         tracing::warn!(item_guid = ?item_guid, "Normal Player cast item disappeared before TakeCastItem");
-        return false;
+        return Err("Normal Player cast item unavailable before TakeCastItem");
     };
     let catalogs = host.hub_ref().catalogs;
     let max_stack_size = catalogs
@@ -673,7 +673,7 @@ where
         max_stack_size,
         metadata.trigger_cast_flags_like_cpp,
     ) {
-        ServerNormalCastItemUsePlanResultLikeCpp::NoItem => return true,
+        ServerNormalCastItemUsePlanResultLikeCpp::NoItem => return Ok(metadata),
         ServerNormalCastItemUsePlanResultLikeCpp::Planned(plan) => plan,
         ServerNormalCastItemUsePlanResultLikeCpp::Unavailable(reason) => {
             tracing::warn!(
@@ -681,7 +681,7 @@ where
                 reason,
                 "Normal cast item metadata unavailable at TakeCastItem"
             );
-            return false;
+            return Err(reason);
         }
     };
 
@@ -704,11 +704,11 @@ where
     if plan.consumes_one_item && removal_position.is_some() {
         if let Err(reason) = remove_item_obtain_auras_like_cpp(host, plan.entry_id) {
             tracing::warn!(item_guid = ?plan.item_guid, reason, "Normal cast item obtain aura removal authority unavailable");
-            return false;
+            return Err(reason);
         }
         if let Err(reason) = remove_item_looted_aura_like_cpp(host, plan.entry_id, plan.item_guid) {
             tracing::warn!(item_guid = ?plan.item_guid, reason, "Normal cast item looted aura removal authority unavailable");
-            return false;
+            return Err(reason);
         }
     }
     let outcome = host
@@ -717,9 +717,11 @@ where
         .flatten();
     let Some(outcome) = outcome else {
         tracing::warn!(item_guid = ?plan.item_guid, "Normal Player cast item changed during TakeCastItem");
-        return false;
+        return Err("Normal Player cast item changed during TakeCastItem");
     };
     if outcome.removed_one {
+        metadata.cast_item_guid = None;
+        metadata.cast_item_entry = None;
         if outcome.removed_stack
             && let Some((bag, slot)) = removal_position
         {
@@ -749,7 +751,7 @@ where
             );
         }
     }
-    true
+    Ok(metadata)
 }
 
 fn publish_spell_cost_item_step_like_cpp<H: SpellExecutionHostLikeCpp>(

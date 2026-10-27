@@ -130,7 +130,7 @@ pub trait SpellExecutionHostLikeCpp:
         &mut self,
         spell_info: &wow_data::SpellInfo,
         metadata: SpellCastMetadata,
-    ) -> bool;
+    ) -> Result<SpellCastMetadata, &'static str>;
     fn mutate_cast_execution_like_cpp<R>(
         &mut self,
         f: impl FnOnce(&mut wow_entities::CastExecutionStateLikeCpp) -> R,

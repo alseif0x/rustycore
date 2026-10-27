@@ -56,7 +56,7 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
         &mut self,
         spell_info: &wow_data::SpellInfo,
         metadata: wow_entities::SpellCastMetadata,
-    ) -> bool {
+    ) -> Result<wow_entities::SpellCastMetadata, &'static str> {
         wow_world_application::take_server_normal_cast_item_like_cpp(self, spell_info, metadata)
     }
 

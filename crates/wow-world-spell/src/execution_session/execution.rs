@@ -321,7 +321,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         }
     }
     if take_server_normal_cast_item_before_effects && deferred_server_normal_cast_item_use {
-        let _ = host.take_server_normal_cast_item_like_cpp(&spell_info, metadata);
+        metadata = host.take_server_normal_cast_item_like_cpp(&spell_info, metadata)?;
     }
     // #1444 H3: TrinityCore `Spell::_cast` raises `OnPlayerSpellCast` for a
     // player caster (`Spell.cpp:3671`). Modules observe a cast that already
@@ -1267,7 +1267,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
     )?;
 
     if deferred_server_normal_cast_item_use && !take_server_normal_cast_item_before_effects {
-        let _ = host.take_server_normal_cast_item_like_cpp(&spell_info, metadata);
+        metadata = host.take_server_normal_cast_item_like_cpp(&spell_info, metadata)?;
     }
 
     complete_spell_execution_like_cpp(
