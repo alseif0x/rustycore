@@ -439,7 +439,6 @@ pub async fn apply_quest_source_item_bound_objective_progress_for_object_with_ge
     object_id: i32,
     count_i32: i32,
 ) -> Vec<(u32, i32)> {
-    host.invalidate_player_quest_status_authority_like_cpp();
     let Some(before) = host.player_quest_gameplay_snapshot_like_cpp() else {
         return Vec::new();
     };
@@ -462,6 +461,12 @@ pub async fn apply_quest_source_item_bound_objective_progress_for_object_with_ge
     else {
         return Vec::new();
     };
+    // Player::ItemAddedQuestCheck leaves quest state unchanged when no bound
+    // objective matches (Player.cpp:16067). A no-op preflight must not discard
+    // loaded authority and prevent the next reagent in RemovePet's loop.
+    if !updated_counts.is_empty() {
+        host.invalidate_player_quest_status_authority_like_cpp();
+    }
     let changed_quest_ids = updated_counts
         .iter()
         .map(|(quest_id, _)| *quest_id)

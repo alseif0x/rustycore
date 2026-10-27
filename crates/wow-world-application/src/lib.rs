@@ -12,6 +12,8 @@ mod continue_login;
 mod player_cast_session;
 mod player_handlers;
 mod player_spell_costs;
+mod pet_reagents;
+pub use pet_reagents::{PetReagentReturnOutcome, return_pet_reagent_like_cpp};
 mod session_lifecycle;
 pub use continue_login::{
     ContinueLoginHostLikeCpp, PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP,

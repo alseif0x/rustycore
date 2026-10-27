@@ -157,8 +157,36 @@ removal lifetime. On the dirty tree based at `ebcb57e15`,
 passed (1 test; 5m 14s compilation). The same one-job environment applied.
 This establishes data retention, not full Pet aura eligibility/application or
 production save capture. The metadata is not a second aura owner.
+The next local draft composes reagent grants from canonical inventory, quest,
+obtain-spell and collection operations, with ordinary Player full-save ownership.
+It reuses `Player::send_new_item_plan`, checks new-slot/GUID collisions before
+insertion, and derives stack changes under one canonical Player mutation.
+A bound-quest preflight which updates no objective now preserves loaded quest
+authority, so a subsequent reagent is not rejected solely by that no-op.
+The draft still rejects bag placement and equipment, container, timed or charged
+item creation. Those are explicit unfinished boundaries, not successful refunds;
+the production RemovePet caller and its cancellation fence are still absent.
+The empty PetSpells packet matches the pinned default writer's 65-byte body and
+opcode `0x2c22`; `cargo test -p wow-packet clear_pet_spells --lib` passed one
+case on the dirty tree based at `df4339f3e`. Application compilation also passed
+before the subsequent notification/merge refinements. The final focused coding
+run, `cargo test -p wow-world pet_reagent --lib`, compiled those refinements and
+passed both cases: new item followed by merge with retained quest authority,
+and a maximum-count rejection with unchanged storage and no error/push packet.
+The preceding post-addition filter selected only the positive case; the final
+filter selected both. All runs used aarch64, one job, the declared PROTOC and
+this checkout's target directory. These are coding checks, not live captures
+or final acceptance. Neither the new packet nor the refund helper has a
+production RemovePet caller yet.
 Any newly discovered prerequisite must name the failing scenario and the
 smallest repair. A generic domain defect is not automatically a #43 blocker.
+In particular, the reagent-return composition reuses native inventory, quest,
+obtain-spell and collection operations; it does not start a general achievement
+engine. `StoreNewItem`'s `ObtainAnyItem`/`AcquireItem` criterion emission remains
+the progression responsibility in PORT_PLAN L18, as the existing D-C8 vendor
+acceptance already records. Preserve that gap explicitly: neither reagent
+return nor #43 acceptance may claim achievement parity. Actual item ownership,
+refund quantity, callbacks, persistence and notifications remain in scope.
 
 Coding feedback on 2026-10-27, dirty working tree based at `e26551b0d`, aarch64:
 `cargo test -p wow-world-core session::player_save_owner::quest_status --lib`

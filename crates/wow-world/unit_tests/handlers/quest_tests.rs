@@ -52,6 +52,8 @@ use wow_social::group::{GroupInfo, GroupRegistry, PendingInvites};
 
 #[path = "quest_tests/source_items.rs"]
 mod source_items;
+#[path = "quest_tests/pet_reagents.rs"]
+mod pet_reagents;
 pub(super) use source_items::{
     insert_direct_inventory_item, install_have_limit_category_like_cpp,
     install_source_item_template, install_source_item_template_with_flags3,
