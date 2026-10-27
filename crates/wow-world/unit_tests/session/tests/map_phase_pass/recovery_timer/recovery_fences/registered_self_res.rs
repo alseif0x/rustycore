@@ -14,6 +14,9 @@ const DIFFICULTY: u8 = 3;
 #[path = "registered_self_res_cast_item_provenance.rs"]
 mod cast_item_provenance;
 
+#[path = "registered_self_res/onpickup.rs"]
+mod onpickup;
+
 fn move_recovery_player_to_difficulty_three(session: &mut WorldSession) {
     let guid = session.player_guid().expect("recovery Player GUID");
     let handle = session

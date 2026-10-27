@@ -86,24 +86,26 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
 ) -> Result<(), &'static str> {
     let player_guid = host.player_guid().ok_or("No player GUID")?;
     let caster_guid = metadata.caster_guid_override.unwrap_or(player_guid);
-    let player_resurrection_sickness = target_guid == player_guid
-        && caster_guid == player_guid
-        && super::resurrection_sickness::is_resurrection_sickness_spell(host, spell_id);
-    let server_triggered_resurrection_sickness = !metadata.from_client
-        && metadata.trigger_cast_flags_like_cpp == wow_entities::TRIGGERED_FULL_MASK_LIKE_CPP
-        && player_resurrection_sickness;
-    let server_triggered_player_ghost_wisp = super::resurrection_auras::is_selected_self_cast(
+    let selected_aura_routes = super::execution_support::selected_aura_execution_routes_like_cpp(
         host,
         spell_id,
+        player_guid,
         target_guid,
         caster_guid,
-        metadata.from_client,
-        metadata.trigger_cast_flags_like_cpp == wow_entities::TRIGGERED_FULL_MASK_LIKE_CPP,
+        metadata,
     );
-    let selected_full_server_aura =
-        server_triggered_resurrection_sickness || server_triggered_player_ghost_wisp;
-    let selected_execution_effects =
-        player_resurrection_sickness || server_triggered_player_ghost_wisp;
+    let player_resurrection_sickness = selected_aura_routes.player_resurrection_sickness;
+    let server_triggered_resurrection_sickness =
+        selected_aura_routes.server_triggered_resurrection_sickness;
+    let server_triggered_player_ghost_wisp =
+        selected_aura_routes.server_triggered_player_ghost_wisp;
+    let selected_full_server_aura = selected_aura_routes.selected_full_server_aura();
+    let selected_execution_effects = selected_aura_routes.selected_effects();
+    let effect_route_context = super::execution_support::SpellEffectRouteContextLikeCpp {
+        player_guid,
+        target_guid,
+        selected_aura_constructor: selected_execution_effects,
+    };
     if selected_execution_effects {
         spell_visual.spell_visual_id = super::selected_cast_visual::resolve(host, spell_id)?;
     }
@@ -193,6 +195,9 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         host,
         &spell_info,
         &target_data,
+        player_guid,
+        target_guid,
+        selected_execution_effects,
         spell_id,
         cast_id,
         &spell_visual,
@@ -841,7 +846,22 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                     target_guid,
                 );
             }
-            _ => {}
+            _ => match super::execution_support::classify_spell_effect_route_like_cpp(
+                &spell_info,
+                direct_effect_type,
+                Some(direct_effect_index),
+                effect_route_context,
+            ) {
+                super::execution_support::SpellEffectExecutionRouteLikeCpp::PostGo
+                | super::execution_support::SpellEffectExecutionRouteLikeCpp::ApplyAura
+                | super::execution_support::SpellEffectExecutionRouteLikeCpp::SourceInert => {}
+                super::execution_support::SpellEffectExecutionRouteLikeCpp::Direct => {
+                    return Err("spell effect direct-dispatch route drifted");
+                }
+                super::execution_support::SpellEffectExecutionRouteLikeCpp::Unavailable => {
+                    return Err("spell effect has no represented execution route");
+                }
+            },
         }
     }
 
@@ -1231,6 +1251,10 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                 )?;
                 host.hub_mut()
                     .recompute_represented_mounted_speed_rates_like_cpp();
+            } else if super::execution_support::is_explicitly_handled_player_aura_like_cpp(
+                effect,
+            ) {
+                return Err("represented special player aura route drifted");
             } else if generic_apply_aura_rows_like_cpp == 1 && apply_aura_rows_like_cpp == 1 {
                 host.apply_aura_with_effect_mask_and_provenance_like_cpp(
                     spell_id,
@@ -1246,12 +1270,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                     true,
                 )?;
             } else {
-                debug!(
-                    account = host.core().account_id,
-                    spell_id,
-                    effect_index = effect.effect_index,
-                    "Skipping represented generic multi-effect aura grouping until C++ aura effect-mask application is ported"
-                );
+                return Err("represented generic multi-effect aura grouping is unavailable");
             }
         }
     }
@@ -1264,6 +1283,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
         player_guid,
         cast_id,
         spell_visual_id,
+        effect_route_context,
     )?;
 
     if deferred_server_normal_cast_item_use && !take_server_normal_cast_item_before_effects {

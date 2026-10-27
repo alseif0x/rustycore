@@ -366,6 +366,20 @@ impl Runtime for WorldSession {
         }
     }
 
+    fn server_normal_effects_available(
+        &mut self,
+        spell: &wow_data::SpellInfo,
+        target_guid: ObjectGuid,
+        metadata: SpellCastMetadata,
+    ) -> Result<(), &'static str> {
+        wow_world_spell::validate_server_normal_spell_execution_availability_like_cpp(
+            self,
+            spell,
+            target_guid,
+            metadata,
+        )
+    }
+
     fn check_preconditions(
         &mut self,
         spell: &wow_data::SpellInfo,

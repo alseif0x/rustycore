@@ -93,6 +93,14 @@ pub trait Runtime {
     ) -> Result<bool, &'static str> {
         Ok(self.check_server_normal_costs(spell, cast, visual, metadata))
     }
+    /// Prove every selected effect reaches a represented executor before the
+    /// cast installs, publishes cooldown/START, or reaches SpellGo and costs.
+    fn server_normal_effects_available(
+        &mut self,
+        spell: &SpellInfo,
+        target_guid: ObjectGuid,
+        metadata: wow_entities::SpellCastMetadata,
+    ) -> Result<(), &'static str>;
     fn check_preconditions(
         &mut self,
         spell: &SpellInfo,
@@ -407,6 +415,9 @@ pub fn prepare_server_normal(
             && !runtime.check_power(&spell, cast_id, &visual)
     {
         return ServerNormalPrepareOutcomeLikeCpp::Rejected;
+    }
+    if let Err(reason) = runtime.server_normal_effects_available(&spell, target_guid, metadata) {
+        return ServerNormalPrepareOutcomeLikeCpp::Unavailable(reason);
     }
 
     let cast_time_ms = (spell.cast_time_ms as f32 * runtime.cast_time_multiplier()).max(0.0) as u32;

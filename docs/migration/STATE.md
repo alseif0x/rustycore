@@ -111,7 +111,10 @@ Its scoped feedback covers 26 relevant cases plus one matched duration
 regression. The native-death caller is still absent. Normal casts now clear
 exhausted cast-item provenance at the Source phase and propagate unavailable
 consumption; seven distinct cases provide scoped feedback for that repair.
-Silent success from other unimplemented mutating effects remains open.
+The cast dispatcher now reports unimplemented effects and unsupported Player
+Aura grouping before START/GO instead of silently succeeding. Its scoped
+feedback covers 33 distinct cases. This is a failure-contract repair, not a
+port of those effects or proof of full parity for every known handler.
 
 Four blocks remain within the same macro:
 
@@ -297,6 +300,24 @@ and objective data as distinct Source responsibilities. The existing legacy
 record's slot must not remain a competing live slot authority. This finding
 selects the required owner; it adds no native QuestLog implementation, SQL
 column, acceptance evidence or gameplay completion.
+
+The same Source also keeps QuestStatusData::Slot and Timer
+(QuestDef.h:826–833), with Slot initially MAX_QUEST_LOG_SIZE and Timer zero.
+Preserve those actual status fields: a separate QuestLog owner does not
+justify deleting or renaming Slot as though it were an accidental mirror.
+Status-slot attribution and live UF occupancy have different readers and
+lifetimes. `_LoadQuestStatus` (Player.cpp:18673–18695) assigns the status slot
+and writes the UF slot separately; live GetQuestSlot/first-free queries must
+read UF QuestIDs, while status/objective operations retain their Source slot
+contract. Likewise, durable endTime is not a substitute for native Timer.
+The new UF must preserve nested row masks and receiver filtering: QuestLog
+is PartyMember-visible (UpdateFields.cpp:1791–1797), and
+Player::GetUpdateFieldFlagsFor (:3610–3617) uses IsInSameRaidWith, which is
+true for self even without a group (:2139–2142). The current VALUES consumer
+passes only OWNER for self; new native QuestLog delivery must include the
+required PartyMember flag and the actual group-registry authority for other
+receivers, without treating a stale Player group snapshot as membership proof.
+These are required integration contracts, not new implementation evidence.
 
 Selected resurrection consumer review at `740b21234`, 2026-10-26: the
 earlier sparse-key expiration case covers sickness, not both ghost auras.
@@ -2899,6 +2920,78 @@ UNVALIDATED macro checkpoint. Registered SelfRes composition, native death,
 QA, final acceptance and authorized live/capture/durability evidence remain
 open. No push, installation, SQL or restart was performed.
 
+Cast dispatch and grouping availability, 2026-10-27, base
+`7583d94c8034dfa8055d4f88519cc5f10085a27e` plus 13 Rust working inputs:
+one private Spell classifier identifies the actual direct, post-GO, Aura and
+Source-inert routes. Unknown effects and unsupported generic Player Aura
+groups now report unavailable. The normal prepare path checks this after
+ordinary busy/death/cooldown/precondition/cost rejection and before native
+cooldown/START publication or active-cast installation. This includes timed
+casts, which previously could return Started before their skipped effects
+became visible. Execution also checks availability before power debit and
+GO, and retains explicit drift guards at direct and special-Aura fallthroughs.
+The legacy primary fallback no longer logs unknown work and returns success.
+Actual post-GO handlers and selected sickness/Ghost/Wisp constructors remain
+recognized by the shared route facts. No additional task or mutable owner
+was introduced.
+
+Pinned `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` anchors are the
+SpellEffects.cpp:88–403 dispatch table, :406–414 NULL/Unused handlers,
+:1389–1396 CreateItem and its DoCreateItem operation. Type 24 is a real
+mutation, not a Source-inert effect; this change does not implement it.
+The positive carried-item case uses the Source-disabled AddComboPoints body
+(:3164–3181), whose mutation is commented out in this target. DUMMY remains
+script-driven and is not treated as an unconditional no-op. Existing
+ordinary gameplay rejection stays distinct from unavailable implementation.
+
+On the aarch64 host, sequential one-job coding feedback used the same PROTOC
+and checkout-local target environment above. `cargo check -p wow-world`
+passed at 06:36:48.077–06:37:17.043 UTC (28.966 seconds). The final
+`cargo test -p wow-world-spell execution_support --lib` passed three cases,
+including real AuraType constants and a native Player GUID. The affected
+`player_cast::lifecycle::tests` filter passed 18, including instant and timed
+unimplemented-route rejection before installation and publication. World's
+`registered_self_res` filter covers ten distinct cases: its seven existing
+cases passed unchanged; the three new OnPickup cases passed after fixture
+repair in `registered_self_res::onpickup --lib`. The selected sickness and
+Ghost/Wisp filters each passed one. Parent review recomputed 33 distinct
+passing identities from the logs; reruns are not added to that count.
+
+The real registered SelfRes case has exact difficulty-three outer and inner
+spell keys, a physical OnPickup item with loaded level 50, separate cooldown
+categories and a valid nonzero CreateItem output item. An unsupported timed
+obtain cast retains native Alive/zero-health recovery at ObtainSpellsInFlight,
+without inner START/GO, corpse deletion or save. A separate fresh Alive/zero
+fixture calls the real obtain pipeline and checks the specific unavailable
+effect reason. A Source-inert obtain cast instead completes native revival,
+bones and one full-save request. These are controlled persistence-port cases,
+not real database/restart evidence.
+
+Logs and machine-readable argv/UTC/monotonic-time/exit records are under
+`/tmp/rustycore-cast-execution-availability-logs`. The first World run and
+first OnPickup rerun exited 101. Repairs replaced the legacy HP-sensitive
+alive facade with native Unit-state assertions, read all four SpellGo GUIDs,
+and distinguished the outer SelfRes START from the forbidden inner START.
+The final OnPickup run passed three at 06:45:56.560–06:47:19.649 UTC
+(83.089 seconds); only the changed Spell test leaf was then rerun, passing
+three at 06:47:26.390–06:47:32.327 (5.938 seconds). No production input
+changed after the green check. This coding and fixture-repair interval is
+separate from the unstarted final campaign and its 600-second ordinary target.
+
+Parent review matched all 13 Rust hashes to `coding-feedback-inputs.json`,
+digest `e5182b811fe2d084058affe5bc6f1ffc71c21523833eef1ddd9fd0475673f39b`.
+The tracked Rust diff digest is
+`2816108af4ac815d18d3fc3a815412e6da95c03cb994a1b8c234b0022034861f`;
+the input record includes all three new leaves. The production classifier
+is 333 lines and the new World test leaf 589; runtime turn-context telemetry
+confirms Luna max, including the same open worker's feedback turn. This is
+an UNVALIDATED macro checkpoint at the working base and inputs, not evidence
+for its later commit. It proves bounded dispatch/grouping availability and
+error propagation, not full parity of known effect handlers, all Aura
+execution, scripting or new gameplay-effect support. Native death, remaining
+SelfRes admission/timing cases, QA and authorized live/capture/DB/relogin
+acceptance remain open. No push, installation, SQL or restart was performed.
+
 Normal cast-item lifetime and failure propagation, 2026-10-27, base
 `b18321dad32f4915f58f62f5bf7023e86c6200a6` plus six Rust working inputs:
 Application's existing TakeCastItem owner now returns updated execution
@@ -3076,6 +3169,24 @@ fences and lethal callers remain unconnected. No new death behavior is
 enabled. Runtime declares GPT-6; specific model/effort telemetry is unavailable.
 The 04:06:06–04:08:09 feedback interval is 123 seconds, with implementation
 before it; it is not the final campaign or its ordinary performance result.
+
+Native-death callback reentrance review at `7583d94c8`, 2026-10-27:
+Player::setDeathState runs NoDeath quest callbacks before its final
+Unit::setDeathState call (Player.cpp:1187–1198). SendQuestUpdate can issue
+FULL casts from effective SpellArea rows. A Source-valid nested InstaKill
+can therefore still see an alive, positive-health Player: its guard checks
+IsAlive and then invokes Unit::Kill (SpellEffects.cpp:444–465), whose entry
+only rejects zero health (Unit.cpp:10457–10461). A blanket refusal of every
+InFlight death invocation would lose this synchronous Source call chain.
+The required Application body must distinguish duplicate external admission
+from a nested call made by its own awaited callback chain. Keep one claimed
+canonical root operation and its existing claim/revoke fence; execute nested
+Source frames inside that body, with their own call arguments and Source
+order, without replacing the root context, claiming another root or starting
+another task. Verify the exact same-Session/Player-handle ownership proof
+and cancellation fence when implementing this route. This does not authorize
+replaying an interrupted InFlight operation. No nested-death executor or
+regression evidence is implemented by this read-only review.
 
 Registered SelfRes normal-cast composition, 2026-10-27, base
 `b11b70973930b3ce2ddbd0ec3a8f73a838b7b732` plus two Rust test inputs:

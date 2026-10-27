@@ -217,6 +217,21 @@ impl Runtime for Fixture {
         self.events.push("normal-costs");
         self.normal_cost_outcome
     }
+    fn server_normal_effects_available(
+        &mut self,
+        spell: &SpellInfo,
+        target_guid: ObjectGuid,
+        _metadata: wow_entities::SpellCastMetadata,
+    ) -> Result<(), &'static str> {
+        self.events.push("effects-available");
+        crate::execution_session::validate_spell_effect_routes_like_cpp(
+            spell,
+            spell.effect_type,
+            ObjectGuid::EMPTY,
+            target_guid,
+            false,
+        )
+    }
     fn check_preconditions(
         &mut self,
         _: &SpellInfo,
@@ -380,6 +395,67 @@ fn normal_prepare_distinguishes_unavailable_authority_from_cast_rejection() {
             Default::default(),
         ),
         ServerNormalPrepareOutcomeLikeCpp::Unavailable("Player aura authority unavailable")
+    );
+}
+
+#[test]
+fn normal_prepare_rejects_instant_and_timed_unimplemented_mutation_before_publication() {
+    for cast_time_ms in [0, 1_750] {
+        let mut runtime = Fixture::new(cast_time_ms);
+        runtime.spell.effect_type = 24;
+        runtime.spell.effects = vec![wow_data::SpellEffectInfo {
+            effect_index: 0,
+            effect: 24,
+            ..Default::default()
+        }];
+        assert_eq!(runtime.spell.cast_time_ms, cast_time_ms);
+
+        assert_eq!(
+            prepare_server_normal(&mut runtime, 133, 0, ObjectGuid::EMPTY, Default::default()),
+            ServerNormalPrepareOutcomeLikeCpp::Unavailable(
+                "normal cast contains an unimplemented spell effect"
+            ),
+            "the effect remains unavailable for cast time {cast_time_ms}"
+        );
+        assert_eq!(
+            runtime.events,
+            ["busy", "caster-death", "normal-costs", "power", "effects-available"],
+            "ordinary admission order for cast time {cast_time_ms}"
+        );
+        assert!(runtime.active.is_none());
+        assert!(!runtime.events.contains(&"cast-start-cooldown"));
+        assert!(!runtime.events.contains(&"install-server-normal"));
+        assert!(!runtime.events.contains(&"start"));
+    }
+}
+
+#[test]
+fn normal_prepare_keeps_a_supported_instant_effect_on_the_canonical_path() {
+    let mut runtime = Fixture::new(0);
+    runtime.spell.effect_type = wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL;
+    runtime.spell.effects = vec![wow_data::SpellEffectInfo {
+        effect_index: 0,
+        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL,
+        ..Default::default()
+    }];
+
+    assert_eq!(
+        prepare_server_normal(&mut runtime, 133, 0, ObjectGuid::EMPTY, Default::default()),
+        ServerNormalPrepareOutcomeLikeCpp::Instant
+    );
+    assert_eq!(runtime.active.as_ref().unwrap().cast_time_ms, 0);
+    assert_eq!(
+        runtime.events,
+        [
+            "busy",
+            "caster-death",
+            "normal-costs",
+            "power",
+            "effects-available",
+            "cast-start-cooldown",
+            "install-server-normal",
+            "start",
+        ]
     );
 }
 

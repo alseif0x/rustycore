@@ -22,6 +22,9 @@ pub(super) fn prepare_represented_spell_execution_like_cpp<H: SpellExecutionHost
     host: &mut H,
     spell_info: &wow_data::SpellInfo,
     target_data: &SpellTargetData,
+    player_guid: ObjectGuid,
+    target_guid: ObjectGuid,
+    selected_aura_constructor: bool,
     spell_id: i32,
     cast_id: ObjectGuid,
     spell_visual: &wow_packet::packets::spell::SpellCastVisual,
@@ -93,6 +96,14 @@ pub(super) fn prepare_represented_spell_execution_like_cpp<H: SpellExecutionHost
         );
         return Ok(None);
     }
+
+    super::execution_support::validate_spell_effect_routes_like_cpp(
+        spell_info,
+        spell_info.effect_type,
+        player_guid,
+        target_guid,
+        selected_aura_constructor,
+    )?;
 
     if metadata.from_client
         && !take_spell_power_like_cpp(host, spell_info, cast_id, spell_id, spell_visual)
