@@ -9,13 +9,20 @@ pub use character_account_handlers::{
     CharacterAccountHandlerHostLikeCpp, register_character_account_handlers_like_cpp,
 };
 mod continue_login;
+mod pet_reagents;
 mod player_cast_session;
 mod player_handlers;
 mod player_spell_costs;
-mod pet_reagents;
 pub use pet_reagents::{PetReagentReturnOutcome, return_pet_reagent_like_cpp};
 mod pet_removal;
 pub use pet_removal::remove_pet_not_in_slot_like_cpp;
+mod player_death;
+pub use player_death::{
+    apply_player_damage_with_native_death_like_cpp, finish_native_player_death_like_cpp,
+    set_player_just_died_like_cpp,
+};
+mod quest_failure;
+pub use quest_failure::{fail_quests_with_flag_like_cpp, send_quest_update_like_cpp};
 mod session_lifecycle;
 pub use continue_login::{
     ContinueLoginHostLikeCpp, PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP,
@@ -67,10 +74,10 @@ pub use player_handlers::{
     PlayerHandlerCxLikeCpp, PlayerHandlerHostLikeCpp, register_player_handlers_like_cpp,
 };
 mod creature_damage;
-mod inventory_move_planning;
 mod inebriation;
-pub use inebriation::{PlayerDrunkValueInput, set_player_drunk_value_like_cpp};
+mod inventory_move_planning;
 pub use creature_damage::{CreatureDamageHostLikeCpp, apply_damage_from_caster_like_cpp};
+pub use inebriation::{PlayerDrunkValueInput, set_player_drunk_value_like_cpp};
 mod player_items_session;
 pub use player_items_session::*;
 mod trainer_handlers;

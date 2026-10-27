@@ -6,11 +6,13 @@
 use super::*;
 use crate::session::WorldSession;
 
+#[path = "corpse/live_pet.rs"]
+mod live_pet;
+#[path = "corpse/native_death.rs"]
+mod native_death;
 #[path = "corpse/recovery_fences.rs"]
 mod recovery_fences;
 mod release;
-#[path = "corpse/live_pet.rs"]
-mod live_pet;
 #[path = "corpse/selected_recovery.rs"]
 mod selected_recovery;
 
@@ -865,10 +867,7 @@ fn dead_player_session_without_corpse_port(
 
 /// Supplies the selected DB2 rows required by the production release casts.
 pub(super) fn install_release_cast_spell_fixture(session: &mut WorldSession) {
-    let mut spells = crate::selected_spell_fixtures::canonical_spell_store([
-        (8326, 0),
-        (20584, 0),
-    ]);
+    let mut spells = crate::selected_spell_fixtures::canonical_spell_store([(8326, 0), (20584, 0)]);
     let mut misc_rows = Vec::new();
     for (spell_id, aura_types, base_points, misc_value, attributes_1) in [
         (
@@ -924,10 +923,8 @@ pub(super) fn install_release_cast_spell_fixture(session: &mut WorldSession) {
             duration_index: 21,
             ..Default::default()
         });
-        spells.insert_spell_misc_attributes_like_cpp(
-            spell_id,
-            attributes.map(|value| value as u32),
-        );
+        spells
+            .insert_spell_misc_attributes_like_cpp(spell_id, attributes.map(|value| value as u32));
         spells.insert(
             spell_id,
             wow_data::SpellInfo {
@@ -1049,19 +1046,11 @@ fn dead_player_session_on_map_with_optional_port(
         &mut session,
     );
     assert_eq!(
-        wow_world_spell::load_represented_character_auras_like_cpp(
-            &mut session,
-            [],
-            [],
-            0,
-        ),
+        wow_world_spell::load_represented_character_auras_like_cpp(&mut session, [], [], 0,),
         0,
         "the release fixture starts from known empty persisted Aura rows"
     );
-    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(
-        &mut session,
-        true
-    ));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true));
     session.set_item_effect_store(std::sync::Arc::new(
         wow_data::ItemEffectStore::from_entries([]),
     ));

@@ -76,9 +76,19 @@ pub fn combat_stop_like_cpp<H: CombatSessionHostLikeCpp>(host: &mut H) {
         let Ok(mut manager) = manager.lock() else {
             return finish_combat_stop_like_cpp(host, player_guid, stopped_target, Vec::new());
         };
-        let Some(managed) =
-            manager.find_map_mut(u32::from(host.core().player_map_id_like_cpp()), 0)
+        let Some(key) = host
+            .core()
+            .player_handle_like_cpp
+            .and_then(|handle| manager.player_residence_like_cpp(handle))
+            .and_then(|residence| match residence {
+                wow_map::PlayerResidenceLikeCpp::Active(key) => Some(key),
+                wow_map::PlayerResidenceLikeCpp::Detached => None,
+            })
         else {
+            drop(manager);
+            return finish_combat_stop_like_cpp(host, player_guid, stopped_target, Vec::new());
+        };
+        let Some(managed) = manager.find_map_mut(key.map_id, key.instance_id) else {
             drop(manager);
             return finish_combat_stop_like_cpp(host, player_guid, stopped_target, Vec::new());
         };
@@ -125,6 +135,15 @@ pub fn combat_stop_like_cpp<H: CombatSessionHostLikeCpp>(host: &mut H) {
                     .combat
                     .purge_combat_ref_like_cpp(player_guid);
                 owner.unit_mut().remove_attacker_like_cpp(player_guid);
+            } else if let Some(owner) = map.get_typed_pet_mut(*owner_guid) {
+                let unit = owner.creature_mut().unit_mut();
+                if unit.attacking() == Some(player_guid) {
+                    let _ = unit.attack_stop_like_cpp();
+                }
+                unit.subsystems_mut()
+                    .combat
+                    .purge_combat_ref_like_cpp(player_guid);
+                unit.remove_attacker_like_cpp(player_guid);
             }
         }
 

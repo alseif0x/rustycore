@@ -192,7 +192,9 @@ async fn push_quest_to_party_grouped_receiver_dead_observes_runtime_under_map_sy
     let mut movement_info = wow_packet::packets::movement::MovementInfo::default();
     movement_info.position.z = -501.0;
 
-    let event = receiver_session.handle_under_map_like_cpp(&movement_info);
+    let event = receiver_session
+        .handle_under_map_like_cpp(&movement_info)
+        .await;
 
     assert!(event.is_some());
     assert!(!receiver_session.player_is_alive_like_cpp());

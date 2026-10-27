@@ -387,6 +387,11 @@ pub(crate) fn trade_policy_like_cpp(
 pub(crate) fn death_policy_like_cpp(configs: &WorldConfigSet) -> wow_world::DeathPolicyLikeCpp {
     let defaults = wow_world::DeathPolicyLikeCpp::default();
     wow_world::DeathPolicyLikeCpp {
+        durability_loss_in_pvp: world_config_bool(
+            configs,
+            "CONFIG_DURABILITY_LOSS_IN_PVP",
+            defaults.durability_loss_in_pvp,
+        ),
         sickness_level: configs
             .get_int("CONFIG_DEATH_SICKNESS_LEVEL")
             .map(|value| value as i32)

@@ -1,6 +1,7 @@
 //! Session-independent mailbox protocol, durable rails, and phase admission values.
 
 mod durable;
+mod native_death;
 mod protocol;
 mod pump;
 mod session_phase_permit;
@@ -9,6 +10,11 @@ mod trade_commit;
 
 pub use self::durable::{
     DurableCreatureRuntimeCommandsLikeCpp, MAX_DURABLE_CREATURE_RUNTIME_COMMANDS_LIKE_CPP,
+};
+pub use self::native_death::{
+    CommittedCreatureMeleeAdmission, CommittedCreatureMeleeReply,
+    CreatureMeleePresentationStageLikeCpp, NativePlayerDeathAdmission, NativePlayerDeathReply,
+    RunCommittedCreatureMeleeRequest, RunNativePlayerDeathRequest,
 };
 pub use self::protocol::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyGroupDifficultyLikeCppCommand,

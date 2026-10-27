@@ -96,11 +96,11 @@ impl PlayerRegistry {
         ))
     }
 
-    /// Resolve a frozen Player packet receipt for direct realm delivery. The
+    /// Resolve a frozen Player packet receipt for direct packet delivery. The
     /// map residence revision is checked before the caller queues bytes, and
     /// the registration/HaveAtClient snapshot is rechecked after releasing
     /// MapManager so no directory access happens under the map guard.
-    pub(crate) fn selected_packet_recipient_at_residence(
+    pub fn selected_packet_recipient_at_residence(
         &self,
         guid: ObjectGuid,
         expected_handle: PlayerHandle,

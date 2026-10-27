@@ -1,18 +1,36 @@
 //! Movement handlers regression scenarios, part 1 of 3.
 //!
-//! Moved out of the movement.rs root under #654; every test is unchanged.
+//! Source movement guards, packet order and native damage integration.
 
 use super::*;
 use wow_world_entities::{
-    apply_knock_back_ack_like_cpp, apply_movement_side_effects_like_cpp,
+    apply_knock_back_ack_like_cpp,
+    apply_movement_side_effects_like_cpp as apply_movement_side_effects_with_generator_like_cpp,
     handle_force_speed_change_ack_like_cpp, handle_move_spline_done_taxi_like_cpp,
     handle_movement_force_mod_magnitude_ack_like_cpp, handle_movement_info_with_catalogs_like_cpp,
     record_apply_movement_force_ack_like_cpp, record_remove_movement_force_ack_like_cpp,
     sanitize_movement_info_flags_represented_like_cpp,
 };
 
-#[test]
-fn movement_landing_and_jump_remove_cpp_interruptible_auras() {
+async fn apply_movement_side_effects_like_cpp(
+    host: &mut crate::session::WorldSession,
+    opcode: Option<ClientOpcodes>,
+    info: &MovementInfo,
+    creature_spawns: &wow_world_entities::CreatureSpawnCatalogsLikeCpp,
+) {
+    let item_guid_generator = host.id_generators_for_test_like_cpp().item;
+    apply_movement_side_effects_with_generator_like_cpp(
+        host,
+        opcode,
+        info,
+        creature_spawns,
+        item_guid_generator.as_ref(),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn movement_landing_and_jump_remove_cpp_interruptible_auras() {
     let mut session = make_session();
     session.fixtures.auras.visible_auras.insert(
         1,
@@ -32,7 +50,9 @@ fn movement_landing_and_jump_remove_cpp_interruptible_auras() {
         &mut session,
         Some(ClientOpcodes::MoveFallLand),
         &MovementInfo::default(),
-    );
+        &Default::default(),
+    )
+    .await;
     assert!(!session.fixtures.auras.visible_auras.contains_key(&1));
     assert!(session.fixtures.auras.visible_auras.contains_key(&2));
     assert!(session.fixtures.auras.visible_auras.contains_key(&3));
@@ -41,20 +61,28 @@ fn movement_landing_and_jump_remove_cpp_interruptible_auras() {
         &mut session,
         Some(ClientOpcodes::MoveJump),
         &MovementInfo::default(),
-    );
+        &Default::default(),
+    )
+    .await;
     assert!(!session.fixtures.auras.visible_auras.contains_key(&2));
     assert!(session.fixtures.auras.visible_auras.contains_key(&3));
     assert_eq!(session.movement_jump_proc_requests_like_cpp(), 1);
 }
 
-#[test]
-fn movement_stands_sitting_player_and_records_flying_pet_unsummon() {
+#[tokio::test]
+async fn movement_stands_sitting_player_and_records_flying_pet_unsummon() {
     let mut session = make_session();
     session.set_player_stand_state_like_cpp(UnitStandStateType::SitChair);
     let mut info = MovementInfo::default();
     info.flags = MovementFlag::FORWARD;
 
-    apply_movement_side_effects_like_cpp(&mut session, Some(ClientOpcodes::MoveSetFly), &info);
+    apply_movement_side_effects_like_cpp(
+        &mut session,
+        Some(ClientOpcodes::MoveSetFly),
+        &info,
+        &Default::default(),
+    )
+    .await;
 
     assert_eq!(
         session.player_stand_state_like_cpp(),
@@ -63,8 +91,8 @@ fn movement_stands_sitting_player_and_records_flying_pet_unsummon() {
     assert_eq!(session.temporary_pet_unsummon_requests_like_cpp(), 1);
 }
 
-#[test]
-fn movement_clears_player_emote_state_like_cpp() {
+#[tokio::test]
+async fn movement_clears_player_emote_state_like_cpp() {
     let (mut session, send_rx) = make_session_with_send_rx();
     let guid = ObjectGuid::create_player(1, 46);
     session.set_player_guid(Some(guid));
@@ -76,7 +104,13 @@ fn movement_clears_player_emote_state_like_cpp() {
 
     let mut info = MovementInfo::default();
     info.flags = MovementFlag::FORWARD;
-    apply_movement_side_effects_like_cpp(&mut session, Some(ClientOpcodes::MoveHeartbeat), &info);
+    apply_movement_side_effects_like_cpp(
+        &mut session,
+        Some(ClientOpcodes::MoveHeartbeat),
+        &info,
+        &Default::default(),
+    )
+    .await;
 
     assert_eq!(session.player_emote_state_like_cpp(), 0);
     assert_eq!(
@@ -85,7 +119,13 @@ fn movement_clears_player_emote_state_like_cpp() {
         "C++ MovementHandler clears UnitData::EmoteState on accepted player movement"
     );
 
-    apply_movement_side_effects_like_cpp(&mut session, Some(ClientOpcodes::MoveHeartbeat), &info);
+    apply_movement_side_effects_like_cpp(
+        &mut session,
+        Some(ClientOpcodes::MoveHeartbeat),
+        &info,
+        &Default::default(),
+    )
+    .await;
     assert_eq!(
         drain_server_opcodes(&send_rx),
         Vec::<ServerOpcodes>::new(),
@@ -318,6 +358,7 @@ async fn player_movement_loads_active_grid_before_visibility_like_cpp() {
     let area_triggers = session.area_trigger_catalogs_for_test_like_cpp();
     let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
     let progression = session.progression_catalogs_for_test_like_cpp();
+    let item_guid_generator = session.id_generators_for_test_like_cpp().item;
 
     let same_grid = MovementInfo {
         guid,
@@ -333,6 +374,7 @@ async fn player_movement_loads_active_grid_before_visibility_like_cpp() {
         &player_grid_loader,
         Some(ClientOpcodes::MoveHeartbeat),
         same_grid,
+        item_guid_generator.as_ref(),
     )
     .await;
     assert_eq!(
@@ -355,6 +397,7 @@ async fn player_movement_loads_active_grid_before_visibility_like_cpp() {
         &player_grid_loader,
         Some(ClientOpcodes::MoveHeartbeat),
         new_grid,
+        item_guid_generator.as_ref(),
     )
     .await;
 
@@ -365,8 +408,8 @@ async fn player_movement_loads_active_grid_before_visibility_like_cpp() {
     );
 }
 
-#[test]
-fn movement_fall_land_applies_cpp_base_fall_damage_and_updates_fall_info() {
+#[tokio::test]
+async fn movement_fall_land_applies_cpp_base_fall_damage_and_updates_fall_info() {
     let (mut session, send_rx) = make_session_with_send_rx();
     session.set_player_guid(Some(ObjectGuid::create_player(1, 41)));
     session.set_player_health_like_cpp(1_000, 1_000);
@@ -375,7 +418,13 @@ fn movement_fall_land_applies_cpp_base_fall_damage_and_updates_fall_info() {
     info.position.z = 100.0;
     info.jump.fall_time = 1_500;
 
-    apply_movement_side_effects_like_cpp(&mut session, Some(ClientOpcodes::MoveFallLand), &info);
+    apply_movement_side_effects_like_cpp(
+        &mut session,
+        Some(ClientOpcodes::MoveFallLand),
+        &info,
+        &Default::default(),
+    )
+    .await;
 
     let events = session.fall_damage_events_like_cpp();
     assert_eq!(events.len(), 1);
@@ -400,12 +449,14 @@ fn movement_fall_land_applies_cpp_base_fall_damage_and_updates_fall_info() {
         &mut session,
         Some(ClientOpcodes::MoveFallLand),
         &harmless,
-    );
+        &Default::default(),
+    )
+    .await;
     assert_eq!(session.fall_damage_events_like_cpp().len(), 1);
 }
 
-#[test]
-fn movement_fall_land_lethal_damage_sends_player_values_update_like_cpp() {
+#[tokio::test]
+async fn movement_fall_land_lethal_damage_sends_player_values_update_like_cpp() {
     let (mut session, send_rx) = make_session_with_send_rx();
     session.set_player_guid(Some(ObjectGuid::create_player(1, 43)));
     session.set_player_health_like_cpp(1_000, 1_000);
@@ -414,7 +465,13 @@ fn movement_fall_land_lethal_damage_sends_player_values_update_like_cpp() {
     info.position.z = 100.0;
     info.jump.fall_time = 1_500;
 
-    apply_movement_side_effects_like_cpp(&mut session, Some(ClientOpcodes::MoveFallLand), &info);
+    apply_movement_side_effects_like_cpp(
+        &mut session,
+        Some(ClientOpcodes::MoveFallLand),
+        &info,
+        &Default::default(),
+    )
+    .await;
 
     let events = session.fall_damage_events_like_cpp();
     assert_eq!(events.len(), 1);
@@ -425,17 +482,15 @@ fn movement_fall_land_lethal_damage_sends_player_values_update_like_cpp() {
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
-            ServerOpcodes::HealthUpdate,
             ServerOpcodes::EnvironmentalDamageLog,
-            ServerOpcodes::UpdateObject,
             ServerOpcodes::DurabilityDamageDeath,
         ],
-        "C++ lethal EnvironmentalDamage goes through Unit::Kill/Player::setDeathState before release/cemetery flows and runs the fall-death durability loss (Player.cpp:655-670, MiscPackets.cpp:481-486); Rust must publish the zero-health values update and the loss message, not only the combat log"
+        "Player.cpp:655–670 publishes the environmental log and fall penalty; Unit.cpp:1015–1022,9214–9243 leaves lethal health values for Map publication. This ownerless fixture covers the caller; native_damage_ covers the canonical death body."
     );
 }
 
-#[test]
-fn movement_fall_damage_applies_cpp_aura_modifiers_and_guards() {
+#[tokio::test]
+async fn movement_fall_damage_applies_cpp_aura_modifiers_and_guards() {
     let mut session = make_session();
     session.set_player_health_like_cpp(1_000, 1_000);
     crate::session::hub_mut(&mut session).set_fall_information_like_cpp(1_200, 150.0);
@@ -451,7 +506,13 @@ fn movement_fall_damage_applies_cpp_aura_modifiers_and_guards() {
     info.position.z = 100.0;
     info.jump.fall_time = 1_500;
 
-    apply_movement_side_effects_like_cpp(&mut session, Some(ClientOpcodes::MoveFallLand), &info);
+    apply_movement_side_effects_like_cpp(
+        &mut session,
+        Some(ClientOpcodes::MoveFallLand),
+        &info,
+        &Default::default(),
+    )
+    .await;
 
     let events = session.fall_damage_events_like_cpp();
     assert_eq!(events.len(), 1);
@@ -466,28 +527,52 @@ fn movement_fall_damage_applies_cpp_aura_modifiers_and_guards() {
         6,
         fall_aura(6, RepresentedAuraEffectLikeCpp::FeatherFall, 0, 1.0),
     );
-    apply_movement_side_effects_like_cpp(&mut guarded, Some(ClientOpcodes::MoveFallLand), &info);
+    apply_movement_side_effects_like_cpp(
+        &mut guarded,
+        Some(ClientOpcodes::MoveFallLand),
+        &info,
+        &Default::default(),
+    )
+    .await;
     assert!(guarded.fall_damage_events_like_cpp().is_empty());
 
     let mut god = make_session();
     god.set_player_health_like_cpp(1_000, 1_000);
     god.set_fall_information_like_cpp(1_200, 150.0);
     god.set_player_cheat_god_like_cpp(true);
-    apply_movement_side_effects_like_cpp(&mut god, Some(ClientOpcodes::MoveFallLand), &info);
+    apply_movement_side_effects_like_cpp(
+        &mut god,
+        Some(ClientOpcodes::MoveFallLand),
+        &info,
+        &Default::default(),
+    )
+    .await;
     assert!(god.fall_damage_events_like_cpp().is_empty());
 
     let mut gm = make_session();
     gm.set_player_health_like_cpp(1_000, 1_000);
     gm.set_fall_information_like_cpp(1_200, 150.0);
     gm.set_player_game_master_like_cpp(true);
-    apply_movement_side_effects_like_cpp(&mut gm, Some(ClientOpcodes::MoveFallLand), &info);
+    apply_movement_side_effects_like_cpp(
+        &mut gm,
+        Some(ClientOpcodes::MoveFallLand),
+        &info,
+        &Default::default(),
+    )
+    .await;
     assert!(gm.fall_damage_events_like_cpp().is_empty());
 
     let mut immune = make_session();
     immune.set_player_health_like_cpp(1_000, 1_000);
     immune.set_fall_information_like_cpp(1_200, 150.0);
     immune.set_player_normal_damage_immune_like_cpp(true);
-    apply_movement_side_effects_like_cpp(&mut immune, Some(ClientOpcodes::MoveFallLand), &info);
+    apply_movement_side_effects_like_cpp(
+        &mut immune,
+        Some(ClientOpcodes::MoveFallLand),
+        &info,
+        &Default::default(),
+    )
+    .await;
     assert!(immune.fall_damage_events_like_cpp().is_empty());
 
     let mut environmental = make_session();
@@ -498,7 +583,9 @@ fn movement_fall_damage_applies_cpp_aura_modifiers_and_guards() {
         &mut environmental,
         Some(ClientOpcodes::MoveFallLand),
         &info,
-    );
+        &Default::default(),
+    )
+    .await;
     assert_eq!(environmental.fall_damage_events_like_cpp()[0].damage, 657);
     assert_eq!(
         environmental.fall_damage_events_like_cpp()[0].final_damage,
@@ -507,15 +594,21 @@ fn movement_fall_damage_applies_cpp_aura_modifiers_and_guards() {
     assert_eq!(environmental.player_health_like_cpp(), 1_000);
 }
 
-#[test]
-fn movement_under_map_applies_cpp_void_damage_and_flag() {
+#[tokio::test]
+async fn movement_under_map_applies_cpp_void_damage_and_flag() {
     let (mut session, send_rx) = make_session_with_send_rx();
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
     session.set_player_health_like_cpp(1_000, 1_000);
     let mut info = MovementInfo::default();
     info.position.z = -501.0;
 
-    apply_movement_side_effects_like_cpp(&mut session, Some(ClientOpcodes::MoveHeartbeat), &info);
+    apply_movement_side_effects_like_cpp(
+        &mut session,
+        Some(ClientOpcodes::MoveHeartbeat),
+        &info,
+        &Default::default(),
+    )
+    .await;
 
     assert_eq!(session.under_map_damage_events_like_cpp().len(), 1);
     assert_eq!(
@@ -525,23 +618,27 @@ fn movement_under_map_applies_cpp_void_damage_and_flag() {
     assert_eq!(session.player_health_like_cpp(), 0);
     assert!(!session.player_is_alive_like_cpp());
     assert!(session.player_out_of_bounds_like_cpp());
-    let sent = send_rx.try_recv().expect("void health update");
-    let opcode = u16::from_le_bytes([sent[0], sent[1]]);
-    assert_eq!(opcode, ServerOpcodes::HealthUpdate as u16);
     let sent = send_rx.try_recv().expect("void environmental damage log");
     let opcode = u16::from_le_bytes([sent[0], sent[1]]);
     assert_eq!(opcode, ServerOpcodes::EnvironmentalDamageLog as u16);
-    let sent = send_rx.try_recv().expect("void death values update");
-    let opcode = u16::from_le_bytes([sent[0], sent[1]]);
-    assert_eq!(opcode, ServerOpcodes::UpdateObject as u16);
+    assert!(
+        send_rx.is_empty(),
+        "lethal health stays on the Map update-field rail"
+    );
 
     info.position.z = -499.0;
-    apply_movement_side_effects_like_cpp(&mut session, Some(ClientOpcodes::MoveHeartbeat), &info);
+    apply_movement_side_effects_like_cpp(
+        &mut session,
+        Some(ClientOpcodes::MoveHeartbeat),
+        &info,
+        &Default::default(),
+    )
+    .await;
     assert!(!session.player_out_of_bounds_like_cpp());
 }
 
-#[test]
-fn movement_under_map_sets_and_clears_canonical_out_of_bounds_flag() {
+#[tokio::test]
+async fn movement_under_map_sets_and_clears_canonical_out_of_bounds_flag() {
     let (mut session, _send_rx) = make_session_with_send_rx();
     let guid = ObjectGuid::create_player(1, 4_242);
     session.set_player_guid(Some(guid));
@@ -553,10 +650,17 @@ fn movement_under_map_sets_and_clears_canonical_out_of_bounds_flag() {
             player.unit_mut().set_health(1_000);
         })
         .expect("canonical Player vitals");
+    crate::native_death_test_fixtures::prepare(&mut session);
 
     let mut info = MovementInfo::default();
     info.position.z = -501.0;
-    apply_movement_side_effects_like_cpp(&mut session, Some(ClientOpcodes::MoveHeartbeat), &info);
+    apply_movement_side_effects_like_cpp(
+        &mut session,
+        Some(ClientOpcodes::MoveHeartbeat),
+        &info,
+        &Default::default(),
+    )
+    .await;
 
     let flags = session
         .core
@@ -565,7 +669,13 @@ fn movement_under_map_sets_and_clears_canonical_out_of_bounds_flag() {
     assert_ne!(flags & 0x0000_4000, 0, "C++ PLAYER_FLAGS_IS_OUT_OF_BOUNDS");
 
     info.position.z = -499.0;
-    apply_movement_side_effects_like_cpp(&mut session, Some(ClientOpcodes::MoveHeartbeat), &info);
+    apply_movement_side_effects_like_cpp(
+        &mut session,
+        Some(ClientOpcodes::MoveHeartbeat),
+        &info,
+        &Default::default(),
+    )
+    .await;
 
     let flags = session
         .core

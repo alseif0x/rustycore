@@ -114,8 +114,13 @@ mod creature_spell_tick;
 mod creature_spell_validation;
 mod creature_threat;
 mod creature_tick;
+mod native_player_death;
 mod player_melee_victims;
 mod player_tick;
+pub use native_player_death::{
+    CommittedMapCreatureMelee, MapPlayerCombatCall, MapPlayerCombatCallback,
+    NativePlayerDeathFailure, PendingMapPlayerDeath,
+};
 
 // #1263 F6-8D2: the admitted creature execution seam. #1263 F6-8D3b-1: the
 // world-server canonical map loop calls its locked-manager entries. The other
@@ -131,6 +136,7 @@ pub use admitted_creature_execution::{
     capture_admitted_creature_execution_on_manager_like_cpp,
     run_admitted_creature_combat_phases_isolated_like_cpp,
     run_admitted_creature_combat_phases_on_locked_manager_like_cpp,
+    run_admitted_creature_combat_phases_with_native_death,
     run_admitted_creature_execution_isolated_like_cpp,
 };
 // The single-phase entries the executor composes; the unit tests drive one

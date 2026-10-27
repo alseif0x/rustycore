@@ -24,6 +24,8 @@ use crate::runtime::canonical_creature_runtime::{
 // #1263 F6-8D3b-3: chase and the first creature swing, end to end.
 #[path = "scenarios_16/chase.rs"]
 mod chase;
+#[path = "scenarios_16/native_death.rs"]
+mod native_death;
 #[path = "scenarios_16/selected_recovery.rs"]
 mod selected_recovery;
 // #1444 H2: `world.update` on the booted loop, every tick guard released.
@@ -278,6 +280,17 @@ fn d3b_drain_like_cpp(
         let opcode = wow_packet::WorldPacket::from_bytes(&bytes).server_opcode();
         let about_creature = bytes.windows(packed.len()).any(|window| window == packed);
         match opcode {
+            Some(ServerOpcodes::AttackStart) => observed.attack_starts += 1,
+            Some(ServerOpcodes::AttackerStateUpdate) => {
+                let mut packet = wow_packet::WorldPacket::from_bytes(&bytes);
+                packet.skip_opcode();
+                let _log_data = packet.read_uint8().unwrap();
+                let _round_size = packet.read_uint32().unwrap();
+                let _hit_info = packet.read_uint32().unwrap();
+                if packet.read_packed_guid().unwrap() == world.creature {
+                    observed.creature_melee += 1;
+                }
+            }
             Some(ServerOpcodes::UpdateObject) if about_creature => {
                 *observed.creature_update_objects.entry(stage).or_default() += 1;
                 if values_step {
@@ -346,8 +359,6 @@ impl D3bObservedLikeCpp {
         command: &SessionCommand,
     ) {
         match command {
-            SessionCommand::CreatureAttackStartLikeCpp(_) => self.attack_starts += 1,
-            SessionCommand::ApplyCreatureMeleeDamageLikeCpp(_) => self.creature_melee += 1,
             SessionCommand::ApplyPlayerMeleeResultLikeCpp(result) => {
                 self.player_melee_results += 1;
                 self.kills += usize::from(result.killed_creature.is_some());

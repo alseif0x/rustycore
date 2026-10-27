@@ -56,8 +56,8 @@ mod player_attack;
 mod player_death;
 mod player_release;
 mod player_resurrection;
-mod recovery_fences;
 mod player_vitals;
+mod recovery_fences;
 mod resurrection_request;
 mod spawn;
 mod spell_click;
@@ -85,9 +85,11 @@ pub use combat_session::{
     handle_apply_creature_melee_damage_like_cpp_command_like_cpp,
     handle_creature_attack_start_like_cpp_command_like_cpp,
     handle_creature_attack_stop_like_cpp_command_like_cpp,
-    handle_reconcile_pvp_combat_expiry_like_cpp, reset_contested_pvp_like_cpp,
-    set_represented_ffa_pvp_flag_like_cpp, tick_player_regeneration_like_cpp,
-    update_pvp_flag_like_cpp,
+    handle_reconcile_pvp_combat_expiry_like_cpp,
+    present_committed_creature_melee_hit_at_stage_like_cpp,
+    present_committed_creature_melee_hit_like_cpp, publish_creature_melee_prefix_like_cpp,
+    reset_contested_pvp_like_cpp, set_represented_ffa_pvp_flag_like_cpp,
+    tick_player_regeneration_like_cpp, update_pvp_flag_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use contracts::RepresentedCreatureKillEventLikeCpp;
@@ -228,8 +230,10 @@ pub use player_release::{build_player_repop_like_cpp, create_corpse_like_cpp};
 pub use player_resurrection::{
     reclaim_corpse_like_cpp, resurrect_player_like_cpp, self_resurrect_player_like_cpp,
 };
-pub use recovery_fences::{RecoveryResumeState, resume_state as resurrection_recovery_resume_state};
 pub use player_vitals::{set_player_alive_like_cpp, set_player_ghost_flag_like_cpp};
+pub use recovery_fences::{
+    RecoveryResumeState, resume_state as resurrection_recovery_resume_state,
+};
 pub use resurrection_request::{
     continue_player_resurrection_after_teleport, mark_player_resurrection_teleport_completed,
     player_resurrection_continuation_pending, player_resurrection_save_waiting_for_transfer,
@@ -290,10 +294,9 @@ pub use visibility_session::{
 pub use visibility_session::{
     WAYPOINT_MOTION_TYPE_LIKE_CPP, choose_creature_flags_like_cpp,
     creature_create_movement_flags_like_cpp, creature_create_position_after_hover_offset_like_cpp,
-    creature_movement_generator_type_from_db_like_cpp,
+    creature_movement_generator_type_from_db_like_cpp, materialize_creature_spawn_row_for_test,
     normalize_creature_template_speed_run_like_cpp,
     normalize_creature_template_speed_walk_like_cpp, normalized_creature_wander_distance_like_cpp,
     spawn_difficulties_contains_spawn_mode_like_cpp,
-    materialize_creature_spawn_row_for_test,
 };
 pub use world_entities_host::WorldEntitiesHostLikeCpp;

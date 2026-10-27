@@ -139,7 +139,7 @@ pub use faction_reactions::{
 mod combat;
 pub use combat::{
     DAMAGE_FALL_LIKE_CPP, DAMAGE_FALL_TO_VOID_LIKE_CPP, PLAYER_FLAGS_IN_PVP_LIKE_CPP,
-    SPELL_PVP_RULES_ENABLED_LIKE_CPP,
+    PlayerDamageResultLikeCpp, SPELL_PVP_RULES_ENABLED_LIKE_CPP,
 };
 mod admission;
 pub use admission::packet_spoof_max_packet_counter_allowed_like_cpp;

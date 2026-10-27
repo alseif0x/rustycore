@@ -96,10 +96,7 @@ impl MovementHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession 
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
             let action = wow_world_entities::handle_move_teleport_ack_like_cpp(
-                self,
-                mover_guid,
-                ack_index,
-                move_time,
+                self, mover_guid, ack_index, move_time,
             );
             if action == wow_world_core::session::movement_protocol::MoveTeleportAckActionLikeCpp::Accepted {
                 let resurrection_catalogs = wow_world_entities::ResurrectionOperationCatalogs {
@@ -137,6 +134,7 @@ impl MovementHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession 
                 catalogs.progression.as_ref(),
                 &catalogs.player_grid_loader,
                 pkt,
+                catalogs.id_generators.item.as_ref(),
             )
             .await
         })

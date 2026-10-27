@@ -3120,6 +3120,7 @@ dependencies = [
  "wow-world-lifecycle",
  "wow-world-social",
  "wow-world-spell",
+ "wow-world-test-support",
 ]
 
 [[package]]

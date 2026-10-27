@@ -21,6 +21,8 @@ use std::sync::Arc;
 /// C++ `World::LoadConfigSettings` death policy (`World.cpp:1306-1310`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DeathPolicyLikeCpp {
+    /// `CONFIG_DURABILITY_LOSS_IN_PVP` (`DurabilityLoss.InPvP`).
+    pub durability_loss_in_pvp: bool,
     /// `CONFIG_DEATH_SICKNESS_LEVEL` (`Death.SicknessLevel`).
     pub sickness_level: i32,
     /// `CONFIG_DEATH_CORPSE_RECLAIM_DELAY_PVP` (`Death.CorpseReclaimDelay.PvP`).
@@ -37,6 +39,7 @@ impl Default for DeathPolicyLikeCpp {
     /// The C++ `GetIntDefault`/`GetBoolDefault` fallbacks.
     fn default() -> Self {
         Self {
+            durability_loss_in_pvp: false,
             sickness_level: 11,
             corpse_reclaim_delay_pvp: true,
             corpse_reclaim_delay_pve: true,

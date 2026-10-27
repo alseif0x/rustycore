@@ -14,7 +14,10 @@ use wow_world_core::session::mailbox::{
     CreatureAttackStopLikeCppCommand, ReconcilePvpCombatExpiryLikeCppCommand,
 };
 
-use super::{CombatSessionHostLikeCpp, publish_melee_absorb_consumption_like_cpp};
+use super::{
+    CombatSessionHostLikeCpp, broadcast_player_combat_packet_to_visible_set_instance_like_cpp,
+    publish_melee_absorb_consumption_like_cpp,
+};
 
 pub fn handle_creature_attack_start_like_cpp_command_like_cpp<H: CombatSessionHostLikeCpp>(
     host: &mut H,
@@ -23,16 +26,8 @@ pub fn handle_creature_attack_start_like_cpp_command_like_cpp<H: CombatSessionHo
     if host.state() != SessionState::LoggedIn
         || host.player_guid() != Some(command.victim_guid)
         || host.hub_ref().resolved_player_is_alive_like_cpp() != Some(true)
-        || host.core().player_map_id_like_cpp() != command.map_id
+        || host.core().current_runtime_map_key_like_cpp() != (command.map_id, command.instance_id)
     {
-        return;
-    }
-    let session_instance_id = host
-        .core()
-        .current_canonical_player_map_key_like_cpp()
-        .map(|key| key.instance_id)
-        .unwrap_or(0);
-    if session_instance_id != command.instance_id {
         return;
     }
     let attacker_is_visible = host
@@ -55,7 +50,7 @@ pub fn handle_creature_attack_stop_like_cpp_command_like_cpp<H: CombatSessionHos
 ) {
     if host.state() != SessionState::LoggedIn
         || host.player_guid() != Some(command.victim_guid)
-        || host.core().player_map_id_like_cpp() != command.map_id
+        || host.core().current_runtime_map_key_like_cpp() != (command.map_id, command.instance_id)
     {
         return;
     }
@@ -118,34 +113,95 @@ pub fn handle_apply_creature_melee_damage_like_cpp_command_like_cpp<H: CombatSes
     host: &mut H,
     command: ApplyCreatureMeleeDamageLikeCppCommand,
 ) {
+    // Compatibility delivery for queued results. Native death owns its lethal
+    // penalty; production awaits primary hits on the Session phase rail.
+    let _ = present_committed_creature_melee_hit_like_cpp(host, command);
+}
+
+pub fn present_committed_creature_melee_hit_like_cpp<H: CombatSessionHostLikeCpp>(
+    host: &mut H,
+    command: ApplyCreatureMeleeDamageLikeCppCommand,
+) -> Result<(), &'static str> {
+    present_committed_creature_melee_hit_at_stage_like_cpp(
+        host,
+        command,
+        wow_world_core::session::mailbox::CreatureMeleePresentationStageLikeCpp::Whole,
+    )
+}
+
+pub fn present_committed_creature_melee_hit_at_stage_like_cpp<H: CombatSessionHostLikeCpp>(
+    host: &mut H,
+    command: ApplyCreatureMeleeDamageLikeCppCommand,
+    stage: wow_world_core::session::mailbox::CreatureMeleePresentationStageLikeCpp,
+) -> Result<(), &'static str> {
     if host.state() != SessionState::LoggedIn {
-        return;
+        return Err("Melee presentation Session is not logged in");
     }
     if host.player_guid() != Some(command.victim_guid) {
-        return;
+        return Err("Melee presentation Player identity changed");
     }
-    if host.core().player_map_id_like_cpp() != command.map_id {
-        return;
+    if host.core().current_runtime_map_key_like_cpp() != (command.map_id, command.instance_id) {
+        return Err("Melee presentation Map or instance changed");
     }
-    let session_instance_id = host
-        .core()
-        .current_canonical_player_map_key_like_cpp()
-        .map(|key| key.instance_id)
-        .unwrap_or(0);
-    if session_instance_id != command.instance_id {
-        return;
+    match stage {
+        wow_world_core::session::mailbox::CreatureMeleePresentationStageLikeCpp::AbsorbOnly => {
+            return publish_creature_melee_absorb_only_like_cpp(host, &command);
+        }
+        wow_world_core::session::mailbox::CreatureMeleePresentationStageLikeCpp::AttackerStateOnly => {
+            return publish_creature_melee_attacker_state_like_cpp(host, &command);
+        }
+        wow_world_core::session::mailbox::CreatureMeleePresentationStageLikeCpp::Whole
+        | wow_world_core::session::mailbox::CreatureMeleePresentationStageLikeCpp::HealthOnly => {}
+    }
+    // Avoidance and full absorption do not advance health's revision. Their
+    // phase permit still owns a real swing and its absorb-removal callbacks.
+    if command.damage == 0 {
+        return if stage
+            == wow_world_core::session::mailbox::CreatureMeleePresentationStageLikeCpp::Whole
+        {
+            publish_creature_melee_prefix_like_cpp(host, &command)
+        } else {
+            Ok(())
+        };
     }
     let Some(canonical_health) = present_committed_creature_melee_health_like_cpp(
         host,
         command.victim_health_state_revision_after,
     ) else {
-        return;
+        return Ok(());
     };
-    // C++ `Unit::Kill` applies the creature-killer durability loss while
-    // the lethal damage is applied, before the melee result presentation.
-    host.publish_creature_melee_death_durability_loss_like_cpp(command.over_damage);
+    if stage == wow_world_core::session::mailbox::CreatureMeleePresentationStageLikeCpp::Whole {
+        publish_creature_melee_prefix_like_cpp(host, &command)?;
+        host.hub_ref().publish_self_share_health_like_cpp(&command);
+    }
+    // ModifyHealth emits an immediate update only for a nonlethal hit.
+    if command.damage > 0 && command.over_damage < 0 {
+        host.core()
+            .send_player_health_update_like_cpp(command.victim_guid, canonical_health);
+    }
+    Ok(())
+}
 
-    // C++ `Unit::CalcAbsorbResist`'s absorb log and shield removal (`Unit.cpp:1876-1889`).
+/// Required pre-Kill presentation and exhausted-absorb callbacks. The native
+/// death rail calls this before the Player death body, with no Map guard.
+pub fn publish_creature_melee_prefix_like_cpp<H: CombatSessionHostLikeCpp>(
+    host: &mut H,
+    command: &ApplyCreatureMeleeDamageLikeCppCommand,
+) -> Result<(), &'static str> {
+    publish_creature_melee_absorb_only_like_cpp(host, command)?;
+    for packet in &command.split_combat_log_packets {
+        host.send_raw_packet(packet);
+        broadcast_player_combat_packet_to_visible_set_instance_like_cpp(host, packet.clone());
+    }
+    publish_creature_melee_attacker_state_like_cpp(host, command)
+}
+
+pub fn publish_creature_melee_absorb_only_like_cpp<H: CombatSessionHostLikeCpp>(
+    host: &mut H,
+    command: &ApplyCreatureMeleeDamageLikeCppCommand,
+) -> Result<(), &'static str> {
+    // C++ `Unit::CalcAbsorbResist`'s absorb log and shield removal precede
+    // split damage (`Unit.cpp:1876-1889`, `1958-2015`).
     publish_melee_absorb_consumption_like_cpp(
         host,
         command.attacker_guid,
@@ -153,9 +209,16 @@ pub fn handle_apply_creature_melee_damage_like_cpp_command_like_cpp<H: CombatSes
         command.original_damage.min(i32::MAX as u32) as i32,
         command.mana_spent,
         &command.absorb_consumptions,
-        &command.split_combat_log_packets,
-    );
-    use wow_packet::packets::combat::{AttackerStateUpdate, HealthUpdate};
+        &[],
+    )?;
+    Ok(())
+}
+
+pub fn publish_creature_melee_attacker_state_like_cpp<H: CombatSessionHostLikeCpp>(
+    host: &mut H,
+    command: &ApplyCreatureMeleeDamageLikeCppCommand,
+) -> Result<(), &'static str> {
+    use wow_packet::packets::combat::AttackerStateUpdate;
     // Visibility gates only the attacker-facing combat packet, never the
     // authoritative victim health/death reconciliation.
     if host
@@ -178,14 +241,7 @@ pub fn handle_apply_creature_melee_damage_like_cpp_command_like_cpp<H: CombatSes
             expansion: 2,
         });
     }
-    host.hub_ref().publish_self_share_health_like_cpp(&command);
-    // An avoided swing commits no health transition.
-    if command.damage > 0 {
-        host.send_packet(&HealthUpdate {
-            guid: command.victim_guid,
-            health: canonical_health.min(i64::MAX as u64) as i64,
-        });
-    }
+    Ok(())
 }
 
 /// Present a health transition already committed by the canonical map

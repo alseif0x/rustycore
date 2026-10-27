@@ -29,6 +29,7 @@
 mod accept_handlers;
 mod dialog;
 mod eligibility;
+mod failure;
 mod giver;
 mod giver_handlers;
 mod item_mutations;
@@ -46,6 +47,7 @@ pub mod unit_update_publication;
 pub use accept_handlers::*;
 pub use dialog::*;
 pub use eligibility::*;
+pub use failure::*;
 pub use giver::*;
 pub use giver_handlers::*;
 pub use item_mutations::*;

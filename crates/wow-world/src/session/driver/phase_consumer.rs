@@ -182,6 +182,8 @@ impl WorldSession {
             SessionPhaseRequestLikeCpp::World(request) => &request.permit,
             SessionPhaseRequestLikeCpp::Map(command) => &command.permit,
             SessionPhaseRequestLikeCpp::PlayerRecovery(request) => &request.permit,
+            SessionPhaseRequestLikeCpp::NativePlayerDeath(request) => &request.permit,
+            SessionPhaseRequestLikeCpp::CommittedCreatureMelee(request) => &request.permit,
         };
         let outcome = if permit.refuse_before_start_like_cpp() {
             SessionPhasePassOutcomeLikeCpp::RefusedBeforeStart
@@ -193,6 +195,25 @@ impl WorldSession {
             }
         };
         match request {
+            SessionPhaseRequestLikeCpp::CommittedCreatureMelee(request) => {
+                let _ = request.response_tx.try_send(
+                    crate::session::mailbox::CommittedCreatureMeleeReply {
+                        admission: request.admission,
+                        outcome,
+                        completed: false,
+                    },
+                );
+            }
+            SessionPhaseRequestLikeCpp::NativePlayerDeath(request) => {
+                let _ =
+                    request
+                        .response_tx
+                        .try_send(crate::session::mailbox::NativePlayerDeathReply {
+                            admission: request.admission,
+                            outcome,
+                            health_after: None,
+                        });
+            }
             SessionPhaseRequestLikeCpp::World(request) => {
                 let _ = request
                     .response_tx
@@ -236,6 +257,13 @@ impl WorldSession {
         catalogs: &SessionHandlerCatalogsLikeCpp,
     ) -> Option<PendingWorldPhaseFinalizationLikeCpp> {
         match request {
+            SessionPhaseRequestLikeCpp::CommittedCreatureMelee(request) => {
+                super::native_death::run_requested_committed_creature_melee(self, request);
+            }
+            SessionPhaseRequestLikeCpp::NativePlayerDeath(request) => {
+                super::native_death::run_requested_native_player_death(self, request, catalogs)
+                    .await;
+            }
             SessionPhaseRequestLikeCpp::World(request) => {
                 let response_tx = request.response_tx.clone();
                 let permit = std::sync::Arc::clone(&request.permit);

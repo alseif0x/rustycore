@@ -12,7 +12,9 @@ use wow_constants::PowerType;
 use wow_core::ObjectGuid;
 use wow_packet::ServerPacket;
 
-use super::CombatSessionHostLikeCpp;
+use super::{
+    CombatSessionHostLikeCpp, broadcast_player_combat_packet_to_visible_set_instance_like_cpp,
+};
 
 /// C++ `Unit::CalcAbsorbResist`'s absorb publication for one melee hit
 /// (`Unit.cpp:1876-1889`): per shield that consumed part of the hit, send the
@@ -30,7 +32,7 @@ pub(super) fn publish_melee_absorb_consumption_like_cpp<H: CombatSessionHostLike
     mana_spent: u32,
     consumptions: &[wow_world_core::session::mailbox::CreatureMeleeAbsorbConsumptionLikeCpp],
     split_combat_log_packets: &[Vec<u8>],
-) {
+) -> Result<(), &'static str> {
     for consumption in consumptions {
         let shield = host
             .core()
@@ -61,12 +63,15 @@ pub(super) fn publish_melee_absorb_consumption_like_cpp<H: CombatSessionHostLike
             // direct copy and then distributes the same combat-log frame
             // to nearby visible players (`Object.cpp:1785-1794`).
             host.send_packet(&packet);
-            host.broadcast_player_packet_to_visible_set_realm_like_cpp(packet.to_bytes());
+            broadcast_player_combat_packet_to_visible_set_instance_like_cpp(
+                host,
+                packet.to_bytes(),
+            );
         }
         if consumption.removed {
             // C++ `Remove(AURA_REMOVE_BY_ENEMY_SPELL)`; the session's aura
             // transition owns the removal publication and its side effects.
-            let _ = host.remove_aura(consumption.slot);
+            host.remove_aura(consumption.slot)?;
         }
     }
     if mana_spent > 0 {
@@ -87,16 +92,17 @@ pub(super) fn publish_melee_absorb_consumption_like_cpp<H: CombatSessionHostLike
     }
     for packet in split_combat_log_packets {
         host.send_raw_packet(packet);
-        host.broadcast_player_packet_to_visible_set_realm_like_cpp(packet.clone());
+        broadcast_player_combat_packet_to_visible_set_instance_like_cpp(host, packet.clone());
     }
+    Ok(())
 }
 
 /// C++ `Unit::SetPower`'s `SMSG_POWER_UPDATE` publication
 /// (`Unit.cpp:9287-9312`). C++ also marks the changed `UnitData::Power`
 /// field, which the canonical Player setter already did, and sends the same
-/// packet to the nearby observers through `SendMessageToSet(packet, true)`;
-/// this owner session sends its own copy and fans the identical bytes out
-/// through the realm visibility rail.
+/// packet to the nearby observers through `SendMessageToSet(packet, true)`.
+/// Both the owner copy and observer copies use the REALM connection, matching
+/// `Opcodes.cpp:1911`.
 pub fn send_player_power_update_like_cpp<H: CombatSessionHostLikeCpp>(
     host: &H,
     guid: ObjectGuid,
@@ -108,6 +114,6 @@ pub fn send_player_power_update_like_cpp<H: CombatSessionHostLikeCpp>(
         guid,
         powers: vec![(value, power as u8)],
     };
-    host.send_packet(&packet);
+    host.core().send_packet_realm(&packet);
     host.broadcast_player_packet_to_visible_set_realm_like_cpp(packet.to_bytes());
 }

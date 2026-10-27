@@ -27,6 +27,23 @@ pub use plan::*;
 
 /// The World session as the spell-click caster's host (supertrait: the aura host).
 pub trait SpellClickHostLikeCpp: AuraHostLikeCpp {
+    fn apply_native_player_damage_like_cpp<'a>(
+        &'a mut self,
+        damage: u32,
+        context: wow_entities::PlayerDeathOperationContext,
+        creature_spawns: &'a wow_world_entities::CreatureSpawnCatalogsLikeCpp,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<
+                    Output = Result<
+                        wow_world_core::session::PlayerDamageResultLikeCpp,
+                        &'static str,
+                    >,
+                > + Send
+                + 'a,
+        >,
+    >;
     fn sync_player_registry_state_like_cpp(&self);
     fn represented_unit_values_update_to_update_object_like_cpp(
         &self,
@@ -42,6 +59,8 @@ pub async fn execute_represented_spell_click_clickee_caster_like_cpp<H: SpellCli
     cast: &RepresentedSpellClickCastLikeCpp,
     player_guid: ObjectGuid,
     clickee_owner_guid: Option<ObjectGuid>,
+    creature_spawns: &wow_world_entities::CreatureSpawnCatalogsLikeCpp,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
 ) -> RepresentedSpellClickClickeeCasterOutcomeLikeCpp {
     use wow_packet::packets::spell::{SpellCastVisual, SpellGoPkt, SpellTargetData};
 
@@ -109,6 +128,9 @@ pub async fn execute_represented_spell_click_clickee_caster_like_cpp<H: SpellCli
             spell_id,
             player_guid,
             damage_amount,
+            creature_guid,
+            creature_spawns,
+            item_guid_generator,
         )
         .await
     } else {
@@ -133,16 +155,50 @@ pub(crate) async fn apply_represented_spell_click_creature_damage_to_clicker_lik
     spell_id: i32,
     player_guid: ObjectGuid,
     damage_amount: u32,
+    attacker_guid: ObjectGuid,
+    creature_spawns: &wow_world_entities::CreatureSpawnCatalogsLikeCpp,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
 ) -> Result<(), &'static str> {
     if host.player_guid() != Some(player_guid) {
         return Err("Target player not current session");
     }
-    let Some((original_health, health_after, _, applied_damage, _)) = host
-        .hub_mut()
-        .apply_owned_player_damage_like_cpp(damage_amount, wow_constants::DeathState::JustDied)
-    else {
-        return Err("Target player owner not available");
+    let durability_loss = if host.core().player_handle_like_cpp.is_some()
+        && host.core().with_owned_player_like_cpp(|player| {
+            u64::from(damage_amount) >= player.unit().data().health
+        }) == Some(true)
+    {
+        let hub = host.hub_ref();
+        let spells = hub
+            .catalogs
+            .spell_store()
+            .ok_or("Spellclick damage SpellInfo is unavailable")?;
+        let difficulty = host.core().current_map_difficulty_id_like_cpp();
+        let difficulties = hub.catalogs.difficulty_store().map(|store| store.as_ref());
+        let key = wow_data::spell::resolve_spell_info_key_difficulty(
+            spells,
+            spell_id as u32,
+            difficulty,
+            difficulties,
+        )
+        .map_err(|_| "Spellclick damage SpellInfo difficulty is unavailable")?
+        .ok_or("Spellclick damage SpellInfo key is unavailable")?;
+        let attributes = spells
+            .misc_attribute_words_at_difficulty_like_cpp(spell_id, key, difficulties)
+            .map_err(|_| "Spellclick damage attributes are unavailable")?;
+        // Unit.cpp:1012–1016 / SPELL_ATTR3_NO_DURABILITY_LOSS.
+        attributes[3] & 0x0000_0020 == 0
+    } else {
+        true
     };
+    let result = host
+        .apply_native_player_damage_like_cpp(
+            damage_amount,
+            wow_entities::PlayerDeathOperationContext::new(attacker_guid, durability_loss),
+            creature_spawns,
+            item_guid_generator,
+        )
+        .await?;
+    let applied_damage = result.applied_damage;
     if damage_amount > 0 && applied_damage == 0 {
         debug!(
             account = host.core().account_id,
@@ -154,10 +210,6 @@ pub(crate) async fn apply_represented_spell_click_creature_damage_to_clicker_lik
         return Ok(());
     }
     host.sync_player_registry_state_like_cpp();
-    if health_after != original_health {
-        host.core()
-            .send_player_health_update_like_cpp(player_guid, u64::from(health_after));
-    }
 
     Ok(())
 }

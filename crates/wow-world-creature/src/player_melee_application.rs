@@ -161,6 +161,15 @@ pub(crate) fn apply_player_melee_to_canonical_player_like_cpp(
     victim: &mut wow_entities::Player,
     swings: &[RepresentedMeleeSwingLikeCpp],
 ) -> Option<(Vec<(u32, i32)>, u8)> {
+    apply_player_melee_to_canonical_player_before_native_death(victim, swings, false)
+        .map(|(swings, level, _)| (swings, level))
+}
+
+pub(crate) fn apply_player_melee_to_canonical_player_before_native_death(
+    victim: &mut wow_entities::Player,
+    swings: &[RepresentedMeleeSwingLikeCpp],
+    native_death: bool,
+) -> Option<(Vec<(u32, i32)>, u8, bool)> {
     if !victim.unit().is_alive() || victim.unit().data().health == 0 {
         return None;
     }
@@ -175,12 +184,14 @@ pub(crate) fn apply_player_melee_to_canonical_player_like_cpp(
         let damage = swing.damage;
         let health_before = victim.unit().data().health;
         let health_after = health_before.saturating_sub(u64::from(damage));
-        if health_after == 0 {
+        if health_after == 0 && !native_death {
             victim
                 .unit_mut()
                 .set_death_state(wow_constants::DeathState::JustDied);
         }
-        victim.unit_mut().set_health(health_after);
+        if health_after != 0 || !native_death {
+            victim.unit_mut().set_health(health_after);
+        }
         let over_damage = if health_after == 0 {
             u64::from(damage).saturating_sub(health_before) as i32
         } else {
@@ -188,13 +199,16 @@ pub(crate) fn apply_player_melee_to_canonical_player_like_cpp(
         };
         sent_swings.push((damage, over_damage));
         if health_after == 0 {
+            if native_death {
+                return Some((sent_swings, target_level, true));
+            }
             // Unit::Kill (Unit.cpp:10635): remember the Player attacker for
             // corpse type and reclaim delay before a release request can run.
             victim.set_pvp_death_like_cpp(true);
             break;
         }
     }
-    Some((sent_swings, target_level))
+    Some((sent_swings, target_level, false))
 }
 
 #[cfg(test)]

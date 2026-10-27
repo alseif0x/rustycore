@@ -29,19 +29,19 @@ pub use wow_world_core::{
 #[path = "../unit_tests/canonical_creature_fixtures.rs"]
 pub(crate) mod canonical_creature_fixtures;
 #[cfg(test)]
-#[path = "../unit_tests/selected_spell_fixtures.rs"]
-pub(crate) mod selected_spell_fixtures;
-#[cfg(test)]
-#[path = "../unit_tests/player_inventory_test_fixture.rs"]
-mod player_inventory_test_fixture;
-#[cfg(test)]
 #[path = "../unit_tests/handler_contract_tests.rs"]
 mod handler_contract_tests;
 mod player;
 mod player_cast;
 #[path = "session/directory.rs"]
 pub mod player_directory;
+#[cfg(test)]
+#[path = "../unit_tests/player_inventory_test_fixture.rs"]
+mod player_inventory_test_fixture;
 pub(crate) mod profession;
+#[cfg(test)]
+#[path = "../unit_tests/selected_spell_fixtures.rs"]
+pub(crate) mod selected_spell_fixtures;
 pub mod session;
 mod session_commands;
 mod session_persistence_capabilities;
@@ -65,5 +65,10 @@ pub use session_policy::{
     ReputationRatesLikeCpp,
 };
 pub use wow_world_core::session::DeathPolicyLikeCpp;
+pub use wow_world_entities::creature_message_to_set_target_allows_like_cpp;
+
+#[cfg(any(test, feature = "test-fixtures"))]
+#[path = "../unit_tests/native_death_test_fixtures.rs"]
+mod native_death_test_fixtures;
 
 pub use battle_pet_account::{BattlePetAccountAttachmentLikeCpp, BattlePetAccountRegistryLikeCpp};

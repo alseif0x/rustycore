@@ -546,6 +546,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                 apply_power_drain_effect_like_cpp(
                     host,
                     item_guid_generator,
+                    creature_spawn_catalogs,
                     spell_id,
                     x,
                     drain_damage,
@@ -594,6 +595,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                 apply_power_drain_effect_like_cpp(
                     host,
                     item_guid_generator,
+                    creature_spawn_catalogs,
                     spell_id,
                     x,
                     burn_damage,
@@ -844,7 +846,10 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                         ..Default::default()
                     },
                     target_guid,
-                );
+                    creature_spawn_catalogs,
+                    item_guid_generator,
+                )
+                .await;
             }
             _ => match super::execution_support::classify_spell_effect_route_like_cpp(
                 &spell_info,
@@ -1251,9 +1256,7 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                 )?;
                 host.hub_mut()
                     .recompute_represented_mounted_speed_rates_like_cpp();
-            } else if super::execution_support::is_explicitly_handled_player_aura_like_cpp(
-                effect,
-            ) {
+            } else if super::execution_support::is_explicitly_handled_player_aura_like_cpp(effect) {
                 return Err("represented special player aura route drifted");
             } else if generic_apply_aura_rows_like_cpp == 1 && apply_aura_rows_like_cpp == 1 {
                 host.apply_aura_with_effect_mask_and_provenance_like_cpp(

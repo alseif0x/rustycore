@@ -33,6 +33,10 @@ pub enum SessionPhaseRequestLikeCpp {
     Map(RunMapPhasePassLikeCppCommand),
     /// Player timer work admitted between the Map respawn prelude and tail.
     PlayerRecovery(RunPlayerRecoveryRequest),
+    /// Required native death continuation before this Map combat future resumes.
+    NativePlayerDeath(super::RunNativePlayerDeathRequest),
+    /// Primary melee callbacks/presentation before the next canonical swing.
+    CommittedCreatureMelee(super::RunCommittedCreatureMeleeRequest),
 }
 
 impl SessionPhaseRequestLikeCpp {
@@ -43,6 +47,8 @@ impl SessionPhaseRequestLikeCpp {
             Self::World(request) => request.coordinator_id,
             Self::Map(command) => command.admission.coordinator_id,
             Self::PlayerRecovery(request) => request.admission.coordinator_id,
+            Self::NativePlayerDeath(request) => request.admission.map_phase.coordinator_id,
+            Self::CommittedCreatureMelee(request) => request.admission.map_phase.coordinator_id,
         }
     }
 }

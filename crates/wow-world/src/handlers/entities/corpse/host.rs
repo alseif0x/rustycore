@@ -106,8 +106,11 @@ impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
         catalogs: wow_world_entities::CorpseLifecycleCatalogsLikeCpp<'_>,
     ) -> impl std::future::Future<Output = Result<(), &'static str>> + Send {
         async move {
-            let result =
-                wow_world_application::remove_pet_not_in_slot_like_cpp(self, catalogs).await;
+            let result = wow_world_application::remove_pet_not_in_slot_like_cpp(
+                self,
+                catalogs.resurrection(),
+            )
+            .await;
             if let Err(reason) = result
                 && self
                     .lifecycle

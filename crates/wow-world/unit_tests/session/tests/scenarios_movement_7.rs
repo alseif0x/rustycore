@@ -675,8 +675,8 @@ async fn teleport_to_same_map_not_unsummon_pet_option_preserves_pet_like_cpp() {
     );
     assert_eq!(session.temporary_pet_unsummon_requests_like_cpp(), 0);
 }
-#[test]
-fn logout_save_snapshot_uses_fall_damage_synced_to_canonical_health_like_cpp() {
+#[tokio::test]
+async fn logout_save_snapshot_uses_fall_damage_synced_to_canonical_health_like_cpp() {
     let (mut session, _, _) = make_session();
     let canonical = shared_canonical_map_manager();
     let player_guid = ObjectGuid::create_player(1, 74);
@@ -718,8 +718,15 @@ fn logout_save_snapshot_uses_fall_damage_synced_to_canonical_health_like_cpp() {
     fall_land.position.z = 100.0;
     fall_land.jump.fall_time = 1_500;
 
-    let fall = wow_world_entities::handle_fall_like_cpp(&mut session, &fall_land)
-        .expect("fall damage should apply");
+    let item_guid_generator = session.id_generators_for_test_like_cpp().item;
+    let fall = wow_world_entities::handle_fall_like_cpp(
+        &mut session,
+        &fall_land,
+        &Default::default(),
+        item_guid_generator.as_ref(),
+    )
+    .await
+    .expect("fall damage should apply");
     assert!(fall.final_damage > 0);
     let damaged_health = session.player_health_like_cpp();
     assert!(damaged_health < 6_310);
@@ -737,8 +744,8 @@ fn logout_save_snapshot_uses_fall_damage_synced_to_canonical_health_like_cpp() {
     assert_eq!(snapshot.max_health, 6_310);
     assert_eq!(session.player_health_like_cpp(), damaged_health);
 }
-#[test]
-fn fall_death_applies_item_durability_loss_message_like_cpp() {
+#[tokio::test]
+async fn fall_death_applies_item_durability_loss_message_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
     let player_guid = ObjectGuid::create_player(1, 75);
@@ -776,13 +783,21 @@ fn fall_death_applies_item_durability_loss_message_like_cpp() {
         .unwrap();
     session.set_player_health_like_cpp(100, 100);
     session.set_durability_loss_on_death_rate_like_cpp(0.1);
+    crate::native_death_test_fixtures::prepare(&mut session);
     crate::session::hub_mut(&mut session).set_fall_information_like_cpp(1_200, 1_000.0);
     let mut fall_land = wow_packet::packets::movement::MovementInfo::default();
     fall_land.position.z = 100.0;
     fall_land.jump.fall_time = 1_500;
 
-    let fall = wow_world_entities::handle_fall_like_cpp(&mut session, &fall_land)
-        .expect("lethal fall damage should apply");
+    let item_guid_generator = session.id_generators_for_test_like_cpp().item;
+    let fall = wow_world_entities::handle_fall_like_cpp(
+        &mut session,
+        &fall_land,
+        &Default::default(),
+        item_guid_generator.as_ref(),
+    )
+    .await
+    .expect("lethal fall damage should apply");
 
     assert!(fall.final_damage > 0);
     assert_eq!(

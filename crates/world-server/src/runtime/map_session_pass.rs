@@ -289,16 +289,16 @@ pub(crate) async fn run_player_recovery_passes(
 }
 
 #[derive(Clone, Copy)]
-struct PassReply {
-    tick_epoch: u64,
-    outcome: SessionPhasePassOutcomeLikeCpp,
-    dispatched: usize,
-    stopped_at_ineligible_head: bool,
-    blocks_tick_tail: bool,
+pub(super) struct PassReply {
+    pub(super) tick_epoch: u64,
+    pub(super) outcome: SessionPhasePassOutcomeLikeCpp,
+    pub(super) dispatched: usize,
+    pub(super) stopped_at_ineligible_head: bool,
+    pub(super) blocks_tick_tail: bool,
 }
 
 /// Wait for one admitted pass to reach a state in which it has no live effect.
-async fn await_one_admitted_pass_like_cpp<T, Project>(
+pub(super) async fn await_one_admitted_pass_like_cpp<T, Project>(
     summary: &mut MapSessionPassSummaryLikeCpp,
     map_key: wow_map::MapKey,
     tick_epoch: u64,
@@ -306,11 +306,13 @@ async fn await_one_admitted_pass_like_cpp<T, Project>(
     response_rx: &flume::Receiver<T>,
     ack_timeout: Duration,
     project: Project,
-) where
+) -> Option<T>
+where
     Project: Fn(&T) -> Option<PassReply>,
 {
     let started = Instant::now();
     let mut waited_past_deadline = false;
+    let mut reported = None;
 
     loop {
         match tokio::time::timeout(ack_timeout, response_rx.recv_async()).await {
@@ -320,6 +322,7 @@ async fn await_one_admitted_pass_like_cpp<T, Project>(
                 } else {
                     reject_untrusted_outcome(summary, map_key, tick_epoch, permit);
                 }
+                reported = Some(result);
                 break;
             }
             Ok(Err(_disconnected)) => {
@@ -387,6 +390,7 @@ async fn await_one_admitted_pass_like_cpp<T, Project>(
             .stalled_ms
             .saturating_add(u64::try_from(past_deadline.as_millis()).unwrap_or(u64::MAX));
     }
+    reported
 }
 
 fn record_reported_outcome_like_cpp(

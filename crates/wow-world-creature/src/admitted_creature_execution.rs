@@ -37,8 +37,10 @@ mod admission;
 mod combat_phases;
 mod execution;
 mod lease;
+mod native_combat;
 
 pub use admission::*;
 pub use combat_phases::*;
 pub use execution::*;
 pub use lease::*;
+pub use native_combat::run_admitted_creature_combat_phases_with_native_death;

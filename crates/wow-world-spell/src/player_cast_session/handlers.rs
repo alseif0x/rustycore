@@ -296,6 +296,7 @@ pub async fn handle_cast_spell_with_catalogs_like_cpp<H: PlayerCastHostLikeCpp>(
             player_grid_loader,
             Some(ClientOpcodes::MoveStop),
             move_update,
+            item_guid_generator,
         )
         .await;
     }

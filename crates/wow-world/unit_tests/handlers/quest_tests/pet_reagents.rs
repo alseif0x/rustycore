@@ -53,7 +53,7 @@ async fn pet_removal_refunds_temporary_pet_once_and_preserves_stale_guid() {
         graveyards: &graveyards,
     };
 
-    wow_world_application::remove_pet_not_in_slot_like_cpp(&mut session, catalogs)
+    wow_world_application::remove_pet_not_in_slot_like_cpp(&mut session, catalogs.resurrection())
         .await
         .unwrap();
     assert_item_push_result(
@@ -83,7 +83,7 @@ async fn pet_removal_refunds_temporary_pet_once_and_preserves_stale_guid() {
         )),
         Some((Some(5), None))
     );
-    wow_world_application::remove_pet_not_in_slot_like_cpp(&mut session, catalogs)
+    wow_world_application::remove_pet_not_in_slot_like_cpp(&mut session, catalogs.resurrection())
         .await
         .unwrap();
     assert_no_equip_error_or_item_push_result(&send_rx);
@@ -127,7 +127,7 @@ async fn pet_removal_keeps_temporary_marker_in_active_battleground_without_reage
         graveyards: &graveyards,
     };
 
-    wow_world_application::remove_pet_not_in_slot_like_cpp(&mut session, catalogs)
+    wow_world_application::remove_pet_not_in_slot_like_cpp(&mut session, catalogs.resurrection())
         .await
         .unwrap();
 
@@ -180,7 +180,11 @@ async fn pet_removal_missing_summon_catalog_preserves_markers_when_no_battlegrou
     };
 
     assert_eq!(
-        wow_world_application::remove_pet_not_in_slot_like_cpp(&mut session, catalogs).await,
+        wow_world_application::remove_pet_not_in_slot_like_cpp(
+            &mut session,
+            catalogs.resurrection()
+        )
+        .await,
         Err("pet summon spell catalog is unavailable")
     );
 
@@ -248,7 +252,11 @@ async fn pet_removal_unavailable_item_metadata_preserves_markers_and_inventory()
     };
 
     assert_eq!(
-        wow_world_application::remove_pet_not_in_slot_like_cpp(&mut session, catalogs).await,
+        wow_world_application::remove_pet_not_in_slot_like_cpp(
+            &mut session,
+            catalogs.resurrection()
+        )
+        .await,
         Err("pet reagent ItemEffect metadata is unavailable")
     );
 

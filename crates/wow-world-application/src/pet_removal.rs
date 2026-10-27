@@ -7,7 +7,7 @@ mod live;
 mod save;
 
 use wow_world_core::session::SessionCatalogs;
-use wow_world_entities::CorpseLifecycleCatalogsLikeCpp;
+use wow_world_entities::ResurrectionOperationCatalogs;
 use wow_world_inventory::VendorSessionHostLikeCpp;
 use wow_world_lifecycle::PlayerMoneyCommitCancellationFenceLikeCpp;
 use wow_world_quest::{QuestItemStorageHostLikeCpp, QuestSessionHostLikeCpp};
@@ -23,7 +23,7 @@ use crate::TrainerSessionHostLikeCpp;
 /// before mutation; this is not complete RemovePet support.
 pub async fn remove_pet_not_in_slot_like_cpp<H>(
     host: &mut H,
-    catalogs: CorpseLifecycleCatalogsLikeCpp<'_>,
+    catalogs: ResurrectionOperationCatalogs<'_>,
 ) -> Result<(), &'static str>
 where
     H: QuestItemStorageHostLikeCpp

@@ -52,6 +52,7 @@ mod handlers;
 mod item_mutations;
 mod module_hooks;
 mod moves;
+mod quest_destruction;
 mod real_swap;
 
 pub use bank::{
@@ -73,6 +74,7 @@ pub use handlers::{
 pub use module_hooks::ItemEquippedHookEventLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use moves::{plan_inventory_child_redirect_like_cpp, plan_inventory_equip_child_like_cpp};
+pub use quest_destruction::destroy_quest_item_count_like_cpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use real_swap::plan_inventory_real_swap_children_like_cpp;
 

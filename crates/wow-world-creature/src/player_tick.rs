@@ -113,6 +113,29 @@ pub(crate) fn execute_player_melee_swing_on_manager_like_cpp(
     config: &CreatureAggroConfigLikeCpp,
     outcome: &mut PlayerMeleeTickOutcomeLikeCpp,
 ) {
+    execute_player_melee_swing_before_native_death(
+        canonical_manager,
+        victims,
+        swing,
+        map_difficulties,
+        diff_ms,
+        config,
+        outcome,
+        None,
+    );
+}
+
+pub(crate) fn execute_player_melee_swing_before_native_death(
+    canonical_manager: &mut wow_map::MapManager,
+    victims: &mut CanonicalPlayerMeleeCreatureVictimsLikeCpp,
+    swing: &PendingPlayerSwingLikeCpp,
+    map_difficulties: &HashMap<(u16, u32), u8>,
+    diff_ms: u32,
+    config: &CreatureAggroConfigLikeCpp,
+    outcome: &mut PlayerMeleeTickOutcomeLikeCpp,
+    native_death: Option<&mut Option<Result<super::PendingMapPlayerDeath, &'static str>>>,
+) {
+    let mut needs_native_death = false;
     let attacker = &swing.attacker;
     let Some(managed) =
         canonical_manager.find_map_mut(u32::from(attacker.map_id), attacker.instance_id)
@@ -485,13 +508,14 @@ pub(crate) fn execute_player_melee_swing_on_manager_like_cpp(
             outcome.commands.push(command);
             return;
         };
-        let Some((swings, target_level)) =
-            apply_player_melee_to_canonical_player_like_cpp(victim, &damages)
+        let Some((swings, target_level, lethal)) =
+            super::player_melee_application::apply_player_melee_to_canonical_player_before_native_death(victim, &damages, native_death.is_some())
         else {
             outcome.victim_not_alive += 1;
             outcome.commands.push(command);
             return;
         };
+        needs_native_death = lethal;
         outcome.player_hits += 1;
         command.target_level = target_level;
         command.swings = swings
@@ -519,4 +543,13 @@ pub(crate) fn execute_player_melee_swing_on_manager_like_cpp(
             .collect();
     }
     outcome.commands.push(command);
+    if needs_native_death && let Some(native_death) = native_death {
+        *native_death = Some(super::native_player_death::admit_map_player_death(
+            canonical_manager,
+            wow_map::MapKey::new(u32::from(attacker.map_id), attacker.instance_id),
+            swing.victim_guid,
+            attacker.player_guid,
+            true,
+        ));
+    }
 }

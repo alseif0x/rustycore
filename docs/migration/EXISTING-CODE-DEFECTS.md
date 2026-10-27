@@ -44,6 +44,18 @@ bulk-closed, retested or reclassified as parity-proven by this planning review.
 
 ## Later verified open findings
 
+- **2026-10-27, #43 fixture review — shared DUMMY Aura constant differs from
+  the target enum.** At `7b09213ca`,
+  `crates/wow-data/src/spell/aura_types.rs:6` defines `SPELL_AURA_DUMMY = 0`.
+  Target `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`,
+  `src/server/game/Spells/Auras/SpellAuraDefines.h:95–99`, defines NONE as 0
+  and DUMMY as 4. This is a verified constant mismatch, not a demonstrated
+  whole-gameplay blast radius. The #43 Aura cleanup fixture uses the target
+  value 4 with coherent effect and class-options rows; its two focused cases
+  pass. General Aura consumer reconciliation remains with the existing Aura
+  responsibility (#32/#49), rather than silently changing that programme in
+  the death-lifecycle delivery. No production constant was changed here.
+
 - **2026-10-06, #1263 F6 — five registered opcodes that 3.4.3 leaves unhandled, plus one
   dispatch-status divergence.** Method: a text pass over every world packet registration
   (`register_packet_handler_like_cpp!`, 104 entries at `641646ef4`) compared against the

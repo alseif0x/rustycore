@@ -6,12 +6,14 @@ use crate::session::mailbox::{
 use crate::session::tests::lifecycle_persistence::RecordingPortLikeCpp;
 use wow_persistence::PersistenceOutcomeLikeCpp;
 
+#[path = "recovery_timer/native_death.rs"]
+mod native_death;
 #[path = "recovery_timer/native_spell_history.rs"]
 mod native_spell_history;
-#[path = "recovery_timer/selected_recovery.rs"]
-mod selected_recovery;
 #[path = "recovery_timer/recovery_fences.rs"]
 mod recovery_fences;
+#[path = "recovery_timer/selected_recovery.rs"]
+mod selected_recovery;
 
 fn logged_in_recovery_session() -> (
     WorldSession,
@@ -378,4 +380,3 @@ async fn recovery_waits_for_periodic_save_before_later_player_work() {
         }
     }
 }
-

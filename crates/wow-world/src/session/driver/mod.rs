@@ -28,6 +28,7 @@ pub(crate) mod phases;
 
 pub(crate) use budget::MAX_PACKETS_PER_UPDATE;
 pub(in crate::session) use wow_world_lifecycle::RenameCallbacks;
+mod native_death;
 mod phase_consumer;
 mod phase_pass;
 mod player_recovery;

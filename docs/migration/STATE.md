@@ -9,8 +9,46 @@ cleanup checks that fence before unpublishing the Player or releasing the login
 claim; logout checks it before admitting each finalization step. The existing
 deferred-save intent retains save requests across those phases, including a
 newer request that must survive an older save acknowledgement. These
-guards do not admit lethal damage or execute the native death body. The main
-remaining implementation is still that body and its production damage callers.
+guards are committed at `7b09213ca`. The subsequent native-death integration
+is a **local working candidate without final acceptance**.
+Application now admits lethal damage before writing zero health and runs the
+ordered Player death body, including SelfRes initialization and no-death quest
+failure. Fall, void, environmental spell damage, PowerBurn and creature
+spell-click use that operation. Nonlethal damage preserves native-width health
+and sends HealthUpdate; lethal health uses the existing Map field publisher.
+The Map combat integration now awaits a required death continuation on the
+existing Session phase rail before proceeding to the next swing or tick tail.
+Admission binds the exact Player, registration, residence, Map incarnation,
+tick and operation identity. A failed or revoked native operation retains its
+Player-owned fence; the producer does not run another tick over that obligation.
+The new Map composition has focused production-linked feedback. The
+2026-10-27 21:00:50–21:06:09 UTC sweep passed `cargo check -p world-server`
+and 15 focused cases on this aarch64 host with one Cargo job: Creature's
+`native_combat` (2), World's `native_death_rail_` (5), `native_damage_` (3)
+and `native_death_auras_` (2), and Server's `native_map_combat_` (3).
+The Server cases execute the actual producer and Session consumer, including
+body failure and a pre-existing unresolved operation. The sweep used the dirty
+tree based at `7b09213ca`, fingerprint
+`fd2f50945f9a54ce963d2d5fcf97b84c49e2e9aa0f8ee6048e8edf22c9b4b9ce`;
+its commands, exits, timings and logs are retained under
+`/tmp/rustycore43-native-feedback-20261027/`. This is coding feedback for
+that tree, not committed-candidate final acceptance or live evidence.
+Primary creature melee now also awaits its nonlethal/absorbed-hit presentation
+on that rail before the next swing, so an earlier hit cannot remain in the
+ordinary mailbox behind a later native death. The native initializer and
+selected Aura cleanup still do not claim unimplemented script callbacks.
+
+Focused coding feedback before the latest rail/Aura changes passed Application
+compilation, three `native_damage_` World cases (including lethal fall followed
+by real release/corpse creation), the Inventory retirement-during-commit World
+case, six Quest failure cases, and the affected Inventory filters. These were
+dirty-tree checks, not evidence for the later changes or a committed final
+candidate. Final acceptance, action captures and authorized live DB/relogin
+evidence remain outstanding.
+
+**Earlier slice context:** The following summaries describe their own
+checkpoints. Statements about a missing death caller at those checkpoints are
+superseded by the uncommitted integration above; they are not another task list.
 The working release path now invokes Application's pet-removal operation.
 Its absent-Pet branch resolves only the current Map, retains stale GUIDs,
 returns temporary-pet reagents once, and resets the stable selection. The live
@@ -156,22 +194,127 @@ programmes to finish this issue.
 
 | Issue #43 criterion | Current evidence and remaining closure blocker |
 | --- | --- |
-| Lethal damage and native death | The local scalar repair makes lethal player melee enter JUST_DIED, records PvP death and stops subsequent swings; PowerBurn and creature spell-click no longer skip directly to CORPSE. Native death-operation ownership still has no production caller. Its ordered cleanup and penalty participants remain a closure blocker. |
-| Release, ghost, corpse and graveyard | Release invokes pet removal for absent/temporarily unsummoned pets and now has a bounded quiescent live-Pet save/removal continuation. Aura, combat, summon-spell, group and secondary-minion continuations remain unavailable. Complete those participants and exercise the path from an actual lethal producer, including ghost restrictions and corpse publication; helper tests alone do not close this row. |
+| Lethal damage and native death | The working Application body and five Session damage routes now use Player-owned native operations. The working Map composition awaits the same body on the existing rail before its tail, with pre-Kill creature melee presentation and native durability applied once. Fifteen earlier focused cases cover the selected composition, ordering/failure boundaries and Aura cleanup. The awaited split/share correction has three passing production-linked Server scenarios; connection routing now has separate-channel coding feedback. Exercise the complete death/release/recovery cycle and final candidate. This row is not accepted yet. |
+| Release, ghost, corpse and graveyard | Release invokes pet removal for absent/temporarily unsummoned pets and now has a bounded quiescent live-Pet save/removal continuation. Exercise the complete in-scope path from an actual lethal producer, including ghost restrictions and corpse publication. Nonempty Pet Aura, combat, summon-spell, group and secondary-minion continuations remain explicit Pet-domain boundaries; the issue does not require completing the general Pet programme. A demonstrated lifecycle failure in a required scenario must still be repaired. Helper tests alone do not close this row. |
 | Reclaim, healer and accepted resurrection | Production recovery continuations exist. Verify the registered paths, penalties, corpse cleanup and pending/transfer recovery together on the final candidate. |
-| Persistence and failure recovery | The dirty quest-status full-save projection and commit acknowledgement now have focused passing feedback, including concurrent native objective changes and failed/unknown commits. Existing save/retirement fences still need complete-cycle evidence; this does not implement death-triggered FailQuest or close runtime persistence acceptance. |
+| Persistence and failure recovery | The dirty quest-status full-save projection and commit acknowledgement have focused passing feedback, including concurrent native objective changes and failed/unknown commits. The working native death body now invokes ordered FailQuest and quest-item destruction. Save/retirement fences and these callbacks still need final-candidate and complete-cycle evidence; mocked outcomes do not close runtime persistence acceptance. |
 | Local acceptance | Define one committed candidate after implementation, run final plus missing scope-specific integration evidence once, repair actual findings, and retain the real SHA and complete timings. |
 | Live acceptance | Required action captures and real DB/restart/relogin evidence remain outstanding. Prepare the exact target and scenarios before requesting the separate runtime authority; no deployment, restart or data mutation is inferred from local implementation authority. |
 
-The dirty-save stabilization now has focused coding feedback. The next delivery
-is the native death operation and its necessary participants, followed by the
-complete recovery acceptance.
-The 2026-10-27 caller check still finds `begin_native_death_operation`,
-`claim_native_death_operation` and `complete_native_death_operation` only in
-their owner and tests. `has_unresolved_native_death_operation` now protects
-production save capture, logout and retirement. The transport still must bind
-the damage admission, exact Player incarnation and cancellation before enabling
-the native operation; these fences alone do not complete that integration.
+Read-only runtime preflight on 2026-10-27 at 22:03 UTC used
+`./tools/qa-runtime.sh snapshot` (exit 0). The serving target was systemd
+`world-server`, PID `3094551`, executable
+`/home/server/rustycore/target/deploy/live/world-server`, SHA-256
+`290353718a1c534b348d03cb082fe203cf2b7ab0e179ef34d8ef4a8933c80fa4`,
+with no configured packet dump. This identifies the existing build for the
+later authorized swap/restore; it is not execution evidence for this candidate.
+
+Read-only fixture preflight at 22:59 UTC used a read-only transaction against
+the configured reference schemas. Characters 15/16/18 remained offline;
+their levels were 80/80/3. None of the four proposed `Qadeath*` names in
+`tools/wow-test-bot/RUSTYCORE_SMOKE.md` existed. The listed healer and Kobold
+spawn rows were still present. No account, character, item or runtime state
+was changed. Recheck those conditions before any authorized preparation;
+these reads do not establish a playable fixture or action acceptance.
+
+The reference runtime is available at
+`/home/server/woltk-trinity-legacy/build-r6/src/server/worldserver/worldserver`.
+Its SHA-256 is
+`80f143841b5a7b443022480500760ce336dc83052f05ddd7e3b7be6a6605b02a`;
+the read-only `--version` probe exited 0 and reported `a5f8da2ebf54+`.
+This is the derived R6 build recorded in
+[the reference preparation](../architecture/captures/1263-r6-paired-2026-10-10.md),
+not an unmodified upstream executable. Current checksums of all three local
+patches match that record: the LFG logging macro correction, explicit
+`Spell::SearchTargets` instantiations, and the specialization-index startup
+guard. Retain that derivation in later capture provenance. Its existing
+specialization/loot limits remain; these death scenarios must not establish
+loot or specialization parity from this build. No reference service was started.
+
+The native integration preserves the target C++ contracts at source
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+`Player.cpp:1158–1200` (Player death order), `14928–14997` (quest failure),
+`15626–15672` (quest SpellArea updates), `11784–12035` (quest item destruction),
+`Unit.cpp:8527–8585` (Unit death order), `3432–3524,3583–3602,4308–4328`
+(applied and owned Aura removal), `1015–1022,8115–8154,9214–9243`
+(nonlethal HealthUpdate versus lethal SetHealth), `10632–10650` (PvP death
+and durability), `1958–2015` (split damage), `833–856` (shared damage),
+and `Object.cpp:2254–2260` (controlling Player lookup).
+The scope is the #43 lifecycle, not full Unit::Kill/proc/script, Pet, vehicle,
+Battleground or Aura parity. Unsupported vehicle/secondary-controlled and
+health/power-trigger Aura participants stop the native operation explicitly.
+At the start of this review, the Map route rejected split/share damage before
+its old scalar writers, also disabling existing nonlethal secondary damage.
+The working correction removes that rejection and uses shared per-entry
+calculations from the synchronous compatibility loop and the admitted async
+future. Each secondary Player death is awaited before the next Aura entry or
+primary health mutation; the current application and amount are reread per
+entry. Absorb callbacks precede split, each split death precedes its own
+non-melee log, and the primary AttackerState packet precedes shared damage.
+Both secondary calls retain the reference's `durabilityLoss = false`.
+Five new focused Creature cases pass, covering preserved nonlethal damage,
+admission before zero health, source identity and same-GUID record replacement.
+Three multi-session Server scenarios now pass: both secondary split deaths
+finish before their logs and the primary hit, a failed secondary death fences
+the next Aura and primary mutation, and lethal self-share runs one death body
+after AttackerStateUpdate. The passing commands explicitly select the Server
+library; `TEST-15R.log`, `TEST-16.log` and `TEST-17.log` record real exit 0,
+from 23:02:46 through 23:06:55 UTC. This is dirty-tree coding feedback, not
+final acceptance or general split/share script parity. Those logs and the
+earlier failed attempts are retained under
+`/tmp/rustycore43-secondary-native-feedback/`.
+
+Cohesion review: `crates/wow-world-creature/src/admitted_creature_execution/native_combat.rs`
+has 1,368 lines, including its tests. It owns one admitted combat future and
+the identity checks needed across its callbacks; split/share arithmetic already
+lives in the shared per-entry helpers. It remains below the 2,000-line closeout
+ceiling. The existing private test module is the next independent navigation
+boundary if this file grows; this review does not require another runtime owner
+or a restructuring of the ordered operation.
+
+The Server scenario exposed a publication boundary: ordinary mailbox delivery
+allowed a later priority-rail melee stage to overtake split logs. The working
+Server publisher now queues this required pure packet output at its actual
+combat call point, including the observer attack prelude. It retains canonical
+receiver identity, residence and native source visibility selection, with no
+Map guard during delivery. Player-source combat logs keep their direct self
+copy separately from observer selection. It reuses the existing connection
+writers and does not drain arbitrary Session commands. A separate source
+review also found that the affected native
+death paths use instance-channel helpers for several realm-channel packets.
+Pinned `Opcodes.cpp` assigns HealthUpdate (`1564`), PowerUpdate (`1911`),
+StandStateUpdate (`2131`), DurabilityDamageDeath (`1362`) and
+EnvironmentalDamageLog (`1373`) to realm; AttackerStateUpdate (`1087`),
+SpellAbsorbLog (`2102`), SpellMissLog (`2123`) and SpellNonMeleeDamageLog
+(`2124`) use instance. The working owners now use those connections. World
+`native_damage_` passed four cases after the owner correction, including
+exact nonlethal health bytes and a real native Creature-kill body with one
+realm wear message normally and none in battleground context. The absorption
+case verifies instance combat-log observer commands and realm power output;
+the queued-melee case verifies presentation does not apply another death
+penalty. Inventory retains its shared wear calculation, called by Application;
+the uncalled queued-melee wear publisher and its host hook were retired.
+The legacy test is now named
+`apply_creature_melee_damage_command_defers_lethal_durability_to_native_body_like_cpp`;
+the native Creature-kill test carries the positive policy coverage.
+The Server's disconnected-observer case also passed: closing a selected
+observer's packet receiver does not cancel the primary death. Pure packet
+queue failures skip that receiver, following C++ `WorldSession::SendPacket`;
+required native body/phase failures still retain their operation fence.
+The seven focused cases and failed attempts are recorded under
+`/tmp/rustycore43-socket-routing-feedback/`. This is dirty-tree coding feedback,
+not final or live connection acceptance. The combined-sender Server fixture
+proves call/enqueue order, not network order across the two sockets.
+
+The dirty-save stabilization and native death integration now have focused
+coding feedback. Completion still requires the complete recovery acceptance,
+including prepared action captures and real DB/restart/relogin evidence.
+Before the subsequent integration, the 2026-10-27 caller check found
+`begin_native_death_operation`, `claim_native_death_operation` and
+`complete_native_death_operation` only in their owner and tests. The working
+Application and Map callers above supersede that finding.
+`has_unresolved_native_death_operation` protects production save capture,
+logout and retirement; those fences alone do not complete the lifecycle.
 Fence coding feedback on the dirty `d603dbce6` base, aarch64, 2026-10-27:
 `cargo check -p wow-map`, `-p wow-world-core`, `-p wow-world-lifecycle` and
 `-p wow-entities` each exited 0. Focused tests passed:

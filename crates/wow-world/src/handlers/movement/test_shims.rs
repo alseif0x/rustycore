@@ -152,10 +152,17 @@ impl WorldSession {
 /// #1363 slice 4b moved these bodies to `wow_world_entities`; the session and
 /// quest hotspot scenarios keep their method syntax through these shims.
 impl WorldSession {
-    pub(crate) fn handle_under_map_like_cpp(
+    pub(crate) async fn handle_under_map_like_cpp(
         &mut self,
         movement_info: &wow_packet::packets::movement::MovementInfo,
     ) -> Option<crate::session::MovementUnderMapDamageEvent> {
-        wow_world_entities::handle_under_map_like_cpp(self, movement_info)
+        let item_guid_generator = self.id_generators_for_test_like_cpp().item;
+        wow_world_entities::handle_under_map_like_cpp(
+            self,
+            movement_info,
+            &Default::default(),
+            item_guid_generator.as_ref(),
+        )
+        .await
     }
 }

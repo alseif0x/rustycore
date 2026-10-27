@@ -156,8 +156,12 @@ fn finalize_session<'a>(
     session: &'a mut WorldSession,
     item_guid_generator: &'a wow_core::ObjectGuidGenerator,
     resurrection_catalogs: Option<wow_world_application::ResurrectionOperationCatalogs<'a>>,
-) -> impl std::future::Future<Output = wow_world::FinalizationReport> + Send + 'a {
-    async move {
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = wow_world::FinalizationReport> + Send + 'a>>
+{
+    // One allocation per finalization keeps the complete gameplay call tree
+    // out of the supervisor's future layout; cancellation still owns this
+    // exact Session borrow and its outstanding persistence work.
+    Box::pin(async move {
         match resurrection_catalogs {
             Some(catalogs) => {
                 wow_world_application::finalize_session_with_resurrection_catalogs(
@@ -177,7 +181,7 @@ fn finalize_session<'a>(
                     .await
             }
         }
-    }
+    })
 }
 
 #[cfg(test)]

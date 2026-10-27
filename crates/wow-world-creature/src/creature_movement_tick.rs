@@ -586,6 +586,134 @@ pub(crate) fn apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
         events: Vec::new(),
     }
 }
+
+fn creature_melee_attacker_state_event_like_cpp(
+    attacker_guid: ObjectGuid,
+    victim_guid: ObjectGuid,
+    map_id: u32,
+    instance_id: u32,
+    damage: u32,
+    target_level: u8,
+    hit_info: u32,
+    victim_state: u8,
+    blocked: i32,
+    absorbed: u32,
+    over_damage: i32,
+) -> RuntimeEvent {
+    use wow_packet::ServerPacket;
+    use wow_packet::packets::combat::AttackerStateUpdate;
+
+    RuntimeEvent {
+        source_guid: attacker_guid,
+        recipients: RecipientRule::MapBroadcastVisible {
+            map_id: map_id as u16,
+            instance_id,
+        },
+        packet_bytes: AttackerStateUpdate {
+            attacker: attacker_guid,
+            victim: victim_guid,
+            hit_info,
+            damage: damage.min(i32::MAX as u32) as i32,
+            original_damage: damage.min(i32::MAX as u32) as i32,
+            over_damage,
+            blocked: blocked.max(0),
+            absorbed: absorbed.min(i32::MAX as u32) as i32,
+            victim_state,
+            school_mask: 1,
+            target_level,
+            expansion: 2,
+        }
+        .to_bytes(),
+    }
+}
+
+/// Resolve the pre-share `AttackerStateUpdate` after split callbacks without
+/// applying the primary Creature's health transition. The normal apply path
+/// uses the same event builder after its canonical mutation.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn preview_creature_melee_attacker_state_event_like_cpp(
+    manager: &mut wow_map::MapManager,
+    swing: &super::creature_melee_tick::PendingCreatureSwingLikeCpp,
+    damage: u32,
+    outcome_presentation: Option<(u32, u8, i32)>,
+    absorbed: u32,
+    attacker_is_player_controlled: bool,
+    threat_plan: super::creature_melee_threat::CreatureDamageThreatPlanLikeCpp,
+) -> Result<RuntimeEvent, CreatureMeleeApplyResultLikeCpp> {
+    match apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
+        manager,
+        u32::from(swing.map_id),
+        swing.instance_id,
+        swing.attacker_guid,
+        swing.attacker_position,
+        swing.attacker_combat_reach,
+        swing.attacker_can_state_update,
+        swing.victim_guid,
+        None,
+        outcome_presentation,
+        absorbed,
+        None,
+        None,
+        threat_plan,
+    ) {
+        CreatureMeleeApplyResultLikeCpp::Ready => {}
+        rejected => return Err(rejected),
+    }
+    let Some((target_level, should_fake_damage)) = manager
+        .find_map(u32::from(swing.map_id), swing.instance_id)
+        .and_then(|managed| {
+            managed
+                .map()
+                .with_creature_like_cpp(swing.victim_guid, |victim| {
+                    (
+                        victim.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
+                        victim
+                            .should_fake_damage_from_like_cpp(true, attacker_is_player_controlled),
+                    )
+                })
+        })
+    else {
+        return Err(CreatureMeleeApplyResultLikeCpp::MissingVictim);
+    };
+    let (mut hit_info, victim_state, blocked) = outcome_presentation.unwrap_or((
+        wow_packet::packets::combat::HIT_INFO_AFFECTS_VICTIM,
+        wow_packet::packets::combat::VICTIM_STATE_HIT,
+        0,
+    ));
+    if should_fake_damage {
+        hit_info |= wow_packet::packets::combat::HIT_INFO_FAKE_DAMAGE;
+    }
+    let over_damage = manager
+        .find_map(u32::from(swing.map_id), swing.instance_id)
+        .and_then(|managed| {
+            managed
+                .map()
+                .with_creature_like_cpp(swing.victim_guid, |victim| victim.unit().data().health)
+        })
+        .map_or(-1, |health| {
+            if u64::from(damage) >= health {
+                u64::from(damage)
+                    .saturating_sub(health)
+                    .min(i32::MAX as u64) as i32
+            } else {
+                -1
+            }
+        });
+    Ok(creature_melee_attacker_state_event_like_cpp(
+        swing.attacker_guid,
+        swing.victim_guid,
+        u32::from(swing.map_id),
+        swing.instance_id,
+        damage,
+        target_level,
+        hit_info,
+        victim_state,
+        blocked,
+        absorbed,
+        over_damage,
+    ))
+}
+
 pub(crate) fn apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
     canonical_map_manager: &mut wow_map::MapManager,
     map_id: u32,
@@ -607,7 +735,7 @@ pub(crate) fn apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
 ) -> CreatureMeleeApplyResultLikeCpp {
     use wow_packet::ServerPacket;
     use wow_packet::packets::combat::{
-        AttackerStateUpdate, HIT_INFO_AFFECTS_VICTIM, HIT_INFO_FAKE_DAMAGE, VICTIM_STATE_HIT,
+        HIT_INFO_AFFECTS_VICTIM, HIT_INFO_FAKE_DAMAGE, VICTIM_STATE_HIT,
     };
 
     let Some(managed) = canonical_map_manager.find_map_mut(map_id, instance_id) else {
@@ -741,28 +869,19 @@ pub(crate) fn apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
         .expect("the just-mutated creature remains in the canonical map");
 
     let mut events = Vec::new();
-    events.push(RuntimeEvent {
-        source_guid: attacker_guid,
-        recipients: RecipientRule::MapBroadcastVisible {
-            map_id: map_id as u16,
-            instance_id,
-        },
-        packet_bytes: AttackerStateUpdate {
-            attacker: attacker_guid,
-            victim: victim_guid,
-            hit_info,
-            damage: damage.min(i32::MAX as u32) as i32,
-            original_damage: damage.min(i32::MAX as u32) as i32,
-            over_damage,
-            blocked: outcome_presentation.map_or(0, |(_, _, blocked)| blocked.max(0)),
-            absorbed: absorbed.min(i32::MAX as u32) as i32,
-            victim_state: outcome_presentation.map_or(VICTIM_STATE_HIT, |(_, state, _)| state),
-            school_mask: 1,
-            target_level,
-            expansion: 2,
-        }
-        .to_bytes(),
-    });
+    events.push(creature_melee_attacker_state_event_like_cpp(
+        attacker_guid,
+        victim_guid,
+        map_id,
+        instance_id,
+        damage,
+        target_level,
+        hit_info,
+        outcome_presentation.map_or(VICTIM_STATE_HIT, |(_, state, _)| state),
+        outcome_presentation.map_or(0, |(_, _, blocked)| blocked),
+        absorbed,
+        over_damage,
+    ));
     if let Some(update) =
         unit_values_update_to_update_object(victim_guid, map_id as u16, &values_update)
     {

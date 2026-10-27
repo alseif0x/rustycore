@@ -228,7 +228,7 @@ pub use item_session::{
     ItemEquippedHookEventLikeCpp, ItemSessionHostLikeCpp,
     destroy_inventory_full_stack_by_pos_like_cpp,
     destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp,
-    handle_auto_equip_item_slot_with_generator_like_cpp,
+    destroy_quest_item_count_like_cpp, handle_auto_equip_item_slot_with_generator_like_cpp,
     handle_auto_equip_item_with_generator_like_cpp,
     handle_auto_store_bag_item_with_generator_like_cpp,
     handle_autobank_item_with_generator_like_cpp,

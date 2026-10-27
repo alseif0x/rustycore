@@ -291,7 +291,7 @@ fn represented_prevent_durability_loss_like_cpp<H: VendorSessionHostLikeCpp>(hos
 /// `baseLoss - baseLoss * GetTotalAuraMultiplier(MOD_DURABILITY_LOSS)`.
 /// C++ truncates that value to `uint32`, so with no aura the message percent
 /// is 0; that legacy behaviour is reproduced rather than repaired.
-fn apply_represented_durability_loss_on_death_like_cpp<H: VendorSessionHostLikeCpp>(
+pub fn apply_represented_durability_loss_on_death_like_cpp<H: VendorSessionHostLikeCpp>(
     host: &mut H,
 ) -> u32 {
     let base_loss = f64::from(
@@ -303,30 +303,4 @@ fn apply_represented_durability_loss_on_death_like_cpp<H: VendorSessionHostLikeC
     let loss = (base_loss - base_loss * multiplier) as u32;
     apply_represented_durability_loss_all_like_cpp(host, base_loss, false);
     loss
-}
-
-/// C++ `Unit::Kill` creature-killer durability branch (`Unit.cpp:10639-10648`).
-///
-/// The map commits the lethal swing before delivery, so `over_damage >= 0`
-/// is the represented kill signal. C++ applies the PvE condition
-/// `durabilityLoss && !player && !victim->InBattleground()`; a battleground
-/// victim is skipped. The loss message is published before the melee result
-/// presentation, matching the C++ order inside `DealMeleeDamage`.
-pub fn publish_creature_melee_death_durability_loss_like_cpp<H: VendorSessionHostLikeCpp>(
-    host: &mut H,
-    over_damage: i32,
-) {
-    if over_damage < 0 || represented_player_in_battleground_like_cpp(host) {
-        return;
-    }
-    let loss = apply_represented_durability_loss_on_death_like_cpp(host);
-    host.send_packet(&wow_packet::packets::misc::DurabilityDamageDeath {
-        percent: loss as i32,
-    });
-}
-
-#[must_use]
-fn represented_player_in_battleground_like_cpp<H: VendorSessionHostLikeCpp>(host: &H) -> bool {
-    let (state, hub) = host.split_inventory_ref();
-    state.represented_player_in_battleground_like_cpp(hub)
 }

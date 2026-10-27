@@ -16,6 +16,21 @@ use wow_entities::PLAYER_SLOT_END;
 mod player_recovery;
 
 impl SessionAdmissionState {
+    /// Reuse the already admitted Map authority without consuming a new phase.
+    /// Native operation identities provide the per-death claim within a tick.
+    pub fn is_map_phase_authority_current(&self, coordinator_id: u64, tick_epoch: u64) -> bool {
+        self.last_phase_authority_like_cpp[crate::session::SessionPassKind::Map.slot()]
+            == Some((coordinator_id, tick_epoch))
+            && self
+                .last_phase_authority_like_cpp
+                .iter()
+                .flatten()
+                .all(|authority| {
+                    authority.0 <= coordinator_id
+                        && (authority.0 != coordinator_id || authority.1 <= tick_epoch)
+                })
+    }
+
     /// Accept one coordinator-owned phase step before claiming its permit.
     ///
     /// Authority advances monotonically across all pass kinds: an older
