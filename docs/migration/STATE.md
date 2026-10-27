@@ -92,8 +92,10 @@ physical cast-item provenance and passes the restored real regression.
 The affected healer, recovery, resurrection, corpse-login and repop groups
 now have green scoped feedback covering 148 distinct identities. The stack
 abort was corrected in a test fixture. This is coding evidence, not final
-macro acceptance. Complete SelfRes, native death, QA and final acceptance
-remain open, including the sibling sickness original-key save gate.
+macro acceptance. The sickness full-save path now resolves each active Aura's
+actual SpellInfo key without a difficulty-zero prerequisite; its 35-case
+save/load group has green scoped feedback. Complete SelfRes, native death,
+QA and final acceptance remain open.
 
 Four blocks remain within the same macro:
 
@@ -2712,6 +2714,47 @@ This is an UNVALIDATED local macro checkpoint. The sibling sickness full-save
 entry gate, native-death integration, normal SelfRes/obtain casts, QA and
 complete candidate acceptance remain open. No runtime installation, SQL,
 restart, fresh capture, publication or issue closure was performed.
+
+Sickness original-key full-save capture, 2026-10-27, base
+`54fb1f2e13edf4886656b6b964b07b6134fa220b` plus five Rust working inputs:
+Core no longer requires a race-wide difficulty-zero payload, attributes or
+effects before inspecting actual sickness applications. Each active Aura's
+SpellInfo key supplies its component reads; the saved difficulty remains the
+original cast difficulty. Complete empty families remain capturable, while
+unavailable source metadata for an active Aura holds that save group.
+Existing passive, channel, foreign single-target and effect-mask policies
+remain in place. No payload-only fallback substitutes for exact key authority.
+
+Pinned `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` Player.cpp:18085–18130,
+19811–19866 and SpellAuras.cpp:463–465 distinguish the actual SpellInfo from
+the original cast difficulty and persist the active Aura's native metadata.
+The new loader-backed fixture has only a real difficulty-3 key, explicitly
+no key or payload at zero. Typed load, full Player-save DTO capture and reload
+retain item GUID/entry/signed level, durations, charges and effect/base amounts.
+Existing fixtures now seed explicit source keys. The missing-attributes
+negative contains an active Aura; empty authoritative state is not an error.
+
+Sequential coding feedback used PROTOC=/home/ubuntu/.local/protoc/bin/protoc,
+CARGO_BUILD_JOBS=1 and CARGO_TARGET_DIR=/home/server/rustycore/target:
+`cargo check -p wow-world-core` exited 0 at 01:26:29–01:26:31 UTC;
+`cargo test -p wow-world sickness_loading` exited 0 at 01:26:36–01:28:56,
+with 35 distinct library cases, including all three new cases. Zero-test
+targets are not credited. Logs in
+`/tmp/rustycore-sickness-original-save-key-logs` preserve three failed test
+iterations: private fixture helpers, incomplete key fixtures (21/14), and
+a fixture borrow/move error. The 01:17:32–01:28:56 feedback/repair interval
+is 684 seconds of coding feedback, not a final campaign or its 600-second
+performance target.
+
+The parent reviewed the complete diff and verified all five changed-input
+hashes. `changed-inputs.sha256` digest is
+`476927c7a4f8438dae1f5e2c1d011187cb455de8c80d25c4482f2f798559844b`;
+the candidate diff digest is
+`3aa72813c6c5a8744f7ec93548d0dedc743d24f3cbcf5c70021bececa0af7d76`.
+These identify working inputs at the stated base, not testing at a later
+commit. Effective worker model/effort telemetry is unavailable. This is an
+UNVALIDATED local macro checkpoint. Complete SelfRes, native death, QA,
+final acceptance and authorized live evidence remain open.
 
 Obtain ordering and recovery fixture contract, 2026-10-27, base
 `ad78f38716f850e77fa0c2be24386f551d3feb34` plus 14 working Rust inputs:

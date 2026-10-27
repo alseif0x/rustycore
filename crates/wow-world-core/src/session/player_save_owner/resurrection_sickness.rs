@@ -196,15 +196,6 @@ pub(super) fn capture(
         return None;
     }
     let selected_spell_id = i32::try_from(spell_id).ok()?;
-    spell_store.get(selected_spell_id)?;
-    wow_data::spell::resolve_spell_attributes(
-        spell_store,
-        selected_spell_id,
-        0,
-        Some(difficulty_store),
-    )
-    .ok()??;
-    catalog_effects(selected_spell_id, 0, spell_store, difficulty_store)?;
 
     let mut families =
         BTreeMap::<([u8; 16], [u8; 16]), (Vec<PlayerLifecycleAuraSave>, HashSet<u32>)>::new();
@@ -212,10 +203,17 @@ pub(super) fn capture(
         if application.spell_id != selected_spell_id {
             continue;
         }
+        let actual_difficulty_id = wow_data::spell::resolve_spell_info_key_difficulty(
+            spell_store,
+            spell_id,
+            application.difficulty_id,
+            Some(difficulty_store),
+        )
+        .ok()??;
         let attributes = wow_data::spell::resolve_spell_attributes(
             spell_store,
             selected_spell_id,
-            application.difficulty_id,
+            actual_difficulty_id,
             Some(difficulty_store),
         )
         .ok()??;
@@ -229,7 +227,7 @@ pub(super) fn capture(
         }
         let spell_effects = catalog_effects(
             selected_spell_id,
-            application.difficulty_id,
+            actual_difficulty_id,
             spell_store,
             difficulty_store,
         )?;

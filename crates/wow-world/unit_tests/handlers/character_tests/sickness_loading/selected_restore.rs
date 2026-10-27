@@ -266,7 +266,10 @@ fn selected_sickness_load_allocates_each_cast_and_last_same_caster_row_wins() {
 fn selected_sickness_rejected_foreign_candidate_retires_prior_spell_application() {
     let (mut session, player, _) =
         canonical_aura_session([sickness_catalog_info()], SICKNESS_SPELL_ID);
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(
+        SICKNESS_SPELL_ID as u32,
+        0,
+    )]);
     spell_store.insert(SICKNESS_SPELL_ID, sickness_catalog_info());
     let mut attributes = [0; 15];
     attributes[0] = SPELL_ATTR0_AURA_IS_DEBUFF;

@@ -21,7 +21,7 @@ fn saved_effects(
         .collect()
 }
 
-fn indexed_effect(
+pub(super) fn indexed_effect(
     id: u32,
     spell_id: u32,
     difficulty_id: u8,
@@ -63,7 +63,7 @@ fn indexed_effect(
     }
 }
 
-fn selected_misc(
+pub(super) fn selected_misc(
     id: u32,
     spell_id: u32,
     difficulty_id: u8,
@@ -80,7 +80,10 @@ fn selected_misc(
     }
 }
 
-fn difficulty(id: u32, fallback_difficulty_id: u8) -> wow_data::difficulty::DifficultyEntry {
+pub(super) fn difficulty(
+    id: u32,
+    fallback_difficulty_id: u8,
+) -> wow_data::difficulty::DifficultyEntry {
     wow_data::difficulty::DifficultyEntry {
         id,
         instance_type: 0,
@@ -138,7 +141,11 @@ fn replace_spell_attributes(session: &mut WorldSession, spell_id: i32, attribute
         .get(spell_id)
         .cloned()
         .expect("selected SpellInfo");
-    let mut spells = wow_data::SpellStore::new();
+    let keys = existing
+        .spell_info_keys_in_order_like_cpp()
+        .into_iter()
+        .filter(|(key_spell_id, _)| *key_spell_id == spell_id as u32);
+    let mut spells = crate::selected_spell_fixtures::canonical_spell_store(keys);
     spells.insert(spell_id, info);
     spells.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
     session.set_spell_store(Arc::new(spells));
@@ -180,7 +187,11 @@ fn install_positive_sickness_effects_with_debuff(session: &mut WorldSession) {
         .misc_attributes_for_difficulty_like_cpp(SICKNESS_SPELL_ID, 0, None)
         .expect("selected SpellInfo attributes");
     attributes[0] = SPELL_ATTR0_AURA_IS_DEBUFF;
-    let mut spells = wow_data::SpellStore::new();
+    let keys = existing
+        .spell_info_keys_in_order_like_cpp()
+        .into_iter()
+        .filter(|(key_spell_id, _)| *key_spell_id == SICKNESS_SPELL_ID as u32);
+    let mut spells = crate::selected_spell_fixtures::canonical_spell_store(keys);
     spells.insert(SICKNESS_SPELL_ID, info);
     spells.insert_spell_misc_attributes_like_cpp(SICKNESS_SPELL_ID, attributes);
     session.set_spell_store(Arc::new(spells));
@@ -697,7 +708,14 @@ fn install_mixed_sickness_metadata(session: &mut WorldSession) {
         effect.polarity_metadata = Some(wow_data::SpellEffectPolarityMetadata::default());
     }
     let mut attributes = [0; 15];
-    let mut spells = wow_data::SpellStore::new();
+    let keys = session
+        .catalogs
+        .spell_store()
+        .expect("selected SpellStore")
+        .spell_info_keys_in_order_like_cpp()
+        .into_iter()
+        .filter(|(key_spell_id, _)| *key_spell_id == SICKNESS_SPELL_ID as u32);
+    let mut spells = crate::selected_spell_fixtures::canonical_spell_store(keys);
     spells.insert(SICKNESS_SPELL_ID, info);
     spells.insert_spell_misc_attributes_like_cpp(SICKNESS_SPELL_ID, attributes);
     session.set_spell_store(Arc::new(spells));
