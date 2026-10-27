@@ -32,11 +32,11 @@ use wow_persistence::{
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::persistence_capabilities::CharacterPowerSnapshotLikeCpp;
 use crate::session::persistence_capabilities::{
-    PlayerSaveToDbSnapshotLikeCpp, character_power_snapshot_values_like_cpp,
-    loaded_character_power_snapshot_like_cpp,
+    character_power_snapshot_values_like_cpp, loaded_character_power_snapshot_like_cpp,
+    PlayerSaveToDbSnapshotLikeCpp,
 };
 use crate::session::{
-    RepresentedPlayerSkillStateLikeCpp, SessionCore, represented_player_skill_record_like_cpp,
+    represented_player_skill_record_like_cpp, RepresentedPlayerSkillStateLikeCpp, SessionCore,
 };
 
 mod currency;
@@ -166,6 +166,9 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
         let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
         let residence = manager.player_residence_like_cpp(handle)?;
         manager.with_player_like_cpp(handle, |player| {
+            if player.has_unresolved_native_death_operation() {
+                return None;
+            }
             let teleport = player.teleport_state_like_cpp();
             if player
                 .resurrection_state_like_cpp()
@@ -1086,3 +1089,7 @@ fn represented_talent_for_save_like_cpp(
     };
     wow_data::represented_spell_valid_with_seen_like_cpp(spell_store, spell_id, &mut HashSet::new())
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/player_save_owner.rs"]
+mod tests;

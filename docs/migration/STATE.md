@@ -3,6 +3,14 @@
 **#43 current summary — 2026-10-27, branch `43-spirit-healer`:**
 The macro remains open and has not passed final acceptance. Changes remain
 local to `43-spirit-healer`; this candidate has not been published or deployed.
+Native death now fences canonical save capture, Map retirement and same-GUID
+replacement while its Player-owned operation is Ready or InFlight. Application
+cleanup checks that fence before unpublishing the Player or releasing the login
+claim; logout checks it before admitting each finalization step. The existing
+deferred-save intent retains save requests across those phases, including a
+newer request that must survive an older save acknowledgement. These
+guards do not admit lethal damage or execute the native death body. The main
+remaining implementation is still that body and its production damage callers.
 The working release path now invokes Application's pet-removal operation.
 Its absent-Pet branch resolves only the current Map, retains stale GUIDs,
 returns temporary-pet reagents once, and resets the stable selection. The live
@@ -159,10 +167,29 @@ The dirty-save stabilization now has focused coding feedback. The next delivery
 is the native death operation and its necessary participants, followed by the
 complete recovery acceptance.
 The 2026-10-27 caller check still finds `begin_native_death_operation`,
-`claim_native_death_operation`, `complete_native_death_operation` and
-`has_unresolved_native_death_operation` only in their owner and tests. Connecting
-damage alone is insufficient: the same delivery must connect cancellation,
-logout/save and retirement fences before enabling that operation in production.
+`claim_native_death_operation` and `complete_native_death_operation` only in
+their owner and tests. `has_unresolved_native_death_operation` now protects
+production save capture, logout and retirement. The transport still must bind
+the damage admission, exact Player incarnation and cancellation before enabling
+the native operation; these fences alone do not complete that integration.
+Fence coding feedback on the dirty `d603dbce6` base, aarch64, 2026-10-27:
+`cargo check -p wow-map`, `-p wow-world-core`, `-p wow-world-lifecycle` and
+`-p wow-entities` each exited 0. Focused tests passed:
+`cargo test -p wow-map native_death` (3),
+`cargo test -p wow-world-core full_save_capture` (2),
+`cargo test -p wow-entities native_death` (1), and
+`cargo test -p wow-world native_death_fences_logout_and_cleanup_until_the_operation_completes --lib`
+(1). The World case exercises the real save entry, lower unregister, logout
+step admission, cleanup and retained login claim in Ready/InFlight, then
+permits cleanup after Complete. An initial Lifecycle test fixture could not
+compile with that crate's test dependencies; its assertion moved into the
+World integration case. The first World build exposed a wrong HighGuid import,
+which was corrected before the passing run. All commands used the declared
+PROTOC, one job and this checkout's `target/`. This is seven distinct focused
+tests, not committed-candidate final acceptance, native death execution or live
+DB/capture evidence. Inspection of Server's existing
+`session_factory/finalization.rs:126–144` confirms unresolved finalization feeds
+its task-owned fail-stop retention; no additional retention task was added.
 The pet-save persistence participant now accepts the two independent native
 transactions and preserves their statement order and exact bindings. The
 parent reviewed `Pet.cpp:452–546,1129–1176,1288–1347`,

@@ -22,23 +22,26 @@ impl Player {
     /// Some(true): retained; Some(false): canonical admission permits capture.
     /// A resurrection save is admitted only after corpse deletion. SavingPlayer
     /// marks snapshot eligibility; the existing save/money fences serialize
-    /// concurrent captures. None means deferred revision exhaustion; the
-    /// application must fail closed, never wrap.
+    /// concurrent captures. An unresolved native death operation also retains
+    /// periodic-save intent until its owner completes. None means deferred
+    /// revision exhaustion; the application must fail closed, never wrap.
     pub fn defer_save_if_transfer_pending_like_cpp(&mut self) -> Option<bool> {
+        let native_death_pending = self.has_unresolved_native_death_operation();
         let transfer = self.teleport_state_like_cpp();
         let transfer_pending = transfer.post_add.is_some()
             || (transfer.far_pending
                 && transfer.recovery != crate::PlayerTransferRecovery::Terminal);
+        let save_blocked = native_death_pending || transfer_pending;
         let resurrection_phase = self
             .resurrection_state_like_cpp()
             .delayed_after_teleport
             .map(|continuation| continuation.phase);
 
         match resurrection_phase {
-            None if !transfer_pending => return Some(false),
+            None if !save_blocked => return Some(false),
             Some(PlayerResurrectionPhase::ReadyToSavePlayer)
             | Some(PlayerResurrectionPhase::PlayerSaveDeferred)
-                if !transfer_pending =>
+                if !save_blocked =>
             {
                 if let Some(continuation) = self
                     .resurrection_state_mut_like_cpp()
@@ -51,7 +54,7 @@ impl Player {
             }
             Some(PlayerResurrectionPhase::ReadyToSavePlayer)
             | Some(PlayerResurrectionPhase::PlayerSaveDeferred)
-                if transfer_pending =>
+                if save_blocked =>
             {
                 if let Some(continuation) = self
                     .resurrection_state_mut_like_cpp()
@@ -61,14 +64,14 @@ impl Player {
                     continuation.phase = PlayerResurrectionPhase::PlayerSaveDeferred;
                 }
             }
-            Some(PlayerResurrectionPhase::SavingPlayer) if !transfer_pending => {
+            Some(PlayerResurrectionPhase::SavingPlayer) if !save_blocked => {
                 // SavingPlayer is the canonical capture-eligible phase, not a
                 // one-shot lease. Existing money/save fences serialize writers.
                 return Some(false);
             }
             Some(PlayerResurrectionPhase::SavingPlayer) => {
-                // A transfer arriving during an uncertain save must not turn
-                // its retained in-flight phase into a replayable deferred save.
+                // A transfer or native death arriving during an uncertain save
+                // must not turn its retained phase into a replayable save.
             }
             _ => {}
         }
@@ -104,6 +107,56 @@ mod tests {
         player.teleport_state_mut_like_cpp().far_pending = false;
         player.acknowledge_saved_projection_like_cpp(current, Default::default());
         assert!(!player.has_deferred_player_save_like_cpp());
+    }
+
+    #[test]
+    fn native_death_defers_save_and_stale_ack_preserves_newer_intent() {
+        for phase in [
+            crate::PlayerDeathOperationPhase::Ready,
+            crate::PlayerDeathOperationPhase::InFlight,
+        ] {
+            let mut player = Player::new(Some(1), false);
+            player.unit_mut().set_max_health(100);
+            player.unit_mut().set_health(100);
+            let context =
+                crate::PlayerDeathOperationContext::new(wow_core::ObjectGuid::EMPTY, true);
+            let operation = player
+                .begin_native_death_operation(context)
+                .expect("living Player should admit native death operation");
+            if phase == crate::PlayerDeathOperationPhase::InFlight {
+                assert_eq!(
+                    player.claim_native_death_operation(operation),
+                    Some(context)
+                );
+            }
+
+            assert_eq!(player.defer_save_if_transfer_pending_like_cpp(), Some(true));
+            assert!(player.has_deferred_player_save_like_cpp());
+            let stale_ack = player.capture_save_acknowledgement_like_cpp();
+
+            assert_eq!(player.defer_save_if_transfer_pending_like_cpp(), Some(true));
+            player.acknowledge_saved_projection_like_cpp(stale_ack, Default::default());
+            assert!(
+                player.has_deferred_player_save_like_cpp(),
+                "an older acknowledgement must not clear a newer deferred-save revision"
+            );
+
+            if phase == crate::PlayerDeathOperationPhase::Ready {
+                assert_eq!(
+                    player.claim_native_death_operation(operation),
+                    Some(context)
+                );
+            }
+            assert!(player.complete_native_death_operation(operation));
+            assert_eq!(
+                player.defer_save_if_transfer_pending_like_cpp(),
+                Some(false)
+            );
+
+            let current_ack = player.capture_save_acknowledgement_like_cpp();
+            player.acknowledge_saved_projection_like_cpp(current_ack, Default::default());
+            assert!(!player.has_deferred_player_save_like_cpp());
+        }
     }
 
     #[test]
@@ -160,7 +213,10 @@ mod tests {
             .as_mut()
             .unwrap()
             .phase = PlayerResurrectionPhase::ReadyToSavePlayer;
-        assert_eq!(player.defer_save_if_transfer_pending_like_cpp(), Some(false));
+        assert_eq!(
+            player.defer_save_if_transfer_pending_like_cpp(),
+            Some(false)
+        );
         assert_eq!(
             player
                 .resurrection_state_like_cpp()
@@ -170,7 +226,10 @@ mod tests {
             PlayerResurrectionPhase::SavingPlayer
         );
 
-        assert_eq!(player.defer_save_if_transfer_pending_like_cpp(), Some(false));
+        assert_eq!(
+            player.defer_save_if_transfer_pending_like_cpp(),
+            Some(false)
+        );
         assert_eq!(
             player
                 .resurrection_state_like_cpp()
@@ -212,7 +271,10 @@ mod tests {
             PlayerResurrectionPhase::PlayerSaveDeferred
         );
         player.teleport_state_mut_like_cpp().far_pending = false;
-        assert_eq!(player.defer_save_if_transfer_pending_like_cpp(), Some(false));
+        assert_eq!(
+            player.defer_save_if_transfer_pending_like_cpp(),
+            Some(false)
+        );
         assert_eq!(
             player
                 .resurrection_state_like_cpp()

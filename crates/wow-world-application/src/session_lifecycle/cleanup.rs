@@ -22,7 +22,10 @@ pub(super) fn recovery_retirement_outcome<H: SessionLifecycleHostLikeCpp>(
 ) -> Option<FinalizationOutcome> {
     let core = host.core();
     let Some(handle) = core.player_handle_like_cpp else {
-        return core.player_guid().is_some().then_some(FinalizationOutcome::Unavailable);
+        return core
+            .player_guid()
+            .is_some()
+            .then_some(FinalizationOutcome::Unavailable);
     };
     if core.player_guid() != Some(handle.guid()) {
         return Some(FinalizationOutcome::Unavailable);
@@ -39,7 +42,8 @@ pub(super) fn recovery_retirement_outcome<H: SessionLifecycleHostLikeCpp>(
                 player
                     .resurrection_state_like_cpp()
                     .delayed_after_teleport
-                    .is_some(),
+                    .is_some()
+                    || player.has_unresolved_native_death_operation(),
             )
         })
         .flatten()

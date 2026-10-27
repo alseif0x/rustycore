@@ -30,10 +30,11 @@ impl SessionLifecycleState {
         let recovery = manager
             .with_player_like_cpp(handle, |player| {
                 (player.guid() == handle.guid()).then_some(
-                    player
-                        .resurrection_state_like_cpp()
-                        .delayed_after_teleport
-                        .is_some(),
+                    player.has_unresolved_native_death_operation()
+                        || player
+                            .resurrection_state_like_cpp()
+                            .delayed_after_teleport
+                            .is_some(),
                 )
             })
             .flatten();

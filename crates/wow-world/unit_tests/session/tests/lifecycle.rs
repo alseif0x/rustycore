@@ -467,6 +467,104 @@ fn recovery_fences_application_and_lower_retirement_keep_the_canonical_incarnati
     assert!(!replacement.try_claim_character_login_like_cpp(guid));
 }
 
+/// Native death retains the exact owner and login claim across both pending phases.
+#[tokio::test]
+async fn native_death_fences_logout_and_cleanup_until_the_operation_completes() {
+    use wow_entities::PlayerDeathOperationContext;
+    use wow_world_lifecycle::{FinalizationMode, FinalizationOutcome, FinalizationStep};
+
+    let (mut session, send_rx, _) = make_session();
+    let guid = ObjectGuid::create_player(1, 46_702);
+    session.set_player_guid(Some(guid));
+    assert!(session.try_claim_character_login_like_cpp(guid));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    let handle = session.core.player_handle_like_cpp.unwrap();
+    let operation = session
+        .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().set_max_health(100);
+            player.unit_mut().set_health(100);
+            player
+                .begin_native_death_operation(PlayerDeathOperationContext::new(
+                    ObjectGuid::EMPTY,
+                    false,
+                ))
+                .unwrap()
+        })
+        .unwrap();
+    let item_generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
+    let (mut replacement, _, _) = make_session();
+
+    for in_flight in [false, true] {
+        if in_flight {
+            session
+                .with_owned_player_mut_like_cpp(|player| {
+                    assert!(player.claim_native_death_operation(operation).is_some());
+                })
+                .unwrap();
+        }
+        assert_eq!(
+            wow_world_lifecycle::save_current_player_to_db_with_generator_like_cpp(
+                &mut session,
+                &item_generator,
+            )
+            .await,
+            wow_world_lifecycle::PlayerSaveOutcomeLikeCpp::Deferred,
+        );
+        assert_eq!(
+            session.with_owned_player_like_cpp(|player| player.has_deferred_player_save_like_cpp()),
+            Some(true),
+            "the save request must remain owned until a later confirmed save"
+        );
+        let lower_outcome = {
+            let (state, mut hub) = crate::session::split_lifecycle_mut(&mut session);
+            state.unregister_canonical_player_from_map_like_cpp(&mut hub)
+        };
+        assert_eq!(lower_outcome, FinalizationOutcome::Deferred);
+        assert_eq!(session.core.player_handle_like_cpp, Some(handle));
+        for step in [
+            FinalizationStep::NativeTransfer,
+            FinalizationStep::CharacterSave,
+            FinalizationStep::Retirement,
+            FinalizationStep::LogoutPublication,
+        ] {
+            assert_eq!(
+                wow_world_application::execute_finalization_step(
+                    &mut session,
+                    step,
+                    FinalizationMode::Disconnect,
+                    &item_generator,
+                )
+                .await,
+                FinalizationOutcome::Deferred
+            );
+        }
+        assert_eq!(
+            session.cleanup_shared_runtime_state(),
+            FinalizationOutcome::Deferred
+        );
+        assert_eq!(session.core.player_handle_like_cpp, Some(handle));
+        assert!(!session.player_logout_like_cpp());
+        assert!(!replacement.try_claim_character_login_like_cpp(guid));
+        assert!(
+            send_rx.is_empty(),
+            "no logout publication before native death completes"
+        );
+    }
+
+    session
+        .with_owned_player_mut_like_cpp(|player| {
+            assert!(player.complete_native_death_operation(operation));
+        })
+        .unwrap();
+    assert_eq!(
+        session.cleanup_shared_runtime_state(),
+        FinalizationOutcome::Applied
+    );
+    assert!(session.core.player_handle_like_cpp.is_none());
+    assert!(replacement.try_claim_character_login_like_cpp(guid));
+    replacement.release_character_login_claim_like_cpp();
+}
+
 /// Cleanup is safe on a session that never selected a character — the
 /// disconnect path runs it unconditionally.
 #[test]

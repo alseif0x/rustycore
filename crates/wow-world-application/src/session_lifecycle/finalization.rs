@@ -199,6 +199,16 @@ async fn execute_finalization_step_with_catalogs<H: SessionLifecycleHostLikeCpp>
     resurrection_catalogs: Option<wow_world_entities::ResurrectionOperationCatalogs<'_>>,
 ) -> FinalizationOutcome {
     use FinalizationStep::*;
+    // Player::setDeathState is synchronous in C++ (Player.cpp:1158–1200).
+    // Its Rust continuation must finish before logout can mutate, save or
+    // unpublish this incarnation. A cancelled continuation retains its owner.
+    if host
+        .core()
+        .with_owned_player_like_cpp(|player| player.has_unresolved_native_death_operation())
+        == Some(true)
+    {
+        return FinalizationOutcome::Deferred;
+    }
     match step {
         NativeTransfer => {
             discard_unstarted_near_resurrection_for_finalization(host);
