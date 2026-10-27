@@ -101,8 +101,10 @@ save acknowledgement and cancellation retention. Its focused feedback covers
 dead/ghost casters before cooldowns and launch, with 39 scoped cases passing.
 Native recovery fields now use the existing Map publication owner and native
 visibility notification; its affected groups have green scoped feedback
-covering 165 distinct identities. Registered SelfRes integration, native
-death, QA and final acceptance remain open.
+covering 165 distinct identities. Four registered SelfRes composition cases
+now prove the normal cost/cooldown, native revival and conditional full-save
+path locally with a genuine nonzero-only key. Its remaining admission/timing
+cases, native death, QA and final acceptance remain open.
 
 Four blocks remain within the same macro:
 
@@ -2860,6 +2862,50 @@ or evidence for its ordinary 600-second performance target. This remains an
 UNVALIDATED macro checkpoint. Registered SelfRes composition, native death,
 QA, final acceptance and authorized live/capture/durability evidence remain
 open. No push, installation, SQL or restart was performed.
+
+Registered SelfRes normal-cast composition, 2026-10-27, base
+`b11b70973930b3ce2ddbd0ec3a8f73a838b7b732` plus two Rust test inputs:
+four cases dispatch CMSG_SELF_RES through its actual registration and thunk.
+The synthetic spell 61043 exists only at actual Map difficulty 3: neither a
+difficulty-zero existence key nor a legacy payload is installed. Its 20-percent
+effect and ten-second cooldown are fixture data, not evidence for the real
+21169 catalog. Pinned `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` anchors are
+SpellHandler.cpp:416–429, SpellEffects.cpp:3757–3791,
+SpellInfo.cpp:495–525 and Player.cpp:4509–4515; the normal cast-cost source
+contract is retained from the earlier pre-GO checkpoint.
+
+The positive case consumes the physical reagent before native revival and
+captures its Removed row, restored health/mana and active cooldown in the same
+full-save request. A controlled save ACK retains the native item tombstone
+until acknowledgement, then retires it and completes the same resurrection
+operation. Missing reagent and active cooldown produce Reagents and NotReady
+respectively, without GO/effects/save, and consume the listed request. Without
+a corpse, revival succeeds and costs/history remain dirty without an immediate
+save. This is controlled-port evidence, not real database durability.
+
+`cargo test -p wow-world registered_self_res --lib`, started at 03:57:32 UTC,
+passed all four distinct cases with exit 0, using the same PROTOC, one-job and
+checkout-local target environment above. Its exact end UTC was not recorded.
+The earlier `cargo check -p wow-world` at 03:47:13 passed before final test
+edits; it does not compile cfg(test) and is not credited for those edits.
+Logs in `/tmp/rustycore-registered-selfres-pipeline-logs` retain fixture compile
+errors, the confirmed recursive-lock run stopped only through its own session
+(exit 130), and the initial 0/4 result. Parent review removed a legacy payload
+seed, fixed the fixture lock lifetime and retained its packet peer. Known-empty
+visual/serverside catalogs and explicit DB2 base points 20 then exercise the
+actual path; no production guard or arithmetic was weakened.
+
+Both inputs match `final-input-sha256.txt`, digest
+`ccd9b997501a13937c444f4db501bda1cf91e9404913b1e504bd665b2fcf8263`.
+The new 574-line leaf has digest
+`a0a1ee27995569ad5fbea6ca2be2942b24c2889bac739eda513a9c28e56e197c`;
+its parent grows only 606→609 for the private mount. These identify tested
+working inputs, not the later commit. Runtime declares GPT-6; specific
+model/effort telemetry is unavailable. This remains an UNVALIDATED macro
+checkpoint, not the final campaign or its 600-second performance result.
+Silent admission, duplicate/timed/nested cast cases, native death, integrated
+QA and final/live acceptance remain open. No production code, runtime,
+database or publication changed in this checkpoint.
 
 Native SelfRes effect and recovery ownership, 2026-10-27, base
 `1e8a06cc21da8dd31c27b5520f7bfe66fb8edb33` plus 17 Rust working inputs:

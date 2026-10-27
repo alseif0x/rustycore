@@ -6,6 +6,9 @@ use wow_world_lifecycle::{
     PlayerSaveDiagnosticsLikeCpp, PlayerSaveHostLikeCpp, PlayerSaveParticipantsLikeCpp,
 };
 
+#[path = "recovery_fences/registered_self_res.rs"]
+mod registered_self_res;
+
 #[derive(Default)]
 struct SelfResCorpsePersistence {
     deletes: std::sync::Mutex<Vec<u64>>,
