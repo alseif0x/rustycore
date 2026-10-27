@@ -232,19 +232,7 @@ pub fn resummon_pet_temporary_unsummoned_like_cpp<H: PetSessionHostLikeCpp>(host
                     None,
                 ));
                 aura_subsystem.add_applied(applied);
-                aura_subsystem.set_loaded_aura_state_like_cpp(
-                    aura_ref,
-                    wow_entities::LoadedAuraStateLikeCpp::new(
-                        aura.max_duration_ms,
-                        aura.remain_time_ms,
-                        aura.remain_charges,
-                        aura.stack_count,
-                        aura.recalculate_mask,
-                    ),
-                );
-                aura_subsystem.visible_auras.insert(slot, aura_ref);
-
-                let effect_amounts: Vec<_> = pet_aura_effects
+                let matching_effects: Vec<_> = pet_aura_effects
                     .iter()
                     .filter(|effect| {
                         let effect_caster_guid = if effect.caster_guid.is_empty() {
@@ -256,6 +244,26 @@ pub fn resummon_pet_temporary_unsummoned_like_cpp<H: PetSessionHostLikeCpp>(host
                             && effect.spell_id == aura.spell_id
                             && effect.effect_mask == aura.effect_mask
                     })
+                    .collect();
+                let base_amounts = matching_effects
+                    .iter()
+                    .map(|effect| (effect.effect_index, effect.base_amount))
+                    .collect();
+                aura_subsystem.set_loaded_aura_state_like_cpp(
+                    aura_ref,
+                    wow_entities::LoadedAuraStateLikeCpp::new(
+                        aura.max_duration_ms,
+                        aura.remain_time_ms,
+                        aura.remain_charges,
+                        aura.stack_count,
+                        aura.recalculate_mask,
+                    )
+                    .with_pet_persistence_fields_like_cpp(aura.difficulty, base_amounts),
+                );
+                aura_subsystem.visible_auras.insert(slot, aura_ref);
+
+                let effect_amounts: Vec<_> = matching_effects
+                    .into_iter()
                     .map(|effect| {
                         let effect_ref = wow_entities::AppliedAuraRef::new(
                             aura.spell_id,

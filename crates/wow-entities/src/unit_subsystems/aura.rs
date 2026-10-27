@@ -215,13 +215,18 @@ impl AuraThreatSnapshotLikeCpp {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoadedAuraStateLikeCpp {
     pub max_duration_ms: i32,
     pub duration_ms: i32,
     pub charges: u8,
     pub stack_amount: u8,
     pub recalculate_mask: u32,
+    /// Cast difficulty retained when these fields came from a persisted pet aura.
+    /// Other loaded-state producers leave it unknown instead of assuming difficulty zero.
+    pub cast_difficulty: Option<u8>,
+    /// Indexed persisted base amounts for effects loaded with this aura.
+    pub base_amounts: Vec<(u8, i32)>,
 }
 
 impl LoadedAuraStateLikeCpp {
@@ -238,7 +243,19 @@ impl LoadedAuraStateLikeCpp {
             charges,
             stack_amount,
             recalculate_mask,
+            cast_difficulty: None,
+            base_amounts: Vec::new(),
         }
+    }
+
+    pub fn with_pet_persistence_fields_like_cpp(
+        mut self,
+        cast_difficulty: u8,
+        base_amounts: Vec<(u8, i32)>,
+    ) -> Self {
+        self.cast_difficulty = Some(cast_difficulty);
+        self.base_amounts = base_amounts;
+        self
     }
 }
 

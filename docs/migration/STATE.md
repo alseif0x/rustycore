@@ -128,7 +128,7 @@ programmes to finish this issue.
 | Issue #43 criterion | Current evidence and remaining closure blocker |
 | --- | --- |
 | Lethal damage and native death | The local scalar repair makes lethal player melee enter JUST_DIED, records PvP death and stops subsequent swings; PowerBurn and creature spell-click no longer skip directly to CORPSE. Native death-operation ownership still has no production caller. Its ordered cleanup and penalty participants remain a closure blocker. |
-| Release, ghost, corpse and graveyard | Production operations exist. Exercise their complete path from an actual lethal producer, including applicable pet removal, ghost restrictions and corpse publication; helper tests alone do not close this row. |
+| Release, ghost, corpse and graveyard | Production corpse/recovery operations exist, but release still omits RemovePet. Complete that participant and exercise the path from an actual lethal producer, including ghost restrictions and corpse publication; helper tests alone do not close this row. |
 | Reclaim, healer and accepted resurrection | Production recovery continuations exist. Verify the registered paths, penalties, corpse cleanup and pending/transfer recovery together on the final candidate. |
 | Persistence and failure recovery | The dirty quest-status full-save projection and commit acknowledgement now have focused passing feedback, including concurrent native objective changes and failed/unknown commits. Existing save/retirement fences still need complete-cycle evidence; this does not implement death-triggered FailQuest or close runtime persistence acceptance. |
 | Local acceptance | Define one committed candidate after implementation, run final plus missing scope-specific integration evidence once, repair actual findings, and retain the real SHA and complete timings. |
@@ -149,6 +149,14 @@ checkout's target directory. Subsequent changes only format those files and
 add license headers. This is coding feedback; no live transaction or final
 acceptance ran. The production RemovePet caller, canonical aura save capture,
 reagent refund and failure/cancellation continuation remain unfinished.
+Production pet resummoning now retains the loaded aura's cast difficulty and
+indexed base amounts in its existing canonical loaded state, including their
+removal lifetime. On the dirty tree based at `ebcb57e15`,
+`cargo check -p wow-world-lifecycle` passed and the World
+`resummon_pet_temporary_unsummoned_loads_represented_stable_pet_like_cpp` test
+passed (1 test; 5m 14s compilation). The same one-job environment applied.
+This establishes data retention, not full Pet aura eligibility/application or
+production save capture. The metadata is not a second aura owner.
 Any newly discovered prerequisite must name the failing scenario and the
 smallest repair. A generic domain defect is not automatically a #43 blocker.
 
