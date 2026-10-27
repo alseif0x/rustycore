@@ -575,7 +575,13 @@ impl AuraSubsystem {
         self.spell_cast_log_aura_authority_inert_like_cpp && self.has_no_local_aura_state_like_cpp()
     }
 
-    fn has_no_local_aura_state_like_cpp(&self) -> bool {
+    /// Returns whether the represented local aura containers and flags covered here are empty.
+    ///
+    /// This predicate excludes `runtime_applications_like_cpp`; callers that
+    /// require complete native-container emptiness must check that map separately.
+    /// Local emptiness does not establish that persisted aura/effect rows were
+    /// loaded or authorize replacing them.
+    pub fn has_no_local_aura_state_like_cpp(&self) -> bool {
         self.owned_auras.is_empty()
             && self.applied_auras.is_empty()
             && self.applied_aura_types.is_empty()

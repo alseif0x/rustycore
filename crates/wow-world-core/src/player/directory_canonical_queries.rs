@@ -122,12 +122,14 @@ impl PlayerRegistry {
         CanonicalPlayerVitalsLikeCpp,
         [u8; 2],
         CanonicalPlayerPresentationLikeCpp,
+        ObjectGuid,
     )> {
         self.canonical_at(guid, map_id, instance_id, |player| {
             (
                 canonical_player_vitals_like_cpp(player),
                 player.data().party_type,
                 canonical_player_presentation_like_cpp(player),
+                player.unit().data().summon,
             )
         })
     }

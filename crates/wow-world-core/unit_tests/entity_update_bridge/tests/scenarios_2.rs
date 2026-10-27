@@ -40,6 +40,34 @@ fn bridges_canonical_unit_critter_guid_like_cpp() {
 }
 
 #[test]
+fn bridges_canonical_unit_minion_guid_and_empty_clear_like_cpp() {
+    let mut player = Player::new(Some(7), false);
+    let minion = ObjectGuid::new(7, 14);
+    player.clear_data_changes();
+    player.unit_mut().set_minion_guid_like_cpp(Some(minion));
+
+    let update = player.values_update(true);
+    let packet_update = player_values_update_to_packet(&update).unwrap();
+    let unit = packet_update.unit_data.unwrap();
+    assert!(mask_has(
+        &unit.unit_data_mask,
+        wow_entities::UNIT_DATA_SUMMON_BIT
+    ));
+    assert_eq!(unit.summon, minion);
+
+    player.clear_data_changes();
+    player.unit_mut().set_minion_guid_like_cpp(None);
+    let update = player.values_update(true);
+    let packet_update = player_values_update_to_packet(&update).unwrap();
+    let unit = packet_update.unit_data.unwrap();
+    assert!(mask_has(
+        &unit.unit_data_mask,
+        wow_entities::UNIT_DATA_SUMMON_BIT
+    ));
+    assert_eq!(unit.summon, ObjectGuid::EMPTY);
+}
+
+#[test]
 fn bridges_forced_default_value_deltas() {
     let mut player = Player::new(Some(7), false);
     player.clear_data_changes();

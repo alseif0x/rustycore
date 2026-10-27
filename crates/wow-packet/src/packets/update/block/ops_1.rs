@@ -609,6 +609,7 @@ impl UpdateObject {
 
         let create_data = PlayerCreateData {
             guid,
+            summon: ObjectGuid::EMPTY,
             wow_account: ObjectGuid::EMPTY,
             bnet_account: ObjectGuid::EMPTY,
             race,
@@ -784,6 +785,15 @@ impl UpdateObject {
             } = block
             {
                 create_data.self_res_spells = self_res_spells;
+                return;
+            }
+        }
+    }
+    /// Populate UnitData::Summon on a Player CREATE block from the canonical Unit snapshot.
+    pub fn set_player_summon_guid_like_cpp(&mut self, summon: ObjectGuid) {
+        for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject { create_data, .. } = block {
+                create_data.summon = summon;
                 return;
             }
         }

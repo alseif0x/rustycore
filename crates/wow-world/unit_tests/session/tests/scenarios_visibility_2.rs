@@ -683,6 +683,7 @@ async fn player_visibility_diff_creates_then_removes_registry_player_like_cpp() 
 #[test]
 fn player_visibility_create_uses_live_stats_and_customizations_like_cpp() {
     let guid = ObjectGuid::create_player(1, 51);
+    let summon = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 123, 73);
     let (send_tx, _send_rx) = flume::bounded(1);
     let registry = PlayerRegistry::default();
     let canonical = shared_canonical_map_manager();
@@ -693,6 +694,7 @@ fn player_visibility_create_uses_live_stats_and_customizations_like_cpp() {
     assert!(
         with_canonical_player_at_mut_like_cpp(&canonical, guid, 571, 0, |player| {
             player.unit_mut().set_display_id(77, true);
+            player.unit_mut().set_minion_guid_like_cpp(Some(summon));
             crate::canonical_player_access::set_player_visible_item_values_like_cpp(
                 player,
                 0,
@@ -765,6 +767,7 @@ fn player_visibility_create_uses_live_stats_and_customizations_like_cpp() {
         .next()
         .expect("canonical player CREATE candidate");
     assert_eq!(snapshot.display_id, 77);
+    assert_eq!(snapshot.summon, summon);
     assert_eq!(snapshot.visible_items[0], (12_345, 6, 7));
     let update = crate::handlers::character::player_visibility_create_update_from_snapshot_like_cpp(
         &snapshot, 571,
@@ -782,6 +785,7 @@ fn player_visibility_create_uses_live_stats_and_customizations_like_cpp() {
     };
 
     assert!(!is_self);
+    assert_eq!(create_data.summon, summon);
     assert_eq!(create_data.health, 1_234);
     assert_eq!(create_data.max_health, 4_567);
     assert_eq!(create_data.current_power0, 321);

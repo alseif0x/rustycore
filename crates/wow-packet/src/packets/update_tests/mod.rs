@@ -125,6 +125,7 @@ fn set_active_player_bit(data: &mut ActivePlayerDataValuesUpdate, bit: usize) {
 fn test_player_create_data_with_farsight(farsight_object: ObjectGuid) -> PlayerCreateData {
     PlayerCreateData {
         guid: ObjectGuid::create_player(1, 42),
+        summon: ObjectGuid::EMPTY,
         wow_account: ObjectGuid::EMPTY,
         bnet_account: ObjectGuid::EMPTY,
         race: 1,

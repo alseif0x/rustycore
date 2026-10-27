@@ -893,3 +893,23 @@ fn critter_guid_uses_canonical_unitdata_and_change_bit_like_cpp() {
     assert_eq!(unit.critter_guid_like_cpp(), None);
     assert_eq!(unit.battle_pet_companion_guid_like_cpp(), None);
 }
+
+#[test]
+fn minion_guid_uses_canonical_summon_field_and_change_bit_like_cpp() {
+    let mut unit = Unit::new(true);
+    let minion = ObjectGuid::new(7, 14);
+    unit.clear_unit_data_changes();
+
+    unit.set_minion_guid_like_cpp(Some(minion));
+    assert_eq!(unit.minion_guid_like_cpp(), Some(minion));
+    assert_eq!(unit.data().summon, minion);
+    assert!(unit.unit_data_changes_mask().is_set(UNIT_DATA_PARENT_BIT));
+    assert!(unit.unit_data_changes_mask().is_set(UNIT_DATA_SUMMON_BIT));
+
+    unit.clear_unit_data_changes();
+    unit.set_minion_guid_like_cpp(None);
+    assert_eq!(unit.minion_guid_like_cpp(), None);
+    assert_eq!(unit.data().summon, ObjectGuid::EMPTY);
+    assert!(unit.unit_data_changes_mask().is_set(UNIT_DATA_PARENT_BIT));
+    assert!(unit.unit_data_changes_mask().is_set(UNIT_DATA_SUMMON_BIT));
+}

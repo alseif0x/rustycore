@@ -789,6 +789,8 @@ impl Default for PlayerCombatStats {
 /// Data needed to build a full player create packet for the client.
 pub struct PlayerCreateData {
     pub guid: ObjectGuid,
+    /// UnitData::Summon, C++ `Unit::GetMinionGUID`.
+    pub summon: ObjectGuid,
     /// PlayerData::WowAccount.
     pub wow_account: ObjectGuid,
     /// PlayerData::BnetAccount.

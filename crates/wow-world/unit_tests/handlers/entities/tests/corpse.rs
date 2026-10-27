@@ -9,6 +9,8 @@ use crate::session::WorldSession;
 #[path = "corpse/recovery_fences.rs"]
 mod recovery_fences;
 mod release;
+#[path = "corpse/live_pet.rs"]
+mod live_pet;
 #[path = "corpse/selected_recovery.rs"]
 mod selected_recovery;
 

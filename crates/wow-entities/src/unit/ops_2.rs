@@ -473,6 +473,18 @@ impl Unit {
     pub fn set_target(&mut self, target: ObjectGuid) {
         self.set_guid_field(UNIT_DATA_TARGET_BIT, target, |data| &mut data.target);
     }
+    /// C++ `Unit::GetMinionGUID` reads `UnitData::Summon`.
+    pub fn minion_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        (!self.data.summon.is_empty()).then_some(self.data.summon)
+    }
+    /// C++ `Unit::SetMinionGUID` dirties `UnitData::Summon` (field bit 12).
+    pub fn set_minion_guid_like_cpp(&mut self, minion: Option<ObjectGuid>) {
+        self.set_guid_field(
+            UNIT_DATA_SUMMON_BIT,
+            minion.unwrap_or(ObjectGuid::EMPTY),
+            |data| &mut data.summon,
+        );
+    }
     pub fn critter_guid_like_cpp(&self) -> Option<ObjectGuid> {
         (!self.data.critter.is_empty()).then_some(self.data.critter)
     }

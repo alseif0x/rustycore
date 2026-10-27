@@ -63,7 +63,7 @@ fn unit_constructor_matches_cpp_base_state() {
     assert!(unit.subsystems().motion.spline.finalized);
     assert_eq!(unit.subsystems().control.charmer_guid, None);
     assert_eq!(unit.subsystems().control.owner_guid, None);
-    assert_eq!(unit.subsystems().control.minion_guid, None);
+    assert_eq!(unit.minion_guid_like_cpp(), None);
     assert_eq!(
         unit.subsystems().control.summon_slots,
         [ObjectGuid::EMPTY; MAX_SUMMON_SLOT]

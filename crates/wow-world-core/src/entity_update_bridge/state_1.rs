@@ -598,6 +598,7 @@ pub(super) fn unit_data_update_to_packet(update: &UnitDataUpdate) -> UnitDataVal
     packet_update.health = update.values.health.min(i64::MAX as u64) as i64;
     packet_update.max_health = update.values.max_health.min(i64::MAX as u64) as i64;
     packet_update.display_id = update.values.display_id;
+    packet_update.summon = update.values.summon;
     packet_update.critter = update.values.critter;
     packet_update.battle_pet_companion_guid = update.values.battle_pet_companion_guid;
     packet_update.battle_pet_companion_name_timestamp =

@@ -140,7 +140,7 @@ impl PlayerCreateData {
         // SummonedBy, CreatedBy, DemonCreator, LookAtControllerTarget,
         // Target, BattlePetCompanionGUID
         write_empty_guid(buf); // Charm
-        write_empty_guid(buf); // Summon
+        buf.write_packed_guid(&self.summon); // Summon
         if is_owner {
             write_empty_guid(buf); // Critter (only if Owner)
         }

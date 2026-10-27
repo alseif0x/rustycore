@@ -197,6 +197,7 @@ pub fn player_visibility_create_update_from_snapshot_like_cpp(
         player.party_member_party_type,
     );
     update.set_player_current_power0_like_cpp(i32::from(player.current_power));
+    update.set_player_summon_guid_like_cpp(player.summon);
     update.set_player_customizations_like_cpp(player.customizations.as_ref().clone());
     if let Some(transport) = player.transport.clone() {
         update.set_player_movement_transport_like_cpp(transport);

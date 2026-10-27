@@ -35,6 +35,9 @@ use wow_persistence::{
 };
 
 pub(crate) struct RecordingPortLikeCpp {
+    pet_saves: Mutex<Vec<wow_persistence::PlayerPetSaveTransactionLikeCpp>>,
+    pet_save_outcomes: Mutex<std::collections::VecDeque<PersistenceOutcomeLikeCpp>>,
+    pet_save_gate: Mutex<Option<flume::Receiver<()>>>,
     during_save: Mutex<Option<Box<dyn FnOnce() + Send>>>,
     save_pending: std::sync::atomic::AtomicBool,
     save_started: tokio::sync::Notify,
@@ -59,6 +62,9 @@ pub(crate) struct RecordingPortLikeCpp {
 impl RecordingPortLikeCpp {
     pub(crate) fn new(outcome: PersistenceOutcomeLikeCpp) -> Arc<Self> {
         Arc::new(Self {
+            pet_saves: Mutex::new(Vec::new()),
+            pet_save_outcomes: Mutex::new(std::collections::VecDeque::new()),
+            pet_save_gate: Mutex::new(None),
             during_save: Mutex::new(None),
             save_pending: std::sync::atomic::AtomicBool::new(false),
             save_started: tokio::sync::Notify::new(),
@@ -88,6 +94,23 @@ impl RecordingPortLikeCpp {
     pub(crate) fn hold_character_save(&self) {
         self.save_pending
             .store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    pub(crate) fn pet_save_requests(
+        &self,
+    ) -> Vec<wow_persistence::PlayerPetSaveTransactionLikeCpp> {
+        self.pet_saves.lock().unwrap().clone()
+    }
+
+    pub(crate) fn set_pet_save_outcomes(
+        &self,
+        outcomes: impl IntoIterator<Item = PersistenceOutcomeLikeCpp>,
+    ) {
+        *self.pet_save_outcomes.lock().unwrap() = outcomes.into_iter().collect();
+    }
+
+    pub(crate) fn hold_next_pet_save(&self, gate: flume::Receiver<()>) {
+        *self.pet_save_gate.lock().unwrap() = Some(gate);
     }
 
     pub(crate) async fn wait_for_character_save(&self) {
@@ -152,6 +175,30 @@ impl RecordingPortLikeCpp {
 pub(crate) use RecordingPortLikeCpp as RecordingPlayerLifecyclePort;
 
 impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
+    fn persist_pet_save_transaction_like_cpp<'a>(
+        &'a self,
+        request: wow_persistence::PlayerPetSaveTransactionLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        self.pet_saves.lock().unwrap().push(request);
+        let outcome = self
+            .pet_save_outcomes
+            .lock()
+            .unwrap()
+            .pop_front()
+            .unwrap_or_else(|| self.outcome.clone());
+        let gate = self.pet_save_gate.lock().unwrap().take();
+        Box::pin(async move {
+            if let Some(gate) = gate {
+                if gate.recv_async().await.is_err() {
+                    return PersistenceOutcomeLikeCpp::Unknown {
+                        reason: "pet save gate closed".into(),
+                    };
+                }
+            }
+            outcome
+        })
+    }
+
     fn mark_offline_like_cpp<'a>(
         &'a self,
         mark: PlayerOfflineMarkLikeCpp,

@@ -3,6 +3,9 @@
 
 //! Player-side orchestration of the death/release pet removal.
 
+mod live;
+mod save;
+
 use wow_world_core::session::SessionCatalogs;
 use wow_world_entities::CorpseLifecycleCatalogsLikeCpp;
 use wow_world_inventory::VendorSessionHostLikeCpp;
@@ -15,9 +18,9 @@ use crate::TrainerSessionHostLikeCpp;
 /// C++ Player.cpp:20839–20962: resolve GetPet before refunding reagents and
 /// retain stale GUIDs when the current Map has no matching typed Pet.
 ///
-/// The live-Pet continuation is not installed yet. It must finish before this
-/// operation can claim complete RemovePet support; it fails before refunding
-/// or changing the live Pet rather than publishing a ghost with it attached.
+/// Live removal currently admits quiescent pets with complete empty aura
+/// input and no summon-spell or group continuation. Other live pets fail
+/// before mutation; this is not complete RemovePet support.
 pub async fn remove_pet_not_in_slot_like_cpp<H>(
     host: &mut H,
     catalogs: CorpseLifecycleCatalogsLikeCpp<'_>,
@@ -46,7 +49,7 @@ where
         })
         .ok_or("pet removal canonical Player is unavailable")?;
 
-    if in_world && let Some(pet_guid) = pet_guid.filter(|guid| guid.is_pet()) {
+    let live_pet = if in_world && let Some(pet_guid) = pet_guid.filter(|guid| guid.is_pet()) {
         let key = host
             .core()
             .current_canonical_player_map_key_like_cpp()
@@ -61,12 +64,17 @@ where
             .find_map(key.map_id, key.instance_id)
             .ok_or("pet removal Player Map disappeared")?
             .map();
-        if let Some(pet) = map.get_typed_pet(pet_guid) {
-            if pet.is_removed() {
-                return Ok(());
-            }
-            return Err("live pet removal persistence and cleanup are not integrated");
-        }
+        map.get_typed_pet(pet_guid)
+            .map(|pet| (pet_guid, pet.is_removed()))
+    } else {
+        None
+    };
+    if let Some((pet_guid, removed)) = live_pet {
+        return if removed {
+            Ok(())
+        } else {
+            live::remove_quiescent_pet(host, pet_guid).await
+        };
     }
 
     let tracker = QuestSessionHostLikeCpp::lifecycle(host)

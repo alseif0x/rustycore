@@ -439,6 +439,7 @@ pub struct PlayerAggroCandidateSnapshot {
 #[derive(Clone, Debug)]
 pub struct PlayerVisibilityCreateSnapshot {
     pub guid: ObjectGuid,
+    pub summon: ObjectGuid,
     pub position: Position,
     pub race: u8,
     pub class: u8,

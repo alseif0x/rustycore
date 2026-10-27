@@ -92,6 +92,8 @@ pub const UNIT_DATA_SHAPESHIFT_FORM_BIT: usize = 80;
 
 pub const UNIT_DATA_CRITTER_BIT: usize = 13;
 
+pub const UNIT_DATA_SUMMON_BIT: usize = 12;
+
 pub const UNIT_DATA_BATTLE_PET_COMPANION_GUID_BIT: usize = 20;
 
 pub const UNIT_DATA_BATTLE_PET_COMPANION_NAME_TIMESTAMP_BIT: usize = 100;
@@ -150,6 +152,7 @@ pub struct UnitDataValues {
     pub health: u64,
     pub max_health: u64,
     pub display_id: i32,
+    pub summon: ObjectGuid,
     pub critter: ObjectGuid,
     pub battle_pet_companion_guid: ObjectGuid,
     pub battle_pet_companion_name_timestamp: u32,
@@ -199,6 +202,7 @@ impl Default for UnitDataValues {
             health: 0,
             max_health: 0,
             display_id: 0,
+            summon: ObjectGuid::EMPTY,
             critter: ObjectGuid::EMPTY,
             battle_pet_companion_guid: ObjectGuid::EMPTY,
             battle_pet_companion_name_timestamp: 0,

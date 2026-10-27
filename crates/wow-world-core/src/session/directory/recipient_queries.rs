@@ -9,6 +9,7 @@ use super::*;
 
 fn player_visibility_snapshot_from_projection(
     guid: ObjectGuid,
+    summon: ObjectGuid,
     identity: PlayerDirectoryIdentityLikeCpp,
     position: Position,
     level: u8,
@@ -20,6 +21,7 @@ fn player_visibility_snapshot_from_projection(
     let (display_id, visible_items, _, zone_id, customizations) = presentation;
     PlayerVisibilityCreateSnapshot {
         guid,
+        summon,
         position,
         race: identity.race,
         class: identity.class,
@@ -584,10 +586,15 @@ impl PlayerRegistry {
                 if transport.guid != transport_guid {
                     return None;
                 }
-                let (vitals, party_type, (display_id, visible_items, _, zone_id, customizations)) =
-                    self.create_state(guid, placement.map_id, placement.instance_id)?;
+                let (
+                    vitals,
+                    party_type,
+                    (display_id, visible_items, _, zone_id, customizations),
+                    summon,
+                ) = self.create_state(guid, placement.map_id, placement.instance_id)?;
                 Some(PlayerVisibilityCreateSnapshot {
                     guid,
+                    summon,
                     position: placement.position,
                     race: identity.race,
                     class: identity.class,
@@ -855,7 +862,7 @@ impl PlayerRegistry {
                 if dx * dx + dy * dy >= reach * reach {
                     return None;
                 }
-                let (vitals, party_type, presentation) =
+                let (vitals, party_type, presentation, summon) =
                     self.create_state(guid, placement.map_id, placement.instance_id)?;
                 let transport = self
                     .canonical_at(guid, placement.map_id, placement.instance_id, |player| {
@@ -874,6 +881,7 @@ impl PlayerRegistry {
                     });
                 Some(player_visibility_snapshot_from_projection(
                     guid,
+                    summon,
                     identity,
                     placement.position,
                     placement.level,
@@ -950,6 +958,7 @@ impl PlayerRegistry {
                     player.data().party_type,
                     canonical_player_presentation_like_cpp(player),
                     transport,
+                    player.unit().data().summon,
                 ))
             })??
         };
@@ -962,9 +971,10 @@ impl PlayerRegistry {
         {
             return None;
         }
-        let (position, level, vitals, party_type, presentation, transport) = projection;
+        let (position, level, vitals, party_type, presentation, transport, summon) = projection;
         Some(player_visibility_snapshot_from_projection(
             registration.guid(),
+            summon,
             identity,
             position,
             level,

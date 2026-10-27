@@ -6,8 +6,18 @@ local to `43-spirit-healer`; this candidate has not been published or deployed.
 The working release path now invokes Application's pet-removal operation.
 Its absent-Pet branch resolves only the current Map, retains stale GUIDs,
 returns temporary-pet reagents once, and resets the stable selection. The live
-Pet save/cleanup continuation remains unavailable and stops release before
-corpse creation; no live-Pet completion is claimed. Focused coding feedback
+route now submits the native state and pet-row transactions separately before
+unlinking the Pet and queueing Map removal. Its current admission requires
+known-empty loaded and native aura state, empty combat/cast participants,
+no summon spell, no group and no secondary controlled minion. The remaining
+live-Pet cases still stop release before corpse creation; complete live-Pet
+support is not claimed. Its save projection has six passing focused tests,
+and all five handler cases pass after correcting their fixture setup. The
+owner's minion GUID now has one native `UnitData::Summon` authority, projected
+to VALUES and self/observer CREATE. Focused native-field, bridge, byte,
+resummon and observer consumer tests pass. This is coding feedback, not final
+acceptance or general Pet lifecycle parity.
+Earlier focused coding feedback
 passed three absent-Pet cases and 75 `release_` cases, including preservation
 of an active Pet when removal cannot complete. The cancellation fence now
 starts before the first potentially mutating reagent callback, after read-only
@@ -139,7 +149,7 @@ programmes to finish this issue.
 | Issue #43 criterion | Current evidence and remaining closure blocker |
 | --- | --- |
 | Lethal damage and native death | The local scalar repair makes lethal player melee enter JUST_DIED, records PvP death and stops subsequent swings; PowerBurn and creature spell-click no longer skip directly to CORPSE. Native death-operation ownership still has no production caller. Its ordered cleanup and penalty participants remain a closure blocker. |
-| Release, ghost, corpse and graveyard | Release now invokes pet removal and implements its absent/temporarily unsummoned branch. The live-Pet continuation is still unavailable and stops dependent corpse creation. Complete that participant and exercise the path from an actual lethal producer, including ghost restrictions and corpse publication; helper tests alone do not close this row. |
+| Release, ghost, corpse and graveyard | Release invokes pet removal for absent/temporarily unsummoned pets and now has a bounded quiescent live-Pet save/removal continuation. Aura, combat, summon-spell, group and secondary-minion continuations remain unavailable. Complete those participants and exercise the path from an actual lethal producer, including ghost restrictions and corpse publication; helper tests alone do not close this row. |
 | Reclaim, healer and accepted resurrection | Production recovery continuations exist. Verify the registered paths, penalties, corpse cleanup and pending/transfer recovery together on the final candidate. |
 | Persistence and failure recovery | The dirty quest-status full-save projection and commit acknowledgement now have focused passing feedback, including concurrent native objective changes and failed/unknown commits. Existing save/retirement fences still need complete-cycle evidence; this does not implement death-triggered FailQuest or close runtime persistence acceptance. |
 | Local acceptance | Define one committed candidate after implementation, run final plus missing scope-specific integration evidence once, repair actual findings, and retain the real SHA and complete timings. |
@@ -148,6 +158,11 @@ programmes to finish this issue.
 The dirty-save stabilization now has focused coding feedback. The next delivery
 is the native death operation and its necessary participants, followed by the
 complete recovery acceptance.
+The 2026-10-27 caller check still finds `begin_native_death_operation`,
+`claim_native_death_operation`, `complete_native_death_operation` and
+`has_unresolved_native_death_operation` only in their owner and tests. Connecting
+damage alone is insufficient: the same delivery must connect cancellation,
+logout/save and retirement fences before enabling that operation in production.
 The pet-save persistence participant now accepts the two independent native
 transactions and preserves their statement order and exact bindings. The
 parent reviewed `Pet.cpp:452–546,1129–1176,1288–1347`,
@@ -190,7 +205,8 @@ The preceding post-addition filter selected only the positive case; the final
 filter selected both. All runs used aarch64, one job, the declared PROTOC and
 this checkout's target directory. These are coding checks, not live captures
 or final acceptance. The current absent-Pet removal path now calls the refund
-helper; the clear-PetSpells packet still awaits the live-Pet continuation.
+helper. At that checkpoint the clear-PetSpells packet still awaited a live-Pet
+caller; the current bounded continuation now sends it after both saves.
 The release integration and its current-Map lookup follow
 `Player.cpp:20839–20962`; refund suppression reads the native battleground
 instance (`Player.h:2335–2337`), not the older represented type-only helper.
@@ -204,8 +220,10 @@ running tests; the corrected runs above are the successful evidence.
 The worker repeated one Application check after losing its prior command
 handle; only the recovered exit-0 result is credited. These commands used
 the declared PROTOC, one job and this checkout's target directory.
-The Map participant has no production caller yet. It unlinks indexed attack,
-combat and threat references and returns owned effects; native combat-exit
+At that checkpoint the Map participant had no production caller. The current
+quiescent live-Pet branch calls it only after proving its combat participants
+empty. It can unlink indexed attack, combat and threat references and return
+owned effects; native combat-exit
 aura/engagement callbacks, the master's pet-combat flag and AI continuations
 are not implemented by that helper. It is not complete `CombatStop` evidence.
 After the refund-fence correction, `cargo check -p wow-world-application`
@@ -218,6 +236,44 @@ cancellation case was not executed; the available fixture resolves immediately.
 Map and release suites were not duplicated after this scoped correction.
 No final campaign, live capture, DB/restart/relogin run or publication is
 established by these coding checks.
+On the dirty tree based at `c6e8c6147`, aarch64, the next worker feedback ran
+`cargo check -p wow-world-application` (exit 0),
+`cargo test -p wow-world-application prepare_pet_save` (6 passed, exit 0),
+and `cargo test -p wow-world resummon_pet_temporary_unsummoned_loads_represented_stable_pet_like_cpp --lib`
+(1 passed, exit 0). The latter covers restored Hunter rename eligibility from
+`Pet.cpp:298`, so a subsequent save preserves `WasRenamed`. The first
+`cargo test -p wow-world live_pet_release --lib` run failed all five cases
+before handler entry: the fixture set its Map after adding the object to the
+world. After correcting that order and connecting the native Summon field,
+the same filter passed all five cases (exit 0). `cargo check -p wow-world`
+also passed. The native minion setter, Core bridge and packet CREATE/VALUES
+filters each passed one case; their byte assertions pin CREATE offset 46 and
+the VALUES mask plus populated/empty packed GUID. Exact successful commands:
+`cargo test -p wow-entities minion_guid --lib`,
+`cargo test -p wow-world-core bridges_canonical_unit_minion_guid_and_empty_clear --lib`,
+and `cargo test -p wow-packet player_create_and_unit_values_publish_summon_and_empty_clear_like_cpp --lib`.
+The resummon fixture initially failed after adding native-owner assertions:
+its setup lacked the adopted handle/map catalog, then still seeded the
+fixture-only temporary marker and left canonical health at zero. The corrected
+setup installs the canonical owner, temporary marker and living vitals;
+`cargo test -p wow-world resummon_pet_temporary_unsummoned_loads_represented_stable_pet_like_cpp --lib`
+then passed one case (exit 0), including rename flags and native control links.
+`cargo test -p wow-world player_visibility_create_uses_live_stats_and_customizations_like_cpp --lib`
+also passed one case (exit 0), covering the non-owner CREATE consumer. These
+runs used the declared PROTOC, one job and this checkout's absolute `target/`.
+They ran on the dirty `c6e8c6147` base; no later commit is relabelled as tested.
+The new save projection follows `Pet.cpp:452–562,1129–1176` and
+`SpellHistory.cpp:182–218`. The removal continuation awaits the two transactions
+separately, revalidates the canonical Player and captured Pet after each wait,
+and retains the Pet plus the existing persistence fence on failure, unknown
+commit, cancellation or intervening mutation. These are implementation and
+mocked-port contracts, not real DB/relogin evidence. The required owner field
+is `UnitData::Summon` (`Unit.h:1139–1140`, `UpdateFields.h:210`); the repair
+replaces the old control-only field with that native authority and connects
+both CREATE and VALUES consumers. Observer snapshots capture it under the same
+canonical Player read as their other presentation facts. The existing loader
+now attaches its native control links after inserting the Pet; this does not
+complete general `SetMinion`, Pet AI or Pet aura loading.
 Any newly discovered prerequisite must name the failing scenario and the
 smallest repair. A generic domain defect is not automatically a #43 blocker.
 In particular, the reagent-return composition reuses native inventory, quest,
