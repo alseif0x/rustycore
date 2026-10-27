@@ -4,6 +4,23 @@
 
 use super::*;
 
+/// C++ `WorldPackets::Misc::CrossedInebriationThreshold`.
+pub struct CrossedInebriationThreshold {
+    pub guid: wow_core::ObjectGuid,
+    pub threshold: i32,
+    pub item_id: i32,
+}
+
+impl ServerPacket for CrossedInebriationThreshold {
+    const OPCODE: ServerOpcodes = ServerOpcodes::CrossedInebriationThreshold;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.guid);
+        pkt.write_int32(self.threshold);
+        pkt.write_int32(self.item_id);
+    }
+}
+
 /// Opens the barber shop/customization UI for the requested customization scope.
 pub struct EnableBarberShop {
     pub customization_scope: u8,

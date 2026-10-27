@@ -105,6 +105,11 @@ covering 165 distinct identities. Four registered SelfRes composition cases
 now prove the normal cost/cooldown, native revival and conditional full-save
 path locally with a genuine nonzero-only key. Its remaining admission/timing
 cases, native death, QA and final acceptance remain open.
+The native SetDrunkValue participant now serves the existing EffectInebriate
+consumer, and Player update-field changes now enter the existing Map queue.
+Its scoped feedback covers 26 relevant cases plus one matched duration
+regression. The native-death caller is still absent; normal casts also retain
+an upstream cast-item provenance gap described in this checkpoint.
 
 Four blocks remain within the same macro:
 
@@ -2872,6 +2877,92 @@ or evidence for its ordinary 600-second performance target. This remains an
 UNVALIDATED macro checkpoint. Registered SelfRes composition, native death,
 QA, final acceptance and authorized live/capture/durability evidence remain
 open. No push, installation, SQL or restart was performed.
+
+Native SetDrunkValue and Player field publication, 2026-10-27, base
+`3f354d8f02999d03c0bd35b61a6b9ffb80c36e46` plus 21 Rust working inputs:
+the private Entity participant reuses PlayerData::Inebriation, applies the
+Source detection flags/value and sobering-counter reset, and requests native
+in-world visibility notification. Application reads actual indexed fake-Aura
+amounts and mutates the same Player under one MapManager guard. The exact
+integer query preserves first-rank groups, absolute-magnitude selection,
+newest-registration-first ties and unavailable/known-empty distinctions.
+An unavailable amount or undefined integer arithmetic stops before mutation.
+The existing EffectInebriate host now invokes this participant even when its
+stored value is unchanged. Threshold packets use the existing Realm connection,
+self first and then frozen visible observers, outside the Map guard. Existing
+Instance AuraUpdate delivery retains its durable command rail.
+
+Pinned `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` anchors:
+Player.cpp:863–910; Unit.cpp:3567–3579,4818–4843,4904;
+SpellMgr.cpp:400–432; SpellEffects.cpp:3464–3482;
+MiscPackets.cpp:686–693, MiscPackets.h:846–858; and
+Opcodes.cpp:1328 (`CONNECTION_TYPE_REALM`). The byte vector is derived from
+these sources; it is not an action capture. ItemID retains all uint32 bits.
+
+The real Map publication test exposed an additional defect: Player's five
+canonical dirty helpers marked their masks without queueing the native Object.
+Map::SendObjectUpdates only collects queued objects, so an isolated PlayerData
+or ActivePlayerData change could remain unpublished. Those helpers now use
+the same Object queue primitive as Unit. Source Object.h:270–276,295–323 and
+Object.cpp:791–806 establish the changed-value/dynamic-field queue operation,
+its in-world guard and mask clearing. No new publisher, state mirror or scan
+was added. The World case now verifies the final Inebriation field and mask,
+one Map-owned snapshot, one consumer send and no repeated send.
+
+On the aarch64 host, one-job coding feedback used
+`PROTOC=/home/ubuntu/.local/protoc/bin/protoc` and
+`CARGO_TARGET_DIR=/home/server/rustycore/target`:
+`cargo check -p wow-entities` passed; the final
+`cargo test -p wow-entities player::inebriation::tests` passed six cases;
+`cargo test -p wow-world-core fake_inebriation` passed six;
+`cargo test -p wow-world-core selected_aura` passed six publication cases
+and one unrelated duration regression; the packet threshold filter passed
+one; and `cargo test -p wow-world scenarios_spell_state_12::inebriate`
+passed seven. Its two integration targets matched zero cases and receive no
+credit. The earlier World production check preceded the dirty-helper repair;
+the final World test compiled that final production path. Logs retain the
+initial shadowed helper, missing canonical metadata, wrong GUID integer type
+and missing Map-queue failures, followed by their affected passing runs.
+Parent review then found that the nonzero-key case checked only catalog
+existence. Its corrected body now constructs a difficulty-three Aura, resolves
+its actual indexed 304 effect and reads amount 17 despite base points 99,
+with neither a zero key nor a legacy payload. Only
+`cargo test -p wow-world-core genuine_nonzero_difficulty_key --lib` was rerun
+for that changed case: one passed, exit 0, at
+05:20:24.997–05:20:45.267 UTC (instrumented 20.269 seconds). The other five
+Core cases and all other Rust inputs were unchanged.
+
+Evidence is in `/tmp/rustycore-native-drunk-transition-logs`. The final World
+log interval is 05:11:28.933–05:13:41.558 UTC; the final Entity test log interval
+is 05:15:25.899–05:15:32.003 UTC. These are log birth/last-write observations,
+not independently instrumented command start/end times. Parent review matched
+all 21 modified/new Rust paths to `changed-rust-sha256.txt`, digest
+`7d66370da2ac1db9a8f1430d3b0787612ba4a264a3051faa995eeb5b5fb732ba`.
+The tracked Rust diff digest is
+`8ba06f9ea2594331ae2ae08da2cc20511548185872f319fe09d8d7c08240bc27`;
+untracked leaves are covered by the per-path manifest. The legacy Player root
+grows 4753→4777 for one native field/mount/default and the five queue calls.
+This reviewed bounded ceiling is 4777 through #43 acceptance; review further
+growth before editing, and retain the existing distribution retirement owner.
+No physical-policy baseline was regenerated. Runtime turn-context telemetry
+confirms Luna max for the implementation and main feedback. Reopening that
+worker for the last test correction unexpectedly selected Sol high; its
+05:19:17 turn context records that route change. The parent disclosed it and
+closed the worker; future units use a fresh assigned-role worker.
+
+This remains an UNVALIDATED macro checkpoint at the working base and inputs,
+not evidence for the later commit. Drunken Vomit, foreign-player effect
+transport and the sobering tick executor are not implemented here. Native
+death invocation remains open. A separate upstream normal-cast gap also
+remains: Source Spell.cpp:3842–3854,5310–5380 clears m_CastItem/GUID/entry when
+an expendable item exhausts its charge, even if its stack survives. The Rust
+TakeCastItem adapter returns an ignored boolean and does not update execution
+metadata after pre-effect consumption. This checkpoint therefore does not
+prove ItemID provenance for that path. Correct it in the existing cast-item
+owner; do not reinterpret physical-item existence as Source pointer lifetime.
+The approximately 04:49–05:20 coding-feedback period and earlier implementation are separate
+from the unstarted final campaign and its 600-second ordinary-run target.
+No push, installation, SQL, restart, capture or live acceptance was performed.
 
 Canonical native-death operation ownership, 2026-10-27, base
 `04486d4e4836694101e34223496d946a02bfc9aa` plus four Rust working inputs:

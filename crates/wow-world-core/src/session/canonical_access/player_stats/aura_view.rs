@@ -3,14 +3,14 @@
 
 //! Borrowed aura inputs and pure queries shared by Session and Player owners.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use wow_data::character_progression::ChrRacesStore;
 use wow_data::{
     DifficultyStore, SpellChainStoreLikeCpp, SpellEffectInfo, SpellGroupStackRuleStoreLikeCpp,
     SpellGroupStoreLikeCpp, SpellStore,
 };
-use wow_entities::AuraApplicationLikeCpp;
+use wow_entities::{AppliedAuraRef, AuraApplicationLikeCpp};
 
 use crate::session::state::hub_support::{
     RepresentedPlayerGearStatsLikeCpp, SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP, class_uses_wands_like_cpp,
@@ -109,6 +109,114 @@ impl<'a> PlayerStatAuraView<'a> {
             }
         });
         effects
+    }
+
+    /// Read C++ `Unit::GetTotalAuraModifier(SPELL_AURA_MOD_FAKE_INEBRIATE)`
+    /// and whether any such AuraEffect is active. `None` means its canonical
+    /// Aura or required spell-group metadata is unavailable.
+    pub fn fake_inebriation_facts(
+        &self,
+        applied_effects_in_registration_order: &[AppliedAuraRef],
+    ) -> Option<(i32, bool)> {
+        const FAKE_INEBRIATE: i32 = 304;
+
+        let mut expected = HashSet::new();
+        for (&slot, aura) in self.auras {
+            for effect in self.effects_for_aura(aura) {
+                let bit = 1_u32.checked_shl(effect.effect_index)?;
+                if aura.effect_mask & bit != 0 && effect.effect_aura == FAKE_INEBRIATE {
+                    expected.insert(AppliedAuraRef::new(
+                        aura.spell_id as u32,
+                        aura.caster_guid,
+                        slot,
+                        bit,
+                    ));
+                }
+            }
+        }
+        if expected.is_empty() {
+            return applied_effects_in_registration_order
+                .is_empty()
+                .then_some((0, false));
+        }
+
+        if applied_effects_in_registration_order.len() != expected.len() {
+            return None;
+        }
+        let mut seen = HashSet::new();
+        for applied in applied_effects_in_registration_order {
+            if applied.effect_mask.count_ones() != 1
+                || !expected.contains(applied)
+                || !seen.insert(*applied)
+            {
+                return None;
+            }
+        }
+        if seen != expected {
+            return None;
+        }
+
+        let group_store = self.catalogs.spell_group_store?;
+        let chain_store = self.catalogs.spell_chain_store?;
+        let stack_rules = self.catalogs.spell_group_stack_rule_store?;
+        let mut total = 0_i32;
+        let mut same_effect_group_amounts = BTreeMap::<u32, i32>::new();
+
+        // C++ Unit::_RegisterAuraEffect pushes to the front of m_modAuras.
+        // The existing per-type vector records registration order, so reverse
+        // it to retain C++ tie behavior without sorting by application slot.
+        for applied in applied_effects_in_registration_order.iter().rev() {
+            let aura = self.auras.get(&applied.slot)?;
+            let effect_index = applied.effect_mask.trailing_zeros();
+            let effect = self
+                .effects_for_aura(aura)
+                .into_iter()
+                .find(|effect| effect.effect_index == effect_index)?;
+            if effect.effect_aura != FAKE_INEBRIATE {
+                return None;
+            }
+            let amount = aura
+                .represented_effect_amounts
+                .iter()
+                .find(|represented| u32::from(represented.effect_index) == effect_index)
+                .map(|represented| represented.amount)?;
+
+            let groups = group_store.spell_spell_group_map_bounds_like_cpp(
+                applied.spell_id,
+                |lookup_spell_id| chain_store.first_spell_in_chain_like_cpp(lookup_spell_id),
+            );
+            let mut same_effect_group = None;
+            for group_id in groups.iter().copied() {
+                if stack_rules
+                    .same_effect_stack_rule_aura_types_like_cpp(group_id)
+                    .is_some_and(|aura_types| aura_types.contains(&FAKE_INEBRIATE))
+                {
+                    same_effect_group = Some(group_id);
+                    break;
+                }
+            }
+
+            if let Some(group_id) = same_effect_group {
+                match same_effect_group_amounts.entry(group_id) {
+                    std::collections::btree_map::Entry::Vacant(entry) => {
+                        entry.insert(amount);
+                    }
+                    std::collections::btree_map::Entry::Occupied(mut entry)
+                        if entry.get().checked_abs()? < amount.checked_abs()? =>
+                    {
+                        entry.insert(amount);
+                    }
+                    std::collections::btree_map::Entry::Occupied(_) => {}
+                }
+            } else {
+                total = total.checked_add(amount)?;
+            }
+        }
+
+        for amount in same_effect_group_amounts.into_values() {
+            total = total.checked_add(amount)?;
+        }
+        Some((total, true))
     }
 
     pub fn total_aura_multiplier_by_type_and_misc_value(
@@ -516,3 +624,7 @@ impl<'a> PlayerStatAuraView<'a> {
             .sum::<i32>() as f32
     }
 }
+
+#[cfg(test)]
+#[path = "../../../../unit_tests/session/canonical_access/player_stats/aura_view.rs"]
+mod fake_inebriation_tests;

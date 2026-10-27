@@ -64,6 +64,8 @@ pub use player_handlers::{
 };
 mod creature_damage;
 mod inventory_move_planning;
+mod inebriation;
+pub use inebriation::{PlayerDrunkValueInput, set_player_drunk_value_like_cpp};
 pub use creature_damage::{CreatureDamageHostLikeCpp, apply_damage_from_caster_like_cpp};
 mod player_items_session;
 pub use player_items_session::*;

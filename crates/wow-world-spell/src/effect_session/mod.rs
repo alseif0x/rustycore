@@ -55,6 +55,13 @@ pub use threat::*;
 /// The World session as the spell effects' host (supertrait: the spell-click
 /// host, which lends the registry sync and the unit VALUES update object).
 pub trait SpellEffectHostLikeCpp: SpellClickHostLikeCpp {
+    fn set_player_drunk_value_like_cpp(
+        &mut self,
+        target_guid: ObjectGuid,
+        effect_amount: i32,
+        cast_item_guid: Option<ObjectGuid>,
+        cast_item_entry: Option<u32>,
+    ) -> Result<bool, &'static str>;
     fn publish_spell_pull_attack_start_like_cpp(
         &mut self,
         attacker: ObjectGuid,

@@ -18,6 +18,7 @@ type Manager = Arc<Mutex<MapManager>>;
 struct Endpoint {
     core: SessionCore,
     output: flume::Receiver<Vec<u8>>,
+    realm_output: flume::Receiver<Vec<u8>>,
     _input: flume::Sender<wow_packet::WorldPacket>,
 }
 
@@ -36,6 +37,7 @@ fn endpoint(manager: &Manager, registry: &Arc<PlayerRegistry>, counter: i64) -> 
     let handle = add_player(&mut manager.lock().unwrap(), guid, Position::ZERO);
     let (input, packet_rx) = flume::bounded(8);
     let (send_tx, output) = flume::unbounded();
+    let (realm_send_tx, realm_output) = flume::unbounded();
     let (command_tx, command_rx) = flume::bounded(8);
     let connection = wow_session::SessionConnection::new(send_tx.clone(), packet_rx);
     let mut core = SessionCore::new_for_world_session_like_cpp(
@@ -57,6 +59,7 @@ fn endpoint(manager: &Manager, registry: &Arc<PlayerRegistry>, counter: i64) -> 
     core.state = SessionState::LoggedIn;
     core.canonical_map_manager = Some(Arc::clone(manager));
     core.player_registry = Some(Arc::clone(registry));
+    core.install_realm_send_channel_for_test(realm_send_tx.clone());
     registry.register_or_replace(
         guid,
         PlayerSessionRegistrationLikeCpp {
@@ -81,7 +84,7 @@ fn endpoint(manager: &Manager, registry: &Arc<PlayerRegistry>, counter: i64) -> 
                 is_alive: true,
             },
             active_loot_rolls: Vec::new(),
-            realm_send_tx: send_tx.clone(),
+            realm_send_tx,
             send_tx,
             command_tx,
             session_phase_tx: crate::session::directory::detached_session_phase_rail_like_cpp(),
@@ -98,6 +101,7 @@ fn endpoint(manager: &Manager, registry: &Arc<PlayerRegistry>, counter: i64) -> 
     Endpoint {
         core,
         output,
+        realm_output,
         _input: input,
     }
 }
@@ -192,6 +196,72 @@ fn selected_aura_self_delivery_is_direct_and_observers_use_the_committed_durable
             .contains(&source.core.player_guid().unwrap())
     );
     assert_eq!(command.packet_bytes, prepared.packet_bytes());
+}
+
+#[test]
+fn realm_player_visible_packet_uses_frozen_candidates_and_realm_channels() {
+    let (manager, registry, source, observer) = fixture();
+    let hidden = endpoint(&manager, &registry, 84_300_005);
+    let packet = wow_packet::packets::misc::CrossedInebriationThreshold {
+        guid: source.core.player_guid().unwrap(),
+        threshold: 2,
+        item_id: 0,
+    }
+    .to_bytes();
+    let prepared = prepare_player_visible_packet(
+        &manager.lock().unwrap(),
+        source.core.player_handle_like_cpp.unwrap(),
+        packet.clone(),
+        true,
+    )
+    .unwrap();
+
+    assert!(source
+        .core
+        .packet_publication_access_like_cpp()
+        .publish_prepared_player_visible_packet(&prepared));
+    assert_eq!(source.realm_output.try_recv().unwrap(), packet);
+    assert_eq!(observer.realm_output.try_recv().unwrap(), packet);
+    assert!(source.output.is_empty());
+    assert!(observer.output.is_empty());
+    assert!(hidden.realm_output.is_empty(), "HaveAtClient gates observer delivery");
+    assert!(take_commands(&observer).is_empty(), "realm bytes bypass AuraUpdate commands");
+}
+
+#[test]
+fn realm_observer_delivery_rejects_a_stale_frozen_residence_revision() {
+    let (manager, registry, source, observer) = fixture();
+    let packet = wow_packet::packets::misc::CrossedInebriationThreshold {
+        guid: source.core.player_guid().unwrap(),
+        threshold: 2,
+        item_id: 0,
+    }
+    .to_bytes();
+    let prepared = prepare_player_visible_packet(
+        &manager.lock().unwrap(),
+        source.core.player_handle_like_cpp.unwrap(),
+        packet.clone(),
+        true,
+    )
+    .unwrap();
+    let observer_handle = observer.core.player_handle_like_cpp.unwrap();
+    {
+        let mut manager = manager.lock().unwrap();
+        manager.detach_player_like_cpp(observer_handle).unwrap();
+        manager
+            .attach_player_like_cpp(observer_handle, MAP, Position::ZERO)
+            .unwrap();
+    }
+
+    assert!(source
+        .core
+        .packet_publication_access_like_cpp()
+        .publish_prepared_player_visible_packet(&prepared));
+    assert_eq!(source.realm_output.try_recv().unwrap(), packet);
+    assert!(observer.realm_output.is_empty());
+    assert!(observer.output.is_empty());
+    assert!(take_commands(&observer).is_empty());
+    let _ = registry;
 }
 
 #[test]

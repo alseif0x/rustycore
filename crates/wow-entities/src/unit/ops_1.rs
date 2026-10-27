@@ -270,6 +270,25 @@ impl Unit {
             self.visibility_detection.invisibility_detect_flags &= !flag;
         }
     }
+    pub(crate) fn clear_invisibility_detect_flag_like_cpp(&mut self, aura_type: usize) {
+        if aura_type >= MAX_VISIBILITY_AURA_TYPES_LIKE_CPP {
+            return;
+        }
+        self.visibility_detection.invisibility_detect_flags &= !(1_u64 << aura_type);
+    }
+    #[cfg(test)]
+    pub(crate) fn invisibility_detect_flagged_like_cpp(&self, aura_type: usize) -> bool {
+        aura_type < MAX_VISIBILITY_AURA_TYPES_LIKE_CPP
+            && self.visibility_detection.invisibility_detect_flags & (1_u64 << aura_type) != 0
+    }
+    #[cfg(test)]
+    pub(crate) fn invisibility_detect_value_like_cpp(&self, aura_type: usize) -> i32 {
+        self.visibility_detection
+            .invisibility_detect
+            .get(aura_type)
+            .copied()
+            .unwrap_or_default()
+    }
     pub fn set_stealth_like_cpp(&mut self, aura_type: usize, value: i32) {
         if aura_type >= MAX_VISIBILITY_AURA_TYPES_LIKE_CPP {
             return;

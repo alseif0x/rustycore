@@ -5,7 +5,10 @@ use std::time::Instant;
 
 use crate::entity_update_bridge::player_values_update_to_update_object;
 use crate::session::mailbox::{SendIfVisibleLikeCppCommand, SessionCommand};
-use crate::session::{PreparedSelectedAuraUpdate, SessionCore, prepare_selected_aura_update};
+use crate::session::{
+    PreparedPlayerVisiblePacket, PreparedSelectedAuraUpdate, SessionCore,
+    prepare_selected_aura_update,
+};
 use wow_core::{ObjectGuid, Position};
 use wow_entities::PlayerValuesUpdate;
 use wow_entities::VISIBILITY_RADIUS_LIKE_CPP as VISIBILITY_RADIUS;
@@ -115,14 +118,12 @@ impl PacketPublicationAccessLikeCpp<'_> {
             return false;
         };
 
-        // Match Player::SendMessageToSet: the source's direct self packet is
-        // published before observer handoff. The selected recipients are
-        // already committed and are not re-evaluated at drain time.
+        // Preserve the established Aura path: prepare under one map lock,
+        // send self directly, and hand the frozen observers to the registry.
         self.core.send_raw_packet(plan.packet_bytes());
-        let Some(registry) = self.core.player_registry() else {
-            return true;
-        };
-        plan.deliver_observers_to_registry(registry);
+        if let Some(registry) = self.core.player_registry() {
+            plan.deliver_observers_to_registry(registry);
+        }
         true
     }
 
@@ -132,6 +133,15 @@ impl PacketPublicationAccessLikeCpp<'_> {
     pub fn publish_prepared_selected_aura_update(
         &self,
         prepared: &PreparedSelectedAuraUpdate,
+    ) -> bool {
+        self.publish_prepared_player_visible_packet(prepared)
+    }
+
+    /// Publish a prepared packet on its selected connection after revalidating
+    /// the source handle and residence receipt. Observer selection is not rerun.
+    pub fn publish_prepared_player_visible_packet(
+        &self,
+        prepared: &PreparedPlayerVisiblePacket,
     ) -> bool {
         let (guid, handle, residence) = prepared.source_identity();
         if self.core.player_guid() != Some(guid) || self.core.player_handle_like_cpp != Some(handle)
@@ -166,7 +176,11 @@ impl PacketPublicationAccessLikeCpp<'_> {
         if !current {
             return false;
         }
-        self.core.send_raw_packet(prepared.packet_bytes());
+        if prepared.realm_connection {
+            self.core.send_raw_packet_realm(prepared.packet_bytes());
+        } else {
+            self.core.send_raw_packet(prepared.packet_bytes());
+        }
         if let Some(registry) = self.core.player_registry() {
             prepared.deliver_observers_to_registry(registry);
         }

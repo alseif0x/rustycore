@@ -512,7 +512,13 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                 );
             }
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_INEBRIATE => {
-                apply_inebriate_effect_like_cpp(host, direct_effect_base_points, target_guid);
+                apply_inebriate_effect_like_cpp(
+                    host,
+                    direct_effect_base_points,
+                    target_guid,
+                    metadata.cast_item_guid,
+                    metadata.cast_item_entry,
+                )?;
             }
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_REPUTATION => {
                 host.apply_reputation_effect_like_cpp(

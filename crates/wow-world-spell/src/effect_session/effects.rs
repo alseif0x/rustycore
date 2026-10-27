@@ -324,34 +324,31 @@ pub fn apply_add_extra_attacks_effect_like_cpp<H: SpellEffectHostLikeCpp>(
 
 /// C++ `Spell::EffectInebriate`.
 ///
-/// Represented boundary: current canonical player target/caster only. This
-/// updates `PlayerData::Inebriation` with C++ clamp semantics. Drunken
-/// Vomit (`67468`), fake-inebriate aura/invisibility side effects,
-/// sobering timer reset and `SMSG_CROSSED_INEBRIATION_THRESHOLD` fanout
-/// remain outside this bounded slice.
+/// Represented boundary: current canonical player target only. The owning
+/// application computes the C++ clamped delta and applies the complete native
+/// `SetDrunkValue` transition. Its boolean reports only whether the drunken
+/// threshold changed, not whether the stored value changed. Drunken Vomit
+/// (`67468`) remains unimplemented.
 pub fn apply_inebriate_effect_like_cpp<H: SpellEffectHostLikeCpp>(
     host: &mut H,
     damage: i32,
     target_guid: ObjectGuid,
-) -> bool {
+    cast_item_guid: Option<ObjectGuid>,
+    cast_item_entry: Option<u32>,
+) -> Result<bool, &'static str> {
     let Some(player_guid) = host.player_guid() else {
-        return false;
+        return Ok(false);
     };
     if target_guid != player_guid {
-        return false;
+        return Ok(false);
     }
 
-    host.core()
-        .mutate_canonical_player_like_cpp(|player| {
-            let current = i32::from(player.inebriation_like_cpp());
-            let next = (current + damage).clamp(0, 100) as u8;
-            if next == player.inebriation_like_cpp() {
-                return false;
-            }
-            player.set_inebriation_like_cpp(next);
-            true
-        })
-        .unwrap_or(false)
+    host.set_player_drunk_value_like_cpp(
+        target_guid,
+        damage,
+        cast_item_guid,
+        cast_item_entry,
+    )
 }
 
 /// C++ `Spell::EffectDismissPet`.

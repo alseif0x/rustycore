@@ -17,6 +17,7 @@ mod damage_control;
 mod death_operation;
 mod deferred_save;
 mod identity;
+mod inebriation;
 mod inventory_runtime;
 pub use inventory_runtime::{ItemObjectUpdateLikeCpp, PlayerInventoryRuntime};
 mod battleground;
@@ -3575,6 +3576,8 @@ pub struct Player {
     effective_combat_stats: PlayerEffectiveCombatStatsLikeCpp,
     /// C++ `Player::m_swingErrorMsg`, updated by `Player::SetAttackSwingError`.
     swing_error_msg_like_cpp: Option<u8>,
+    /// C++ `Player::m_drunkTimer`, reset by `SetDrunkValue` while not sobering.
+    drunk_timer: u32,
     deferred_save: deferred_save::DeferredPlayerSave,
     death_operation: death_operation::PlayerDeathOperationState,
     player_xp_table_like_cpp: Option<Arc<Vec<u32>>>,
@@ -3621,6 +3624,7 @@ impl Player {
             gameplay_state,
             effective_combat_stats: PlayerEffectiveCombatStatsLikeCpp::default(),
             swing_error_msg_like_cpp: None,
+            drunk_timer: 0,
             deferred_save: deferred_save::DeferredPlayerSave::default(),
             death_operation: death_operation::PlayerDeathOperationState::default(),
             player_xp_table_like_cpp: None,
@@ -4274,6 +4278,10 @@ impl Player {
     fn mark_player_data(&mut self, bit: usize) {
         self.player_data_changes.set(PLAYER_DATA_PARENT_BIT);
         self.player_data_changes.set(bit);
+        self.unit
+            .world_mut()
+            .object_mut()
+            .add_to_object_update_if_needed();
     }
 
     fn mark_player_data_array(
@@ -4284,12 +4292,20 @@ impl Player {
     ) {
         self.player_data_changes.set(parent_bit);
         self.player_data_changes.set(first_element_bit + index);
+        self.unit
+            .world_mut()
+            .object_mut()
+            .add_to_object_update_if_needed();
     }
 
     fn mark_active_player_data(&mut self, bit: usize) {
         self.active_player_data_changes
             .set(ACTIVE_PLAYER_DATA_PARENT_BIT);
         self.active_player_data_changes.set(bit);
+        self.unit
+            .world_mut()
+            .object_mut()
+            .add_to_object_update_if_needed();
     }
 
     fn mark_active_player_data_section(&mut self, parent_bit: usize, bit: usize) {
@@ -4297,6 +4313,10 @@ impl Player {
             .set(ACTIVE_PLAYER_DATA_PARENT_BIT);
         self.active_player_data_changes.set(parent_bit);
         self.active_player_data_changes.set(bit);
+        self.unit
+            .world_mut()
+            .object_mut()
+            .add_to_object_update_if_needed();
     }
 
     fn mark_active_player_data_array(
@@ -4308,6 +4328,10 @@ impl Player {
         self.active_player_data_changes.set(parent_bit);
         self.active_player_data_changes
             .set(first_element_bit + index);
+        self.unit
+            .world_mut()
+            .object_mut()
+            .add_to_object_update_if_needed();
     }
 }
 

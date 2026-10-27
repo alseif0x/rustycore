@@ -22,15 +22,19 @@ struct Recipient {
 /// Recipient decision captured while the canonical MapManager guard is held.
 /// Delivery never reselects map membership or source visibility.
 #[derive(Debug)]
-pub struct PreparedSelectedAuraUpdate {
+pub struct PreparedPlayerVisiblePacket {
     source_handle: PlayerHandle,
     source_guid: ObjectGuid,
     source_residence: Option<(MapKey, u64)>,
     observers: Vec<Recipient>,
     packet_bytes: Vec<u8>,
+    pub(super) realm_connection: bool,
 }
 
-impl PreparedSelectedAuraUpdate {
+/// Compatibility name for the existing selected-Aura publication caller.
+pub type PreparedSelectedAuraUpdate = PreparedPlayerVisiblePacket;
+
+impl PreparedPlayerVisiblePacket {
     pub(super) fn source_identity(&self) -> (ObjectGuid, PlayerHandle, Option<(MapKey, u64)>) {
         (self.source_guid, self.source_handle, self.source_residence)
     }
@@ -43,18 +47,24 @@ impl PreparedSelectedAuraUpdate {
     /// first and without requiring its own GUID in HaveAtClient.
     pub fn deliver_to_registry(&self, registry: &PlayerRegistry) {
         if let Some((map_key, residence_revision)) = self.source_residence {
-            enqueue(
-                registry,
-                Recipient {
+            let source = Recipient {
                     guid: self.source_guid,
                     handle: self.source_handle,
                     map_key,
                     residence_revision,
-                },
-                self.source_guid,
-                &self.packet_bytes,
-                false,
-            );
+                };
+            if self.realm_connection {
+                if let Some((registration, _)) = registry.selected_packet_recipient_at_residence(
+                    source.guid, source.handle, source.map_key, source.residence_revision, None,
+                ) {
+                    let _ = registry.send_current_realm_packet(
+                        registration,
+                        self.packet_bytes.clone(),
+                    );
+                }
+            } else {
+                enqueue(registry, source, self.source_guid, &self.packet_bytes, false, false);
+            }
         }
         self.deliver_observers_to_registry(registry);
     }
@@ -67,6 +77,7 @@ impl PreparedSelectedAuraUpdate {
                 self.source_guid,
                 &self.packet_bytes,
                 true,
+                self.realm_connection,
             );
         }
     }
@@ -80,6 +91,18 @@ pub fn prepare_selected_aura_update(
     source_handle: PlayerHandle,
     packet_bytes: Vec<u8>,
 ) -> Option<PreparedSelectedAuraUpdate> {
+    prepare_player_visible_packet(manager, source_handle, packet_bytes, false)
+}
+
+/// Freeze the native map recipients for one Player visible-set packet. Realm
+/// packets use the existing realm connection at delivery; instance packets
+/// retain the established durable AuraUpdate rail.
+pub fn prepare_player_visible_packet(
+    manager: &MapManager,
+    source_handle: PlayerHandle,
+    packet_bytes: Vec<u8>,
+    realm_connection: bool,
+) -> Option<PreparedPlayerVisiblePacket> {
     let source_guid = source_handle.guid();
     let residence = manager
         .checked_player_residence_like_cpp(source_handle)
@@ -130,12 +153,13 @@ pub fn prepare_selected_aura_update(
         }
     };
 
-    Some(PreparedSelectedAuraUpdate {
+    Some(PreparedPlayerVisiblePacket {
         source_handle,
         source_guid,
         source_residence,
         observers,
         packet_bytes,
+        realm_connection,
     })
 }
 
@@ -145,15 +169,27 @@ fn enqueue(
     source_guid: ObjectGuid,
     packet_bytes: &[u8],
     require_source_visibility: bool,
+    realm_connection: bool,
 ) {
+    if realm_connection {
+        let Some((registration, _)) = registry.selected_packet_recipient_at_residence(
+            recipient.guid,
+            recipient.handle,
+            recipient.map_key,
+            recipient.residence_revision,
+            require_source_visibility.then_some(source_guid),
+        ) else {
+            return;
+        };
+        let _ = registry.send_current_realm_packet(registration, packet_bytes.to_vec());
+        return;
+    }
     let Some((registration, committed_visibility)) =
         registry.selected_aura_recipient(recipient.guid, recipient.handle, recipient.map_key)
     else {
         return;
     };
     if require_source_visibility && !committed_visibility.contains(&source_guid) {
-        // The producer's shared-vision selection is keyed by the source GUID,
-        // not the observer's own GUID. Check it after the map guard as before.
         return;
     }
     let command = SendPlayerAuraUpdateCommand {

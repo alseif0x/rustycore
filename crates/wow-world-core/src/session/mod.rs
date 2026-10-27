@@ -162,7 +162,8 @@ pub use battleground_adapter::{
     RepresentedBattlemasterJoinSkirmishLikeCpp, battleground_queue_type_id_from_packed_like_cpp,
 };
 pub use publication::{
-    PacketPublicationAccessLikeCpp, PreparedSelectedAuraUpdate, prepare_selected_aura_update,
+    PacketPublicationAccessLikeCpp, PreparedPlayerVisiblePacket, PreparedSelectedAuraUpdate,
+    prepare_player_visible_packet, prepare_selected_aura_update,
 };
 
 mod social_requests;

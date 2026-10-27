@@ -94,6 +94,36 @@ impl PlayerRegistry {
         ))
     }
 
+    /// Resolve a frozen Player packet receipt for direct realm delivery. The
+    /// map residence revision is checked before the caller queues bytes, and
+    /// the registration/HaveAtClient snapshot is rechecked after releasing
+    /// MapManager so no directory access happens under the map guard.
+    pub(crate) fn selected_packet_recipient_at_residence(
+        &self,
+        guid: ObjectGuid,
+        expected_handle: PlayerHandle,
+        expected_map: wow_map::MapKey,
+        expected_residence_revision: u64,
+        visible_source: Option<ObjectGuid>,
+    ) -> Option<(PlayerRegistration, SharedClientVisibleGuidsLikeCpp)> {
+        let manager = self.canonical_map_manager_like_cpp()?;
+        if manager
+            .lock()
+            .ok()?
+            .player_active_residence_revision_like_cpp(expected_handle)
+            != Some((expected_map, expected_residence_revision))
+        {
+            return None;
+        }
+
+        let (registration, visibility) =
+            self.selected_aura_recipient(guid, expected_handle, expected_map)?;
+        if visible_source.is_some_and(|source| !visibility.contains(&source)) {
+            return None;
+        }
+        Some((registration, visibility))
+    }
+
     /// Snapshot the bounded facts used by runtime recipient selection.
     #[must_use]
     pub fn runtime_recipients(&self) -> Vec<PlayerRuntimeRecipient> {
