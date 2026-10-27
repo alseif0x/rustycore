@@ -43,12 +43,18 @@ pub(super) async fn continue_login(
             }
             crate::player_resurrection::finish_resurrection_visibility(host, catalogs).await;
             if !owner_is_current(host, owner)
+                || !super::owner::owner_is_current_in_residence(host, owner)
                 || !advance(host, owner, Phase::VisibilityInFlight, Phase::ObtainSpellsInFlight)
             {
                 return Progress::Held;
             }
             if let Err(reason) = host.cast_all_obtain_spells_like_cpp(catalogs).await {
                 tracing::warn!(reason, "Corpse-login resurrection obtain-spell phase failed");
+                return Progress::Held;
+            }
+            if !owner_is_current(host, owner)
+                || !super::owner::owner_is_current_in_residence(host, owner)
+            {
                 return Progress::Held;
             }
             clear_at_login_and_advance(host, owner, Phase::ObtainSpellsInFlight)

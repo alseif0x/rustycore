@@ -15,6 +15,9 @@ struct Fixture {
     allocated: Cell<u32>,
     events: Vec<&'static str>,
     failures: Vec<i32>,
+    spell_catalog_failure: Option<&'static str>,
+    normal_cost_outcome: Result<bool, &'static str>,
+    precondition_outcome: Result<bool, &'static str>,
 }
 
 impl Fixture {
@@ -45,6 +48,9 @@ impl Fixture {
             allocated: Cell::new(0),
             events: Vec::new(),
             failures: Vec::new(),
+            spell_catalog_failure: None,
+            normal_cost_outcome: Ok(true),
+            precondition_outcome: Ok(true),
         }
     }
 
@@ -70,6 +76,16 @@ impl Runtime for Fixture {
     }
     fn spell_for_difficulty(&self, id: i32, requested_difficulty: u8) -> Option<(SpellInfo, u8)> {
         (id == 133).then(|| (self.spell.clone(), requested_difficulty))
+    }
+    fn spell_for_difficulty_outcome(
+        &self,
+        id: i32,
+        requested_difficulty: u8,
+    ) -> Result<Option<(SpellInfo, u8)>, &'static str> {
+        if let Some(reason) = self.spell_catalog_failure {
+            return Err(reason);
+        }
+        Ok(self.spell_for_difficulty(id, requested_difficulty))
     }
     fn server_normal_busy(&mut self) -> Option<bool> {
         Some(
@@ -152,6 +168,16 @@ impl Runtime for Fixture {
         self.events.push("normal-costs");
         true
     }
+    fn check_server_normal_costs_outcome(
+        &mut self,
+        _: &SpellInfo,
+        _: ObjectGuid,
+        _: &SpellCastVisualLikeCpp,
+        _: wow_entities::SpellCastMetadata,
+    ) -> Result<bool, &'static str> {
+        self.events.push("normal-costs");
+        self.normal_cost_outcome
+    }
     fn check_preconditions(
         &mut self,
         _: &SpellInfo,
@@ -160,6 +186,15 @@ impl Runtime for Fixture {
         _: wow_entities::SpellCastMetadata,
     ) -> bool {
         true
+    }
+    fn check_preconditions_outcome(
+        &mut self,
+        _: &SpellInfo,
+        _: ObjectGuid,
+        _: &SpellCastVisualLikeCpp,
+        _: wow_entities::SpellCastMetadata,
+    ) -> Result<bool, &'static str> {
+        self.precondition_outcome
     }
     fn install(&mut self, cast: SpellCastState) -> bool {
         self.events.push("install");
@@ -197,6 +232,71 @@ fn normal_prepare_checks_native_gcd_category_without_timestamp_fallback() {
     );
     assert_eq!(runtime.failures, [SpellCastResult::NotReady as i32]);
     assert!(!runtime.events.contains(&"start"));
+}
+
+#[test]
+fn normal_prepare_distinguishes_unavailable_authority_from_cast_rejection() {
+    let mut missing_cost_authority = Fixture::new(0);
+    missing_cost_authority.normal_cost_outcome = Err("ItemEffect catalog unavailable");
+    assert_eq!(
+        prepare_server_normal(
+            &mut missing_cost_authority,
+            133,
+            0,
+            ObjectGuid::EMPTY,
+            Default::default(),
+        ),
+        ServerNormalPrepareOutcomeLikeCpp::Unavailable("ItemEffect catalog unavailable")
+    );
+
+    let mut unaffordable = Fixture::new(0);
+    unaffordable.normal_cost_outcome = Ok(false);
+    assert_eq!(
+        prepare_server_normal(
+            &mut unaffordable,
+            133,
+            0,
+            ObjectGuid::EMPTY,
+            Default::default(),
+        ),
+        ServerNormalPrepareOutcomeLikeCpp::Rejected
+    );
+
+    let mut missing_precondition_authority = Fixture::new(0);
+    missing_precondition_authority.precondition_outcome = Err("Player aura authority unavailable");
+    assert_eq!(
+        prepare_server_normal(
+            &mut missing_precondition_authority,
+            133,
+            0,
+            ObjectGuid::EMPTY,
+            Default::default(),
+        ),
+        ServerNormalPrepareOutcomeLikeCpp::Unavailable("Player aura authority unavailable")
+    );
+}
+
+#[test]
+fn normal_prepare_treats_known_missing_spell_as_rejection_and_catalog_loss_as_unavailable() {
+    let mut known_missing = Fixture::new(0);
+    assert_eq!(
+        prepare_server_normal(&mut known_missing, 134, 0, ObjectGuid::EMPTY, Default::default(),),
+        ServerNormalPrepareOutcomeLikeCpp::Rejected
+    );
+    assert!(known_missing.failures.is_empty());
+
+    let mut unavailable_catalog = Fixture::new(0);
+    unavailable_catalog.spell_catalog_failure = Some("SpellStore unavailable");
+    assert_eq!(
+        prepare_server_normal(
+            &mut unavailable_catalog,
+            133,
+            0,
+            ObjectGuid::EMPTY,
+            Default::default(),
+        ),
+        ServerNormalPrepareOutcomeLikeCpp::Unavailable("SpellStore unavailable")
+    );
 }
 
 #[test]

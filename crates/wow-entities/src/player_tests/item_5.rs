@@ -6,7 +6,7 @@
 use super::*;
 
 #[test]
-fn cast_all_obtain_item_sequence_is_backpack_then_inventory_bags_only() {
+fn cast_all_obtain_scan_freezes_backpack_end_and_resolves_live_bags_and_slots() {
     let player_guid = ObjectGuid::create_player(1, 410);
     let mut player = Player::new(None, false);
     player
@@ -53,30 +53,61 @@ fn cast_all_obtain_item_sequence_is_backpack_then_inventory_bags_only() {
             .store_item_object_like_cpp(item);
     }
 
-    let obtain_positions = player
-        .cast_all_obtain_item_positions_like_cpp()
-        .expect("complete backpack and bag topology");
+    let backpack_end = player
+        .cast_all_obtain_backpack_end_like_cpp()
+        .expect("complete backpack topology");
+    assert_eq!(backpack_end, INVENTORY_SLOT_ITEM_START + 2);
     assert_eq!(
-        obtain_positions,
-        [
-            (INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START),
-            (INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START + 1),
-            (INVENTORY_SLOT_BAG_START, 0),
-            (INVENTORY_SLOT_BAG_START, 1),
-        ]
+        (INVENTORY_SLOT_ITEM_START..backpack_end)
+            .map(|slot| player
+                .cast_all_obtain_item_at_like_cpp(INVENTORY_SLOT_BAG_0, slot, None)
+                .expect("live backpack slot authority"))
+            .flatten()
+            .collect::<Vec<_>>(),
+        backpack
+    );
+    let (resolved_bag_guid, bag_size) = player
+        .cast_all_obtain_bag_like_cpp(INVENTORY_SLOT_BAG_START)
+        .expect("live bag authority")
+        .expect("equipped inventory bag");
+    assert_eq!(resolved_bag_guid, bag_guid);
+    assert_eq!(bag_size, 2);
+    assert_eq!(
+        (0..bag_size)
+            .map(|slot| player
+                .cast_all_obtain_item_at_like_cpp(
+                    INVENTORY_SLOT_BAG_START,
+                    slot,
+                    Some(resolved_bag_guid),
+                )
+                .expect("live contained slot authority"))
+            .flatten()
+            .collect::<Vec<_>>(),
+        [bag_item]
     );
     assert_eq!(
-        obtain_positions
-            .into_iter()
-            .filter_map(|(bag, slot)| player.get_item_by_pos(bag, slot))
-            .collect::<Vec<_>>(),
-        [backpack[0], backpack[1], bag_item]
+        player.cast_all_obtain_item_at_like_cpp(INVENTORY_SLOT_BAG_0, KEYRING_SLOT_START, None),
+        None,
+        "the obtain scan cannot read keyring positions"
+    );
+    assert_eq!(
+        player.cast_all_obtain_item_at_like_cpp(INVENTORY_SLOT_BAG_0, BANK_SLOT_ITEM_START, None),
+        None,
+        "the obtain scan cannot read bank positions"
     );
 
     player
         .inventory_runtime_mut_like_cpp()
         .set_equipment_inventory_authority_complete_like_cpp(false);
-    assert_eq!(player.cast_all_obtain_item_positions_like_cpp(), None);
+    assert_eq!(player.cast_all_obtain_backpack_end_like_cpp(), None);
+    assert_eq!(
+        player.cast_all_obtain_bag_like_cpp(INVENTORY_SLOT_BAG_START),
+        None
+    );
+    assert_eq!(
+        player.cast_all_obtain_item_at_like_cpp(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START, None),
+        None
+    );
 }
 
 #[test]

@@ -112,6 +112,15 @@ pub(super) fn install_sickness_data(
     spell_id: i32,
     visual_id: Option<u32>,
 ) {
+    install_sickness_data_with_cast_costs(session, spell_id, visual_id, None);
+}
+
+pub(super) fn install_sickness_data_with_cast_costs(
+    session: &mut WorldSession,
+    spell_id: i32,
+    visual_id: Option<u32>,
+    cast_costs: Option<wow_data::SpellCastCostStoreLikeCpp>,
+) {
     let spell_info = wow_data::SpellInfo {
         spell_id,
         cast_time_ms: 0,
@@ -181,6 +190,9 @@ pub(super) fn install_sickness_data(
     attributes[0] = 0x2C80_0100;
     attributes[1] = 0x88;
     spells.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
+    if let Some(cast_costs) = cast_costs {
+        spells.install_effective_cast_costs_like_cpp(cast_costs);
+    }
     session.set_spell_store(Arc::new(spells));
 
     let mut misc_rows = crate::session::hub_ref(session)
@@ -300,6 +312,138 @@ pub(super) fn install_sickness_data(
     let mut class_entry = wow_data::character_progression::ChrClassesEntry::default();
     class_entry.id = u32::from(class);
     session.set_chr_classes_store(Arc::new(ChrClassesStore::from_entries([class_entry])));
+}
+
+pub(super) fn install_normal_sickness_cast_payload(
+    session: &mut WorldSession,
+    cast_costs: wow_data::SpellCastCostStoreLikeCpp,
+) {
+    let existing_spells = session
+        .catalogs
+        .spell_store()
+        .cloned()
+        .expect("selected sickness SpellStore fixture");
+    let spell_info = existing_spells
+        .get(SICKNESS_SPELL)
+        .cloned()
+        .expect("selected sickness legacy payload");
+    let actual_difficulty = session.core.current_map_difficulty_id_like_cpp();
+    let mut misc_rows = crate::session::hub_ref(session)
+        .catalogs
+        .spell_catalogs
+        .spell_misc_store()
+        .map(|store| store.entries_like_cpp().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
+    if actual_difficulty != 0
+        && !misc_rows.iter().any(|row| {
+            row.spell_id == SICKNESS_SPELL as u32
+                && row.difficulty_id == actual_difficulty
+        })
+    {
+        let mut selected_misc = misc_rows
+            .iter()
+            .find(|row| row.spell_id == SICKNESS_SPELL as u32 && row.difficulty_id == 0)
+            .cloned()
+            .expect("selected sickness SpellMisc fixture row");
+        selected_misc.id = selected_misc.id.saturating_add(u32::from(actual_difficulty));
+        selected_misc.difficulty_id = actual_difficulty;
+        misc_rows.push(selected_misc);
+    }
+    let effect_rows = spell_info
+        .effects
+        .iter()
+        .map(|effect| {
+            let mut row = effect_row(
+                846_820 + effect.effect_index,
+                actual_difficulty,
+                effect.effect_index,
+                effect.effect,
+                effect.effect_aura,
+                effect.effect_base_points,
+            );
+            row.effect_amplitude = effect.effect_amplitude;
+            row.effect_die_sides = effect.effect_die_sides;
+            row.effect_mechanic = effect.effect_mechanic;
+            row.effect_misc_value = [
+                effect.effect_misc_value_1,
+                effect.effect_misc_value_2,
+            ];
+            row.effect_trigger_spell = effect.effect_trigger_spell;
+            row.effect_bonus_coefficient = effect.effect_bonus_coefficient_from_ap;
+            row.bonus_coefficient_from_ap = effect.effect_bonus_coefficient_from_ap;
+            row.effect_chain_targets = effect.chain_targets;
+            row.effect_pos_facing = effect.position_facing;
+            row.effect_radius_index = [effect.effect_radius_index_1, 0];
+            row.effect_spell_class_mask = effect.effect_spell_class_mask;
+            row.implicit_target = [
+                i16::try_from(effect.implicit_target_1).expect("selected target fits DB2 field"),
+                i16::try_from(effect.implicit_target_2).expect("selected target fits DB2 field"),
+            ];
+            row
+        })
+        .collect::<Vec<_>>();
+    let mut exact_spell_keys = existing_spells.spell_info_keys_in_order_like_cpp();
+    exact_spell_keys.push((SICKNESS_SPELL as u32, actual_difficulty));
+    exact_spell_keys.extend(
+        misc_rows
+            .iter()
+            .map(|row| (row.spell_id, row.difficulty_id)),
+    );
+    exact_spell_keys.extend(
+        effect_rows
+            .iter()
+            .map(|row| (row.spell_id, row.difficulty_id as u8)),
+    );
+    let stores = wow_data::EffectiveCoreSpellDb2StoresLikeCpp::new(
+        wow_data::spell_db2::SpellCategoriesStore::from_entries([]),
+        wow_data::spell_db2::SpellMiscStore::from_entries(misc_rows.clone()),
+        wow_data::spell_db2::SpellEffectDb2Store::from_entries(effect_rows),
+        wow_data::spell_db2::SpellShapeshiftStore::from_entries([]),
+        wow_data::spell_db2::SpellInterruptsStore::from_entries([]),
+        wow_data::spell_db2::SpellCastTimesStore::from_entries([]),
+        wow_data::spell_db2::SpellCooldownsStore::from_entries([]),
+        wow_data::spell_db2::SpellCastingRequirementsStore::from_entries([]),
+        wow_data::spell_db2::SpellPowerStore::from_entries([]),
+        wow_data::spell_db2::SpellPowerDifficultyStore::from_entries([]),
+    );
+    let mut spells = crate::selected_spell_fixtures::canonical_spell_store(exact_spell_keys)
+        .hydrate_effective_core_db2_like_cpp(stores);
+    for selected_spell in [
+        wow_world_entities::SPELL_GHOST_LIKE_CPP,
+        wow_world_entities::SPELL_WISP_SPIRIT_AURA_LIKE_CPP,
+    ] {
+        if let Some(info) = existing_spells.get(selected_spell) {
+            spells.insert(selected_spell, info.clone());
+        }
+        if let Some(attributes) =
+            existing_spells.misc_attributes_for_difficulty_like_cpp(selected_spell, 0, None)
+        {
+            spells.insert_spell_misc_attributes_like_cpp(selected_spell, attributes);
+        }
+    }
+    spells.install_effective_cast_costs_like_cpp(cast_costs);
+    session.set_spell_store(Arc::new(spells));
+    session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries(misc_rows)));
+    session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_entries([
+        difficulty(u32::from(actual_difficulty), 0),
+        difficulty(0, 0),
+    ])));
+    let selected_difficulty = session
+        .catalogs
+        .spell_store()
+        .expect("hydrated selected sickness SpellStore")
+        .spell_info_for_difficulty_like_cpp(
+            SICKNESS_SPELL,
+            actual_difficulty,
+            session
+                .catalogs
+                .difficulty_store()
+                .map(AsRef::as_ref),
+        )
+        .expect("selected sickness exact payload is available")
+        .expect("selected sickness exact key exists")
+        .1;
+    assert_eq!(selected_difficulty, actual_difficulty);
 }
 
 pub(super) fn prepare_loaded_sickness_for_recast(

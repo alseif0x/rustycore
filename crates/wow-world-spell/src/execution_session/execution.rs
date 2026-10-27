@@ -228,33 +228,8 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                 take_server_normal_cast_item_before_effects = plan.take_cast_item_before_effects;
             }
             Err(failure) => {
-                let (reason, fail_arg1, fail_arg2) = match failure {
-                    super::ServerNormalPreGoFailureLikeCpp::MissingReagent(entry_id) => (
-                        wow_constants::SpellCastResult::Reagents as i32,
-                        entry_id as i32,
-                        0,
-                    ),
-                    super::ServerNormalPreGoFailureLikeCpp::MissingCurrency(currency_id) => (
-                        wow_constants::SpellCastResult::Reagents as i32,
-                        -1,
-                        i32::from(currency_id),
-                    ),
-                    super::ServerNormalPreGoFailureLikeCpp::Power => {
-                        (wow_constants::SpellCastResult::DontReport as i32, 0, 0)
-                    }
-                    super::ServerNormalPreGoFailureLikeCpp::Unavailable(reason) => {
-                        tracing::warn!(
-                            spell_id,
-                            reason,
-                            "Normal Player pre-GO authority unavailable"
-                        );
-                        (
-                            wow_constants::SpellCastResult::SpellUnavailable as i32,
-                            0,
-                            0,
-                        )
-                    }
-                };
+                let (reason, fail_arg1, fail_arg2, unavailable) =
+                    server_normal_pre_go_failure_publication_like_cpp(failure);
                 if !matches!(failure, super::ServerNormalPreGoFailureLikeCpp::Power) {
                     host.send_packet(&wow_packet::packets::spell::CastFailed {
                         cast_id,
@@ -272,6 +247,9 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
                     spell_id,
                     &spell_visual,
                 );
+                if let Some(reason) = unavailable {
+                    return Err(reason);
+                }
                 return Ok(());
             }
         }
@@ -1295,3 +1273,41 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
 
     Ok(())
 }
+
+fn server_normal_pre_go_failure_publication_like_cpp(
+    failure: super::ServerNormalPreGoFailureLikeCpp,
+) -> (i32, i32, i32, Option<&'static str>) {
+    match failure {
+        super::ServerNormalPreGoFailureLikeCpp::MissingReagent(entry_id) => (
+            wow_constants::SpellCastResult::Reagents as i32,
+            entry_id as i32,
+            0,
+            None,
+        ),
+        super::ServerNormalPreGoFailureLikeCpp::MissingCurrency(currency_id) => (
+            wow_constants::SpellCastResult::Reagents as i32,
+            -1,
+            i32::from(currency_id),
+            None,
+        ),
+        super::ServerNormalPreGoFailureLikeCpp::Power => (
+            wow_constants::SpellCastResult::DontReport as i32,
+            0,
+            0,
+            None,
+        ),
+        super::ServerNormalPreGoFailureLikeCpp::Unavailable(reason) => {
+            tracing::warn!(reason, "Normal Player pre-GO authority unavailable");
+            (
+                wow_constants::SpellCastResult::SpellUnavailable as i32,
+                0,
+                0,
+                Some(reason),
+            )
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "../../unit_tests/execution_session_tests.rs"]
+mod tests;

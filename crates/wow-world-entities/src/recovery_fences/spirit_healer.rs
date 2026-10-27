@@ -40,6 +40,7 @@ pub(super) async fn continue_spirit_healer(
             }
             crate::player_resurrection::finish_resurrection_visibility(host, catalogs).await;
             if !owner_is_current(host, owner)
+                || !super::owner::owner_is_current_in_residence(host, owner)
                 || !advance(host, owner, Phase::VisibilityInFlight, Phase::ObtainSpellsInFlight)
             {
                 return Progress::Held;
@@ -49,6 +50,7 @@ pub(super) async fn continue_spirit_healer(
                 return Progress::Held;
             }
             if !owner_is_current(host, owner)
+                || !super::owner::owner_is_current_in_residence(host, owner)
                 || !advance(host, owner, Phase::ObtainSpellsInFlight, Phase::AuraInFlight)
             {
                 return Progress::Held;

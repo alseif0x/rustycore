@@ -12,9 +12,10 @@ pub enum RecoveryResumeState {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct Owner {
-    pub(super) handle: wow_map::PlayerHandle,
-    pub(super) guid: ObjectGuid,
+pub(crate) struct Owner {
+    pub(crate) handle: wow_map::PlayerHandle,
+    pub(crate) guid: ObjectGuid,
+    residence: Option<(wow_map::MapKey, u64)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,13 +26,29 @@ pub(crate) enum Progress {
     Held,
 }
 
-fn owner(host: &impl CorpseHostLikeCpp) -> Option<Owner> {
-    let handle = host.core().player_handle_like_cpp?;
-    let guid = host.player_guid()?;
-    (guid == handle.guid()).then_some(Owner { handle, guid })
+fn active_residence(
+    host: &impl CorpseHostLikeCpp,
+    handle: wow_map::PlayerHandle,
+) -> Option<(wow_map::MapKey, u64)> {
+    let manager = host.core().canonical_map_manager.as_ref()?.lock().ok()?;
+    manager.player_active_residence_revision_like_cpp(handle)
 }
 
-pub(super) fn owner_is_current(host: &impl CorpseHostLikeCpp, owner: Owner) -> bool {
+pub(crate) fn owner(host: &impl CorpseHostLikeCpp) -> Option<Owner> {
+    let handle = host.core().player_handle_like_cpp?;
+    let guid = host.player_guid()?;
+    if guid != handle.guid() {
+        return None;
+    }
+    let residence = active_residence(host, handle);
+    Some(Owner {
+        handle,
+        guid,
+        residence,
+    })
+}
+
+pub(crate) fn owner_is_current(host: &impl CorpseHostLikeCpp, owner: Owner) -> bool {
     host.core().player_handle_like_cpp == Some(owner.handle)
         && host.player_guid() == Some(owner.guid)
         && owner.guid == owner.handle.guid()
@@ -39,6 +56,19 @@ pub(super) fn owner_is_current(host: &impl CorpseHostLikeCpp, owner: Owner) -> b
             .core()
             .with_owned_player_like_cpp(|player| player.guid() == owner.guid)
             .unwrap_or(false)
+}
+
+pub(crate) fn owner_is_current_in_residence(
+    host: &impl CorpseHostLikeCpp,
+    owner: Owner,
+) -> bool {
+    if !owner_is_current(host, owner) {
+        return false;
+    }
+    let Some(expected_residence) = owner.residence else {
+        return false;
+    };
+    active_residence(host, owner.handle) == Some(expected_residence)
 }
 
 fn current_for(

@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#43 current summary — 2026-10-26, branch `43-spirit-healer`:**
+**#43 current summary — 2026-10-27, branch `43-spirit-healer`:**
 The macro remains open and has not passed final acceptance. Changes remain
 local to `43-spirit-healer`; this candidate has not been published or deployed.
 Recent checkpoints add canonical stats, reconciliation of all selected aura
@@ -86,8 +86,11 @@ covers 77 distinct World cases, including 33 new recovery cases, and the
 Server composition compiles. Normal Player casts now connect pre-GO costs,
 native cooldowns and physical-item consumption to the existing save owners;
 45 distinct focused cases and Server compilation provide coding feedback.
-The common resurrection obtain phase and complete SelfRes effect integration
-remain open, alongside native-death integration and final acceptance.
+Common resurrection obtain calls now use live inventory and checked normal
+cast outcomes, but are not accepted: a real World regression shows that the
+created Aura loses its physical cast-item provenance. That assertion remains
+in the candidate. The constructor/refresh fix, complete SelfRes effect,
+native-death integration and final acceptance remain open.
 
 Four blocks remain within the same macro:
 
@@ -129,7 +132,7 @@ only the shared request/result contract needed by the lower callers; moving
 the pure stats planner or adding an Inventory dependency to WorldEntities is
 not selected. These available functions do not by themselves make aura
 removal complete.
-The selected transport is a required application operation at each existing
+The transport candidate is a required application operation at each existing
 damage admission, rather than an optional post-death callback. Session callers
 will reach Application through required methods on the existing movement and
 spell-click host contracts (the spell-effect host already inherits the latter).
@@ -142,6 +145,19 @@ lock, Player clone, mailbox round trip or packet delivery under the guard is
 permitted. The operation returns ordered owned publication for delivery after
 the guard. This transport decision is not installed; the complete participants
 and their source phase order remain prerequisites to enabling any caller.
+Further source review at `d63c12ce0` places the synchronous transport candidate
+on hold. `FailQuest` calls `SetQuestStatus` and `SendQuestUpdate`
+(Player.cpp:14942,15557–15672), which can execute FULL casts from effective
+SpellArea rows before the next quest slot is read. The Source loader does not
+limit those rows to aura-only spells. The existing asynchronous executor
+re-resolves the canonical manager, so calling it under the proposed held Map
+guard would relock that manager. A frozen batch or post-death mailbox would
+also lose the required live phase order. Application remains the semantic
+owner; guard-free continuation or complete borrowed participants must settle
+the transport before any lethal caller is enabled. Current Server execution
+still runs all admitted combat phases under its existing canonical guard
+(`runtime/canonical_creature_runtime.rs:117–180`); no new runtime owner,
+callback, clock or scheduling change has been installed.
 The current stat aura view also reads legacy base payloads, so a genuinely
 nonzero-only aura needs its exact component consumer reviewed before claiming
 stats parity. No new dependency edge or runtime callback was installed.
@@ -2693,6 +2709,63 @@ This is an UNVALIDATED local macro checkpoint. The sibling sickness full-save
 entry gate, native-death integration, normal SelfRes/obtain casts, QA and
 complete candidate acceptance remain open. No runtime installation, SQL,
 restart, fresh capture, publication or issue closure was performed.
+
+Live common resurrection obtain integration, 2026-10-26/27, base
+`d63c12ce0eb8e6136225f6a43c4e9eba06ce831d` plus 20 working Rust inputs:
+backpack end is read once; each equipped bag is resolved when reached, and
+each contained position, HasAura and physical item's current entry/level is
+read at its Source phase. Player incarnation and residence are checked
+between effects and across awaits. Canonical reclaim, healer, login and
+request continuations retain ObtainSpellsInFlight on error without replay or
+dependent bones/save. The public one-shot resurrection wrapper currently has
+only test/helper callers and is not cancellation-safe production evidence.
+
+Normal preparation distinguishes known absent SpellInfo from unavailable
+catalogs/ownership. Ordinary rejection continues the obtain scan; unavailable
+preparation or pre-GO authority holds it. Pre-GO failure keeps its specific
+frames and propagates the error without another generic NotKnown frame.
+Anchors at pinned `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` are
+Player.cpp:4320–4403,8034–8079; Object.cpp:2898–2940; Spell.cpp:3416–3421.
+
+Worker feedback used `PROTOC=/home/ubuntu/.local/protoc/bin/protoc`,
+`CARGO_BUILD_JOBS=1`, `CARGO_TARGET_DIR=/home/server/rustycore/target`.
+`cargo check -p wow-entities`, `-p wow-world-spell`, `-p wow-world-entities`
+and `-p wow-world` exited 0. Focused `cargo test -p wow-entities cast_all_obtain`
+passed 1 case; `cargo test -p wow-world-spell normal_prepare` passed 4;
+`cargo test -p wow-world-spell normal_pre_go` passed 1. Exact commands, base,
+UTC and exits remain in `/tmp/rustycore-common-resurrection-obtain-logs`.
+The first check started at 2026-10-26 23:40:08 UTC. Root test compilation first
+failed; obtain repairs 1–4 retained 4,3,3,3 failing cases respectively. The
+fixtures were corrected for canonical topology, hydrated exact-key payloads,
+native history and complete authority, rather than weakening admission.
+
+Repair5 of `cargo test -p wow-world obtain` at 2026-10-27 00:03:59–00:05:25
+exited 101: 5 passed and the real Aura item-GUID assertion failed (EMPTY
+instead of the physical item). Repairs6/7 exited 0 with 6/7 cases while that
+assertion was absent. The parent required its restoration, including GUID,
+entry and level checks. The current candidate was not rerun and those green
+runs do not validate it. Repair7 includes one unrelated currency-objective
+case, which is not obtain/resurrection coverage. The grouped recovery,
+resurrection, corpse-login and repop regressions were deferred until the
+constructor fix. Literal cancellation after an obtain effect was not
+exercised; the real partial-authority/no-replay case is a different scenario.
+Some `.log` files contain receipt headers only; matching `.output` files
+retain Cargo diagnostics and test identities. All failed runs remain intact.
+The feedback/repair interval ended at 2026-10-27 00:11:12 UTC (1864 seconds),
+not a final campaign or evidence for its 600-second ordinary target.
+
+The parent verified all 20 changed Rust inputs; the snapshot
+`parent-owned-inputs.sha256`, digest
+`c39fe55bd3547776cef15d3a7fab932fbf016e73aa0484340dd065acfba36c6a`,
+identifies the restored current candidate,
+not a candidate proven green. Effective model/effort telemetry is unavailable.
+This is an UNVALIDATED intermediate checkpoint. The next required correction
+must thread cast-item input through Aura construction and refresh into the
+existing AuraPersistenceMetadata authority (SpellAuras.cpp:464–465;
+Unit.cpp:3265–3272). Refresh changes item ID/level only when GUID changes;
+adding duplicate canonical item fields or stamping matching auras after the
+cast is not selected. Common obtain acceptance, sickness's original-key save
+gate, SelfRes, native death, QA and final/live acceptance remain open.
 
 Normal Player cast pre-GO participants, 2026-10-26, base
 `4ef33343d954860996c0f86751bbde3384db0bf8` plus working inputs:

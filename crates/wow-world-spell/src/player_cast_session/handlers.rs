@@ -142,6 +142,30 @@ pub async fn cast_server_normal_player_spell_with_generator_like_cpp<H: PlayerCa
     target_guid: ObjectGuid,
     metadata: SpellCastMetadata,
 ) -> bool {
+    try_cast_server_normal_player_spell_with_generator_like_cpp(
+        host,
+        item_guid_generator,
+        creature_spawn_catalogs,
+        spell_id,
+        target_guid,
+        metadata,
+    )
+    .await
+    .unwrap_or(false)
+}
+
+/// Server-normal cast result for operations that must retain their owner when
+/// canonical cast inputs disappear. Ordinary C++ rejection remains `Ok(false)`.
+pub async fn try_cast_server_normal_player_spell_with_generator_like_cpp<
+    H: PlayerCastHostLikeCpp,
+>(
+    host: &mut H,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
+    spell_id: i32,
+    target_guid: ObjectGuid,
+    metadata: SpellCastMetadata,
+) -> Result<bool, &'static str> {
     let difficulty_id = host.core().current_map_difficulty_id_like_cpp();
     match crate::player_cast::prepare_server_normal(
         host,
@@ -150,16 +174,37 @@ pub async fn cast_server_normal_player_spell_with_generator_like_cpp<H: PlayerCa
         target_guid,
         metadata,
     ) {
-        crate::player_cast::ServerNormalPrepareOutcomeLikeCpp::Rejected => false,
-        crate::player_cast::ServerNormalPrepareOutcomeLikeCpp::Started => true,
+        crate::player_cast::ServerNormalPrepareOutcomeLikeCpp::Rejected => Ok(false),
+        crate::player_cast::ServerNormalPrepareOutcomeLikeCpp::Unavailable(reason) => Err(reason),
+        crate::player_cast::ServerNormalPrepareOutcomeLikeCpp::Started => Ok(true),
         crate::player_cast::ServerNormalPrepareOutcomeLikeCpp::Instant => {
-            crate::tick_active_spell_cast_with_generator_like_cpp(
+            let Some(cast) = super::take_ready_player_cast_like_cpp(host) else {
+                return Err("instant server-normal cast owner disappeared before execution");
+            };
+            match crate::execution_session::execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
                 host,
                 item_guid_generator,
                 creature_spawn_catalogs,
+                cast.spell_id,
+                cast.target_guid,
+                cast.cast_id,
+                crate::spell_cast_adapter::present_visual(cast.spell_visual.clone()),
+                crate::spell_cast_adapter::present_targets(cast.target_data),
+                cast.metadata,
             )
-            .await;
-            true
+            .await
+            {
+                Ok(()) => Ok(true),
+                Err(reason) => {
+                    warn!(
+                        account = host.core().account_id,
+                        spell_id = cast.spell_id,
+                        reason,
+                        "Instant server-normal spell execution failed"
+                    );
+                    Err(reason)
+                }
+            }
         }
         crate::player_cast::ServerNormalPrepareOutcomeLikeCpp::Direct(cast) => {
             crate::execution_session::execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
@@ -174,7 +219,7 @@ pub async fn cast_server_normal_player_spell_with_generator_like_cpp<H: PlayerCa
                 cast.metadata,
             )
             .await
-            .is_ok()
+            .map(|()| true)
         }
     }
 }

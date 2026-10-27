@@ -128,7 +128,10 @@ pub use player_cast::{
     server_normal_global_cooldown_state_like_cpp,
     server_normal_take_cast_item_before_effects_like_cpp,
 };
-pub use player_cast_session::cast_server_normal_player_spell_with_generator_like_cpp;
+pub use player_cast_session::{
+    cast_server_normal_player_spell_with_generator_like_cpp,
+    try_cast_server_normal_player_spell_with_generator_like_cpp,
+};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use player_cast_session::take_ready_player_cast_like_cpp;
 pub use player_cast_session::{

@@ -13,6 +13,15 @@ pub trait Runtime {
     fn spell(&self, id: i32) -> Option<SpellInfo>;
     /// Resolve C++ `GetSpellInfo(id, mapDifficulty)` and return its actual key.
     fn spell_for_difficulty(&self, id: i32, difficulty_id: u8) -> Option<(SpellInfo, u8)>;
+    /// Preserve the distinction between a known SpellStore with no matching
+    /// spell and unavailable SpellInfo catalog or difficulty authority.
+    fn spell_for_difficulty_outcome(
+        &self,
+        id: i32,
+        difficulty_id: u8,
+    ) -> Result<Option<(SpellInfo, u8)>, &'static str> {
+        Ok(self.spell_for_difficulty(id, difficulty_id))
+    }
     /// `true` for a still-installed non-instant generic cast. Source
     /// `IsNonMeleeSpellCast(..., skipInstant=true)` permits instant nesting.
     fn server_normal_busy(&mut self) -> Option<bool>;
@@ -63,6 +72,17 @@ pub trait Runtime {
         visual: &SpellCastVisualLikeCpp,
         metadata: wow_entities::SpellCastMetadata,
     ) -> bool;
+    /// Detailed server-normal result: ordinary gameplay rejection remains
+    /// `Ok(false)`, while missing owner/catalog authority is an error.
+    fn check_server_normal_costs_outcome(
+        &mut self,
+        spell: &SpellInfo,
+        cast: ObjectGuid,
+        visual: &SpellCastVisualLikeCpp,
+        metadata: wow_entities::SpellCastMetadata,
+    ) -> Result<bool, &'static str> {
+        Ok(self.check_server_normal_costs(spell, cast, visual, metadata))
+    }
     fn check_preconditions(
         &mut self,
         spell: &SpellInfo,
@@ -70,6 +90,17 @@ pub trait Runtime {
         visual: &SpellCastVisualLikeCpp,
         metadata: wow_entities::SpellCastMetadata,
     ) -> bool;
+    /// Detailed server-normal precondition result. Ordinary C++ cast
+    /// rejection remains `Ok(false)`; unavailable canonical inputs are errors.
+    fn check_preconditions_outcome(
+        &mut self,
+        spell: &SpellInfo,
+        cast: ObjectGuid,
+        visual: &SpellCastVisualLikeCpp,
+        metadata: wow_entities::SpellCastMetadata,
+    ) -> Result<bool, &'static str> {
+        Ok(self.check_preconditions(spell, cast, visual, metadata))
+    }
     fn install(&mut self, cast: SpellCastState) -> bool;
     /// Admission for a direct native `CastSpell` preparation. The production
     /// adapter performs the busy check and install under the same map owner.
@@ -231,6 +262,7 @@ pub fn prepare(runtime: &mut impl Runtime, request: PendingSpellCastRequestLikeC
 #[derive(Debug, Clone, PartialEq)]
 pub enum ServerNormalPrepareOutcomeLikeCpp {
     Rejected,
+    Unavailable(&'static str),
     Started,
     Instant,
     Direct(SpellCastState),
@@ -243,16 +275,22 @@ pub fn prepare_server_normal(
     target_guid: ObjectGuid,
     mut metadata: wow_entities::SpellCastMetadata,
 ) -> ServerNormalPrepareOutcomeLikeCpp {
-    let Some((spell, actual_difficulty_id)) =
-        runtime.spell_for_difficulty(spell_id, requested_difficulty_id)
-    else {
-        return ServerNormalPrepareOutcomeLikeCpp::Rejected;
+    let (spell, actual_difficulty_id) = match runtime
+        .spell_for_difficulty_outcome(spell_id, requested_difficulty_id)
+    {
+        Ok(Some(selected)) => selected,
+        Ok(None) => return ServerNormalPrepareOutcomeLikeCpp::Rejected,
+        Err(reason) => return ServerNormalPrepareOutcomeLikeCpp::Unavailable(reason),
     };
     let Some(visual) = runtime.visual(&spell) else {
-        return ServerNormalPrepareOutcomeLikeCpp::Rejected;
+        return ServerNormalPrepareOutcomeLikeCpp::Unavailable(
+            "server-normal spell visual authority unavailable",
+        );
     };
     let Some((cast_id, revision)) = runtime.allocate(spell.spell_id) else {
-        return ServerNormalPrepareOutcomeLikeCpp::Rejected;
+        return ServerNormalPrepareOutcomeLikeCpp::Unavailable(
+            "canonical Player cast identity unavailable",
+        );
     };
     if runtime.disabled(spell.spell_id) {
         runtime.failure(
@@ -279,7 +317,11 @@ pub fn prepare_server_normal(
             );
             return ServerNormalPrepareOutcomeLikeCpp::Rejected;
         }
-        None => return ServerNormalPrepareOutcomeLikeCpp::Rejected,
+        None => {
+            return ServerNormalPrepareOutcomeLikeCpp::Unavailable(
+                "canonical Player cast state unavailable",
+            );
+        }
     }
     let ignore_gcd =
         metadata.trigger_cast_flags_like_cpp & wow_entities::TRIGGERED_IGNORE_GCD_LIKE_CPP != 0;
@@ -288,7 +330,9 @@ pub fn prepare_server_normal(
     } else {
         runtime.server_normal_global_cooldown_state(&spell, actual_difficulty_id)
     }) else {
-        return ServerNormalPrepareOutcomeLikeCpp::Rejected;
+        return ServerNormalPrepareOutcomeLikeCpp::Unavailable(
+            "native Player GCD authority unavailable",
+        );
     };
     if gcd_active {
         runtime.failure(
@@ -302,28 +346,45 @@ pub fn prepare_server_normal(
     if metadata.trigger_cast_flags_like_cpp
         & wow_entities::TRIGGERED_IGNORE_SPELL_AND_CATEGORY_CD_LIKE_CPP
         == 0
-        && runtime.server_normal_on_cooldown(&spell, actual_difficulty_id, metadata) != Some(false)
     {
-        runtime.failure(
-            cast_id,
-            spell.spell_id,
-            visual,
-            SpellCastResult::NotReady as i32,
-        );
-        return ServerNormalPrepareOutcomeLikeCpp::Rejected;
+        match runtime.server_normal_on_cooldown(&spell, actual_difficulty_id, metadata) {
+            Some(false) => {}
+            Some(true) => {
+                runtime.failure(
+                    cast_id,
+                    spell.spell_id,
+                    visual,
+                    SpellCastResult::NotReady as i32,
+                );
+                return ServerNormalPrepareOutcomeLikeCpp::Rejected;
+            }
+            None => {
+                return ServerNormalPrepareOutcomeLikeCpp::Unavailable(
+                    "native Player spell-cooldown authority unavailable",
+                );
+            }
+        }
     }
     let direct =
         metadata.trigger_cast_flags_like_cpp & wow_entities::TRIGGERED_CAST_DIRECTLY_LIKE_CPP != 0;
     metadata.server_normal_started_global_cooldown =
         spell.cooldown_ms != 0 && gcd_category_id != 0 && !ignore_gcd && !direct;
     metadata.client_started_global_cooldown = false;
-    if !runtime.check_preconditions(&spell, cast_id, &visual, metadata)
-        || !runtime.check_server_normal_costs(&spell, cast_id, &visual, metadata)
-        || (metadata.cast_item_guid.is_none()
+    match runtime.check_preconditions_outcome(&spell, cast_id, &visual, metadata) {
+        Ok(true) => {}
+        Ok(false) => return ServerNormalPrepareOutcomeLikeCpp::Rejected,
+        Err(reason) => return ServerNormalPrepareOutcomeLikeCpp::Unavailable(reason),
+    }
+    match runtime.check_server_normal_costs_outcome(&spell, cast_id, &visual, metadata) {
+        Ok(true) => {}
+        Ok(false) => return ServerNormalPrepareOutcomeLikeCpp::Rejected,
+        Err(reason) => return ServerNormalPrepareOutcomeLikeCpp::Unavailable(reason),
+    }
+    if metadata.cast_item_guid.is_none()
             && metadata.trigger_cast_flags_like_cpp
                 & wow_entities::TRIGGERED_IGNORE_POWER_AND_REAGENT_COST_LIKE_CPP
                 == 0
-            && !runtime.check_power(&spell, cast_id, &visual))
+            && !runtime.check_power(&spell, cast_id, &visual)
     {
         return ServerNormalPrepareOutcomeLikeCpp::Rejected;
     }
@@ -343,13 +404,21 @@ pub fn prepare_server_normal(
         .server_normal_cooldown_at_cast_start(&spell, actual_difficulty_id, metadata)
         .is_none()
     {
-        return ServerNormalPrepareOutcomeLikeCpp::Rejected;
+        return ServerNormalPrepareOutcomeLikeCpp::Unavailable(
+            "native Player cooldown publication authority unavailable",
+        );
     }
     if direct {
         return ServerNormalPrepareOutcomeLikeCpp::Direct(cast);
     }
     if !runtime.install_server_normal(cast.clone()) {
-        return ServerNormalPrepareOutcomeLikeCpp::Rejected;
+        return if runtime.server_normal_busy().is_some() {
+            ServerNormalPrepareOutcomeLikeCpp::Rejected
+        } else {
+            ServerNormalPrepareOutcomeLikeCpp::Unavailable(
+                "canonical Player cast owner disappeared during admission",
+            )
+        };
     }
     runtime.start(&cast, &spell);
     if cast.cast_time_ms == 0 {

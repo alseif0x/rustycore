@@ -70,64 +70,93 @@ impl Player {
         (traversed && complete).then_some(counts)
     }
 
-    /// C++ `Player::CastAllObtainSpells` scan positions: backpack slots
-    /// followed by the contents of equipped inventory bags. The caller reads
-    /// each slot again immediately before its cast. Gear, keyring, bank and
-    /// reagent-bank slots are intentionally outside this operation.
-    pub fn cast_all_obtain_item_positions_like_cpp(&self) -> Option<Vec<(u8, u8)>> {
+    /// C++ `Player::CastAllObtainSpells` freezes `inventoryEnd` once before
+    /// scanning the backpack. Gear, keyring, bank and reagent-bank slots are
+    /// intentionally outside this operation.
+    pub fn cast_all_obtain_backpack_end_like_cpp(&self) -> Option<u8> {
         if !self
             .inventory_runtime
             .equipment_inventory_authority_complete_like_cpp()
         {
             return None;
         }
-
-        let item_objects = self.inventory_runtime.item_objects();
-        let mut positions = Vec::new();
         let backpack_end = INVENTORY_SLOT_ITEM_START
             .saturating_add(self.active_data.num_backpack_slots)
             .min(INVENTORY_SLOT_ITEM_END);
-        for slot in INVENTORY_SLOT_ITEM_START..backpack_end {
-            if let Some(guid) = self.inventory.items[usize::from(slot)] {
-                let item = item_objects.get(&guid)?;
-                if item.owner_guid() != self.guid()
-                    || item.update_state() == ItemUpdateState::Removed
+        Some(backpack_end)
+    }
+
+    /// C++ resolves each equipped bag and its size only when its outer-loop
+    /// slot is reached, after earlier backpack and bag casts have returned.
+    /// The returned GUID identifies that bag for its inner slot scan.
+    pub fn cast_all_obtain_bag_like_cpp(
+        &self,
+        bag_slot: u8,
+    ) -> Option<Option<(ObjectGuid, u8)>> {
+        if !self
+            .inventory_runtime
+            .equipment_inventory_authority_complete_like_cpp()
+            || !(INVENTORY_SLOT_BAG_START..INVENTORY_SLOT_BAG_END).contains(&bag_slot)
+        {
+            return None;
+        }
+
+        let bag_guid = self.inventory.items.get(usize::from(bag_slot)).copied().flatten();
+        let bag_storage = self.inventory.bag_at(bag_slot);
+        match (bag_guid, bag_storage) {
+            (None, None) => Some(None),
+            (Some(guid), Some(storage)) if storage.bag_guid == guid => {
+                let bag_item = self.inventory_runtime.item_objects().get(&guid)?;
+                if bag_item.owner_guid() != self.guid()
+                    || bag_item.update_state() == ItemUpdateState::Removed
                 {
                     return None;
                 }
+                Some(Some((guid, storage.bag_size)))
             }
-            positions.push((INVENTORY_SLOT_BAG_0, slot));
+            _ => None,
+        }
+    }
+
+    /// Resolve a live obtain slot. `expected_bag` is the bag object captured
+    /// when C++ entered that bag's inner loop; a replaced or retired bag makes
+    /// the owner unavailable instead of silently scanning another container.
+    /// Empty live slots are represented by `Some(None)`.
+    pub fn cast_all_obtain_item_at_like_cpp(
+        &self,
+        bag_slot: u8,
+        slot: u8,
+        expected_bag: Option<ObjectGuid>,
+    ) -> Option<Option<ObjectGuid>> {
+        if !self
+            .inventory_runtime
+            .equipment_inventory_authority_complete_like_cpp()
+        {
+            return None;
+        }
+        if bag_slot == INVENTORY_SLOT_BAG_0 {
+            if expected_bag.is_some()
+                || !(INVENTORY_SLOT_ITEM_START..INVENTORY_SLOT_ITEM_END).contains(&slot)
+            {
+                return None;
+            }
+        } else {
+            let expected_bag = expected_bag?;
+            if !(INVENTORY_SLOT_BAG_START..INVENTORY_SLOT_BAG_END).contains(&bag_slot)
+                || self.get_bag_by_pos(bag_slot) != Some(expected_bag)
+            {
+                return None;
+            }
         }
 
-        for bag_slot in INVENTORY_SLOT_BAG_START..INVENTORY_SLOT_BAG_END {
-            let bag_storage = self.inventory.bag_at(bag_slot);
-            let bag_guid = self.inventory.items[usize::from(bag_slot)];
-            match (bag_guid, bag_storage) {
-                (None, None) => continue,
-                (Some(guid), Some(storage)) if storage.bag_guid == guid => {
-                    let bag_item = item_objects.get(&guid)?;
-                    if bag_item.owner_guid() != self.guid()
-                        || bag_item.update_state() == ItemUpdateState::Removed
-                    {
-                        return None;
-                    }
-                    for slot in 0..storage.bag_size {
-                        if let Some(guid) = storage.item_by_pos(slot) {
-                            let item = item_objects.get(&guid)?;
-                            if item.owner_guid() != self.guid()
-                                || item.update_state() == ItemUpdateState::Removed
-                            {
-                                return None;
-                            }
-                        }
-                        positions.push((bag_slot, slot));
-                    }
-                }
-                _ => return None,
-            }
+        let Some(item_guid) = self.get_item_by_pos(bag_slot, slot) else {
+            return Some(None);
+        };
+        let item = self.inventory_runtime.item_objects().get(&item_guid)?;
+        if item.owner_guid() != self.guid() || item.update_state() == ItemUpdateState::Removed {
+            return None;
         }
-
-        Some(positions)
+        Some(Some(item_guid))
     }
 
     /// C++ `Player::GetBankBagSlotCount` (`Player.h:1334`).

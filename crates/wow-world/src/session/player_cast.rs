@@ -24,15 +24,31 @@ impl Runtime for WorldSession {
         id: i32,
         difficulty_id: u8,
     ) -> Option<(wow_data::SpellInfo, u8)> {
-        let store = self.spell_store()?;
+        self.spell_for_difficulty_outcome(id, difficulty_id)
+            .ok()
+            .flatten()
+    }
+
+    fn spell_for_difficulty_outcome(
+        &self,
+        id: i32,
+        difficulty_id: u8,
+    ) -> Result<Option<(wow_data::SpellInfo, u8)>, &'static str> {
+        let Some(store) = self.spell_store() else {
+            tracing::warn!(
+                spell_id = id,
+                difficulty_id,
+                "Normal server cast SpellStore unavailable"
+            );
+            return Err("normal server cast SpellStore unavailable");
+        };
         let difficulties = self
             .hub_ref()
             .catalogs
             .difficulty_store()
             .map(AsRef::as_ref);
         match store.spell_info_for_difficulty_like_cpp(id, difficulty_id, difficulties) {
-            Ok(Some(selected)) => Some(selected),
-            Ok(None) => None,
+            Ok(selected) => Ok(selected),
             Err(error) => {
                 tracing::warn!(
                     spell_id = id,
@@ -40,7 +56,7 @@ impl Runtime for WorldSession {
                     ?error,
                     "Normal server cast SpellInfo payload unavailable"
                 );
-                None
+                Err("normal server cast SpellInfo or difficulty authority unavailable")
             }
         }
     }
@@ -286,10 +302,21 @@ impl Runtime for WorldSession {
         visual: &SpellCastVisualLikeCpp,
         metadata: SpellCastMetadata,
     ) -> bool {
+        self.check_server_normal_costs_outcome(spell, cast, visual, metadata)
+            .unwrap_or(false)
+    }
+
+    fn check_server_normal_costs_outcome(
+        &mut self,
+        spell: &wow_data::SpellInfo,
+        cast: ObjectGuid,
+        visual: &SpellCastVisualLikeCpp,
+        metadata: SpellCastMetadata,
+    ) -> Result<bool, &'static str> {
         match wow_world_spell::server_normal_cost_result_like_cpp(
             wow_world_application::server_normal_cast_cost_facts_like_cpp(self, spell, metadata),
         ) {
-            wow_world_spell::ServerNormalCostResultLikeCpp::Affordable => true,
+            wow_world_spell::ServerNormalCostResultLikeCpp::Affordable => Ok(true),
             wow_world_spell::ServerNormalCostResultLikeCpp::MissingReagent(item_id) => {
                 self.send_packet(&CastFailed {
                     cast_id: cast,
@@ -299,7 +326,7 @@ impl Runtime for WorldSession {
                     fail_arg1: item_id as i32,
                     fail_arg2: 0,
                 });
-                false
+                Ok(false)
             }
             wow_world_spell::ServerNormalCostResultLikeCpp::MissingCurrency(currency_id) => {
                 self.send_packet(&CastFailed {
@@ -310,7 +337,7 @@ impl Runtime for WorldSession {
                     fail_arg1: -1,
                     fail_arg2: i32::from(currency_id),
                 });
-                false
+                Ok(false)
             }
             wow_world_spell::ServerNormalCostResultLikeCpp::Unavailable(reason) => {
                 tracing::warn!(
@@ -318,7 +345,7 @@ impl Runtime for WorldSession {
                     reason,
                     "Normal server cast cost authority unavailable"
                 );
-                false
+                Err(reason)
             }
         }
     }
@@ -330,6 +357,17 @@ impl Runtime for WorldSession {
         visual: &SpellCastVisualLikeCpp,
         metadata: SpellCastMetadata,
     ) -> bool {
+        self.check_preconditions_outcome(spell, cast, visual, metadata)
+            .unwrap_or(false)
+    }
+
+    fn check_preconditions_outcome(
+        &mut self,
+        spell: &wow_data::SpellInfo,
+        cast: ObjectGuid,
+        visual: &SpellCastVisualLikeCpp,
+        metadata: SpellCastMetadata,
+    ) -> Result<bool, &'static str> {
         match wow_world_spell::check_represented_cast_preparation_like_cpp(
             self,
             spell,
@@ -337,15 +375,15 @@ impl Runtime for WorldSession {
             &crate::spell_cast_adapter::present_visual(visual.clone()),
             metadata,
         ) {
-            Ok(Some(_)) => true,
-            Ok(None) => false,
+            Ok(Some(_)) => Ok(true),
+            Ok(None) => Ok(false),
             Err(reason) => {
                 tracing::warn!(
                     spell_id = spell.spell_id,
                     reason,
                     "Cast preparation lost canonical inputs"
                 );
-                false
+                Err(reason)
             }
         }
     }

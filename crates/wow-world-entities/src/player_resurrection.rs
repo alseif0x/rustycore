@@ -8,8 +8,8 @@
 //! C++ source of truth: `Player::ResurrectPlayer` (`Player.cpp:4320`) and
 //! `WorldSession::HandleReclaimCorpse` (`MiscHandler.cpp:416-445`).
 //!
-//! Still outstanding: `OutdoorPvPMgr::HandlePlayerResurrects`,
-//! `Battleground::HandlePlayerResurrect` and `CastAllObtainSpells`.
+//! Still outstanding: `OutdoorPvPMgr::HandlePlayerResurrects` and
+//! `Battleground::HandlePlayerResurrect`.
 
 use tracing::warn;
 use wow_constants::PowerType;
@@ -27,13 +27,22 @@ use crate::{CorpseHostLikeCpp, player_corpse_like_cpp, player_in_arena_like_cpp}
 /// C++ `PLAYER_FLAGS_IS_OUT_OF_BOUNDS` (`Player.h:438`).
 pub(crate) const PLAYER_FLAGS_IS_OUT_OF_BOUNDS: u32 = 0x0000_4000;
 
-/// C++ `Player::ResurrectPlayer(restore_percent, applySickness)`.
+/// One-shot test/helper boundary for C++ `Player::ResurrectPlayer`.
+///
+/// Production resurrection consumers must retain their Player-owned
+/// continuation through visibility and obtain spells; this wrapper has no
+/// resumable owner if its future is cancelled and is not production-composition
+/// evidence.
 pub async fn resurrect_player_like_cpp<H: CorpseHostLikeCpp>(
     host: &mut H,
     catalogs: ResurrectionOperationCatalogs<'_>,
     restore_percent: f32,
     apply_sickness: bool,
 ) -> Result<(), &'static str> {
+    let owner = crate::recovery_fences::owner(host);
+    if host.core().player_handle_like_cpp.is_some() && owner.is_none() {
+        return Err("canonical Player incarnation unavailable for resurrection");
+    }
     if let Err(reason) = resurrect_player_native(host, restore_percent) {
         warn!(
             account = host.core().account_id,
@@ -42,7 +51,17 @@ pub async fn resurrect_player_like_cpp<H: CorpseHostLikeCpp>(
         return Err(reason);
     }
     finish_resurrection_visibility(host, catalogs).await;
+    if owner.is_some_and(|owner| {
+        !crate::recovery_fences::owner_is_current_in_residence(host, owner)
+    }) {
+        return Err("canonical Player incarnation or residence changed after visibility update");
+    }
     host.cast_all_obtain_spells_like_cpp(catalogs).await?;
+    if owner.is_some_and(|owner| {
+        !crate::recovery_fences::owner_is_current_in_residence(host, owner)
+    }) {
+        return Err("canonical Player incarnation or residence changed after obtain spells");
+    }
     if apply_sickness {
         apply_resurrection_sickness(host, catalogs).await;
     }

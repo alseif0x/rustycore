@@ -135,6 +135,16 @@ fn continuation(host: &impl CorpseHostLikeCpp) -> Option<PlayerResurrectionConti
     canonical
 }
 
+fn owner_residence_current(
+    host: &impl CorpseHostLikeCpp,
+    owner: Option<crate::recovery_fences::Owner>,
+) -> bool {
+    match owner {
+        Some(owner) => crate::recovery_fences::owner_is_current_in_residence(host, owner),
+        None => host.core().player_handle_like_cpp.is_none(),
+    }
+}
+
 pub fn player_resurrection_continuation_pending(
     host: &impl CorpseHostLikeCpp,
 ) -> bool {
@@ -375,6 +385,10 @@ pub(crate) async fn process_after_teleport(
     let PlayerResurrectionOperation::RequestData(request) = continuation.operation else {
         return false;
     };
+    let owner = crate::recovery_fences::owner(host);
+    if !owner_residence_current(host, owner) {
+        return false;
+    }
     if !no_teleport_pending(host) {
         return false;
     }
@@ -452,11 +466,13 @@ pub(crate) async fn process_after_teleport(
     }
     if continuation.phase == PlayerResurrectionPhase::VisibilityInFlight {
         super::player_resurrection::finish_resurrection_visibility(host, catalogs).await;
-        if !advance_phase(
+        if !owner_residence_current(host, owner)
+            || !advance_phase(
             host,
             PlayerResurrectionPhase::VisibilityInFlight,
             PlayerResurrectionPhase::ObtainSpellsInFlight,
-        ) {
+        )
+        {
             return false;
         }
         continuation.phase = PlayerResurrectionPhase::ObtainSpellsInFlight;
@@ -466,11 +482,13 @@ pub(crate) async fn process_after_teleport(
             tracing::warn!(reason, "Request resurrection obtain-spell phase failed");
             return false;
         }
-        if !advance_phase(
+        if !owner_residence_current(host, owner)
+            || !advance_phase(
             host,
             PlayerResurrectionPhase::ObtainSpellsInFlight,
             PlayerResurrectionPhase::ApplyRequestValues,
-        ) {
+        )
+        {
             return false;
         }
         continuation.phase = PlayerResurrectionPhase::ApplyRequestValues;
@@ -614,6 +632,10 @@ pub(crate) async fn run_teleport_revive(
     let Some(continuation) = continuation(host) else {
         return false;
     };
+    let owner = crate::recovery_fences::owner(host);
+    if !owner_residence_current(host, owner) {
+        return false;
+    }
     let PlayerResurrectionOperation::TeleportRevivePercent {
         map_id: _,
         position: _,
@@ -649,22 +671,26 @@ pub(crate) async fn run_teleport_revive(
         return false;
     }
     super::player_resurrection::finish_resurrection_visibility(host, catalogs).await;
-    if !advance_phase(
+    if !owner_residence_current(host, owner)
+        || !advance_phase(
         host,
         PlayerResurrectionPhase::VisibilityInFlight,
         PlayerResurrectionPhase::ObtainSpellsInFlight,
-    ) {
+    )
+    {
         return false;
     }
     if let Err(reason) = host.cast_all_obtain_spells_like_cpp(catalogs).await {
         tracing::warn!(reason, "Teleport resurrection obtain-spell phase failed");
         return false;
     }
-    if !advance_phase(
+    if !owner_residence_current(host, owner)
+        || !advance_phase(
         host,
         PlayerResurrectionPhase::ObtainSpellsInFlight,
         PlayerResurrectionPhase::Complete,
-    ) {
+    )
+    {
         return false;
     }
     clear_completed(host)

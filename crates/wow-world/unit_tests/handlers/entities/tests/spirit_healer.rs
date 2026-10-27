@@ -39,6 +39,8 @@ use selected_execution_effects::{
 #[path = "spirit_healer/native_outcome.rs"]
 mod native_outcome;
 pub(super) use native_outcome::remove_ghost_spell_metadata;
+#[path = "spirit_healer/obtain.rs"]
+mod obtain;
 #[path = "spirit_healer/recovery_fences.rs"]
 mod recovery_fences;
 #[path = "spirit_healer/selected_lifetime.rs"]
@@ -52,6 +54,27 @@ use setup::*;
 pub(super) fn install_recovery_sickness_fixture(session: &mut WorldSession) {
     set_race_sickness_spell(session, SICKNESS_SPELL);
     install_sickness_data(session, SICKNESS_SPELL, Some(69));
+}
+
+pub(super) fn install_recovery_sickness_fixture_with_normal_cast_costs(
+    session: &mut WorldSession,
+) {
+    set_race_sickness_spell(session, SICKNESS_SPELL);
+    install_sickness_data_with_cast_costs(
+        session,
+        SICKNESS_SPELL,
+        Some(69),
+        Some(wow_data::SpellCastCostStoreLikeCpp::default()),
+    );
+    install_normal_sickness_cast_payload(
+        session,
+        wow_data::SpellCastCostStoreLikeCpp::default(),
+    );
+    session.set_spell_category_store(std::sync::Arc::new(
+        wow_data::SpellCategoryStore::from_entries([]),
+    ));
+    session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
+    session.mark_represented_character_spell_charges_loaded_like_cpp();
 }
 
 pub(super) fn recovery_sickness_is_present(session: &WorldSession) -> bool {

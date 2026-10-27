@@ -82,7 +82,11 @@ pub async fn apply_inventory_item_obtain_spells_with_generator_like_cpp<
     creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
     item_guid: ObjectGuid,
 ) -> Result<Vec<i32>, &'static str> {
-    let (item_entry, item_level) = host
+    let owner = obtain_player_residence_like_cpp(host);
+    if host.core().player_handle_like_cpp.is_some() && owner.is_none() {
+        return Err("active canonical Player residence unavailable for item obtain cast");
+    }
+    let (item_entry, _) = host
         .server_normal_physical_item_facts_like_cpp(item_guid)
         .ok_or("physical obtain item owner or effective item level unavailable")?;
     let item_flags = host
@@ -113,6 +117,9 @@ pub async fn apply_inventory_item_obtain_spells_with_generator_like_cpp<
     };
     let mut applied = Vec::new();
     for spell_id in spell_ids {
+        if let Some(owner) = owner {
+            ensure_obtain_player_residence_like_cpp(host, owner)?;
+        }
         let has_aura = {
             let hub = host.hub_ref();
             if hub.player_aura_authority_ready_like_cpp() != Some(true) {
@@ -126,15 +133,22 @@ pub async fn apply_inventory_item_obtain_spells_with_generator_like_cpp<
         if has_aura {
             continue;
         }
+        // C++ `Spell::prepare` reads cast-item identity and item level for
+        // every CastSpell call; an earlier effect may have changed the live
+        // item or Player level while the selected ItemEffect sequence remains
+        // fixed for this invocation.
+        let (cast_item_entry, cast_item_level) = host
+            .server_normal_physical_item_facts_like_cpp(item_guid)
+            .ok_or("physical obtain item owner or effective item level unavailable")?;
         let metadata = SpellCastMetadata {
-            cast_item_entry: Some(item_entry),
+            cast_item_entry: Some(cast_item_entry),
             cast_item_guid: Some(item_guid),
-            cast_item_level: Some(item_level),
+            cast_item_level: Some(cast_item_level),
             ..SpellCastMetadata::default()
         };
         // C++ `ApplyItemObtainSpells` uses normal `CastSpell` with a physical
         // cast item and default CastSpellExtraArgs trigger flags.
-        if crate::cast_server_normal_player_spell_with_generator_like_cpp(
+        let casted = crate::try_cast_server_normal_player_spell_with_generator_like_cpp(
             host,
             item_guid_generator,
             creature_spawn_catalogs,
@@ -142,8 +156,11 @@ pub async fn apply_inventory_item_obtain_spells_with_generator_like_cpp<
             player_guid,
             metadata,
         )
-        .await
-        {
+        .await?;
+        if let Some(owner) = owner {
+            ensure_obtain_player_residence_like_cpp(host, owner)?;
+        }
+        if casted {
             applied.push(spell_id);
         }
     }
@@ -158,40 +175,28 @@ pub async fn cast_all_obtain_spells_like_cpp<H: PlayerCastHostLikeCpp>(
     item_guid_generator: &wow_core::ObjectGuidGenerator,
     creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
 ) -> Result<(), &'static str> {
-    let positions = host
+    let owner = obtain_player_residence_like_cpp(host)
+        .ok_or("active canonical Player residence unavailable for obtain scan")?;
+    let backpack_end = host
         .core()
-        .with_owned_player_like_cpp(|player| player.cast_all_obtain_item_positions_like_cpp())
+        .with_owned_player_like_cpp(|player| player.cast_all_obtain_backpack_end_like_cpp())
         .ok_or("canonical inventory owner unavailable for obtain scan")?
         .ok_or("complete backpack and bag inventory authority unavailable")?;
 
-    for (bag, slot) in positions {
+    // C++ freezes INVENTORY_SLOT_ITEM_START + GetInventorySlotCount() once.
+    for slot in wow_entities::INVENTORY_SLOT_ITEM_START..backpack_end {
+        ensure_obtain_player_residence_like_cpp(host, owner)?;
         let item_guid = host
             .core()
             .with_owned_player_like_cpp(|player| {
-                if !player
-                    .inventory_runtime_like_cpp()
-                    .equipment_inventory_authority_complete_like_cpp()
-                {
-                    return Err("inventory authority became unavailable during obtain scan");
-                }
-                let Some(item_guid) = player.get_item_by_pos(bag, slot) else {
-                    return Ok(None);
-                };
-                let Some(item) = player
-                    .inventory_runtime_like_cpp()
-                    .item_objects()
-                    .get(&item_guid)
-                else {
-                    return Err("live obtain slot has no canonical physical item");
-                };
-                if item.owner_guid() != player.guid()
-                    || item.update_state() == wow_constants::ItemUpdateState::Removed
-                {
-                    return Err("live obtain slot physical item identity is invalid");
-                }
-                Ok(Some(item_guid))
+                player.cast_all_obtain_item_at_like_cpp(
+                    wow_entities::INVENTORY_SLOT_BAG_0,
+                    slot,
+                    None,
+                )
             })
-            .ok_or("canonical inventory owner disappeared during obtain scan")??;
+            .ok_or("canonical inventory owner disappeared during obtain scan")?
+            .ok_or("inventory authority became unavailable during obtain scan")?;
         let Some(item_guid) = item_guid else {
             continue;
         };
@@ -202,6 +207,83 @@ pub async fn cast_all_obtain_spells_like_cpp<H: PlayerCastHostLikeCpp>(
             item_guid,
         ))
         .await?;
+        ensure_obtain_player_residence_like_cpp(host, owner)?;
+    }
+
+    // C++ resolves each bag only after all earlier backpack/bag casts return.
+    for bag_slot in wow_entities::INVENTORY_SLOT_BAG_START..wow_entities::INVENTORY_SLOT_BAG_END {
+        ensure_obtain_player_residence_like_cpp(host, owner)?;
+        let bag = host
+            .core()
+            .with_owned_player_like_cpp(|player| player.cast_all_obtain_bag_like_cpp(bag_slot))
+            .ok_or("canonical inventory owner disappeared during obtain bag scan")?
+            .ok_or("inventory authority became unavailable during obtain bag scan")?;
+        let Some((bag_guid, bag_size)) = bag else {
+            continue;
+        };
+
+        for slot in 0..bag_size {
+            ensure_obtain_player_residence_like_cpp(host, owner)?;
+            let item_guid = host
+                .core()
+                .with_owned_player_like_cpp(|player| {
+                    player.cast_all_obtain_item_at_like_cpp(bag_slot, slot, Some(bag_guid))
+                })
+                .ok_or("canonical inventory owner disappeared during obtain bag scan")?
+                .ok_or("inventory authority became unavailable during obtain bag scan")?;
+            let Some(item_guid) = item_guid else {
+                continue;
+            };
+            Box::pin(apply_inventory_item_obtain_spells_with_generator_like_cpp(
+                host,
+                item_guid_generator,
+                creature_spawn_catalogs,
+                item_guid,
+            ))
+            .await?;
+            ensure_obtain_player_residence_like_cpp(host, owner)?;
+        }
     }
     Ok(())
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct ObtainPlayerResidenceLikeCpp {
+    handle: wow_map::PlayerHandle,
+    guid: ObjectGuid,
+    map_key: wow_map::MapKey,
+    revision: u64,
+}
+
+fn obtain_player_residence_like_cpp<H: PlayerCastHostLikeCpp>(
+    host: &H,
+) -> Option<ObtainPlayerResidenceLikeCpp> {
+    let handle = host.core().player_handle_like_cpp?;
+    let guid = host.player_guid()?;
+    if handle.guid() != guid {
+        return None;
+    }
+    let manager = host.core().canonical_map_manager.as_ref()?.lock().ok()?;
+    let (map_key, revision) = manager.player_active_residence_revision_like_cpp(handle)?;
+    drop(manager);
+    host.core()
+        .with_owned_player_like_cpp(|player| player.guid() == guid)
+        .filter(|matches| *matches)?;
+    Some(ObtainPlayerResidenceLikeCpp {
+        handle,
+        guid,
+        map_key,
+        revision,
+    })
+}
+
+fn ensure_obtain_player_residence_like_cpp<H: PlayerCastHostLikeCpp>(
+    host: &H,
+    expected: ObtainPlayerResidenceLikeCpp,
+) -> Result<(), &'static str> {
+    if obtain_player_residence_like_cpp(host) == Some(expected) {
+        Ok(())
+    } else {
+        Err("canonical Player incarnation or residence changed during obtain scan")
+    }
 }
