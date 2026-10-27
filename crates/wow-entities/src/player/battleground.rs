@@ -56,8 +56,16 @@ impl PlayerBattlegroundState {
         self.represented_type_id
     }
 
-    /// C++ `Player::InBattleground` (`Player.h:2335`), which asks whether the
-    /// Player is in one at all.
+    /// C++ `Player::GetBattlegroundId` (`Player.h:2337`) over
+    /// `m_bgData.bgInstanceID`; zero is represented as `None`.
+    #[must_use]
+    pub fn battleground_instance_id_like_cpp(&self) -> Option<u32> {
+        self.current_bg_instance_id
+    }
+
+    /// Legacy represented membership inferred from the recorded type.
+    /// Native C++ `Player::InBattleground` (`Player.h:2335`) instead checks
+    /// the nonzero instance returned by `battleground_instance_id_like_cpp`.
     #[must_use]
     pub fn in_battleground_like_cpp(&self) -> bool {
         self.represented_type_id.is_some()
@@ -117,6 +125,13 @@ impl PlayerBattlegroundState {
 
     // ---- transitions -------------------------------------------------------
 
+    /// Record C++ `Player::SetBattlegroundId`'s `bgInstanceID` value.
+    ///
+    /// Zero means the Player is not in a battleground and is stored as `None`.
+    pub fn set_battleground_instance_id_like_cpp(&mut self, instance_id: u32) {
+        self.current_bg_instance_id = (instance_id != 0).then_some(instance_id);
+    }
+
     /// Record the battleground type the Player belongs to, as C++ assigns
     /// `m_bgData.bgTypeID`. A zero type is `BATTLEGROUND_TYPE_NONE` and clears
     /// it.
@@ -162,6 +177,23 @@ impl super::Player {
     /// state without exposing the composite mutable state to Session.
     pub fn battleground_state_like_cpp(&self) -> PlayerBattlegroundState {
         self.gameplay_state().battleground.clone()
+    }
+
+    /// Read C++ `Player::GetBattlegroundId` from the Player-owned battleground
+    /// state; zero is represented as `None`.
+    #[must_use]
+    pub fn battleground_instance_id_like_cpp(&self) -> Option<u32> {
+        self.gameplay_state()
+            .battleground
+            .battleground_instance_id_like_cpp()
+    }
+
+    /// Record C++ `Player::SetBattlegroundId`'s instance value in Player-owned
+    /// battleground state; zero clears it.
+    pub fn set_battleground_instance_id_like_cpp(&mut self, instance_id: u32) {
+        self.gameplay_state_mut()
+            .battleground
+            .set_battleground_instance_id_like_cpp(instance_id);
     }
 
     /// Record the represented battleground type in the Player-owned `m_bgData`.
@@ -233,5 +265,21 @@ mod tests {
                 .battleground_status_like_cpp(),
             None
         );
+    }
+
+    #[test]
+    fn battleground_instance_id_uses_zero_as_the_cpp_absent_sentinel() {
+        let mut player = Player::new(Some(9), false);
+        player.set_battleground_type_id_like_cpp(5);
+
+        assert_eq!(player.battleground_instance_id_like_cpp(), None);
+        player.set_battleground_instance_id_like_cpp(72);
+        assert_eq!(player.battleground_instance_id_like_cpp(), Some(72));
+        player.set_battleground_instance_id_like_cpp(0);
+
+        assert_eq!(player.battleground_instance_id_like_cpp(), None);
+        let state = player.battleground_state_like_cpp();
+        assert_eq!(state.battleground_type_id_like_cpp(), Some(5));
+        assert!(state.in_battleground_like_cpp());
     }
 }

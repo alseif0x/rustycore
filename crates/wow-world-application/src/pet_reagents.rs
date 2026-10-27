@@ -9,6 +9,7 @@ use wow_entities::{PlayerInventoryItem, SendNewItemArgs, SendNewItemTemplateRef}
 use wow_packet::packets::update::{ItemCreateData, ItemEnchantmentValuesUpdate, UpdateObject};
 use wow_world_entities::CreatureSpawnCatalogsLikeCpp;
 use wow_world_inventory::VendorSessionHostLikeCpp;
+use wow_world_lifecycle::PlayerMoneyCommitCancellationFenceLikeCpp;
 use wow_world_quest::{QuestItemStorageHostLikeCpp, QuestSessionHostLikeCpp};
 use wow_world_spell::PlayerCastHostLikeCpp;
 
@@ -30,6 +31,7 @@ pub enum PetReagentReturnOutcome {
 /// Unsupported item publication metadata is rejected before any mutation.
 pub async fn return_pet_reagent_like_cpp<H>(
     host: &mut H,
+    fence: &mut PlayerMoneyCommitCancellationFenceLikeCpp,
     item_guids: &ObjectGuidGenerator,
     creature_spawns: &CreatureSpawnCatalogsLikeCpp,
     entry_id: u32,
@@ -116,6 +118,10 @@ where
     if total != count {
         return Err("pet reagent destination count does not match admission");
     }
+    // Admission, item catalogs, addon metadata and count checks above are
+    // read-only. From this callback onward quest state may have changed, so
+    // cancellation must keep the enclosing pet-removal operation fenced.
+    fence.arm_like_cpp();
     if let Some(bound) =
         wow_world_quest::apply_quest_source_item_bound_objective_preflight_with_generator_like_cpp(
             host,

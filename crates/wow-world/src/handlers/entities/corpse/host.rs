@@ -101,6 +101,25 @@ fn resurrection_operation_catalogs(
 }
 
 impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
+    fn remove_pet_for_repop_like_cpp(
+        &mut self,
+        catalogs: wow_world_entities::CorpseLifecycleCatalogsLikeCpp<'_>,
+    ) -> impl std::future::Future<Output = Result<(), &'static str>> + Send {
+        async move {
+            let result =
+                wow_world_application::remove_pet_not_in_slot_like_cpp(self, catalogs).await;
+            if let Err(reason) = result
+                && self
+                    .lifecycle
+                    .durable_loot_money_persistence_tracker_like_cpp()
+                    .is_indeterminate_like_cpp()
+            {
+                self.core.kick(reason);
+            }
+            result
+        }
+    }
+
     fn teleport_to_with_options_like_cpp(
         &mut self,
         catalogs: wow_world_entities::ResurrectionOperationCatalogs<'_>,

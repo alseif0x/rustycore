@@ -11,14 +11,280 @@ use wow_packet::WorldPacket;
 const PET_REAGENT_ENTRY: u32 = 847_121;
 
 #[tokio::test]
+async fn pet_removal_refunds_temporary_pet_once_and_preserves_stale_guid() {
+    let (mut session, send_rx) = make_session();
+    let owner = install_pet_reagent_fixture(&mut session, 0);
+    const SUMMON: u32 = 847_122;
+    let mut spells = crate::selected_spell_fixtures::canonical_spell_store([(SUMMON, 0)]);
+    spells.install_effective_cast_costs_like_cpp(
+        wow_data::SpellCastCostStoreLikeCpp::from_effective_rows_like_cpp(
+            [wow_data::SpellReagentsEntry {
+                id: 1,
+                spell_id: SUMMON as i32,
+                reagent: [PET_REAGENT_ENTRY as i32, 0, 0, 0, 0, 0, 0, 0],
+                reagent_count: [1, 0, 0, 0, 0, 0, 0, 0],
+            }],
+            [],
+        ),
+    );
+    session.set_spell_store(Arc::new(spells));
+    session.catalogs.spell_catalogs.serverside_spell_store =
+        Some(Arc::new(wow_data::ServersideSpellStoreLikeCpp::default()));
+    let stale = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 1, 847_123);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.set_pet_guid_like_cpp(Some(stale));
+            // A type alone is not C++ `InBattleground`; the instance ID is.
+            player.set_battleground_type_id_like_cpp(5);
+            player.set_battleground_instance_id_like_cpp(0);
+            let pets = player.pet_lifecycle_state_mut_like_cpp();
+            pets.temporary_unsummoned_pet_number = 42;
+            pets.old_pet_spell = SUMMON;
+            pets.stable.current_pet_index = Some(0);
+        })
+        .unwrap();
+    let generators = session.id_generators_for_test_like_cpp();
+    let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
+    let graveyards = wow_data::GraveyardStore::default();
+    let catalogs = wow_world_entities::CorpseLifecycleCatalogsLikeCpp {
+        item_guid_generator: generators.item.as_ref(),
+        creature_spawns: &creature_spawns,
+        graveyards: &graveyards,
+    };
+
+    wow_world_application::remove_pet_not_in_slot_like_cpp(&mut session, catalogs)
+        .await
+        .unwrap();
+    assert_item_push_result(
+        &send_rx,
+        owner,
+        i32::from(wow_entities::INVENTORY_SLOT_ITEM_START),
+        1,
+    );
+    let state = session
+        .core
+        .with_owned_player_like_cpp(|player| {
+            let pets = player.pet_lifecycle_state_like_cpp();
+            (
+                player.gameplay_state().pet_guid,
+                pets.temporary_unsummoned_pet_number,
+                pets.stable.current_pet_index,
+            )
+        })
+        .unwrap();
+    assert_eq!(state, (Some(stale), 0, None));
+    assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| (
+            player
+                .battleground_state_like_cpp()
+                .battleground_type_id_like_cpp(),
+            player.battleground_instance_id_like_cpp(),
+        )),
+        Some((Some(5), None))
+    );
+    wow_world_application::remove_pet_not_in_slot_like_cpp(&mut session, catalogs)
+        .await
+        .unwrap();
+    assert_no_equip_error_or_item_push_result(&send_rx);
+    assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| {
+            player
+                .inventory_runtime_like_cpp()
+                .item_objects()
+                .values()
+                .filter(|item| item.object().entry() == PET_REAGENT_ENTRY)
+                .map(|item| item.count())
+                .sum::<u32>()
+        }),
+        Some(1)
+    );
+}
+
+#[tokio::test]
+async fn pet_removal_keeps_temporary_marker_in_active_battleground_without_reagent_metadata() {
+    let (mut session, send_rx) = make_session();
+    let _owner = install_pet_reagent_fixture(&mut session, 0);
+    const MISSING_SUMMON: u32 = 847_124;
+    let stale = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 1, 847_125);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.set_pet_guid_like_cpp(Some(stale));
+            player.set_battleground_instance_id_like_cpp(31);
+            let pets = player.pet_lifecycle_state_mut_like_cpp();
+            pets.temporary_unsummoned_pet_number = 42;
+            pets.old_pet_spell = MISSING_SUMMON;
+            pets.stable.current_pet_index = Some(0);
+        })
+        .unwrap();
+    let generators = session.id_generators_for_test_like_cpp();
+    let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
+    let graveyards = wow_data::GraveyardStore::default();
+    let catalogs = wow_world_entities::CorpseLifecycleCatalogsLikeCpp {
+        item_guid_generator: generators.item.as_ref(),
+        creature_spawns: &creature_spawns,
+        graveyards: &graveyards,
+    };
+
+    wow_world_application::remove_pet_not_in_slot_like_cpp(&mut session, catalogs)
+        .await
+        .unwrap();
+
+    assert_no_equip_error_or_item_push_result(&send_rx);
+    assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| {
+            let pets = player.pet_lifecycle_state_like_cpp();
+            (
+                player.gameplay_state().pet_guid,
+                pets.temporary_unsummoned_pet_number,
+                pets.old_pet_spell,
+                pets.stable.current_pet_index,
+                player.battleground_instance_id_like_cpp(),
+            )
+        }),
+        Some((Some(stale), 42, MISSING_SUMMON, None, Some(31)))
+    );
+    assert!(
+        !session
+            .durable_loot_money_persistence_tracker_like_cpp()
+            .is_indeterminate_like_cpp()
+    );
+}
+
+#[tokio::test]
+async fn pet_removal_missing_summon_catalog_preserves_markers_when_no_battleground_instance() {
+    let (mut session, send_rx) = make_session();
+    let _owner = install_pet_reagent_fixture(&mut session, 0);
+    const MISSING_SUMMON: u32 = 847_126;
+    let stale = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 1, 847_127);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.set_pet_guid_like_cpp(Some(stale));
+            player.set_battleground_type_id_like_cpp(5);
+            player.set_battleground_instance_id_like_cpp(0);
+            let pets = player.pet_lifecycle_state_mut_like_cpp();
+            pets.temporary_unsummoned_pet_number = 42;
+            pets.old_pet_spell = MISSING_SUMMON;
+            pets.stable.current_pet_index = Some(0);
+        })
+        .unwrap();
+    let generators = session.id_generators_for_test_like_cpp();
+    let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
+    let graveyards = wow_data::GraveyardStore::default();
+    let catalogs = wow_world_entities::CorpseLifecycleCatalogsLikeCpp {
+        item_guid_generator: generators.item.as_ref(),
+        creature_spawns: &creature_spawns,
+        graveyards: &graveyards,
+    };
+
+    assert_eq!(
+        wow_world_application::remove_pet_not_in_slot_like_cpp(&mut session, catalogs).await,
+        Err("pet summon spell catalog is unavailable")
+    );
+
+    assert_no_equip_error_or_item_push_result(&send_rx);
+    assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| {
+            let pets = player.pet_lifecycle_state_like_cpp();
+            (
+                player.gameplay_state().pet_guid,
+                pets.temporary_unsummoned_pet_number,
+                pets.old_pet_spell,
+                pets.stable.current_pet_index,
+                player.battleground_instance_id_like_cpp(),
+            )
+        }),
+        Some((Some(stale), 42, MISSING_SUMMON, Some(0), None))
+    );
+    assert!(
+        !session
+            .durable_loot_money_persistence_tracker_like_cpp()
+            .is_indeterminate_like_cpp()
+    );
+}
+
+#[tokio::test]
+async fn pet_removal_unavailable_item_metadata_preserves_markers_and_inventory() {
+    let (mut session, send_rx) = make_session();
+    install_pet_reagent_fixture(&mut session, 0);
+    const SUMMON: u32 = 847_128;
+    let mut spells = crate::selected_spell_fixtures::canonical_spell_store([(SUMMON, 0)]);
+    spells.install_effective_cast_costs_like_cpp(
+        wow_data::SpellCastCostStoreLikeCpp::from_effective_rows_like_cpp(
+            [wow_data::SpellReagentsEntry {
+                id: 2,
+                spell_id: SUMMON as i32,
+                reagent: [PET_REAGENT_ENTRY as i32, 0, 0, 0, 0, 0, 0, 0],
+                reagent_count: [1, 0, 0, 0, 0, 0, 0, 0],
+            }],
+            [],
+        ),
+    );
+    session.set_spell_store(Arc::new(spells));
+    session.catalogs.spell_catalogs.serverside_spell_store =
+        Some(Arc::new(wow_data::ServersideSpellStoreLikeCpp::default()));
+    session.catalogs.items.effect_store = None;
+
+    let stale = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 1, 847_129);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.set_pet_guid_like_cpp(Some(stale));
+            let pets = player.pet_lifecycle_state_mut_like_cpp();
+            pets.temporary_unsummoned_pet_number = 42;
+            pets.old_pet_spell = SUMMON;
+            pets.stable.current_pet_index = Some(0);
+        })
+        .unwrap();
+    let generators = session.id_generators_for_test_like_cpp();
+    let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
+    let graveyards = wow_data::GraveyardStore::default();
+    let catalogs = wow_world_entities::CorpseLifecycleCatalogsLikeCpp {
+        item_guid_generator: generators.item.as_ref(),
+        creature_spawns: &creature_spawns,
+        graveyards: &graveyards,
+    };
+
+    assert_eq!(
+        wow_world_application::remove_pet_not_in_slot_like_cpp(&mut session, catalogs).await,
+        Err("pet reagent ItemEffect metadata is unavailable")
+    );
+
+    assert_no_equip_error_or_item_push_result(&send_rx);
+    assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| {
+            let pets = player.pet_lifecycle_state_like_cpp();
+            (
+                player.gameplay_state().pet_guid,
+                pets.temporary_unsummoned_pet_number,
+                pets.old_pet_spell,
+                pets.stable.current_pet_index,
+                player.inventory_runtime_like_cpp().inventory_items().len(),
+                player.inventory_runtime_like_cpp().item_objects().len(),
+            )
+        }),
+        Some((Some(stale), 42, SUMMON, Some(0), 0, 0))
+    );
+    assert!(
+        !session
+            .durable_loot_money_persistence_tracker_like_cpp()
+            .is_indeterminate_like_cpp()
+    );
+}
+
+#[tokio::test]
 async fn pet_reagent_return_creates_then_merges_canonical_item_and_pushes_each_time() {
     let (mut session, send_rx) = make_session();
     let owner = install_pet_reagent_fixture(&mut session, 0);
 
     let generators = session.id_generators_for_test_like_cpp();
     let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
+    let mut fence = disarmed_pet_reagent_fence(&session);
     let first_guid = match wow_world_application::return_pet_reagent_like_cpp(
         &mut session,
+        &mut fence,
         generators.item.as_ref(),
         &creature_spawns,
         PET_REAGENT_ENTRY,
@@ -44,6 +310,7 @@ async fn pet_reagent_return_creates_then_merges_canonical_item_and_pushes_each_t
 
     let second_guid = match wow_world_application::return_pet_reagent_like_cpp(
         &mut session,
+        &mut fence,
         generators.item.as_ref(),
         &creature_spawns,
         PET_REAGENT_ENTRY,
@@ -55,6 +322,7 @@ async fn pet_reagent_return_creates_then_merges_canonical_item_and_pushes_each_t
         wow_world_application::PetReagentReturnOutcome::Stored(guid) => guid,
         outcome => panic!("expected the existing reagent stack, got {outcome:?}"),
     };
+    fence.disarm_like_cpp();
     assert_eq!(second_guid, first_guid);
     assert_item_push_result(&send_rx, owner, -1, 2);
     assert!(quest_status_authority_complete(&session));
@@ -126,9 +394,11 @@ async fn pet_reagent_inventory_rejection_preserves_stack_and_sends_no_error_or_p
     let owner = install_pet_reagent_fixture(&mut session, 1);
     let generators = session.id_generators_for_test_like_cpp();
     let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
+    let mut fence = disarmed_pet_reagent_fence(&session);
 
     let stored_guid = match wow_world_application::return_pet_reagent_like_cpp(
         &mut session,
+        &mut fence,
         generators.item.as_ref(),
         &creature_spawns,
         PET_REAGENT_ENTRY,
@@ -149,6 +419,7 @@ async fn pet_reagent_inventory_rejection_preserves_stack_and_sends_no_error_or_p
 
     let outcome = wow_world_application::return_pet_reagent_like_cpp(
         &mut session,
+        &mut fence,
         generators.item.as_ref(),
         &creature_spawns,
         PET_REAGENT_ENTRY,
@@ -162,6 +433,7 @@ async fn pet_reagent_inventory_rejection_preserves_stack_and_sends_no_error_or_p
             wow_constants::InventoryResult::ItemMaxCount
         )
     );
+    fence.disarm_like_cpp();
     assert_no_equip_error_or_item_push_result(&send_rx);
 
     let (inventory_row, item, active_inventory_guid, entry_rows, entry_objects) = session
@@ -267,6 +539,16 @@ fn install_pet_reagent_fixture(session: &mut WorldSession, max_count: u32) -> Ob
     assert!(inventory_authority_complete);
     assert!(quest_status_authority_complete(session));
     owner
+}
+
+fn disarmed_pet_reagent_fence(
+    session: &WorldSession,
+) -> crate::session::PlayerMoneyCommitCancellationFenceLikeCpp {
+    crate::session::PlayerMoneyCommitCancellationFenceLikeCpp::new_disarmed_like_cpp(
+        session
+            .durable_loot_money_persistence_tracker_like_cpp()
+            .clone(),
+    )
 }
 
 fn quest_status_authority_complete(session: &WorldSession) -> bool {

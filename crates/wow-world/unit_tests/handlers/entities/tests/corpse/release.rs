@@ -11,6 +11,114 @@ use wow_persistence::{
     MapCorpseLoadRequestLikeCpp, MapCorpsePersistencePortLikeCpp, PersistenceFutureLikeCpp,
 };
 
+#[tokio::test]
+async fn release_clears_absent_pet_stable_slot_without_erasing_stale_guid() {
+    let (mut session, _send_rx, _realm_rx, _owner, port) =
+        dead_player_session_with_graveyard_like_cpp(9_240);
+    let stale =
+        ObjectGuid::create_world_object(wow_core::guid::HighGuid::Pet, 0, 1, 571, 0, 1, 9_241);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.set_pet_guid_like_cpp(Some(stale));
+            player
+                .pet_lifecycle_state_mut_like_cpp()
+                .stable
+                .current_pet_index = Some(0);
+        })
+        .unwrap();
+
+    handle_repop_request(&mut session, repop_request_packet(true)).await;
+
+    assert_eq!(
+        port.saves.lock().unwrap().len(),
+        1,
+        "release must reach corpse persistence"
+    );
+    assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| (
+            player.gameplay_state().pet_guid,
+            player
+                .pet_lifecycle_state_like_cpp()
+                .stable
+                .current_pet_index,
+        )),
+        Some((Some(stale), None))
+    );
+}
+
+#[tokio::test]
+async fn release_preserves_active_pet_when_removal_cannot_complete() {
+    let (mut session, send_rx, _realm_rx, owner, port) =
+        dead_player_session_with_graveyard_like_cpp(9_242);
+    let pet_guid =
+        ObjectGuid::create_world_object(wow_core::guid::HighGuid::Pet, 0, 1, 571, 0, 1, 9_243);
+    let mut pet = wow_entities::Pet::new(owner, wow_entities::PetType::Hunter);
+    pet.creature_mut()
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(pet_guid);
+    pet.creature_mut()
+        .unit_mut()
+        .world_mut()
+        .set_map(571, 0)
+        .unwrap();
+    session
+        .core
+        .canonical_map_manager
+        .as_ref()
+        .unwrap()
+        .lock()
+        .unwrap()
+        .find_map_mut(571, 0)
+        .unwrap()
+        .map_mut()
+        .insert_map_object_record(wow_entities::MapObjectRecord::new_pet(pet).unwrap())
+        .unwrap();
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.set_pet_guid_like_cpp(Some(pet_guid));
+            let pets = player.pet_lifecycle_state_mut_like_cpp();
+            pets.temporary_unsummoned_pet_number = 42;
+            pets.stable.current_pet_index = Some(0);
+        })
+        .unwrap();
+
+    handle_repop_request(&mut session, repop_request_packet(true)).await;
+
+    assert!(port.saves.lock().unwrap().is_empty());
+    assert!(current_corpse_guid_like_cpp(&session, owner).is_none());
+    assert_ne!(session.state(), crate::session::SessionState::Disconnecting);
+    assert!(!sent_opcodes(&send_rx).contains(&(ServerOpcodes::MoveTeleport as u16)));
+    assert_eq!(
+        session.core.with_owned_player_like_cpp(|player| {
+            let pets = player.pet_lifecycle_state_like_cpp();
+            (
+                player.gameplay_state().pet_guid,
+                pets.temporary_unsummoned_pet_number,
+                pets.stable.current_pet_index,
+            )
+        }),
+        Some((Some(pet_guid), 42, Some(0)))
+    );
+    assert!(
+        session
+            .core
+            .canonical_map_manager
+            .as_ref()
+            .unwrap()
+            .lock()
+            .unwrap()
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_pet(pet_guid)
+            .is_some_and(|pet| !pet.is_removed())
+    );
+}
+
 #[derive(Default)]
 struct GatedCorpseSavePort {
     receiver: Mutex<Option<flume::Receiver<CorpsePersistenceMutationOutcomeLikeCpp>>>,

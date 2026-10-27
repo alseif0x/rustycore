@@ -14,6 +14,8 @@ mod player_handlers;
 mod player_spell_costs;
 mod pet_reagents;
 pub use pet_reagents::{PetReagentReturnOutcome, return_pet_reagent_like_cpp};
+mod pet_removal;
+pub use pet_removal::remove_pet_not_in_slot_like_cpp;
 mod session_lifecycle;
 pub use continue_login::{
     ContinueLoginHostLikeCpp, PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP,

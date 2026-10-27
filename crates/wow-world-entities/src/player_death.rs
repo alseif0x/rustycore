@@ -21,7 +21,7 @@
 //! Not represented here (no Rust owner yet; tracked in #43's follow-ups):
 //! the Player-specific `setDeathState(JUST_DIED)` cleanup (`Player.cpp:1177`;
 //! its lethal callers need a central audit),
-//! `RemovePet(nullptr, PET_SAVE_NOT_IN_SLOT, true)`, `StopMirrorTimers` (no
+//! live-Pet persistence/cleanup inside `RemovePet`, `StopMirrorTimers` (no
 //! canonical mirror-timer owner or effective inputs are available yet),
 //! battleground/battlefield graveyard selectors and `OnPlayerRepop`.
 
@@ -758,7 +758,10 @@ pub async fn repop_request_like_cpp<H: CorpseHostLikeCpp>(
         kill_player_like_cpp(host);
     }
 
-    // RemovePet(nullptr, PET_SAVE_NOT_IN_SLOT, true): no Rust owner yet.
+    if let Err(reason) = host.remove_pet_for_repop_like_cpp(catalogs).await {
+        warn!(account = host.core().account_id, reason, "release pet removal failed");
+        return;
+    }
     if build_player_repop_like_cpp(host, catalogs).await {
         repop_at_graveyard_like_cpp(host, catalogs).await;
     }

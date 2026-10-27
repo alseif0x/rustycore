@@ -39,6 +39,11 @@ pub enum ResurrectionSaveOutcome {
 /// The World operations the moved corpse bodies still call; each is the
 /// same-named `WorldSession` operation.
 pub trait CorpseHostLikeCpp: PlayerMovementHostLikeCpp {
+    /// C++ Player::RemovePet(nullptr, PET_SAVE_NOT_IN_SLOT, true).
+    fn remove_pet_for_repop_like_cpp(
+        &mut self,
+        catalogs: crate::CorpseLifecycleCatalogsLikeCpp<'_>,
+    ) -> impl Future<Output = Result<(), &'static str>> + Send;
     fn graveyard_conditions_meet_like_cpp(
         &mut self,
         conditions_ref: &wow_data::ConditionsReference,

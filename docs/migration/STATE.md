@@ -3,6 +3,17 @@
 **#43 current summary — 2026-10-27, branch `43-spirit-healer`:**
 The macro remains open and has not passed final acceptance. Changes remain
 local to `43-spirit-healer`; this candidate has not been published or deployed.
+The working release path now invokes Application's pet-removal operation.
+Its absent-Pet branch resolves only the current Map, retains stale GUIDs,
+returns temporary-pet reagents once, and resets the stable selection. The live
+Pet save/cleanup continuation remains unavailable and stops release before
+corpse creation; no live-Pet completion is claimed. Focused coding feedback
+passed three absent-Pet cases and 75 `release_` cases, including preservation
+of an active Pet when removal cannot complete. The cancellation fence now
+starts before the first potentially mutating reagent callback, after read-only
+admission; Application compilation and 16 `pet_re` cases passed after that
+correction. Native lethal-death integration, final acceptance
+and authorized live DB/relogin evidence also remain outstanding.
 Recent checkpoints add canonical stats, reconciliation of all selected aura
 keys, selected load and refresh, signed durations, and an expiration executor
 driven by the admitted diff. 9i3C2 connects that executor, selected publication,
@@ -128,7 +139,7 @@ programmes to finish this issue.
 | Issue #43 criterion | Current evidence and remaining closure blocker |
 | --- | --- |
 | Lethal damage and native death | The local scalar repair makes lethal player melee enter JUST_DIED, records PvP death and stops subsequent swings; PowerBurn and creature spell-click no longer skip directly to CORPSE. Native death-operation ownership still has no production caller. Its ordered cleanup and penalty participants remain a closure blocker. |
-| Release, ghost, corpse and graveyard | Production corpse/recovery operations exist, but release still omits RemovePet. Complete that participant and exercise the path from an actual lethal producer, including ghost restrictions and corpse publication; helper tests alone do not close this row. |
+| Release, ghost, corpse and graveyard | Release now invokes pet removal and implements its absent/temporarily unsummoned branch. The live-Pet continuation is still unavailable and stops dependent corpse creation. Complete that participant and exercise the path from an actual lethal producer, including ghost restrictions and corpse publication; helper tests alone do not close this row. |
 | Reclaim, healer and accepted resurrection | Production recovery continuations exist. Verify the registered paths, penalties, corpse cleanup and pending/transfer recovery together on the final candidate. |
 | Persistence and failure recovery | The dirty quest-status full-save projection and commit acknowledgement now have focused passing feedback, including concurrent native objective changes and failed/unknown commits. Existing save/retirement fences still need complete-cycle evidence; this does not implement death-triggered FailQuest or close runtime persistence acceptance. |
 | Local acceptance | Define one committed candidate after implementation, run final plus missing scope-specific integration evidence once, repair actual findings, and retain the real SHA and complete timings. |
@@ -147,8 +158,9 @@ target SHA. On the dirty tree based at `4ba72acbe`, aarch64, the worker ran
 a missing test import). Both used the declared PROTOC, one job and this
 checkout's target directory. Subsequent changes only format those files and
 add license headers. This is coding feedback; no live transaction or final
-acceptance ran. The production RemovePet caller, canonical aura save capture,
-reagent refund and failure/cancellation continuation remain unfinished.
+acceptance ran. At that checkpoint the production RemovePet caller, canonical
+aura save capture, reagent refund and failure/cancellation continuation were
+unfinished. The current integration boundary is recorded above.
 Production pet resummoning now retains the loaded aura's cast difficulty and
 indexed base amounts in its existing canonical loaded state, including their
 removal lifetime. On the dirty tree based at `ebcb57e15`,
@@ -165,7 +177,8 @@ A bound-quest preflight which updates no objective now preserves loaded quest
 authority, so a subsequent reagent is not rejected solely by that no-op.
 The draft still rejects bag placement and equipment, container, timed or charged
 item creation. Those are explicit unfinished boundaries, not successful refunds;
-the production RemovePet caller and its cancellation fence are still absent.
+the production RemovePet caller and its cancellation fence were absent at
+that checkpoint and are now connected for the absent-Pet branch described above.
 The empty PetSpells packet matches the pinned default writer's 65-byte body and
 opcode `0x2c22`; `cargo test -p wow-packet clear_pet_spells --lib` passed one
 case on the dirty tree based at `df4339f3e`. Application compilation also passed
@@ -176,8 +189,35 @@ and a maximum-count rejection with unchanged storage and no error/push packet.
 The preceding post-addition filter selected only the positive case; the final
 filter selected both. All runs used aarch64, one job, the declared PROTOC and
 this checkout's target directory. These are coding checks, not live captures
-or final acceptance. Neither the new packet nor the refund helper has a
-production RemovePet caller yet.
+or final acceptance. The current absent-Pet removal path now calls the refund
+helper; the clear-PetSpells packet still awaits the live-Pet continuation.
+The release integration and its current-Map lookup follow
+`Player.cpp:20839–20962`; refund suppression reads the native battleground
+instance (`Player.h:2335–2337`), not the older represented type-only helper.
+On the dirty tree based at `faafebe89`, aarch64, the worker ran
+`cargo check -p wow-map` and `cargo test -p wow-map pet_combat --lib`
+(4 passed), followed by `cargo check -p wow-world-application`,
+`cargo test -p wow-world pet_removal --lib` (3 passed) and
+`cargo test -p wow-world release_ --lib` (75 passed), all with exit 0.
+An initial World compilation failed on a fixture tuple type mismatch before
+running tests; the corrected runs above are the successful evidence.
+The worker repeated one Application check after losing its prior command
+handle; only the recovered exit-0 result is credited. These commands used
+the declared PROTOC, one job and this checkout's target directory.
+The Map participant has no production caller yet. It unlinks indexed attack,
+combat and threat references and returns owned effects; native combat-exit
+aura/engagement callbacks, the master's pet-combat flag and AI continuations
+are not implemented by that helper. It is not complete `CombatStop` evidence.
+After the refund-fence correction, `cargo check -p wow-world-application`
+and `cargo test -p wow-world pet_re --lib` passed (exit 0; 16 tests, including
+all six removal/reagent cases) on the same dirty base and host. Missing
+ItemEffect metadata now fails without changing pet markers, inventory or the
+persistence tracker. A prior successful grant retains the enclosing fence
+through subsequent grants and marker updates. A pending-addon-read
+cancellation case was not executed; the available fixture resolves immediately.
+Map and release suites were not duplicated after this scoped correction.
+No final campaign, live capture, DB/restart/relogin run or publication is
+established by these coding checks.
 Any newly discovered prerequisite must name the failing scenario and the
 smallest repair. A generic domain defect is not automatically a #43 blocker.
 In particular, the reagent-return composition reuses native inventory, quest,
