@@ -97,8 +97,10 @@ actual SpellInfo key without a difficulty-zero prerequisite; its 35-case
 save/load group has green scoped feedback. The SelfRes effect now uses the
 same Player-owned native recovery continuation, including corpse deletion,
 save acknowledgement and cancellation retention. Its focused feedback covers
-37 Spell and 11 World cases. Registered SelfRes admission, the dead-caster
-CheckCast rule, native death, QA and final acceptance remain open.
+37 Spell and 11 World cases. The shared CheckCast path now rejects ordinary
+dead/ghost casters before cooldowns and launch, with 39 scoped cases passing.
+Registered SelfRes integration, native recovery publication, native death,
+QA and final acceptance remain open.
 
 Four blocks remain within the same macro:
 
@@ -2724,6 +2726,84 @@ This is an UNVALIDATED local macro checkpoint. The sibling sickness full-save
 entry gate, native-death integration, normal SelfRes/obtain casts, QA and
 complete candidate acceptance remain open. No runtime installation, SQL,
 restart, fresh capture, publication or issue closure was performed.
+
+Native dead-caster CheckCast, 2026-10-27, base
+`c7a30f42a27ff9057bfe5cb4941b33c25dddeaab` plus 11 Rust working inputs:
+the shared gate reads the actual typed Unit caster, including Vehicle GUIDs,
+and Unit::is_alive rather than the convenience health predicate. Native
+Alive/zero-health casts during resurrection are admitted. Source disabled and
+busy checks retain priority; death precedes cooldowns, GCD, power and effects
+in client/server preparation and is rechecked before launch. Passive,
+AllowCastWhileDead and the currently represented direct FULL-mask triggers
+remain exemptions. Attribute reads retain actual SpellInfo key selection,
+loaded-empty Misc defaults and unavailable-source errors. Signed internal
+SpellID storage preserves the Source uint32 bits.
+
+Pinned `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` anchors are
+Spell.cpp:3453–3467,5643–5644,8031–8034; SharedDefines.h:437,454;
+SpellInfo.h:331 and SpellInfo.cpp:1144–1195. Existing nonzero trigger-flag
+writers are direct corpse/login casts; this does not establish an AuraEffect
+trigger-origin executor. The current normal-client payload path is also not
+upgraded into a general nonzero-only SpellInfo engine by this gate. Complete
+registered SelfRes integration must still prove its actual server-normal
+nonzero-only source without a synthetic base payload.
+
+Sequential coding feedback used PROTOC=/home/ubuntu/.local/protoc/bin/protoc,
+CARGO_BUILD_JOBS=1 and CARGO_TARGET_DIR=/home/server/rustycore/target:
+
+| Cargo command | UTC interval | Result |
+| --- | --- | --- |
+| `check -p wow-world-spell` | 02:44:24–02:44:26 | exit 0 |
+| `check -p wow-world` | 02:51:59 | exit 0 |
+| `test -p wow-world-spell caster` | 02:44:48–02:44:56 | 23 passed |
+| `test -p wow-world dead_caster` | 02:52:05–02:52:36 | 5 passed |
+| `test -p wow-world self_resurrect` | 02:53:10–02:54:05 | 11 passed |
+
+The parent verified 39 distinct target-qualified library identities; zero-test
+integration targets are not credited. The Source EffectThreat dead-caster
+regression now supplies AllowCastWhileDead and its selected key before
+exercising the effect's own alive guard (SpellEffects.cpp:2864–2880).
+Existing SelfRes cancellation, corpse-save and fail-stop tests remain green.
+Logs in `/tmp/rustycore-dead-cast-admission-logs` preserve the mutable-metadata
+compile error, test compilation failures, the 3/2 and 4/1 World results, and
+the 10/1 SelfRes result before repair. In particular, the Creature fixture's
+map/NPC-flag argument order was corrected; typed caster lookup was retained.
+The 02:18:41–02:54:05 implementation/feedback interval is 2124 seconds, not
+the final campaign or proof of its ordinary 600-second performance target.
+
+All 11 inputs match `changed-inputs.json`, digest
+`73275c71adaee934d45bf0c8af850432cb8e478cef33ea4d61c15883adcb8fc2`;
+the tracked Rust diff digest is
+`8bf0fa75cbfa438284e1bec6b134b4aea7f0e194017b3c38f147716cf92041bd`.
+These identify working inputs at the stated base with parent-owned State text
+also dirty, not a test of the later commit. The worker declared GPT-6 from
+runtime instructions; specific model/effort telemetry is unavailable.
+The new private test leaf has 568 lines. The pre-existing cast-lifecycle
+parent grows only by its three-line mount, 1052→1055; its reviewed ceiling is
+1055 through #43 acceptance, when its identity/publication split must be
+reviewed before further growth. This remains an UNVALIDATED macro checkpoint.
+Registered SelfRes, native publication/death, QA, final and authorized live
+evidence remain required.
+
+Native recovery publication review at `c7a30f42a`, 2026-10-27: the scoped
+packet vectors above are not Source cadence evidence. Pinned
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` Player.cpp:4320–4403,23322–23343
+calls default, deferred UpdateObjectVisibility; Unit.cpp:9214–9231 marks
+health fields. Map.cpp:777,1929–1948 owns SendObjectUpdates. Rust already has
+the corresponding native visibility notification and
+`wow-map/src/map/send_object_updates.rs` owner, with post-guard Server fanout
+in `runtime/map/update_loop.rs:495–505`. Selected sickness stat application
+already uses the native VALUES path; its unrelated legacy path is separate.
+The remaining mismatch is concrete: native resurrection, request-value
+application and SelfRes-value application send immediate self VALUES, and
+resurrection also invokes the position-threshold visibility scanner directly.
+Those snapshots neither consume native masks nor replace the later Map flush.
+In SelfRes they expose the intermediate Alive/zero-health state before obtain
+and the caller's restored values. The selected correction is to retain these
+native dirty fields for the existing Map publication owner and request native
+VISIBILITY_CHANGED notification, then test that actual phase and its typed
+snapshot. This correction is not installed at this checkpoint. Fresh paired
+action captures and final acceptance remain required.
 
 Native SelfRes effect and recovery ownership, 2026-10-27, base
 `1e8a06cc21da8dd31c27b5520f7bfe66fb8edb33` plus 17 Rust working inputs:

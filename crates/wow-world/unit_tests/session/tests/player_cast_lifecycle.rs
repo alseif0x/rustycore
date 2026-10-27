@@ -13,6 +13,9 @@ use crate::session::mailbox::{
 use std::sync::{Arc, Mutex};
 use wow_packet::ServerPacket;
 
+#[path = "player_cast_lifecycle/dead_caster.rs"]
+mod dead_caster;
+
 const TEST_SPELL_ID: i32 = 133;
 
 fn install_canonical_player(

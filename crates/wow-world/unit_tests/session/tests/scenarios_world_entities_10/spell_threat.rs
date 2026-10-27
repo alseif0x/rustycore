@@ -401,7 +401,31 @@ async fn spell_threat_effect_skips_dead_caster_like_cpp() {
         .clone()
         .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut attributes = [0; 15];
+    attributes[0] =
+        wow_data::spell::attributes::SPELL_ATTR0_ALLOW_CAST_WHILE_DEAD as i32;
+    let misc = wow_data::spell_db2::SpellMiscEntry {
+        id: spell_id as u32,
+        spell_id: spell_id as u32,
+        attributes,
+        ..Default::default()
+    };
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(
+        spell_id as u32,
+        0,
+    )])
+    .hydrate_effective_core_db2_like_cpp(wow_data::EffectiveCoreSpellDb2StoresLikeCpp::new(
+        wow_data::spell_db2::SpellCategoriesStore::from_entries([]),
+        wow_data::spell_db2::SpellMiscStore::from_entries([misc]),
+        wow_data::spell_db2::SpellEffectDb2Store::from_entries([]),
+        wow_data::spell_db2::SpellShapeshiftStore::from_entries([]),
+        wow_data::spell_db2::SpellInterruptsStore::from_entries([]),
+        wow_data::spell_db2::SpellCastTimesStore::from_entries([]),
+        wow_data::spell_db2::SpellCooldownsStore::from_entries([]),
+        wow_data::spell_db2::SpellCastingRequirementsStore::from_entries([]),
+        wow_data::spell_db2::SpellPowerStore::from_entries([]),
+        wow_data::spell_db2::SpellPowerDifficultyStore::from_entries([]),
+    ));
     spell_store.insert(
         spell_id,
         threat_spell_info_like_cpp(
@@ -413,7 +437,17 @@ async fn spell_threat_effect_skips_dead_caster_like_cpp() {
     session.set_spell_store(Arc::new(spell_store));
 
     session
-        .execute_spell(spell_id, creature_guid)
+        .execute_spell_with_visual_and_target_data_with_metadata(
+            spell_id,
+            creature_guid,
+            ObjectGuid::EMPTY,
+            wow_packet::packets::spell::SpellCastVisual::default(),
+            Default::default(),
+            wow_entities::SpellCastMetadata {
+                actual_spell_difficulty_id_like_cpp: Some(0),
+                ..Default::default()
+            },
+        )
         .await
         .expect("dead caster EffectThreat should execute as C++ no-op");
 

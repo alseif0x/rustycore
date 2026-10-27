@@ -18,6 +18,14 @@ struct Fixture {
     spell_catalog_failure: Option<&'static str>,
     normal_cost_outcome: Result<bool, &'static str>,
     precondition_outcome: Result<bool, &'static str>,
+    caster_death_outcome: Result<bool, &'static str>,
+    client_cooldown: Option<bool>,
+    server_normal_cooldown: Option<bool>,
+    native_gcd_available: bool,
+    caster_death_checks: Cell<u32>,
+    client_cooldown_checks: Cell<u32>,
+    server_cooldown_checks: Cell<u32>,
+    native_gcd_checks: Cell<u32>,
 }
 
 impl Fixture {
@@ -51,6 +59,14 @@ impl Fixture {
             spell_catalog_failure: None,
             normal_cost_outcome: Ok(true),
             precondition_outcome: Ok(true),
+            caster_death_outcome: Ok(true),
+            client_cooldown: Some(false),
+            server_normal_cooldown: Some(false),
+            native_gcd_available: true,
+            caster_death_checks: Cell::new(0),
+            client_cooldown_checks: Cell::new(0),
+            server_cooldown_checks: Cell::new(0),
+            native_gcd_checks: Cell::new(0),
         }
     }
 
@@ -88,6 +104,7 @@ impl Runtime for Fixture {
         Ok(self.spell_for_difficulty(id, requested_difficulty))
     }
     fn server_normal_busy(&mut self) -> Option<bool> {
+        self.events.push("busy");
         Some(
             self.active
                 .as_ref()
@@ -131,8 +148,27 @@ impl Runtime for Fixture {
     fn disabled(&self, _: i32) -> bool {
         false
     }
+    fn check_caster_death_outcome(
+        &mut self,
+        _: &SpellInfo,
+        _: ObjectGuid,
+        _: &SpellCastVisualLikeCpp,
+        _: &mut wow_entities::SpellCastMetadata,
+    ) -> Result<bool, &'static str> {
+        self.events.push("caster-death");
+        self.caster_death_checks
+            .set(self.caster_death_checks.get() + 1);
+        let outcome = self.caster_death_outcome;
+        if outcome == Ok(false) {
+            self.events.push("failure");
+            self.failures.push(SpellCastResult::CasterDead as i32);
+        }
+        outcome
+    }
     fn on_cooldown(&self, _: &SpellInfo) -> Option<bool> {
-        Some(false)
+        self.client_cooldown_checks
+            .set(self.client_cooldown_checks.get() + 1);
+        self.client_cooldown
     }
     fn server_normal_on_cooldown(
         &self,
@@ -140,10 +176,13 @@ impl Runtime for Fixture {
         _: u8,
         _: wow_entities::SpellCastMetadata,
     ) -> Option<bool> {
-        Some(false)
+        self.server_cooldown_checks
+            .set(self.server_cooldown_checks.get() + 1);
+        self.server_normal_cooldown
     }
     fn server_normal_global_cooldown_state(&self, _: &SpellInfo, _: u8) -> Option<(u32, bool)> {
-        Some(self.native_gcd)
+        self.native_gcd_checks.set(self.native_gcd_checks.get() + 1);
+        self.native_gcd_available.then_some(self.native_gcd)
     }
     fn server_normal_cooldown_at_cast_start(
         &mut self,
@@ -220,6 +259,74 @@ impl Runtime for Fixture {
     fn start(&mut self, _: &SpellCastState, _: &SpellInfo) {
         self.events.push("start");
     }
+}
+
+#[test]
+fn client_prepare_checks_dead_caster_before_cooldown() {
+    let mut runtime = Fixture::new(0);
+    runtime.caster_death_outcome = Ok(false);
+    runtime.client_cooldown = Some(true);
+
+    assert!(!prepare(&mut runtime, Fixture::request()));
+    assert_eq!(runtime.failures, [SpellCastResult::CasterDead as i32]);
+    assert_eq!(runtime.client_cooldown_checks.get(), 0);
+    assert_eq!(runtime.events, ["prepare", "caster-death", "failure"]);
+}
+
+#[test]
+fn normal_prepare_dead_caster_precedes_active_spell_cooldown() {
+    let mut runtime = Fixture::new(0);
+    runtime.caster_death_outcome = Ok(false);
+    runtime.server_normal_cooldown = Some(true);
+
+    assert_eq!(
+        prepare_server_normal(&mut runtime, 133, 0, ObjectGuid::EMPTY, Default::default()),
+        ServerNormalPrepareOutcomeLikeCpp::Rejected
+    );
+    assert_eq!(runtime.failures, [SpellCastResult::CasterDead as i32]);
+    assert_eq!(runtime.native_gcd_checks.get(), 0);
+    assert_eq!(runtime.server_cooldown_checks.get(), 0);
+    assert_eq!(runtime.events, ["busy", "caster-death", "failure"]);
+}
+
+#[test]
+fn normal_prepare_busy_caster_check_keeps_spell_in_progress_priority() {
+    let mut runtime = Fixture::new(1_000);
+    runtime.caster_death_outcome = Ok(false);
+    runtime.active = Some(SpellCastState {
+        spell_id: 133,
+        target_guid: ObjectGuid::EMPTY,
+        target_data: Default::default(),
+        cast_id: ObjectGuid::EMPTY,
+        cast_start_time: std::time::Instant::now(),
+        cast_time_ms: 1_000,
+        spell_visual: Default::default(),
+        metadata: Default::default(),
+    });
+
+    assert_eq!(
+        prepare_server_normal(&mut runtime, 133, 0, ObjectGuid::EMPTY, Default::default()),
+        ServerNormalPrepareOutcomeLikeCpp::Rejected
+    );
+    assert_eq!(runtime.failures, [SpellCastResult::SpellInProgress as i32]);
+    assert_eq!(runtime.caster_death_checks.get(), 0);
+    assert_eq!(runtime.events, ["busy", "failure"]);
+}
+
+#[test]
+fn normal_prepare_dead_caster_precedes_missing_cooldown_authority() {
+    let mut runtime = Fixture::new(0);
+    runtime.caster_death_outcome = Ok(false);
+    runtime.native_gcd_available = false;
+    runtime.server_normal_cooldown = None;
+
+    assert_eq!(
+        prepare_server_normal(&mut runtime, 133, 0, ObjectGuid::EMPTY, Default::default()),
+        ServerNormalPrepareOutcomeLikeCpp::Rejected
+    );
+    assert_eq!(runtime.failures, [SpellCastResult::CasterDead as i32]);
+    assert_eq!(runtime.native_gcd_checks.get(), 0);
+    assert_eq!(runtime.server_cooldown_checks.get(), 0);
 }
 
 #[test]
@@ -333,7 +440,10 @@ fn instant_and_timed_requests_share_mapping_validation_install_and_start() {
     for time in [0, 1500] {
         let mut runtime = Fixture::new(time);
         assert_eq!(prepare(&mut runtime, Fixture::request()), time == 0);
-        assert_eq!(runtime.events, ["prepare", "power", "install", "start"]);
+        assert_eq!(
+            runtime.events,
+            ["prepare", "caster-death", "power", "install", "start"]
+        );
         let cast = runtime.active.unwrap();
         assert_eq!(cast.cast_time_ms, time);
         assert_eq!(cast.spell_visual.spell_visual_id, 123);
@@ -380,7 +490,7 @@ fn failed_power_retains_mapping_but_cannot_start_or_install() {
     let mut runtime = Fixture::new(0);
     runtime.power = false;
     assert!(!prepare(&mut runtime, Fixture::request()));
-    assert_eq!(runtime.events, ["prepare", "power"]);
+    assert_eq!(runtime.events, ["prepare", "caster-death", "power"]);
     assert_eq!(runtime.allocated.get(), 1);
     assert!(runtime.active.is_none());
 }
@@ -390,7 +500,10 @@ fn rejected_residence_install_cannot_publish_start() {
     let mut runtime = Fixture::new(0);
     runtime.admits_install = false;
     assert!(!prepare(&mut runtime, Fixture::request()));
-    assert_eq!(runtime.events, ["prepare", "power", "install", "failure"]);
+    assert_eq!(
+        runtime.events,
+        ["prepare", "caster-death", "power", "install", "failure"]
+    );
     assert!(runtime.active.is_none());
 }
 

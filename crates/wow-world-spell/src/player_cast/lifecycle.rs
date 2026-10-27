@@ -35,6 +35,16 @@ pub trait Runtime {
     fn visual(&self, spell: &SpellInfo) -> Option<SpellCastVisualLikeCpp>;
     fn prepare_mapping(&mut self, client: ObjectGuid, server: ObjectGuid);
     fn disabled(&self, spell: i32) -> bool;
+    /// Source `Spell::CheckCast` dead-caster gate. `Ok(false)` has already
+    /// published the ordinary CastFailed result; missing source authority is
+    /// kept distinct from a gameplay rejection.
+    fn check_caster_death_outcome(
+        &mut self,
+        spell: &SpellInfo,
+        cast: ObjectGuid,
+        visual: &SpellCastVisualLikeCpp,
+        metadata: &mut wow_entities::SpellCastMetadata,
+    ) -> Result<bool, &'static str>;
     fn on_cooldown(&self, spell: &SpellInfo) -> Option<bool>;
     /// Source `SpellHistory::IsReady` over the selected native spell key,
     /// history ledger, cooldown category, charges, aura modifiers and item.
@@ -210,6 +220,12 @@ pub fn prepare(runtime: &mut impl Runtime, request: PendingSpellCastRequestLikeC
         runtime.failure(server_id, spell.spell_id, visual, 128);
         return false;
     }
+    let mut metadata = request.metadata;
+    match runtime.check_caster_death_outcome(&spell, server_id, &visual, &mut metadata) {
+        Ok(true) => {}
+        Ok(false) => return false,
+        Err(_) => return cancel_like_cpp(runtime, server_id, spell.spell_id, visual),
+    }
     match runtime.on_cooldown(&spell) {
         Some(false) => {}
         Some(true) => {
@@ -225,12 +241,11 @@ pub fn prepare(runtime: &mut impl Runtime, request: PendingSpellCastRequestLikeC
         // this server identity has already been published.
         None => return cancel_like_cpp(runtime, server_id, spell.spell_id, visual),
     }
-    if !runtime.check_preconditions(&spell, server_id, &visual, request.metadata)
+    if !runtime.check_preconditions(&spell, server_id, &visual, metadata)
         || !runtime.check_power(&spell, server_id, &visual)
     {
         return false;
     }
-    let mut metadata = request.metadata;
     metadata.client_cast_id = Some(request.cast_id);
     metadata.prepared_residence_revision = revision;
     metadata.original_cast_id = ObjectGuid::EMPTY;
@@ -322,6 +337,11 @@ pub fn prepare_server_normal(
                 "canonical Player cast state unavailable",
             );
         }
+    }
+    match runtime.check_caster_death_outcome(&spell, cast_id, &visual, &mut metadata) {
+        Ok(true) => {}
+        Ok(false) => return ServerNormalPrepareOutcomeLikeCpp::Rejected,
+        Err(reason) => return ServerNormalPrepareOutcomeLikeCpp::Unavailable(reason),
     }
     let ignore_gcd =
         metadata.trigger_cast_flags_like_cpp & wow_entities::TRIGGERED_IGNORE_GCD_LIKE_CPP != 0;

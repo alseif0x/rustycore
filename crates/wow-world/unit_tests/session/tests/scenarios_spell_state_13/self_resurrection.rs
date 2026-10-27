@@ -93,15 +93,51 @@ fn self_resurrect_spell(spell_id: i32, damage: i32, misc_value: i32) -> wow_data
     }
 }
 
+fn install_self_resurrect_spell_like_cpp(
+    session: &mut WorldSession,
+    spell_id: i32,
+    damage: i32,
+    misc_value: i32,
+) {
+    let mut attributes = [0; 15];
+    attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_ALLOW_CAST_WHILE_DEAD as i32;
+    let misc = wow_data::spell_db2::SpellMiscEntry {
+        id: spell_id as u32,
+        spell_id: spell_id as u32,
+        attributes,
+        ..Default::default()
+    };
+    let stores = wow_data::EffectiveCoreSpellDb2StoresLikeCpp::new(
+        wow_data::spell_db2::SpellCategoriesStore::from_entries([]),
+        wow_data::spell_db2::SpellMiscStore::from_entries([misc]),
+        wow_data::spell_db2::SpellEffectDb2Store::from_entries([]),
+        wow_data::spell_db2::SpellShapeshiftStore::from_entries([]),
+        wow_data::spell_db2::SpellInterruptsStore::from_entries([]),
+        wow_data::spell_db2::SpellCastTimesStore::from_entries([]),
+        wow_data::spell_db2::SpellCooldownsStore::from_entries([]),
+        wow_data::spell_db2::SpellCastingRequirementsStore::from_entries([]),
+        wow_data::spell_db2::SpellPowerStore::from_entries([]),
+        wow_data::spell_db2::SpellPowerDifficultyStore::from_entries([]),
+    );
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(
+        spell_id as u32,
+        0,
+    )])
+    .hydrate_effective_core_db2_like_cpp(stores);
+    spell_store.insert(
+        spell_id,
+        self_resurrect_spell(spell_id, damage, misc_value),
+    );
+    session.set_spell_store(Arc::new(spell_store));
+}
+
 async fn apply_native_self_resurrect_with_caster(
     session: &mut WorldSession,
     caster_guid: ObjectGuid,
 ) -> Result<(), &'static str> {
     let player_guid = session.player_guid().expect("fixture Player identity");
     let spell_id = 78_338_i32;
-    let mut spell_store = wow_data::SpellStore::new();
-    spell_store.insert(spell_id, self_resurrect_spell(spell_id, -35, 77));
-    session.set_spell_store(Arc::new(spell_store));
+    install_self_resurrect_spell_like_cpp(session, spell_id, -35, 77);
     session
         .execute_spell_with_visual_and_target_data_with_metadata(
             spell_id,
@@ -114,6 +150,7 @@ async fn apply_native_self_resurrect_with_caster(
                 ..Default::default()
             },
             wow_entities::SpellCastMetadata {
+                actual_spell_difficulty_id_like_cpp: Some(0),
                 caster_guid_override: Some(caster_guid),
                 ..Default::default()
             },
@@ -133,9 +170,7 @@ async fn spell_self_resurrect_flat_case_sets_health_and_powers_like_cpp() {
         wow_persistence::PersistenceOutcomeLikeCpp::Applied { rows: 1 },
     );
     session.set_player_lifecycle_port_like_cpp(save_port.clone());
-    let mut spell_store = wow_data::SpellStore::new();
-    spell_store.insert(spell_id, self_resurrect_spell(spell_id, -35, 77));
-    session.set_spell_store(Arc::new(spell_store));
+    install_self_resurrect_spell_like_cpp(&mut session, spell_id, -35, 77);
 
     session
         .execute_spell(spell_id, player_guid)
@@ -195,9 +230,7 @@ async fn spell_self_resurrect_percent_case_uses_max_health_and_mana_like_cpp() {
     let spell_id = 781_i32;
     let player_guid = ObjectGuid::create_player(1, 781);
     configure_native_self_resurrect_player_like_cpp(&mut session, player_guid, 0, 400);
-    let mut spell_store = wow_data::SpellStore::new();
-    spell_store.insert(spell_id, self_resurrect_spell(spell_id, 25, 999));
-    session.set_spell_store(Arc::new(spell_store));
+    install_self_resurrect_spell_like_cpp(&mut session, spell_id, 25, 999);
 
     session
         .execute_spell(spell_id, player_guid)
@@ -245,9 +278,7 @@ async fn spell_self_resurrect_skips_alive_player_like_cpp() {
     let spell_id = 782_i32;
     let player_guid = ObjectGuid::create_player(1, 782);
     configure_native_self_resurrect_player_like_cpp(&mut session, player_guid, 40, 100);
-    let mut spell_store = wow_data::SpellStore::new();
-    spell_store.insert(spell_id, self_resurrect_spell(spell_id, -35, 77));
-    session.set_spell_store(Arc::new(spell_store));
+    install_self_resurrect_spell_like_cpp(&mut session, spell_id, -35, 77);
 
     session
         .execute_spell(spell_id, player_guid)
@@ -417,9 +448,7 @@ async fn native_self_resurrect_obtain_failure_kicks_and_retains_before_bones_or_
         wow_persistence::PersistenceOutcomeLikeCpp::Applied { rows: 1 },
     );
     session.set_player_lifecycle_port_like_cpp(save_port.clone());
-    let mut spell_store = wow_data::SpellStore::new();
-    spell_store.insert(spell_id, self_resurrect_spell(spell_id, -35, 77));
-    session.set_spell_store(Arc::new(spell_store));
+    install_self_resurrect_spell_like_cpp(&mut session, spell_id, -35, 77);
     let (cast_id, residence_revision) =
         wow_world_spell::allocate_player_cast_identity_like_cpp(&session, spell_id)
             .expect("the admitted Player allocates its canonical Cast GUID and residence stamp");
@@ -492,9 +521,7 @@ async fn native_self_resurrect_current_native_setters_cap_flat_values() {
             player.unit_mut().set_max_power(PowerType::Mana, 60);
         })
         .unwrap();
-    let mut spell_store = wow_data::SpellStore::new();
-    spell_store.insert(spell_id, self_resurrect_spell(spell_id, -200, 150));
-    session.set_spell_store(Arc::new(spell_store));
+    install_self_resurrect_spell_like_cpp(&mut session, spell_id, -200, 150);
 
     session
         .execute_spell(spell_id, player_guid)
@@ -515,9 +542,7 @@ async fn native_self_resurrect_int_min_stops_before_resurrection_mutation() {
     let spell_id = 78_336_i32;
     let player_guid = ObjectGuid::create_player(1, 7836);
     configure_native_self_resurrect_player_like_cpp(&mut session, player_guid, 0, 100);
-    let mut spell_store = wow_data::SpellStore::new();
-    spell_store.insert(spell_id, self_resurrect_spell(spell_id, i32::MIN, 77));
-    session.set_spell_store(Arc::new(spell_store));
+    install_self_resurrect_spell_like_cpp(&mut session, spell_id, i32::MIN, 77);
 
     assert!(session.execute_spell(spell_id, player_guid).await.is_err());
 

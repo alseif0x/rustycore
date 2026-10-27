@@ -93,6 +93,7 @@ pub use execution_session::{
     apply_durability_damage_effect_like_cpp,
     apply_inventory_item_obtain_spells_with_generator_like_cpp, apply_proficiency_effect_like_cpp,
     cast_all_obtain_spells_like_cpp, check_represented_cast_preparation_like_cpp,
+    check_represented_caster_death_like_cpp,
     consume_add_farsight_set_seer_outcome_like_cpp, execute_server_triggered_spell_like_cpp,
     execute_spell_with_visual_and_target_data_and_generator_like_cpp,
     execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp,

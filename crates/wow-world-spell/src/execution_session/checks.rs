@@ -22,6 +22,165 @@ use super::SpellExecutionHostLikeCpp;
 use crate::RepresentedSpellFocusObjectLikeCpp;
 use crate::effect_session::represented_disallowed_mount_form_like_cpp;
 
+/// Source `Spell::CheckCast`'s first dead-caster condition. The selected
+/// `SpellInfo` key and the actual Unit caster are read before any later
+/// represented checks can publish SpellGo or charge costs.
+pub fn check_represented_caster_death_like_cpp<H: SpellExecutionHostLikeCpp>(
+    host: &mut H,
+    spell_info: &wow_data::SpellInfo,
+    cast_id: ObjectGuid,
+    spell_visual: &wow_packet::packets::spell::SpellCastVisual,
+    metadata: &mut SpellCastMetadata,
+) -> Result<bool, &'static str> {
+    let player_guid = host.player_guid().ok_or("Canonical Player GUID unavailable")?;
+    let caster_guid = metadata.caster_guid_override.unwrap_or(player_guid);
+    if caster_guid.is_empty() {
+        return Err("Actual spell caster GUID unavailable");
+    }
+
+    if !caster_guid.is_unit() {
+        return Ok(true);
+    }
+
+    let caster_alive = if caster_guid == player_guid && caster_guid.is_player() {
+        let core = host.core();
+        if let Some(handle) = core.player_handle_like_cpp {
+            if handle.guid() != caster_guid {
+                return Err("Canonical Player handle does not match the actual caster");
+            }
+            core.with_owned_player_like_cpp(|player| player.unit().is_alive())
+                .ok_or("Canonical Player owner unavailable")?
+        } else {
+            #[cfg(any(test, feature = "test-fixtures"))]
+            if let Some(fixtures) = host.test_fixtures_ref_like_cpp() {
+                fixtures.combat.player_alive_like_cpp
+            } else {
+                return Err("Canonical Player owner unavailable");
+            }
+            #[cfg(not(any(test, feature = "test-fixtures")))]
+            {
+                return Err("Canonical Player owner unavailable");
+            }
+        }
+    } else {
+        let core = host.core();
+        let handle = core
+            .player_handle_like_cpp
+            .ok_or("Canonical current-map Player owner unavailable")?;
+        let manager = core
+            .canonical_map_manager
+            .as_ref()
+            .ok_or("Canonical current MapManager unavailable")?
+            .lock()
+            .map_err(|_| "Canonical current MapManager unavailable")?;
+        let wow_map::PlayerResidenceLikeCpp::Active(key) = manager
+            .player_residence_like_cpp(handle)
+            .ok_or("Canonical current Player residence unavailable")?
+        else {
+            return Err("Canonical current Player is detached from its Map");
+        };
+        let map = manager
+            .find_map(key.map_id, key.instance_id)
+            .ok_or("Canonical current Map unavailable")?
+            .map();
+        if caster_guid.is_player() {
+            map.get_typed_player(caster_guid)
+                .map(|player| player.unit().is_alive())
+        } else if caster_guid.is_creature_or_vehicle() {
+            map.get_typed_creature(caster_guid)
+                .map(|creature| creature.unit().is_alive())
+        } else {
+            map.get_typed_pet(caster_guid)
+                .map(|pet| pet.creature().unit().is_alive())
+        }
+        .ok_or("Actual Unit caster unavailable on the current Map")?
+    };
+
+    // The C++ condition short-circuits before reading attributes for a living
+    // Unit, including the native Alive/health-zero resurrection interval.
+    if caster_alive {
+        return Ok(true);
+    }
+
+    // Source TriggerCastFlags::FULL makes the dead predicate false before
+    // any selected SpellInfo payload is needed. No aura-origin state is
+    // represented for the direct full-mask producers in this unit.
+    if metadata.trigger_cast_flags_like_cpp & wow_entities::TRIGGERED_FULL_MASK_LIKE_CPP != 0 {
+        return Ok(true);
+    }
+
+    let spell_key = spell_info.spell_id as u32;
+    let spell_store = host
+        .hub_ref()
+        .catalogs
+        .spell_store()
+        .ok_or("SpellStore unavailable for dead-caster CheckCast")?;
+    let difficulties = host
+        .hub_ref()
+        .catalogs
+        .difficulty_store()
+        .map(AsRef::as_ref);
+    let actual_difficulty = if let Some(actual) = metadata.actual_spell_difficulty_id_like_cpp {
+        if !spell_store.contains_spell_info_exact_like_cpp(spell_key, actual) {
+            return Err("Selected SpellInfo key unavailable for dead-caster CheckCast");
+        }
+        actual
+    } else {
+        let core = host.core();
+        let handle = core
+            .player_handle_like_cpp
+            .ok_or("Canonical current-map difficulty unavailable")?;
+        let manager = core
+            .canonical_map_manager
+            .as_ref()
+            .ok_or("Canonical current MapManager unavailable")?
+            .lock()
+            .map_err(|_| "Canonical current MapManager unavailable")?;
+        let wow_map::PlayerResidenceLikeCpp::Active(key) = manager
+            .player_residence_like_cpp(handle)
+            .ok_or("Canonical current Player residence unavailable")?
+        else {
+            return Err("Canonical current Player is detached from its Map");
+        };
+        let requested_difficulty = manager
+            .find_map(key.map_id, key.instance_id)
+            .ok_or("Canonical current Map unavailable")?
+            .difficulty() as u8;
+        wow_data::spell::resolve_spell_info_key_difficulty(
+            spell_store,
+            spell_key,
+            requested_difficulty,
+            difficulties,
+        )
+        .map_err(|_| "SpellInfo difficulty selection unavailable")?
+        .ok_or("Selected SpellInfo key unavailable for dead-caster CheckCast")?
+    };
+    metadata.actual_spell_difficulty_id_like_cpp = Some(actual_difficulty);
+
+    let attributes = spell_store
+        .misc_attribute_words_at_difficulty_like_cpp(
+            spell_info.spell_id,
+            actual_difficulty,
+            difficulties,
+        )
+        .map_err(|_| "Selected SpellMisc authority unavailable for dead-caster CheckCast")?;
+    let passive = attributes[0] & wow_data::spell::attributes::SPELL_ATTR0_PASSIVE != 0;
+    let allow_while_dead =
+        attributes[0] & wow_data::spell::attributes::SPELL_ATTR0_ALLOW_CAST_WHILE_DEAD != 0;
+    if !passive && !allow_while_dead {
+        host.send_packet(&wow_packet::packets::spell::CastFailed {
+            cast_id,
+            spell_id: spell_info.spell_id,
+            visual: spell_visual.clone(),
+            reason: SpellCastResult::CasterDead as i32,
+            fail_arg1: 0,
+            fail_arg2: 0,
+        });
+        return Ok(false);
+    }
+    Ok(true)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RepresentedMountSpellCheckOutcomeLikeCpp {
     CastFailed(SpellCastResult),

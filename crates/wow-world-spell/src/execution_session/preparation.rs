@@ -6,6 +6,7 @@
 
 use super::{
     SpellExecutionHostLikeCpp, check_represented_cast_preparation_like_cpp,
+    check_represented_caster_death_like_cpp,
     publish_player_cast_interrupted_frames_like_cpp,
     represented_gameobject_summon_missing_nearby_entry_destination_like_cpp,
     take_spell_power_like_cpp,
@@ -24,8 +25,25 @@ pub(super) fn prepare_represented_spell_execution_like_cpp<H: SpellExecutionHost
     spell_id: i32,
     cast_id: ObjectGuid,
     spell_visual: &wow_packet::packets::spell::SpellCastVisual,
-    metadata: SpellCastMetadata,
+    mut metadata: SpellCastMetadata,
 ) -> Result<Option<Option<RepresentedSpellFocusObjectLikeCpp>>, &'static str> {
+    if !check_represented_caster_death_like_cpp(
+        host,
+        spell_info,
+        cast_id,
+        spell_visual,
+        &mut metadata,
+    )? {
+        publish_player_cast_interrupted_frames_like_cpp(
+            host,
+            metadata,
+            cast_id,
+            spell_id,
+            spell_visual,
+        );
+        return Ok(None);
+    }
+
     let Some(represented_focus_object) = check_represented_cast_preparation_like_cpp(
         host,
         spell_info,

@@ -75,6 +75,8 @@ pub mod attributes {
     pub const SPELL_ATTR0_IS_ABILITY: u32 = 0x0000_0010;
     /// C++ `SPELL_ATTR0_PASSIVE` (`SharedDefines.h`).
     pub const SPELL_ATTR0_PASSIVE: u32 = 0x0000_0040;
+    /// C++ `SPELL_ATTR0_ALLOW_CAST_WHILE_DEAD` (`SharedDefines.h:454`).
+    pub const SPELL_ATTR0_ALLOW_CAST_WHILE_DEAD: u32 = 0x0080_0000;
     /// C++ `SPELL_ATTR0_DO_NOT_DISPLAY_SPELLBOOK_AURA_ICON_COMBAT_LOG` (`SharedDefines.h`).
     pub const SPELL_ATTR0_DO_NOT_DISPLAY_SPELLBOOK_AURA_ICON_COMBAT_LOG: u32 = 0x0000_0080;
     /// C++ `SPELL_ATTR0_NOT_SHAPESHIFTED` (`SharedDefines.h`).

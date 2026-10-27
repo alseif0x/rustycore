@@ -3,7 +3,7 @@
 use super::*;
 use crate::player_cast::Runtime;
 use wire::PlayerCastPublicationPhaseLikeCpp;
-use wow_entities::{SpellCastState, SpellCastVisualLikeCpp};
+use wow_entities::{SpellCastMetadata, SpellCastState, SpellCastVisualLikeCpp};
 use wow_packet::packets::spell::{CastFailed, SpellPreparePkt, SpellStartPkt};
 use wow_world_core::session::SessionHubHostLikeCpp;
 mod host;
@@ -183,6 +183,22 @@ impl Runtime for WorldSession {
 
     fn disabled(&self, spell: i32) -> bool {
         wow_world_spell::is_spell_disabled_for_player_like_cpp(self, spell)
+    }
+
+    fn check_caster_death_outcome(
+        &mut self,
+        spell: &wow_data::SpellInfo,
+        cast: ObjectGuid,
+        visual: &SpellCastVisualLikeCpp,
+        metadata: &mut SpellCastMetadata,
+    ) -> Result<bool, &'static str> {
+        wow_world_spell::check_represented_caster_death_like_cpp(
+            self,
+            spell,
+            cast,
+            &crate::spell_cast_adapter::present_visual(visual.clone()),
+            metadata,
+        )
     }
 
     fn on_cooldown(&self, spell: &wow_data::SpellInfo) -> Option<bool> {
