@@ -11,6 +11,70 @@ use wow_persistence::{
 };
 
 #[test]
+fn dirty_quest_statuses_save_after_void_storage_before_spells() {
+    let mut request = minimal_character_request();
+    request.void_storage = Some(vec![PlayerVoidStorageSlotSaveLikeCpp {
+        slot: 1,
+        item: None,
+    }]);
+    request.quest_statuses = Some(vec![
+        PlayerQuestStatusPersistenceRequestLikeCpp::Save {
+            owner_guid: request.player_guid,
+            status: QuestStatusPersistenceLikeCpp {
+                quest_id: 100,
+                status: 5,
+                explored: false,
+                accept_time_secs: 10,
+                end_time_secs: 20,
+                objectives: vec![QuestObjectiveCountPersistenceLikeCpp {
+                    objective_index: 2,
+                    count: 3,
+                }],
+            },
+        },
+        PlayerQuestStatusPersistenceRequestLikeCpp::Delete {
+            owner_guid: request.player_guid,
+            quest_id: 101,
+        },
+    ]);
+    request.spells = Some(PlayerSpellSaveGroupLikeCpp::Complete {
+        rows: vec![PlayerSpellSaveLikeCpp {
+            spell_id: 200,
+            active: true,
+            disabled: false,
+            dependent: false,
+            favorite: false,
+            state: PlayerSpellStateLikeCpp::Changed,
+        }],
+        fallback_rows_were_present: false,
+    });
+    let statements = player_character_save_statements_like_cpp(&request);
+    let sql: Vec<_> = statements.iter().map(PreparedStatement::sql).collect();
+    let start = sql
+        .iter()
+        .position(|value| value.contains("DELETE FROM character_void_storage"))
+        .unwrap();
+    assert_eq!(
+        &sql[start + 1..start + 6],
+        &[
+            CharStatements::INS_CHAR_QUEST_STATUS.sql(),
+            CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST.sql(),
+            CharStatements::REP_CHAR_QUEST_STATUS_OBJECTIVES.sql(),
+            CharStatements::DEL_CHAR_QUEST_STATUS.sql(),
+            CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST.sql(),
+        ]
+    );
+    assert!(sql[start + 6].contains("character_spell"));
+    assert!(
+        !sql.iter()
+            .any(|value| value.contains("character_queststatus_rewarded"))
+    );
+    assert!(request.committed_groups_like_cpp().quest_statuses);
+    request.quest_statuses = None;
+    assert!(!request.committed_groups_like_cpp().quest_statuses);
+}
+
+#[test]
 fn character_save_adapter_preserves_the_frozen_statement_order_like_cpp() {
     let mut equipment_insert = equipment_row();
     equipment_insert.set_guid = 10;
@@ -156,6 +220,7 @@ fn character_save_adapter_preserves_the_frozen_statement_order_like_cpp() {
                 item: None,
             },
         ]),
+        quest_statuses: None,
         tutorials: Some(PlayerTutorialsSaveLikeCpp {
             tutorials: [0; 8],
             already_persisted: false,

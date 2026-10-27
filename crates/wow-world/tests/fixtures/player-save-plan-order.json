@@ -40,6 +40,14 @@
     2
   ],
   [
+    "REPLACE INTO character_void_storage (itemId, playerGuid, itemEntry, slot, creatorGuid, fixedScalingLevel, randomPropertiesId, randomPropertiesSeed, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    1
+  ],
+  [
+    "DELETE FROM character_void_storage WHERE slot = ? AND playerGuid = ?",
+    1
+  ],
+  [
     "DELETE FROM character_spell WHERE spell = ? AND guid = ?",
     1
   ],
@@ -129,14 +137,6 @@
   ],
   [
     "DELETE FROM character_transmog_outfits WHERE setguid=?",
-    1
-  ],
-  [
-    "REPLACE INTO character_void_storage (itemId, playerGuid, itemEntry, slot, creatorGuid, fixedScalingLevel, randomPropertiesId, randomPropertiesSeed, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    1
-  ],
-  [
-    "DELETE FROM character_void_storage WHERE slot = ? AND playerGuid = ?",
     1
   ],
   [

@@ -68,14 +68,14 @@ pub fn first_free_quest_slot_like_cpp<H: QuestSessionHostLikeCpp>(host: &H) -> O
         .and_then(|slot| u8::try_from(slot).ok())
 }
 
-/// C++ `Player::SetQuestStatus` (`Player.cpp:15557`) installing one record.
+/// C++ `Player::AddQuest` installing a status and recording its explicit default save.
 pub fn insert_represented_quest_status_like_cpp<H: QuestSessionHostLikeCpp>(
     host: &mut H,
     quest_id: u32,
     status: wow_entities::PlayerQuestStatusRecord,
 ) -> bool {
     host.mutate_player_quest_gameplay_like_cpp(|state| {
-        state.insert_status_like_cpp(quest_id, status);
+        state.add_active_status_like_cpp(quest_id, status);
     })
     .is_some()
 }
@@ -100,12 +100,21 @@ pub fn mark_represented_quest_explored_like_cpp<H: QuestSessionHostLikeCpp>(
     failed_status: u8,
 ) -> Option<(bool, bool)> {
     host.mutate_player_quest_gameplay_like_cpp(|state| {
-        let Some(status) = state.status_mut_like_cpp(quest_id) else {
-            return (false, false);
+        let should_send = {
+            let Some(status) = state.status_mut_like_cpp(quest_id) else {
+                return (false, false);
+            };
+            let should_send = !status.explored && status.status != failed_status;
+            if should_send {
+                status.explored = true;
+            }
+            should_send
         };
-        let should_send = !status.explored && status.status != failed_status;
         if should_send {
-            status.explored = true;
+            state.mark_status_save_like_cpp(
+                quest_id,
+                wow_entities::PlayerQuestStatusSaveTypeLikeCpp::Default,
+            );
         }
         (true, should_send)
     })
@@ -118,7 +127,7 @@ pub(crate) fn install_represented_loaded_quest_statuses_like_cpp<H: QuestSession
     loaded: &wow_entities::PlayerQuestGameplayState,
 ) -> bool {
     host.mutate_player_quest_gameplay_like_cpp(|state| {
-        state.replace_statuses_like_cpp(
+        state.replace_loaded_statuses_like_cpp(
             loaded.statuses_snapshot_like_cpp(),
             loaded.status_authority_complete_like_cpp(),
         );

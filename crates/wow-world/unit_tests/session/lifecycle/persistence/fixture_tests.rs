@@ -526,6 +526,7 @@ impl WorldSession {
             action_buttons,
             equipment_sets,
             void_storage,
+            quest_statuses: None,
             tutorials,
             instance_lock_times,
             played_time,

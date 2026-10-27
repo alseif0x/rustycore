@@ -18,6 +18,7 @@ pub(crate) fn complete_represented_quest_status_like_cpp(
     quest_state: &mut SessionQuestState,
     quest_id: u32,
     tracking_event_auto_reward: bool,
+    mark_default: bool,
     world_test_consumer: bool,
 ) -> bool {
     invalidate_player_quest_status_authority_like_cpp(owner, quest_state, world_test_consumer);
@@ -29,13 +30,17 @@ pub(crate) fn complete_represented_quest_status_like_cpp(
     #[cfg(any(test, feature = "test-fixtures"))]
     let canonical = if fixture_owner {
         let mut state = quest_state.player_quest_gameplay_fixture_like_cpp();
-        let completed = state.status_mut_like_cpp(quest_id).and_then(|status| {
-            (status.status == wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP).then(|| {
-                let old_status = status.status;
-                status.status = wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP;
-                old_status
-            })
-        });
+        let completed = state
+            .status_like_cpp(quest_id)
+            .filter(|status| status.status == wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP)
+            .map(|status| status.status);
+        if completed.is_some() {
+            state.set_status_like_cpp(
+                quest_id,
+                wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                mark_default,
+            );
+        }
         quest_state.apply_player_quest_gameplay_fixture_like_cpp(state);
         Some(completed)
     } else {
@@ -43,6 +48,7 @@ pub(crate) fn complete_represented_quest_status_like_cpp(
             quest_id,
             wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
             wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+            mark_default,
         )
     };
 
@@ -51,6 +57,7 @@ pub(crate) fn complete_represented_quest_status_like_cpp(
         quest_id,
         wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
         wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+        mark_default,
     );
 
     #[cfg(any(test, feature = "test-fixtures"))]

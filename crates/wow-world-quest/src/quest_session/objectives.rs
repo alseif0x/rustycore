@@ -144,6 +144,7 @@ pub(crate) async fn apply_quest_item_added_objective_progress_filtered_like_cpp<
             &state_snapshot,
             &after,
             host.hub_ref().catalogs,
+            host.hub_ref().config.quest_ignore_auto_complete_like_cpp,
             &changed_quest_ids,
         );
     }
@@ -276,6 +277,7 @@ pub fn apply_quest_item_removed_like_cpp<H: QuestItemStorageHostLikeCpp>(
             &before,
             &after,
             host.hub_ref().catalogs,
+            host.hub_ref().config.quest_ignore_auto_complete_like_cpp,
             &changed_quest_ids,
         );
     }
@@ -335,6 +337,7 @@ pub fn apply_quest_item_added_non_bound_state_like_cpp<H: QuestSessionHostLikeCp
             &before,
             &after,
             host.hub_ref().catalogs,
+            host.hub_ref().config.quest_ignore_auto_complete_like_cpp,
             &changed,
         );
     }
@@ -392,6 +395,7 @@ pub fn apply_quest_item_added_bound_state_like_cpp<H: QuestItemStorageHostLikeCp
             &before,
             &after,
             host.hub_ref().catalogs,
+            host.hub_ref().config.quest_ignore_auto_complete_like_cpp,
             &[quest_id],
         );
     }
@@ -469,6 +473,7 @@ pub async fn apply_quest_source_item_bound_objective_progress_for_object_with_ge
             &before,
             &after,
             host.hub_ref().catalogs,
+            host.hub_ref().config.quest_ignore_auto_complete_like_cpp,
             &changed_quest_ids,
         );
     }

@@ -334,6 +334,8 @@ pub(super) struct SessionRuntimePolicyCapabilitiesLikeCpp {
     pub(super) cast_unstuck_enabled: bool,
     pub(super) quest_low_level_hide_diff: u32,
     pub(super) quest_high_level_hide_diff: u32,
+    pub(super) quest_ignore_auto_complete: bool,
+    pub(super) quest_status_keep_abandoned: Option<bool>,
     pub(super) enable_ae_loot: bool,
     /// C++ `CONFIG_EXPANSION`; used by map-entry expansion gates.
     pub(super) server_expansion: u8,
@@ -545,6 +547,10 @@ impl SessionRuntimePolicyCapabilitiesLikeCpp {
     ) {
         session.set_quest_low_level_hide_diff_like_cpp(self.quest_low_level_hide_diff);
         session.set_quest_high_level_hide_diff_like_cpp(self.quest_high_level_hide_diff);
+        session.set_quest_status_save_policy_like_cpp(
+            self.quest_ignore_auto_complete,
+            self.quest_status_keep_abandoned,
+        );
         session.set_player_registry(Arc::clone(&self.player_registry));
         session.set_game_event_quest_complete_sender_like_cpp(
             self.game_event_quest_complete_tx.clone(),

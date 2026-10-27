@@ -140,6 +140,7 @@ pub(crate) fn apply_quest_log_status_delta_like_cpp(
     before: &wow_entities::PlayerQuestGameplayState,
     after: &wow_entities::PlayerQuestGameplayState,
     catalogs: &SessionCatalogs,
+    ignore_auto_complete: bool,
     changed_quest_ids: &[u32],
 ) {
     let Some(rows) = owner.quest_log_values_snapshot_like_cpp() else {
@@ -152,8 +153,19 @@ pub(crate) fn apply_quest_log_status_delta_like_cpp(
         let Some(current) = after.statuses_like_cpp().get(&quest_id) else {
             continue;
         };
+        let quest = quest_store.and_then(|store| store.get(quest_id));
 
         if let Some(previous) = previous {
+            if previous.status != current.status
+                && quest.is_some_and(|quest| {
+                    super::objective_progress::should_mark_quest_status_default_like_cpp(
+                        quest,
+                        ignore_auto_complete,
+                    )
+                })
+            {
+                let _ = owner.mark_quest_status_default_save_like_cpp(quest_id);
+            }
             if previous.status == wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
                 && current.status == wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
             {
@@ -173,7 +185,6 @@ pub(crate) fn apply_quest_log_status_delta_like_cpp(
                 }
             }
 
-            let quest = quest_store.and_then(|store| store.get(quest_id));
             for index in 0..MAX_QUEST_COUNTS_LIKE_CPP {
                 let old_count = previous.objective_counts.get(index).copied().unwrap_or(0);
                 let new_count = current.objective_counts.get(index).copied().unwrap_or(0);
@@ -189,6 +200,14 @@ pub(crate) fn apply_quest_log_status_delta_like_cpp(
                             && objective.is_storing_flag_like_cpp()
                     })
                 });
+                if let Some(row) = rows.get(usize::from(current.slot))
+                    && usize::from(current.slot) < MAX_QUEST_LOG_SIZE_LIKE_CPP as usize
+                    && row
+                        .objective_data_for_save_like_cpp(index as u8, stores_flag)
+                        .is_some_and(|old_data| i32::from(old_data) != new_count)
+                {
+                    let _ = owner.mark_quest_status_default_save_like_cpp(quest_id);
+                }
                 if stores_flag {
                     let state_flag = QUEST_STATE_OBJECTIVE_FLAG_BASE_LIKE_CPP << index;
                     if new_count != 0 {

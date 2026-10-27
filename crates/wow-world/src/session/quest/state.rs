@@ -6,6 +6,16 @@
 use super::*;
 
 impl WorldSession {
+    /// Install the narrow loaded policy used by SetQuestStatus and `_SaveQuestStatus`.
+    pub fn set_quest_status_save_policy_like_cpp(
+        &mut self,
+        ignore_auto_complete: bool,
+        keep_abandoned: Option<bool>,
+    ) {
+        self.config.quest_ignore_auto_complete_like_cpp = ignore_auto_complete;
+        self.config.quest_status_keep_abandoned_like_cpp = keep_abandoned;
+    }
+
     /// Set the quest store shared reference.
     pub fn set_quest_store(&mut self, store: Arc<wow_data::quest::QuestStore>) {
         self.core

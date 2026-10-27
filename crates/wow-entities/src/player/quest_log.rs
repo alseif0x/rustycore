@@ -50,6 +50,24 @@ impl QuestLogValuesLikeCpp {
     pub const fn objective_progress(&self) -> &[u16; MAX_QUEST_COUNTS_LIKE_CPP] {
         &self.objective_progress
     }
+
+    /// C++ `Player::GetQuestSlotObjectiveData`'s persisted objective reader
+    /// (`Player.cpp:15929-15948`), including its raw-StorageIndex flag mask.
+    pub fn objective_data_for_save_like_cpp(
+        &self,
+        storage_index: u8,
+        is_storing_flag: bool,
+    ) -> Option<u16> {
+        if usize::from(storage_index) >= MAX_QUEST_COUNTS_LIKE_CPP {
+            return Some(0);
+        }
+        if is_storing_flag {
+            return Some(u16::from(self.state_flags & u32::from(storage_index) != 0));
+        }
+        self.objective_progress
+            .get(usize::from(storage_index))
+            .copied()
+    }
 }
 
 /// Immutable row and nested mask captured for one Player update publication.
@@ -97,6 +115,21 @@ impl Player {
             .iter()
             .position(|row| row.quest_id as u32 == quest_id)
             .and_then(|slot| u8::try_from(slot).ok())
+    }
+
+    /// C++ `Player::GetQuestSlotObjectiveData`'s persisted objective reader
+    /// (`Player.cpp:15929-15948`), including its raw-StorageIndex flag mask.
+    pub fn quest_slot_objective_data_for_save_like_cpp(
+        &self,
+        slot: u8,
+        storage_index: i8,
+        is_storing_flag: bool,
+    ) -> Option<u16> {
+        let row = self.data.quest_log.get(usize::from(slot))?;
+        if !(0..MAX_QUEST_COUNTS_LIKE_CPP as i8).contains(&storage_index) {
+            return Some(0);
+        }
+        Some(row.objective_data_for_save_like_cpp(storage_index as u8, is_storing_flag)?)
     }
 
     /// C++ `Player::SetQuestSlot`: reset the independent update-field row.

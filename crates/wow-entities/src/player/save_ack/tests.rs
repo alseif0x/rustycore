@@ -32,6 +32,7 @@ fn all() -> PlayerSavedGroupsLikeCpp {
         reputations: true,
         inventory_items: true,
         currencies: true,
+        quest_statuses: true,
     }
 }
 
@@ -224,6 +225,162 @@ fn item_save_ack_ignores_wire_masks_and_retains_new_persistent_values() {
         p.inventory_runtime_like_cpp().item_objects()[&guid].update_state(),
         ItemUpdateState::Changed,
         "a persistent write made during the save remains dirty"
+    );
+}
+
+#[test]
+fn quest_status_ack_requires_commit_and_the_captured_status_and_native_projection() {
+    let mut p = player();
+    let quest_id = 81_001;
+    p.gameplay_state_mut().quests.add_active_status_like_cpp(
+        quest_id,
+        PlayerQuestStatusRecord {
+            quest_id,
+            status: 1,
+            explored: false,
+            accept_time_secs: 17,
+            end_time_secs: 99,
+            objective_counts: vec![7],
+            slot: 3,
+        },
+    );
+    assert!(p.set_quest_slot_like_cpp(3, quest_id));
+    assert!(p.set_quest_slot_end_time_like_cpp(3, 123));
+    assert!(p.set_quest_slot_counter_like_cpp(3, 0, 7));
+    let projection = PlayerQuestStatusSaveProjectionLikeCpp {
+        quest_id,
+        native: Some(PlayerQuestNativeSaveProjectionLikeCpp {
+            slot: 3,
+            end_time_secs: 123,
+            objectives: vec![PlayerQuestObjectiveSaveValueLikeCpp {
+                storage_index: 0,
+                is_storing_flag: false,
+                value: 7,
+            }],
+        }),
+    };
+
+    let receipt = p.capture_save_acknowledgement_with_quest_status_like_cpp(
+        &[],
+        &[],
+        std::slice::from_ref(&projection),
+    );
+    p.acknowledge_saved_projection_like_cpp(receipt, PlayerSavedGroupsLikeCpp::default());
+    assert_eq!(
+        p.gameplay_state()
+            .quests
+            .status_save_type_like_cpp(quest_id),
+        Some(PlayerQuestStatusSaveTypeLikeCpp::Default),
+        "a failed or uncommitted group retains the source dirty key"
+    );
+
+    let receipt = p.capture_save_acknowledgement_with_quest_status_like_cpp(
+        &[],
+        &[],
+        std::slice::from_ref(&projection),
+    );
+    assert!(p.set_quest_slot_counter_like_cpp(3, 0, 8));
+    p.acknowledge_saved_projection_like_cpp(
+        receipt,
+        PlayerSavedGroupsLikeCpp {
+            quest_statuses: true,
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        p.gameplay_state()
+            .quests
+            .status_save_type_like_cpp(quest_id),
+        Some(PlayerQuestStatusSaveTypeLikeCpp::Default),
+        "a native objective change after capture cannot be acknowledged by the old projection"
+    );
+
+    let current_projection = PlayerQuestStatusSaveProjectionLikeCpp {
+        native: Some(PlayerQuestNativeSaveProjectionLikeCpp {
+            objectives: vec![PlayerQuestObjectiveSaveValueLikeCpp {
+                value: 8,
+                ..projection.native.as_ref().unwrap().objectives[0]
+            }],
+            ..projection.native.clone().unwrap()
+        }),
+        ..projection
+    };
+    let receipt = p.capture_save_acknowledgement_with_quest_status_like_cpp(
+        &[],
+        &[],
+        std::slice::from_ref(&current_projection),
+    );
+    p.acknowledge_saved_projection_like_cpp(
+        receipt,
+        PlayerSavedGroupsLikeCpp {
+            quest_statuses: true,
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        p.gameplay_state()
+            .quests
+            .status_save_type_like_cpp(quest_id),
+        None,
+        "the matching committed projection clears only its captured dirty key"
+    );
+}
+
+#[test]
+fn quest_status_no_sql_acknowledges_only_matching_absence_or_none_record() {
+    let mut p = player();
+    let missing_id = 81_002;
+    p.gameplay_state_mut()
+        .quests
+        .mark_status_save_like_cpp(missing_id, PlayerQuestStatusSaveTypeLikeCpp::Default);
+    let missing_projection = PlayerQuestStatusSaveProjectionLikeCpp {
+        quest_id: missing_id,
+        native: None,
+    };
+    let receipt = p.capture_save_acknowledgement_with_quest_status_like_cpp(
+        &[],
+        &[],
+        std::slice::from_ref(&missing_projection),
+    );
+    p.acknowledge_saved_projection_like_cpp(
+        receipt,
+        PlayerSavedGroupsLikeCpp {
+            quest_statuses: true,
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        p.gameplay_state()
+            .quests
+            .status_save_type_like_cpp(missing_id),
+        None,
+        "Source Default with no record emits no SQL but is consumed by committed full save"
+    );
+
+    let none_id = 81_003;
+    p.gameplay_state_mut()
+        .quests
+        .set_status_like_cpp(none_id, 0, true);
+    let none_projection = PlayerQuestStatusSaveProjectionLikeCpp {
+        quest_id: none_id,
+        native: None,
+    };
+    let receipt = p.capture_save_acknowledgement_with_quest_status_like_cpp(
+        &[],
+        &[],
+        std::slice::from_ref(&none_projection),
+    );
+    p.acknowledge_saved_projection_like_cpp(
+        receipt,
+        PlayerSavedGroupsLikeCpp {
+            quest_statuses: true,
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        p.gameplay_state().quests.status_save_type_like_cpp(none_id),
+        None,
+        "a known keepAbandoned=false NONE skip is consumed without clearing independent UF"
     );
 }
 

@@ -64,6 +64,7 @@ fn minimal_character_request() -> PlayerCharacterSaveRequestLikeCpp {
         action_buttons: None,
         equipment_sets: None,
         void_storage: None,
+        quest_statuses: None,
         tutorials: None,
         instance_lock_times: Vec::new(),
         played_time: PlayerPlayedTimeSaveLikeCpp {

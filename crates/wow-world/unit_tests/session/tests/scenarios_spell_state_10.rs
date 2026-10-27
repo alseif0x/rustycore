@@ -692,6 +692,20 @@ async fn represented_spellclick_executes_clickee_caster_damage_to_clicker_like_c
         &packets[1][0..2],
         &(ServerOpcodes::HealthUpdate as u16).to_le_bytes()
     );
+
+    // Source Unit::Kill must not skip the Player update's KillPlayer phase.
+    session.mutate_canonical_player_like_cpp(|player| player.unit_mut().set_health(5));
+    let outcome = session
+        .execute_represented_spell_click_plan_like_cpp(creature_guid, &plan)
+        .await;
+    assert_eq!(outcome.executed_casts, 1);
+    assert_eq!(
+        session.mutate_canonical_player_like_cpp(|player| (
+            player.unit().data().health,
+            player.unit().death_state(),
+        )),
+        Some((0, wow_constants::DeathState::JustDied))
+    );
 }
 #[tokio::test]
 async fn represented_spellclick_executes_owner_original_caster_when_owner_is_clicker_like_cpp() {

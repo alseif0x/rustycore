@@ -6,7 +6,38 @@
 //! The application binds this single-use receipt to a generation-checked PlayerHandle.
 
 use super::*;
-use crate::{PlayerCurrency, PlayerCurrencyState};
+use crate::{PlayerCurrency, PlayerCurrencyState, PlayerQuestStatusSaveTypeLikeCpp};
+
+/// One objective value read using `_SaveQuestStatus`'s pinned native getter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerQuestObjectiveSaveValueLikeCpp {
+    pub storage_index: u8,
+    pub is_storing_flag: bool,
+    pub value: u16,
+}
+
+/// Native update-field values that the selected status row's SQL projection reads.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerQuestNativeSaveProjectionLikeCpp {
+    pub slot: u8,
+    pub end_time_secs: i64,
+    pub objectives: Vec<PlayerQuestObjectiveSaveValueLikeCpp>,
+}
+
+/// The immutable native projection selection tied to one dirty quest-status key.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerQuestStatusSaveProjectionLikeCpp {
+    pub quest_id: u32,
+    pub native: Option<PlayerQuestNativeSaveProjectionLikeCpp>,
+}
+
+#[derive(Debug)]
+struct SavedQuestStatusLikeCpp {
+    quest_id: u32,
+    save_type: PlayerQuestStatusSaveTypeLikeCpp,
+    status: Option<PlayerQuestStatusRecord>,
+    native_projection: Option<PlayerQuestNativeSaveProjectionLikeCpp>,
+}
 
 /// Owned, short-lived acknowledgement data. No ECS/SQL/Session dependency or whole Player copy.
 /// Consumed exactly once by the application after confirmed commit for its exact incarnation.
@@ -22,6 +53,7 @@ pub struct PlayerSaveAcknowledgementLikeCpp {
     reputations: Vec<PlayerFactionStateLikeCpp>,
     inventory_items: Vec<(ObjectGuid, Item)>,
     currencies: Vec<(u32, PlayerCurrency)>,
+    quest_statuses: Vec<SavedQuestStatusLikeCpp>,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -33,12 +65,13 @@ pub struct PlayerSavedGroupsLikeCpp {
     pub reputations: bool,
     pub inventory_items: bool,
     pub currencies: bool,
+    pub quest_statuses: bool,
 }
 
 impl Player {
     /// Must run in the same admitted owner read as the complete save projection.
     pub fn capture_save_acknowledgement_like_cpp(&self) -> PlayerSaveAcknowledgementLikeCpp {
-        self.capture_save_acknowledgement_with_inventory_like_cpp(&[], &[])
+        self.capture_save_acknowledgement_with_quest_status_like_cpp(&[], &[], &[])
     }
 
     /// Capture only the item and currency rows selected for the same full-save
@@ -48,6 +81,16 @@ impl Player {
         &self,
         item_guids: &[ObjectGuid],
         currency_ids: &[u32],
+    ) -> PlayerSaveAcknowledgementLikeCpp {
+        self.capture_save_acknowledgement_with_quest_status_like_cpp(item_guids, currency_ids, &[])
+    }
+
+    /// Capture quest status and native values selected by the same full-save projection.
+    pub fn capture_save_acknowledgement_with_quest_status_like_cpp(
+        &self,
+        item_guids: &[ObjectGuid],
+        currency_ids: &[u32],
+        quest_statuses: &[PlayerQuestStatusSaveProjectionLikeCpp],
     ) -> PlayerSaveAcknowledgementLikeCpp {
         let state = self.gameplay_state();
         PlayerSaveAcknowledgementLikeCpp {
@@ -81,6 +124,19 @@ impl Player {
                 .iter()
                 .filter_map(|id| state.currencies.get(id).copied().map(|row| (*id, row)))
                 .collect(),
+            quest_statuses: quest_statuses
+                .iter()
+                .filter_map(|projection| {
+                    Some(SavedQuestStatusLikeCpp {
+                        quest_id: projection.quest_id,
+                        save_type: state
+                            .quests
+                            .status_save_type_like_cpp(projection.quest_id)?,
+                        status: state.quests.status_like_cpp(projection.quest_id).cloned(),
+                        native_projection: projection.native.clone(),
+                    })
+                })
+                .collect(),
         }
     }
 
@@ -93,6 +149,7 @@ impl Player {
             return;
         }
         self.deferred_save.acknowledge(saved.deferred_save);
+        let native_quest_rows = self.quest_log_values_like_cpp();
         let state = &mut self.gameplay_state;
         if let Some(captured) = saved.resurrection
             && captured.phase == crate::PlayerResurrectionPhase::SavingPlayer
@@ -189,6 +246,34 @@ impl Player {
                     )
                 {
                     current.state = PlayerCurrencyState::Unchanged;
+                }
+            }
+        }
+        if groups.quest_statuses {
+            let quests = &mut self.gameplay_state.quests;
+            for captured in saved.quest_statuses {
+                if quests.status_save_type_like_cpp(captured.quest_id) != Some(captured.save_type)
+                    || quests.status_like_cpp(captured.quest_id) != captured.status.as_ref()
+                {
+                    continue;
+                }
+                let native_matches = captured
+                    .native_projection
+                    .as_ref()
+                    .is_none_or(|projection| {
+                        let Some(row) = native_quest_rows.get(usize::from(projection.slot)) else {
+                            return false;
+                        };
+                        row.end_time() == projection.end_time_secs
+                            && projection.objectives.iter().all(|objective| {
+                                row.objective_data_for_save_like_cpp(
+                                    objective.storage_index,
+                                    objective.is_storing_flag,
+                                ) == Some(objective.value)
+                            })
+                    });
+                if native_matches {
+                    quests.clear_status_save_if_like_cpp(captured.quest_id, captured.save_type);
                 }
             }
         }

@@ -5,6 +5,7 @@
 
 use crate::session::state::SessionCore;
 use wow_core::ObjectGuid;
+use wow_entities::PlayerQuestStatusSaveTypeLikeCpp;
 
 const QUEST_LOG_STATE_COMPLETE_LIKE_CPP: u32 = 0x0001;
 const QUEST_LOG_OBJECTIVE_FLAG_BASE_LIKE_CPP: u32 = 256;
@@ -144,6 +145,23 @@ impl QuestObjectiveAccessLikeCpp<'_> {
         })
     }
 
+    /// Record `SetQuestObjectiveData`/`SetQuestStatus` dirty work through the strict Player owner.
+    pub fn mark_quest_status_default_save_like_cpp(&self, quest_id: u32) -> Option<()> {
+        self.core.with_owned_player_mut_like_cpp(|player| {
+            if player
+                .gameplay_state()
+                .quests
+                .status_like_cpp(quest_id)
+                .is_some()
+            {
+                player
+                    .gameplay_state_mut()
+                    .quests
+                    .mark_status_save_like_cpp(quest_id, PlayerQuestStatusSaveTypeLikeCpp::Default);
+            }
+        })
+    }
+
     /// Invalidate the derived spell-hit authority after quest status changes.
     pub fn invalidate_spell_hit_aura_authority_like_cpp(&self) {
         self.core
@@ -190,6 +208,24 @@ impl QuestObjectiveAccessLikeCpp<'_> {
                 (status.slot, status.objective_counts[objective_index])
             };
             if let Ok(counter) = u8::try_from(objective_index) {
+                if slot < 25
+                    && objective_index < 24
+                    && player
+                        .quest_slot_objective_data_for_save_like_cpp(
+                            slot,
+                            objective_index as i8,
+                            false,
+                        )
+                        .is_some_and(|old| i32::from(old) != count)
+                {
+                    player
+                        .gameplay_state_mut()
+                        .quests
+                        .mark_status_save_like_cpp(
+                            quest_id,
+                            PlayerQuestStatusSaveTypeLikeCpp::Default,
+                        );
+                }
                 let _ = player.set_quest_slot_counter_like_cpp(slot, counter, count as u16);
             }
             Some(count)
@@ -224,6 +260,17 @@ impl QuestObjectiveAccessLikeCpp<'_> {
                 .ok()
                 .and_then(|index| QUEST_LOG_OBJECTIVE_FLAG_BASE_LIKE_CPP.checked_shl(index))
                 .unwrap_or(0);
+            if slot < 25
+                && objective_index < 24
+                && player
+                    .quest_slot_objective_data_for_save_like_cpp(slot, objective_index as i8, true)
+                    .is_some_and(|old| i32::from(old) != i32::from(after))
+            {
+                player
+                    .gameplay_state_mut()
+                    .quests
+                    .mark_status_save_like_cpp(quest_id, PlayerQuestStatusSaveTypeLikeCpp::Default);
+            }
             if after {
                 let _ = player.set_quest_slot_state_like_cpp(slot, state_flag);
             } else {
@@ -239,34 +286,29 @@ impl QuestObjectiveAccessLikeCpp<'_> {
         quest_id: u32,
         complete_status: u8,
         incomplete_status: u8,
+        mark_default: bool,
     ) -> Option<bool> {
         self.core.with_owned_player_mut_like_cpp(|player| {
-            let changed = {
-                let Some(status) = player
-                    .gameplay_state_mut()
-                    .quests
-                    .status_mut_like_cpp(quest_id)
-                else {
-                    return false;
-                };
-                if status.status != complete_status {
-                    return false;
-                }
-                status.status = incomplete_status;
-                true
-            };
-            if changed {
-                // C++ IncompleteQuest changes quest status before consulting
-                // the independent update-field row. A missing native slot
-                // must not prevent the status transition.
-                if let Some(log_slot) = player.find_quest_slot_like_cpp(quest_id) {
-                    let _ = player.remove_quest_slot_state_like_cpp(
-                        log_slot,
-                        QUEST_LOG_STATE_COMPLETE_LIKE_CPP,
-                    );
-                }
+            let should_change = player
+                .gameplay_state()
+                .quests
+                .status_like_cpp(quest_id)
+                .is_some_and(|status| status.status == complete_status);
+            if !should_change {
+                return false;
             }
-            changed
+            player.gameplay_state_mut().quests.set_status_like_cpp(
+                quest_id,
+                incomplete_status,
+                mark_default,
+            );
+            // C++ IncompleteQuest changes status before consulting the
+            // independent update-field QuestID lookup.
+            if let Some(log_slot) = player.find_quest_slot_like_cpp(quest_id) {
+                let _ = player
+                    .remove_quest_slot_state_like_cpp(log_slot, QUEST_LOG_STATE_COMPLETE_LIKE_CPP);
+            }
+            true
         })
     }
 
@@ -276,6 +318,7 @@ impl QuestObjectiveAccessLikeCpp<'_> {
         quest_id: u32,
         incomplete_status: u8,
         complete_status: u8,
+        mark_default: bool,
     ) -> Option<Option<u8>> {
         self.core.with_owned_player_mut_like_cpp(|player| {
             let (old_status, slot) = {
@@ -286,10 +329,13 @@ impl QuestObjectiveAccessLikeCpp<'_> {
                 if status.status != incomplete_status {
                     return None;
                 }
-                let old_status = status.status;
-                status.status = complete_status;
-                (old_status, status.slot)
+                (status.status, status.slot)
             };
+            player.gameplay_state_mut().quests.set_status_like_cpp(
+                quest_id,
+                complete_status,
+                mark_default,
+            );
             let _ = player.set_quest_slot_state_like_cpp(slot, QUEST_LOG_STATE_COMPLETE_LIKE_CPP);
             Some(old_status)
         })

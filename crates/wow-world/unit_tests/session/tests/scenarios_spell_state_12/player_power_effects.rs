@@ -384,6 +384,17 @@ async fn spell_power_burn_effect_drains_power_and_damages_player_like_cpp_bounda
             ServerOpcodes::CooldownEvent
         ]
     );
+
+    // Unit::Kill enters JUST_DIED; Player::KillPlayer must still run before CORPSE.
+    session.mutate_canonical_player_like_cpp(|player| player.unit_mut().set_health(5));
+    session.execute_spell(spell_id, player_guid).await.unwrap();
+    assert_eq!(
+        session.mutate_canonical_player_like_cpp(|player| (
+            player.unit().data().health,
+            player.unit().death_state(),
+        )),
+        Some((0, wow_constants::DeathState::JustDied))
+    );
 }
 
 /// C++ `EffectPowerBurn` logs the drained power with a zero amplitude

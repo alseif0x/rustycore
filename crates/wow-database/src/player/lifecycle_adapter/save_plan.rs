@@ -9,8 +9,8 @@ use crate::params::PreparedStatement;
 use crate::statements::CharStatements;
 use wow_persistence::{
     PlayerCharacterSaveRequestLikeCpp, PlayerEquipmentSetStateLikeCpp,
-    PlayerEquipmentSetTypeLikeCpp, PlayerLifecycleAuraFamilySave, PlayerLifecycleAuraSave,
-    PlayerItemSaveLikeCpp, PlayerItemSaveStateLikeCpp, PlayerSpellSaveGroupLikeCpp,
+    PlayerEquipmentSetTypeLikeCpp, PlayerItemSaveLikeCpp, PlayerItemSaveStateLikeCpp,
+    PlayerLifecycleAuraFamilySave, PlayerLifecycleAuraSave, PlayerSpellSaveGroupLikeCpp,
     PlayerSpellStateLikeCpp,
 };
 
@@ -84,6 +84,21 @@ pub(super) fn player_character_save_statements_like_cpp(
         }));
     }
     let item_statement_position = steps.len();
+
+    if let Some(slots) = &request.void_storage {
+        steps.extend(slots.iter().map(|slot| match &slot.item {
+            Some(row) => Step::ReplaceVoidStorageItem {
+                player_guid: guid,
+                slot: slot.slot,
+                row: row.clone(),
+            },
+            None => Step::DeleteVoidStorageSlot {
+                player_guid: guid,
+                slot: slot.slot,
+            },
+        }));
+    }
+    let quest_statement_position = steps.len();
 
     match &request.spells {
         Some(PlayerSpellSaveGroupLikeCpp::Complete { rows, .. }) => {
@@ -324,19 +339,6 @@ pub(super) fn player_character_save_statements_like_cpp(
             }
         }
     }
-    if let Some(slots) = &request.void_storage {
-        steps.extend(slots.iter().map(|slot| match &slot.item {
-            Some(row) => Step::ReplaceVoidStorageItem {
-                player_guid: guid,
-                slot: slot.slot,
-                row: row.clone(),
-            },
-            None => Step::DeleteVoidStorageSlot {
-                player_guid: guid,
-                slot: slot.slot,
-            },
-        }));
-    }
     if let Some(tutorials) = &request.tutorials {
         steps.push(if tutorials.already_persisted {
             Step::UpdateTutorials {
@@ -412,6 +414,15 @@ pub(super) fn player_character_save_statements_like_cpp(
         {
             statements.extend(super::player_currency_save_statements_like_cpp(currencies));
         }
+        if index == quest_statement_position
+            && let Some(quests) = &request.quest_statuses
+        {
+            for quest in quests {
+                statements.extend(
+                    crate::player::quest_adapter::full_save_quest_status_statements_like_cpp(quest),
+                );
+            }
+        }
         if let Some(step) = steps.get(index) {
             statements.push(player_character_save_statement_like_cpp(step));
         }
@@ -426,7 +437,8 @@ fn append_player_item_save_statements_like_cpp(
 ) {
     match item.state {
         PlayerItemSaveStateLikeCpp::New | PlayerItemSaveStateLikeCpp::Changed => {
-            let mut link = PreparedStatement::for_statement(CharStatements::REP_CHAR_INVENTORY_ITEM);
+            let mut link =
+                PreparedStatement::for_statement(CharStatements::REP_CHAR_INVENTORY_ITEM);
             link.set_u64(0, player_guid);
             link.set_u64(1, item.bag_guid);
             link.set_u8(2, item.slot);
@@ -507,7 +519,8 @@ fn append_player_item_save_statements_like_cpp(
             delete_link.set_u64(1, item.item_guid);
             statements.push(delete_link);
 
-            let mut delete_item = PreparedStatement::for_statement(CharStatements::DEL_ITEM_INSTANCE);
+            let mut delete_item =
+                PreparedStatement::for_statement(CharStatements::DEL_ITEM_INSTANCE);
             delete_item.set_u64(0, item.item_guid);
             statements.push(delete_item);
 

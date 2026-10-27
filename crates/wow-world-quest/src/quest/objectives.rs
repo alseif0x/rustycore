@@ -166,6 +166,10 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                 self.reward.quest_state,
                 quest.id,
                 tracking_event,
+                super::objective_progress::should_mark_quest_status_default_like_cpp(
+                    quest,
+                    self.reward.config.quest_ignore_auto_complete_like_cpp,
+                ),
                 self.reward.world_test_consumer,
             )
         };
@@ -744,6 +748,12 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                     quest_id,
                     wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
                     wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                    store.get(quest_id).is_some_and(|quest| {
+                        super::objective_progress::should_mark_quest_status_default_like_cpp(
+                            quest,
+                            self.reward.config.quest_ignore_auto_complete_like_cpp,
+                        )
+                    }),
                     self.reward.world_test_consumer,
                 )
             {
@@ -885,6 +895,12 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                     quest_id,
                     wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
                     wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                    store.get(quest_id).is_some_and(|quest| {
+                        super::objective_progress::should_mark_quest_status_default_like_cpp(
+                            quest,
+                            self.reward.config.quest_ignore_auto_complete_like_cpp,
+                        )
+                    }),
                     self.reward.world_test_consumer,
                 )
             {
@@ -1038,6 +1054,12 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                     quest_id,
                     wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
                     wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                    store.get(quest_id).is_some_and(|quest| {
+                        super::objective_progress::should_mark_quest_status_default_like_cpp(
+                            quest,
+                            self.reward.config.quest_ignore_auto_complete_like_cpp,
+                        )
+                    }),
                     self.reward.world_test_consumer,
                 )
             {

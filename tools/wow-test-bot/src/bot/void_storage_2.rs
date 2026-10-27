@@ -603,10 +603,7 @@ pub(crate) async fn run_bot_with_void_storage(
                             &local_challenge,
                             &server_challenge,
                         );
-                        info!(
-                            "[Bot {}] Encryption key derived: {:02x}{:02x}...",
-                            bot_index, enc_key[0], enc_key[1]
-                        );
+                        info!("[Bot {}] Encryption initialized", bot_index);
 
                         // Server's WorldPacketCrypt increments _clientCounter / _serverCounter
                         // on every packet — including the unencrypted SMSG_AUTH_CHALLENGE,
@@ -788,9 +785,9 @@ pub(crate) async fn run_bot_with_void_storage(
                                         != (candidate.low, candidate.high) =>
                                 {
                                     bail!(
-                                    "vendor login discovery produced two different live candidates near SQL spawn {}",
-                                    options.vendor.spawn_guid
-                                );
+                                        "vendor login discovery produced two different live candidates near SQL spawn {}",
+                                        options.vendor.spawn_guid
+                                    );
                                 }
                                 _ => vendor_target_seen = Some(candidate),
                             }
@@ -827,9 +824,9 @@ pub(crate) async fn run_bot_with_void_storage(
                                         != (candidate.low, candidate.high) =>
                                 {
                                     bail!(
-                                    "void-storage login discovery produced two different live candidates near SQL spawn {}",
-                                    options.vault_keeper.spawn_guid
-                                );
+                                        "void-storage login discovery produced two different live candidates near SQL spawn {}",
+                                        options.vault_keeper.spawn_guid
+                                    );
                                 }
                                 _ => void_storage_target_seen = Some(candidate),
                             }
@@ -852,9 +849,9 @@ pub(crate) async fn run_bot_with_void_storage(
                             .unwrap_or_default();
                         if candidates.len() > 1 {
                             bail!(
-                            "detour login discovery found {} same-entry live candidates inside the pinned spawn radius",
-                            candidates.len()
-                        );
+                                "detour login discovery found {} same-entry live candidates inside the pinned spawn radius",
+                                candidates.len()
+                            );
                         }
                         if let Some(candidate) = candidates.into_iter().next() {
                             match detour_chase_target_seen {
@@ -863,9 +860,9 @@ pub(crate) async fn run_bot_with_void_storage(
                                         != (candidate.low, candidate.high) =>
                                 {
                                     bail!(
-                                    "detour login discovery produced two different live candidates for pinned spawn {}",
-                                    options.target_spawn_guid
-                                );
+                                        "detour login discovery produced two different live candidates for pinned spawn {}",
+                                        options.target_spawn_guid
+                                    );
                                 }
                                 _ => detour_chase_target_seen = Some(candidate),
                             }
@@ -874,8 +871,8 @@ pub(crate) async fn run_bot_with_void_storage(
                     if creature_spell_options.is_some() {
                         if op == SMSG_SPELL_START {
                             bail!(
-                            "creature began casting during login before the bot's body-pull heartbeat; the pre-login position is not isolated"
-                        );
+                                "creature began casting during login before the bot's body-pull heartbeat; the pre-login position is not isolated"
+                            );
                         }
                         let candidates = (op == SMSG_UPDATE_OBJECT)
                             .then(|| {
@@ -893,9 +890,9 @@ pub(crate) async fn run_bot_with_void_storage(
                             .unwrap_or_default();
                         if candidates.len() > 1 {
                             bail!(
-                            "creature spell login discovery found {} same-entry live candidates inside the pinned spawn radius",
-                            candidates.len()
-                        );
+                                "creature spell login discovery found {} same-entry live candidates inside the pinned spawn radius",
+                                candidates.len()
+                            );
                         }
                         if let Some(candidate) = candidates.into_iter().next() {
                             match creature_spell_target_seen {
@@ -904,9 +901,9 @@ pub(crate) async fn run_bot_with_void_storage(
                                         != (candidate.low, candidate.high) =>
                                 {
                                     bail!(
-                                    "creature spell login discovery produced two different live candidates for pinned spawn {}",
-                                    CREATURE_SPELL_FIXTURE_SPAWN_GUID
-                                );
+                                        "creature spell login discovery produced two different live candidates for pinned spawn {}",
+                                        CREATURE_SPELL_FIXTURE_SPAWN_GUID
+                                    );
                                 }
                                 _ => creature_spell_target_seen = Some(candidate),
                             }
@@ -973,13 +970,12 @@ pub(crate) async fn run_bot_with_void_storage(
                         let connect_to = parse_connect_to(&payload)
                             .ok_or_else(|| anyhow!("Unable to parse SMSG_CONNECT_TO payload"))?;
                         info!(
-                            "[Bot {}] SMSG_CONNECT_TO: {}:{} serial={} con={} key={}",
+                            "[Bot {}] SMSG_CONNECT_TO: {}:{} serial={} con={}",
                             bot_index,
                             connect_to.address,
                             connect_to.port,
                             connect_to.serial,
-                            connect_to.connection_type,
-                            connect_to.key
+                            connect_to.connection_type
                         );
                         let (instance_stream, instance_crypt) =
                             connect_to_instance(bot_index, &connect_to, &derived_session_key)
@@ -1372,14 +1368,14 @@ pub(crate) async fn run_bot_with_void_storage(
                 }
                 (None, Err(disconnect_error)) => {
                     result.creature_spell_failure = Some(format!(
-                    "creature spell capture did not confirm both socket shutdowns: {disconnect_error}"
-                ));
+                        "creature spell capture did not confirm both socket shutdowns: {disconnect_error}"
+                    ));
                     result.creature_spell_capture_passed = Some(false);
                 }
                 (Some(error), Err(disconnect_error)) => {
                     result.creature_spell_failure = Some(format!(
-                    "{error}; best-effort socket disconnect after failure also failed: {disconnect_error}"
-                ));
+                        "{error}; best-effort socket disconnect after failure also failed: {disconnect_error}"
+                    ));
                     result.creature_spell_capture_passed = Some(false);
                 }
             }
@@ -1477,9 +1473,9 @@ pub(crate) async fn run_bot_with_void_storage(
             )
             .await?;
             info!(
-            "[Bot {}] ✅ Login-only smoke passed: world_auth=true enum_characters=true player_login=true",
-            bot_index
-        );
+                "[Bot {}] ✅ Login-only smoke passed: world_auth=true enum_characters=true player_login=true",
+                bot_index
+            );
             return Ok(result);
         }
 
@@ -1607,7 +1603,11 @@ pub(crate) async fn run_bot_with_void_storage(
 
                     if op == 0x2594 {
                         // SMSG_NEW_WORLD
-                        info!("[Bot {}] 🌍 SMSG_NEW_WORLD ({} bytes) — replying with CMSG_WORLD_PORT_RESPONSE", bot_index, payload.len());
+                        info!(
+                            "[Bot {}] 🌍 SMSG_NEW_WORLD ({} bytes) — replying with CMSG_WORLD_PORT_RESPONSE",
+                            bot_index,
+                            payload.len()
+                        );
                         send_encrypted_packet(&mut stream, &mut crypt, 0x35FA, &[]).await?;
                         info!(
                             "[Bot {}] ✅ CMSG_WORLD_PORT_RESPONSE sent — should now be inside map",

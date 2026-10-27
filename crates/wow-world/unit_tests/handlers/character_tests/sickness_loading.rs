@@ -7,10 +7,10 @@ use wow_packet::ServerPacket;
 
 #[path = "sickness_loading/selected_load.rs"]
 mod selected_load;
-#[path = "sickness_loading/selected_save.rs"]
-mod selected_save;
 #[path = "sickness_loading/selected_restore.rs"]
 mod selected_restore;
+#[path = "sickness_loading/selected_save.rs"]
+mod selected_save;
 #[path = "sickness_loading/selected_visual.rs"]
 mod selected_visual;
 
@@ -90,9 +90,7 @@ fn canonical_aura_session(
     session.set_chr_races_store(Arc::new(ChrRacesStore::from_entries([race])));
     let spell_infos = spell_infos.into_iter().collect::<Vec<_>>();
     let mut spells = crate::selected_spell_fixtures::canonical_spell_store(
-        spell_infos
-            .iter()
-            .map(|info| (info.spell_id as u32, 0)),
+        spell_infos.iter().map(|info| (info.spell_id as u32, 0)),
     );
     let mut misc_rows = Vec::new();
     let mut aura_options_rows = Vec::new();
@@ -180,6 +178,8 @@ fn capture_player_save_request(
             .spell_item_enchantment_store
             .as_deref(),
         hub.catalogs.currency_types_store().map(AsRef::as_ref),
+        hub.catalogs.quests.store.as_deref(),
+        hub.config.quest_status_keep_abandoned_like_cpp,
     );
     owner
         .capture_like_cpp(lifecycle.player_save_session_inputs_like_cpp(1_700_000_000))
@@ -769,10 +769,8 @@ fn selected_sickness_capture_holds_unknown_catalog_and_rejects_duplicate_family_
         None,
         vec![(1, 80, -75, 0)],
     );
-    let mut spells = crate::selected_spell_fixtures::canonical_spell_store([(
-        SICKNESS_SPELL_ID as u32,
-        0,
-    )]);
+    let mut spells =
+        crate::selected_spell_fixtures::canonical_spell_store([(SICKNESS_SPELL_ID as u32, 0)]);
     spells.insert(SICKNESS_SPELL_ID, sickness_catalog_info());
     missing_attributes.set_spell_store(Arc::new(spells));
     wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut missing_attributes, true);
@@ -809,10 +807,8 @@ fn selected_sickness_capture_holds_unknown_catalog_and_rejects_duplicate_family_
 fn selected_sickness_capture_skips_known_foreign_limit_n_and_holds_unknown_targets() {
     let (mut session, _, _) = canonical_aura_session([sickness_catalog_info()], SICKNESS_SPELL_ID);
     let foreign_caster = ObjectGuid::create_player(1, 99);
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(
-        SICKNESS_SPELL_ID as u32,
-        0,
-    )]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(SICKNESS_SPELL_ID as u32, 0)]);
     spell_store.insert(SICKNESS_SPELL_ID, sickness_catalog_info());
     let mut attributes = [0; 15];
     attributes[5] = 0x20;
@@ -832,10 +828,8 @@ fn selected_sickness_capture_skips_known_foreign_limit_n_and_holds_unknown_targe
 
     let mut unsupported = sickness_catalog_info();
     unsupported.effects[0].implicit_target_1 = 6;
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(
-        SICKNESS_SPELL_ID as u32,
-        0,
-    )]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(SICKNESS_SPELL_ID as u32, 0)]);
     spell_store.insert(SICKNESS_SPELL_ID, unsupported);
     spell_store.insert_spell_misc_attributes_like_cpp(SICKNESS_SPELL_ID, [0; 15]);
     session.set_spell_store(Arc::new(spell_store));

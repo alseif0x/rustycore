@@ -109,12 +109,11 @@ followed by a bounded complete frame read, as in `read_encrypted_packet_if_ready
 a frame timeout is terminal for that connection. Record send attempts and local
 write completion separately from server responses and scenario admission.
 
-One shared-login prerequisite remains before using the death driver:
-`bot/void_storage_2.rs` currently logs an encryption-key prefix and the
-`SMSG_CONNECT_TO` continuation key. Remove those values from diagnostics;
-authentication/control trace events must contain phase and routing metadata
-without key-bearing bodies. This is pending implementation, not an executed
-death-driver or capture result.
+The 2026-10-27 local closure work removes the encryption-key prefix and
+`SMSG_CONNECT_TO` continuation key from `bot/void_storage_2.rs` diagnostics.
+Authentication/control trace events must contain phase and routing metadata
+without key-bearing bodies. This logging change is not an executed death-driver
+or capture result.
 
 | Scenario | Required observations |
 |---|---|

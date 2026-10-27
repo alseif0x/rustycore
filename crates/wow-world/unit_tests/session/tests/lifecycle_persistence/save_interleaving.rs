@@ -28,7 +28,130 @@ fn canonical_session(
     (session, port)
 }
 
+fn install_dirty_failed_quest(session: &mut WorldSession) {
+    let mut quest = test_quest_template(81001);
+    quest.objectives.push(wow_entities::QuestObjective {
+        id: 810010,
+        quest_id: 81001,
+        obj_type: 0,
+        order: 0,
+        storage_index: 0,
+        object_id: 1,
+        amount: 10,
+        flags: 0,
+        flags2: 0,
+        progress_bar_weight: 0.0,
+        description: String::new(),
+    });
+    session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
+        [quest],
+    )));
+    session
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .gameplay_state_mut()
+                .quests
+                .add_active_status_like_cpp(
+                    81001,
+                    wow_entities::PlayerQuestStatusRecord {
+                        quest_id: 81001,
+                        status: wow_conditions::QUEST_STATUS_FAILED_LIKE_CPP,
+                        explored: false,
+                        accept_time_secs: 12,
+                        end_time_secs: 999,
+                        objective_counts: vec![99],
+                        slot: 0,
+                    },
+                );
+            player.set_quest_slot_like_cpp(0, 81001);
+            player.set_quest_slot_end_time_like_cpp(0, 34);
+            player.set_quest_slot_counter_like_cpp(0, 0, 7);
+        })
+        .unwrap();
+}
+
+#[tokio::test]
+async fn full_save_quest_ack_preserves_native_progress_changed_during_commit() {
+    let (mut session, port) = canonical_session(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
+    install_dirty_failed_quest(&mut session);
+    let handle = session.core.player_handle_like_cpp.unwrap();
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
+    *port.during_save.lock().unwrap() = Some(Box::new(move || {
+        manager
+            .try_lock()
+            .unwrap()
+            .with_player_mut_like_cpp(handle, |player| {
+                player.set_quest_slot_counter_like_cpp(0, 0, 8);
+            })
+            .unwrap();
+    }));
+    session.save_current_player_to_db_like_cpp().await;
+    let requests = port.character_saves();
+    let wow_persistence::PlayerQuestStatusPersistenceRequestLikeCpp::Save { status, .. } =
+        &requests[0].quest_statuses.as_ref().unwrap()[0]
+    else {
+        panic!("expected active quest save")
+    };
+    assert_eq!(status.status, wow_conditions::QUEST_STATUS_FAILED_LIKE_CPP);
+    assert_eq!(status.end_time_secs, 34);
+    assert_eq!(
+        status.objectives[0].count, 7,
+        "save reads native fields, not the status compatibility projection"
+    );
+    assert_eq!(
+        session.with_owned_player_like_cpp(|p| p
+            .gameplay_state()
+            .quests
+            .status_save_type_like_cpp(81001)),
+        Some(Some(
+            wow_entities::PlayerQuestStatusSaveTypeLikeCpp::Default
+        ))
+    );
+    session.save_current_player_to_db_like_cpp().await;
+    assert_eq!(
+        session.with_owned_player_like_cpp(|p| p
+            .gameplay_state()
+            .quests
+            .status_save_type_like_cpp(81001)),
+        Some(None)
+    );
+    let requests = port.character_saves();
+    let wow_persistence::PlayerQuestStatusPersistenceRequestLikeCpp::Save { status, .. } =
+        &requests[1].quest_statuses.as_ref().unwrap()[0]
+    else {
+        panic!("expected retry save")
+    };
+    assert_eq!(status.objectives[0].count, 8);
+}
+
+#[tokio::test]
+async fn full_save_failed_or_unknown_commit_keeps_quest_dirty() {
+    for outcome in [
+        PersistenceOutcomeLikeCpp::Failed {
+            reason: "rollback".into(),
+        },
+        PersistenceOutcomeLikeCpp::Unknown {
+            reason: "lost commit reply".into(),
+        },
+    ] {
+        let (mut session, port) = canonical_session(outcome);
+        install_dirty_failed_quest(&mut session);
+        session.save_current_player_to_db_like_cpp().await;
+        assert_eq!(port.character_saves().len(), 1);
+        assert_eq!(
+            session.with_owned_player_like_cpp(|p| p
+                .gameplay_state()
+                .quests
+                .status_save_type_like_cpp(81001)),
+            Some(Some(
+                wow_entities::PlayerQuestStatusSaveTypeLikeCpp::Default
+            ))
+        );
+    }
+}
+
 fn add_dirty_durability_item(session: &mut WorldSession, item_id: i64, durability: u32) {
+    session.set_item_effect_store(Arc::new(wow_data::ItemEffectStore::from_entries([])));
     let player_guid = session.player_guid().expect("selected player guid");
     session
         .with_owned_player_mut_like_cpp(|player| {
@@ -152,11 +275,14 @@ async fn full_save_ack_rebases_changed_new_spell_for_the_next_transaction() {
         Some(wow_entities::PlayerSpellLoadState::Changed)
     );
     assert_eq!(
-        port.character_saves()[0].item_durability,
-        Some(vec![wow_persistence::PlayerItemDurabilitySave {
-            item_guid: 20,
-            durability: 8,
-        }]),
+        port.character_saves()[0]
+            .inventory_items
+            .as_ref()
+            .map(|items| items
+                .iter()
+                .map(|item| (item.item_guid, item.durability))
+                .collect::<Vec<_>>()),
+        Some(vec![(20, 8)]),
         "the transaction captures only the pre-await canonical durability"
     );
     assert_eq!(
@@ -203,11 +329,14 @@ async fn full_save_rollback_and_unknown_leave_native_dirty_state_and_distinct_fe
         session.save_current_player_to_db_like_cpp().await;
         assert_eq!(port.character_saves().len(), 1);
         assert_eq!(
-            port.character_saves()[0].item_durability,
-            Some(vec![wow_persistence::PlayerItemDurabilitySave {
-                item_guid: 30,
-                durability: 6,
-            }])
+            port.character_saves()[0]
+                .inventory_items
+                .as_ref()
+                .map(|items| items
+                    .iter()
+                    .map(|item| (item.item_guid, item.durability))
+                    .collect::<Vec<_>>()),
+            Some(vec![(30, 6)])
         );
         assert_eq!(
             session.with_owned_player_like_cpp(|player| {
@@ -504,18 +633,17 @@ fn full_save_receipt_intersects_committed_groups_before_acknowledging_rows_and_t
         .spell_catalogs
         .spell_store()
         .map(AsRef::as_ref);
-    let mut owner =
-        session
-            .core
-            .player_save_operation_access_like_cpp(
-                talent_store,
-                spell_store,
-                None,
-                None,
-                None,
-                None,
-                None,
-            );
+    let mut owner = session.core.player_save_operation_access_like_cpp(
+        talent_store,
+        spell_store,
+        None,
+        None,
+        None,
+        None,
+        None,
+        session.catalogs.quests.store.as_deref(),
+        session.config.quest_status_keep_abandoned_like_cpp,
+    );
     let inputs = session.lifecycle.player_save_session_inputs_like_cpp(1_000);
     let captured = owner
         .capture_like_cpp(inputs)
@@ -587,18 +715,17 @@ async fn full_save_receipt_preserves_tutorials_changed_after_capture() {
         .spell_catalogs
         .spell_store()
         .map(AsRef::as_ref);
-    let mut owner =
-        session
-            .core
-            .player_save_operation_access_like_cpp(
-                talent_store,
-                spell_store,
-                None,
-                None,
-                None,
-                None,
-                None,
-            );
+    let mut owner = session.core.player_save_operation_access_like_cpp(
+        talent_store,
+        spell_store,
+        None,
+        None,
+        None,
+        None,
+        None,
+        session.catalogs.quests.store.as_deref(),
+        session.config.quest_status_keep_abandoned_like_cpp,
+    );
     let inputs = session.lifecycle.player_save_session_inputs_like_cpp(1_000);
     let captured = owner
         .capture_like_cpp(inputs)

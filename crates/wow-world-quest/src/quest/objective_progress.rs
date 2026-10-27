@@ -222,6 +222,15 @@ pub fn update_objective_count_like_cpp(
     canonical.flatten()
 }
 
+/// C++ `Quest::IsTurnIn` gates SetQuestStatus dirtying only while the runtime
+/// IgnoreAutoComplete option is false.
+pub(crate) fn should_mark_quest_status_default_like_cpp(
+    quest: &wow_data::quest::QuestTemplate,
+    ignore_auto_complete: bool,
+) -> bool {
+    !quest.is_turn_in_like_cpp() || ignore_auto_complete
+}
+
 pub fn update_storing_flag_like_cpp(
     owner: &QuestObjectiveAccessLikeCpp<'_>,
     quest_state: &mut SessionQuestState,
@@ -264,20 +273,20 @@ pub fn mark_quest_incomplete_if_complete_like_cpp(
     quest_id: u32,
     complete_status: u8,
     incomplete_status: u8,
+    mark_default: bool,
     world_test_consumer: bool,
 ) -> bool {
     #[cfg(any(test, feature = "test-fixtures"))]
     if world_test_consumer && owner.owner_handle_absent_like_cpp() {
         let mut state = quest_state.player_quest_gameplay_fixture_like_cpp();
-        let Some(status) = state.status_mut_like_cpp(quest_id) else {
-            quest_state.apply_player_quest_gameplay_fixture_like_cpp(state);
-            return false;
-        };
-        if status.status != complete_status {
+        if !state
+            .status_like_cpp(quest_id)
+            .is_some_and(|status| status.status == complete_status)
+        {
             quest_state.apply_player_quest_gameplay_fixture_like_cpp(state);
             return false;
         }
-        status.status = incomplete_status;
+        state.set_status_like_cpp(quest_id, incomplete_status, mark_default);
         quest_state.apply_player_quest_gameplay_fixture_like_cpp(state);
         return true;
     }
@@ -286,6 +295,7 @@ pub fn mark_quest_incomplete_if_complete_like_cpp(
         quest_id,
         complete_status,
         incomplete_status,
+        mark_default,
     );
     #[cfg(any(test, feature = "test-fixtures"))]
     if world_test_consumer

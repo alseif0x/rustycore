@@ -139,7 +139,7 @@ pub(crate) async fn apply_represented_spell_click_creature_damage_to_clicker_lik
     }
     let Some((original_health, health_after, _, applied_damage, _)) = host
         .hub_mut()
-        .apply_owned_player_damage_like_cpp(damage_amount, wow_constants::DeathState::Corpse)
+        .apply_owned_player_damage_like_cpp(damage_amount, wow_constants::DeathState::JustDied)
     else {
         return Err("Target player owner not available");
     };

@@ -57,6 +57,7 @@ impl WorldSession {
             .spell_item_enchantment_store
             .as_deref();
         let currency_types_store = self.catalogs.currency_types_store.as_deref();
+        let quest_store = self.catalogs.quests.store.as_deref();
         let mut owner = self.core.player_save_operation_access_like_cpp(
             talent_store,
             spell_store,
@@ -65,6 +66,8 @@ impl WorldSession {
             item_effect_store,
             enchantment_store,
             currency_types_store,
+            quest_store,
+            self.config.quest_status_keep_abandoned_like_cpp,
         );
         let inputs = self.lifecycle.player_save_session_inputs_like_cpp(now);
         let captured = owner.capture_like_cpp(inputs)?;
@@ -97,5 +100,6 @@ pub(in crate::session) fn committed_groups_like_cpp(
         reputation: expected.reputation && committed.reputation,
         inventory_items: expected.inventory_items && committed.inventory_items,
         currencies: expected.currencies && committed.currencies,
+        quest_statuses: expected.quest_statuses && committed.quest_statuses,
     }
 }

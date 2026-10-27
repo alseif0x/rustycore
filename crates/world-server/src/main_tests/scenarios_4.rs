@@ -4,6 +4,7 @@
 //! unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use crate::quest_status_keep_abandoned_like_cpp;
 
 #[test]
 fn world_listener_captures_application_resources_outside_transport_boundary() {
@@ -933,6 +934,38 @@ fn account_instances_per_hour_uses_cpp_world_config_key() {
         7
     );
 }
+
+#[test]
+fn quest_status_cleaner_policy_keeps_only_source_proven_modes() {
+    let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+
+    // CharacterDatabaseCleaner.cpp:30-62 returns before reading flags when disabled.
+    wow_config::load_config_from_str("CleanCharacterDB = 0\nPersistentCharacterCleanFlags = 16\n")
+        .expect("config should load");
+    assert_eq!(
+        quest_status_keep_abandoned_like_cpp(&wow_config::load_world_config_values()),
+        Some(true)
+    );
+
+    // The cleaner post-mask `flags &= configuredPersistentFlags` clears the
+    // Source QUESTSTATUS bit (Player.cpp:20146) when the configured mask omits it.
+    wow_config::load_config_from_str("CleanCharacterDB = 1\nPersistentCharacterCleanFlags = 0\n")
+        .expect("config should load");
+    assert_eq!(
+        quest_status_keep_abandoned_like_cpp(&wow_config::load_world_config_values()),
+        Some(true)
+    );
+
+    // A mask that preserves QUESTSTATUS depends on the missing world_variable
+    // cleaner state and must remain unresolved here.
+    wow_config::load_config_from_str("CleanCharacterDB = 1\nPersistentCharacterCleanFlags = 16\n")
+        .expect("config should load");
+    assert_eq!(
+        quest_status_keep_abandoned_like_cpp(&wow_config::load_world_config_values()),
+        None
+    );
+}
+
 #[test]
 fn chat_fake_message_preventing_uses_cpp_world_config_key() {
     let _guard = TEST_LOCK.lock().expect("test lock poisoned");

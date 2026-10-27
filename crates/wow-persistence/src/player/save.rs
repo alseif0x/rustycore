@@ -42,6 +42,9 @@ pub struct PlayerCharacterSaveRequestLikeCpp {
     pub action_buttons: Option<PlayerActionButtonsSaveLikeCpp>,
     pub equipment_sets: Option<Vec<PlayerEquipmentSetSaveLikeCpp>>,
     pub void_storage: Option<Vec<PlayerVoidStorageSlotSaveLikeCpp>>,
+    /// Dirty native quest-status rows and per-quest deletes selected by the full-save owner.
+    /// `Some(empty)` also acknowledges dirty source intents that require no SQL statement.
+    pub quest_statuses: Option<Vec<crate::PlayerQuestStatusPersistenceRequestLikeCpp>>,
     pub tutorials: Option<PlayerTutorialsSaveLikeCpp>,
     pub instance_lock_times: Vec<PlayerInstanceLockTimeSaveLikeCpp>,
     pub played_time: PlayerPlayedTimeSaveLikeCpp,
@@ -75,6 +78,7 @@ impl PlayerCharacterSaveRequestLikeCpp {
             reputation: !self.reputations.is_empty(),
             inventory_items: self.inventory_items.is_some(),
             currencies: self.currencies.is_some(),
+            quest_statuses: self.quest_statuses.is_some(),
         }
     }
 }
@@ -92,6 +96,8 @@ pub struct PlayerCharacterCommittedGroupsLikeCpp {
     pub inventory_items: bool,
     /// A coherent currency group was included in this transaction.
     pub currencies: bool,
+    /// A coherent dirty quest-status group was included in this transaction.
+    pub quest_statuses: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

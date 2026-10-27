@@ -480,7 +480,7 @@ pub async fn apply_power_drain_effect_like_cpp<H: SpellEffectHostLikeCpp>(
         if burned > 0 {
             let _ = host.hub_mut().apply_owned_player_damage_like_cpp(
                 u32::try_from(burned).unwrap_or(u32::MAX),
-                wow_constants::DeathState::Corpse,
+                wow_constants::DeathState::JustDied,
             );
             host.sync_player_registry_state_like_cpp();
         }

@@ -81,6 +81,11 @@ pub struct SessionWorldConfig {
     /// C++ `CONFIG_MAX_PRIMARY_TRADE_SKILL`, kept independent from talent
     /// `CharacterPoints` and from the two physical profession associations.
     pub max_primary_trade_skills_like_cpp: u8,
+    /// C++ `CONFIG_QUEST_IGNORE_AUTO_COMPLETE` used by `Quest::IsTurnIn`.
+    pub quest_ignore_auto_complete_like_cpp: bool,
+    /// Resolved Source `_SaveQuestStatus` keep-abandoned policy. `None` means
+    /// enabled cleaner state is not represented and a dirty NONE row cannot be captured.
+    pub quest_status_keep_abandoned_like_cpp: Option<bool>,
     /// C++ `CONFIG_CAST_UNSTUCK` immutable world policy injected into spell effects.
     pub represented_cast_unstuck_enabled_like_cpp: bool,
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -166,6 +171,8 @@ impl Default for SessionWorldConfig {
             max_player_level_config_like_cpp: 80,
             max_primary_trade_skills_like_cpp:
                 wow_config::DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP,
+            quest_ignore_auto_complete_like_cpp: false,
+            quest_status_keep_abandoned_like_cpp: Some(true),
             represented_cast_unstuck_enabled_like_cpp: true,
             #[cfg(any(test, feature = "test-fixtures"))]
             exploration_xp_rate_like_cpp: 1.0,

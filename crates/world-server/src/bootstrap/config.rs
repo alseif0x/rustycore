@@ -221,6 +221,17 @@ pub(crate) fn world_config_bool(configs: &WorldConfigSet, enum_name: &str, defau
     configs.get_bool(enum_name).unwrap_or(default)
 }
 
+/// Resolve only the keep-abandoned facts proven by Source cleaner policy.
+/// `None` means the enabled cleaner may retain QUESTSTATUS, whose current
+/// persistent world-variable flags have no Rust owner yet.
+pub(crate) fn quest_status_keep_abandoned_like_cpp(configs: &WorldConfigSet) -> Option<bool> {
+    const CLEANING_FLAG_QUESTSTATUS_LIKE_CPP: u32 = 0x10;
+
+    let cleaner_enabled = world_config_bool(configs, "CONFIG_CLEAN_CHARACTER_DB", false);
+    let persistent_flags = world_config_u32(configs, "CONFIG_PERSISTENT_CHARACTER_CLEAN_FLAGS", 0);
+    (!cleaner_enabled || persistent_flags & CLEANING_FLAG_QUESTSTATUS_LIKE_CPP == 0).then_some(true)
+}
+
 pub(crate) fn declined_names_used_for_realm_category_like_cpp(
     configured: bool,
     realm_zone: u32,

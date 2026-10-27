@@ -101,6 +101,43 @@ fn native_slot_preserves_signed_and_wrapped_cpp_field_bits() {
 }
 
 #[test]
+fn persisted_flag_objective_getter_keeps_the_pinned_raw_index_mask_quirk() {
+    let mut player = Player::new(None, false);
+    assert!(player.set_quest_slot_like_cpp(0, 703));
+    assert!(player.set_quest_slot_state_like_cpp(0, QUEST_STATE_COMPLETE | QUEST_STATE_FAIL));
+
+    // Player.cpp:15929-15948 returns uint8(state & StorageIndex), not the
+    // gameplay writer's `256 << StorageIndex` objective bit.
+    assert_eq!(
+        player.quest_slot_objective_data_for_save_like_cpp(0, 0, true),
+        Some(0)
+    );
+    assert_eq!(
+        player.quest_slot_objective_data_for_save_like_cpp(0, 1, true),
+        Some(1)
+    );
+    assert_eq!(
+        player.quest_slot_objective_data_for_save_like_cpp(0, 2, true),
+        Some(1)
+    );
+    assert_eq!(
+        player.quest_slot_objective_data_for_save_like_cpp(0, 3, true),
+        Some(1)
+    );
+    assert_eq!(
+        player.quest_slot_objective_data_for_save_like_cpp(0, -1, true),
+        Some(0)
+    );
+    assert!(player.remove_quest_slot_state_like_cpp(0, QUEST_STATE_COMPLETE | QUEST_STATE_FAIL));
+    assert!(player.set_quest_slot_state_like_cpp(0, 1 << 8));
+    assert_eq!(
+        player.quest_slot_objective_data_for_save_like_cpp(0, 1, true),
+        Some(0),
+        "the persisted raw-index test ignores the gameplay objective bit at 256 << index"
+    );
+}
+
+#[test]
 fn quest_log_rows_queue_object_updates_and_preserve_exact_nested_masks() {
     let mut player = Player::new(None, false);
     player.unit_mut().world_mut().object_mut().add_to_world();

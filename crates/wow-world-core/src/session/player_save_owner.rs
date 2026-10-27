@@ -42,6 +42,7 @@ use crate::session::{
 mod currency;
 mod ghost_wisp;
 mod inventory;
+mod quest_status;
 mod resurrection_sickness;
 
 /// Lifecycle-owned values that join the canonical Player projection in one save request.
@@ -123,6 +124,8 @@ pub struct PlayerSaveOwnerAccessLikeCpp<'a> {
     item_effect_store: Option<&'a wow_data::ItemEffectStore>,
     enchantment_store: Option<&'a wow_data::SpellItemEnchantmentStore>,
     currency_types_store: Option<&'a wow_data::CurrencyTypesStore>,
+    quest_store: Option<&'a wow_data::quest::QuestStore>,
+    quest_status_keep_abandoned: Option<bool>,
 }
 
 impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
@@ -135,6 +138,8 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
         item_effect_store: Option<&'a wow_data::ItemEffectStore>,
         enchantment_store: Option<&'a wow_data::SpellItemEnchantmentStore>,
         currency_types_store: Option<&'a wow_data::CurrencyTypesStore>,
+        quest_store: Option<&'a wow_data::quest::QuestStore>,
+        quest_status_keep_abandoned: Option<bool>,
     ) -> Self {
         Self {
             core,
@@ -145,6 +150,8 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
             item_effect_store,
             enchantment_store,
             currency_types_store,
+            quest_store,
+            quest_status_keep_abandoned,
         }
     }
 
@@ -186,6 +193,12 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
                     return None;
                 }
             }
+            let quest_status_capture = quest_status::capture_like_cpp(
+                player,
+                self.quest_store,
+                self.quest_status_keep_abandoned,
+            )?;
+            let quest_status_acknowledgement = quest_status_capture.acknowledgement_projection;
             let request = request(
                 self.core,
                 self.talent_store,
@@ -195,6 +208,7 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
                 self.item_effect_store,
                 self.enchantment_store,
                 self.currency_types_store,
+                quest_status_capture.requests,
                 player,
                 &header,
                 &inputs,
@@ -230,9 +244,10 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
             Some(CapturedPlayerSaveLikeCpp {
                 receipt: PlayerSaveReceiptLikeCpp {
                     handle,
-                    owner: player.capture_save_acknowledgement_with_inventory_like_cpp(
+                    owner: player.capture_save_acknowledgement_with_quest_status_like_cpp(
                         &saved_item_guids,
                         &saved_currency_ids,
+                        &quest_status_acknowledgement,
                     ),
                     expected: request.committed_groups_like_cpp(),
                     tutorials: request.tutorials.clone(),
@@ -348,6 +363,7 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
             reputation: expected.reputation && committed.reputation,
             inventory_items: expected.inventory_items && committed.inventory_items,
             currencies: expected.currencies && committed.currencies,
+            quest_statuses: expected.quest_statuses && committed.quest_statuses,
         };
         let handle = receipt.handle;
         if core.player_handle_like_cpp != Some(handle) || core.player_guid() != Some(handle.guid())
@@ -370,6 +386,7 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
                             reputations: groups.reputation,
                             inventory_items: groups.inventory_items,
                             currencies: groups.currencies,
+                            quest_statuses: groups.quest_statuses,
                         },
                     );
                 })
@@ -396,6 +413,8 @@ pub struct PlayerSaveOperationAccessLikeCpp<'a> {
     item_effect_store: Option<&'a wow_data::ItemEffectStore>,
     enchantment_store: Option<&'a wow_data::SpellItemEnchantmentStore>,
     currency_types_store: Option<&'a wow_data::CurrencyTypesStore>,
+    quest_store: Option<&'a wow_data::quest::QuestStore>,
+    quest_status_keep_abandoned: Option<bool>,
 }
 
 impl SessionCore {
@@ -409,6 +428,8 @@ impl SessionCore {
         item_effect_store: Option<&'a wow_data::ItemEffectStore>,
         enchantment_store: Option<&'a wow_data::SpellItemEnchantmentStore>,
         currency_types_store: Option<&'a wow_data::CurrencyTypesStore>,
+        quest_store: Option<&'a wow_data::quest::QuestStore>,
+        quest_status_keep_abandoned: Option<bool>,
     ) -> PlayerSaveOperationAccessLikeCpp<'a> {
         PlayerSaveOperationAccessLikeCpp {
             core: self,
@@ -419,6 +440,8 @@ impl SessionCore {
             item_effect_store,
             enchantment_store,
             currency_types_store,
+            quest_store,
+            quest_status_keep_abandoned,
         }
     }
 }
@@ -438,6 +461,8 @@ impl PlayerSaveOperationAccessLikeCpp<'_> {
             self.item_effect_store,
             self.enchantment_store,
             self.currency_types_store,
+            self.quest_store,
+            self.quest_status_keep_abandoned,
         )
         .capture_like_cpp(inputs)
     }
@@ -562,6 +587,7 @@ fn request(
     item_effect_store: Option<&wow_data::ItemEffectStore>,
     enchantment_store: Option<&wow_data::SpellItemEnchantmentStore>,
     currency_types_store: Option<&wow_data::CurrencyTypesStore>,
+    quest_statuses: Option<Vec<wow_persistence::PlayerQuestStatusPersistenceRequestLikeCpp>>,
     player: &Player,
     snapshot: &PlayerSaveToDbSnapshotLikeCpp,
     inputs: &PlayerSaveSessionInputsLikeCpp<'_>,
@@ -937,11 +963,8 @@ fn request(
         _ => None,
     };
 
-    // C++ `_SaveQuestStatus` only consumes entries present in `m_QuestStatusSave`; it does
-    // not rewrite every loaded quest during Player::SaveToDB. Rust's quest mutation paths
-    // already persist their changed quest directly, but there is no coherent dirty-set seam
-    // yet. Rewriting every active quest here can delete objective rows that were not mapped
-    // into represented state, so preserve them until that dirty tracking exists.
+    // `quest_statuses` was projected from the canonical Player dirty map before
+    // this request builder; loaded-but-clean status rows remain untouched.
 
     let tutorials = if *inputs.tutorials_changed {
         if *inputs.tutorials_loaded_coherently {
@@ -1034,6 +1057,7 @@ fn request(
         action_buttons,
         equipment_sets,
         void_storage,
+        quest_statuses,
         tutorials,
         instance_lock_times,
         played_time,

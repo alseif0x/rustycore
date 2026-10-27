@@ -159,6 +159,7 @@ fn native_quest_log_missing_slot_does_not_block_incomplete_status_like_cpp() {
             quest_id,
             QUEST_STATUS_COMPLETE_LIKE_CPP,
             QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+            true,
         ),
         Some(true)
     );
@@ -263,6 +264,7 @@ fn native_quest_log_completion_sets_complete_on_status_slot_like_cpp() {
             quest_id,
             QUEST_STATUS_INCOMPLETE_LIKE_CPP,
             QUEST_STATUS_COMPLETE_LIKE_CPP,
+            true,
         ),
         Some(Some(QUEST_STATUS_INCOMPLETE_LIKE_CPP))
     );

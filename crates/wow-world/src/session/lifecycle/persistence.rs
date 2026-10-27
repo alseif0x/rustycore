@@ -102,6 +102,7 @@ impl wow_world_lifecycle::PlayerSaveHostLikeCpp for WorldSession {
             .spell_item_enchantment_store
             .as_deref();
         let currency_types_store = self.catalogs.currency_types_store.as_deref();
+        let quest_store = self.catalogs.quests.store.as_deref();
         wow_world_lifecycle::PlayerSaveParticipantsLikeCpp {
             lifecycle: &mut self.lifecycle,
             operation: self.core.player_save_operation_access_like_cpp(
@@ -112,6 +113,8 @@ impl wow_world_lifecycle::PlayerSaveHostLikeCpp for WorldSession {
                 item_effect_store,
                 enchantment_store,
                 currency_types_store,
+                quest_store,
+                self.config.quest_status_keep_abandoned_like_cpp,
             ),
         }
     }

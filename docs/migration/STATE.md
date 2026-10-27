@@ -116,15 +116,48 @@ Aura grouping before START/GO instead of silently succeeding. Its scoped
 feedback covers 33 distinct cases. This is a failure-contract repair, not a
 port of those effects or proof of full parity for every known handler.
 
-Four blocks remain within the same macro:
+**Closure direction reset — 2026-10-27, reviewed at `e26551b0d`:**
+The user requested an overengineering review, then authorized continuing to
+issue closure. The 92 local commits since `origin/43-spirit-healer` are not
+completion evidence. Stop selecting work from an open-ended dependency list;
+each additional change must address a concrete failure in the acceptance rows
+below. Preserve useful existing work and its regression coverage. Do not require
+completion of the general spell, quest, pet, battleground or architecture
+programmes to finish this issue.
 
-- Finish the selected AuraUpdate metadata and its consumers.
-- Connect existing death participants and complete recovery operations,
-  including their login, transfer, and failure paths.
-- Complete the normal cast consumers those operations require, including
-  SelfRes and recasting effects from carried items.
-- Finish the QA driver, run candidate final acceptance, and perform the
-  separately authorized captures, DB, restart, and relogin scenarios.
+| Issue #43 criterion | Current evidence and remaining closure blocker |
+| --- | --- |
+| Lethal damage and native death | The local scalar repair makes lethal player melee enter JUST_DIED, records PvP death and stops subsequent swings; PowerBurn and creature spell-click no longer skip directly to CORPSE. Native death-operation ownership still has no production caller. Its ordered cleanup and penalty participants remain a closure blocker. |
+| Release, ghost, corpse and graveyard | Production operations exist. Exercise their complete path from an actual lethal producer, including applicable pet removal, ghost restrictions and corpse publication; helper tests alone do not close this row. |
+| Reclaim, healer and accepted resurrection | Production recovery continuations exist. Verify the registered paths, penalties, corpse cleanup and pending/transfer recovery together on the final candidate. |
+| Persistence and failure recovery | The dirty quest-status full-save projection and commit acknowledgement now have focused passing feedback, including concurrent native objective changes and failed/unknown commits. Existing save/retirement fences still need complete-cycle evidence; this does not implement death-triggered FailQuest or close runtime persistence acceptance. |
+| Local acceptance | Define one committed candidate after implementation, run final plus missing scope-specific integration evidence once, repair actual findings, and retain the real SHA and complete timings. |
+| Live acceptance | Required action captures and real DB/restart/relogin evidence remain outstanding. Prepare the exact target and scenarios before requesting the separate runtime authority; no deployment, restart or data mutation is inferred from local implementation authority. |
+
+The dirty-save stabilization now has focused coding feedback. The next delivery
+is the native death operation and its necessary participants, followed by the
+complete recovery acceptance.
+Any newly discovered prerequisite must name the failing scenario and the
+smallest repair. A generic domain defect is not automatically a #43 blocker.
+
+Coding feedback on 2026-10-27, dirty working tree based at `e26551b0d`, aarch64:
+`cargo test -p wow-world-core session::player_save_owner::quest_status --lib`
+passed 4 cases; Database `player::lifecycle_adapter::tests::save_order` passed 6;
+World `lifecycle_persistence::save_interleaving` passed 13 after repairing two
+old durability fixtures to supply ItemEffectStore and inspect full Item rows.
+`cargo test -p wow-entities quest --lib` passed all 62 matches, including the
+native quest-log, dirty-status and save-ack cases. Creature
+`player_melee_application::death_tests` passed 3 cases, including PvP policy;
+the two affected World PowerBurn/spell-click cases passed lethal and nonlethal
+paths. Scalar death anchors are pinned Unit.cpp:10457,10611,10635; these tests
+do not establish the complete Player death operation. The initial Server
+configuration command mistakenly selected `--bin world-server` and ran zero
+tests; it establishes compilation only. The corrected command,
+`cargo test -p world-server --lib quest_status_cleaner_policy_keeps_only_source_proven_modes`,
+passed its one test after fixing the missing import in the inherited test.
+All Cargo runs used one job, the local
+`target/` and the declared PROTOC. This is coding feedback, not final acceptance,
+a live action capture, publication or issue completion.
 
 Focused feedback below does not replace these requirements. Dated checkpoints
 and source comparisons remain below; the initial World timer decisions are
@@ -188,6 +221,15 @@ participants still need implementation and acceptance before enabling lethal
 callers. Server currently runs all admitted combat phases under its canonical
 guard (`runtime/canonical_creature_runtime.rs:117–180` and
 `runtime/map/update_loop.rs:373–427`); this replacement is not installed.
+Implementation simplification selected in the closure review at `e26551b0d`:
+retain the admitted combat call as an awaited Rust future, using its local
+variables for the current swing, calculated damage and already-consumed RNG.
+Do not add a second handwritten combat-cursor state machine. Scope each Map
+guard to synchronous mutation/read sections and await the required native
+death operation between those sections, before the same call proceeds. The
+existing Player operation identity and Session permit still fence cancellation
+and retirement; an abandoned future is not completion evidence. This is an
+implementation decision, not a claim that the async combat path is installed.
 The current `runtime/map_tick.rs:252–300` callback runs before MapManager's
 resume, while the same admitted plan remains AwaitingSessions. The selected
 cursor can therefore release guards and retain that plan without adding a
@@ -408,6 +450,32 @@ earlier 4777 ceiling for this eight-line delta only. That acceptance must
 revisit the PlayerData/default-construction split under the existing
 distribution retirement owner; further growth requires a fresh review.
 No physical-policy baseline was regenerated.
+
+Native quest-save source refinement, 2026-10-27, at
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` (the inspected Source files remain
+clean): `_SaveQuestStatus` (Player.cpp:20138–20205) visits the dirty map,
+reads EndTime and objectives through the status slot, and replaces objective
+rows for that quest only. Its flag getter, `GetQuestSlotObjectiveData`
+(:15929–15948), literally evaluates `StateFlags & objective.StorageIndex`;
+the flag writer (:16469–16476) uses `256 << StorageIndex`. That asymmetry is
+a suspect pinned-source behavior. The bounded native save must retain the
+literal getter result, with index-zero and COMPLETE/FAIL interaction cases;
+a gameplay repair needs separate version/capture evidence and an explicit
+contract. This review establishes no fresh action capture or runtime result.
+
+The effective `IsTurnIn` gate is `!CONFIG_QUEST_IGNORE_AUTO_COMPLETE` and
+the turn-in quest type (QuestDef.cpp:505–508). The existing config registry
+already loads `Quests.IgnoreAutoComplete`, `CleanCharacterDB` and
+`PersistentCharacterCleanFlags`; production consumers still need the narrow
+resolved policy. World.cpp:170 initializes cleaning flags to zero.
+CharacterDatabaseCleaner.cpp:30–62 leaves them there when cleaning is
+disabled; its enabled branch reads `PersistentCharacterCleanFlags` from
+`world_variable`, performs cleanup, masks the flags by configured persistent
+flags and publishes the result. An enabled-cleaner execution is not established
+in Rust. Preserve that uncertainty when an actual dirty NONE-status row needs
+the keep-abandoned decision. Non-NONE saves and explicit per-quest deletions
+do not depend on that flag. No database cleaner execution or live SQL is
+authorized or claimed by this source review.
 
 The bounded death integration does not require a new quest-script extension
 API: at the pinned Source, ScriptMgr.cpp:2092–2095,2329–2335 dispatches the

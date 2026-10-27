@@ -79,8 +79,8 @@ pub use items::{
 pub use progression::PreparedPlayerSpellAcquisitionLikeCpp;
 pub use quest_log::{QuestLogRowUpdateLikeCpp, QuestLogValuesLikeCpp};
 pub use quest_state::{
-    PlayerQuestGameplayState, QuestBoundItemObjectiveProgressLikeCpp,
-    QuestItemObjectiveProgressLikeCpp,
+    PlayerQuestGameplayState, PlayerQuestStatusSaveIntentLikeCpp, PlayerQuestStatusSaveTypeLikeCpp,
+    QuestBoundItemObjectiveProgressLikeCpp, QuestItemObjectiveProgressLikeCpp,
 };
 pub use reputation::{
     PlayerFactionStateLikeCpp, PlayerReputationStateLikeCpp, ReputationRankCounterLikeCpp,
@@ -101,7 +101,11 @@ mod recent_instances;
 mod resurrection;
 mod save_ack;
 mod scalar_transitions;
-pub use save_ack::{PlayerSaveAcknowledgementLikeCpp, PlayerSavedGroupsLikeCpp};
+pub use save_ack::{
+    PlayerQuestNativeSaveProjectionLikeCpp, PlayerQuestObjectiveSaveValueLikeCpp,
+    PlayerQuestStatusSaveProjectionLikeCpp, PlayerSaveAcknowledgementLikeCpp,
+    PlayerSavedGroupsLikeCpp,
+};
 mod social;
 mod spellbook;
 mod trait_config;
