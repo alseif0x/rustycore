@@ -14,6 +14,7 @@
 use tracing::warn;
 use wow_constants::PowerType;
 use wow_core::ObjectGuid;
+use wow_entities::ObjectNotifyFlags;
 use wow_packet::packets::misc::DeathReleaseLoc;
 use wow_world_core::session::connection_identity::unix_now;
 
@@ -105,9 +106,9 @@ pub async fn self_resurrect_player_like_cpp<H: CorpseHostLikeCpp>(
     }
 }
 
-/// Synchronous half of C++ `Player::ResurrectPlayer`, through its value and
-/// zone publications. Keeping the visibility await separate lets the request
-/// continuation mark that boundary before suspending.
+/// Synchronous half of C++ `Player::ResurrectPlayer`, through its native
+/// update-field mutations and zone publication. Keeping the visibility phase
+/// separate lets the continuation mark that boundary before advancing.
 pub(crate) fn resurrect_player_native<H: CorpseHostLikeCpp>(
     host: &mut H,
     restore_percent: f32,
@@ -206,14 +207,11 @@ pub(crate) fn resurrect_player_native<H: CorpseHostLikeCpp>(
                 }
             }
         }
-        player.values_update(true)
     });
-    let Some(values_update) = restored else {
-        return Err("Canonical Player disappeared while publishing resurrection values");
+    let Some(()) = restored else {
+        return Err("Canonical Player disappeared while applying resurrection values");
     };
     host.sync_player_registry_state_like_cpp();
-    host.core()
-        .send_player_values_update_like_cpp(&values_update);
 
     // trigger update zone for alive state zone updates
     if let Some(position) = host.hub_ref().player_position_like_cpp() {
@@ -227,10 +225,14 @@ pub(crate) fn resurrect_player_native<H: CorpseHostLikeCpp>(
 
 pub(crate) async fn finish_resurrection_visibility<H: CorpseHostLikeCpp>(
     host: &mut H,
-    catalogs: ResurrectionOperationCatalogs<'_>,
+    _catalogs: ResurrectionOperationCatalogs<'_>,
 ) {
-    host.update_visibility_with_catalogs_like_cpp(catalogs.creature_spawns)
-        .await;
+    let _ = host.core().with_owned_player_mut_like_cpp(|player| {
+        let object = player.unit_mut().world_mut().object_mut();
+        if object.is_in_world() {
+            object.add_to_notify(ObjectNotifyFlags::VISIBILITY_CHANGED);
+        }
+    });
 }
 
 pub(crate) async fn apply_resurrection_sickness<H: CorpseHostLikeCpp>(

@@ -151,6 +151,9 @@ async fn resurrect_response_accepts_matching_request_like_cpp() {
     let target_position = Position::new(11.0, 22.0, 33.0, 1.5);
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    crate::player_inventory_test_fixture::complete_known_empty_player_inventory_like_cpp(
+        &mut session,
+    );
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
     session.set_player_position_like_cpp(Position::new(1.0, 2.0, 3.0, 0.0));
     session.set_player_health_like_cpp(0, 1_000);
@@ -237,7 +240,12 @@ async fn resurrect_response_accepts_matching_request_like_cpp() {
         crate::session::MoveTeleportAckActionLikeCpp::Accepted
     );
 
-    assert!(continue_resurrection_after_valid_teleport(&mut session).await);
+    let completed = continue_resurrection_after_valid_teleport(&mut session).await;
+    assert!(
+        completed,
+        "resurrection continuation remains {:?}",
+        session.represented_delayed_resurrection_after_teleport_like_cpp()
+    );
 
     assert!(session.player_is_alive_like_cpp());
     assert_eq!(session.player_health_like_cpp(), 450);

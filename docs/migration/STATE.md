@@ -99,8 +99,10 @@ same Player-owned native recovery continuation, including corpse deletion,
 save acknowledgement and cancellation retention. Its focused feedback covers
 37 Spell and 11 World cases. The shared CheckCast path now rejects ordinary
 dead/ghost casters before cooldowns and launch, with 39 scoped cases passing.
-Registered SelfRes integration, native recovery publication, native death,
-QA and final acceptance remain open.
+Native recovery fields now use the existing Map publication owner and native
+visibility notification; its affected groups have green scoped feedback
+covering 165 distinct identities. Registered SelfRes integration, native
+death, QA and final acceptance remain open.
 
 Four blocks remain within the same macro:
 
@@ -2802,8 +2804,62 @@ In SelfRes they expose the intermediate Alive/zero-health state before obtain
 and the caller's restored values. The selected correction is to retain these
 native dirty fields for the existing Map publication owner and request native
 VISIBILITY_CHANGED notification, then test that actual phase and its typed
-snapshot. This correction is not installed at this checkpoint. Fresh paired
-action captures and final acceptance remain required.
+snapshot. The correction below installs that ownership; fresh paired action
+captures and final acceptance remain required.
+
+Native recovery publication correction, 2026-10-27, base
+`4ca41413441f66c5a4c1b898c659addd618bbd6e` plus nine Rust working inputs:
+native resurrection, request-data restoration and SelfRes restoration now
+retain dirty native fields for Map::SendObjectUpdates. Resurrection queues
+VISIBILITY_CHANGED on the actual in-world Object instead of invoking the
+position-threshold scanner. Existing immediate movement, aura, corpse and
+spell packets and the operation's ownership/save fences remain in place.
+The source anchors and existing post-guard Server consumer are those above.
+Tests drive the real Map owner and World consumer, check final health/powers
+and the cleared SelfRes field using native power indices, and verify one-time
+mask consumption and delivery. The out-of-world SelfRes effect remains a
+no-op without a visibility notification; the one-shot helper does not gain
+permission to complete without an active residence.
+
+Sequential coding feedback on the aarch64 host used
+PROTOC=/home/ubuntu/.local/protoc/bin/protoc, CARGO_BUILD_JOBS=1 and
+CARGO_TARGET_DIR=/home/server/rustycore/target:
+
+| Cargo command | UTC interval | Result |
+| --- | --- | --- |
+| `check -p wow-world-entities` | 03:13:11–03:13:13 | exit 0 |
+| `check -p wow-world` | 03:13:18–03:13:35 | exit 0 |
+| `test -p wow-world resurrect` | 03:30:52–03:32:26 | 55 library + 2 production integration cases passed |
+| `test -p wow-world recovery_fences` | 03:24:13 | 35 passed |
+| `test -p wow-world reclaim` | 03:24:20 | 16 passed |
+| `test -p wow-world spirit_healer` | 03:32:55–03:34:26 | 83 passed |
+| `test -p wow-world corpse_login` | 03:24:45 | 13 passed |
+
+The parent verified 165 distinct successful target-qualified identities and
+all nine input hashes. Logs in
+`/tmp/rustycore-native-recovery-publication-logs` preserve the initial test
+compilation error, the 53/3 and 53/2 resurrection failures, and the 79/4 healer
+result. Repairs declare the request fixture's known-empty inventory, configure
+its native powers, and restore the visual/threat fixtures' Player to Alive
+before ordinary sickness casts. They do not bypass CheckCast. An invalid new
+one-shot out-of-world success test was removed; the actual effect's no-op
+case remains. The shared setup stays in the existing 724-line fixture file;
+the 1251-line healer parent is unchanged. The legacy corpse test file grows
+2004→2012 only for inventory setup and failure diagnostics; its bounded ceiling
+is 2012 through #43 acceptance, with a split review before further growth.
+
+`changed-inputs.json` has digest
+`3f97ba8c5fa5e6a7b346b58fddfa17c5837c565584e0c50e1a939eae54dabc29`;
+the tracked Rust diff digest is
+`6688b08d2ae13ddbdcca8e0fcc40b3a59f285b8664c3213c78163f7640e14e45`.
+These identify tested working inputs at the stated base, not a test of the
+later commit. Runtime declares GPT-6; specific model/effort telemetry is
+unavailable. The 03:13:11–03:34:26 feedback/repair interval is 1275 seconds,
+with implementation before it; this is not the completed-delivery campaign
+or evidence for its ordinary 600-second performance target. This remains an
+UNVALIDATED macro checkpoint. Registered SelfRes composition, native death,
+QA, final acceptance and authorized live/capture/durability evidence remain
+open. No push, installation, SQL or restart was performed.
 
 Native SelfRes effect and recovery ownership, 2026-10-27, base
 `1e8a06cc21da8dd31c27b5520f7bfe66fb8edb33` plus 17 Rust working inputs:

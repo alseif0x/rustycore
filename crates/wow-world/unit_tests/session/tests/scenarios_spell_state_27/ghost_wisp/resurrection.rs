@@ -54,6 +54,15 @@ fn set_resurrection_teleport_completed(fixture: &mut GhostFixture) {
         .session
         .with_owned_player_mut_like_cpp(|player| {
             player.unit_mut().set_max_health(1_000);
+            for (power, index, max) in [
+                (wow_constants::PowerType::Mana, 0, 2_000),
+                (wow_constants::PowerType::Rage, 1, 100),
+                (wow_constants::PowerType::Focus, 2, 80),
+                (wow_constants::PowerType::Energy, 3, 100),
+            ] {
+                player.unit_mut().set_power_index(power, Some(index));
+                player.unit_mut().set_max_power(power, max);
+            }
             player.unit_mut().set_health(0);
             player
                 .unit_mut()
@@ -293,6 +302,79 @@ async fn resurrection_request_clears_ghost_and_wisp_before_completing() {
     assert_eq!(fixture.session.player_health_like_cpp(), 450);
     assert_eq!(selected_slots(&fixture), (None, None));
     assert_eq!(continuation_phase(&fixture), None);
+    let direct_packets = outgoing(&fixture);
+    assert!(
+        direct_packets
+            .iter()
+            .all(|packet| opcode(packet) != ServerOpcodes::UpdateObject as u16),
+        "resurrection request values stay pending for the native Map owner"
+    );
+    {
+        let mut manager = fixture.canonical.lock().expect("canonical manager");
+        let power_indexes = {
+            let player = manager
+                .find_map_mut(571, 0)
+                .expect("current World map")
+                .map_mut()
+                .get_typed_player_mut(fixture.player)
+                .expect("request Player belongs to the canonical map");
+            let object = player.unit().world().object();
+            assert!(object.is_in_world());
+            assert!(object.is_object_updated());
+            assert!(object.is_need_notify(wow_entities::ObjectNotifyFlags::VISIBILITY_CHANGED));
+            [
+                wow_constants::PowerType::Mana,
+                wow_constants::PowerType::Rage,
+                wow_constants::PowerType::Energy,
+                wow_constants::PowerType::Focus,
+            ]
+            .map(|power| {
+                player
+                    .unit()
+                    .get_power_index(power)
+                    .expect("native Player power index")
+            })
+        };
+        let _ = manager.update(1);
+        let map = manager.find_map(571, 0).expect("current World map");
+        let summary = map.last_send_object_updates_summary_like_cpp();
+        let updates = &summary.player_values_updates;
+        assert_eq!(updates.len(), 1);
+        assert_eq!(updates[0].guid, fixture.player);
+        let values_update = updates[0].values_update.clone();
+        let unit = values_update
+            .unit_data
+            .as_ref()
+            .expect("Map snapshot contains request Unit fields");
+        assert_eq!(unit.values.health, 450);
+        for (index, value) in power_indexes.into_iter().zip([120, 0, 100, 80]) {
+            assert_eq!(unit.values.power[index], value);
+        }
+        assert!(
+            !map.map()
+                .get_typed_player(fixture.player)
+                .unwrap()
+                .unit()
+                .world()
+                .object()
+                .is_object_updated()
+        );
+    }
+    assert_eq!(
+        fixture
+            .session
+            .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(),
+        1
+    );
+    let map_packets = outgoing(&fixture);
+    assert_eq!(map_packets.len(), 1);
+    assert_eq!(opcode(&map_packets[0]), ServerOpcodes::UpdateObject as u16);
+    assert_eq!(
+        fixture
+            .session
+            .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(),
+        0
+    );
     let death_release = realm_rx.try_iter().collect::<Vec<_>>();
     assert_eq!(death_release.len(), 1);
     assert_eq!(

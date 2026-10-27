@@ -115,6 +115,29 @@ pub(super) fn install_sickness_data(
     install_sickness_data_with_cast_costs(session, spell_id, visual_id, None);
 }
 
+pub(super) fn prepare_recovered_player_for_selected_cast_like_cpp(
+    session: &mut WorldSession,
+) {
+    // Selected sickness casts run after native resurrection restores the Player.
+    let restored = session.core.with_owned_player_mut_like_cpp(|player| {
+        player.unit_mut().set_max_health(1_000);
+        player
+            .unit_mut()
+            .set_death_state(wow_constants::DeathState::Alive);
+        player.unit_mut().set_health(1_000);
+    });
+    assert!(
+        restored.is_some(),
+        "canonical Player is available for sickness cast"
+    );
+    assert!(session
+        .core
+        .with_owned_player_like_cpp(|player| {
+            player.unit().is_alive() && player.unit().data().health > 0
+        })
+        .unwrap_or(false));
+}
+
 pub(super) fn install_known_no_obtain_item_catalogs(
     session: &mut WorldSession,
     entries: impl IntoIterator<Item = (u32, wow_constants::InventoryType, u32)>,

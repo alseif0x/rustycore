@@ -208,6 +208,7 @@ fn install_visual_override_potential(session: &mut WorldSession) {
 async fn selected_cast_go_uses_source_visual_and_refresh_keeps_aura_provenance() {
     let (mut session, send_rx, _realm_rx, _port) = logged_in_released_ghost(43_871).await;
     let _packet_peer = keep_recovery_input_open(&mut session);
+    super::prepare_recovered_player_for_selected_cast_like_cpp(&mut session);
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 11, 0);
     set_race_sickness_spell(&mut session, SICKNESS_SPELL);
     install_sickness_data(&mut session, SICKNESS_SPELL, Some(245_039));
@@ -320,6 +321,7 @@ async fn selected_cast_visual_uses_difficulty_fallback_and_ordered_relation_rows
             attributes,
         )
         .await;
+    super::prepare_recovered_player_for_selected_cast_like_cpp(&mut session);
     super::selected_cast_threat::install_known_positive_class(&mut session);
     let selected_relation_id = 0xF876_5432;
     session.set_creature_aggro_config_like_cpp(crate::session::CreatureAggroConfigLikeCpp {
@@ -355,6 +357,7 @@ async fn selected_cast_visual_uses_difficulty_fallback_and_ordered_relation_rows
 async fn unavailable_visual_rejects_before_power_and_server_cast_id_is_allocated_once() {
     let (mut session, send_rx, _realm_rx, _port) = logged_in_released_ghost(43_891).await;
     let _packet_peer = keep_recovery_input_open(&mut session);
+    super::prepare_recovered_player_for_selected_cast_like_cpp(&mut session);
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 11, 0);
     set_race_sickness_spell(&mut session, SICKNESS_SPELL);
     install_sickness_data(&mut session, SICKNESS_SPELL, Some(245_039));
@@ -427,6 +430,7 @@ async fn unavailable_visual_rejects_before_power_and_server_cast_id_is_allocated
 async fn visual_override_potential_rejects_before_power_and_publication() {
     let (mut session, send_rx, _realm_rx, _port) = logged_in_released_ghost(43_901).await;
     let _packet_peer = keep_recovery_input_open(&mut session);
+    super::prepare_recovered_player_for_selected_cast_like_cpp(&mut session);
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 11, 0);
     set_race_sickness_spell(&mut session, SICKNESS_SPELL);
     install_sickness_data(&mut session, SICKNESS_SPELL, Some(245_039));

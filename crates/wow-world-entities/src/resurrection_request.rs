@@ -336,14 +336,11 @@ fn set_request_values(
             let full_power = player.get_max_power(power).max(0);
             player.unit_mut().set_power(power, full_power);
         }
-        player.values_update(true)
     });
-    let Some(values_update) = updated else {
+    let Some(()) = updated else {
         return false;
     };
     host.sync_player_registry_state_like_cpp();
-    host.core()
-        .send_player_values_update_like_cpp(&values_update);
     true
 }
 

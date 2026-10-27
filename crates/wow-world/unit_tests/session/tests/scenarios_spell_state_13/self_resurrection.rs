@@ -55,8 +55,98 @@ fn configure_native_self_resurrect_player_like_cpp(
     crate::player_inventory_test_fixture::complete_known_empty_player_currencies_like_cpp(session);
     assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(session, true));
     session
-        .mutate_canonical_player_like_cpp(|player| player.add_self_res_spell(21_169))
+        .mutate_canonical_player_like_cpp(|player| {
+            player.add_self_res_spell(21_169);
+            player.clear_data_changes();
+        })
         .expect("canonical Player owns the SelfRes field");
+}
+
+fn publish_native_resurrection_values_from_map_like_cpp(
+    session: &mut WorldSession,
+    player_guid: ObjectGuid,
+    send_rx: &flume::Receiver<Vec<u8>>,
+    expected: (u64, i32, i32, i32, i32),
+) {
+    let manager = session
+        .core
+        .canonical_map_manager
+        .as_ref()
+        .expect("canonical MapManager")
+        .clone();
+    {
+        let mut manager = manager.lock().unwrap();
+        let power_indexes = {
+            let player = manager
+                .find_map_mut(0, 0)
+                .expect("current World map")
+                .map_mut()
+                .get_typed_player_mut(player_guid)
+                .expect("native Player is owned by the current Map");
+            let object = player.unit().world().object();
+            assert!(object.is_in_world());
+            assert!(object.is_object_updated(), "native setters mark the Map owner");
+            assert!(object.is_need_notify(wow_entities::ObjectNotifyFlags::VISIBILITY_CHANGED));
+            [
+                PowerType::Mana,
+                PowerType::Rage,
+                PowerType::Energy,
+                PowerType::Focus,
+            ]
+            .map(|power| {
+                player
+                    .unit()
+                    .get_power_index(power)
+                    .expect("native Player power index")
+            })
+        };
+        let _ = manager.update(1);
+        let map = manager.find_map(0, 0).expect("current World map");
+        let summary = map.last_send_object_updates_summary_like_cpp();
+        let updates = summary.player_values_updates.as_slice();
+        assert_eq!(updates.len(), 1, "Map captures one final Player snapshot");
+        assert_eq!(updates[0].guid, player_guid);
+        let values_update = &updates[0].values_update;
+        let unit = values_update
+            .unit_data
+            .as_ref()
+            .expect("Map snapshot contains native Unit fields");
+        assert_eq!(unit.values.health, expected.0);
+        for (index, value) in power_indexes
+            .into_iter()
+            .zip([expected.1, expected.2, expected.3, expected.4])
+        {
+            assert_eq!(unit.values.power[index], value);
+        }
+        let active = values_update
+            .active_player_data
+            .as_ref()
+            .expect("Map snapshot carries the cleared SelfRes list");
+        assert!(active.values.self_res_spells.is_empty());
+        assert!(active.values.self_res_spells_update_mask.is_some());
+        assert!(
+            !map.map()
+                .get_typed_player(player_guid)
+                .unwrap()
+                .unit()
+                .world()
+                .object()
+                .is_object_updated(),
+            "Map consumes native update masks once"
+        );
+    }
+
+    assert_eq!(
+        session.send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(),
+        1,
+        "the existing World consumer sends the Map-owned snapshot"
+    );
+    assert_eq!(drain_server_opcodes(send_rx), vec![ServerOpcodes::UpdateObject]);
+    assert_eq!(
+        session.send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(),
+        0,
+        "a second consumer pass cannot duplicate the consumed snapshot"
+    );
 }
 
 fn configure_self_resurrect_without_inventory_authority_like_cpp(
@@ -192,20 +282,21 @@ async fn spell_self_resurrect_flat_case_sets_health_and_powers_like_cpp() {
         })
         .unwrap();
     assert_eq!(powers, (35, 77, 0, 100, 0, Vec::<i32>::new()));
-    // The native visibility reconciliation runs between these value updates;
-    // this fixture has no other visible object to publish. The separate realm
-    // receiver below keeps the two connection-local orders explicit.
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
             ServerOpcodes::SpellGo,
             ServerOpcodes::MoveSetLandWalk,
             ServerOpcodes::MoveUnroot,
-            ServerOpcodes::UpdateObject,
-            ServerOpcodes::UpdateObject,
             ServerOpcodes::CooldownEvent,
         ],
-        "the instance stream follows SpellGo, forced land-walk, unroot, native zero values, post-obtain values, then completion"
+        "native field changes remain pending until Map::SendObjectUpdates"
+    );
+    publish_native_resurrection_values_from_map_like_cpp(
+        &mut session,
+        player_guid,
+        &send_rx,
+        (35, 77, 0, 100, 0),
     );
     assert_eq!(
         drain_server_opcodes(&realm_rx),
@@ -252,18 +343,21 @@ async fn spell_self_resurrect_percent_case_uses_max_health_and_mana_like_cpp() {
         })
         .unwrap();
     assert_eq!(powers, (100, 50, 0, 100, 0, Vec::<i32>::new()));
-    // Visibility reconciles before obtain spells and the restored value delta.
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
             ServerOpcodes::SpellGo,
             ServerOpcodes::MoveSetLandWalk,
             ServerOpcodes::MoveUnroot,
-            ServerOpcodes::UpdateObject,
-            ServerOpcodes::UpdateObject,
             ServerOpcodes::CooldownEvent,
         ],
-        "the instance stream follows SpellGo, forced land-walk, unroot, native zero values, post-obtain values, then completion"
+        "no intermediate HP-zero VALUES snapshot is sent before Map::SendObjectUpdates"
+    );
+    publish_native_resurrection_values_from_map_like_cpp(
+        &mut session,
+        player_guid,
+        &send_rx,
+        (100, 50, 0, 100, 0),
     );
     assert_eq!(
         drain_server_opcodes(&realm_rx),
@@ -371,6 +465,13 @@ async fn native_self_resurrect_player_out_of_world_is_a_noop() {
         drain_server_opcodes(&send_rx),
         vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
     );
+    assert!(!session
+        .with_owned_player_like_cpp(|player| player
+            .unit()
+            .world()
+            .object()
+            .is_need_notify(wow_entities::ObjectNotifyFlags::VISIBILITY_CHANGED))
+        .unwrap());
 }
 
 #[tokio::test]

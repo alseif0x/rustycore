@@ -110,12 +110,11 @@ fn apply_self_resurrection_values(
             .unit_mut()
             .set_power(PowerType::Energy, full_energy);
         player.unit_mut().set_power(PowerType::Focus, 0);
-        Some(player.values_update(true))
+        Some(())
     });
-    let Some(Some(update)) = update else {
+    let Some(Some(())) = update else {
         return false;
     };
     host.sync_player_registry_state_like_cpp();
-    host.core().send_player_values_update_like_cpp(&update);
     true
 }

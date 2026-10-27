@@ -201,6 +201,7 @@ async fn selected_debuff_attributes_override_positive_effect_amounts_for_initial
     )
     .await;
     let _packet_peer = keep_recovery_input_open(&mut session);
+    super::prepare_recovered_player_for_selected_cast_like_cpp(&mut session);
     let creature_guid = add_canonical_creature_threatening_player(&mut session, 50_102);
     install_initial_threat_entry(&mut session);
 
@@ -227,6 +228,7 @@ async fn selected_positive_polarity_forwards_initial_threat_to_assisting_creatur
     )
     .await;
     let _packet_peer = keep_recovery_input_open(&mut session);
+    super::prepare_recovered_player_for_selected_cast_like_cpp(&mut session);
     install_known_positive_class(&mut session);
     let creature_guid = add_canonical_creature_threatening_player(&mut session, 50_202);
     install_initial_threat_entry(&mut session);
@@ -264,6 +266,7 @@ async fn selected_helpful_threat_attribute_follows_zero_to_three_fallback() {
     )
     .await;
     let _packet_peer = keep_recovery_input_open(&mut session);
+    super::prepare_recovered_player_for_selected_cast_like_cpp(&mut session);
     install_known_positive_class(&mut session);
     let creature_guid = add_canonical_creature_threatening_player(&mut session, 50_302);
     install_initial_threat_entry(&mut session);
@@ -314,6 +317,7 @@ async fn source_no_threat_refresh_ignores_unavailable_creation_metadata() {
     )
     .await;
     let _packet_peer = keep_recovery_input_open(&mut session);
+    super::prepare_recovered_player_for_selected_cast_like_cpp(&mut session);
     install_known_positive_class(&mut session);
     cast_sickness(&mut session, player_guid, 50_402)
         .await
@@ -392,6 +396,7 @@ async fn selected_cast_requires_initial_threat_polarity_before_spell_go() {
     )
     .await;
     let _packet_peer = keep_recovery_input_open(&mut session);
+    super::prepare_recovered_player_for_selected_cast_like_cpp(&mut session);
     drop_class_options_for_refresh(&mut session);
     assert!(session.catalogs.spell_class_options_store().is_none());
     install_initial_threat_entry(&mut session);
@@ -415,6 +420,7 @@ async fn selected_cast_without_a_spell_info_key_fails_before_spell_go() {
     )
     .await;
     let _packet_peer = keep_recovery_input_open(&mut session);
+    super::prepare_recovered_player_for_selected_cast_like_cpp(&mut session);
     assert_eq!(session.core.current_map_difficulty_id_like_cpp(), 4);
     assert!(
         session
