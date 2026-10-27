@@ -115,6 +115,71 @@ pub(super) fn install_sickness_data(
     install_sickness_data_with_cast_costs(session, spell_id, visual_id, None);
 }
 
+pub(super) fn install_known_no_obtain_item_catalogs(
+    session: &mut WorldSession,
+    entries: impl IntoIterator<Item = (u32, wow_constants::InventoryType, u32)>,
+    stats: impl IntoIterator<Item = (u32, wow_data::ItemStatEntry)>,
+) {
+    let entries = entries.into_iter().collect::<Vec<_>>();
+    session.set_item_store(Arc::new(wow_data::ItemStore::from_records(
+        entries.iter().map(|&(id, inventory_type, _)| wow_data::ItemRecord {
+            id,
+            class_id: if inventory_type == wow_constants::InventoryType::Chest {
+                wow_constants::ItemClass::Armor as u8
+            } else {
+                wow_constants::ItemClass::Consumable as u8
+            },
+            subclass_id: 0,
+            material: 0,
+            inventory_type: inventory_type as i8,
+            sheathe_type: 0,
+            random_select: 0,
+            random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
+        }),
+    )));
+    let sparse = entries.iter().map(|&(id, inventory_type, flags)| {
+        (
+            id,
+            wow_data::ItemSparseTemplateEntry {
+                flags: [flags, 0, 0, 0],
+                bag_family: 0,
+                start_quest_id: 0,
+                stackable: 1,
+                max_count: 0,
+                lock_id: 0,
+                required_reputation_rank: 0,
+                sell_price: 0,
+                buy_price: 0,
+                vendor_stack_count: 1,
+                price_variance: 0.0,
+                price_random_value: 0.0,
+                max_durability: 0,
+                other_faction_item_id: 0,
+                content_tuning_id: 0,
+                player_level_to_item_level_curve_id: 0,
+                limit_category: 0,
+                instance_bound: 0,
+                zone_bound: [0; 2],
+                required_reputation_faction: 0,
+                allowable_class: -1,
+                required_expansion: 0,
+                bonding: 0,
+                container_slots: 0,
+                inventory_type: inventory_type as i8,
+            },
+        )
+    });
+    session.set_item_stats_store(Arc::new(
+        wow_data::ItemStatsStore::from_stats_sparse_and_random_property_templates(
+            stats,
+            sparse,
+            [],
+        ),
+    ));
+}
+
 pub(super) fn install_sickness_data_with_cast_costs(
     session: &mut WorldSession,
     spell_id: i32,

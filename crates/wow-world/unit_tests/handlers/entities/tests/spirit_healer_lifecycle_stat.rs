@@ -993,7 +993,23 @@ async fn lifecycle_stat_total_stat_mask_without_low_bits_is_an_inert_aura_effect
     let (mut session, send_rx, _realm_rx, _port) = logged_in_released_ghost(43_903).await;
     let player_guid = session.player_guid().expect("canonical Player GUID");
     let spell_id = 43_903;
-    let mut spell_store = wow_data::SpellStore::new();
+    let existing_spells = session.catalogs.spell_store().cloned();
+    let mut exact_spell_keys = existing_spells
+        .as_deref()
+        .map(wow_data::SpellStore::spell_info_keys_in_order_like_cpp)
+        .unwrap_or_default();
+    exact_spell_keys.push((spell_id as u32, 0));
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store(exact_spell_keys);
+    if let Some(existing_spells) = existing_spells.as_deref() {
+        for info in existing_spells.iter() {
+            spell_store.insert(info.spell_id, info.clone());
+            if let Some(attributes) =
+                existing_spells.misc_attributes_for_exact_difficulty(info.spell_id, 0)
+            {
+                spell_store.insert_spell_misc_attributes_like_cpp(info.spell_id, attributes);
+            }
+        }
+    }
     spell_store.insert(
         spell_id,
         wow_data::SpellInfo {

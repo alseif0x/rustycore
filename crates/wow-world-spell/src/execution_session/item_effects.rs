@@ -86,8 +86,29 @@ pub async fn apply_inventory_item_obtain_spells_with_generator_like_cpp<
     if host.core().player_handle_like_cpp.is_some() && owner.is_none() {
         return Err("active canonical Player residence unavailable for item obtain cast");
     }
-    let (item_entry, _) = host
-        .server_normal_physical_item_facts_like_cpp(item_guid)
+    // C++ checks the physical item's template flags and ItemEffect rows
+    // before a possible CastSpell constructs a Spell and reads item level.
+    let physical_item_entry = |player: &wow_entities::Player| {
+        player
+            .inventory_runtime_like_cpp()
+            .item_objects()
+            .get(&item_guid)
+            .filter(|item| {
+                item.owner_guid() == player.guid()
+                    && item.update_state() != wow_constants::ItemUpdateState::Removed
+            })
+            .map(|item| item.object().entry())
+    };
+    let item_entry = host
+        .core()
+        .with_owned_player_like_cpp(physical_item_entry);
+    #[cfg(any(test, feature = "test-fixtures"))]
+    let item_entry = item_entry.or_else(|| {
+        host.core()
+            .with_owned_player_for_rest_like_cpp(physical_item_entry)
+    });
+    let item_entry = item_entry
+        .ok_or("physical obtain item owner or effective item level unavailable")?
         .ok_or("physical obtain item owner or effective item level unavailable")?;
     let item_flags = host
         .hub_ref()

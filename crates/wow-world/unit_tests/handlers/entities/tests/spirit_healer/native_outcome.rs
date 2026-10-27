@@ -190,8 +190,7 @@ async fn reclaim_resurrection_failure_keeps_corpse_and_dead_state() {
 
 #[tokio::test]
 async fn reclaim_resurrection_success_still_converts_corpse() {
-    let (mut session, _send_rx, _realm_rx, port) =
-        corpse::released_ghost_without_reclaim_delay_like_cpp(43_904).await;
+    let (mut session, _send_rx, _realm_rx, port) = super::logged_in_released_ghost(43_904).await;
     let player_guid = session.player_guid().expect("released ghost Player GUID");
     let _corpse_guid =
         corpse::current_corpse_guid_like_cpp(&session, player_guid).expect("released ghost corpse");

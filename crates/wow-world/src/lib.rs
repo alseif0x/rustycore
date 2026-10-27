@@ -32,6 +32,9 @@ pub(crate) mod canonical_creature_fixtures;
 #[path = "../unit_tests/selected_spell_fixtures.rs"]
 pub(crate) mod selected_spell_fixtures;
 #[cfg(test)]
+#[path = "../unit_tests/player_inventory_test_fixture.rs"]
+mod player_inventory_test_fixture;
+#[cfg(test)]
 #[path = "../unit_tests/handler_contract_tests.rs"]
 mod handler_contract_tests;
 mod player;

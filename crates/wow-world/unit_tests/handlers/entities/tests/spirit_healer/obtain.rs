@@ -78,17 +78,69 @@ fn install_obtain_item_catalogs(session: &mut WorldSession, spell_id: i32) {
 }
 
 fn mark_obtain_test_inventory_complete(session: &mut WorldSession) {
-    session
-        .core
-        .with_owned_player_mut_like_cpp(|player| {
-            player
-                .inventory_runtime_mut_like_cpp()
-                .set_equipment_inventory_authority_complete_like_cpp(true);
-        })
-        .expect("canonical Player inventory authority");
-    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(
-        session, true
-    ));
+    crate::player_inventory_test_fixture::complete_known_empty_player_inventory_like_cpp(session);
+}
+
+#[tokio::test]
+async fn known_no_pickup_and_legacy_items_do_not_require_item_level_facts() {
+    let (mut session, send_rx, _realm_rx, _port) = logged_in_released_ghost(43_760).await;
+    let owner = session.player_guid().expect("canonical Player GUID");
+    let normal_item = ObjectGuid::create_item(1, 43_761);
+    let legacy_item = ObjectGuid::create_item(1, 43_762);
+    install_known_no_obtain_item_catalogs(
+        &mut session,
+        [
+            (846_730, InventoryType::NonEquip, 0),
+            (
+                846_731,
+                InventoryType::NonEquip,
+                wow_constants::ItemFlags::LEGACY.bits() as u32,
+            ),
+        ],
+        [],
+    );
+    add_obtain_top_level_item(
+        &mut session,
+        owner,
+        normal_item,
+        846_730,
+        INVENTORY_SLOT_ITEM_START,
+    );
+    add_obtain_top_level_item(
+        &mut session,
+        owner,
+        legacy_item,
+        846_731,
+        INVENTORY_SLOT_ITEM_START + 1,
+    );
+    let generators = session.id_generators_for_test_like_cpp();
+    let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
+
+    assert_eq!(
+        wow_world_spell::apply_inventory_item_obtain_spells_with_generator_like_cpp(
+            &mut session,
+            generators.item.as_ref(),
+            &creature_spawns,
+            normal_item,
+        )
+        .await,
+        Ok(Vec::new()),
+        "known empty ItemEffect rows do not request cast-item level facts"
+    );
+
+    session.catalogs.items.effect_store = None;
+    assert_eq!(
+        wow_world_spell::apply_inventory_item_obtain_spells_with_generator_like_cpp(
+            &mut session,
+            generators.item.as_ref(),
+            &creature_spawns,
+            legacy_item,
+        )
+        .await,
+        Ok(Vec::new()),
+        "the source LEGACY flag returns before ItemEffect or cast-item level lookup"
+    );
+    assert!(drain_packets(&send_rx).is_empty());
 }
 
 fn add_obtain_top_level_item(
@@ -108,14 +160,6 @@ fn add_obtain_top_level_item(
         0,
         ItemUpdateState::Unchanged,
     );
-    session
-        .core
-        .with_owned_player_mut_like_cpp(|player| {
-            player
-                .store_top_level_item(slot, item_guid)
-                .expect("canonical Player obtain scan slot");
-        })
-        .expect("canonical Player top-level inventory");
 }
 
 fn add_bag_obtain_item(
@@ -169,7 +213,6 @@ async fn healer_resurrection_runs_obtain_between_visibility_and_optional_sicknes
     install_recovery_sickness_fixture_with_normal_cast_costs(&mut session);
     install_obtain_item_catalogs(&mut session, SICKNESS_SPELL);
     let owner = session.player_guid().expect("canonical Player GUID");
-    session.set_player_inventory_slot_count_like_cpp(wow_entities::INVENTORY_DEFAULT_SIZE);
     mark_obtain_test_inventory_complete(&mut session);
 
     let first = ObjectGuid::create_item(1, 43_772);
@@ -235,7 +278,6 @@ async fn known_missing_obtain_spell_is_ignored_and_healer_continues_to_sickness(
     install_recovery_sickness_fixture_with_normal_cast_costs(&mut session);
     install_obtain_item_catalogs(&mut session, MISSING_OBTAIN_SPELL);
     let owner = session.player_guid().expect("canonical Player GUID");
-    session.set_player_inventory_slot_count_like_cpp(wow_entities::INVENTORY_DEFAULT_SIZE);
     mark_obtain_test_inventory_complete(&mut session);
     add_obtain_top_level_item(
         &mut session,
@@ -276,7 +318,6 @@ async fn healer_holds_obtain_phase_when_item_effect_catalog_is_unavailable() {
     install_recovery_sickness_fixture_with_normal_cast_costs(&mut session);
     install_obtain_item_catalogs(&mut session, SICKNESS_SPELL);
     let owner = session.player_guid().expect("canonical Player GUID");
-    session.set_player_inventory_slot_count_like_cpp(wow_entities::INVENTORY_DEFAULT_SIZE);
     mark_obtain_test_inventory_complete(&mut session);
     add_obtain_top_level_item(
         &mut session,
@@ -321,7 +362,6 @@ async fn obtain_scan_casts_a_live_bag_child_with_its_physical_item() {
     install_recovery_sickness_fixture_with_normal_cast_costs(&mut session);
     install_obtain_item_catalogs(&mut session, SICKNESS_SPELL);
     let owner = session.player_guid().expect("canonical Player GUID");
-    session.set_player_inventory_slot_count_like_cpp(wow_entities::INVENTORY_DEFAULT_SIZE);
     mark_obtain_test_inventory_complete(&mut session);
     let bag_guid = ObjectGuid::create_item(1, 43_782);
     let child_guid = ObjectGuid::create_item(1, 43_783);
@@ -384,7 +424,6 @@ async fn reclaim_holds_after_an_obtain_item_authority_error_without_replaying_pr
     session.set_player_position_like_cpp(Position::new(10.0, 2.0, 3.0, 0.0));
     install_recovery_sickness_fixture_with_normal_cast_costs(&mut session);
     install_obtain_item_catalogs(&mut session, SICKNESS_SPELL);
-    session.set_player_inventory_slot_count_like_cpp(wow_entities::INVENTORY_DEFAULT_SIZE);
     mark_obtain_test_inventory_complete(&mut session);
     let first = ObjectGuid::create_item(1, 43_792);
     let unavailable = ObjectGuid::create_item(1, 43_793);

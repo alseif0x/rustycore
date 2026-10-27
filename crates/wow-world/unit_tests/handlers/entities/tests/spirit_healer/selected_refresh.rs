@@ -193,7 +193,7 @@ async fn sickness_refresh_session(
     old_attributes13: u32,
     old_duration: i32,
     new_duration: i32,
-) -> (WorldSession, flume::Receiver<Vec<u8>>, ObjectGuid) {
+) -> (Box<WorldSession>, flume::Receiver<Vec<u8>>, ObjectGuid) {
     let (effects, misc) = sickness_rows(old_unique, new_unique, old_attributes13);
     let (mut session, send_rx, player_guid) =
         super::selected_execution_effects::selected_session_with_raw_misc_rows(
@@ -220,7 +220,8 @@ async fn sickness_refresh_session(
     ])));
     install_aura_options(&mut session, SICKNESS_SPELL, &[(0, 0, 2), (3, 0, 9)]);
     session.set_spell_proc_store(Arc::new(wow_data::SpellProcStoreLikeCpp::default()));
-    (session, send_rx, player_guid)
+    // Keep the large test-only session out of the enclosing async test frame.
+    (Box::new(session), send_rx, player_guid)
 }
 
 #[tokio::test]

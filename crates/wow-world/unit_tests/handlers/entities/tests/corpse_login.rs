@@ -41,6 +41,9 @@ fn build_corpse_login_session(
         current_map,
         0,
     );
+    crate::player_inventory_test_fixture::complete_known_empty_player_inventory_like_cpp(
+        &mut session,
+    );
     session.set_loaded_player_identity_like_cpp(current_map as u16, 1, 1, 80, 0);
     session.core.with_owned_player_mut_like_cpp(|player| {
         player.unit_mut().set_max_health(100);

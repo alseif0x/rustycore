@@ -89,9 +89,11 @@ native cooldowns and physical-item consumption to the existing save owners;
 Common resurrection obtain calls now use live inventory and checked normal
 cast outcomes. The selected sickness constructor/refresh now retains its
 physical cast-item provenance and passes the restored real regression.
-Broader recovery, login and repop regressions still fail, and a selected
-refresh test aborts with stack overflow. This integration is not accepted.
-Complete SelfRes, native-death integration and final acceptance remain open.
+The affected healer, recovery, resurrection, corpse-login and repop groups
+now have green scoped feedback covering 148 distinct identities. The stack
+abort was corrected in a test fixture. This is coding evidence, not final
+macro acceptance. Complete SelfRes, native death, QA and final acceptance
+remain open, including the sibling sickness original-key save gate.
 
 Four blocks remain within the same macro:
 
@@ -2710,6 +2712,60 @@ This is an UNVALIDATED local macro checkpoint. The sibling sickness full-save
 entry gate, native-death integration, normal SelfRes/obtain casts, QA and
 complete candidate acceptance remain open. No runtime installation, SQL,
 restart, fresh capture, publication or issue closure was performed.
+
+Obtain ordering and recovery fixture contract, 2026-10-27, base
+`ad78f38716f850e77fa0c2be24386f551d3feb34` plus 14 working Rust inputs:
+the physical item's entry is now read without calculating level. LEGACY,
+known empty pickup lists and already-present auras do not demand cast-level
+facts; those are read only immediately before an actual normal cast.
+Player.cpp:8054–8079 and Spell.cpp:3416–3421 at pinned
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` establish that order. A real
+World test deliberately supplies no item-level rows for no-pickup/LEGACY
+items. Missing catalogs still hold when the operation actually needs them.
+
+Recovery fixtures now provide known canonical inventory topology and empty
+currency loads through existing load-complete APIs. Top-level and bag-child
+rows populate the actual inventory positions. Deliberately incomplete inputs
+remain separate. The dungeon case verifies active residence before/after its
+accepted ACK. The healer test verifies captured item identities, entries,
+slots, pre-ACK Changed/New states and durability 0/75/75, then acknowledges
+their Unchanged states; untouched bank rows remain 100 and are not dirty save
+rows. Item.cpp:383–579 ends SaveToDB with ITEM_UNCHANGED. No production
+persistence or residence fence was weakened. Boxing the large test-owned
+WorldSession in the refresh fixture removes the reproduced isolated stack
+overflow without a global RUST_MIN_STACK override or runtime ownership change.
+
+Sequential feedback used PROTOC, one Cargo job and the checkout target:
+
+| Cargo command | UTC interval | Result |
+| --- | --- | --- |
+| `check -p wow-world` | 00:58:29–00:58:43 | exit 0 |
+| `test -p wow-world spirit_healer` | 01:03:28–01:05:03 | 83 passed |
+| `test -p wow-world recovery_fences` | 01:06:14–01:07:42 | 33 passed |
+| `test -p wow-world resurrection` | 01:07:47 | 26 library + 2 integration passed |
+| `test -p wow-world corpse_login` | 01:07:51 | 13 passed |
+| `test -p wow-world repop` | 01:07:54–01:07:55 | 18 passed |
+
+The parent deduplicated 148 target-qualified identities, including the two
+production-linked disconnect/near-resurrection integration cases. Zero-test
+targets are not credited. Logs in
+`/tmp/rustycore-recovery-fixture-contract-logs` preserve the initial isolated
+stack abort, both failed healer fixture attempts, the 82/1 healer result and
+the 31/2 recovery result. The initial pandemic log's stale b545 header remains
+with an explicit correction; its actual run followed the ad78 commit, whose
+Rust inputs match the preceding dirty origin candidate. New receipts use the
+actual HEAD. File names containing final do not mean validation-v2 final.
+The 00:38:22–01:07:55 diagnostic/repair interval is 1773 seconds, not a final
+campaign or evidence of the ordinary 600-second target.
+
+All 14 changed inputs match `changed-input-sha256.txt`, digest
+`fba60ae6afea6ee6113082203267d1e8b2144e6dd607dc33b5027de08770dac9`;
+the tracked diff digest is
+`62a00ac2a4abb76c299531792c3714d18dcfdf2aab6013ce5c66d18a008fc161`.
+These describe working inputs at ad78, not testing at a later commit. The
+worker reported GPT-6; specific model/effort remain unavailable. This remains
+an UNVALIDATED local macro checkpoint. The original-key sickness save gate,
+complete SelfRes, native death, QA, final and authorized live evidence remain.
 
 Selected sickness cast-item origin, 2026-10-27, base
 `b545669132cb191ca5abaecf3dcaaa52dfb729df` plus 14 Rust working inputs:

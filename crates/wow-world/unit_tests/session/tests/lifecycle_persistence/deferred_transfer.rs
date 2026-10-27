@@ -106,6 +106,9 @@ async fn exercise(
     let position = Position::new(1.0, 2.0, 3.0, 0.5);
     session.set_player_guid(Some(guid));
     install_canonical_player_owner_for_test(&mut session, 571, 0);
+    crate::player_inventory_test_fixture::complete_known_empty_player_inventory_like_cpp(
+        &mut session,
+    );
     session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
     session.set_player_position_like_cpp(position);
     session.set_spell_store(Arc::new(wow_data::SpellStore::new()));

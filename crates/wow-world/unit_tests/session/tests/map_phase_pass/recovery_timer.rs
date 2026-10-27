@@ -32,6 +32,12 @@ fn logged_in_recovery_session_at(
 ) {
     let (mut session, packet_tx, send_rx) = make_session();
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    crate::player_inventory_test_fixture::complete_known_empty_player_inventory_like_cpp(
+        &mut session,
+    );
+    crate::player_inventory_test_fixture::complete_known_empty_player_currencies_like_cpp(
+        &mut session,
+    );
     session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
     register_session_for_phases(&mut session);
     session.core.state = SessionState::LoggedIn;

@@ -1035,6 +1035,29 @@ fn dead_player_session_on_map_with_optional_port(
         map_id,
         0,
     );
+    crate::player_inventory_test_fixture::complete_known_empty_player_inventory_like_cpp(
+        &mut session,
+    );
+    assert_eq!(
+        wow_world_spell::load_represented_character_auras_like_cpp(
+            &mut session,
+            [],
+            [],
+            0,
+        ),
+        0,
+        "the release fixture starts from known empty persisted Aura rows"
+    );
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(
+        &mut session,
+        true
+    ));
+    session.set_item_effect_store(std::sync::Arc::new(
+        wow_data::ItemEffectStore::from_entries([]),
+    ));
+    crate::player_inventory_test_fixture::complete_known_empty_player_currencies_like_cpp(
+        &mut session,
+    );
     install_release_cast_spell_fixture(&mut session);
     session.set_loaded_player_identity_like_cpp(map_id as u16, 1, 1, 80, 0);
     session.set_player_position_like_cpp(Position::new(1.0, 2.0, 3.0, 0.0));
@@ -1424,6 +1447,34 @@ async fn repop_in_dungeon_skips_corpse_save_and_revives_at_teleport_like_cpp() {
     session.set_player_lifecycle_port_like_cpp(save_port.clone());
 
     handle_repop_request(&mut session, repop_request_packet(true)).await;
+
+    let handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical Player handle remains installed through the dungeon teleport");
+    let manager = session
+        .core
+        .canonical_map_manager
+        .as_ref()
+        .expect("canonical MapManager remains installed through the dungeon teleport")
+        .clone();
+    let before_ack = manager
+        .lock()
+        .expect("canonical MapManager")
+        .player_active_residence_revision_like_cpp(handle)
+        .expect("the dungeon Player is admitted to an active map before its near ACK");
+    assert_eq!(before_ack.0.map_id, 33);
+    assert_eq!(
+        wow_world_entities::handle_move_teleport_ack_like_cpp(&mut session, player_guid, 0, 0),
+        crate::session::MoveTeleportAckActionLikeCpp::Accepted
+    );
+    let after_ack = manager
+        .lock()
+        .expect("canonical MapManager")
+        .player_active_residence_revision_like_cpp(handle)
+        .expect("the ACK leaves the Player in its admitted active dungeon residence");
+    assert_eq!(after_ack.0, before_ack.0);
+    assert!(continue_resurrection_after_valid_teleport(&mut session).await);
 
     // CreateCorpse: "we do not need to save corpses for instances".
     assert!(port.saves.lock().unwrap().is_empty());

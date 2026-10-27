@@ -294,7 +294,17 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
     let bank_guid = ObjectGuid::create_item(1, 43_207);
     let bank_bag_guid = ObjectGuid::create_item(1, 43_208);
     let bank_child_guid = ObjectGuid::create_item(1, 43_209);
-    session.set_item_stats_store(Arc::new(wow_data::ItemStatsStore::from_parts(
+    install_known_no_obtain_item_catalogs(
+        &mut session,
+        [
+            (43_210, wow_constants::InventoryType::Chest, 0),
+            (43_211, wow_constants::InventoryType::NonEquip, 0),
+            (43_212, wow_constants::InventoryType::NonEquip, 0),
+            (43_213, wow_constants::InventoryType::NonEquip, 0),
+            (43_214, wow_constants::InventoryType::NonEquip, 0),
+            (43_206, wow_constants::InventoryType::NonEquip, 0),
+            (43_209, wow_constants::InventoryType::NonEquip, 0),
+        ],
         [(
             43_210,
             wow_data::ItemStatEntry {
@@ -309,8 +319,7 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
                 armor: 0,
             },
         )],
-        [],
-    )));
+    );
     add_top_level_item(
         &mut session,
         player_guid,
@@ -346,6 +355,14 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
         0,
         ItemUpdateState::Unchanged,
     );
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .register_bag_storage(INVENTORY_SLOT_BAG_START, carried_bag_guid, 1)
+                .expect("canonical carried bag topology");
+        })
+        .expect("canonical Player carried inventory");
     add_bag_child(
         &mut session,
         player_guid,
@@ -377,6 +394,14 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
         0,
         ItemUpdateState::Unchanged,
     );
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .register_bag_storage(wow_entities::BANK_SLOT_BAG_START, bank_bag_guid, 1)
+                .expect("canonical bank bag topology");
+        })
+        .expect("canonical Player bank inventory");
     add_bag_child(
         &mut session,
         player_guid,
@@ -411,6 +436,47 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
         1,
         "the healer full save follows confirmed corpse deletion"
     );
+    let save_requests = save_port.character_save_requests();
+    assert_eq!(save_requests.len(), 1);
+    let saved_items = save_requests[0]
+        .inventory_items
+        .as_ref()
+        .expect("the completed inventory authority contributes its save group");
+    let saved_item = |guid: ObjectGuid| {
+        saved_items
+            .iter()
+            .find(|item| item.item_guid == guid.counter() as u64)
+            .expect("dirty inventory item is captured by the full save")
+    };
+    let saved_gear = saved_item(gear_guid);
+    assert_eq!(saved_gear.item_entry, 43_210);
+    assert_eq!(saved_gear.owner_guid, player_guid.counter() as u64);
+    assert_eq!(saved_gear.slot, EQUIPMENT_SLOT_CHEST);
+    assert_eq!(saved_gear.state, wow_persistence::PlayerItemSaveStateLikeCpp::Changed);
+    assert_eq!(saved_gear.durability, 0);
+    let saved_backpack = saved_item(backpack_guid);
+    assert_eq!(saved_backpack.item_entry, 43_211);
+    assert_eq!(saved_backpack.owner_guid, player_guid.counter() as u64);
+    assert_eq!(saved_backpack.slot, INVENTORY_SLOT_ITEM_START);
+    assert_eq!(
+        saved_backpack.state,
+        wow_persistence::PlayerItemSaveStateLikeCpp::Changed
+    );
+    assert_eq!(saved_backpack.durability, 75);
+    let saved_carried_child = saved_item(carried_child_guid);
+    assert_eq!(saved_carried_child.item_entry, 43_206);
+    assert_eq!(saved_carried_child.owner_guid, player_guid.counter() as u64);
+    assert_eq!(saved_carried_child.bag_guid, carried_bag_guid.counter() as u64);
+    assert_eq!(saved_carried_child.slot, 0);
+    assert_eq!(
+        saved_carried_child.state,
+        wow_persistence::PlayerItemSaveStateLikeCpp::New
+    );
+    assert_eq!(saved_carried_child.durability, 75);
+    assert!(saved_items.iter().all(|item| {
+        item.item_guid != bank_guid.counter() as u64
+            && item.item_guid != bank_child_guid.counter() as u64
+    }));
 
     let post_resurrection_vitals = session
         .core
@@ -447,15 +513,15 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
     assert_eq!(item_durability(&session, bank_child_guid), 100);
     assert_eq!(
         item_update_state(&session, gear_guid),
-        ItemUpdateState::Changed
+        ItemUpdateState::Unchanged
     );
     assert_eq!(
         item_update_state(&session, backpack_guid),
-        ItemUpdateState::Changed
+        ItemUpdateState::Unchanged
     );
     assert_eq!(
         item_update_state(&session, carried_child_guid),
-        ItemUpdateState::New
+        ItemUpdateState::Unchanged
     );
     assert_eq!(
         item_update_state(&session, bank_guid),
@@ -1124,6 +1190,14 @@ fn add_top_level_item(
     item.set_durability(durability);
     item.force_state(state);
     session.insert_inventory_item_object(item);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .store_top_level_item(slot, guid)
+                .expect("canonical Player inventory row");
+        })
+        .expect("canonical Player item topology");
 }
 
 fn add_bag_child(
@@ -1137,6 +1211,14 @@ fn add_bag_child(
     durability: u32,
     state: ItemUpdateState,
 ) {
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player
+                .store_bag_item(container_slot, child_slot, guid)
+                .expect("canonical Player bag child row");
+        })
+        .expect("canonical Player bag topology");
     let mut item = session.make_inventory_item_object(
         guid,
         guid.counter() as u32,

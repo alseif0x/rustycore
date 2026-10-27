@@ -213,6 +213,9 @@ pub(super) fn fixture() -> GhostFixture {
     session.set_player_guid(Some(player));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    crate::player_inventory_test_fixture::complete_known_empty_player_inventory_like_cpp(
+        &mut session,
+    );
     session.set_shapeshift_display_links_absent(true);
     session.set_creature_aggro_config_like_cpp(crate::session::CreatureAggroConfigLikeCpp {
         spell_x_spell_visual_store: Some(Arc::new(wow_data::SpellXSpellVisualStore::from_entries(
