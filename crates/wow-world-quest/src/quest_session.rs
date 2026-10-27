@@ -201,7 +201,6 @@ pub trait QuestSessionHostLikeCpp: SessionHubHostLikeCpp {
     ) -> impl Future<Output = bool> + Send;
     fn sync_player_registry_state_like_cpp(&self);
     fn update_visible_gameobjects_or_spell_clicks_like_cpp(&self) -> usize;
-    fn send_represented_quest_log_slot_update_like_cpp(&mut self, slot: u8);
     fn player_condition_projection_cx_like_cpp(&self) -> PlayerConditionProjectionCxLikeCpp<'_>;
     fn player_target_spell_is_hit_inert_like_cpp(&self, spell_id: u32, difficulty_id: u8) -> bool;
     /// The World spell-click visibility of one creature for this viewer (the

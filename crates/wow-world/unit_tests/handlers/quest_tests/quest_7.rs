@@ -144,6 +144,7 @@ async fn quest_status_save_uses_the_sqlx_free_player_quest_port_like_cpp() {
 #[tokio::test]
 async fn quest_load_keeps_the_seven_stage_order_behind_the_typed_port_like_cpp() {
     let (mut session, _send_rx) = make_session();
+    install_native_quest_log_player_like_cpp(&mut session);
     let active_id = 5930;
     let rewarded_id = 5931;
     let daily_id = 5932;
@@ -219,35 +220,43 @@ async fn quest_load_keeps_the_seven_stage_order_behind_the_typed_port_like_cpp()
             PlayerQuestLoadStageFixtureLikeCpp::Seasonal,
         ]
     );
+    let loaded_player = session
+        .core
+        .quest_objective_access_like_cpp()
+        .player_quest_gameplay_snapshot_like_cpp()
+        .expect("canonical Player quest state");
     assert_eq!(
-        session
-            .quest_state
-            .fixture_player_quest_status_like_cpp(active_id)
-            .expect("quest status fixture exists")
+        loaded_player
+            .status_like_cpp(active_id)
+            .expect("quest status exists")
             .objective_counts,
         vec![3]
     );
-    assert!(
-        session
-            .quest_state
-            .fixture_has_rewarded_quest_like_cpp(rewarded_id)
+    let rows = session.quest_log_create_entries_like_cpp();
+    assert_eq!(rows[0].0, active_id);
+    assert_eq!(rows[0].3[0], 3);
+    assert_eq!(
+        rows[0].2, 0,
+        "untimed load clears the native end-time field"
     );
     assert!(
-        session
-            .quest_state
-            .fixture_has_daily_quest_like_cpp(daily_id)
+        loaded_player
+            .rewarded_quest_ids_like_cpp()
+            .contains(&rewarded_id)
+    );
+    assert!(loaded_player.daily_quest_ids_like_cpp().contains(&daily_id));
+    assert!(
+        loaded_player
+            .weekly_quest_ids_like_cpp()
+            .contains(&weekly_id)
     );
     assert!(
-        session
-            .quest_state
-            .fixture_has_weekly_quest_like_cpp(weekly_id)
-    );
-    assert!(
-        session
-            .quest_state
-            .fixture_has_monthly_quest_like_cpp(monthly_id)
+        loaded_player
+            .monthly_quest_ids_like_cpp()
+            .contains(&monthly_id)
     );
 }
+
 #[test]
 fn save_to_db_quest_status_list_skips_rewarded_non_repeatable_active_duplicate_like_cpp() {
     let (mut session, _send_rx) = make_session();
@@ -336,6 +345,7 @@ fn save_to_db_quest_status_list_is_empty_without_active_quests_like_cpp() {
 #[test]
 fn quest_log_create_entries_store_flag_objectives_in_state_flags_like_cpp() {
     let (mut session, _send_rx) = make_session();
+    install_native_quest_log_player_like_cpp(&mut session);
     let quest_id = 5918;
     let mut quest = quest_template(quest_id);
     quest.objectives.push(QuestObjective {
@@ -371,6 +381,9 @@ fn quest_log_create_entries_store_flag_objectives_in_state_flags_like_cpp() {
         .fixture_player_quest_status_mut_like_cpp(quest_id)
         .expect("active quest")
         .objective_counts = vec![3, 1];
+    let owner = session.core.quest_objective_access_like_cpp();
+    assert_eq!(owner.set_quest_slot_counter_like_cpp(3, 0, 3), Some(true));
+    assert_eq!(owner.set_quest_slot_state_like_cpp(3, 256 << 1), Some(true));
 
     let entries = session.quest_log_create_entries_like_cpp();
 
@@ -384,6 +397,7 @@ fn quest_log_create_entries_store_flag_objectives_in_state_flags_like_cpp() {
 #[test]
 fn quest_log_create_entries_preserve_failed_state_flag_like_cpp() {
     let (mut session, _send_rx) = make_session();
+    install_native_quest_log_player_like_cpp(&mut session);
     add_active_quest_in_slot_with_status(&mut session, 5919, 5, QUEST_STATUS_FAILED_LIKE_CPP);
 
     let entries = session.quest_log_create_entries_like_cpp();
@@ -391,15 +405,16 @@ fn quest_log_create_entries_preserve_failed_state_flag_like_cpp() {
     assert_eq!(entries[5].1, 2);
 }
 #[test]
-fn quest_log_create_entries_duplicate_slot_is_empty_fail_closed_like_cpp() {
+fn quest_log_create_entries_read_the_last_native_slot_writer_like_cpp() {
     let (mut session, _send_rx) = make_session();
+    install_native_quest_log_player_like_cpp(&mut session);
     add_active_quest_in_slot(&mut session, 5915, 2);
     add_active_quest_in_slot(&mut session, 5916, 2);
 
     let entries = session.quest_log_create_entries_like_cpp();
 
     assert_eq!(entries.len(), MAX_QUEST_LOG_SIZE_LIKE_CPP as usize);
-    assert_eq!(entries[2], (0, 0, 0, [0; 24]));
+    assert_eq!(entries[2], (5916, 0, 0, [0; 24]));
     assert!(
         session
             .quest_state

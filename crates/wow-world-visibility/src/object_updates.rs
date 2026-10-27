@@ -47,12 +47,24 @@ fn filter_unit_values_update_for_target_like_cpp(update: &mut UnitValuesUpdate, 
             .unwrap_or(0);
 }
 
-fn filter_player_values_update_for_target_like_cpp(update: &mut PlayerValuesUpdate, owner: bool) {
-    let flags = owner
+fn filter_player_values_update_for_target_like_cpp(
+    update: &mut PlayerValuesUpdate,
+    owner: bool,
+    party_member: bool,
+) {
+    let unit_flags = owner
         .then_some(UpdateFieldVisibilityFlags::OWNER)
         .unwrap_or_else(UpdateFieldVisibilityFlags::empty);
+    let player_flags = unit_flags
+        | party_member
+            .then_some(UpdateFieldVisibilityFlags::PARTY_MEMBER)
+            .unwrap_or_else(UpdateFieldVisibilityFlags::empty);
     if let Some(unit_data) = update.unit_data.as_mut() {
-        filter_disallowed_fields(UpdateFieldSectionKind::UnitData, &mut unit_data.mask, flags);
+        filter_disallowed_fields(
+            UpdateFieldSectionKind::UnitData,
+            &mut unit_data.mask,
+            unit_flags,
+        );
         if !unit_data.mask.is_any_set() {
             update.unit_data = None;
         }
@@ -61,7 +73,7 @@ fn filter_player_values_update_for_target_like_cpp(update: &mut PlayerValuesUpda
         filter_disallowed_fields(
             UpdateFieldSectionKind::PlayerData,
             &mut player_data.mask,
-            flags,
+            player_flags,
         );
         if !player_data.mask.is_any_set() {
             update.player_data = None;
@@ -90,6 +102,16 @@ fn filter_player_values_update_for_target_like_cpp(update: &mut PlayerValuesUpda
             .as_ref()
             .map(|_| 1_u32 << TYPEID_ACTIVE_PLAYER)
             .unwrap_or(0);
+}
+
+fn source_is_in_current_group_like_cpp(
+    active_group: Option<&(u64, Vec<ObjectGuid>)>,
+    source_guid: ObjectGuid,
+    source_group_guid: Option<u64>,
+) -> bool {
+    active_group.is_some_and(|(group_guid, members)| {
+        source_group_guid == Some(*group_guid) && members.contains(&source_guid)
+    })
 }
 
 impl VisibilityState {
@@ -122,6 +144,10 @@ impl VisibilityState {
         let Some(viewer_guid) = hub.core.player_guid() else {
             return 0;
         };
+        let party_group = hub
+            .core
+            .player_group_owner_access_like_cpp()
+            .party_group_for_values_update_like_cpp();
 
         let mut packets = Vec::new();
         let update_generation;
@@ -149,19 +175,31 @@ impl VisibilityState {
             for represented_update in summary.player_values_updates {
                 let source_guid = represented_update.guid;
                 let source_is_viewer = source_guid == viewer_guid;
-                let source_visible = source_is_viewer
-                    || (hub
-                        .core
-                        .client_visible_guids_like_cpp
-                        .contains(&source_guid)
-                        && map.get_typed_player(source_guid).is_some_and(|source| {
+                let (source_visible, source_group_guid) = if source_is_viewer {
+                    (true, None)
+                } else if hub
+                    .core
+                    .client_visible_guids_like_cpp
+                    .contains(&source_guid)
+                {
+                    map.get_typed_player(source_guid)
+                        .map_or((false, None), |source| {
                             let source_world = source.unit().world();
-                            source_world.object().is_in_world()
+                            let visible = source_world.object().is_in_world()
                                 && viewer_phase.can_see(source_world.phase_shift())
                                 && source_world
                                     .position()
-                                    .is_within_dist_2d(&viewer_position, visibility_range)
-                        }));
+                                    .is_within_dist_2d(&viewer_position, visibility_range);
+                            let group_guid = source
+                                .gameplay_state()
+                                .group
+                                .as_ref()
+                                .map(|group| group.group_guid.counter() as u64);
+                            (visible, group_guid)
+                        })
+                } else {
+                    (false, None)
+                };
                 if !source_visible {
                     continue;
                 }
@@ -169,11 +207,18 @@ impl VisibilityState {
                 let mut values_update = represented_update.values_update;
                 // `BuildValuesUpdate` filters UnitData/PlayerData by the
                 // receiver's flags and exposes ActivePlayerData only to the
-                // owner. The map snapshot is captured once with the complete
-                // masks, so apply that receiver-specific filter here.
+                // owner. Current group members also receive PARTY_MEMBER
+                // fields. The map snapshot is captured once with complete
+                // masks, so apply the receiver-specific filter here.
                 filter_player_values_update_for_target_like_cpp(
                     &mut values_update,
                     source_is_viewer,
+                    source_is_viewer
+                        || source_is_in_current_group_like_cpp(
+                            party_group.as_ref(),
+                            source_guid,
+                            source_group_guid,
+                        ),
                 );
                 let Some(update) = player_values_update_to_update_object(
                     source_guid,
@@ -286,7 +331,7 @@ mod tests {
         let complete_update = player.values_update(true);
 
         let mut owner_update = complete_update.clone();
-        filter_player_values_update_for_target_like_cpp(&mut owner_update, true);
+        filter_player_values_update_for_target_like_cpp(&mut owner_update, true, true);
         let owner_unit = owner_update.unit_data.as_ref().unwrap();
         assert!(owner_unit.mask.is_set(5), "Health is present for the owner");
         assert!(
@@ -304,7 +349,7 @@ mod tests {
         );
 
         let mut observer_update = complete_update;
-        filter_player_values_update_for_target_like_cpp(&mut observer_update, false);
+        filter_player_values_update_for_target_like_cpp(&mut observer_update, false, false);
         let observer_unit = observer_update.unit_data.as_ref().unwrap();
         assert!(
             observer_unit.mask.is_set(5),
@@ -319,5 +364,54 @@ mod tests {
             observer_update.changed_object_type_mask & (1 << TYPEID_ACTIVE_PLAYER),
             0
         );
+    }
+
+    #[test]
+    fn quest_log_fields_are_visible_to_self_and_authoritative_current_group_only() {
+        let mut player = Player::new(None, false);
+        player.clear_data_changes();
+        assert!(player.set_quest_slot_like_cpp(0, 1234));
+        let complete_update = player.values_update(false);
+        let player_data = complete_update.player_data.as_ref().unwrap();
+        assert!(player_data.mask.is_set(35));
+        assert!(player_data.mask.is_set(36));
+        assert_eq!(player_data.quest_log[0].change_mask(), (1 << 29) - 1);
+
+        let mut self_update = complete_update.clone();
+        filter_player_values_update_for_target_like_cpp(&mut self_update, true, true);
+        assert!(self_update.player_data.as_ref().unwrap().mask.is_set(36));
+
+        let mut party_update = complete_update.clone();
+        filter_player_values_update_for_target_like_cpp(&mut party_update, false, true);
+        assert!(party_update.player_data.as_ref().unwrap().mask.is_set(36));
+        assert!(party_update.active_player_data.is_none());
+
+        let mut unrelated_update = complete_update;
+        filter_player_values_update_for_target_like_cpp(&mut unrelated_update, false, false);
+        assert!(unrelated_update.player_data.is_none());
+    }
+
+    #[test]
+    fn current_group_visibility_requires_matching_source_snapshot_and_registry_member() {
+        let active_group_guid = 77;
+        let source = ObjectGuid::create_player(1, 7302);
+        let members = vec![ObjectGuid::create_player(1, 7301), source];
+        let active_group = (active_group_guid, members);
+
+        assert!(source_is_in_current_group_like_cpp(
+            Some(&active_group),
+            source,
+            Some(active_group_guid),
+        ));
+        assert!(!source_is_in_current_group_like_cpp(
+            Some(&active_group),
+            source,
+            Some(active_group_guid + 1),
+        ));
+        assert!(!source_is_in_current_group_like_cpp(
+            Some(&active_group),
+            ObjectGuid::create_player(1, 7303),
+            Some(active_group_guid),
+        ));
     }
 }

@@ -880,6 +880,9 @@ async fn quest_giver_choose_reward_auto_complete_player_source_is_not_blocked_li
                 slot: 0,
             },
         );
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
+    let _ = publish_quest_log_values_after_map_tick_like_cpp(&mut session);
+    let _ = drain_server_opcodes(&send_rx);
 
     session
         .handle_quest_giver_choose_reward(quest_giver_choose_reward_packet_like_cpp(
@@ -889,24 +892,23 @@ async fn quest_giver_choose_reward_auto_complete_player_source_is_not_blocked_li
             0,
         ))
         .await;
+    assert_eq!(
+        publish_quest_log_values_after_map_tick_like_cpp(&mut session),
+        1
+    );
 
-    assert!(
-        !session
-            .quest_state
-            .fixture_contains_player_quest_status_like_cpp(9_226)
-    );
-    assert!(
-        session
-            .quest_state
-            .fixture_has_rewarded_quest_like_cpp(9_226)
-    );
+    let quests = session
+        .player_quest_gameplay_snapshot_like_cpp()
+        .expect("canonical Player quest state after reward");
+    assert!(!quests.statuses_like_cpp().contains_key(&9_226));
+    assert!(quests.rewarded_quest_ids_like_cpp().contains(&9_226));
     assert_eq!(session.player_gold_like_cpp(), 42);
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
-            ServerOpcodes::UpdateObject,
             ServerOpcodes::QuestGiverQuestComplete,
             ServerOpcodes::QuestUpdateComplete,
+            ServerOpcodes::UpdateObject,
         ]
     );
 }

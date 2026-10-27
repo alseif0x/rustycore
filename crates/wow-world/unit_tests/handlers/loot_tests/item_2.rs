@@ -703,20 +703,42 @@ fn banked_quest_item_recomputes_objective_and_reopens_quest_like_cpp() {
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(
+        &mut session,
+        571,
+        0,
+    );
     session
-        .quest_state
-        .fixture_insert_player_quest_status_like_cpp(
-            quest_id,
-            crate::handlers::quest::PlayerQuestStatus {
+        .mutate_player_quest_gameplay_like_cpp(|quests| {
+            quests.insert_status_like_cpp(
                 quest_id,
-                status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
-                explored: false,
-                accept_time_secs: 0,
-                end_time_secs: 0,
-                objective_counts: vec![3],
-                slot: 0,
-            },
-        );
+                crate::handlers::quest::PlayerQuestStatus {
+                    quest_id,
+                    status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                    explored: false,
+                    accept_time_secs: 0,
+                    end_time_secs: 0,
+                    objective_counts: vec![3],
+                    slot: 0,
+                },
+            );
+        })
+        .expect("canonical Player quest status");
+    {
+        let owner = session.core.quest_objective_access_like_cpp();
+        assert_eq!(owner.set_quest_slot_like_cpp(0, quest_id), Some(true));
+        assert_eq!(owner.set_quest_slot_counter_like_cpp(0, 0, 3), Some(true));
+        assert_eq!(owner.set_quest_slot_state_like_cpp(0, 1), Some(true));
+    }
+
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
+    let _ = manager.lock().unwrap().update(1);
+    assert_eq!(
+        session
+            .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(),
+        1
+    );
+    let _ = send_rx.try_iter().count();
 
     let planned = session.plan_bank_item_quest_persistence_like_cpp(item_id, 0, true, 0, 0);
     assert_eq!(planned.len(), 1);
@@ -730,17 +752,23 @@ fn banked_quest_item_recomputes_objective_and_reopens_quest_like_cpp() {
         Some(vec![quest_id])
     );
     let status = session
-        .quest_state
-        .fixture_player_quest_status_like_cpp(quest_id)
-        .expect("active quest");
+        .player_quest_gameplay_snapshot_like_cpp()
+        .and_then(|quests| quests.status_like_cpp(quest_id).cloned())
+        .expect("canonical active quest");
     assert_eq!(
         status.status,
         crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
     );
     assert_eq!(status.objective_counts, vec![0]);
+    let _ = manager.lock().unwrap().update(1);
+    assert_eq!(
+        session
+            .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(),
+        1
+    );
     let update = send_rx
         .try_recv()
-        .expect("banking a quest item should update the quest-log slot");
+        .expect("Map SendObjectUpdates should publish the native QuestLog objective change");
     assert_eq!(
         WorldPacket::from_bytes(&update).server_opcode(),
         Some(wow_constants::ServerOpcodes::UpdateObject)

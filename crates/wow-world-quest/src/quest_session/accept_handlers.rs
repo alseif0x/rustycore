@@ -103,6 +103,14 @@ pub async fn handle_quest_giver_accept_quest_with_generator_like_cpp<
     if crate::insert_represented_quest_status_like_cpp(host, quest_id, status) == false {
         return;
     }
+    let _ = host
+        .core()
+        .quest_objective_access_like_cpp()
+        .set_quest_slot_like_cpp(slot, quest_id);
+    let _ = host
+        .core()
+        .quest_objective_access_like_cpp()
+        .set_quest_slot_end_time_like_cpp(slot, end_time_secs);
 
     crate::complete_represented_quest_after_add_with_generator_like_cpp(
         host,
@@ -127,7 +135,6 @@ pub async fn handle_quest_giver_accept_quest_with_generator_like_cpp<
         true
     };
     host.sync_player_registry_state_like_cpp();
-    host.send_represented_quest_log_slot_update_like_cpp(slot);
     // AzerothCore `AddQuestAndCheckCompletion` -> `OnPlayerQuestAccept`
     // (`PlayerQuest.cpp:426`); here only once the accept is durable: its
     // status save applied, or a completion reward already committed it.

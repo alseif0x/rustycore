@@ -564,6 +564,21 @@ pub(super) fn copy_player_data_update(
     packet_update.honor_level = update.values.honor_level;
 
     for (dst, src) in packet_update
+        .quest_log
+        .iter_mut()
+        .zip(update.quest_log.iter())
+    {
+        let values = src.values();
+        *dst = wow_packet::packets::update::QuestLogValuesUpdate {
+            quest_log_mask: src.change_mask(),
+            end_time: values.end_time(),
+            quest_id: values.quest_id(),
+            state_flags: values.state_flags(),
+            objective_progress: *values.objective_progress(),
+        };
+    }
+
+    for (dst, src) in packet_update
         .visible_items
         .iter_mut()
         .zip(update.values.visible_items.iter())

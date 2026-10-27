@@ -61,26 +61,11 @@ pub fn remove_represented_active_rewarded_duplicates_like_cpp<H: QuestSessionHos
 }
 
 pub fn first_free_quest_slot_like_cpp<H: QuestSessionHostLikeCpp>(host: &H) -> Option<u8> {
-    (0..MAX_QUEST_LOG_SIZE_LIKE_CPP).find(|&slot| !quest_slot_has_active_entry_like_cpp(host, slot))
-}
-
-fn quest_slot_has_active_entry_like_cpp<H: QuestSessionHostLikeCpp>(host: &H, slot: u8) -> bool {
-    // C++ `QuestSlotOffset` stores the quest id independently from the status fields;
-    // represented active slots are INCOMPLETE, COMPLETE, or FAILED.
-    slot < MAX_QUEST_LOG_SIZE_LIKE_CPP
-        && host
-            .player_quest_gameplay_snapshot_like_cpp()
-            .is_some_and(|state| {
-                state.statuses_like_cpp().values().any(|status| {
-                    status.slot == slot
-                        && matches!(
-                            status.status,
-                            QUEST_STATUS_INCOMPLETE_LIKE_CPP
-                                | QUEST_STATUS_COMPLETE_LIKE_CPP
-                                | QUEST_STATUS_FAILED_LIKE_CPP
-                        )
-                })
-            })
+    let owner = host.core().quest_objective_access_like_cpp();
+    let rows = owner.quest_log_values_snapshot_like_cpp()?;
+    rows.iter()
+        .position(|row| row.quest_id() == 0)
+        .and_then(|slot| u8::try_from(slot).ok())
 }
 
 /// C++ `Player::SetQuestStatus` (`Player.cpp:15557`) installing one record.
@@ -238,6 +223,14 @@ pub async fn add_quest_confirm_accept_local_state_like_cpp<H: QuestSessionHostLi
     if crate::insert_represented_quest_status_like_cpp(host, quest.id, status) == false {
         return None;
     }
+    let _ = host
+        .core()
+        .quest_objective_access_like_cpp()
+        .set_quest_slot_like_cpp(slot, quest.id);
+    let _ = host
+        .core()
+        .quest_objective_access_like_cpp()
+        .set_quest_slot_end_time_like_cpp(slot, end_time_secs);
     complete_represented_quest_after_add_with_generator_like_cpp(host, item_guid_generator, quest)
         .await;
     let durable = crate::save_represented_quest_status_like_cpp(host, quest.id)

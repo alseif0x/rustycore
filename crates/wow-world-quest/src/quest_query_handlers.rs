@@ -246,18 +246,10 @@ impl<'a> QuestQueryHandlerCxLikeCpp<'a> {
         Some((slot, qid))
     }
 
-    /// Sends the quest-log slot update once the host has synced the registry.
+    /// Clear the independent native update-field row after status removal.
     pub fn finish_quest_log_remove_quest(&mut self, slot: u8, quest_id: u32) {
         let owner = self.hub.shared().core.quest_objective_access_like_cpp();
-        let publication = self.hub.shared().core.packet_publication_access_like_cpp();
-        crate::send_represented_quest_log_slot_update_like_cpp(
-            &owner,
-            self.quest_state,
-            self.hub.catalogs,
-            &publication,
-            slot,
-            self.world_test_consumer,
-        );
+        let _ = owner.set_quest_slot_like_cpp(slot, 0);
         info!(
             account = self.hub.shared().core.account_id,
             quest_id, slot, "Quest abandoned via represented explicit quest-log slot"

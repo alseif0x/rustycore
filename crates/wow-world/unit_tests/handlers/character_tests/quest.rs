@@ -324,6 +324,11 @@ async fn gossip_hello_hostile_questgiver_fallback_is_rejected_like_cpp() {
     let mut store = store_with_quests(&[3010]);
     store.starter_quests.entry(entry).or_default().push(3010);
     session.set_quest_store(Arc::new(store));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    session
+        .core
+        .with_owned_player_mut_like_cpp(|player| player.unit_mut().set_faction(1))
+        .expect("owned Player Unit faction");
     session.set_player_faction_template_like_cpp(1);
     session.set_faction_template_store(Arc::new(
         wow_data::progression_rewards::FactionTemplateStore::from_entries([

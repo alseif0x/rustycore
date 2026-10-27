@@ -64,7 +64,21 @@ async fn quest_giver_accept_emits_player_quest_log_update_like_cpp() {
     session.set_quest_store(Arc::new(store));
     let mut manager = wow_map::MapManager::default();
     insert_gameobject(&mut manager, source_guid, gameobject_entry);
+    insert_player_with_reputation(&mut manager, session.player_guid().unwrap(), 0, 0);
+    {
+        let player = manager
+            .find_map_mut(571, 0)
+            .expect("quest giver fixture map")
+            .map_mut()
+            .get_typed_player_mut(session.player_guid().unwrap())
+            .expect("quest giver fixture Player");
+        player.set_race_class_gender(1, 1, wow_constants::Gender::Male);
+        player.unit_mut().set_level(80);
+        player.unit_mut().set_max_health(100);
+        player.unit_mut().set_health(100);
+    }
     attach_map_manager(&mut session, manager);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.record_represented_gameobject_runtime_state_like_cpp(
         571,
         source_guid,
@@ -72,21 +86,31 @@ async fn quest_giver_accept_emits_player_quest_log_update_like_cpp() {
         Position::new(10.0, 0.0, 0.0, 0.0),
         wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8,
     );
+    let _ = publish_quest_log_map_values_like_cpp(&mut session);
+    let _ = send_rx.try_iter().count();
 
     session
         .handle_quest_giver_accept_quest(quest_giver_cmsg_packet(source_guid, quest_id, 0x00))
         .await;
 
+    assert_eq!(publish_quest_log_map_values_like_cpp(&mut session), 1);
     let status = session
-        .quest_state
-        .fixture_player_quest_status_like_cpp(quest_id)
+        .player_quest_gameplay_snapshot_like_cpp()
+        .and_then(|state| state.status_like_cpp(quest_id).cloned())
         .expect("accepted quest should enter the represented quest log");
     assert_eq!(status.slot, 0);
     assert_eq!(status.status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
 
+    let complete = send_rx
+        .try_recv()
+        .expect("legacy represented accept confirmation should still be sent");
+    assert_eq!(
+        wow_packet::WorldPacket::from_bytes(&complete).server_opcode(),
+        Some(wow_constants::ServerOpcodes::QuestGiverQuestComplete)
+    );
     let update = send_rx
         .try_recv()
-        .expect("C++ SetQuestSlot must become an immediate player UpdateObject");
+        .expect("Map SendObjectUpdates must publish the accepted QuestLog row");
     assert_eq!(
         wow_packet::WorldPacket::from_bytes(&update).server_opcode(),
         Some(wow_constants::ServerOpcodes::UpdateObject)
@@ -98,13 +122,6 @@ async fn quest_giver_accept_emits_player_quest_log_update_like_cpp() {
         "quest-log UpdateObject should carry the accepted QuestID"
     );
 
-    let complete = send_rx
-        .try_recv()
-        .expect("legacy represented accept confirmation should still be sent");
-    assert_eq!(
-        wow_packet::WorldPacket::from_bytes(&complete).server_opcode(),
-        Some(wow_constants::ServerOpcodes::QuestGiverQuestComplete)
-    );
     assert!(send_rx.try_recv().is_err());
 }
 #[tokio::test]
@@ -193,6 +210,7 @@ async fn quest_poi_query_filters_to_active_quest_slots_like_cpp() {
     let (realm_tx, realm_rx) = flume::bounded(8);
     session.install_realm_send_channel_for_test(realm_tx);
     add_active_quest(&mut session, 77);
+    install_native_quest_log_player_like_cpp(&mut session);
     session.catalogs.quest_poi_store_like_cpp = Some(Arc::new(HashMap::from([
         (
             77,
@@ -447,20 +465,22 @@ async fn quest_giver_choose_reward_accepts_existing_reward_currency_like_cpp() {
         currency_entry_like_cpp(currency_id),
     ])));
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session
-        .quest_state
-        .fixture_insert_player_quest_status_like_cpp(
+    insert_player_quest_status_fixture_like_cpp(
+        &mut session,
+        quest_id,
+        PlayerQuestStatus {
             quest_id,
-            PlayerQuestStatus {
-                quest_id,
-                status: QUEST_STATUS_COMPLETE_LIKE_CPP,
-                explored: false,
-                accept_time_secs: 0,
-                end_time_secs: 0,
-                objective_counts: Vec::new(),
-                slot: 0,
-            },
-        );
+            status: QUEST_STATUS_COMPLETE_LIKE_CPP,
+            explored: false,
+            accept_time_secs: 0,
+            end_time_secs: 0,
+            objective_counts: Vec::new(),
+            slot: 0,
+        },
+    );
+    install_native_quest_log_player_like_cpp(&mut session);
+    let _ = publish_quest_log_map_values_like_cpp(&mut session);
+    let _ = send_rx.try_iter().count();
 
     session
         .handle_quest_giver_choose_reward(quest_giver_choose_reward_packet_like_cpp(
@@ -470,17 +490,10 @@ async fn quest_giver_choose_reward_accepts_existing_reward_currency_like_cpp() {
             currency_id,
         ))
         .await;
+    assert_eq!(publish_quest_log_map_values_like_cpp(&mut session), 1);
 
-    assert!(
-        !session
-            .quest_state
-            .fixture_contains_player_quest_status_like_cpp(quest_id)
-    );
-    assert!(
-        session
-            .quest_state
-            .fixture_has_rewarded_quest_like_cpp(quest_id)
-    );
+    assert!(canonical_player_quest_status_like_cpp(&session, quest_id).is_none());
+    assert!(canonical_player_has_rewarded_quest_like_cpp(&session, quest_id));
     assert_eq!(session.player_gold_like_cpp(), 42);
     assert_eq!(session.player_currency_quantity(currency_id), Some(5));
     assert_eq!(
@@ -510,9 +523,9 @@ async fn quest_giver_choose_reward_accepts_existing_reward_currency_like_cpp() {
     assert_eq!(
         opcodes,
         vec![
-            Some(wow_constants::ServerOpcodes::UpdateObject),
             Some(wow_constants::ServerOpcodes::QuestGiverQuestComplete),
             Some(wow_constants::ServerOpcodes::QuestUpdateComplete),
+            Some(wow_constants::ServerOpcodes::UpdateObject),
         ]
     );
 }
@@ -532,20 +545,22 @@ async fn quest_giver_choose_reward_fixed_currency_rewards_like_cpp() {
         currency_entry_like_cpp(currency_id),
     ])));
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session
-        .quest_state
-        .fixture_insert_player_quest_status_like_cpp(
+    insert_player_quest_status_fixture_like_cpp(
+        &mut session,
+        quest_id,
+        PlayerQuestStatus {
             quest_id,
-            PlayerQuestStatus {
-                quest_id,
-                status: QUEST_STATUS_COMPLETE_LIKE_CPP,
-                explored: false,
-                accept_time_secs: 0,
-                end_time_secs: 0,
-                objective_counts: Vec::new(),
-                slot: 0,
-            },
-        );
+            status: QUEST_STATUS_COMPLETE_LIKE_CPP,
+            explored: false,
+            accept_time_secs: 0,
+            end_time_secs: 0,
+            objective_counts: Vec::new(),
+            slot: 0,
+        },
+    );
+    install_native_quest_log_player_like_cpp(&mut session);
+    let _ = publish_quest_log_map_values_like_cpp(&mut session);
+    let _ = send_rx.try_iter().count();
 
     session
         .handle_quest_giver_choose_reward(quest_giver_choose_reward_packet_like_cpp(
@@ -555,17 +570,10 @@ async fn quest_giver_choose_reward_fixed_currency_rewards_like_cpp() {
             0,
         ))
         .await;
+    assert_eq!(publish_quest_log_map_values_like_cpp(&mut session), 1);
 
-    assert!(
-        !session
-            .quest_state
-            .fixture_contains_player_quest_status_like_cpp(quest_id)
-    );
-    assert!(
-        session
-            .quest_state
-            .fixture_has_rewarded_quest_like_cpp(quest_id)
-    );
+    assert!(canonical_player_quest_status_like_cpp(&session, quest_id).is_none());
+    assert!(canonical_player_has_rewarded_quest_like_cpp(&session, quest_id));
     assert_eq!(session.player_gold_like_cpp(), 42);
     assert_eq!(session.player_currency_quantity(currency_id), Some(7));
     assert_eq!(
@@ -595,9 +603,9 @@ async fn quest_giver_choose_reward_fixed_currency_rewards_like_cpp() {
     assert_eq!(
         opcodes,
         vec![
-            Some(wow_constants::ServerOpcodes::UpdateObject),
             Some(wow_constants::ServerOpcodes::QuestGiverQuestComplete),
             Some(wow_constants::ServerOpcodes::QuestUpdateComplete),
+            Some(wow_constants::ServerOpcodes::UpdateObject),
         ]
     );
 }
@@ -625,7 +633,6 @@ async fn quest_giver_choose_reward_removes_timed_quest_before_rewards_like_cpp()
                 slot: 0,
             },
         );
-
     session
         .handle_quest_giver_choose_reward(quest_giver_choose_reward_packet_like_cpp(
             player_guid,
@@ -673,7 +680,6 @@ async fn quest_giver_choose_reward_non_timed_quest_records_no_timed_removal_like
                 slot: 0,
             },
         );
-
     session
         .handle_quest_giver_choose_reward(quest_giver_choose_reward_packet_like_cpp(
             player_guid,
@@ -711,20 +717,22 @@ async fn quest_giver_choose_reward_emits_reward_skill_fields_like_cpp() {
     quest.reward_skill_points = 5;
     session.set_player_gold_like_cpp(5);
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session
-        .quest_state
-        .fixture_insert_player_quest_status_like_cpp(
+    insert_player_quest_status_fixture_like_cpp(
+        &mut session,
+        quest_id,
+        PlayerQuestStatus {
             quest_id,
-            PlayerQuestStatus {
-                quest_id,
-                status: QUEST_STATUS_COMPLETE_LIKE_CPP,
-                explored: false,
-                accept_time_secs: 0,
-                end_time_secs: 0,
-                objective_counts: Vec::new(),
-                slot: 0,
-            },
-        );
+            status: QUEST_STATUS_COMPLETE_LIKE_CPP,
+            explored: false,
+            accept_time_secs: 0,
+            end_time_secs: 0,
+            objective_counts: Vec::new(),
+            slot: 0,
+        },
+    );
+    install_native_quest_log_player_like_cpp(&mut session);
+    let _ = publish_quest_log_map_values_like_cpp(&mut session);
+    let _ = send_rx.try_iter().count();
 
     session
         .handle_quest_giver_choose_reward(quest_giver_choose_reward_packet_like_cpp(
@@ -734,15 +742,32 @@ async fn quest_giver_choose_reward_emits_reward_skill_fields_like_cpp() {
             0,
         ))
         .await;
+    assert_eq!(publish_quest_log_map_values_like_cpp(&mut session), 1);
+
+    let manager = session
+        .core
+        .canonical_map_manager
+        .as_ref()
+        .expect("reward fixture Map manager")
+        .lock()
+        .expect("reward fixture Map manager lock");
+    let summary = manager
+        .find_map(571, 0)
+        .expect("reward fixture Map")
+        .last_send_object_updates_summary_like_cpp();
+    let published = &summary.player_values_updates[0]
+        .values_update
+        .player_data
+        .as_ref()
+        .expect("Map update contains PlayerData")
+        .quest_log[0];
+    assert_eq!(published.values().quest_id(), 0);
+    assert_ne!(published.change_mask(), 0);
+    drop(manager);
 
     assert_eq!(
         session.represented_quest_reward_skill_updates_like_cpp(),
         &[(333, 5)]
-    );
-    let update = send_rx.try_recv().unwrap();
-    assert_eq!(
-        wow_packet::WorldPacket::from_bytes(&update).server_opcode(),
-        Some(wow_constants::ServerOpcodes::UpdateObject)
     );
     let complete = send_rx.try_recv().unwrap();
     assert_eq!(
@@ -751,6 +776,16 @@ async fn quest_giver_choose_reward_emits_reward_skill_fields_like_cpp() {
     );
     assert_eq!(&complete[18..22], &333u32.to_le_bytes());
     assert_eq!(&complete[22..26], &5u32.to_le_bytes());
+    let quest_update = send_rx.try_recv().unwrap();
+    assert_eq!(
+        wow_packet::WorldPacket::from_bytes(&quest_update).server_opcode(),
+        Some(wow_constants::ServerOpcodes::QuestUpdateComplete)
+    );
+    let slot_update = send_rx.try_recv().unwrap();
+    assert_eq!(
+        wow_packet::WorldPacket::from_bytes(&slot_update).server_opcode(),
+        Some(wow_constants::ServerOpcodes::UpdateObject)
+    );
     assert_eq!(session.player_gold_like_cpp(), 42);
 }
 #[tokio::test]
@@ -777,7 +812,6 @@ async fn quest_giver_choose_reward_records_title_and_talent_rewards_like_cpp() {
                 slot: 0,
             },
         );
-
     session
         .handle_quest_giver_choose_reward(quest_giver_choose_reward_packet_like_cpp(
             player_guid,
@@ -930,7 +964,21 @@ fn quest_giver_session(
     session.set_quest_store(Arc::new(store));
     let mut manager = wow_map::MapManager::default();
     insert_gameobject(&mut manager, source_guid, entry);
+    insert_player_with_reputation(&mut manager, session.player_guid().unwrap(), 0, 0);
+    {
+        let player = manager
+            .find_map_mut(571, 0)
+            .expect("quest giver fixture map")
+            .map_mut()
+            .get_typed_player_mut(session.player_guid().unwrap())
+            .expect("quest giver fixture Player");
+        player.set_race_class_gender(1, 1, wow_constants::Gender::Male);
+        player.unit_mut().set_level(80);
+        player.unit_mut().set_max_health(100);
+        player.unit_mut().set_health(100);
+    }
     attach_map_manager(&mut session, manager);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.record_represented_gameobject_runtime_state_like_cpp(
         571,
         source_guid,
@@ -952,12 +1000,15 @@ async fn quest_giver_accept_raises_the_quest_accepted_hook_once_like_cpp() {
         &mut session,
         wow_persistence::PersistenceOutcomeLikeCpp::Applied { rows: 1 },
     );
+    let _ = publish_quest_log_map_values_like_cpp(&mut session);
+    let _ = send_rx.try_iter().count();
 
     session
         .handle_quest_giver_accept_quest(quest_giver_cmsg_packet(source_guid, quest_id, 0x00))
         .await;
 
     assert_eq!(*probe.calls.lock().unwrap(), vec![(quest_id, 0, 1, true)]);
+    assert_eq!(publish_quest_log_map_values_like_cpp(&mut session), 1);
     let opcodes: Vec<_> = send_rx
         .try_iter()
         .map(|bytes| wow_packet::WorldPacket::from_bytes(&bytes).server_opcode())
@@ -965,11 +1016,11 @@ async fn quest_giver_accept_raises_the_quest_accepted_hook_once_like_cpp() {
     assert_eq!(
         opcodes,
         vec![
-            Some(wow_constants::ServerOpcodes::UpdateObject),
             Some(wow_constants::ServerOpcodes::Chat),
             Some(wow_constants::ServerOpcodes::QuestGiverQuestComplete),
+            Some(wow_constants::ServerOpcodes::UpdateObject),
         ],
-        "slot update, then the module's message, then the legacy confirmation"
+        "Map publishes the slot after the module message and legacy confirmation"
     );
 }
 

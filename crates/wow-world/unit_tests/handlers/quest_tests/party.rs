@@ -1,6 +1,8 @@
 //! Canonical party and group fixtures for quest-sharing scenarios.
 
-use super::{add_active_quest_in_slot_with_status, make_session};
+use super::{
+    add_active_quest_in_slot_with_status, install_native_quest_log_player_like_cpp, make_session,
+};
 use crate::session::WorldSession;
 use crate::session::directory::PlayerRegistry;
 use std::sync::Arc;
@@ -14,20 +16,27 @@ pub(crate) fn install_confirm_accept_sender_snapshot(
     same_group: bool,
     sender_active_status: Option<u8>,
 ) -> (WorldSession, flume::Receiver<Vec<u8>>) {
-    let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
+    let player_registry = if let Some(manager) = session.core.canonical_map_manager.as_ref() {
+        let registry = PlayerRegistry::default();
+        assert!(registry.bind_canonical_map_manager(Arc::clone(manager)));
+        Arc::new(registry)
+    } else {
+        Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp())
+    };
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_loaded_player_name_like_cpp("Receiver".to_string());
+    install_native_quest_log_player_like_cpp(session);
     session.register_in_player_registry();
 
     let (mut sender_session, sender_rx) = make_session();
     sender_session.set_player_guid(Some(sender_guid));
     sender_session.set_loaded_player_name_like_cpp("Sender".to_string());
     sender_session.set_player_registry(player_registry);
-    sender_session.register_in_player_registry();
-    assert!(sender_session.adopt_registered_canonical_player_fixture_like_cpp());
+    install_native_quest_log_player_like_cpp(&mut sender_session);
     if let Some(status) = sender_active_status {
         add_active_quest_in_slot_with_status(&mut sender_session, quest_id, 0, status);
     }
+    sender_session.register_in_player_registry();
     sender_session.sync_player_registry_state_like_cpp();
 
     let group_registry = Arc::new(GroupRegistry::default());

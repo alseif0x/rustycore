@@ -23,6 +23,8 @@ pub(crate) fn complete_represented_quest_status_like_cpp(
     invalidate_player_quest_status_authority_like_cpp(owner, quest_state, world_test_consumer);
     #[cfg(any(test, feature = "test-fixtures"))]
     let fixture_owner = world_test_consumer && owner.owner_handle_absent_like_cpp();
+    #[cfg(not(any(test, feature = "test-fixtures")))]
+    let fixture_owner = false;
 
     #[cfg(any(test, feature = "test-fixtures"))]
     let canonical = if fixture_owner {
@@ -74,7 +76,7 @@ pub(crate) fn complete_represented_quest_status_like_cpp(
             new_status: wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
             send_quest_update_called: true,
             quest_slot_state_complete_represented: true,
-            quest_slot_state_live_update_unrepresented: true,
+            quest_slot_state_live_update_unrepresented: fixture_owner,
             visible_gameobjects_or_spellclicks_refresh_unrepresented: true,
             spell_area_runtime_unrepresented: true,
             tracking_event_auto_reward_unrepresented: tracking_event_auto_reward,

@@ -377,6 +377,7 @@ async fn spell_quest_complete_effect_auto_rewards_active_tracking_event_like_cpp
                 slot: 0,
             },
         );
+    adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
 
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(
@@ -402,31 +403,32 @@ async fn spell_quest_complete_effect_auto_rewards_active_tracking_event_like_cpp
         },
     );
     session.set_spell_store(Arc::new(spell_store));
+    let _ = publish_quest_log_values_after_map_tick_like_cpp(&mut session);
+    let _ = drain_server_opcodes(&send_rx);
 
     session
         .execute_spell(spell_id, player_guid)
         .await
         .expect("represented tracking quest-complete spell row should execute");
+    assert_eq!(
+        publish_quest_log_values_after_map_tick_like_cpp(&mut session),
+        1
+    );
 
-    assert!(
-        !session
-            .quest_state
-            .fixture_contains_player_quest_status_like_cpp(quest_id)
-    );
-    assert!(
-        session
-            .quest_state
-            .fixture_has_rewarded_quest_like_cpp(quest_id)
-    );
+    let quests = session
+        .player_quest_gameplay_snapshot_like_cpp()
+        .expect("canonical Player quest state after spell reward");
+    assert!(!quests.statuses_like_cpp().contains_key(&quest_id));
+    assert!(quests.rewarded_quest_ids_like_cpp().contains(&quest_id));
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![
             ServerOpcodes::SpellGo,
             ServerOpcodes::QuestUpdateComplete,
-            ServerOpcodes::UpdateObject,
             ServerOpcodes::QuestGiverQuestComplete,
             ServerOpcodes::QuestUpdateComplete,
             ServerOpcodes::CooldownEvent,
+            ServerOpcodes::UpdateObject,
         ]
     );
 }

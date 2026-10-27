@@ -26,6 +26,7 @@ impl Player {
                 .then(|| PlayerDataUpdate {
                     mask: self.player_data_changes.clone(),
                     values: self.data,
+                    quest_log: self.quest_log_rows_for_update_like_cpp(),
                 }),
             active_player_data: (include_active_player
                 && self.active_player_data_changes.is_any_set())

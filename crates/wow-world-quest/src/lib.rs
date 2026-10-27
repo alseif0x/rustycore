@@ -34,7 +34,7 @@ pub use quest::{
     quest_log_create_entries_like_cpp, reconcile_durable_loot_money_before_save_like_cpp,
     represented_can_see_spell_click_on_like_cpp,
     represented_viewer_dependent_creature_npc_flags_like_cpp, save_changed_quest_statuses_like_cpp,
-    save_quest_to_db_like_cpp, send_represented_quest_log_slot_update_like_cpp,
+    save_quest_to_db_like_cpp,
 };
 pub use quest::{QuestDialogClassificationLikeCpp, RepresentedQuestGiverStatusSourceLikeCpp};
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -57,6 +57,9 @@ pub use quest::{
     represented_gameobject_is_for_quests_like_cpp, represented_has_quest_for_gameobject_like_cpp,
     represented_meets_player_condition_id_like_cpp, update_visible_gameobjects_like_cpp,
     update_visible_gameobjects_or_spell_clicks_like_cpp, update_visible_spell_clicks_like_cpp,
+};
+pub(crate) use quest::{
+    apply_quest_log_status_delta_like_cpp, initialize_quest_log_from_loaded_state_like_cpp,
 };
 pub use quest::{
     clear_represented_pending_quest_sharing_like_cpp, mutate_player_quest_gameplay_like_cpp,

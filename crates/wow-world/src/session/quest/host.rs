@@ -86,9 +86,6 @@ impl QuestSessionHostLikeCpp for WorldSession {
     fn update_visible_gameobjects_or_spell_clicks_like_cpp(&self) -> usize {
         WorldSession::update_visible_gameobjects_or_spell_clicks_like_cpp(self)
     }
-    fn send_represented_quest_log_slot_update_like_cpp(&mut self, slot: u8) {
-        WorldSession::send_represented_quest_log_slot_update_like_cpp(self, slot)
-    }
     fn player_condition_projection_cx_like_cpp(&self) -> PlayerConditionProjectionCxLikeCpp<'_> {
         WorldSession::player_condition_projection_cx_like_cpp(self)
     }

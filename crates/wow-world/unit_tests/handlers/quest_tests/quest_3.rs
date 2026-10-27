@@ -340,15 +340,26 @@ async fn quest_confirm_accept_mismatch_preserves_pending_state_like_cpp() {
     let sender_guid = ObjectGuid::create_player(1, 82);
     session.set_quest_store(Arc::new(store_with_quests(&[7003])));
     session.set_represented_pending_quest_sharing_like_cpp(sender_guid, 7003);
+    let pending_before_install = session.represented_pending_quest_sharing_like_cpp();
+    install_native_quest_log_player_like_cpp(&mut session);
+    assert!(
+        !session
+            .core
+            .quest_objective_access_like_cpp()
+            .owner_handle_absent_like_cpp(),
+        "mismatch test must exercise an actual canonical Player"
+    );
+    assert_eq!(
+        session.represented_pending_quest_sharing_like_cpp(),
+        pending_before_install,
+        "adoption must retain pending sharing before mismatch handling"
+    );
 
     run_quest_confirm_accept(&mut session, 7004).await;
 
     assert_eq!(
         session.represented_pending_quest_sharing_like_cpp(),
-        Some(crate::session::RepresentedPendingQuestSharingLikeCpp {
-            sender_guid,
-            quest_id: 7003,
-        })
+        pending_before_install
     );
     assert!(
         session
@@ -485,7 +496,6 @@ async fn quest_confirm_accept_same_group_sender_active_can_take_failed_records_r
         true,
         Some(QUEST_STATUS_INCOMPLETE_LIKE_CPP),
     );
-
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
     assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
@@ -538,15 +548,29 @@ async fn quest_confirm_accept_can_take_ok_log_full_records_can_add_log_full_like
     assert!(sender_rx.try_recv().is_err());
 }
 #[tokio::test]
-async fn quest_confirm_accept_no_source_side_effects_adds_local_quest_state_like_cpp() {
+async fn quest_confirm_accept_native_quest_log_adds_local_quest_state_like_cpp() {
     let (mut session, send_rx) = make_session();
-    let receiver_guid = session.player_guid().unwrap();
     let sender_guid = ObjectGuid::create_player(1, 90);
     let quest_id = 7012;
     session.set_quest_store(Arc::new(store_with_sharable_timed_quest_objectives(
         quest_id, 3, 600,
     )));
     session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    let pending_before_install = session.represented_pending_quest_sharing_like_cpp();
+    install_native_quest_log_player_like_cpp(&mut session);
+    assert!(
+        !session
+            .core
+            .quest_objective_access_like_cpp()
+            .owner_handle_absent_like_cpp(),
+        "confirm-accept receiver must use the installed canonical Player"
+    );
+    assert_eq!(
+        session.represented_pending_quest_sharing_like_cpp(),
+        pending_before_install,
+        "Player adoption must preserve the pending sender and quest"
+    );
+    let receiver_guid = session.player_guid().unwrap();
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -558,10 +582,8 @@ async fn quest_confirm_accept_no_source_side_effects_adds_local_quest_state_like
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
     assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
-    let status = session
-        .quest_state
-        .fixture_player_quest_status_like_cpp(quest_id)
-        .expect("receiver quest log should receive bounded local AddQuest state");
+    let status = canonical_player_quest_status_like_cpp(&session, quest_id)
+        .expect("receiver Player should receive bounded local AddQuest state");
     assert_eq!(status.quest_id, quest_id);
     assert_eq!(status.status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
     assert!(!status.explored);
@@ -569,6 +591,16 @@ async fn quest_confirm_accept_no_source_side_effects_adds_local_quest_state_like
     assert_eq!(status.end_time_secs, status.accept_time_secs + 600);
     assert_eq!(status.objective_counts, vec![0, 0, 0]);
     assert_eq!(status.slot, 0);
+    let native_slot = session
+        .core
+        .quest_objective_access_like_cpp()
+        .quest_log_values_snapshot_like_cpp()
+        .expect("confirm-accept receiver has native QuestLog fields")
+        [usize::from(status.slot)];
+    assert_eq!(native_slot.quest_id(), quest_id as i32);
+    let native_rows = session.quest_log_create_entries_like_cpp();
+    assert_eq!(native_rows[0].0, quest_id);
+    assert_eq!(native_rows[0].2, status.end_time_secs as u32 as i64);
     let registry = session.player_registry().expect("test installs registry");
     let snapshot = registry
         .loot_player_context(receiver_guid)
@@ -617,17 +649,15 @@ async fn quest_confirm_accept_first_free_slot_skips_occupied_slot_like_cpp() {
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
-    let occupied_status = session
-        .quest_state
-        .fixture_player_quest_status_like_cpp(occupied_quest_id)
-        .expect("pre-existing quest should remain in slot 0");
+    let occupied_status = canonical_player_quest_status_like_cpp(&session, occupied_quest_id)
+        .expect("pre-existing Player quest should remain in slot 0");
     assert_eq!(occupied_status.slot, 0);
-    let status = session
-        .quest_state
-        .fixture_player_quest_status_like_cpp(quest_id)
-        .expect("accepted quest should be inserted into first free slot");
+    let status = canonical_player_quest_status_like_cpp(&session, quest_id)
+        .expect("accepted Player quest should be inserted into first free slot");
     assert_eq!(status.slot, 1);
     assert_eq!(status.status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
+    assert_eq!(session.get_quest_slot_quest_id_like_cpp(0), Some(occupied_quest_id));
+    assert_eq!(session.get_quest_slot_quest_id_like_cpp(1), Some(quest_id));
     let registry = session.player_registry().expect("test installs registry");
     let snapshot = registry
         .loot_player_context(receiver_guid)
@@ -663,9 +693,15 @@ async fn quest_confirm_accept_tracking_event_auto_rewards_like_cpp() {
         true,
         Some(QUEST_STATUS_INCOMPLETE_LIKE_CPP),
     );
+    install_native_quest_log_player_like_cpp(&mut session);
+    let _ = publish_quest_log_map_values_like_cpp(&mut session);
+    let _ = send_rx.try_iter().count();
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
+    let quests = session
+        .player_quest_gameplay_snapshot_like_cpp()
+        .expect("canonical Player quest state");
     assert_confirm_accept_outcome(
         &session,
         Some(ObjectGuid::create_player(1, 42)),
@@ -674,24 +710,10 @@ async fn quest_confirm_accept_tracking_event_auto_rewards_like_cpp() {
         quest_id as i32,
         RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp::ReceiverAddQuestLocalStateRepresented,
     );
-    assert!(
-        !session
-            .quest_state
-            .fixture_contains_player_quest_status_like_cpp(quest_id)
-    );
-    assert!(
-        session
-            .quest_state
-            .fixture_has_rewarded_quest_like_cpp(quest_id)
-    );
+    assert!(!quests.statuses_like_cpp().contains_key(&quest_id));
+    assert!(quests.rewarded_quest_ids_like_cpp().contains(&quest_id));
     assert_complete_status_update_like_cpp(&session, quest_id, false);
-    let slot_update = send_rx
-        .try_recv()
-        .expect("tracking event auto reward should clear quest log slot");
-    assert_eq!(
-        wow_packet::WorldPacket::from_bytes(&slot_update).server_opcode(),
-        Some(wow_constants::ServerOpcodes::UpdateObject)
-    );
+    assert_eq!(publish_quest_log_map_values_like_cpp(&mut session), 1);
     let complete = send_rx
         .try_recv()
         .expect("tracking event auto reward should send quest complete");
@@ -705,6 +727,13 @@ async fn quest_confirm_accept_tracking_event_auto_rewards_like_cpp() {
     assert_eq!(
         wow_packet::WorldPacket::from_bytes(&update).server_opcode(),
         Some(wow_constants::ServerOpcodes::QuestUpdateComplete)
+    );
+    let slot_update = send_rx
+        .try_recv()
+        .expect("Map SendObjectUpdates should publish the native quest-log clear");
+    assert_eq!(
+        wow_packet::WorldPacket::from_bytes(&slot_update).server_opcode(),
+        Some(wow_constants::ServerOpcodes::UpdateObject)
     );
     assert!(send_rx.try_recv().is_err());
     assert!(sender_rx.try_recv().is_err());

@@ -37,6 +37,7 @@ mod persistent_capabilities;
 mod pet_lifecycle;
 mod progression;
 mod pvp;
+mod quest_log;
 mod quest_state;
 mod reputation;
 mod rest;
@@ -76,6 +77,7 @@ pub use items::{
     represented_total_avg_equipment_slot_candidates_like_cpp,
 };
 pub use progression::PreparedPlayerSpellAcquisitionLikeCpp;
+pub use quest_log::{QuestLogRowUpdateLikeCpp, QuestLogValuesLikeCpp};
 pub use quest_state::{
     PlayerQuestGameplayState, QuestBoundItemObjectiveProgressLikeCpp,
     QuestItemObjectiveProgressLikeCpp,
@@ -3432,6 +3434,7 @@ pub struct PlayerDataValues {
     pub current_battle_pet_breed_quality: u8,
     pub honor_level: i32,
     pub visible_items: [VisibleItemValues; EQUIPMENT_SLOT_END as usize],
+    quest_log: [QuestLogValuesLikeCpp; quest_log::MAX_QUEST_LOG_SIZE_LIKE_CPP],
 }
 
 impl Default for PlayerDataValues {
@@ -3449,6 +3452,7 @@ impl Default for PlayerDataValues {
             current_battle_pet_breed_quality: 0,
             honor_level: 0,
             visible_items: [VisibleItemValues::default(); EQUIPMENT_SLOT_END as usize],
+            quest_log: [QuestLogValuesLikeCpp::default(); quest_log::MAX_QUEST_LOG_SIZE_LIKE_CPP],
         }
     }
 }
@@ -3536,6 +3540,7 @@ impl Default for ActivePlayerDataValues {
 pub struct PlayerDataUpdate {
     pub mask: UpdateMask,
     pub values: PlayerDataValues,
+    pub quest_log: [QuestLogRowUpdateLikeCpp; quest_log::MAX_QUEST_LOG_SIZE_LIKE_CPP],
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -3582,6 +3587,7 @@ pub struct Player {
     death_operation: death_operation::PlayerDeathOperationState,
     player_xp_table_like_cpp: Option<Arc<Vec<u32>>>,
     player_data_changes: UpdateMask,
+    quest_log_change_masks: [u32; quest_log::MAX_QUEST_LOG_SIZE_LIKE_CPP],
     active_player_data_changes: UpdateMask,
     rest_info_change_masks: [u8; 2],
     mod_melee_hit_chance: f32,
@@ -3629,6 +3635,7 @@ impl Player {
             death_operation: death_operation::PlayerDeathOperationState::default(),
             player_xp_table_like_cpp: None,
             player_data_changes: UpdateMask::new(PLAYER_DATA_BITS),
+            quest_log_change_masks: [0; quest_log::MAX_QUEST_LOG_SIZE_LIKE_CPP],
             active_player_data_changes: UpdateMask::new(ACTIVE_PLAYER_DATA_BITS),
             rest_info_change_masks: [0; 2],
             mod_melee_hit_chance: 7.5,
@@ -3921,6 +3928,7 @@ impl Player {
 
     pub fn clear_player_data_changes(&mut self) {
         self.player_data_changes.reset_all();
+        self.reset_quest_log_change_masks_like_cpp();
     }
 
     pub fn clear_active_player_data_changes(&mut self) {

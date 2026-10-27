@@ -227,6 +227,22 @@ preserve it instead of applying the creature-kill message formula to all
 deaths. This is source/caller inspection only. No durability change, new
 acceptance result or runtime authority is claimed here.
 
+Pet participant review at `ce61305e3`, 2026-10-27: pinned
+Player.cpp:20839–20962 resolves a live typed Pet before removing it; a
+missing Pet does not clear a stale GUID. Reagent return also covers a
+temporarily unsummoned Pet and precedes the no-Pet return. The live path
+stops combat, saves, resets the stable slot, unlinks the minion, queues
+deferred removal, then publishes controlled-Pet removal. Pet.cpp:452–546
+saves auras before cleanup in its first transaction and the character_pet
+row in a second transaction. Existing Entity save plans and Database
+statements have no complete runtime executor in the inspected paths.
+Core's talent-oriented represented removal skips those operations and
+removes the object immediately; it is not a faithful death participant.
+This bounded integration must not become a requirement to complete the
+whole Pet product, nor may missing loaded-aura metadata justify replacing
+persisted pet auras with an empty set. No Pet mutation or acceptance was
+performed by this review.
+
 NoDeath quest failure is also an operation, not just a status assignment.
 Pinned Player.cpp:14928–14989 selects quest-log slots, accepts incomplete
 quests or the source's specific completed timed case, updates status/log and
@@ -239,6 +255,15 @@ and the inventory/aura consequences in the native integration. The existing
 inebriation owner is PlayerData::Inebriation with a dirty writer; reuse that
 canonical field rather than adding a second drunkenness state.
 These are integration findings, not additional accepted gameplay evidence.
+
+The required native FailQuest persistence must also retain a dirty quest
+status until its actual save acknowledgement. Current
+`player_save_owner.rs` explicitly omits the QuestStatus group because there
+is no coherent dirty-set seam; PlayerCharacterSaveRequestLikeCpp has no
+quest-status group. Existing immediate quest writes do not establish this
+Source death-time participant's later `_SaveQuestStatus` behavior. Preserve
+per-quest writes and unrelated rows; this finding does not justify replacing
+the whole quest table or claiming that the current full save deletes it.
 
 Further NoDeath ordering review at `c7829b4f9`, 2026-10-26: on the pinned
 `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` source, `FailQuest`
@@ -296,8 +321,8 @@ with 29 change bits per row. SetQuestSlotEndTime casts to uint32 before its
 int64 assignment (:16000), which is separate from the field's wire width.
 The required integration must connect coherent live writers, CREATE and
 Map-owned VALUES to that authority, while preserving durable quest-status
-and objective data as distinct Source responsibilities. The existing legacy
-record's slot must not remain a competing live slot authority. This finding
+and objective data as distinct Source responsibilities. The existing status
+record's slot is not the authority for live UF occupancy. This finding
 selects the required owner; it adds no native QuestLog implementation, SQL
 column, acceptance evidence or gameplay completion.
 
@@ -318,6 +343,82 @@ passes only OWNER for self; new native QuestLog delivery must include the
 required PartyMember flag and the actual group-registry authority for other
 receivers, without treating a stale Player group snapshot as membership proof.
 These are required integration contracts, not new implementation evidence.
+
+Native QuestLog local implementation, 2026-10-27, working tree based on
+`ce61305e3` (**UNVALIDATED**): PlayerData now owns the 25 independent rows and
+their nested masks; status removal retains them until an explicit slot clear.
+CREATE and Map-owned VALUES read those rows. The current group registry and
+the source Player's current group determine PartyMember delivery, including
+self without a group and current instance groups. Live accept, shared accept,
+completion, objective updates, reward, abandon and login-load consumers now
+use that owner. The directory's existing objective-count projection reads
+the canonical status records instead of an unmaintained parallel collection;
+this does not establish complete native objective-reader parity. This does
+not implement NoDeath failure,
+native Timer, quest dirty-set persistence or the Application death participant.
+
+The worker's final World `quest` coding-feedback run for this unit was
+2026-10-27 09:45:20.703–09:46:54.656 UTC: 459 passed, zero failed, exit 0.
+The separate directory projection case passed at 09:47:04.446–09:47:04.705
+UTC, exit 0, giving 460 distinct World cases. Earlier runs failed, including
+450/458 and 457/459; the later repaired run supersedes those results without
+removing their logs. Review corrected the unmaintained projection, incomplete
+native test actors and status-slot objective writers; a mismatch case now
+distinguishes those writers from live QuestID lookup readers. Positive native
+field assertions and actual Map publication tests remain in the suite.
+
+Coding-feedback commands used `CARGO_BUILD_JOBS=1`,
+`PROTOC=/home/ubuntu/.local/protoc/bin/protoc` and
+`CARGO_TARGET_DIR=/home/server/rustycore/target` on this aarch64 host:
+
+- `cargo check -p wow-world`: exit 0, 09:39:36.534–09:40:02.201 UTC.
+- `cargo test -p wow-world quest --lib`: 459 passed, as timed above.
+- `cargo test -p wow-world player_registry_publishes_loot_condition_state_like_cpp --lib`:
+  one passed, as timed above.
+- `cargo test -p wow-entities player::quest_log --lib`: four passed,
+  08:34:12–08:34:20 UTC; the original metadata's count of five included the
+  result header and must not be used as a test identity.
+- `cargo test -p wow-world-core group_owner::tests --lib`: two passed,
+  07:57:14–07:58:30 UTC.
+- `cargo test -p wow-world-visibility object_updates::tests --lib`: three
+  passed, 07:58:36–07:58:56 UTC.
+
+Logs, commands, environment and test identities are under
+`/tmp/rustycore-native-quest-log-logs/` (runs 05, 06, 11, 24, 27 and 28).
+These are focused coding checks of the dirty working tree, not a final
+campaign or evidence at a later commit. The macro remains UNVALIDATED;
+no final acceptance, fresh captures, runtime QA, deployment or durable
+DB/restart/relogin evidence is established by this unit.
+
+Parent integration review matched all 54 Rust inputs to the worker's
+`final-rust-input-sha256.txt` without mismatches. The native implementation,
+new World scenarios and shared native fixtures occupy separate leaves.
+`crates/wow-world/unit_tests/handlers/quest_tests.rs` grows 978→1019 lines;
+its remaining shared catalog and packet builders are the next natural split
+if that root grows again. This meets the ordinary cohesion review required
+above 1000 lines; it is not a terminal large-file exemption.
+`crates/wow-entities/src/player/mod.rs` grows 4777→4785 for the private module
+mount, two immutable re-exports, row/mask declarations and defaults, immutable
+update snapshot member and reset call. The operations and tests live in
+`player/quest_log.rs` and `player_tests/quest_log.rs`. Keep the data-shape and
+constructor wiring beside the existing PlayerData declarations for this
+unit: splitting only this array would obscure that layout. The parent reviews
+the bounded ceiling as 4785 through #43 final acceptance, superseding the
+earlier 4777 ceiling for this eight-line delta only. That acceptance must
+revisit the PlayerData/default-construction split under the existing
+distribution retirement owner; further growth requires a fresh review.
+No physical-policy baseline was regenerated.
+
+The bounded death integration does not require a new quest-script extension
+API: at the pinned Source, ScriptMgr.cpp:2092–2095,2329–2335 dispatches the
+two status callbacks, whose default bodies (:3002,3201) are empty. A search
+of `src/server/scripts` for `OnQuestStatusChange` finds the command-side
+invocations in `Commands/cs_quest.cpp:142–143`, but no overriding script body.
+This proves that those callbacks have no gameplay body in that checkout;
+it does not make `SendQuestUpdate` inert. Its loaded spell-area rows, casts,
+removals and visibility refresh remain required participants. New native or
+Wasm extension hooks retain their separate #583 contract. This is source
+review, not implemented death or acceptance evidence.
 
 Selected resurrection consumer review at `740b21234`, 2026-10-26: the
 earlier sparse-key expiration case covers sickness, not both ghost auras.

@@ -17,19 +17,6 @@ impl WorldSession {
             cfg!(test),
         )
     }
-
-    pub(crate) fn send_represented_quest_log_slot_update_like_cpp(&mut self, slot: u8) {
-        let owner = self.core.quest_objective_access_like_cpp();
-        let publication = self.core.packet_publication_access_like_cpp();
-        wow_world_quest::send_represented_quest_log_slot_update_like_cpp(
-            &owner,
-            &self.quest_state,
-            &self.catalogs,
-            &publication,
-            slot,
-            cfg!(test),
-        );
-    }
 }
 
 #[cfg(test)]

@@ -158,9 +158,12 @@ impl PlayerRegistry {
                     .collect(),
                 active_quest_objective_counts: state
                     .quests
-                    .objective_counts_by_quest_like_cpp()
-                    .iter()
-                    .cloned()
+                    .statuses_like_cpp()
+                    .values()
+                    .filter(|status| {
+                        status.status != wow_conditions::QUEST_STATUS_NONE_LIKE_CPP
+                    })
+                    .map(|status| (status.quest_id, status.objective_counts.clone()))
                     .collect(),
                 rewarded_quests: state
                     .quests

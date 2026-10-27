@@ -654,6 +654,7 @@ async fn quest_giver_close_active_existing_template_records_acknowledge_like_cpp
     let (mut session, send_rx) = make_session();
     session.set_quest_store(Arc::new(store_with_quests(&[5901])));
     add_active_quest(&mut session, 5901);
+    install_native_quest_log_player_like_cpp(&mut session);
 
     run_close_quest(&mut session, 5901).await;
 
@@ -717,6 +718,7 @@ async fn quest_giver_close_short_packet_records_no_acknowledge_and_sends_no_pack
 #[tokio::test]
 async fn quest_log_remove_short_packet_does_not_remove_like_cpp() {
     let (mut session, send_rx) = make_session();
+    install_native_quest_log_player_like_cpp(&mut session);
     add_active_quest_in_slot(&mut session, 5911, 0);
 
     session
@@ -734,6 +736,7 @@ async fn quest_log_remove_short_packet_does_not_remove_like_cpp() {
 #[tokio::test]
 async fn quest_log_remove_slot_outside_max_does_not_remove_like_cpp() {
     let (mut session, send_rx) = make_session();
+    install_native_quest_log_player_like_cpp(&mut session);
     add_active_quest_in_slot(&mut session, 5912, 0);
 
     run_remove_quest_slot(&mut session, 25).await;
@@ -749,8 +752,11 @@ async fn quest_log_remove_slot_outside_max_does_not_remove_like_cpp() {
 #[tokio::test]
 async fn quest_log_remove_valid_slot_removes_only_that_slot_like_cpp() {
     let (mut session, send_rx) = make_session();
+    install_native_quest_log_player_like_cpp(&mut session);
     add_active_quest_in_slot(&mut session, 880_001, 7);
     add_active_quest_in_slot(&mut session, 17, 3);
+    let _ = publish_quest_log_map_values_like_cpp(&mut session);
+    let _ = send_rx.try_iter().count();
 
     run_remove_quest_slot(&mut session, 7).await;
 
@@ -766,10 +772,10 @@ async fn quest_log_remove_valid_slot_removes_only_that_slot_like_cpp() {
     );
     assert_eq!(session.get_quest_slot_quest_id_like_cpp(7), None);
     assert_eq!(session.get_quest_slot_quest_id_like_cpp(3), Some(17));
-
+    assert_eq!(publish_quest_log_map_values_like_cpp(&mut session), 1);
     let update = send_rx
         .try_recv()
-        .expect("C++ SetQuestSlot(slot, 0) must become an immediate player UpdateObject");
+        .expect("Map SendObjectUpdates publishes the native QuestLog clear");
     assert_eq!(
         wow_packet::WorldPacket::from_bytes(&update).server_opcode(),
         Some(wow_constants::ServerOpcodes::UpdateObject)
@@ -778,13 +784,14 @@ async fn quest_log_remove_valid_slot_removes_only_that_slot_like_cpp() {
         !update
             .windows(std::mem::size_of::<u32>())
             .any(|window| window == 880_001_u32.to_le_bytes()),
-        "quest-log abandon UpdateObject should clear the removed QuestID"
+        "abandon publishes an empty QuestID row"
     );
     assert!(send_rx.try_recv().is_err());
 }
 #[tokio::test]
 async fn quest_log_remove_empty_valid_slot_does_not_remove_other_quest_like_cpp() {
     let (mut session, send_rx) = make_session();
+    install_native_quest_log_player_like_cpp(&mut session);
     add_active_quest_in_slot(&mut session, 5914, 4);
 
     run_remove_quest_slot(&mut session, 3).await;
@@ -798,31 +805,56 @@ async fn quest_log_remove_empty_valid_slot_does_not_remove_other_quest_like_cpp(
     assert_eq!(session.get_quest_slot_quest_id_like_cpp(3), None);
     assert!(send_rx.try_recv().is_err());
 }
+/// Source: Player.cpp `SetQuestSlot` (15963-16001) owns each row's QuestID;
+/// `RemoveActiveQuest` (15575-15593) removes status/objectives independently.
 #[tokio::test]
-async fn quest_log_remove_duplicate_slot_fails_closed_and_removes_none_like_cpp() {
+async fn quest_log_remove_uses_native_quest_id_despite_conflicting_status_slot_like_cpp() {
     let (mut session, send_rx) = make_session();
+    install_native_quest_log_player_like_cpp(&mut session);
     add_active_quest_in_slot(&mut session, 5915, 2);
-    add_active_quest_in_slot(&mut session, 5916, 2);
+    session
+        .mutate_player_quest_gameplay_like_cpp(|quests| {
+            quests.insert_status_like_cpp(
+                5916,
+                PlayerQuestStatus {
+                    quest_id: 5916,
+                    status: QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                    explored: false,
+                    accept_time_secs: 0,
+                    end_time_secs: 0,
+                    objective_counts: Vec::new(),
+                    slot: 2,
+                },
+            );
+        })
+        .expect("canonical quest status owner");
+    assert_eq!(session.get_quest_slot_quest_id_like_cpp(2), Some(5915));
 
     run_remove_quest_slot(&mut session, 2).await;
 
     assert!(
-        session
+        !session
             .quest_state
-            .fixture_contains_player_quest_status_like_cpp(5915)
+            .fixture_contains_player_quest_status_like_cpp(5915),
+        "the native QuestID owns Source FindQuestSlot lookup"
     );
     assert!(
         session
             .quest_state
-            .fixture_contains_player_quest_status_like_cpp(5916)
+            .fixture_contains_player_quest_status_like_cpp(5916),
+        "a conflicting status.Slot does not make the native row ambiguous"
     );
     assert_eq!(session.get_quest_slot_quest_id_like_cpp(2), None);
     assert_eq!(session.first_free_quest_slot_like_cpp(), Some(0));
-    assert!(send_rx.try_recv().is_err());
+    assert!(
+        send_rx.try_recv().is_err(),
+        "the handler queues native PlayerData for Map publication"
+    );
 }
 #[test]
 fn quest_log_create_entries_preserve_explicit_slot_holes_like_cpp() {
     let (mut session, _send_rx) = make_session();
+    install_native_quest_log_player_like_cpp(&mut session);
     add_active_quest_in_slot(&mut session, 5916, 9);
     add_active_quest_in_slot(&mut session, 5915, 2);
 
@@ -836,12 +868,13 @@ fn quest_log_create_entries_preserve_explicit_slot_holes_like_cpp() {
 #[test]
 fn quest_log_create_entries_preserve_end_time_like_cpp() {
     let (mut session, _send_rx) = make_session();
+    install_native_quest_log_player_like_cpp(&mut session);
     add_active_quest_in_slot(&mut session, 5917, 4);
-    session
-        .quest_state
-        .fixture_player_quest_status_mut_like_cpp(5917)
-        .expect("active quest")
-        .end_time_secs = 123_456;
+    let owner = session.core.quest_objective_access_like_cpp();
+    assert_eq!(
+        owner.set_quest_slot_end_time_like_cpp(4, 123_456),
+        Some(true)
+    );
 
     let entries = session.quest_log_create_entries_like_cpp();
 

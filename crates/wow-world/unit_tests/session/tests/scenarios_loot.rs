@@ -39,7 +39,6 @@ fn player_registry_publishes_loot_condition_state_like_cpp() {
                 slot: 0,
             },
         );
-        state.set_objective_counts_for_quest_like_cpp(100, vec![2, 3]);
         state.set_rewarded_like_cpp(200, true);
     });
     let item_guid = ObjectGuid::create_item(1, 500);
@@ -120,7 +119,6 @@ fn player_registry_publishes_loot_condition_state_like_cpp() {
                 slot: 1,
             },
         );
-        state.set_objective_counts_for_quest_like_cpp(300, vec![7]);
         state.set_rewarded_like_cpp(400, true);
     });
     assert!(session.update_inventory_item_object_like_cpp(item_guid, |item| item.set_count(6)));

@@ -320,21 +320,14 @@ pub(super) fn current_quest_gameplay_snapshot_like_cpp(
 /// its slot-count constant.
 pub fn find_quest_slot_like_cpp(
     owner: &QuestObjectiveAccessLikeCpp<'_>,
-    quest_state: &SessionQuestState,
+    _quest_state: &SessionQuestState,
     quest_id: u32,
-    world_test_consumer: bool,
+    _world_test_consumer: bool,
 ) -> Option<u8> {
-    current_quest_gameplay_snapshot_like_cpp(owner, quest_state, world_test_consumer)?
-        .statuses_like_cpp()
-        .get(&quest_id)
-        .and_then(|status| {
-            (status.slot < MAX_QUEST_LOG_SIZE_LIKE_CPP
-                && matches!(
-                    status.status,
-                    wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
-                        | wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
-                        | wow_conditions::QUEST_STATUS_FAILED_LIKE_CPP
-                ))
-            .then_some(status.slot)
-        })
+    owner
+        .quest_log_values_snapshot_like_cpp()?
+        .iter()
+        .take(MAX_QUEST_LOG_SIZE_LIKE_CPP as usize)
+        .position(|row| row.quest_id() as u32 == quest_id)
+        .and_then(|slot| u8::try_from(slot).ok())
 }
