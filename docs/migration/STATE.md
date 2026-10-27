@@ -178,6 +178,16 @@ participants still need implementation and acceptance before enabling lethal
 callers. Server currently runs all admitted combat phases under its canonical
 guard (`runtime/canonical_creature_runtime.rs:117–180` and
 `runtime/map/update_loop.rs:373–427`); this replacement is not installed.
+The current `runtime/map_tick.rs:252–300` callback runs before MapManager's
+resume, while the same admitted plan remains AwaitingSessions. The selected
+cursor can therefore release guards and retain that plan without adding a
+second clock or a new Map coordination state. Multiple native deaths within
+one tick require operation-ID admission, rather than reusing the once-per-tick
+PlayerRecovery authority check. The asynchronous Application body can reuse
+existing native Inventory/stat/Aura owners after releasing the outer Map
+guard; a new borrowed durability engine is not required merely by the earlier
+synchronous candidate. The native penalty must still run at its Source phase,
+before the tick resumes, independently of presentation-command admission.
 The later selected stat-view integration resolves actual SpellInfo keys and
 indexed effects in `canonical_access/player_stats/aura_view.rs`; the dated
 checkpoint below records that bounded fix. It does not complete generic aura
@@ -2862,6 +2872,41 @@ or evidence for its ordinary 600-second performance target. This remains an
 UNVALIDATED macro checkpoint. Registered SelfRes composition, native death,
 QA, final acceptance and authorized live/capture/durability evidence remain
 open. No push, installation, SQL or restart was performed.
+
+Canonical native-death operation ownership, 2026-10-27, base
+`04486d4e4836694101e34223496d946a02bfc9aa` plus four Rust working inputs:
+the Player now privately retains one operation context, a checked local ID
+and Ready/InFlight/Complete state. Begin and claim read native IsAlive and
+full-width nonzero health. Duplicate or wrong-ID calls cannot replace or
+replay owned work; completion requires a claim, and retirement requires exact
+completion. ID exhaustion cannot wrap. IDs must be bound to the actual Player
+handle in the future transport; this owner does not establish that binding.
+The existing resurrection continuation, SelfRes list and vitals are preserved.
+These Rust phases preserve a future asynchronous operation; they are not
+claimed to exist in synchronous C++ Unit::Kill. Source anchors remain
+Unit.cpp:10457–10652,8527–8585 and Player.cpp:1158–1200 at the pinned SHA.
+
+On the aarch64 host, sequential `cargo check -p wow-entities`
+(04:07:49–04:07:54 UTC) and `cargo test -p wow-entities death_operation`
+(04:07:57–04:08:09 UTC) passed, with ten distinct owner cases. They used the
+same PROTOC, one-job and checkout-local target environment above. Logs in
+`/tmp/rustycore-native-death-owner-logs` retain the test-only DeathState import
+failure before repair. Parent review verified all eight final recorded input
+hashes, including the four changed Rust files, against the final block of
+`inputs.log`, whose digest is
+`7580966b074103e21a3bc79a4d6bb00b09bbea49fd3249287eb77f36d410ac89`.
+The private production/test leaves are 191/240 lines. The legacy Player root
+grows only 4746→4753 for its mount, exports, field and default; its bounded
+ceiling is 4753 through #43 acceptance, with a split review before further
+growth. No policy baseline was regenerated.
+
+This is an UNVALIDATED owner-only checkpoint at the stated working base, not
+a test of the later commit or of real async cancellation. Application death
+execution, required Session phase delivery, retained Map cursor, finalization
+fences and lethal callers remain unconnected. No new death behavior is
+enabled. Runtime declares GPT-6; specific model/effort telemetry is unavailable.
+The 04:06:06–04:08:09 feedback interval is 123 seconds, with implementation
+before it; it is not the final campaign or its ordinary performance result.
 
 Registered SelfRes normal-cast composition, 2026-10-27, base
 `b11b70973930b3ce2ddbd0ec3a8f73a838b7b732` plus two Rust test inputs:

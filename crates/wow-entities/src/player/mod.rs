@@ -14,6 +14,7 @@ pub use auras::AuraDurationUpdatePolicy;
 mod away_status;
 mod collections;
 mod damage_control;
+mod death_operation;
 mod deferred_save;
 mod identity;
 mod inventory_runtime;
@@ -49,6 +50,10 @@ mod world_local;
 pub use battleground::PlayerBattlegroundState;
 pub use cinematic::PlayerCinematicStateLikeCpp;
 pub use collection_state::PlayerCollectionStateLikeCpp;
+pub use death_operation::{
+    PlayerDeathOperationContext, PlayerDeathOperationId, PlayerDeathOperationPhase,
+    PlayerDeathOperationSnapshot,
+};
 pub use effective_stats::{PlayerDerivedStatValuesUpdate, PlayerEffectiveCombatStatsLikeCpp};
 pub use equipment_sets::PlayerEquipmentSetsLikeCpp;
 pub use item_modifiers::{
@@ -3571,6 +3576,7 @@ pub struct Player {
     /// C++ `Player::m_swingErrorMsg`, updated by `Player::SetAttackSwingError`.
     swing_error_msg_like_cpp: Option<u8>,
     deferred_save: deferred_save::DeferredPlayerSave,
+    death_operation: death_operation::PlayerDeathOperationState,
     player_xp_table_like_cpp: Option<Arc<Vec<u32>>>,
     player_data_changes: UpdateMask,
     active_player_data_changes: UpdateMask,
@@ -3616,6 +3622,7 @@ impl Player {
             effective_combat_stats: PlayerEffectiveCombatStatsLikeCpp::default(),
             swing_error_msg_like_cpp: None,
             deferred_save: deferred_save::DeferredPlayerSave::default(),
+            death_operation: death_operation::PlayerDeathOperationState::default(),
             player_xp_table_like_cpp: None,
             player_data_changes: UpdateMask::new(PLAYER_DATA_BITS),
             active_player_data_changes: UpdateMask::new(ACTIVE_PLAYER_DATA_BITS),
