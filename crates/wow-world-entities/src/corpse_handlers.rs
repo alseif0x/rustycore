@@ -234,6 +234,7 @@ pub async fn handle_resurrect_response<H: CorpseHostLikeCpp>(
         | wow_entities::PlayerResurrectionOperation::SpiritHealer { .. }
         | wow_entities::PlayerResurrectionOperation::CorpseLogin { .. }
         | wow_entities::PlayerResurrectionOperation::ForcedRepop
+        | wow_entities::PlayerResurrectionOperation::SelfRes { .. }
         | wow_entities::PlayerResurrectionOperation::Repop
         | wow_entities::PlayerResurrectionOperation::CreateCorpse => return,
     };

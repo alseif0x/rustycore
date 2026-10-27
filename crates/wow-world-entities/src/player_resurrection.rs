@@ -68,6 +68,43 @@ pub async fn resurrect_player_like_cpp<H: CorpseHostLikeCpp>(
     Ok(())
 }
 
+/// C++ `Spell::EffectSelfResurrect` through the same Player-owned recovery
+/// continuation used by reclaim and spirit-healer resurrection.
+pub async fn self_resurrect_player_like_cpp<H: CorpseHostLikeCpp>(
+    host: &mut H,
+    catalogs: ResurrectionOperationCatalogs<'_>,
+    health: u32,
+    mana: u32,
+) -> Result<(), &'static str> {
+    if !crate::recovery_fences::begin(
+        host,
+        wow_entities::PlayerResurrectionOperation::SelfRes { health, mana },
+        wow_entities::PlayerResurrectionPhase::ResurrectPlayerReady,
+    ) {
+        host.core_mut()
+            .kick("native self-resurrection could not claim the canonical Player continuation");
+        return Err("Canonical Player resurrection continuation is unavailable");
+    }
+    match crate::recovery_fences::continue_operation(host, catalogs).await {
+        crate::recovery_fences::Progress::Complete => Ok(()),
+        crate::recovery_fences::Progress::Held => {
+            host.core_mut()
+                .kick("native self-resurrection failed; retain Player continuation");
+            Err("Native self-resurrection continuation is held")
+        }
+        crate::recovery_fences::Progress::Waiting => {
+            host.core_mut()
+                .kick("native self-resurrection is waiting; retain Player continuation");
+            Err("Native self-resurrection continuation is waiting")
+        }
+        crate::recovery_fences::Progress::Continue => {
+            host.core_mut()
+                .kick("native self-resurrection did not complete; retain Player continuation");
+            Err("Native self-resurrection continuation did not complete")
+        }
+    }
+}
+
 /// Synchronous half of C++ `Player::ResurrectPlayer`, through its value and
 /// zone publications. Keeping the visibility await separate lets the request
 /// continuation mark that boundary before suspending.

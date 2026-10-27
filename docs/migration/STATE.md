@@ -94,8 +94,11 @@ now have green scoped feedback covering 148 distinct identities. The stack
 abort was corrected in a test fixture. This is coding evidence, not final
 macro acceptance. The sickness full-save path now resolves each active Aura's
 actual SpellInfo key without a difficulty-zero prerequisite; its 35-case
-save/load group has green scoped feedback. Complete SelfRes, native death,
-QA and final acceptance remain open.
+save/load group has green scoped feedback. The SelfRes effect now uses the
+same Player-owned native recovery continuation, including corpse deletion,
+save acknowledgement and cancellation retention. Its focused feedback covers
+37 Spell and 11 World cases. Registered SelfRes admission, the dead-caster
+CheckCast rule, native death, QA and final acceptance remain open.
 
 Four blocks remain within the same macro:
 
@@ -137,35 +140,42 @@ only the shared request/result contract needed by the lower callers; moving
 the pure stats planner or adding an Inventory dependency to WorldEntities is
 not selected. These available functions do not by themselves make aura
 removal complete.
-The transport candidate is a required application operation at each existing
-damage admission, rather than an optional post-death callback. Session callers
-will reach Application through required methods on the existing movement and
-spell-click host contracts (the spell-effect host already inherits the latter).
-Map-owned melee, share and split callers will receive the same complete,
-synchronous operation through their existing combat-phase inputs. Its shared
-request/result types belong to Core; its implementation remains in Application.
-It must receive the already locked manager, check the current Player binding,
-and scope successive native borrows under that one guard. No second manager
-lock, Player clone, mailbox round trip or packet delivery under the guard is
-permitted. The operation returns ordered owned publication for delivery after
-the guard. This transport decision is not installed; the complete participants
-and their source phase order remain prerequisites to enabling any caller.
-Further source review at `d63c12ce0` places the synchronous transport candidate
-on hold. `FailQuest` calls `SetQuestStatus` and `SendQuestUpdate`
+The death transport remains a required Application operation at each existing
+damage admission. Session callers reach it through required methods on the
+existing movement and spell-click host contracts (the spell-effect host already
+inherits the latter). Shared request/result types belong to Core. The original
+synchronous borrowed-manager candidate is superseded: source review at
+`d63c12ce0` found that `FailQuest` calls `SetQuestStatus` and `SendQuestUpdate`
 (Player.cpp:14942,15557–15672), which can execute FULL casts from effective
 SpellArea rows before the next quest slot is read. The Source loader does not
 limit those rows to aura-only spells. The existing asynchronous executor
 re-resolves the canonical manager, so calling it under the proposed held Map
 guard would relock that manager. A frozen batch or post-death mailbox would
-also lose the required live phase order. Application remains the semantic
-owner; guard-free continuation or complete borrowed participants must settle
-the transport before any lethal caller is enabled. Current Server execution
-still runs all admitted combat phases under its existing canonical guard
-(`runtime/canonical_creature_runtime.rs:117–180`); no new runtime owner,
-callback, clock or scheduling change has been installed.
-The current stat aura view also reads legacy base payloads, so a genuinely
-nonzero-only aura needs its exact component consumer reviewed before claiming
-stats parity. No new dependency edge or runtime callback was installed.
+also lose the required live phase order.
+
+Selected replacement at `1e8a06cc2`, 2026-10-27: preserve one Player-owned
+Application death continuation and suspend the admitted combat cursor at its
+required death step. Release the Map guard, deliver the already produced
+combat packet prefix, and drive that same operation through the existing
+Session phase rail before resuming the same admitted cursor. Do not consume
+damage, attack RNG or a phase twice. This is a dedicated required phase step,
+not a command-mailbox callback or another PlayerRecovery timer pass. Reuse the
+rail's claim/revoke permit and exact Player incarnation, registration, Map
+incarnation and tick admission. A started unresolved operation blocks the
+remaining tick and retirement; revocation before start does not erase native
+work already admitted to the Player. Disconnect finalization must complete
+ready work or retain that owner under the existing fail-stop contract before
+logout save and retirement. Read each live quest slot only after its preceding
+callbacks finish. No Player clone, second clock/task, packet delivery or await
+under a Map guard is selected. Exact cursor/phase signatures and complete
+participants still need implementation and acceptance before enabling lethal
+callers. Server currently runs all admitted combat phases under its canonical
+guard (`runtime/canonical_creature_runtime.rs:117–180` and
+`runtime/map/update_loop.rs:373–427`); this replacement is not installed.
+The later selected stat-view integration resolves actual SpellInfo keys and
+indexed effects in `canonical_access/player_stats/aura_view.rs`; the dated
+checkpoint below records that bounded fix. It does not complete generic aura
+or native-death participants. No runtime callback has been installed here.
 
 Durability participant review at `04583b7d3`, 2026-10-26: the current
 WorldEntities combat command first admits Session state, Player/map identity
@@ -2714,6 +2724,69 @@ This is an UNVALIDATED local macro checkpoint. The sibling sickness full-save
 entry gate, native-death integration, normal SelfRes/obtain casts, QA and
 complete candidate acceptance remain open. No runtime installation, SQL,
 restart, fresh capture, publication or issue closure was performed.
+
+Native SelfRes effect and recovery ownership, 2026-10-27, base
+`1e8a06cc21da8dd31c27b5520f7bfe66fb8edb33` plus 17 Rust working inputs:
+the effect's direct revival is replaced by the existing Player-owned recovery
+operation. It verifies the actual caster and native IsInWorld, freezes health
+and mana before resurrection, then performs native revival, visibility and
+obtain spells before applying the current native setters, including Focus=0.
+Corpse conversion and its conditional full save use the existing delete/ACK
+fences. No corpse means no immediate Player save. Unavailable work disconnects
+and retains the exact operation; the timed cast driver suppresses its synthetic
+NotKnown error after that fail-stop.
+
+Pinned `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` anchors are
+SpellEffects.cpp:3757–3791, Unit.h:766, Util.h:72–75, Player.h:2117 and
+Player.cpp:4320–4403,4509–4515. Percentage calculation uses Source f32 and
+full u64 health before u32 narrowing; flat mana preserves the signed bit
+conversion. Undefined Source integer-negation/float-cast inputs are reported
+as unavailable before revival, rather than assigned invented saturation.
+The registry's permissive in-world fallback is not the caster's native
+IsInWorld. Alive with zero health during ResurrectPlayer(0.0) is also distinct
+from the legacy convenience vitals predicate; the failure test reads Unit state.
+
+Sequential coding feedback used PROTOC=/home/ubuntu/.local/protoc/bin/protoc,
+CARGO_BUILD_JOBS=1 and CARGO_TARGET_DIR=/home/server/rustycore/target:
+
+| Cargo command | UTC interval | Result |
+| --- | --- | --- |
+| `check -p wow-world-spell` | 02:01:54–02:01:55 | exit 0 |
+| `test -p wow-world-spell self_resurrection --lib` | 02:02:03–02:02:11 | 37 passed |
+| `check -p wow-world` | 02:02:19–02:02:31 | exit 0 |
+| `test -p wow-world self_resurrect --lib` | 02:10:03–02:11:37 | 11 passed |
+
+The parent verified 48 distinct target-qualified identities. The World cases
+include actual effect execution, a real map corpse and captured Player-save
+DTO, unavailable-owner/native-phase failures, and cancellation at a controlled
+corpse-delete persistence future. After cancellation, admitted recovery retains
+the same Player at RecoveryCorpseBonesInFlight with one delete and no save.
+This is not cancellation during obtain or real database durability evidence.
+Logs in `/tmp/rustycore-native-selfres-effect-logs` preserve the initial four
+fixture compilation errors and the 3/6 failed World run, then 9, 10 and 11
+passing runs. The earlier Entities check passed, but its original exact UTC
+times are unavailable; it was not rerun to manufacture metadata. File names
+containing final do not establish a validation-v2 final campaign. The
+01:31:16–02:11:37 implementation/feedback interval is 2421 seconds, not
+the ordinary completed-delivery campaign or its 600-second performance target.
+
+The parent reviewed all 17 changed Rust inputs and verified
+`parent-reviewed-inputs.sha256`, digest
+`2a36ce635f9ebce3678a6418f1f1235e5bb7dfc285e2a61c420723e619a655b2`;
+the tracked Rust diff digest is
+`f8616c5c734d5c806aaf71fb499bdd563c858b8155debdb28d1686ff2533e74a`.
+These identify working inputs at the stated base; parent-owned State text
+was also dirty. They do not relabel that run as testing a later commit.
+The three original spell_self_resurrect_* tests moved under the private
+scenarios_spell_state_13::self_resurrection module. The parent/child files
+are now 709/533 lines, and the recovery fixture is 606 lines. Effective worker
+model/effort telemetry is unavailable.
+
+This remains an UNVALIDATED local macro checkpoint. Packet vectors establish
+the tested Rust participant order, not Source enqueue cadence or byte parity.
+Registered CMSG_SELF_RES, native CheckCast, production death participants,
+generic obtain execution boundaries, QA, final and authorized live evidence
+remain required. The separate death-transport decision above is not installed.
 
 Sickness original-key full-save capture, 2026-10-27, base
 `54fb1f2e13edf4886656b6b964b07b6134fa220b` plus five Rust working inputs:

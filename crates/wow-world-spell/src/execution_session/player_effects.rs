@@ -118,99 +118,99 @@ pub async fn apply_stuck_effect_like_cpp<H: SpellExecutionHostLikeCpp>(host: &mu
     });
 }
 
-pub fn apply_self_resurrect_effect_like_cpp<H: SpellExecutionHostLikeCpp>(
+pub async fn apply_self_resurrect_effect_like_cpp<H: SpellExecutionHostLikeCpp>(
     host: &mut H,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    creature_spawn_catalogs: &wow_world_entities::CreatureSpawnCatalogsLikeCpp,
+    caster_guid: wow_core::ObjectGuid,
     damage: i32,
     misc_value: i32,
-) {
-    let Some(player_guid) = host.player_guid() else {
-        return;
-    };
-    if !host.core().player_is_in_world_for_registry_like_cpp() {
-        return;
+) -> Result<(), &'static str> {
+    if !caster_guid.is_player() {
+        return Ok(());
+    }
+    let player_guid = host
+        .player_guid()
+        .ok_or("Canonical Player identity is unavailable for self-resurrection")?;
+    if player_guid != caster_guid {
+        return Err("Resolved self-resurrection caster has no canonical Player owner");
+    }
+    let player_state = host
+        .core()
+        .with_owned_player_like_cpp(|player| {
+            (player.guid() == caster_guid).then(|| {
+                (
+                    player.unit().world().object().is_in_world(),
+                    player.unit().is_alive(),
+                    player.unit().data().max_health,
+                    player.get_max_power(PowerType::Mana),
+                )
+            })
+        })
+        .flatten()
+        .ok_or("Canonical Player state is unavailable for self-resurrection")?;
+    if !player_state.0 || player_state.1 {
+        return Ok(());
     }
 
-    let canonical = host
-        .core()
-        .with_owned_player_mut_like_cpp(|player| {
-            if player.unit().is_alive() {
-                return None;
-            }
-            let max_health = player
-                .unit()
-                .data()
-                .max_health
-                .clamp(1, u64::from(u32::MAX)) as u32;
-            let (health, mana) = if damage < 0 {
-                (damage.saturating_abs() as u32, misc_value.max(0))
-            } else {
-                let pct = damage.max(0);
-                (
-                    max_health
-                        .saturating_mul(u32::try_from(pct).unwrap_or(u32::MAX))
-                        .saturating_div(100),
-                    player
-                        .get_max_power(PowerType::Mana)
-                        .max(0)
-                        .saturating_mul(pct)
-                        / 100,
-                )
-            };
-            let health = health.min(max_health);
-            let was_alive = player.unit().is_alive();
-            player
-                .unit_mut()
-                .set_death_state(wow_constants::DeathState::Alive);
-            if !was_alive && player.unit().is_alive() {
-                // C++ `Player::setDeathState` clears this field on revival;
-                // `Spell::EffectSelfResurrect` reaches it through ResurrectPlayer.
-                player.clear_self_res_spells();
-            }
-            player.unit_mut().set_health(u64::from(health));
-            player.unit_mut().set_power(PowerType::Mana, mana);
-            player.unit_mut().set_power(PowerType::Rage, 0);
-            let max_energy = player.get_max_power(PowerType::Energy);
-            player.unit_mut().set_power(PowerType::Energy, max_energy);
-            player.unit_mut().set_power(PowerType::Focus, 0);
-            Some((health, Some(player.values_update(true))))
-        })
-        .flatten();
-    #[cfg(any(test, feature = "test-fixtures"))]
-    let outcome = canonical.or_else(|| {
-        if host.core().player_handle_like_cpp.is_some() {
-            return None;
-        }
-        let fixtures = host.test_fixtures_like_cpp()?;
-        if fixtures.combat.player_alive_like_cpp {
-            return None;
-        }
-        let max_health = fixtures.combat.player_max_health_like_cpp.max(1);
-        let health = if damage < 0 {
-            damage.saturating_abs() as u32
-        } else {
-            max_health
-                .saturating_mul(u32::try_from(damage.max(0)).unwrap_or(u32::MAX))
-                .saturating_div(100)
-        }
-        .min(max_health);
-        fixtures.combat.player_health_like_cpp = health;
-        fixtures.combat.player_alive_like_cpp = true;
-        Some((health, None))
-    });
-    #[cfg(not(any(test, feature = "test-fixtures")))]
-    let outcome = canonical;
-    let Some((health, values_update)) = outcome else {
-        return;
-    };
-    host.sync_player_registry_state_like_cpp();
-    if let Some(values_update) = values_update {
-        host.core()
-            .send_player_values_update_like_cpp(&values_update);
-    } else {
-        host.core()
-            .send_player_health_values_update_like_cpp(player_guid, u64::from(health));
-    }
+    // Source computes both locals before ResurrectPlayer mutates Player state.
+    let (health, mana) = self_resurrection_values_like_cpp(
+        damage,
+        misc_value,
+        player_state.2,
+        player_state.3,
+    )?;
+    host.self_resurrect_player_like_cpp(
+        item_guid_generator,
+        creature_spawn_catalogs,
+        health,
+        mana,
+    )
+    .await
 }
+
+fn self_resurrection_values_like_cpp(
+    damage: i32,
+    misc_value: i32,
+    max_health: u64,
+    max_mana: i32,
+) -> Result<(u32, u32), &'static str> {
+    if damage < 0 {
+        let health = damage
+            .checked_neg()
+            .ok_or("Self-resurrection flat health is outside Source's defined domain")?
+            as u32;
+        return Ok((health, misc_value as u32));
+    }
+
+    let health = calculate_pct_u64_like_cpp(max_health, damage)? as u32;
+    let mana = if max_mana > 0 {
+        calculate_pct_i32_like_cpp(max_mana, damage)? as u32
+    } else {
+        0
+    };
+    Ok((health, mana))
+}
+
+fn calculate_pct_u64_like_cpp(base: u64, pct: i32) -> Result<u64, &'static str> {
+    let value = (base as f32) * (pct as f32) / 100.0_f32;
+    if !value.is_finite() || value < 0.0 || value >= u64::MAX as f32 {
+        return Err("Self-resurrection health percentage is outside Source's defined float domain");
+    }
+    Ok(value as u64)
+}
+
+fn calculate_pct_i32_like_cpp(base: i32, pct: i32) -> Result<i32, &'static str> {
+    let value = (base as f32) * (pct as f32) / 100.0_f32;
+    if !value.is_finite() || value < 0.0 || value >= 2_147_483_648.0_f32 {
+        return Err("Self-resurrection mana percentage is outside Source's defined float domain");
+    }
+    Ok(value as i32)
+}
+
+#[cfg(test)]
+#[path = "../../unit_tests/player_effects_self_resurrection.rs"]
+mod self_resurrection_values_tests;
 
 pub fn apply_proficiency_effect_like_cpp<H: SpellExecutionHostLikeCpp>(
     host: &mut H,

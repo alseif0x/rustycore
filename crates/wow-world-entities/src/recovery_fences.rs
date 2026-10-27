@@ -4,6 +4,7 @@ mod corpse_login;
 mod forced_repop;
 mod owner;
 mod reclaim;
+mod self_resurrection;
 mod spirit_healer;
 
 pub use owner::{RecoveryResumeState, resume_state};

@@ -6,6 +6,70 @@ use wow_world_lifecycle::{
     PlayerSaveDiagnosticsLikeCpp, PlayerSaveHostLikeCpp, PlayerSaveParticipantsLikeCpp,
 };
 
+#[derive(Default)]
+struct SelfResCorpsePersistence {
+    deletes: std::sync::Mutex<Vec<u64>>,
+    delete_gate: std::sync::Mutex<Option<(Arc<Notify>, Arc<Semaphore>)>>,
+}
+
+impl SelfResCorpsePersistence {
+    fn install_delete_gate(&self) -> (Arc<Notify>, Arc<Semaphore>) {
+        let entered = Arc::new(Notify::new());
+        let release = Arc::new(Semaphore::new(0));
+        *self.delete_gate.lock().unwrap() =
+            Some((Arc::clone(&entered), Arc::clone(&release)));
+        (entered, release)
+    }
+}
+
+impl wow_persistence::MapCorpsePersistencePortLikeCpp for SelfResCorpsePersistence {
+    fn load_map_corpses_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::MapCorpseLoadRequestLikeCpp,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        'a,
+        wow_persistence::MapCorpseLoadOutcomeLikeCpp,
+    > {
+        Box::pin(async {
+            wow_persistence::MapCorpseLoadOutcomeLikeCpp::Failed {
+                reason: "self-resurrection test does not load corpses".into(),
+            }
+        })
+    }
+
+    fn save_corpse_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::CorpseSaveRequestLikeCpp,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        'a,
+        wow_persistence::CorpsePersistenceMutationOutcomeLikeCpp,
+    > {
+        Box::pin(async { wow_persistence::CorpsePersistenceMutationOutcomeLikeCpp::Committed })
+    }
+
+    fn delete_corpse_like_cpp<'a>(
+        &'a self,
+        owner_guid: u64,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        'a,
+        wow_persistence::CorpsePersistenceMutationOutcomeLikeCpp,
+    > {
+        let gate = self.delete_gate.lock().unwrap().clone();
+        Box::pin(async move {
+            self.deletes.lock().unwrap().push(owner_guid);
+            if let Some((entered, release)) = gate {
+                entered.notify_one();
+                release
+                    .acquire()
+                    .await
+                    .expect("the controlled corpse delete gate remains open")
+                    .forget();
+            }
+            wow_persistence::CorpsePersistenceMutationOutcomeLikeCpp::Committed
+        })
+    }
+}
+
 struct ObjectiveDrainGate<'a> {
     session: &'a mut WorldSession,
     entered: Arc<Notify>,
@@ -174,6 +238,288 @@ async fn recovery_fences_near_transfer_does_not_defer_a_confirmed_recovery_save(
         Some(Some(
             wow_entities::PlayerResurrectionPhase::PlayerSaveApplied
         ))
+    );
+}
+
+#[tokio::test]
+async fn native_self_resurrection_converts_real_corpse_then_full_saves_player() {
+    let (mut session, _admission, _packet_tx, _send_rx) = logged_in_recovery_session();
+    install_recovery_save_snapshot_inputs(&mut session);
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(
+        &mut session,
+        true,
+    ));
+    let player_guid = session
+        .with_owned_player_like_cpp(|player| player.guid())
+        .expect("Player GUID");
+    session
+        .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().set_max_health(100);
+            player.unit_mut().set_health(0);
+            player.unit_mut().set_power_index(wow_constants::PowerType::Mana, Some(0));
+            player.unit_mut().set_power_index(wow_constants::PowerType::Rage, Some(1));
+            player.unit_mut().set_power_index(wow_constants::PowerType::Energy, Some(3));
+            player.unit_mut().set_power_index(wow_constants::PowerType::Focus, Some(4));
+            player.unit_mut().set_max_power(wow_constants::PowerType::Mana, 200);
+            player.unit_mut().set_power(wow_constants::PowerType::Mana, 25);
+            player.unit_mut().set_max_power(wow_constants::PowerType::Rage, 100);
+            player.unit_mut().set_power(wow_constants::PowerType::Rage, 50);
+            player.unit_mut().set_max_power(wow_constants::PowerType::Energy, 100);
+            player.unit_mut().set_power(wow_constants::PowerType::Energy, 30);
+            player.unit_mut().set_max_power(wow_constants::PowerType::Focus, 100);
+            player.unit_mut().set_power(wow_constants::PowerType::Focus, 40);
+            player
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::Dead);
+            player.add_self_res_spell(21_169);
+        })
+        .expect("canonical Player remains the recovery owner");
+
+    let corpse_guid = ObjectGuid::create_world_object(
+        HighGuid::Corpse,
+        0,
+        1,
+        571,
+        0,
+        0,
+        88_331,
+    );
+    let mut corpse = wow_entities::Corpse::new_at(wow_entities::CorpseType::ResurrectablePve, 0);
+    corpse.world_mut().object_mut().create(corpse_guid);
+    corpse.world_mut().set_map(571, 0).expect("corpse map");
+    corpse.world_mut().relocate(Position::ZERO);
+    corpse.world_mut().object_mut().add_to_world();
+    corpse.set_owner_guid(player_guid);
+    session
+        .core
+        .canonical_map_manager
+        .as_ref()
+        .unwrap()
+        .lock()
+        .unwrap()
+        .find_map_mut(571, 0)
+        .unwrap()
+        .map_mut()
+        .add_map_object_record_to_map_like_cpp(
+            wow_entities::MapObjectRecord::new_corpse(corpse).expect("corpse record"),
+        )
+        .expect("corpse inserted on the Player's active map");
+
+    let corpse_port = std::sync::Arc::new(SelfResCorpsePersistence::default());
+    session.set_map_corpse_persistence_port_like_cpp(corpse_port.clone());
+    let save_port = RecordingPlayerLifecyclePort::new(PersistenceOutcomeLikeCpp::Applied {
+        rows: 1,
+    });
+    session.set_player_lifecycle_port_like_cpp(save_port.clone());
+    let generators = session.id_generators_for_test_like_cpp();
+    let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
+
+    wow_world_entities::self_resurrect_player_like_cpp(
+        &mut session,
+        wow_world_entities::ResurrectionOperationCatalogs {
+            item_guid_generator: generators.item.as_ref(),
+            creature_spawns: &creature_spawns,
+            graveyards: None,
+        },
+        35,
+        77,
+    )
+    .await
+    .expect("native SelfRes completes after the committed corpse delete and Player save");
+
+    assert_eq!(
+        *corpse_port.deletes.lock().unwrap(),
+        vec![player_guid.counter() as u64]
+    );
+    assert_eq!(save_port.character_save_count(), 1);
+    assert!(session.player_is_alive_like_cpp());
+    assert_eq!(session.player_health_like_cpp(), 35);
+    let save_requests = save_port.character_save_requests();
+    assert_eq!(save_requests.len(), 1);
+    assert_eq!(
+        save_requests[0].character.health,
+        35,
+        "the full Player save captures the restored native SelfRes health"
+    );
+    assert_eq!(
+        session.with_owned_player_like_cpp(|player| player
+            .resurrection_state_like_cpp()
+            .delayed_after_teleport),
+        Some(None),
+        "full-save ACK completes and clears this exact SelfRes continuation"
+    );
+}
+
+#[tokio::test]
+async fn native_self_resurrection_cancelled_during_real_corpse_delete_stays_nonreplayable() {
+    let (mut session, admission, _packet_tx, _send_rx) = logged_in_recovery_session();
+    install_recovery_save_snapshot_inputs(&mut session);
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(
+        &mut session,
+        true,
+    ));
+    let player_guid = session
+        .with_owned_player_like_cpp(|player| player.guid())
+        .expect("Player GUID");
+    let player_handle = session.core.player_handle_like_cpp.expect("Player handle");
+    session
+        .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().set_max_health(100);
+            player.unit_mut().set_health(0);
+            player.unit_mut().set_power_index(wow_constants::PowerType::Mana, Some(0));
+            player.unit_mut().set_power_index(wow_constants::PowerType::Rage, Some(1));
+            player.unit_mut().set_power_index(wow_constants::PowerType::Energy, Some(3));
+            player.unit_mut().set_power_index(wow_constants::PowerType::Focus, Some(4));
+            player.unit_mut().set_max_power(wow_constants::PowerType::Mana, 200);
+            player.unit_mut().set_power(wow_constants::PowerType::Mana, 25);
+            player.unit_mut().set_max_power(wow_constants::PowerType::Rage, 100);
+            player.unit_mut().set_power(wow_constants::PowerType::Rage, 50);
+            player.unit_mut().set_max_power(wow_constants::PowerType::Energy, 100);
+            player.unit_mut().set_power(wow_constants::PowerType::Energy, 30);
+            player.unit_mut().set_max_power(wow_constants::PowerType::Focus, 100);
+            player.unit_mut().set_power(wow_constants::PowerType::Focus, 40);
+            player
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::Dead);
+            player.add_self_res_spell(21_169);
+        })
+        .expect("canonical Player remains the recovery owner");
+
+    let corpse_guid = ObjectGuid::create_world_object(
+        HighGuid::Corpse,
+        0,
+        1,
+        571,
+        0,
+        0,
+        88_332,
+    );
+    let mut corpse = wow_entities::Corpse::new_at(wow_entities::CorpseType::ResurrectablePve, 0);
+    corpse.world_mut().object_mut().create(corpse_guid);
+    corpse.world_mut().set_map(571, 0).expect("corpse map");
+    corpse.world_mut().relocate(Position::ZERO);
+    corpse.world_mut().object_mut().add_to_world();
+    corpse.set_owner_guid(player_guid);
+    session
+        .core
+        .canonical_map_manager
+        .as_ref()
+        .unwrap()
+        .lock()
+        .unwrap()
+        .find_map_mut(571, 0)
+        .unwrap()
+        .map_mut()
+        .add_map_object_record_to_map_like_cpp(
+            wow_entities::MapObjectRecord::new_corpse(corpse).expect("corpse record"),
+        )
+        .expect("corpse inserted on the Player's active map");
+
+    let corpse_port = Arc::new(SelfResCorpsePersistence::default());
+    let (delete_entered, _delete_release) = corpse_port.install_delete_gate();
+    session.set_map_corpse_persistence_port_like_cpp(corpse_port.clone());
+    let save_port = RecordingPlayerLifecyclePort::new(PersistenceOutcomeLikeCpp::Applied {
+        rows: 1,
+    });
+    session.set_player_lifecycle_port_like_cpp(save_port.clone());
+    let generators = session.id_generators_for_test_like_cpp();
+    let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
+
+    let mut resurrection = Box::pin(wow_world_entities::self_resurrect_player_like_cpp(
+        &mut session,
+        wow_world_entities::ResurrectionOperationCatalogs {
+            item_guid_generator: generators.item.as_ref(),
+            creature_spawns: &creature_spawns,
+            graveyards: None,
+        },
+        35,
+        77,
+    ));
+    tokio::select! {
+        result = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            delete_entered.notified(),
+        ) => {
+            assert!(result.is_ok(), "native SelfRes did not reach its controlled corpse-delete await");
+        }
+        outcome = resurrection.as_mut() => {
+            panic!("native SelfRes returned before the controlled real corpse delete: {outcome:?}");
+        }
+    }
+    drop(resurrection);
+
+    let continuation = session
+        .with_owned_player_like_cpp(|player| {
+            player.resurrection_state_like_cpp().delayed_after_teleport
+        })
+        .flatten()
+        .expect("the cancelled delete retains the exact Player continuation");
+    assert_eq!(
+        continuation.operation,
+        wow_entities::PlayerResurrectionOperation::SelfRes {
+            health: 35,
+            mana: 77,
+        }
+    );
+    assert_eq!(
+        continuation.phase,
+        wow_entities::PlayerResurrectionPhase::RecoveryCorpseBonesInFlight
+    );
+    let player_after_cancel = session
+        .with_owned_player_like_cpp(|player| {
+            (
+                player.unit().death_state(),
+                player.unit().data().health,
+            )
+        })
+        .expect("cancelled native SelfRes keeps its canonical Player");
+    assert_eq!(
+        player_after_cancel,
+        (wow_constants::DeathState::Alive, 35),
+        "restored values precede the pending corpse delete"
+    );
+    assert_eq!(
+        *corpse_port.deletes.lock().unwrap(),
+        vec![player_guid.counter() as u64]
+    );
+    assert_eq!(save_port.character_save_count(), 0);
+
+    let reply = run_recovery_request(
+        &mut session,
+        admission,
+        SessionPhasePermitLikeCpp::new_like_cpp(),
+    )
+    .await;
+    assert_eq!(reply.status, Some(PlayerRecoveryStatus::Unavailable));
+    assert_eq!(session.core.player_handle_like_cpp, Some(player_handle));
+    assert_eq!(
+        session
+            .with_owned_player_like_cpp(|player| {
+                player
+                    .resurrection_state_like_cpp()
+                    .delayed_after_teleport
+                    .map(|continuation| {
+                        (continuation.operation, continuation.phase)
+                    })
+            })
+            .flatten(),
+        Some((
+            wow_entities::PlayerResurrectionOperation::SelfRes {
+                health: 35,
+                mana: 77,
+            },
+            wow_entities::PlayerResurrectionPhase::RecoveryCorpseBonesInFlight,
+        ))
+    );
+    assert_eq!(
+        *corpse_port.deletes.lock().unwrap(),
+        vec![player_guid.counter() as u64],
+        "recovery cannot replay an unconfirmed corpse delete"
+    );
+    assert_eq!(
+        save_port.character_save_count(),
+        0,
+        "an unconfirmed corpse delete cannot trigger the Player save"
     );
 }
 

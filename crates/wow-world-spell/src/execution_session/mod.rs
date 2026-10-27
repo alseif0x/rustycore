@@ -13,6 +13,7 @@
 //! body called it before the move.
 
 use std::future::Future;
+use std::pin::Pin;
 
 use tracing::{debug, info};
 use wow_core::{ObjectGuid, Position};
@@ -238,6 +239,16 @@ pub trait SpellExecutionHostLikeCpp:
     /// stuck effect reads and writes (#1363 slice 12b2).
     fn set_player_ghost_flag_like_cpp(&mut self, ghost: bool);
     fn set_player_alive_like_cpp(&mut self, alive: bool);
+    /// C++ `Spell::EffectSelfResurrect` after its input values are frozen.
+    /// The boxed future breaks the real obtain-spell -> normal-cast -> effect
+    /// recursion while retaining the canonical Player continuation.
+    fn self_resurrect_player_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &'a CreatureSpawnCatalogsLikeCpp,
+        health: u32,
+        mana: u32,
+    ) -> Pin<Box<dyn Future<Output = Result<(), &'static str>> + Send + 'a>>;
     /// The World test session's handle-less capability owner for the moved
     /// proficiency effect's fixture step; `None` for every other host.
     #[cfg(any(test, feature = "test-fixtures"))]

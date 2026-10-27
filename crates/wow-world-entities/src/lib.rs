@@ -225,7 +225,9 @@ pub use player_death::{
     updated_death_expire_time_like_cpp,
 };
 pub use player_release::{build_player_repop_like_cpp, create_corpse_like_cpp};
-pub use player_resurrection::{reclaim_corpse_like_cpp, resurrect_player_like_cpp};
+pub use player_resurrection::{
+    reclaim_corpse_like_cpp, resurrect_player_like_cpp, self_resurrect_player_like_cpp,
+};
 pub use recovery_fences::{RecoveryResumeState, resume_state as resurrection_recovery_resume_state};
 pub use player_vitals::{set_player_alive_like_cpp, set_player_ghost_flag_like_cpp};
 pub use resurrection_request::{

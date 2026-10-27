@@ -206,6 +206,7 @@ pub fn resume_state(host: &impl CorpseHostLikeCpp) -> RecoveryResumeState {
             | PlayerResurrectionOperation::SpiritHealer { .. }
             | PlayerResurrectionOperation::CorpseLogin { .. }
             | PlayerResurrectionOperation::ForcedRepop
+            | PlayerResurrectionOperation::SelfRes { .. }
     );
     let request_save_recovery = matches!(
         continuation.operation,
@@ -314,6 +315,17 @@ pub(crate) async fn continue_operation(
                     owner,
                     catalogs,
                     catalogs.graveyards,
+                    continuation.phase,
+                )
+                .await
+            }
+            PlayerResurrectionOperation::SelfRes { health, mana } => {
+                super::self_resurrection::continue_self_resurrection(
+                    host,
+                    owner,
+                    catalogs,
+                    health,
+                    mana,
                     continuation.phase,
                 )
                 .await

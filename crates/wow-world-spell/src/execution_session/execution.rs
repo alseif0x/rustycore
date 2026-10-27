@@ -691,9 +691,13 @@ pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generat
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT => {
                 apply_self_resurrect_effect_like_cpp(
                     host,
+                    item_guid_generator,
+                    creature_spawn_catalogs,
+                    caster_guid,
                     direct_effect_base_points,
                     direct_effect_misc_value_1,
-                );
+                )
+                .await?;
             }
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_STUCK => {
                 apply_stuck_effect_like_cpp(host).await;

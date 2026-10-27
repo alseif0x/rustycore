@@ -268,6 +268,7 @@ pub fn mark_player_resurrection_teleport_completed(
             | PlayerResurrectionOperation::SpiritHealer { .. }
             | PlayerResurrectionOperation::CorpseLogin { .. }
             | PlayerResurrectionOperation::ForcedRepop
+            | PlayerResurrectionOperation::SelfRes { .. }
     );
     if recovery_operation {
         return match continuation.phase {
@@ -361,6 +362,7 @@ pub(crate) async fn process_after_teleport(
             | PlayerResurrectionOperation::SpiritHealer { .. }
             | PlayerResurrectionOperation::CorpseLogin { .. }
             | PlayerResurrectionOperation::ForcedRepop
+            | PlayerResurrectionOperation::SelfRes { .. }
     ) {
         if crate::recovery_fences::resume_state(host)
             != crate::recovery_fences::RecoveryResumeState::Ready

@@ -3,6 +3,7 @@
 
 use super::*;
 use std::future::Future;
+use std::pin::Pin;
 
 impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
     fn server_normal_physical_item_facts_like_cpp(
@@ -284,6 +285,24 @@ impl wow_world_spell::SpellExecutionHostLikeCpp for WorldSession {
     }
     fn set_player_alive_like_cpp(&mut self, alive: bool) {
         wow_world_entities::set_player_alive_like_cpp(self, alive)
+    }
+    fn self_resurrect_player_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+        creature_spawn_catalogs: &'a CreatureSpawnCatalogsLikeCpp,
+        health: u32,
+        mana: u32,
+    ) -> Pin<Box<dyn Future<Output = Result<(), &'static str>> + Send + 'a>> {
+        Box::pin(wow_world_entities::self_resurrect_player_like_cpp(
+            self,
+            wow_world_entities::ResurrectionOperationCatalogs {
+                item_guid_generator,
+                creature_spawns: creature_spawn_catalogs,
+                graveyards: None,
+            },
+            health,
+            mana,
+        ))
     }
     #[cfg(test)]
     fn mutate_player_persistent_capability_state_like_cpp<R>(
