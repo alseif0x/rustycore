@@ -3,8 +3,7 @@ use super::super::{
     RepresentedFactionReactionInputLikeCpp, RepresentedGetReactionInputLikeCpp,
 };
 use super::{
-    resolve_faction_reaction, resolve_faction_reaction_with_raid,
-    resolve_faction_template_reaction,
+    resolve_faction_reaction, resolve_faction_reaction_with_raid, resolve_faction_template_reaction,
 };
 use wow_constants::reputation::ReputationFlagsLikeCpp;
 use wow_data::progression_rewards::{

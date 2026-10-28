@@ -181,10 +181,10 @@ impl<'a> PlayerStatAuraView<'a> {
                 .find(|represented| u32::from(represented.effect_index) == effect_index)
                 .map(|represented| represented.amount)?;
 
-            let groups = group_store.spell_spell_group_map_bounds_like_cpp(
-                applied.spell_id,
-                |lookup_spell_id| chain_store.first_spell_in_chain_like_cpp(lookup_spell_id),
-            );
+            let groups = group_store
+                .spell_spell_group_map_bounds_like_cpp(applied.spell_id, |lookup_spell_id| {
+                    chain_store.first_spell_in_chain_like_cpp(lookup_spell_id)
+                });
             let mut same_effect_group = None;
             for group_id in groups.iter().copied() {
                 if stack_rules

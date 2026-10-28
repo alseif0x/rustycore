@@ -57,10 +57,13 @@ fn install_self_res_onpickup_spell_fixture(
     onpickup_effect: u32,
     onpickup_cast_time_ms: u32,
 ) {
-    let casting_time_index = if onpickup_cast_time_ms == 0 { 0_u16 } else { 1_u16 };
+    let casting_time_index = if onpickup_cast_time_ms == 0 {
+        0_u16
+    } else {
+        1_u16
+    };
     let mut self_res_attributes = [0; 15];
-    self_res_attributes[0] =
-        wow_data::spell::attributes::SPELL_ATTR0_ALLOW_CAST_WHILE_DEAD as i32;
+    self_res_attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_ALLOW_CAST_WHILE_DEAD as i32;
     let misc_rows = [
         SpellMiscEntry {
             id: 1,
@@ -356,16 +359,15 @@ fn spell_cast_ids_from_frames(frames: &[Vec<u8>], opcode: ServerOpcodes) -> Vec<
         .cloned()
         .filter_map(|bytes| {
             let mut packet = wow_packet::WorldPacket::from_bytes(&bytes);
-            (packet.read_uint16().ok()? == opcode as u16)
-                .then(|| {
-                    packet.read_packed_guid().expect("spell cast caster");
-                    packet
-                        .read_packed_guid()
-                        .expect("spell cast caster unit");
-                    packet.read_packed_guid().expect("spell cast cast ID");
-                    packet.read_packed_guid().expect("spell cast original cast ID");
-                    packet.read_int32().expect("spell cast spell ID")
-                })
+            (packet.read_uint16().ok()? == opcode as u16).then(|| {
+                packet.read_packed_guid().expect("spell cast caster");
+                packet.read_packed_guid().expect("spell cast caster unit");
+                packet.read_packed_guid().expect("spell cast cast ID");
+                packet
+                    .read_packed_guid()
+                    .expect("spell cast original cast ID");
+                packet.read_int32().expect("spell cast spell ID")
+            })
         })
         .collect()
 }
@@ -379,11 +381,13 @@ async fn registered_self_res_holds_before_bones_for_timed_unimplemented_onpickup
     let item_guid = install_onpickup_item(&mut session, 61_061);
     let corpse_guid = add_current_map_corpse(&mut session, 61_062);
     let difficulty = session.core.current_map_difficulty_id_like_cpp();
-    let spell_store = session.catalogs.spell_store().expect("exact fixture SpellStore");
-    assert!(spell_store.contains_spell_info_exact_like_cpp(
-        ON_PICKUP_TEST_SPELL as u32,
-        DIFFICULTY
-    ));
+    let spell_store = session
+        .catalogs
+        .spell_store()
+        .expect("exact fixture SpellStore");
+    assert!(
+        spell_store.contains_spell_info_exact_like_cpp(ON_PICKUP_TEST_SPELL as u32, DIFFICULTY)
+    );
     assert!(!spell_store.contains_spell_info_exact_like_cpp(ON_PICKUP_TEST_SPELL as u32, 0));
     let (onpickup, selected_difficulty) = spell_store
         .spell_info_for_difficulty_like_cpp(
@@ -399,24 +403,30 @@ async fn registered_self_res_holds_before_bones_for_timed_unimplemented_onpickup
     assert_eq!(onpickup.effects()[0].effect, CREATE_ITEM_EFFECT_TYPE);
     assert_eq!(onpickup.effects()[0].effect_index, 0);
     assert_eq!(onpickup.effects()[0].effect_base_points, 0);
-    assert!(session
-        .catalogs
-        .item_template_flags(CREATE_ITEM_OUTPUT)
-        .is_some());
-    assert!(session
-        .catalogs
-        .items
-        .store
-        .as_ref()
-        .and_then(|store| store.get(CREATE_ITEM_OUTPUT))
-        .is_some());
-    assert!(session
-        .catalogs
-        .items
-        .stats_store
-        .as_ref()
-        .and_then(|store| store.random_property_template(CREATE_ITEM_OUTPUT))
-        .is_some());
+    assert!(
+        session
+            .catalogs
+            .item_template_flags(CREATE_ITEM_OUTPUT)
+            .is_some()
+    );
+    assert!(
+        session
+            .catalogs
+            .items
+            .store
+            .as_ref()
+            .and_then(|store| store.get(CREATE_ITEM_OUTPUT))
+            .is_some()
+    );
+    assert!(
+        session
+            .catalogs
+            .items
+            .stats_store
+            .as_ref()
+            .and_then(|store| store.random_property_template(CREATE_ITEM_OUTPUT))
+            .is_some()
+    );
     assert_eq!(
         wow_world_spell::SpellExecutionHostLikeCpp::server_normal_physical_item_facts_like_cpp(
             &session, item_guid
@@ -424,18 +434,20 @@ async fn registered_self_res_holds_before_bones_for_timed_unimplemented_onpickup
         Some((ON_PICKUP_ITEM, 50)),
         "the OnPickup cast uses its carried physical item and loaded ItemSparse level"
     );
-    assert!(session
-        .catalogs
-        .items
-        .effect_store
-        .as_ref()
-        .expect("OnPickup effect catalog")
-        .item_effects_for_item_id_like_cpp(ON_PICKUP_ITEM)
-        .iter()
-        .any(|effect| {
-            effect.trigger_type == wow_constants::ItemSpelltriggerType::OnPickup as i8
-                && effect.spell_id == ON_PICKUP_TEST_SPELL
-        }));
+    assert!(
+        session
+            .catalogs
+            .items
+            .effect_store
+            .as_ref()
+            .expect("OnPickup effect catalog")
+            .item_effects_for_item_id_like_cpp(ON_PICKUP_ITEM)
+            .iter()
+            .any(|effect| {
+                effect.trigger_type == wow_constants::ItemSpelltriggerType::OnPickup as i8
+                    && effect.spell_id == ON_PICKUP_TEST_SPELL
+            })
+    );
 
     session
         .dispatch_packet(
@@ -472,18 +484,20 @@ async fn registered_self_res_holds_before_bones_for_timed_unimplemented_onpickup
     assert!(session.active_spell_cast_snapshot_like_cpp().is_none());
     assert_eq!(save.character_save_count(), 0);
     assert!(corpse_port.deletes.lock().unwrap().is_empty());
-    assert!(session
-        .core
-        .canonical_map_manager
-        .as_ref()
-        .expect("canonical MapManager")
-        .lock()
-        .expect("canonical MapManager")
-        .find_map(571, 10_000 + u32::from(DIFFICULTY))
-        .expect("difficulty-three map")
-        .map()
-        .get_typed_corpse(corpse_guid)
-        .is_some());
+    assert!(
+        session
+            .core
+            .canonical_map_manager
+            .as_ref()
+            .expect("canonical MapManager")
+            .lock()
+            .expect("canonical MapManager")
+            .find_map(571, 10_000 + u32::from(DIFFICULTY))
+            .expect("difficulty-three map")
+            .map()
+            .get_typed_corpse(corpse_guid)
+            .is_some()
+    );
 }
 
 #[tokio::test]
@@ -495,7 +509,9 @@ async fn normal_onpickup_execution_reports_unimplemented_create_item_effect_at_a
     let item_guid = install_onpickup_item(&mut session, 61_064);
     session
         .with_owned_player_mut_like_cpp(|player| {
-            player.unit_mut().set_death_state(wow_constants::DeathState::Alive);
+            player
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::Alive);
             player.unit_mut().set_health(0);
         })
         .expect("native resurrection intermediate Player remains canonical");
@@ -546,15 +562,14 @@ async fn registered_self_res_completes_after_source_inert_onpickup_effect() {
     install_onpickup_item(&mut session, 61_066);
     let player_guid = session.player_guid().expect("canonical Player GUID");
     add_current_map_corpse(&mut session, 61_067);
-    let spell_store = session.catalogs.spell_store().expect("exact fixture SpellStore");
-    assert!(spell_store.contains_spell_info_exact_like_cpp(
-        SELF_RES_TEST_SPELL as u32,
-        DIFFICULTY
-    ));
-    assert!(spell_store.contains_spell_info_exact_like_cpp(
-        ON_PICKUP_TEST_SPELL as u32,
-        DIFFICULTY
-    ));
+    let spell_store = session
+        .catalogs
+        .spell_store()
+        .expect("exact fixture SpellStore");
+    assert!(spell_store.contains_spell_info_exact_like_cpp(SELF_RES_TEST_SPELL as u32, DIFFICULTY));
+    assert!(
+        spell_store.contains_spell_info_exact_like_cpp(ON_PICKUP_TEST_SPELL as u32, DIFFICULTY)
+    );
     assert!(!spell_store.contains_spell_info_exact_like_cpp(SELF_RES_TEST_SPELL as u32, 0));
     assert!(!spell_store.contains_spell_info_exact_like_cpp(ON_PICKUP_TEST_SPELL as u32, 0));
 
@@ -578,12 +593,9 @@ async fn registered_self_res_completes_after_source_inert_onpickup_effect() {
     );
     assert_eq!(
         session.with_owned_player_like_cpp(|player| {
-            player
-                .resurrection_state_like_cpp()
-                .delayed_after_teleport
+            player.resurrection_state_like_cpp().delayed_after_teleport
         }),
         Some(None)
     );
     assert!(session.active_spell_cast_snapshot_like_cpp().is_none());
 }
-

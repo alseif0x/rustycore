@@ -115,9 +115,7 @@ pub(super) fn install_sickness_data(
     install_sickness_data_with_cast_costs(session, spell_id, visual_id, None);
 }
 
-pub(super) fn prepare_recovered_player_for_selected_cast_like_cpp(
-    session: &mut WorldSession,
-) {
+pub(super) fn prepare_recovered_player_for_selected_cast_like_cpp(session: &mut WorldSession) {
     // Selected sickness casts run after native resurrection restores the Player.
     let restored = session.core.with_owned_player_mut_like_cpp(|player| {
         player.unit_mut().set_max_health(1_000);
@@ -130,12 +128,14 @@ pub(super) fn prepare_recovered_player_for_selected_cast_like_cpp(
         restored.is_some(),
         "canonical Player is available for sickness cast"
     );
-    assert!(session
-        .core
-        .with_owned_player_like_cpp(|player| {
-            player.unit().is_alive() && player.unit().data().health > 0
-        })
-        .unwrap_or(false));
+    assert!(
+        session
+            .core
+            .with_owned_player_like_cpp(|player| {
+                player.unit().is_alive() && player.unit().data().health > 0
+            })
+            .unwrap_or(false)
+    );
 }
 
 pub(super) fn install_known_no_obtain_item_catalogs(
@@ -145,22 +145,24 @@ pub(super) fn install_known_no_obtain_item_catalogs(
 ) {
     let entries = entries.into_iter().collect::<Vec<_>>();
     session.set_item_store(Arc::new(wow_data::ItemStore::from_records(
-        entries.iter().map(|&(id, inventory_type, _)| wow_data::ItemRecord {
-            id,
-            class_id: if inventory_type == wow_constants::InventoryType::Chest {
-                wow_constants::ItemClass::Armor as u8
-            } else {
-                wow_constants::ItemClass::Consumable as u8
-            },
-            subclass_id: 0,
-            material: 0,
-            inventory_type: inventory_type as i8,
-            sheathe_type: 0,
-            random_select: 0,
-            random_suffix_group_id: 0,
-            scaling_stat_distribution_id: 0,
-            scaling_stat_value: 0,
-        }),
+        entries
+            .iter()
+            .map(|&(id, inventory_type, _)| wow_data::ItemRecord {
+                id,
+                class_id: if inventory_type == wow_constants::InventoryType::Chest {
+                    wow_constants::ItemClass::Armor as u8
+                } else {
+                    wow_constants::ItemClass::Consumable as u8
+                },
+                subclass_id: 0,
+                material: 0,
+                inventory_type: inventory_type as i8,
+                sheathe_type: 0,
+                random_select: 0,
+                random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
+            }),
     )));
     let sparse = entries.iter().map(|&(id, inventory_type, flags)| {
         (
@@ -333,7 +335,9 @@ pub(super) fn install_sickness_data_with_cast_costs(
         .spell_label_store()
         .map(|store| store.entries_like_cpp().cloned().collect::<Vec<_>>())
         .unwrap_or_default();
-    session.set_spell_label_store(Arc::new(wow_data::SpellLabelStore::from_entries(label_rows)));
+    session.set_spell_label_store(Arc::new(wow_data::SpellLabelStore::from_entries(
+        label_rows,
+    )));
     let proc_store = crate::session::hub_ref(session)
         .catalogs
         .spell_catalogs
@@ -424,8 +428,7 @@ pub(super) fn install_normal_sickness_cast_payload(
         .unwrap_or_default();
     if actual_difficulty != 0
         && !misc_rows.iter().any(|row| {
-            row.spell_id == SICKNESS_SPELL as u32
-                && row.difficulty_id == actual_difficulty
+            row.spell_id == SICKNESS_SPELL as u32 && row.difficulty_id == actual_difficulty
         })
     {
         let mut selected_misc = misc_rows
@@ -433,7 +436,9 @@ pub(super) fn install_normal_sickness_cast_payload(
             .find(|row| row.spell_id == SICKNESS_SPELL as u32 && row.difficulty_id == 0)
             .cloned()
             .expect("selected sickness SpellMisc fixture row");
-        selected_misc.id = selected_misc.id.saturating_add(u32::from(actual_difficulty));
+        selected_misc.id = selected_misc
+            .id
+            .saturating_add(u32::from(actual_difficulty));
         selected_misc.difficulty_id = actual_difficulty;
         misc_rows.push(selected_misc);
     }
@@ -452,10 +457,7 @@ pub(super) fn install_normal_sickness_cast_payload(
             row.effect_amplitude = effect.effect_amplitude;
             row.effect_die_sides = effect.effect_die_sides;
             row.effect_mechanic = effect.effect_mechanic;
-            row.effect_misc_value = [
-                effect.effect_misc_value_1,
-                effect.effect_misc_value_2,
-            ];
+            row.effect_misc_value = [effect.effect_misc_value_1, effect.effect_misc_value_2];
             row.effect_trigger_spell = effect.effect_trigger_spell;
             row.effect_bonus_coefficient = effect.effect_bonus_coefficient_from_ap;
             row.bonus_coefficient_from_ap = effect.effect_bonus_coefficient_from_ap;
@@ -523,10 +525,7 @@ pub(super) fn install_normal_sickness_cast_payload(
         .spell_info_for_difficulty_like_cpp(
             SICKNESS_SPELL,
             actual_difficulty,
-            session
-                .catalogs
-                .difficulty_store()
-                .map(AsRef::as_ref),
+            session.catalogs.difficulty_store().map(AsRef::as_ref),
         )
         .expect("selected sickness exact payload is available")
         .expect("selected sickness exact key exists")

@@ -951,7 +951,11 @@ async fn sickness_stale_owner_does_not_fall_back_or_mutate_retired_player() {
             0,
             0x88,
             0,
-            Ok((0x0011, wow_entities::AuraCastProvenanceLikeCpp::default(), 0)),
+            Ok((
+                0x0011,
+                wow_entities::AuraCastProvenanceLikeCpp::default(),
+                0,
+            )),
             wow_entities::SpellCastMetadata::default(),
         );
     assert!(

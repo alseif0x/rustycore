@@ -33,7 +33,9 @@ fn fixture(owner: ObjectGuid) -> (Pet, PetStable) {
         .object_mut()
         .set_entry(PET_ENTRY);
     pet.creature_mut().unit_mut().world_mut().set_name("Misha");
-    pet.creature_mut().unit_mut().set_native_display_id_like_cpp(12_345);
+    pet.creature_mut()
+        .unit_mut()
+        .set_native_display_id_like_cpp(12_345);
     pet.creature_mut().unit_mut().set_level(43);
     pet.creature_mut().unit_mut().set_max_health(1_000);
     pet.creature_mut().unit_mut().set_health(888);
@@ -54,10 +56,8 @@ fn fixture(owner: ObjectGuid) -> (Pet, PetStable) {
 
     let mut charm_info = CharmInfoState::default();
     charm_info.pet_number = PET_NUMBER;
-    charm_info.action_bar[3] = wow_entities::make_unit_action_button_like_cpp(
-        11_111,
-        wow_entities::ACT_ENABLED_LIKE_CPP,
-    );
+    charm_info.action_bar[3] =
+        wow_entities::make_unit_action_button_like_cpp(11_111, wow_entities::ACT_ENABLED_LIKE_CPP);
     pet.creature_mut()
         .unit_mut()
         .subsystems_mut()
@@ -80,7 +80,12 @@ fn fixture(owner: ObjectGuid) -> (Pet, PetStable) {
 
 fn state_transaction(
     prepared: &PreparedPetSave,
-) -> (&u32, &Vec<PlayerPetSpellSaveOperationLikeCpp>, &Vec<PlayerPetSpellCooldownLoadRowLikeCpp>, &Vec<PlayerPetSpellChargeLoadRowLikeCpp>) {
+) -> (
+    &u32,
+    &Vec<PlayerPetSpellSaveOperationLikeCpp>,
+    &Vec<PlayerPetSpellCooldownLoadRowLikeCpp>,
+    &Vec<PlayerPetSpellChargeLoadRowLikeCpp>,
+) {
     let PlayerPetSaveTransactionLikeCpp::AurasSpellsAndHistory {
         pet_number,
         auras,
@@ -109,7 +114,14 @@ fn prepare_pet_save_projects_fill_pet_info_and_current_slot_like_cpp() {
     assert_eq!(
         prepared.info.action_bar,
         Pet::generate_action_bar_data_like_cpp(
-            &pet.creature().unit().subsystems().control.charm_info.as_ref().unwrap().action_bar
+            &pet.creature()
+                .unit()
+                .subsystems()
+                .control
+                .charm_info
+                .as_ref()
+                .unwrap()
+                .action_bar
         )
     );
     assert_eq!(prepared.info.pet_number, PET_NUMBER);
@@ -163,10 +175,12 @@ fn prepare_pet_save_projects_fill_pet_info_and_current_slot_like_cpp() {
     pet.creature_mut()
         .unit_mut()
         .replace_all_pet_flags_like_cpp(0);
-    assert!(prepare_pet_save(&pet, &stable, None, now)
-        .expect("valid live Pet")
-        .info
-        .was_renamed);
+    assert!(
+        prepare_pet_save(&pet, &stable, None, now)
+            .expect("valid live Pet")
+            .info
+            .was_renamed
+    );
 }
 
 #[test]
@@ -220,9 +234,15 @@ fn prepare_pet_save_projects_native_spell_states_without_acknowledging_them() {
             PlayerPetSpellSaveOperationLikeCpp::Delete { spell_id: 102 },
         ]
     );
-    assert_eq!(pet.spells().get(&100).unwrap().state, PetSpellState::Changed);
+    assert_eq!(
+        pet.spells().get(&100).unwrap().state,
+        PetSpellState::Changed
+    );
     assert_eq!(pet.spells().get(&101).unwrap().state, PetSpellState::New);
-    assert_eq!(pet.spells().get(&102).unwrap().state, PetSpellState::Removed);
+    assert_eq!(
+        pet.spells().get(&102).unwrap().state,
+        PetSpellState::Removed
+    );
     assert_eq!(pet.spells().get(&103).unwrap().state, PetSpellState::New);
 }
 

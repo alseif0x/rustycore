@@ -395,9 +395,7 @@ pub fn player_aura_application_cx_like_cpp<'a>(
             catalogs.spell_catalogs.spell_shapeshift_form_store(),
         ),
     )
-    .with_serverside_spell_store_like_cpp(
-        catalogs.spell_catalogs.serverside_spell_store.as_ref(),
-    );
+    .with_serverside_spell_store_like_cpp(catalogs.spell_catalogs.serverside_spell_store.as_ref());
     AuraRemovalCxLikeCpp::new(
         spell_state,
         inventory,

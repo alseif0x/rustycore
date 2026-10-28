@@ -362,11 +362,9 @@ pub(super) async fn collect_until(
     realm: &mut Option<EncryptedWorldConnection>,
     controller: &mut Controller,
 ) -> Result<()> {
-    collect_until_inner(
-        deadline, stream, crypt, inflater, realm, controller, None,
-    )
-    .await
-    .map(|_| ())
+    collect_until_inner(deadline, stream, crypt, inflater, realm, controller, None)
+        .await
+        .map(|_| ())
 }
 
 pub(super) async fn wait_for_packet(

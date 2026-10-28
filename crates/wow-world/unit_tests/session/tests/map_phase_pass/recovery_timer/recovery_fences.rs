@@ -19,8 +19,7 @@ impl SelfResCorpsePersistence {
     fn install_delete_gate(&self) -> (Arc<Notify>, Arc<Semaphore>) {
         let entered = Arc::new(Notify::new());
         let release = Arc::new(Semaphore::new(0));
-        *self.delete_gate.lock().unwrap() =
-            Some((Arc::clone(&entered), Arc::clone(&release)));
+        *self.delete_gate.lock().unwrap() = Some((Arc::clone(&entered), Arc::clone(&release)));
         (entered, release)
     }
 }
@@ -29,10 +28,8 @@ impl wow_persistence::MapCorpsePersistencePortLikeCpp for SelfResCorpsePersisten
     fn load_map_corpses_like_cpp<'a>(
         &'a self,
         _request: wow_persistence::MapCorpseLoadRequestLikeCpp,
-    ) -> wow_persistence::PersistenceFutureLikeCpp<
-        'a,
-        wow_persistence::MapCorpseLoadOutcomeLikeCpp,
-    > {
+    ) -> wow_persistence::PersistenceFutureLikeCpp<'a, wow_persistence::MapCorpseLoadOutcomeLikeCpp>
+    {
         Box::pin(async {
             wow_persistence::MapCorpseLoadOutcomeLikeCpp::Failed {
                 reason: "self-resurrection test does not load corpses".into(),
@@ -248,10 +245,7 @@ async fn recovery_fences_near_transfer_does_not_defer_a_confirmed_recovery_save(
 async fn native_self_resurrection_converts_real_corpse_then_full_saves_player() {
     let (mut session, _admission, _packet_tx, _send_rx) = logged_in_recovery_session();
     install_recovery_save_snapshot_inputs(&mut session);
-    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(
-        &mut session,
-        true,
-    ));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true,));
     let player_guid = session
         .with_owned_player_like_cpp(|player| player.guid())
         .expect("Player GUID");
@@ -259,18 +253,42 @@ async fn native_self_resurrection_converts_real_corpse_then_full_saves_player() 
         .with_owned_player_mut_like_cpp(|player| {
             player.unit_mut().set_max_health(100);
             player.unit_mut().set_health(0);
-            player.unit_mut().set_power_index(wow_constants::PowerType::Mana, Some(0));
-            player.unit_mut().set_power_index(wow_constants::PowerType::Rage, Some(1));
-            player.unit_mut().set_power_index(wow_constants::PowerType::Energy, Some(3));
-            player.unit_mut().set_power_index(wow_constants::PowerType::Focus, Some(4));
-            player.unit_mut().set_max_power(wow_constants::PowerType::Mana, 200);
-            player.unit_mut().set_power(wow_constants::PowerType::Mana, 25);
-            player.unit_mut().set_max_power(wow_constants::PowerType::Rage, 100);
-            player.unit_mut().set_power(wow_constants::PowerType::Rage, 50);
-            player.unit_mut().set_max_power(wow_constants::PowerType::Energy, 100);
-            player.unit_mut().set_power(wow_constants::PowerType::Energy, 30);
-            player.unit_mut().set_max_power(wow_constants::PowerType::Focus, 100);
-            player.unit_mut().set_power(wow_constants::PowerType::Focus, 40);
+            player
+                .unit_mut()
+                .set_power_index(wow_constants::PowerType::Mana, Some(0));
+            player
+                .unit_mut()
+                .set_power_index(wow_constants::PowerType::Rage, Some(1));
+            player
+                .unit_mut()
+                .set_power_index(wow_constants::PowerType::Energy, Some(3));
+            player
+                .unit_mut()
+                .set_power_index(wow_constants::PowerType::Focus, Some(4));
+            player
+                .unit_mut()
+                .set_max_power(wow_constants::PowerType::Mana, 200);
+            player
+                .unit_mut()
+                .set_power(wow_constants::PowerType::Mana, 25);
+            player
+                .unit_mut()
+                .set_max_power(wow_constants::PowerType::Rage, 100);
+            player
+                .unit_mut()
+                .set_power(wow_constants::PowerType::Rage, 50);
+            player
+                .unit_mut()
+                .set_max_power(wow_constants::PowerType::Energy, 100);
+            player
+                .unit_mut()
+                .set_power(wow_constants::PowerType::Energy, 30);
+            player
+                .unit_mut()
+                .set_max_power(wow_constants::PowerType::Focus, 100);
+            player
+                .unit_mut()
+                .set_power(wow_constants::PowerType::Focus, 40);
             player
                 .unit_mut()
                 .set_death_state(wow_constants::DeathState::Dead);
@@ -278,15 +296,7 @@ async fn native_self_resurrection_converts_real_corpse_then_full_saves_player() 
         })
         .expect("canonical Player remains the recovery owner");
 
-    let corpse_guid = ObjectGuid::create_world_object(
-        HighGuid::Corpse,
-        0,
-        1,
-        571,
-        0,
-        0,
-        88_331,
-    );
+    let corpse_guid = ObjectGuid::create_world_object(HighGuid::Corpse, 0, 1, 571, 0, 0, 88_331);
     let mut corpse = wow_entities::Corpse::new_at(wow_entities::CorpseType::ResurrectablePve, 0);
     corpse.world_mut().object_mut().create(corpse_guid);
     corpse.world_mut().set_map(571, 0).expect("corpse map");
@@ -310,9 +320,8 @@ async fn native_self_resurrection_converts_real_corpse_then_full_saves_player() 
 
     let corpse_port = std::sync::Arc::new(SelfResCorpsePersistence::default());
     session.set_map_corpse_persistence_port_like_cpp(corpse_port.clone());
-    let save_port = RecordingPlayerLifecyclePort::new(PersistenceOutcomeLikeCpp::Applied {
-        rows: 1,
-    });
+    let save_port =
+        RecordingPlayerLifecyclePort::new(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
     session.set_player_lifecycle_port_like_cpp(save_port.clone());
     let generators = session.id_generators_for_test_like_cpp();
     let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
@@ -340,8 +349,7 @@ async fn native_self_resurrection_converts_real_corpse_then_full_saves_player() 
     let save_requests = save_port.character_save_requests();
     assert_eq!(save_requests.len(), 1);
     assert_eq!(
-        save_requests[0].character.health,
-        35,
+        save_requests[0].character.health, 35,
         "the full Player save captures the restored native SelfRes health"
     );
     assert_eq!(
@@ -357,10 +365,7 @@ async fn native_self_resurrection_converts_real_corpse_then_full_saves_player() 
 async fn native_self_resurrection_cancelled_during_real_corpse_delete_stays_nonreplayable() {
     let (mut session, admission, _packet_tx, _send_rx) = logged_in_recovery_session();
     install_recovery_save_snapshot_inputs(&mut session);
-    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(
-        &mut session,
-        true,
-    ));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true,));
     let player_guid = session
         .with_owned_player_like_cpp(|player| player.guid())
         .expect("Player GUID");
@@ -369,18 +374,42 @@ async fn native_self_resurrection_cancelled_during_real_corpse_delete_stays_nonr
         .with_owned_player_mut_like_cpp(|player| {
             player.unit_mut().set_max_health(100);
             player.unit_mut().set_health(0);
-            player.unit_mut().set_power_index(wow_constants::PowerType::Mana, Some(0));
-            player.unit_mut().set_power_index(wow_constants::PowerType::Rage, Some(1));
-            player.unit_mut().set_power_index(wow_constants::PowerType::Energy, Some(3));
-            player.unit_mut().set_power_index(wow_constants::PowerType::Focus, Some(4));
-            player.unit_mut().set_max_power(wow_constants::PowerType::Mana, 200);
-            player.unit_mut().set_power(wow_constants::PowerType::Mana, 25);
-            player.unit_mut().set_max_power(wow_constants::PowerType::Rage, 100);
-            player.unit_mut().set_power(wow_constants::PowerType::Rage, 50);
-            player.unit_mut().set_max_power(wow_constants::PowerType::Energy, 100);
-            player.unit_mut().set_power(wow_constants::PowerType::Energy, 30);
-            player.unit_mut().set_max_power(wow_constants::PowerType::Focus, 100);
-            player.unit_mut().set_power(wow_constants::PowerType::Focus, 40);
+            player
+                .unit_mut()
+                .set_power_index(wow_constants::PowerType::Mana, Some(0));
+            player
+                .unit_mut()
+                .set_power_index(wow_constants::PowerType::Rage, Some(1));
+            player
+                .unit_mut()
+                .set_power_index(wow_constants::PowerType::Energy, Some(3));
+            player
+                .unit_mut()
+                .set_power_index(wow_constants::PowerType::Focus, Some(4));
+            player
+                .unit_mut()
+                .set_max_power(wow_constants::PowerType::Mana, 200);
+            player
+                .unit_mut()
+                .set_power(wow_constants::PowerType::Mana, 25);
+            player
+                .unit_mut()
+                .set_max_power(wow_constants::PowerType::Rage, 100);
+            player
+                .unit_mut()
+                .set_power(wow_constants::PowerType::Rage, 50);
+            player
+                .unit_mut()
+                .set_max_power(wow_constants::PowerType::Energy, 100);
+            player
+                .unit_mut()
+                .set_power(wow_constants::PowerType::Energy, 30);
+            player
+                .unit_mut()
+                .set_max_power(wow_constants::PowerType::Focus, 100);
+            player
+                .unit_mut()
+                .set_power(wow_constants::PowerType::Focus, 40);
             player
                 .unit_mut()
                 .set_death_state(wow_constants::DeathState::Dead);
@@ -388,15 +417,7 @@ async fn native_self_resurrection_cancelled_during_real_corpse_delete_stays_nonr
         })
         .expect("canonical Player remains the recovery owner");
 
-    let corpse_guid = ObjectGuid::create_world_object(
-        HighGuid::Corpse,
-        0,
-        1,
-        571,
-        0,
-        0,
-        88_332,
-    );
+    let corpse_guid = ObjectGuid::create_world_object(HighGuid::Corpse, 0, 1, 571, 0, 0, 88_332);
     let mut corpse = wow_entities::Corpse::new_at(wow_entities::CorpseType::ResurrectablePve, 0);
     corpse.world_mut().object_mut().create(corpse_guid);
     corpse.world_mut().set_map(571, 0).expect("corpse map");
@@ -421,9 +442,8 @@ async fn native_self_resurrection_cancelled_during_real_corpse_delete_stays_nonr
     let corpse_port = Arc::new(SelfResCorpsePersistence::default());
     let (delete_entered, _delete_release) = corpse_port.install_delete_gate();
     session.set_map_corpse_persistence_port_like_cpp(corpse_port.clone());
-    let save_port = RecordingPlayerLifecyclePort::new(PersistenceOutcomeLikeCpp::Applied {
-        rows: 1,
-    });
+    let save_port =
+        RecordingPlayerLifecyclePort::new(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
     session.set_player_lifecycle_port_like_cpp(save_port.clone());
     let generators = session.id_generators_for_test_like_cpp();
     let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();
@@ -470,10 +490,7 @@ async fn native_self_resurrection_cancelled_during_real_corpse_delete_stays_nonr
     );
     let player_after_cancel = session
         .with_owned_player_like_cpp(|player| {
-            (
-                player.unit().death_state(),
-                player.unit().data().health,
-            )
+            (player.unit().death_state(), player.unit().data().health)
         })
         .expect("cancelled native SelfRes keeps its canonical Player");
     assert_eq!(
@@ -501,9 +518,7 @@ async fn native_self_resurrection_cancelled_during_real_corpse_delete_stays_nonr
                 player
                     .resurrection_state_like_cpp()
                     .delayed_after_teleport
-                    .map(|continuation| {
-                        (continuation.operation, continuation.phase)
-                    })
+                    .map(|continuation| (continuation.operation, continuation.phase))
             })
             .flatten(),
         Some((

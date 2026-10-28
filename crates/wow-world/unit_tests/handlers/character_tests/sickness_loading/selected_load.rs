@@ -1,5 +1,5 @@
-use super::*;
 use super::selected_restore::{authority, keyed_rows, loaded_sickness};
+use super::*;
 use std::sync::Arc;
 
 fn saved_effects(
@@ -9,15 +9,17 @@ fn saved_effects(
     amount: i32,
 ) -> Vec<crate::session::CharacterAuraEffectRowLikeCpp> {
     (0..3)
-        .map(|effect_index| crate::session::CharacterAuraEffectRowLikeCpp {
-            caster_guid,
-            item_guid: ObjectGuid::EMPTY,
-            spell_id,
-            effect_mask,
-            effect_index,
-            amount,
-            base_amount: amount,
-        })
+        .map(
+            |effect_index| crate::session::CharacterAuraEffectRowLikeCpp {
+                caster_guid,
+                item_guid: ObjectGuid::EMPTY,
+                spell_id,
+                effect_mask,
+                effect_index,
+                amount,
+                base_amount: amount,
+            },
+        )
         .collect()
 }
 
@@ -118,14 +120,14 @@ fn install_indexed_sickness_data(
     }
     session.set_spell_store(Arc::new(spells));
     session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries(misc_rows)));
-    session.set_spell_duration_store(Arc::new(
-        wow_data::SpellDurationStore::from_entries([wow_data::SpellDurationEntry {
+    session.set_spell_duration_store(Arc::new(wow_data::SpellDurationStore::from_entries([
+        wow_data::SpellDurationEntry {
             id: 427,
             duration: -600_000,
             duration_per_level: 0,
             max_duration: 600_000,
-        }]),
-    ));
+        },
+    ])));
     session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_entries(
         difficulty_rows,
     )));
@@ -137,10 +139,7 @@ fn replace_spell_attributes(session: &mut WorldSession, spell_id: i32, attribute
         .spell_store()
         .cloned()
         .expect("selected SpellStore");
-    let info = existing
-        .get(spell_id)
-        .cloned()
-        .expect("selected SpellInfo");
+    let info = existing.get(spell_id).cloned().expect("selected SpellInfo");
     let keys = existing
         .spell_info_keys_in_order_like_cpp()
         .into_iter()
@@ -242,10 +241,7 @@ fn loaded_spell(
         .flatten()
 }
 
-fn selected_snapshot_effects(
-    session: &WorldSession,
-    spell_id: i32,
-) -> Vec<(u32, i32, i32, i32)> {
+fn selected_snapshot_effects(session: &WorldSession, spell_id: i32) -> Vec<(u32, i32, i32, i32)> {
     session
         .core
         .with_owned_player_like_cpp(|player| {
@@ -300,7 +296,10 @@ fn selected_load_resolves_indexed_effects_through_difficulty_chains() {
         1
     );
     let loaded = loaded_spell(&session, SICKNESS_SPELL_ID).expect("loaded sickness");
-    assert_eq!(loaded.0.difficulty_id, 4, "the saved difficulty is retained");
+    assert_eq!(
+        loaded.0.difficulty_id, 4,
+        "the saved difficulty is retained"
+    );
     assert_eq!(
         selected_snapshot_effects(&session, SICKNESS_SPELL_ID)
             .iter()
@@ -357,24 +356,28 @@ fn selected_load_rejects_missing_difficulty_cycle_and_malformed_metadata_before_
     );
     let old = loaded_spell(&missing_row, SICKNESS_SPELL_ID).expect("existing sickness");
     missing_row.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_ids([0])));
-    assert!(missing_row
-        .catalogs
-        .difficulty_store()
-        .expect("known DifficultyStore")
-        .contains(0));
-    assert!(!missing_row
-        .catalogs
-        .difficulty_store()
-        .expect("known DifficultyStore")
-        .contains(4));
+    assert!(
+        missing_row
+            .catalogs
+            .difficulty_store()
+            .expect("known DifficultyStore")
+            .contains(0)
+    );
+    assert!(
+        !missing_row
+            .catalogs
+            .difficulty_store()
+            .expect("known DifficultyStore")
+            .contains(4)
+    );
     let (mut candidate, saved) = keyed_rows(player, player, ObjectGuid::EMPTY, 0b111, 80_000);
     candidate.difficulty = 4;
     assert_eq!(
         missing_row.load_represented_character_auras_like_cpp([candidate], saved, 0),
         0
     );
-    let current = loaded_spell(&missing_row, SICKNESS_SPELL_ID)
-        .expect("existing aura is preserved");
+    let current =
+        loaded_spell(&missing_row, SICKNESS_SPELL_ID).expect("existing aura is preserved");
     assert_eq!(current.0.slot, old.0.slot);
     assert_eq!(current.2.cast_id, old.2.cast_id);
     assert_eq!(authority(&missing_row), Some(false));
@@ -447,16 +450,15 @@ fn selected_load_expiry_uses_whole_debuff_polarity_without_caster_resolution() {
     let (mut session, player, _) =
         canonical_aura_session([sickness_catalog_info()], SICKNESS_SPELL_ID);
     install_positive_sickness_effects_with_debuff(&mut session);
-    let store = session
-        .catalogs
-        .spell_store()
-        .expect("selected SpellStore");
-    assert!(store
-        .get(SICKNESS_SPELL_ID)
-        .expect("selected SpellInfo")
-        .effects()
-        .iter()
-        .all(|effect| effect.effect_base_points > 0));
+    let store = session.catalogs.spell_store().expect("selected SpellStore");
+    assert!(
+        store
+            .get(SICKNESS_SPELL_ID)
+            .expect("selected SpellInfo")
+            .effects()
+            .iter()
+            .all(|effect| effect.effect_base_points > 0)
+    );
     assert_eq!(
         store
             .misc_attributes_for_difficulty_like_cpp(SICKNESS_SPELL_ID, 0, None)
@@ -478,13 +480,8 @@ fn selected_load_expiry_uses_whole_debuff_polarity_without_caster_resolution() {
         SPELL_ATTR0_AURA_IS_DEBUFF
     );
     let missing_caster = ObjectGuid::create_player(1, 99_991);
-    let (mut aura, mut saved) = keyed_rows(
-        player,
-        missing_caster,
-        ObjectGuid::EMPTY,
-        0b111,
-        50_000,
-    );
+    let (mut aura, mut saved) =
+        keyed_rows(player, missing_caster, ObjectGuid::EMPTY, 0b111, 50_000);
     aura.recalculate_mask = 0;
     for effect in &mut saved {
         effect.amount = 50;
@@ -616,12 +613,7 @@ fn wisp_info() -> wow_data::SpellInfo {
                 0,
                 0,
             ),
-            sickness_effect(
-                2,
-                wow_data::spell::aura_types::SPELL_AURA_TRANSFORM,
-                0,
-                0,
-            ),
+            sickness_effect(2, wow_data::spell::aura_types::SPELL_AURA_TRANSFORM, 0, 0),
         ],
     )
 }
@@ -763,9 +755,9 @@ fn selected_load_resolves_foreign_mixed_polarity_from_the_map_relation() {
         let mut caster = Box::new(wow_entities::Player::new(Some(99_993), false));
         caster.unit_mut().world_mut().object_mut().create(foreign);
         caster.unit_mut().set_level(44);
-        caster.unit_mut().set_unit_flags_like_cpp(
-            wow_constants::unit::UnitFlags::PLAYER_CONTROLLED,
-        );
+        caster
+            .unit_mut()
+            .set_unit_flags_like_cpp(wow_constants::unit::UnitFlags::PLAYER_CONTROLLED);
         let caster_handle = manager
             .install_detached_player_like_cpp(caster)
             .expect("foreign caster Player");
@@ -778,9 +770,9 @@ fn selected_load_resolves_foreign_mixed_polarity_from_the_map_relation() {
             .expect("same-map foreign caster");
         manager
             .with_player_mut_like_cpp(owner, |target| {
-                target.unit_mut().set_unit_flags_like_cpp(
-                    wow_constants::unit::UnitFlags::PLAYER_CONTROLLED,
-                );
+                target
+                    .unit_mut()
+                    .set_unit_flags_like_cpp(wow_constants::unit::UnitFlags::PLAYER_CONTROLLED);
                 target.set_group_like_cpp(Some(wow_entities::PlayerGroupState {
                     group_guid: group,
                     leader_guid: player,
@@ -801,11 +793,13 @@ fn selected_load_resolves_foreign_mixed_polarity_from_the_map_relation() {
             .expect("foreign caster Player");
         caster_handle
     };
-    assert!(manager
-        .lock()
-        .expect("canonical MapManager")
-        .with_player_like_cpp(caster_handle, |caster| caster.guid() == foreign)
-        .expect("foreign caster owner"));
+    assert!(
+        manager
+            .lock()
+            .expect("canonical MapManager")
+            .with_player_like_cpp(caster_handle, |caster| caster.guid() == foreign)
+            .expect("foreign caster owner")
+    );
     let (aura, saved) = keyed_rows(player, foreign, ObjectGuid::EMPTY, 0b111, 90_000);
 
     assert_eq!(

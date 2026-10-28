@@ -6,8 +6,7 @@
 
 use super::{
     SpellExecutionHostLikeCpp, check_represented_cast_preparation_like_cpp,
-    check_represented_caster_death_like_cpp,
-    publish_player_cast_interrupted_frames_like_cpp,
+    check_represented_caster_death_like_cpp, publish_player_cast_interrupted_frames_like_cpp,
     represented_gameobject_summon_missing_nearby_entry_destination_like_cpp,
     take_spell_power_like_cpp,
 };

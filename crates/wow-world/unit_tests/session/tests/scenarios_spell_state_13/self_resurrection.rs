@@ -11,10 +11,8 @@ impl wow_persistence::MapCorpsePersistencePortLikeCpp for SelfResFailureCorpsePe
     fn load_map_corpses_like_cpp<'a>(
         &'a self,
         _request: wow_persistence::MapCorpseLoadRequestLikeCpp,
-    ) -> wow_persistence::PersistenceFutureLikeCpp<
-        'a,
-        wow_persistence::MapCorpseLoadOutcomeLikeCpp,
-    > {
+    ) -> wow_persistence::PersistenceFutureLikeCpp<'a, wow_persistence::MapCorpseLoadOutcomeLikeCpp>
+    {
         Box::pin(async {
             wow_persistence::MapCorpseLoadOutcomeLikeCpp::Failed {
                 reason: "SelfRes failure case does not load corpses".into(),
@@ -85,7 +83,10 @@ fn publish_native_resurrection_values_from_map_like_cpp(
                 .expect("native Player is owned by the current Map");
             let object = player.unit().world().object();
             assert!(object.is_in_world());
-            assert!(object.is_object_updated(), "native setters mark the Map owner");
+            assert!(
+                object.is_object_updated(),
+                "native setters mark the Map owner"
+            );
             assert!(object.is_need_notify(wow_entities::ObjectNotifyFlags::VISIBILITY_CHANGED));
             [
                 PowerType::Mana,
@@ -137,13 +138,20 @@ fn publish_native_resurrection_values_from_map_like_cpp(
     }
 
     assert_eq!(
-        session.send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(),
+        session
+            .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(
+            ),
         1,
         "the existing World consumer sends the Map-owned snapshot"
     );
-    assert_eq!(drain_server_opcodes(send_rx), vec![ServerOpcodes::UpdateObject]);
     assert_eq!(
-        session.send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(),
+        drain_server_opcodes(send_rx),
+        vec![ServerOpcodes::UpdateObject]
+    );
+    assert_eq!(
+        session
+            .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(
+            ),
         0,
         "a second consumer pass cannot duplicate the consumed snapshot"
     );
@@ -209,15 +217,10 @@ fn install_self_resurrect_spell_like_cpp(
         wow_data::spell_db2::SpellPowerStore::from_entries([]),
         wow_data::spell_db2::SpellPowerDifficultyStore::from_entries([]),
     );
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(
-        spell_id as u32,
-        0,
-    )])
-    .hydrate_effective_core_db2_like_cpp(stores);
-    spell_store.insert(
-        spell_id,
-        self_resurrect_spell(spell_id, damage, misc_value),
-    );
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)])
+            .hydrate_effective_core_db2_like_cpp(stores);
+    spell_store.insert(spell_id, self_resurrect_spell(spell_id, damage, misc_value));
     session.set_spell_store(Arc::new(spell_store));
 }
 
@@ -303,7 +306,11 @@ async fn spell_self_resurrect_flat_case_sets_health_and_powers_like_cpp() {
         vec![ServerOpcodes::DeathReleaseLoc],
         "ResurrectPlayer routes the cleared death-release location through the realm connection"
     );
-    assert_eq!(save_port.character_save_count(), 0, "NoCorpse skips SaveToDB");
+    assert_eq!(
+        save_port.character_save_count(),
+        0,
+        "NoCorpse skips SaveToDB"
+    );
     assert_eq!(
         session.with_owned_player_like_cpp(|player| player
             .resurrection_state_like_cpp()
@@ -465,13 +472,15 @@ async fn native_self_resurrect_player_out_of_world_is_a_noop() {
         drain_server_opcodes(&send_rx),
         vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
     );
-    assert!(!session
-        .with_owned_player_like_cpp(|player| player
-            .unit()
-            .world()
-            .object()
-            .is_need_notify(wow_entities::ObjectNotifyFlags::VISIBILITY_CHANGED))
-        .unwrap());
+    assert!(
+        !session
+            .with_owned_player_like_cpp(|player| player
+                .unit()
+                .world()
+                .object()
+                .is_need_notify(wow_entities::ObjectNotifyFlags::VISIBILITY_CHANGED))
+            .unwrap()
+    );
 }
 
 #[tokio::test]
@@ -514,15 +523,8 @@ async fn native_self_resurrect_obtain_failure_kicks_and_retains_before_bones_or_
     let spell_id = 78_333_i32;
     let player_guid = ObjectGuid::create_player(1, 7833);
     configure_self_resurrect_without_inventory_authority_like_cpp(&mut session, player_guid);
-    let corpse_guid = ObjectGuid::create_world_object(
-        wow_core::guid::HighGuid::Corpse,
-        0,
-        1,
-        0,
-        0,
-        0,
-        78_337,
-    );
+    let corpse_guid =
+        ObjectGuid::create_world_object(wow_core::guid::HighGuid::Corpse, 0, 1, 0, 0, 0, 78_337);
     let mut corpse = wow_entities::Corpse::new_at(wow_entities::CorpseType::ResurrectablePve, 0);
     corpse.world_mut().object_mut().create(corpse_guid);
     corpse.world_mut().set_map(0, 0).expect("corpse map");
@@ -555,16 +557,18 @@ async fn native_self_resurrect_obtain_failure_kicks_and_retains_before_bones_or_
             .expect("the admitted Player allocates its canonical Cast GUID and residence stamp");
     let mut metadata = wow_entities::SpellCastMetadata::default();
     metadata.prepared_residence_revision = residence_revision;
-    assert!(session.set_active_spell_cast_like_cpp(Some(wow_entities::SpellCastState {
-        spell_id,
-        target_guid: player_guid,
-        target_data: Default::default(),
-        cast_id,
-        cast_start_time: Instant::now(),
-        cast_time_ms: 0,
-        spell_visual: Default::default(),
-        metadata,
-    })));
+    assert!(
+        session.set_active_spell_cast_like_cpp(Some(wow_entities::SpellCastState {
+            spell_id,
+            target_guid: player_guid,
+            target_data: Default::default(),
+            cast_id,
+            cast_start_time: Instant::now(),
+            cast_time_ms: 0,
+            spell_visual: Default::default(),
+            metadata,
+        }))
+    );
 
     session.tick_active_spell_cast().await;
 
@@ -631,7 +635,10 @@ async fn native_self_resurrect_current_native_setters_cap_flat_values() {
 
     let (health, mana) = session
         .with_owned_player_like_cpp(|player| {
-            (player.unit().data().health, player.get_power(PowerType::Mana))
+            (
+                player.unit().data().health,
+                player.get_power(PowerType::Mana),
+            )
         })
         .unwrap();
     assert_eq!((health, mana), (100, 60));

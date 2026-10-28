@@ -26,8 +26,8 @@ use wow_packet::packets::misc::{
     ReclaimCorpse, RepopRequest, RequestCemeteryListResponse, ResurrectResponse,
 };
 
-use crate::movement_host::PlayerMovementHostLikeCpp;
 use crate::TELE_TO_NONE_LIKE_CPP;
+use crate::movement_host::PlayerMovementHostLikeCpp;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ResurrectionSaveOutcome {
@@ -246,13 +246,8 @@ pub async fn handle_resurrect_response<H: CorpseHostLikeCpp>(
 
     // C++ `ResurrectUsingRequestData` teleports first; the continuation has
     // already taken Player ownership before this await can be cancelled.
-    host.teleport_to_with_options_like_cpp(
-        catalogs,
-        map_id,
-        position,
-        TELE_TO_NONE_LIKE_CPP,
-    )
-    .await;
+    host.teleport_to_with_options_like_cpp(catalogs, map_id, position, TELE_TO_NONE_LIKE_CPP)
+        .await;
     let teleport = host.hub_ref().player_teleport_state_snapshot_like_cpp();
     let near_pending = teleport.is_some_and(|state| state.near_pending);
     let far_pending = host.pending_teleport_like_cpp();

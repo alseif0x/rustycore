@@ -120,8 +120,7 @@ async fn loaded_ghost_speed_subset_obeys_spell_debuff_and_does_not_set_ghost_fla
     };
     assert_eq!(ghost.effect_mask, 0b110);
     assert_eq!(
-        ghost.aura_flags,
-        0x0011,
+        ghost.aura_flags, 0x0011,
         "SpellInfo AURA_IS_DEBUFF precedes the speed aura effect polarity",
     );
     assert_eq!(

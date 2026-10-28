@@ -106,7 +106,14 @@ async fn world_dead_caster_client_and_server_dead_or_ghost_casts_fail_before_sta
         let (mut session, _, send_rx) = make_session();
         let canonical = shared_canonical_map_manager();
         let player_guid = ObjectGuid::create_player(1, 59_100 + suffix);
-        install_canonical_player(&mut session, &canonical, player_guid, 571, 0, Position::ZERO);
+        install_canonical_player(
+            &mut session,
+            &canonical,
+            player_guid,
+            571,
+            0,
+            Position::ZERO,
+        );
         configure_dead_player(&mut session, death_state);
         configure_cast_visuals(&mut session);
         session.set_known_spells_like_cpp(vec![DEAD_CAST_ID]);
@@ -142,7 +149,10 @@ async fn world_dead_caster_client_and_server_dead_or_ghost_casts_fail_before_sta
             u16::from_le_bytes([frames[0][0], frames[0][1]]),
             ServerOpcodes::SpellPrepare as u16
         );
-        assert_eq!(read_cast_failed_reason(&frames[1]), wow_constants::SpellCastResult::CasterDead as i32);
+        assert_eq!(
+            read_cast_failed_reason(&frames[1]),
+            wow_constants::SpellCastResult::CasterDead as i32
+        );
         assert!(session.active_spell_cast_snapshot_like_cpp().is_none());
         assert_eq!(
             session.with_owned_player_like_cpp(|player| {
@@ -174,13 +184,7 @@ async fn world_dead_caster_client_and_server_dead_or_ghost_casts_fail_before_sta
         );
         configure_dead_player(&mut server_session, death_state);
         configure_cast_visuals(&mut server_session);
-        install_dead_gate_spell(
-            &mut server_session,
-            spell_for_dead_gate(0),
-            &[0],
-            &[],
-            true,
-        );
+        install_dead_gate_spell(&mut server_session, spell_for_dead_gate(0), &[0], &[], true);
         let generators = server_session.id_generators_for_test_like_cpp();
         let creature_spawns = server_session.creature_spawn_catalogs_for_test_like_cpp();
         assert_eq!(
@@ -197,8 +201,15 @@ async fn world_dead_caster_client_and_server_dead_or_ghost_casts_fail_before_sta
         );
         let frames = drain_frames(&server_rx);
         assert_eq!(frames.len(), 1);
-        assert_eq!(read_cast_failed_reason(&frames[0]), wow_constants::SpellCastResult::CasterDead as i32);
-        assert!(server_session.active_spell_cast_snapshot_like_cpp().is_none());
+        assert_eq!(
+            read_cast_failed_reason(&frames[0]),
+            wow_constants::SpellCastResult::CasterDead as i32
+        );
+        assert!(
+            server_session
+                .active_spell_cast_snapshot_like_cpp()
+                .is_none()
+        );
         assert_eq!(
             server_session.with_owned_player_like_cpp(|player| {
                 (player.unit().death_state(), player.unit().data().health)
@@ -238,7 +249,10 @@ async fn world_dead_caster_allow_dead_self_res_uses_actual_map_spellinfo_key() {
         &mut session,
         spell,
         &[0, 3],
-        &[(3, wow_data::spell::attributes::SPELL_ATTR0_ALLOW_CAST_WHILE_DEAD)],
+        &[(
+            3,
+            wow_data::spell::attributes::SPELL_ATTR0_ALLOW_CAST_WHILE_DEAD,
+        )],
         true,
     );
 
@@ -255,7 +269,11 @@ async fn world_dead_caster_allow_dead_self_res_uses_actual_map_spellinfo_key() {
         drain_server_opcodes(&send_rx),
         vec![ServerOpcodes::SpellPrepare, ServerOpcodes::SpellStart]
     );
-    assert!(session.with_owned_player_like_cpp(|player| !player.unit().is_alive()).unwrap());
+    assert!(
+        session
+            .with_owned_player_like_cpp(|player| !player.unit().is_alive())
+            .unwrap()
+    );
 }
 
 #[tokio::test]
@@ -263,7 +281,14 @@ async fn world_dead_caster_late_checkcast_rejects_direct_spell_before_go() {
     let (mut session, _, send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
     let player_guid = ObjectGuid::create_player(1, 59_450);
-    install_canonical_player(&mut session, &canonical, player_guid, 571, 0, Position::ZERO);
+    install_canonical_player(
+        &mut session,
+        &canonical,
+        player_guid,
+        571,
+        0,
+        Position::ZERO,
+    );
     configure_dead_player(&mut session, wow_constants::DeathState::Dead);
     install_dead_gate_spell(&mut session, spell_for_dead_gate(0), &[0], &[], true);
 
@@ -274,7 +299,10 @@ async fn world_dead_caster_late_checkcast_rejects_direct_spell_before_go() {
 
     let frames = drain_frames(&send_rx);
     assert_eq!(frames.len(), 1);
-    assert_eq!(read_cast_failed_reason(&frames[0]), wow_constants::SpellCastResult::CasterDead as i32);
+    assert_eq!(
+        read_cast_failed_reason(&frames[0]),
+        wow_constants::SpellCastResult::CasterDead as i32
+    );
     assert_eq!(
         drain_server_opcodes(&send_rx),
         Vec::<ServerOpcodes>::new(),
@@ -293,7 +321,14 @@ fn dead_caster_gate_uses_source_words_full_mask_and_actual_typed_caster() {
     let (mut session, _, send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
     let player_guid = ObjectGuid::create_player(1, 59_500);
-    install_canonical_player(&mut session, &canonical, player_guid, 571, 0, Position::ZERO);
+    install_canonical_player(
+        &mut session,
+        &canonical,
+        player_guid,
+        571,
+        0,
+        Position::ZERO,
+    );
     configure_dead_player(&mut session, wow_constants::DeathState::Dead);
     let spell = spell_for_dead_gate(0);
     let cast_id = ObjectGuid::new(6, 59_501);
@@ -313,32 +348,45 @@ fn dead_caster_gate_uses_source_words_full_mask_and_actual_typed_caster() {
     );
     let frames = drain_frames(&send_rx);
     assert_eq!(frames.len(), 1);
-    assert_eq!(read_cast_failed_reason(&frames[0]), wow_constants::SpellCastResult::CasterDead as i32);
+    assert_eq!(
+        read_cast_failed_reason(&frames[0]),
+        wow_constants::SpellCastResult::CasterDead as i32
+    );
 
     install_dead_gate_spell(&mut session, spell.clone(), &[0], &[], false);
-    assert!(wow_world_spell::check_represented_caster_death_like_cpp(
-        &mut session,
-        &spell,
-        cast_id,
-        &visual,
-        &mut Default::default(),
-    )
-    .is_err());
-    assert!(send_rx.is_empty(), "unavailable Misc authority is not CasterDead");
+    assert!(
+        wow_world_spell::check_represented_caster_death_like_cpp(
+            &mut session,
+            &spell,
+            cast_id,
+            &visual,
+            &mut Default::default(),
+        )
+        .is_err()
+    );
+    assert!(
+        send_rx.is_empty(),
+        "unavailable Misc authority is not CasterDead"
+    );
 
     let mut missing_creature = wow_entities::SpellCastMetadata {
         caster_guid_override: Some(test_creature_guid(59_509)),
         ..Default::default()
     };
-    assert!(wow_world_spell::check_represented_caster_death_like_cpp(
-        &mut session,
-        &spell,
-        cast_id,
-        &visual,
-        &mut missing_creature,
-    )
-    .is_err());
-    assert!(send_rx.is_empty(), "missing typed caster authority is not CasterDead");
+    assert!(
+        wow_world_spell::check_represented_caster_death_like_cpp(
+            &mut session,
+            &spell,
+            cast_id,
+            &visual,
+            &mut missing_creature,
+        )
+        .is_err()
+    );
+    assert!(
+        send_rx.is_empty(),
+        "missing typed caster authority is not CasterDead"
+    );
 
     for allowed_attributes in [
         wow_data::spell::attributes::SPELL_ATTR0_PASSIVE,
@@ -396,7 +444,10 @@ fn dead_caster_gate_uses_source_words_full_mask_and_actual_typed_caster() {
     );
     let frames = drain_frames(&send_rx);
     assert_eq!(frames.len(), 1);
-    assert_eq!(read_cast_failed_reason(&frames[0]), wow_constants::SpellCastResult::CasterDead as i32);
+    assert_eq!(
+        read_cast_failed_reason(&frames[0]),
+        wow_constants::SpellCastResult::CasterDead as i32
+    );
 
     let creature_guid = test_creature_guid(59_510);
     add_canonical_test_creature_on_map(
@@ -437,7 +488,9 @@ fn dead_caster_gate_uses_source_words_full_mask_and_actual_typed_caster() {
     session
         .mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_health(100);
-            player.unit_mut().set_death_state(wow_constants::DeathState::Alive);
+            player
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::Alive);
         })
         .unwrap();
     install_dead_gate_spell(&mut session, spell.clone(), &[0], &[], true);
@@ -454,22 +507,19 @@ fn dead_caster_gate_uses_source_words_full_mask_and_actual_typed_caster() {
     );
     let frames = drain_frames(&send_rx);
     assert_eq!(frames.len(), 1);
-    assert_eq!(read_cast_failed_reason(&frames[0]), wow_constants::SpellCastResult::CasterDead as i32);
+    assert_eq!(
+        read_cast_failed_reason(&frames[0]),
+        wow_constants::SpellCastResult::CasterDead as i32
+    );
 
     let vehicle_guid = ObjectGuid::create_vehicle_like_cpp(1, 571, 59_520, 59_521);
-    add_canonical_test_creature_on_map(
-        &canonical,
-        vehicle_guid,
-        59_520,
-        Position::ZERO,
-        0,
-        571,
-        0,
-    );
+    add_canonical_test_creature_on_map(&canonical, vehicle_guid, 59_520, Position::ZERO, 0, 571, 0);
     session
         .mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_health(0);
-            player.unit_mut().set_death_state(wow_constants::DeathState::Dead);
+            player
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::Dead);
         })
         .unwrap();
     let mut actual_vehicle = wow_entities::SpellCastMetadata {
@@ -500,7 +550,9 @@ fn dead_caster_gate_uses_source_words_full_mask_and_actual_typed_caster() {
     session
         .mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_health(100);
-            player.unit_mut().set_death_state(wow_constants::DeathState::Alive);
+            player
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::Alive);
         })
         .unwrap();
     assert_eq!(
@@ -549,7 +601,9 @@ fn dead_caster_gate_uses_source_words_full_mask_and_actual_typed_caster() {
     session
         .mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_health(0);
-            player.unit_mut().set_death_state(wow_constants::DeathState::Alive);
+            player
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::Alive);
         })
         .unwrap();
     session.set_spell_store(Arc::new(wow_data::SpellStore::new()));

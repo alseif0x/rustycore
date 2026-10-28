@@ -392,7 +392,10 @@ fn selected_effect_polarity_metadata_preserves_raw_db2_inputs_and_unknown_legacy
         metadata.real_points_per_level.to_bits(),
         (-2.75_f32).to_bits()
     );
-    assert_eq!(metadata.scaling_coefficient.to_bits(), (-0.625_f32).to_bits());
+    assert_eq!(
+        metadata.scaling_coefficient.to_bits(),
+        (-0.625_f32).to_bits()
+    );
     assert_eq!(metadata.scaling_variance.to_bits(), (-1.25_f32).to_bits());
     assert_eq!(base_effect.effect_base_points, 37);
     assert_eq!(base_effect.effect_die_sides, 4);

@@ -143,18 +143,20 @@ fn install_sickness_mana_cost(session: &mut WorldSession) {
         .get(SICKNESS_SPELL)
         .expect("selected sickness SpellInfo")
         .clone();
-    sickness.power_costs.push(wow_data::SpellPowerCostInfoLikeCpp {
-        order_index: 0,
-        power_type: wow_constants::PowerType::Mana as i8,
-        mana_cost: 25,
-        mana_cost_per_level: 0,
-        mana_per_second: 0,
-        power_cost_pct: 0.0,
-        power_cost_max_pct: 0.0,
-        power_pct_per_second: 0.0,
-        required_aura_spell_id: 0,
-        optional_cost: 0,
-    });
+    sickness
+        .power_costs
+        .push(wow_data::SpellPowerCostInfoLikeCpp {
+            order_index: 0,
+            power_type: wow_constants::PowerType::Mana as i8,
+            mana_cost: 25,
+            mana_cost_per_level: 0,
+            mana_per_second: 0,
+            power_cost_pct: 0.0,
+            power_cost_max_pct: 0.0,
+            power_pct_per_second: 0.0,
+            required_aura_spell_id: 0,
+            optional_cost: 0,
+        });
     spells.insert(SICKNESS_SPELL, sickness);
     session
         .core
@@ -170,7 +172,9 @@ fn install_sickness_mana_cost(session: &mut WorldSession) {
 fn sickness_mana(session: &WorldSession) -> i32 {
     session
         .core
-        .with_owned_player_like_cpp(|player| player.unit().get_power(wow_constants::PowerType::Mana))
+        .with_owned_player_like_cpp(|player| {
+            player.unit().get_power(wow_constants::PowerType::Mana)
+        })
         .expect("canonical Player mana")
 }
 
@@ -198,10 +202,7 @@ fn install_visual_override_potential(session: &mut WorldSession) {
         effect_misc_value_1: SICKNESS_SPELL,
         ..Default::default()
     }];
-    spells.insert(
-        846_202,
-        potential,
-    );
+    spells.insert(846_202, potential);
 }
 
 #[tokio::test]
@@ -227,8 +228,7 @@ async fn selected_cast_go_uses_source_visual_and_refresh_keeps_aura_provenance()
         .expect("selected sickness cast publishes SpellGo");
     let first_visual_id = decode_spell_go(first_go).3;
     assert_eq!(
-        first_visual_id,
-        SOURCE_VISUAL_ROW_ID,
+        first_visual_id, SOURCE_VISUAL_ROW_ID,
         "SpellGo uses the selected relation ID rather than the supplied visual"
     );
     assert_ne!(first_visual_id, 12_345);
@@ -282,8 +282,7 @@ async fn selected_cast_go_uses_source_visual_and_refresh_keeps_aura_provenance()
 #[tokio::test]
 async fn selected_cast_visual_uses_difficulty_fallback_and_ordered_relation_rows() {
     use wow_data::spell::aura_types::{
-        SPELL_AURA_MOD_DAMAGE_PERCENT_DONE, SPELL_AURA_MOD_PERCENT_STAT,
-        SPELL_AURA_NO_PVP_CREDIT,
+        SPELL_AURA_MOD_DAMAGE_PERCENT_DONE, SPELL_AURA_MOD_PERCENT_STAT, SPELL_AURA_NO_PVP_CREDIT,
     };
     use wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;
 
@@ -325,19 +324,13 @@ async fn selected_cast_visual_uses_difficulty_fallback_and_ordered_relation_rows
     super::selected_cast_threat::install_known_positive_class(&mut session);
     let selected_relation_id = 0xF876_5432;
     session.set_creature_aggro_config_like_cpp(crate::session::CreatureAggroConfigLikeCpp {
-        spell_x_spell_visual_store: Some(Arc::new(
-            wow_data::SpellXSpellVisualStore::from_entries([
+        spell_x_spell_visual_store: Some(Arc::new(wow_data::SpellXSpellVisualStore::from_entries(
+            [
                 visual_row(0xFFFF_FFFE, 0, 88_001, 0, SICKNESS_SPELL as u32),
                 visual_row(0xF123_4567, 2, 88_002, 1, SICKNESS_SPELL as u32),
-                visual_row(
-                    selected_relation_id,
-                    2,
-                    88_003,
-                    0,
-                    SICKNESS_SPELL as u32,
-                ),
-            ]),
-        )),
+                visual_row(selected_relation_id, 2, 88_003, 0, SICKNESS_SPELL as u32),
+            ],
+        ))),
         ..Default::default()
     });
 
@@ -399,11 +392,9 @@ async fn unavailable_visual_rejects_before_power_and_server_cast_id_is_allocated
     );
     assert_eq!(sickness_mana(&session), 100);
 
-    let before = wow_world_spell::next_represented_spell_cast_guid_like_cpp(
-        &session,
-        SICKNESS_SPELL,
-    )
-    .expect("first Map CastID allocation");
+    let before =
+        wow_world_spell::next_represented_spell_cast_guid_like_cpp(&session, SICKNESS_SPELL)
+            .expect("first Map CastID allocation");
     assert_eq!(
         cast_server_triggered_sickness(
             &mut session,
@@ -415,11 +406,9 @@ async fn unavailable_visual_rejects_before_power_and_server_cast_id_is_allocated
         .await,
         Err("Missing SpellXSpellVisual store for selected aura creation")
     );
-    let after = wow_world_spell::next_represented_spell_cast_guid_like_cpp(
-        &session,
-        SICKNESS_SPELL,
-    )
-    .expect("next Map CastID allocation");
+    let after =
+        wow_world_spell::next_represented_spell_cast_guid_like_cpp(&session, SICKNESS_SPELL)
+            .expect("next Map CastID allocation");
     assert_eq!(after.counter() - before.counter(), 2);
     assert_eq!(sickness_mana(&session), 100);
     assert!(drain_packets(&send_rx).is_empty());

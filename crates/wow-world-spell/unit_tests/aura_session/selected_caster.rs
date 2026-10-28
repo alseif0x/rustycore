@@ -81,7 +81,11 @@ fn self_and_non_unit_fallback_do_not_require_active_owner_map_facts() {
     let owner = add_player(&mut manager, owner_guid, 73, Some(MAP));
     manager
         .with_player_mut_like_cpp(owner, |player| {
-            player.unit_mut().world_mut().object_mut().remove_from_world();
+            player
+                .unit_mut()
+                .world_mut()
+                .object_mut()
+                .remove_from_world();
             player.unit_mut().world_mut().reset_map().unwrap();
         })
         .unwrap();
@@ -114,7 +118,11 @@ fn known_out_of_world_player_without_map_assignment_uses_spell_level_fallback() 
     let caster = add_player(&mut manager, caster_guid, 52, Some(MAP));
     manager
         .with_player_mut_like_cpp(caster, |player| {
-            player.unit_mut().world_mut().object_mut().remove_from_world();
+            player
+                .unit_mut()
+                .world_mut()
+                .object_mut()
+                .remove_from_world();
             player.unit_mut().world_mut().reset_map().unwrap();
         })
         .unwrap();
@@ -197,9 +205,9 @@ fn detached_owner_with_assigned_map_resolves_foreign_caster_level_and_reaction()
             .unwrap();
     }
     let known_empty_templates =
-        wow_data::progression_rewards::FactionTemplateStore::from_entries(
-            Vec::<wow_data::progression_rewards::FactionTemplateEntry>::new(),
-        );
+        wow_data::progression_rewards::FactionTemplateStore::from_entries(Vec::<
+            wow_data::progression_rewards::FactionTemplateEntry,
+        >::new());
     assert_eq!(
         selected_caster_is_friendly(
             &manager,

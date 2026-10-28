@@ -46,7 +46,10 @@ async fn finish_forced_repop(
         .core()
         .with_owned_player_like_cpp(|player| {
             (player.guid() == owner.guid).then(|| {
-                (player.unit().world().map_id(), player.unit().world().position())
+                (
+                    player.unit().world().map_id(),
+                    player.unit().world().position(),
+                )
             })
         })
         .flatten()

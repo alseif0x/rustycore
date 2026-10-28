@@ -63,32 +63,24 @@ fn login_transfer_and_worldport_controls_use_cpp_routes_and_order() {
     // Repeated observation cannot send the login active-mover completion twice.
     assert!(seed_movement_login(&mut controller).is_empty());
 
-    assert!(
-        controller
-            .process_packet(Connection::Realm, SMSG_TRANSFER_PENDING, &[])
-            .unwrap()
-            .is_empty()
-    );
-    assert!(
-        controller
-            .process_packet(Connection::Instance, SMSG_TRANSFER_PENDING, &[])
-            .is_err()
-    );
+    assert!(controller
+        .process_packet(Connection::Realm, SMSG_TRANSFER_PENDING, &[])
+        .unwrap()
+        .is_empty());
+    assert!(controller
+        .process_packet(Connection::Instance, SMSG_TRANSFER_PENDING, &[])
+        .is_err());
 
     // ResumeToken carries the same five-byte server shape but has no client ACK.
     let mut resume = 0x5566_7788u32.to_le_bytes().to_vec();
     resume.push(0x40);
-    assert!(
-        controller
-            .process_packet(Connection::Instance, SMSG_RESUME_TOKEN, &resume)
-            .unwrap()
-            .is_empty()
-    );
-    assert!(
-        controller
-            .process_packet(Connection::Realm, SMSG_RESUME_TOKEN, &resume)
-            .is_err()
-    );
+    assert!(controller
+        .process_packet(Connection::Instance, SMSG_RESUME_TOKEN, &resume)
+        .unwrap()
+        .is_empty());
+    assert!(controller
+        .process_packet(Connection::Realm, SMSG_RESUME_TOKEN, &resume)
+        .is_err());
 
     let sequence = 0x1122_3344u32;
     let mut suspend = sequence.to_le_bytes().to_vec();
@@ -100,11 +92,9 @@ fn login_transfer_and_worldport_controls_use_cpp_routes_and_order() {
     assert_eq!(response[0].connection, Connection::Instance);
     assert_eq!(response[0].opcode, 0x376A);
     assert_eq!(response[0].body, sequence.to_le_bytes());
-    assert!(
-        controller
-            .process_packet(Connection::Realm, SMSG_SUSPEND_TOKEN, &suspend)
-            .is_err()
-    );
+    assert!(controller
+        .process_packet(Connection::Realm, SMSG_SUSPEND_TOKEN, &suspend)
+        .is_err());
 
     // NewWorld::Write: map, XYZO, two unused u32s, reason, movement offset XYZ.
     let mut new_world = Vec::new();
@@ -144,22 +134,18 @@ fn login_transfer_and_worldport_controls_use_cpp_routes_and_order() {
             .active_mover_complete_count,
         2
     );
-    assert!(
-        controller
-            .process_packet(Connection::Instance, SMSG_NEW_WORLD, &new_world)
-            .is_err()
-    );
+    assert!(controller
+        .process_packet(Connection::Instance, SMSG_NEW_WORLD, &new_world)
+        .is_err());
 }
 
 #[test]
 fn initial_controller_failure_handoff_retains_the_failing_packet() {
     let mut controller = movement_controller();
     let failed_body = [0xAA, 0xBB];
-    assert!(
-        controller
-            .record_and_process_packet(Connection::Instance, SMSG_SUSPEND_TOKEN, &failed_body,)
-            .is_err()
-    );
+    assert!(controller
+        .record_and_process_packet(Connection::Instance, SMSG_SUSPEND_TOKEN, &failed_body,)
+        .is_err());
 
     let mut result = BotRunResult::default();
     preserve_controller_failure(
@@ -172,12 +158,10 @@ fn initial_controller_failure_handoff_retains_the_failing_packet() {
     assert_eq!(evidence.events[0].opcode, SMSG_SUSPEND_TOKEN);
     assert_eq!(evidence.events[0].body_hex, "aabb");
     assert!(evidence.events[0].error.is_some());
-    assert!(
-        evidence
-            .failure
-            .as_deref()
-            .is_some_and(|failure| failure.contains("movement control decode failed"))
-    );
+    assert!(evidence
+        .failure
+        .as_deref()
+        .is_some_and(|failure| failure.contains("movement control decode failed")));
 }
 
 #[test]
@@ -185,16 +169,12 @@ fn root_walk_and_speed_controls_emit_exact_movementinfo_ack_bytes() {
     let mut controller = movement_controller();
     seed_movement_login(&mut controller);
     let mover = test_player_mover();
-    assert!(
-        controller
-            .process_packet(Connection::Realm, SMSG_MOVE_ROOT, &[])
-            .is_err()
-    );
-    assert!(
-        controller
-            .process_packet(Connection::Realm, SMSG_MOVE_SET_RUN_SPEED, &[])
-            .is_err()
-    );
+    assert!(controller
+        .process_packet(Connection::Realm, SMSG_MOVE_ROOT, &[])
+        .is_err());
+    assert!(controller
+        .process_packet(Connection::Realm, SMSG_MOVE_SET_RUN_SPEED, &[])
+        .is_err());
     let controls = [
         (SMSG_MOVE_ROOT, 0x3A0E, 11, 0x0000_0400, None),
         (SMSG_MOVE_UNROOT, 0x3A0F, 12, 0, None),
@@ -221,18 +201,14 @@ fn root_walk_and_speed_controls_emit_exact_movementinfo_ack_bytes() {
     }
 
     let mut wrong_mover = set_flag_payload(Guid { low: 18, high: 0 }, 1);
-    assert!(
-        controller
-            .process_packet(Connection::Instance, SMSG_MOVE_ROOT, &wrong_mover)
-            .is_err()
-    );
+    assert!(controller
+        .process_packet(Connection::Instance, SMSG_MOVE_ROOT, &wrong_mover)
+        .is_err());
     wrong_mover = set_flag_payload(mover, 1);
     wrong_mover.push(0); // exact MoveSetFlag has no trailing fields
-    assert!(
-        controller
-            .process_packet(Connection::Instance, SMSG_MOVE_ROOT, &wrong_mover)
-            .is_err()
-    );
+    assert!(controller
+        .process_packet(Connection::Instance, SMSG_MOVE_ROOT, &wrong_mover)
+        .is_err());
 }
 
 #[test]
@@ -484,11 +460,9 @@ fn near_teleport_and_typed_movement_preserve_control_flags_and_fall_layout() {
                 &unsupported_teleport,
             )
             .unwrap_err();
-        assert!(
-            error
-                .to_string()
-                .contains("transport and vehicle data are unsupported")
-        );
+        assert!(error
+            .to_string()
+            .contains("transport and vehicle data are unsupported"));
     }
 }
 

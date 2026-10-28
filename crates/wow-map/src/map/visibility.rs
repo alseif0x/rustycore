@@ -610,10 +610,7 @@ where
 
     /// Complete source plan for this map's object update, including the
     /// in-world Player set visited by the session/update phases.
-    pub fn object_update_visit_plan_for_current_tick(
-        &self,
-        diff_ms: u32,
-    ) -> MapUpdateVisitPlan {
+    pub fn object_update_visit_plan_for_current_tick(&self, diff_ms: u32) -> MapUpdateVisitPlan {
         self.map_update_visit_plan_like_cpp(
             self.map_update_player_sources_for_current_tick_like_cpp(),
             self.represented_active_non_player_sources_like_cpp(),

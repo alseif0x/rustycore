@@ -1,25 +1,25 @@
-use super::*;
-use crate::session::mailbox::{
-    PlayerRecoveryAdmission, PlayerRecoveryStatus, RunPlayerRecoveryRequest,
-    RunWorldPhasePassLikeCppRequest, SessionPhasePassOutcomeLikeCpp,
-    SessionPhasePermitLikeCpp, SessionPhasePermitStateLikeCpp, SessionPhaseRequestLikeCpp,
-};
-use crate::session::PlayerRegistry;
 use super::observers::aura_packets;
 use super::selected_lifetime::{install_race, selected_slot};
+use super::*;
+use crate::session::PlayerRegistry;
+use crate::session::mailbox::{
+    PlayerRecoveryAdmission, PlayerRecoveryStatus, RunPlayerRecoveryRequest,
+    RunWorldPhasePassLikeCppRequest, SessionPhasePassOutcomeLikeCpp, SessionPhasePermitLikeCpp,
+    SessionPhasePermitStateLikeCpp, SessionPhaseRequestLikeCpp,
+};
 
 fn register_recovery_session(session: &mut crate::session::WorldSession) {
     let registry = Arc::new(PlayerRegistry::new());
     session.set_player_registry(Arc::clone(&registry));
     session.register_in_player_registry();
-    assert!(registry
-        .session_phase_address_like_cpp(session.player_guid().unwrap())
-        .is_some());
+    assert!(
+        registry
+            .session_phase_address_like_cpp(session.player_guid().unwrap())
+            .is_some()
+    );
 }
 
-fn start_recovery_admission(
-    session: &crate::session::WorldSession,
-) -> PlayerRecoveryAdmission {
+fn start_recovery_admission(session: &crate::session::WorldSession) -> PlayerRecoveryAdmission {
     let (map_tick_epoch, diff_ms) = {
         let manager = session.core.canonical_map_manager.as_ref().unwrap();
         let mut manager = manager.lock().unwrap();
@@ -51,10 +51,12 @@ async fn run_phase(
     request: SessionPhaseRequestLikeCpp,
 ) {
     let catalogs = session.session_handler_catalogs_for_test_like_cpp();
-    assert!(session
-        .run_requested_session_phase_like_cpp(request, &catalogs)
-        .await
-        .is_none());
+    assert!(
+        session
+            .run_requested_session_phase_like_cpp(request, &catalogs)
+            .await
+            .is_none()
+    );
 }
 
 fn remaining(session: &crate::session::WorldSession, slot: u8) -> i32 {
@@ -79,7 +81,10 @@ async fn selected_recovery_advances_once_after_the_coordinated_world_pass() {
     install_race(&mut fixture.session, 0);
     cast_selected(&mut fixture, GHOST, None).await;
     let packets = outgoing(&fixture);
-    assert!(!packets.is_empty(), "the fresh Ghost application is published");
+    assert!(
+        !packets.is_empty(),
+        "the fresh Ghost application is published"
+    );
     let slot = selected_slot(&fixture, GHOST);
     let stale = Instant::now() - Duration::from_secs(3_600);
     fixture
@@ -116,19 +121,21 @@ async fn selected_recovery_advances_once_after_the_coordinated_world_pass() {
         SessionPhasePassOutcomeLikeCpp::Ran
     );
     assert_eq!(remaining(&fixture.session, slot), 5_000);
-    assert!(fixture
-        .canonical
-        .lock()
-        .unwrap()
-        .with_player_like_cpp(admission.handle, |player| {
-            player
-                .unit()
-                .subsystems()
-                .auras
-                .visible_auras_to_update
-                .contains(&slot)
-        })
-        .unwrap());
+    assert!(
+        fixture
+            .canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(admission.handle, |player| {
+                player
+                    .unit()
+                    .subsystems()
+                    .auras
+                    .visible_auras_to_update
+                    .contains(&slot)
+            })
+            .unwrap()
+    );
     assert!(aura_packets(outgoing(&fixture)).is_empty());
 
     let (response_tx, response_rx) = flume::bounded(1);
@@ -149,13 +156,19 @@ async fn selected_recovery_advances_once_after_the_coordinated_world_pass() {
         recovery_permit.state_like_cpp(),
         SessionPhasePermitStateLikeCpp::Completed
     );
-    assert_eq!(remaining(&fixture.session, slot), 5_000 - admission.diff_ms as i32);
+    assert_eq!(
+        remaining(&fixture.session, slot),
+        5_000 - admission.diff_ms as i32
+    );
     fixture
         .session
         .core
         .with_owned_player_like_cpp(|player| {
             let auras = &player.unit().subsystems().auras;
-            assert_eq!(auras.runtime_application_like_cpp(slot).unwrap().applied_at, stale);
+            assert_eq!(
+                auras.runtime_application_like_cpp(slot).unwrap().applied_at,
+                stale
+            );
             assert!(!auras.visible_auras_to_update.contains(&slot));
         })
         .unwrap();
@@ -227,18 +240,20 @@ async fn positive_countdown_without_pending_aura_work_emits_no_frame() {
         remaining(&fixture.session, slot),
         5_000 - admission.diff_ms as i32
     );
-    assert!(fixture
-        .session
-        .core
-        .with_owned_player_like_cpp(|player| {
-            !player
-                .unit()
-                .subsystems()
-                .auras
-                .visible_auras_to_update
-                .contains(&slot)
-        })
-        .unwrap());
+    assert!(
+        fixture
+            .session
+            .core
+            .with_owned_player_like_cpp(|player| {
+                !player
+                    .unit()
+                    .subsystems()
+                    .auras
+                    .visible_auras_to_update
+                    .contains(&slot)
+            })
+            .unwrap()
+    );
     assert!(
         aura_packets(outgoing(&fixture)).is_empty(),
         "a positive Unit countdown does not create a client delta"

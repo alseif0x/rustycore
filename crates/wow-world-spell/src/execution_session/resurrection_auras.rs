@@ -94,7 +94,10 @@ pub(super) fn apply<H: SpellExecutionHostLikeCpp>(
         let spell_id_u32 =
             u32::try_from(spell_id).map_err(|_| "Invalid selected resurrection ghost spell")?;
         let options = crate::aura_session::selected_catalog::selected_aura_options_entry(
-            hub.catalogs.spell_catalogs.spell_aura_options_store.as_deref()
+            hub.catalogs
+                .spell_catalogs
+                .spell_aura_options_store
+                .as_deref()
                 .ok_or("Missing selected resurrection ghost SpellAuraOptions catalog")?,
             spell_id_u32,
             difficulty,

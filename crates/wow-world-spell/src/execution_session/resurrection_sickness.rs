@@ -141,12 +141,7 @@ pub(super) fn apply_resurrection_sickness_aura<H: SpellExecutionHostLikeCpp>(
         .map_err(|_| "Unable to resolve resurrection sickness SpellAuraOptions row")?;
         let stack_amount = options_entry.map_or(0, |entry| entry.cumulative_aura);
         let attributes = misc.attributes.map(|value| value as u32);
-        (
-            duration_total,
-            stack_amount,
-            attributes[1],
-            attributes[5],
-        )
+        (duration_total, stack_amount, attributes[1], attributes[5])
     };
     let active_effect_mask = spell_info
         .effects()

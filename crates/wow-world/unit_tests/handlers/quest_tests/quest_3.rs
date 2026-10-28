@@ -595,8 +595,7 @@ async fn quest_confirm_accept_native_quest_log_adds_local_quest_state_like_cpp()
         .core
         .quest_objective_access_like_cpp()
         .quest_log_values_snapshot_like_cpp()
-        .expect("confirm-accept receiver has native QuestLog fields")
-        [usize::from(status.slot)];
+        .expect("confirm-accept receiver has native QuestLog fields")[usize::from(status.slot)];
     assert_eq!(native_slot.quest_id(), quest_id as i32);
     let native_rows = session.quest_log_create_entries_like_cpp();
     assert_eq!(native_rows[0].0, quest_id);
@@ -656,7 +655,10 @@ async fn quest_confirm_accept_first_free_slot_skips_occupied_slot_like_cpp() {
         .expect("accepted Player quest should be inserted into first free slot");
     assert_eq!(status.slot, 1);
     assert_eq!(status.status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
-    assert_eq!(session.get_quest_slot_quest_id_like_cpp(0), Some(occupied_quest_id));
+    assert_eq!(
+        session.get_quest_slot_quest_id_like_cpp(0),
+        Some(occupied_quest_id)
+    );
     assert_eq!(session.get_quest_slot_quest_id_like_cpp(1), Some(quest_id));
     let registry = session.player_registry().expect("test installs registry");
     let snapshot = registry

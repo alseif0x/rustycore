@@ -363,7 +363,8 @@ async fn resurrection_request_clears_ghost_and_wisp_before_completing() {
     assert_eq!(
         fixture
             .session
-            .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(),
+            .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(
+            ),
         1
     );
     let map_packets = outgoing(&fixture);
@@ -372,7 +373,8 @@ async fn resurrection_request_clears_ghost_and_wisp_before_completing() {
     assert_eq!(
         fixture
             .session
-            .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(),
+            .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(
+            ),
         0
     );
     let death_release = realm_rx.try_iter().collect::<Vec<_>>();

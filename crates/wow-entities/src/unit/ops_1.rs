@@ -244,7 +244,8 @@ impl Unit {
         self.visibility_detection.server_side_visibility_ghost
     }
     pub const fn server_side_ghost_visibility_detect(&self) -> u32 {
-        self.visibility_detection.server_side_visibility_detect_ghost
+        self.visibility_detection
+            .server_side_visibility_detect_ghost
     }
     pub fn set_invisibility_like_cpp(&mut self, aura_type: usize, value: i32) {
         if aura_type >= MAX_VISIBILITY_AURA_TYPES_LIKE_CPP {

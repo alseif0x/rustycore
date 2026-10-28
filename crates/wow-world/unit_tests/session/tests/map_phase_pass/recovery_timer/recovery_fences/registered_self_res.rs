@@ -1,10 +1,10 @@
 use super::*;
 use std::sync::Arc;
+use wow_constants::ServerOpcodes;
 use wow_data::spell_db2::{
     SpellCategoriesEntry, SpellCooldownsEntry, SpellEffectDb2Entry, SpellMiscEntry,
     SpellReagentsEntry,
 };
-use wow_constants::ServerOpcodes;
 use wow_persistence::PersistenceOutcomeLikeCpp;
 
 const SELF_RES_TEST_SPELL: i32 = 61_043;
@@ -55,7 +55,10 @@ fn move_recovery_player_to_difficulty_three(session: &mut WorldSession) {
         DIFFICULTY
     );
     drop(manager);
-    assert_eq!(session.core.current_map_difficulty_id_like_cpp(), DIFFICULTY);
+    assert_eq!(
+        session.core.current_map_difficulty_id_like_cpp(),
+        DIFFICULTY
+    );
     assert_eq!(guid, handle.guid());
 }
 
@@ -85,8 +88,8 @@ fn install_exact_test_spell(
             toggle_difficulty_id: 0,
         },
     ])));
-    session.set_map_difficulty_store(Arc::new(
-        wow_data::MapDifficultyStore::from_entries([wow_data::MapDifficultyEntry {
+    session.set_map_difficulty_store(Arc::new(wow_data::MapDifficultyStore::from_entries([
+        wow_data::MapDifficultyEntry {
             id: 1,
             message: String::new(),
             map_id: 571,
@@ -95,8 +98,8 @@ fn install_exact_test_spell(
             reset_interval: 0,
             max_players: 0,
             flags: 0,
-        }]),
-    ));
+        },
+    ])));
     session.set_spell_category_store(Arc::new(wow_data::SpellCategoryStore::from_entries([
         wow_data::SpellCategoryEntry {
             id: 3,
@@ -185,33 +188,31 @@ fn install_exact_test_spell(
         wow_data::spell_db2::SpellPowerStore::from_entries([]),
         wow_data::spell_db2::SpellPowerDifficultyStore::from_entries([]),
     );
-    let mut spells = crate::selected_spell_fixtures::canonical_spell_store([(
-        spell_id as u32,
-        DIFFICULTY,
-    )])
-    .hydrate_effective_core_db2_like_cpp(effective);
+    let mut spells =
+        crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, DIFFICULTY)])
+            .hydrate_effective_core_db2_like_cpp(effective);
     assert!(spells.get(spell_id).is_none());
-    spells.install_effective_cast_costs_like_cpp(wow_data::SpellCastCostStoreLikeCpp::from_effective_rows_like_cpp(
-        [SpellReagentsEntry {
-            id: 1,
-            spell_id,
-            reagent: [REAGENT_ITEM as i32, 0, 0, 0, 0, 0, 0, 0],
-            reagent_count: [1, 0, 0, 0, 0, 0, 0, 0],
-        }],
-        [],
-    ));
+    spells.install_effective_cast_costs_like_cpp(
+        wow_data::SpellCastCostStoreLikeCpp::from_effective_rows_like_cpp(
+            [SpellReagentsEntry {
+                id: 1,
+                spell_id,
+                reagent: [REAGENT_ITEM as i32, 0, 0, 0, 0, 0, 0, 0],
+                reagent_count: [1, 0, 0, 0, 0, 0, 0, 0],
+            }],
+            [],
+        ),
+    );
     assert!(spells.contains_spell_info_exact_like_cpp(spell_id as u32, DIFFICULTY));
     assert!(!spells.contains_spell_info_exact_like_cpp(spell_id as u32, 0));
     assert!(spells.get(spell_id).is_none());
     session.set_spell_store(Arc::new(spells));
-    session.set_serverside_spell_store(Arc::new(
-        wow_data::ServersideSpellStoreLikeCpp::default(),
-    ));
+    session.set_serverside_spell_store(Arc::new(wow_data::ServersideSpellStoreLikeCpp::default()));
     session.set_item_effect_store(Arc::new(wow_data::ItemEffectStore::from_entries([])));
     session.set_creature_aggro_config_like_cpp(CreatureAggroConfigLikeCpp {
-        spell_x_spell_visual_store: Some(Arc::new(
-            wow_data::SpellXSpellVisualStore::from_entries([]),
-        )),
+        spell_x_spell_visual_store: Some(Arc::new(wow_data::SpellXSpellVisualStore::from_entries(
+            [],
+        ))),
         ..Default::default()
     });
     session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
@@ -230,19 +231,14 @@ fn install_reagent_item(session: &mut WorldSession, guid_counter: i64) -> Object
             inventory_type: None,
         },
     );
-    let item = session.make_inventory_item_object(
-        guid,
-        REAGENT_ITEM,
-        owner,
-        1,
-        0,
-        ItemContext::None,
-        23,
-    );
+    let item =
+        session.make_inventory_item_object(guid, REAGENT_ITEM, owner, 1, 0, ItemContext::None, 23);
     session.insert_inventory_item_object(item);
     session
         .with_owned_player_mut_like_cpp(|player| {
-            player.store_top_level_item(23, guid).expect("backpack slot 23");
+            player
+                .store_top_level_item(23, guid)
+                .expect("backpack slot 23");
         })
         .expect("canonical Player owns the reagent");
     guid
@@ -298,10 +294,7 @@ fn setup_registered_self_res(
     crate::player_inventory_test_fixture::complete_known_empty_player_currencies_like_cpp(
         &mut session,
     );
-    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(
-        &mut session,
-        true,
-    ));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true,));
     session
         .with_owned_player_mut_like_cpp(|player| {
             let unit = player.unit_mut();
@@ -334,15 +327,8 @@ fn setup_registered_self_res(
 fn add_current_map_corpse(session: &mut WorldSession, counter: i64) -> ObjectGuid {
     let player_guid = session.player_guid().expect("recovery Player GUID");
     let (map_id, instance_id) = session.core.current_runtime_map_key_like_cpp();
-    let corpse_guid = ObjectGuid::create_world_object(
-        HighGuid::Corpse,
-        0,
-        1,
-        map_id,
-        instance_id,
-        0,
-        counter,
-    );
+    let corpse_guid =
+        ObjectGuid::create_world_object(HighGuid::Corpse, 0, 1, map_id, instance_id, 0, counter);
     let mut corpse = wow_entities::Corpse::new_at(wow_entities::CorpseType::ResurrectablePve, 0);
     corpse.world_mut().object_mut().create(corpse_guid);
     corpse
@@ -387,10 +373,7 @@ async fn registered_self_res_casts_with_cost_and_saves_restored_native_state_bef
     let handle = session.core.player_handle_like_cpp.expect("Player handle");
     let captured_now_secs = (wow_world_core::session::unix_now_ms_like_cpp() / 1_000) as i64;
     let catalogs = SessionHandlerCatalogsLikeCpp::default();
-    let mut dispatch = Box::pin(session.dispatch_packet(
-        &catalogs,
-        registered_self_res_packet(),
-    ));
+    let mut dispatch = Box::pin(session.dispatch_packet(&catalogs, registered_self_res_packet()));
     tokio::select! {
         result = tokio::time::timeout(
             std::time::Duration::from_secs(5),
@@ -442,42 +425,46 @@ async fn registered_self_res_casts_with_cost_and_saves_restored_native_state_bef
         corpse_port.deletes.lock().unwrap().as_slice(),
         &[player_guid.counter() as u64]
     );
-    assert!(manager
-        .lock()
-        .unwrap()
-        .find_map(571, 10_000 + u32::from(DIFFICULTY))
-        .unwrap()
-        .map()
-        .get_typed_corpse(corpse_guid)
-        .is_none());
+    assert!(
+        manager
+            .lock()
+            .unwrap()
+            .find_map(571, 10_000 + u32::from(DIFFICULTY))
+            .unwrap()
+            .map()
+            .get_typed_corpse(corpse_guid)
+            .is_none()
+    );
 
     save.release_character_save();
     dispatch.as_mut().await;
     drop(dispatch);
     assert_eq!(save.character_save_count(), 1);
     assert!(session.player_is_alive_like_cpp());
-    assert!(session
-        .with_owned_player_like_cpp(|player| player.self_res_spells().is_empty())
-        .expect("canonical Player remains installed"));
+    assert!(
+        session
+            .with_owned_player_like_cpp(|player| player.self_res_spells().is_empty())
+            .expect("canonical Player remains installed")
+    );
     assert_eq!(
         session.with_owned_player_like_cpp(|player| {
-            player
-                .resurrection_state_like_cpp()
-                .delayed_after_teleport
+            player.resurrection_state_like_cpp().delayed_after_teleport
         }),
         Some(None),
         "the full-save ACK clears the exact SelfRes continuation"
     );
-    assert!(manager
-        .lock()
-        .unwrap()
-        .with_player_like_cpp(handle, |player| {
-            !player
-                .inventory_runtime_like_cpp()
-                .item_objects()
-                .contains_key(&reagent)
-        })
-        .expect("canonical Player remains installed"));
+    assert!(
+        manager
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(handle, |player| {
+                !player
+                    .inventory_runtime_like_cpp()
+                    .item_objects()
+                    .contains_key(&reagent)
+            })
+            .expect("canonical Player remains installed")
+    );
     assert!(outgoing_opcodes(&send_rx).contains(&ServerOpcodes::SpellGo));
 }
 
@@ -505,9 +492,11 @@ async fn registered_self_res_missing_reagent_rejects_before_go_and_consumes_list
         wow_constants::SpellCastResult::Reagents as i32
     );
     assert_eq!(save.character_save_count(), 0);
-    assert!(session
-        .with_owned_player_like_cpp(|player| player.self_res_spells().is_empty())
-        .unwrap());
+    assert!(
+        session
+            .with_owned_player_like_cpp(|player| player.self_res_spells().is_empty())
+            .unwrap()
+    );
     assert_eq!(session.player_health_like_cpp(), 0);
 }
 
@@ -551,15 +540,17 @@ async fn registered_self_res_active_cooldown_rejects_before_effect_and_consumpti
     );
     assert_eq!(save.character_save_count(), 0);
     assert_eq!(session.player_health_like_cpp(), 0);
-    assert!(session
-        .with_owned_player_like_cpp(|player| {
-            player.self_res_spells().is_empty()
-                && player
-                    .inventory_runtime_like_cpp()
-                    .item_objects()
-                    .contains_key(&reagent)
-        })
-        .unwrap());
+    assert!(
+        session
+            .with_owned_player_like_cpp(|player| {
+                player.self_res_spells().is_empty()
+                    && player
+                        .inventory_runtime_like_cpp()
+                        .item_objects()
+                        .contains_key(&reagent)
+            })
+            .unwrap()
+    );
 }
 
 #[tokio::test]
@@ -578,22 +569,28 @@ async fn registered_self_res_without_a_corpse_keeps_cost_and_cooldown_dirty_with
     assert!(corpse.deletes.lock().unwrap().is_empty());
     assert!(session.player_is_alive_like_cpp());
     assert_eq!(session.player_health_like_cpp(), 20);
-    assert!(session
-        .with_owned_player_like_cpp(|player| {
-            player.self_res_spells().is_empty()
-                && player.unit().get_power(wow_constants::PowerType::Mana) == 40
-                && player
-                    .inventory_runtime_like_cpp()
-                    .item_objects()
-                    .get(&reagent)
-                    .is_some_and(|item| {
-                        item.update_state() == wow_constants::ItemUpdateState::Removed
-                    })
-                && player.unit().subsystems().spells.history.cooldowns.contains_key(
-                    &(SELF_RES_TEST_SPELL as u32)
-                )
-        })
-        .unwrap());
+    assert!(
+        session
+            .with_owned_player_like_cpp(|player| {
+                player.self_res_spells().is_empty()
+                    && player.unit().get_power(wow_constants::PowerType::Mana) == 40
+                    && player
+                        .inventory_runtime_like_cpp()
+                        .item_objects()
+                        .get(&reagent)
+                        .is_some_and(|item| {
+                            item.update_state() == wow_constants::ItemUpdateState::Removed
+                        })
+                    && player
+                        .unit()
+                        .subsystems()
+                        .spells
+                        .history
+                        .cooldowns
+                        .contains_key(&(SELF_RES_TEST_SPELL as u32))
+            })
+            .unwrap()
+    );
     let opcodes = outgoing_opcodes(&send_rx);
     assert!(opcodes.contains(&ServerOpcodes::SpellGo));
 }

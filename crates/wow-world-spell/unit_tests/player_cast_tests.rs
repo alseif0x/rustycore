@@ -419,7 +419,13 @@ fn normal_prepare_rejects_instant_and_timed_unimplemented_mutation_before_public
         );
         assert_eq!(
             runtime.events,
-            ["busy", "caster-death", "normal-costs", "power", "effects-available"],
+            [
+                "busy",
+                "caster-death",
+                "normal-costs",
+                "power",
+                "effects-available"
+            ],
             "ordinary admission order for cast time {cast_time_ms}"
         );
         assert!(runtime.active.is_none());
@@ -463,7 +469,13 @@ fn normal_prepare_keeps_a_supported_instant_effect_on_the_canonical_path() {
 fn normal_prepare_treats_known_missing_spell_as_rejection_and_catalog_loss_as_unavailable() {
     let mut known_missing = Fixture::new(0);
     assert_eq!(
-        prepare_server_normal(&mut known_missing, 134, 0, ObjectGuid::EMPTY, Default::default(),),
+        prepare_server_normal(
+            &mut known_missing,
+            134,
+            0,
+            ObjectGuid::EMPTY,
+            Default::default(),
+        ),
         ServerNormalPrepareOutcomeLikeCpp::Rejected
     );
     assert!(known_missing.failures.is_empty());

@@ -6,8 +6,8 @@
 
 pub(crate) use wow_data::spell::{
     DataSpellCatalogResolutionError as SelectedCatalogError,
-    resolve_spell_aura_options_entry as selected_aura_options_entry,
     resolve_spell_attributes as selected_spell_attributes,
+    resolve_spell_aura_options_entry as selected_aura_options_entry,
     resolve_spell_catalog_value as resolve_selected_value,
     resolve_spell_family as selected_spell_family,
     resolve_spell_info_key_difficulty as selected_spell_info_key_difficulty,

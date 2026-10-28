@@ -225,7 +225,10 @@ pub fn visible_creatures_from_canonical_map_like_cpp<H: WorldEntitiesHostLikeCpp
     if host.player_guid()? != handle.guid() {
         return None;
     }
-    let client_visible = host.core().client_visible_guids_like_cpp.snapshot_like_cpp();
+    let client_visible = host
+        .core()
+        .client_visible_guids_like_cpp
+        .snapshot_like_cpp();
     let manager = host.core().canonical_map_manager.as_ref()?;
     let Ok(manager) = manager.lock() else {
         return None;
@@ -288,9 +291,8 @@ pub fn visible_creatures_from_canonical_map_like_cpp<H: WorldEntitiesHostLikeCpp
                         return None;
                     }
 
-                    let context = super::ghost_visibility::unit_context(
-                        player, unit, viewpoint, map, corpse,
-                    );
+                    let context =
+                        super::ghost_visibility::unit_context(player, unit, viewpoint, map, corpse);
                     let vehicle_visible = unit
                         .subsystems()
                         .vehicle
@@ -300,10 +302,10 @@ pub fn visible_creatures_from_canonical_map_like_cpp<H: WorldEntitiesHostLikeCpp
                         distance_allowed: context.distance_allowed && vehicle_visible,
                         ..context
                     };
-                    player.unit().can_see_or_detect_unit_with_context(
-                        unit, false, true, false, context,
-                    )
-                    .then(|| creature.clone())
+                    player
+                        .unit()
+                        .can_see_or_detect_unit_with_context(unit, false, true, false, context)
+                        .then(|| creature.clone())
                 })
                 .flatten()
             else {

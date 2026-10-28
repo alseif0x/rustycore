@@ -9,10 +9,10 @@ use std::{
 use wow_core::ObjectGuid;
 use wow_data::{
     Db2HotfixRemovalStoreLikeCpp, SPELL_INFO_KEY_CONTRIBUTOR_ORDER_LIKE_CPP,
-    SpellGroupRowLikeCpp, SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp,
-    SpellGroupStoreLikeCpp, SpellInfoKeyContributorLikeCpp, SpellInfoKeyHotfixOverlayBatchLikeCpp,
-    SpellInfoKeyHotfixOverlayRowLikeCpp, SpellInfoKeyHotfixOverlaysLikeCpp,
-    SpellNameEntry, SpellStore, SpellChainStoreLikeCpp, SpellRankEdgeLikeCpp,
+    SpellChainStoreLikeCpp, SpellGroupRowLikeCpp, SpellGroupStackRuleLikeCpp,
+    SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp, SpellInfoKeyContributorLikeCpp,
+    SpellInfoKeyHotfixOverlayBatchLikeCpp, SpellInfoKeyHotfixOverlayRowLikeCpp,
+    SpellInfoKeyHotfixOverlaysLikeCpp, SpellNameEntry, SpellRankEdgeLikeCpp, SpellStore,
     character_progression::ChrRacesStore, spell_db2::SpellNameStore,
 };
 
@@ -41,7 +41,12 @@ fn spell(spell_id: i32) -> wow_data::SpellInfo {
     }
 }
 
-fn aura(slot: u8, spell_id: i32, caster: ObjectGuid, amount: Option<i32>) -> AuraApplicationLikeCpp {
+fn aura(
+    slot: u8,
+    spell_id: i32,
+    caster: ObjectGuid,
+    amount: Option<i32>,
+) -> AuraApplicationLikeCpp {
     AuraApplicationLikeCpp {
         spell_id,
         difficulty_id: 0,
@@ -71,9 +76,7 @@ fn aura(slot: u8, spell_id: i32, caster: ObjectGuid, amount: Option<i32>) -> Aur
 }
 
 fn keyed_spell_store(spell_ids: &[i32]) -> SpellStore {
-    let keys = spell_ids
-        .iter()
-        .map(|spell_id| (*spell_id as u32, 0_u8));
+    let keys = spell_ids.iter().map(|spell_id| (*spell_id as u32, 0_u8));
     let mut store = canonical_spell_store(keys);
     for spell_id in spell_ids {
         store.insert(*spell_id, spell(*spell_id));
@@ -84,10 +87,11 @@ fn keyed_spell_store(spell_ids: &[i32]) -> SpellStore {
 fn canonical_spell_store(keys: impl IntoIterator<Item = (u32, u8)>) -> SpellStore {
     let keys: BTreeSet<_> = keys.into_iter().collect();
     let spell_ids: BTreeSet<_> = keys.iter().map(|(spell_id, _)| *spell_id).collect();
-    let names = SpellNameStore::from_entries(spell_ids.into_iter().map(|spell_id| SpellNameEntry {
-        id: spell_id,
-        name: format!("fake inebriation fixture spell {spell_id}"),
-    }));
+    let names =
+        SpellNameStore::from_entries(spell_ids.into_iter().map(|spell_id| SpellNameEntry {
+            id: spell_id,
+            name: format!("fake inebriation fixture spell {spell_id}"),
+        }));
     let fixture = CanonicalSpellFixtureDirectory::new();
     let contributor_batches = SPELL_INFO_KEY_CONTRIBUTOR_ORDER_LIKE_CPP
         .into_iter()
@@ -230,10 +234,7 @@ fn fake_inebriation_uses_first_rank_groups_and_native_registration_tie_order() {
             GROUP,
             SpellGroupStackRuleLikeCpp::ExclusiveSameEffect,
         )]),
-        same_effect_stack_by_group_id: BTreeMap::from([(
-            GROUP,
-            BTreeSet::from([FAKE_INEBRIATE]),
-        )]),
+        same_effect_stack_by_group_id: BTreeMap::from([(GROUP, BTreeSet::from([FAKE_INEBRIATE]))]),
     };
     let caster = ObjectGuid::create_player(1, 991);
     let auras = HashMap::from([
@@ -311,10 +312,7 @@ fn fake_inebriation_checked_abs_only_compares_occupied_groups() {
             GROUP,
             SpellGroupStackRuleLikeCpp::ExclusiveSameEffect,
         )]),
-        same_effect_stack_by_group_id: BTreeMap::from([(
-            GROUP,
-            BTreeSet::from([FAKE_INEBRIATE]),
-        )]),
+        same_effect_stack_by_group_id: BTreeMap::from([(GROUP, BTreeSet::from([FAKE_INEBRIATE]))]),
     };
     let races = ChrRacesStore::from_entries([]);
 

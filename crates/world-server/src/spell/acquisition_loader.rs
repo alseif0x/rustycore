@@ -35,16 +35,16 @@ use wow_data::{
     SpellAcquisitionCoverageSeedLikeCpp, SpellAcquisitionDiagnosticSeverityLikeCpp,
     SpellAcquisitionIndeterminateReasonLikeCpp, SpellAcquisitionTalentLookupLikeCpp,
     SpellAreaStoreLikeCpp, SpellAuraRestrictionsEntry, SpellAuraRestrictionsStore,
-    SpellCastingRequirementsEntry, SpellCastingRequirementsStore, SpellChainStoreLikeCpp,
-    SpellCustomAttributeKeyLikeCpp, SpellCustomAttributeLoadErrorKindLikeCpp,
-    SpellCustomAttributeSourceVariantLikeCpp, SpellCustomAttributeStoreLikeCpp,
-    SpellEquippedItemsEntry, SpellEquippedItemsStore, SpellLearnSkillEffectLikeCpp,
-    SpellLearnSkillIndeterminateReasonLikeCpp, SpellLearnSkillSourceSpellInfoLikeCpp,
-    SpellLearnSkillStoreLikeCpp, SpellLearnSourceSpellInfoLikeCpp, SpellLearnSpellEffectLikeCpp,
-    SpellLearnSpellEntry, SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp,
-    SpellLinkedTypeLikeCpp, SpellPetAuraStoreLikeCpp, SpellReagentsEntry, SpellReagentsStore,
-    SpellReagentsCurrencyEntry, SpellReagentsCurrencyStore, SpellCastCostStoreLikeCpp,
-    SpellStore, wdc4::Wdc4Reader,
+    SpellCastCostStoreLikeCpp, SpellCastingRequirementsEntry, SpellCastingRequirementsStore,
+    SpellChainStoreLikeCpp, SpellCustomAttributeKeyLikeCpp,
+    SpellCustomAttributeLoadErrorKindLikeCpp, SpellCustomAttributeSourceVariantLikeCpp,
+    SpellCustomAttributeStoreLikeCpp, SpellEquippedItemsEntry, SpellEquippedItemsStore,
+    SpellLearnSkillEffectLikeCpp, SpellLearnSkillIndeterminateReasonLikeCpp,
+    SpellLearnSkillSourceSpellInfoLikeCpp, SpellLearnSkillStoreLikeCpp,
+    SpellLearnSourceSpellInfoLikeCpp, SpellLearnSpellEffectLikeCpp, SpellLearnSpellEntry,
+    SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp,
+    SpellPetAuraStoreLikeCpp, SpellReagentsCurrencyEntry, SpellReagentsCurrencyStore,
+    SpellReagentsEntry, SpellReagentsStore, SpellStore, wdc4::Wdc4Reader,
 };
 use wow_persistence::{
     SpellAcquisitionHotfixPersistenceRowLikeCpp, SpellAcquisitionHotfixTablePersistenceLikeCpp,
@@ -724,7 +724,10 @@ async fn load_effective_spell_cast_costs_like_cpp(
         .table_hash();
     let reagent_store =
         SpellReagentsStore::load(data_dir, locale).context("failed to load SpellReagents.db2")?;
-    let reagent_base = reagent_store.entries_like_cpp().cloned().collect::<Vec<_>>();
+    let reagent_base = reagent_store
+        .entries_like_cpp()
+        .cloned()
+        .collect::<Vec<_>>();
     let mut reagent_overlays = [Vec::new(), Vec::new()];
     for (batch_index, official) in [true, false].into_iter().enumerate() {
         reagent_overlays[batch_index] = loaded_startup_like_cpp(
@@ -757,7 +760,10 @@ async fn load_effective_spell_cast_costs_like_cpp(
         .table_hash();
     let currency_store = SpellReagentsCurrencyStore::load(data_dir, locale)
         .context("failed to load SpellReagentsCurrency.db2")?;
-    let currency_base = currency_store.entries_like_cpp().cloned().collect::<Vec<_>>();
+    let currency_base = currency_store
+        .entries_like_cpp()
+        .cloned()
+        .collect::<Vec<_>>();
     let mut currency_overlays = [Vec::new(), Vec::new()];
     for (batch_index, official) in [true, false].into_iter().enumerate() {
         currency_overlays[batch_index] = loaded_startup_like_cpp(
@@ -766,12 +772,14 @@ async fn load_effective_spell_cast_costs_like_cpp(
                 .await,
         )?
         .into_iter()
-        .map(|row: SpellReagentsCurrencyPersistenceRowLikeCpp| SpellReagentsCurrencyEntry {
-            id: row.id,
-            spell_id: row.spell_id,
-            currency_types_id: row.currency_types_id,
-            currency_count: row.currency_count,
-        })
+        .map(
+            |row: SpellReagentsCurrencyPersistenceRowLikeCpp| SpellReagentsCurrencyEntry {
+                id: row.id,
+                spell_id: row.spell_id,
+                currency_types_id: row.currency_types_id,
+                currency_count: row.currency_count,
+            },
+        )
         .collect();
     }
     let [currency_official, currency_custom] = currency_overlays;
@@ -781,16 +789,18 @@ async fn load_effective_spell_cast_costs_like_cpp(
         .filter_map(|(removed_table_hash, record_id)| {
             (removed_table_hash == currency_hash).then_some(record_id)
         });
-    Ok(SpellCastCostStoreLikeCpp::from_effective_rows_and_removals_like_cpp(
-        reagent_base,
-        reagent_official,
-        reagent_custom,
-        removed_reagent_ids,
-        currency_base,
-        currency_official,
-        currency_custom,
-        removed_currency_ids,
-    ))
+    Ok(
+        SpellCastCostStoreLikeCpp::from_effective_rows_and_removals_like_cpp(
+            reagent_base,
+            reagent_official,
+            reagent_custom,
+            removed_reagent_ids,
+            currency_base,
+            currency_official,
+            currency_custom,
+            removed_currency_ids,
+        ),
+    )
 }
 
 fn derive_valid_craft_spell_ids_like_cpp(

@@ -57,7 +57,10 @@ fn begin_refuses_alive_zero_health_and_already_dead_players() {
     let mut alive_zero_health = Player::new(Some(1), false);
     assert!(alive_zero_health.unit.is_alive());
     assert_eq!(alive_zero_health.unit.data().health, 0);
-    assert_eq!(alive_zero_health.begin_native_death_operation(context(1, true)), None);
+    assert_eq!(
+        alive_zero_health.begin_native_death_operation(context(1, true)),
+        None
+    );
 
     let mut dead = live_player_with_health(80);
     dead.unit.set_death_state(wow_constants::DeathState::Dead);
@@ -120,10 +123,7 @@ fn wrong_ids_cannot_claim_complete_or_retire_the_current_operation() {
     assert_eq!(player.claim_native_death_operation(wrong_id), None);
     assert!(!player.complete_native_death_operation(wrong_id));
     assert!(!player.retire_completed_native_death_operation(wrong_id));
-    assert_eq!(
-        player.native_death_operation_snapshot().unwrap().id(),
-        id
-    );
+    assert_eq!(player.native_death_operation_snapshot().unwrap().id(), id);
     assert_eq!(
         player.native_death_operation_snapshot().unwrap().phase(),
         PlayerDeathOperationPhase::Ready
@@ -182,7 +182,10 @@ fn completion_requires_claim_and_retirement_requires_completion() {
         PlayerDeathOperationPhase::Ready
     );
 
-    assert_eq!(player.claim_native_death_operation(id), Some(context(15, false)));
+    assert_eq!(
+        player.claim_native_death_operation(id),
+        Some(context(15, false))
+    );
     assert!(player.complete_native_death_operation(id));
     assert!(!player.has_unresolved_native_death_operation());
     assert!(player.retire_completed_native_death_operation(id));
@@ -196,7 +199,10 @@ fn next_operation_gets_a_new_id_after_completed_operation_is_retired() {
     let first_id = player
         .begin_native_death_operation(context(16, false))
         .expect("first operation should be admitted");
-    assert_eq!(player.claim_native_death_operation(first_id), Some(context(16, false)));
+    assert_eq!(
+        player.claim_native_death_operation(first_id),
+        Some(context(16, false))
+    );
     assert!(player.complete_native_death_operation(first_id));
     assert!(player.retire_completed_native_death_operation(first_id));
 
@@ -204,7 +210,10 @@ fn next_operation_gets_a_new_id_after_completed_operation_is_retired() {
         .begin_native_death_operation(context(17, true))
         .expect("retired operation should allow a later operation");
     assert_ne!(first_id, second_id);
-    assert_eq!(player.native_death_operation_snapshot().unwrap().id(), second_id);
+    assert_eq!(
+        player.native_death_operation_snapshot().unwrap().id(),
+        second_id
+    );
 }
 
 #[test]
@@ -231,7 +240,10 @@ fn operation_id_counter_exhaustion_never_wraps_or_reuses_an_id() {
         .begin_native_death_operation(context(20, false))
         .expect("u64::MAX is a valid final operation id");
 
-    assert_eq!(player.claim_native_death_operation(last_id), Some(context(20, false)));
+    assert_eq!(
+        player.claim_native_death_operation(last_id),
+        Some(context(20, false))
+    );
     assert!(player.complete_native_death_operation(last_id));
     assert!(player.retire_completed_native_death_operation(last_id));
     assert_eq!(player.death_operation.next_id, None);

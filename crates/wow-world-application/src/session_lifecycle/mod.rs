@@ -36,8 +36,7 @@ pub use cleanup::cleanup_shared_runtime_state;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use finalization::execute_finalization_step;
 pub use finalization::{
-    finalize_session_with_generator_like_cpp,
-    finalize_session_with_resurrection_catalogs,
+    finalize_session_with_generator_like_cpp, finalize_session_with_resurrection_catalogs,
     run_logout_timer_with_catalogs,
 };
 pub use logout_hook::PlayerLogoutHookEventLikeCpp;

@@ -32,7 +32,9 @@ pub fn check_represented_caster_death_like_cpp<H: SpellExecutionHostLikeCpp>(
     spell_visual: &wow_packet::packets::spell::SpellCastVisual,
     metadata: &mut SpellCastMetadata,
 ) -> Result<bool, &'static str> {
-    let player_guid = host.player_guid().ok_or("Canonical Player GUID unavailable")?;
+    let player_guid = host
+        .player_guid()
+        .ok_or("Canonical Player GUID unavailable")?;
     let caster_guid = metadata.caster_guid_override.unwrap_or(player_guid);
     if caster_guid.is_empty() {
         return Err("Actual spell caster GUID unavailable");

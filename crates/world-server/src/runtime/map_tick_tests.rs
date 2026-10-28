@@ -152,16 +152,18 @@ fn map_tick_prelude_rejects_a_different_manager_before_effects() {
     let (metadata, conditions, maps, caches) = tick_inputs();
     let mut scheduler = CanonicalRespawnConditionSchedulerLikeCpp::new(1_000);
 
-    assert!(prepare_map_recovery_prelude(
-        &mut current_manager,
-        source_plan.plan,
-        &mut scheduler,
-        &metadata,
-        &conditions,
-        &maps,
-        &caches,
-    )
-    .is_none());
+    assert!(
+        prepare_map_recovery_prelude(
+            &mut current_manager,
+            source_plan.plan,
+            &mut scheduler,
+            &metadata,
+            &conditions,
+            &maps,
+            &caches,
+        )
+        .is_none()
+    );
     assert_eq!(
         current_manager.tick_coordination_like_cpp(),
         wow_map::MapTickCoordinationStateLikeCpp::Idle
@@ -197,15 +199,17 @@ fn map_tick_continuation_rejects_a_stale_manager_before_creature_work() {
     let mut creature_phase = |_: &mut wow_map::MapManager, _: &wow_map::MapTickPlanLikeCpp| {
         creature_called = true;
     };
-    assert!(continue_map_recovery_prelude(
-        &mut current_manager,
-        prelude,
-        &metadata,
-        &maps,
-        &caches,
-        Some(&mut creature_phase),
-    )
-    .is_none());
+    assert!(
+        continue_map_recovery_prelude(
+            &mut current_manager,
+            prelude,
+            &metadata,
+            &maps,
+            &caches,
+            Some(&mut creature_phase),
+        )
+        .is_none()
+    );
 
     assert!(!creature_called);
     assert_eq!(
@@ -218,4 +222,3 @@ fn map_tick_continuation_rejects_a_stale_manager_before_creature_work() {
         "a stale continuation leaves the current Player's admission untouched"
     );
 }
-

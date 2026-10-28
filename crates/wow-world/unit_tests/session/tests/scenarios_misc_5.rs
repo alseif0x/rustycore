@@ -123,7 +123,9 @@ fn canonical_player_resurrection_follows_active_detached_and_stale_ownership_lik
         canonical
             .lock()
             .unwrap()
-            .with_player_like_cpp(replacement_handle, |player| player.self_res_spells().to_vec()),
+            .with_player_like_cpp(replacement_handle, |player| player
+                .self_res_spells()
+                .to_vec()),
         Some(vec![20608])
     );
     assert_eq!(

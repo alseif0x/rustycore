@@ -342,13 +342,8 @@ impl SpellInfoKeyHotfixPersistencePortLikeCpp
                 for (contributor, sql, table) in CONTRIBUTOR_QUERIES_LIKE_CPP {
                     contributor_batches.push(SpellInfoKeyContributorHotfixBatchLikeCpp {
                         contributor,
-                        rows: query_contributor_like_cpp(
-                            &self.hotfix_db,
-                            contributor,
-                            sql,
-                            table,
-                        )
-                        .await?,
+                        rows: query_contributor_like_cpp(&self.hotfix_db, contributor, sql, table)
+                            .await?,
                     });
                     if contributor == SpellInfoKeyContributorLikeCpp::SpellPower {
                         power_difficulty_rows =
@@ -442,13 +437,7 @@ mod tests {
             } else if has_byte_difficulty {
                 input.push(NativeFieldLikeCpp::UInt8(231));
             }
-            let decoded = decode_contributor_row(
-                contributor,
-                &input,
-                "test_table",
-                0,
-            )
-            .unwrap();
+            let decoded = decode_contributor_row(contributor, &input, "test_table", 0).unwrap();
             assert_eq!(decoded.record_id, u32::MAX, "{contributor:?}");
             assert_eq!(decoded.spell_id, u32::MAX, "{contributor:?}");
             assert_eq!(

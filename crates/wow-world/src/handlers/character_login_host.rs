@@ -213,7 +213,10 @@ impl wow_world_character::CharacterLoginHostLikeCpp for WorldSession {
             .player_aura_application_cx_like_cpp()
             .recompute_no_reagent_mask_from_active_auras_like_cpp()
         {
-            tracing::warn!(reason, "Unable to publish complete NoReagentCostMask after aura load");
+            tracing::warn!(
+                reason,
+                "Unable to publish complete NoReagentCostMask after aura load"
+            );
             let (spell, mut hub) = crate::session::split_spell_state_mut(self);
             spell.tombstone_player_spell_hit_aura_authority_like_cpp(&mut hub);
         }

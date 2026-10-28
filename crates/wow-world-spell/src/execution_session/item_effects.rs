@@ -99,9 +99,7 @@ pub async fn apply_inventory_item_obtain_spells_with_generator_like_cpp<
             })
             .map(|item| item.object().entry())
     };
-    let item_entry = host
-        .core()
-        .with_owned_player_like_cpp(physical_item_entry);
+    let item_entry = host.core().with_owned_player_like_cpp(physical_item_entry);
     #[cfg(any(test, feature = "test-fixtures"))]
     let item_entry = item_entry.or_else(|| {
         host.core()

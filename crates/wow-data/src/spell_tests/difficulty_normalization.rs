@@ -138,7 +138,10 @@ fn regular_effect_rows_normalize_difficulty_before_slot_winner_selection() {
     let inert_winner = store
         .effect_rows_for_exact_difficulty(81_002, 0)
         .expect("the inert winner is retained");
-    assert_eq!(inert_winner[0].effect, spell_effect_types::SPELL_EFFECT_NONE);
+    assert_eq!(
+        inert_winner[0].effect,
+        spell_effect_types::SPELL_EFFECT_NONE
+    );
     assert_eq!(inert_winner[0].effect_mechanic, 41);
     assert!(!store.may_override_spell_visual(shadowed_target));
 
@@ -146,7 +149,10 @@ fn regular_effect_rows_normalize_difficulty_before_slot_winner_selection() {
         .effect_rows_for_exact_difficulty(81_003, u8::MAX)
         .expect("signed -1 casts to Difficulty 255");
     assert_eq!(wrapped[0].effect_index, 2);
-    assert_eq!(wrapped[0].effect_misc_value_1, negative_difficulty_target as i32);
+    assert_eq!(
+        wrapped[0].effect_misc_value_1,
+        negative_difficulty_target as i32
+    );
     let hit = store
         .hit_metadata_for_difficulty_like_cpp(81_003, u8::MAX, None)
         .expect("the wrapped difficulty also indexes hit metadata");
@@ -167,14 +173,18 @@ fn server_effect_difficulty_256_joins_difficulty_none_without_validation() {
 
     assert_eq!(outcome.loaded_effect_count, 1);
     assert!(outcome.errors.is_empty());
-    assert!(outcome
-        .store
-        .effects_for_spell_difficulty_like_cpp(82_001, 0)
-        .is_some());
-    assert!(outcome
-        .store
-        .effects_for_spell_difficulty_like_cpp(82_001, 256)
-        .is_none());
+    assert!(
+        outcome
+            .store
+            .effects_for_spell_difficulty_like_cpp(82_001, 0)
+            .is_some()
+    );
+    assert!(
+        outcome
+            .store
+            .effects_for_spell_difficulty_like_cpp(82_001, 256)
+            .is_none()
+    );
 
     let spells = ServersideSpellStoreLikeCpp::from_rows_like_cpp(
         [serverside_spell_row(82_001, 0)],
@@ -208,14 +218,18 @@ fn server_effect_and_parent_aliases_join_at_difficulty_231_in_query_order() {
 
     assert_eq!(validated_difficulties, [231]);
     assert!(effects.errors.is_empty());
-    assert!(effects
-        .store
-        .effects_for_spell_difficulty_like_cpp(82_002, 231)
-        .is_some());
-    assert!(effects
-        .store
-        .effects_for_spell_difficulty_like_cpp(82_002, 999)
-        .is_none());
+    assert!(
+        effects
+            .store
+            .effects_for_spell_difficulty_like_cpp(82_002, 231)
+            .is_some()
+    );
+    assert!(
+        effects
+            .store
+            .effects_for_spell_difficulty_like_cpp(82_002, 999)
+            .is_none()
+    );
 
     let mut first_parent = serverside_spell_row(82_002, 999);
     first_parent.spell_name = "first alias".to_string();
@@ -238,10 +252,12 @@ fn server_effect_and_parent_aliases_join_at_difficulty_231_in_query_order() {
             (82_002, "last alias".to_string())
         ]
     );
-    assert!(spells
-        .store
-        .get_serverside_spell_like_cpp(82_002, 999)
-        .is_none());
+    assert!(
+        spells
+            .store
+            .get_serverside_spell_like_cpp(82_002, 999)
+            .is_none()
+    );
     let info = spells
         .store
         .get_serverside_spell_like_cpp(82_002, 231)
@@ -264,14 +280,18 @@ fn server_effect_and_parent_aliases_join_at_difficulty_231_in_query_order() {
     );
     assert_eq!(unvalidated_parent.loaded_spell_count, 1);
     assert!(unvalidated_parent.errors.is_empty());
-    assert!(unvalidated_parent
-        .store
-        .get_serverside_spell_like_cpp(82_003, 231)
-        .is_some());
-    assert!(unvalidated_parent
-        .store
-        .get_serverside_spell_like_cpp(82_003, 999)
-        .is_none());
+    assert!(
+        unvalidated_parent
+            .store
+            .get_serverside_spell_like_cpp(82_003, 231)
+            .is_some()
+    );
+    assert!(
+        unvalidated_parent
+            .store
+            .get_serverside_spell_like_cpp(82_003, 999)
+            .is_none()
+    );
 }
 
 #[test]
@@ -318,11 +338,8 @@ fn server_visual_slots_follow_input_order_and_orphans_have_no_potential() {
     );
     assert!(retained.store.may_override_spell_visual(target_spell_id));
 
-    let orphan = ServersideSpellStoreLikeCpp::from_rows_like_cpp(
-        [],
-        &inert_then_active.store,
-        |_| false,
-    );
+    let orphan =
+        ServersideSpellStoreLikeCpp::from_rows_like_cpp([], &inert_then_active.store, |_| false);
     assert!(!orphan.store.may_override_spell_visual(target_spell_id));
 }
 

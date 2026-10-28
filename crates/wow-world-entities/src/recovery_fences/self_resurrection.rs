@@ -101,14 +101,10 @@ fn apply_self_resurrection_values(
         // The native setters apply the current post-obtain maxima, matching
         // C++ SetHealth/SetPower after the spell's frozen input calculation.
         player.unit_mut().set_health(u64::from(health));
-        player
-            .unit_mut()
-            .set_power(PowerType::Mana, mana as i32);
+        player.unit_mut().set_power(PowerType::Mana, mana as i32);
         player.unit_mut().set_power(PowerType::Rage, 0);
         let full_energy = player.get_max_power(PowerType::Energy);
-        player
-            .unit_mut()
-            .set_power(PowerType::Energy, full_energy);
+        player.unit_mut().set_power(PowerType::Energy, full_energy);
         player.unit_mut().set_power(PowerType::Focus, 0);
         Some(())
     });

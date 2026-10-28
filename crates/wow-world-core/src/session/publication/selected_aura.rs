@@ -48,22 +48,31 @@ impl PreparedPlayerVisiblePacket {
     pub fn deliver_to_registry(&self, registry: &PlayerRegistry) {
         if let Some((map_key, residence_revision)) = self.source_residence {
             let source = Recipient {
-                    guid: self.source_guid,
-                    handle: self.source_handle,
-                    map_key,
-                    residence_revision,
-                };
+                guid: self.source_guid,
+                handle: self.source_handle,
+                map_key,
+                residence_revision,
+            };
             if self.realm_connection {
                 if let Some((registration, _)) = registry.selected_packet_recipient_at_residence(
-                    source.guid, source.handle, source.map_key, source.residence_revision, None,
+                    source.guid,
+                    source.handle,
+                    source.map_key,
+                    source.residence_revision,
+                    None,
                 ) {
-                    let _ = registry.send_current_realm_packet(
-                        registration,
-                        self.packet_bytes.clone(),
-                    );
+                    let _ =
+                        registry.send_current_realm_packet(registration, self.packet_bytes.clone());
                 }
             } else {
-                enqueue(registry, source, self.source_guid, &self.packet_bytes, false, false);
+                enqueue(
+                    registry,
+                    source,
+                    self.source_guid,
+                    &self.packet_bytes,
+                    false,
+                    false,
+                );
             }
         }
         self.deliver_observers_to_registry(registry);

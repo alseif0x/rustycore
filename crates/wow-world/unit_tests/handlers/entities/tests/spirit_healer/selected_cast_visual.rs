@@ -27,9 +27,9 @@ fn install_wisp_visual_rows(
     rows: impl IntoIterator<Item = wow_data::SpellXSpellVisualEntry>,
 ) {
     session.set_creature_aggro_config_like_cpp(crate::session::CreatureAggroConfigLikeCpp {
-        spell_x_spell_visual_store: Some(Arc::new(
-            wow_data::SpellXSpellVisualStore::from_entries(rows),
-        )),
+        spell_x_spell_visual_store: Some(Arc::new(wow_data::SpellXSpellVisualStore::from_entries(
+            rows,
+        ))),
         ..Default::default()
     });
 }

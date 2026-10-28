@@ -296,12 +296,9 @@ fn current_race_sickness_and_ghost_wisp_are_prepared_in_slot_order_once() {
         Some(&options),
         Some(&difficulties),
     );
-    let updates = collect_player_pending_selected_aura_updates(
-        &mut manager,
-        handle,
-        selected_catalogs,
-    )
-    .unwrap();
+    let updates =
+        collect_player_pending_selected_aura_updates(&mut manager, handle, selected_catalogs)
+            .unwrap();
     assert_eq!(updates.len(), 3);
     for (update, (slot, spell, cast)) in
         updates
@@ -368,15 +365,8 @@ fn selected_publication_delta_keeps_hidden_and_zero_duration_and_sparse_points()
         )
         .unwrap();
         assert_eq!(updates.len(), 1);
-        let (
-            flags,
-            active_flags,
-            cast_level,
-            applications,
-            point_count,
-            has_duration,
-            points,
-        ) = decode_selected_delta(updates[0].packet_bytes());
+        let (flags, active_flags, cast_level, applications, point_count, has_duration, points) =
+            decode_selected_delta(updates[0].packet_bytes());
         assert_eq!(flags & 0x8, 0x8);
         assert_eq!(flags & 0x4, 0);
         assert_eq!(active_flags, 0b101);
@@ -406,12 +396,9 @@ fn separate_recovery_owners_collect_only_their_current_player_once() {
     install(&mut manager, first_handle, 3, 8326);
     install(&mut manager, second_handle, 6, SICKNESS);
 
-    let first = collect_player_pending_selected_aura_updates(
-        &mut manager,
-        first_handle,
-        selected_catalogs,
-    )
-    .unwrap();
+    let first =
+        collect_player_pending_selected_aura_updates(&mut manager, first_handle, selected_catalogs)
+            .unwrap();
     assert_eq!(first.len(), 1);
     assert!(pending(&manager, first_handle).is_empty());
     assert_eq!(pending(&manager, second_handle), [6]);
@@ -436,9 +423,11 @@ fn separate_recovery_owners_collect_only_their_current_player_once() {
         0
     );
 
-    assert!(first.iter().chain(&second).all(|update| update
-        .packet_bytes()
-        .starts_with(&(wow_constants::ServerOpcodes::AuraUpdate as u16).to_le_bytes())));
+    assert!(first.iter().chain(&second).all(|update| {
+        update
+            .packet_bytes()
+            .starts_with(&(wow_constants::ServerOpcodes::AuraUpdate as u16).to_le_bytes())
+    }));
 }
 
 #[test]
@@ -457,8 +446,8 @@ fn empty_pending_needs_no_race_lookup_but_classification_requires_known_metadata
             handle,
             catalogs(Some(&missing), None, None, None),
         )
-            .unwrap()
-            .is_empty()
+        .unwrap()
+        .is_empty()
     );
     install(&mut manager, handle, 0, 8326);
     let invalid = races(-1);
@@ -480,10 +469,15 @@ fn empty_pending_needs_no_race_lookup_but_classification_requires_known_metadata
         collect_player_pending_selected_aura_updates(
             &mut manager,
             handle,
-            catalogs(Some(&races(0)), Some(&spells), Some(&options), Some(&difficulties)),
+            catalogs(
+                Some(&races(0)),
+                Some(&spells),
+                Some(&options),
+                Some(&difficulties)
+            ),
         )
-            .unwrap()
-            .len(),
+        .unwrap()
+        .len(),
         1
     );
     install(&mut manager, handle, 4, 99_007);
@@ -493,8 +487,8 @@ fn empty_pending_needs_no_race_lookup_but_classification_requires_known_metadata
             handle,
             catalogs(Some(&races(0)), None, None, None),
         )
-            .unwrap()
-            .is_empty()
+        .unwrap()
+        .is_empty()
     );
     assert_eq!(pending(&manager, handle), [4]);
 }
@@ -552,10 +546,7 @@ fn selected_publication_bad_metadata_keeps_every_pending_slot() {
                 .unit_mut()
                 .subsystems_mut()
                 .auras
-                .set_aura_cast_provenance_like_cpp(
-                    7,
-                    AuraCastProvenanceLikeCpp::default(),
-                );
+                .set_aura_cast_provenance_like_cpp(7, AuraCastProvenanceLikeCpp::default());
         })
         .unwrap();
 
@@ -569,7 +560,10 @@ fn selected_publication_bad_metadata_keeps_every_pending_slot() {
             Some(&difficulties),
         ),
     );
-    assert!(result.is_err(), "missing selected cast facts hold publication");
+    assert!(
+        result.is_err(),
+        "missing selected cast facts hold publication"
+    );
     assert_eq!(pending(&manager, handle), [2, 7]);
 }
 
@@ -643,4 +637,3 @@ fn stale_detached_or_invalid_canonical_sources_preserve_pending() {
         assert_eq!(pending(&manager, current), [0]);
     }
 }
-

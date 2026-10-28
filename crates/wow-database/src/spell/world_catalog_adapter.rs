@@ -172,7 +172,9 @@ fn proc_row_like_cpp(row: &[NativeFieldLikeCpp]) -> AnyResult<SpellProcPersisten
     })
 }
 
-async fn query_checked_proc_rows(db: &WorldDatabase) -> AnyResult<Vec<SpellProcPersistenceRowLikeCpp>> {
+async fn query_checked_proc_rows(
+    db: &WorldDatabase,
+) -> AnyResult<Vec<SpellProcPersistenceRowLikeCpp>> {
     let mut result = db
         .query(&db.prepare(WorldStatements::SEL_SPELL_PROC))
         .await
@@ -204,9 +206,7 @@ fn append_checked_proc(
     Ok(())
 }
 
-fn classify_checked_rows<T>(
-    result: AnyResult<Vec<T>>,
-) -> SpellWorldCatalogLoadOutcomeLikeCpp<T> {
+fn classify_checked_rows<T>(result: AnyResult<Vec<T>>) -> SpellWorldCatalogLoadOutcomeLikeCpp<T> {
     match result {
         Ok(rows) => SpellWorldCatalogLoadOutcomeLikeCpp::Loaded(rows),
         Err(error) => SpellWorldCatalogLoadOutcomeLikeCpp::Failed {
@@ -291,9 +291,9 @@ impl SpellWorldCatalogPersistencePortLikeCpp for MariaDbSpellWorldCatalogPersist
         '_,
         SpellWorldCatalogLoadOutcomeLikeCpp<SpellProcPersistenceRowLikeCpp>,
     > {
-        Box::pin(async move {
-            classify_checked_rows(query_checked_proc_rows(&self.world_db).await)
-        })
+        Box::pin(
+            async move { classify_checked_rows(query_checked_proc_rows(&self.world_db).await) },
+        )
     }
 
     fn load_spell_required_rows_like_cpp(
@@ -467,8 +467,8 @@ impl SpellWorldCatalogPersistencePortLikeCpp for MariaDbSpellWorldCatalogPersist
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wow_persistence::SpellWorldCatalogLoadOutcomeLikeCpp;
     use crate::StatementDef;
+    use wow_persistence::SpellWorldCatalogLoadOutcomeLikeCpp;
 
     #[test]
     fn spell_world_catalog_statement_manifest_matches_cpp_queries() {

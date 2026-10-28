@@ -134,11 +134,7 @@ fn remainder_then_merge_preserves_both_allocated_destinations() {
     assert_eq!(
         plan.destination_items_in_order,
         vec![
-            (
-                INVENTORY_SLOT_BAG_0,
-                BANK_SLOT_ITEM_START,
-                plan.source.guid,
-            ),
+            (INVENTORY_SLOT_BAG_0, BANK_SLOT_ITEM_START, plan.source.guid,),
             (
                 INVENTORY_SLOT_BAG_0,
                 BANK_SLOT_ITEM_START + 1,

@@ -1,4 +1,6 @@
-use super::{calculate_pct_i32_like_cpp, calculate_pct_u64_like_cpp, self_resurrection_values_like_cpp};
+use super::{
+    calculate_pct_i32_like_cpp, calculate_pct_u64_like_cpp, self_resurrection_values_like_cpp,
+};
 
 #[test]
 fn flat_self_resurrection_preserves_unsigned_source_conversions() {
@@ -25,7 +27,10 @@ fn percentage_uses_source_f32_rounding_truncation_and_u32_narrowing() {
         .expect("50 percent of the full u64 health value is in Source's cast domain");
     let source_health = ((u64::MAX as f32) * 50.0_f32 / 100.0_f32) as u64;
     assert_eq!(full_width_percent, (source_health as u32, 50));
-    assert_eq!(full_width_percent.0, 0, "u32 narrowing happens after u64 calculation");
+    assert_eq!(
+        full_width_percent.0, 0,
+        "u32 narrowing happens after u64 calculation"
+    );
 }
 
 #[test]
@@ -36,7 +41,16 @@ fn percentage_rejects_values_outside_source_float_cast_domains() {
 
 #[test]
 fn percentage_mana_uses_only_a_positive_maximum() {
-    assert_eq!(self_resurrection_values_like_cpp(25, 999, 400, 200), Ok((100, 50)));
-    assert_eq!(self_resurrection_values_like_cpp(25, 999, 400, 0), Ok((100, 0)));
-    assert_eq!(self_resurrection_values_like_cpp(25, 999, 400, -1), Ok((100, 0)));
+    assert_eq!(
+        self_resurrection_values_like_cpp(25, 999, 400, 200),
+        Ok((100, 50))
+    );
+    assert_eq!(
+        self_resurrection_values_like_cpp(25, 999, 400, 0),
+        Ok((100, 0))
+    );
+    assert_eq!(
+        self_resurrection_values_like_cpp(25, 999, 400, -1),
+        Ok((100, 0))
+    );
 }

@@ -32,11 +32,11 @@ use wow_persistence::{
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::persistence_capabilities::CharacterPowerSnapshotLikeCpp;
 use crate::session::persistence_capabilities::{
-    character_power_snapshot_values_like_cpp, loaded_character_power_snapshot_like_cpp,
-    PlayerSaveToDbSnapshotLikeCpp,
+    PlayerSaveToDbSnapshotLikeCpp, character_power_snapshot_values_like_cpp,
+    loaded_character_power_snapshot_like_cpp,
 };
 use crate::session::{
-    represented_player_skill_record_like_cpp, RepresentedPlayerSkillStateLikeCpp, SessionCore,
+    RepresentedPlayerSkillStateLikeCpp, SessionCore, represented_player_skill_record_like_cpp,
 };
 
 mod currency;

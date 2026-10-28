@@ -265,9 +265,8 @@ pub use spell::{
     SpellEffectHotfixPersistenceRowLikeCpp, SpellLearnSpellHotfixPersistenceRowLikeCpp,
     SpellLearnSpellWorldPersistenceRowLikeCpp, SpellLevelsHotfixPersistenceRowLikeCpp,
     SpellMiscHotfixPersistenceRowLikeCpp, SpellReagentsCurrencyPersistenceRowLikeCpp,
-    SpellReagentsPersistenceRowLikeCpp,
-    SummonPropertiesHotfixPersistenceRowLikeCpp, TalentHotfixPersistenceRowLikeCpp,
-    TrainerSpellAuditPersistenceCatalogLikeCpp,
+    SpellReagentsPersistenceRowLikeCpp, SummonPropertiesHotfixPersistenceRowLikeCpp,
+    TalentHotfixPersistenceRowLikeCpp, TrainerSpellAuditPersistenceCatalogLikeCpp,
 };
 pub use spell::{
     SPELL_INFO_KEY_CONTRIBUTOR_ORDER_LIKE_CPP, SpellInfoKeyContributorHotfixBatchLikeCpp,
@@ -293,9 +292,8 @@ pub use spell::{
     SpellInterruptsHotfixRowLikeCpp, SpellLabelHotfixRow, SpellLevelsHotfixRow,
     SpellMiscHotfixRowLikeCpp, SpellNameHotfixRowLikeCpp, SpellPowerDifficultyHotfixRowLikeCpp,
     SpellPowerHotfixRowLikeCpp, SpellProcsPerMinuteHotfixRow, SpellRadiusHotfixRowLikeCpp,
-    SpellRangeHotfixRowLikeCpp,
-    SpellShapeshiftHotfixRowLikeCpp, SpellTargetRestrictionsHotfixRowLikeCpp,
-    SpellXSpellVisualHotfixRowLikeCpp,
+    SpellRangeHotfixRowLikeCpp, SpellShapeshiftHotfixRowLikeCpp,
+    SpellTargetRestrictionsHotfixRowLikeCpp, SpellXSpellVisualHotfixRowLikeCpp,
 };
 pub use static_data_overlay::{
     AreaTableHotfixRowLikeCpp, ChrCustomizationDisplayInfoHotfixRow, PowerTypeHotfixRowLikeCpp,

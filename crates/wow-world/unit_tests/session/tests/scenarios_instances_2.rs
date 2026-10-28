@@ -576,9 +576,11 @@ async fn send_initial_packets_after_add_to_map_rebuilds_visibility_after_login_c
         .set_last_visibility_pos_like_cpp(player_position);
     session.core.client_visible_guids_like_cpp.clear();
 
-    assert!(session
-        .send_initial_packets_after_add_to_map(player_guid, &player_position, 571, false)
-        .await);
+    assert!(
+        session
+            .send_initial_packets_after_add_to_map(player_guid, &player_position, 571, false)
+            .await
+    );
 
     assert!(
         session

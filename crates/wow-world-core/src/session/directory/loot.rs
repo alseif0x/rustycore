@@ -160,9 +160,7 @@ impl PlayerRegistry {
                     .quests
                     .statuses_like_cpp()
                     .values()
-                    .filter(|status| {
-                        status.status != wow_conditions::QUEST_STATUS_NONE_LIKE_CPP
-                    })
+                    .filter(|status| status.status != wow_conditions::QUEST_STATUS_NONE_LIKE_CPP)
                     .map(|status| (status.quest_id, status.objective_counts.clone()))
                     .collect(),
                 rewarded_quests: state

@@ -804,15 +804,10 @@ pub async fn handle_continue_player_login_with_catalogs_like_cpp<H: ContinueLogi
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
-    let aura_timediff_secs = u32::try_from(now_unix_secs.saturating_sub(saved_logout_time_secs))
-        .unwrap_or(u32::MAX);
-    load_character_auras_for_login_like_cpp(
-        host,
-        &player_lifecycle_port,
-        guid,
-        aura_timediff_secs,
-    )
-    .await;
+    let aura_timediff_secs =
+        u32::try_from(now_unix_secs.saturating_sub(saved_logout_time_secs)).unwrap_or(u32::MAX);
+    load_character_auras_for_login_like_cpp(host, &player_lifecycle_port, guid, aura_timediff_secs)
+        .await;
     // C++ `Player::LoadFromDB` runs `_LoadAuras` before `_LoadInventory`,
     // whose final `_ApplyAllItemMods` pass applies, for each equipment slot,
     // the item-set effect, regular equip spell, and enchantments before

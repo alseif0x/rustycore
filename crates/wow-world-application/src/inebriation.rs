@@ -29,8 +29,7 @@ pub fn set_player_drunk_value_like_cpp<H: SessionHubHostLikeCpp>(
     }
 
     let item_id = match cast_item_guid.filter(|guid| !guid.is_empty()) {
-        Some(_) => cast_item_entry
-            .ok_or("Cast item GUID has no canonical item entry")? as i32,
+        Some(_) => cast_item_entry.ok_or("Cast item GUID has no canonical item entry")? as i32,
         None => 0,
     };
 
@@ -61,7 +60,8 @@ pub fn set_player_drunk_value_like_cpp<H: SessionHubHostLikeCpp>(
                 PlayerDrunkValueInput::EffectDelta(delta) => i32::from(current)
                     .checked_add(delta)
                     .ok_or("EffectInebriate amount overflows the native i32 addition")?
-                    .clamp(0, 100) as u8,
+                    .clamp(0, 100)
+                    as u8,
             };
             let resulting = requested.min(100);
             let aura_state = &player.unit().subsystems().auras;
@@ -74,11 +74,9 @@ pub fn set_player_drunk_value_like_cpp<H: SessionHubHostLikeCpp>(
                 .catalogs
                 .player_stat_aura_catalogs()
                 .ok_or("Player Aura spell catalogs are unavailable")?;
-            let aura_view = PlayerStatAuraView::new(
-                aura_state.runtime_applications_like_cpp(),
-                aura_catalogs,
-            )
-            .ok_or("Canonical Player Aura metadata is unavailable")?;
+            let aura_view =
+                PlayerStatAuraView::new(aura_state.runtime_applications_like_cpp(), aura_catalogs)
+                    .ok_or("Canonical Player Aura metadata is unavailable")?;
             let applied_fake_effects = aura_state
                 .applied_aura_types
                 .get(&FAKE_INEBRIATE)

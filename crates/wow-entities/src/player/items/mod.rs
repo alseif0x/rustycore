@@ -104,6 +104,7 @@ pub fn represented_avg_total_item_level_maybe_replace_slot_like_cpp(
 
 mod enchantment;
 mod equipment;
+mod obtain;
 mod spell_costs;
 mod storage;
 mod storage_move;

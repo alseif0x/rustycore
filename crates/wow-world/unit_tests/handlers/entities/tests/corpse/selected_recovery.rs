@@ -109,7 +109,9 @@ async fn automatic_release_keeps_ghost_and_wisp_pending_until_the_next_recovery(
             let mut slots = auras
                 .runtime_applications_like_cpp()
                 .iter()
-                .filter_map(|(&slot, aura)| matches!(aura.spell_id, GHOST | WISP).then_some((slot, aura.spell_id)))
+                .filter_map(|(&slot, aura)| {
+                    matches!(aura.spell_id, GHOST | WISP).then_some((slot, aura.spell_id))
+                })
                 .collect::<Vec<_>>();
             slots.sort_unstable_by_key(|(slot, _)| *slot);
             for (slot, _) in &slots {

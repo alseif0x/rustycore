@@ -703,11 +703,7 @@ fn banked_quest_item_recomputes_objective_and_reopens_quest_like_cpp() {
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    crate::canonical_player_access::install_canonical_player_owner_for_test(
-        &mut session,
-        571,
-        0,
-    );
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
     session
         .mutate_player_quest_gameplay_like_cpp(|quests| {
             quests.insert_status_like_cpp(
@@ -735,7 +731,8 @@ fn banked_quest_item_recomputes_objective_and_reopens_quest_like_cpp() {
     let _ = manager.lock().unwrap().update(1);
     assert_eq!(
         session
-            .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(),
+            .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(
+            ),
         1
     );
     let _ = send_rx.try_iter().count();
@@ -763,7 +760,8 @@ fn banked_quest_item_recomputes_objective_and_reopens_quest_like_cpp() {
     let _ = manager.lock().unwrap().update(1);
     assert_eq!(
         session
-            .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(),
+            .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(
+            ),
         1
     );
     let update = send_rx

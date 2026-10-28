@@ -43,10 +43,13 @@ fn effect_route_separates_source_noops_direct_post_go_and_unavailable_mutations(
     use wow_data::spell::spell_effect_types as effect_types;
 
     let info = spell_info(Vec::new(), effect_types::SPELL_EFFECT_HEAL);
-    let context = context(wow_core::ObjectGuid::EMPTY, wow_core::ObjectGuid::EMPTY, false);
-    let classify = |effect_type| {
-        classify_spell_effect_route_like_cpp(&info, effect_type, None, context)
-    };
+    let context = context(
+        wow_core::ObjectGuid::EMPTY,
+        wow_core::ObjectGuid::EMPTY,
+        false,
+    );
+    let classify =
+        |effect_type| classify_spell_effect_route_like_cpp(&info, effect_type, None, context);
 
     assert_eq!(
         classify(effect_types::SPELL_EFFECT_NONE),
@@ -59,7 +62,10 @@ fn effect_route_separates_source_noops_direct_post_go_and_unavailable_mutations(
         classify(effect_types::SPELL_EFFECT_DUMMY),
         SpellEffectExecutionRouteLikeCpp::Unavailable
     );
-    assert_eq!(classify(u32::MAX), SpellEffectExecutionRouteLikeCpp::Unavailable);
+    assert_eq!(
+        classify(u32::MAX),
+        SpellEffectExecutionRouteLikeCpp::Unavailable
+    );
     assert_eq!(
         classify(effect_types::SPELL_EFFECT_HEAL),
         SpellEffectExecutionRouteLikeCpp::Direct

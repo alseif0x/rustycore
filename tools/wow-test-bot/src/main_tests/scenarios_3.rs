@@ -277,28 +277,18 @@ fn cast_lifecycle_character_guid_override_requires_one_single_account_and_report
     };
     let mut selected = vec![configured_bot.clone()];
 
-    assert!(apply_cast_lifecycle_character_guid_override(
-        &mut selected,
-        Some(41),
-        true,
-        false,
-    )
-    .is_err());
-    assert!(apply_cast_lifecycle_character_guid_override(
-        &mut selected,
-        Some(41),
-        false,
-        true,
-    )
-    .is_err());
+    assert!(
+        apply_cast_lifecycle_character_guid_override(&mut selected, Some(41), true, false,)
+            .is_err()
+    );
+    assert!(
+        apply_cast_lifecycle_character_guid_override(&mut selected, Some(41), false, true,)
+            .is_err()
+    );
     let mut multiple = vec![configured_bot.clone(), configured_bot.clone()];
-    assert!(apply_cast_lifecycle_character_guid_override(
-        &mut multiple,
-        Some(41),
-        true,
-        true,
-    )
-    .is_err());
+    assert!(
+        apply_cast_lifecycle_character_guid_override(&mut multiple, Some(41), true, true,).is_err()
+    );
     assert_eq!(selected[0].character_guid, 15);
 
     apply_cast_lifecycle_character_guid_override(&mut selected, Some(41), true, true).unwrap();

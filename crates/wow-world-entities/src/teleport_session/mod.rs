@@ -17,9 +17,9 @@
 //! `#[cfg(test)]` fixture steps run through
 //! `SessionHubHostLikeCpp::test_fixtures_like_cpp`.
 
+use std::future::Future;
 use wow_core::Position;
 use wow_world_core::session::movement_protocol::TeleportToOptionsLikeCpp;
-use std::future::Future;
 
 use crate::combat_session::CombatSessionHostLikeCpp;
 
@@ -29,15 +29,15 @@ mod teleport_ack;
 
 pub use teleport::{
     pending_teleport_save_destination_like_cpp,
-    process_represented_delayed_teleport_after_update_like_cpp,
-    teleport_to_with_options, teleport_to_with_options_and_resurrection,
+    process_represented_delayed_teleport_after_update_like_cpp, teleport_to_with_options,
+    teleport_to_with_options_and_resurrection,
 };
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use teleport_ack::schedule_represented_resurrection_after_teleport;
 pub use teleport_ack::{
     handle_move_teleport_ack_like_cpp,
     process_represented_delayed_resurrection_after_teleport_like_cpp,
 };
-#[cfg(any(test, feature = "test-fixtures"))]
-pub use teleport_ack::schedule_represented_resurrection_after_teleport;
 
 pub const TELE_TO_NONE_LIKE_CPP: TeleportToOptionsLikeCpp = 0x00;
 pub const TELE_TO_NOT_LEAVE_COMBAT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x04;

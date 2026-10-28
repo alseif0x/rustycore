@@ -1,6 +1,23 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **#43 current summary — 2026-10-28, branch `43-spirit-healer`:**
+Local closeout preparation now includes native capture collection under the
+existing systemd swap/restore guard (`645499a92`), observed NPC and in-memory
+character selection (`603e911c5`), disposable fixture preparation/recovery
+(`56a9a802a`) and packet-driven action sequencing (`8a5f498a0`). The latter's
+focused coding feedback passed 42 cases before subsequent formatting; it is
+not a committed-candidate final verdict. The fixture and capture fake suites
+have not yet been executed. No new fixture rows, live captures or service
+operations were performed during this preparation.
+
+The closeout physical review retains four unchanged death-driver tests in a
+private child and moves four unchanged obtain-item readers out of storage.
+World retains 4,116 tests (one ignored) and the same classifications. The
+reviewed policy records exact composition/state-definition and test-adapter
+deltas with their existing #584 C4 split exits; it does not declare that
+architecture programme complete. Candidate formatting and module wiring refine
+the World test-line count to 270,836 without adding or removing tests.
+
 The macro remains open and has not passed final acceptance. Changes remain
 local to `43-spirit-healer`; this candidate has not been published or deployed.
 Native death now fences canonical save capture, Map retirement and same-GUID

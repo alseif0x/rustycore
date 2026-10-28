@@ -177,9 +177,8 @@ pub(super) fn install_wisp_templates(
     templates: &[(u32, u32)],
 ) {
     let template_rows =
-        templates
-            .iter()
-            .map(|(entry, display)| wow_data::CreatureTemplateLifecycleRecordLikeCpp {
+        templates.iter().map(
+            |(entry, display)| wow_data::CreatureTemplateLifecycleRecordLikeCpp {
                 entry: *entry,
                 name: format!("Creature {entry}"),
                 scale: 1.0,
@@ -189,7 +188,8 @@ pub(super) fn install_wisp_templates(
                     probability: 1.0,
                 }],
                 ..Default::default()
-            });
+            },
+        );
     let model_rows = templates
         .iter()
         .map(|(_, display)| wow_data::CreatureModelInfoLikeCpp {

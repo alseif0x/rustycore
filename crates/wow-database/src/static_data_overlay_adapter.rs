@@ -4,10 +4,10 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use wow_persistence::{
-    AreaTableHotfixRowLikeCpp, ChrCustomizationDisplayInfoHotfixRow,
-    PersistenceFutureLikeCpp, PowerTypeHotfixRowLikeCpp,
-    SpellEnchantProcPersistenceRowLikeCpp, StaticDataOverlayPersistencePortLikeCpp,
-    StaticDataRowsLoadOutcomeLikeCpp, UiMapXMapArtHotfixRowLikeCpp,
+    AreaTableHotfixRowLikeCpp, ChrCustomizationDisplayInfoHotfixRow, PersistenceFutureLikeCpp,
+    PowerTypeHotfixRowLikeCpp, SpellEnchantProcPersistenceRowLikeCpp,
+    StaticDataOverlayPersistencePortLikeCpp, StaticDataRowsLoadOutcomeLikeCpp,
+    UiMapXMapArtHotfixRowLikeCpp,
 };
 
 use crate::{HotfixDatabase, HotfixStatements, WorldDatabase, WorldStatements};

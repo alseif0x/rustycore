@@ -52,15 +52,15 @@ pub async fn resurrect_player_like_cpp<H: CorpseHostLikeCpp>(
         return Err(reason);
     }
     finish_resurrection_visibility(host, catalogs).await;
-    if owner.is_some_and(|owner| {
-        !crate::recovery_fences::owner_is_current_in_residence(host, owner)
-    }) {
+    if owner
+        .is_some_and(|owner| !crate::recovery_fences::owner_is_current_in_residence(host, owner))
+    {
         return Err("canonical Player incarnation or residence changed after visibility update");
     }
     host.cast_all_obtain_spells_like_cpp(catalogs).await?;
-    if owner.is_some_and(|owner| {
-        !crate::recovery_fences::owner_is_current_in_residence(host, owner)
-    }) {
+    if owner
+        .is_some_and(|owner| !crate::recovery_fences::owner_is_current_in_residence(host, owner))
+    {
         return Err("canonical Player incarnation or residence changed after obtain spells");
     }
     if apply_sickness {

@@ -1,6 +1,8 @@
-use wow_entities::{PlayerResurrectionPhase as Phase};
+use wow_entities::PlayerResurrectionPhase as Phase;
 
-use super::owner::{Owner, Progress, advance, clear_complete, complete, owner_is_current, run_bones, save_player};
+use super::owner::{
+    Owner, Progress, advance, clear_complete, complete, owner_is_current, run_bones, save_player,
+};
 use crate::{CorpseHostLikeCpp, ResurrectionOperationCatalogs};
 
 pub(super) async fn continue_reclaim(
@@ -34,7 +36,12 @@ pub(super) async fn continue_reclaim(
             crate::player_resurrection::finish_resurrection_visibility(host, catalogs).await;
             if !owner_is_current(host, owner)
                 || !super::owner::owner_is_current_in_residence(host, owner)
-                || !advance(host, owner, Phase::VisibilityInFlight, Phase::ObtainSpellsInFlight)
+                || !advance(
+                    host,
+                    owner,
+                    Phase::VisibilityInFlight,
+                    Phase::ObtainSpellsInFlight,
+                )
             {
                 return Progress::Held;
             }
@@ -44,7 +51,12 @@ pub(super) async fn continue_reclaim(
             }
             if !owner_is_current(host, owner)
                 || !super::owner::owner_is_current_in_residence(host, owner)
-                || !advance(host, owner, Phase::ObtainSpellsInFlight, Phase::RecoveryBonesReady)
+                || !advance(
+                    host,
+                    owner,
+                    Phase::ObtainSpellsInFlight,
+                    Phase::RecoveryBonesReady,
+                )
             {
                 return Progress::Held;
             }

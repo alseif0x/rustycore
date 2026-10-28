@@ -1,9 +1,8 @@
 use super::visual_metadata_loading::{FixtureDirectory, unresolved_error};
 use crate::{
-    Db2HotfixRemovalStoreLikeCpp, DifficultyStore, SpellAuraOptionsEntry,
-    SpellAuraOptionsStore, SpellClassOptionsEntry, SpellClassOptionsStore, SpellLabelEntry,
-    SpellLabelStore, SpellLevelsEntry, SpellLevelsStore, SpellProcsPerMinuteEntry,
-    SpellProcsPerMinuteStore,
+    Db2HotfixRemovalStoreLikeCpp, DifficultyStore, SpellAuraOptionsEntry, SpellAuraOptionsStore,
+    SpellClassOptionsEntry, SpellClassOptionsStore, SpellLabelEntry, SpellLabelStore,
+    SpellLevelsEntry, SpellLevelsStore, SpellProcsPerMinuteEntry, SpellProcsPerMinuteStore,
 };
 
 const AURA_TABLE_HASH: u32 = 0xA0A0_0101;
@@ -540,13 +539,7 @@ fn scalar_complete_loaders_reject_unresolved_copies_before_overlays() {
 #[test]
 fn ppm_effective_loader_composes_complete_file_rows_overlays_and_removals() {
     let fixtures = FixtureDirectory::new();
-    fixtures.write_complete_records(
-        "SpellProcsPerMinute.db2",
-        PPM_TABLE_HASH,
-        100,
-        2,
-        &[32, 8],
-    );
+    fixtures.write_complete_records("SpellProcsPerMinute.db2", PPM_TABLE_HASH, 100, 2, &[32, 8]);
     let data_dir = fixtures.data_dir();
     let file = SpellProcsPerMinuteStore::load_complete(&data_dir, "enUS")
         .expect("load complete PPM DB2 file");
@@ -571,7 +564,10 @@ fn ppm_effective_loader_composes_complete_file_rows_overlays_and_removals() {
     .expect("overlay PPM rows after a complete file load");
     assert_eq!(effective.len(), 3);
     let replacement = effective.get(100).expect("custom replacement row");
-    assert_eq!(replacement.base_proc_rate.to_bits(), 0.123_456_79_f32.to_bits());
+    assert_eq!(
+        replacement.base_proc_rate.to_bits(),
+        0.123_456_79_f32.to_bits()
+    );
     assert_eq!(replacement.flags, u8::MAX);
     assert_eq!(effective.get(101), Some(&ppm_entry(101, 0.0, 0)));
     assert_eq!(effective.get(200), Some(&ppm_entry(200, 2.5, 7)));

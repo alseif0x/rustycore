@@ -94,7 +94,10 @@ fn empty_selected_unit_step_does_not_require_race_metadata() {
     let result = wow_world_spell::tick_selected_aura_lifetimes(&mut fixture.session, 50)
         .expect("an empty canonical Player has no selected Aura to classify");
 
-    assert_eq!(result, wow_world_spell::SelectedAuraLifetimeResult::default());
+    assert_eq!(
+        result,
+        wow_world_spell::SelectedAuraLifetimeResult::default()
+    );
 }
 
 #[tokio::test]

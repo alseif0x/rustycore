@@ -21,9 +21,11 @@ fn player(counter: i64) -> Player {
 
 fn creature(counter: i64) -> Creature {
     let mut creature = Creature::new(true);
-    creature.unit_mut().world_mut().object_mut().create(
-        ObjectGuid::create_creature_like_cpp(1, 571, 9_101, counter),
-    );
+    creature
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(ObjectGuid::create_creature_like_cpp(1, 571, 9_101, counter));
     creature
 }
 
@@ -68,13 +70,19 @@ fn phase_private_smooth_and_conditions_gates_precede_context_exceptions() {
     let mut seer = player(11);
     let mut target = player(12);
     let seer_guid = seer.unit().world().object().guid();
-    target.unit_mut().set_server_side_ghost_visibility_like_cpp(0x2);
+    target
+        .unit_mut()
+        .set_server_side_ghost_visibility_like_cpp(0x2);
     let bypasses = context(true, true, true);
 
     seer.unit_mut().world_mut().phase_shift_mut().insert(10);
     target.unit_mut().world_mut().phase_shift_mut().insert(20);
     assert!(!seer.unit().can_see_or_detect_unit_with_context(
-        target.unit(), true, true, false, bypasses,
+        target.unit(),
+        true,
+        true,
+        false,
+        bypasses,
     ));
 
     seer.unit_mut().world_mut().phase_shift_mut().clear();
@@ -83,7 +91,11 @@ fn phase_private_smooth_and_conditions_gates_precede_context_exceptions() {
         .unit_mut()
         .set_private_object_owner_like_cpp(ObjectGuid::new(1, 99));
     assert!(!seer.unit().can_see_or_detect_unit_with_context(
-        target.unit(), true, true, false, bypasses,
+        target.unit(),
+        true,
+        true,
+        false,
+        bypasses,
     ));
 
     target
@@ -93,12 +105,13 @@ fn phase_private_smooth_and_conditions_gates_precede_context_exceptions() {
         .unit_mut()
         .world_mut()
         .get_or_create_smooth_phasing_like_cpp()
-        .set_viewer_dependent_info_like_cpp(
-            seer_guid,
-            crate::SmoothPhasingInfoLikeCpp::default(),
-        );
+        .set_viewer_dependent_info_like_cpp(seer_guid, crate::SmoothPhasingInfoLikeCpp::default());
     assert!(!seer.unit().can_see_or_detect_unit_with_context(
-        target.unit(), true, true, false, bypasses,
+        target.unit(),
+        true,
+        true,
+        false,
+        bypasses,
     ));
 
     target
@@ -111,7 +124,11 @@ fn phase_private_smooth_and_conditions_gates_precede_context_exceptions() {
         .unit_mut()
         .set_object_id_visibility_conditions_met_like_cpp(false);
     assert!(!seer.unit().can_see_or_detect_unit_with_context(
-        target.unit(), true, true, false, bypasses,
+        target.unit(),
+        true,
+        true,
+        false,
+        bypasses,
     ));
 }
 
@@ -147,7 +164,9 @@ fn corpse_exception_skips_only_ghost_gate() {
         corpse_exception,
     ));
 
-    target.unit_mut().set_invisible_due_to_despawn_like_cpp(true);
+    target
+        .unit_mut()
+        .set_invisible_due_to_despawn_like_cpp(true);
     assert!(!seer.unit().can_see_or_detect_unit_with_context(
         target.unit(),
         false,

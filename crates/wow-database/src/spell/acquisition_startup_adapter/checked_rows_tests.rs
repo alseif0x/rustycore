@@ -1,5 +1,5 @@
-use super::*;
 use super::super::classify_checked;
+use super::*;
 use crate::field_like_cpp::NativeFieldLikeCpp as Native;
 use wow_persistence::SpellAcquisitionStartupLoadOutcomeLikeCpp;
 
@@ -25,7 +25,10 @@ fn server_effect_projection_keeps_signed_short_fields_float_and_masks() {
     assert_eq!(decoded.effect_index, -2);
     assert_eq!(decoded.difficulty_id, 256);
     assert_eq!(decoded.effect_aura, i32::from(i16::MIN));
-    assert_eq!(decoded.effect_amplitude.to_bits(), 1.234_567_8_f32.to_bits());
+    assert_eq!(
+        decoded.effect_amplitude.to_bits(),
+        1.234_567_8_f32.to_bits()
+    );
     assert_eq!(decoded.effect_base_points.to_bits(), (-12.75_f32).to_bits());
     assert_eq!(
         decoded.effect_spell_class_mask,
@@ -104,7 +107,10 @@ fn malformed_server_row_fails_the_batch_with_table_row_and_field_chain() {
     let reason = match classify_checked(result.map(|()| rows)) {
         SpellAcquisitionStartupLoadOutcomeLikeCpp::Failed { reason } => reason,
         SpellAcquisitionStartupLoadOutcomeLikeCpp::Loaded(rows) => {
-            panic!("malformed server row unexpectedly loaded {} rows", rows.len())
+            panic!(
+                "malformed server row unexpectedly loaded {} rows",
+                rows.len()
+            )
         }
     };
     assert!(reason.contains("serverside_spell row 1"), "{reason}");

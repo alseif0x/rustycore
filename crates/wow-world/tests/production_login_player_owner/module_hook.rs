@@ -288,10 +288,12 @@ async fn production_login_create_projects_ordered_self_res_spells() {
 
     run_login(&mut fixture.session, &fixture.maps).await;
     assert_eq!(*fixture.port.events.lock().unwrap(), vec!["online"]);
-    assert!(!fixture
-        .port
-        .seed_self_res_spells_on_customizations_load
-        .load(Ordering::SeqCst));
+    assert!(
+        !fixture
+            .port
+            .seed_self_res_spells_on_customizations_load
+            .load(Ordering::SeqCst)
+    );
 
     const SELF_RES_VALUES: [u8; 12] = [
         0xD2, 0x0B, 0, 0, // 3026

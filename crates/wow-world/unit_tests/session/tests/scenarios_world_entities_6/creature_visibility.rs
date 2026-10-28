@@ -92,21 +92,9 @@ fn add_creature(
     guid
 }
 
-fn add_corpse(
-    fixture: &Fixture,
-    counter: i64,
-    position: Position,
-    instance_id: u32,
-) -> ObjectGuid {
-    let guid = ObjectGuid::create_world_object(
-        wow_core::guid::HighGuid::Corpse,
-        0,
-        1,
-        571,
-        0,
-        0,
-        counter,
-    );
+fn add_corpse(fixture: &Fixture, counter: i64, position: Position, instance_id: u32) -> ObjectGuid {
+    let guid =
+        ObjectGuid::create_world_object(wow_core::guid::HighGuid::Corpse, 0, 1, 571, 0, 0, counter);
     let mut corpse = wow_entities::Corpse::new_at(wow_entities::CorpseType::ResurrectablePve, 0);
     corpse.world_mut().object_mut().create(guid);
     corpse
@@ -187,7 +175,10 @@ fn ghost_masks_select_ordinary_healer_and_combined_creatures() {
     let corpse = add_corpse(&fixture, 95_005, Position::new(10.0, 0.0, 0.0, 0.0), 0);
     {
         let mut manager = fixture.manager.lock().expect("canonical manager");
-        let map = manager.find_map_mut(571, 0).expect("canonical map").map_mut();
+        let map = manager
+            .find_map_mut(571, 0)
+            .expect("canonical map")
+            .map_mut();
         map.get_typed_corpse_mut(corpse)
             .expect("indexed corpse")
             .world_mut()
@@ -229,10 +220,7 @@ fn corpse_distances_grant_ghost_visibility_but_corpse_presence_skips_direct_rang
             positive.session.core.player_handle_like_cpp.unwrap(),
             |player| {
                 player.unit().world().is_within_dist(
-                    map.get_typed_creature(target)
-                        .unwrap()
-                        .unit()
-                        .world(),
+                    map.get_typed_creature(target).unwrap().unit().world(),
                     sight,
                     false,
                     true,
@@ -242,9 +230,15 @@ fn corpse_distances_grant_ghost_visibility_but_corpse_presence_skips_direct_rang
         )
         .expect("canonical Player");
     drop(manager);
-    assert!(!player_and_target_distance, "target exceeds direct sight range");
+    assert!(
+        !player_and_target_distance,
+        "target exceeds direct sight range"
+    );
     let selected = query(&positive, positive.body_position);
-    assert!(visible(&selected, target), "corpse and target are both in range");
+    assert!(
+        visible(&selected, target),
+        "corpse and target are both in range"
+    );
 
     let mut negative = fixture(95_021, Position::new(0.0, 0.0, 0.0, 0.0));
     set_player_visibility(&mut negative, true, 0x2, 0x2);
@@ -295,7 +289,10 @@ fn corpse_distances_grant_ghost_visibility_but_corpse_presence_skips_direct_rang
         search_radius,
     );
     assert!(
-        visible(&query(&corpse_presence, corpse_presence.body_position), gm_target),
+        visible(
+            &query(&corpse_presence, corpse_presence.body_position),
+            gm_target
+        ),
         "corpse presence bypasses direct range even when corpseVisibility is false"
     );
 }
@@ -315,12 +312,7 @@ fn corpse_visibility_uses_body_distance_while_normal_range_uses_farsight() {
         571,
         0,
     );
-    let target = add_creature(
-        &body_far,
-        95_037,
-        Position::new(420.0, 0.0, 0.0, 0.0),
-        0x1,
-    );
+    let target = add_creature(&body_far, 95_037, Position::new(420.0, 0.0, 0.0, 0.0), 0x1);
     add_corpse(&body_far, 95_038, Position::new(410.0, 0.0, 0.0, 0.0), 0);
     let handle = body_far.session.core.player_handle_like_cpp.unwrap();
     body_far
@@ -432,7 +424,10 @@ fn absent_or_remote_instance_corpse_keeps_normal_distance_admission() {
         remote_corpse.body_position,
         search_radius,
     );
-    assert!(!visible(&query(&remote_corpse, remote_corpse.body_position), target));
+    assert!(!visible(
+        &query(&remote_corpse, remote_corpse.body_position),
+        target
+    ));
 }
 
 #[test]
@@ -449,18 +444,8 @@ fn farsight_uses_only_a_live_canonical_viewpoint_and_falls_back_to_body() {
         571,
         0,
     );
-    let view_target = add_creature(
-        &fixture,
-        95_063,
-        Position::new(420.0, 0.0, 0.0, 0.0),
-        0x1,
-    );
-    let body_target = add_creature(
-        &fixture,
-        95_064,
-        Position::new(20.0, 0.0, 0.0, 0.0),
-        0x1,
-    );
+    let view_target = add_creature(&fixture, 95_063, Position::new(420.0, 0.0, 0.0, 0.0), 0x1);
+    let body_target = add_creature(&fixture, 95_064, Position::new(20.0, 0.0, 0.0, 0.0), 0x1);
     let handle = fixture.session.core.player_handle_like_cpp.unwrap();
     fixture
         .manager
@@ -533,7 +518,10 @@ fn phase_distance_and_vehicle_admission_precede_gm_visibility() {
     let vehicle_guid = test_vehicle_guid(95_076);
     {
         let mut manager = fixture.manager.lock().expect("canonical manager");
-        let map = manager.find_map_mut(571, 0).expect("canonical map").map_mut();
+        let map = manager
+            .find_map_mut(571, 0)
+            .expect("canonical map")
+            .map_mut();
         for guid in [wrong_phase, near_gm, far_gm, accessory] {
             map.get_typed_creature_mut(guid)
                 .expect("canonical Creature")
@@ -603,10 +591,12 @@ fn stale_player_handle_does_not_fall_back_to_same_guid_incarnation() {
     assert_ne!(stale_handle, current_handle);
     drop(manager);
 
-    assert!(wow_world_entities::visible_creatures_from_canonical_map_like_cpp(
-        &fixture.session,
-        571,
-        &fixture.body_position,
-    )
-    .is_none());
+    assert!(
+        wow_world_entities::visible_creatures_from_canonical_map_like_cpp(
+            &fixture.session,
+            571,
+            &fixture.body_position,
+        )
+        .is_none()
+    );
 }

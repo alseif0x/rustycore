@@ -493,7 +493,9 @@ async fn quest_giver_choose_reward_accepts_existing_reward_currency_like_cpp() {
     assert_eq!(publish_quest_log_map_values_like_cpp(&mut session), 1);
 
     assert!(canonical_player_quest_status_like_cpp(&session, quest_id).is_none());
-    assert!(canonical_player_has_rewarded_quest_like_cpp(&session, quest_id));
+    assert!(canonical_player_has_rewarded_quest_like_cpp(
+        &session, quest_id
+    ));
     assert_eq!(session.player_gold_like_cpp(), 42);
     assert_eq!(session.player_currency_quantity(currency_id), Some(5));
     assert_eq!(
@@ -573,7 +575,9 @@ async fn quest_giver_choose_reward_fixed_currency_rewards_like_cpp() {
     assert_eq!(publish_quest_log_map_values_like_cpp(&mut session), 1);
 
     assert!(canonical_player_quest_status_like_cpp(&session, quest_id).is_none());
-    assert!(canonical_player_has_rewarded_quest_like_cpp(&session, quest_id));
+    assert!(canonical_player_has_rewarded_quest_like_cpp(
+        &session, quest_id
+    ));
     assert_eq!(session.player_gold_like_cpp(), 42);
     assert_eq!(session.player_currency_quantity(currency_id), Some(7));
     assert_eq!(

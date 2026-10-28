@@ -75,27 +75,25 @@ async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
                     .unit_mut()
                     .subsystems_mut()
                     .auras
-                    .insert_runtime_application_like_cpp(
-                        wow_entities::AuraApplicationLikeCpp {
-                            spell_id: 8_326,
-                            difficulty_id: 0,
-                            caster_guid: guid,
-                            slot: 4,
-                            duration_total: 60_000,
-                            duration_remaining: 60_000,
-                            stack_count: 1,
-                            aura_flags: 1,
-                            effect_mask: 1,
-                            aura_interrupt_flags: 0,
-                            aura_interrupt_flags2: 0,
-                            represented_effect: None,
-                            represented_amount: 0,
-                            represented_effect_amounts: Vec::new(),
-                            represented_misc_value: None,
-                            represented_multiplier: 1.0,
-                            applied_at: std::time::Instant::now(),
-                        },
-                    );
+                    .insert_runtime_application_like_cpp(wow_entities::AuraApplicationLikeCpp {
+                        spell_id: 8_326,
+                        difficulty_id: 0,
+                        caster_guid: guid,
+                        slot: 4,
+                        duration_total: 60_000,
+                        duration_remaining: 60_000,
+                        stack_count: 1,
+                        aura_flags: 1,
+                        effect_mask: 1,
+                        aura_interrupt_flags: 0,
+                        aura_interrupt_flags2: 0,
+                        represented_effect: None,
+                        represented_amount: 0,
+                        represented_effect_amounts: Vec::new(),
+                        represented_misc_value: None,
+                        represented_multiplier: 1.0,
+                        applied_at: std::time::Instant::now(),
+                    });
             })
             .expect("canonical Player owns the selected initial aura");
     }
@@ -147,18 +145,16 @@ async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
     session.set_player_lifecycle_port_like_cpp(port);
     if worldport {
         let mut native_player_state_before_post_add = None;
-        assert!(
-            session.schedule_represented_resurrection_after_teleport(
-                wow_entities::PlayerResurrectionRequestLikeCpp {
-                    resurrecter: guid,
-                    map_id: 571,
-                    position,
-                    health: 100,
-                    mana: 50,
-                    aura: 0,
-                }
-            )
-        );
+        assert!(session.schedule_represented_resurrection_after_teleport(
+            wow_entities::PlayerResurrectionRequestLikeCpp {
+                resurrecter: guid,
+                map_id: 571,
+                position,
+                health: 100,
+                mana: 50,
+                aura: 0,
+            }
+        ));
         assert!(session.set_pending_teleport_like_cpp(Some((571, position))));
         assert!(session.set_represented_far_teleport_pending_like_cpp(true));
         session.set_state(crate::session::SessionState::Transfer);
@@ -188,7 +184,11 @@ async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
             assert!(session.begin_worldport_post_add_like_cpp(571, position));
             assert!(!session.begin_worldport_post_add_like_cpp(571, position));
             session.set_player_position_like_cpp(Position::new(4.0, 5.0, 6.0, 0.0));
-            assert!(!session.finish_worldport_native_before_disconnect_like_cpp().await);
+            assert!(
+                !session
+                    .finish_worldport_native_before_disconnect_like_cpp()
+                    .await
+            );
             assert!(!session.represented_using_pvp_item_levels_like_cpp());
             assert!(
                 session
@@ -234,7 +234,9 @@ async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
                         .delayed_after_teleport
                         .map(|continuation| continuation.phase)
                 }),
-                Some(Some(wow_entities::PlayerResurrectionPhase::TeleportCompleted)),
+                Some(Some(
+                    wow_entities::PlayerResurrectionPhase::TeleportCompleted
+                )),
                 "the valid worldport ACK keeps its owned phase while post-add initialization fails"
             );
             assert_eq!(
@@ -275,7 +277,11 @@ async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
         );
         let pet_resummons = session.temporary_pet_resummon_requests_like_cpp();
         assert_eq!(pet_resummons, 1);
-        assert!(session.finish_worldport_native_before_disconnect_like_cpp().await);
+        assert!(
+            session
+                .finish_worldport_native_before_disconnect_like_cpp()
+                .await
+        );
         assert_eq!(
             session.temporary_pet_resummon_requests_like_cpp(),
             pet_resummons

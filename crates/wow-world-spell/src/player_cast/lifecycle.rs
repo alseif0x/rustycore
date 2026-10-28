@@ -298,13 +298,12 @@ pub fn prepare_server_normal(
     target_guid: ObjectGuid,
     mut metadata: wow_entities::SpellCastMetadata,
 ) -> ServerNormalPrepareOutcomeLikeCpp {
-    let (spell, actual_difficulty_id) = match runtime
-        .spell_for_difficulty_outcome(spell_id, requested_difficulty_id)
-    {
-        Ok(Some(selected)) => selected,
-        Ok(None) => return ServerNormalPrepareOutcomeLikeCpp::Rejected,
-        Err(reason) => return ServerNormalPrepareOutcomeLikeCpp::Unavailable(reason),
-    };
+    let (spell, actual_difficulty_id) =
+        match runtime.spell_for_difficulty_outcome(spell_id, requested_difficulty_id) {
+            Ok(Some(selected)) => selected,
+            Ok(None) => return ServerNormalPrepareOutcomeLikeCpp::Rejected,
+            Err(reason) => return ServerNormalPrepareOutcomeLikeCpp::Unavailable(reason),
+        };
     let Some(visual) = runtime.visual(&spell) else {
         return ServerNormalPrepareOutcomeLikeCpp::Unavailable(
             "server-normal spell visual authority unavailable",
@@ -409,10 +408,10 @@ pub fn prepare_server_normal(
         Err(reason) => return ServerNormalPrepareOutcomeLikeCpp::Unavailable(reason),
     }
     if metadata.cast_item_guid.is_none()
-            && metadata.trigger_cast_flags_like_cpp
-                & wow_entities::TRIGGERED_IGNORE_POWER_AND_REAGENT_COST_LIKE_CPP
-                == 0
-            && !runtime.check_power(&spell, cast_id, &visual)
+        && metadata.trigger_cast_flags_like_cpp
+            & wow_entities::TRIGGERED_IGNORE_POWER_AND_REAGENT_COST_LIKE_CPP
+            == 0
+        && !runtime.check_power(&spell, cast_id, &visual)
     {
         return ServerNormalPrepareOutcomeLikeCpp::Rejected;
     }

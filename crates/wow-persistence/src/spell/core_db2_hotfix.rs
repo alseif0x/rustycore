@@ -427,10 +427,7 @@ pub trait SpellCoreDb2HotfixPersistencePortLikeCpp: Send + Sync {
 
     fn load_spell_aura_options_rows(
         &self,
-    ) -> PersistenceFutureLikeCpp<
-        '_,
-        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellAuraOptionsHotfixRow>,
-    >;
+    ) -> PersistenceFutureLikeCpp<'_, SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellAuraOptionsHotfixRow>>;
 
     fn load_spell_class_options_rows(
         &self,

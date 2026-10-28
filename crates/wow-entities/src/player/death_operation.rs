@@ -101,11 +101,7 @@ impl Player {
 
         let state = &mut self.death_operation;
         let id = PlayerDeathOperationId(state.next_id?);
-        state.next_id = id
-            .0
-            .get()
-            .checked_add(1)
-            .and_then(NonZeroU64::new);
+        state.next_id = id.0.get().checked_add(1).and_then(NonZeroU64::new);
         state.current = Some(PlayerDeathOperationSnapshot {
             id,
             context,
@@ -152,17 +148,10 @@ impl Player {
     }
 
     /// Retire only the matching completed operation.
-    pub fn retire_completed_native_death_operation(
-        &mut self,
-        id: PlayerDeathOperationId,
-    ) -> bool {
-        if !self
-            .death_operation
-            .current
-            .is_some_and(|operation| {
-                operation.id == id && operation.phase == PlayerDeathOperationPhase::Complete
-            })
-        {
+    pub fn retire_completed_native_death_operation(&mut self, id: PlayerDeathOperationId) -> bool {
+        if !self.death_operation.current.is_some_and(|operation| {
+            operation.id == id && operation.phase == PlayerDeathOperationPhase::Complete
+        }) {
             return false;
         }
 

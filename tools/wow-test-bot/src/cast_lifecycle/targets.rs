@@ -1,7 +1,7 @@
 //! Creature-target resolution from the cast runner's retained packet evidence.
 
 use super::*;
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 
 #[derive(Debug)]
 struct SelectedCreature {
@@ -26,13 +26,7 @@ pub(super) fn resolve_action_targets(
             healer: CreatureTarget::Observed(selector),
         } => {
             let selected = select_observed_creature(&evidence.events, selector)?;
-            record_selection(
-                evidence,
-                action_index,
-                action,
-                *selector,
-                &selected,
-            );
+            record_selection(evidence, action_index, action, *selector, &selected);
             Ok(Action::SpiritHealerActivate {
                 healer: CreatureTarget::Guid(selected.guid),
             })
@@ -41,13 +35,7 @@ pub(super) fn resolve_action_targets(
             target: CreatureTarget::Observed(selector),
         } => {
             let selected = select_observed_creature(&evidence.events, selector)?;
-            record_selection(
-                evidence,
-                action_index,
-                action,
-                *selector,
-                &selected,
-            );
+            record_selection(evidence, action_index, action, *selector, &selected);
             Ok(Action::AttackSwing {
                 target: CreatureTarget::Guid(selected.guid),
             })
@@ -108,17 +96,19 @@ fn select_observed_creature(
     let barrier = events
         .iter()
         .filter(|event| {
-            (event.connection == Connection::Instance
-                && event.opcode == SMSG_LOGIN_VERIFY_WORLD)
+            (event.connection == Connection::Instance && event.opcode == SMSG_LOGIN_VERIFY_WORLD)
                 || (event.connection == Connection::Realm && event.opcode == SMSG_NEW_WORLD)
         })
         .max_by_key(|event| event.sequence)
         .context("observed-creature selector requires a login or worldport map barrier")?;
     if let Some(error) = &barrier.error {
-        bail!("latest world map barrier {} is malformed: {error}", barrier.sequence);
+        bail!(
+            "latest world map barrier {} is malformed: {error}",
+            barrier.sequence
+        );
     }
-    let barrier_payload = hex::decode(&barrier.body_hex)
-        .context("decode the latest login/worldport map barrier")?;
+    let barrier_payload =
+        hex::decode(&barrier.body_hex).context("decode the latest login/worldport map barrier")?;
     let map_bytes: [u8; 4] = barrier_payload
         .get(..4)
         .context("latest login/worldport map barrier is shorter than its map ID")?
@@ -186,15 +176,17 @@ fn precedes(candidate: &SelectedCreature, current: &SelectedCreature) -> bool {
     match candidate.distance.total_cmp(&current.distance) {
         std::cmp::Ordering::Less => true,
         std::cmp::Ordering::Greater => false,
-        std::cmp::Ordering::Equal => (
-            candidate.source_event_sequence,
-            candidate.guid.low,
-            candidate.guid.high,
-        ) < (
-            current.source_event_sequence,
-            current.guid.low,
-            current.guid.high,
-        ),
+        std::cmp::Ordering::Equal => {
+            (
+                candidate.source_event_sequence,
+                candidate.guid.low,
+                candidate.guid.high,
+            ) < (
+                current.source_event_sequence,
+                current.guid.low,
+                current.guid.high,
+            )
+        }
     }
 }
 
@@ -247,7 +239,12 @@ mod tests {
     }
 
     fn object_update_event(sequence: usize, payload: &[u8]) -> ObservedEvent {
-        decode_event(sequence, Connection::Instance, RAW_SMSG_UPDATE_OBJECT, payload)
+        decode_event(
+            sequence,
+            Connection::Instance,
+            RAW_SMSG_UPDATE_OBJECT,
+            payload,
+        )
     }
 
     fn creature(map_id: u16, counter: u64, xyz: [f32; 3]) -> Vec<u8> {
@@ -305,23 +302,21 @@ mod tests {
     #[test]
     fn target_resolution_fails_without_observation_or_for_stale_maps() {
         let point = [10.0, 20.0, 30.0];
-        assert!(select_observed_creature(
-            &[login_event(0, MAP_ID)],
-            &selector(MAP_ID, point, 4.0),
-        )
-        .unwrap_err()
-        .to_string()
-        .contains("no matching creature"));
+        assert!(
+            select_observed_creature(&[login_event(0, MAP_ID)], &selector(MAP_ID, point, 4.0),)
+                .unwrap_err()
+                .to_string()
+                .contains("no matching creature")
+        );
 
         let update = creature(MAP_ID, 51, point);
         let before_worldport = [login_event(0, MAP_ID), object_update_event(1, &update)];
-        assert!(select_observed_creature(
-            &before_worldport,
-            &selector(MAP_ID + 1, point, 4.0),
-        )
-        .unwrap_err()
-        .to_string()
-        .contains("differs from current map"));
+        assert!(
+            select_observed_creature(&before_worldport, &selector(MAP_ID + 1, point, 4.0),)
+                .unwrap_err()
+                .to_string()
+                .contains("differs from current map")
+        );
 
         let destination_update = creature(MAP_ID + 1, 52, point);
         let after_map_change = [
@@ -330,18 +325,13 @@ mod tests {
             worldport_event(2, MAP_ID + 1),
             object_update_event(3, &destination_update),
         ];
-        let selected = select_observed_creature(
-            &after_map_change,
-            &selector(MAP_ID + 1, point, 4.0),
-        )
-        .unwrap();
+        let selected =
+            select_observed_creature(&after_map_change, &selector(MAP_ID + 1, point, 4.0)).unwrap();
         assert_eq!(selected.guid.low, 52);
         assert_eq!(selected.source_event_sequence, 3);
-        assert!(select_observed_creature(
-            &after_map_change,
-            &selector(MAP_ID, point, 4.0),
-        )
-        .is_err());
+        assert!(
+            select_observed_creature(&after_map_change, &selector(MAP_ID, point, 4.0),).is_err()
+        );
     }
 
     #[test]
@@ -365,7 +355,10 @@ mod tests {
                 target: CreatureTarget::Guid(Guid { low: 71, .. })
             }
         ));
-        let fact = evidence.target_selections.first().expect("selection report");
+        let fact = evidence
+            .target_selections
+            .first()
+            .expect("selection report");
         assert_eq!(fact.action_index, 3);
         assert_eq!(fact.guid.low, 71);
         assert_eq!(fact.source_event_sequence, 1);
@@ -404,7 +397,10 @@ mod tests {
         plan.character_guid = None;
         for malformed in [
             ObservedCreatureSelector { entry: 0, ..valid },
-            ObservedCreatureSelector { radius: 0.0, ..valid },
+            ObservedCreatureSelector {
+                radius: 0.0,
+                ..valid
+            },
             ObservedCreatureSelector {
                 near_xyz: [f32::NAN, 20.0, 30.0],
                 ..valid
@@ -502,10 +498,13 @@ mod tests {
         .unwrap();
 
         let mut header = [0u8; 16];
-        tokio::time::timeout(std::time::Duration::from_secs(1), server.read_exact(&mut header))
-            .await
-            .unwrap()
-            .unwrap();
+        tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            server.read_exact(&mut header),
+        )
+        .await
+        .unwrap()
+        .unwrap();
         let size = u32::from_le_bytes(header[..4].try_into().unwrap()) as usize;
         let tag: [u8; 12] = header[4..].try_into().unwrap();
         let mut ciphertext = vec![0u8; size];
@@ -522,8 +521,14 @@ mod tests {
         assert!(controller.evidence.passed);
         assert_eq!(controller.evidence.sent_packets.len(), 1);
         assert!(controller.evidence.sent_packets[0].write_completed);
-        assert_eq!(controller.evidence.target_selections[0].guid, Guid { low, high });
-        assert_eq!(controller.evidence.target_selections[0].source_event_sequence, 1);
+        assert_eq!(
+            controller.evidence.target_selections[0].guid,
+            Guid { low, high }
+        );
+        assert_eq!(
+            controller.evidence.target_selections[0].source_event_sequence,
+            1
+        );
 
         let mut blocked_plan = valid_plan(
             vec![Action::SpiritHealerActivate {

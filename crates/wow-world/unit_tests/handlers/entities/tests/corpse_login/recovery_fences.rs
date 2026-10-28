@@ -240,12 +240,13 @@ async fn recovery_fences_login_native_error_after_confirmed_delete_keeps_at_logi
                 .auras
                 .runtime_applications_like_cpp()
                 .values()
-                .any(|application| {
-                    application.spell_id == wow_world_entities::SPELL_GHOST_LIKE_CPP
-                })
+                .any(|application| application.spell_id == wow_world_entities::SPELL_GHOST_LIKE_CPP)
         })
         .expect("canonical released-ghost Player");
-    assert!(has_ghost, "the aura remains present while its removal metadata is missing");
+    assert!(
+        has_ghost,
+        "the aura remains present while its removal metadata is missing"
+    );
     super::super::spirit_healer::remove_ghost_spell_metadata(&mut session);
     let save_port = crate::session::RecordingPlayerLifecyclePort::new(
         wow_persistence::PersistenceOutcomeLikeCpp::Applied { rows: 1 },

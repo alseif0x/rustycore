@@ -196,9 +196,7 @@ impl Player {
         let state = &mut self.gameplay_state.resurrection;
         if !state
             .delayed_after_teleport
-            .is_some_and(|continuation| {
-                continuation.phase == PlayerResurrectionPhase::Complete
-            })
+            .is_some_and(|continuation| continuation.phase == PlayerResurrectionPhase::Complete)
         {
             return false;
         }
@@ -299,9 +297,10 @@ mod tests {
         let state = player.resurrection_state_like_cpp();
         assert!(state.request.is_none());
         assert_eq!(state.delayed_after_teleport, Some(continuation));
-        assert!(player
-            .accept_resurrection_request(request.resurrecter)
-            .is_none());
+        assert!(
+            player
+                .accept_resurrection_request(request.resurrecter)
+                .is_none()
+        );
     }
-
 }

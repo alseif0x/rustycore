@@ -79,7 +79,11 @@ fn active_player_values_update_projects_no_reagent_mask_children() {
     let mut packet = WorldPacket::new_empty();
     write_active_player_data_values_update_section(&mut packet, &data);
     let bytes = packet.into_data();
-    assert!(bytes.windows(8).any(|window| window == [0xDD, 0xCC, 0xBB, 0xAA, 0x44, 0x33, 0x22, 0x11]));
+    assert!(
+        bytes
+            .windows(8)
+            .any(|window| window == [0xDD, 0xCC, 0xBB, 0xAA, 0x44, 0x33, 0x22, 0x11])
+    );
     assert!(bytes.windows(4).any(|window| window == [4, 0, 0, 0]));
     assert!(!bytes.windows(4).any(|window| window == [2, 0, 0, 0]));
 }

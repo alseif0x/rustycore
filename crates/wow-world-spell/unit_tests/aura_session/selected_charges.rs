@@ -22,7 +22,12 @@ fn difficulty(id: u32, fallback_difficulty_id: u8) -> DifficultyEntry {
     }
 }
 
-fn aura_options_row(id: u32, difficulty_id: u8, spell_id: u32, charges: i32) -> SpellAuraOptionsEntry {
+fn aura_options_row(
+    id: u32,
+    difficulty_id: u8,
+    spell_id: u32,
+    charges: i32,
+) -> SpellAuraOptionsEntry {
     SpellAuraOptionsEntry {
         id,
         difficulty_id,
@@ -36,12 +41,7 @@ fn aura_options_row(id: u32, difficulty_id: u8, spell_id: u32, charges: i32) -> 
     }
 }
 
-fn proc_row(
-    spell_id: u32,
-    difficulty: u32,
-    row_charges: u8,
-    source_charges: u32,
-) -> ProcStore {
+fn proc_row(spell_id: u32, difficulty: u32, row_charges: u8, source_charges: u32) -> ProcStore {
     let source = SpellProcSourceSpellInfoLikeCpp {
         spell_id,
         difficulty,
@@ -81,10 +81,10 @@ fn proc_row(
 fn proc_store(rows: &[(u32, u32, u8, u32)]) -> ProcStore {
     let mut store = ProcStore::default();
     for &(spell_id, difficulty, row_charges, source_charges) in rows {
-        store
-            .proc_entries_by_spell_and_difficulty
-            .extend(proc_row(spell_id, difficulty, row_charges, source_charges)
-                .proc_entries_by_spell_and_difficulty);
+        store.proc_entries_by_spell_and_difficulty.extend(
+            proc_row(spell_id, difficulty, row_charges, source_charges)
+                .proc_entries_by_spell_and_difficulty,
+        );
     }
     store
 }
@@ -228,11 +228,8 @@ fn zero_and_nonzero_proc_entries_override_aura_options() {
 
 #[test]
 fn proc_lookup_uses_the_actual_difficulty_then_fallback_four_three_zero() {
-    let difficulties = DifficultyStore::from_entries([
-        difficulty(4, 3),
-        difficulty(3, 0),
-        difficulty(0, 0),
-    ]);
+    let difficulties =
+        DifficultyStore::from_entries([difficulty(4, 3), difficulty(3, 0), difficulty(0, 0)]);
     let options = SpellAuraOptionsStore::from_entries([aura_options_row(1, 4, SPELL_ID, 1)]);
 
     let exact_and_fallback = proc_store(&[
@@ -358,21 +355,31 @@ fn required_catalogs_distinguish_unavailable_from_known_empty() {
 
 #[test]
 fn required_graph_errors_and_known_missing_nodes_remain_distinct() {
-    let options_at_zero = SpellAuraOptionsStore::from_entries([aura_options_row(
-        1, 0, SPELL_ID, 3,
-    )]);
+    let options_at_zero =
+        SpellAuraOptionsStore::from_entries([aura_options_row(1, 0, SPELL_ID, 3)]);
     let empty_procs = ProcStore::default();
     assert_eq!(
-        selected_aura_max_charges(SPELL_ID, 4, Some(&options_at_zero), Some(&empty_procs), None),
+        selected_aura_max_charges(
+            SPELL_ID,
+            4,
+            Some(&options_at_zero),
+            Some(&empty_procs),
+            None
+        ),
         Err("Selected spell catalog difficulty is unavailable"),
     );
 
-    let options_at_four = SpellAuraOptionsStore::from_entries([aura_options_row(
-        1, 4, SPELL_ID, 5,
-    )]);
+    let options_at_four =
+        SpellAuraOptionsStore::from_entries([aura_options_row(1, 4, SPELL_ID, 5)]);
     let proc_at_zero = proc_store(&[(SPELL_ID, 0, 8, 0)]);
     assert_eq!(
-        selected_aura_max_charges(SPELL_ID, 4, Some(&options_at_four), Some(&proc_at_zero), None),
+        selected_aura_max_charges(
+            SPELL_ID,
+            4,
+            Some(&options_at_four),
+            Some(&proc_at_zero),
+            None
+        ),
         Err("Selected spell catalog difficulty is unavailable"),
     );
 
@@ -415,7 +422,10 @@ fn required_graph_errors_and_known_missing_nodes_remain_distinct() {
 fn ignore_caster_modifiers_bypasses_unknown_modifier_catalogs_only() {
     let mut attributes = [0; 15];
     attributes[3] = 0x2000_0000;
-    assert_eq!(validate_selected_aura(attributes, None, None, 4, None), Ok(()));
+    assert_eq!(
+        validate_selected_aura(attributes, None, None, 4, None),
+        Ok(())
+    );
 
     assert!(selected_aura_max_charges(SPELL_ID, 4, None, None, None).is_err());
     assert_eq!(
@@ -474,11 +484,8 @@ fn class_mask_admission_uses_highest_record_and_requires_known_zero_flags() {
 fn label_zero_counts_and_labels_inherit_only_after_reaching_difficulty_zero() {
     let empty_classes = SpellClassOptionsStore::from_entries([]);
     let label_zero = SpellLabelStore::from_entries([label_row(1, SPELL_ID, 0)]);
-    let difficulties = DifficultyStore::from_entries([
-        difficulty(4, 3),
-        difficulty(3, 0),
-        difficulty(0, 0),
-    ]);
+    let difficulties =
+        DifficultyStore::from_entries([difficulty(4, 3), difficulty(3, 0), difficulty(0, 0)]);
 
     assert_eq!(
         validate_selected_aura(
@@ -524,7 +531,16 @@ fn unresolved_class_or_label_metadata_is_an_error_not_modifier_absence() {
         ),
         Ok(()),
     );
-    assert!(validate_selected_aura([0; 15], Some(&unreachable_nonzero_class), Some(&labels), 4, None).is_err());
+    assert!(
+        validate_selected_aura(
+            [0; 15],
+            Some(&unreachable_nonzero_class),
+            Some(&labels),
+            4,
+            None
+        )
+        .is_err()
+    );
 
     let label_rows = SpellLabelStore::from_entries([label_row(1, SPELL_ID, 0)]);
     assert_eq!(
@@ -537,9 +553,36 @@ fn unresolved_class_or_label_metadata_is_an_error_not_modifier_absence() {
         ),
         Ok(()),
     );
-    assert!(validate_selected_aura([0; 15], Some(&SpellClassOptionsStore::from_entries([])), Some(&label_rows), 4, None).is_err());
+    assert!(
+        validate_selected_aura(
+            [0; 15],
+            Some(&SpellClassOptionsStore::from_entries([])),
+            Some(&label_rows),
+            4,
+            None
+        )
+        .is_err()
+    );
 
     let cycle = DifficultyStore::from_entries([difficulty(4, 3), difficulty(3, 4)]);
-    assert!(validate_selected_aura([0; 15], Some(&unreachable_nonzero_class), Some(&labels), 4, Some(&cycle)).is_err());
-    assert!(validate_selected_aura([0; 15], Some(&SpellClassOptionsStore::from_entries([])), Some(&label_rows), 4, Some(&cycle)).is_err());
+    assert!(
+        validate_selected_aura(
+            [0; 15],
+            Some(&unreachable_nonzero_class),
+            Some(&labels),
+            4,
+            Some(&cycle)
+        )
+        .is_err()
+    );
+    assert!(
+        validate_selected_aura(
+            [0; 15],
+            Some(&SpellClassOptionsStore::from_entries([])),
+            Some(&label_rows),
+            4,
+            Some(&cycle)
+        )
+        .is_err()
+    );
 }

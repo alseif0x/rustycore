@@ -260,7 +260,10 @@ async fn recovery_fences_reclaim_deferred_save_resumes_on_registered_worldport_a
     let (health, max_health) = session
         .canonical_player_health_snapshot_like_cpp()
         .expect("canonical Player health after registered ACK");
-    assert!(health <= max_health, "worldport final stats remain within max health");
+    assert!(
+        health <= max_health,
+        "worldport final stats remain within max health"
+    );
     assert_eq!(continuation_phase(&session), None);
     handle_reclaim_corpse(&mut session, reclaim_corpse_packet(corpse_guid)).await;
     assert_eq!(corpse_port.delete_requests(), vec![4_439]);

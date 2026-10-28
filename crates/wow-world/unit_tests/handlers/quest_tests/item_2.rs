@@ -881,7 +881,9 @@ async fn quest_confirm_accept_tracking_event_source_item_objective_auto_rewards_
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
     assert!(canonical_player_quest_status_like_cpp(&session, quest_id).is_none());
-    assert!(canonical_player_has_rewarded_quest_like_cpp(&session, quest_id));
+    assert!(canonical_player_has_rewarded_quest_like_cpp(
+        &session, quest_id
+    ));
     assert!(
         session
             .quest_log_create_entries_like_cpp()

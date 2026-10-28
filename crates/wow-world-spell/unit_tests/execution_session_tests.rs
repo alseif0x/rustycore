@@ -20,11 +20,7 @@ fn normal_pre_go_unavailable_is_propagated_but_cast_rejections_are_not() {
     for (failure, expected) in [
         (
             ServerNormalPreGoFailureLikeCpp::MissingReagent(8_467),
-            (
-                SpellCastResult::Reagents as i32,
-                8_467,
-                0,
-            ),
+            (SpellCastResult::Reagents as i32, 8_467, 0),
         ),
         (
             ServerNormalPreGoFailureLikeCpp::MissingCurrency(395),

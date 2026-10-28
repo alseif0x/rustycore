@@ -24,10 +24,8 @@ fn install_fake_inebriation_aura(
     slot: u8,
     current_amount: Option<i32>,
 ) {
-    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(
-        spell_id as u32,
-        0,
-    )]);
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(spell_id as u32, 0)]);
     spell_store.insert(
         spell_id,
         wow_data::SpellInfo {
@@ -186,13 +184,22 @@ async fn spell_inebriate_effect_increases_current_player_drunk_value_like_cpp() 
             .get_typed_player_mut(player_guid)
             .expect("native Player is owned by the current Map");
         let object = player.unit().world().object();
-        assert!(object.is_object_updated(), "SetDrunkValue dirties native PlayerData");
+        assert!(
+            object.is_object_updated(),
+            "SetDrunkValue dirties native PlayerData"
+        );
         assert!(object.is_need_notify(wow_entities::ObjectNotifyFlags::VISIBILITY_CHANGED));
 
         let _ = manager.update(1);
         let map = manager.find_map(0, 0).expect("current World map");
-        let updates = map.last_send_object_updates_summary_like_cpp().player_values_updates;
-        assert_eq!(updates.len(), 1, "Map captures one final Player values update");
+        let updates = map
+            .last_send_object_updates_summary_like_cpp()
+            .player_values_updates;
+        assert_eq!(
+            updates.len(),
+            1,
+            "Map captures one final Player values update"
+        );
         assert_eq!(updates[0].guid, player_guid);
         let player_data = updates[0]
             .values_update
@@ -200,9 +207,11 @@ async fn spell_inebriate_effect_increases_current_player_drunk_value_like_cpp() 
             .as_ref()
             .expect("native Map snapshot contains PlayerData");
         assert_eq!(player_data.values.inebriation, 50);
-        assert!(player_data
-            .mask
-            .is_set(wow_entities::PLAYER_DATA_INEBRIATION_BIT));
+        assert!(
+            player_data
+                .mask
+                .is_set(wow_entities::PLAYER_DATA_INEBRIATION_BIT)
+        );
         assert!(
             !map.map()
                 .get_typed_player(player_guid)
@@ -215,13 +224,20 @@ async fn spell_inebriate_effect_increases_current_player_drunk_value_like_cpp() 
         );
     }
     assert_eq!(
-        session.send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(),
+        session
+            .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(
+            ),
         1,
         "the World consumer sends the Map-owned snapshot once"
     );
-    assert_eq!(drain_server_opcodes(&send_rx), vec![ServerOpcodes::UpdateObject]);
     assert_eq!(
-        session.send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(),
+        drain_server_opcodes(&send_rx),
+        vec![ServerOpcodes::UpdateObject]
+    );
+    assert_eq!(
+        session
+            .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(
+            ),
         0,
         "a second consumer pass cannot duplicate the consumed snapshot"
     );
@@ -382,7 +398,10 @@ async fn spell_inebriate_effect_ignores_non_player_target_like_cpp() {
         drain_server_opcodes(&send_rx),
         vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
     );
-    assert!(realm_rx.is_empty(), "non-player target has no inebriation packet");
+    assert!(
+        realm_rx.is_empty(),
+        "non-player target has no inebriation packet"
+    );
 }
 
 #[test]
@@ -443,7 +462,10 @@ fn direct_native_drunk_set_uses_owned_fake_aura_facts_and_u32_item_bits() {
         }
         .to_bytes()
     );
-    assert!(send_rx.is_empty(), "native threshold uses the realm connection");
+    assert!(
+        send_rx.is_empty(),
+        "native threshold uses the realm connection"
+    );
 }
 
 #[test]

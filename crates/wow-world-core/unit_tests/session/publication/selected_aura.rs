@@ -216,16 +216,24 @@ fn realm_player_visible_packet_uses_frozen_candidates_and_realm_channels() {
     )
     .unwrap();
 
-    assert!(source
-        .core
-        .packet_publication_access_like_cpp()
-        .publish_prepared_player_visible_packet(&prepared));
+    assert!(
+        source
+            .core
+            .packet_publication_access_like_cpp()
+            .publish_prepared_player_visible_packet(&prepared)
+    );
     assert_eq!(source.realm_output.try_recv().unwrap(), packet);
     assert_eq!(observer.realm_output.try_recv().unwrap(), packet);
     assert!(source.output.is_empty());
     assert!(observer.output.is_empty());
-    assert!(hidden.realm_output.is_empty(), "HaveAtClient gates observer delivery");
-    assert!(take_commands(&observer).is_empty(), "realm bytes bypass AuraUpdate commands");
+    assert!(
+        hidden.realm_output.is_empty(),
+        "HaveAtClient gates observer delivery"
+    );
+    assert!(
+        take_commands(&observer).is_empty(),
+        "realm bytes bypass AuraUpdate commands"
+    );
 }
 
 #[test]
@@ -253,10 +261,12 @@ fn realm_observer_delivery_rejects_a_stale_frozen_residence_revision() {
             .unwrap();
     }
 
-    assert!(source
-        .core
-        .packet_publication_access_like_cpp()
-        .publish_prepared_player_visible_packet(&prepared));
+    assert!(
+        source
+            .core
+            .packet_publication_access_like_cpp()
+            .publish_prepared_player_visible_packet(&prepared)
+    );
     assert_eq!(source.realm_output.try_recv().unwrap(), packet);
     assert!(observer.realm_output.is_empty());
     assert!(observer.output.is_empty());

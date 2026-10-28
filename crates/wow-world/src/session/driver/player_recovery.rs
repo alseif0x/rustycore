@@ -12,8 +12,8 @@ use crate::session::mailbox::{
 };
 use wow_core::ObjectGuid;
 use wow_map::{MapKey, PlayerHandle};
-use wow_world_core::session::{SessionHubHostLikeCpp, SessionState};
 use wow_world_core::session::directory::PlayerRegistration;
+use wow_world_core::session::{SessionHubHostLikeCpp, SessionState};
 use wow_world_entities::update_pvp_flag_like_cpp;
 
 pub(super) async fn run_current_player_ticks(
@@ -287,7 +287,10 @@ async fn resume_ready_recovery_before_unit(
             return RecoveryPreUpdate::PlayerLeft;
         }
         if !completed
-            && !matches!(after, RecoveryResumeState::None | RecoveryResumeState::Waiting)
+            && !matches!(
+                after,
+                RecoveryResumeState::None | RecoveryResumeState::Waiting
+            )
         {
             session
                 .core_mut()

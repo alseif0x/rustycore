@@ -23,8 +23,7 @@ pub async fn send_spirit_resurrect<H: CorpseHostLikeCpp>(
         return;
     }
     match crate::recovery_fences::continue_operation(host, catalogs.resurrection()).await {
-        crate::recovery_fences::Progress::Complete
-        | crate::recovery_fences::Progress::Waiting => {}
+        crate::recovery_fences::Progress::Complete | crate::recovery_fences::Progress::Waiting => {}
         crate::recovery_fences::Progress::Continue | crate::recovery_fences::Progress::Held => {
             host.core_mut()
                 .kick("spirit healer recovery did not complete; retain Player owner");

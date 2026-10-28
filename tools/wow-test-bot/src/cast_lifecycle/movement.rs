@@ -1,7 +1,7 @@
 //! Finite 3.4.3 client movement actions and acknowledgements.
 
 use super::*;
-use anyhow::{Context, Result, bail, ensure};
+use anyhow::{bail, ensure, Context, Result};
 
 pub(super) const SMSG_NEW_WORLD: u16 = 0x2594;
 pub(super) const SMSG_MOVE_ROOT: u16 = 0x2DF9;

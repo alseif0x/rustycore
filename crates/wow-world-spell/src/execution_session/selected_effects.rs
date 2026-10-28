@@ -51,8 +51,7 @@ pub(super) fn resolve_transient_full_aura<H: SpellExecutionHostLikeCpp>(
     }
 
     let mut spell_info = transient_spell_info_carrier(spell_id);
-    let threat_plan =
-        resolve_at_difficulty(host, spell_id, &mut spell_info, actual_difficulty)?;
+    let threat_plan = resolve_at_difficulty(host, spell_id, &mut spell_info, actual_difficulty)?;
     if !has_supported_full_aura_shape(spell_id, &spell_info) {
         return Err("Selected spell does not have the supported three-effect Aura shape");
     }
@@ -67,7 +66,8 @@ fn selected_spell_info_key_difficulty<H: SpellExecutionHostLikeCpp>(
     let spell_store = catalogs.spell_store().ok_or("Spell not found")?;
     let requested_difficulty = host.core().current_map_difficulty_id_like_cpp();
     let difficulty_store = catalogs.difficulty_store().map(AsRef::as_ref);
-    let spell_id_u32 = u32::try_from(spell_id).map_err(|_| "Unable to resolve selected spell key")?;
+    let spell_id_u32 =
+        u32::try_from(spell_id).map_err(|_| "Unable to resolve selected spell key")?;
     selected_catalog::selected_spell_info_key_difficulty(
         spell_store,
         spell_id_u32,

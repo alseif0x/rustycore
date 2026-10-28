@@ -12,8 +12,7 @@ use wow_data::{
 
 use super::{
     selected_catalog::{
-        selected_aura_options_entry, selected_spell_info_key_difficulty,
-        selected_spell_misc_entry,
+        selected_aura_options_entry, selected_spell_info_key_difficulty, selected_spell_misc_entry,
     },
     selected_metadata::{SelectedSpellMetadata, selected_spell_metadata},
 };
@@ -92,9 +91,7 @@ pub(super) fn resolve_selected_aura_metadata(
     let duration_store = duration_store.ok_or(())?;
     let duration_index = misc.map_or(0, |entry| u32::from(entry.duration_index));
     let duration_entry = duration_store.get(duration_index);
-    if kind == SelectedAuraKind::Sickness
-        && (duration_index == 0 || duration_entry.is_none())
-    {
+    if kind == SelectedAuraKind::Sickness && (duration_index == 0 || duration_entry.is_none()) {
         return Err(());
     }
     let base_duration_ms =
@@ -246,7 +243,6 @@ pub(super) fn selected_aura_can_be_saved(
     const SPELL_ATTR5_LIMIT_N: u32 = 0x0000_0020;
     metadata.spell.attributes[0] & SPELL_ATTR0_PASSIVE == 0
         && !metadata.channeled
-        && !(caster_guid != player_guid
-            && metadata.spell.attributes[5] & SPELL_ATTR5_LIMIT_N != 0)
+        && !(caster_guid != player_guid && metadata.spell.attributes[5] & SPELL_ATTR5_LIMIT_N != 0)
         && !(item_guid != ObjectGuid::EMPTY && metadata.base_duration_ms == -1)
 }

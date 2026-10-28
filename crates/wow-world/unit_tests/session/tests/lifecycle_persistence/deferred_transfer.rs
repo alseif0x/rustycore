@@ -154,28 +154,23 @@ async fn exercise(
         session.set_map_corpse_persistence_port_like_cpp(corpse_port.clone());
         let generators = session.id_generators_for_test_like_cpp();
         assert!(
-            wow_world_entities::create_corpse_like_cpp(
-                &mut session,
-                generators.item.as_ref(),
-            )
-            .await
-            .is_some(),
+            wow_world_entities::create_corpse_like_cpp(&mut session, generators.item.as_ref(),)
+                .await
+                .is_some(),
             "worldport fixture creates a persisted corpse before the accepted request"
         );
         assert_eq!(corpse_port.saves.lock().unwrap().len(), 1);
     }
-    assert!(
-        session.schedule_represented_resurrection_after_teleport(
-            wow_entities::PlayerResurrectionRequestLikeCpp {
-                resurrecter: guid,
-                map_id: 571,
-                position,
-                health: 100,
-                mana: 50,
-                aura: 0,
-            }
-        )
-    );
+    assert!(session.schedule_represented_resurrection_after_teleport(
+        wow_entities::PlayerResurrectionRequestLikeCpp {
+            resurrecter: guid,
+            map_id: 571,
+            position,
+            health: 100,
+            mana: 50,
+            aura: 0,
+        }
+    ));
     session
         .with_owned_player_mut_like_cpp(|p| {
             p.unit_mut().set_max_health(1000);
@@ -277,7 +272,11 @@ async fn exercise(
                 .map(|continuation| continuation.phase)
         });
         if applied {
-            assert_eq!(phase, Some(None), "confirmed SpawnCorpseBones save completes");
+            assert_eq!(
+                phase,
+                Some(None),
+                "confirmed SpawnCorpseBones save completes"
+            );
             assert_eq!(
                 session.with_owned_player_like_cpp(|player| {
                     player.has_deferred_player_save_like_cpp()
@@ -286,7 +285,10 @@ async fn exercise(
                 "the corpse-triggered save acknowledges the retained transfer save"
             );
         } else {
-            assert_eq!(phase, Some(Some(wow_entities::PlayerResurrectionPhase::SavingPlayer)));
+            assert_eq!(
+                phase,
+                Some(Some(wow_entities::PlayerResurrectionPhase::SavingPlayer))
+            );
             assert!(session.core.player_handle_like_cpp.is_some());
             assert_eq!(
                 session.with_owned_player_like_cpp(|player| {
@@ -350,8 +352,20 @@ async fn exercise(
 
 #[tokio::test]
 async fn registered_worldport_coalesces_deferred_saves_after_resurrection() {
-    exercise(PersistenceOutcomeLikeCpp::Applied { rows: 1 }, false, false, false).await;
-    exercise(PersistenceOutcomeLikeCpp::Applied { rows: 1 }, false, true, false).await;
+    exercise(
+        PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+        false,
+        false,
+        false,
+    )
+    .await;
+    exercise(
+        PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+        false,
+        true,
+        false,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -378,17 +392,35 @@ async fn registered_worldport_retains_rollback_intent_and_quarantines_unknown_co
 
 #[tokio::test]
 async fn cancelled_registered_worldport_save_retains_intent_without_replay() {
-    exercise(PersistenceOutcomeLikeCpp::Applied { rows: 1 }, true, false, false).await;
+    exercise(
+        PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+        true,
+        false,
+        false,
+    )
+    .await;
 }
 
 #[tokio::test]
 async fn far_worldport_corpse_save_completes_once_after_post_add() {
-    exercise(PersistenceOutcomeLikeCpp::Applied { rows: 1 }, false, false, true).await;
+    exercise(
+        PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+        false,
+        false,
+        true,
+    )
+    .await;
 }
 
 #[tokio::test]
 async fn cancelled_far_corpse_save_retains_phase_after_post_add() {
-    exercise(PersistenceOutcomeLikeCpp::Applied { rows: 1 }, true, false, true).await;
+    exercise(
+        PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+        true,
+        false,
+        true,
+    )
+    .await;
 }
 
 #[tokio::test]

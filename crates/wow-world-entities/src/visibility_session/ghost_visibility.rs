@@ -40,8 +40,8 @@ pub(super) fn unit_context(
                 .world()
                 .is_within_dist(target_world, sight_range, false, true, true)
     });
-    let distance_allowed = corpse.is_some()
-        || viewpoint.is_within_dist(target_world, sight_range, false, true, true);
+    let distance_allowed =
+        corpse.is_some() || viewpoint.is_within_dist(target_world, sight_range, false, true, true);
 
     UnitVisibilityContext {
         distance_allowed,
@@ -56,10 +56,8 @@ pub(super) fn canonical_viewpoint<'a>(
 ) -> &'a WorldObject {
     let farsight = player.active_data().farsight_object;
     if !farsight.is_empty()
-        && let Some(viewpoint) = map.map_object_by_kind(
-            farsight,
-            wow_entities::represented_seer_kinds_like_cpp(),
-        )
+        && let Some(viewpoint) =
+            map.map_object_by_kind(farsight, wow_entities::represented_seer_kinds_like_cpp())
         && viewpoint.object().is_in_world()
         && viewpoint.map_id() == map.map_id()
         && viewpoint.instance_id() == map.instance_id()

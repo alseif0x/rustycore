@@ -53,7 +53,11 @@ pub(super) fn install_selected_sickness_snapshot(session: &mut WorldSession) -> 
     ));
 
     let effect_specs = [
-        (0_u32, wow_data::spell::aura_types::SPELL_AURA_MOD_PERCENT_STAT, 6),
+        (
+            0_u32,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_PERCENT_STAT,
+            6,
+        ),
         (
             1,
             wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE,
@@ -78,23 +82,22 @@ pub(super) fn install_selected_sickness_snapshot(session: &mut WorldSession) -> 
             power_costs: Vec::new(),
             effects: effect_specs
                 .iter()
-                .map(|&(effect_index, effect_aura, effect_base_points)| {
-                    wow_data::SpellEffectInfo {
+                .map(
+                    |&(effect_index, effect_aura, effect_base_points)| wow_data::SpellEffectInfo {
                         effect_index,
                         effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
                         effect_aura,
                         effect_base_points,
                         ..Default::default()
-                    }
-                })
+                    },
+                )
                 .collect(),
         },
     );
     spell_store.insert_spell_misc_attributes_like_cpp(SPELL_ID, [0; 15]);
     session.set_spell_store(Arc::new(spell_store));
-    session.set_spell_aura_options_store(Arc::new(
-        wow_data::SpellAuraOptionsStore::from_entries([]),
-    ));
+    session
+        .set_spell_aura_options_store(Arc::new(wow_data::SpellAuraOptionsStore::from_entries([])));
     session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_ids([0])));
     session.set_player_stats(Arc::new(wow_data::PlayerStatsStore::from_entries([(
         (2, 5, 80),

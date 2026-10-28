@@ -7,15 +7,14 @@ use std::sync::Arc;
 use wow_persistence::{
     PersistenceFutureLikeCpp, SpellAuraOptionsHotfixRow, SpellAuraRestrictionsHotfixRowLikeCpp,
     SpellCastTimesHotfixRowLikeCpp, SpellCastingRequirementsHotfixRowLikeCpp,
-    SpellCategoriesHotfixRowLikeCpp, SpellCategoryHotfixRowLikeCpp, SpellCooldownsHotfixRowLikeCpp,
-    SpellClassOptionsHotfixRow, SpellCoreDb2HotfixLoadOutcomeLikeCpp,
+    SpellCategoriesHotfixRowLikeCpp, SpellCategoryHotfixRowLikeCpp, SpellClassOptionsHotfixRow,
+    SpellCooldownsHotfixRowLikeCpp, SpellCoreDb2HotfixLoadOutcomeLikeCpp,
     SpellCoreDb2HotfixPersistencePortLikeCpp, SpellDurationHotfixRowLikeCpp,
     SpellEffectHotfixRowLikeCpp, SpellEquippedItemsHotfixRowLikeCpp,
-    SpellInterruptsHotfixRowLikeCpp, SpellMiscHotfixRowLikeCpp, SpellNameHotfixRowLikeCpp,
-    SpellLabelHotfixRow, SpellLevelsHotfixRow, SpellPowerDifficultyHotfixRowLikeCpp,
+    SpellInterruptsHotfixRowLikeCpp, SpellLabelHotfixRow, SpellLevelsHotfixRow,
+    SpellMiscHotfixRowLikeCpp, SpellNameHotfixRowLikeCpp, SpellPowerDifficultyHotfixRowLikeCpp,
     SpellPowerHotfixRowLikeCpp, SpellProcsPerMinuteHotfixRow, SpellRadiusHotfixRowLikeCpp,
-    SpellRangeHotfixRowLikeCpp,
-    SpellShapeshiftHotfixRowLikeCpp,
+    SpellRangeHotfixRowLikeCpp, SpellShapeshiftHotfixRowLikeCpp,
     SpellTargetRestrictionsHotfixRowLikeCpp, SpellXSpellVisualHotfixRowLikeCpp,
 };
 
@@ -191,9 +190,7 @@ async fn query_official_then_custom_like_cpp<T>(
     Ok(rows)
 }
 
-fn classify_rows_like_cpp<T>(
-    result: Result<Vec<T>>,
-) -> SpellCoreDb2HotfixLoadOutcomeLikeCpp<T> {
+fn classify_rows_like_cpp<T>(result: Result<Vec<T>>) -> SpellCoreDb2HotfixLoadOutcomeLikeCpp<T> {
     match result {
         Ok(rows) => SpellCoreDb2HotfixLoadOutcomeLikeCpp::Loaded(rows),
         Err(error) => SpellCoreDb2HotfixLoadOutcomeLikeCpp::Failed {
@@ -586,10 +583,8 @@ impl SpellCoreDb2HotfixPersistencePortLikeCpp
 
     fn load_spell_aura_options_rows(
         &self,
-    ) -> PersistenceFutureLikeCpp<
-        '_,
-        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellAuraOptionsHotfixRow>,
-    > {
+    ) -> PersistenceFutureLikeCpp<'_, SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellAuraOptionsHotfixRow>>
+    {
         Box::pin(async move {
             classify_rows_like_cpp(
                 query_official_then_custom_like_cpp(
@@ -624,7 +619,8 @@ impl SpellCoreDb2HotfixPersistencePortLikeCpp
 
     fn load_spell_label_rows(
         &self,
-    ) -> PersistenceFutureLikeCpp<'_, SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellLabelHotfixRow>> {
+    ) -> PersistenceFutureLikeCpp<'_, SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellLabelHotfixRow>>
+    {
         Box::pin(async move {
             classify_rows_like_cpp(
                 query_official_then_custom_like_cpp(
@@ -640,7 +636,8 @@ impl SpellCoreDb2HotfixPersistencePortLikeCpp
 
     fn load_spell_levels_rows(
         &self,
-    ) -> PersistenceFutureLikeCpp<'_, SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellLevelsHotfixRow>> {
+    ) -> PersistenceFutureLikeCpp<'_, SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellLevelsHotfixRow>>
+    {
         Box::pin(async move {
             classify_rows_like_cpp(
                 query_official_then_custom_like_cpp(

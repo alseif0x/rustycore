@@ -10,8 +10,8 @@ use super::selected_catalog::{
 };
 use super::selected_wire::selected_aura_info;
 use wow_entities::{
-    AuraApplicationLikeCpp as AuraApplication, AuraCastProvenanceLikeCpp,
-    AuraPersistenceMetadata, AuraThreatSnapshotLikeCpp,
+    AuraApplicationLikeCpp as AuraApplication, AuraCastProvenanceLikeCpp, AuraPersistenceMetadata,
+    AuraThreatSnapshotLikeCpp,
 };
 use wow_map::{MapKey, MapManager, PlayerHandle};
 use wow_world_core::session::{PreparedSelectedAuraUpdate, prepare_selected_aura_update};

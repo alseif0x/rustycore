@@ -105,7 +105,11 @@ fn cast_all_obtain_scan_freezes_backpack_end_and_resolves_live_bags_and_slots() 
         None
     );
     assert_eq!(
-        player.cast_all_obtain_item_at_like_cpp(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START, None),
+        player.cast_all_obtain_item_at_like_cpp(
+            INVENTORY_SLOT_BAG_0,
+            INVENTORY_SLOT_ITEM_START,
+            None
+        ),
         None
     );
 }

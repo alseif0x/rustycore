@@ -287,7 +287,11 @@ async fn canonical_player_teleport_follows_active_detached_and_stale_ownership_l
 
     assert_eq!(session.player_teleport_state_snapshot_like_cpp(), None);
     assert_eq!(session.pending_teleport_like_cpp(), None);
-    assert!(!session.finish_worldport_native_before_disconnect_like_cpp().await);
+    assert!(
+        !session
+            .finish_worldport_native_before_disconnect_like_cpp()
+            .await
+    );
     assert!(!session.set_pending_teleport_like_cpp(Some((1, destination))));
     assert!(!session.set_represented_can_delay_teleport_like_cpp(true));
     assert!(!session.set_represented_far_teleport_pending_like_cpp(false));

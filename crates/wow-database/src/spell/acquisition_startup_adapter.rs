@@ -14,8 +14,8 @@ use wow_persistence::{
     SpellLearnSpellHotfixPersistenceRowLikeCpp, SpellLearnSpellWorldPersistenceRowLikeCpp,
     SpellLevelsHotfixPersistenceRowLikeCpp, SpellMiscHotfixPersistenceRowLikeCpp,
     SpellReagentsCurrencyPersistenceRowLikeCpp, SpellReagentsPersistenceRowLikeCpp,
-    SummonPropertiesHotfixPersistenceRowLikeCpp,
-    TalentHotfixPersistenceRowLikeCpp, TrainerSpellAuditPersistenceCatalogLikeCpp,
+    SummonPropertiesHotfixPersistenceRowLikeCpp, TalentHotfixPersistenceRowLikeCpp,
+    TrainerSpellAuditPersistenceCatalogLikeCpp,
 };
 
 use crate::{HotfixDatabase, HotfixStatements, SqlResult, WorldDatabase, WorldStatements};
@@ -377,9 +377,9 @@ impl SpellAcquisitionStartupPersistencePortLikeCpp
         '_,
         SpellAcquisitionStartupLoadOutcomeLikeCpp<Vec<ServersideSpellEffectPersistenceRowLikeCpp>>,
     > {
-        Box::pin(async move {
-            classify_checked(checked_rows::serverside_effects(&self.world_db).await)
-        })
+        Box::pin(
+            async move { classify_checked(checked_rows::serverside_effects(&self.world_db).await) },
+        )
     }
     fn load_serverside_spells_like_cpp(
         &self,
@@ -387,9 +387,9 @@ impl SpellAcquisitionStartupPersistencePortLikeCpp
         '_,
         SpellAcquisitionStartupLoadOutcomeLikeCpp<Vec<ServersideSpellPersistenceRowLikeCpp>>,
     > {
-        Box::pin(async move {
-            classify_checked(checked_rows::serverside_spells(&self.world_db).await)
-        })
+        Box::pin(
+            async move { classify_checked(checked_rows::serverside_spells(&self.world_db).await) },
+        )
     }
     fn load_spell_custom_attributes_like_cpp(
         &self,

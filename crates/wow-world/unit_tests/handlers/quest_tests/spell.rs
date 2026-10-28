@@ -243,24 +243,30 @@ async fn quest_confirm_accept_source_item_bound_objective_broadcasts_to_group_li
         role_mask: 0,
         subgroup: 0,
     };
-    assert!(session
-        .core
-        .with_owned_player_mut_like_cpp(|player| {
-            player.set_group_like_cpp(Some(group_state()));
-        })
-        .is_some());
-    assert!(sender_session
-        .core
-        .with_owned_player_mut_like_cpp(|player| {
-            player.set_group_like_cpp(Some(group_state()));
-        })
-        .is_some());
-    assert!(other_session
-        .core
-        .with_owned_player_mut_like_cpp(|player| {
-            player.set_group_like_cpp(Some(group_state()));
-        })
-        .is_some());
+    assert!(
+        session
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_group_like_cpp(Some(group_state()));
+            })
+            .is_some()
+    );
+    assert!(
+        sender_session
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_group_like_cpp(Some(group_state()));
+            })
+            .is_some()
+    );
+    assert!(
+        other_session
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_group_like_cpp(Some(group_state()));
+            })
+            .is_some()
+    );
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;

@@ -25,14 +25,15 @@ pub(super) fn prepare<H: SpellExecutionHostLikeCpp>(
         .spell_store()
         .ok_or("Missing SpellStore for selected aura creation")?;
     let difficulties = catalogs.difficulty_store().map(AsRef::as_ref);
-    let actual_difficulty = crate::aura_session::selected_catalog::selected_spell_info_key_difficulty(
-        spell_store,
-        spell_id_u32,
-        difficulty_id,
-        difficulties,
-    )
-    .map_err(|_| "Unable to resolve selected aura SpellInfo key")?
-    .ok_or("Spell not found")?;
+    let actual_difficulty =
+        crate::aura_session::selected_catalog::selected_spell_info_key_difficulty(
+            spell_store,
+            spell_id_u32,
+            difficulty_id,
+            difficulties,
+        )
+        .map_err(|_| "Unable to resolve selected aura SpellInfo key")?
+        .ok_or("Spell not found")?;
     let class_options = catalogs
         .spell_catalogs
         .spell_class_options_store()
@@ -51,16 +52,16 @@ pub(super) fn prepare<H: SpellExecutionHostLikeCpp>(
         actual_difficulty,
         metadata.attributes,
         class_options,
-        catalogs.spell_catalogs.spell_label_store().map(AsRef::as_ref),
+        catalogs
+            .spell_catalogs
+            .spell_label_store()
+            .map(AsRef::as_ref),
         difficulties,
     )?;
     let charges = crate::aura_session::selected_aura_max_charges(
         spell_id_u32,
         actual_difficulty,
-        catalogs
-            .spell_catalogs
-            .spell_aura_options_store
-            .as_deref(),
+        catalogs.spell_catalogs.spell_aura_options_store.as_deref(),
         catalogs.spell_catalogs.spell_proc_store.as_deref(),
         difficulties,
     )?;

@@ -31,9 +31,11 @@ fn self_res_spell_remove_marks_shifted_indices_across_mask_blocks() {
         player.active_data().self_res_spells_update_mask,
         Some(vec![0xC000_0000, 0x0000_0003])
     );
-    assert!(player
-        .active_player_data_changes_mask()
-        .is_set(ACTIVE_PLAYER_DATA_SELF_RES_SPELLS_BIT));
+    assert!(
+        player
+            .active_player_data_changes_mask()
+            .is_set(ACTIVE_PLAYER_DATA_SELF_RES_SPELLS_BIT)
+    );
 
     player.clear_active_player_data_changes();
     assert_eq!(
@@ -62,9 +64,11 @@ fn self_res_spell_missing_remove_is_clean_and_empty_clear_is_dirty() {
     player.clear_self_res_spells();
     assert!(player.self_res_spells().is_empty());
     assert!(player.active_player_data_changes_mask().is_set(0));
-    assert!(player
-        .active_player_data_changes_mask()
-        .is_set(ACTIVE_PLAYER_DATA_SELF_RES_SPELLS_BIT));
+    assert!(
+        player
+            .active_player_data_changes_mask()
+            .is_set(ACTIVE_PLAYER_DATA_SELF_RES_SPELLS_BIT)
+    );
     assert_eq!(
         player.active_data().self_res_spells_update_mask,
         Some(vec![])
@@ -73,7 +77,9 @@ fn self_res_spell_missing_remove_is_clean_and_empty_clear_is_dirty() {
     player.clear_active_player_data_changes();
     player.clear_self_res_spells();
     assert!(player.active_player_data_changes_mask().is_set(0));
-    assert!(player
-        .active_player_data_changes_mask()
-        .is_set(ACTIVE_PLAYER_DATA_SELF_RES_SPELLS_BIT));
+    assert!(
+        player
+            .active_player_data_changes_mask()
+            .is_set(ACTIVE_PLAYER_DATA_SELF_RES_SPELLS_BIT)
+    );
 }

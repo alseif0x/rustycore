@@ -10,9 +10,7 @@ use wow_data::progression_rewards::{
     FactionTemplateEntry, FactionTemplateStore, FriendshipRepReactionStore,
 };
 use wow_data::reputation::ReputationRankLikeCpp;
-use wow_entities::{
-    Creature, MapObjectRecord, Pet, PetType, Player, PlayerGroupState,
-};
+use wow_entities::{Creature, MapObjectRecord, Pet, PetType, Player, PlayerGroupState};
 use wow_map::{MapKey, MapManager, PlayerHandle};
 
 const MAP: MapKey = MapKey::new(571, 0);
@@ -62,12 +60,8 @@ fn add_creature(
     summon: bool,
     static_flags: [u32; 8],
 ) -> ObjectGuid {
-    let guid = ObjectGuid::create_creature_like_cpp(
-        1,
-        u16::try_from(map.map_id).unwrap(),
-        91,
-        counter,
-    );
+    let guid =
+        ObjectGuid::create_creature_like_cpp(1, u16::try_from(map.map_id).unwrap(), 91, counter);
     let mut creature = Creature::new(false);
     creature.unit_mut().world_mut().object_mut().create(guid);
     creature
@@ -107,7 +101,11 @@ fn add_pet(manager: &mut MapManager, map: MapKey, counter: i64, owner: ObjectGui
         counter,
     );
     let mut pet = Pet::new(owner, PetType::Summon);
-    pet.creature_mut().unit_mut().world_mut().object_mut().create(guid);
+    pet.creature_mut()
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(guid);
     pet.creature_mut()
         .unit_mut()
         .world_mut()
@@ -141,10 +139,7 @@ fn faction_template(id: u32, faction: u16, flags: u16) -> FactionTemplateEntry {
 }
 
 fn faction_templates() -> FactionTemplateStore {
-    FactionTemplateStore::from_entries([
-        faction_template(1, 100, 0),
-        faction_template(2, 200, 0),
-    ])
+    FactionTemplateStore::from_entries([faction_template(1, 100, 0), faction_template(2, 200, 0)])
 }
 
 fn reaction(
@@ -172,25 +167,49 @@ fn selected_creation_flags_resolve_uniform_and_self_masks_without_relation_data(
 
     assert_eq!(
         crate::aura_session::build_selected_aura_application_flags(
-            polarity, 0b101, caster, target, target, &attributes, None,
+            polarity,
+            0b101,
+            caster,
+            target,
+            target,
+            &attributes,
+            None,
         ),
         Ok(0x0102),
     );
     assert_eq!(
         crate::aura_session::build_selected_aura_application_flags(
-            polarity, 0b010, caster, target, target, &attributes, None,
+            polarity,
+            0b010,
+            caster,
+            target,
+            target,
+            &attributes,
+            None,
         ),
         Ok(0x0010),
     );
     assert_eq!(
         crate::aura_session::build_selected_aura_application_flags(
-            polarity, 0b111, target, target, target, &attributes, None,
+            polarity,
+            0b111,
+            target,
+            target,
+            target,
+            &attributes,
+            None,
         ),
         Ok(0x0011),
     );
     assert_eq!(
         crate::aura_session::build_selected_aura_application_flags(
-            polarity, 0b111, caster, target, target, &attributes, None,
+            polarity,
+            0b111,
+            caster,
+            target,
+            target,
+            &attributes,
+            None,
         ),
         Err(SelectedAuraFlagsError::UnknownForeignCasterRelation),
     );
@@ -204,14 +223,21 @@ fn absent_out_of_world_and_other_map_players_are_known_unfriendly_sources() {
     let (out_guid, out_handle) = add_player(&mut manager, 92_012, MAP, 1, false);
     manager
         .with_player_mut_like_cpp(out_handle, |player| {
-            player.unit_mut().world_mut().object_mut().remove_from_world();
+            player
+                .unit_mut()
+                .world_mut()
+                .object_mut()
+                .remove_from_world();
             player.unit_mut().world_mut().reset_map().unwrap();
         })
         .unwrap();
     let missing_guid = ObjectGuid::create_player(1, 92_013);
 
     for caster in [other_guid, out_guid, missing_guid] {
-        assert_eq!(reaction(&manager, owner, caster, None, None, None), Ok(false));
+        assert_eq!(
+            reaction(&manager, owner, caster, None, None, None),
+            Ok(false)
+        );
     }
 }
 
@@ -222,7 +248,11 @@ fn in_world_player_map_inconsistency_is_an_error() {
     let (caster_guid, caster) = add_player(&mut manager, 92_021, MAP, 1, false);
     manager
         .with_player_mut_like_cpp(caster, |player| {
-            player.unit_mut().world_mut().object_mut().remove_from_world();
+            player
+                .unit_mut()
+                .world_mut()
+                .object_mut()
+                .remove_from_world();
             player.unit_mut().world_mut().reset_map().unwrap();
             player
                 .unit_mut()
@@ -271,7 +301,10 @@ fn source_and_target_affecting_players_supply_their_own_forced_ranks() {
     );
     let templates = faction_templates();
 
-    assert_eq!(reaction(&manager, target, caster, Some(&templates), None, None), Ok(true));
+    assert_eq!(
+        reaction(&manager, target, caster, Some(&templates), None, None),
+        Ok(true)
+    );
 
     let unowned_caster = add_creature(
         &mut manager,
@@ -292,7 +325,14 @@ fn source_and_target_affecting_players_supply_their_own_forced_ranks() {
         })
         .unwrap();
     assert_eq!(
-        reaction(&manager, target, unowned_caster, Some(&templates), None, None),
+        reaction(
+            &manager,
+            target,
+            unowned_caster,
+            Some(&templates),
+            None,
+            None
+        ),
         Ok(false),
     );
 }
@@ -305,7 +345,10 @@ fn pet_owner_fallback_charmer_priority_and_conflicts_follow_canonical_pet_data()
     let (other_guid, _) = add_player(&mut manager, 92_042, MAP, 1, false);
     let pet_guid = add_pet(&mut manager, MAP, 92_043, pet_owner_guid);
 
-    assert_eq!(reaction(&manager, pet_owner, pet_guid, None, None, None), Ok(true));
+    assert_eq!(
+        reaction(&manager, pet_owner, pet_guid, None, None, None),
+        Ok(true)
+    );
     manager
         .find_map_mut(MAP.map_id, MAP.instance_id)
         .unwrap()
@@ -317,7 +360,10 @@ fn pet_owner_fallback_charmer_priority_and_conflicts_follow_canonical_pet_data()
         .subsystems_mut()
         .control
         .charmer_guid = Some(charmer_guid);
-    assert_eq!(reaction(&manager, charmer, pet_guid, None, None, None), Ok(true));
+    assert_eq!(
+        reaction(&manager, charmer, pet_guid, None, None, None),
+        Ok(true)
+    );
 
     manager
         .find_map_mut(MAP.map_id, MAP.instance_id)
@@ -330,7 +376,10 @@ fn pet_owner_fallback_charmer_priority_and_conflicts_follow_canonical_pet_data()
         .subsystems_mut()
         .control
         .owner_guid = Some(other_guid);
-    assert_eq!(reaction(&manager, charmer, pet_guid, None, None, None), Ok(true));
+    assert_eq!(
+        reaction(&manager, charmer, pet_guid, None, None, None),
+        Ok(true)
+    );
     manager
         .find_map_mut(MAP.map_id, MAP.instance_id)
         .unwrap()
@@ -357,14 +406,12 @@ fn affecting_player_resolution_stops_after_the_bounded_second_owner() {
     let (_, recursive_owner) = add_player(&mut manager, 92_053, MAP, 1, false);
     manager
         .with_player_mut_like_cpp(first_owner, |player| {
-            player.unit_mut().subsystems_mut().control.owner_guid =
-                Some(affecting_player.guid());
+            player.unit_mut().subsystems_mut().control.owner_guid = Some(affecting_player.guid());
         })
         .unwrap();
     manager
         .with_player_mut_like_cpp(affecting_player, |player| {
-            player.unit_mut().subsystems_mut().control.owner_guid =
-                Some(recursive_owner.guid());
+            player.unit_mut().subsystems_mut().control.owner_guid = Some(recursive_owner.guid());
             player
                 .reputation_mut_like_cpp()
                 .set_forced_reaction_like_cpp(200, Some(ReputationRankLikeCpp::Friendly));
@@ -390,7 +437,10 @@ fn affecting_player_resolution_stops_after_the_bounded_second_owner() {
     );
     let templates = faction_templates();
 
-    assert_eq!(reaction(&manager, target, caster, Some(&templates), None, None), Ok(true));
+    assert_eq!(
+        reaction(&manager, target, caster, Some(&templates), None, None),
+        Ok(true)
+    );
 }
 
 #[test]
@@ -398,7 +448,8 @@ fn controlled_duel_and_current_group_precede_faction_fallbacks() {
     let mut manager = manager_with_maps(&[MAP]);
     let (target_guid, target) = add_player(&mut manager, 92_060, MAP, 0, true);
     let (source_guid, source) = add_player(&mut manager, 92_061, MAP, 0, true);
-    let known_empty_templates = FactionTemplateStore::from_entries(Vec::<FactionTemplateEntry>::new());
+    let known_empty_templates =
+        FactionTemplateStore::from_entries(Vec::<FactionTemplateEntry>::new());
     manager
         .with_player_mut_like_cpp(source, |player| {
             player.set_duel_opponent_in_progress_like_cpp(target_guid);
@@ -406,7 +457,14 @@ fn controlled_duel_and_current_group_precede_faction_fallbacks() {
         .unwrap();
 
     assert_eq!(
-        reaction(&manager, target, source_guid, Some(&known_empty_templates), None, None),
+        reaction(
+            &manager,
+            target,
+            source_guid,
+            Some(&known_empty_templates),
+            None,
+            None
+        ),
         Ok(false),
     );
     let group_guid = ObjectGuid::create_group(92_062);
@@ -424,7 +482,14 @@ fn controlled_duel_and_current_group_precede_faction_fallbacks() {
             .unwrap();
     }
     assert_eq!(
-        reaction(&manager, target, source_guid, Some(&known_empty_templates), None, None),
+        reaction(
+            &manager,
+            target,
+            source_guid,
+            Some(&known_empty_templates),
+            None,
+            None
+        ),
         Ok(true),
     );
 }
@@ -599,11 +664,7 @@ fn source_and_target_contested_reputation_flags_remain_distinct() {
     );
     let source_templates = FactionTemplateStore::from_entries([
         faction_template(1, 100, 0),
-        faction_template(
-            2,
-            200,
-            FACTION_TEMPLATE_FLAG_CONTESTED_GUARD_LIKE_CPP,
-        ),
+        faction_template(2, 200, FACTION_TEMPLATE_FLAG_CONTESTED_GUARD_LIKE_CPP),
     ]);
     let factions = FactionStore::from_entries([FactionEntry::for_test_like_cpp(200, 2)]);
     assert_eq!(
@@ -626,11 +687,7 @@ fn source_and_target_contested_reputation_flags_remain_distinct() {
         })
         .unwrap();
     let target_templates = FactionTemplateStore::from_entries([
-        faction_template(
-            1,
-            100,
-            FACTION_TEMPLATE_FLAG_CONTESTED_GUARD_LIKE_CPP,
-        ),
+        faction_template(1, 100, FACTION_TEMPLATE_FLAG_CONTESTED_GUARD_LIKE_CPP),
         faction_template(2, 200, 0),
     ]);
     let unowned_source = add_creature(
@@ -678,7 +735,10 @@ fn required_catalog_and_unrepresented_summon_gaps_hold_but_known_rows_are_neutra
         Err(SelectedCasterLevelError::ReactionUnavailable),
     );
     let empty_templates = FactionTemplateStore::from_entries(Vec::<FactionTemplateEntry>::new());
-    assert_eq!(reaction(&manager, target, caster, Some(&empty_templates), None, None), Ok(false));
+    assert_eq!(
+        reaction(&manager, target, caster, Some(&empty_templates), None, None),
+        Ok(false)
+    );
 
     let templates = faction_templates();
     assert_eq!(
@@ -689,7 +749,14 @@ fn required_catalog_and_unrepresented_summon_gaps_hold_but_known_rows_are_neutra
     faction.friendship_rep_id = 7;
     let factions = FactionStore::from_entries([faction]);
     assert_eq!(
-        reaction(&manager, target, caster, Some(&templates), Some(&factions), None),
+        reaction(
+            &manager,
+            target,
+            caster,
+            Some(&templates),
+            Some(&factions),
+            None
+        ),
         Err(SelectedCasterLevelError::ReactionUnavailable),
     );
     let empty_friendships = FriendshipRepReactionStore::from_entries(Vec::new());
@@ -717,7 +784,14 @@ fn required_catalog_and_unrepresented_summon_gaps_hold_but_known_rows_are_neutra
         [0; 8],
     );
     assert_eq!(
-        reaction(&manager, target, summon, Some(&templates), Some(&factions), None),
+        reaction(
+            &manager,
+            target,
+            summon,
+            Some(&templates),
+            Some(&factions),
+            None
+        ),
         Err(SelectedCasterLevelError::ReactionUnavailable),
     );
 }

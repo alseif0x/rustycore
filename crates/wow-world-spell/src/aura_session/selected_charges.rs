@@ -37,19 +37,15 @@ pub fn selected_aura_max_charges(
     proc_store: Option<&SpellProcStoreLikeCpp>,
     difficulties: Option<&DifficultyStore>,
 ) -> Result<u8, &'static str> {
-    let aura_options = aura_options
-        .ok_or("Missing effective SpellAuraOptions store for selected aura charges")?;
-    let proc_store = proc_store
-        .ok_or("Missing canonical SpellProc store for selected aura charges")?;
+    let aura_options =
+        aura_options.ok_or("Missing effective SpellAuraOptions store for selected aura charges")?;
+    let proc_store =
+        proc_store.ok_or("Missing canonical SpellProc store for selected aura charges")?;
 
-    let aura_options_charges = selected_aura_options_entry(
-        aura_options,
-        spell_id,
-        actual_difficulty,
-        difficulties,
-    )
-    .map_err(catalog_error)?
-    .map_or(0, |entry| entry.proc_charges as u32);
+    let aura_options_charges =
+        selected_aura_options_entry(aura_options, spell_id, actual_difficulty, difficulties)
+            .map_err(catalog_error)?
+            .map_or(0, |entry| entry.proc_charges as u32);
 
     let has_proc_row_at_u8_difficulty = proc_store
         .proc_entries_by_spell_and_difficulty
@@ -114,8 +110,8 @@ pub(crate) fn validate_selected_aura_modifier_absence(
         return Err("Selected aura may have applicable class-mask SpellMods");
     }
 
-    let labels = labels
-        .ok_or("Missing effective SpellLabel store for selected aura modifier admission")?;
+    let labels =
+        labels.ok_or("Missing effective SpellLabel store for selected aura modifier admission")?;
     let has_label_row = labels
         .entries_like_cpp()
         .any(|entry| entry.spell_id == spell_id);
@@ -123,13 +119,11 @@ pub(crate) fn validate_selected_aura_modifier_absence(
         return Ok(());
     }
 
-    let resolved_label_presence = resolve_selected_value(
-        actual_difficulty,
-        difficulties,
-        true,
-        |difficulty| (difficulty == 0).then_some(true),
-    )
-    .map_err(catalog_error)?;
+    let resolved_label_presence =
+        resolve_selected_value(actual_difficulty, difficulties, true, |difficulty| {
+            (difficulty == 0).then_some(true)
+        })
+        .map_err(catalog_error)?;
 
     match resolved_label_presence {
         Some(true) => Err("Selected aura may have applicable label SpellMods"),

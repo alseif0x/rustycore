@@ -37,7 +37,8 @@ fn materialized_spawn(
         rooted: false,
         chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
         random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
-        interaction_pause_timer_ms: wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
+        interaction_pause_timer_ms:
+            wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
         wander_distance: 0.0,
         default_movement_type: wow_entities::MovementGeneratorType::Idle,
         waypoint_path_id: 0,
@@ -89,7 +90,10 @@ fn materialized_compat_registration_applies_type_flags_and_post_addon_override()
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
     session.set_canonical_map_manager(Arc::clone(&manager));
-    manager.lock().expect("canonical manager").create_world_map(571, 0);
+    manager
+        .lock()
+        .expect("canonical manager")
+        .create_world_map(571, 0);
     session.core.current_map_id = 571;
 
     let visible = wow_constants::CreatureTypeFlags::VISIBLE_TO_GHOSTS.bits();
@@ -128,7 +132,10 @@ fn materialized_compat_registration_applies_type_flags_and_post_addon_override()
     );
 }
 
-fn visibility_spawn_row(entry: u32, difficulty: u8) -> wow_persistence::CreatureVisibilityPersistenceRowLikeCpp {
+fn visibility_spawn_row(
+    entry: u32,
+    difficulty: u8,
+) -> wow_persistence::CreatureVisibilityPersistenceRowLikeCpp {
     wow_persistence::CreatureVisibilityPersistenceRowLikeCpp {
         spawn_guid: 74_713,
         entry,
@@ -182,10 +189,12 @@ fn visibility_spawn_row(entry: u32, difficulty: u8) -> wow_persistence::Creature
 fn spawn_materializer_returns_type_flags_from_selected_difficulty_fallback() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    manager
-        .lock()
-        .expect("canonical manager")
-        .create_map_entry(571, 0, 2, wow_map::ManagedMapKind::World);
+    manager.lock().expect("canonical manager").create_map_entry(
+        571,
+        0,
+        2,
+        wow_map::ManagedMapKind::World,
+    );
     session.set_canonical_map_manager(manager);
     session.core.current_map_id = 571;
 
@@ -204,13 +213,15 @@ fn spawn_materializer_returns_type_flags_from_selected_difficulty_fallback() {
         ),
     ));
     session.set_creature_model_info_store(Arc::new(
-        wow_data::CreatureModelInfoStoreLikeCpp::from_entries([wow_data::CreatureModelInfoLikeCpp {
-            display_id: 12_345,
-            bounding_radius: 1.0,
-            combat_reach: 1.5,
-            display_id_other_gender: 0,
-            is_trigger: false,
-        }]),
+        wow_data::CreatureModelInfoStoreLikeCpp::from_entries([
+            wow_data::CreatureModelInfoLikeCpp {
+                display_id: 12_345,
+                bounding_radius: 1.0,
+                combat_reach: 1.5,
+                display_id_other_gender: 0,
+                is_trigger: false,
+            },
+        ]),
     ));
 
     let catalogs = session.creature_spawn_catalogs_for_test_like_cpp();

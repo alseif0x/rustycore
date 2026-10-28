@@ -123,7 +123,11 @@ async fn packet_wait_requires_a_new_root_and_keeps_expectations_independent() {
     }
     login_position.extend(0u32.to_le_bytes());
     controller
-        .process_packet(Connection::Instance, SMSG_LOGIN_VERIFY_WORLD, &login_position)
+        .process_packet(
+            Connection::Instance,
+            SMSG_LOGIN_VERIFY_WORLD,
+            &login_position,
+        )
         .unwrap();
 
     let (mut stream, mut peer) = tcp_pair().await;
@@ -162,7 +166,11 @@ async fn packet_wait_requires_a_new_root_and_keeps_expectations_independent() {
     let _ = release_peer.send(());
     send_root.await.unwrap().unwrap();
 
-    assert!(controller.evidence.passed, "{:?}", controller.evidence.failure);
+    assert!(
+        controller.evidence.passed,
+        "{:?}",
+        controller.evidence.failure
+    );
     let root_events = controller
         .evidence
         .events
@@ -230,8 +238,7 @@ async fn packet_wait_times_out_despite_historical_match_and_fails_on_early_logou
         .unwrap()
         .contains("timed out waiting for Instance packet 0x276B"));
     assert!(timed_out.evidence.trace.iter().any(|entry| {
-        entry.action.as_deref() == Some("wait_for_packet")
-            && entry.kind == TraceKind::ActionFailed
+        entry.action.as_deref() == Some("wait_for_packet") && entry.kind == TraceKind::ActionFailed
     }));
 
     let mut logged_out = packet_controller(packet_plan(
@@ -281,7 +288,6 @@ async fn packet_wait_times_out_despite_historical_match_and_fails_on_early_logou
         .unwrap()
         .contains("LogoutComplete arrived before wait_for_packet"));
     assert!(logged_out.evidence.trace.iter().any(|entry| {
-        entry.action.as_deref() == Some("wait_for_packet")
-            && entry.kind == TraceKind::ActionFailed
+        entry.action.as_deref() == Some("wait_for_packet") && entry.kind == TraceKind::ActionFailed
     }));
 }

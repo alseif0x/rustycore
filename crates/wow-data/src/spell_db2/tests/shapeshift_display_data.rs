@@ -23,12 +23,12 @@ fn shapeshift_display_data() {
 
     use crate::character_progression::{
         ChrCustomizationChoiceStore, ChrCustomizationDisplayInfoStore,
-        ChrCustomizationElementStore, ChrCustomizationOptionStore,
-        ChrCustomizationReqChoiceStore, ChrRaceXChrModelStore,
+        ChrCustomizationElementStore, ChrCustomizationOptionStore, ChrCustomizationReqChoiceStore,
+        ChrRaceXChrModelStore,
     };
 
-    let forms = SpellShapeshiftFormStore::load(&data_dir, locale)
-        .expect("load SpellShapeshiftForm.db2");
+    let forms =
+        SpellShapeshiftFormStore::load(&data_dir, locale).expect("load SpellShapeshiftForm.db2");
     let choices = ChrCustomizationChoiceStore::load(&data_dir, locale)
         .expect("load ChrCustomizationChoice.db2");
     let displays = ChrCustomizationDisplayInfoStore::load(&data_dir, locale)
@@ -39,8 +39,8 @@ fn shapeshift_display_data() {
         .expect("load ChrCustomizationOption.db2");
     let req_choices = ChrCustomizationReqChoiceStore::load(&data_dir, locale)
         .expect("load ChrCustomizationReqChoice.db2");
-    let race_models = ChrRaceXChrModelStore::load(&data_dir, locale)
-        .expect("load ChrRaceXChrModel.db2");
+    let race_models =
+        ChrRaceXChrModelStore::load(&data_dir, locale).expect("load ChrRaceXChrModel.db2");
     let display_reader = crate::wdc4::Wdc4Reader::open(&display_path)
         .expect("open ChrCustomizationDisplayInfo.db2 with WDC4 reader");
 
@@ -98,7 +98,9 @@ fn shapeshift_display_data() {
             continue;
         };
         for &(option_id, form_id, choice_id, display_info_id, element_id) in model_links {
-            let choice = choices.get(choice_id).expect("linked choice remains present");
+            let choice = choices
+                .get(choice_id)
+                .expect("linked choice remains present");
             let display = displays
                 .get(display_info_id)
                 .expect("linked display remains present");
@@ -123,9 +125,7 @@ fn shapeshift_display_data() {
             ));
         }
     }
-    druid_links.sort_unstable_by_key(|row| {
-        (row.0, row.1, row.2, row.3, row.4, row.5, row.6)
-    });
+    druid_links.sort_unstable_by_key(|row| (row.0, row.1, row.2, row.3, row.4, row.5, row.6));
 
     let mut form_display_rows: Vec<_> = forms
         .entries_like_cpp()
@@ -139,10 +139,8 @@ fn shapeshift_display_data() {
     }
     let druid_choices_with_req = druid_links.iter().filter(|row| row.8 != 0).count();
     let druid_choices_with_visibility_req = druid_links.iter().filter(|row| row.9 != 0).count();
-    let druid_choices_with_req_choice_rows = druid_links
-        .iter()
-        .filter(|row| !row.10.is_empty())
-        .count();
+    let druid_choices_with_req_choice_rows =
+        druid_links.iter().filter(|row| !row.10.is_empty()).count();
 
     println!("# locale\t{locale}");
     println!(
@@ -161,8 +159,7 @@ fn shapeshift_display_data() {
     );
     println!(
         "# linkCounts\tElementToDisplayAndChoice={linked_elements}\tElementToOption={linked_options}\tNonzeroShapeshiftForm={nonzero_form_links}\tDruidRace4Gender0={}\tDruidRace4Gender1={}",
-        druid_counts[&0],
-        druid_counts[&1],
+        druid_counts[&0], druid_counts[&1],
     );
     println!(
         "# requirements\tDruidLinkedChoicesWithChoiceReq={druid_choices_with_req}\tDruidLinkedChoicesWithVisibilityReq={druid_choices_with_visibility_req}\tDruidLinkedChoicesWithReqChoiceRows={druid_choices_with_req_choice_rows}"

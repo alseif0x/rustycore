@@ -154,19 +154,10 @@ pub async fn apply_self_resurrect_effect_like_cpp<H: SpellExecutionHostLikeCpp>(
     }
 
     // Source computes both locals before ResurrectPlayer mutates Player state.
-    let (health, mana) = self_resurrection_values_like_cpp(
-        damage,
-        misc_value,
-        player_state.2,
-        player_state.3,
-    )?;
-    host.self_resurrect_player_like_cpp(
-        item_guid_generator,
-        creature_spawn_catalogs,
-        health,
-        mana,
-    )
-    .await
+    let (health, mana) =
+        self_resurrection_values_like_cpp(damage, misc_value, player_state.2, player_state.3)?;
+    host.self_resurrect_player_like_cpp(item_guid_generator, creature_spawn_catalogs, health, mana)
+        .await
 }
 
 fn self_resurrection_values_like_cpp(

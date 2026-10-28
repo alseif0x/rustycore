@@ -261,7 +261,10 @@ pub struct PlayerResurrectionContinuation {
 pub enum PlayerResurrectionOperation {
     RequestData(PlayerResurrectionRequestLikeCpp),
     /// Native `Spell::EffectSelfResurrect` inputs frozen before Player revival.
-    SelfRes { health: u32, mana: u32 },
+    SelfRes {
+        health: u32,
+        mana: u32,
+    },
     TeleportRevivePercent {
         map_id: u32,
         position: wow_core::Position,

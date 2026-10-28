@@ -56,9 +56,7 @@ pub(super) fn install_recovery_sickness_fixture(session: &mut WorldSession) {
     install_sickness_data(session, SICKNESS_SPELL, Some(69));
 }
 
-pub(super) fn install_recovery_sickness_fixture_with_normal_cast_costs(
-    session: &mut WorldSession,
-) {
+pub(super) fn install_recovery_sickness_fixture_with_normal_cast_costs(session: &mut WorldSession) {
     set_race_sickness_spell(session, SICKNESS_SPELL);
     install_sickness_data_with_cast_costs(
         session,
@@ -66,10 +64,7 @@ pub(super) fn install_recovery_sickness_fixture_with_normal_cast_costs(
         Some(69),
         Some(wow_data::SpellCastCostStoreLikeCpp::default()),
     );
-    install_normal_sickness_cast_payload(
-        session,
-        wow_data::SpellCastCostStoreLikeCpp::default(),
-    );
+    install_normal_sickness_cast_payload(session, wow_data::SpellCastCostStoreLikeCpp::default());
     session.set_spell_category_store(std::sync::Arc::new(
         wow_data::SpellCategoryStore::from_entries([]),
     ));
@@ -452,7 +447,10 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
     assert_eq!(saved_gear.item_entry, 43_210);
     assert_eq!(saved_gear.owner_guid, player_guid.counter() as u64);
     assert_eq!(saved_gear.slot, EQUIPMENT_SLOT_CHEST);
-    assert_eq!(saved_gear.state, wow_persistence::PlayerItemSaveStateLikeCpp::Changed);
+    assert_eq!(
+        saved_gear.state,
+        wow_persistence::PlayerItemSaveStateLikeCpp::Changed
+    );
     assert_eq!(saved_gear.durability, 0);
     let saved_backpack = saved_item(backpack_guid);
     assert_eq!(saved_backpack.item_entry, 43_211);
@@ -466,7 +464,10 @@ async fn spirit_healer_resurrects_applies_sickness_and_only_damages_carried_item
     let saved_carried_child = saved_item(carried_child_guid);
     assert_eq!(saved_carried_child.item_entry, 43_206);
     assert_eq!(saved_carried_child.owner_guid, player_guid.counter() as u64);
-    assert_eq!(saved_carried_child.bag_guid, carried_bag_guid.counter() as u64);
+    assert_eq!(
+        saved_carried_child.bag_guid,
+        carried_bag_guid.counter() as u64
+    );
     assert_eq!(saved_carried_child.slot, 0);
     assert_eq!(
         saved_carried_child.state,

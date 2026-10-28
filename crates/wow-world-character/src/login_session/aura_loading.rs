@@ -111,11 +111,8 @@ pub async fn load_character_auras_for_login_like_cpp<H: CharacterLoginHostLikeCp
     host.set_player_aura_authority_complete_like_cpp(
         aura_rows_complete && aura_effect_rows_complete,
     );
-    let loaded_character_auras = host.load_represented_character_auras_like_cpp(
-        aura_rows,
-        aura_effect_rows,
-        timediff_secs,
-    );
+    let loaded_character_auras =
+        host.load_represented_character_auras_like_cpp(aura_rows, aura_effect_rows, timediff_secs);
     info!(
         loaded_character_auras,
         player_guid = guid.counter(),

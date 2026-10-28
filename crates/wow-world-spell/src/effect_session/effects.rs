@@ -152,7 +152,11 @@ pub fn represented_disallowed_mount_form_like_cpp<H: SpellEffectHostLikeCpp>(
         None,
         Some(display_store),
         Some(display_extra_store),
-        host.hub_ref().catalogs.creatures.model_data_store.as_deref(),
+        host.hub_ref()
+            .catalogs
+            .creatures
+            .model_data_store
+            .as_deref(),
         host.hub_ref().catalogs.chr.races_store.as_deref(),
     )
     .unwrap_or(false);
@@ -197,8 +201,7 @@ pub fn disallowed_mount_form_from_catalogs(
     let model_cannot_mount = model_store
         .get(u32::from(display.model_id))
         .is_some_and(|model| {
-            model.flags & CREATURE_MODEL_DATA_FLAG_CAN_MOUNT_WHILE_TRANSFORMED_AS_THIS_LIKE_CPP
-                == 0
+            model.flags & CREATURE_MODEL_DATA_FLAG_CAN_MOUNT_WHILE_TRANSFORMED_AS_THIS_LIKE_CPP == 0
         });
     let race_cannot_mount = u32::try_from(display_extra.display_race_id)
         .ok()
@@ -343,12 +346,7 @@ pub fn apply_inebriate_effect_like_cpp<H: SpellEffectHostLikeCpp>(
         return Ok(false);
     }
 
-    host.set_player_drunk_value_like_cpp(
-        target_guid,
-        damage,
-        cast_item_guid,
-        cast_item_entry,
-    )
+    host.set_player_drunk_value_like_cpp(target_guid, damage, cast_item_guid, cast_item_entry)
 }
 
 /// C++ `Spell::EffectDismissPet`.

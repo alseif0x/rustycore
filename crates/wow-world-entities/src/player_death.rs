@@ -646,12 +646,7 @@ pub async fn repop_at_graveyard_like_cpp<H: CorpseHostLikeCpp>(
         ) {
             return;
         }
-        match crate::recovery_fences::continue_operation(
-            host,
-            catalogs.resurrection(),
-        )
-        .await
-        {
+        match crate::recovery_fences::continue_operation(host, catalogs.resurrection()).await {
             crate::recovery_fences::Progress::Complete
             | crate::recovery_fences::Progress::Waiting => {}
             crate::recovery_fences::Progress::Continue | crate::recovery_fences::Progress::Held => {
@@ -759,7 +754,10 @@ pub async fn repop_request_like_cpp<H: CorpseHostLikeCpp>(
     }
 
     if let Err(reason) = host.remove_pet_for_repop_like_cpp(catalogs).await {
-        warn!(account = host.core().account_id, reason, "release pet removal failed");
+        warn!(
+            account = host.core().account_id,
+            reason, "release pet removal failed"
+        );
         return;
     }
     if build_player_repop_like_cpp(host, catalogs).await {

@@ -134,13 +134,11 @@ async fn exercise(outcome: PersistenceOutcomeLikeCpp, cancel: bool) {
     let request = wow_packet::packets::misc::LogoutRequest { idle_logout: false };
     if cancel {
         use std::future::Future;
-        let mut logout = Box::pin(
-            wow_world_character::handle_logout_request_with_catalogs(
-                &mut session,
-                resurrection_catalogs,
-                request,
-            ),
-        );
+        let mut logout = Box::pin(wow_world_character::handle_logout_request_with_catalogs(
+            &mut session,
+            resurrection_catalogs,
+            request,
+        ));
         assert!(
             std::future::poll_fn(|cx| std::task::Poll::Ready(
                 logout.as_mut().poll(cx).is_pending()

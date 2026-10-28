@@ -90,9 +90,8 @@ fn install_selected_ghost(session: &mut wow_world::session::WorldSession) -> (u8
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert_spell_misc_attributes_like_cpp(GHOST, [0; 15]);
     session.set_spell_store(Arc::new(spell_store));
-    session.set_spell_aura_options_store(Arc::new(
-        wow_data::SpellAuraOptionsStore::from_entries([]),
-    ));
+    session
+        .set_spell_aura_options_store(Arc::new(wow_data::SpellAuraOptionsStore::from_entries([])));
     session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_ids([0])));
 
     let slot = 4;
@@ -253,12 +252,11 @@ async fn selected_recovery_from_the_real_map_root_publishes_before_tick_tail() {
             recovery_count += 1;
             observed_diff = recovery.admission.diff_ms;
             observed_map_epoch = recovery.admission.map_tick_epoch;
-            assert!(observed_diff > 0, "the root's Recovery request carries its tick diff");
-            let state = world
-                .canonical
-                .lock()
-                .unwrap()
-                .tick_coordination_like_cpp();
+            assert!(
+                observed_diff > 0,
+                "the root's Recovery request carries its tick diff"
+            );
+            let state = world.canonical.lock().unwrap().tick_coordination_like_cpp();
             assert_eq!(
                 state,
                 wow_map::MapTickCoordinationStateLikeCpp::AwaitingSessions(
@@ -269,10 +267,12 @@ async fn selected_recovery_from_the_real_map_root_publishes_before_tick_tail() {
         }
 
         let catalogs = wow_world::session::SessionHandlerCatalogsLikeCpp::default();
-        assert!(session
-            .run_requested_session_phase_like_cpp(request, &catalogs)
-            .await
-            .is_none());
+        assert!(
+            session
+                .run_requested_session_phase_like_cpp(request, &catalogs)
+                .await
+                .is_none()
+        );
 
         if recovery_count != 0 {
             let remaining = world
@@ -295,18 +295,17 @@ async fn selected_recovery_from_the_real_map_root_publishes_before_tick_tail() {
                 "the actual Recovery callee publishes one direct source AuraUpdate before replying"
             );
             assert_eq!(
-                world
-                    .canonical
-                    .lock()
-                    .unwrap()
-                    .tick_coordination_like_cpp(),
+                world.canonical.lock().unwrap().tick_coordination_like_cpp(),
                 wow_map::MapTickCoordinationStateLikeCpp::AwaitingSessions(observed_map_epoch),
                 "the root has not resumed its map tail before source publication is observed"
             );
         }
     }
 
-    assert_eq!(recovery_count, 1, "one selected Player recovery request ran");
+    assert_eq!(
+        recovery_count, 1,
+        "one selected Player recovery request ran"
+    );
     assert!(observed_diff > 0);
 
     let second_started = Instant::now();
@@ -322,20 +321,18 @@ async fn selected_recovery_from_the_real_map_root_publishes_before_tick_tail() {
             second_epoch = recovery.admission.map_tick_epoch;
             assert!(second_diff > 0);
             assert_eq!(
-                world
-                    .canonical
-                    .lock()
-                    .unwrap()
-                    .tick_coordination_like_cpp(),
+                world.canonical.lock().unwrap().tick_coordination_like_cpp(),
                 wow_map::MapTickCoordinationStateLikeCpp::AwaitingSessions(second_epoch),
                 "the actual producer waits at the following Recovery barrier"
             );
         }
         let catalogs = wow_world::session::SessionHandlerCatalogsLikeCpp::default();
-        assert!(session
-            .run_requested_session_phase_like_cpp(request, &catalogs)
-            .await
-            .is_none());
+        assert!(
+            session
+                .run_requested_session_phase_like_cpp(request, &catalogs)
+                .await
+                .is_none()
+        );
     }
     assert!(second_diff > 0, "a following Recovery pass ran");
     let remaining = world
@@ -352,17 +349,16 @@ async fn selected_recovery_from_the_real_map_root_publishes_before_tick_tail() {
                 .duration_remaining
         })
         .unwrap();
-    assert_eq!(remaining, 60_000 - observed_diff as i32 - second_diff as i32);
+    assert_eq!(
+        remaining,
+        60_000 - observed_diff as i32 - second_diff as i32
+    );
     assert!(
         selected_updates(&send_rx.try_iter().collect::<Vec<_>>()).is_empty(),
         "the next positive countdown has no pending aura delta and sends no frame"
     );
     assert_eq!(
-        world
-            .canonical
-            .lock()
-            .unwrap()
-            .tick_coordination_like_cpp(),
+        world.canonical.lock().unwrap().tick_coordination_like_cpp(),
         wow_map::MapTickCoordinationStateLikeCpp::AwaitingSessions(second_epoch),
         "the second Recovery consumer returns before the map tail"
     );

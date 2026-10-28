@@ -7,8 +7,8 @@
 use wow_constants::PowerType;
 use wow_core::ObjectGuid;
 use wow_entities::{
-    Player, PlayerResurrectionContinuation, PlayerResurrectionOperation,
-    PlayerResurrectionPhase, PlayerResurrectionRequestLikeCpp,
+    Player, PlayerResurrectionContinuation, PlayerResurrectionOperation, PlayerResurrectionPhase,
+    PlayerResurrectionRequestLikeCpp,
 };
 
 use crate::{CorpseHostLikeCpp, ResurrectionOperationCatalogs};
@@ -89,9 +89,7 @@ pub(crate) fn begin_teleport_revive(
     let canonical = {
         let fixture_available = host.test_fixtures_ref_like_cpp().is_some();
         canonical
-            || host.core().player_handle_like_cpp.is_none()
-                && fixture_available
-                && {
+            || host.core().player_handle_like_cpp.is_none() && fixture_available && {
                 let mut hub = host.hub_mut();
                 if hub
                     .fixtures
@@ -103,8 +101,7 @@ pub(crate) fn begin_teleport_revive(
                 }
                 hub.fixtures
                     .combat
-                    .represented_delayed_resurrection_after_teleport_like_cpp =
-                    Some(continuation);
+                    .represented_delayed_resurrection_after_teleport_like_cpp = Some(continuation);
                 true
             }
     };
@@ -114,11 +111,12 @@ pub(crate) fn begin_teleport_revive(
 }
 
 fn continuation(host: &impl CorpseHostLikeCpp) -> Option<PlayerResurrectionContinuation> {
-    let canonical = host.core().with_owned_player_like_cpp(|player| {
-        player
-            .resurrection_state_like_cpp()
-            .delayed_after_teleport
-    }).flatten();
+    let canonical = host
+        .core()
+        .with_owned_player_like_cpp(|player| {
+            player.resurrection_state_like_cpp().delayed_after_teleport
+        })
+        .flatten();
     #[cfg(any(test, feature = "test-fixtures"))]
     return canonical.or_else(|| {
         (host.core().player_handle_like_cpp.is_none())
@@ -145,18 +143,14 @@ fn owner_residence_current(
     }
 }
 
-pub fn player_resurrection_continuation_pending(
-    host: &impl CorpseHostLikeCpp,
-) -> bool {
+pub fn player_resurrection_continuation_pending(host: &impl CorpseHostLikeCpp) -> bool {
     continuation(host).is_some()
 }
 
 /// A full resurrection save returned Deferred specifically because an active
 /// transfer still prevents capture. Callers may retain the owner for the
 /// transfer completion path; every other incomplete result remains a fence.
-pub fn player_resurrection_save_waiting_for_transfer(
-    host: &impl CorpseHostLikeCpp,
-) -> bool {
+pub fn player_resurrection_save_waiting_for_transfer(host: &impl CorpseHostLikeCpp) -> bool {
     continuation(host).is_some_and(|continuation| {
         continuation.phase == PlayerResurrectionPhase::PlayerSaveDeferred
     }) && host
@@ -184,9 +178,7 @@ pub(crate) fn advance_phase(
     let canonical = {
         let fixture_available = host.test_fixtures_ref_like_cpp().is_some();
         canonical
-            || host.core().player_handle_like_cpp.is_none()
-                && fixture_available
-                && {
+            || host.core().player_handle_like_cpp.is_none() && fixture_available && {
                 let mut hub = host.hub_mut();
                 let Some(continuation) = hub
                     .fixtures
@@ -217,9 +209,7 @@ fn clear_completed(host: &mut impl CorpseHostLikeCpp) -> bool {
     let canonical = {
         let fixture_available = host.test_fixtures_ref_like_cpp().is_some();
         canonical
-            || host.core().player_handle_like_cpp.is_none()
-                && fixture_available
-                && {
+            || host.core().player_handle_like_cpp.is_none() && fixture_available && {
                 let mut hub = host.hub_mut();
                 if !hub
                     .fixtures
@@ -250,9 +240,7 @@ fn no_teleport_pending(host: &impl CorpseHostLikeCpp) -> bool {
 /// A valid near or far ACK resolves only a continuation whose native owner has
 /// an ACK-resolvable phase. A cancelled healer TeleportTo future remains held:
 /// its ACK cannot prove that the awaited call returned.
-pub fn mark_player_resurrection_teleport_completed(
-    host: &mut impl CorpseHostLikeCpp,
-) -> bool {
+pub fn mark_player_resurrection_teleport_completed(host: &mut impl CorpseHostLikeCpp) -> bool {
     let Some(continuation) = continuation(host) else {
         return true;
     };
@@ -367,11 +355,7 @@ pub(crate) async fn process_after_teleport(
             return false;
         }
         return matches!(
-            crate::recovery_fences::continue_operation(
-                host,
-                catalogs,
-            )
-            .await,
+            crate::recovery_fences::continue_operation(host, catalogs,).await,
             crate::recovery_fences::Progress::Complete
         );
     }
@@ -467,10 +451,10 @@ pub(crate) async fn process_after_teleport(
         super::player_resurrection::finish_resurrection_visibility(host, catalogs).await;
         if !owner_residence_current(host, owner)
             || !advance_phase(
-            host,
-            PlayerResurrectionPhase::VisibilityInFlight,
-            PlayerResurrectionPhase::ObtainSpellsInFlight,
-        )
+                host,
+                PlayerResurrectionPhase::VisibilityInFlight,
+                PlayerResurrectionPhase::ObtainSpellsInFlight,
+            )
         {
             return false;
         }
@@ -483,10 +467,10 @@ pub(crate) async fn process_after_teleport(
         }
         if !owner_residence_current(host, owner)
             || !advance_phase(
-            host,
-            PlayerResurrectionPhase::ObtainSpellsInFlight,
-            PlayerResurrectionPhase::ApplyRequestValues,
-        )
+                host,
+                PlayerResurrectionPhase::ObtainSpellsInFlight,
+                PlayerResurrectionPhase::ApplyRequestValues,
+            )
         {
             return false;
         }
@@ -552,12 +536,7 @@ pub(crate) async fn process_after_teleport(
     if continuation.phase == PlayerResurrectionPhase::ReadyToSavePlayer
         || continuation.phase == PlayerResurrectionPhase::PlayerSaveDeferred
     {
-        return run_resurrection_save(
-            host,
-            catalogs.item_guid_generator,
-            continuation.phase,
-        )
-        .await;
+        return run_resurrection_save(host, catalogs.item_guid_generator, continuation.phase).await;
     }
     clear_completed(host)
 }
@@ -672,10 +651,10 @@ pub(crate) async fn run_teleport_revive(
     super::player_resurrection::finish_resurrection_visibility(host, catalogs).await;
     if !owner_residence_current(host, owner)
         || !advance_phase(
-        host,
-        PlayerResurrectionPhase::VisibilityInFlight,
-        PlayerResurrectionPhase::ObtainSpellsInFlight,
-    )
+            host,
+            PlayerResurrectionPhase::VisibilityInFlight,
+            PlayerResurrectionPhase::ObtainSpellsInFlight,
+        )
     {
         return false;
     }
@@ -685,10 +664,10 @@ pub(crate) async fn run_teleport_revive(
     }
     if !owner_residence_current(host, owner)
         || !advance_phase(
-        host,
-        PlayerResurrectionPhase::ObtainSpellsInFlight,
-        PlayerResurrectionPhase::Complete,
-    )
+            host,
+            PlayerResurrectionPhase::ObtainSpellsInFlight,
+            PlayerResurrectionPhase::Complete,
+        )
     {
         return false;
     }
@@ -701,6 +680,5 @@ pub async fn revive_player_for_teleport<H: CorpseHostLikeCpp>(
     map_id: u32,
     destination: wow_core::Position,
 ) -> bool {
-    begin_teleport_revive(host, map_id, destination)
-        && run_teleport_revive(host, catalogs).await
+    begin_teleport_revive(host, map_id, destination) && run_teleport_revive(host, catalogs).await
 }

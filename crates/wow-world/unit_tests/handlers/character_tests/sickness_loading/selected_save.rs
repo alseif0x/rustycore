@@ -1,5 +1,5 @@
-use super::*;
 use super::selected_load::{difficulty, indexed_effect, selected_misc};
+use super::*;
 use std::sync::Arc;
 
 fn install_nonzero_only_sickness_data(session: &mut WorldSession) {
@@ -63,9 +63,11 @@ fn install_nonzero_only_sickness_data(session: &mut WorldSession) {
         spells.misc_attributes_for_exact_difficulty(SICKNESS_SPELL_ID, 3),
         Some(attributes)
     );
-    assert!(spells
-        .effect_rows_for_exact_difficulty(SICKNESS_SPELL_ID, 0)
-        .is_none());
+    assert!(
+        spells
+            .effect_rows_for_exact_difficulty(SICKNESS_SPELL_ID, 0)
+            .is_none()
+    );
     assert_eq!(
         spells
             .effect_rows_for_exact_difficulty(SICKNESS_SPELL_ID, 3)
@@ -74,22 +76,20 @@ fn install_nonzero_only_sickness_data(session: &mut WorldSession) {
     );
 
     session.set_spell_store(Arc::new(spells));
-    session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries(
-        misc_rows,
-    )));
-    session.set_spell_duration_store(Arc::new(
-        wow_data::SpellDurationStore::from_entries([wow_data::SpellDurationEntry {
+    session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries(misc_rows)));
+    session.set_spell_duration_store(Arc::new(wow_data::SpellDurationStore::from_entries([
+        wow_data::SpellDurationEntry {
             id: 427,
             duration: -600_000,
             duration_per_level: 0,
             max_duration: 600_000,
-        }]),
-    ));
+        },
+    ])));
     session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_entries([
         difficulty(3, 0),
     ])));
-    session.set_spell_aura_options_store(Arc::new(
-        wow_data::SpellAuraOptionsStore::from_entries([wow_data::SpellAuraOptionsEntry {
+    session.set_spell_aura_options_store(Arc::new(wow_data::SpellAuraOptionsStore::from_entries(
+        [wow_data::SpellAuraOptionsEntry {
             id: SICKNESS_SPELL_ID as u32,
             difficulty_id: 3,
             cumulative_aura: 0,
@@ -99,8 +99,8 @@ fn install_nonzero_only_sickness_data(session: &mut WorldSession) {
             spell_procs_per_minute_id: 0,
             proc_type_mask: [0; 2],
             spell_id: SICKNESS_SPELL_ID as u32,
-        }]),
-    ));
+        }],
+    )));
 }
 
 fn rows_from_save(
@@ -162,7 +162,9 @@ fn nonzero_only_sickness_save_and_reload_preserves_original_key_and_payload() {
     aura.cast_item_id = 6_948;
     aura.cast_item_level = -17;
     aura.remain_time_ms = 123_456;
-    for (effect, (amount, base_amount)) in effects.iter_mut().zip([(-71, -76), (-62, -67), (-3, -8)]) {
+    for (effect, (amount, base_amount)) in
+        effects.iter_mut().zip([(-71, -76), (-62, -67), (-3, -8)])
+    {
         effect.item_guid = item_guid;
         effect.amount = amount;
         effect.base_amount = base_amount;

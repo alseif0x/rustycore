@@ -68,7 +68,11 @@ impl DifficultyStore {
         Self::load_with_completeness(data_dir, locale, true)
     }
 
-    fn load_with_completeness(data_dir: &str, locale: &str, require_complete: bool) -> Result<Self> {
+    fn load_with_completeness(
+        data_dir: &str,
+        locale: &str,
+        require_complete: bool,
+    ) -> Result<Self> {
         let path = Path::new(data_dir)
             .join("dbc")
             .join(locale)

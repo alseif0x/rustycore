@@ -508,8 +508,8 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
         };
         // C++ `_LoadAuras` allocates this before `TryCreate`, including a
         // selected aura whose active effect mask later normalizes to zero.
-        let Some(cast_id) = selected_cast_id
-            .or_else(|| host.next_represented_spell_cast_guid_like_cpp(spell_id))
+        let Some(cast_id) =
+            selected_cast_id.or_else(|| host.next_represented_spell_cast_guid_like_cpp(spell_id))
         else {
             authority_complete = false;
             break;
@@ -593,12 +593,7 @@ pub fn load_represented_character_auras_like_cpp<H: AuraHostLikeCpp>(
             if !removals_succeeded {
                 continue;
             }
-            if !selected_aura_can_be_saved(
-                caster_guid,
-                player_guid,
-                row.item_guid,
-                metadata,
-            ) {
+            if !selected_aura_can_be_saved(caster_guid, player_guid, row.item_guid, metadata) {
                 // `_AddAura` conflict removal precedes `CanBeSaved`; the new
                 // aura is then discarded without applying its effects.
                 continue;

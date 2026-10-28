@@ -850,12 +850,14 @@ where
                     .movement_handler_cx_like_cpp(catalogs)
                     .handle_move_teleport_ack(ack)
                     .await;
-                session.handle_move_teleport_ack_like_cpp(
-                    catalogs,
-                    step.mover_guid,
-                    step.ack_index,
-                    step.move_time,
-                ).await;
+                session
+                    .handle_move_teleport_ack_like_cpp(
+                        catalogs,
+                        step.mover_guid,
+                        step.ack_index,
+                        step.move_time,
+                    )
+                    .await;
             }
             Err(e) => tracing::warn!("Failed to read MoveTeleportAck: {e}"),
         }

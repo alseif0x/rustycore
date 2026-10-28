@@ -50,10 +50,10 @@ use wow_persistence::{
 };
 use wow_social::group::{GroupInfo, GroupRegistry, PendingInvites};
 
-#[path = "quest_tests/source_items.rs"]
-mod source_items;
 #[path = "quest_tests/pet_reagents.rs"]
 mod pet_reagents;
+#[path = "quest_tests/source_items.rs"]
+mod source_items;
 pub(super) use source_items::{
     insert_direct_inventory_item, install_have_limit_category_like_cpp,
     install_source_item_template, install_source_item_template_with_flags3,
@@ -373,13 +373,11 @@ fn add_active_quest(session: &mut WorldSession, quest_id: u32) {
         let statuses = session
             .player_quest_gameplay_snapshot_like_cpp()
             .expect("handle-less quest setup state");
-        (0..MAX_QUEST_LOG_SIZE_LIKE_CPP as u8)
-            .find(|slot| {
-                !statuses.statuses_like_cpp().values().any(|status| {
-                    status.status != wow_conditions::QUEST_STATUS_NONE_LIKE_CPP
-                        && status.slot == *slot
-                })
+        (0..MAX_QUEST_LOG_SIZE_LIKE_CPP as u8).find(|slot| {
+            !statuses.statuses_like_cpp().values().any(|status| {
+                status.status != wow_conditions::QUEST_STATUS_NONE_LIKE_CPP && status.slot == *slot
             })
+        })
     } else {
         session.first_free_quest_slot_like_cpp()
     }

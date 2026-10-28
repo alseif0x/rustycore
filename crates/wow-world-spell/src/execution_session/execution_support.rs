@@ -258,19 +258,19 @@ pub(crate) fn validate_spell_effect_routes_like_cpp(
     let context = route_context(player_guid, target_guid, selected_aura_constructor);
     if spell_info.effects().is_empty() {
         if primary_effect_type != 0
-            && classify_spell_effect_route_like_cpp(
-                spell_info,
-                primary_effect_type,
-                None,
-                context,
-            ) == SpellEffectExecutionRouteLikeCpp::Unavailable
+            && classify_spell_effect_route_like_cpp(spell_info, primary_effect_type, None, context)
+                == SpellEffectExecutionRouteLikeCpp::Unavailable
         {
             return Err("normal cast contains an unimplemented spell effect");
         }
         return Ok(());
     }
 
-    for effect in spell_info.effects().iter().filter(|effect| effect.effect != 0) {
+    for effect in spell_info
+        .effects()
+        .iter()
+        .filter(|effect| effect.effect != 0)
+    {
         if classify_spell_effect_route_like_cpp(
             spell_info,
             effect.effect,

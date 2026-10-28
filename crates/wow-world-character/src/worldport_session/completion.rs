@@ -96,9 +96,7 @@ pub(super) async fn finish_worldport_after_ack<H: WorldportHostLikeCpp>(
 
 /// Legacy finalization call sites without catalog ownership may complete native
 /// transfer work only when no resurrection continuation is retained.
-pub async fn finish_worldport_native_without_resurrection_catalogs<
-    H: WorldportHostLikeCpp,
->(
+pub async fn finish_worldport_native_without_resurrection_catalogs<H: WorldportHostLikeCpp>(
     host: &mut H,
 ) -> bool {
     finish_worldport_native_one_pass(host, None).await
@@ -119,11 +117,12 @@ fn transfer_identity<H: WorldportHostLikeCpp>(
     state: wow_entities::PlayerTeleportStateLikeCpp,
 ) -> Option<TransferIdentity> {
     host.core()
-        .with_owned_player_like_cpp(|player| {
-            TransferIdentity {
-                state,
-                location: (player.unit().world().map_id(), player.unit().world().position()),
-            }
+        .with_owned_player_like_cpp(|player| TransferIdentity {
+            state,
+            location: (
+                player.unit().world().map_id(),
+                player.unit().world().position(),
+            ),
         })
 }
 

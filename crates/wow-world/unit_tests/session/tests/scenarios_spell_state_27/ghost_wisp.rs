@@ -811,9 +811,7 @@ fn login_aura_loader_applies_ghost_effects_from_supplied_rows() {
     assert_eq!(auras.runtime_applications_like_cpp().len(), 2);
     // The modeled Ghost and Wisp SpellInfo rows both carry AURA_IS_DEBUFF.
     assert!(auras.runtime_applications_like_cpp().values().all(|aura| {
-        aura.effect_mask == 0b111
-            && aura.duration_total == -1
-            && aura.aura_flags == 0x0011
+        aura.effect_mask == 0b111 && aura.duration_total == -1 && aura.aura_flags == 0x0011
     }));
     assert_eq!(
         auras.total_aura_modifier_like_cpp(

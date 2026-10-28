@@ -51,7 +51,11 @@ mod tests {
                     .update_player_teleport_state_like_cpp(|state| state.far_pending = true)
             );
             assert_eq!(session.pending_teleport_like_cpp(), Some((1, expected)));
-            assert!(session.finish_worldport_native_before_disconnect_like_cpp().await);
+            assert!(
+                session
+                    .finish_worldport_native_before_disconnect_like_cpp()
+                    .await
+            );
             assert_eq!(
                 crate::session::hub_ref(&session).player_position_like_cpp(),
                 Some(expected)
@@ -81,7 +85,11 @@ mod tests {
                 .post_add
                 .is_some()
         );
-        assert!(session.finish_worldport_native_before_disconnect_like_cpp().await);
+        assert!(
+            session
+                .finish_worldport_native_before_disconnect_like_cpp()
+                .await
+        );
         assert!(session.prepare_player_save_like_cpp(1).is_some());
     }
 
@@ -131,7 +139,11 @@ mod tests {
         }
         assert_eq!(session.lifecycle.next_player_save_ms_like_cpp(), 100);
         assert!(!session.lifecycle.pending_periodic_player_save_like_cpp());
-        assert!(session.finish_worldport_native_before_disconnect_like_cpp().await);
+        assert!(
+            session
+                .finish_worldport_native_before_disconnect_like_cpp()
+                .await
+        );
         // Unavailable persistence is not a confirmation and must retain the intent.
         assert_eq!(
             session.save_current_player_to_db_like_cpp().await,

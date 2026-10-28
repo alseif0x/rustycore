@@ -4,15 +4,13 @@ use anyhow::Result;
 use wow_persistence::{
     SpellAuraOptionsHotfixRow, SpellAuraRestrictionsHotfixRowLikeCpp,
     SpellCastTimesHotfixRowLikeCpp, SpellCastingRequirementsHotfixRowLikeCpp,
-    SpellCategoriesHotfixRowLikeCpp, SpellCategoryHotfixRowLikeCpp,
-    SpellClassOptionsHotfixRow, SpellCooldownsHotfixRowLikeCpp, SpellDurationHotfixRowLikeCpp,
-    SpellEffectHotfixRowLikeCpp, SpellEquippedItemsHotfixRowLikeCpp,
-    SpellInterruptsHotfixRowLikeCpp, SpellLabelHotfixRow, SpellLevelsHotfixRow,
-    SpellMiscHotfixRowLikeCpp, SpellNameHotfixRowLikeCpp, SpellPowerDifficultyHotfixRowLikeCpp,
-    SpellPowerHotfixRowLikeCpp, SpellProcsPerMinuteHotfixRow, SpellRadiusHotfixRowLikeCpp,
-    SpellRangeHotfixRowLikeCpp,
-    SpellShapeshiftHotfixRowLikeCpp, SpellTargetRestrictionsHotfixRowLikeCpp,
-    SpellXSpellVisualHotfixRowLikeCpp,
+    SpellCategoriesHotfixRowLikeCpp, SpellCategoryHotfixRowLikeCpp, SpellClassOptionsHotfixRow,
+    SpellCooldownsHotfixRowLikeCpp, SpellDurationHotfixRowLikeCpp, SpellEffectHotfixRowLikeCpp,
+    SpellEquippedItemsHotfixRowLikeCpp, SpellInterruptsHotfixRowLikeCpp, SpellLabelHotfixRow,
+    SpellLevelsHotfixRow, SpellMiscHotfixRowLikeCpp, SpellNameHotfixRowLikeCpp,
+    SpellPowerDifficultyHotfixRowLikeCpp, SpellPowerHotfixRowLikeCpp, SpellProcsPerMinuteHotfixRow,
+    SpellRadiusHotfixRowLikeCpp, SpellRangeHotfixRowLikeCpp, SpellShapeshiftHotfixRowLikeCpp,
+    SpellTargetRestrictionsHotfixRowLikeCpp, SpellXSpellVisualHotfixRowLikeCpp,
 };
 
 use crate::field_like_cpp::{FieldNumberLikeCpp, FieldRowLikeCpp, NativeFieldLikeCpp};
@@ -97,7 +95,8 @@ pub(super) fn spell_effect(row: &[NativeFieldLikeCpp]) -> Result<SpellEffectHotf
         effect_mechanic: row.get_like_cpp(14, "spell_effect.EffectMechanic")?,
         effect_points_per_resource: row.get_like_cpp(15, "spell_effect.EffectPointsPerResource")?,
         effect_pos_facing: row.get_like_cpp(16, "spell_effect.EffectPosFacing")?,
-        effect_real_points_per_level: row.get_like_cpp(17, "spell_effect.EffectRealPointsPerLevel")?,
+        effect_real_points_per_level: row
+            .get_like_cpp(17, "spell_effect.EffectRealPointsPerLevel")?,
         effect_trigger_spell: row.get_like_cpp(18, "spell_effect.EffectTriggerSpell")?,
         bonus_coefficient_from_ap: row.get_like_cpp(19, "spell_effect.BonusCoefficientFromAP")?,
         pvp_multiplier: row.get_like_cpp(20, "spell_effect.PvpMultiplier")?,
@@ -127,12 +126,7 @@ pub(super) fn spell_shapeshift(
             "spell_shapeshift",
             "ShapeshiftExclude",
         )?,
-        shapeshift_mask: numeric_array::<i32, 2>(
-            row,
-            5,
-            "spell_shapeshift",
-            "ShapeshiftMask",
-        )?,
+        shapeshift_mask: numeric_array::<i32, 2>(row, 5, "spell_shapeshift", "ShapeshiftMask")?,
     })
 }
 
@@ -193,8 +187,10 @@ pub(super) fn spell_casting_requirements(
         min_faction_id: row.get_like_cpp(3, "spell_casting_requirements.MinFactionID")?,
         min_reputation: row.get_like_cpp(4, "spell_casting_requirements.MinReputation")?,
         required_areas_id: row.get_like_cpp(5, "spell_casting_requirements.RequiredAreasID")?,
-        required_aura_vision: row.get_like_cpp(6, "spell_casting_requirements.RequiredAuraVision")?,
-        requires_spell_focus: row.get_like_cpp(7, "spell_casting_requirements.RequiresSpellFocus")?,
+        required_aura_vision: row
+            .get_like_cpp(6, "spell_casting_requirements.RequiredAuraVision")?,
+        requires_spell_focus: row
+            .get_like_cpp(7, "spell_casting_requirements.RequiresSpellFocus")?,
     })
 }
 
@@ -235,19 +231,21 @@ pub(super) fn spell_aura_restrictions(
         difficulty_id: row.get_like_cpp(1, "spell_aura_restrictions.DifficultyID")?,
         caster_aura_state: row.get_like_cpp(2, "spell_aura_restrictions.CasterAuraState")?,
         target_aura_state: row.get_like_cpp(3, "spell_aura_restrictions.TargetAuraState")?,
-        exclude_caster_aura_state: row.get_like_cpp(4, "spell_aura_restrictions.ExcludeCasterAuraState")?,
-        exclude_target_aura_state: row.get_like_cpp(5, "spell_aura_restrictions.ExcludeTargetAuraState")?,
+        exclude_caster_aura_state: row
+            .get_like_cpp(4, "spell_aura_restrictions.ExcludeCasterAuraState")?,
+        exclude_target_aura_state: row
+            .get_like_cpp(5, "spell_aura_restrictions.ExcludeTargetAuraState")?,
         caster_aura_spell: row.get_like_cpp(6, "spell_aura_restrictions.CasterAuraSpell")?,
         target_aura_spell: row.get_like_cpp(7, "spell_aura_restrictions.TargetAuraSpell")?,
-        exclude_caster_aura_spell: row.get_like_cpp(8, "spell_aura_restrictions.ExcludeCasterAuraSpell")?,
-        exclude_target_aura_spell: row.get_like_cpp(9, "spell_aura_restrictions.ExcludeTargetAuraSpell")?,
+        exclude_caster_aura_spell: row
+            .get_like_cpp(8, "spell_aura_restrictions.ExcludeCasterAuraSpell")?,
+        exclude_target_aura_spell: row
+            .get_like_cpp(9, "spell_aura_restrictions.ExcludeTargetAuraSpell")?,
         spell_id: row.get_like_cpp(10, "spell_aura_restrictions.SpellID")?,
     })
 }
 
-pub(super) fn spell_category(
-    row: &[NativeFieldLikeCpp],
-) -> Result<SpellCategoryHotfixRowLikeCpp> {
+pub(super) fn spell_category(row: &[NativeFieldLikeCpp]) -> Result<SpellCategoryHotfixRowLikeCpp> {
     Ok(SpellCategoryHotfixRowLikeCpp {
         id: row.get_like_cpp(0, "spell_category.ID")?,
         name: row.get_string_like_cpp(1, "spell_category.Name")?,
@@ -259,9 +257,7 @@ pub(super) fn spell_category(
     })
 }
 
-pub(super) fn spell_duration(
-    row: &[NativeFieldLikeCpp],
-) -> Result<SpellDurationHotfixRowLikeCpp> {
+pub(super) fn spell_duration(row: &[NativeFieldLikeCpp]) -> Result<SpellDurationHotfixRowLikeCpp> {
     Ok(SpellDurationHotfixRowLikeCpp {
         id: row.get_like_cpp(0, "spell_duration.ID")?,
         duration: row.get_like_cpp(1, "spell_duration.Duration")?,
@@ -298,7 +294,8 @@ pub(super) fn spell_equipped_items(
         id: row.get_like_cpp(0, "spell_equipped_items.ID")?,
         spell_id: row.get_like_cpp(1, "spell_equipped_items.SpellID")?,
         equipped_item_class: row.get_like_cpp(2, "spell_equipped_items.EquippedItemClass")?,
-        equipped_item_inv_types: row.get_like_cpp(3, "spell_equipped_items.EquippedItemInvTypes")?,
+        equipped_item_inv_types: row
+            .get_like_cpp(3, "spell_equipped_items.EquippedItemInvTypes")?,
         equipped_item_subclass: row.get_like_cpp(4, "spell_equipped_items.EquippedItemSubclass")?,
     })
 }
@@ -312,7 +309,8 @@ pub(super) fn spell_target_restrictions(
         cone_degrees: row.get_like_cpp(2, "spell_target_restrictions.ConeDegrees")?,
         max_targets: row.get_like_cpp(3, "spell_target_restrictions.MaxTargets")?,
         max_target_level: row.get_like_cpp(4, "spell_target_restrictions.MaxTargetLevel")?,
-        target_creature_type: row.get_like_cpp(5, "spell_target_restrictions.TargetCreatureType")?,
+        target_creature_type: row
+            .get_like_cpp(5, "spell_target_restrictions.TargetCreatureType")?,
         targets: row.get_like_cpp(6, "spell_target_restrictions.Targets")?,
         width: row.get_like_cpp(7, "spell_target_restrictions.Width")?,
         spell_id: row.get_like_cpp(8, "spell_target_restrictions.SpellID")?,
@@ -331,17 +329,19 @@ pub(super) fn spell_x_spell_visual(
         priority: row.get_like_cpp(5, "spell_x_spell_visual.Priority")?,
         spell_icon_file_id: row.get_like_cpp(6, "spell_x_spell_visual.SpellIconFileID")?,
         active_icon_file_id: row.get_like_cpp(7, "spell_x_spell_visual.ActiveIconFileID")?,
-        viewer_unit_condition_id: row.get_like_cpp(8, "spell_x_spell_visual.ViewerUnitConditionID")?,
-        viewer_player_condition_id: row.get_like_cpp(9, "spell_x_spell_visual.ViewerPlayerConditionID")?,
-        caster_unit_condition_id: row.get_like_cpp(10, "spell_x_spell_visual.CasterUnitConditionID")?,
-        caster_player_condition_id: row.get_like_cpp(11, "spell_x_spell_visual.CasterPlayerConditionID")?,
+        viewer_unit_condition_id: row
+            .get_like_cpp(8, "spell_x_spell_visual.ViewerUnitConditionID")?,
+        viewer_player_condition_id: row
+            .get_like_cpp(9, "spell_x_spell_visual.ViewerPlayerConditionID")?,
+        caster_unit_condition_id: row
+            .get_like_cpp(10, "spell_x_spell_visual.CasterUnitConditionID")?,
+        caster_player_condition_id: row
+            .get_like_cpp(11, "spell_x_spell_visual.CasterPlayerConditionID")?,
         spell_id: row.get_like_cpp(12, "spell_x_spell_visual.SpellID")?,
     })
 }
 
-pub(super) fn spell_aura_options(
-    row: &[NativeFieldLikeCpp],
-) -> Result<SpellAuraOptionsHotfixRow> {
+pub(super) fn spell_aura_options(row: &[NativeFieldLikeCpp]) -> Result<SpellAuraOptionsHotfixRow> {
     Ok(SpellAuraOptionsHotfixRow {
         id: row.get_like_cpp(0, "spell_aura_options.ID")?,
         difficulty_id: row.get_like_cpp(1, "spell_aura_options.DifficultyID")?,
@@ -349,7 +349,8 @@ pub(super) fn spell_aura_options(
         proc_category_recovery: row.get_like_cpp(3, "spell_aura_options.ProcCategoryRecovery")?,
         proc_chance: row.get_like_cpp(4, "spell_aura_options.ProcChance")?,
         proc_charges: row.get_like_cpp(5, "spell_aura_options.ProcCharges")?,
-        spell_procs_per_minute_id: row.get_like_cpp(6, "spell_aura_options.SpellProcsPerMinuteID")?,
+        spell_procs_per_minute_id: row
+            .get_like_cpp(6, "spell_aura_options.SpellProcsPerMinuteID")?,
         proc_type_mask: numeric_array::<i32, 2>(row, 7, "spell_aura_options", "ProcTypeMask")?,
         spell_id: row.get_like_cpp(9, "spell_aura_options.SpellID")?,
     })
@@ -363,12 +364,7 @@ pub(super) fn spell_class_options(
         spell_id: row.get_like_cpp(1, "spell_class_options.SpellID")?,
         modal_next_spell: row.get_like_cpp(2, "spell_class_options.ModalNextSpell")?,
         spell_class_set: row.get_like_cpp(3, "spell_class_options.SpellClassSet")?,
-        spell_class_mask: numeric_array::<i32, 4>(
-            row,
-            4,
-            "spell_class_options",
-            "SpellClassMask",
-        )?,
+        spell_class_mask: numeric_array::<i32, 4>(row, 4, "spell_class_options", "SpellClassMask")?,
     })
 }
 

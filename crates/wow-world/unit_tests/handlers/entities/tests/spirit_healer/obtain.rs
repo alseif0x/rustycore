@@ -266,10 +266,13 @@ async fn healer_resurrection_runs_obtain_between_visibility_and_optional_sicknes
         2,
         "one pickup cast completes, the second live HasAura query skips its duplicate, and the optional healer sickness cast follows"
     );
-    assert!(packets
-        .iter()
-        .filter(|packet| u16::from_le_bytes([packet[0], packet[1]]) == ServerOpcodes::SpellGo as u16)
-        .all(|packet| decode_spell_go(packet).2 == SICKNESS_SPELL));
+    assert!(
+        packets
+            .iter()
+            .filter(|packet| u16::from_le_bytes([packet[0], packet[1]])
+                == ServerOpcodes::SpellGo as u16)
+            .all(|packet| decode_spell_go(packet).2 == SICKNESS_SPELL)
+    );
 }
 
 #[tokio::test]
@@ -340,7 +343,10 @@ async fn healer_holds_obtain_phase_when_item_effect_catalog_is_unavailable() {
 
     assert!(session.player_is_alive_like_cpp());
     assert!(visible_sickness_aura(&session, SICKNESS_SPELL).is_empty());
-    assert_eq!(spell_opcode_count(&drain_packets(&send_rx), ServerOpcodes::SpellGo), 0);
+    assert_eq!(
+        spell_opcode_count(&drain_packets(&send_rx), ServerOpcodes::SpellGo),
+        0
+    );
     assert_eq!(
         session
             .core
@@ -407,7 +413,9 @@ async fn obtain_scan_casts_a_live_bag_child_with_its_physical_item() {
     let packets = drain_packets(&send_rx);
     let start = packets
         .iter()
-        .find(|packet| u16::from_le_bytes([packet[0], packet[1]]) == ServerOpcodes::SpellStart as u16)
+        .find(|packet| {
+            u16::from_le_bytes([packet[0], packet[1]]) == ServerOpcodes::SpellStart as u16
+        })
         .expect("bag child's normal-cast SpellStart");
     let mut start_payload = WorldPacket::from_bytes(&start[2..]);
     assert_eq!(start_payload.read_packed_guid().unwrap(), child_guid);
@@ -419,8 +427,8 @@ async fn reclaim_holds_after_an_obtain_item_authority_error_without_replaying_pr
     let (mut session, send_rx, _realm_rx, corpse_port) =
         corpse::released_ghost_without_reclaim_delay_like_cpp(43_791).await;
     let owner = session.player_guid().expect("canonical Player GUID");
-    let corpse_guid = corpse::current_corpse_guid_like_cpp(&session, owner)
-        .expect("released ghost corpse");
+    let corpse_guid =
+        corpse::current_corpse_guid_like_cpp(&session, owner).expect("released ghost corpse");
     session.set_player_position_like_cpp(Position::new(10.0, 2.0, 3.0, 0.0));
     install_recovery_sickness_fixture_with_normal_cast_costs(&mut session);
     install_obtain_item_catalogs(&mut session, SICKNESS_SPELL);
@@ -460,13 +468,13 @@ async fn reclaim_holds_after_an_obtain_item_authority_error_without_replaying_pr
     );
     assert!(session.player_is_alive_like_cpp());
     assert_eq!(
-        session
-            .core
-            .with_owned_player_like_cpp(|player| player
-                .resurrection_state_like_cpp()
-                .delayed_after_teleport
-                .map(|continuation| continuation.phase)),
-        Some(Some(wow_entities::PlayerResurrectionPhase::ObtainSpellsInFlight))
+        session.core.with_owned_player_like_cpp(|player| player
+            .resurrection_state_like_cpp()
+            .delayed_after_teleport
+            .map(|continuation| continuation.phase)),
+        Some(Some(
+            wow_entities::PlayerResurrectionPhase::ObtainSpellsInFlight
+        ))
     );
     assert!(corpse_port.delete_requests().is_empty());
     assert_eq!(save_port.character_save_count(), 0);
@@ -531,4 +539,3 @@ async fn reclaim_holds_after_an_obtain_item_authority_error_without_replaying_pr
     assert_eq!(save_port.character_save_count(), 0);
     assert_eq!(corpse_port.delete_requests(), Vec::<u64>::new());
 }
-

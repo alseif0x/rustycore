@@ -411,12 +411,19 @@ async fn mixed_sickness_creation(
     );
     let caster_handle = {
         let mut manager = manager.lock().expect("canonical MapManager");
-        let mut caster = Box::new(wow_entities::Player::new(Some((guid_counter + 1) as u64), false));
-        caster.unit_mut().world_mut().object_mut().create(caster_guid);
+        let mut caster = Box::new(wow_entities::Player::new(
+            Some((guid_counter + 1) as u64),
+            false,
+        ));
+        caster
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(caster_guid);
         caster.unit_mut().set_level(44);
-        caster.unit_mut().set_unit_flags_like_cpp(
-            wow_constants::unit::UnitFlags::PLAYER_CONTROLLED,
-        );
+        caster
+            .unit_mut()
+            .set_unit_flags_like_cpp(wow_constants::unit::UnitFlags::PLAYER_CONTROLLED);
         let caster_handle = manager
             .install_detached_player_like_cpp(caster)
             .expect("foreign caster Player");
@@ -426,9 +433,9 @@ async fn mixed_sickness_creation(
 
         manager
             .with_player_mut_like_cpp(owner, |player| {
-                player.unit_mut().set_unit_flags_like_cpp(
-                    wow_constants::unit::UnitFlags::PLAYER_CONTROLLED,
-                );
+                player
+                    .unit_mut()
+                    .set_unit_flags_like_cpp(wow_constants::unit::UnitFlags::PLAYER_CONTROLLED);
                 if friendly_group {
                     player.set_group_like_cpp(Some(wow_entities::PlayerGroupState {
                         group_guid,
@@ -441,9 +448,9 @@ async fn mixed_sickness_creation(
             .expect("canonical target Player");
         manager
             .with_player_mut_like_cpp(caster_handle, |player| {
-                player.unit_mut().set_unit_flags_like_cpp(
-                    wow_constants::unit::UnitFlags::PLAYER_CONTROLLED,
-                );
+                player
+                    .unit_mut()
+                    .set_unit_flags_like_cpp(wow_constants::unit::UnitFlags::PLAYER_CONTROLLED);
                 if friendly_group {
                     player.set_group_like_cpp(Some(wow_entities::PlayerGroupState {
                         group_guid,

@@ -1,5 +1,5 @@
-use super::*;
 use super::super::{append_decoded_row, classify_rows_like_cpp};
+use super::*;
 use crate::field_like_cpp::NativeFieldLikeCpp as Native;
 use wow_persistence::SpellCoreDb2HotfixLoadOutcomeLikeCpp;
 
@@ -162,16 +162,18 @@ fn existing_spell_rows_decode_all_native_projection_columns() {
     assert!(spell_power(&numeric_row(14)).is_ok());
     assert!(spell_power_difficulty(&numeric_row(3)).is_ok());
     assert!(spell_aura_restrictions(&numeric_row(11)).is_ok());
-    assert!(spell_category(&[
-        Native::Int32(0),
-        Native::Text("name".to_string()),
-        Native::Int32(0),
-        Native::Int32(0),
-        Native::Int32(0),
-        Native::Int32(0),
-        Native::Int32(0),
-    ])
-    .is_ok());
+    assert!(
+        spell_category(&[
+            Native::Int32(0),
+            Native::Text("name".to_string()),
+            Native::Int32(0),
+            Native::Int32(0),
+            Native::Int32(0),
+            Native::Int32(0),
+            Native::Int32(0),
+        ])
+        .is_ok()
+    );
     assert!(spell_duration(&numeric_row(4)).is_ok());
     assert!(spell_radius(&numeric_row(5)).is_ok());
 
@@ -231,10 +233,12 @@ fn nullable_fields_default_to_cpp_zero_or_empty_but_invalid_fields_fail() {
 
     let mut malformed = aura_options_row();
     malformed[4] = Native::Text("not numeric".to_string());
-    assert!(spell_aura_options(&malformed)
-        .unwrap_err()
-        .to_string()
-        .contains("ProcChance"));
+    assert!(
+        spell_aura_options(&malformed)
+            .unwrap_err()
+            .to_string()
+            .contains("ProcChance")
+    );
 
     let mut unsupported = aura_options_row();
     unsupported[4] = Native::Unsupported("DECIMAL".to_string());
@@ -262,15 +266,18 @@ fn malformed_row_in_a_batch_classifies_the_whole_load_as_failed_with_context() {
     let batch = [valid, malformed];
     let mut decoded = Vec::new();
     let mut mapper = spell_aura_options;
-    let result = batch.iter().enumerate().try_for_each(|(row_index, fields)| {
-        append_decoded_row(
-            &mut decoded,
-            "spell_aura_options",
-            row_index,
-            fields,
-            &mut mapper,
-        )
-    });
+    let result = batch
+        .iter()
+        .enumerate()
+        .try_for_each(|(row_index, fields)| {
+            append_decoded_row(
+                &mut decoded,
+                "spell_aura_options",
+                row_index,
+                fields,
+                &mut mapper,
+            )
+        });
 
     let outcome = classify_rows_like_cpp(result.map(|()| decoded));
     match outcome {
@@ -303,16 +310,12 @@ fn ppm_native_projection_preserves_float_and_flags_widths() {
     assert_eq!(null.base_proc_rate, 0.0);
     assert_eq!(null.flags, 0);
 
-    assert!(spell_procs_per_minute(&[
-        Native::UInt32(1),
-        Native::Double(1.1),
-        Native::UInt8(0),
-    ])
-    .is_err());
-    assert!(spell_procs_per_minute(&[
-        Native::UInt32(1),
-        Native::Float(1.5),
-        Native::UInt16(256),
-    ])
-    .is_err());
+    assert!(
+        spell_procs_per_minute(&[Native::UInt32(1), Native::Double(1.1), Native::UInt8(0),])
+            .is_err()
+    );
+    assert!(
+        spell_procs_per_minute(&[Native::UInt32(1), Native::Float(1.5), Native::UInt16(256),])
+            .is_err()
+    );
 }

@@ -99,12 +99,10 @@ fn restore_reagent_and_cast_item_catalogs(session: &mut WorldSession) {
         item_record(REAGENT_ITEM),
         item_record(CAST_ITEM),
     ])));
-    session.set_item_stats_store(Arc::new(
-        wow_data::ItemStatsStore::from_sparse_templates([
-            (REAGENT_ITEM, sparse_template(20)),
-            (CAST_ITEM, sparse_template(20)),
-        ]),
-    ));
+    session.set_item_stats_store(Arc::new(wow_data::ItemStatsStore::from_sparse_templates([
+        (REAGENT_ITEM, sparse_template(20)),
+        (CAST_ITEM, sparse_template(20)),
+    ])));
 }
 
 fn setup_inebriate_cast(
@@ -140,14 +138,13 @@ fn setup_inebriate_cast(
     crate::player_inventory_test_fixture::complete_known_empty_player_currencies_like_cpp(
         &mut session,
     );
-    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(
-        &mut session,
-        true,
-    ));
+    assert!(wow_world_spell::set_player_aura_authority_complete_like_cpp(&mut session, true,));
     let player_guid = session.player_guid().expect("recovery Player GUID");
     session
         .with_owned_player_mut_like_cpp(|player| {
-            player.unit_mut().set_death_state(wow_constants::DeathState::Alive);
+            player
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::Alive);
             player.unit_mut().set_health(100);
             player.set_inebriation_like_cpp(15);
         })
@@ -444,24 +441,28 @@ fn application_take_cast_item_preserves_only_live_provenance_and_reports_unavail
         cast_item_guid: Some(missing_physical_guid),
         ..cast_item_metadata(cast_item_guid)
     };
-    assert!(wow_world_application::take_server_normal_cast_item_like_cpp(
-        &mut session,
-        &spell_info,
-        missing_physical,
-    )
-    .is_err());
+    assert!(
+        wow_world_application::take_server_normal_cast_item_like_cpp(
+            &mut session,
+            &spell_info,
+            missing_physical,
+        )
+        .is_err()
+    );
     assert_eq!(cast_item_count(&session, cast_item_guid), 1);
     let missing_entry = SpellCastMetadata {
         cast_item_entry: None,
         ..cast_item_metadata(cast_item_guid)
     };
     let count_before_missing_entry = cast_item_count(&session, cast_item_guid);
-    assert!(wow_world_application::take_server_normal_cast_item_like_cpp(
-        &mut session,
-        &spell_info,
-        missing_entry,
-    )
-    .is_err());
+    assert!(
+        wow_world_application::take_server_normal_cast_item_like_cpp(
+            &mut session,
+            &spell_info,
+            missing_entry,
+        )
+        .is_err()
+    );
     assert_eq!(
         cast_item_count(&session, cast_item_guid),
         count_before_missing_entry

@@ -107,7 +107,7 @@ async fn quest_confirm_accept_source_item_bound_objective_dont_report_flag_sends
 }
 #[tokio::test]
 async fn quest_confirm_accept_native_quest_log_source_item_multiple_bound_objectives_stops_after_first_like_cpp()
-{
+ {
     let (mut session, send_rx) = make_session();
     install_native_quest_log_player_like_cpp(&mut session);
     let receiver_guid = session.player_guid().unwrap();

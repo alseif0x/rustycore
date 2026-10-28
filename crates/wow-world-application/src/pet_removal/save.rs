@@ -4,8 +4,8 @@
 //! Read-only native pet-save projection for the bounded empty-aura removal path.
 
 use wow_entities::{
-    Pet, PetSpellState, PetSpellType, PetStable, PetStableInfo, ReactState,
-    SpellHistoryPetSaveOperationLikeCpp, MAX_ACTIVE_PETS,
+    MAX_ACTIVE_PETS, Pet, PetSpellState, PetSpellType, PetStable, PetStableInfo, ReactState,
+    SpellHistoryPetSaveOperationLikeCpp,
 };
 use wow_persistence::{
     PlayerPetSaveTransactionLikeCpp, PlayerPetSpellChargeLoadRowLikeCpp,

@@ -1,3 +1,8 @@
+use super::selected_catalog::{
+    SelectedAuraPublicationCatalogs, is_selected_aura_spell, selected_aura_wire_facts,
+    sickness_spell_for_race,
+};
+use super::selected_wire::selected_aura_info;
 use crate::SessionSpellState;
 use std::{
     collections::{HashMap, HashSet},
@@ -5,15 +10,10 @@ use std::{
 };
 use wow_core::{ObjectGuid, guid::HighGuid};
 use wow_entities::{
-    AuraApplicationLikeCpp as AuraApplication, AuraCastProvenanceLikeCpp,
-    AuraPersistenceMetadata, AuraThreatSnapshotLikeCpp, legacy_aura_duration_pair,
+    AuraApplicationLikeCpp as AuraApplication, AuraCastProvenanceLikeCpp, AuraPersistenceMetadata,
+    AuraThreatSnapshotLikeCpp, legacy_aura_duration_pair,
 };
 use wow_world_core::session::{AFLAG_SCALABLE_LIKE_CPP, HubMut, HubRef};
-use super::selected_catalog::{
-    SelectedAuraPublicationCatalogs, is_selected_aura_spell, selected_aura_wire_facts,
-    sickness_spell_for_race,
-};
-use super::selected_wire::selected_aura_info;
 
 enum InitialPlayerAura {
     Selected {
@@ -99,10 +99,7 @@ pub(crate) fn player_aura_info_with_provenance(
 }
 
 impl SessionSpellState {
-    pub fn send_initial_player_auras_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Result<(), &'static str> {
+    pub fn send_initial_player_auras_like_cpp(&self, hub: HubRef<'_>) -> Result<(), &'static str> {
         let catalogs = SelectedAuraPublicationCatalogs {
             races: hub.catalogs.chr.races_store.as_deref(),
             spells: hub.catalogs.spell_catalogs.spell_store.as_deref(),
@@ -185,7 +182,9 @@ impl SessionSpellState {
                     });
                 }
                 Some((
-                    hub.core.player_guid().ok_or("initial aura target is unavailable")?,
+                    hub.core
+                        .player_guid()
+                        .ok_or("initial aura target is unavailable")?,
                     records,
                 ))
             }
@@ -229,12 +228,9 @@ impl SessionSpellState {
                 InitialPlayerAura::Legacy {
                     application,
                     provenance,
-                } => player_aura_info_with_provenance(
-                    &application,
-                    player_level,
-                    map_id,
-                    provenance,
-                ),
+                } => {
+                    player_aura_info_with_provenance(&application, player_level, map_id, provenance)
+                }
             };
             aura_infos.push(info);
         }

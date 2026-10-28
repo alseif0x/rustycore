@@ -121,8 +121,8 @@
    "kind": "raise",
    "issue": 43,
    "reviewed_at": "2026-10-28",
-   "reason": "#43 final-delivery preparation: retain the real World composition coverage for native death, release/reclaim/healer, selected ghost and sickness auras, registered SelfRes, save/load and transfer/failure fences. The reviewed identity delta adds 363 and retires 12 renamed or replaced cases (net +351); all added cases classify as W. Existing routing changes reclassify nine W cases to H and update domain destinations without deleting their tests. This records the exact current suite, not acceptance results or headroom.",
-   "unit_tests_lines": 270614,
+   "reason": "#43 final-delivery preparation: retain the real World composition coverage for native death, release/reclaim/healer, selected ghost and sickness auras, registered SelfRes, save/load and transfer/failure fences. The reviewed identity delta adds 363 and retires 12 renamed or replaced cases (net +351); all added cases classify as W. Existing routing changes reclassify nine W cases to H and update domain destinations without deleting their tests. The final preparation moves four unchanged driver tests into corpse/death_timer_driver.rs; the test union, classifications and ignored state remain identical. Module wiring and rustfmt account for the physical-line refinement from 270614 to 270836. This records the exact current suite, not acceptance results or headroom.",
+   "unit_tests_lines": 270836,
    "unit_tests_tests": 4094,
    "src_tests": 22
   }

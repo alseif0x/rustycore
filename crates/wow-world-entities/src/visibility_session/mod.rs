@@ -63,11 +63,10 @@ pub use session_visibility::{
 pub use spawn::{
     WAYPOINT_MOTION_TYPE_LIKE_CPP, choose_creature_flags_like_cpp,
     creature_create_movement_flags_like_cpp, creature_create_position_after_hover_offset_like_cpp,
-    creature_movement_generator_type_from_db_like_cpp,
+    creature_movement_generator_type_from_db_like_cpp, materialize_creature_spawn_row_for_test,
     normalize_creature_template_speed_run_like_cpp,
     normalize_creature_template_speed_walk_like_cpp, normalized_creature_wander_distance_like_cpp,
     spawn_difficulties_contains_spawn_mode_like_cpp,
-    materialize_creature_spawn_row_for_test,
 };
 pub use update::update_visibility_with_catalogs_like_cpp;
 

@@ -144,10 +144,7 @@ pub(super) fn selected_owner_map(
                 Err(PlayerOwnerError::DetachedPlayerStillBound {
                     guid,
                     key: bound_key,
-                }) if guid == owner.guid()
-                    && bound_key == key
-                    && !world.object().is_in_world() =>
-                {
+                }) if guid == owner.guid() && bound_key == key && !world.object().is_in_world() => {
                     if member.is_some() {
                         return Err(SelectedCasterLevelError::OwnerUnavailable);
                     }
@@ -199,9 +196,7 @@ pub(super) fn with_unit_in_map<R>(
                     .then(|| MapKey::new(world.map_id(), world.instance_id()));
                 let registered_map = match (residence, body_map) {
                     (PlayerResidenceLikeCpp::Detached, None) => None,
-                    (PlayerResidenceLikeCpp::Active(key), Some(body_key))
-                        if key == body_key =>
-                    {
+                    (PlayerResidenceLikeCpp::Active(key), Some(body_key)) if key == body_key => {
                         let member = manager
                             .find_map(key.map_id, key.instance_id)
                             .and_then(|managed| managed.map().get_typed_player(guid))
@@ -229,25 +224,26 @@ pub(super) fn with_unit_in_map<R>(
             .ok_or(SelectedCasterLevelError::CasterUnavailable)?;
     }
 
-    let Some(result) = target_map.map().with_creature_or_pet_like_cpp(
-        guid,
-        |body, pet_owner_guid| {
-            if body.guid() != guid {
-                return Err(SelectedCasterLevelError::CasterUnavailable);
-            }
-            let world = body.unit().world();
-            let body_map = world
-                .has_current_map()
-                .then(|| MapKey::new(world.map_id(), world.instance_id()));
-            if body_map != Some(map_key) {
-                return Err(SelectedCasterLevelError::CasterUnavailable);
-            }
-            Ok(read(SelectedUnit::Creature {
-                body,
-                pet_owner_guid,
-            }))
-        },
-    ) else {
+    let Some(result) =
+        target_map
+            .map()
+            .with_creature_or_pet_like_cpp(guid, |body, pet_owner_guid| {
+                if body.guid() != guid {
+                    return Err(SelectedCasterLevelError::CasterUnavailable);
+                }
+                let world = body.unit().world();
+                let body_map = world
+                    .has_current_map()
+                    .then(|| MapKey::new(world.map_id(), world.instance_id()));
+                if body_map != Some(map_key) {
+                    return Err(SelectedCasterLevelError::CasterUnavailable);
+                }
+                Ok(read(SelectedUnit::Creature {
+                    body,
+                    pet_owner_guid,
+                }))
+            })
+    else {
         return Ok(None);
     };
     result.map(Some)
@@ -284,7 +280,8 @@ pub(crate) fn selected_caster_is_friendly(
                 )
             })
             .ok_or(SelectedCasterLevelError::OwnerUnavailable)?
-    })? else {
+    })?
+    else {
         return Ok(false);
     };
     Ok(reaction?)
@@ -314,8 +311,7 @@ fn resolve_reaction(
         );
     }
 
-    let attackable_by_summoner = attackable_by_summoner(source)?
-        || attackable_by_summoner(target)?;
+    let attackable_by_summoner = attackable_by_summoner(source)? || attackable_by_summoner(target)?;
     if attackable_by_summoner {
         return resolve_rank(
             RepresentedGetReactionInputLikeCpp {
@@ -336,17 +332,7 @@ fn resolve_reaction(
             if same_owner {
                 return resolve_rank(
                     reaction_input(
-                        source,
-                        target,
-                        true,
-                        false,
-                        false,
-                        false,
-                        false,
-                        false,
-                        false,
-                        None,
-                        None,
+                        source, target, true, false, false, false, false, false, false, None, None,
                     ),
                     None,
                     None,
@@ -361,11 +347,11 @@ fn resolve_reaction(
                     let duel = if same_player_owner {
                         false
                     } else {
-                        source_player.zip(target_player).is_some_and(
-                            |(source, target)| {
+                        source_player
+                            .zip(target_player)
+                            .is_some_and(|(source, target)| {
                                 source.is_dueling_opponent_in_progress_like_cpp(target.guid())
-                            },
-                        )
+                            })
                     };
                     let input = reaction_input(
                         source,
@@ -376,8 +362,7 @@ fn resolve_reaction(
                         same_player_owner,
                         duel,
                         false,
-                        target_player
-                            .is_some_and(|player| player.guid() == target_session_guid),
+                        target_player.is_some_and(|player| player.guid() == target_session_guid),
                         source_player,
                         target_player,
                     );
@@ -457,9 +442,8 @@ fn reaction_input(
         target_ffa_pvp: target_unit
             .pvp_flags_like_cpp()
             .contains(UnitPvpFlags::FFA_PVP),
-        self_ignores_reputation: source_affecting_player.is_some_and(|player| {
-            ignores_reputation(player.unit())
-        }),
+        self_ignores_reputation: source_affecting_player
+            .is_some_and(|player| ignores_reputation(player.unit())),
         target_ignores_reputation: ignores_reputation(target_unit),
         target_is_unit: true,
         self_player_contested_pvp: source_affecting_player.is_some_and(contested_pvp),
@@ -485,15 +469,9 @@ fn resolve_rank_with_raid(
     catalogs: FactionReactionCatalogs<'_>,
     raid_relation: impl FnOnce() -> Result<bool, FactionReactionError>,
 ) -> Result<bool, SelectedCasterLevelError> {
-    resolve_faction_reaction_with_raid(
-        input,
-        source_owner,
-        target_owner,
-        catalogs,
-        raid_relation,
-    )
-    .map(|rank| rank >= ReputationRankLikeCpp::Friendly)
-    .map_err(|_| SelectedCasterLevelError::ReactionUnavailable)
+    resolve_faction_reaction_with_raid(input, source_owner, target_owner, catalogs, raid_relation)
+        .map(|rank| rank >= ReputationRankLikeCpp::Friendly)
+        .map_err(|_| SelectedCasterLevelError::ReactionUnavailable)
 }
 
 fn attackable_by_summoner(unit: SelectedUnit<'_>) -> Result<bool, SelectedCasterLevelError> {
@@ -506,9 +484,7 @@ fn attackable_by_summoner(unit: SelectedUnit<'_>) -> Result<bool, SelectedCaster
         SelectedUnit::Creature {
             body,
             pet_owner_guid: None,
-        } if body.is_summon_like_cpp() => {
-            Err(SelectedCasterLevelError::ReactionUnavailable)
-        }
+        } if body.is_summon_like_cpp() => Err(SelectedCasterLevelError::ReactionUnavailable),
         SelectedUnit::Creature { .. } => Ok(false),
     }
 }
@@ -624,20 +600,27 @@ fn inherited_raid_units(
     }
     match (source, target) {
         (SelectedUnit::Player(source), SelectedUnit::Player(target)) => {
-            let source_group = source.gameplay_state().group.as_ref().map(|group| group.group_guid);
-            let target_group = target.gameplay_state().group.as_ref().map(|group| group.group_guid);
-            Ok(source_group.is_some_and(|guid| {
-                !guid.is_empty() && target_group == Some(guid)
-            }))
+            let source_group = source
+                .gameplay_state()
+                .group
+                .as_ref()
+                .map(|group| group.group_guid);
+            let target_group = target
+                .gameplay_state()
+                .group
+                .as_ref()
+                .map(|group| group.group_guid);
+            Ok(source_group.is_some_and(|guid| !guid.is_empty() && target_group == Some(guid)))
         }
         (SelectedUnit::Player(_), SelectedUnit::Creature { body, .. })
         | (SelectedUnit::Creature { body, .. }, SelectedUnit::Player(_)) => Ok(
             CreatureStaticFlags4::from_bits_retain(body.lifecycle_metadata().static_flags[3])
                 .contains(CreatureStaticFlags4::TREAT_AS_RAID_UNIT_FOR_HELPFUL_SPELLS),
         ),
-        (SelectedUnit::Creature { body: source, .. }, SelectedUnit::Creature { body: target, .. }) => Ok(
-            source.unit().data().faction_template == target.unit().data().faction_template,
-        ),
+        (
+            SelectedUnit::Creature { body: source, .. },
+            SelectedUnit::Creature { body: target, .. },
+        ) => Ok(source.unit().data().faction_template == target.unit().data().faction_template),
     }
 }
 

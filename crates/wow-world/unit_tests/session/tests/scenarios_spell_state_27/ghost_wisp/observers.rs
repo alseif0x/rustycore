@@ -364,13 +364,11 @@ async fn coordinated_world_tick_leaves_selected_delta_for_map_owned_delivery() {
         .client_visible_guids_like_cpp
         .remove(&fixture.player);
     let source_handle = fixture.session.core.player_handle_like_cpp.unwrap();
-    assert!(registry
-        .selected_aura_recipient(
-            fixture.player,
-            source_handle,
-            wow_map::MapKey::new(571, 0),
-        )
-        .is_some());
+    assert!(
+        registry
+            .selected_aura_recipient(fixture.player, source_handle, wow_map::MapKey::new(571, 0),)
+            .is_some()
+    );
     updates[0].deliver_to_registry(&registry);
     fixture
         .session
@@ -380,8 +378,16 @@ async fn coordinated_world_tick_leaves_selected_delta_for_map_owned_delivery() {
 
     let source_packets = aura_packets(outgoing(&fixture));
     let observer_packets = aura_packets(observer.output.try_iter().collect::<Vec<_>>());
-    assert_eq!(source_packets, vec![expected.clone()], "source self command");
-    assert_eq!(observer_packets, vec![expected], "committed observer command");
+    assert_eq!(
+        source_packets,
+        vec![expected.clone()],
+        "source self command"
+    );
+    assert_eq!(
+        observer_packets,
+        vec![expected],
+        "committed observer command"
+    );
     assert!(
         fixture
             .canonical

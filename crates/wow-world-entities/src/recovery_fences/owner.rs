@@ -1,5 +1,7 @@
 use wow_core::ObjectGuid;
-use wow_entities::{PlayerResurrectionContinuation, PlayerResurrectionOperation, PlayerResurrectionPhase};
+use wow_entities::{
+    PlayerResurrectionContinuation, PlayerResurrectionOperation, PlayerResurrectionPhase,
+};
 
 use crate::{CorpseHostLikeCpp, ResurrectionOperationCatalogs};
 
@@ -58,10 +60,7 @@ pub(crate) fn owner_is_current(host: &impl CorpseHostLikeCpp, owner: Owner) -> b
             .unwrap_or(false)
 }
 
-pub(crate) fn owner_is_current_in_residence(
-    host: &impl CorpseHostLikeCpp,
-    owner: Owner,
-) -> bool {
+pub(crate) fn owner_is_current_in_residence(host: &impl CorpseHostLikeCpp, owner: Owner) -> bool {
     if !owner_is_current(host, owner) {
         return false;
     }
@@ -118,8 +117,7 @@ pub(super) fn advance(
     }
     host.core()
         .with_owned_player_mut_like_cpp(|player| {
-            player.guid() == owner.guid
-                && player.advance_resurrection_continuation(expected, next)
+            player.guid() == owner.guid && player.advance_resurrection_continuation(expected, next)
         })
         .unwrap_or(false)
 }
@@ -246,11 +244,14 @@ pub fn resume_state(host: &impl CorpseHostLikeCpp) -> RecoveryResumeState {
         | PlayerResurrectionPhase::PlayerSaveApplied
         | PlayerResurrectionPhase::CorpseLoginGhostReady
         | PlayerResurrectionPhase::Complete => RecoveryResumeState::Ready,
-        PlayerResurrectionPhase::ReadyToSavePlayer | PlayerResurrectionPhase::PlayerSaveDeferred
-            if transfer_pending(host) => RecoveryResumeState::Waiting,
-        PlayerResurrectionPhase::ReadyToSavePlayer | PlayerResurrectionPhase::PlayerSaveDeferred => {
-            RecoveryResumeState::Ready
+        PlayerResurrectionPhase::ReadyToSavePlayer
+        | PlayerResurrectionPhase::PlayerSaveDeferred
+            if transfer_pending(host) =>
+        {
+            RecoveryResumeState::Waiting
         }
+        PlayerResurrectionPhase::ReadyToSavePlayer
+        | PlayerResurrectionPhase::PlayerSaveDeferred => RecoveryResumeState::Ready,
         PlayerResurrectionPhase::AwaitingTeleport => RecoveryResumeState::Waiting,
         _ => RecoveryResumeState::Held,
     }

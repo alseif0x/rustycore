@@ -244,7 +244,10 @@ pub(super) fn materialize_creature_spawn_row_with_catalogs_like_cpp<
     if !spawn_difficulties_contains_spawn_mode_like_cpp(spawn_difficulties, difficulty_id) {
         return None;
     }
-    let type_flags = catalogs.difficulty.get_like_cpp(entry, difficulty_id).type_flags;
+    let type_flags = catalogs
+        .difficulty
+        .get_like_cpp(entry, difficulty_id)
+        .type_flags;
 
     let cur_health = row.current_health;
     let cur_mana = row.current_mana;

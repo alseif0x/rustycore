@@ -49,9 +49,7 @@ impl WorldSession {
         )
         .await;
     }
-    pub(crate) async fn process_represented_delayed_teleport_after_update(
-        &mut self,
-    ) -> bool {
+    pub(crate) async fn process_represented_delayed_teleport_after_update(&mut self) -> bool {
         let generators = self.id_generators_for_test_like_cpp();
         let creature_spawns = self.creature_spawn_catalogs_for_test_like_cpp();
         wow_world_entities::process_represented_delayed_teleport_after_update_like_cpp(

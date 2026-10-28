@@ -20,10 +20,7 @@ pub(super) fn canonical_player_has_rewarded_quest_like_cpp(
         .is_some_and(|quests| quests.rewarded_quest_ids_like_cpp().contains(&quest_id))
 }
 
-fn ensure_native_quest_log_player_owner_like_cpp(
-    session: &mut WorldSession,
-    map_id: u16,
-) {
+fn ensure_native_quest_log_player_owner_like_cpp(session: &mut WorldSession, map_id: u16) {
     let guid = session
         .player_guid()
         .unwrap_or_else(|| wow_core::ObjectGuid::create_player(1, 42));
@@ -32,9 +29,8 @@ fn ensure_native_quest_log_player_owner_like_cpp(
     let manager = match session.core.canonical_map_manager.as_ref().cloned() {
         Some(manager) => manager,
         None => {
-            let manager = std::sync::Arc::new(std::sync::Mutex::new(
-                wow_map::MapManager::default(),
-            ));
+            let manager =
+                std::sync::Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
             session.set_canonical_map_manager(std::sync::Arc::clone(&manager));
             manager
         }
@@ -129,9 +125,8 @@ pub(super) fn install_native_quest_log_player_like_cpp(session: &mut WorldSessio
                 quests.replace_rewarded_quest_rows_like_cpp(
                     existing.rewarded_quest_rows_like_cpp().clone(),
                 );
-                quests.replace_daily_quest_ids_like_cpp(
-                    existing.daily_quest_ids_like_cpp().clone(),
-                );
+                quests
+                    .replace_daily_quest_ids_like_cpp(existing.daily_quest_ids_like_cpp().clone());
                 quests.replace_weekly_quest_ids_like_cpp(
                     existing.weekly_quest_ids_like_cpp().clone(),
                 );
@@ -157,7 +152,11 @@ pub(super) fn install_native_quest_log_player_like_cpp(session: &mut WorldSessio
             if status.status != wow_conditions::QUEST_STATUS_NONE_LIKE_CPP
                 && usize::from(status.slot) < 25
             {
-                insert_player_quest_status_fixture_like_cpp(session, status.quest_id, status.clone());
+                insert_player_quest_status_fixture_like_cpp(
+                    session,
+                    status.quest_id,
+                    status.clone(),
+                );
             }
         }
     }
@@ -179,7 +178,9 @@ pub(super) fn install_native_quest_log_bag_fixture_like_cpp(
                     .register_bag_storage(bag_slot, bag_guid, bag_size)
                     .unwrap();
                 if let Some((child_slot, child_guid)) = child_item {
-                    player.store_bag_item(bag_slot, child_slot, child_guid).unwrap();
+                    player
+                        .store_bag_item(bag_slot, child_slot, child_guid)
+                        .unwrap();
                 }
             })
             .is_some(),
@@ -187,10 +188,7 @@ pub(super) fn install_native_quest_log_bag_fixture_like_cpp(
     );
 }
 
-fn attach_map_manager_like_cpp(
-    session: &mut WorldSession,
-    mut manager: wow_map::MapManager,
-) {
+fn attach_map_manager_like_cpp(session: &mut WorldSession, mut manager: wow_map::MapManager) {
     let player_guid = session.player_guid().expect("quest test Player guid");
     if !manager
         .find_map(571, 0)

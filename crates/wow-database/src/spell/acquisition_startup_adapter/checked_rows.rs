@@ -14,14 +14,15 @@ fn numeric_array<T: FieldNumberLikeCpp, const N: usize>(
 ) -> Result<[T; N]> {
     let mut values = [T::default(); N];
     for (index, value) in values.iter_mut().enumerate() {
-        *value = row.get_like_cpp(first_column + index, &format!("{table}.{field}{}", index + 1))?;
+        *value = row.get_like_cpp(
+            first_column + index,
+            &format!("{table}.{field}{}", index + 1),
+        )?;
     }
     Ok(values)
 }
 
-fn decode_effect(
-    row: &[NativeFieldLikeCpp],
-) -> Result<ServersideSpellEffectPersistenceRowLikeCpp> {
+fn decode_effect(row: &[NativeFieldLikeCpp]) -> Result<ServersideSpellEffectPersistenceRowLikeCpp> {
     Ok(ServersideSpellEffectPersistenceRowLikeCpp {
         spell_id: row.get_like_cpp(0, "serverside_spell_effect.SpellID")?,
         effect_index: row.get_like_cpp(1, "serverside_spell_effect.EffectIndex")?,
@@ -49,12 +50,18 @@ fn decode_effect(
         pvp_multiplier: row.get_like_cpp(18, "serverside_spell_effect.PvpMultiplier")?,
         coefficient: row.get_like_cpp(19, "serverside_spell_effect.Coefficient")?,
         variance: row.get_like_cpp(20, "serverside_spell_effect.Variance")?,
-        resource_coefficient: row.get_like_cpp(21, "serverside_spell_effect.ResourceCoefficient")?,
+        resource_coefficient: row
+            .get_like_cpp(21, "serverside_spell_effect.ResourceCoefficient")?,
         group_size_base_points_coefficient: row
             .get_like_cpp(22, "serverside_spell_effect.GroupSizeBasePointsCoefficient")?,
         effect_base_points: row.get_like_cpp(23, "serverside_spell_effect.EffectBasePoints")?,
         effect_misc_value: numeric_array(row, 24, "serverside_spell_effect", "EffectMiscValue")?,
-        effect_radius_index: numeric_array(row, 26, "serverside_spell_effect", "EffectRadiusIndex")?,
+        effect_radius_index: numeric_array(
+            row,
+            26,
+            "serverside_spell_effect",
+            "EffectRadiusIndex",
+        )?,
         effect_spell_class_mask: numeric_array(
             row,
             28,
@@ -68,9 +75,7 @@ fn decode_effect(
     })
 }
 
-fn decode_spell(
-    row: &[NativeFieldLikeCpp],
-) -> Result<ServersideSpellPersistenceRowLikeCpp> {
+fn decode_spell(row: &[NativeFieldLikeCpp]) -> Result<ServersideSpellPersistenceRowLikeCpp> {
     Ok(ServersideSpellPersistenceRowLikeCpp {
         spell_id: row.get_like_cpp(0, "serverside_spell.SpellID")?,
         difficulty_id: row.get_like_cpp(1, "serverside_spell.DifficultyID")?,
@@ -99,15 +104,12 @@ fn decode_spell(
             .get_like_cpp(33, "serverside_spell.ExcludeTargetAuraSpell")?,
         caster_aura_type: row.get_like_cpp(34, "serverside_spell.CasterAuraType")?,
         target_aura_type: row.get_like_cpp(35, "serverside_spell.TargetAuraType")?,
-        exclude_caster_aura_type: row
-            .get_like_cpp(36, "serverside_spell.ExcludeCasterAuraType")?,
-        exclude_target_aura_type: row
-            .get_like_cpp(37, "serverside_spell.ExcludeTargetAuraType")?,
+        exclude_caster_aura_type: row.get_like_cpp(36, "serverside_spell.ExcludeCasterAuraType")?,
+        exclude_target_aura_type: row.get_like_cpp(37, "serverside_spell.ExcludeTargetAuraType")?,
         casting_time_index: row.get_like_cpp(38, "serverside_spell.CastingTimeIndex")?,
         recovery_time: row.get_like_cpp(39, "serverside_spell.RecoveryTime")?,
         category_recovery_time: row.get_like_cpp(40, "serverside_spell.CategoryRecoveryTime")?,
-        start_recovery_category: row
-            .get_like_cpp(41, "serverside_spell.StartRecoveryCategory")?,
+        start_recovery_category: row.get_like_cpp(41, "serverside_spell.StartRecoveryCategory")?,
         start_recovery_time: row.get_like_cpp(42, "serverside_spell.StartRecoveryTime")?,
         interrupt_flags: row.get_like_cpp(43, "serverside_spell.InterruptFlags")?,
         aura_interrupt_flags: numeric_array(row, 44, "serverside_spell", "AuraInterruptFlags")?,
