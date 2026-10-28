@@ -6,10 +6,12 @@ existing systemd swap/restore guard (`645499a92`), observed NPC and in-memory
 character selection (`603e911c5`), disposable fixture preparation/recovery
 (`56a9a802a`) and packet-driven action sequencing (`8a5f498a0`). The latter's
 focused coding feedback passed 42 cases before subsequent formatting; it is
-not a committed-candidate final verdict. Local acceptance passed 23 Python
-fixture/scenario tests, including the pinned C++ character-schema check, at
-`c1c366ddd`; their inputs remain unchanged by the subsequent shell repair.
-The committed `d795b7496` candidate passed all 195 runtime-guard fake checks.
+not a committed-candidate final verdict. Affected acceptance at `1c0a2418c`
+passed all 25 Python fixture/scenario tests, including the pinned C++
+character-schema check and ASCII-case identity regressions, plus all 195
+runtime-guard fake checks (22.328 seconds combined command time).
+Logs and exact command timings are retained under
+`/tmp/rustycore43-repair-evidence-56qnmiik/`.
 No new fixture rows, live captures or real service operations were performed.
 
 The first final campaign at `d795b7496` did not pass. Its manifest is
@@ -54,6 +56,30 @@ The fixture preflight also confirmed the exact designated account IDs but found
 lowercase DB email storage. Plan and restore now normalize ASCII email case
 while retaining exact ID/email bindings and offline/ownership checks. These
 repairs remain unvalidated until the renewed committed-candidate acceptance.
+
+The exhaustive repair inventory at clean `1c0a2418c` completed in 986.790
+seconds on this aarch64 host, recorded separately from ordinary warm acceptance:
+`/tmp/rustycore43-persistence-reconcile-udlawsx_/timing.json`. It collected
+10,864 exact rows (8,185 production and 2,679 test-fixture), adding 741 and
+retiring 217 stale identities. Review confines production changes to 15
+database-adapter sources plus existing app startup composition, and test changes
+to five adapter fixture sources. No new direct persistence edge enters
+Application or a World domain. The annotations now cover all 1,090 production
+workflows exactly; the derived policy has 1,093 groups, with 44 added adapter
+groups, eight retired helper groups and six reviewed existing-group deltas.
+Character save and each pet-save request retain their existing transaction
+owners, statement order and definite-rollback/unknown-COMMIT outcomes. Pure
+bindings and decoders acquire no connection. The by-spell lifecycle-aura deletes
+are described with their real player/spell keys; obsolete claims that these
+particular deletes preserve foreign-caster rows are removed. Unrelated owners,
+issue-linked retirement conditions and the generated-input count are retained.
+Rendering that policy from the saved snapshot passed; exhaustive comparison
+and final acceptance on the resulting committed candidate remain required.
+Read-only fixture planning also passed at `1c0a2418c`, proposing five new actors
+with GUIDs 20–24 on accounts 9/10/12 while preserving their original offline
+characters (`/tmp/rustycore43-readonly-plan-ajtjl7tx/`). No proposed rows were
+created. Final Rust suites, production-linked tests, candidate artifacts and
+authorized paired captures/DB/restart/relogin acceptance remain outstanding.
 
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
