@@ -390,7 +390,7 @@ trap 'exit 130' HUP INT TERM
 
 stop_world_verified || { DEATH_HOLD=1; die "$QA_SERVICE did not stop cleanly"; }
 DEATH_STOPPED=1
-if python3 "$REPO_ROOT/tools/qa/death_fixture.py" prepare \
+if python3 "$DEATH_FIXTURE_SCRIPT" prepare \
   --world-config "$QA_CAPTURE_WORLD_CONFIG" --bot-config "$DEATH_BOT_CONFIG" \
   --journal "$DEATH_JOURNAL" --ack-disposable-death-fixture --world-stopped \
   >"$DEATH_OUTPUT/fixture-prepare.json" 2>"$DEATH_OUTPUT/fixture-prepare.stderr"; then

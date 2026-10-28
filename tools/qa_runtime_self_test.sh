@@ -12,6 +12,7 @@ WORK="$(mktemp -d "${TMPDIR:-/tmp}/qa-runtime-self-test.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 
 PASSED=0
+CASE_RUN_LOG=""
 check() {
   local description="$1"
   shift
@@ -19,6 +20,16 @@ check() {
     PASSED=$((PASSED + 1))
   else
     printf 'FAIL: %s\n' "$description" >&2
+    if [[ -n "$CASE_RUN_LOG" && -f "$CASE_RUN_LOG" ]]; then
+      local retained_log
+      retained_log="$(mktemp "${TMPDIR:-/tmp}/qa-runtime-self-test-failure.XXXXXX.log")"
+      chmod 600 "$retained_log"
+      cat "$CASE_RUN_LOG" >"$retained_log"
+      printf 'Private fake runner diagnostics retained at %s:\n' "$retained_log" >&2
+      cat "$retained_log" >&2
+    elif [[ -n "${output:-}" ]]; then
+      printf 'Captured fake command output:\n%s\n' "$output" >&2
+    fi
     exit 1
   fi
 }
@@ -186,10 +197,13 @@ chmod +x "$WORK/bin/capture-runner"
 cat >"$WORK/bin/death-fixture" <<'FAKE'
 #!/usr/bin/env python3
 import json
+import os
 from pathlib import Path
 import sys
 
 mode = sys.argv[1]
+with Path(os.environ["QA_FAKE_STATE"] + ".death-fixture").open("a", encoding="utf-8") as calls:
+    calls.write(mode + "\n")
 journal = Path(sys.argv[sys.argv.index("--journal") + 1])
 if mode == "prepare":
     journal.write_text(json.dumps({"state": "prepared", "actors": [
@@ -327,6 +341,7 @@ run_death_qa() {
 
 reset_state() {
   rm -f "$WORK"/state.* "$WORK/lock"
+  output=""
   rm -rf "$WORK/systemd/fake-world.service.d"
   printf 'WOW_BOT_PASSWORD_TESTBOT2_BOT_LOCAL=fixture-secret\n' >"$WORK/env.local"
   printf 'ORIGINAL-BUILD\n' >"$WORK/live/world-server"
@@ -404,7 +419,14 @@ check "death wrapper help does not call the fake service" test ! -e "$WORK/state
 # restore report still permits the owned fixture restore and normal restart.
 reset_state
 status=0
-run_death_qa >"$WORK/death-runner-failure.log" 2>&1 || status=$?
+CASE_RUN_LOG="$WORK/death-runner-failure.log"
+run_death_qa >"$CASE_RUN_LOG" 2>&1 || status=$?
+printf 'death wrapper exit=%s\n' "$status" >>"$CASE_RUN_LOG"
+for death_detail in "$WORK/death-campaign"/*.stderr; do
+  [[ -f "$death_detail" ]] || continue
+  printf '\n%s:\n' "$death_detail" >>"$CASE_RUN_LOG"
+  cat "$death_detail" >>"$CASE_RUN_LOG"
+done
 check "missing scenario report remains a runner failure" test "$status" -eq 1
 check "capture report proves original runtime and config restored" \
   jq -e '.original_runtime_restored == true and .original_config_restored == true' \
@@ -416,6 +438,9 @@ check "original runtime is ready after fixture cleanup" live_is_original
 check "death wrapper reports cleanup separately from scenario failure" \
   jq -e '.scenario_observation.status == "failed" and .cleanup.status == "restored" and .parity.status == "not_assessed"' \
     "$WORK/death-campaign/death-runtime-report.json" >/dev/null
+check "all death fixture operations use the injected helper" \
+  test "$(cat "$WORK/state.death-fixture")" = $'prepare\nsnapshot\nrestore'
+CASE_RUN_LOG=""
 
 # 1. The destructive command refuses without each mandatory flag.
 reset_state
@@ -748,7 +773,9 @@ check "missing trade evidence still restores" live_is_original
 
 # 16. Native capture guards run before the live service is stopped.
 reset_state
-output="$(run_capture_fake rust "$WORK/capture-guard" 2>&1 || true)"
+output="$(run_qa --backend rust --world-exec "$WORK/candidate" \
+  --output-dir "$WORK/capture-guard" --candidate-sha256 "$CAPTURE_CANDIDATE_SHA" \
+  --scenario-runner "$WORK/bin/capture-runner" capture 2>&1 || true)"
 check "capture requires runtime authorization" grep -q -- "--allow-runtime-qa" <<<"$output"
 check "capture authorization guard stopped nothing" test ! -f "$WORK/state.log"
 check "capture authorization guard created no output directory" test ! -e "$WORK/capture-guard"
@@ -822,7 +849,7 @@ check "failed candidate stop leaves original executable" live_is_original
 check "failed candidate stop never ran scenario" test ! -f "$WORK/state.capture-runner"
 check "failed candidate stop installed no drop-in" test ! -e "$WORK/systemd/fake-world.service.d/43-qa-capture.conf"
 check "failed candidate stop records failed-restored" \
-  grep -q '"outcome":"failed-restored"' "$WORK/capture-stop-fail/capture-report.json"
+  jq -e '.outcome == "failed-restored"' "$WORK/capture-stop-fail/capture-report.json" >/dev/null
 
 # 18. Rust collection retains private native files and is not gameplay acceptance.
 reset_state
