@@ -23,7 +23,7 @@ check() {
   fi
 }
 
-mkdir -p "$WORK/live" "$WORK/bin" "$WORK/repo" "$WORK/botdir"
+mkdir -p "$WORK/live" "$WORK/bin" "$WORK/repo" "$WORK/botdir" "$WORK/systemd" "$WORK/cpp-source"
 # A clean fixture repository: the guard under test is "the worktree is clean",
 # not "this development checkout happens to be".
 git -C "$WORK/repo" init -q
@@ -54,7 +54,14 @@ case "${1:-}" in
       *ActiveState*) if world_up; then printf 'active\n'; else printf 'inactive\n'; fi ;;
       *MainPID*) if world_up; then printf '4242\n'; else printf '0\n'; fi ;;
       *NRestarts*) printf '7\n' ;;
-      *Environment*) printf '%s\n' "${QA_FAKE_ENVIRONMENT:-}" ;;
+      *Environment*)
+        environment="${QA_FAKE_ENVIRONMENT:-}"
+        if [[ -f "${state}.capture-env" ]]; then
+          environment="$environment $(cat "${state}.capture-env")"
+        fi
+        printf '%s\n' "$environment"
+        ;;
+      *User*) id -un ;;
       *) printf '\n' ;;
     esac
     ;;
@@ -74,6 +81,13 @@ case "${1:-}" in
       exit 1
     fi
     printf 'started\n' >>"${state}.log"
+    ;;
+  daemon-reload)
+    if [[ -f "${QA_FAKE_DROPIN:?}" && ! -L "${QA_FAKE_DROPIN}" ]]; then
+      sed -n 's/^Environment=//p' "${QA_FAKE_DROPIN}" >"${state}.capture-env"
+    else
+      rm -f "${state}.capture-env"
+    fi
     ;;
 esac
 FAKE
@@ -119,6 +133,53 @@ cat >"$WORK/bin/resolver" <<'FAKE'
 printf '%s\n' "${QA_FAKE_LIVE:?}"
 FAKE
 chmod +x "$WORK/bin/resolver"
+
+cat >"$WORK/bin/privileged" <<'FAKE'
+#!/usr/bin/env bash
+set -euo pipefail
+exec "$@"
+FAKE
+chmod +x "$WORK/bin/privileged"
+
+cat >"$WORK/bin/process-env" <<'FAKE'
+#!/usr/bin/env bash
+cat "${QA_FAKE_STATE:?}.capture-env" 2>/dev/null || true
+FAKE
+chmod +x "$WORK/bin/process-env"
+
+cat >"$WORK/bin/starttime" <<'FAKE'
+#!/usr/bin/env bash
+printf '4242\n'
+FAKE
+chmod +x "$WORK/bin/starttime"
+
+cat >"$WORK/bin/capture-runner" <<'FAKE'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "${RUSTYCORE_CAPTURE_BACKEND:?} ${RUSTYCORE_CAPTURE_CANDIDATE_SHA256:?}" \
+  >"${QA_FAKE_STATE:?}.capture-runner"
+case "$RUSTYCORE_CAPTURE_BACKEND" in
+  rust)
+    printf 'AUTH-PAYLOAD\n' >"$RUSTYCORE_CAPTURE_DIR/client.bin"
+    printf 'fixture metadata\n' >"$RUSTYCORE_CAPTURE_DIR/client.meta"
+    if [[ "${QA_FAKE_CAPTURE_DRIFT:-}" == rust ]]; then
+      printf '# concurrent drift\n' >>"${QA_FAKE_DROPIN:?}"
+    fi
+    ;;
+  cpp)
+    printf 'PKT-PAYLOAD\n' >"$RUSTYCORE_CAPTURE_DIR/cpp.pkt"
+    if [[ "${QA_FAKE_CAPTURE_DRIFT:-}" == cpp ]]; then
+      printf '# concurrent drift\n' >>"${QA_FAKE_CPP_CONFIG:?}"
+    fi
+    ;;
+esac
+if [[ "${QA_FAKE_CAPTURE_DRIFT:-}" == journal ]]; then
+  rm -f "$RUSTYCORE_CAPTURE_DIR/.qa-capture-journal.json"
+fi
+printf '{"fake_capture_report":true}\n' >"${RUSTYCORE_CAPTURE_REPORT:?}"
+exit "${QA_FAKE_CAPTURE_STATUS:-0}"
+FAKE
+chmod +x "$WORK/bin/capture-runner"
 
 # A fake fixture guard. The real one is source-only and talks to MySQL; this
 # records what the harness asked it to do so the restore path can be asserted
@@ -176,6 +237,8 @@ run_qa() {
   assert_fake journals "$WORK/journals"
   assert_fake "fixture guard" "$WORK/fixture-guard.sh"
   assert_fake "fixture conf" "$WORK/fixture-conf"
+  assert_fake "capture runner" "$WORK/bin/capture-runner"
+  assert_fake "privileged file operation adapter" "$WORK/bin/privileged"
   env \
     QA_SYSTEMCTL="$WORK/bin/systemctl" \
     QA_SERVICE="fake-world" \
@@ -184,7 +247,10 @@ run_qa() {
     QA_BOT="$WORK/bin/bot" \
     QA_LOCK="$WORK/lock" \
     QA_EXE_RESOLVER="$WORK/bin/resolver" \
+    QA_PROCESS_ENV_READER="$WORK/bin/process-env" \
+    QA_PROC_STARTTIME_READER="$WORK/bin/starttime" \
     QA_PROCESS_ALIVE="$WORK/bin/alive" \
+    QA_PRIVILEGED="$WORK/bin/privileged" \
     QA_SKIP_PORT_GUARD=1 \
     QA_READY_TIMEOUT_SECONDS=5 \
     QA_FAKE_STATE="$WORK/state" \
@@ -196,19 +262,69 @@ run_qa() {
     QA_JOURNAL_DIR="$WORK/journals" \
     QA_FIXTURE_GUARD="$WORK/fixture-guard.sh" \
     QA_LOOT_FIXTURE_DB_CONF="$WORK/fixture-conf" \
+    QA_CAPTURE_FILEOPS="$REPO_ROOT/tools/qa/capture_fileops.py" \
+    QA_CAPTURE_WORLD_CONFIG="$WORK/worldserver.conf" \
+    QA_CAPTURE_CPP_CONFIG="$WORK/worldserver.conf" \
+    QA_SYSTEMD_RUNTIME_DIR="$WORK/systemd" \
+    QA_FAKE_DROPIN="$WORK/systemd/fake-world.service.d/43-qa-capture.conf" \
+    QA_FAKE_CPP_CONFIG="$WORK/worldserver.conf" \
     "${EXTRA_ENV[@]}" \
     "$QA" "$@"
 }
 
 reset_state() {
   rm -f "$WORK"/state.* "$WORK/lock"
+  rm -rf "$WORK/systemd/fake-world.service.d"
   printf 'WOW_BOT_PASSWORD_TESTBOT2_BOT_LOCAL=fixture-secret\n' >"$WORK/env.local"
   printf 'ORIGINAL-BUILD\n' >"$WORK/live/world-server"
+  cat >"$WORK/worldserver.conf" <<'CONF'
+DataDir = "./Data"
+DBC.Locale = 0
+RealmID = 1
+WorldServerPort = 8085
+InstanceServerPort = 8086
+PlayerSaveInterval = 600000
+DurabilityLoss.InPvP = 0
+DurabilityLoss.OnDeath = 10
+Corpse.Decay.Normal = 300
+Rate.Damage.Fall = 1
+Death.SicknessLevel = 11
+Death.CorpseReclaimDelay.PvP = 1
+Death.CorpseReclaimDelay.PvE = 0
+Death.Bones.World = 1
+Death.Bones.BattlegroundOrArena = 1
+LogsDir = ""
+PacketLogFile = ""
+LoginDatabaseInfo = "host;3306;qa;fixture-secret;auth"
+CONF
+  chmod 600 "$WORK/worldserver.conf"
   EXTRA_ENV=()
 }
 
 live_is_original() { [[ "$(cat "$WORK/live/world-server")" == "ORIGINAL-BUILD" ]]; }
 bot_saw_candidate() { [[ "$(cat "$WORK/state.bot-saw")" == "CANDIDATE-BUILD" ]]; }
+
+CAPTURE_CANDIDATE_SHA="$(sha256sum "$WORK/candidate" | awk '{print $1}')"
+run_capture_fake() {
+  local backend="$1" output_dir="$2"
+  shift 2
+  local -a args=(
+    --allow-runtime-qa
+    --backend "$backend"
+    --world-exec "$WORK/candidate"
+    --output-dir "$output_dir"
+    --candidate-sha256 "$CAPTURE_CANDIDATE_SHA"
+    --scenario-runner "$WORK/bin/capture-runner"
+  )
+  if [[ "$backend" == cpp ]]; then
+    args+=(
+      --source-revision a5f8da2ebf5424bf0450ca4e08843ecbf72577bd
+      --derivation 'derivedR6; not clean upstream'
+      --source-path "$WORK/cpp-source"
+    )
+  fi
+  run_qa "${args[@]}" "$@" capture
+}
 
 # 1. The destructive command refuses without each mandatory flag.
 reset_state
@@ -538,5 +654,188 @@ QA_FAKE_NO_LOGIN_REPORT=1 run_qa --allow-runtime-qa --ack-disposable-trade \
   --world-exec "$WORK/candidate" trade >/dev/null 2>&1 || status=$?
 check "trade refuses missing evidence despite zero exit" test "$status" -eq 65
 check "missing trade evidence still restores" live_is_original
+
+# 16. Native capture guards run before the live service is stopped.
+reset_state
+output="$(run_capture_fake rust "$WORK/capture-guard" 2>&1 || true)"
+check "capture requires runtime authorization" grep -q -- "--allow-runtime-qa" <<<"$output"
+check "capture authorization guard stopped nothing" test ! -f "$WORK/state.log"
+check "capture authorization guard created no output directory" test ! -e "$WORK/capture-guard"
+
+reset_state
+status=0
+output="$(run_qa --allow-runtime-qa --backend rust --world-exec "$WORK/candidate" \
+  --output-dir "$WORK/capture-pin" --candidate-sha256 "$(printf '0%.0s' {1..64})" \
+  --scenario-runner "$WORK/bin/capture-runner" capture 2>&1)" || status=$?
+check "capture refuses a mismatched candidate pin" grep -q "pinned SHA-256" <<<"$output"
+check "candidate pin guard stopped nothing" test ! -f "$WORK/state.log"
+check "candidate pin guard created no output directory" test ! -e "$WORK/capture-pin"
+
+reset_state
+mkdir -p "$WORK/systemd/fake-world.service.d"
+printf 'operator-owned\n' >"$WORK/systemd/fake-world.service.d/43-qa-capture.conf"
+output="$(run_capture_fake rust "$WORK/capture-preexisting" 2>&1 || true)"
+check "capture refuses a pre-existing systemd drop-in" grep -q "not available" <<<"$output"
+check "pre-existing drop-in guard stopped nothing" test ! -f "$WORK/state.log"
+check "pre-existing drop-in is preserved" \
+  grep -q '^operator-owned$' "$WORK/systemd/fake-world.service.d/43-qa-capture.conf"
+
+reset_state
+ln -s "$WORK/systemd" "$WORK/systemd-link"
+status=0
+EXTRA_ENV=(QA_SYSTEMD_RUNTIME_DIR="$WORK/systemd-link")
+output="$(run_capture_fake rust "$WORK/capture-symlink-root" 2>&1)" || status=$?
+check "capture rejects a symlinked systemd runtime root" grep -q "unsafe" <<<"$output"
+check "symlinked runtime root guard stopped nothing" test ! -f "$WORK/state.log"
+rm -f "$WORK/systemd-link"
+
+reset_state
+ln -s "$WORK" "$WORK/config-link"
+status=0
+EXTRA_ENV=(QA_CAPTURE_WORLD_CONFIG="$WORK/config-link/worldserver.conf")
+output="$(run_capture_fake cpp "$WORK/capture-symlink-config" 2>&1)" || status=$?
+check "capture rejects config with a symlinked ancestor" grep -q "unsafe" <<<"$output"
+check "symlinked config guard stopped nothing" test ! -f "$WORK/state.log"
+rm -f "$WORK/config-link"
+
+reset_state
+printf 'LogsDir = "duplicate"\n' >>"$WORK/worldserver.conf"
+status=0
+output="$(run_capture_fake cpp "$WORK/capture-config-duplicate" 2>&1)" || status=$?
+check "C++ capture requires one LogsDir assignment" grep -q "exactly one" <<<"$output"
+check "duplicate config guard stopped nothing" test ! -f "$WORK/state.log"
+
+# If preparation was armed and its recovery journal disappears, restoration
+# must hold the service stopped rather than infer that config stayed original.
+reset_state
+EXTRA_ENV=(QA_FAKE_CAPTURE_DRIFT=journal)
+status=0
+run_capture_fake rust "$WORK/capture-journal-missing" >/dev/null 2>&1 || status=$?
+check "missing armed capture journal exits restore-failed" test "$status" -eq 70
+check "missing armed capture journal keeps the unit stopped" \
+  bash -c 'test "$(grep -c "^started$" "$1")" -eq 1' _ "$WORK/state.log"
+check "missing armed capture journal preserves candidate and drop-in" \
+  bash -c 'test "$(cat "$1")" = CANDIDATE-BUILD && test -f "$2"' _ \
+    "$WORK/live/world-server" "$WORK/systemd/fake-world.service.d/43-qa-capture.conf"
+check "missing armed capture journal is reported for recovery" \
+  jq -e '.outcome == "restore-failed" and .original_config_restored == false and .recovery_paths.journal != null' \
+    "$WORK/capture-journal-missing/capture-report.json" >/dev/null
+
+# 17. A failed first stop never installs the candidate or capture config.
+reset_state
+EXTRA_ENV=(QA_FAKE_FAIL_STOP_AT=1)
+status=0
+run_capture_fake rust "$WORK/capture-stop-fail" >/dev/null 2>&1 || status=$?
+check "failed candidate stop fails capture" test "$status" -ne 0
+check "failed candidate stop leaves original executable" live_is_original
+check "failed candidate stop never ran scenario" test ! -f "$WORK/state.capture-runner"
+check "failed candidate stop installed no drop-in" test ! -e "$WORK/systemd/fake-world.service.d/43-qa-capture.conf"
+check "failed candidate stop records failed-restored" \
+  grep -q '"outcome":"failed-restored"' "$WORK/capture-stop-fail/capture-report.json"
+
+# 18. Rust collection retains private native files and is not gameplay acceptance.
+reset_state
+run_capture_fake rust "$WORK/capture-rust" >/dev/null 2>&1
+check "Rust capture restores original executable" live_is_original
+check "Rust capture removes its run-owned drop-in" test ! -e "$WORK/systemd/fake-world.service.d/43-qa-capture.conf"
+check "Rust capture retains .bin and .meta artifacts" \
+  bash -c 'test -s "$1/client.bin" && test -s "$1/client.meta"' _ "$WORK/capture-rust"
+check "Rust capture output directory is private 0700" \
+  test "$(stat -c %a "$WORK/capture-rust")" = 700
+check "Rust report is captured-restored collection only" \
+  jq -e '.outcome == "captured-restored" and .collection_only == true and .gameplay_acceptance == false' \
+    "$WORK/capture-rust/capture-report.json" >/dev/null
+check "Rust report includes runner exit and native artifact hashes" \
+  jq -e '.runner_exit == 0 and .raw_artifact_count == 2 and ([.raw_artifacts[].sha256] | all(test("^[a-f0-9]{64}$")))' \
+    "$WORK/capture-rust/capture-report.json" >/dev/null
+check "Rust report hashes its stable scenario report" \
+  jq -e '.runner.scenario_report_sha256 | test("^[a-f0-9]{64}$")' \
+    "$WORK/capture-rust/capture-report.json" >/dev/null
+check "capture report omits config secrets and packet payloads" \
+  bash -c '! grep -qE "fixture-secret|AUTH-PAYLOAD|PKT-PAYLOAD" "$1"' _ \
+    "$WORK/capture-rust/capture-report.json"
+
+# Runner failure is reported separately and still restores the original runtime.
+reset_state
+EXTRA_ENV=(QA_FAKE_CAPTURE_STATUS=3)
+status=0
+run_capture_fake rust "$WORK/capture-runner-failure" >/dev/null 2>&1 || status=$?
+check "runner failure remains the command exit" test "$status" -eq 3
+check "runner failure restores original executable" live_is_original
+check "runner failure report keeps its exit" \
+  jq -e '.outcome == "failed-restored" and .runner_exit == 3' \
+    "$WORK/capture-runner-failure/capture-report.json" >/dev/null
+check "runner failure retains native packet" test -s "$WORK/capture-runner-failure/client.bin"
+
+# 19. CAS drift and a failed restoration stop retain the run-owned state and
+# never start the original over unresolved candidate config.
+reset_state
+EXTRA_ENV=(QA_FAKE_CAPTURE_DRIFT=rust)
+status=0
+run_capture_fake rust "$WORK/capture-dropin-drift" >/dev/null 2>&1 || status=$?
+check "drop-in drift holds restoration" test "$status" -eq 70
+check "drop-in drift is retained for recovery" \
+  grep -q 'concurrent drift' "$WORK/systemd/fake-world.service.d/43-qa-capture.conf"
+check "drop-in drift keeps candidate executable installed" \
+  bash -c 'test "$(cat "$1")" = CANDIDATE-BUILD' _ "$WORK/live/world-server"
+check "drop-in drift report names its private journal" \
+  jq -e '.outcome == "restore-failed" and .original_config_restored == false and .recovery_paths.journal != null' \
+    "$WORK/capture-dropin-drift/capture-report.json" >/dev/null
+
+reset_state
+EXTRA_ENV=(QA_FAKE_FAIL_STOP_AT=2)
+status=0
+run_capture_fake rust "$WORK/capture-restore-stop-fail" >/dev/null 2>&1 || status=$?
+check "restore stop failure exits 70" test "$status" -eq 70
+check "restore stop failure keeps run-owned drop-in" test -f "$WORK/systemd/fake-world.service.d/43-qa-capture.conf"
+check "restore stop failure does not start original again" \
+  bash -c 'test "$(grep -c "^started$" "$1")" -eq 1' _ "$WORK/state.log"
+check "restore stop failure retains private journal" \
+  test -f "$WORK/capture-restore-stop-fail/.qa-capture-journal.json"
+
+# 20. C++ collection restores the active config and retains its PacketLog PKT.
+reset_state
+CPP_CONFIG_SHA="$(sha256sum "$WORK/worldserver.conf" | awk '{print $1}')"
+run_capture_fake cpp "$WORK/capture-cpp" >/dev/null 2>&1
+check "C++ capture restores original executable" live_is_original
+check "C++ capture restores active config hash" \
+  bash -c 'test "$(sha256sum "$1" | cut -d" " -f1)" = "$2"' _ \
+    "$WORK/worldserver.conf" "$CPP_CONFIG_SHA"
+check "C++ capture retains native PKT" test -s "$WORK/capture-cpp/cpp.pkt"
+check "C++ report records supplied source derivation and restored config" \
+  jq -e '.outcome == "captured-restored" and .candidate.source_revision == "a5f8da2ebf5424bf0450ca4e08843ecbf72577bd" and .candidate.derivation == "derivedR6; not clean upstream" and .original_config_restored == true' \
+    "$WORK/capture-cpp/capture-report.json" >/dev/null
+
+reset_state
+EXTRA_ENV=(QA_FAKE_CAPTURE_DRIFT=cpp)
+status=0
+run_capture_fake cpp "$WORK/capture-config-drift" >/dev/null 2>&1 || status=$?
+check "active C++ config drift holds restoration" test "$status" -eq 70
+check "active C++ config drift remains visible" grep -q 'concurrent drift' "$WORK/worldserver.conf"
+check "C++ config drift retains journal and config backup" \
+  test -f "$WORK/capture-config-drift/.qa-capture-journal.json" \
+    -a -f "$WORK/capture-config-drift/.qa-original-worldserver.conf"
+check "C++ config drift does not restart over unresolved config" \
+  bash -c 'test "$(grep -c "^started$" "$1")" -eq 1' _ "$WORK/state.log"
+
+# A journal armed before drop-in creation restores the known original absence.
+mkdir -m 700 "$WORK/capture-armed-absent"
+ABSENT_JOURNAL="$WORK/capture-armed-absent/.qa-capture-journal.json"
+ABSENT_DROPIN="$WORK/systemd/fake-world.service.d/43-qa-capture.conf"
+jq -n --arg journal "$ABSENT_JOURNAL" --arg dropin "$ABSENT_DROPIN" \
+  --arg output "$WORK/capture-armed-absent" --argjson uid "$(id -u)" \
+  --argjson gid "$(id -g)" \
+  '{schema:1,backend:"rust",journal:$journal,dropin:$dropin,
+    dropin_sha256:"0000000000000000000000000000000000000000000000000000000000000000",
+    dropin_uid:$uid,dropin_gid:$gid,dropin_mode:420,
+    dropin_original_absent:true,created_dirs:[],output_dir:$output,files_restored:false}' \
+  >"$ABSENT_JOURNAL"
+chmod 600 "$ABSENT_JOURNAL"
+output="$("$WORK/bin/privileged" python3 "$REPO_ROOT/tools/qa/capture_fileops.py" \
+  restore --journal "$ABSENT_JOURNAL")"
+check "armed-but-absent Rust drop-in restores" test "$output" = restored-absent
+check "armed-but-absent restore leaves systemd path absent" test ! -e "$ABSENT_DROPIN"
+check "armed-but-absent journal records restoration" \
+  jq -e '.files_restored == true' "$ABSENT_JOURNAL" >/dev/null
 
 printf 'qa-runtime self-test: PASS (%d checks)\n' "$PASSED"

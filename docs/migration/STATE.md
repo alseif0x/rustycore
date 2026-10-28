@@ -295,8 +295,30 @@ while closing both sockets. The repaired dirty tree passed 34 focused bot cases
 fingerprint was `33bfb13b2d4255259d6a7e8cffad4e0597944a0c891beaf12ffc8a3feb5f36fd`;
 logs are under `/tmp/rustycore43-movement-feedback/`. The parent then formatted
 the owned files. This is coding feedback, not committed-candidate final evidence.
-Observed creature selection, current-host capture orchestration and live
-lifecycle acceptance remain outstanding.
+Observed creature selection, fixture/scenario integration and live lifecycle
+acceptance remain outstanding.
+
+The current-host native capture collector is now implemented in
+`tools/qa-runtime.sh capture`, reusing the existing systemd identity,
+stop/swap/restore and exclusive-lock guard. It records native Rust dumps or
+C++ PKT, candidate/runner/bot hashes, listener identities, selected-config
+digests and restoration outcomes. Its private file helper journals and fsyncs
+recovery before configuration mutation; drift or a missing armed journal holds
+the service stopped. Fake-service cases are written but have not run, and no
+syntax, final, service, database-write or live capture acceptance ran for this
+unit. Collection does not establish lifecycle acceptance. The reference source
+HEAD, three local patch paths and R6 executable SHA were rechecked unchanged
+on 2026-10-28; the reference was not started.
+
+An additional read-only installed-data probe found male models 1/3/7
+(display IDs 49/51/55) for Human/Orc/Night Elf; all select sickness spell
+15007. Items 2121 and 17030 have no ItemEffect rows. This probe reused the
+existing reader artifact for unchanged race/model/effect loaders, not the
+subsequently corrected class-mask field. Its compile/run exited 0 in 3.438 s;
+the result is `/tmp/rustycore43-fixture-reader-preflight/result.json`. The
+selected Kobold's actual World data has one SmartAI AGGRO/TALK row with 30%
+chance, not an empty script set. Retain that fact in action-capture analysis;
+no NPC row has been changed and none of these reads proves a live fixture.
 
 Final-acceptance preparation reconciles the World test ledger to the real suite:
 4,094 mounted `unit_tests` cases and 22 source cases, with the existing ignored
