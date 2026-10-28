@@ -63,7 +63,18 @@ fn spell_store(
     misc: Vec<wow_data::spell_db2::SpellMiscEntry>,
     effects: Vec<wow_data::spell_db2::SpellEffectDb2Entry>,
 ) -> wow_data::SpellStore {
-    spell_store_with_seed(wow_data::SpellStore::new(), misc, effects)
+    let keys = misc
+        .iter()
+        .map(|row| (row.spell_id, row.difficulty_id))
+        .chain(effects.iter().map(|row| {
+            (
+                row.spell_id,
+                u8::try_from(row.difficulty_id)
+                    .expect("selected SpellEffect difficulty fits its canonical key"),
+            )
+        }))
+        .collect::<Vec<_>>();
+    spell_store_with_keys(keys, misc, effects)
 }
 
 fn spell_store_with_keys(

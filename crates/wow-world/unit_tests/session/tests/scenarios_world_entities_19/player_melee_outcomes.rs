@@ -66,7 +66,7 @@ async fn map_owned_player_melee_publishes_the_attack_table_outcome_like_cpp() {
     // A -200% `SPELL_AURA_MOD_HIT_CHANCE` guarantees the miss band, so the
     // resolved swing is deterministic.
     let spell_id = 91_123_i32;
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(91_123, 0)]);
     spell_store.insert(
         spell_id,
         wow_data::SpellInfo {

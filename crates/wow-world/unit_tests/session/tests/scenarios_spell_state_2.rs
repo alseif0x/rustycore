@@ -44,7 +44,10 @@ fn remove_known_spell_clears_titan_grip_and_penalty_aura_like_cpp() {
         .apply_aura(penalty_spell_id, player_guid, 0, 0)
         .expect("represented penalty aura");
 
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (spell_id as u32, 0),
+        (penalty_spell_id as u32, 0),
+    ]);
     spell_store.insert(
         spell_id,
         wow_data::SpellInfo {
@@ -66,6 +69,10 @@ fn remove_known_spell_clears_titan_grip_and_penalty_aura_like_cpp() {
                 ..Default::default()
             }],
         },
+    );
+    spell_store.insert(
+        penalty_spell_id,
+        test_spell_info_like_cpp(penalty_spell_id),
     );
     let mut attributes = [0_u32; 15];
     attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_PASSIVE;
@@ -715,6 +722,19 @@ fn represented_pvp_rules_aura_application_recalculates_item_level_scaling_like_c
     let (mut session, _, _send_rx) = make_session();
     let item_id = 30_158_u32;
     install_represented_pvp_item_level_fixture_like_cpp(&mut session, item_id, 35);
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(
+        SPELL_PVP_RULES_ENABLED_LIKE_CPP as u32,
+        0,
+    )]);
+    let mut spell_info = test_spell_info_like_cpp(SPELL_PVP_RULES_ENABLED_LIKE_CPP);
+    spell_info.effects = vec![wow_data::SpellEffectInfo {
+        effect_index: 0,
+        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+        effect_aura: wow_data::spell::aura_types::SPELL_AURA_DUMMY,
+        ..Default::default()
+    }];
+    spell_store.insert(SPELL_PVP_RULES_ENABLED_LIKE_CPP, spell_info);
+    session.set_spell_store(Arc::new(spell_store));
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
         represented_item_level_area_map_like_cpp(30_158, wow_data::map::MAP_COMMON, 0),
     ])));
@@ -744,6 +764,19 @@ fn represented_pvp_rules_aura_removal_recalculates_item_level_scaling_like_cpp()
     let (mut session, _, _send_rx) = make_session();
     let item_id = 30_159_u32;
     install_represented_pvp_item_level_fixture_like_cpp(&mut session, item_id, 40);
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(
+        SPELL_PVP_RULES_ENABLED_LIKE_CPP as u32,
+        0,
+    )]);
+    let mut spell_info = test_spell_info_like_cpp(SPELL_PVP_RULES_ENABLED_LIKE_CPP);
+    spell_info.effects = vec![wow_data::SpellEffectInfo {
+        effect_index: 0,
+        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+        effect_aura: wow_data::spell::aura_types::SPELL_AURA_DUMMY,
+        ..Default::default()
+    }];
+    spell_store.insert(SPELL_PVP_RULES_ENABLED_LIKE_CPP, spell_info);
+    session.set_spell_store(Arc::new(spell_store));
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
         represented_item_level_area_map_like_cpp(30_159, wow_data::map::MAP_COMMON, 0),
     ])));

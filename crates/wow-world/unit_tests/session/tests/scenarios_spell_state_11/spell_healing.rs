@@ -63,7 +63,13 @@ async fn spell_direct_heal_applies_spell_power_and_healing_percent_like_cpp() {
 
     // The heal plus the victim `SPELL_AURA_MOD_HEALING` (40 holy) and the
     // `SPELL_AURA_MOD_HEALING_PCT` -50/+25 auras applied below.
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (spell_id as u32, 0),
+        (90_950, 0),
+        (90_951, 0),
+        (90_952, 0),
+        (90_953, 0),
+    ]);
     spell_store.insert(
         spell_id,
         wow_data::SpellInfo {
@@ -229,7 +235,10 @@ async fn spell_direct_heal_scales_by_creature_missing_health_like_cpp() {
             ..Default::default()
         },
     ])));
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (spell_id as u32, 0),
+        (90_970, 0),
+    ]);
     spell_store.insert(
         spell_id,
         wow_data::SpellInfo {

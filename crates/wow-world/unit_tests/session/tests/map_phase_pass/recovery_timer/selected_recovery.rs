@@ -65,7 +65,7 @@ pub(super) fn install_selected_sickness_snapshot(session: &mut WorldSession) -> 
         ),
         (2, wow_data::spell::aura_types::SPELL_AURA_NO_PVP_CREDIT, 0),
     ];
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(SPELL_ID as u32, 0)]);
     spell_store.insert(
         SPELL_ID,
         wow_data::SpellInfo {

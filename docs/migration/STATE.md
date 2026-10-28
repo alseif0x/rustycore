@@ -136,14 +136,31 @@ previous blocking receive therefore cannot conceal another failed suite run.
 These four source/test edits have been reviewed against the pinned reference;
 their affected tests and final acceptance have not yet been rerun.
 
+The positive Aura-fixture repair now covers 47 World test sources based on
+`413d6ce05`, fingerprint
+`ce77e0328324080057e3945097ca6add9b9aff8535f2132d625d165667a599ba`.
+It seeds explicit exact keys through the existing canonical loader fixture
+and retains the supplied indexed effects, attributes and difficulty inputs.
+Movement/removal fixtures also retain their actual effect payloads; a key alone
+cannot validate an active effect mask. The synthetic presence-only spell uses
+an explicit DUMMY effect. Shared sickness and Ghost/Wisp builders preserve
+their selected and additional spell keys. The production catalog guards and
+deliberate missing-key constructors are unchanged. Static review preserved all
+47 files' function identities and assertion counts; one assertion now reads
+the canonical Aura owner. The reviewed patch and input hashes are retained in
+`/tmp/rustycore43-catalog-review-g3n0frj_/`. This is unvalidated fixture repair,
+not a passing rerun of the 90 original missing-key diagnostics. Required forced
+visibility and remaining consumer/fixture repairs precede the next acceptance.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
-World retains 4,116 tests (one ignored) and the same classifications. The
+That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The
 reviewed policy records exact composition/state-definition and test-adapter
 deltas with their existing #584 C4 split exits; it does not declare that
 architecture programme complete. Candidate formatting and module wiring refine
 the World test-line count to 270,837, including the explicit provenance import,
-without adding or removing tests.
+without adding or removing tests. This earlier count excludes the unvalidated
+acceptance-fixture repairs above; final formatting and physical review remain due.
 
 The macro remains open and has not passed final acceptance. Changes remain
 local to `43-spirit-healer`; this candidate has not been published or deployed.

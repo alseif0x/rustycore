@@ -61,6 +61,7 @@ pub(super) fn install_spell_catalog(
     session: &mut crate::session::WorldSession,
     extras: impl IntoIterator<Item = wow_data::SpellInfo>,
 ) {
+    let extras = extras.into_iter().collect::<Vec<_>>();
     let ghost = aura_spell(
         GHOST,
         [
@@ -98,10 +99,9 @@ pub(super) fn install_spell_catalog(
         ],
     );
 
-    let mut store = crate::selected_spell_fixtures::canonical_spell_store([
-        (GHOST as u32, 0),
-        (WISP as u32, 0),
-    ]);
+    let mut keys = vec![(GHOST as u32, 0), (WISP as u32, 0)];
+    keys.extend(extras.iter().map(|spell| (spell.spell_id as u32, 0)));
+    let mut store = crate::selected_spell_fixtures::canonical_spell_store(keys);
     let mut misc_rows = Vec::new();
     let mut spell_level_rows = Vec::new();
     for spell in [ghost, wisp] {

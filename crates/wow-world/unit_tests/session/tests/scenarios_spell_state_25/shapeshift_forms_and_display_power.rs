@@ -9,7 +9,7 @@ async fn removing_one_of_two_form_applications_retains_form_until_last_removal()
     let (spell_id, form_id) = represented_cat_form_fixture_like_cpp(
         &mut session,
         player_guid,
-        wow_data::SpellStore::new(),
+        crate::selected_spell_fixtures::canonical_spell_store([(90_996, 0)]),
     );
     session
         .apply_aura(spell_id, player_guid, 30_000, 1)
@@ -51,7 +51,10 @@ async fn represented_form_change_refreshes_item_equip_spells_like_cpp() {
     let item_id = 30_100_u32;
     let item_guid = ObjectGuid::create_item(1, 917);
     let equip_spell_id = 90_997_i32;
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (90_996, 0),
+        (equip_spell_id as u32, 0),
+    ]);
     spell_store.insert(
         equip_spell_id,
         represented_aura_spell_like_cpp(
@@ -119,7 +122,10 @@ async fn represented_form_change_refreshes_item_set_auras_like_cpp() {
     let chest_guid = ObjectGuid::create_item(1, 918);
     let hands_guid = ObjectGuid::create_item(1, 919);
     let set_spell_id = 90_998_i32;
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (90_996, 0),
+        (set_spell_id as u32, 0),
+    ]);
     spell_store.insert(
         set_spell_id,
         represented_aura_spell_like_cpp(
@@ -201,7 +207,10 @@ async fn represented_form_change_applies_and_removes_boost_spells_like_cpp() {
 
     // C++ `HandleShapeshiftBoosts` casts spell 3025 for cat form.
     let boost_spell_id = 3_025_i32;
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (90_996, 0),
+        (boost_spell_id as u32, 0),
+    ]);
     spell_store.insert(
         boost_spell_id,
         represented_aura_spell_like_cpp(
@@ -239,7 +248,10 @@ async fn represented_form_change_applies_and_sweeps_stance_passives_like_cpp() {
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
 
     let passive_spell_id = 90_999_i32;
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (90_996, 0),
+        (passive_spell_id as u32, 0),
+    ]);
     spell_store.insert(
         passive_spell_id,
         represented_aura_spell_like_cpp(
@@ -282,7 +294,10 @@ async fn represented_shapeshift_form_selects_display_power_like_cpp() {
     session.core.player_guid = Some(player_guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
 
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (90_996, 0),
+        (91_000, 0),
+    ]);
     // Cat form (1) and bear form (5) shapeshift auras.
     let cat_spell_id = 90_996_i32;
     let bear_spell_id = 91_000_i32;
@@ -385,7 +400,7 @@ async fn represented_power_display_aura_selects_display_power_like_cpp() {
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
 
     let aura_spell_id = 91_001_i32;
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(91_001, 0)]);
     spell_store.insert(
         aura_spell_id,
         represented_aura_spell_like_cpp(

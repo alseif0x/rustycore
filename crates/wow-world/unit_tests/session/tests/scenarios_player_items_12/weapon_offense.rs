@@ -76,7 +76,12 @@ async fn expertise_aura_modifiers_filter_by_weapon_fit_like_cpp() {
     // Four `SPELL_AURA_MOD_EXPERTISE` producers: item-neutral, axe-fit,
     // sword-only (must not match the equipped axe) and armor-only (must not
     // match a weapon).
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (90_300, 0),
+        (90_301, 0),
+        (90_302, 0),
+        (90_303, 0),
+    ]);
     for (spell_id, amount) in [(90_300, 30), (90_301, 20), (90_302, 40), (90_303, 10)] {
         spell_store.insert(
             spell_id,
@@ -276,7 +281,11 @@ async fn weapon_damage_pct_follows_update_damage_pct_done_mods_like_cpp() {
     // `SPELL_AURA_MOD_DAMAGE_DONE` (13) physical flat bonus, and
     // `SPELL_AURA_MOD_DAMAGE_PERCENT_DONE` (79) effects: one item-neutral +50%
     // and one +100% restricted to swords.
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (90_930, 0),
+        (90_931, 0),
+        (90_932, 0),
+    ]);
     for (spell_id, aura_type, misc_value, amount) in [
         (90_930, 79, 1, 50),
         (90_931, 79, 1, 100),
@@ -423,7 +432,10 @@ async fn weapon_fit_resolves_the_ranged_weapon_like_cpp() {
 
     // `SPELL_AURA_MOD_WEAPON_CRIT_PERCENT` (52) and
     // `SPELL_AURA_MOD_DAMAGE_PERCENT_DONE` (79), both restricted to bows.
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (90_940, 0),
+        (90_941, 0),
+    ]);
     for (spell_id, aura_type, amount) in [(90_940, 52, 5), (90_941, 79, 100)] {
         spell_store.insert(
             spell_id,
@@ -649,7 +661,7 @@ async fn ranged_attack_power_auras_skip_wand_users_like_cpp() {
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
     session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
 
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(90_810, 0), (90_811, 0)]);
     for (spell_id, aura_type, amount) in [(90_810, 124, 30), (90_811, 167, 100)] {
         spell_store.insert(
             spell_id,

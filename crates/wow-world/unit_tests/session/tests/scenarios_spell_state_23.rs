@@ -120,7 +120,12 @@ fn initial_equipped_item_equip_auras_apply_on_equip_effects_like_cpp() {
             parent_item_id: 20_102,
         },
     ])));
-    let mut spell_store = SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (30_100, 0),
+        (30_101, 0),
+        (30_102, 0),
+        (30_103, 0),
+    ]);
     for spell_id in [30_100, 30_101, 30_102, 30_103] {
         spell_store.insert(
             spell_id,
@@ -302,7 +307,15 @@ fn initial_loaded_item_mods_follow_cpp_loaded_equip_enchant_aura_order() {
         enchantment(909, 30_108),
         enchantment(910, 30_110),
     ])));
-    let mut spell_store = SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (30_104, 0),
+        (30_105, 0),
+        (30_106, 0),
+        (30_107, 0),
+        (30_108, 0),
+        (30_109, 0),
+        (30_110, 0),
+    ]);
     for spell_id in [30_104, 30_105, 30_106, 30_107, 30_108, 30_109, 30_110] {
         spell_store.insert(
             spell_id,
@@ -408,7 +421,16 @@ fn login_passive_known_spell_auras_apply_like_cpp_addspell() {
     session.set_player_guid(Some(player_guid));
     let mut known_spells = vec![822, 28877, 14_914, 60_000, 60_001, 60_002, 60_003];
 
-    let mut spell_store = SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (822, 0),
+        (14_908, 0),
+        (14_914, 0),
+        (28_877, 0),
+        (60_000, 0),
+        (60_001, 0),
+        (60_002, 0),
+        (60_003, 0),
+    ]);
     for spell_id in [822, 28877, 14_914, 14_908, 60_000, 60_001, 60_002, 60_003] {
         let has_aura = spell_id != 60_001;
         spell_store.insert(
@@ -540,7 +562,7 @@ fn login_total_stat_percentage_aura_records_cpp_multiplier_and_misc_b_mask() {
     session.set_player_guid(Some(player_guid));
     session.set_known_spells_like_cpp(vec![20_598]);
 
-    let mut spell_store = SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(20_598, 0)]);
     spell_store.insert(
         20_598,
         SpellInfo {
@@ -801,7 +823,7 @@ fn represented_update_item_set_auras_skips_apply_when_shapeshift_rejected_like_c
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 42);
     let item_guid = ObjectGuid::create_item(1, 922);
-    let mut spell_store = SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(9042, 0)]);
     spell_store.insert(9042, test_spell_info_like_cpp(9042));
     spell_store.insert_spell_shapeshift_masks_like_cpp(9042, 1 << 4, 0);
 
@@ -854,7 +876,7 @@ fn represented_update_item_set_auras_form_change_skips_remove_when_form_still_fi
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 42);
     let item_guid = ObjectGuid::create_item(1, 923);
-    let mut spell_store = SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(9043, 0)]);
     spell_store.insert(9043, test_spell_info_like_cpp(9043));
     spell_store.insert_spell_shapeshift_masks_like_cpp(9043, 1 << 4, 0);
 

@@ -858,6 +858,15 @@ fn represented_non_mounted_flight_speed_removal_recomputes_like_cpp() {
         effect_index: 1,
         ..Default::default()
     };
+    let mut spell_store =
+        crate::selected_spell_fixtures::canonical_spell_store([(20_027, 0), (20_028, 0)]);
+    let mut flight_info = test_spell_info_like_cpp(20_027);
+    flight_info.effects = vec![flight.clone()];
+    spell_store.insert(20_027, flight_info);
+    let mut vehicle_flight_info = test_spell_info_like_cpp(20_028);
+    vehicle_flight_info.effects = vec![vehicle_flight.clone()];
+    spell_store.insert(20_028, vehicle_flight_info);
+    session.set_spell_store(Arc::new(spell_store));
 
     session
         .apply_represented_aura_modifier_like_cpp(

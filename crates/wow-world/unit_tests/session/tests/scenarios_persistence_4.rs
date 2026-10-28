@@ -347,7 +347,7 @@ fn loaded_total_stat_percentage_uses_persisted_effect_amount_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 17);
     session.set_player_guid(Some(player_guid));
 
-    let mut spell_store = SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(20_600, 0)]);
     spell_store.insert(
         20_600,
         SpellInfo {

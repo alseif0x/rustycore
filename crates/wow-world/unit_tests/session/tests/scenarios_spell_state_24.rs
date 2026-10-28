@@ -78,7 +78,7 @@ fn represented_item_set_aura_refresh_form_change_does_not_duplicate_active_aura_
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 42);
     let item_guid = ObjectGuid::create_item(1, 925);
-    let mut spell_store = SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(9045, 0)]);
     spell_store.insert(9045, test_spell_info_like_cpp(9045));
     spell_store.insert_spell_shapeshift_masks_like_cpp(9045, 1 << 4, 0);
 
@@ -245,7 +245,7 @@ fn loaded_equipped_item_enchantments_apply_equip_spell_aura_like_cpp() {
             max_level: 0,
         },
     ])));
-    let mut spell_store = SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(1234, 0)]);
     spell_store.insert(
         1234,
         SpellInfo {
@@ -297,7 +297,10 @@ fn loaded_equipped_item_enchantments_apply_equip_spell_aura_like_cpp() {
         session.represented_item_bonus_actions_like_cpp(),
         outcome.effect_actions.as_slice()
     );
-    assert!(session.fixtures.auras.visible_auras.values().any(|aura| {
+    let visible_auras = session
+        .resolved_player_visible_auras_like_cpp()
+        .expect("canonical Player AuraSubsystem");
+    assert!(visible_auras.values().any(|aura| {
         aura.spell_id == 1234 && aura.caster_guid == item_guid && aura.effect_mask == 1
     }));
     assert!(

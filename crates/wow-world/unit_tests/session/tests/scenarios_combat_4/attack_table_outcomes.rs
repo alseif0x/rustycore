@@ -275,7 +275,7 @@ fn white_swing_publishes_the_attack_table_outcome_like_cpp() {
     // A -200% `SPELL_AURA_MOD_HIT_CHANCE` makes the miss band exceed the whole
     // roll, so the swing is guaranteed to miss.
     let spell_id = 91_122_i32;
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(91_122, 0)]);
     spell_store.insert(
         spell_id,
         wow_data::SpellInfo {

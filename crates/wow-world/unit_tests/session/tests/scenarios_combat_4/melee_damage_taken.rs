@@ -221,7 +221,11 @@ fn white_swing_applies_victim_melee_damage_taken_like_cpp() {
     // The victim's `SPELL_AURA_MOD_MELEE_DAMAGE_TAKEN` halves the swing and the
     // attacker's `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` bypasses a
     // `SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN` reduction.
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (91_131, 0),
+        (91_132, 0),
+        (91_133, 0),
+    ]);
     for (spell_id, aura, misc, amount) in [
         (
             91_131_i32,

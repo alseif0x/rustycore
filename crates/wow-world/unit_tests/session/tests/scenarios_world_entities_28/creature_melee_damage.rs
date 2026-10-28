@@ -254,7 +254,7 @@ async fn map_owned_player_melee_applies_attacker_ignore_target_resist_like_cpp()
         .unwrap();
 
     let spell_id = 91_130_i32;
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(91_130, 0)]);
     spell_store.insert(
         spell_id,
         wow_data::SpellInfo {

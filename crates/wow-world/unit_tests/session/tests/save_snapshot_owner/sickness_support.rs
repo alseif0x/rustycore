@@ -85,7 +85,10 @@ pub(super) fn install_sickness_catalogs(
             all_effects.push((index, aura_type, base_amount));
         }
     }
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(
+        spell_id as u32,
+        0,
+    )]);
     spell_store.insert(spell_id, sickness_spell_info(spell_id, &all_effects));
     spell_store.insert_spell_misc_attributes_like_cpp(spell_id, [0; 15]);
     session.set_spell_store(std::sync::Arc::new(spell_store));

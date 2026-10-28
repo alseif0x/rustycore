@@ -205,7 +205,11 @@ fn white_swing_applies_victim_critical_chance_auras_like_cpp() {
 
     // `SPELL_AURA_MOD_CRIT_CHANCE_FOR_CASTER` only applies when the attacker
     // cast it; the fixture's foreign caster must not add critical chance.
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (91_160, 0),
+        (91_161, 0),
+        (91_162, 0),
+    ]);
     spell_store.insert(
         91_160,
         wow_data::SpellInfo {
@@ -421,7 +425,7 @@ fn melee_attack_table_reads_the_dual_wield_penalty_aura_like_cpp() {
             player.replace_effective_combat_stats_like_cpp(stats);
         })
         .unwrap();
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(91_170, 0)]);
     spell_store.insert(
         91_170,
         wow_data::SpellInfo {

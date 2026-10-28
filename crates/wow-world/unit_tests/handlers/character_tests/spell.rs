@@ -143,7 +143,11 @@ fn skill_rewarded_login_changes_use_real_spell_levels_and_conditions_like_cpp() 
         ]),
     ));
 
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (900, 0),
+        (901, 0),
+        (902, 0),
+    ]);
     for spell_id in [900, 901, 902] {
         spell_store.insert(spell_id, spell_info(spell_id));
     }

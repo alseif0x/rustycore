@@ -73,7 +73,10 @@ async fn map_owned_player_melee_applies_victim_aurastate_and_mechanic_bonus_like
         })
         .unwrap();
 
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (91_110, 0),
+        (91_111, 0),
+    ]);
     for (spell_id, aura, amount, misc) in [
         (
             91_110_i32,

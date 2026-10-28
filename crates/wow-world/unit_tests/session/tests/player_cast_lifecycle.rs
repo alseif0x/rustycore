@@ -417,7 +417,10 @@ async fn canonical_prepare_applies_cast_speed_auras_like_cpp() {
     let haste_spell_id = 90_999_i32;
     let mut spell = minimal_spell();
     spell.cast_time_ms = 1_500;
-    let mut spells = SpellStore::new();
+    let mut spells = crate::selected_spell_fixtures::canonical_spell_store([
+        (TEST_SPELL_ID as u32, 0),
+        (haste_spell_id as u32, 0),
+    ]);
     spells.insert(TEST_SPELL_ID, spell);
     spells.insert(
         haste_spell_id,

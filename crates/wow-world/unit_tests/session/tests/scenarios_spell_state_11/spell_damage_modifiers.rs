@@ -38,7 +38,11 @@ async fn spell_school_damage_applies_damage_done_versus_like_cpp() {
             ..Default::default()
         },
     ])));
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (spell_id as u32, 0),
+        (90_960, 0),
+        (90_961, 0),
+    ]);
     spell_store.insert(
         spell_id,
         wow_data::SpellInfo {
@@ -162,7 +166,11 @@ async fn spell_school_damage_applies_damage_done_versus_aurastate_like_cpp() {
             ..Default::default()
         },
     ])));
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (spell_id as u32, 0),
+        (90_980, 0),
+        (90_981, 0),
+    ]);
     spell_store.insert(
         spell_id,
         wow_data::SpellInfo {
@@ -281,7 +289,11 @@ async fn spell_school_damage_applies_damage_done_for_mechanic_like_cpp() {
             ..Default::default()
         },
     ])));
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (spell_id as u32, 0),
+        (90_983, 0),
+        (90_984, 0),
+    ]);
     spell_store.insert(
         spell_id,
         wow_data::SpellInfo {
@@ -408,7 +420,12 @@ async fn spell_school_damage_applies_damage_percent_done_by_target_aura_mechanic
             ..Default::default()
         },
     ])));
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (spell_id as u32, 0),
+        (90_985, 0),
+        (90_986, 0),
+        (90_987, 0),
+    ]);
     spell_store.insert(
         spell_id,
         wow_data::SpellInfo {

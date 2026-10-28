@@ -80,7 +80,14 @@ fn legacy_creature_melee_tick_once_applies_player_victim_taken_like_cpp() {
         })
         .unwrap();
 
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (91_190, 0),
+        (91_191, 0),
+        (91_192, 0),
+        (91_193, 0),
+        (91_194, 0),
+        (91_195, 0),
+    ]);
     for (spell_id, aura_type, amount, misc_value) in [
         (
             91_190_i32,
@@ -320,7 +327,7 @@ fn legacy_creature_melee_tick_once_reads_the_expected_stat_store_like_cpp() {
         })
         .unwrap();
 
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(91_310, 0)]);
     spell_store.insert(
         91_310,
         wow_data::SpellInfo {

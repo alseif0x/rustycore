@@ -294,7 +294,12 @@ fn white_swing_applies_victim_armor_mitigation_like_cpp() {
     // The attacker's `SPELL_AURA_MOD_TARGET_RESISTANCE` and
     // `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` terms only cover
     // `SPELL_SCHOOL_MASK_NORMAL`; a non-normal row leaves the armour alone.
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (91_120, 0),
+        (91_121, 0),
+        (91_122, 0),
+        (91_123, 0),
+    ]);
     for (spell_id, aura_type, misc_value, amount) in [
         (
             91_120_i32,

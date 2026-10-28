@@ -25,7 +25,10 @@ async fn spell_school_damage_applies_damage_done_versus_health_aurastate_like_cp
             ..Default::default()
         },
     ])));
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (spell_id as u32, 0),
+        (90_988, 0),
+    ]);
     spell_store.insert(
         spell_id,
         wow_data::SpellInfo {

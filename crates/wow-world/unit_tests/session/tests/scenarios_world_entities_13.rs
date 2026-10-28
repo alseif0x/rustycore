@@ -608,6 +608,13 @@ fn gameobject_use_flagstand_removes_stealth_and_invisibility_auras_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 99);
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 41);
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (1_001, 0),
+        (1_002, 0),
+    ]);
+    spell_store.insert(1_001, test_spell_info_like_cpp(1_001));
+    spell_store.insert(1_002, test_spell_info_like_cpp(1_002));
+    session.set_spell_store(Arc::new(spell_store));
     session.set_player_guid(Some(player_guid));
     session.set_player_battleground_type_id_like_cpp(BATTLEGROUND_WS_LIKE_CPP);
 

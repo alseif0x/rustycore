@@ -31,7 +31,13 @@ async fn armor_aura_producers_follow_update_armor_like_cpp() {
 
     // C++ 3.4.3 aura types consumed by `Player::UpdateArmor`
     // (`StatSystem.cpp:251-276`).
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (90_400, 0),
+        (90_401, 0),
+        (90_402, 0),
+        (90_403, 0),
+        (90_404, 0),
+    ]);
     for (spell_id, aura_type, misc_value, misc_value_b, amount) in [
         (90_400, 22, 1, 0, 300),  // MOD_RESISTANCE, normal mask
         (90_401, 22, 4, 0, 500),  // MOD_RESISTANCE, fire mask only
@@ -161,7 +167,11 @@ async fn avoidance_aura_percentages_follow_update_percentages_like_cpp() {
     // C++ `SPELL_AURA_MOD_PARRY_PERCENT`/`MOD_DODGE_PERCENT`/`MOD_BLOCK_PERCENT`
     // feed `Player::UpdateParryPercentage`/`UpdateDodgePercentage`/
     // `UpdateBlockPercentage` (`StatSystem.cpp:483-499`, `659-679`, `700-717`).
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (90_500, 0),
+        (90_501, 0),
+        (90_502, 0),
+    ]);
     for (spell_id, aura_type, amount) in [(90_500, 47, 3), (90_501, 49, 10), (90_502, 51, 7)] {
         spell_store.insert(
             spell_id,
@@ -276,7 +286,12 @@ async fn crit_aura_percentages_follow_weapon_dependent_auras_like_cpp() {
     // C++ `Player::UpdateWeaponDependentCritAuras` (`Player.cpp:8079-8107`):
     // `SPELL_AURA_MOD_WEAPON_CRIT_PERCENT` is filtered by the attack's weapon
     // requirement, while `SPELL_AURA_MOD_CRIT_PCT` is global.
-    let mut spell_store = wow_data::SpellStore::new();
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([
+        (90_600, 0),
+        (90_601, 0),
+        (90_602, 0),
+        (90_603, 0),
+    ]);
     for (spell_id, aura_type, amount) in [
         (90_600, 52, 2),
         (90_601, 52, 5),

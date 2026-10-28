@@ -51,6 +51,9 @@ fn battleground_object_use_guard_matches_cpp_faction_and_player_state() {
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 39);
 
+    let mut spell_store = crate::selected_spell_fixtures::canonical_spell_store([(50_327, 0)]);
+    spell_store.insert(50_327, test_spell_info_like_cpp(50_327));
+    session.set_spell_store(Arc::new(spell_store));
     session.set_player_faction_template_like_cpp(1);
     session.record_represented_gameobject_faction_template_like_cpp(gameobject_guid, 2);
     session.set_faction_template_store(Arc::new(
