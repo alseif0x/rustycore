@@ -176,10 +176,41 @@ esac
 if [[ "${QA_FAKE_CAPTURE_DRIFT:-}" == journal ]]; then
   rm -f "$RUSTYCORE_CAPTURE_DIR/.qa-capture-journal.json"
 fi
-printf '{"fake_capture_report":true}\n' >"${RUSTYCORE_CAPTURE_REPORT:?}"
+if [[ "${QA_FAKE_OMIT_CAPTURE_REPORT:-0}" != 1 ]]; then
+  printf '{"fake_capture_report":true}\n' >"${RUSTYCORE_CAPTURE_REPORT:?}"
+fi
 exit "${QA_FAKE_CAPTURE_STATUS:-0}"
 FAKE
 chmod +x "$WORK/bin/capture-runner"
+
+cat >"$WORK/bin/death-fixture" <<'FAKE'
+#!/usr/bin/env python3
+import json
+from pathlib import Path
+import sys
+
+mode = sys.argv[1]
+journal = Path(sys.argv[sys.argv.index("--journal") + 1])
+if mode == "prepare":
+    journal.write_text(json.dumps({"state": "prepared", "actors": [
+        {"guid": 901}, {"guid": 902}]}), encoding="utf-8")
+    journal.chmod(0o600)
+    print('{"mode":"prepared"}')
+elif mode == "snapshot":
+    print(json.dumps({"mode": "read-only-snapshot", "owned_state": {"characters": {
+        "columns": ["guid", "online"], "rows": [["901", "0"], ["902", "0"]]}}}))
+elif mode == "restore":
+    record = json.loads(journal.read_text(encoding="utf-8"))
+    record["state"] = "restored"
+    journal.write_text(json.dumps(record), encoding="utf-8")
+    Path(str(journal) + ".cleanup-complete").write_text("{}\n", encoding="utf-8")
+    print('{"mode":"restored","verified":true}')
+else:
+    raise SystemExit(2)
+FAKE
+chmod +x "$WORK/bin/death-fixture"
+printf '{"bots":[]}\n' >"$WORK/death-bot-config.json"
+chmod 600 "$WORK/death-bot-config.json"
 
 # A fake fixture guard. The real one is source-only and talks to MySQL; this
 # records what the harness asked it to do so the restore path can be asserted
@@ -272,6 +303,28 @@ run_qa() {
     "$QA" "$@"
 }
 
+run_death_qa() {
+  env \
+    QA_SYSTEMCTL="$WORK/bin/systemctl" QA_SERVICE=fake-world \
+    QA_LIVE_DIR="$WORK/live" QA_LIVE_NAME=world-server QA_BOT="$WORK/bin/bot" \
+    QA_LOCK="$WORK/death-lock" QA_EXE_RESOLVER="$WORK/bin/resolver" \
+    QA_PROCESS_ENV_READER="$WORK/bin/process-env" QA_PROC_STARTTIME_READER="$WORK/bin/starttime" \
+    QA_PROCESS_ALIVE="$WORK/bin/alive" QA_PRIVILEGED="$WORK/bin/privileged" \
+    QA_SKIP_PORT_GUARD=1 QA_READY_TIMEOUT_SECONDS=5 QA_FAKE_STATE="$WORK/state" \
+    QA_FAKE_LIVE="$WORK/live/world-server" QA_GIT_DIR="$WORK/repo" \
+    QA_ENV_FILE="$WORK/env.local" QA_BOT_DIR="$WORK/botdir" \
+    QA_CAPTURE_FILEOPS="$REPO_ROOT/tools/qa/capture_fileops.py" \
+    QA_CAPTURE_WORLD_CONFIG="$WORK/worldserver.conf" QA_SYSTEMD_RUNTIME_DIR="$WORK/systemd" \
+    QA_FAKE_DROPIN="$WORK/systemd/fake-world.service.d/43-qa-capture.conf" \
+    QA_DEATH_FIXTURE_SCRIPT="$WORK/bin/death-fixture" \
+    QA_FAKE_CAPTURE_STATUS=3 QA_FAKE_OMIT_CAPTURE_REPORT=1 \
+    "$REPO_ROOT/tools/qa-death-runtime.sh" \
+    --allow-runtime-qa --ack-disposable-death-fixture --backend rust \
+    --world-exec "$WORK/candidate" --candidate-sha256 "$CAPTURE_CANDIDATE_SHA" \
+    --output-dir "$WORK/death-campaign" --bot-config "$WORK/death-bot-config.json" \
+    --scenario-runner "$WORK/bin/capture-runner"
+}
+
 reset_state() {
   rm -f "$WORK"/state.* "$WORK/lock"
   rm -rf "$WORK/systemd/fake-world.service.d"
@@ -325,6 +378,44 @@ run_capture_fake() {
   fi
   run_qa "${args[@]}" "$@" capture
 }
+
+# Sourcing the runtime library returns before its CLI parser and touches no service.
+reset_state
+source_output="$(env \
+  QA_SYSTEMCTL="$WORK/bin/systemctl" QA_SERVICE=fake-world \
+  QA_LIVE_DIR="$WORK/live" QA_LIVE_NAME=world-server \
+  QA_LOCK="$WORK/source.lock" QA_GIT_DIR="$WORK/repo" \
+  QA_PRIVILEGED="$WORK/bin/privileged" QA_BOT="$WORK/bin/bot" \
+  bash -c 'source "$1" capture; [[ -z ${COMMAND+x} ]]; printf "source-returned\\n"' \
+  _ "$QA" 2>&1)"
+check "source guard returns before CLI parsing" test "$source_output" = source-returned
+check "source guard does not call the fake service" test ! -e "$WORK/state.calls"
+check "source guard does not acquire the runtime lock" test ! -e "$WORK/source.lock"
+
+reset_state
+help_output="$(QA_SYSTEMCTL="$WORK/bin/systemctl" QA_LOCK="$WORK/death-help.lock" \
+  "$REPO_ROOT/tools/qa-death-runtime.sh" --help 2>&1)"
+check "death wrapper help is available without a service operation" \
+  grep -q -- "--scenario-runner" <<<"$help_output"
+check "death wrapper help does not acquire a runtime lock" test ! -e "$WORK/death-help.lock"
+check "death wrapper help does not call the fake service" test ! -e "$WORK/state.calls"
+
+# A runner may fail before writing its scenario report. A complete capture
+# restore report still permits the owned fixture restore and normal restart.
+reset_state
+status=0
+run_death_qa >"$WORK/death-runner-failure.log" 2>&1 || status=$?
+check "missing scenario report remains a runner failure" test "$status" -eq 1
+check "capture report proves original runtime and config restored" \
+  jq -e '.original_runtime_restored == true and .original_config_restored == true' \
+    "$WORK/death-campaign/epochs/epoch-001/capture-report.json" >/dev/null
+check "missing scenario report still restores the owned fixture" \
+  jq -e '.state == "restored"' "$WORK/death-campaign/death-fixture.journal" >/dev/null
+check "fixture cleanup marker is retained" test -f "$WORK/death-campaign/death-fixture.journal.cleanup-complete"
+check "original runtime is ready after fixture cleanup" live_is_original
+check "death wrapper reports cleanup separately from scenario failure" \
+  jq -e '.scenario_observation.status == "failed" and .cleanup.status == "restored" and .parity.status == "not_assessed"' \
+    "$WORK/death-campaign/death-runtime-report.json" >/dev/null
 
 # 1. The destructive command refuses without each mandatory flag.
 reset_state

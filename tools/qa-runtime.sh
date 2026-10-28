@@ -1381,6 +1381,9 @@ run_trade() {
   return "$bot_status"
 }
 
+# Sourced callers use these helpers without entering the CLI or starting services.
+[[ ${BASH_SOURCE[0]} != $0 ]] && return
+
 while (($#)); do
   case "$1" in
     --dry-run) DRY_RUN=1; shift ;;
