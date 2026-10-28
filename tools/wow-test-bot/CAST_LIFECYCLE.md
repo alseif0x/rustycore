@@ -44,6 +44,86 @@ requests:
   the legal Shaman Reincarnation request is 21169, not passive 20608.
 - `attack_swing` takes a packed `target` GUID and sends CMSG_ATTACK_SWING 0x3255.
 
+The opt-in movement controller owns one transient player mover, the latest
+server-seeded position, movement flags, and any explicit fall data. It observes
+the authenticated login burst before the post-login drain, so LOGIN_VERIFY_WORLD
+and movement controls in that burst are recorded and acknowledged by the same
+owner. It retains safe decoded packet observations in the lifecycle report.
+
+Supported server controls are root/unroot, water-walk/land-walk, run/swim speed
+changes, near teleport, TransferPending, SuspendToken, LOGIN_VERIFY_WORLD and
+NewWorld. Movement flag ACKs carry MovementInfo followed by the server sequence;
+speed ACKs append the speed float. Near-teleport ACK carries packed mover,
+sequence and client time. WorldPortResponse is empty. TransferPending arrives
+on REALM, SuspendToken on INSTANCE, and NewWorld on REALM. The client answers
+SuspendToken on INSTANCE with its same little-endian sequence before NewWorld
+exists. ResumeToken is validated on INSTANCE and has no client ACK. After
+LOGIN_VERIFY_WORLD, the controller sends CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE
+once on INSTANCE; after NewWorld it sends the empty world-port response and
+then active-mover completion on the same INSTANCE stream because Player
+teleport resets the visibility override. The C++ client opcode handler has no
+socket restriction, and WorldSocket queues packets from either connection.
+Using one TCP stream preserves the required response order across the server's
+two-socket arrival interleaving. Time-sync responses also have one owner while
+this controller is active.
+
+Only run and swim speed changes are acknowledged. Known flight, hover, walk,
+backward-speed, pitch-rate and turn-rate controls fail explicitly until their
+exact client ACK behavior is implemented. Near-teleport movement with transport
+or vehicle extensions also fails explicitly because this controller has no
+contract for those MovementInfo variants.
+
+Plans may use only the closed movement actions `heartbeat`, `start_forward`,
+`stop` and `fall_land`. Each supplies finite `x`, `y`, `z` and `orientation`,
+with optional `time_ms`. `fall_land` requires `fall` data; any action can provide
+fall data to describe a seeded airborne position before a timed landing. The
+controller retains root and water-walking flags, rejects forward movement while
+rooted, and requires explicit fall data whenever the outgoing MovementInfo has
+a falling flag. For example, these typed actions describe an airborne heartbeat
+and subsequent landing; the fixture must already place the character at the
+matching airborne start position and the coordinates/time must match its
+authorized movement path:
+
+```json
+[
+  {"action":"movement","kind":"heartbeat","time_ms":100,"x":10.0,"y":20.0,"z":8.0,"orientation":0.0,
+   "fall":{"fall_time_ms":800,"z_speed":-2.0,"sin_angle":0.0,"cos_angle":1.0,"xy_speed":0.0}},
+  {"action":"movement","kind":"fall_land","time_ms":900,"x":10.0,"y":20.0,"z":0.0,"orientation":0.0,
+   "fall":{"fall_time_ms":800,"z_speed":-2.0,"sin_angle":0.0,"cos_angle":1.0,"xy_speed":0.0}}
+]
+```
+
+The movement contract is pinned to `woltk-trinity-legacy` HEAD
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `MovementPackets.cpp:104–179`
+defines MovementInfo read order and conditional fall fields; `MovementPackets.h:37–41`
+and `.cpp:800–823` define MovementAck; `.cpp:622–648` defines the server
+MoveSetSpeed/MoveSetFlag fields; `.cpp:685–702` writes NewWorld's map and
+TeleportLocation, with `MovementPackets.h:268–272` defaulting the two unused
+TeleportLocation fields to `-1`; and
+`.cpp:1005–1017` defines SuspendToken and its response; `.cpp:1019–1026`
+defines ResumeToken. `MovementHandler.cpp:238–257`
+places NewWorld after the suspend response. `Player.cpp:1434–1474` sends
+TransferPending then SuspendToken and resets the visibility override during
+teleport. `CharacterHandler.cpp:1087–1090,1229–1240` establishes login position
+before death controls. `Unit.cpp:8460–8504,10893–10925,12718–12743` emits the
+relevant speed, root and water-walk changes; `UnitDefines.h:384–386` defines
+the movement mask cleared before root. `Opcodes.cpp:1663,1711,1727–1747,
+1776–1777,1811,2023,2150,2173` routes LOGIN_VERIFY_WORLD to INSTANCE; the
+supported root, land-walk, speed, water-walk and near-teleport controls to
+INSTANCE; flight, hover, walk, backward-speed, pitch-rate and turn-rate controls
+to INSTANCE; NewWorld to REALM; ResumeToken and SuspendToken to INSTANCE; and
+TransferPending to REALM. `Opcodes.cpp:1019` registers the empty WorldPortResponse
+handler without a socket constraint; `WorldSocket.cpp:363,488–499` tags each
+incoming packet with its socket then queues it to the session. The tests check
+response routes and keep the ordered world-port and active-mover writes on one
+INSTANCE stream.
+
+This is finite client protocol support, not a replicated world or general
+physics implementation. The current plan still accepts literal GUIDs for
+healers; an observed entry-plus-near-position creature selector is deferred.
+Lifecycle reports and bot packet traces do not replace the parent campaign's
+required real server captures or live acceptance evidence.
+
 For example, an explicit release followed by a reclaim attempt can be written
 as:
 
@@ -121,15 +201,15 @@ connection, opcode and complete body. Expectations preserve order separately
 on each connection. The merged trace records client poll/arrival order across
 the two sockets; that interleaving does not claim server enqueue order.
 
-The post-login trace starts after the existing authenticated login drain. It
-stores logical decrypted, uncompressed opcode/body bytes, route, per-connection
-sequence and merged observation sequence. Action boundaries, send attempts and
-successful local writes are distinct. A failed write keeps its attempted body
-and error without claiming completion. Authentication, encrypted-mode and
-ConnectTo bodies are omitted even if encountered later; the trace retains only
-their opcode, route, byte count and order. Raw packet equality is packet-level
-evidence and does not by itself certify the full death lifecycle or database
-state.
+The lifecycle trace begins during the authenticated login burst and continues
+through its bounded post-login drain. It stores logical decrypted,
+uncompressed opcode/body bytes, route, per-connection sequence and merged
+observation sequence. Action boundaries, send attempts and successful local
+writes are distinct. A failed write keeps its attempted body and error without
+claiming completion. Authentication, encrypted-mode and ConnectTo bodies are
+omitted even if encountered later; the trace retains only their opcode, route,
+byte count and order. Raw packet equality is packet-level evidence and does not
+by itself certify the full death lifecycle or database state.
 
 The default `finish_policy` is `logout`: the bot sends its normal logout request
 and still requires an empty realm SMSG_LOGOUT_COMPLETE. Set

@@ -22,9 +22,12 @@ Runtime swaps and destructive fixture modes retain their separate explicit guard
 
 ## Death lifecycle acceptance (#43, preparation)
 
-As of 2026-10-25, the login smoke does **not** exercise death/release/reclaim or
-spirit-healer recovery. The death driver and its fresh captures are still pending;
-the scenarios below are acceptance requirements, not reports of completed runs.
+As of 2026-10-28, the login smoke does **not** exercise death/release/reclaim or
+spirit-healer recovery. The scripted runner has typed lifecycle requests and
+safe byte evidence and a finite movement/control handler with focused coding
+feedback. The guarded campaign remains in preparation. The scenarios below are
+acceptance requirements, not completed
+live runs.
 
 Use a committed debug `world-server` candidate under the runtime swap/restore
 guard. Read-only preflight on 2026-10-24 found TESTBOT1's sole character at level
@@ -38,7 +41,12 @@ existing accounts, with account provisioning disabled:
 | TESTBOT3 (10) | Qadeathmob, Human Mage, level 1 | Ordinary lethal creature damage without downgrading an existing character. |
 | TESTBOT3 (10) | Qadeathwisp, Night Elf Hunter, level 11 | Wisp Spirit and the one-minute sickness duration. |
 | TESTBOT5 (12) | Qadeathreinc, Orc Shaman, level 80 | Legal Reincarnation and its real reagent/cooldown checks. |
-| TESTBOT2 (9) | Existing character 15, Paladin, level 80 | Observer and resurrection caster. |
+| TESTBOT2 (9) | Qadeathcast, Human Paladin, level 80 | Observer and legal Redemption caster. |
+
+The 2026-10-28 preparation uses a fifth new disposable character for the caster
+instead of altering character 15. This keeps existing character rows and spell
+lists outside fixture restoration. All five names and GUIDs must be checked
+again before allocation. This preparation does not authorize their creation.
 
 These names and new GUIDs are unallocated candidates. Recheck collisions,
 account ownership and offline state before any authorized preparation. Select
@@ -74,8 +82,7 @@ the journal until restoration is confirmed. Prepare and recover the new rows
 with World stopped: its running GUID generators must not be bypassed by
 inserting new characters/items behind them. Use a transaction with unique
 inserts and journal the exact allocated IDs before the first write. Recovery
-removes only this fixture's owned rows and restores any selected pre-existing
-Paladin spell row exactly; it does not restore entire auth tables or erase
+removes only this fixture's owned rows; it does not restore entire auth tables or erase
 other account characters. Reuse the integrated bot's durable
 journal conventions. No fixture SQL has been executed by this preparation.
 Read-only schema inspection on 2026-10-25 confirmed that new `characters` rows
@@ -115,6 +122,16 @@ Authentication/control trace events must contain phase and routing metadata
 without key-bearing bodies. This logging change is not an executed death-driver
 or capture result.
 
+On this systemd host, extend the existing `tools/qa-runtime.sh` swap/restore
+guard for the selected lifecycle campaign. Retain actual C++ PKT and Rust
+`.bin`/`.meta` server captures as well as the bot trace. Pin the candidate,
+listener PID/start time, effective redacted configuration, fixture journal and
+restoration in the run report. The existing comparator supports raw pairs with
+`capture-diff diff --cpp <pkt> --rust <dir> --strict --json` and reviewed action
+boundaries. This avoids a general capture-import migration: do not manufacture
+PM2 identities for a systemd run or label it an imported ready flow. Existing
+required-flow provenance gates remain applicable to any later promotion.
+
 | Scenario | Required observations |
 |---|---|
 | Lethal fall, then release | Actual server-applied lethal damage; root before release; one corpse for the owner; ghost auras and water-walk; realm `PreRessurect` before `DeathReleaseLoc`; near teleport completed by its ACK. |
@@ -153,8 +170,11 @@ Spirit Healer entry 6491 has map-0 spawn rows 9008549 and 9008781 at
 The Orc-side candidate is spawn 9008633 near (240.765, -4791, 10.256).
 Discover the live NPC identity and visibility; do not assume a database spawn
 counter is the runtime GUID or change the duplicate data for this test.
-Durable item templates still need verification through the installed DB2
-reader before choosing the exact equipment fixture. Use target-version slot
+The production DB2 reader's 2026-10-28 focused probe verified items 2121 and
+17030 after correcting ItemSparse's signed AllowableClass field to target
+field 46. Both allow class mask `-1`; item 2121 is cloth chest equipment with
+maximum durability 40, and reagent 17030 stacks to 10. This is data-reader
+evidence, not an equipped-item or live durability pass. Use target-version slot
 constants: backpack starts at 35 and equipped bag slots are 30 through 33
 (`Player.h:671–683`), not the 3.3.5 inventory layout.
 The raw ItemEffect inventory of 86 positive OnPickup rows and 39 charged parent

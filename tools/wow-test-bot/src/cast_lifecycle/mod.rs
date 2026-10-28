@@ -2,10 +2,19 @@
 
 use super::*;
 
+mod movement;
 mod plan;
 mod report;
 mod wire;
 
+pub(crate) use movement::Controller;
+#[cfg(test)]
+use movement::Outbound;
+use movement::{
+    SMSG_LOGIN_VERIFY_WORLD, SMSG_MOVE_ROOT, SMSG_MOVE_SET_LAND_WALK, SMSG_MOVE_SET_RUN_SPEED,
+    SMSG_MOVE_SET_SWIM_SPEED, SMSG_MOVE_SET_WATER_WALK, SMSG_MOVE_TELEPORT, SMSG_MOVE_UNROOT,
+    SMSG_NEW_WORLD, SMSG_RESUME_TOKEN, SMSG_SUSPEND_TOKEN, SMSG_TRANSFER_PENDING,
+};
 pub(super) use plan::*;
 use report::*;
 use wire::*;
@@ -59,49 +68,32 @@ const LOGOUT_OBSERVATION_MS: u64 = 30_000;
 /// Run scripted client actions and a bounded observer window. Failures remain
 /// in `Evidence`, including a failed local write after its send attempt.
 pub(super) async fn execute(
-    options: &Options,
+    controller: &mut Controller,
     stream: &mut TcpStream,
     crypt: &mut WorldCrypt,
     inflater: &mut ServerPacketInflater,
     realm: &mut Option<EncryptedWorldConnection>,
-) -> Result<Evidence> {
-    let mut evidence = Evidence {
-        observe_only: options.plan.observe_only,
-        plan_path: options.source_path.clone(),
-        timeout_ms: options.plan.timeout_ms,
-        actions: options.plan.actions.clone(),
-        expected_rules: options
-            .plan
-            .expect
-            .iter()
-            .cloned()
-            .map(|rule| ExpectedFact {
-                rule,
-                matched: false,
-                event_sequence: None,
-                detail: "not evaluated".to_string(),
-            })
-            .collect(),
-        finish_policy: options.plan.finish_policy,
-        ..Evidence::default()
-    };
-    let deadline = tokio::time::Instant::now() + Duration::from_millis(options.plan.timeout_ms);
+) -> Result<()> {
+    let actions = controller.options.plan.actions.clone();
+    let deadline =
+        tokio::time::Instant::now() + Duration::from_millis(controller.options.plan.timeout_ms);
 
-    for (action_index, action) in options.plan.actions.iter().enumerate() {
+    for (action_index, action) in actions.iter().enumerate() {
         if tokio::time::Instant::now() >= deadline {
             record_action_boundary(
-                &mut evidence,
+                &mut controller.evidence,
                 Some(action_index),
                 action_name(action),
                 TraceKind::ActionSkipped,
                 Some("script deadline expired before action start".to_string()),
             );
-            evidence.failure = Some("script exceeded timeout before the next action".to_string());
+            controller.evidence.failure =
+                Some("script exceeded timeout before the next action".to_string());
             break;
         }
         let action_name = action_name(action);
         record_action_boundary(
-            &mut evidence,
+            &mut controller.evidence,
             Some(action_index),
             action_name,
             TraceKind::ActionStarted,
@@ -117,7 +109,7 @@ pub(super) async fn execute(
                 send_traced_packet(
                     stream,
                     crypt,
-                    &mut evidence,
+                    &mut controller.evidence,
                     Connection::Instance,
                     Some(action_index),
                     action_name,
@@ -144,7 +136,7 @@ pub(super) async fn execute(
                 send_traced_packet(
                     stream,
                     crypt,
-                    &mut evidence,
+                    &mut controller.evidence,
                     Connection::Instance,
                     Some(action_index),
                     action_name,
@@ -163,7 +155,7 @@ pub(super) async fn execute(
                 send_traced_packet(
                     stream,
                     crypt,
-                    &mut evidence,
+                    &mut controller.evidence,
                     Connection::Instance,
                     Some(action_index),
                     action_name,
@@ -172,26 +164,42 @@ pub(super) async fn execute(
                 )
                 .await
             }
+            Action::Movement { .. } => match controller.movement_action(action) {
+                Ok((opcode, body)) => {
+                    send_traced_packet(
+                        stream,
+                        crypt,
+                        &mut controller.evidence,
+                        Connection::Instance,
+                        Some(action_index),
+                        action_name,
+                        opcode,
+                        &body,
+                    )
+                    .await
+                }
+                Err(error) => Err(error),
+            },
             Action::Wait { milliseconds } => {
                 let wait_deadline = (tokio::time::Instant::now()
                     + Duration::from_millis(*milliseconds))
                 .min(deadline);
-                collect_until(wait_deadline, stream, crypt, inflater, realm, &mut evidence).await
+                collect_until(wait_deadline, stream, crypt, inflater, realm, controller).await
             }
         };
         if let Err(error) = action_result {
             record_action_boundary(
-                &mut evidence,
+                &mut controller.evidence,
                 Some(action_index),
                 action_name,
                 TraceKind::ActionFailed,
                 Some(error.to_string()),
             );
-            evidence.failure = Some(format!("action failed: {error}"));
+            controller.evidence.failure = Some(format!("action failed: {error}"));
             break;
         }
         record_action_boundary(
-            &mut evidence,
+            &mut controller.evidence,
             Some(action_index),
             action_name,
             TraceKind::ActionCompleted,
@@ -199,76 +207,114 @@ pub(super) async fn execute(
         );
     }
 
-    if evidence.failure.is_none() {
+    if controller.evidence.failure.is_none() {
         if let Err(error) =
-            collect_until(deadline, stream, crypt, inflater, realm, &mut evidence).await
+            collect_until(deadline, stream, crypt, inflater, realm, controller).await
         {
-            evidence.failure = Some(format!("observer failed: {error}"));
+            controller.evidence.failure = Some(format!("observer failed: {error}"));
         }
     }
-    evaluate(&mut evidence);
-    Ok(evidence)
+    evaluate(&mut controller.evidence);
+    Ok(())
 }
 
 pub(super) async fn run_after_login(
-    options: Options,
+    mut controller: Controller,
     stream: &mut TcpStream,
     crypt: &mut WorldCrypt,
     inflater: &mut ServerPacketInflater,
     realm: &mut Option<EncryptedWorldConnection>,
     result: &mut BotRunResult,
 ) {
-    if let Err(error) = drain_login_streams(stream, crypt, inflater, realm, result).await {
-        let mut evidence = Evidence {
-            observe_only: options.plan.observe_only,
-            plan_path: options.source_path.clone(),
-            timeout_ms: options.plan.timeout_ms,
-            actions: options.plan.actions.clone(),
-            expected_rules: options
-                .plan
-                .expect
-                .iter()
-                .cloned()
-                .map(|rule| ExpectedFact {
-                    rule,
-                    matched: false,
-                    event_sequence: None,
-                    detail: "login drain failed before evaluation".to_string(),
-                })
-                .collect(),
-            finish_policy: options.plan.finish_policy,
-            ..Evidence::default()
-        };
-        evidence.failure = Some(format!("login stream drain failed: {error}"));
-        result.cast_lifecycle = Some(evidence);
+    if let Err(error) =
+        drain_login_streams_with_controller(stream, crypt, inflater, realm, result, &mut controller)
+            .await
+    {
+        abort_login(
+            controller,
+            format!("login stream drain failed: {error}"),
+            stream,
+            realm,
+            result,
+        )
+        .await;
         return;
     }
-    let mut evidence = match execute(&options, stream, crypt, inflater, realm).await {
-        Ok(evidence) => evidence,
-        Err(error) => Evidence {
-            observe_only: options.plan.observe_only,
-            plan_path: options.source_path.clone(),
-            timeout_ms: options.plan.timeout_ms,
-            actions: options.plan.actions.clone(),
-            expected_rules: options
-                .plan
-                .expect
-                .iter()
-                .cloned()
-                .map(|rule| ExpectedFact {
-                    rule,
-                    matched: false,
-                    event_sequence: None,
-                    detail: "execution failed before evaluation".to_string(),
-                })
-                .collect(),
-            finish_policy: options.plan.finish_policy,
-            failure: Some(error.to_string()),
-            ..Evidence::default()
-        },
+    if let Err(error) = execute(&mut controller, stream, crypt, inflater, realm).await {
+        controller.evidence.failure = Some(error.to_string());
+    }
+    if let Some(failure) = controller.evidence.failure.clone() {
+        abort_login(controller, failure, stream, realm, result).await;
+        return;
+    }
+    finish(stream, crypt, inflater, realm, &mut controller).await;
+    result.cast_lifecycle = Some(controller.evidence);
+}
+
+/// Preserve controller observations and close open sockets without sending
+/// another client packet after a login-frame or movement-control failure.
+pub(crate) async fn abort_login(
+    mut controller: Controller,
+    failure: String,
+    stream: &mut TcpStream,
+    realm: &mut Option<EncryptedWorldConnection>,
+    result: &mut BotRunResult,
+) {
+    controller.evidence.failure.get_or_insert(failure);
+    let primary_connection = if realm.is_some() {
+        Connection::Instance
+    } else {
+        Connection::Realm
     };
-    finish(stream, crypt, inflater, realm, &mut evidence).await;
-    result.cast_lifecycle = Some(evidence);
+    let primary_close = stream.shutdown().await;
+    record_socket_close(
+        &mut controller.evidence,
+        primary_connection,
+        primary_close.as_ref().err(),
+    );
+    let mut sockets_closed = primary_close.is_ok();
+    if let Some(realm) = realm.as_mut() {
+        let realm_close = realm.stream.shutdown().await;
+        sockets_closed &= realm_close.is_ok();
+        record_socket_close(
+            &mut controller.evidence,
+            Connection::Realm,
+            realm_close.as_ref().err(),
+        );
+        if let Err(error) = realm_close {
+            append_failure(
+                &mut controller.evidence,
+                format!("realm socket shutdown failed: {error}"),
+            );
+        }
+    }
+    controller.evidence.local_disconnect_recorded = sockets_closed;
+    controller.evidence.finish_completed = false;
+    if let Err(error) = primary_close {
+        append_failure(
+            &mut controller.evidence,
+            format!("{primary_connection:?} socket shutdown failed: {error}"),
+        );
+    }
+    preserve_controller_failure(controller, result, "login/controller failure".to_string());
+}
+
+pub(crate) fn preserve_controller_failure(
+    mut controller: Controller,
+    result: &mut BotRunResult,
+    failure: String,
+) {
+    controller.evidence.failure.get_or_insert(failure);
+    result.cast_lifecycle = Some(controller.evidence);
+}
+
+fn append_failure(evidence: &mut Evidence, detail: String) {
+    if let Some(failure) = evidence.failure.as_mut() {
+        failure.push_str("; ");
+        failure.push_str(&detail);
+    } else {
+        evidence.failure = Some(detail);
+    }
 }
 
 /// Apply the selected finish policy and close both encrypted sockets without
@@ -279,12 +325,12 @@ pub(super) async fn finish(
     crypt: &mut WorldCrypt,
     inflater: &mut ServerPacketInflater,
     realm: &mut Option<EncryptedWorldConnection>,
-    evidence: &mut Evidence,
+    controller: &mut Controller,
 ) {
-    match evidence.finish_policy {
+    match controller.evidence.finish_policy {
         FinishPolicy::Logout => {
             record_action_boundary(
-                evidence,
+                &mut controller.evidence,
                 None,
                 "finish_logout",
                 TraceKind::ActionStarted,
@@ -293,7 +339,7 @@ pub(super) async fn finish(
             if let Err(error) = send_traced_packet(
                 stream,
                 crypt,
-                evidence,
+                &mut controller.evidence,
                 Connection::Instance,
                 None,
                 "finish_logout",
@@ -302,28 +348,30 @@ pub(super) async fn finish(
             )
             .await
             {
-                evidence
+                controller
+                    .evidence
                     .failure
                     .get_or_insert_with(|| format!("logout request failed: {error}"));
                 record_action_boundary(
-                    evidence,
+                    &mut controller.evidence,
                     None,
                     "finish_logout",
                     TraceKind::ActionFailed,
                     Some(error.to_string()),
                 );
             } else {
-                evidence.logout_request_completed = true;
+                controller.evidence.logout_request_completed = true;
                 let deadline =
                     tokio::time::Instant::now() + Duration::from_millis(LOGOUT_OBSERVATION_MS);
                 if let Err(error) =
-                    collect_until(deadline, stream, crypt, inflater, realm, evidence).await
+                    collect_until(deadline, stream, crypt, inflater, realm, controller).await
                 {
-                    evidence
+                    controller
+                        .evidence
                         .failure
                         .get_or_insert_with(|| format!("logout observation failed: {error}"));
                     record_action_boundary(
-                        evidence,
+                        &mut controller.evidence,
                         None,
                         "finish_logout",
                         TraceKind::ActionFailed,
@@ -331,7 +379,7 @@ pub(super) async fn finish(
                     );
                 } else {
                     record_action_boundary(
-                        evidence,
+                        &mut controller.evidence,
                         None,
                         "finish_logout",
                         TraceKind::ActionCompleted,
@@ -342,7 +390,7 @@ pub(super) async fn finish(
         }
         FinishPolicy::Disconnect => {
             record_action_boundary(
-                evidence,
+                &mut controller.evidence,
                 None,
                 "finish_disconnect",
                 TraceKind::ActionStarted,
@@ -352,7 +400,7 @@ pub(super) async fn finish(
     }
     let instance_close = stream.shutdown().await;
     record_socket_close(
-        evidence,
+        &mut controller.evidence,
         Connection::Instance,
         instance_close.as_ref().err(),
     );
@@ -361,11 +409,15 @@ pub(super) async fn finish(
     if let Some(realm) = realm.as_mut() {
         let close = realm.stream.shutdown().await;
         realm_close_error = close.as_ref().err().map(ToString::to_string);
-        record_socket_close(evidence, Connection::Realm, close.as_ref().err());
+        record_socket_close(
+            &mut controller.evidence,
+            Connection::Realm,
+            close.as_ref().err(),
+        );
     }
     let sockets_closed = instance_close.is_ok() && has_realm_socket && realm_close_error.is_none();
     if !sockets_closed {
-        evidence.failure.get_or_insert_with(|| {
+        controller.evidence.failure.get_or_insert_with(|| {
             let close_error = instance_close
                 .err()
                 .map(|error| error.to_string())
@@ -375,17 +427,18 @@ pub(super) async fn finish(
             format!("local socket close failed: {close_error}")
         });
     }
-    match evidence.finish_policy {
+    match controller.evidence.finish_policy {
         FinishPolicy::Logout => {
-            evidence.finish_completed = evidence.logout_confirmed && sockets_closed;
-            finalize_finish(evidence);
+            controller.evidence.finish_completed =
+                controller.evidence.logout_confirmed && sockets_closed;
+            finalize_finish(&mut controller.evidence);
         }
         FinishPolicy::Disconnect => {
-            evidence.local_disconnect_recorded = sockets_closed;
-            evidence.finish_completed = sockets_closed;
+            controller.evidence.local_disconnect_recorded = sockets_closed;
+            controller.evidence.finish_completed = sockets_closed;
             if sockets_closed {
                 record_action_boundary(
-                    evidence,
+                    &mut controller.evidence,
                     None,
                     "finish_disconnect",
                     TraceKind::ActionCompleted,
@@ -393,14 +446,14 @@ pub(super) async fn finish(
                 );
             } else {
                 record_action_boundary(
-                    evidence,
+                    &mut controller.evidence,
                     None,
                     "finish_disconnect",
                     TraceKind::ActionFailed,
                     Some("one or more local sockets did not close cleanly".to_string()),
                 );
             }
-            finalize_finish(evidence);
+            finalize_finish(&mut controller.evidence);
         }
     }
 }
@@ -422,6 +475,12 @@ fn action_name(action: &Action) -> &'static str {
         Action::ResurrectResponse { .. } => "resurrect_response",
         Action::SelfRes { .. } => "self_res",
         Action::AttackSwing { .. } => "attack_swing",
+        Action::Movement { kind, .. } => match kind {
+            MovementKind::Heartbeat => "movement_heartbeat",
+            MovementKind::StartForward => "movement_start_forward",
+            MovementKind::Stop => "movement_stop",
+            MovementKind::FallLand => "movement_fall_land",
+        },
         Action::Wait { .. } => "wait",
     }
 }

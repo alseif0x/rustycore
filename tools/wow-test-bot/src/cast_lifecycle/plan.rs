@@ -89,9 +89,43 @@ pub(crate) enum Action {
     AttackSwing {
         target: Guid,
     },
+    /// One finite client movement packet. The opcode comes from the closed
+    /// `MovementKind` set; control flags remain owned by the live controller.
+    Movement {
+        kind: MovementKind,
+        #[serde(default)]
+        time_ms: u32,
+        x: f32,
+        y: f32,
+        z: f32,
+        orientation: f32,
+        #[serde(default)]
+        fall: Option<FallData>,
+    },
     Wait {
         milliseconds: u64,
     },
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum MovementKind {
+    Heartbeat,
+    StartForward,
+    Stop,
+    FallLand,
+}
+
+/// Optional `MovementInfo::jump` data. Supplying it sets FALLING and writes
+/// `fallTime`, `zspeed`, the direction bit, then its three floats.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct FallData {
+    pub(crate) fall_time_ms: u32,
+    pub(crate) z_speed: f32,
+    pub(crate) sin_angle: f32,
+    pub(crate) cos_angle: f32,
+    pub(crate) xy_speed: f32,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -226,6 +260,7 @@ pub(crate) struct Evidence {
     pub local_disconnect_recorded: bool,
     pub finish_completed: bool,
     pub failure: Option<String>,
+    pub movement_state: Option<MovementStateFact>,
     #[serde(skip)]
     pub(crate) connection_sequences: ConnectionSequences,
 }
@@ -252,9 +287,22 @@ impl Default for Evidence {
             local_disconnect_recorded: false,
             finish_completed: false,
             failure: None,
+            movement_state: None,
             connection_sequences: ConnectionSequences::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub(crate) struct MovementStateFact {
+    pub(crate) mover: Guid,
+    pub(crate) map_id: Option<i32>,
+    pub(crate) x: Option<f32>,
+    pub(crate) y: Option<f32>,
+    pub(crate) z: Option<f32>,
+    pub(crate) orientation: Option<f32>,
+    pub(crate) flags: u32,
+    pub(crate) active_mover_complete_count: u32,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -489,7 +537,9 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<()> {
     // An explicit collection-only observer is useful for later paired analysis;
     // its empty expectation set can never pass the evaluator.
     if plan.observe_only && (!plan.actions.is_empty() || !plan.expect.is_empty()) {
-        bail!("observe_only requires empty actions and expectations; pair its facts with the caster capture externally");
+        bail!(
+            "observe_only requires empty actions and expectations; pair its facts with the caster capture externally"
+        );
     }
     if plan.expect.is_empty() && !plan.observe_only {
         bail!("cast lifecycle plan requires at least one explicit expect rule");
@@ -526,6 +576,37 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<()> {
             }
             Action::SelfRes { spell_id } if *spell_id <= 0 => {
                 bail!("self_res action requires a positive int32 spell_id");
+            }
+            Action::Movement {
+                kind,
+                x,
+                y,
+                z,
+                orientation,
+                fall,
+                ..
+            } => {
+                if ![x, y, z, orientation]
+                    .into_iter()
+                    .all(|value| value.is_finite())
+                {
+                    bail!("movement action coordinates and orientation must be finite");
+                }
+                if *kind == MovementKind::FallLand && fall.is_none() {
+                    bail!("fall_land requires finite fall data");
+                }
+                if let Some(fall) = fall {
+                    if fall.fall_time_ms == 0
+                        || fall.fall_time_ms > MAX_WAIT_MS as u32
+                        || ![fall.z_speed, fall.sin_angle, fall.cos_angle, fall.xy_speed]
+                            .into_iter()
+                            .all(f32::is_finite)
+                    {
+                        bail!(
+                            "movement fall data requires a bounded positive time and finite floats"
+                        );
+                    }
+                }
             }
             Action::Wait { .. }
             | Action::ReleaseSpirit { .. }

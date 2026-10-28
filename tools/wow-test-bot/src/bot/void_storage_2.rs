@@ -644,6 +644,9 @@ pub(crate) async fn run_bot_with_void_storage(
         let mut crypt = world_crypt.take().unwrap();
         let mut server_inflater = ServerPacketInflater::default();
         let mut realm_connection: Option<EncryptedWorldConnection> = None;
+        let mut cast_lifecycle_controller = cast_lifecycle_options.clone().map(|options| {
+            cast_lifecycle::Controller::new(options, bot.character_guid, realm_id())
+        });
 
         // ── Step 7a: Enumerate Characters ──────────────────────────────────────
         // The worldserver gates HandlePlayerLoginOpcode on `_legitCharacters` being
@@ -727,11 +730,55 @@ pub(crate) async fn run_bot_with_void_storage(
                 Ok(Ok((op, payload))) => {
                     result.seen_opcodes.push(format!("0x{:04X}", op));
                     login_stream::observe_login_packet(realm_connection.is_some(), op, &mut result);
+                    let controller_observation = match cast_lifecycle_controller.as_mut() {
+                        Some(controller) => Some(
+                            controller
+                                .observe_packet(
+                                    realm_connection.is_some(),
+                                    op,
+                                    &payload,
+                                    &mut stream,
+                                    &mut crypt,
+                                    &mut realm_connection,
+                                )
+                                .await,
+                        ),
+                        None => None,
+                    };
+                    if let Some(Err(error)) = controller_observation {
+                        if let Some(controller) = cast_lifecycle_controller.take() {
+                            cast_lifecycle::abort_login(
+                                controller,
+                                format!("initial login controller failed: {error}"),
+                                &mut stream,
+                                &mut realm_connection,
+                                &mut result,
+                            )
+                            .await;
+                            return Ok(result);
+                        }
+                    }
                     if op == crate::chat_say::SMSG_CHAT {
                         crate::chat_say::record(bot_index, &payload, &mut result);
                     }
                     if op == SMSG_SEND_KNOWN_SPELLS {
-                        let decoded = decode_login_known_spells_like_cpp(&payload)?;
+                        let decoded = match decode_login_known_spells_like_cpp(&payload) {
+                            Ok(decoded) => decoded,
+                            Err(error) => {
+                                if let Some(controller) = cast_lifecycle_controller.take() {
+                                    cast_lifecycle::abort_login(
+                                        controller,
+                                        format!("SMSG_SEND_KNOWN_SPELLS decode failed: {error}"),
+                                        &mut stream,
+                                        &mut realm_connection,
+                                        &mut result,
+                                    )
+                                    .await;
+                                    return Ok(result);
+                                }
+                                return Err(error);
+                            }
+                        };
                         if !decoded.initial_login {
                             bail!("login SMSG_SEND_KNOWN_SPELLS has InitialLogin=false");
                         }
@@ -967,8 +1014,24 @@ pub(crate) async fn run_bot_with_void_storage(
                     }
 
                     if op == 0x304D {
-                        let connect_to = parse_connect_to(&payload)
-                            .ok_or_else(|| anyhow!("Unable to parse SMSG_CONNECT_TO payload"))?;
+                        let connect_to = match parse_connect_to(&payload) {
+                            Some(connect_to) => connect_to,
+                            None => {
+                                let error = anyhow!("Unable to parse SMSG_CONNECT_TO payload");
+                                if let Some(controller) = cast_lifecycle_controller.take() {
+                                    cast_lifecycle::abort_login(
+                                        controller,
+                                        error.to_string(),
+                                        &mut stream,
+                                        &mut realm_connection,
+                                        &mut result,
+                                    )
+                                    .await;
+                                    return Ok(result);
+                                }
+                                return Err(error);
+                            }
+                        };
                         info!(
                             "[Bot {}] SMSG_CONNECT_TO: {}:{} serial={} con={}",
                             bot_index,
@@ -978,8 +1041,25 @@ pub(crate) async fn run_bot_with_void_storage(
                             connect_to.connection_type
                         );
                         let (instance_stream, instance_crypt) =
-                            connect_to_instance(bot_index, &connect_to, &derived_session_key)
-                                .await?;
+                            match connect_to_instance(bot_index, &connect_to, &derived_session_key)
+                                .await
+                            {
+                                Ok(connection) => connection,
+                                Err(error) => {
+                                    if let Some(controller) = cast_lifecycle_controller.take() {
+                                        cast_lifecycle::abort_login(
+                                            controller,
+                                            format!("instance auth handoff failed: {error}"),
+                                            &mut stream,
+                                            &mut realm_connection,
+                                            &mut result,
+                                        )
+                                        .await;
+                                        return Ok(result);
+                                    }
+                                    return Err(error);
+                                }
+                            };
                         // The server keeps cross-socket ordering fences alive after
                         // SMSG_CONNECT_TO, so the realm socket must stay open on every
                         // mode: closing it makes the realm writer disappear before it
@@ -1041,6 +1121,17 @@ pub(crate) async fn run_bot_with_void_storage(
                 }
                 Ok(Err(e)) => {
                     warn!("[Bot {}] Login read error: {}", bot_index, e);
+                    if let Some(controller) = cast_lifecycle_controller.take() {
+                        cast_lifecycle::abort_login(
+                            controller,
+                            format!("login stream read failed: {e}"),
+                            &mut stream,
+                            &mut realm_connection,
+                            &mut result,
+                        )
+                        .await;
+                        return Ok(result);
+                    }
                     break;
                 }
                 // A quiet five-second slice does not invalidate an otherwise
@@ -1049,6 +1140,17 @@ pub(crate) async fn run_bot_with_void_storage(
             }
         }
         if !login_ok {
+            if let Some(controller) = cast_lifecycle_controller.take() {
+                cast_lifecycle::abort_login(
+                    controller,
+                    "login window ended before LOGIN_VERIFY_WORLD".to_string(),
+                    &mut stream,
+                    &mut realm_connection,
+                    &mut result,
+                )
+                .await;
+                return Ok(result);
+            }
             bail!("Login verification failed");
         }
         if require_known_spells && !known_spells_seen {
@@ -1059,9 +1161,9 @@ pub(crate) async fn run_bot_with_void_storage(
         }
         result.player_login_verified = true;
 
-        if let Some(cast_lifecycle_options) = cast_lifecycle_options {
+        if let Some(cast_lifecycle_controller) = cast_lifecycle_controller {
             cast_lifecycle::run_after_login(
-                cast_lifecycle_options,
+                cast_lifecycle_controller,
                 &mut stream,
                 &mut crypt,
                 &mut server_inflater,

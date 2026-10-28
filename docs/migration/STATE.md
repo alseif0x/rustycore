@@ -50,7 +50,7 @@ evidence remain outstanding.
 
 **Earlier slice context:** The following summaries describe their own
 checkpoints. Statements about a missing death caller at those checkpoints are
-superseded by the uncommitted integration above; they are not another task list.
+superseded by the native integration checkpoint above; they are not another task list.
 The working release path now invokes Application's pet-removal operation.
 Its absent-Pet branch resolves only the current Map, retains stale GUIDs,
 returns temporary-pet reagents once, and resets the stable selection. The live
@@ -219,6 +219,15 @@ spawn rows were still present. No account, character, item or runtime state
 was changed. Recheck those conditions before any authorized preparation;
 these reads do not establish a playable fixture or action acceptance.
 
+The 2026-10-28 read-only name recheck also found no `Qadeathcast` collision;
+characters 15/16/18 remained offline at levels 80/80/3. The prepared campaign
+now uses five new disposable characters, including a Human Paladin caster,
+instead of adding a spell or changing the existing character 15. No fixture
+rows were allocated. The current-host capture decision reuses the systemd
+runtime guard and the existing comparator's raw-pair mode; it retains both
+native server captures and the client's action trace, without inventing PM2
+provenance or expanding the general capture-import programme.
+
 The reference runtime is available at
 `/home/server/woltk-trinity-legacy/build-r6/src/server/worldserver/worldserver`.
 Its SHA-256 is
@@ -273,8 +282,29 @@ expectations and distinct logout/disconnect outcomes. It is checkpointed at
 dirty tree. The initial standalone dependency preparation cost 8m 01s for
 `cargo check` and 6m 47s for the focused test build; these are coding/bootstrap
 costs, not the ordinary warm final campaign. Logs are under
-`/tmp/rustycore43-death-driver-feedback/`. Movement/control ACKs, current-host
-capture orchestration and live lifecycle acceptance remain outstanding.
+`/tmp/rustycore43-death-driver-feedback/`.
+The subsequent client controller now retains the authenticated login burst,
+initializes its actual mover/position, and owns root, water-walk, run/swim speed,
+near-teleport and suspend/worldport acknowledgements. Worldport response and
+renewed visibility initialization use the same instance socket to preserve
+their order. Root clears incompatible movement/fall flags; unsupported
+transport/vehicle and other unhandled controls fail explicitly. Initial control,
+read, known-spell decode and auth-handoff failures retain their observed evidence
+while closing both sockets. The repaired dirty tree passed 34 focused bot cases
+(204 filtered), exit 0, at 18:56:25–18:56:35 UTC on 2026-10-28. The scoped patch
+fingerprint was `33bfb13b2d4255259d6a7e8cffad4e0597944a0c891beaf12ffc8a3feb5f36fd`;
+logs are under `/tmp/rustycore43-movement-feedback/`. The parent then formatted
+the owned files. This is coding feedback, not committed-candidate final evidence.
+Observed creature selection, current-host capture orchestration and live
+lifecycle acceptance remain outstanding.
+
+Final-acceptance preparation reconciles the World test ledger to the real suite:
+4,094 mounted `unit_tests` cases and 22 source cases, with the existing ignored
+case preserved. The identity delta adds 363 and retires 12 renamed/replaced
+cases; all added cases classify as composition tests. Nine existing cases now
+classify as domain-movable after their actual forwarding changes. The reviewed
+ceiling records exactly 270,614 physical `unit_tests` lines with no headroom.
+This metadata update does not claim the suite has passed final acceptance.
 
 The selected ItemSparse class-mask correction now reads target field 46,
 not field 48 (`RandomSelect`). A portable sparse WDC4 fixture passed through

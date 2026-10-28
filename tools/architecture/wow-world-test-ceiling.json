@@ -115,6 +115,16 @@
    "unit_tests_lines": 236123,
    "unit_tests_tests": 3743,
    "src_tests": 22
+  },
+  {
+   "id": "raise-43-11",
+   "kind": "raise",
+   "issue": 43,
+   "reviewed_at": "2026-10-28",
+   "reason": "#43 final-delivery preparation: retain the real World composition coverage for native death, release/reclaim/healer, selected ghost and sickness auras, registered SelfRes, save/load and transfer/failure fences. The reviewed identity delta adds 363 and retires 12 renamed or replaced cases (net +351); all added cases classify as W. Existing routing changes reclassify nine W cases to H and update domain destinations without deleting their tests. This records the exact current suite, not acceptance results or headroom.",
+   "unit_tests_lines": 270614,
+   "unit_tests_tests": 4094,
+   "src_tests": 22
   }
  ]
 }

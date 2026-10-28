@@ -350,7 +350,7 @@ pub(super) async fn collect_until(
     crypt: &mut WorldCrypt,
     inflater: &mut ServerPacketInflater,
     realm: &mut Option<EncryptedWorldConnection>,
-    evidence: &mut Evidence,
+    controller: &mut Controller,
 ) -> Result<()> {
     while tokio::time::Instant::now() < deadline {
         let Some((connection, opcode, payload)) =
@@ -358,28 +358,33 @@ pub(super) async fn collect_until(
         else {
             break;
         };
-        let event_sequence = record_observed_packet(evidence, connection, opcode, &payload);
+        controller
+            .observe_packet(
+                connection == Connection::Instance,
+                opcode,
+                &payload,
+                stream,
+                crypt,
+                realm,
+            )
+            .await?;
         if opcode == SMSG_LOGOUT_COMPLETE {
-            if !evidence.logout_request_completed {
-                if let Some(event_sequence) = event_sequence {
-                    if let Some(event) = evidence.events.get_mut(event_sequence) {
-                        event.error = Some(
-                            "LogoutComplete arrived before the scripted logout request".to_string(),
-                        );
-                    }
+            if !controller.evidence.logout_request_completed {
+                if let Some(event) = controller.evidence.events.last_mut() {
+                    event.error = Some(
+                        "LogoutComplete arrived before the scripted logout request".to_string(),
+                    );
                 }
                 bail!("LogoutComplete arrived before the scripted logout request");
             }
             match logout_complete_route(connection, &payload) {
                 Ok(route) => {
-                    evidence.logout_confirmed = true;
-                    evidence.logout_route = Some(route.to_string());
+                    controller.evidence.logout_confirmed = true;
+                    controller.evidence.logout_route = Some(route.to_string());
                 }
                 Err(error) => {
-                    if let Some(event_sequence) = event_sequence {
-                        if let Some(event) = evidence.events.get_mut(event_sequence) {
-                            event.error.get_or_insert_with(|| error.to_string());
-                        }
+                    if let Some(event) = controller.evidence.events.last_mut() {
+                        event.error.get_or_insert_with(|| error.to_string());
                     }
                     return Err(error);
                 }
@@ -388,43 +393,59 @@ pub(super) async fn collect_until(
         if opcode == SMSG_LOGOUT_COMPLETE {
             break;
         }
-        if opcode == SMSG_TIME_SYNC_REQUEST {
-            let sequence = parse_time_sync_request_sequence(&payload)?;
-            let response = build_time_sync_response_payload(sequence, 0);
-            match connection {
-                Connection::Instance => {
-                    send_traced_packet(
-                        stream,
-                        crypt,
-                        evidence,
-                        connection,
-                        None,
-                        "time_sync_response",
-                        CMSG_TIME_SYNC_RESPONSE,
-                        &response,
-                    )
-                    .await?;
-                }
-                Connection::Realm => {
-                    let realm = realm
-                        .as_mut()
-                        .context("realm time-sync request arrived without a realm socket")?;
-                    send_traced_packet(
-                        &mut realm.stream,
-                        &mut realm.crypt,
-                        evidence,
-                        connection,
-                        None,
-                        "time_sync_response",
-                        CMSG_TIME_SYNC_RESPONSE,
-                        &response,
-                    )
-                    .await?;
-                }
-            }
-        }
     }
     Ok(())
+}
+
+pub(super) async fn drain_login_streams_with_controller(
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    inflater: &mut ServerPacketInflater,
+    realm: &mut Option<EncryptedWorldConnection>,
+    result: &mut BotRunResult,
+    controller: &mut Controller,
+) -> Result<()> {
+    if realm.is_none() {
+        bail!("cast lifecycle login drain requires both sockets");
+    }
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+    let mut quiet_deadline = tokio::time::Instant::now() + Duration::from_secs(1);
+    loop {
+        let read_deadline = quiet_deadline.min(deadline);
+        let Some((connection, opcode, payload)) =
+            next_packet(read_deadline, stream, crypt, inflater, realm).await?
+        else {
+            if result.login_instance_object_update_seen {
+                result.login_stream_drained = true;
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                bail!("login streams did not publish an instance object update");
+            }
+            quiet_deadline = tokio::time::Instant::now() + Duration::from_secs(1);
+            continue;
+        };
+        result.seen_opcodes.push(format!("0x{opcode:04X}"));
+        if connection == Connection::Instance && opcode == SMSG_UPDATE_OBJECT {
+            result.login_instance_object_update_seen = true;
+        }
+        if opcode == crate::chat_say::SMSG_CHAT {
+            crate::chat_say::record(0, &payload, result);
+        }
+        controller
+            .observe_packet(
+                connection == Connection::Instance,
+                opcode,
+                &payload,
+                stream,
+                crypt,
+                realm,
+            )
+            .await?;
+        if opcode != SMSG_ON_MONSTER_MOVE {
+            quiet_deadline = tokio::time::Instant::now() + Duration::from_secs(1);
+        }
+    }
 }
 
 async fn next_packet(
@@ -533,6 +554,18 @@ pub(super) fn decode_event(
 
 fn event_kind(opcode: u16) -> &'static str {
     match opcode {
+        SMSG_LOGIN_VERIFY_WORLD => "login_verify_world",
+        SMSG_NEW_WORLD => "new_world",
+        SMSG_TRANSFER_PENDING => "transfer_pending",
+        SMSG_RESUME_TOKEN => "resume_token",
+        SMSG_SUSPEND_TOKEN => "suspend_token",
+        SMSG_MOVE_ROOT => "move_root",
+        SMSG_MOVE_UNROOT => "move_unroot",
+        SMSG_MOVE_SET_WATER_WALK => "move_water_walk",
+        SMSG_MOVE_SET_LAND_WALK => "move_land_walk",
+        SMSG_MOVE_SET_RUN_SPEED => "move_run_speed",
+        SMSG_MOVE_SET_SWIM_SPEED => "move_swim_speed",
+        SMSG_MOVE_TELEPORT => "move_teleport",
         SMSG_SPELL_PREPARE => "spell_prepare",
         SMSG_SPELL_START => "spell_start",
         SMSG_SPELL_GO => "spell_go",
@@ -733,21 +766,21 @@ fn parse_target_point(cursor: &mut Cursor<'_>) -> Result<TargetPointFact> {
     })
 }
 
-struct Cursor<'a> {
+pub(super) struct Cursor<'a> {
     data: &'a [u8],
     position: usize,
 }
 
 impl<'a> Cursor<'a> {
-    fn new(data: &'a [u8]) -> Self {
+    pub(super) fn new(data: &'a [u8]) -> Self {
         Self { data, position: 0 }
     }
 
-    fn remaining(&self) -> usize {
+    pub(super) fn remaining(&self) -> usize {
         self.data.len().saturating_sub(self.position)
     }
 
-    fn bytes(&mut self, length: usize) -> Result<&'a [u8]> {
+    pub(super) fn bytes(&mut self, length: usize) -> Result<&'a [u8]> {
         let end = self
             .position
             .checked_add(length)
@@ -760,7 +793,7 @@ impl<'a> Cursor<'a> {
         Ok(bytes)
     }
 
-    fn guid(&mut self) -> Result<Guid> {
+    pub(super) fn guid(&mut self) -> Result<Guid> {
         let (consumed, low, high) = parse_packed_guid(&self.data[self.position..])
             .context("truncated packed ObjectGuid")?;
         self.position = self
@@ -770,7 +803,7 @@ impl<'a> Cursor<'a> {
         Ok(Guid { low, high })
     }
 
-    fn u8(&mut self) -> Result<u8> {
+    pub(super) fn u8(&mut self) -> Result<u8> {
         Ok(*self.bytes(1)?.first().unwrap())
     }
 
@@ -782,11 +815,11 @@ impl<'a> Cursor<'a> {
         Ok(u16::from_le_bytes(self.bytes(2)?.try_into().unwrap()))
     }
 
-    fn i32(&mut self) -> Result<i32> {
+    pub(super) fn i32(&mut self) -> Result<i32> {
         Ok(i32::from_le_bytes(self.bytes(4)?.try_into().unwrap()))
     }
 
-    fn u32(&mut self) -> Result<u32> {
+    pub(super) fn u32(&mut self) -> Result<u32> {
         Ok(u32::from_le_bytes(self.bytes(4)?.try_into().unwrap()))
     }
 
@@ -794,11 +827,11 @@ impl<'a> Cursor<'a> {
         Ok(i64::from_le_bytes(self.bytes(8)?.try_into().unwrap()))
     }
 
-    fn f32(&mut self) -> Result<f32> {
+    pub(super) fn f32(&mut self) -> Result<f32> {
         Ok(f32::from_le_bytes(self.bytes(4)?.try_into().unwrap()))
     }
 
-    fn finish(&self, packet: &str) -> Result<()> {
+    pub(super) fn finish(&self, packet: &str) -> Result<()> {
         if self.position != self.data.len() {
             bail!(
                 "{packet} has {} trailing byte(s)",
