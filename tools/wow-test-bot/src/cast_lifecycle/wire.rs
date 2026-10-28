@@ -362,6 +362,51 @@ pub(super) async fn collect_until(
     realm: &mut Option<EncryptedWorldConnection>,
     controller: &mut Controller,
 ) -> Result<()> {
+    collect_until_inner(
+        deadline, stream, crypt, inflater, realm, controller, None,
+    )
+    .await
+    .map(|_| ())
+}
+
+pub(super) async fn wait_for_packet(
+    deadline: tokio::time::Instant,
+    connection: Connection,
+    opcode: u16,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    inflater: &mut ServerPacketInflater,
+    realm: &mut Option<EncryptedWorldConnection>,
+    controller: &mut Controller,
+) -> Result<()> {
+    if collect_until_inner(
+        deadline,
+        stream,
+        crypt,
+        inflater,
+        realm,
+        controller,
+        Some((connection, opcode)),
+    )
+    .await?
+    {
+        Ok(())
+    } else {
+        bail!(
+            "timed out waiting for {connection:?} packet 0x{opcode:04X} before the action or plan deadline"
+        );
+    }
+}
+
+async fn collect_until_inner(
+    deadline: tokio::time::Instant,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    inflater: &mut ServerPacketInflater,
+    realm: &mut Option<EncryptedWorldConnection>,
+    controller: &mut Controller,
+    match_packet: Option<(Connection, u16)>,
+) -> Result<bool> {
     while tokio::time::Instant::now() < deadline {
         let Some((connection, opcode, payload)) =
             next_packet(deadline, stream, crypt, inflater, realm).await?
@@ -399,12 +444,21 @@ pub(super) async fn collect_until(
                     return Err(error);
                 }
             }
-        }
-        if opcode == SMSG_LOGOUT_COMPLETE {
+            if match_packet == Some((connection, opcode)) {
+                return Ok(true);
+            }
+            if let Some((wait_connection, wait_opcode)) = match_packet {
+                bail!(
+                    "LogoutComplete arrived before wait_for_packet for {wait_connection:?} packet 0x{wait_opcode:04X}"
+                );
+            }
             break;
         }
+        if match_packet == Some((connection, opcode)) {
+            return Ok(true);
+        }
     }
-    Ok(())
+    Ok(false)
 }
 
 pub(super) async fn drain_login_streams_with_controller(

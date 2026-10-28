@@ -20,6 +20,9 @@ Use the actual binary location selected by `CARGO_TARGET_DIR`. Do not combine th
 mode with `--login-only`, other post-login modes, or `--ensure-test-accounts`.
 `WOW_BOT_CAST_LIFECYCLE_PLAN` also selects the mode. Retain the existing capture
 configuration and a distinct report/capture destination for each paired run.
+After the login stream drain succeeds, the bot emits the plain `CAST_LIFECYCLE_READY`
+log line immediately before it begins the action plan. A paired-run coordinator can
+use this victim-ready signal before launching a resurrection caster.
 
 `cast-lifecycle-plan.example.json` describes the explicitly synthetic #587
 30798→6197 fixture, not stock gameplay and not evidence of a completed #589 run.
@@ -28,8 +31,21 @@ visual. Do not run it blindly against an unrelated character or data set.
 
 ## Plan and acceptance
 
-Actions include the existing `cast`, `cancel` and `wait`, plus typed death
-requests:
+Actions include the existing `cast`, `cancel` and `wait`, `wait_for_packet`, plus
+typed death requests:
+
+- `wait_for_packet` takes `connection` (`instance` or `realm`), a numeric `opcode`
+  and a positive `timeout_ms` no greater than ten minutes. For example,
+  `{"action":"wait_for_packet","connection":"instance","opcode":11769,"timeout_ms":5000}`
+  waits for `SMSG_MOVE_ROOT` on INSTANCE. The action can match only a packet newly
+  received on that route after its action starts; packets already captured during
+  login or an earlier action remain evidence but cannot satisfy it. The normal
+  packet collector still records every packet and lets the movement controller
+  process supported controls and send their ACKs. The wait fails on timeout,
+  the global plan deadline, or a logout before the requested packet arrives.
+  Its deadline is capped by the plan deadline. This is sequencing only: it adds
+  no packet expectation and does not change exact expectation matching or result
+  evaluation.
 
 - `release_spirit` takes `check_instance` and sends CMSG_REPOP_REQUEST 0x3526
   as its one MSB-first bit (`true` is `80`).
@@ -85,6 +101,11 @@ socket restriction, and WorldSocket queues packets from either connection.
 Using one TCP stream preserves the required response order across the server's
 two-socket arrival interleaving. Time-sync responses also have one owner while
 this controller is active.
+
+The supported server controls above, including ResumeToken, are valid
+`wait_for_packet` targets. This wait-only set supplements the exact gameplay
+packet opcode set; it does not broaden the `expect` packet whitelist. Authentication
+and encrypted-mode handshake packets remain invalid wait targets.
 
 Only run and swim speed changes are acknowledged. Known flight, hover, walk,
 backward-speed, pitch-rate and turn-rate controls fail explicitly until their
@@ -212,7 +233,9 @@ The supported exact-packet opcode set is limited to cast results
 `SMSG_FORCED_DEATH_UPDATE`), healer timing, aura/update, attack and logout
 packets needed by this driver. Authentication/control opcodes such as SMSG_AUTH_CHALLENGE,
 SMSG_ENTER_ENCRYPTED_MODE and SMSG_CONNECT_TO are rejected as expectations
-before login. `body_hex` must be even-length hexadecimal and at most 64 KiB;
+before login. `wait_for_packet` can additionally target the supported movement
+controls listed above, but exact `expect` rules retain this unchanged whitelist.
+`body_hex` must be even-length hexadecimal and at most 64 KiB;
 the empty string expresses an empty body. Matching checks the explicit
 connection, opcode and complete body. Expectations preserve order separately
 on each connection. The merged trace records client poll/arrival order across

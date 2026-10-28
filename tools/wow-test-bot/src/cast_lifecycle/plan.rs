@@ -176,6 +176,11 @@ pub(crate) enum Action {
     Wait {
         milliseconds: u64,
     },
+    WaitForPacket {
+        connection: Connection,
+        opcode: u16,
+        timeout_ms: u64,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -672,6 +677,20 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<()> {
             Action::Wait { milliseconds } if *milliseconds > MAX_WAIT_MS => {
                 bail!("wait milliseconds exceeds bounded maximum {MAX_WAIT_MS}");
             }
+            Action::WaitForPacket {
+                opcode, timeout_ms, ..
+            } => {
+                if *timeout_ms == 0 || *timeout_ms > MAX_WAIT_MS {
+                    bail!(
+                        "wait_for_packet timeout_ms must be in 1..={MAX_WAIT_MS}, got {timeout_ms}"
+                    );
+                }
+                if !supported_wait_packet_opcode(*opcode) {
+                    bail!(
+                        "wait_for_packet opcode 0x{opcode:04X} is unsupported or reserved for authentication/control traffic"
+                    );
+                }
+            }
             Action::SelfRes { spell_id } if *spell_id <= 0 => {
                 bail!("self_res action requires a positive int32 spell_id");
             }
@@ -810,7 +829,7 @@ fn validate_packet_body_hex(body_hex: &str) -> Result<()> {
     Ok(())
 }
 
-fn supported_exact_packet_opcode(opcode: u16) -> bool {
+pub(super) fn supported_exact_packet_opcode(opcode: u16) -> bool {
     matches!(
         opcode,
         RAW_SMSG_AREA_SPIRIT_HEALER_TIME
@@ -836,4 +855,23 @@ fn supported_exact_packet_opcode(opcode: u16) -> bool {
             | SMSG_SPELL_START
             | RAW_SMSG_UPDATE_OBJECT
     )
+}
+
+pub(super) fn supported_wait_packet_opcode(opcode: u16) -> bool {
+    supported_exact_packet_opcode(opcode)
+        || matches!(
+            opcode,
+            SMSG_LOGIN_VERIFY_WORLD
+                | SMSG_MOVE_ROOT
+                | SMSG_MOVE_UNROOT
+                | SMSG_MOVE_SET_LAND_WALK
+                | SMSG_MOVE_SET_RUN_SPEED
+                | SMSG_MOVE_SET_SWIM_SPEED
+                | SMSG_MOVE_SET_WATER_WALK
+                | SMSG_MOVE_TELEPORT
+                | SMSG_NEW_WORLD
+                | SMSG_RESUME_TOKEN
+                | SMSG_SUSPEND_TOKEN
+                | SMSG_TRANSFER_PENDING
+        )
 }

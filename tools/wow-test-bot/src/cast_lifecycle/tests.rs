@@ -1,6 +1,7 @@
 use super::*;
 
 mod movement_controls;
+mod packet_waits;
 
 fn expected(rule: ExpectedRule) -> ExpectedFact {
     ExpectedFact {

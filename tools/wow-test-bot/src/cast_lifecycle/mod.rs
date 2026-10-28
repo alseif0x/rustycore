@@ -194,6 +194,26 @@ pub(super) async fn execute(
                 .min(deadline);
                 collect_until(wait_deadline, stream, crypt, inflater, realm, controller).await
             }
+            Action::WaitForPacket {
+                connection,
+                opcode,
+                timeout_ms,
+            } => {
+                let wait_deadline = (tokio::time::Instant::now()
+                    + Duration::from_millis(*timeout_ms))
+                .min(deadline);
+                wait_for_packet(
+                    wait_deadline,
+                    *connection,
+                    *opcode,
+                    stream,
+                    crypt,
+                    inflater,
+                    realm,
+                    controller,
+                )
+                .await
+            }
         };
         if let Err(error) = action_result {
             record_action_boundary(
@@ -248,6 +268,7 @@ pub(super) async fn run_after_login(
         .await;
         return;
     }
+    info!("CAST_LIFECYCLE_READY");
     if let Err(error) = execute(&mut controller, stream, crypt, inflater, realm).await {
         controller.evidence.failure = Some(error.to_string());
     }
@@ -490,6 +511,7 @@ fn action_name(action: &Action) -> &'static str {
             MovementKind::FallLand => "movement_fall_land",
         },
         Action::Wait { .. } => "wait",
+        Action::WaitForPacket { .. } => "wait_for_packet",
     }
 }
 
