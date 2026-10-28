@@ -36,13 +36,32 @@ requests:
 - `reclaim_corpse` takes `corpse: {"low": ..., "high": ...}` and sends its
   packed GUID. The target handler currently ignores this field, so empty and
   arbitrary GUIDs remain available for negative/ownership cases.
-- `spirit_healer_activate` takes a packed `healer` GUID.
+- `spirit_healer_activate` accepts a literal packed `healer` GUID or an
+  observed-creature selector such as
+  `{"entry":6491,"map_id":0,"near_xyz":[-9340.7,165.021,61.6412],"radius":8.0}`.
 - `resurrect_response` takes `offerer` and the exact `response` u32. Response
   `0` accepts; any nonzero value is preserved and declines/times out per C++.
 - `self_res` takes a positive int32 `spell_id` and sends exactly four
   little-endian bytes. It must name a spell the logged-in player was offered;
   the legal Shaman Reincarnation request is 21169, not passive 20608.
-- `attack_swing` takes a packed `target` GUID and sends CMSG_ATTACK_SWING 0x3255.
+- `attack_swing` accepts the same literal-GUID or observed-creature selector
+  form in `target` and sends CMSG_ATTACK_SWING 0x3255.
+
+The selector is resolved immediately before its action from retained
+`SMSG_UPDATE_OBJECT` observations after the latest `LOGIN_VERIFY_WORLD` or
+`NEW_WORLD` map barrier. Its `map_id` must match that barrier. The bot selects
+the nearest matching creature within `radius`, breaking equal-distance ties by
+event sequence and GUID, and records the chosen GUID plus source-event sequence,
+connection, opcode and payload hash in the report and trace. An invalid selector,
+wrong map or missing observation fails before that target packet is written.
+Existing literal GUID plans keep their original packed wire bytes, including
+zero GUIDs used for negative cases.
+
+An optional top-level `character_guid` in the plan selects a character counter
+in memory. It must be a nonzero 40-bit value and requires cast-lifecycle mode
+with exactly one account selected by `--single`. The override does not rewrite
+the private bot credential configuration; run and pre-authentication failure
+reports use the selected character identity.
 
 The opt-in movement controller owns one transient player mover, the latest
 server-seeded position, movement flags, and any explicit fall data. It observes
@@ -119,10 +138,8 @@ response routes and keep the ordered world-port and active-mover writes on one
 INSTANCE stream.
 
 This is finite client protocol support, not a replicated world or general
-physics implementation. The current plan still accepts literal GUIDs for
-healers; an observed entry-plus-near-position creature selector is deferred.
-Lifecycle reports and bot packet traces do not replace the parent campaign's
-required real server captures or live acceptance evidence.
+physics implementation. Lifecycle reports and bot packet traces do not replace
+the parent campaign's required real server captures or live acceptance evidence.
 
 For example, an explicit release followed by a reclaim attempt can be written
 as:

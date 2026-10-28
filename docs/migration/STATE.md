@@ -295,8 +295,22 @@ while closing both sockets. The repaired dirty tree passed 34 focused bot cases
 fingerprint was `33bfb13b2d4255259d6a7e8cffad4e0597944a0c891beaf12ffc8a3feb5f36fd`;
 logs are under `/tmp/rustycore43-movement-feedback/`. The parent then formatted
 the owned files. This is coding feedback, not committed-candidate final evidence.
-Observed creature selection, fixture/scenario integration and live lifecycle
-acceptance remain outstanding.
+The subsequent observed-target and in-memory character selection passed 40
+focused bot cases (204 filtered), exit 0; the final coding-feedback command
+ended at 19:50:17 UTC on 2026-10-28. The log
+`/tmp/rustycore43-target-selection-feedback` retains the initial test-local
+shadowing error, repair and actual repeated command results; they are not
+additional distinct test identities. The tracked patch fingerprint was
+`636ccd8b67cf4f53d87148ec9837b497f495eda7291ef7091d47238366a4d23d`, and
+the new target resolver's SHA-256 was
+`120e8edd97366d62ca8ddf3a75e73d6f0624b2c40ec2453cfcee524113568752`.
+It resolves only from observed object updates after the current map barrier
+and records the chosen GUID's source event. Character overrides happen before
+failure-report identity capture, without rewriting credentials. The preceding
+private test split retained all seven movement cases; its 535-line moved body
+was unchanged, with one surrounding blank line removed. These remain coding
+and source-review evidence. Fixture/scenario integration, final and live
+lifecycle acceptance remain outstanding.
 
 The current-host native capture collector is now implemented in
 `tools/qa-runtime.sh capture`, reusing the existing systemd identity,

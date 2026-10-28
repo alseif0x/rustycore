@@ -1,7 +1,7 @@
 //! JSON action plan and structured report types for cast lifecycle QA.
 
 use super::*;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::path::Path;
 
 const MAX_EXPECTED_PACKET_BODY_BYTES: usize = 64 * 1024;
@@ -24,6 +24,73 @@ impl Guid {
     }
 }
 
+/// A creature target may stay an explicit packed GUID or be selected from
+/// retained world-update evidence at the action's send boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[serde(untagged)]
+pub(crate) enum CreatureTarget {
+    Guid(Guid),
+    Observed(ObservedCreatureSelector),
+}
+
+impl<'de> Deserialize<'de> for CreatureTarget {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct StrictGuid {
+            low: u64,
+            high: u64,
+        }
+
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Input {
+            Observed(ObservedCreatureSelector),
+            Guid(StrictGuid),
+        }
+
+        Ok(match Input::deserialize(deserializer)? {
+            Input::Observed(selector) => Self::Observed(selector),
+            Input::Guid(guid) => Self::Guid(Guid {
+                low: guid.low,
+                high: guid.high,
+            }),
+        })
+    }
+}
+
+/// A bounded search request against creature CREATEs actually observed by
+/// this client, scoped to one world map and a finite position radius.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ObservedCreatureSelector {
+    pub(crate) entry: u32,
+    pub(crate) map_id: u16,
+    pub(crate) near_xyz: [f32; 3],
+    pub(crate) radius: f32,
+}
+
+impl ObservedCreatureSelector {
+    pub(crate) fn validate(&self) -> Result<()> {
+        if self.entry == 0 || self.entry > 0x7F_FFFF {
+            bail!("entry must fit the nonzero creature GUID entry field");
+        }
+        if self.map_id > 0x1FFF {
+            bail!("map_id must fit the creature GUID map field");
+        }
+        if !self.near_xyz.into_iter().all(f32::is_finite)
+            || !self.radius.is_finite()
+            || self.radius <= 0.0
+        {
+            bail!("near_xyz must be finite and radius must be finite and positive");
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct Options {
     pub(crate) source_path: String,
@@ -33,6 +100,10 @@ pub(crate) struct Options {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Plan {
+    /// Optional in-memory character counter override for a single-account
+    /// cast-lifecycle run. The private bot credential file is never rewritten.
+    #[serde(default)]
+    pub(crate) character_guid: Option<u64>,
     #[serde(default)]
     pub(crate) observe_only: bool,
     #[serde(default = "default_timeout_ms")]
@@ -77,7 +148,7 @@ pub(crate) enum Action {
         corpse: Guid,
     },
     SpiritHealerActivate {
-        healer: Guid,
+        healer: CreatureTarget,
     },
     ResurrectResponse {
         offerer: Guid,
@@ -87,7 +158,7 @@ pub(crate) enum Action {
         spell_id: i32,
     },
     AttackSwing {
-        target: Guid,
+        target: CreatureTarget,
     },
     /// One finite client movement packet. The opcode comes from the closed
     /// `MovementKind` set; control flags remain owned by the live controller.
@@ -248,6 +319,8 @@ pub(crate) struct Evidence {
     pub actions: Vec<Action>,
     pub expected_rules: Vec<ExpectedFact>,
     pub events: Vec<ObservedEvent>,
+    #[serde(default)]
+    pub target_selections: Vec<TargetSelectionFact>,
     pub sent_packets: Vec<SentPacket>,
     pub trace: Vec<TraceEntry>,
     pub packet_payload_encoding: String,
@@ -275,6 +348,7 @@ impl Default for Evidence {
             actions: Vec::new(),
             expected_rules: Vec::new(),
             events: Vec::new(),
+            target_selections: Vec::new(),
             sent_packets: Vec::new(),
             trace: Vec::new(),
             packet_payload_encoding: "logical_decrypted_uncompressed".to_string(),
@@ -386,6 +460,7 @@ pub(crate) struct ObservedEvent {
 #[serde(rename_all = "snake_case")]
 pub(crate) enum TraceKind {
     ActionStarted,
+    TargetSelected,
     ActionSkipped,
     SendAttempted,
     LocalWriteCompleted,
@@ -414,6 +489,21 @@ pub(crate) struct TraceEntry {
     pub body_bytes: Option<usize>,
     pub body_redacted: bool,
     pub detail: Option<String>,
+}
+
+/// A selector resolution tied to the exact retained object-update event that
+/// supplied the GUID sent by one scripted action.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct TargetSelectionFact {
+    pub action_index: usize,
+    pub action: String,
+    pub selector: ObservedCreatureSelector,
+    pub guid: Guid,
+    pub source_event_sequence: usize,
+    pub source_connection: Connection,
+    pub source_connection_sequence: usize,
+    pub source_event_opcode: u16,
+    pub source_event_sha256: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -534,6 +624,14 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<()> {
             plan.expect.len()
         );
     }
+    if plan
+        .character_guid
+        .is_some_and(|counter| counter == 0 || counter > OBJECT_GUID_COUNTER_MASK)
+    {
+        bail!(
+            "character_guid override must be a nonzero 40-bit counter (1..={OBJECT_GUID_COUNTER_MASK})"
+        );
+    }
     // An explicit collection-only observer is useful for later paired analysis;
     // its empty expectation set can never pass the evaluator.
     if plan.observe_only && (!plan.actions.is_empty() || !plan.expect.is_empty()) {
@@ -577,6 +675,12 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<()> {
             Action::SelfRes { spell_id } if *spell_id <= 0 => {
                 bail!("self_res action requires a positive int32 spell_id");
             }
+            Action::SpiritHealerActivate { healer } => {
+                validate_creature_target(healer, "spirit_healer_activate.healer")?;
+            }
+            Action::AttackSwing { target } => {
+                validate_creature_target(target, "attack_swing.target")?;
+            }
             Action::Movement {
                 kind,
                 x,
@@ -611,10 +715,8 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<()> {
             Action::Wait { .. }
             | Action::ReleaseSpirit { .. }
             | Action::ReclaimCorpse { .. }
-            | Action::SpiritHealerActivate { .. }
             | Action::ResurrectResponse { .. }
-            | Action::SelfRes { .. }
-            | Action::AttackSwing { .. } => {}
+            | Action::SelfRes { .. } => {}
         }
     }
     for rule in &plan.expect {
@@ -679,6 +781,16 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn validate_creature_target(target: &CreatureTarget, field: &str) -> Result<()> {
+    let CreatureTarget::Observed(selector) = target else {
+        // Literal GUIDs intentionally retain their full negative-test range.
+        return Ok(());
+    };
+    selector
+        .validate()
+        .with_context(|| format!("invalid {field} observed-creature selector"))
 }
 
 fn validate_packet_body_hex(body_hex: &str) -> Result<()> {

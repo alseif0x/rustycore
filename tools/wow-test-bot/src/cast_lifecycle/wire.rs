@@ -10,14 +10,24 @@ pub(super) fn build_action_packet(action: &Action) -> (u16, Vec<u8>) {
             (CMSG_RELEASE_SPIRIT, body.to_vec())
         }
         Action::ReclaimCorpse { corpse } => (CMSG_RECLAIM_CORPSE, corpse.packed()),
-        Action::SpiritHealerActivate { healer } => (CMSG_SPIRIT_HEALER_ACTIVATE, healer.packed()),
+        Action::SpiritHealerActivate { healer } => match healer {
+            CreatureTarget::Guid(healer) => (CMSG_SPIRIT_HEALER_ACTIVATE, healer.packed()),
+            CreatureTarget::Observed(_) => {
+                unreachable!("observed creature targets must resolve before packet building")
+            }
+        },
         Action::ResurrectResponse { offerer, response } => {
             let mut body = offerer.packed();
             body.extend(response.to_le_bytes());
             (CMSG_RESURRECT_RESPONSE, body)
         }
         Action::SelfRes { spell_id } => (CMSG_SELF_RES, spell_id.to_le_bytes().to_vec()),
-        Action::AttackSwing { target } => (CMSG_ATTACK_SWING, target.packed()),
+        Action::AttackSwing { target } => match target {
+            CreatureTarget::Guid(target) => (CMSG_ATTACK_SWING, target.packed()),
+            CreatureTarget::Observed(_) => {
+                unreachable!("observed creature targets must resolve before packet building")
+            }
+        },
         _ => unreachable!("only typed non-cast actions use this builder"),
     }
 }

@@ -5,6 +5,7 @@ fn movement_controller() -> Controller {
         Options {
             source_path: "movement-unit-test".to_string(),
             plan: Plan {
+                character_guid: None,
                 observe_only: true,
                 timeout_ms: 1_000,
                 actions: Vec::new(),
@@ -499,6 +500,7 @@ fn typed_movement_rejects_unsupported_kinds_and_non_finite_fall_data() {
     assert!(unsupported.is_err());
 
     let mut plan = Plan {
+        character_guid: None,
         observe_only: false,
         timeout_ms: 1_000,
         actions: vec![Action::Movement {

@@ -5,6 +5,7 @@ use super::*;
 mod movement;
 mod plan;
 mod report;
+mod targets;
 mod wire;
 
 pub(crate) use movement::Controller;
@@ -17,6 +18,7 @@ use movement::{
 };
 pub(super) use plan::*;
 use report::*;
+use targets::resolve_action_targets;
 use wire::*;
 
 const CMSG_CAST_SPELL: u16 = 0x329C;
@@ -151,18 +153,24 @@ pub(super) async fn execute(
             | Action::ResurrectResponse { .. }
             | Action::SelfRes { .. }
             | Action::AttackSwing { .. } => {
-                let (opcode, body) = build_action_packet(action);
-                send_traced_packet(
-                    stream,
-                    crypt,
-                    &mut controller.evidence,
-                    Connection::Instance,
-                    Some(action_index),
-                    action_name,
-                    opcode,
-                    &body,
-                )
-                .await
+                match resolve_action_targets(&mut controller.evidence, action_index, action)
+                    .map(|resolved| build_action_packet(&resolved))
+                {
+                    Ok((opcode, body)) => {
+                        send_traced_packet(
+                            stream,
+                            crypt,
+                            &mut controller.evidence,
+                            Connection::Instance,
+                            Some(action_index),
+                            action_name,
+                            opcode,
+                            &body,
+                        )
+                        .await
+                    }
+                    Err(error) => Err(error),
+                }
             }
             Action::Movement { .. } => match controller.movement_action(action) {
                 Ok((opcode, body)) => {

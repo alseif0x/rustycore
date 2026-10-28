@@ -1237,7 +1237,13 @@ fn death_action_builders_preserve_target_wire_bytes() {
     );
     assert_eq!(
         build_action_packet(&Action::SpiritHealerActivate {
-            healer: Guid { low: 0, high: 0 }
+            healer: CreatureTarget::Guid(nonempty)
+        }),
+        (CMSG_SPIRIT_HEALER_ACTIVATE, packed_nonempty.clone())
+    );
+    assert_eq!(
+        build_action_packet(&Action::SpiritHealerActivate {
+            healer: CreatureTarget::Guid(Guid { low: 0, high: 0 })
         }),
         (CMSG_SPIRIT_HEALER_ACTIVATE, vec![0, 0])
     );
@@ -1263,8 +1269,16 @@ fn death_action_builders_preserve_target_wire_bytes() {
         (CMSG_SELF_RES, vec![0xB1, 0x52, 0, 0])
     );
     assert_eq!(
-        build_action_packet(&Action::AttackSwing { target: nonempty }),
-        (CMSG_ATTACK_SWING, packed_nonempty)
+        build_action_packet(&Action::AttackSwing {
+            target: CreatureTarget::Guid(nonempty)
+        }),
+        (CMSG_ATTACK_SWING, packed_nonempty.clone())
+    );
+    assert_eq!(
+        build_action_packet(&Action::AttackSwing {
+            target: CreatureTarget::Guid(Guid { low: 0, high: 0 })
+        }),
+        (CMSG_ATTACK_SWING, vec![0, 0])
     );
 }
 
@@ -1286,6 +1300,26 @@ fn death_plan_keeps_server_negative_inputs_and_validates_only_wire_fields() {
     .unwrap();
     plan::validate_plan(&plan).unwrap();
     assert_eq!(plan.finish_policy, FinishPolicy::Logout);
+    assert!(matches!(
+        &plan.actions[2],
+        Action::SpiritHealerActivate {
+            healer: CreatureTarget::Guid(Guid { low: 0, high: 0 })
+        }
+    ));
+    assert_eq!(
+        build_action_packet(&plan.actions[2]),
+        (CMSG_SPIRIT_HEALER_ACTIVATE, vec![0, 0])
+    );
+    assert!(matches!(
+        &plan.actions[5],
+        Action::AttackSwing {
+            target: CreatureTarget::Guid(Guid { low: 0, high: 0 })
+        }
+    ));
+    assert_eq!(
+        build_action_packet(&plan.actions[5]),
+        (CMSG_ATTACK_SWING, vec![0, 0])
+    );
 
     for bad_spell_id in [0, -1] {
         let json = format!(

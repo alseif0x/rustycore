@@ -38,6 +38,27 @@ mod bot;
 #[allow(unused_imports)]
 use bot::*;
 
+fn apply_cast_lifecycle_character_guid_override(
+    bots: &mut [config::BotConfig],
+    character_guid: Option<u64>,
+    cast_lifecycle_mode: bool,
+    single_account_selected: bool,
+) -> Result<()> {
+    let Some(character_guid) = character_guid else {
+        return Ok(());
+    };
+    if !cast_lifecycle_mode || !single_account_selected || bots.len() != 1 {
+        bail!(
+            "cast lifecycle character_guid override requires --cast-lifecycle with exactly one --single account"
+        );
+    }
+    if character_guid == 0 || character_guid > OBJECT_GUID_COUNTER_MASK {
+        bail!("cast lifecycle character_guid override must be a nonzero 40-bit counter");
+    }
+    bots[0].character_guid = character_guid;
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
@@ -192,6 +213,14 @@ async fn main() -> Result<()> {
         });
     }
     apply_password_overrides(&mut bots);
+    apply_cast_lifecycle_character_guid_override(
+        &mut bots,
+        cast_lifecycle_options
+            .as_ref()
+            .and_then(|options| options.plan.character_guid),
+        cli.cast_lifecycle,
+        cli.single_account.is_some(),
+    )?;
 
     if bots.is_empty() {
         bail!("No enabled bots matched the current config/filter");

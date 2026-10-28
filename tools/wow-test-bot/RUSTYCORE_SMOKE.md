@@ -51,8 +51,15 @@ again before allocation. This preparation does not authorize their creation.
 These names and new GUIDs are unallocated candidates. Recheck collisions,
 account ownership and offline state before any authorized preparation. Select
 each new character by its journaled GUID using an in-memory bot configuration;
-do not overwrite the private credential configuration. The Mage and Paladin
-location candidate is map 0 near (-8949.95, -132.493, 83.531).
+do not overwrite the private credential configuration. The updated Mage,
+Night Elf and Paladin location candidate is map 0 near
+(-9340.21, 167.61, 61.60), with the fall victims prepared 100 yards above it
+and the caster on the ground. Read-only World SQL on 2026-10-28 found Elwynn
+graveyard 106 at (-9339.72, 170.2, 61.5622) and the existing healer nearby.
+This keeps the corpse near the expected graveyard; actual area, conditions,
+teleport and healer interaction still require runtime evidence. Target
+`ObjectMgr::LoadWorldSafeLocs` reads `world_safe_locs` from World SQL
+(`ObjectMgr.cpp:7021-7048`), rather than a guessed DB2 location source.
 Runtime execution requires authorization for those fixtures, the Rust and
 reference targets, restarts and the normal character writes caused by death,
 durability loss and logout. Do not seed
