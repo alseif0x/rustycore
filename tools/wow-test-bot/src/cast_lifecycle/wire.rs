@@ -1,15 +1,287 @@
-//! Exact 3.4.3 cast request builder, packet observer and decoder.
+//! Exact request builders and logical packet trace for the scripted runner.
 
 use super::*;
 
-pub(super) fn record_sent(evidence: &mut Evidence, action: &str, opcode: u16, body: &[u8]) {
+pub(super) fn build_action_packet(action: &Action) -> (u16, Vec<u8>) {
+    match action {
+        Action::ReleaseSpirit { check_instance } => {
+            let mut body = [0u8; 1];
+            write_msb_bits(&mut body, 0, 1, u32::from(*check_instance));
+            (CMSG_RELEASE_SPIRIT, body.to_vec())
+        }
+        Action::ReclaimCorpse { corpse } => (CMSG_RECLAIM_CORPSE, corpse.packed()),
+        Action::SpiritHealerActivate { healer } => (CMSG_SPIRIT_HEALER_ACTIVATE, healer.packed()),
+        Action::ResurrectResponse { offerer, response } => {
+            let mut body = offerer.packed();
+            body.extend(response.to_le_bytes());
+            (CMSG_RESURRECT_RESPONSE, body)
+        }
+        Action::SelfRes { spell_id } => (CMSG_SELF_RES, spell_id.to_le_bytes().to_vec()),
+        Action::AttackSwing { target } => (CMSG_ATTACK_SWING, target.packed()),
+        _ => unreachable!("only typed non-cast actions use this builder"),
+    }
+}
+
+pub(super) async fn send_traced_packet(
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    evidence: &mut Evidence,
+    connection: Connection,
+    action_index: Option<usize>,
+    action: &str,
+    opcode: u16,
+    body: &[u8],
+) -> Result<()> {
+    let sent_sequence =
+        record_send_attempt(evidence, connection, action_index, action, opcode, body);
+    match send_encrypted_packet(stream, crypt, opcode, body).await {
+        Ok(()) => {
+            record_write_completed(evidence, sent_sequence);
+            Ok(())
+        }
+        Err(error) => {
+            record_write_failed(evidence, sent_sequence, &error.to_string());
+            Err(error)
+        }
+    }
+}
+
+pub(super) fn record_send_attempt(
+    evidence: &mut Evidence,
+    connection: Connection,
+    action_index: Option<usize>,
+    action: &str,
+    opcode: u16,
+    body: &[u8],
+) -> usize {
+    let sent_sequence = evidence.sent_packets.len();
+    let connection_sequence = take_connection_sequence(evidence, connection);
+    let observation_sequence = evidence.trace.len();
     evidence.sent_packets.push(SentPacket {
-        sequence: evidence.sent_packets.len(),
+        sequence: sent_sequence,
+        observation_sequence,
+        action_index,
+        connection,
+        connection_sequence,
         action: action.to_string(),
         opcode,
         bytes: body.len(),
+        body_hex: hex::encode(body),
         body_sha256: format!("{:x}", Sha256::digest(body)),
+        write_attempted: true,
+        write_completed: false,
+        write_error: None,
     });
+    push_trace(
+        evidence,
+        TraceKind::SendAttempted,
+        action_index,
+        Some(action.to_string()),
+        Some(connection),
+        Some(connection_sequence),
+        Some(opcode),
+        Some(sent_sequence),
+        None,
+        Some(body.len()),
+        false,
+        None,
+    );
+    sent_sequence
+}
+
+pub(super) fn record_write_completed(evidence: &mut Evidence, sent_sequence: usize) {
+    let sent = &mut evidence.sent_packets[sent_sequence];
+    sent.write_completed = true;
+    let (action_index, action, connection, connection_sequence, opcode, body_bytes) = (
+        sent.action_index,
+        sent.action.clone(),
+        sent.connection,
+        sent.connection_sequence,
+        sent.opcode,
+        sent.bytes,
+    );
+    push_trace(
+        evidence,
+        TraceKind::LocalWriteCompleted,
+        action_index,
+        Some(action),
+        Some(connection),
+        Some(connection_sequence),
+        Some(opcode),
+        Some(sent_sequence),
+        None,
+        Some(body_bytes),
+        false,
+        None,
+    );
+}
+
+pub(super) fn record_write_failed(evidence: &mut Evidence, sent_sequence: usize, error: &str) {
+    let sent = &mut evidence.sent_packets[sent_sequence];
+    sent.write_error = Some(error.to_string());
+    let (action_index, action, connection, connection_sequence, opcode, body_bytes) = (
+        sent.action_index,
+        sent.action.clone(),
+        sent.connection,
+        sent.connection_sequence,
+        sent.opcode,
+        sent.bytes,
+    );
+    push_trace(
+        evidence,
+        TraceKind::LocalWriteFailed,
+        action_index,
+        Some(action),
+        Some(connection),
+        Some(connection_sequence),
+        Some(opcode),
+        Some(sent_sequence),
+        None,
+        Some(body_bytes),
+        false,
+        Some(error.to_string()),
+    );
+}
+
+pub(super) fn record_action_boundary(
+    evidence: &mut Evidence,
+    action_index: Option<usize>,
+    action: &str,
+    kind: TraceKind,
+    detail: Option<String>,
+) {
+    push_trace(
+        evidence,
+        kind,
+        action_index,
+        Some(action.to_string()),
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        false,
+        detail,
+    );
+}
+
+pub(super) fn record_socket_close(
+    evidence: &mut Evidence,
+    connection: Connection,
+    error: Option<&std::io::Error>,
+) {
+    push_trace(
+        evidence,
+        TraceKind::LocalSocketClosed,
+        None,
+        Some("finish".to_string()),
+        Some(connection),
+        None,
+        None,
+        None,
+        None,
+        None,
+        false,
+        error.map(|error| error.to_string()),
+    );
+}
+
+fn push_trace(
+    evidence: &mut Evidence,
+    kind: TraceKind,
+    action_index: Option<usize>,
+    action: Option<String>,
+    connection: Option<Connection>,
+    connection_sequence: Option<usize>,
+    opcode: Option<u16>,
+    sent_packet_sequence: Option<usize>,
+    event_sequence: Option<usize>,
+    body_bytes: Option<usize>,
+    body_redacted: bool,
+    detail: Option<String>,
+) {
+    let sequence = evidence.trace.len();
+    evidence.trace.push(TraceEntry {
+        sequence,
+        kind,
+        action_index,
+        action,
+        connection,
+        connection_sequence,
+        opcode,
+        sent_packet_sequence,
+        event_sequence,
+        body_bytes,
+        body_redacted,
+        detail,
+    });
+}
+
+fn take_connection_sequence(evidence: &mut Evidence, connection: Connection) -> usize {
+    let counter = match connection {
+        Connection::Instance => &mut evidence.connection_sequences.instance,
+        Connection::Realm => &mut evidence.connection_sequences.realm,
+    };
+    let sequence = *counter;
+    *counter += 1;
+    sequence
+}
+
+pub(super) fn record_observed_packet(
+    evidence: &mut Evidence,
+    connection: Connection,
+    opcode: u16,
+    payload: &[u8],
+) -> Option<usize> {
+    let connection_sequence = take_connection_sequence(evidence, connection);
+    if matches!(
+        opcode,
+        REDACTED_SMSG_AUTH_CHALLENGE
+            | REDACTED_SMSG_AUTH_FAILED
+            | REDACTED_SMSG_AUTH_RESPONSE
+            | REDACTED_SMSG_ENTER_ENCRYPTED_MODE
+            | REDACTED_SMSG_CONNECT_TO
+    ) {
+        push_trace(
+            evidence,
+            TraceKind::PacketRedacted,
+            None,
+            Some("authentication_or_transfer_control".to_string()),
+            Some(connection),
+            Some(connection_sequence),
+            Some(opcode),
+            None,
+            None,
+            Some(payload.len()),
+            true,
+            Some("key-bearing control body omitted".to_string()),
+        );
+        return None;
+    }
+
+    let event_sequence = evidence.events.len();
+    let observation_sequence = evidence.trace.len();
+    let mut event = decode_event(event_sequence, connection, opcode, payload);
+    event.connection_sequence = connection_sequence;
+    event.observation_sequence = observation_sequence;
+    push_trace(
+        evidence,
+        TraceKind::PacketObserved,
+        None,
+        None,
+        Some(connection),
+        Some(connection_sequence),
+        Some(opcode),
+        None,
+        Some(event_sequence),
+        Some(payload.len()),
+        false,
+        None,
+    );
+    correlate_event(evidence, &mut event);
+    evidence.events.push(event);
+    Some(event_sequence)
 }
 
 pub(super) fn build_cast_spell_payload(
@@ -86,25 +358,70 @@ pub(super) async fn collect_until(
         else {
             break;
         };
-        let sequence = evidence.events.len();
-        let mut event = decode_event(sequence, connection, opcode, &payload);
-        correlate_event(evidence, &mut event);
+        let event_sequence = record_observed_packet(evidence, connection, opcode, &payload);
         if opcode == SMSG_LOGOUT_COMPLETE {
+            if !evidence.logout_request_completed {
+                if let Some(event_sequence) = event_sequence {
+                    if let Some(event) = evidence.events.get_mut(event_sequence) {
+                        event.error = Some(
+                            "LogoutComplete arrived before the scripted logout request".to_string(),
+                        );
+                    }
+                }
+                bail!("LogoutComplete arrived before the scripted logout request");
+            }
             match logout_complete_route(connection, &payload) {
                 Ok(route) => {
                     evidence.logout_confirmed = true;
                     evidence.logout_route = Some(route.to_string());
                 }
                 Err(error) => {
-                    event.error.get_or_insert_with(|| error.to_string());
-                    evidence.events.push(event);
+                    if let Some(event_sequence) = event_sequence {
+                        if let Some(event) = evidence.events.get_mut(event_sequence) {
+                            event.error.get_or_insert_with(|| error.to_string());
+                        }
+                    }
                     return Err(error);
                 }
             }
         }
-        evidence.events.push(event);
         if opcode == SMSG_LOGOUT_COMPLETE {
             break;
+        }
+        if opcode == SMSG_TIME_SYNC_REQUEST {
+            let sequence = parse_time_sync_request_sequence(&payload)?;
+            let response = build_time_sync_response_payload(sequence, 0);
+            match connection {
+                Connection::Instance => {
+                    send_traced_packet(
+                        stream,
+                        crypt,
+                        evidence,
+                        connection,
+                        None,
+                        "time_sync_response",
+                        CMSG_TIME_SYNC_RESPONSE,
+                        &response,
+                    )
+                    .await?;
+                }
+                Connection::Realm => {
+                    let realm = realm
+                        .as_mut()
+                        .context("realm time-sync request arrived without a realm socket")?;
+                    send_traced_packet(
+                        &mut realm.stream,
+                        &mut realm.crypt,
+                        evidence,
+                        connection,
+                        None,
+                        "time_sync_response",
+                        CMSG_TIME_SYNC_RESPONSE,
+                        &response,
+                    )
+                    .await?;
+                }
+            }
         }
     }
     Ok(())
@@ -133,17 +450,6 @@ async fn next_packet(
             )
             .await?
             {
-                if opcode == SMSG_TIME_SYNC_REQUEST {
-                    let sequence = parse_time_sync_request_sequence(&payload)?;
-                    let response = build_time_sync_response_payload(sequence, 0);
-                    send_encrypted_packet(
-                        &mut realm.stream,
-                        &mut realm.crypt,
-                        CMSG_TIME_SYNC_RESPONSE,
-                        &response,
-                    )
-                    .await?;
-                }
                 return Ok(Some((Connection::Realm, opcode, payload)));
             }
         }
@@ -161,11 +467,6 @@ async fn next_packet(
         )
         .await?
         {
-            if opcode == SMSG_TIME_SYNC_REQUEST {
-                let sequence = parse_time_sync_request_sequence(&payload)?;
-                let response = build_time_sync_response_payload(sequence, 0);
-                send_encrypted_packet(stream, crypt, CMSG_TIME_SYNC_RESPONSE, &response).await?;
-            }
             return Ok(Some((Connection::Instance, opcode, payload)));
         }
     }
@@ -179,10 +480,13 @@ pub(super) fn decode_event(
 ) -> ObservedEvent {
     let mut event = ObservedEvent {
         sequence,
+        observation_sequence: 0,
         connection,
+        connection_sequence: 0,
         opcode,
         kind: event_kind(opcode).to_string(),
         body_bytes: payload.len(),
+        body_hex: hex::encode(payload),
         body_sha256: format!("{:x}", Sha256::digest(payload)),
         client_cast_id: None,
         server_cast_id: None,

@@ -4,6 +4,8 @@ use super::*;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+const MAX_EXPECTED_PACKET_BODY_BYTES: usize = 64 * 1024;
+
 /// A packed ObjectGuid represented in plan files and reports without losing
 /// the original client cast identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -39,6 +41,8 @@ pub(crate) struct Plan {
     pub(crate) actions: Vec<Action>,
     #[serde(default)]
     pub(crate) expect: Vec<ExpectedRule>,
+    #[serde(default)]
+    pub(crate) finish_policy: FinishPolicy,
 }
 
 fn default_timeout_ms() -> u64 {
@@ -63,9 +67,39 @@ pub(crate) enum Action {
         cast_id: Guid,
         spell_id: u32,
     },
+    /// CMSG_REPOP_REQUEST carries one MSB-first CheckInstance bit.
+    ReleaseSpirit {
+        check_instance: bool,
+    },
+    /// The server currently ignores CorpseGUID, so every packed GUID value is
+    /// intentionally representable for negative protocol cases.
+    ReclaimCorpse {
+        corpse: Guid,
+    },
+    SpiritHealerActivate {
+        healer: Guid,
+    },
+    ResurrectResponse {
+        offerer: Guid,
+        response: u32,
+    },
+    SelfRes {
+        spell_id: i32,
+    },
+    AttackSwing {
+        target: Guid,
+    },
     Wait {
         milliseconds: u64,
     },
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum FinishPolicy {
+    #[default]
+    Logout,
+    Disconnect,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -78,6 +112,11 @@ pub(crate) enum CancelPhase {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "event", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum ExpectedRule {
+    Packet {
+        connection: Connection,
+        opcode: u16,
+        body_hex: String,
+    },
     Prepare {
         client_cast_id: Guid,
         #[serde(default)]
@@ -176,9 +215,19 @@ pub(crate) struct Evidence {
     pub expected_rules: Vec<ExpectedFact>,
     pub events: Vec<ObservedEvent>,
     pub sent_packets: Vec<SentPacket>,
+    pub trace: Vec<TraceEntry>,
+    pub packet_payload_encoding: String,
+    pub merged_observation_order: String,
+    pub cross_connection_order_is_server_enqueue: bool,
+    pub finish_policy: FinishPolicy,
+    pub logout_request_completed: bool,
     pub logout_confirmed: bool,
     pub logout_route: Option<String>,
+    pub local_disconnect_recorded: bool,
+    pub finish_completed: bool,
     pub failure: Option<String>,
+    #[serde(skip)]
+    pub(crate) connection_sequences: ConnectionSequences,
 }
 
 impl Default for Evidence {
@@ -192,11 +241,26 @@ impl Default for Evidence {
             expected_rules: Vec::new(),
             events: Vec::new(),
             sent_packets: Vec::new(),
+            trace: Vec::new(),
+            packet_payload_encoding: "logical_decrypted_uncompressed".to_string(),
+            merged_observation_order: "client_poll_arrival".to_string(),
+            cross_connection_order_is_server_enqueue: false,
+            finish_policy: FinishPolicy::Logout,
+            logout_request_completed: false,
             logout_confirmed: false,
             logout_route: None,
+            local_disconnect_recorded: false,
+            finish_completed: false,
             failure: None,
+            connection_sequences: ConnectionSequences::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct ConnectionSequences {
+    pub(crate) instance: usize,
+    pub(crate) realm: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -210,10 +274,18 @@ pub(crate) struct ExpectedFact {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct SentPacket {
     pub sequence: usize,
+    pub observation_sequence: usize,
+    pub action_index: Option<usize>,
+    pub connection: Connection,
+    pub connection_sequence: usize,
     pub action: String,
     pub opcode: u16,
     pub bytes: usize,
+    pub body_hex: String,
     pub body_sha256: String,
+    pub write_attempted: bool,
+    pub write_completed: bool,
+    pub write_error: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -226,10 +298,13 @@ pub(crate) enum Connection {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct ObservedEvent {
     pub sequence: usize,
+    pub observation_sequence: usize,
     pub connection: Connection,
+    pub connection_sequence: usize,
     pub opcode: u16,
     pub kind: String,
     pub body_bytes: usize,
+    pub body_hex: String,
     pub body_sha256: String,
     pub client_cast_id: Option<Guid>,
     pub server_cast_id: Option<Guid>,
@@ -257,6 +332,40 @@ pub(crate) struct ObservedEvent {
     pub failed_arg1: Option<i32>,
     pub failed_arg2: Option<i32>,
     pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum TraceKind {
+    ActionStarted,
+    ActionSkipped,
+    SendAttempted,
+    LocalWriteCompleted,
+    LocalWriteFailed,
+    PacketObserved,
+    PacketRedacted,
+    ActionCompleted,
+    ActionFailed,
+    LocalSocketClosed,
+}
+
+/// Timeline index shared by actions, writes and packet observations. Packet
+/// bodies live in `sent_packets` or `events`; redacted controls have no body
+/// or digest and retain only this routing/ordering metadata.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct TraceEntry {
+    pub sequence: usize,
+    pub kind: TraceKind,
+    pub action_index: Option<usize>,
+    pub action: Option<String>,
+    pub connection: Option<Connection>,
+    pub connection_sequence: Option<usize>,
+    pub opcode: Option<u16>,
+    pub sent_packet_sequence: Option<usize>,
+    pub event_sequence: Option<usize>,
+    pub body_bytes: Option<usize>,
+    pub body_redacted: bool,
+    pub detail: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -415,10 +524,31 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<()> {
             Action::Wait { milliseconds } if *milliseconds > MAX_WAIT_MS => {
                 bail!("wait milliseconds exceeds bounded maximum {MAX_WAIT_MS}");
             }
-            Action::Wait { .. } => {}
+            Action::SelfRes { spell_id } if *spell_id <= 0 => {
+                bail!("self_res action requires a positive int32 spell_id");
+            }
+            Action::Wait { .. }
+            | Action::ReleaseSpirit { .. }
+            | Action::ReclaimCorpse { .. }
+            | Action::SpiritHealerActivate { .. }
+            | Action::ResurrectResponse { .. }
+            | Action::SelfRes { .. }
+            | Action::AttackSwing { .. } => {}
         }
     }
     for rule in &plan.expect {
+        if let ExpectedRule::Packet {
+            opcode, body_hex, ..
+        } = rule
+        {
+            if !supported_exact_packet_opcode(*opcode) {
+                bail!(
+                    "packet expect opcode 0x{opcode:04X} is unsupported or reserved for authentication/control traffic"
+                );
+            }
+            validate_packet_body_hex(body_hex)?;
+            continue;
+        }
         match rule {
             ExpectedRule::Prepare { client_cast_id, .. } if (*client_cast_id).empty() => {
                 bail!("prepare expect rule requires a non-empty client_cast_id");
@@ -468,4 +598,49 @@ pub(super) fn validate_plan(plan: &Plan) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn validate_packet_body_hex(body_hex: &str) -> Result<()> {
+    if body_hex.len() % 2 != 0 {
+        bail!("packet expect body_hex must contain complete bytes");
+    }
+    let byte_count = body_hex.len() / 2;
+    if byte_count > MAX_EXPECTED_PACKET_BODY_BYTES {
+        bail!(
+            "packet expect body_hex is {byte_count} bytes; maximum is {MAX_EXPECTED_PACKET_BODY_BYTES}"
+        );
+    }
+    if !body_hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        bail!("packet expect body_hex must contain only hexadecimal digits");
+    }
+    hex::decode(body_hex).context("decode packet expect body_hex")?;
+    Ok(())
+}
+
+fn supported_exact_packet_opcode(opcode: u16) -> bool {
+    matches!(
+        opcode,
+        RAW_SMSG_AREA_SPIRIT_HEALER_TIME
+            | RAW_SMSG_ATTACKER_STATE_UPDATE
+            | RAW_SMSG_ATTACK_START
+            | RAW_SMSG_ATTACK_STOP
+            | RAW_SMSG_ATTACK_SWING_ERROR
+            | RAW_SMSG_AURA_UPDATE
+            | SMSG_CAST_FAILED
+            | RAW_SMSG_CORPSE_LOCATION
+            | RAW_SMSG_CORPSE_RECLAIM_DELAY
+            | RAW_SMSG_DEATH_RELEASE_LOC
+            | RAW_SMSG_DURABILITY_DAMAGE_DEATH
+            | RAW_SMSG_FORCED_DEATH_UPDATE
+            | SMSG_LOGOUT_COMPLETE
+            | RAW_SMSG_PRE_RESSURECT
+            | RAW_SMSG_REATTACH_RESURRECT
+            | RAW_SMSG_RESURRECT_REQUEST
+            | SMSG_SPELL_FAILED_OTHER
+            | SMSG_SPELL_FAILURE
+            | SMSG_SPELL_GO
+            | SMSG_SPELL_PREPARE
+            | SMSG_SPELL_START
+            | RAW_SMSG_UPDATE_OBJECT
+    )
 }

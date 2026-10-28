@@ -1,10 +1,10 @@
-# Player cast lifecycle QA (#589)
+# Player cast and death lifecycle QA (#43, #589)
 
 The integrated bot uses the same ordinary login, packet capture, encryption and
 two-socket drain as other scenarios. This mode performs no account provisioning,
-fixture SQL, service restart or data overlay installation. Login, casting and
-normal logout still mutate live server state: use only authorized accounts and
-runtime targets.
+fixture SQL, service restart or data overlay installation. Login, scripted
+gameplay and normal logout still mutate live server state: use only authorized
+accounts and runtime targets.
 
 After building the bot at the candidate source, run against either Classic or
 Rust with its existing private configuration and an explicit action plan:
@@ -28,12 +28,53 @@ visual. Do not run it blindly against an unrelated character or data set.
 
 ## Plan and acceptance
 
-Actions are `cast` (spell ID, unique client CastID and optional unit target),
-`wait` (milliseconds), and `cancel` (`phase: active` or `pending`, cast ID and spell
-ID). Omitted/null target preserves the empty wire target; a unit target is
-`{"low": ..., "high": ...}`. Active cancellation sends 0x329F with packed CastID
-and spell ID. Pending cancellation sends 0x3182 with an empty body; its IDs in the
-plan document the intended pending request.
+Actions include the existing `cast`, `cancel` and `wait`, plus typed death
+requests:
+
+- `release_spirit` takes `check_instance` and sends CMSG_REPOP_REQUEST 0x3526
+  as its one MSB-first bit (`true` is `80`).
+- `reclaim_corpse` takes `corpse: {"low": ..., "high": ...}` and sends its
+  packed GUID. The target handler currently ignores this field, so empty and
+  arbitrary GUIDs remain available for negative/ownership cases.
+- `spirit_healer_activate` takes a packed `healer` GUID.
+- `resurrect_response` takes `offerer` and the exact `response` u32. Response
+  `0` accepts; any nonzero value is preserved and declines/times out per C++.
+- `self_res` takes a positive int32 `spell_id` and sends exactly four
+  little-endian bytes. It must name a spell the logged-in player was offered;
+  the legal Shaman Reincarnation request is 21169, not passive 20608.
+- `attack_swing` takes a packed `target` GUID and sends CMSG_ATTACK_SWING 0x3255.
+
+For example, an explicit release followed by a reclaim attempt can be written
+as:
+
+```json
+{
+  "actions": [
+    {"action":"release_spirit","check_instance":true},
+    {"action":"reclaim_corpse","corpse":{"low":0,"high":0}}
+  ],
+  "expect": [
+    {"event":"packet","connection":"realm","opcode":9860,"body_hex":""}
+  ]
+}
+```
+
+The client-opcode source does not assign these requests to a server connection
+type; the scripted requests use the existing instance socket. GUID fields are
+wire inputs, not fixture admission checks. Omitted/null cast target preserves
+the empty wire target; a unit target is `{"low": ..., "high": ...}`. Active
+cancellation sends 0x329F with packed CastID and spell ID. Pending cancellation
+sends 0x3182 with an empty body; its IDs document the intended pending request.
+
+The wire contract is pinned to `woltk-trinity-legacy` at
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Opcodes.h:72,545,550,581,590,637`
+defines the request IDs; `MiscPackets.cpp:274,279,296`
+defines corpse reclaim, one-bit release and response decoding;
+`MiscHandler.cpp:416,447-462` deliberately ignores the reclaim GUID and treats
+response `0` as acceptance; `NPCPackets.cpp:234` reads the healer GUID;
+`SpellPackets.cpp:873` reads the four-byte self-res spell ID and
+`SpellHandler.cpp:416-432` applies admission; `CombatPackets.h:35` defines the
+packed attack target.
 
 The ordered `expect` list names `prepare`, `start`, `go`, `cast_failed`,
 `spell_failure` or `spell_failed_other`. Start/Go require a spell ID and target
@@ -44,9 +85,9 @@ preparation can reference the original client request directly.
 
 Start/Go can require flags and `metadata` (visual ID, OriginalCastID, cast time and
 the exact `remaining_power` rows). Go also supports hit/miss counts and the
-full-combat-log bit; failures support their reason. All named events must arrive
-on INSTANCE, as registered by Classic `Opcodes.cpp`; the same packet seen on the
-realm socket fails.
+full-combat-log bit; failures support their reason. All named cast events must
+arrive on INSTANCE, as registered by Classic `Opcodes.cpp`; the same packet seen
+on the realm socket fails.
 
 Each cast action needs a distinct client CastID: reusing one is rejected at load
 because it would make the SpellPrepare mapping ambiguous. Every observed
@@ -59,12 +100,50 @@ SpellPrepare cannot be hidden by an otherwise matched failure. List every
 plan-bound packet you expect, including SpellPrepare. Ambient cast traffic for
 an unrelated identity is still recorded but does not fail acceptance.
 
-Any packet the decoder cannot read exactly — truncated, over-long or with a
+An exact raw packet expectation uses this form:
+
+```json
+{"event":"packet","connection":"realm","opcode":9860,"body_hex":""}
+```
+
+The supported exact-packet opcode set is limited to cast results
+(`SMSG_SPELL_PREPARE`, `SMSG_SPELL_START`, `SMSG_SPELL_GO`, `SMSG_CAST_FAILED`,
+`SMSG_SPELL_FAILURE`, `SMSG_SPELL_FAILED_OTHER`), death and corpse packets
+(`SMSG_PRE_RESSURECT`, `SMSG_DEATH_RELEASE_LOC`, `SMSG_RESURRECT_REQUEST`,
+`SMSG_REATTACH_RESURRECT`, `SMSG_CORPSE_LOCATION`,
+`SMSG_CORPSE_RECLAIM_DELAY`, `SMSG_DURABILITY_DAMAGE_DEATH`,
+`SMSG_FORCED_DEATH_UPDATE`), healer timing, aura/update, attack and logout
+packets needed by this driver. Authentication/control opcodes such as SMSG_AUTH_CHALLENGE,
+SMSG_ENTER_ENCRYPTED_MODE and SMSG_CONNECT_TO are rejected as expectations
+before login. `body_hex` must be even-length hexadecimal and at most 64 KiB;
+the empty string expresses an empty body. Matching checks the explicit
+connection, opcode and complete body. Expectations preserve order separately
+on each connection. The merged trace records client poll/arrival order across
+the two sockets; that interleaving does not claim server enqueue order.
+
+The post-login trace starts after the existing authenticated login drain. It
+stores logical decrypted, uncompressed opcode/body bytes, route, per-connection
+sequence and merged observation sequence. Action boundaries, send attempts and
+successful local writes are distinct. A failed write keeps its attempted body
+and error without claiming completion. Authentication, encrypted-mode and
+ConnectTo bodies are omitted even if encountered later; the trace retains only
+their opcode, route, byte count and order. Raw packet equality is packet-level
+evidence and does not by itself certify the full death lifecycle or database
+state.
+
+The default `finish_policy` is `logout`: the bot sends its normal logout request
+and still requires an empty realm SMSG_LOGOUT_COMPLETE. Set
+`"finish_policy":"disconnect"` only for an intentional disconnect/relogin
+scenario. That policy records successful local socket closure and never claims
+logout completion or database persistence.
+
+Any packet the spell decoder cannot read exactly — truncated, over-long or with a
 structurally wrong optional section — is retained with its `error` and fails the
 run; a wrong payload can never be matched. Reports retain ordered decoded events,
-hashes, identities, power/target sections and connection, including unmatched
-ambient events. A process exit, a decode error or an empty expectation list does
-not establish a pass.
+raw body hex, hashes, identities, power/target sections and connection,
+including unmatched ambient events. Exact raw expectations also fail on an
+unmatched duplicate or same-opcode packet on the wrong connection. A process
+exit, a decode error or an empty expectation list does not establish a pass.
 
 Use separate plans for instant/timed casts, the 400 ms queue boundary, replacement,
 active/pending cancellation and late failure. Script timings alone do not prove
@@ -111,8 +190,11 @@ the pair FAILS — there is no partial credit and no manual annotation of a pass
 The bot is outside the root workspace and has its own manifest:
 
 ```sh
-CARGO_BUILD_JOBS=1 cargo test --manifest-path tools/wow-test-bot/Cargo.toml \
-  --locked --offline --bin wow-test-bot cast_lifecycle
+CARGO_BUILD_JOBS=1 CARGO_TARGET_DIR=/home/server/rustycore/target \
+  cargo check --manifest-path tools/wow-test-bot/Cargo.toml --locked --bin wow-test-bot
+CARGO_BUILD_JOBS=1 CARGO_TARGET_DIR=/home/server/rustycore/target \
+  cargo test --manifest-path tools/wow-test-bot/Cargo.toml \
+  --locked --bin wow-test-bot cast_lifecycle
 ```
 
 Those tests cover the request builders, the 3.4.3 decoders including every
@@ -120,9 +202,11 @@ optional SpellCastData section, plan validation, identity correlation, ordering,
 socket selection, the unexpected-event rejection and the run-result gate. They
 are deterministic byte-level tests: they do not prove any live server behavior.
 
-The scenario requests normal logout and requires an empty LogoutComplete on
-REALM; a logout on the instance socket, one carrying a payload, a missing
-confirmation or a transport error fails the run. It does not query saved database
-state, prove durability, or establish full spell/effect parity. Pair runtime/data
+The default scenario requests normal logout and requires an empty LogoutComplete
+on REALM; a logout on the instance socket, one carrying a payload, a missing
+confirmation or a transport error fails the run. Intentional disconnect mode
+records only local closure and requires a later separately orchestrated login
+to establish relog behavior. The driver does not query saved database state,
+prove durability, or establish full spell/effect parity. Pair runtime/data
 identities and compare the relevant packets before claiming scoped live
 acceptance; #587 save/relogin retains its separate persistence checks.
