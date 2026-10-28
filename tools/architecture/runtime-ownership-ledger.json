@@ -553,16 +553,16 @@
         "cross_check": "tools/architecture/session-ownership-policy.json#syntax_baseline.session_command.variants"
       },
       "audited_summary": {
-        "variant_count": 41,
+        "variant_count": 42,
         "count_kind": "baseline observation; AST is authoritative"
       },
-      "expected_variant_count": 41,
+      "expected_variant_count": 42,
       "coverage_rule": {
         "mode": "exact_variant_membership",
         "member_key": "name",
         "zero_gaps": true,
         "zero_overlap": true,
-        "expected_variant_count": 41,
+        "expected_variant_count": 42,
         "validation": "Compare sorted AST variant names with the sorted concatenation of every entry.variants; reject gaps, duplicates, stale variants, entry count drift, or total count drift."
       },
       "entries": [
@@ -582,7 +582,7 @@
         },
         {
           "id": "map_runtime_and_visibility_delivery",
-          "expected_variant_count": 18,
+          "expected_variant_count": 19,
           "variants": [
             "ApplyCreatureMeleeDamageLikeCpp",
             "ApplyPlayerMeleeResultLikeCpp",
@@ -601,6 +601,7 @@
             "SendIfVisibleLikeCpp",
             "SendCreatureSpellCastIfVisibleLikeCpp",
             "SendPlayerSpellIfVisibleLikeCpp",
+            "SendPlayerAuraUpdate",
             "SendRealmIfVisibleLikeCpp"
           ],
           "owner": "wow_world::session::mailbox::protocol defines the payloads; canonical Map owners commit transitions and Session applies receiver-local delivery/presentation.",

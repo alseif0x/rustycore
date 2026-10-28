@@ -81,6 +81,45 @@ characters (`/tmp/rustycore43-readonly-plan-ajtjl7tx/`). No proposed rows were
 created. Final Rust suites, production-linked tests, candidate artifacts and
 authorized paired captures/DB/restart/relogin acceptance remain outstanding.
 
+The final campaign at clean `0200e83d4` also failed. Its manifest is
+`target/validation-v2/manifests/issue43-0200e83d4-20261028T223011-final.json`;
+the runner took 1,137.730 seconds (22:30:11–22:49:09 UTC), exceeding the
+ordinary 600-second target. Syntax ownership and all 17 selected standalone
+domain test-target checks passed. Architecture found one unclassified existing
+`SendPlayerAuraUpdate` command, and the workspace check reached the compiler's
+query-depth limit in `production_login_player_owner`. Seventeen library suites
+passed; Server, Data, Entities and World did not. The World process was stopped
+only after identifying its blocked synchronous receive in
+`scenarios_world_entities_1/durable_runtime_rail.rs:55`; the exact process,
+signal and reason are recorded in
+`/tmp/rustycore43-final-20261028-3x6ujald/world-test-termination.json`.
+No complete World-suite verdict, production integration, candidate build or
+final pass is claimed. Replaying the 183 already-failed World identities against
+that same binary reproduced them in 0.37 seconds; its exact arguments, binary
+hash and diagnostics are under
+`/tmp/rustycore43-world-failure-diagnostic-66x8v912/`.
+
+The current repair classifies that command under the existing Map delivery
+owner and raises only the affected integration test crate's query-depth limit.
+Three foundation test fixtures now reflect the pinned C++ contracts: GCD remains
+separate from recovery time (`SpellInfo.cpp:1261–1265`), zero-duration cooldowns
+are not inserted even on hold (`SpellHistory.cpp:406–428,503–513`), and durability
+mutation is explicitly marked persistent before save acknowledgement
+(`Player.cpp:4610–4616`, `Item.cpp:843` onward). The worker reported passing
+focused feedback for those three cases; a separate retained log was not located,
+so the final suites remain their required acceptance evidence. Server's empty
+tick and completed-tick clock cases passed in the 23:01:55–23:05:52 UTC feedback
+run; its capability test then exposed an obsolete ban on the now-required
+serverside spell catalog. After correcting that single test contract, its
+23:06:46–23:07:08 UTC focused rerun passed. Logs are
+`/tmp/rustycore43-server3-20261028-230155.log` and
+`/tmp/rustycore43-20261028-230646-scenario4.log`. These runs used dirty trees
+based on `0200e83d4`, not a committed final candidate. World failures remain
+under review. In particular, 90 World diagnostics reject missing exact aura
+SpellInfo keys; fixture repair must preserve the production catalog guard and
+the negative cases that deliberately omit a key. These are repair findings,
+not new accepted evidence or additional gameplay scope.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 World retains 4,116 tests (one ignored) and the same classifications. The

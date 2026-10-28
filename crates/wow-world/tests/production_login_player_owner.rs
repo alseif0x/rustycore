@@ -6,6 +6,9 @@
 //! its end. None of this is a database integration test.
 //! Run in both dev and release: storage mutations must survive disabled debug assertions.
 
+// The production finalization future's nested type layout exceeds the default query depth.
+#![recursion_limit = "256"]
+
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},

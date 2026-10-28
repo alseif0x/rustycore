@@ -217,8 +217,9 @@ fn db2_cooldowns_set_recovery_max_like_cpp() {
 
     // C++ GetRecoveryTime = max(RecoveryTime 3000, CategoryRecoveryTime 5000) = 5000.
     assert_eq!(store.spells.get(&300).unwrap().recovery_time_ms, 5000);
-    // GCD (cooldown_ms) is a separate mechanic — untouched by this slice.
-    assert_eq!(store.spells.get(&300).unwrap().cooldown_ms, 0);
+    // C++ SpellInfo copies StartRecoveryTime into the spell info
+    // (SpellInfo.cpp:1261-1265).
+    assert_eq!(store.spells.get(&300).unwrap().cooldown_ms, 1500);
 }
 #[test]
 fn invalid_rank_seed_unites_every_touched_valid_component() {

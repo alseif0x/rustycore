@@ -214,6 +214,11 @@ fn item_save_ack_ignores_wire_masks_and_retains_new_persistent_values() {
         .get_mut(&guid)
         .unwrap()
         .set_durability(19);
+    p.inventory_runtime_mut_like_cpp()
+        .item_objects_mut()
+        .get_mut(&guid)
+        .unwrap()
+        .set_state(ItemUpdateState::Changed);
     p.acknowledge_saved_projection_like_cpp(
         receipt,
         PlayerSavedGroupsLikeCpp {

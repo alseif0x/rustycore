@@ -176,9 +176,27 @@ fn session_resources_requires_named_capability_bundles() {
         !session_resources.contains("Option<"),
         "named capability bundles must be mandatory at production construction"
     );
+    // This unresolved cleaner-policy fact is configuration data, not an optional resource.
+    let optional_policy_field = "pub(super) quest_status_keep_abandoned: Option<bool>,";
+    assert_eq!(
+        resources_source.matches(optional_policy_field).count(),
+        1,
+        "the unresolved cleaner policy remains the one allowed optional config fact"
+    );
+    let resources_without_optional_policy = resources_source.replace(optional_policy_field, "");
     assert!(
-        !resources_source.contains("Option<"),
+        !resources_without_optional_policy.contains("Option<"),
         "every inner production capability must also be required by its Rust type"
+    );
+    let spell_capabilities = resources_source
+        .split("pub(super) struct SessionSpellCatalogCapabilitiesLikeCpp {")
+        .nth(1)
+        .and_then(|tail| tail.split_once("\n}").map(|(body, _)| body))
+        .expect("SessionSpellCatalogCapabilitiesLikeCpp declaration should be present");
+    assert!(
+        spell_capabilities
+            .contains("pub(super) serverside_spell_store: Arc<wow_data::ServersideSpellStoreLikeCpp>,"),
+        "the spell catalog bundle must require the canonical serverside spell catalog"
     );
     for retired_test_only_catalog in [
         "adventure_map_poi_store",
@@ -216,7 +234,6 @@ fn session_resources_requires_named_capability_bundles() {
         "player_create_info_store",
         "party_level_req",
         "party_raid_warnings",
-        "serverside_spell_store",
         "spell_enchant_proc_store",
         "spell_totem_model_store",
         "tact_key_store",

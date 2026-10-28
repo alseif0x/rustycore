@@ -89,8 +89,12 @@ fn map_tick_keeps_session_owned_death_timer_unchanged() {
     )
     .expect("admitted respawn prelude is prepared");
     let _summary =
-        continue_map_recovery_prelude(&mut manager, prelude, &metadata, &maps, &caches, None)
-            .expect("prepared map tick continues without a Creature callback");
+        continue_map_recovery_prelude(&mut manager, prelude, &metadata, &maps, &caches, None);
+    assert_eq!(
+        manager.tick_coordination_like_cpp(),
+        wow_map::MapTickCoordinationStateLikeCpp::Idle,
+        "an empty map tail still completes the admitted tick"
+    );
 
     assert_eq!(
         manager

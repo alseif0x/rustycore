@@ -460,7 +460,9 @@ fn spell_history_ready_gate_uses_raw_membership_until_unit_maintenance() {
     let mut history = SpellHistory::default();
     history.cooldowns_loaded = true;
     assert!(history.start_cooldown(100, 21169, 0, 5, 42, 0, false));
-    assert!(history.start_cooldown(100, 30000, 0, 0, 43, 0, true));
+    assert!(!history.start_cooldown(100, 30000, 0, 0, 43, 0, true));
+    assert!(!history.has_cooldown_membership_like_cpp(30000, 43));
+    assert!(history.start_cooldown(100, 30000, 0, 1, 43, 0, true));
 
     assert!(history.has_cooldown_membership_like_cpp(21169, 0));
     assert!(history.has_cooldown_membership_like_cpp(90000, 42));
