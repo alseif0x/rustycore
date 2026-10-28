@@ -6,9 +6,26 @@ existing systemd swap/restore guard (`645499a92`), observed NPC and in-memory
 character selection (`603e911c5`), disposable fixture preparation/recovery
 (`56a9a802a`) and packet-driven action sequencing (`8a5f498a0`). The latter's
 focused coding feedback passed 42 cases before subsequent formatting; it is
-not a committed-candidate final verdict. The fixture and capture fake suites
-have not yet been executed. No new fixture rows, live captures or service
-operations were performed during this preparation.
+not a committed-candidate final verdict. Local acceptance passed 23 Python
+fixture/scenario tests, including the pinned C++ character-schema check, at
+`c1c366ddd`; their inputs remain unchanged by the subsequent shell repair.
+The committed `d795b7496` candidate passed all 195 runtime-guard fake checks.
+No new fixture rows, live captures or real service operations were performed.
+
+The first final campaign at `d795b7496` did not pass. Its manifest is
+`target/validation-v2/manifests/20261028T212816.755377Z-1468914-final.json`.
+Architecture reported seven unreviewed logical-owner count deltas, an unresolved
+test import provenance and one unclassified construction-time policy setter.
+The full workspace/all-targets check then reached its 900-second timeout while
+checking the world-server test target, without a compiler error being reported.
+The complete attempt, including the guard suite, took 1,048.717 seconds on this
+aarch64 host with one Cargo job; the ordinary 600-second target was not met.
+Library execution, production integration and candidate builds had not started.
+The next candidate explicitly binds the test crate alias, classifies the
+two-field configuration installer in the existing construction API and records
+only the seven reviewed #43 owner deltas with their #584 retirement conditions
+intact. These repairs still require renewed final evidence; no failed manifest
+is relabelled as passing.
 
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
@@ -16,7 +33,8 @@ World retains 4,116 tests (one ignored) and the same classifications. The
 reviewed policy records exact composition/state-definition and test-adapter
 deltas with their existing #584 C4 split exits; it does not declare that
 architecture programme complete. Candidate formatting and module wiring refine
-the World test-line count to 270,836 without adding or removing tests.
+the World test-line count to 270,837, including the explicit provenance import,
+without adding or removing tests.
 
 The macro remains open and has not passed final acceptance. Changes remain
 local to `43-spirit-healer`; this candidate has not been published or deployed.

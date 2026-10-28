@@ -29,6 +29,7 @@
       "session/player_registry_binding.rs::set_player_registry",
       "session/progression/reputation.rs::set_paragon_reputation_store",
       "session/progression/talents.rs::set_num_talents_at_level_store",
+      "session/quest/state.rs::set_quest_status_save_policy_like_cpp",
       "session/quest/state.rs::set_quest_store",
       "session/runtime_policy_access.rs::set_socket_timeouts_like_cpp",
       "session/social/group.rs::set_group_registry",

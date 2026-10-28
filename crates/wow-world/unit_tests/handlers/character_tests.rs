@@ -89,6 +89,7 @@ use wow_persistence::{
     PlayerNameQueryPersistencePortLikeCpp, PlayerNameQueryRequestLikeCpp,
     PlayerNameQueryRowLikeCpp, PlayerOfflineMarkLikeCpp, PlayerOnlineMarkRequestLikeCpp,
 };
+use wow_world_application as application;
 
 #[path = "character_tests/binder_cast_hook.rs"]
 mod binder_cast_hook;
