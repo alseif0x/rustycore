@@ -92,6 +92,61 @@ inserts and journal the exact allocated IDs before the first write. Recovery
 removes only this fixture's owned rows; it does not restore entire auth tables or erase
 other account characters. Reuse the integrated bot's durable
 journal conventions. No fixture SQL has been executed by this preparation.
+
+The offline fixture helper is `tools/qa/death_fixture.py`. Its default `plan`
+mode reports proposed IDs, account bindings, character slots, name collisions,
+and offline ownership facts without writes. `snapshot --journal PATH` reads
+only journal-owned characters, corpses, auras, inventory/items and spells/
+cooldowns. Both modes use the private `CharacterDatabaseInfo` in
+`/home/server/trinity-legacy-install/etc/worldserver.conf` by default; credentials
+are passed to the `mariadb` child through `MYSQL_PWD` and never printed or
+written to the journal. The journal stores only the nonsecret target host, port
+and schema; snapshot and restore require those three values to match the current
+world config. Rotating the DB username/password alone does not change the target
+identity. Bot credentials are read in memory and the fixture GUID override is a
+separate in-memory copy.
+
+`prepare` and `restore` are internal calls for the parent runtime guard. The
+guard must hold the host lock and verify every `world-server` PID and listener
+port is stopped before calling either mode. The required `--world-stopped` flag
+is only the caller's assertion; this helper does not inspect or stop services.
+Both modes also require `--ack-disposable-death-fixture`. Use a new canonical
+mode-0700 recovery directory and a fresh journal path. The helper records its
+40-bit character/item reservations and prior-row absence, fsyncs the exclusive
+mode-0600 journal before inserts, and retains it after any ambiguous SQL result.
+Before cleanup, `restore` stores a read-only snapshot of current owned actor
+rows in that same journal and preserves it across retries.
+Recovery removes rows from the explicit C++-derived character/item owner-key
+allowlist only. Mail, pets, groups, guilds, cross-character social rows,
+unexpected item owners or identity drift hold cleanup for review. It never writes auth,
+World NPC or existing-character rows.
+
+Read-only usage is `python3 tools/qa/death_fixture.py plan` and then
+`python3 tools/qa/death_fixture.py snapshot --journal /absolute/private/death-fixture.journal`.
+The parent guard supplies `prepare` or `restore` with that journal path plus
+`--ack-disposable-death-fixture --world-stopped`; the helper's flag is not
+process proof. Do not invoke either mutating mode outside that guarded call.
+
+The SQL seeds alive characters, not death state: the Human and Night Elf fall
+victims and Orc Reincarnation candidate start airborne; the level-1 mob stays
+near Kobold Vermin spawn 9005000; the Paladin starts at ground level. It grants
+only Paladin spell 7328 and Shaman passive 20608, and seeds the reviewed chest,
+backpack and Ankhs. `Player::DeleteFromDB` / `Corpse::DeleteFromDB` and
+`CharacterDatabase.cpp` define the explicit cleanup owner keys; corpse rows are
+keyed by character owner GUID. Currency uses `CharacterGuid`
+(`CharacterDatabase.cpp:324`); spell favorites, objective criteria and trait
+rows are covered by the explicit `guid` owner-key list and optional primary-DDL
+test. Character construction/load anchors remain
+`CharacterHandler.cpp:500-548` and `Player.cpp:17303-17340,22100-22114`;
+item enchant serialization/loading is `Item.cpp:411,585-717`.
+
+The worker authored hermetic fake-database tests in
+`tools/qa/test_death_fixture.py`; they have not been run. No fixture SQL or
+service operation was run while implementing this helper. Its optional owner-key
+DDL check reads `sql/base/characters_database.sql` under
+`RUSTYCORE_REFERENCE_CPP_ROOT`; it skips only when that variable is unset and
+fails if a supplied reference root is missing the file or a whitelisted column.
+
 Read-only schema inspection on 2026-10-25 confirmed that new `characters` rows
 need explicit `name` and `taximask`, and `item_instance` needs explicit
 `enchantments`; the other inspected non-null fields have defaults. Defaults
