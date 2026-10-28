@@ -265,10 +265,16 @@ async fn apply_creature_melee_damage_command_replay_after_resurrection_is_suppre
     session
         .process_represented_session_commands_like_cpp()
         .await;
+    let attacker_state = send_rx
+        .try_recv()
+        .expect("the committed lethal hit presents its attacker-state update");
     assert_eq!(
-        send_rx.drain().count(),
-        3,
-        "AttackerStateUpdate + HealthUpdate + the C++ Unit::Kill durability loss message"
+        u16::from_le_bytes([attacker_state[0], attacker_state[1]]),
+        ServerOpcodes::AttackerStateUpdate as u16
+    );
+    assert!(
+        send_rx.try_recv().is_err(),
+        "the presentation adds no health or durability packet"
     );
 
     session

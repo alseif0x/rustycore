@@ -120,6 +120,22 @@ SpellInfo keys; fixture repair must preserve the production catalog guard and
 the negative cases that deliberately omit a key. These are repair findings,
 not new accepted evidence or additional gameplay scope.
 
+Two demonstrated production defects are now repaired locally, still without
+renewed acceptance. Release no longer sends an immediate HealthUpdate(1):
+`Player::BuildPlayerRepop` uses SetHealth (`Player.cpp:4295`), whose native
+field update is distinct from ModifyHealth's nonlethal-damage packet
+(`Unit.cpp:9214`, `8115–8154`). The existing field publisher retains that
+health change. Sickness save capture now preserves persisted rows if no exact
+selected-spell key exists at any difficulty, including an empty application
+set; it does not require a difficulty-zero key. Active applications retain
+their existing difficulty, attributes and indexed-effect checks. The durable
+mailbox fixture now tests a committed nonlethal presentation with bounded
+packet reads; the lethal replay fixture expects only its attacker-state packet.
+Native death integration owns the death body and durability penalty. The
+previous blocking receive therefore cannot conceal another failed suite run.
+These four source/test edits have been reviewed against the pinned reference;
+their affected tests and final acceptance have not yet been rerun.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 World retains 4,116 tests (one ignored) and the same classifications. The

@@ -648,8 +648,6 @@ fn publish_ghost_side_effects<H: CorpseHostLikeCpp>(host: &mut H, player_guid: O
         return false;
     }
     host.sync_player_registry_state_like_cpp();
-    host.core()
-        .send_player_health_update_like_cpp(player_guid, 1);
     host.send_packet(&wow_packet::packets::misc::CorpseReclaimDelay {
         remaining: crate::player_death::calculate_corpse_reclaim_delay_ms_like_cpp(host),
     });

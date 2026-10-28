@@ -195,6 +195,9 @@ pub(super) fn capture(
     if spell_id == 0 {
         return None;
     }
+    if !spell_store.contains_spell_info_any_difficulty_like_cpp(spell_id) {
+        return None;
+    }
     let selected_spell_id = i32::try_from(spell_id).ok()?;
 
     let mut families =
