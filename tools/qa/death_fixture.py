@@ -68,6 +68,8 @@ ITEM_SEEDS = (
 SPELL_SEEDS = (
     {"actor": "Qadeathcast", "spell": 7328},
     {"actor": "Qadeathreinc", "spell": 20608},
+    # Night Elf racial Wisp form; ghost-only spell 20584 is not seeded.
+    {"actor": "Qadeathwisp", "spell": 20585},
 )
 
 # These are explicit owner-key tables from Player::DeleteFromDB/save paths.

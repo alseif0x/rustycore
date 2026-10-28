@@ -130,8 +130,10 @@ process proof. Do not invoke either mutating mode outside that guarded call.
 The SQL seeds alive characters, not death state: the Human and Night Elf fall
 victims and Orc Reincarnation candidate start airborne; the level-1 mob stays
 near Kobold Vermin spawn 9005000; the Paladin starts at ground level. It grants
-only Paladin spell 7328 and Shaman passive 20608, and seeds the reviewed chest,
-backpack and Ankhs. `Player::DeleteFromDB` / `Corpse::DeleteFromDB` and
+Paladin spell 7328, Shaman passive 20608, and legal Night Elf racial 20585
+(`Player.cpp:4269`, `HasSpell`, race 4); it never seeds ghost-only 20584. It
+also seeds the reviewed chest, backpack and Ankhs. `Player::DeleteFromDB` /
+`Corpse::DeleteFromDB` and
 `CharacterDatabase.cpp` define the explicit cleanup owner keys; corpse rows are
 keyed by character owner GUID. Currency uses `CharacterGuid`
 (`CharacterDatabase.cpp:324`); spell favorites, objective criteria and trait
@@ -1024,3 +1026,50 @@ the two identities are interchangeable.
   C++ notes saying realm-socket-only are stale for this tree.
 - Keep raw tickets/session keys out of chat and commit messages. Use the report
   booleans and sanitized log grep lines for status.
+
+## Guarded death lifecycle captures
+
+`tools/qa-death-runtime.sh` runs one named disposable death scenario under the
+host lock and the existing capture/fixture cleanup protocol. Set
+`RUSTYCORE_DEATH_SCENARIO` to exactly one of `fall-release`, `reclaim`,
+`healer`, `wisp`, `reincarnation`, `mob`, `automatic-release`, `offer`,
+`recovery-dead`, or `recovery-ghost`. Do not invoke
+`tools/qa/death_scenario.py` directly: the outer wrapper supplies the prepared
+journal, canonical private bot/world configs, capture identity and epoch number.
+
+Use one runner path for one capture epoch and repeat it twice for scenarios
+with a restart/relogin boundary (`healer`, `wisp`, `offer`, `recovery-dead`,
+`recovery-ghost`). The wrapper requires a fresh canonical mode-0700 output
+directory outside the checkout, explicit runtime and disposable-fixture
+acknowledgements, the server executable and SHA-256 pin, and the selected
+backend. For example, after choosing the local executable, its verified hash,
+and a fresh output directory:
+
+```bash
+RUSTYCORE_DEATH_SCENARIO=healer ./tools/qa-death-runtime.sh \
+  --allow-runtime-qa --ack-disposable-death-fixture \
+  --backend rust --world-exec /absolute/path/to/world-server \
+  --candidate-sha256 VERIFIED_SERVER_SHA256 \
+  --output-dir /absolute/private/path/death-healer-2026-10-28 \
+  --scenario-runner /home/server/rustycore/tools/qa/death_scenario.py \
+  --scenario-runner /home/server/rustycore/tools/qa/death_scenario.py
+```
+
+The wrapper owns stopping/preparing the fixture, candidate capture epochs,
+offline polling, snapshots, restore, and service recovery. Each bot pass waits
+for `CAST_LIFECYCLE_READY`; the offer caster starts only after the victim is
+ready. Plans use the existing exact packet expectations and action reports.
+The bounded windows are about 10 seconds for fall/healer/relogin setup, 45
+seconds for reclaim, 30 seconds for mob and offer, 78 seconds for the Wisp
+expiry relog after its 75-second wait, and up to 390 seconds for automatic
+release, plus normal logout completion. Observer captures stay explicitly
+`observe_only` and never report a scenario pass.
+
+Reports separate scenario observations from native collection and cleanup.
+They set `parity_assessed` to `false`; collected packets do not establish
+Rust/C++ parity or full death-issue acceptance. Review paired exact captures
+for packet bytes/order and compare retained AuraUpdate/UpdateObject evidence
+for Wisp behavior. Aura rows are checked only where the actual saved sickness
+row is required; ghost spell persistence and full aura application are not
+inferred from them. These bounded cases do not exercise adversarial C++
+decline-after-accepted-ack timing or general unknown-commit fault injection.
