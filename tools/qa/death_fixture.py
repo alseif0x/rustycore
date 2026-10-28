@@ -38,6 +38,26 @@ ACCOUNTS = (
     {"email": "TESTBOT5@bot.local", "account_id": 12, "old_guid": 18},
     {"email": "TESTBOT2@bot.local", "account_id": 9, "old_guid": 15},
 )
+
+
+def normalize_testbot_email_rows(rows: list[list[str]]) -> list[list[str]]:
+    if not isinstance(rows, (list, tuple)):
+        raise FixtureError("database returned a malformed TESTBOT account identity")
+    reviewed_emails = {account["email"].lower() for account in ACCOUNTS}
+    normalized = []
+    for row in rows:
+        if (not isinstance(row, (list, tuple)) or len(row) != 2
+                or not isinstance(row[0], str) or not row[0].isascii()
+                or not row[0].isdecimal() or not isinstance(row[1], str)
+                or not row[1].isascii()):
+            raise FixtureError("database returned a malformed TESTBOT account identity")
+        email = row[1].lower()
+        if email not in reviewed_emails:
+            raise FixtureError("database returned an unreviewed TESTBOT email identity")
+        normalized.append([row[0], email])
+    return sorted(normalized, key=lambda row: int(row[0]))
+
+
 ACTORS = (
     {"name": "Qadeathfall", "account_id": 10, "race": 1, "class": 8,
      "level": 80, "role": "fall", "x": -9340.21, "y": 167.61, "z": 161.60,
@@ -286,10 +306,11 @@ class MariaDB:
 
     def verify_accounts_and_offline(self, journal: dict[str, Any]) -> None:
         ids = ",".join(str(a["account_id"]) for a in ACCOUNTS)
-        found = self._rows(self.execute(
+        found = normalize_testbot_email_rows(self._rows(self.execute(
             "SELECT a.id,b.email FROM auth.account a JOIN auth.battlenet_accounts b "
-            f"ON b.id=a.battlenet_account WHERE a.id IN ({ids}) ORDER BY a.id"), 2)
-        expected = sorted([[str(a["account_id"]), a["email"]] for a in ACCOUNTS], key=lambda row: int(row[0]))
+            f"ON b.id=a.battlenet_account WHERE a.id IN ({ids}) ORDER BY a.id"), 2))
+        expected = normalize_testbot_email_rows(
+            [[str(a["account_id"]), a["email"]] for a in ACCOUNTS])
         selected = ",".join(str(a["account_id"]) for a in ACCOUNTS)
         chars = self._rows(self.execute(
             "SELECT guid,account,online FROM characters WHERE account IN (" +
@@ -399,8 +420,9 @@ class MariaDB:
 
 
 def validate_inspection(info: dict[str, Any]) -> None:
-    expected_accounts = sorted([[str(a["account_id"]), a["email"]] for a in ACCOUNTS], key=lambda x: int(x[0]))
-    actual_accounts = sorted(info["accounts"], key=lambda x: int(x[0]))
+    expected_accounts = normalize_testbot_email_rows(
+        [[str(a["account_id"]), a["email"]] for a in ACCOUNTS])
+    actual_accounts = normalize_testbot_email_rows(info["accounts"])
     if actual_accounts != expected_accounts:
         raise FixtureError("configured account IDs do not match their TESTBOT email bindings")
     # Existing rows may have arbitrary names; require exact old GUID/account and offline state.

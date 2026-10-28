@@ -17,6 +17,12 @@ mod release;
 #[path = "corpse/selected_recovery.rs"]
 mod selected_recovery;
 
+fn keep_driver_input_open(session: &mut WorldSession) -> flume::Sender<wow_packet::WorldPacket> {
+    let (packet_tx, packet_rx) = flume::bounded(8);
+    session.set_packet_rx(packet_rx);
+    packet_tx
+}
+
 async fn handle_resurrect_response(session: &mut WorldSession, pkt: WorldPacket) {
     let generators = session.id_generators_for_test_like_cpp();
     let creature_spawns = session.creature_spawn_catalogs_for_test_like_cpp();

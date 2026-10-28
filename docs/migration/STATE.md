@@ -27,6 +27,34 @@ only the seven reviewed #43 owner deltas with their #584 retirement conditions
 intact. These repairs still require renewed final evidence; no failed manifest
 is relabelled as passing.
 
+The follow-up final at `e91fab1cc` also failed. Its manifest is
+`target/validation-v2/manifests/20261028T214951.143007Z-1477475-final.json`.
+All 17 independently selected `wow-world-*` crate test-target checks passed,
+but the workspace check found two inaccessible calls to the unchanged shared
+corpse-driver test helper. Architecture also found the undeclared Application
+`rand` dependency and stale exact syntax inventories. After collecting the
+independent checks, the parent interrupted library compilation to repair these
+known findings; no library test execution or final pass is claimed. The runner
+recorded 829.778 seconds and exit 130; the ordinary 600-second target was not met.
+
+The current repair moves that helper unchanged into its common test parent.
+It declares `rand` only as the algorithm library already used by native SelfRes
+selection and transform display selection (`Player::InitializeSelfResurrectionSpells`,
+`ObjectMgr::ChooseDisplayId` and `AuraEffect::HandleAuraTransform` at the pinned
+C++ revision). The syntax review changes nine exact inventory sections:
+50 added/21 retired WorldSession item surfaces, one Core admission impl and
+six added/one retired Core item surfaces, the catalog-bearing factory/helper
+fingerprints, one AuraUpdate command/payload/derive, and 40 added/two retired
+directory-access rows. WorldSession fields, impl owners, SessionResources,
+Core fields/bindings and bridge rows are unchanged. The reviewed methods borrow
+existing canonical owners and immutable catalogs; phase/residence/generation
+checks and the established publication rails remain authoritative. This is an
+inventory reconciliation, not completion of #584 or new parity evidence.
+The fixture preflight also confirmed the exact designated account IDs but found
+lowercase DB email storage. Plan and restore now normalize ASCII email case
+while retaining exact ID/email bindings and offline/ownership checks. These
+repairs remain unvalidated until the renewed committed-candidate acceptance.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 World retains 4,116 tests (one ignored) and the same classifications. The

@@ -22,11 +22,14 @@ class FakeDB:
         self.on_transaction = None
         self.verify_calls = 0
         self.snapshot_calls = 0
+        self.account_rows = [
+            ["9", "TESTBOT2@bot.local"], ["10", "TESTBOT3@bot.local"],
+            ["12", "TESTBOT5@bot.local"],
+        ]
 
     def inspect(self):
         return {
-            "accounts": [["9", "TESTBOT2@bot.local"], ["10", "TESTBOT3@bot.local"],
-                         ["12", "TESTBOT5@bot.local"]],
+            "accounts": [row.copy() for row in self.account_rows],
             "characters": [["15", "9", "OriginalPal", "0", "0"],
                            ["16", "10", "OriginalMage", "0", "0"],
                            ["18", "12", "OriginalHunter", "0", "0"]],
@@ -103,13 +106,36 @@ class DeathFixtureTests(unittest.TestCase):
         record = fixture.prepare(db, self.bot_config(), path, ack=True, world_stopped=True)
         return path, record
 
+    def maria_db_with_fake_execute(self, account_rows):
+        # Bypass MariaDB.__init__; exercise its production verifier without credentials or a DB.
+        db = object.__new__(fixture.MariaDB)
+        db.statements = []
+
+        def fake_execute(statement):
+            db.statements.append(statement)
+            if statement.startswith("SELECT a.id,b.email"):
+                return "\n".join("\t".join(row) for row in account_rows)
+            if statement.startswith("SELECT guid,account,online"):
+                return "15\t9\t0\n16\t10\t0\n18\t12\t0"
+            if statement == "SELECT COUNT(*) FROM characters WHERE online<>0":
+                return "0"
+            self.fail(f"unexpected query in account verification: {statement}")
+
+        db.execute = fake_execute
+        return db
+
     def test_rejects_identity_collisions_and_out_of_range_counters(self):
         info = FakeDB().inspect()
         info["name_collisions"] = [["0", "Qadeathfall"]]
         with self.assertRaises(fixture.FixtureError):
             fixture.validate_inspection(info)
+        for email in ("wrong@bot.local", "TESTBOT2@bot.local.evil", "TÉSTBOT2@bot.local"):
+            info = FakeDB().inspect()
+            info["accounts"][0][1] = email
+            with self.subTest(email=email), self.assertRaises(fixture.FixtureError):
+                fixture.validate_inspection(info)
         info = FakeDB().inspect()
-        info["accounts"][0][1] = "wrong@bot.local"
+        info["accounts"][0][0] = "90"
         with self.assertRaises(fixture.FixtureError):
             fixture.validate_inspection(info)
         info = FakeDB().inspect()
@@ -119,6 +145,37 @@ class DeathFixtureTests(unittest.TestCase):
         for counter in (0, fixture.MAX_COUNTER + 1, True):
             with self.assertRaises(fixture.FixtureError):
                 fixture.checked_counter(counter)
+
+    def test_plan_accepts_ascii_email_case_variants_for_exact_reviewed_ids(self):
+        reviewed_rows = FakeDB().account_rows
+        for change_case in (str.lower, str.upper):
+            with self.subTest(case=change_case.__name__):
+                db = FakeDB()
+                db.account_rows = [[account_id, change_case(email)]
+                                   for account_id, email in reviewed_rows]
+                plan = fixture.safe_plan(db)
+                self.assertEqual(plan["mode"], "read-only-plan")
+
+    def test_mariadb_restore_verification_accepts_case_but_rejects_wrong_bindings(self):
+        reviewed_rows = FakeDB().account_rows
+        for change_case in (str.lower, str.upper):
+            with self.subTest(case=change_case.__name__):
+                rows = [[account_id, change_case(email)]
+                        for account_id, email in reviewed_rows]
+                db = self.maria_db_with_fake_execute(rows)
+                db.verify_accounts_and_offline({"actors": []})
+                self.assertEqual(len(db.statements), 3)
+                self.assertTrue(all(statement.startswith("SELECT") for statement in db.statements))
+
+        wrong_email_rows = [row.copy() for row in reviewed_rows]
+        wrong_email_rows[0][1] = "TESTBOT3@bot.local"
+        wrong_id_rows = [row.copy() for row in reviewed_rows]
+        wrong_id_rows[0][0] = "90"
+        for rows in (wrong_email_rows, wrong_id_rows):
+            with self.subTest(rows=rows):
+                db = self.maria_db_with_fake_execute(rows)
+                with self.assertRaises(fixture.FixtureError):
+                    db.verify_accounts_and_offline({"actors": []})
 
     def test_journal_is_durable_and_private_before_first_sql_write(self):
         with tempfile.TemporaryDirectory() as root:

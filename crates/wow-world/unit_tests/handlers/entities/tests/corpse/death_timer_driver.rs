@@ -64,12 +64,6 @@ fn install_prevent_resurrection_aura_for_driver(session: &mut WorldSession) {
         .expect("canonical Player owner");
 }
 
-fn keep_driver_input_open(session: &mut WorldSession) -> flume::Sender<wow_packet::WorldPacket> {
-    let (packet_tx, packet_rx) = flume::bounded(8);
-    session.set_packet_rx(packet_rx);
-    packet_tx
-}
-
 #[tokio::test]
 async fn driver_kill_player_runs_once_after_regeneration_and_waits_for_timer() {
     let (mut session, send_rx, _realm_rx, _player_guid, _port) =
