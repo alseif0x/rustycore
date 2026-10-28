@@ -19,7 +19,7 @@ pub use pet_removal::remove_pet_not_in_slot_like_cpp;
 mod player_death;
 pub use player_death::{
     apply_player_damage_with_native_death_like_cpp, finish_native_player_death_like_cpp,
-    set_player_just_died_like_cpp,
+    force_player_visibility_with_catalogs_like_cpp, set_player_just_died_like_cpp,
 };
 mod quest_failure;
 pub use quest_failure::{fail_quests_with_flag_like_cpp, send_quest_update_like_cpp};

@@ -289,8 +289,15 @@ fn send_corpse_reclaim_delay_like_cpp<H: CorpseHostLikeCpp>(host: &H, delay_ms: 
 /// `UpdateCorpseReclaimDelay`, and send the reclaim delay. The Rust death
 /// bookkeeping is updated here; rooting is published here too. The six-minute
 /// `m_deathTimer` countdown advances separately in PlayerUpdate, after SaveTimer.
-/// Fall and mirror timers remain outside this operation.
-pub fn kill_player_like_cpp<H: CorpseHostLikeCpp>(host: &mut H) {
+/// Forced visibility follows the reclaim-delay packet; fall and mirror timers
+/// remain outside this operation.
+pub async fn kill_player_like_cpp<H: CorpseHostLikeCpp>(
+    host: &mut H,
+    creature_spawns: &CreatureSpawnCatalogsLikeCpp,
+) -> bool {
+    let Some(owner) = crate::recovery_fences::owner(host) else {
+        return false;
+    };
     let policy = host.hub_ref().config.death_policy_like_cpp;
     let now = unix_now();
     let pvp = player_pvp_death_like_cpp(host);
@@ -307,7 +314,7 @@ pub fn kill_player_like_cpp<H: CorpseHostLikeCpp>(host: &mut H) {
             .replace_all_dynamic_flags(0);
     });
     if changed.is_none() {
-        return;
+        return false;
     }
 
     // C++ `KillPlayer` Set/RemovePlayerLocalFlag(PLAYER_LOCAL_FLAG_RELEASE_TIMER)
@@ -337,12 +344,40 @@ pub fn kill_player_like_cpp<H: CorpseHostLikeCpp>(host: &mut H) {
             updated_death_expire_time_like_cpp(pvp, state.death_expire_time, now, policy);
     });
     if changed.is_none() {
-        return;
+        return false;
     }
     host.sync_player_registry_state_like_cpp();
 
     // C++ `CalculateCorpseReclaimDelay()` is non-negative without `load`.
     send_corpse_reclaim_delay_like_cpp(host, calculate_corpse_reclaim_delay_ms_like_cpp(host));
+
+    // Player.cpp:4437 forces visibility after the reclaim-delay phase. The
+    // owner/residence fence is rechecked after the World visibility await.
+    if current_player_is_in_world_like_cpp(host) {
+        if !host
+            .force_player_visibility_with_catalogs_like_cpp(creature_spawns)
+            .await
+        {
+            return false;
+        }
+        return crate::recovery_fences::owner_is_current_in_residence(host, owner);
+    }
+
+    crate::recovery_fences::owner_is_current(host, owner)
+}
+
+pub(crate) fn current_player_is_in_world_like_cpp<H: CorpseHostLikeCpp>(host: &H) -> bool {
+    let Some(handle) = host.core().player_handle_like_cpp else {
+        return false;
+    };
+    host.player_guid() == Some(handle.guid())
+        && host
+            .core()
+            .with_owned_player_like_cpp(|player| {
+                player.guid() == handle.guid()
+                    && player.unit().world().object().is_in_world()
+            })
+            .unwrap_or(false)
 }
 
 // ── SpawnCorpseBones ────────────────────────────────────────────────────────
@@ -750,7 +785,9 @@ pub async fn repop_request_like_cpp<H: CorpseHostLikeCpp>(
         })
         .unwrap_or(false);
     if just_died {
-        kill_player_like_cpp(host);
+        if !kill_player_like_cpp(host, catalogs.creature_spawns).await {
+            return;
+        }
     }
 
     if let Err(reason) = host.remove_pet_for_repop_like_cpp(catalogs).await {

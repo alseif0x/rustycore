@@ -56,7 +56,9 @@ pub(super) async fn run_current_player_ticks(
         return;
     }
     if !coordinated {
-        run_regeneration_and_kill(session, diff_ms, catalogs);
+        if !run_regeneration_and_kill(session, diff_ms, catalogs).await {
+            return;
+        }
     }
 
     run_legacy_aura_sweep(session);
@@ -216,7 +218,9 @@ async fn run_admitted_player_recovery(
         return status;
     }
 
-    run_regeneration_and_kill(session, admission.diff_ms, catalogs);
+    if !run_regeneration_and_kill(session, admission.diff_ms, catalogs).await {
+        return recovery_status(session, admission).unwrap_or(PlayerRecoveryStatus::Unavailable);
+    }
     if let Some(status) = recovery_status(session, admission) {
         return status;
     }
@@ -492,11 +496,11 @@ fn recovery_status(
     }
 }
 
-fn run_regeneration_and_kill(
+async fn run_regeneration_and_kill(
     session: &mut WorldSession,
     diff_ms: u32,
     catalogs: &SessionHandlerCatalogsLikeCpp,
-) {
+) -> bool {
     // C++ `Player::Update` runs RegenerateAll then KillPlayer before SaveTimer
     // (`Player.cpp:909,1053-1055`). The canonical Player owns the accumulators.
     let regen_game_tables = session.catalogs.regen_game_tables.clone();
@@ -507,17 +511,32 @@ fn run_regeneration_and_kill(
         regen_game_tables.as_deref(),
         catalogs.player_regeneration_rates.as_ref(),
     );
-    if session.core.player_is_strictly_in_world_like_cpp() {
-        let just_died = session
-            .core
-            .with_owned_player_like_cpp(|player| {
-                player.unit().death_state() == wow_constants::DeathState::JustDied
-            })
-            .unwrap_or(false);
-        if just_died {
-            wow_world_entities::kill_player_like_cpp(session);
-        }
+    let Some(handle) = session.core.player_handle_like_cpp else {
+        return false;
+    };
+    if session.core.player_guid() != Some(handle.guid()) {
+        return false;
     }
+    let Some((player_guid, is_in_world, just_died)) = session
+        .core
+        .with_owned_player_like_cpp(|player| {
+            (
+                player.guid(),
+                player.unit().world().object().is_in_world(),
+                player.unit().death_state() == wow_constants::DeathState::JustDied,
+            )
+        })
+    else {
+        return false;
+    };
+    if player_guid != handle.guid() {
+        return false;
+    }
+    if just_died && is_in_world {
+        return wow_world_entities::kill_player_like_cpp(session, catalogs.creature_spawns.as_ref())
+            .await;
+    }
+    true
 }
 
 fn advance_player_save_timer(session: &mut WorldSession, diff_ms: u32) {

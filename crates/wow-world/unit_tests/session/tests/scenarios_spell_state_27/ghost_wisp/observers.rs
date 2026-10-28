@@ -5,12 +5,12 @@ use crate::session::PlayerRegistry;
 use crate::session::mailbox::SendPlayerAuraUpdateCommand;
 use std::sync::Arc;
 
-struct Observer {
-    session: crate::session::WorldSession,
-    output: flume::Receiver<Vec<u8>>,
+pub(super) struct Observer {
+    pub(super) session: crate::session::WorldSession,
+    pub(super) output: flume::Receiver<Vec<u8>>,
 }
 
-fn setup_registry(fixture: &mut GhostFixture) -> Arc<PlayerRegistry> {
+pub(super) fn setup_registry(fixture: &mut GhostFixture) -> Arc<PlayerRegistry> {
     let registry = Arc::new(PlayerRegistry::new());
     fixture.session.set_player_registry(Arc::clone(&registry));
     fixture.session.core.state = crate::session::SessionState::LoggedIn;
@@ -18,7 +18,7 @@ fn setup_registry(fixture: &mut GhostFixture) -> Arc<PlayerRegistry> {
     registry
 }
 
-fn add_observer(
+pub(super) fn add_observer(
     fixture: &GhostFixture,
     registry: &Arc<PlayerRegistry>,
     counter: i64,
@@ -83,7 +83,7 @@ pub(super) fn aura_packets(packets: impl IntoIterator<Item = Vec<u8>>) -> Vec<Ve
         .collect()
 }
 
-async fn flush_observer(observer: &mut Observer) {
+pub(super) async fn flush_observer(observer: &mut Observer) {
     observer
         .session
         .process_represented_session_commands_like_cpp()

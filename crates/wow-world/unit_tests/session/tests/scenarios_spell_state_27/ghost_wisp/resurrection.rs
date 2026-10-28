@@ -433,3 +433,295 @@ async fn ghost_wisp_removal_publishes_aura_update_before_speed_packets() {
     );
     assert!(!aura_update.read_bit().expect("AuraUpdate removal bit"));
 }
+
+#[tokio::test]
+async fn kill_player_forces_stationary_self_and_recipient_visibility_like_cpp() {
+    let mut fixture = fixture();
+    let registry = super::observers::setup_registry(&mut fixture);
+    let observer_guid = ObjectGuid::create_player(1, 4_630_012);
+    let mut observer = super::observers::add_observer(
+        &fixture,
+        &registry,
+        4_630_012,
+        Position::new(20.0, 0.0, 0.0, 0.0),
+        None,
+        false,
+    );
+    let source_position = fixture
+        .session
+        .core
+        .with_owned_player_like_cpp(|player| player.unit().world().position())
+        .expect("canonical Player remains in the Map");
+    let observer_position = observer
+        .session
+        .core
+        .with_owned_player_like_cpp(|player| player.unit().world().position())
+        .expect("observer remains in the Map");
+    fixture
+        .session
+        .visibility
+        .set_last_visibility_pos_like_cpp(source_position);
+    observer
+        .session
+        .visibility
+        .set_last_visibility_pos_like_cpp(observer_position);
+    assert_eq!(
+        fixture.session.visibility.last_visibility_pos_like_cpp(),
+        Some(source_position)
+    );
+    assert_eq!(
+        observer.session.visibility.last_visibility_pos_like_cpp(),
+        Some(observer_position)
+    );
+    assert!(!fixture
+        .session
+        .core
+        .client_visible_guids_like_cpp
+        .contains(&observer_guid));
+    assert!(!observer
+        .session
+        .core
+        .client_visible_guids_like_cpp
+        .contains(&fixture.player));
+
+    fixture
+        .session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().set_health(0);
+            player
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::JustDied);
+        })
+        .expect("canonical Player owns the native death state");
+    let creature_spawns = fixture.session.creature_spawn_catalogs_for_test_like_cpp();
+
+    // No relocation or Map::update runs between the before/after GUID snapshots.
+    assert!(
+        wow_world_entities::kill_player_like_cpp(&mut fixture.session, &creature_spawns).await,
+        "the same Player residence survives the forced visibility await"
+    );
+    assert_eq!(
+        canonical_death_state(&fixture),
+        Some(wow_constants::DeathState::Corpse)
+    );
+    assert!(fixture
+        .session
+        .core
+        .client_visible_guids_like_cpp
+        .contains(&observer_guid));
+    assert!(!observer
+        .session
+        .core
+        .client_visible_guids_like_cpp
+        .contains(&fixture.player));
+    assert_eq!(
+        fixture
+            .session
+            .core
+            .with_owned_player_like_cpp(|player| player.unit().world().position()),
+        Some(source_position),
+        "forced visibility does not move the source Player"
+    );
+    assert_eq!(
+        observer
+            .session
+            .core
+            .with_owned_player_like_cpp(|player| player.unit().world().position()),
+        Some(observer_position),
+        "forced visibility does not move the recipient"
+    );
+
+    super::observers::flush_observer(&mut observer).await;
+    assert!(observer
+        .session
+        .core
+        .client_visible_guids_like_cpp
+        .contains(&fixture.player));
+    assert!(observer
+        .output
+        .try_iter()
+        .any(|packet| opcode(&packet) == ServerOpcodes::UpdateObject as u16));
+}
+
+#[tokio::test]
+async fn resurrection_forces_stationary_self_and_recipient_visibility_like_cpp() {
+    let mut fixture = fixture();
+    let registry = super::observers::setup_registry(&mut fixture);
+    let observer_guid = ObjectGuid::create_player(1, 4_630_013);
+    let mut observer = super::observers::add_observer(
+        &fixture,
+        &registry,
+        4_630_013,
+        Position::new(20.0, 0.0, 0.0, 0.0),
+        None,
+        false,
+    );
+    cast_selected(&mut fixture, GHOST, None).await;
+    assert!(selected_slots(&fixture).0.is_some(), "Ghost Aura is active");
+    let _ = outgoing(&fixture);
+    set_resurrection_teleport_completed(&mut fixture);
+    assert!(!fixture
+        .session
+        .core
+        .client_visible_guids_like_cpp
+        .contains(&observer_guid));
+    assert!(!observer
+        .session
+        .core
+        .client_visible_guids_like_cpp
+        .contains(&fixture.player));
+    let source_position = fixture
+        .session
+        .core
+        .with_owned_player_like_cpp(|player| player.unit().world().position())
+        .expect("canonical Player remains in the Map");
+    let observer_position = observer
+        .session
+        .core
+        .with_owned_player_like_cpp(|player| player.unit().world().position())
+        .expect("observer remains in the Map");
+    fixture
+        .session
+        .visibility
+        .set_last_visibility_pos_like_cpp(source_position);
+    observer
+        .session
+        .visibility
+        .set_last_visibility_pos_like_cpp(observer_position);
+    assert_eq!(
+        fixture.session.visibility.last_visibility_pos_like_cpp(),
+        Some(source_position)
+    );
+    assert_eq!(
+        observer.session.visibility.last_visibility_pos_like_cpp(),
+        Some(observer_position)
+    );
+
+    let generators = fixture.session.id_generators_for_test_like_cpp();
+    let creature_spawns = fixture.session.creature_spawn_catalogs_for_test_like_cpp();
+    let catalogs = wow_world_entities::ResurrectionOperationCatalogs {
+        item_guid_generator: generators.item.as_ref(),
+        creature_spawns: &creature_spawns,
+        graveyards: None,
+    };
+    // No relocation or Map::update runs between the before/after GUID snapshots.
+    assert!(
+        wow_world_entities::continue_player_resurrection_after_teleport(
+            &mut fixture.session,
+            catalogs,
+        )
+        .await
+    );
+    assert_eq!(fixture.session.player_health_like_cpp(), 450);
+    assert_eq!(selected_slots(&fixture).0, None, "resurrection removes Ghost Aura");
+    assert!(fixture
+        .session
+        .core
+        .client_visible_guids_like_cpp
+        .contains(&observer_guid));
+    assert_eq!(
+        fixture
+            .session
+            .core
+            .with_owned_player_like_cpp(|player| player.unit().world().position()),
+        Some(source_position),
+        "forced visibility does not move the source Player"
+    );
+    assert_eq!(
+        observer
+            .session
+            .core
+            .with_owned_player_like_cpp(|player| player.unit().world().position()),
+        Some(observer_position),
+        "forced visibility does not move the recipient"
+    );
+
+    super::observers::flush_observer(&mut observer).await;
+    assert!(observer
+        .session
+        .core
+        .client_visible_guids_like_cpp
+        .contains(&fixture.player));
+    assert!(observer
+        .output
+        .try_iter()
+        .any(|packet| opcode(&packet) == ServerOpcodes::UpdateObject as u16));
+}
+
+#[tokio::test]
+async fn out_of_world_forced_visibility_preserves_stationary_cache_and_skips_recipients() {
+    let mut fixture = fixture();
+    let registry = super::observers::setup_registry(&mut fixture);
+    let mut observer = super::observers::add_observer(
+        &fixture,
+        &registry,
+        4_630_014,
+        Position::new(20.0, 0.0, 0.0, 0.0),
+        None,
+        false,
+    );
+    let source_position = fixture
+        .session
+        .core
+        .with_owned_player_like_cpp(|player| player.unit().world().position())
+        .expect("canonical Player remains owned after detaching from world");
+    let observer_position = observer
+        .session
+        .core
+        .with_owned_player_like_cpp(|player| player.unit().world().position())
+        .expect("observer remains in the Map");
+    fixture
+        .session
+        .visibility
+        .set_last_visibility_pos_like_cpp(source_position);
+    observer
+        .session
+        .visibility
+        .set_last_visibility_pos_like_cpp(observer_position);
+    assert_eq!(
+        fixture.session.visibility.last_visibility_pos_like_cpp(),
+        Some(source_position)
+    );
+    assert_eq!(
+        observer.session.visibility.last_visibility_pos_like_cpp(),
+        Some(observer_position)
+    );
+    fixture
+        .session
+        .core
+        .with_owned_player_mut_like_cpp(|player| {
+            let _ = player.unit_mut().remove_from_world_like_cpp();
+        })
+        .expect("out-of-world Player remains the canonical owner");
+    let _ = outgoing(&fixture);
+    let _ = observer.output.try_iter().collect::<Vec<_>>();
+    let creature_spawns = fixture.session.creature_spawn_catalogs_for_test_like_cpp();
+
+    assert!(
+        !wow_world_application::force_player_visibility_with_catalogs_like_cpp(
+            &mut fixture.session,
+            &creature_spawns,
+        )
+        .await
+    );
+    assert_eq!(
+        fixture.session.visibility.last_visibility_pos_like_cpp(),
+        Some(source_position),
+        "out-of-world force leaves the source visibility cache untouched"
+    );
+    assert!(outgoing(&fixture).is_empty(), "no self packets are emitted");
+
+    super::observers::flush_observer(&mut observer).await;
+    assert_eq!(
+        observer.session.visibility.last_visibility_pos_like_cpp(),
+        Some(observer_position),
+        "no recipient refresh command was queued"
+    );
+    assert!(!observer
+        .session
+        .core
+        .client_visible_guids_like_cpp
+        .contains(&fixture.player));
+    assert!(observer.output.try_iter().next().is_none());
+}

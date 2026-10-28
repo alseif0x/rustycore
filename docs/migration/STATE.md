@@ -152,6 +152,17 @@ the canonical Aura owner. The reviewed patch and input hashes are retained in
 not a passing rerun of the 90 original missing-key diagnostics. Required forced
 visibility and remaining consumer/fixture repairs precede the next acceptance.
 
+The forced-visibility repair now follows `Player::UpdateObjectVisibility(true)`
+at the pinned C++ revision (`Player.h:2461`, `Player.cpp:23322–23343`): nearby
+sessions are notified before the current Player's forced diff, while an
+out-of-world Player is a no-op. `KillPlayer` awaits it after reclaim delay;
+resurrection awaits it before obtain spells (`Player.cpp:4437,4373–4376`).
+The existing generation/residence fences remain checked across that await.
+Three new, unrun tests cover stationary death, real Ghost removal on
+resurrection and an out-of-world no-op, with visibility caches already at the
+current positions. Native health/power fields retain Map-tail publication.
+This reviewed implementation is unvalidated and does not establish capture parity.
+
 The closeout physical review retains four unchanged death-driver tests in a
 private child and moves four unchanged obtain-item readers out of storage.
 That checkpoint retained 4,116 World tests (one ignored) and the same classifications. The

@@ -219,6 +219,36 @@ where
     Ok(health)
 }
 
+/// C++ `Player::UpdateObjectVisibility(true)` and `UpdateVisibilityForPlayer`
+/// for the current canonical Player, with the nearby-session refresh queued
+/// before its own forced visibility diff.
+pub async fn force_player_visibility_with_catalogs_like_cpp<H>(
+    host: &mut H,
+    creature_spawns: &wow_world_entities::CreatureSpawnCatalogsLikeCpp,
+) -> bool
+where
+    H: PlayerCastHostLikeCpp + wow_world_entities::VisibilitySessionHostLikeCpp + Send,
+{
+    let Some(handle) = host.core().player_handle_like_cpp else {
+        return false;
+    };
+    if host.player_guid() != Some(handle.guid())
+        || !host
+            .core()
+            .with_owned_player_like_cpp(|player| {
+                player.guid() == handle.guid()
+                    && player.unit().world().object().is_in_world()
+            })
+            .unwrap_or(false)
+    {
+        return false;
+    }
+
+    wow_world_spell::notify_other_players_visibility_changed_like_cpp(host);
+    wow_world_entities::force_update_visibility_with_catalogs_like_cpp(host, creature_spawns).await;
+    true
+}
+
 /// Execute the ordered native body without holding a Map guard over a
 /// callback. On error the exact operation remains Ready/InFlight and fences
 /// save, replacement and retirement. Completion does not imply that the

@@ -14,7 +14,6 @@
 use tracing::warn;
 use wow_constants::PowerType;
 use wow_core::ObjectGuid;
-use wow_entities::ObjectNotifyFlags;
 use wow_packet::packets::misc::DeathReleaseLoc;
 use wow_world_core::session::connection_identity::unix_now;
 
@@ -107,8 +106,9 @@ pub async fn self_resurrect_player_like_cpp<H: CorpseHostLikeCpp>(
 }
 
 /// Synchronous half of C++ `Player::ResurrectPlayer`, through its native
-/// update-field mutations and zone publication. Keeping the visibility phase
-/// separate lets the continuation mark that boundary before advancing.
+/// update-field mutations and zone publication. Keeping the forced visibility
+/// phase separate lets the continuation preserve its owner fence before
+/// `CastAllObtainSpells`.
 pub(crate) fn resurrect_player_native<H: CorpseHostLikeCpp>(
     host: &mut H,
     restore_percent: f32,
@@ -225,14 +225,13 @@ pub(crate) fn resurrect_player_native<H: CorpseHostLikeCpp>(
 
 pub(crate) async fn finish_resurrection_visibility<H: CorpseHostLikeCpp>(
     host: &mut H,
-    _catalogs: ResurrectionOperationCatalogs<'_>,
+    catalogs: ResurrectionOperationCatalogs<'_>,
 ) {
-    let _ = host.core().with_owned_player_mut_like_cpp(|player| {
-        let object = player.unit_mut().world_mut().object_mut();
-        if object.is_in_world() {
-            object.add_to_notify(ObjectNotifyFlags::VISIBILITY_CHANGED);
-        }
-    });
+    if crate::player_death::current_player_is_in_world_like_cpp(host) {
+        let _ = host
+            .force_player_visibility_with_catalogs_like_cpp(catalogs.creature_spawns)
+            .await;
+    }
 }
 
 pub(crate) async fn apply_resurrection_sickness<H: CorpseHostLikeCpp>(

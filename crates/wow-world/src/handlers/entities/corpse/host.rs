@@ -168,6 +168,16 @@ impl wow_world_entities::CorpseHostLikeCpp for WorldSession {
         Ok(removed)
     }
 
+    fn force_player_visibility_with_catalogs_like_cpp<'a>(
+        &'a mut self,
+        creature_spawns: &'a wow_world_entities::CreatureSpawnCatalogsLikeCpp,
+    ) -> impl std::future::Future<Output = bool> + Send + 'a {
+        wow_world_application::force_player_visibility_with_catalogs_like_cpp(
+            self,
+            creature_spawns,
+        )
+    }
+
     fn apply_spirit_healer_durability_loss(&mut self) {
         wow_world_inventory::apply_spirit_healer_durability_loss(self);
     }
